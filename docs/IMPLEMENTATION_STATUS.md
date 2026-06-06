@@ -24,6 +24,10 @@
 - React Native mobile readiness panel and Go Live blocking for invalid profiles.
 - iOS ReplayKit Broadcast Upload Extension skeleton.
 - Android MediaProjection service skeleton.
+- Android `LiveCasterNative` React Native module registered in the host app.
+- Android MediaProjection consent flow from React Native.
+- Android foreground streaming service with `mediaProjection|microphone` service type.
+- Android RTMP/RTMPS publishing path through RootEncoder, using screen capture and microphone input.
 - React Native bare app scaffold generated from React Native 0.85.3.
 - Standard `ios/` and `android/` projects for the MobileLiveCaster host app.
 - React Native mobile Studio UI that reuses `src/domain` and the mock stream engine.
@@ -36,8 +40,9 @@
 
 ## Not Implemented Yet
 
-- Real RTMP/RTMPS native publisher.
-- Real screen capture in a packaged iOS/Android app.
+- iOS RTMP/RTMPS native publisher.
+- iOS screen capture in a packaged app.
+- Android end-to-end physical device validation against a real RTMP/RTMPS endpoint.
 - Native compositor.
 - VideoToolbox and MediaCodec encoder integration.
 - Live2D Cubism SDK integration.
@@ -57,8 +62,8 @@
 
 ## Next Slice
 
-1. Replace `MockLiveCaster` with platform native modules behind the same interface.
-2. Add secure platform storage for stream keys with Keychain/Keystore.
-3. Add durable mobile scene/profile persistence.
-4. Build Android MediaProjection capture first, because it is easier to iterate than iOS Broadcast Upload Extension constraints.
+1. Run Android on a physical device against a private RTMPS endpoint and tune bitrate/fps behavior.
+2. Add Android runtime permission UI for microphone and notification permission.
+3. Add secure platform storage for stream keys with Keychain/Keystore.
+4. Add durable mobile scene/profile persistence.
 5. Register the iOS Broadcast Upload Extension target once app group storage and render graph serialization are stable.

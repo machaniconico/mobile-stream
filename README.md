@@ -2,7 +2,7 @@
 
 MobileLiveCaster is an OBS-like mobile VTuber streaming studio concept for iOS and Android.
 
-The current implementation includes a verified TypeScript/Vite prototype and a React Native bare scaffold. Both share the core scene model, stream profile model, avatar runtime, and mock streaming engine. Native iOS/Android capture and publishing are represented by skeletons so the app can grow toward ReplayKit, MediaProjection, and RTMP/RTMPS without rewriting the UI contract.
+The current implementation includes a verified TypeScript/Vite prototype and a React Native bare app. Both share the core scene model, stream profile model, avatar runtime, and live-engine contract. Android now has a native MediaProjection/RTMP path behind that contract, while iOS remains staged around ReplayKit skeletons.
 
 ## Current Prototype
 
@@ -19,6 +19,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Android MediaProjection service skeleton.
 - React Native host app scaffold with standard `ios/` and `android/` projects.
 - React Native mobile Studio screen using the shared domain model and mock engine.
+- Android native bridge for MediaProjection consent, foreground service streaming, H.264/AAC encoding, and RTMP/RTMPS publishing through RootEncoder.
 
 ## Commands
 
@@ -45,6 +46,8 @@ npm run ios:build:simulator
 - Streaming: RTMP/RTMPS publisher behind `src/native/LiveCasterNative.ts`.
 - Go Live readiness: fail closed before native capture starts, with UI-visible blocking reasons.
 - Avatar rendering: PNGTuber first, Live2D after licensing and runtime validation.
+
+Android device streaming now routes through `LiveCasterNative` when the native module is linked. iOS and non-device development still fall back to the mock engine.
 
 ## Device Builds
 

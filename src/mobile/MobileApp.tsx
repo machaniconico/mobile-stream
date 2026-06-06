@@ -12,13 +12,14 @@ import {
 } from "../domain/scene";
 import { MockLiveCaster } from "../native/MockLiveCaster";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
+import { AndroidLiveCaster, canUseAndroidLiveCaster } from "./AndroidLiveCaster";
 import { MobileStudioScreen } from "./MobileStudioScreen";
 
 const isAvatarSource = (source: SceneDocument["sources"][number]): source is PNGTuberSource | Live2DSource =>
   source.kind === "pngtuber" || source.kind === "live2d";
 
 export const MobileApp = () => {
-  const engine = useMemo(() => new MockLiveCaster(), []);
+  const engine = useMemo(() => (canUseAndroidLiveCaster() ? new AndroidLiveCaster() : new MockLiveCaster()), []);
   const [scene, setScene] = useState<SceneDocument>(() => createDefaultScene());
   const [profile, setProfile] = useState<StudioProfile>(() => createDefaultStudioProfile());
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
