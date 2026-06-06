@@ -17,7 +17,10 @@
     "mobile:android": "react-native run-android",
     "mobile:bundle:ios": "react-native bundle --platform ios --dev false --entry-file index.js --bundle-output .artifacts/rn/main.ios.jsbundle --assets-dest .artifacts/rn/ios-assets",
     "mobile:bundle:android": "react-native bundle --platform android --dev false --entry-file index.js --bundle-output .artifacts/rn/index.android.bundle --assets-dest .artifacts/rn/android-assets",
-    "verify:rn": "npm run mobile:bundle:ios && npm run mobile:bundle:android"
+    "verify:rn": "npm run mobile:bundle:ios && npm run mobile:bundle:android",
+    "android:assembleDebug": "bash -lc 'source scripts/rn-env.sh && cd android && ./gradlew assembleDebug'",
+    "ios:pods": "bash -lc 'source scripts/rn-env.sh && cd ios && pod install'",
+    "ios:build:simulator": "bash -lc 'source scripts/rn-env.sh && cd ios && xcodebuild -workspace MobileLiveCaster.xcworkspace -scheme MobileLiveCaster -configuration Debug -sdk iphonesimulator -destination \"generic/platform=iOS Simulator\" build'"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",

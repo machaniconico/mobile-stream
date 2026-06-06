@@ -28,6 +28,9 @@ npm test
 npm run typecheck
 npm run build
 npm run verify:rn
+npm run android:assembleDebug
+npm run ios:pods
+npm run ios:build:simulator
 ```
 
 `npm run verify:rn` builds Metro JS bundles for iOS and Android. It does not require a simulator, device, Android Studio, or CocoaPods.
@@ -57,6 +60,15 @@ Android requires a JDK and Android SDK:
 ```bash
 npm run mobile:android
 ```
+
+The local setup expects:
+
+- JDK 17 at `/opt/homebrew/opt/openjdk@17`
+- Android SDK at `~/Library/Android/sdk`
+- Watchman from Homebrew
+- CocoaPods from Homebrew
+
+The helper script [scripts/rn-env.sh](scripts/rn-env.sh) exports the required environment variables for project commands.
 
 ## Status
 

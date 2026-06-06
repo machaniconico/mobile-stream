@@ -24,6 +24,11 @@
 - Standard `ios/` and `android/` projects for the MobileLiveCaster host app.
 - React Native mobile Studio UI that reuses `src/domain` and the mock stream engine.
 - Metro bundle verification for both iOS and Android.
+- Homebrew React Native environment installed: JDK 17, Watchman, CocoaPods, Android command line tools.
+- Android SDK packages installed: `platforms;android-36`, `build-tools;36.0.0`, `ndk;27.1.12297006`, `platform-tools`.
+- Android `assembleDebug` build succeeds.
+- iOS `pod install` succeeds and generated `MobileLiveCaster.xcworkspace`.
+- iOS Simulator Debug build succeeds through `xcodebuild`.
 
 ## Not Implemented Yet
 
@@ -33,23 +38,22 @@
 - VideoToolbox and MediaCodec encoder integration.
 - Live2D Cubism SDK integration.
 - Secure platform storage for stream keys.
-- React Native bare app packaging.
 - iOS Broadcast Upload Extension Xcode target registration.
 - Android MediaProjection runtime permission and foreground notification flow.
 
 ## Local Environment Notes
 
 - Xcode is available.
-- Java/JDK is not installed, so Android builds are currently blocked.
-- CocoaPods is not installed, so iOS dependency installation is currently blocked.
-- Watchman is not installed, so React Native local development will need setup before device builds.
-- The React Native JavaScript bundle can be generated for iOS and Android without Java/JDK.
+- JDK 17 is installed through Homebrew.
+- CocoaPods is installed through Homebrew.
+- Watchman is installed through Homebrew.
+- Android Studio already exists in `/Applications/Android Studio.app`.
+- Android command line tools are installed through Homebrew.
 
 ## Next Slice
 
-1. Install JDK 17, Android Studio/SDK, Watchman, and CocoaPods.
-2. Run the React Native app on iOS simulator/device.
-3. Run the React Native app on Android emulator/device.
-4. Replace `MockLiveCaster` with platform native modules behind the same interface.
-5. Build Android MediaProjection capture first, because it is easier to iterate than iOS Broadcast Upload Extension constraints.
-6. Register the iOS Broadcast Upload Extension target once app group storage and render graph serialization are stable.
+1. Run the React Native app on iOS simulator/device with Metro.
+2. Run the React Native app on Android emulator/device with Metro.
+3. Replace `MockLiveCaster` with platform native modules behind the same interface.
+4. Build Android MediaProjection capture first, because it is easier to iterate than iOS Broadcast Upload Extension constraints.
+5. Register the iOS Broadcast Upload Extension target once app group storage and render graph serialization are stable.
