@@ -10,6 +10,8 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Screen, PNGTuber, Live2D, image, solid, and text source records.
 - Layer visibility, lock, ordering, and transform controls.
 - RTMP/RTMPS destination profile.
+- Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
+- Stream key redaction and no-secret browser persistence.
 - Quality presets.
 - Voice lip-sync meter and expression buttons.
 - Mock Go Live, Stop, and Reconnect controls.
@@ -41,6 +43,7 @@ npm run ios:build:simulator
 - Android screen capture: MediaProjection foreground service.
 - Encoding: VideoToolbox on iOS, MediaCodec on Android.
 - Streaming: RTMP/RTMPS publisher behind `src/native/LiveCasterNative.ts`.
+- Go Live readiness: fail closed before native capture starts, with UI-visible blocking reasons.
 - Avatar rendering: PNGTuber first, Live2D after licensing and runtime validation.
 
 ## Device Builds

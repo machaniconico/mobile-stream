@@ -5,6 +5,8 @@
 - TypeScript app scaffold with Vite.
 - OBS-like scene/source/render graph domain model.
 - Stream profile model for RTMP and RTMPS destinations.
+- Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
+- Stream key redaction and no-secret browser persistence.
 - Avatar runtime model for PNGTuber/Live2D expression, lip sync, and auto blink.
 - Stream state machine for idle, preparing, live, reconnecting, stopping, and failed states.
 - Mock live engine for UI development without native capture.
@@ -16,8 +18,10 @@
   - mic/lip-sync meter
   - expression buttons
   - RTMP/RTMPS setup
+  - readiness panel with blocking errors and warnings
   - quality profiles
   - Go Live, Stop, Reconnect mock controls
+- React Native mobile readiness panel and Go Live blocking for invalid profiles.
 - iOS ReplayKit Broadcast Upload Extension skeleton.
 - Android MediaProjection service skeleton.
 - React Native bare app scaffold generated from React Native 0.85.3.
@@ -38,6 +42,7 @@
 - VideoToolbox and MediaCodec encoder integration.
 - Live2D Cubism SDK integration.
 - Secure platform storage for stream keys.
+- Durable mobile-side scene/profile persistence.
 - iOS Broadcast Upload Extension Xcode target registration.
 - Android MediaProjection runtime permission and foreground notification flow.
 
@@ -52,8 +57,8 @@
 
 ## Next Slice
 
-1. Run the React Native app on iOS simulator/device with Metro.
-2. Run the React Native app on Android emulator/device with Metro.
-3. Replace `MockLiveCaster` with platform native modules behind the same interface.
+1. Replace `MockLiveCaster` with platform native modules behind the same interface.
+2. Add secure platform storage for stream keys with Keychain/Keystore.
+3. Add durable mobile scene/profile persistence.
 4. Build Android MediaProjection capture first, because it is easier to iterate than iOS Broadcast Upload Extension constraints.
 5. Register the iOS Broadcast Upload Extension target once app group storage and render graph serialization are stable.

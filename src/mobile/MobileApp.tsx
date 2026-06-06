@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { createAvatarRuntimeState, setExpression, tickAutoBlink, type AvatarExpression } from "../domain/avatar";
 import { createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
+import { createReadinessReport } from "../domain/readiness";
 import {
   createDefaultScene,
   updateSource,
@@ -23,6 +24,7 @@ export const MobileApp = () => {
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeState(Date.now()));
+  const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
 
   useEffect(() => engine.subscribe(setSnapshot), [engine]);
 
@@ -58,7 +60,10 @@ export const MobileApp = () => {
   };
 
   const startStream = async () => {
-    await engine.prepare(scene, profile);
+    if (!readiness.canStart) {
+      return;
+    }
+    await engine.prepare(scene, readiness.sanitizedProfile);
     await engine.start();
   };
 
@@ -69,6 +74,7 @@ export const MobileApp = () => {
         profile={profile}
         selectedSourceId={selectedSourceId}
         snapshot={snapshot}
+        readiness={readiness}
         avatarRuntime={avatarRuntime}
         onSceneChange={setScene}
         onProfileChange={setProfile}

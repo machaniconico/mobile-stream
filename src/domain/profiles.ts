@@ -81,9 +81,9 @@ export const defaultAvatarProfile: AvatarProfile = {
 };
 
 export const createDefaultStudioProfile = (): StudioProfile => ({
-  destination: defaultDestinationProfile,
+  destination: { ...defaultDestinationProfile },
   quality: qualityProfiles[0],
-  avatar: defaultAvatarProfile
+  avatar: { ...defaultAvatarProfile }
 });
 
 export const redactStreamKey = (streamKey: string): string => {
@@ -95,3 +95,31 @@ export const redactStreamKey = (streamKey: string): string => {
   }
   return `${streamKey.slice(0, 3)}${"*".repeat(Math.max(3, streamKey.length - 6))}${streamKey.slice(-3)}`;
 };
+
+export const normalizeStudioProfile = (profile: Partial<StudioProfile> | null | undefined): StudioProfile => {
+  const fallback = createDefaultStudioProfile();
+  const quality =
+    qualityProfiles.find((qualityProfile) => qualityProfile.id === profile?.quality?.id) ?? profile?.quality ?? fallback.quality;
+
+  return {
+    destination: {
+      ...fallback.destination,
+      ...profile?.destination,
+      serverUrl: profile?.destination?.serverUrl ?? fallback.destination.serverUrl,
+      streamKey: profile?.destination?.streamKey ?? ""
+    },
+    quality,
+    avatar: {
+      ...fallback.avatar,
+      ...profile?.avatar
+    }
+  };
+};
+
+export const stripSensitiveProfileData = (profile: StudioProfile): StudioProfile => ({
+  ...profile,
+  destination: {
+    ...profile.destination,
+    streamKey: ""
+  }
+});

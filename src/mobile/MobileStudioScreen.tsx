@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
 import type { StudioProfile, StreamProtocol } from "../domain/profiles";
 import { defaultDestinationProfile, qualityProfiles } from "../domain/profiles";
+import type { ReadinessIssue, ReadinessReport } from "../domain/readiness";
 import {
   addSource,
   createSource,
@@ -24,6 +25,7 @@ interface MobileStudioScreenProps {
   profile: StudioProfile;
   selectedSourceId: string;
   snapshot: NativeEngineSnapshot;
+  readiness: ReadinessReport;
   avatarRuntime: AvatarRuntimeState;
   onSceneChange(scene: SceneDocument): void;
   onProfileChange(profile: StudioProfile): void;
@@ -52,6 +54,7 @@ export const MobileStudioScreen = ({
   profile,
   selectedSourceId,
   snapshot,
+  readiness,
   avatarRuntime,
   onSceneChange,
   onProfileChange,
@@ -65,8 +68,13 @@ export const MobileStudioScreen = ({
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
   const isBusy = snapshot.state.status === "preparing" || snapshot.state.status === "stopping";
+  const setupLocked = isLive || isBusy;
+  const canGoLive = readiness.canStart && !isBusy && !isLive;
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
+    if (setupLocked) {
+      return;
+    }
     onProfileChange({
       ...profile,
       destination: {
@@ -77,6 +85,9 @@ export const MobileStudioScreen = ({
   };
 
   const addNewSource = (kind: SourceKind) => {
+    if (setupLocked) {
+      return;
+    }
     const source = createSource(kind);
     onSceneChange(addSource(scene, source));
     onSelectSource(source.id);
@@ -120,18 +131,20 @@ export const MobileStudioScreen = ({
 
           <View style={styles.grid2}>
             {sourceKinds.map((kind) => (
-              <ActionButton key={kind} label={`+ ${sourceLabels[kind]}`} onPress={() => addNewSource(kind)} />
+              <ActionButton key={kind} label={`+ ${sourceLabels[kind]}`} disabled={setupLocked} onPress={() => addNewSource(kind)} />
             ))}
           </View>
 
           <View style={styles.grid4}>
-            <IconButton label="Up" onPress={() => onSceneChange(reorderSource(scene, selectedSource.id, 1))} />
-            <IconButton label="Down" onPress={() => onSceneChange(reorderSource(scene, selectedSource.id, -1))} />
+            <IconButton disabled={setupLocked} label="Up" onPress={() => onSceneChange(reorderSource(scene, selectedSource.id, 1))} />
+            <IconButton disabled={setupLocked} label="Down" onPress={() => onSceneChange(reorderSource(scene, selectedSource.id, -1))} />
             <IconButton
+              disabled={setupLocked}
               label={selectedSource.visible ? "Hide" : "Show"}
               onPress={() => onSceneChange(setVisibility(scene, selectedSource.id, !selectedSource.visible))}
             />
             <IconButton
+              disabled={setupLocked}
               label={selectedSource.locked ? "Unlock" : "Lock"}
               onPress={() => onSceneChange(setLocked(scene, selectedSource.id, !selectedSource.locked))}
             />
@@ -143,13 +156,14 @@ export const MobileStudioScreen = ({
         </Panel>
 
         <View style={styles.transport}>
-          <ActionButton label="Go Live" variant="primary" disabled={isBusy || isLive} onPress={onStart} />
+          <ActionButton label="Go Live" variant="primary" disabled={!canGoLive} onPress={onStart} />
           <ActionButton label="Stop" variant="danger" disabled={isBusy || !isLive} onPress={onStop} />
           <ActionButton label="Reconnect" disabled={!isLive} onPress={onReconnect} />
           <View style={styles.transportReadout}>
             <Text style={styles.mutedText}>{formatElapsed(snapshot.health.elapsedSeconds)}</Text>
             <Text style={styles.mutedText}>{snapshot.health.message}</Text>
           </View>
+          <ReadinessBanner readiness={readiness} />
         </View>
 
         <Panel title="Transform">
@@ -158,23 +172,37 @@ export const MobileStudioScreen = ({
             value={selectedSource.name}
             onChangeText={(name) => onSceneChange(updateSource(scene, selectedSource.id, (source) => ({ ...source, name })))}
             style={styles.input}
+            editable={!setupLocked}
             placeholderTextColor="#71717a"
           />
-          <Stepper label="X" value={selectedSource.transform.x} onChange={(x) => onSceneChange(updateTransform(scene, selectedSource.id, { x }))} />
-          <Stepper label="Y" value={selectedSource.transform.y} onChange={(y) => onSceneChange(updateTransform(scene, selectedSource.id, { y }))} />
+          <Stepper
+            label="X"
+            value={selectedSource.transform.x}
+            disabled={setupLocked}
+            onChange={(x) => onSceneChange(updateTransform(scene, selectedSource.id, { x }))}
+          />
+          <Stepper
+            label="Y"
+            value={selectedSource.transform.y}
+            disabled={setupLocked}
+            onChange={(y) => onSceneChange(updateTransform(scene, selectedSource.id, { y }))}
+          />
           <Stepper
             label="Width"
             value={selectedSource.transform.width}
+            disabled={setupLocked}
             onChange={(width) => onSceneChange(updateTransform(scene, selectedSource.id, { width }))}
           />
           <Stepper
             label="Height"
             value={selectedSource.transform.height}
+            disabled={setupLocked}
             onChange={(height) => onSceneChange(updateTransform(scene, selectedSource.id, { height }))}
           />
           <Stepper
             label="Opacity"
             value={selectedSource.transform.opacity}
+            disabled={setupLocked}
             onChange={(opacity) => onSceneChange(updateTransform(scene, selectedSource.id, { opacity }))}
           />
         </Panel>
@@ -203,6 +231,7 @@ export const MobileStudioScreen = ({
                 key={protocol}
                 label={protocol.toUpperCase()}
                 variant={profile.destination.protocol === protocol ? "active" : "default"}
+                disabled={setupLocked}
                 onPress={() =>
                   updateDestination({
                     protocol,
@@ -222,6 +251,7 @@ export const MobileStudioScreen = ({
             onChangeText={(serverUrl) => updateDestination({ serverUrl })}
             style={styles.input}
             autoCapitalize="none"
+            editable={!setupLocked}
             placeholderTextColor="#71717a"
           />
 
@@ -232,6 +262,7 @@ export const MobileStudioScreen = ({
             style={styles.input}
             autoCapitalize="none"
             secureTextEntry
+            editable={!setupLocked}
             placeholderTextColor="#71717a"
           />
 
@@ -242,6 +273,7 @@ export const MobileStudioScreen = ({
                 key={quality.id}
                 hitSlop={8}
                 style={[styles.qualityChip, quality.id === profile.quality.id && styles.qualityChipActive]}
+                disabled={setupLocked}
                 onPress={() => onProfileChange({ ...profile, quality })}
               >
                 <Text style={styles.qualityText}>{quality.name}</Text>
@@ -251,6 +283,8 @@ export const MobileStudioScreen = ({
               </Pressable>
             ))}
           </ScrollView>
+
+          <ReadinessPanel readiness={readiness} />
         </Panel>
       </ScrollView>
     </SafeAreaView>
@@ -357,6 +391,37 @@ const Metric = ({ label }: { label: string }) => (
   </View>
 );
 
+const ReadinessBanner = ({ readiness }: { readiness: ReadinessReport }) => (
+  <View style={[styles.readinessBanner, readiness.canStart ? styles.readinessReady : styles.readinessBlocked]}>
+    <Text style={[styles.readinessBannerText, readiness.canStart ? styles.readinessReadyText : styles.readinessBlockedText]}>
+      {readiness.canStart
+        ? readiness.warningCount > 0
+          ? `${readiness.warningCount} warning${readiness.warningCount === 1 ? "" : "s"} before live`
+          : "Ready to go live"
+        : `${readiness.errorCount} blocking item${readiness.errorCount === 1 ? "" : "s"} before live`}
+    </Text>
+  </View>
+);
+
+const ReadinessPanel = ({ readiness }: { readiness: ReadinessReport }) => (
+  <View style={[styles.readinessPanel, readiness.canStart ? styles.readinessPanelReady : styles.readinessPanelBlocked]}>
+    <Text style={styles.readinessTitle}>{readiness.canStart ? "Start checks passed" : "Start checks need attention"}</Text>
+    {readiness.issues.length === 0 ? (
+      <Text style={styles.readinessEmpty}>No blocking issues found.</Text>
+    ) : (
+      readiness.issues.map((issue) => <ReadinessIssueRow key={issue.code} issue={issue} />)
+    )}
+  </View>
+);
+
+const ReadinessIssueRow = ({ issue }: { issue: ReadinessIssue }) => (
+  <View style={[styles.readinessIssue, issue.severity === "error" ? styles.readinessIssueError : styles.readinessIssueWarning]}>
+    <Text style={[styles.readinessIssueText, issue.severity === "error" ? styles.readinessIssueErrorText : styles.readinessIssueWarningText]}>
+      {issue.message}
+    </Text>
+  </View>
+);
+
 const ActionButton = ({
   label,
   variant = "default",
@@ -384,16 +449,31 @@ const ActionButton = ({
   </Pressable>
 );
 
-const IconButton = ({ label, onPress }: { label: string; onPress(): void }) => (
-  <Pressable hitSlop={8} style={styles.iconButton} onPress={onPress}>
+const IconButton = ({ label, disabled, onPress }: { label: string; disabled?: boolean; onPress(): void }) => (
+  <Pressable hitSlop={8} disabled={disabled} style={[styles.iconButton, disabled && styles.disabledButton]} onPress={onPress}>
     <Text style={styles.iconButtonText}>{label}</Text>
   </Pressable>
 );
 
 const Label = ({ text }: { text: string }) => <Text style={styles.label}>{text}</Text>;
 
-const Stepper = ({ label, value, onChange }: { label: string; value: number; onChange(value: number): void }) => {
-  const set = (delta: number) => onChange(Math.max(0, Math.min(1, Number((value + delta).toFixed(2)))));
+const Stepper = ({
+  label,
+  value,
+  disabled,
+  onChange
+}: {
+  label: string;
+  value: number;
+  disabled?: boolean;
+  onChange(value: number): void;
+}) => {
+  const set = (delta: number) => {
+    if (disabled) {
+      return;
+    }
+    onChange(Math.max(0, Math.min(1, Number((value + delta).toFixed(2)))));
+  };
   return (
     <View style={styles.stepper}>
       <View style={styles.stepperHeader}>
@@ -401,11 +481,11 @@ const Stepper = ({ label, value, onChange }: { label: string; value: number; onC
         <Text style={styles.stepperValue}>{Math.round(value * 100)}</Text>
       </View>
       <View style={styles.stepperControls}>
-        <IconButton label="-5" onPress={() => set(-0.05)} />
+        <IconButton label="-5" disabled={disabled} onPress={() => set(-0.05)} />
         <View style={styles.stepperTrack}>
           <View style={[styles.stepperFill, { width: `${Math.round(value * 100)}%` }]} />
         </View>
-        <IconButton label="+5" onPress={() => set(0.05)} />
+        <IconButton label="+5" disabled={disabled} onPress={() => set(0.05)} />
       </View>
     </View>
   );
@@ -737,6 +817,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between"
   },
+  readinessBanner: {
+    minHeight: 38,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    backgroundColor: "#101015"
+  },
+  readinessReady: {
+    borderColor: "rgba(34, 197, 94, 0.42)"
+  },
+  readinessBlocked: {
+    borderColor: "rgba(251, 113, 133, 0.54)"
+  },
+  readinessBannerText: {
+    fontSize: 13,
+    fontWeight: "800"
+  },
+  readinessReadyText: {
+    color: "#bbf7d0"
+  },
+  readinessBlockedText: {
+    color: "#fecdd3"
+  },
   mutedText: {
     color: "#a1a1aa"
   },
@@ -799,6 +904,55 @@ const styles = StyleSheet.create({
   qualityRow: {
     gap: 8,
     paddingRight: 4
+  },
+  readinessPanel: {
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: "#101015"
+  },
+  readinessPanelReady: {
+    borderColor: "rgba(34, 197, 94, 0.42)"
+  },
+  readinessPanelBlocked: {
+    borderColor: "rgba(251, 113, 133, 0.42)"
+  },
+  readinessTitle: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  readinessEmpty: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    lineHeight: 17
+  },
+  readinessIssue: {
+    minHeight: 30,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: "#18181f"
+  },
+  readinessIssueError: {
+    borderColor: "rgba(251, 113, 133, 0.36)"
+  },
+  readinessIssueWarning: {
+    borderColor: "rgba(245, 158, 11, 0.34)"
+  },
+  readinessIssueText: {
+    fontSize: 12,
+    lineHeight: 17
+  },
+  readinessIssueErrorText: {
+    color: "#fecdd3"
+  },
+  readinessIssueWarningText: {
+    color: "#fde68a"
   },
   qualityChip: {
     minWidth: 156,

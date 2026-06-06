@@ -1,14 +1,20 @@
-import { Settings } from "lucide-react";
+import { Settings, ShieldCheck } from "lucide-react";
 import { defaultDestinationProfile, qualityProfiles, type StudioProfile, type StreamProtocol } from "../domain/profiles";
+import type { ReadinessReport } from "../domain/readiness";
 import { PanelTitle, ProtocolBadge } from "./ui";
 
 interface LiveSetupScreenProps {
   profile: StudioProfile;
+  readiness: ReadinessReport;
+  locked: boolean;
   onProfileChange(profile: StudioProfile): void;
 }
 
-export const LiveSetupScreen = ({ profile, onProfileChange }: LiveSetupScreenProps) => {
+export const LiveSetupScreen = ({ profile, readiness, locked, onProfileChange }: LiveSetupScreenProps) => {
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
+    if (locked) {
+      return;
+    }
     onProfileChange({
       ...profile,
       destination: {
@@ -27,6 +33,7 @@ export const LiveSetupScreen = ({ profile, onProfileChange }: LiveSetupScreenPro
             key={protocol}
             className={`segmented-button ${profile.destination.protocol === protocol ? "active" : ""}`}
             type="button"
+            disabled={locked}
             onClick={() =>
               updateDestination({
                 protocol,
@@ -44,7 +51,11 @@ export const LiveSetupScreen = ({ profile, onProfileChange }: LiveSetupScreenPro
 
       <label className="field">
         <span>Server URL</span>
-        <input value={profile.destination.serverUrl} onChange={(event) => updateDestination({ serverUrl: event.target.value })} />
+        <input
+          value={profile.destination.serverUrl}
+          disabled={locked}
+          onChange={(event) => updateDestination({ serverUrl: event.target.value })}
+        />
       </label>
 
       <label className="field">
@@ -53,6 +64,7 @@ export const LiveSetupScreen = ({ profile, onProfileChange }: LiveSetupScreenPro
           value={profile.destination.streamKey}
           type="password"
           autoComplete="off"
+          disabled={locked}
           onChange={(event) => updateDestination({ streamKey: event.target.value })}
         />
       </label>
@@ -61,6 +73,7 @@ export const LiveSetupScreen = ({ profile, onProfileChange }: LiveSetupScreenPro
         <span>Quality</span>
         <select
           value={profile.quality.id}
+          disabled={locked}
           onChange={(event) => {
             const quality = qualityProfiles.find((item) => item.id === event.target.value) ?? qualityProfiles[0];
             onProfileChange({ ...profile, quality });
@@ -78,6 +91,24 @@ export const LiveSetupScreen = ({ profile, onProfileChange }: LiveSetupScreenPro
         <span>{profile.quality.width}x{profile.quality.height}</span>
         <span>{profile.quality.fps}fps</span>
         <span>{profile.quality.videoBitrateKbps} kbps</span>
+      </div>
+
+      <div className={`readiness-card ${readiness.canStart ? "ready" : "blocked"}`}>
+        <div className="readiness-card-header">
+          <ShieldCheck size={16} />
+          <span>{readiness.canStart ? "Start checks passed" : "Start checks need attention"}</span>
+        </div>
+        <div className="readiness-list">
+          {readiness.issues.length === 0 ? (
+            <span className="readiness-empty">No blocking issues found.</span>
+          ) : (
+            readiness.issues.map((issue) => (
+              <span key={issue.code} className={`readiness-issue ${issue.severity}`}>
+                {issue.message}
+              </span>
+            ))
+          )}
+        </div>
       </div>
     </section>
   );

@@ -13,6 +13,7 @@ import {
   Radio,
   RotateCcw,
   SlidersHorizontal,
+  ShieldCheck,
   Square,
   Unlock,
   Wifi
@@ -20,6 +21,7 @@ import {
 import type { ReactNode } from "react";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
 import type { StudioProfile } from "../domain/profiles";
+import type { ReadinessReport } from "../domain/readiness";
 import {
   addSource,
   createSource,
@@ -42,6 +44,7 @@ interface StudioScreenProps {
   profile: StudioProfile;
   selectedSourceId: string;
   snapshot: NativeEngineSnapshot;
+  readiness: ReadinessReport;
   avatarRuntime: AvatarRuntimeState;
   onSceneChange(scene: SceneDocument): void;
   onProfileChange(profile: StudioProfile): void;
@@ -71,6 +74,7 @@ export const StudioScreen = ({
   profile,
   selectedSourceId,
   snapshot,
+  readiness,
   avatarRuntime,
   onSceneChange,
   onProfileChange,
@@ -84,8 +88,13 @@ export const StudioScreen = ({
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
   const isBusy = snapshot.state.status === "preparing" || snapshot.state.status === "stopping";
+  const setupLocked = isLive || isBusy;
+  const canGoLive = readiness.canStart && !isBusy && !isLive;
 
   const addNewSource = (kind: SourceKind) => {
+    if (setupLocked) {
+      return;
+    }
     const source = createSource(kind);
     onSceneChange(addSource(scene, source));
     onSelectSource(source.id);
@@ -142,7 +151,7 @@ export const StudioScreen = ({
 
           <div className="button-grid">
             {sourceKinds.map((kind) => (
-              <button key={kind} className="tool-button" type="button" onClick={() => addNewSource(kind)}>
+              <button key={kind} className="tool-button" type="button" disabled={setupLocked} onClick={() => addNewSource(kind)}>
                 <Plus size={16} />
                 <span>{sourceLabels[kind]}</span>
               </button>
@@ -154,6 +163,7 @@ export const StudioScreen = ({
               className="icon-button"
               type="button"
               aria-label="move source up"
+              disabled={setupLocked}
               onClick={() => onSceneChange(reorderSource(scene, selectedSource.id, 1))}
             >
               <ArrowUp size={18} />
@@ -162,6 +172,7 @@ export const StudioScreen = ({
               className="icon-button"
               type="button"
               aria-label="move source down"
+              disabled={setupLocked}
               onClick={() => onSceneChange(reorderSource(scene, selectedSource.id, -1))}
             >
               <ArrowDown size={18} />
@@ -170,6 +181,7 @@ export const StudioScreen = ({
               className="icon-button"
               type="button"
               aria-label={selectedSource.visible ? "hide source" : "show source"}
+              disabled={setupLocked}
               onClick={() => onSceneChange(setVisibility(scene, selectedSource.id, !selectedSource.visible))}
             >
               {selectedSource.visible ? <Eye size={18} /> : <EyeOff size={18} />}
@@ -178,6 +190,7 @@ export const StudioScreen = ({
               className="icon-button"
               type="button"
               aria-label={selectedSource.locked ? "unlock source" : "lock source"}
+              disabled={setupLocked}
               onClick={() => onSceneChange(setLocked(scene, selectedSource.id, !selectedSource.locked))}
             >
               {selectedSource.locked ? <Lock size={18} /> : <Unlock size={18} />}
@@ -188,7 +201,13 @@ export const StudioScreen = ({
         <section className="program-column" aria-label="program preview">
           <ProgramPreview scene={scene} selectedSourceId={selectedSource.id} onSelectSource={onSelectSource} />
           <div className="transport-bar">
-            <button className="primary-action" type="button" disabled={isBusy || isLive} onClick={onStart}>
+            <button
+              className="primary-action"
+              type="button"
+              disabled={!canGoLive}
+              aria-describedby="go-live-readiness"
+              onClick={onStart}
+            >
               <Play size={18} />
               <span>Go Live</span>
             </button>
@@ -205,6 +224,16 @@ export const StudioScreen = ({
               <span>{snapshot.health.message}</span>
             </div>
           </div>
+          <div id="go-live-readiness" className={`readiness-banner ${readiness.canStart ? "ready" : "blocked"}`}>
+            <ShieldCheck size={16} />
+            <span>
+              {readiness.canStart
+                ? readiness.warningCount > 0
+                  ? `${readiness.warningCount} warning${readiness.warningCount === 1 ? "" : "s"} before live`
+                  : "Ready to go live"
+                : `${readiness.errorCount} blocking item${readiness.errorCount === 1 ? "" : "s"} before live`}
+            </span>
+          </div>
         </section>
 
         <aside className="right-rail" aria-label="inspector and setup">
@@ -212,23 +241,26 @@ export const StudioScreen = ({
             <PanelTitle icon={<SlidersHorizontal size={18} />} title="Transform" />
             <label className="field">
               <span>Name</span>
-              <input value={selectedSource.name} onChange={(event) => updateSelectedName(event.target.value)} />
+              <input value={selectedSource.name} disabled={setupLocked} onChange={(event) => updateSelectedName(event.target.value)} />
             </label>
-            <Slider label="X" value={selectedSource.transform.x} onChange={(value) => updateSelectedTransform("x", value)} />
-            <Slider label="Y" value={selectedSource.transform.y} onChange={(value) => updateSelectedTransform("y", value)} />
+            <Slider label="X" value={selectedSource.transform.x} disabled={setupLocked} onChange={(value) => updateSelectedTransform("x", value)} />
+            <Slider label="Y" value={selectedSource.transform.y} disabled={setupLocked} onChange={(value) => updateSelectedTransform("y", value)} />
             <Slider
               label="Width"
               value={selectedSource.transform.width}
+              disabled={setupLocked}
               onChange={(value) => updateSelectedTransform("width", value)}
             />
             <Slider
               label="Height"
               value={selectedSource.transform.height}
+              disabled={setupLocked}
               onChange={(value) => updateSelectedTransform("height", value)}
             />
             <Slider
               label="Opacity"
               value={selectedSource.transform.opacity}
+              disabled={setupLocked}
               onChange={(value) => updateSelectedTransform("opacity", value)}
             />
           </section>
@@ -253,7 +285,7 @@ export const StudioScreen = ({
             </div>
           </section>
 
-          <LiveSetupScreen profile={profile} onProfileChange={onProfileChange} />
+          <LiveSetupScreen profile={profile} readiness={readiness} locked={setupLocked} onProfileChange={onProfileChange} />
         </aside>
       </section>
     </main>
@@ -356,13 +388,31 @@ const Metric = ({ icon, label }: { icon: ReactNode; label: string }) => (
   </span>
 );
 
-const Slider = ({ label, value, onChange }: { label: string; value: number; onChange(value: number): void }) => (
+const Slider = ({
+  label,
+  value,
+  disabled,
+  onChange
+}: {
+  label: string;
+  value: number;
+  disabled?: boolean;
+  onChange(value: number): void;
+}) => (
   <label className="slider-field">
     <span>
       {label}
       <strong>{Math.round(value * 100)}</strong>
     </span>
-    <input min="0" max="1" step="0.01" type="range" value={value} onChange={(event) => onChange(Number(event.target.value))} />
+    <input
+      min="0"
+      max="1"
+      step="0.01"
+      type="range"
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onChange(Number(event.target.value))}
+    />
   </label>
 );
 
