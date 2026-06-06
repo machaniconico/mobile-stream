@@ -2,7 +2,7 @@
 
 ## Identity
 
-- **Pitch**: Build a mobile VTuber live streaming studio for iPhone and Android that captures the device screen, composites a controllable avatar, and streams to RTMP/RTMPS destinations.
+- **Pitch**: Build a mobile OBS-like VTuber live streaming studio for iPhone and Android that captures the device screen, composites controllable avatar sources, and streams to RTMP/RTMPS destinations.
 - **Target**: VTubers and game streamers who want to stream from a phone without using a PC.
 
 ## Reference Benchmark
@@ -20,14 +20,51 @@ Sources:
 
 ## Product Strategy
 
+The product direction is "how close can a mobile VTuber app get to the useful parts of PC OBS?" The answer should be: close in mental model and day-to-day workflow, but deliberately constrained in extension points, source count, and heavy filters so the app remains reliable on phones.
+
 Build the product in layers:
 
-1. **Streaming core**: screen capture, avatar compositing, encode, mux, RTMP/RTMPS publish, reconnect, bitrate/FPS health.
-2. **VTuber engine**: PNGTuber, Live2D, voice lip sync, auto blink, expression buttons, avatar position/size controls.
-3. **Creator workflow**: destination setup, live setup screen, go-live state, local presets.
-4. **Advanced creator tools**: face tracking, VRM, multiple avatars, hand/full-body tracking, OAuth, comments, subscriptions.
+1. **OBS-like scene system**: scenes, ordered sources, layer visibility, transforms, crop/fit/fill, lock/hide controls.
+2. **Streaming core**: screen capture, avatar compositing, encode, mux, RTMP/RTMPS publish, reconnect, bitrate/FPS health.
+3. **VTuber engine**: PNGTuber, Live2D, voice lip sync, auto blink, expression buttons, avatar position/size controls.
+4. **Creator workflow**: destination setup, live setup screen, go-live state, profiles, local presets.
+5. **Advanced creator tools**: face tracking, VRM, multiple avatars, hand/full-body tracking, OAuth, comments, subscriptions.
 
 Do not start by cloning every PRISM feature. The first useful product is a stable one-destination VTuber stream with enough avatar control to feel like a mobile studio instead of a bare screen recorder.
+
+## OBS Parity Direction
+
+### MVP OBS-Like Features
+
+- **Scenes**: at least one editable scene, with data model support for multiple scenes even if the first UI only exposes one or two.
+- **Sources**: screen capture source, PNGTuber source, Live2D source, solid/color background source, image source, and optional text label source.
+- **Layer stack**: source ordering, visibility toggles, lock/unlock, basic naming.
+- **Transforms**: position, size, scale, fit/fill, rotation if cheap, reset transform.
+- **Audio mixer v1**: microphone level meter, mute/unmute, gain slider, lip-sync input meter.
+- **Profiles/presets**: RTMP destination profile, stream quality preset, avatar preset, scene preset.
+- **Studio controls**: go live, stop, reconnect, stream health, elapsed time, dropped frames, bitrate.
+- **Quick controls**: expression buttons act like OBS hotkeys/stream deck buttons for avatar state.
+
+### Post-MVP OBS-Like Features
+
+- Multiple scenes with scene switching.
+- Scene duplication and templates.
+- Transitions between scenes.
+- Source filters such as color correction, chroma key, crop, mask, and opacity.
+- Browser/web source if platform performance is acceptable.
+- More complete audio mixer: multiple channels, monitoring, compressor/limiter/noise gate.
+- Macro/action buttons for expression, scene switch, mute, and overlay visibility.
+- Remote control or companion web panel.
+
+### Out Of Scope Compared With PC OBS
+
+- PC OBS plugin compatibility.
+- Arbitrary third-party native plugins.
+- Unlimited source count.
+- Heavy desktop-grade filter chains.
+- Full dockable desktop UI.
+- Capture of every app's internal audio on every device; OS policy limits this.
+- Full parity with OBS Studio Mode in the first release.
 
 ## Tech Stack
 
@@ -54,12 +91,15 @@ Official implementation references to consult before coding:
 - Screen capture as the primary video source.
 - Android screen capture through MediaProjection.
 - iOS screen broadcasting through ReplayKit Broadcast Upload Extension.
+- OBS-like scene/source data model for screen, avatar, image/background, and text sources.
 - PNGTuber avatar mode.
 - Live2D avatar mode.
 - Voice-driven lip sync from microphone input.
 - Automatic blinking.
 - Expression buttons for switching avatar expressions.
 - Avatar position and size adjustment over the captured screen.
+- Basic audio mixer controls: microphone meter, mute, gain, and lip-sync meter.
+- Local profiles for destination, quality, avatar, and scene settings.
 - Live setup screen: resolution, FPS, bitrate, orientation, audio source, avatar preset.
 - Go-live controls: start, stop, reconnect, elapsed time, bitrate, dropped frames, connection status.
 - Permissions and privacy UX for microphone, notification, screen capture, and storage.
@@ -73,6 +113,7 @@ Official implementation references to consult before coding:
 - Hardware encoding should use VideoToolbox where possible.
 - Background behavior is constrained; design for OS-visible broadcast flows and clear user consent.
 - App Store review needs clear privacy explanations for microphone, screen recording, and network streaming.
+- Expect tighter memory and runtime constraints than the main app; the OBS-like editor UI lives in the host app, while the extension should run a compact broadcast pipeline.
 
 ### Android
 
@@ -81,6 +122,7 @@ Official implementation references to consult before coding:
 - Android 14+ projection behavior and one-time token rules must be handled carefully.
 - Hardware encoding should use MediaCodec.
 - Audio capture from other apps is permission and policy constrained; game/system audio support varies by Android version and app opt-in.
+- Use a foreground service for long-running screen streaming and keep the OBS-like editor separate from the critical streaming service state.
 
 ## Post-MVP Features
 
@@ -93,6 +135,10 @@ Official implementation references to consult before coding:
 - Comment retrieval and chat overlays.
 - Multistream through a cloud relay.
 - Web widget overlay.
+- OBS-like source filters.
+- Multiple scenes and transitions.
+- Stream deck-style macro buttons.
+- Remote control or companion web panel.
 - Background music library.
 - Cloud account sync.
 - Paid plan and watermark controls.
@@ -110,6 +156,9 @@ Official implementation references to consult before coding:
 - Free built-in multistream without a relay.
 - Guest calling/interview mode.
 - Desktop companion app.
+- PC OBS plugin compatibility.
+- Arbitrary native plugin system.
+- Unlimited desktop-style source/filter chains.
 - AI script extraction.
 - Marketplace of effects/templates.
 
@@ -121,6 +170,8 @@ Official implementation references to consult before coding:
 - Build a test RTMP target early, such as a local RTMP server or a private unlisted stream key, before polishing UI.
 - Keep avatar state deterministic and small: selected model, expression, position, scale, lip-sync level, blink state.
 - Build the audio lip-sync path as amplitude/viseme-lite first; do not depend on face tracking for MVP.
+- Model scenes as serializable documents so the UI can behave like OBS while the native pipeline receives a compact render graph.
+- Apply hard mobile limits to OBS-like flexibility: source count caps, resolution caps, filter caps, and thermal/battery health warnings.
 
 ## Open Questions
 
@@ -128,16 +179,20 @@ Official implementation references to consult before coding:
 - Whether Live2D assets are user-imported, bundled samples, or both.
 - Whether PNGTuber input supports two images only or multiple mouth/eye states.
 - Whether RTMPS certificate validation and custom CA behavior need user controls.
+- How many scenes and sources are allowed on low-end devices.
+- Whether the app should expose "simple mode" and "OBS mode" separately.
 - Whether the first market is Japan, global English, or both.
 - Whether monetization is subscriptions, one-time purchase, watermark removal, or none.
 
 ## Next Implementation Plan
 
 1. Choose final scaffold: React Native bare or fully native iOS/Android apps.
-2. Scaffold repo and create iOS/Android native streaming module boundaries.
-3. Build Android MediaProjection capture and a local preview/composition path.
-4. Build iOS ReplayKit Broadcast Upload Extension skeleton.
-5. Add RTMP/RTMPS publish pipeline to one test endpoint.
-6. Add PNGTuber rendering, voice lip sync, auto blink, expression buttons, and transform controls.
-7. Add Live2D runtime integration after licensing and sample-model validation.
-8. Verify on one physical iPhone and one physical Android device.
+2. Define the OBS-like scene/source/profile document schema before UI implementation.
+3. Scaffold repo and create iOS/Android native streaming module boundaries.
+4. Build Android MediaProjection capture and a local preview/composition path.
+5. Build iOS ReplayKit Broadcast Upload Extension skeleton.
+6. Add RTMP/RTMPS publish pipeline to one test endpoint.
+7. Add PNGTuber rendering, voice lip sync, auto blink, expression buttons, and transform controls.
+8. Add the first OBS-like editor: source list, visibility, lock, transform, mixer, and profile controls.
+9. Add Live2D runtime integration after licensing and sample-model validation.
+10. Verify on one physical iPhone and one physical Android device.
