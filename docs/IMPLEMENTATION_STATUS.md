@@ -20,6 +20,10 @@
   - Go Live, Stop, Reconnect mock controls
 - iOS ReplayKit Broadcast Upload Extension skeleton.
 - Android MediaProjection service skeleton.
+- React Native bare app scaffold generated from React Native 0.85.3.
+- Standard `ios/` and `android/` projects for the MobileLiveCaster host app.
+- React Native mobile Studio UI that reuses `src/domain` and the mock stream engine.
+- Metro bundle verification for both iOS and Android.
 
 ## Not Implemented Yet
 
@@ -30,17 +34,22 @@
 - Live2D Cubism SDK integration.
 - Secure platform storage for stream keys.
 - React Native bare app packaging.
+- iOS Broadcast Upload Extension Xcode target registration.
+- Android MediaProjection runtime permission and foreground notification flow.
 
 ## Local Environment Notes
 
 - Xcode is available.
 - Java/JDK is not installed, so Android builds are currently blocked.
+- CocoaPods is not installed, so iOS dependency installation is currently blocked.
 - Watchman is not installed, so React Native local development will need setup before device builds.
+- The React Native JavaScript bundle can be generated for iOS and Android without Java/JDK.
 
 ## Next Slice
 
-1. Move this verified TypeScript app shell into a React Native bare scaffold.
-2. Keep `src/domain` as shared app logic.
-3. Replace `MockLiveCaster` with platform native modules behind the same interface.
-4. Build Android MediaProjection capture first, because it is easier to iterate than iOS Broadcast Upload Extension constraints.
-5. Build iOS ReplayKit extension once app group storage and render graph serialization are stable.
+1. Install JDK 17, Android Studio/SDK, Watchman, and CocoaPods.
+2. Run the React Native app on iOS simulator/device.
+3. Run the React Native app on Android emulator/device.
+4. Replace `MockLiveCaster` with platform native modules behind the same interface.
+5. Build Android MediaProjection capture first, because it is easier to iterate than iOS Broadcast Upload Extension constraints.
+6. Register the iOS Broadcast Upload Extension target once app group storage and render graph serialization are stable.

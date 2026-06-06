@@ -8,7 +8,7 @@ type Listener = (snapshot: NativeEngineSnapshot) => void;
 export class MockLiveCaster implements LiveCasterNative {
   private state: StreamState = initialStreamState;
   private listeners = new Set<Listener>();
-  private timer: number | undefined;
+  private timer: ReturnType<typeof setInterval> | undefined;
   private preparedScene: SceneDocument | null = null;
   private preparedProfile: StudioProfile | null = null;
 
@@ -43,14 +43,14 @@ export class MockLiveCaster implements LiveCasterNative {
 
   async stop(): Promise<void> {
     this.reduce({ type: "stop", now: Date.now() });
-    window.clearInterval(this.timer);
+    clearInterval(this.timer);
     this.timer = undefined;
-    window.setTimeout(() => this.reduce({ type: "stopped" }), 450);
+    setTimeout(() => this.reduce({ type: "stopped" }), 450);
   }
 
   async reconnect(): Promise<void> {
     this.reduce({ type: "reconnect", now: Date.now() });
-    window.setTimeout(() => this.reduce({ type: "start", now: Date.now() }), 900);
+    setTimeout(() => this.reduce({ type: "start", now: Date.now() }), 900);
   }
 
   async updateScene(scene: SceneDocument): Promise<void> {
@@ -58,8 +58,8 @@ export class MockLiveCaster implements LiveCasterNative {
   }
 
   private startHealthLoop() {
-    window.clearInterval(this.timer);
-    this.timer = window.setInterval(() => {
+    clearInterval(this.timer);
+    this.timer = setInterval(() => {
       const jitter = Math.round(Math.random() * 340 - 120);
       const dropChance = Math.random() > 0.82 ? 1 : 0;
       this.reduce({

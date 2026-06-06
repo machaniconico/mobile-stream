@@ -1,0 +1,20 @@
+{
+  "extends": "@react-native/typescript-config",
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "types": []
+  },
+  "include": [
+    "src/domain/**/*.ts",
+    "src/native/**/*.ts",
+    "src/mobile/**/*.ts",
+    "src/mobile/**/*.tsx"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "**/node_modules",
+    "**/Pods"
+  ]
+}

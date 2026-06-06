@@ -2,7 +2,7 @@
 
 MobileLiveCaster is an OBS-like mobile VTuber streaming studio concept for iOS and Android.
 
-The current implementation is a verified TypeScript/Vite prototype that defines the core scene model, stream profile model, avatar runtime, mock streaming engine, and an interactive Studio UI. Native iOS/Android capture and publishing are represented by skeletons so the app can grow toward ReplayKit, MediaProjection, and RTMP/RTMPS without rewriting the UI contract.
+The current implementation includes a verified TypeScript/Vite prototype and a React Native bare scaffold. Both share the core scene model, stream profile model, avatar runtime, and mock streaming engine. Native iOS/Android capture and publishing are represented by skeletons so the app can grow toward ReplayKit, MediaProjection, and RTMP/RTMPS without rewriting the UI contract.
 
 ## Current Prototype
 
@@ -15,16 +15,22 @@ The current implementation is a verified TypeScript/Vite prototype that defines 
 - Mock Go Live, Stop, and Reconnect controls.
 - iOS ReplayKit Broadcast Upload Extension skeleton.
 - Android MediaProjection service skeleton.
+- React Native host app scaffold with standard `ios/` and `android/` projects.
+- React Native mobile Studio screen using the shared domain model and mock engine.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev
+npm run mobile:start
 npm test
 npm run typecheck
 npm run build
+npm run verify:rn
 ```
+
+`npm run verify:rn` builds Metro JS bundles for iOS and Android. It does not require a simulator, device, Android Studio, or CocoaPods.
 
 ## Native Direction
 
@@ -33,6 +39,24 @@ npm run build
 - Encoding: VideoToolbox on iOS, MediaCodec on Android.
 - Streaming: RTMP/RTMPS publisher behind `src/native/LiveCasterNative.ts`.
 - Avatar rendering: PNGTuber first, Live2D after licensing and runtime validation.
+
+## Device Builds
+
+iOS:
+
+```bash
+cd ios
+bundle install
+bundle exec pod install
+cd ..
+npm run mobile:ios
+```
+
+Android requires a JDK and Android SDK:
+
+```bash
+npm run mobile:android
+```
 
 ## Status
 

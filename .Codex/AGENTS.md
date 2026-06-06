@@ -9,5 +9,5 @@
 - Treat iOS face tracking, VRM, multiple avatars, hand/full-body tracking, OAuth, and comment retrieval as non-MVP.
 - Never commit secrets, stream keys, OAuth client secrets, or signing materials.
 - Tests: important logic only at first; add device/integration checks for capture and streaming paths.
-- Commands: `npm run dev`, `npm test`, `npm run typecheck`, `npm run build`, `npm run verify:ui`.
+- Commands: `npm run dev`, `npm run mobile:start`, `npm test`, `npm run typecheck`, `npm run build`, `npm run verify:ui`, `npm run verify:rn`.
 - Agent failures log: (empty)

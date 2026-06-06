@@ -16,5 +16,17 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "vite.config.ts"]
+  "include": [
+    "src/app/**/*.ts",
+    "src/app/**/*.tsx",
+    "src/domain/**/*.ts",
+    "src/native/**/*.ts",
+    "src/screens/**/*.ts",
+    "src/screens/**/*.tsx",
+    "src/storage/**/*.ts",
+    "src/*.ts",
+    "src/*.tsx",
+    "vite.config.ts"
+  ],
+  "exclude": ["src/mobile"]
 }

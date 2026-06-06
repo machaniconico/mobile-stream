@@ -5,3 +5,22 @@ dist/
 coverage/
 *.tsbuildinfo
 .artifacts/
+
+# React Native / native build output
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.jsbundle
+**/.xcode.env.local
+**/Pods/
+/vendor/bundle/
+.gradle/
+.idea/
+local.properties
+*.iml
+*.hprof
+.cxx/
+.kotlin/
+*.keystore
+.metro-health-check*
