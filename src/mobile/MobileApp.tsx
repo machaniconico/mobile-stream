@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { createAvatarRuntimeState, setExpression, tickAutoBlink, type AvatarExpression } from "../domain/avatar";
+import {
+  createChatMessage,
+  createDefaultChatReaderState,
+  enqueueChatMessage,
+  updateChatReaderSettings,
+  type ChatReaderSettings
+} from "../domain/chatReader";
 import { createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
@@ -12,8 +19,10 @@ import {
 } from "../domain/scene";
 import { MockLiveCaster } from "../native/MockLiveCaster";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
+import { useChatSpeechQueue } from "../native/ChatSpeechEngine";
 import { AndroidLiveCaster, canUseAndroidLiveCaster } from "./AndroidLiveCaster";
 import { MobileStudioScreen } from "./MobileStudioScreen";
+import { NativeChatSpeechEngine } from "./NativeChatSpeechEngine";
 import { loadSecureProfile, saveSecureProfile } from "./secureProfileStore";
 
 const isAvatarSource = (source: SceneDocument["sources"][number]): source is PNGTuberSource | Live2DSource =>
@@ -21,15 +30,18 @@ const isAvatarSource = (source: SceneDocument["sources"][number]): source is PNG
 
 export const MobileApp = () => {
   const engine = useMemo(() => (canUseAndroidLiveCaster() ? new AndroidLiveCaster() : new MockLiveCaster()), []);
+  const chatSpeechEngine = useMemo(() => new NativeChatSpeechEngine(), []);
   const [scene, setScene] = useState<SceneDocument>(() => createDefaultScene());
   const [profile, setProfile] = useState<StudioProfile>(() => createDefaultStudioProfile());
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [chatReader, setChatReader] = useState(() => createDefaultChatReaderState());
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeState(Date.now()));
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
 
   useEffect(() => engine.subscribe(setSnapshot), [engine]);
+  useChatSpeechQueue(chatReader, setChatReader, chatSpeechEngine);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,8 +63,11 @@ export const MobileApp = () => {
   }, []);
 
   useEffect(() => {
+    if (!shouldPushSceneToEngine(snapshot.state.status)) {
+      return;
+    }
     void engine.updateScene(scene);
-  }, [engine, scene]);
+  }, [engine, scene, snapshot.state.status]);
 
   useEffect(() => {
     if (!profileLoaded) {
@@ -96,6 +111,14 @@ export const MobileApp = () => {
     await engine.start();
   };
 
+  const submitChatComment = (author: string, body: string) => {
+    setChatReader((current) => enqueueChatMessage(current, createChatMessage({ author, body })));
+  };
+
+  const updateChatSettings = (settings: Partial<ChatReaderSettings>) => {
+    setChatReader((current) => updateChatReaderSettings(current, settings));
+  };
+
   return (
     <SafeAreaProvider>
       <MobileStudioScreen
@@ -104,6 +127,7 @@ export const MobileApp = () => {
         selectedSourceId={selectedSourceId}
         snapshot={snapshot}
         readiness={readiness}
+        chatReader={chatReader}
         avatarRuntime={avatarRuntime}
         onSceneChange={setScene}
         onProfileChange={setProfile}
@@ -113,6 +137,8 @@ export const MobileApp = () => {
         onStart={startStream}
         onStop={() => engine.stop()}
         onReconnect={() => engine.reconnect()}
+        onChatCommentSubmit={submitChatComment}
+        onChatReaderSettingsChange={updateChatSettings}
       />
     </SafeAreaProvider>
   );
@@ -124,6 +150,7 @@ const applyAvatarRuntime = (
   mouthOpen: number,
   blink: number
 ): SceneDocument => {
+  let changed = false;
   let next = scene;
 
   for (const source of scene.sources) {
@@ -131,6 +158,7 @@ const applyAvatarRuntime = (
       continue;
     }
 
+    changed = true;
     next = updateSource(next, source.id, (current) => {
       if (!isAvatarSource(current)) {
         return current;
@@ -144,5 +172,8 @@ const applyAvatarRuntime = (
     });
   }
 
-  return next;
+  return changed ? next : scene;
 };
+
+const shouldPushSceneToEngine = (status: NativeEngineSnapshot["state"]["status"]) =>
+  status === "preparing" || status === "live" || status === "reconnecting";

@@ -1,7 +1,8 @@
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
+import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
 import type { StudioProfile, StreamProtocol } from "../domain/profiles";
 import { defaultDestinationProfile, qualityProfiles } from "../domain/profiles";
 import type { ReadinessIssue, ReadinessReport } from "../domain/readiness";
@@ -26,6 +27,7 @@ interface MobileStudioScreenProps {
   selectedSourceId: string;
   snapshot: NativeEngineSnapshot;
   readiness: ReadinessReport;
+  chatReader: ChatReaderState;
   avatarRuntime: AvatarRuntimeState;
   onSceneChange(scene: SceneDocument): void;
   onProfileChange(profile: StudioProfile): void;
@@ -35,6 +37,8 @@ interface MobileStudioScreenProps {
   onStart(): Promise<void>;
   onStop(): Promise<void>;
   onReconnect(): Promise<void>;
+  onChatCommentSubmit(author: string, body: string): void;
+  onChatReaderSettingsChange(settings: Partial<ChatReaderSettings>): void;
 }
 
 const sourceLabels: Record<SourceKind, string> = {
@@ -55,6 +59,7 @@ export const MobileStudioScreen = ({
   selectedSourceId,
   snapshot,
   readiness,
+  chatReader,
   avatarRuntime,
   onSceneChange,
   onProfileChange,
@@ -63,7 +68,9 @@ export const MobileStudioScreen = ({
   onExpressionChange,
   onStart,
   onStop,
-  onReconnect
+  onReconnect,
+  onChatCommentSubmit,
+  onChatReaderSettingsChange
 }: MobileStudioScreenProps) => {
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
@@ -224,6 +231,12 @@ export const MobileStudioScreen = ({
           </View>
         </Panel>
 
+        <ChatReaderPanel
+          chatReader={chatReader}
+          onSubmit={onChatCommentSubmit}
+          onSettingsChange={onChatReaderSettingsChange}
+        />
+
         <Panel title="Live Setup">
           <View style={styles.grid2}>
             {(["rtmp", "rtmps"] as StreamProtocol[]).map((protocol) => (
@@ -288,6 +301,105 @@ export const MobileStudioScreen = ({
         </Panel>
       </ScrollView>
     </SafeAreaView>
+  );
+};
+
+const ChatReaderPanel = ({
+  chatReader,
+  onSubmit,
+  onSettingsChange
+}: {
+  chatReader: ChatReaderState;
+  onSubmit(author: string, body: string): void;
+  onSettingsChange(settings: Partial<ChatReaderSettings>): void;
+}) => {
+  const [author, setAuthor] = useState("viewer");
+  const [body, setBody] = useState("Nice stream!");
+  const [mutedWords, setMutedWords] = useState(chatReader.settings.mutedWords.join(", "));
+
+  const submit = () => {
+    if (!body.trim()) {
+      return;
+    }
+    onSubmit(author, body);
+    setBody("");
+  };
+
+  const updateMutedWords = (value: string) => {
+    setMutedWords(value);
+    onSettingsChange({ mutedWords: normalizeMutedWordsInput(value) });
+  };
+
+  return (
+    <Panel title="Chat Reader">
+      <View style={styles.chatStatusRow}>
+        <ActionButton
+          label={chatReader.settings.enabled ? "Read On" : "Read Off"}
+          variant={chatReader.settings.enabled ? "active" : "default"}
+          onPress={() => onSettingsChange({ enabled: !chatReader.settings.enabled })}
+        />
+        <View style={styles.queueBadge}>
+          <Text style={styles.queueBadgeText}>{chatReader.queue.length} queued</Text>
+        </View>
+      </View>
+
+      <Label text="Author" />
+      <TextInput
+        value={author}
+        onChangeText={setAuthor}
+        style={styles.input}
+        autoCapitalize="none"
+        placeholderTextColor="#71717a"
+      />
+
+      <Label text="Comment" />
+      <TextInput
+        value={body}
+        onChangeText={setBody}
+        style={styles.input}
+        autoCapitalize="none"
+        placeholderTextColor="#71717a"
+        onSubmitEditing={submit}
+      />
+
+      <ActionButton label="Test Read" onPress={submit} />
+
+      <NumberStepper label="Rate" value={chatReader.settings.rate} min={0.5} max={1.5} step={0.05} onChange={(rate) => onSettingsChange({ rate })} />
+      <NumberStepper label="Pitch" value={chatReader.settings.pitch} min={0.5} max={1.5} step={0.05} onChange={(pitch) => onSettingsChange({ pitch })} />
+      <NumberStepper label="Volume" value={chatReader.settings.volume} min={0} max={1} step={0.05} onChange={(volume) => onSettingsChange({ volume })} />
+      <NumberStepper
+        label="Max length"
+        value={chatReader.settings.maxMessageLength}
+        min={40}
+        max={240}
+        step={10}
+        onChange={(maxMessageLength) => onSettingsChange({ maxMessageLength })}
+      />
+
+      <Label text="Muted words" />
+      <TextInput
+        value={mutedWords}
+        onChangeText={updateMutedWords}
+        style={styles.input}
+        autoCapitalize="none"
+        placeholderTextColor="#71717a"
+      />
+
+      <View style={styles.chatHistory}>
+        {chatReader.history.length === 0 ? (
+          <Text style={styles.chatEmpty}>No comments yet</Text>
+        ) : (
+          chatReader.history.slice(0, 4).map((message) => (
+            <View key={message.id} style={styles.chatHistoryRow}>
+              <Text style={styles.chatAuthor}>{message.author}</Text>
+              <Text style={styles.chatBody} numberOfLines={1}>
+                {message.body}
+              </Text>
+            </View>
+          ))
+        )}
+      </View>
+    </Panel>
   );
 };
 
@@ -486,6 +598,42 @@ const Stepper = ({
           <View style={[styles.stepperFill, { width: `${Math.round(value * 100)}%` }]} />
         </View>
         <IconButton label="+5" disabled={disabled} onPress={() => set(0.05)} />
+      </View>
+    </View>
+  );
+};
+
+const NumberStepper = ({
+  label,
+  value,
+  min,
+  max,
+  step,
+  onChange
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange(value: number): void;
+}) => {
+  const set = (delta: number) => {
+    const next = Math.max(min, Math.min(max, Number((value + delta).toFixed(2))));
+    onChange(next);
+  };
+  return (
+    <View style={styles.stepper}>
+      <View style={styles.stepperHeader}>
+        <Text style={styles.label}>{label}</Text>
+        <Text style={styles.stepperValue}>{Number.isInteger(value) ? value : value.toFixed(2)}</Text>
+      </View>
+      <View style={styles.stepperControls}>
+        <IconButton label="-" onPress={() => set(-step)} />
+        <View style={styles.stepperTrack}>
+          <View style={[styles.stepperFill, { width: `${Math.round(((value - min) / (max - min)) * 100)}%` }]} />
+        </View>
+        <IconButton label="+" onPress={() => set(step)} />
       </View>
     </View>
   );
@@ -900,6 +1048,58 @@ const styles = StyleSheet.create({
   levelFill: {
     height: "100%",
     backgroundColor: "#22c55e"
+  },
+  chatStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+  queueBadge: {
+    minHeight: 46,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    backgroundColor: "#101015"
+  },
+  queueBadgeText: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    fontWeight: "800"
+  },
+  chatHistory: {
+    gap: 6
+  },
+  chatEmpty: {
+    minHeight: 34,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    backgroundColor: "#101015",
+    color: "#a1a1aa",
+    fontSize: 12
+  },
+  chatHistoryRow: {
+    minHeight: 42,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: "#101015"
+  },
+  chatAuthor: {
+    color: "#2dd4bf",
+    fontSize: 11,
+    fontWeight: "900"
+  },
+  chatBody: {
+    marginTop: 2,
+    color: "#a1a1aa",
+    fontSize: 12
   },
   qualityRow: {
     gap: 8,

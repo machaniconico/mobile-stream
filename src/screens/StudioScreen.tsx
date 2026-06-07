@@ -6,6 +6,7 @@ import {
   EyeOff,
   Layers,
   Lock,
+  MessageCircle,
   Mic,
   MonitorSmartphone,
   Play,
@@ -16,10 +17,12 @@ import {
   ShieldCheck,
   Square,
   Unlock,
+  Volume2,
   Wifi
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
+import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
 import type { StudioProfile } from "../domain/profiles";
 import type { ReadinessReport } from "../domain/readiness";
 import {
@@ -45,6 +48,7 @@ interface StudioScreenProps {
   selectedSourceId: string;
   snapshot: NativeEngineSnapshot;
   readiness: ReadinessReport;
+  chatReader: ChatReaderState;
   avatarRuntime: AvatarRuntimeState;
   onSceneChange(scene: SceneDocument): void;
   onProfileChange(profile: StudioProfile): void;
@@ -54,6 +58,8 @@ interface StudioScreenProps {
   onStart(): Promise<void>;
   onStop(): Promise<void>;
   onReconnect(): Promise<void>;
+  onChatCommentSubmit(author: string, body: string): void;
+  onChatReaderSettingsChange(settings: Partial<ChatReaderSettings>): void;
 }
 
 const sourceLabels: Record<SourceKind, string> = {
@@ -75,6 +81,7 @@ export const StudioScreen = ({
   selectedSourceId,
   snapshot,
   readiness,
+  chatReader,
   avatarRuntime,
   onSceneChange,
   onProfileChange,
@@ -83,7 +90,9 @@ export const StudioScreen = ({
   onExpressionChange,
   onStart,
   onStop,
-  onReconnect
+  onReconnect,
+  onChatCommentSubmit,
+  onChatReaderSettingsChange
 }: StudioScreenProps) => {
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
@@ -285,10 +294,102 @@ export const StudioScreen = ({
             </div>
           </section>
 
+          <ChatReaderPanel
+            chatReader={chatReader}
+            onSubmit={onChatCommentSubmit}
+            onSettingsChange={onChatReaderSettingsChange}
+          />
+
           <LiveSetupScreen profile={profile} readiness={readiness} locked={setupLocked} onProfileChange={onProfileChange} />
         </aside>
       </section>
     </main>
+  );
+};
+
+const ChatReaderPanel = ({
+  chatReader,
+  onSubmit,
+  onSettingsChange
+}: {
+  chatReader: ChatReaderState;
+  onSubmit(author: string, body: string): void;
+  onSettingsChange(settings: Partial<ChatReaderSettings>): void;
+}) => {
+  const [author, setAuthor] = useState("viewer");
+  const [body, setBody] = useState("Nice stream!");
+  const [mutedWords, setMutedWords] = useState(chatReader.settings.mutedWords.join(", "));
+
+  const submit = () => {
+    if (!body.trim()) {
+      return;
+    }
+    onSubmit(author, body);
+    setBody("");
+  };
+
+  const updateMutedWords = (value: string) => {
+    setMutedWords(value);
+    onSettingsChange({ mutedWords: normalizeMutedWordsInput(value) });
+  };
+
+  return (
+    <section className="control-panel">
+      <PanelTitle icon={<MessageCircle size={18} />} title="Chat Reader" />
+      <div className="chat-reader-status">
+        <button
+          className={`segmented-button ${chatReader.settings.enabled ? "active" : ""}`}
+          type="button"
+          onClick={() => onSettingsChange({ enabled: !chatReader.settings.enabled })}
+        >
+          <Volume2 size={16} />
+          <span>{chatReader.settings.enabled ? "Read On" : "Read Off"}</span>
+        </button>
+        <span>{chatReader.queue.length} queued</span>
+      </div>
+
+      <label className="field">
+        <span>Author</span>
+        <input value={author} onChange={(event) => setAuthor(event.target.value)} />
+      </label>
+      <label className="field">
+        <span>Comment</span>
+        <input value={body} onChange={(event) => setBody(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submit()} />
+      </label>
+      <button className="secondary-action chat-submit" type="button" onClick={submit}>
+        Test Read
+      </button>
+
+      <SpeechSlider label="Rate" value={chatReader.settings.rate} min={0.5} max={1.5} step={0.05} onChange={(rate) => onSettingsChange({ rate })} />
+      <SpeechSlider label="Pitch" value={chatReader.settings.pitch} min={0.5} max={1.5} step={0.05} onChange={(pitch) => onSettingsChange({ pitch })} />
+      <SpeechSlider label="Volume" value={chatReader.settings.volume} min={0} max={1} step={0.05} onChange={(volume) => onSettingsChange({ volume })} />
+      <SpeechSlider
+        label="Max length"
+        value={chatReader.settings.maxMessageLength}
+        min={40}
+        max={240}
+        step={10}
+        onChange={(maxMessageLength) => onSettingsChange({ maxMessageLength })}
+      />
+
+      <label className="field">
+        <span>Muted words</span>
+        <input value={mutedWords} onChange={(event) => updateMutedWords(event.target.value)} />
+      </label>
+
+      <div className="chat-history" aria-label="recent comments">
+        {chatReader.history.length === 0 ? (
+          <span className="chat-empty">No comments yet</span>
+        ) : (
+          chatReader.history.slice(0, 4).map((message) => (
+            <span key={message.id} className="chat-history-row">
+              <strong>{message.author}</strong>
+              <span>{message.body}</span>
+            </span>
+          ))
+        )}
+      </div>
+    </section>
   );
 };
 
@@ -411,6 +512,37 @@ const Slider = ({
       type="range"
       value={value}
       disabled={disabled}
+      onChange={(event) => onChange(Number(event.target.value))}
+    />
+  </label>
+);
+
+const SpeechSlider = ({
+  label,
+  value,
+  min,
+  max,
+  step,
+  onChange
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange(value: number): void;
+}) => (
+  <label className="slider-field">
+    <span>
+      {label}
+      <strong>{Number.isInteger(value) ? value : value.toFixed(2)}</strong>
+    </span>
+    <input
+      min={min}
+      max={max}
+      step={step}
+      type="range"
+      value={value}
       onChange={(event) => onChange(Number(event.target.value))}
     />
   </label>

@@ -15,6 +15,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Keychain/Android Keystore-backed mobile profile storage for stream keys.
 - Quality presets.
 - Voice lip-sync meter and expression buttons.
+- Chat/comment read-aloud queue with test comments, muted words, and speech controls.
 - Mock Go Live, Stop, and Reconnect controls.
 - iOS ReplayKit Broadcast Upload Extension skeleton.
 - Android MediaProjection service skeleton.
@@ -22,6 +23,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - React Native mobile Studio screen using the shared domain model and mock engine.
 - Android native bridge for MediaProjection consent, foreground service streaming, H.264/AAC encoding, and RTMP/RTMPS publishing through RootEncoder.
 - Android start-time microphone/notification runtime permission preflight.
+- Native chat speech output through Android TextToSpeech and iOS AVSpeechSynthesizer.
 
 ## Commands
 
@@ -48,6 +50,7 @@ npm run ios:build:simulator
 - Streaming: RTMP/RTMPS publisher behind `src/native/LiveCasterNative.ts`.
 - Go Live readiness: fail closed before native capture starts, with UI-visible blocking reasons.
 - Secret storage: browser persistence strips stream keys; mobile persistence uses Keychain/Android Keystore-backed native storage.
+- Chat reader: platform chat APIs can feed the shared queue; current UI includes manual/test comments and native/browser TTS output.
 - Avatar rendering: PNGTuber first, Live2D after licensing and runtime validation.
 
 Android device streaming now routes through `LiveCasterNative` when the native module is linked. iOS and non-device development still fall back to the mock engine.

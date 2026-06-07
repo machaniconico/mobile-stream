@@ -603,6 +603,58 @@ select:focus-visible {
   background: rgba(45, 212, 191, 0.14);
 }
 
+.chat-reader-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.chat-reader-status .segmented-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.chat-submit {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.chat-history {
+  display: grid;
+  gap: 6px;
+}
+
+.chat-empty,
+.chat-history-row {
+  display: grid;
+  gap: 3px;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: #101015;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.chat-history-row strong {
+  color: var(--teal);
+  font-size: 11px;
+}
+
+.chat-history-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .protocol-pill.secure {
   border-color: rgba(34, 197, 94, 0.5);
   color: #bbf7d0;

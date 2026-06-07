@@ -7,6 +7,7 @@
 - Stream profile model for RTMP and RTMPS destinations.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Stream key redaction and no-secret browser persistence.
+- Chat/comment read-aloud domain model with queueing, muted words, URL redaction, and speech text shaping.
 - Avatar runtime model for PNGTuber/Live2D expression, lip sync, and auto blink.
 - Stream state machine for idle, preparing, live, reconnecting, stopping, and failed states.
 - Mock live engine for UI development without native capture.
@@ -20,8 +21,10 @@
   - RTMP/RTMPS setup
   - readiness panel with blocking errors and warnings
   - quality profiles
+  - chat reader panel with test comments and speech settings
   - Go Live, Stop, Reconnect mock controls
 - React Native mobile readiness panel and Go Live blocking for invalid profiles.
+- React Native mobile chat reader panel with test comments and speech settings.
 - iOS ReplayKit Broadcast Upload Extension skeleton.
 - Android MediaProjection service skeleton.
 - Android `LiveCasterNative` React Native module registered in the host app.
@@ -30,7 +33,9 @@
 - Android RTMP/RTMPS publishing path through RootEncoder, using screen capture and microphone input.
 - Android microphone/notification runtime permission preflight before MediaProjection launch.
 - Android Keystore-backed encrypted mobile profile storage for stream keys.
+- Android TextToSpeech native module for chat read-aloud.
 - iOS Keychain-backed mobile profile storage exposed to React Native.
+- iOS AVSpeechSynthesizer native module for chat read-aloud.
 - Durable mobile-side profile persistence through the secure native store.
 - React Native bare app scaffold generated from React Native 0.85.3.
 - Standard `ios/` and `android/` projects for the MobileLiveCaster host app.
@@ -50,6 +55,8 @@
 - Native compositor.
 - First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
 - Live2D Cubism SDK integration.
+- YouTube/Twitch/platform comment API ingestion.
+- OAuth-backed live chat connection.
 - Durable mobile-side scene persistence.
 - iOS Broadcast Upload Extension Xcode target registration.
 - In-app settings management for clearing or rotating stored stream keys.
@@ -67,6 +74,6 @@
 
 1. Run Android on a physical device against a private RTMPS endpoint and tune bitrate/fps behavior.
 2. Add durable mobile scene persistence through platform storage.
-3. Add in-app key clear/rotation controls.
-4. Register the iOS Broadcast Upload Extension target once app group storage and render graph serialization are stable.
-5. Implement the iOS RTMP/RTMPS publisher path.
+3. Add YouTube/Twitch chat adapters behind the shared chat queue.
+4. Add in-app key clear/rotation controls.
+5. Register the iOS Broadcast Upload Extension target once app group storage and render graph serialization are stable.
