@@ -1,15 +1,29 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultScene } from "./scene";
-import { createDefaultStudioProfile } from "./profiles";
+import { applyDestinationPreset, createDefaultStudioProfile, legacyCustomDestinationProfile } from "./profiles";
 import { createReadinessReport } from "./readiness";
 
 describe("stream readiness", () => {
-  it("blocks the sample profile from going live", () => {
+  it("blocks the default profile until a stream key is set", () => {
     const report = createReadinessReport(createDefaultScene(), createDefaultStudioProfile());
 
     expect(report.canStart).toBe(false);
-    expect(report.issues.map((issue) => issue.code)).toContain("placeholder-endpoint");
     expect(report.issues.map((issue) => issue.code)).toContain("stream-key-required");
+  });
+
+  it("blocks placeholder custom endpoints from going live", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...legacyCustomDestinationProfile,
+        streamKey: "abcd-1234-efgh"
+      }
+    };
+
+    const report = createReadinessReport(createDefaultScene(), profile);
+
+    expect(report.canStart).toBe(false);
+    expect(report.issues.map((issue) => issue.code)).toContain("placeholder-endpoint");
   });
 
   it("accepts a valid RTMPS profile", () => {
@@ -26,6 +40,37 @@ describe("stream readiness", () => {
 
     expect(report.canStart).toBe(true);
     expect(report.errorCount).toBe(0);
+  });
+
+  it("accepts the YouTube Live preset with a stream key", () => {
+    const profile = {
+      ...applyDestinationPreset(createDefaultStudioProfile(), "youtube-live-rtmps"),
+      destination: {
+        ...applyDestinationPreset(createDefaultStudioProfile(), "youtube-live-rtmps").destination,
+        streamKey: "abcd-1234-efgh"
+      }
+    };
+
+    const report = createReadinessReport(createDefaultScene(), profile);
+
+    expect(report.canStart).toBe(true);
+    expect(report.errorCount).toBe(0);
+  });
+
+  it("accepts the Twitch preset while warning about RTMP transport", () => {
+    const profile = {
+      ...applyDestinationPreset(createDefaultStudioProfile(), "twitch-auto"),
+      destination: {
+        ...applyDestinationPreset(createDefaultStudioProfile(), "twitch-auto").destination,
+        streamKey: "live_user_123456"
+      }
+    };
+
+    const report = createReadinessReport(createDefaultScene(), profile);
+
+    expect(report.canStart).toBe(true);
+    expect(report.errorCount).toBe(0);
+    expect(report.issues.map((issue) => issue.code)).toContain("rtmp-not-encrypted");
   });
 
   it("blocks protocol mismatches", () => {

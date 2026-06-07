@@ -9,7 +9,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - OBS-like scene/source stack.
 - Screen, PNGTuber, Live2D, image, solid, and text source records.
 - Layer visibility, lock, ordering, and transform controls.
-- RTMP/RTMPS destination profile.
+- RTMP/RTMPS destination profiles with YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Stream key redaction and no-secret browser persistence.
 - Keychain/Android Keystore-backed mobile profile storage for stream keys.
@@ -22,6 +22,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - React Native host app scaffold with standard `ios/` and `android/` projects.
 - React Native mobile Studio screen using the shared domain model and mock engine.
 - Android native bridge for MediaProjection consent, foreground service streaming, H.264/AAC encoding, and RTMP/RTMPS publishing through RootEncoder.
+- Android publish URLs are assembled from the selected server URL plus the stored stream key at start time.
 - Android start-time microphone/notification runtime permission preflight.
 - Native chat speech output through Android TextToSpeech and iOS AVSpeechSynthesizer.
 

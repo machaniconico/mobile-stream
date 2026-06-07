@@ -32,6 +32,7 @@ data class LiveCasterProfile(
 )
 
 object LiveCasterSession {
+    private val streamKeyPlaceholder = Regex("\\{stream_key\\}", RegexOption.IGNORE_CASE)
     private val listeners = mutableSetOf<(WritableMap) -> Unit>()
 
     var status: LiveCasterStatus = LiveCasterStatus.Idle
@@ -163,7 +164,10 @@ object LiveCasterSession {
         val root = JSONObject(profileJson)
         val destination = root.getJSONObject("destination")
         val quality = root.getJSONObject("quality")
-        val endpoint = destination.getString("serverUrl").trim()
+        val endpoint = buildEndpoint(
+            destination.getString("serverUrl"),
+            destination.optString("streamKey", "")
+        )
 
         require(endpoint.startsWith("rtmp://") || endpoint.startsWith("rtmps://")) {
             "Only RTMP and RTMPS endpoints are supported"
@@ -177,5 +181,59 @@ object LiveCasterSession {
             videoBitrate = quality.getInt("videoBitrateKbps") * 1000,
             audioBitrate = quality.getInt("audioBitrateKbps") * 1000
         )
+    }
+
+    private fun buildEndpoint(serverUrl: String, streamKey: String): String {
+        val normalizedServerUrl = serverUrl.trim().trimEnd('/')
+        val normalizedStreamKey = normalizeStreamKeyForServer(normalizedServerUrl, streamKey)
+
+        require(normalizedStreamKey.isNotEmpty()) {
+            "Stream key is required"
+        }
+
+        if (normalizedServerUrl.endsWith("/$normalizedStreamKey")) {
+            return normalizedServerUrl
+        }
+
+        if (streamKeyPlaceholder.containsMatchIn(normalizedServerUrl)) {
+            return streamKeyPlaceholder.replace(normalizedServerUrl) { normalizedStreamKey }
+        }
+
+        return "$normalizedServerUrl/$normalizedStreamKey"
+    }
+
+    private fun normalizeStreamKeyForServer(serverUrl: String, streamKey: String): String {
+        val normalizedStreamKey = streamKey.trim().trimStart('/')
+        val lastServerPathSegment = getLastServerPathSegment(serverUrl)
+
+        if (
+            lastServerPathSegment != null &&
+            normalizedStreamKey.lowercase().startsWith("${lastServerPathSegment.lowercase()}/")
+        ) {
+            return normalizedStreamKey.substring(lastServerPathSegment.length + 1)
+        }
+
+        return normalizedStreamKey
+    }
+
+    private fun getLastServerPathSegment(serverUrl: String): String? {
+        val staticServerUrl = streamKeyPlaceholder.replace(serverUrl) { "" }.trimEnd('/')
+        val schemeIndex = staticServerUrl.indexOf("://")
+        val pathStart = if (schemeIndex >= 0) {
+            staticServerUrl.indexOf('/', schemeIndex + 3)
+        } else {
+            staticServerUrl.indexOf('/')
+        }
+
+        if (pathStart < 0) {
+            return null
+        }
+
+        return staticServerUrl
+            .substring(pathStart)
+            .trim('/')
+            .split('/')
+            .filter { it.isNotEmpty() }
+            .lastOrNull()
     }
 }

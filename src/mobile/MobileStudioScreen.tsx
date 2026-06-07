@@ -3,8 +3,14 @@ import { useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
 import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
-import type { StudioProfile, StreamProtocol } from "../domain/profiles";
-import { defaultDestinationProfile, qualityProfiles } from "../domain/profiles";
+import type { DestinationPresetId, StudioProfile, StreamProtocol } from "../domain/profiles";
+import {
+  applyDestinationPreset,
+  destinationPresets,
+  markDestinationCustom,
+  qualityProfiles,
+  serverUrlWithProtocol
+} from "../domain/profiles";
 import type { ReadinessIssue, ReadinessReport } from "../domain/readiness";
 import {
   addSource,
@@ -89,6 +95,23 @@ export const MobileStudioScreen = ({
         ...update
       }
     });
+  };
+  const updatePreset = (presetId: DestinationPresetId) => {
+    if (setupLocked) {
+      return;
+    }
+    onProfileChange(applyDestinationPreset(profile, presetId));
+  };
+  const updateProtocol = (protocol: StreamProtocol) => {
+    updateDestination(
+      markDestinationCustom(profile.destination, {
+        protocol,
+        serverUrl: serverUrlWithProtocol(profile.destination.serverUrl, protocol)
+      })
+    );
+  };
+  const updateServerUrl = (serverUrl: string) => {
+    updateDestination(markDestinationCustom(profile.destination, { serverUrl }));
   };
 
   const addNewSource = (kind: SourceKind) => {
@@ -238,6 +261,22 @@ export const MobileStudioScreen = ({
         />
 
         <Panel title="Live Setup">
+          <Label text="Destination" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.destinationRow}>
+            {destinationPresets.map((preset) => (
+              <Pressable
+                key={preset.id}
+                hitSlop={8}
+                style={[styles.destinationChip, preset.id === profile.destination.presetId && styles.destinationChipActive]}
+                disabled={setupLocked}
+                onPress={() => updatePreset(preset.id)}
+              >
+                <Text style={styles.destinationName}>{preset.name}</Text>
+                <Text style={styles.destinationMeta}>{preset.protocol.toUpperCase()}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
           <View style={styles.grid2}>
             {(["rtmp", "rtmps"] as StreamProtocol[]).map((protocol) => (
               <ActionButton
@@ -245,15 +284,7 @@ export const MobileStudioScreen = ({
                 label={protocol.toUpperCase()}
                 variant={profile.destination.protocol === protocol ? "active" : "default"}
                 disabled={setupLocked}
-                onPress={() =>
-                  updateDestination({
-                    protocol,
-                    serverUrl:
-                      protocol === "rtmps"
-                        ? defaultDestinationProfile.serverUrl
-                        : defaultDestinationProfile.serverUrl.replace("rtmps://", "rtmp://")
-                  })
-                }
+                onPress={() => updateProtocol(protocol)}
               />
             ))}
           </View>
@@ -261,7 +292,7 @@ export const MobileStudioScreen = ({
           <Label text="Server URL" />
           <TextInput
             value={profile.destination.serverUrl}
-            onChangeText={(serverUrl) => updateDestination({ serverUrl })}
+            onChangeText={updateServerUrl}
             style={styles.input}
             autoCapitalize="none"
             editable={!setupLocked}
@@ -1153,6 +1184,35 @@ const styles = StyleSheet.create({
   },
   readinessIssueWarningText: {
     color: "#fde68a"
+  },
+  destinationRow: {
+    gap: 8,
+    paddingRight: 4
+  },
+  destinationChip: {
+    minWidth: 142,
+    minHeight: 58,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "#20202a"
+  },
+  destinationChipActive: {
+    borderColor: "#2dd4bf",
+    backgroundColor: "rgba(45, 212, 191, 0.14)"
+  },
+  destinationName: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  destinationMeta: {
+    marginTop: 4,
+    color: "#a1a1aa",
+    fontSize: 11,
+    fontWeight: "800"
   },
   qualityChip: {
     minWidth: 156,

@@ -1,5 +1,15 @@
 import { Settings, ShieldCheck } from "lucide-react";
-import { defaultDestinationProfile, qualityProfiles, type StudioProfile, type StreamProtocol } from "../domain/profiles";
+import {
+  applyDestinationPreset,
+  destinationPresets,
+  getDestinationPreset,
+  markDestinationCustom,
+  qualityProfiles,
+  serverUrlWithProtocol,
+  type DestinationPresetId,
+  type StudioProfile,
+  type StreamProtocol
+} from "../domain/profiles";
 import type { ReadinessReport } from "../domain/readiness";
 import { PanelTitle, ProtocolBadge } from "./ui";
 
@@ -11,6 +21,8 @@ interface LiveSetupScreenProps {
 }
 
 export const LiveSetupScreen = ({ profile, readiness, locked, onProfileChange }: LiveSetupScreenProps) => {
+  const activePreset = getDestinationPreset(profile.destination.presetId) ?? getDestinationPreset("custom-rtmps");
+
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
     if (locked) {
       return;
@@ -23,10 +35,42 @@ export const LiveSetupScreen = ({ profile, readiness, locked, onProfileChange }:
       }
     });
   };
+  const updatePreset = (presetId: DestinationPresetId) => {
+    if (locked) {
+      return;
+    }
+    onProfileChange(applyDestinationPreset(profile, presetId));
+  };
+  const updateProtocol = (protocol: StreamProtocol) => {
+    updateDestination(
+      markDestinationCustom(profile.destination, {
+        protocol,
+        serverUrl: serverUrlWithProtocol(profile.destination.serverUrl, protocol)
+      })
+    );
+  };
+  const updateServerUrl = (serverUrl: string) => {
+    updateDestination(markDestinationCustom(profile.destination, { serverUrl }));
+  };
 
   return (
     <section className="control-panel">
       <PanelTitle icon={<Settings size={18} />} title="Live Setup" />
+      <label className="field">
+        <span>Destination</span>
+        <select
+          value={profile.destination.presetId}
+          disabled={locked}
+          onChange={(event) => updatePreset(event.target.value as DestinationPresetId)}
+        >
+          {destinationPresets.map((preset) => (
+            <option key={preset.id} value={preset.id}>
+              {preset.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
       <div className="protocol-row" role="group" aria-label="protocol">
         {(["rtmp", "rtmps"] as StreamProtocol[]).map((protocol) => (
           <button
@@ -34,15 +78,7 @@ export const LiveSetupScreen = ({ profile, readiness, locked, onProfileChange }:
             className={`segmented-button ${profile.destination.protocol === protocol ? "active" : ""}`}
             type="button"
             disabled={locked}
-            onClick={() =>
-              updateDestination({
-                protocol,
-                serverUrl:
-                  protocol === "rtmps"
-                    ? defaultDestinationProfile.serverUrl
-                    : defaultDestinationProfile.serverUrl.replace("rtmps://", "rtmp://")
-              })
-            }
+            onClick={() => updateProtocol(protocol)}
           >
             <ProtocolBadge protocol={protocol} />
           </button>
@@ -54,12 +90,12 @@ export const LiveSetupScreen = ({ profile, readiness, locked, onProfileChange }:
         <input
           value={profile.destination.serverUrl}
           disabled={locked}
-          onChange={(event) => updateDestination({ serverUrl: event.target.value })}
+          onChange={(event) => updateServerUrl(event.target.value)}
         />
       </label>
 
       <label className="field">
-        <span>Stream key</span>
+        <span>{activePreset?.streamKeyLabel ?? "Stream key"}</span>
         <input
           value={profile.destination.streamKey}
           type="password"

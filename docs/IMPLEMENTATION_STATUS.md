@@ -4,7 +4,7 @@
 
 - TypeScript app scaffold with Vite.
 - OBS-like scene/source/render graph domain model.
-- Stream profile model for RTMP and RTMPS destinations.
+- Stream profile model for RTMP and RTMPS destinations, including YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Stream key redaction and no-secret browser persistence.
 - Chat/comment read-aloud domain model with queueing, muted words, URL redaction, and speech text shaping.
@@ -18,7 +18,7 @@
   - program preview
   - mic/lip-sync meter
   - expression buttons
-  - RTMP/RTMPS setup
+  - YouTube Live/Twitch/Custom RTMP setup
   - readiness panel with blocking errors and warnings
   - quality profiles
   - chat reader panel with test comments and speech settings
@@ -31,6 +31,7 @@
 - Android MediaProjection consent flow from React Native.
 - Android foreground streaming service with `mediaProjection|microphone` service type.
 - Android RTMP/RTMPS publishing path through RootEncoder, using screen capture and microphone input.
+- Android publish endpoint assembly from the app's server URL and stream key fields.
 - Android microphone/notification runtime permission preflight before MediaProjection launch.
 - Android Keystore-backed encrypted mobile profile storage for stream keys.
 - Android TextToSpeech native module for chat read-aloud.
