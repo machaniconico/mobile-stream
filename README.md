@@ -12,6 +12,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - RTMP/RTMPS destination profile.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Stream key redaction and no-secret browser persistence.
+- Keychain/Android Keystore-backed mobile profile storage for stream keys.
 - Quality presets.
 - Voice lip-sync meter and expression buttons.
 - Mock Go Live, Stop, and Reconnect controls.
@@ -20,6 +21,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - React Native host app scaffold with standard `ios/` and `android/` projects.
 - React Native mobile Studio screen using the shared domain model and mock engine.
 - Android native bridge for MediaProjection consent, foreground service streaming, H.264/AAC encoding, and RTMP/RTMPS publishing through RootEncoder.
+- Android start-time microphone/notification runtime permission preflight.
 
 ## Commands
 
@@ -45,6 +47,7 @@ npm run ios:build:simulator
 - Encoding: VideoToolbox on iOS, MediaCodec on Android.
 - Streaming: RTMP/RTMPS publisher behind `src/native/LiveCasterNative.ts`.
 - Go Live readiness: fail closed before native capture starts, with UI-visible blocking reasons.
+- Secret storage: browser persistence strips stream keys; mobile persistence uses Keychain/Android Keystore-backed native storage.
 - Avatar rendering: PNGTuber first, Live2D after licensing and runtime validation.
 
 Android device streaming now routes through `LiveCasterNative` when the native module is linked. iOS and non-device development still fall back to the mock engine.

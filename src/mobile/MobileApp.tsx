@@ -14,6 +14,7 @@ import { MockLiveCaster } from "../native/MockLiveCaster";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { AndroidLiveCaster, canUseAndroidLiveCaster } from "./AndroidLiveCaster";
 import { MobileStudioScreen } from "./MobileStudioScreen";
+import { loadSecureProfile, saveSecureProfile } from "./secureProfileStore";
 
 const isAvatarSource = (source: SceneDocument["sources"][number]): source is PNGTuberSource | Live2DSource =>
   source.kind === "pngtuber" || source.kind === "live2d";
@@ -22,6 +23,7 @@ export const MobileApp = () => {
   const engine = useMemo(() => (canUseAndroidLiveCaster() ? new AndroidLiveCaster() : new MockLiveCaster()), []);
   const [scene, setScene] = useState<SceneDocument>(() => createDefaultScene());
   const [profile, setProfile] = useState<StudioProfile>(() => createDefaultStudioProfile());
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeState(Date.now()));
@@ -30,8 +32,34 @@ export const MobileApp = () => {
   useEffect(() => engine.subscribe(setSnapshot), [engine]);
 
   useEffect(() => {
+    let cancelled = false;
+    void loadSecureProfile()
+      .catch(() => null)
+      .then((storedProfile) => {
+        if (!cancelled && storedProfile) {
+          setProfile(storedProfile);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setProfileLoaded(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     void engine.updateScene(scene);
   }, [engine, scene]);
+
+  useEffect(() => {
+    if (!profileLoaded) {
+      return;
+    }
+    void saveSecureProfile(profile).catch(() => undefined);
+  }, [profile, profileLoaded]);
 
   useEffect(() => {
     const timer = setInterval(() => {

@@ -7,6 +7,7 @@ import { initialStreamState } from "../domain/streamState";
 
 interface AndroidLiveCasterModule {
   getSnapshot(): Promise<NativeEngineSnapshot>;
+  ensurePermissions(): Promise<AndroidStartPermissionReport>;
   prepare(renderGraphJson: string, profileJson: string): Promise<NativeEngineSnapshot>;
   start(): Promise<NativeEngineSnapshot>;
   stop(): Promise<NativeEngineSnapshot>;
@@ -17,6 +18,12 @@ interface AndroidLiveCasterModule {
 }
 
 type Listener = (snapshot: NativeEngineSnapshot) => void;
+
+interface AndroidStartPermissionReport {
+  granted: boolean;
+  missing: string[];
+  message: string;
+}
 
 const nativeModule = NativeModules.LiveCasterNative as AndroidLiveCasterModule | undefined;
 
@@ -58,6 +65,10 @@ export class AndroidLiveCaster implements LiveCasterNative {
 
   async start(): Promise<void> {
     const module = requireNativeModule();
+    const permissionReport = await module.ensurePermissions();
+    if (!permissionReport.granted) {
+      throw new Error(permissionReport.message || `Missing Android permissions: ${permissionReport.missing.join(", ")}`);
+    }
     this.snapshot = normalizeSnapshot(await module.start());
     this.emit();
   }

@@ -1,9 +1,15 @@
 package com.mobilelivecaster.streaming
 
 import android.app.Activity
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
+import android.os.Build
+import com.facebook.react.modules.core.PermissionAwareActivity
+import com.facebook.react.modules.core.PermissionListener
+import com.facebook.react.bridge.Arguments
 import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.bridge.BaseActivityEventListener
@@ -22,15 +28,29 @@ class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) 
     companion object {
         const val NAME = "LiveCasterNative"
         private const val SCREEN_CAPTURE_REQUEST = 7301
+        private const val START_PERMISSIONS_REQUEST = 7302
     }
 
     private var startPromise: Promise? = null
+    private var permissionPromise: Promise? = null
     private val sessionListener: (WritableMap) -> Unit = { snapshot ->
         if (reactContext.hasActiveReactInstance()) {
             reactContext
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("LiveCasterSnapshot", snapshot)
         }
+    }
+
+    private val permissionListener = PermissionListener { requestCode, _, _ ->
+        if (requestCode != START_PERMISSIONS_REQUEST) return@PermissionListener false
+        val promise = permissionPromise
+        permissionPromise = null
+        val report = createPermissionReport()
+        if (missingStartPermissions().isNotEmpty()) {
+            LiveCasterSession.fail("Microphone and notification permissions are required before going live")
+        }
+        promise?.resolve(report)
+        true
     }
 
     private val activityEventListener: ActivityEventListener = object : BaseActivityEventListener() {
@@ -85,6 +105,31 @@ class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) 
     }
 
     @ReactMethod
+    fun ensurePermissions(promise: Promise) {
+        val missing = missingStartPermissions()
+        if (missing.isEmpty()) {
+            promise.resolve(createPermissionReport())
+            return
+        }
+
+        val activity = reactApplicationContext.currentActivity
+        if (activity !is PermissionAwareActivity) {
+            val message = "Android activity cannot request runtime permissions"
+            LiveCasterSession.fail(message)
+            promise.reject("permission_activity_unavailable", message)
+            return
+        }
+
+        if (permissionPromise != null) {
+            promise.reject("permission_request_pending", "Runtime permission request is already pending")
+            return
+        }
+
+        permissionPromise = promise
+        activity.requestPermissions(missing.toTypedArray(), START_PERMISSIONS_REQUEST, permissionListener)
+    }
+
+    @ReactMethod
     fun start(promise: Promise) {
         val activity = reactApplicationContext.currentActivity
         if (activity == null) {
@@ -99,6 +144,15 @@ class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) 
         }
         if (startPromise != null) {
             promise.reject("capture_pending", "Screen capture permission is already pending")
+            return
+        }
+        val missingPermissions = missingStartPermissions()
+        if (missingPermissions.isNotEmpty()) {
+            LiveCasterSession.fail("Microphone and notification permissions are required before going live")
+            promise.reject(
+                "permissions_missing",
+                "Missing permissions: ${missingPermissions.joinToString(", ")}"
+            )
             return
         }
 
@@ -141,5 +195,29 @@ class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) 
     @ReactMethod
     fun removeListeners(count: Int) {
         // Required by NativeEventEmitter.
+    }
+
+    private fun missingStartPermissions(): List<String> {
+        val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        return permissions.filter { permission ->
+            ContextCompat.checkSelfPermission(reactContext, permission) != PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    private fun createPermissionReport(): WritableMap {
+        val missing = missingStartPermissions()
+        val missingArray = Arguments.createArray()
+        missing.forEach { permission -> missingArray.pushString(permission) }
+        return Arguments.createMap().apply {
+            putBoolean("granted", missing.isEmpty())
+            putArray("missing", missingArray)
+            putString(
+                "message",
+                if (missing.isEmpty()) "Streaming permissions granted" else "Streaming permissions are missing"
+            )
+        }
     }
 }

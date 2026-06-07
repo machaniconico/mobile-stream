@@ -28,6 +28,10 @@
 - Android MediaProjection consent flow from React Native.
 - Android foreground streaming service with `mediaProjection|microphone` service type.
 - Android RTMP/RTMPS publishing path through RootEncoder, using screen capture and microphone input.
+- Android microphone/notification runtime permission preflight before MediaProjection launch.
+- Android Keystore-backed encrypted mobile profile storage for stream keys.
+- iOS Keychain-backed mobile profile storage exposed to React Native.
+- Durable mobile-side profile persistence through the secure native store.
 - React Native bare app scaffold generated from React Native 0.85.3.
 - Standard `ios/` and `android/` projects for the MobileLiveCaster host app.
 - React Native mobile Studio UI that reuses `src/domain` and the mock stream engine.
@@ -44,12 +48,11 @@
 - iOS screen capture in a packaged app.
 - Android end-to-end physical device validation against a real RTMP/RTMPS endpoint.
 - Native compositor.
-- VideoToolbox and MediaCodec encoder integration.
+- First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
 - Live2D Cubism SDK integration.
-- Secure platform storage for stream keys.
-- Durable mobile-side scene/profile persistence.
+- Durable mobile-side scene persistence.
 - iOS Broadcast Upload Extension Xcode target registration.
-- Android MediaProjection runtime permission and foreground notification flow.
+- In-app settings management for clearing or rotating stored stream keys.
 
 ## Local Environment Notes
 
@@ -63,7 +66,7 @@
 ## Next Slice
 
 1. Run Android on a physical device against a private RTMPS endpoint and tune bitrate/fps behavior.
-2. Add Android runtime permission UI for microphone and notification permission.
-3. Add secure platform storage for stream keys with Keychain/Keystore.
-4. Add durable mobile scene/profile persistence.
-5. Register the iOS Broadcast Upload Extension target once app group storage and render graph serialization are stable.
+2. Add durable mobile scene persistence through platform storage.
+3. Add in-app key clear/rotation controls.
+4. Register the iOS Broadcast Upload Extension target once app group storage and render graph serialization are stable.
+5. Implement the iOS RTMP/RTMPS publisher path.

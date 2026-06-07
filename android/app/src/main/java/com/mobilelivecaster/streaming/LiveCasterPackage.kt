@@ -9,7 +9,11 @@ import com.facebook.react.module.model.ReactModuleInfoProvider
 
 class LiveCasterPackage : BaseReactPackage() {
     override fun getModule(name: String, reactContext: ReactApplicationContext): NativeModule? =
-        if (name == LiveCasterNativeModule.NAME) LiveCasterNativeModule(reactContext) else null
+        when (name) {
+            LiveCasterNativeModule.NAME -> LiveCasterNativeModule(reactContext)
+            SecureProfileStoreModule.NAME -> SecureProfileStoreModule(reactContext)
+            else -> null
+        }
 
     override fun getReactModuleInfoProvider(): ReactModuleInfoProvider = ReactModuleInfoProvider {
         mapOf(
@@ -20,6 +24,14 @@ class LiveCasterPackage : BaseReactPackage() {
                 false,
                 false,
                 ReactModuleInfo.classIsTurboModule(LiveCasterNativeModule::class.java)
+            ),
+            SecureProfileStoreModule.NAME to ReactModuleInfo(
+                SecureProfileStoreModule.NAME,
+                SecureProfileStoreModule::class.java.name,
+                false,
+                false,
+                false,
+                ReactModuleInfo.classIsTurboModule(SecureProfileStoreModule::class.java)
             )
         )
     }
