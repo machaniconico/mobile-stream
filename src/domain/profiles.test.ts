@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyDestinationPreset,
+  applyMicEffectPreset,
   buildPublishUrl,
   createDefaultStudioProfile,
   markDestinationCustom,
@@ -24,6 +25,8 @@ describe("studio profiles", () => {
     expect(profile.destination.streamKey).toBe("");
     expect(profile.quality.id).toBe("quality-balanced");
     expect(profile.avatar.id).toBe("avatar-default");
+    expect(profile.micEffects.presetId).toBe("clean");
+    expect(profile.micEffects.monitorHeadphonesOnly).toBe(true);
   });
 
   it("removes stream keys before persistence", () => {
@@ -99,5 +102,41 @@ describe("studio profiles", () => {
     expect(serverUrlWithProtocol("rtmp://ingest.global-contribute.live-video.net/app", "rtmps")).toBe(
       "rtmps://ingest.global-contribute.live-video.net/app"
     );
+  });
+
+  it("applies mic effect presets while keeping monitor preferences", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      micEffects: {
+        ...createDefaultStudioProfile().micEffects,
+        monitorEnabled: true,
+        monitorVolume: 0.4
+      }
+    };
+
+    const updated = applyMicEffectPreset(profile, "broadcast");
+
+    expect(updated.micEffects.presetId).toBe("broadcast");
+    expect(updated.micEffects.inputGainDb).toBe(3);
+    expect(updated.micEffects.compression).toBe(0.62);
+    expect(updated.micEffects.monitorEnabled).toBe(true);
+    expect(updated.micEffects.monitorVolume).toBe(0.4);
+  });
+
+  it("clamps persisted mic effect values into native-safe ranges", () => {
+    const profile = normalizeStudioProfile({
+      micEffects: {
+        ...createDefaultStudioProfile().micEffects,
+        inputGainDb: 80,
+        noiseGateDb: -100,
+        compression: 2,
+        monitorVolume: 5
+      }
+    });
+
+    expect(profile.micEffects.inputGainDb).toBe(12);
+    expect(profile.micEffects.noiseGateDb).toBe(-70);
+    expect(profile.micEffects.compression).toBe(1);
+    expect(profile.micEffects.monitorVolume).toBe(1);
   });
 });

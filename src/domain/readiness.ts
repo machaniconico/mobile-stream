@@ -7,7 +7,7 @@ export type ReadinessSeverity = "error" | "warning";
 export interface ReadinessIssue {
   code: string;
   severity: ReadinessSeverity;
-  field: "serverUrl" | "streamKey" | "quality" | "scene" | "security";
+  field: "serverUrl" | "streamKey" | "quality" | "scene" | "security" | "micEffects";
   message: string;
 }
 
@@ -26,6 +26,7 @@ export const createReadinessReport = (scene: SceneDocument, profile: StudioProfi
   const issues: ReadinessIssue[] = [
     ...validateDestination(sanitizedProfile),
     ...validateQuality(sanitizedProfile),
+    ...validateMicEffects(sanitizedProfile),
     ...validateScene(scene)
   ];
   const errorCount = issues.filter((issue) => issue.severity === "error").length;
@@ -49,6 +50,9 @@ export const sanitizeStudioProfile = (profile: StudioProfile): StudioProfile => 
       ...normalized.destination,
       serverUrl: normalized.destination.serverUrl.trim(),
       streamKey: normalized.destination.streamKey.trim()
+    },
+    micEffects: {
+      ...normalized.micEffects
     }
   };
 };
@@ -138,6 +142,40 @@ const validateDestination = (profile: StudioProfile): ReadinessIssue[] => {
         message: "Stream key looks unusually short. Confirm it was pasted completely."
       });
     }
+  }
+
+  return issues;
+};
+
+const validateMicEffects = (profile: StudioProfile): ReadinessIssue[] => {
+  const issues: ReadinessIssue[] = [];
+  const { micEffects } = profile;
+
+  if (micEffects.inputGainDb > 9) {
+    issues.push({
+      code: "mic-gain-hot",
+      severity: "warning",
+      field: "micEffects",
+      message: "Mic input gain is very high and may clip."
+    });
+  }
+
+  if (micEffects.monitorEnabled && !micEffects.monitorHeadphonesOnly) {
+    issues.push({
+      code: "mic-monitor-speaker-feedback",
+      severity: "warning",
+      field: "micEffects",
+      message: "Mic monitor can feed back through speakers unless headphones-only mode is enabled."
+    });
+  }
+
+  if (micEffects.monitorEnabled && micEffects.monitorVolume > 0.85) {
+    issues.push({
+      code: "mic-monitor-loud",
+      severity: "warning",
+      field: "micEffects",
+      message: "Mic monitor volume is very high."
+    });
   }
 
   return issues;

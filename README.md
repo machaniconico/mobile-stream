@@ -15,6 +15,8 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Keychain/Android Keystore-backed mobile profile storage for stream keys.
 - Quality presets.
 - Voice lip-sync meter and expression buttons.
+- Mic effect presets with gain, noise gate, compression, and Android PCM processing.
+- Headphone-only mic monitor settings for hearing the processed mic signal locally.
 - Chat/comment read-aloud queue with test comments, muted words, and speech controls.
 - Mock Go Live, Stop, and Reconnect controls.
 - iOS ReplayKit Broadcast Upload Extension skeleton.
@@ -23,6 +25,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - React Native mobile Studio screen using the shared domain model and mock engine.
 - Android native bridge for MediaProjection consent, foreground service streaming, H.264/AAC encoding, and RTMP/RTMPS publishing through RootEncoder.
 - Android publish URLs are assembled from the selected server URL plus the stored stream key at start time.
+- Android microphone effects are applied before AAC encoding, with optional headphone monitor playback.
 - Android start-time microphone/notification runtime permission preflight.
 - Native chat speech output through Android TextToSpeech and iOS AVSpeechSynthesizer.
 

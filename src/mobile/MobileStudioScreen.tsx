@@ -3,11 +3,13 @@ import { useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
 import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
-import type { DestinationPresetId, StudioProfile, StreamProtocol } from "../domain/profiles";
+import type { DestinationPresetId, MicEffectPresetId, StudioProfile, StreamProtocol } from "../domain/profiles";
 import {
   applyDestinationPreset,
+  applyMicEffectPreset,
   destinationPresets,
   markDestinationCustom,
+  micEffectPresets,
   qualityProfiles,
   serverUrlWithProtocol
 } from "../domain/profiles";
@@ -112,6 +114,24 @@ export const MobileStudioScreen = ({
   };
   const updateServerUrl = (serverUrl: string) => {
     updateDestination(markDestinationCustom(profile.destination, { serverUrl }));
+  };
+  const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
+    if (setupLocked) {
+      return;
+    }
+    onProfileChange({
+      ...profile,
+      micEffects: {
+        ...profile.micEffects,
+        ...update
+      }
+    });
+  };
+  const updateMicPreset = (presetId: MicEffectPresetId) => {
+    if (setupLocked) {
+      return;
+    }
+    onProfileChange(applyMicEffectPreset(profile, presetId));
   };
 
   const addNewSource = (kind: SourceKind) => {
@@ -252,6 +272,88 @@ export const MobileStudioScreen = ({
               />
             ))}
           </View>
+
+          <View style={styles.grid2}>
+            <ActionButton
+              label="Off"
+              variant={!profile.micEffects.enabled ? "active" : "default"}
+              disabled={setupLocked}
+              onPress={() => updateMicEffects({ enabled: false })}
+            />
+            <ActionButton
+              label="FX"
+              variant={profile.micEffects.enabled ? "active" : "default"}
+              disabled={setupLocked}
+              onPress={() => updateMicEffects({ enabled: true })}
+            />
+          </View>
+
+          <Label text="Mic preset" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.destinationRow}>
+            {micEffectPresets.map((preset) => (
+              <Pressable
+                key={preset.id}
+                hitSlop={8}
+                style={[styles.destinationChip, preset.id === profile.micEffects.presetId && styles.destinationChipActive]}
+                disabled={setupLocked}
+                onPress={() => updateMicPreset(preset.id)}
+              >
+                <Text style={styles.destinationName}>{preset.name}</Text>
+                <Text style={styles.destinationMeta}>{preset.inputGainDb > 0 ? `+${preset.inputGainDb}` : preset.inputGainDb} dB</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          <NumberStepper
+            label="Gain dB"
+            value={profile.micEffects.inputGainDb}
+            min={-12}
+            max={12}
+            step={1}
+            disabled={setupLocked}
+            onChange={(inputGainDb) => updateMicEffects({ inputGainDb })}
+          />
+          <NumberStepper
+            label="Gate dB"
+            value={profile.micEffects.noiseGateDb}
+            min={-70}
+            max={-25}
+            step={1}
+            disabled={setupLocked}
+            onChange={(noiseGateDb) => updateMicEffects({ noiseGateDb })}
+          />
+          <NumberStepper
+            label="Compression"
+            value={profile.micEffects.compression}
+            min={0}
+            max={1}
+            step={0.05}
+            disabled={setupLocked}
+            onChange={(compression) => updateMicEffects({ compression })}
+          />
+          <View style={styles.grid2}>
+            <ActionButton
+              label="Monitor"
+              variant={profile.micEffects.monitorEnabled ? "active" : "default"}
+              disabled={setupLocked}
+              onPress={() => updateMicEffects({ monitorEnabled: !profile.micEffects.monitorEnabled })}
+            />
+            <ActionButton
+              label="Phones"
+              variant={profile.micEffects.monitorHeadphonesOnly ? "active" : "default"}
+              disabled={setupLocked}
+              onPress={() => updateMicEffects({ monitorHeadphonesOnly: !profile.micEffects.monitorHeadphonesOnly })}
+            />
+          </View>
+          <NumberStepper
+            label="Monitor"
+            value={profile.micEffects.monitorVolume}
+            min={0}
+            max={1}
+            step={0.05}
+            disabled={setupLocked || !profile.micEffects.monitorEnabled}
+            onChange={(monitorVolume) => updateMicEffects({ monitorVolume })}
+          />
         </Panel>
 
         <ChatReaderPanel
@@ -640,6 +742,7 @@ const NumberStepper = ({
   min,
   max,
   step,
+  disabled,
   onChange
 }: {
   label: string;
@@ -647,9 +750,13 @@ const NumberStepper = ({
   min: number;
   max: number;
   step: number;
+  disabled?: boolean;
   onChange(value: number): void;
 }) => {
   const set = (delta: number) => {
+    if (disabled) {
+      return;
+    }
     const next = Math.max(min, Math.min(max, Number((value + delta).toFixed(2))));
     onChange(next);
   };
@@ -660,11 +767,11 @@ const NumberStepper = ({
         <Text style={styles.stepperValue}>{Number.isInteger(value) ? value : value.toFixed(2)}</Text>
       </View>
       <View style={styles.stepperControls}>
-        <IconButton label="-" onPress={() => set(-step)} />
+        <IconButton label="-" disabled={disabled} onPress={() => set(-step)} />
         <View style={styles.stepperTrack}>
           <View style={[styles.stepperFill, { width: `${Math.round(((value - min) / (max - min)) * 100)}%` }]} />
         </View>
-        <IconButton label="+" onPress={() => set(step)} />
+        <IconButton label="+" disabled={disabled} onPress={() => set(step)} />
       </View>
     </View>
   );

@@ -7,6 +7,7 @@
 - Stream profile model for RTMP and RTMPS destinations, including YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Stream key redaction and no-secret browser persistence.
+- Mic effect profile model with presets, gain, noise gate, compression, and headphone monitor settings.
 - Chat/comment read-aloud domain model with queueing, muted words, URL redaction, and speech text shaping.
 - Avatar runtime model for PNGTuber/Live2D expression, lip sync, and auto blink.
 - Stream state machine for idle, preparing, live, reconnecting, stopping, and failed states.
@@ -17,6 +18,7 @@
   - transform sliders
   - program preview
   - mic/lip-sync meter
+  - mic effect and monitor controls
   - expression buttons
   - YouTube Live/Twitch/Custom RTMP setup
   - readiness panel with blocking errors and warnings
@@ -32,6 +34,8 @@
 - Android foreground streaming service with `mediaProjection|microphone` service type.
 - Android RTMP/RTMPS publishing path through RootEncoder, using screen capture and microphone input.
 - Android publish endpoint assembly from the app's server URL and stream key fields.
+- Android microphone PCM effect path through RootEncoder `CustomAudioEffect`.
+- Android headphone-only mic monitor playback through `AudioTrack`.
 - Android microphone/notification runtime permission preflight before MediaProjection launch.
 - Android Keystore-backed encrypted mobile profile storage for stream keys.
 - Android TextToSpeech native module for chat read-aloud.
@@ -53,6 +57,7 @@
 - iOS RTMP/RTMPS native publisher.
 - iOS screen capture in a packaged app.
 - Android end-to-end physical device validation against a real RTMP/RTMPS endpoint.
+- Android physical-device tuning for mic monitor latency and Bluetooth route behavior.
 - Native compositor.
 - First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
 - Live2D Cubism SDK integration.

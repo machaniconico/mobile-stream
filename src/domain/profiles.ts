@@ -1,5 +1,6 @@
 export type StreamProtocol = "rtmp" | "rtmps";
 export type StreamPlatform = "custom" | "youtube-live" | "twitch";
+export type MicEffectPresetId = "clean" | "broadcast" | "bright" | "robot";
 export type DestinationPresetId =
   | "youtube-live-rtmps"
   | "twitch-auto"
@@ -45,10 +46,30 @@ export interface AvatarProfile {
   scale: number;
 }
 
+export interface MicEffectsProfile {
+  enabled: boolean;
+  presetId: MicEffectPresetId;
+  inputGainDb: number;
+  noiseGateDb: number;
+  compression: number;
+  monitorEnabled: boolean;
+  monitorVolume: number;
+  monitorHeadphonesOnly: boolean;
+}
+
+export interface MicEffectPreset {
+  id: MicEffectPresetId;
+  name: string;
+  inputGainDb: number;
+  noiseGateDb: number;
+  compression: number;
+}
+
 export interface StudioProfile {
   destination: DestinationProfile;
   quality: QualityProfile;
   avatar: AvatarProfile;
+  micEffects: MicEffectsProfile;
 }
 
 export const destinationPresets: DestinationPreset[] = [
@@ -260,10 +281,71 @@ export const defaultAvatarProfile: AvatarProfile = {
   scale: 1
 };
 
+export const micEffectPresets: MicEffectPreset[] = [
+  {
+    id: "clean",
+    name: "Clean",
+    inputGainDb: 0,
+    noiseGateDb: -60,
+    compression: 0.15
+  },
+  {
+    id: "broadcast",
+    name: "Broadcast",
+    inputGainDb: 3,
+    noiseGateDb: -46,
+    compression: 0.62
+  },
+  {
+    id: "bright",
+    name: "Bright",
+    inputGainDb: 2,
+    noiseGateDb: -50,
+    compression: 0.36
+  },
+  {
+    id: "robot",
+    name: "Robot",
+    inputGainDb: 0,
+    noiseGateDb: -54,
+    compression: 0.5
+  }
+];
+
+export const defaultMicEffectsProfile: MicEffectsProfile = {
+  enabled: false,
+  presetId: "clean",
+  inputGainDb: 0,
+  noiseGateDb: -60,
+  compression: 0.15,
+  monitorEnabled: false,
+  monitorVolume: 0.45,
+  monitorHeadphonesOnly: true
+};
+
+export const getMicEffectPreset = (presetId: string | null | undefined): MicEffectPreset | undefined =>
+  micEffectPresets.find((preset) => preset.id === presetId);
+
+export const applyMicEffectPreset = (profile: StudioProfile, presetId: MicEffectPresetId): StudioProfile => {
+  const preset = getMicEffectPreset(presetId) ?? micEffectPresets[0];
+
+  return {
+    ...profile,
+    micEffects: {
+      ...profile.micEffects,
+      presetId: preset.id,
+      inputGainDb: preset.inputGainDb,
+      noiseGateDb: preset.noiseGateDb,
+      compression: preset.compression
+    }
+  };
+};
+
 export const createDefaultStudioProfile = (): StudioProfile => ({
   destination: { ...defaultDestinationProfile },
   quality: qualityProfiles[0],
-  avatar: { ...defaultAvatarProfile }
+  avatar: { ...defaultAvatarProfile },
+  micEffects: { ...defaultMicEffectsProfile }
 });
 
 export const redactStreamKey = (streamKey: string): string => {
@@ -304,8 +386,31 @@ export const normalizeStudioProfile = (profile: Partial<StudioProfile> | null | 
     avatar: {
       ...fallback.avatar,
       ...profile?.avatar
-    }
+    },
+    micEffects: normalizeMicEffectsProfile(profile?.micEffects)
   };
+};
+
+const normalizeMicEffectsProfile = (micEffects: Partial<MicEffectsProfile> | null | undefined): MicEffectsProfile => {
+  const preset = getMicEffectPreset(micEffects?.presetId) ?? micEffectPresets[0];
+
+  return {
+    enabled: micEffects?.enabled ?? defaultMicEffectsProfile.enabled,
+    presetId: preset.id,
+    inputGainDb: clampNumber(micEffects?.inputGainDb ?? preset.inputGainDb, -12, 12),
+    noiseGateDb: clampNumber(micEffects?.noiseGateDb ?? preset.noiseGateDb, -70, -25),
+    compression: clampNumber(micEffects?.compression ?? preset.compression, 0, 1),
+    monitorEnabled: micEffects?.monitorEnabled ?? defaultMicEffectsProfile.monitorEnabled,
+    monitorVolume: clampNumber(micEffects?.monitorVolume ?? defaultMicEffectsProfile.monitorVolume, 0, 1),
+    monitorHeadphonesOnly: micEffects?.monitorHeadphonesOnly ?? defaultMicEffectsProfile.monitorHeadphonesOnly
+  };
+};
+
+const clampNumber = (value: number, min: number, max: number): number => {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.max(min, Math.min(max, value));
 };
 
 export const stripSensitiveProfileData = (profile: StudioProfile): StudioProfile => ({

@@ -29,6 +29,7 @@ class MediaProjectionService : Service(), ConnectChecker {
 
     private var mediaProjection: MediaProjection? = null
     private var genericStream: GenericStream? = null
+    private var micProcessingEffect: MicProcessingEffect? = null
     private val mediaProjectionManager: MediaProjectionManager by lazy {
         applicationContext.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
     }
@@ -48,6 +49,8 @@ class MediaProjectionService : Service(), ConnectChecker {
         genericStream?.stopStream()
         genericStream?.release()
         genericStream = null
+        micProcessingEffect?.release()
+        micProcessingEffect = null
         mediaProjection?.stop()
         mediaProjection = null
         super.onDestroy()
@@ -71,7 +74,15 @@ class MediaProjectionService : Service(), ConnectChecker {
             mediaProjection?.stop()
             mediaProjection = projection
 
-            val stream = GenericStream(baseContext, this, NoVideoSource(), MicrophoneSource()).apply {
+            val microphoneSource = MicrophoneSource()
+            micProcessingEffect?.release()
+            micProcessingEffect = MicProcessingEffect(applicationContext, profile.micEffects).also { effect ->
+                if (profile.micEffects.enabled || profile.micEffects.monitorEnabled) {
+                    microphoneSource.setAudioEffect(effect)
+                }
+            }
+
+            val stream = GenericStream(baseContext, this, NoVideoSource(), microphoneSource).apply {
                 getGlInterface().setForceRender(true, profile.fps)
             }
             genericStream?.release()
@@ -123,6 +134,8 @@ class MediaProjectionService : Service(), ConnectChecker {
         genericStream?.stopStream()
         genericStream?.release()
         genericStream = null
+        micProcessingEffect?.release()
+        micProcessingEffect = null
         mediaProjection?.stop()
         mediaProjection = null
         stopForeground(STOP_FOREGROUND_REMOVE)

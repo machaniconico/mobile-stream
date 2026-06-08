@@ -28,7 +28,19 @@ data class LiveCasterProfile(
     val height: Int,
     val fps: Int,
     val videoBitrate: Int,
-    val audioBitrate: Int
+    val audioBitrate: Int,
+    val micEffects: MicEffectsProfile
+)
+
+data class MicEffectsProfile(
+    val enabled: Boolean = false,
+    val presetId: String = "clean",
+    val inputGainDb: Float = 0f,
+    val noiseGateDb: Float = -60f,
+    val compression: Float = 0.15f,
+    val monitorEnabled: Boolean = false,
+    val monitorVolume: Float = 0.45f,
+    val monitorHeadphonesOnly: Boolean = true
 )
 
 object LiveCasterSession {
@@ -164,6 +176,7 @@ object LiveCasterSession {
         val root = JSONObject(profileJson)
         val destination = root.getJSONObject("destination")
         val quality = root.getJSONObject("quality")
+        val micEffects = parseMicEffects(root.optJSONObject("micEffects"))
         val endpoint = buildEndpoint(
             destination.getString("serverUrl"),
             destination.optString("streamKey", "")
@@ -179,7 +192,25 @@ object LiveCasterSession {
             height = quality.getInt("height"),
             fps = quality.getInt("fps"),
             videoBitrate = quality.getInt("videoBitrateKbps") * 1000,
-            audioBitrate = quality.getInt("audioBitrateKbps") * 1000
+            audioBitrate = quality.getInt("audioBitrateKbps") * 1000,
+            micEffects = micEffects
+        )
+    }
+
+    private fun parseMicEffects(micEffects: JSONObject?): MicEffectsProfile {
+        if (micEffects == null) {
+            return MicEffectsProfile()
+        }
+
+        return MicEffectsProfile(
+            enabled = micEffects.optBoolean("enabled", false),
+            presetId = micEffects.optString("presetId", "clean"),
+            inputGainDb = micEffects.optDouble("inputGainDb", 0.0).toFloat().coerceIn(-12f, 12f),
+            noiseGateDb = micEffects.optDouble("noiseGateDb", -60.0).toFloat().coerceIn(-70f, -25f),
+            compression = micEffects.optDouble("compression", 0.15).toFloat().coerceIn(0f, 1f),
+            monitorEnabled = micEffects.optBoolean("monitorEnabled", false),
+            monitorVolume = micEffects.optDouble("monitorVolume", 0.45).toFloat().coerceIn(0f, 1f),
+            monitorHeadphonesOnly = micEffects.optBoolean("monitorHeadphonesOnly", true)
         )
     }
 

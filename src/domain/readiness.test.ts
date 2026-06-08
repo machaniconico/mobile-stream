@@ -105,4 +105,36 @@ describe("stream readiness", () => {
     expect(report.sanitizedProfile.destination.serverUrl).toBe("rtmps://live.example-stream.test/app");
     expect(report.sanitizedProfile.destination.streamKey).toBe("key-123456");
   });
+
+  it("warns when mic monitor is allowed through speakers", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      micEffects: {
+        ...createDefaultStudioProfile().micEffects,
+        monitorEnabled: true,
+        monitorHeadphonesOnly: false
+      }
+    };
+
+    const report = createReadinessReport(createDefaultScene(), profile);
+
+    expect(report.issues.map((issue) => issue.code)).toContain("mic-monitor-speaker-feedback");
+  });
+
+  it("warns when mic gain and monitor volume are very high", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      micEffects: {
+        ...createDefaultStudioProfile().micEffects,
+        inputGainDb: 10,
+        monitorEnabled: true,
+        monitorVolume: 0.9
+      }
+    };
+
+    const report = createReadinessReport(createDefaultScene(), profile);
+
+    expect(report.issues.map((issue) => issue.code)).toContain("mic-gain-hot");
+    expect(report.issues.map((issue) => issue.code)).toContain("mic-monitor-loud");
+  });
 });

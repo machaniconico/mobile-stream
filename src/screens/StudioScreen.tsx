@@ -4,6 +4,7 @@ import {
   ArrowUp,
   Eye,
   EyeOff,
+  Headphones,
   Layers,
   Lock,
   MessageCircle,
@@ -23,7 +24,7 @@ import {
 import { useState, type ReactNode } from "react";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
 import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
-import type { StudioProfile } from "../domain/profiles";
+import { applyMicEffectPreset, micEffectPresets, type MicEffectPresetId, type StudioProfile } from "../domain/profiles";
 import type { ReadinessReport } from "../domain/readiness";
 import {
   addSource,
@@ -99,6 +100,24 @@ export const StudioScreen = ({
   const isBusy = snapshot.state.status === "preparing" || snapshot.state.status === "stopping";
   const setupLocked = isLive || isBusy;
   const canGoLive = readiness.canStart && !isBusy && !isLive;
+  const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
+    if (setupLocked) {
+      return;
+    }
+    onProfileChange({
+      ...profile,
+      micEffects: {
+        ...profile.micEffects,
+        ...update
+      }
+    });
+  };
+  const updateMicPreset = (presetId: MicEffectPresetId) => {
+    if (setupLocked) {
+      return;
+    }
+    onProfileChange(applyMicEffectPreset(profile, presetId));
+  };
 
   const addNewSource = (kind: SourceKind) => {
     if (setupLocked) {
@@ -291,6 +310,95 @@ export const StudioScreen = ({
                   {expression}
                 </button>
               ))}
+            </div>
+            <div className="mic-effects">
+              <div className="protocol-row" role="group" aria-label="mic effects power">
+                <button
+                  className={`segmented-button ${!profile.micEffects.enabled ? "active" : ""}`}
+                  type="button"
+                  disabled={setupLocked}
+                  onClick={() => updateMicEffects({ enabled: false })}
+                >
+                  Off
+                </button>
+                <button
+                  className={`segmented-button ${profile.micEffects.enabled ? "active" : ""}`}
+                  type="button"
+                  disabled={setupLocked}
+                  onClick={() => updateMicEffects({ enabled: true })}
+                >
+                  FX
+                </button>
+              </div>
+              <label className="field">
+                <span>Mic preset</span>
+                <select
+                  value={profile.micEffects.presetId}
+                  disabled={setupLocked}
+                  onChange={(event) => updateMicPreset(event.target.value as MicEffectPresetId)}
+                >
+                  {micEffectPresets.map((preset) => (
+                    <option key={preset.id} value={preset.id}>
+                      {preset.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <SpeechSlider
+                label="Gain dB"
+                value={profile.micEffects.inputGainDb}
+                min={-12}
+                max={12}
+                step={1}
+                disabled={setupLocked}
+                onChange={(inputGainDb) => updateMicEffects({ inputGainDb })}
+              />
+              <SpeechSlider
+                label="Gate dB"
+                value={profile.micEffects.noiseGateDb}
+                min={-70}
+                max={-25}
+                step={1}
+                disabled={setupLocked}
+                onChange={(noiseGateDb) => updateMicEffects({ noiseGateDb })}
+              />
+              <SpeechSlider
+                label="Compression"
+                value={profile.micEffects.compression}
+                min={0}
+                max={1}
+                step={0.01}
+                disabled={setupLocked}
+                onChange={(compression) => updateMicEffects({ compression })}
+              />
+              <div className="monitor-row">
+                <button
+                  className={`segmented-button ${profile.micEffects.monitorEnabled ? "active" : ""}`}
+                  type="button"
+                  disabled={setupLocked}
+                  onClick={() => updateMicEffects({ monitorEnabled: !profile.micEffects.monitorEnabled })}
+                >
+                  <Headphones size={16} />
+                  Monitor
+                </button>
+                <button
+                  className={`segmented-button ${profile.micEffects.monitorHeadphonesOnly ? "active" : ""}`}
+                  type="button"
+                  disabled={setupLocked}
+                  onClick={() => updateMicEffects({ monitorHeadphonesOnly: !profile.micEffects.monitorHeadphonesOnly })}
+                >
+                  Phones
+                </button>
+              </div>
+              <SpeechSlider
+                label="Monitor"
+                value={profile.micEffects.monitorVolume}
+                min={0}
+                max={1}
+                step={0.01}
+                disabled={setupLocked || !profile.micEffects.monitorEnabled}
+                onChange={(monitorVolume) => updateMicEffects({ monitorVolume })}
+              />
             </div>
           </section>
 
@@ -523,6 +631,7 @@ const SpeechSlider = ({
   min,
   max,
   step,
+  disabled,
   onChange
 }: {
   label: string;
@@ -530,6 +639,7 @@ const SpeechSlider = ({
   min: number;
   max: number;
   step: number;
+  disabled?: boolean;
   onChange(value: number): void;
 }) => (
   <label className="slider-field">
@@ -543,6 +653,7 @@ const SpeechSlider = ({
       step={step}
       type="range"
       value={value}
+      disabled={disabled}
       onChange={(event) => onChange(Number(event.target.value))}
     />
   </label>
