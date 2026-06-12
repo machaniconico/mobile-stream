@@ -8,6 +8,14 @@ import {
   updateChatReaderSettings,
   type ChatReaderSettings
 } from "../domain/chatReader";
+import {
+  applyFaceTrackingRuntime,
+  calibrateFaceTrackingProfile,
+  clearFaceTrackingMotion,
+  createFaceTrackingRuntimeState,
+  createSimulatedFaceTrackingFrame,
+  updateFaceTrackingRuntime
+} from "../domain/faceTracking";
 import { createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
@@ -23,6 +31,7 @@ import { useChatSpeechQueue } from "../native/ChatSpeechEngine";
 import { AndroidLiveCaster, canUseAndroidLiveCaster } from "./AndroidLiveCaster";
 import { MobileStudioScreen } from "./MobileStudioScreen";
 import { NativeChatSpeechEngine } from "./NativeChatSpeechEngine";
+import { NativeFaceTrackingInput } from "./NativeFaceTrackingInput";
 import { loadSecureProfile, saveSecureProfile } from "./secureProfileStore";
 
 const isAvatarSource = (source: SceneDocument["sources"][number]): source is PNGTuberSource | Live2DSource =>
@@ -31,6 +40,7 @@ const isAvatarSource = (source: SceneDocument["sources"][number]): source is PNG
 export const MobileApp = () => {
   const engine = useMemo(() => (canUseAndroidLiveCaster() ? new AndroidLiveCaster() : new MockLiveCaster()), []);
   const chatSpeechEngine = useMemo(() => new NativeChatSpeechEngine(), []);
+  const faceTrackingInput = useMemo(() => new NativeFaceTrackingInput(), []);
   const [scene, setScene] = useState<SceneDocument>(() => createDefaultScene());
   const [profile, setProfile] = useState<StudioProfile>(() => createDefaultStudioProfile());
   const [profileLoaded, setProfileLoaded] = useState(false);
@@ -38,10 +48,13 @@ export const MobileApp = () => {
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeState(Date.now()));
+  const [faceTrackingRuntime, setFaceTrackingRuntime] = useState(() => createFaceTrackingRuntimeState(Date.now()));
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
 
   useEffect(() => engine.subscribe(setSnapshot), [engine]);
   useChatSpeechQueue(chatReader, setChatReader, chatSpeechEngine);
+
+  useEffect(() => () => faceTrackingInput.stop(), [faceTrackingInput]);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,14 +91,49 @@ export const MobileApp = () => {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setAvatarRuntime((current) => {
-        const next = tickAutoBlink(current, Date.now());
-        setScene((currentScene) => applyAvatarRuntime(currentScene, next.expression, next.mouthOpen, next.blink));
-        return next;
+      const now = Date.now();
+      const trackingProfile = profile.faceTracking;
+
+      setFaceTrackingRuntime((currentTracking) => {
+        faceTrackingInput.refresh(trackingProfile, now);
+        const nativeFrame =
+          trackingProfile.inputMode === "native-camera" ? faceTrackingInput.readFrame(now) : null;
+        const frame = nativeFrame ?? createSimulatedFaceTrackingFrame(now, trackingProfile);
+        const nextTracking = trackingProfile.enabled
+          ? updateFaceTrackingRuntime(
+              currentTracking,
+              frame,
+              trackingProfile,
+              now
+            )
+          : createFaceTrackingRuntimeState(now);
+
+        setAvatarRuntime((currentAvatar) => {
+          const blinkedAvatar = tickAutoBlink(currentAvatar, now);
+          const nextAvatar = trackingProfile.enabled
+            ? {
+                ...blinkedAvatar,
+                expression: nextTracking.expression,
+                mouthOpen: nextTracking.mouthOpen,
+                blink: nextTracking.blink
+              }
+            : blinkedAvatar;
+
+          setScene((currentScene) => {
+            const withAvatar = applyAvatarRuntime(currentScene, nextAvatar.expression, nextAvatar.mouthOpen, nextAvatar.blink);
+            return trackingProfile.enabled
+              ? applyFaceTrackingRuntime(withAvatar, nextTracking, trackingProfile)
+              : clearFaceTrackingMotion(withAvatar);
+          });
+
+          return nextAvatar;
+        });
+
+        return nextTracking;
       });
     }, 140);
     return () => clearInterval(timer);
-  }, []);
+  }, [faceTrackingInput, profile.faceTracking]);
 
   const updateMicLevel = (level: number) => {
     setAvatarRuntime((current) => {
@@ -101,6 +149,13 @@ export const MobileApp = () => {
       setScene((currentScene) => applyAvatarRuntime(currentScene, next.expression, next.mouthOpen, next.blink));
       return next;
     });
+  };
+
+  const calibrateFaceTracking = () => {
+    setProfile((current) => ({
+      ...current,
+      faceTracking: calibrateFaceTrackingProfile(current.faceTracking, faceTrackingRuntime)
+    }));
   };
 
   const startStream = async () => {
@@ -129,11 +184,13 @@ export const MobileApp = () => {
         readiness={readiness}
         chatReader={chatReader}
         avatarRuntime={avatarRuntime}
+        faceTrackingRuntime={faceTrackingRuntime}
         onSceneChange={setScene}
         onProfileChange={setProfile}
         onSelectSource={setSelectedSourceId}
         onMicLevelChange={updateMicLevel}
         onExpressionChange={updateExpression}
+        onFaceTrackingCalibrate={calibrateFaceTracking}
         onStart={startStream}
         onStop={() => engine.stop()}
         onReconnect={() => engine.reconnect()}

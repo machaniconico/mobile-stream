@@ -57,4 +57,23 @@ describe("scene document", () => {
       rotation: 180
     });
   });
+
+  it("builds render payloads for legacy avatar sources without motion data", () => {
+    const scene = createDefaultScene();
+    const legacyScene = {
+      ...scene,
+      sources: scene.sources.map((source) => {
+        if (source.kind !== "pngtuber") {
+          return source;
+        }
+        const { motion: _motion, ...legacyAvatar } = source;
+        return legacyAvatar;
+      })
+    } as typeof scene;
+
+    const avatarNode = toRenderGraph(legacyScene).find((node) => node.kind === "pngtuber");
+
+    expect(avatarNode?.payload.trackingConfidence).toBe(0);
+    expect(avatarNode?.payload.headYaw).toBe(0);
+  });
 });

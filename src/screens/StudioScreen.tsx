@@ -24,11 +24,13 @@ import {
 import { useState, type ReactNode } from "react";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
 import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
+import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
 import { applyMicEffectPreset, micEffectPresets, type MicEffectPresetId, type StudioProfile } from "../domain/profiles";
 import type { ReadinessReport } from "../domain/readiness";
 import {
   addSource,
   createSource,
+  defaultAvatarMotion,
   reorderSource,
   setLocked,
   setVisibility,
@@ -51,11 +53,13 @@ interface StudioScreenProps {
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
   avatarRuntime: AvatarRuntimeState;
+  faceTrackingRuntime: FaceTrackingRuntimeState;
   onSceneChange(scene: SceneDocument): void;
   onProfileChange(profile: StudioProfile): void;
   onSelectSource(sourceId: string): void;
   onMicLevelChange(level: number): void;
   onExpressionChange(expression: AvatarExpression): void;
+  onFaceTrackingCalibrate(): void;
   onStart(): Promise<void>;
   onStop(): Promise<void>;
   onReconnect(): Promise<void>;
@@ -84,11 +88,13 @@ export const StudioScreen = ({
   readiness,
   chatReader,
   avatarRuntime,
+  faceTrackingRuntime,
   onSceneChange,
   onProfileChange,
   onSelectSource,
   onMicLevelChange,
   onExpressionChange,
+  onFaceTrackingCalibrate,
   onStart,
   onStop,
   onReconnect,
@@ -117,6 +123,18 @@ export const StudioScreen = ({
       return;
     }
     onProfileChange(applyMicEffectPreset(profile, presetId));
+  };
+  const updateFaceTracking = (update: Partial<StudioProfile["faceTracking"]>) => {
+    if (setupLocked) {
+      return;
+    }
+    onProfileChange({
+      ...profile,
+      faceTracking: {
+        ...profile.faceTracking,
+        ...update
+      }
+    });
   };
 
   const addNewSource = (kind: SourceKind) => {
@@ -400,6 +418,121 @@ export const StudioScreen = ({
                 onChange={(monitorVolume) => updateMicEffects({ monitorVolume })}
               />
             </div>
+            <div className="face-tracking">
+              <div className="protocol-row" role="group" aria-label="face tracking power">
+                <button
+                  className={`segmented-button ${!profile.faceTracking.enabled ? "active" : ""}`}
+                  type="button"
+                  disabled={setupLocked}
+                  onClick={() => updateFaceTracking({ enabled: false })}
+                >
+                  Off
+                </button>
+                <button
+                  className={`segmented-button ${profile.faceTracking.enabled ? "active" : ""}`}
+                  type="button"
+                  disabled={setupLocked}
+                  onClick={() => updateFaceTracking({ enabled: true })}
+                >
+                  Track
+                </button>
+              </div>
+              <label className="field">
+                <span>Face input</span>
+                <select
+                  value={profile.faceTracking.inputMode}
+                  disabled={setupLocked}
+                  onChange={(event) => updateFaceTracking({ inputMode: event.target.value as StudioProfile["faceTracking"]["inputMode"] })}
+                >
+                  <option value="simulated">Simulated</option>
+                  <option value="native-camera">Native camera</option>
+                </select>
+              </label>
+              <label className="field">
+                <span>Rig</span>
+                <select
+                  value={profile.faceTracking.rigMode}
+                  disabled={setupLocked}
+                  onChange={(event) => updateFaceTracking({ rigMode: event.target.value as StudioProfile["faceTracking"]["rigMode"] })}
+                >
+                  <option value="still-image-2d">Still image 2D</option>
+                  <option value="layered-2d">Layered 2D</option>
+                </select>
+              </label>
+              <SpeechSlider
+                label="Strength"
+                value={profile.faceTracking.trackingStrength}
+                min={0}
+                max={1}
+                step={0.01}
+                disabled={setupLocked}
+                onChange={(trackingStrength) => updateFaceTracking({ trackingStrength })}
+              />
+              <SpeechSlider
+                label="Smoothing"
+                value={profile.faceTracking.smoothing}
+                min={0}
+                max={1}
+                step={0.01}
+                disabled={setupLocked}
+                onChange={(smoothing) => updateFaceTracking({ smoothing })}
+              />
+              <SpeechSlider
+                label="Head range"
+                value={profile.faceTracking.headRange}
+                min={0}
+                max={1}
+                step={0.01}
+                disabled={setupLocked}
+                onChange={(headRange) => updateFaceTracking({ headRange })}
+              />
+              <SpeechSlider
+                label="Body range"
+                value={profile.faceTracking.bodyRange}
+                min={0}
+                max={1}
+                step={0.01}
+                disabled={setupLocked}
+                onChange={(bodyRange) => updateFaceTracking({ bodyRange })}
+              />
+              <SpeechSlider
+                label="Mouth"
+                value={profile.faceTracking.mouthSensitivity}
+                min={0.2}
+                max={2}
+                step={0.05}
+                disabled={setupLocked}
+                onChange={(mouthSensitivity) => updateFaceTracking({ mouthSensitivity })}
+              />
+              <SpeechSlider
+                label="Blink"
+                value={profile.faceTracking.blinkSensitivity}
+                min={0.2}
+                max={2}
+                step={0.05}
+                disabled={setupLocked}
+                onChange={(blinkSensitivity) => updateFaceTracking({ blinkSensitivity })}
+              />
+              <div className="monitor-row">
+                <button
+                  className={`segmented-button ${profile.faceTracking.autoExpression ? "active" : ""}`}
+                  type="button"
+                  disabled={setupLocked}
+                  onClick={() => updateFaceTracking({ autoExpression: !profile.faceTracking.autoExpression })}
+                >
+                  Auto Expr
+                </button>
+                <button className="segmented-button" type="button" disabled={setupLocked} onClick={onFaceTrackingCalibrate}>
+                  Calibrate
+                </button>
+              </div>
+              <div className={`tracking-readout ${faceTrackingRuntime.status}`}>
+                <span>{faceTrackingRuntime.status}</span>
+                <span>yaw {faceTrackingRuntime.yaw.toFixed(2)}</span>
+                <span>pitch {faceTrackingRuntime.pitch.toFixed(2)}</span>
+                <span>conf {Math.round(faceTrackingRuntime.confidence * 100)}%</span>
+              </div>
+            </div>
           </section>
 
           <ChatReaderPanel
@@ -559,9 +692,18 @@ const SourceVisual = ({ source }: { source: SceneSource }) => {
   }
 
   if (source.kind === "pngtuber" || source.kind === "live2d") {
+    const motion = source.motion ?? defaultAvatarMotion();
+    const bodyTransform = `translateY(${(-motion.bodyBounce + motion.breathing) * 100}px) rotate(${motion.bodyLean * 10}deg)`;
+    const headTransform = [
+      `translate(${motion.headX * 100}%, ${motion.headY * 100}%)`,
+      `rotate(${motion.headRoll * 18}deg)`,
+      `skew(${motion.headYaw * 7}deg, ${-motion.headPitch * 5}deg)`
+    ].join(" ");
+
     return (
-      <div className={`avatar-visual ${source.expression}`}>
-        <div className="avatar-head">
+      <div className={`avatar-visual ${source.expression}`} style={{ transform: bodyTransform }}>
+        <span className="avatar-body" aria-hidden="true" />
+        <div className="avatar-head" style={{ transform: headTransform }}>
           <span className="avatar-eye left" style={{ transform: `scaleY(${Math.max(0.1, 1 - source.blink)})` }} />
           <span className="avatar-eye right" style={{ transform: `scaleY(${Math.max(0.1, 1 - source.blink)})` }} />
           <span className="avatar-mouth" style={{ height: `${8 + source.mouthOpen * 34}px` }} />

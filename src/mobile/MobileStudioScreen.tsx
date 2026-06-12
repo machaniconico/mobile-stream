@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
 import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
+import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
 import type { DestinationPresetId, MicEffectPresetId, StudioProfile, StreamProtocol } from "../domain/profiles";
 import {
   applyDestinationPreset,
@@ -17,6 +18,7 @@ import type { ReadinessIssue, ReadinessReport } from "../domain/readiness";
 import {
   addSource,
   createSource,
+  defaultAvatarMotion,
   reorderSource,
   setLocked,
   setVisibility,
@@ -37,11 +39,13 @@ interface MobileStudioScreenProps {
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
   avatarRuntime: AvatarRuntimeState;
+  faceTrackingRuntime: FaceTrackingRuntimeState;
   onSceneChange(scene: SceneDocument): void;
   onProfileChange(profile: StudioProfile): void;
   onSelectSource(sourceId: string): void;
   onMicLevelChange(level: number): void;
   onExpressionChange(expression: AvatarExpression): void;
+  onFaceTrackingCalibrate(): void;
   onStart(): Promise<void>;
   onStop(): Promise<void>;
   onReconnect(): Promise<void>;
@@ -69,11 +73,13 @@ export const MobileStudioScreen = ({
   readiness,
   chatReader,
   avatarRuntime,
+  faceTrackingRuntime,
   onSceneChange,
   onProfileChange,
   onSelectSource,
   onMicLevelChange,
   onExpressionChange,
+  onFaceTrackingCalibrate,
   onStart,
   onStop,
   onReconnect,
@@ -132,6 +138,18 @@ export const MobileStudioScreen = ({
       return;
     }
     onProfileChange(applyMicEffectPreset(profile, presetId));
+  };
+  const updateFaceTracking = (update: Partial<StudioProfile["faceTracking"]>) => {
+    if (setupLocked) {
+      return;
+    }
+    onProfileChange({
+      ...profile,
+      faceTracking: {
+        ...profile.faceTracking,
+        ...update
+      }
+    });
   };
 
   const addNewSource = (kind: SourceKind) => {
@@ -354,6 +372,126 @@ export const MobileStudioScreen = ({
             disabled={setupLocked || !profile.micEffects.monitorEnabled}
             onChange={(monitorVolume) => updateMicEffects({ monitorVolume })}
           />
+
+          <View style={styles.sectionDivider} />
+          <View style={styles.grid2}>
+            <ActionButton
+              label="Off"
+              variant={!profile.faceTracking.enabled ? "active" : "default"}
+              disabled={setupLocked}
+              onPress={() => updateFaceTracking({ enabled: false })}
+            />
+            <ActionButton
+              label="Track"
+              variant={profile.faceTracking.enabled ? "active" : "default"}
+              disabled={setupLocked}
+              onPress={() => updateFaceTracking({ enabled: true })}
+            />
+          </View>
+
+          <Label text="Face input" />
+          <View style={styles.grid2}>
+            <ActionButton
+              label="Sim"
+              variant={profile.faceTracking.inputMode === "simulated" ? "active" : "default"}
+              disabled={setupLocked}
+              onPress={() => updateFaceTracking({ inputMode: "simulated" })}
+            />
+            <ActionButton
+              label="Native"
+              variant={profile.faceTracking.inputMode === "native-camera" ? "active" : "default"}
+              disabled={setupLocked}
+              onPress={() => updateFaceTracking({ inputMode: "native-camera" })}
+            />
+          </View>
+
+          <Label text="Rig" />
+          <View style={styles.grid2}>
+            <ActionButton
+              label="Still 2D"
+              variant={profile.faceTracking.rigMode === "still-image-2d" ? "active" : "default"}
+              disabled={setupLocked}
+              onPress={() => updateFaceTracking({ rigMode: "still-image-2d" })}
+            />
+            <ActionButton
+              label="Layered"
+              variant={profile.faceTracking.rigMode === "layered-2d" ? "active" : "default"}
+              disabled={setupLocked}
+              onPress={() => updateFaceTracking({ rigMode: "layered-2d" })}
+            />
+          </View>
+
+          <NumberStepper
+            label="Strength"
+            value={profile.faceTracking.trackingStrength}
+            min={0}
+            max={1}
+            step={0.05}
+            disabled={setupLocked}
+            onChange={(trackingStrength) => updateFaceTracking({ trackingStrength })}
+          />
+          <NumberStepper
+            label="Smoothing"
+            value={profile.faceTracking.smoothing}
+            min={0}
+            max={1}
+            step={0.05}
+            disabled={setupLocked}
+            onChange={(smoothing) => updateFaceTracking({ smoothing })}
+          />
+          <NumberStepper
+            label="Head range"
+            value={profile.faceTracking.headRange}
+            min={0}
+            max={1}
+            step={0.05}
+            disabled={setupLocked}
+            onChange={(headRange) => updateFaceTracking({ headRange })}
+          />
+          <NumberStepper
+            label="Body range"
+            value={profile.faceTracking.bodyRange}
+            min={0}
+            max={1}
+            step={0.05}
+            disabled={setupLocked}
+            onChange={(bodyRange) => updateFaceTracking({ bodyRange })}
+          />
+          <NumberStepper
+            label="Mouth"
+            value={profile.faceTracking.mouthSensitivity}
+            min={0.2}
+            max={2}
+            step={0.05}
+            disabled={setupLocked}
+            onChange={(mouthSensitivity) => updateFaceTracking({ mouthSensitivity })}
+          />
+          <NumberStepper
+            label="Blink"
+            value={profile.faceTracking.blinkSensitivity}
+            min={0.2}
+            max={2}
+            step={0.05}
+            disabled={setupLocked}
+            onChange={(blinkSensitivity) => updateFaceTracking({ blinkSensitivity })}
+          />
+          <View style={styles.grid2}>
+            <ActionButton
+              label="Auto Expr"
+              variant={profile.faceTracking.autoExpression ? "active" : "default"}
+              disabled={setupLocked}
+              onPress={() => updateFaceTracking({ autoExpression: !profile.faceTracking.autoExpression })}
+            />
+            <ActionButton label="Calibrate" disabled={setupLocked} onPress={onFaceTrackingCalibrate} />
+          </View>
+          <View style={styles.trackingReadout}>
+            <Text style={[styles.trackingCell, faceTrackingRuntime.status === "tracking" && styles.trackingCellActive]}>
+              {faceTrackingRuntime.status}
+            </Text>
+            <Text style={styles.trackingCell}>yaw {faceTrackingRuntime.yaw.toFixed(2)}</Text>
+            <Text style={styles.trackingCell}>pitch {faceTrackingRuntime.pitch.toFixed(2)}</Text>
+            <Text style={styles.trackingCell}>conf {Math.round(faceTrackingRuntime.confidence * 100)}%</Text>
+          </View>
         </Panel>
 
         <ChatReaderPanel
@@ -586,9 +724,36 @@ const SourceVisual = ({ source }: { source: SceneSource }) => {
   }
 
   if (source.kind === "pngtuber" || source.kind === "live2d") {
+    const motion = source.motion ?? defaultAvatarMotion();
+
     return (
-      <View style={styles.avatarVisual}>
-        <View style={[styles.avatarHead, expressionStyle(source.expression)]}>
+      <View
+        style={[
+          styles.avatarVisual,
+          {
+            transform: [
+              { translateY: (-motion.bodyBounce + motion.breathing) * 72 },
+              { rotate: `${motion.bodyLean * 10}deg` }
+            ]
+          }
+        ]}
+      >
+        <View style={styles.avatarBody} />
+        <View
+          style={[
+            styles.avatarHead,
+            expressionStyle(source.expression),
+            {
+              transform: [
+                { translateX: motion.headX * 72 },
+                { translateY: motion.headY * 72 },
+                { rotate: `${motion.headRoll * 18}deg` },
+                { scaleX: 1 - Math.abs(motion.headYaw) * 0.08 },
+                { scaleY: 1 - Math.abs(motion.headPitch) * 0.04 }
+              ]
+            }
+          ]}
+        >
           <View style={[styles.avatarEye, styles.avatarEyeLeft, { transform: [{ scaleY: Math.max(0.1, 1 - source.blink) }] }]} />
           <View style={[styles.avatarEye, styles.avatarEyeRight, { transform: [{ scaleY: Math.max(0.1, 1 - source.blink) }] }]} />
           <View style={[styles.avatarMouth, { height: 6 + source.mouthOpen * 22 }]} />
@@ -1018,6 +1183,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
+  avatarBody: {
+    position: "absolute",
+    bottom: "16%",
+    width: "58%",
+    aspectRatio: 1.6,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: "rgba(248, 250, 252, 0.72)",
+    backgroundColor: "rgba(45, 212, 191, 0.42)"
+  },
   avatarHead: {
     position: "relative",
     width: "72%",
@@ -1186,6 +1361,36 @@ const styles = StyleSheet.create({
   levelFill: {
     height: "100%",
     backgroundColor: "#22c55e"
+  },
+  sectionDivider: {
+    height: 1,
+    marginVertical: 4,
+    backgroundColor: "#343442"
+  },
+  trackingReadout: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6
+  },
+  trackingCell: {
+    minHeight: 32,
+    minWidth: 72,
+    flex: 1,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 8,
+    backgroundColor: "#101015",
+    color: "#a1a1aa",
+    fontSize: 11,
+    fontWeight: "800",
+    textAlign: "center"
+  },
+  trackingCellActive: {
+    borderColor: "rgba(34, 197, 94, 0.46)",
+    color: "#bbf7d0"
   },
   chatStatusRow: {
     flexDirection: "row",

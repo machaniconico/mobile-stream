@@ -11,6 +11,18 @@ export interface Transform {
   opacity: number;
 }
 
+export interface AvatarMotion {
+  headYaw: number;
+  headPitch: number;
+  headRoll: number;
+  headX: number;
+  headY: number;
+  bodyLean: number;
+  bodyBounce: number;
+  breathing: number;
+  confidence: number;
+}
+
 export interface BaseSource {
   id: string;
   kind: SourceKind;
@@ -32,6 +44,7 @@ export interface PNGTuberSource extends BaseSource {
   expression: string;
   mouthOpen: number;
   blink: number;
+  motion: AvatarMotion;
 }
 
 export interface Live2DSource extends BaseSource {
@@ -40,6 +53,7 @@ export interface Live2DSource extends BaseSource {
   expression: string;
   mouthOpen: number;
   blink: number;
+  motion: AvatarMotion;
 }
 
 export interface ImageSource extends BaseSource {
@@ -100,6 +114,19 @@ const clampTransform = (transform: Transform): Transform => ({
 
 const makeId = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 
+export const defaultAvatarMotion = (overrides: Partial<AvatarMotion> = {}): AvatarMotion => ({
+  headYaw: 0,
+  headPitch: 0,
+  headRoll: 0,
+  headX: 0,
+  headY: 0,
+  bodyLean: 0,
+  bodyBounce: 0,
+  breathing: 0,
+  confidence: 0,
+  ...overrides
+});
+
 export const defaultTransform = (overrides: Partial<Transform> = {}): Transform =>
   clampTransform({
     x: 0.05,
@@ -152,6 +179,7 @@ export const createDefaultScene = (): SceneDocument => ({
       expression: "neutral",
       mouthOpen: 0.18,
       blink: 0,
+      motion: defaultAvatarMotion(),
       transform: defaultTransform({ x: 0.67, y: 0.44, width: 0.26, height: 0.45 })
     },
     {
@@ -184,9 +212,25 @@ export const createSource = (kind: SourceKind): SceneSource => {
     case "screen":
       return { ...base, kind, captureMode: "android-media-projection" };
     case "pngtuber":
-      return { ...base, kind, avatarId: "default-pngtuber", expression: "neutral", mouthOpen: 0, blink: 0 };
+      return {
+        ...base,
+        kind,
+        avatarId: "default-pngtuber",
+        expression: "neutral",
+        mouthOpen: 0,
+        blink: 0,
+        motion: defaultAvatarMotion()
+      };
     case "live2d":
-      return { ...base, kind, modelId: "default-live2d", expression: "neutral", mouthOpen: 0, blink: 0 };
+      return {
+        ...base,
+        kind,
+        modelId: "default-live2d",
+        expression: "neutral",
+        mouthOpen: 0,
+        blink: 0,
+        motion: defaultAvatarMotion()
+      };
     case "image":
       return { ...base, kind, uri: "" };
     case "solid":
@@ -253,20 +297,42 @@ const sourcePayload = (source: SceneSource): Record<string, string | number | bo
   switch (source.kind) {
     case "screen":
       return { captureMode: source.captureMode };
-    case "pngtuber":
+    case "pngtuber": {
+      const pngMotion = source.motion ?? defaultAvatarMotion();
       return {
         avatarId: source.avatarId,
         expression: source.expression,
         mouthOpen: source.mouthOpen,
-        blink: source.blink
+        blink: source.blink,
+        headYaw: pngMotion.headYaw,
+        headPitch: pngMotion.headPitch,
+        headRoll: pngMotion.headRoll,
+        headX: pngMotion.headX,
+        headY: pngMotion.headY,
+        bodyLean: pngMotion.bodyLean,
+        bodyBounce: pngMotion.bodyBounce,
+        breathing: pngMotion.breathing,
+        trackingConfidence: pngMotion.confidence
       };
-    case "live2d":
+    }
+    case "live2d": {
+      const live2dMotion = source.motion ?? defaultAvatarMotion();
       return {
         modelId: source.modelId,
         expression: source.expression,
         mouthOpen: source.mouthOpen,
-        blink: source.blink
+        blink: source.blink,
+        headYaw: live2dMotion.headYaw,
+        headPitch: live2dMotion.headPitch,
+        headRoll: live2dMotion.headRoll,
+        headX: live2dMotion.headX,
+        headY: live2dMotion.headY,
+        bodyLean: live2dMotion.bodyLean,
+        bodyBounce: live2dMotion.bodyBounce,
+        breathing: live2dMotion.breathing,
+        trackingConfidence: live2dMotion.confidence
       };
+    }
     case "image":
       return { uri: source.uri };
     case "solid":

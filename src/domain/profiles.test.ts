@@ -27,6 +27,8 @@ describe("studio profiles", () => {
     expect(profile.avatar.id).toBe("avatar-default");
     expect(profile.micEffects.presetId).toBe("clean");
     expect(profile.micEffects.monitorHeadphonesOnly).toBe(true);
+    expect(profile.faceTracking.enabled).toBe(false);
+    expect(profile.faceTracking.inputMode).toBe("simulated");
   });
 
   it("removes stream keys before persistence", () => {
@@ -138,5 +140,22 @@ describe("studio profiles", () => {
     expect(profile.micEffects.noiseGateDb).toBe(-70);
     expect(profile.micEffects.compression).toBe(1);
     expect(profile.micEffects.monitorVolume).toBe(1);
+  });
+
+  it("normalizes face tracking values for persisted profiles", () => {
+    const profile = normalizeStudioProfile({
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        trackingStrength: 9,
+        mouthSensitivity: 0,
+        neutralRoll: -8
+      }
+    });
+
+    expect(profile.faceTracking.enabled).toBe(true);
+    expect(profile.faceTracking.trackingStrength).toBe(1);
+    expect(profile.faceTracking.mouthSensitivity).toBe(0.2);
+    expect(profile.faceTracking.neutralRoll).toBe(-1);
   });
 });

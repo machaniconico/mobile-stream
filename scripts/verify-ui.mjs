@@ -21,7 +21,7 @@ try {
     const page = await browser.newPage({ viewport });
     await page.goto(target, { waitUntil: "networkidle" });
 
-    const checks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS"];
+    const checks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
 
     for (const text of checks) {
       const count = await page.getByText(text, { exact: false }).count();

@@ -7,10 +7,19 @@ import {
   updateChatReaderSettings,
   type ChatReaderSettings
 } from "../domain/chatReader";
+import {
+  applyFaceTrackingRuntime,
+  calibrateFaceTrackingProfile,
+  clearFaceTrackingMotion,
+  createFaceTrackingRuntimeState,
+  createSimulatedFaceTrackingFrame,
+  updateFaceTrackingRuntime
+} from "../domain/faceTracking";
 import { createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
   createDefaultScene,
+  defaultAvatarMotion,
   updateSource,
   type PNGTuberSource,
   type Live2DSource,
@@ -35,6 +44,7 @@ export const App = () => {
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeState(Date.now()));
+  const [faceTrackingRuntime, setFaceTrackingRuntime] = useState(() => createFaceTrackingRuntimeState(Date.now()));
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
   const persistableSceneJson = useMemo(() => JSON.stringify(stripTransientAvatarRuntime(scene)), [scene]);
 
@@ -58,14 +68,45 @@ export const App = () => {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      setAvatarRuntime((current) => {
-        const next = tickAutoBlink(current, Date.now());
-        setScene((currentScene) => applyAvatarRuntime(currentScene, next.expression, next.mouthOpen, next.blink));
-        return next;
+      const now = Date.now();
+      const trackingProfile = profile.faceTracking;
+
+      setFaceTrackingRuntime((currentTracking) => {
+        const nextTracking = trackingProfile.enabled
+          ? updateFaceTrackingRuntime(
+              currentTracking,
+              createSimulatedFaceTrackingFrame(now, trackingProfile),
+              trackingProfile,
+              now
+            )
+          : createFaceTrackingRuntimeState(now);
+
+        setAvatarRuntime((currentAvatar) => {
+          const blinkedAvatar = tickAutoBlink(currentAvatar, now);
+          const nextAvatar = trackingProfile.enabled
+            ? {
+                ...blinkedAvatar,
+                expression: nextTracking.expression,
+                mouthOpen: nextTracking.mouthOpen,
+                blink: nextTracking.blink
+              }
+            : blinkedAvatar;
+
+          setScene((currentScene) => {
+            const withAvatar = applyAvatarRuntime(currentScene, nextAvatar.expression, nextAvatar.mouthOpen, nextAvatar.blink);
+            return trackingProfile.enabled
+              ? applyFaceTrackingRuntime(withAvatar, nextTracking, trackingProfile)
+              : clearFaceTrackingMotion(withAvatar);
+          });
+
+          return nextAvatar;
+        });
+
+        return nextTracking;
       });
     }, 120);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [profile.faceTracking]);
 
   const updateMicLevel = (level: number) => {
     setAvatarRuntime((current) => {
@@ -81,6 +122,13 @@ export const App = () => {
       setScene((currentScene) => applyAvatarRuntime(currentScene, next.expression, next.mouthOpen, next.blink));
       return next;
     });
+  };
+
+  const calibrateFaceTracking = () => {
+    setProfile((current) => ({
+      ...current,
+      faceTracking: calibrateFaceTrackingProfile(current.faceTracking, faceTrackingRuntime)
+    }));
   };
 
   const startStream = async () => {
@@ -116,11 +164,13 @@ export const App = () => {
       readiness={readiness}
       chatReader={chatReader}
       avatarRuntime={avatarRuntime}
+      faceTrackingRuntime={faceTrackingRuntime}
       onSceneChange={setScene}
       onProfileChange={setProfile}
       onSelectSource={setSelectedSourceId}
       onMicLevelChange={updateMicLevel}
       onExpressionChange={updateExpression}
+      onFaceTrackingCalibrate={calibrateFaceTracking}
       onStart={startStream}
       onStop={stopStream}
       onReconnect={reconnectStream}
@@ -169,7 +219,8 @@ const stripTransientAvatarRuntime = (scene: SceneDocument): SceneDocument => ({
     return {
       ...source,
       mouthOpen: 0,
-      blink: 0
+      blink: 0,
+      motion: defaultAvatarMotion()
     };
   })
 });
