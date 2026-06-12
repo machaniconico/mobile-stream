@@ -17,6 +17,8 @@
 		A10000000000000000000003 /* LiveCasterSecureStoreBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* LiveCasterSecureStoreBridge.m */; };
 		A10000000000000000000004 /* LiveCasterSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* LiveCasterSpeech.swift */; };
 		A10000000000000000000005 /* LiveCasterSpeechBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* LiveCasterSpeechBridge.m */; };
+		A10000000000000000000006 /* LiveCasterFaceTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000016 /* LiveCasterFaceTracker.swift */; };
+		A10000000000000000000007 /* LiveCasterFaceTrackerBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* LiveCasterFaceTrackerBridge.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +36,8 @@
 		A10000000000000000000013 /* LiveCasterSecureStoreBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LiveCasterSecureStoreBridge.m; path = MobileLiveCaster/LiveCasterSecureStoreBridge.m; sourceTree = "<group>"; };
 		A10000000000000000000014 /* LiveCasterSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LiveCasterSpeech.swift; path = MobileLiveCaster/LiveCasterSpeech.swift; sourceTree = "<group>"; };
 		A10000000000000000000015 /* LiveCasterSpeechBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LiveCasterSpeechBridge.m; path = MobileLiveCaster/LiveCasterSpeechBridge.m; sourceTree = "<group>"; };
+		A10000000000000000000016 /* LiveCasterFaceTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LiveCasterFaceTracker.swift; path = MobileLiveCaster/LiveCasterFaceTracker.swift; sourceTree = "<group>"; };
+		A10000000000000000000017 /* LiveCasterFaceTrackerBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LiveCasterFaceTrackerBridge.m; path = MobileLiveCaster/LiveCasterFaceTrackerBridge.m; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -59,6 +63,8 @@
 				A10000000000000000000013 /* LiveCasterSecureStoreBridge.m */,
 				A10000000000000000000014 /* LiveCasterSpeech.swift */,
 				A10000000000000000000015 /* LiveCasterSpeechBridge.m */,
+				A10000000000000000000016 /* LiveCasterFaceTracker.swift */,
+				A10000000000000000000017 /* LiveCasterFaceTrackerBridge.m */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
@@ -267,6 +273,8 @@
 				A10000000000000000000003 /* LiveCasterSecureStoreBridge.m in Sources */,
 				A10000000000000000000004 /* LiveCasterSpeech.swift in Sources */,
 				A10000000000000000000005 /* LiveCasterSpeechBridge.m in Sources */,
+				A10000000000000000000006 /* LiveCasterFaceTracker.swift in Sources */,
+				A10000000000000000000007 /* LiveCasterFaceTrackerBridge.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

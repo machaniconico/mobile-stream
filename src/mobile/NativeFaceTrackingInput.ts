@@ -27,6 +27,7 @@ export const canUseNativeFaceTracking = (): boolean => Boolean(nativeFaceTracker
 export class NativeFaceTrackingInput {
   private running = false;
   private polling = false;
+  private retryAfter = 0;
   private latestFrame: FaceTrackingFrame | null = null;
 
   isAvailable(): boolean {
@@ -42,10 +43,11 @@ export class NativeFaceTrackingInput {
       return;
     }
 
-    if (!this.running) {
+    if (!this.running && now >= this.retryAfter) {
       this.running = true;
       void nativeFaceTracker.start(JSON.stringify({ rigMode: profile.rigMode })).catch(() => {
         this.running = false;
+        this.retryAfter = Date.now() + 5_000;
       });
     }
 
