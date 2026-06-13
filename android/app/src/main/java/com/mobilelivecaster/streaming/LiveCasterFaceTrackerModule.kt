@@ -4,9 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
 import android.graphics.ImageFormat
-import android.graphics.PointF
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
@@ -16,6 +14,7 @@ import android.media.Image
 import android.media.ImageReader
 import android.os.Handler
 import android.os.HandlerThread
+import android.view.Surface
 import androidx.core.content.ContextCompat
 import com.facebook.react.modules.core.PermissionAwareActivity
 import com.facebook.react.modules.core.PermissionListener
@@ -26,6 +25,14 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.module.annotations.ReactModule
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.Face
+import com.google.mlkit.vision.face.FaceContour
+import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetector
+import com.google.mlkit.vision.face.FaceDetectorOptions
+import java.util.concurrent.Executor
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.abs
 import kotlin.math.max
@@ -37,20 +44,22 @@ class LiveCasterFaceTrackerModule(private val reactContext: ReactApplicationCont
 
     companion object {
         const val NAME = "LiveCasterFaceTracker"
-        private const val FRAME_WIDTH = 320
-        private const val FRAME_HEIGHT = 240
+        private const val FRAME_WIDTH = 480
+        private const val FRAME_HEIGHT = 360
         private const val CAMERA_PERMISSION_REQUEST = 7401
     }
 
     private val latestFrame = AtomicReference<NativeFaceFrame?>(null)
+    private val directExecutor = Executor { command -> command.run() }
     private var startPromise: Promise? = null
     private var cameraThread: HandlerThread? = null
     private var cameraHandler: Handler? = null
     private var cameraDevice: CameraDevice? = null
     private var captureSession: CameraCaptureSession? = null
     private var imageReader: ImageReader? = null
-    private var detector: android.media.FaceDetector? = null
-    private var processingFrame = false
+    private var detector: FaceDetector? = null
+    private var cameraRotationDegrees = 0
+    private val processingFrame = AtomicBoolean(false)
     private val permissionListener = PermissionListener { requestCode, _, _ ->
         if (requestCode != CAMERA_PERMISSION_REQUEST) return@PermissionListener false
         val promise = startPromise
@@ -122,10 +131,20 @@ class LiveCasterFaceTrackerModule(private val reactContext: ReactApplicationCont
     private fun startCamera() {
         cameraThread = HandlerThread("LiveCasterFaceTracker").apply { start() }
         cameraHandler = Handler(cameraThread!!.looper)
-        detector = android.media.FaceDetector(FRAME_WIDTH, FRAME_HEIGHT, 1)
+        detector = FaceDetection.getClient(
+            FaceDetectorOptions.Builder()
+                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+                .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
+                .setContourMode(FaceDetectorOptions.CONTOUR_MODE_ALL)
+                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+                .setMinFaceSize(0.16f)
+                .enableTracking()
+                .build()
+        )
 
         val manager = reactContext.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        val cameraId = findFrontCameraId(manager)
+        val camera = findFrontCamera(manager)
+        cameraRotationDegrees = rotationCompensation(manager, camera.id, camera.isFrontFacing)
         imageReader = ImageReader.newInstance(FRAME_WIDTH, FRAME_HEIGHT, ImageFormat.YUV_420_888, 2).apply {
             setOnImageAvailableListener({ reader ->
                 val image = reader.acquireLatestImage() ?: return@setOnImageAvailableListener
@@ -134,7 +153,7 @@ class LiveCasterFaceTrackerModule(private val reactContext: ReactApplicationCont
         }
 
         manager.openCamera(
-            cameraId,
+            camera.id,
             object : CameraDevice.StateCallback() {
                 override fun onOpened(camera: CameraDevice) {
                     cameraDevice = camera
@@ -176,63 +195,58 @@ class LiveCasterFaceTrackerModule(private val reactContext: ReactApplicationCont
     }
 
     private fun processImage(image: Image) {
-        if (processingFrame) {
+        if (!processingFrame.compareAndSet(false, true)) {
             image.close()
             return
         }
 
-        processingFrame = true
+        val activeDetector = detector
+        if (activeDetector == null) {
+            image.close()
+            processingFrame.set(false)
+            return
+        }
+
         try {
-            val bitmap = yPlaneToBitmap(image)
-            val faces = arrayOfNulls<android.media.FaceDetector.Face>(1)
-            val count = detector?.findFaces(bitmap, faces) ?: 0
-            latestFrame.set(if (count > 0 && faces[0] != null) faceToFrame(faces[0]!!) else lostFrame())
+            val input = InputImage.fromMediaImage(image, cameraRotationDegrees)
+            activeDetector.process(input)
+                .addOnSuccessListener(directExecutor) { faces ->
+                    val largestFace = faces.maxByOrNull { face -> face.boundingBox.width() * face.boundingBox.height() }
+                    latestFrame.set(largestFace?.let(::faceToFrame) ?: lostFrame())
+                }
+                .addOnFailureListener(directExecutor) {
+                    latestFrame.set(lostFrame())
+                }
+                .addOnCompleteListener(directExecutor) {
+                    image.close()
+                    processingFrame.set(false)
+                }
         } catch (_: Throwable) {
             latestFrame.set(lostFrame())
-        } finally {
             image.close()
-            processingFrame = false
+            processingFrame.set(false)
         }
     }
 
-    private fun yPlaneToBitmap(image: Image): Bitmap {
-        val plane = image.planes[0]
-        val buffer = plane.buffer
-        val rowStride = plane.rowStride
-        val pixels = IntArray(FRAME_WIDTH * FRAME_HEIGHT)
-
-        for (y in 0 until FRAME_HEIGHT) {
-            val rowOffset = y * rowStride
-            for (x in 0 until FRAME_WIDTH) {
-                val value = buffer.get(rowOffset + x).toInt() and 0xff
-                pixels[y * FRAME_WIDTH + x] = 0xff000000.toInt() or (value shl 16) or (value shl 8) or value
-            }
-        }
-
-        return Bitmap.createBitmap(pixels, FRAME_WIDTH, FRAME_HEIGHT, Bitmap.Config.RGB_565)
-    }
-
-    private fun faceToFrame(face: android.media.FaceDetector.Face): NativeFaceFrame {
-        val midpoint = PointF()
-        face.getMidPoint(midpoint)
-        val eyeDistance = max(1f, face.eyesDistance())
-        val centerX = (midpoint.x / FRAME_WIDTH - 0.5f) * 2f
-        val centerY = (midpoint.y / FRAME_HEIGHT - 0.5f) * 2f
-        val yaw = clamp(centerX + face.pose(android.media.FaceDetector.Face.EULER_Y) / 45f, -1f, 1f)
-        val pitch = clamp(centerY * -0.8f + face.pose(android.media.FaceDetector.Face.EULER_X) / 45f, -1f, 1f)
-        val roll = clamp(face.pose(android.media.FaceDetector.Face.EULER_Z) / 45f, -1f, 1f)
-        val confidence = clamp(face.confidence(), 0f, 1f)
-        val faceScale = clamp(eyeDistance / (FRAME_WIDTH * 0.22f), 0f, 1f)
+    private fun faceToFrame(face: Face): NativeFaceFrame {
+        val box = face.boundingBox
+        val confidence = clamp(max(box.width(), box.height()).toFloat() / max(FRAME_WIDTH, FRAME_HEIGHT).toFloat() * 1.9f, 0.45f, 0.98f)
+        val yaw = clamp(face.headEulerAngleY / 36f, -1f, 1f)
+        val pitch = clamp(face.headEulerAngleX / 32f, -1f, 1f)
+        val roll = clamp(face.headEulerAngleZ / 45f, -1f, 1f)
+        val leftBlink = clamp(1f - (face.leftEyeOpenProbability ?: 1f), 0f, 1f)
+        val rightBlink = clamp(1f - (face.rightEyeOpenProbability ?: 1f), 0f, 1f)
+        val smile = clamp(face.smilingProbability ?: mouthSmileFallback(face), 0f, 1f)
 
         return NativeFaceFrame(
             yaw = yaw.toDouble(),
             pitch = pitch.toDouble(),
             roll = roll.toDouble(),
-            mouthOpen = (0.18 + abs(pitch) * 0.26 + faceScale * 0.08).toDouble(),
-            leftBlink = 0.0,
-            rightBlink = 0.0,
-            smile = (0.25 + confidence * 0.22).toDouble(),
-            browRaise = (0.22 + max(0f, -pitch) * 0.35).toDouble(),
+            mouthOpen = estimateMouthOpen(face).toDouble(),
+            leftBlink = leftBlink.toDouble(),
+            rightBlink = rightBlink.toDouble(),
+            smile = smile.toDouble(),
+            browRaise = estimateBrowRaise(face).toDouble(),
             confidence = confidence.toDouble(),
             timestamp = System.currentTimeMillis().toDouble()
         )
@@ -256,6 +270,7 @@ class LiveCasterFaceTrackerModule(private val reactContext: ReactApplicationCont
             captureSession?.close()
             cameraDevice?.close()
             imageReader?.close()
+            detector?.close()
         } finally {
             captureSession = null
             cameraDevice = null
@@ -265,18 +280,81 @@ class LiveCasterFaceTrackerModule(private val reactContext: ReactApplicationCont
             cameraThread?.quitSafely()
             cameraThread = null
             cameraHandler = null
-            processingFrame = false
+            processingFrame.set(false)
         }
     }
 
-    private fun findFrontCameraId(manager: CameraManager): String {
+    private fun findFrontCamera(manager: CameraManager): CameraSelection {
         for (cameraId in manager.cameraIdList) {
             val characteristics = manager.getCameraCharacteristics(cameraId)
             if (characteristics.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT) {
-                return cameraId
+                return CameraSelection(cameraId, true)
             }
         }
-        return manager.cameraIdList.first()
+        return CameraSelection(manager.cameraIdList.first(), false)
+    }
+
+    private fun rotationCompensation(manager: CameraManager, cameraId: String, isFrontFacing: Boolean): Int {
+        val rotation = reactApplicationContext.currentActivity?.windowManager?.defaultDisplay?.rotation ?: Surface.ROTATION_0
+        val deviceRotation = when (rotation) {
+            Surface.ROTATION_90 -> 90
+            Surface.ROTATION_180 -> 180
+            Surface.ROTATION_270 -> 270
+            else -> 0
+        }
+        val sensorOrientation = manager.getCameraCharacteristics(cameraId).get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
+        return if (isFrontFacing) {
+            (sensorOrientation + deviceRotation) % 360
+        } else {
+            (sensorOrientation - deviceRotation + 360) % 360
+        }
+    }
+
+    private fun estimateMouthOpen(face: Face): Float {
+        val height = max(1, face.boundingBox.height()).toFloat()
+        val upper = averageY(face.getContour(FaceContour.UPPER_LIP_BOTTOM)?.points)
+        val lower = averageY(face.getContour(FaceContour.LOWER_LIP_TOP)?.points)
+        if (upper != null && lower != null) {
+            return clamp(abs(lower - upper) / height * 5.5f, 0f, 1f)
+        }
+        return clamp((face.smilingProbability ?: 0f) * 0.22f + max(0f, face.headEulerAngleX / 40f) * 0.18f, 0f, 1f)
+    }
+
+    private fun mouthSmileFallback(face: Face): Float {
+        val left = averageY(face.getContour(FaceContour.LEFT_CHEEK)?.points)
+        val right = averageY(face.getContour(FaceContour.RIGHT_CHEEK)?.points)
+        val mouth = averageY(face.getContour(FaceContour.LOWER_LIP_TOP)?.points)
+        if (left != null && right != null && mouth != null) {
+            return clamp(((left + right) * 0.5f - mouth) / max(1, face.boundingBox.height()).toFloat() * 6f + 0.45f, 0f, 1f)
+        }
+        return 0f
+    }
+
+    private fun estimateBrowRaise(face: Face): Float {
+        val height = max(1, face.boundingBox.height()).toFloat()
+        val eyeY = averageY(
+            listOfNotNull(
+                face.getContour(FaceContour.LEFT_EYE)?.points,
+                face.getContour(FaceContour.RIGHT_EYE)?.points
+            ).flatten()
+        )
+        val browY = averageY(
+            listOfNotNull(
+                face.getContour(FaceContour.LEFT_EYEBROW_TOP)?.points,
+                face.getContour(FaceContour.RIGHT_EYEBROW_TOP)?.points
+            ).flatten()
+        )
+        if (eyeY != null && browY != null) {
+            return clamp(((eyeY - browY) / height - 0.075f) * 7.5f, 0f, 1f)
+        }
+        return clamp(0.24f + max(0f, -face.headEulerAngleX / 35f) * 0.28f, 0f, 1f)
+    }
+
+    private fun averageY(points: List<android.graphics.PointF>?): Float? {
+        if (points.isNullOrEmpty()) {
+            return null
+        }
+        return points.sumOf { point -> point.y.toDouble() }.toFloat() / points.size
     }
 
     private fun hasCameraPermission(): Boolean =
@@ -297,6 +375,11 @@ class LiveCasterFaceTrackerModule(private val reactContext: ReactApplicationCont
     }
 
     private fun clamp(value: Float, minValue: Float, maxValue: Float): Float = min(maxValue, max(minValue, value))
+
+    private data class CameraSelection(
+        val id: String,
+        val isFrontFacing: Boolean
+    )
 
     private data class NativeFaceFrame(
         val yaw: Double,

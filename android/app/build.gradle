@@ -112,6 +112,7 @@ dependencies {
     implementation("com.facebook.react:react-android")
     implementation("androidx.core:core:1.17.0")
     implementation("com.github.pedroSG94.RootEncoder:library:2.5.4-1.8.22")
+    implementation("com.google.mlkit:face-detection:16.1.7")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

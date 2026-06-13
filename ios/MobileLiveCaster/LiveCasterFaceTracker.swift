@@ -1,16 +1,26 @@
+import ARKit
 import AVFoundation
 import Foundation
 import React
 import Vision
 
 @objc(LiveCasterFaceTracker)
-final class LiveCasterFaceTracker: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+final class LiveCasterFaceTracker: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, ARSessionDelegate {
+    private let arSession = ARSession()
     private let session = AVCaptureSession()
     private let sessionQueue = DispatchQueue(label: "MobileLiveCaster.faceTracker.session")
     private let visionQueue = DispatchQueue(label: "MobileLiveCaster.faceTracker.vision")
+    private let frameQueue = DispatchQueue(label: "MobileLiveCaster.faceTracker.frame")
     private var configured = false
     private var processingFrame = false
+    private var usingARKit = false
     private var latestFrame: [String: Double]?
+
+    override init() {
+        super.init()
+        arSession.delegate = self
+        arSession.delegateQueue = sessionQueue
+    }
 
     @objc
     static func requiresMainQueueSetup() -> Bool {
@@ -45,18 +55,22 @@ final class LiveCasterFaceTracker: NSObject, AVCaptureVideoDataOutputSampleBuffe
         rejecter reject: RCTPromiseRejectBlock
     ) {
         sessionQueue.async { [weak self] in
+            self?.arSession.pause()
             self?.session.stopRunning()
-            self?.latestFrame = nil
+            self?.usingARKit = false
+            self?.setLatestFrame(nil)
             resolve(true)
         }
     }
 
     @objc(getLatestFrame:rejecter:)
     func getLatestFrame(
-        _ resolve: RCTPromiseResolveBlock,
+        _ resolve: @escaping RCTPromiseResolveBlock,
         rejecter reject: RCTPromiseRejectBlock
     ) {
-        resolve(latestFrame)
+        frameQueue.async { [weak self] in
+            resolve(self?.latestFrame)
+        }
     }
 
     private func startAuthorized(
@@ -70,10 +84,12 @@ final class LiveCasterFaceTracker: NSObject, AVCaptureVideoDataOutputSampleBuffe
             }
 
             do {
-                if !configured {
+                if ARFaceTrackingConfiguration.isSupported {
+                    startARKit()
+                } else if !configured {
                     try configureSession()
                 }
-                if !session.isRunning {
+                if !usingARKit && !session.isRunning {
                     session.startRunning()
                 }
                 resolve(true)
@@ -81,6 +97,14 @@ final class LiveCasterFaceTracker: NSObject, AVCaptureVideoDataOutputSampleBuffe
                 reject("face_tracker_start_failed", error.localizedDescription, error)
             }
         }
+    }
+
+    private func startARKit() {
+        let configuration = ARFaceTrackingConfiguration()
+        configuration.isLightEstimationEnabled = false
+        session.stopRunning()
+        arSession.run(configuration, options: [.resetTracking, .removeExistingAnchors])
+        usingARKit = true
     }
 
     private func configureSession() throws {
@@ -133,19 +157,68 @@ final class LiveCasterFaceTracker: NSObject, AVCaptureVideoDataOutputSampleBuffe
         let request = VNDetectFaceLandmarksRequest { [weak self] request, _ in
             defer { self?.processingFrame = false }
             guard let observation = request.results?.compactMap({ $0 as? VNFaceObservation }).first else {
-                self?.latestFrame = Self.lostFrame()
+                self?.setLatestFrame(Self.lostFrame())
                 return
             }
-            self?.latestFrame = Self.frame(from: observation)
+            self?.setLatestFrame(Self.frame(from: observation))
         }
 
         let handler = VNImageRequestHandler(cmSampleBuffer: sampleBuffer, orientation: .leftMirrored)
         do {
             try handler.perform([request])
         } catch {
-            latestFrame = Self.lostFrame()
+            setLatestFrame(Self.lostFrame())
             processingFrame = false
         }
+    }
+
+    func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
+        guard usingARKit else {
+            return
+        }
+        guard let faceAnchor = anchors.compactMap({ $0 as? ARFaceAnchor }).first else {
+            setLatestFrame(Self.lostFrame())
+            return
+        }
+        setLatestFrame(Self.frame(from: faceAnchor))
+    }
+
+    private func setLatestFrame(_ frame: [String: Double]?) {
+        frameQueue.async { [weak self] in
+            self?.latestFrame = frame
+        }
+    }
+
+    private static func frame(from anchor: ARFaceAnchor) -> [String: Double] {
+        let pose = eulerAngles(from: anchor.transform)
+        let leftBlink = blend(anchor, .eyeBlinkLeft)
+        let rightBlink = blend(anchor, .eyeBlinkRight)
+        let smile = (blend(anchor, .mouthSmileLeft) + blend(anchor, .mouthSmileRight)) * 0.5
+        let browRaise = (
+            blend(anchor, .browInnerUp) * 0.5
+                + blend(anchor, .browOuterUpLeft) * 0.25
+                + blend(anchor, .browOuterUpRight) * 0.25
+        )
+        let mouthOpen = clamp(
+            blend(anchor, .jawOpen)
+                + blend(anchor, .mouthFunnel) * 0.35
+                + blend(anchor, .mouthPucker) * 0.2,
+            min: 0,
+            max: 1
+        )
+
+        return [
+            "yaw": clamp(pose.yaw / 0.75, min: -1, max: 1),
+            "pitch": clamp(pose.pitch / 0.65, min: -1, max: 1),
+            "roll": clamp(pose.roll / 0.75, min: -1, max: 1),
+            "mouthOpen": mouthOpen,
+            "leftBlink": clamp(leftBlink, min: 0, max: 1),
+            "rightBlink": clamp(rightBlink, min: 0, max: 1),
+            "smile": clamp(smile, min: 0, max: 1),
+            "browRaise": clamp(browRaise, min: 0, max: 1),
+            "confidence": 0.98,
+            "timestamp": Date().timeIntervalSince1970 * 1000
+        ]
     }
 
     private static func frame(from observation: VNFaceObservation) -> [String: Double] {
@@ -215,6 +288,23 @@ final class LiveCasterFaceTracker: NSObject, AVCaptureVideoDataOutputSampleBuffe
 
     private static func centerOffset(_ value: CGFloat) -> Double {
         Double((value - 0.5) * 2)
+    }
+
+    private static func blend(_ anchor: ARFaceAnchor, _ key: ARFaceAnchor.BlendShapeLocation) -> Double {
+        anchor.blendShapes[key]?.doubleValue ?? 0
+    }
+
+    private static func eulerAngles(from transform: simd_float4x4) -> (yaw: Double, pitch: Double, roll: Double) {
+        let q = simd_quatf(transform)
+        let x = Double(q.imag.x)
+        let y = Double(q.imag.y)
+        let z = Double(q.imag.z)
+        let w = Double(q.real)
+        let roll = atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y))
+        let pitchInput = clamp(2 * (w * y - z * x), min: -1, max: 1)
+        let pitch = asin(pitchInput)
+        let yaw = atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+        return (yaw: yaw, pitch: pitch, roll: roll)
     }
 
     private static func lostFrame() -> [String: Double] {
