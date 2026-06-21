@@ -13,6 +13,8 @@ struct LiveCasterHealth {
     var bitrateKbps: Int = 0
     var droppedFrames: Int = 0
     var fps: Int = 0
+    var elapsedSeconds: Int = 0
+    var reconnectAttempts: Int = 0
     var message: String = "Ready"
 }
 
@@ -27,6 +29,7 @@ final class LiveCasterBridge {
 
     func start() {
         status = .live
+        health.reconnectAttempts = 0
         health.message = "Live"
     }
 
@@ -37,6 +40,7 @@ final class LiveCasterBridge {
 
     func reconnect() {
         status = .reconnecting
+        health.reconnectAttempts += 1
         health.message = "Reconnecting"
     }
 

@@ -10,6 +10,7 @@ data class LiveCasterHealth(
     val droppedFrames: Int = 0,
     val fps: Int = 0,
     val elapsedSeconds: Int = 0,
+    val reconnectAttempts: Int = 0,
     val message: String = "Ready"
 )
 
@@ -96,11 +97,13 @@ object LiveCasterSession {
     fun markLive(message: String = "Live") {
         startedAtMillis = startedAtMillis ?: System.currentTimeMillis()
         status = LiveCasterStatus.Live
-        updateHealth(message = message)
+        updateHealth(reconnectAttempts = 0, message = message)
     }
 
-    fun markReconnecting() {
-        setStatus(LiveCasterStatus.Reconnecting, "Reconnecting")
+    fun markReconnecting(attempt: Int = health.reconnectAttempts + 1, message: String = "Reconnecting") {
+        status = LiveCasterStatus.Reconnecting
+        health = health.copy(reconnectAttempts = attempt.coerceAtLeast(1), message = message)
+        emit()
     }
 
     fun markStopping() {
@@ -127,6 +130,7 @@ object LiveCasterSession {
         bitrateKbps: Int = health.bitrateKbps,
         droppedFrames: Int = health.droppedFrames,
         fps: Int = profile?.fps ?: health.fps,
+        reconnectAttempts: Int = health.reconnectAttempts,
         message: String = health.message
     ) {
         val elapsed = startedAtMillis?.let { ((System.currentTimeMillis() - it) / 1000).toInt().coerceAtLeast(0) } ?: 0
@@ -135,6 +139,7 @@ object LiveCasterSession {
             droppedFrames = droppedFrames,
             fps = fps,
             elapsedSeconds = elapsed,
+            reconnectAttempts = reconnectAttempts,
             message = message
         )
         emit()
@@ -146,6 +151,7 @@ object LiveCasterSession {
             putInt("droppedFrames", health.droppedFrames)
             putInt("fps", health.fps)
             putInt("elapsedSeconds", health.elapsedSeconds)
+            putInt("reconnectAttempts", health.reconnectAttempts)
             putString("message", health.message)
         }
         val stateMap = Arguments.createMap().apply {

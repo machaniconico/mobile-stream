@@ -44,7 +44,27 @@ describe("stream state machine", () => {
     const stopped = streamReducer(stopping, { type: "stopped" });
 
     expect(reconnecting.status).toBe("reconnecting");
+    expect(reconnecting.health.reconnectAttempts).toBe(1);
     expect(stopping.status).toBe("stopping");
     expect(stopped.status).toBe("idle");
+  });
+
+  it("resets reconnect attempts after the stream is live again", () => {
+    const live = streamReducer(streamReducer(initialStreamState, { type: "prepare", now: 1000 }), {
+      type: "start",
+      now: 1000
+    });
+    const reconnecting = streamReducer(live, {
+      type: "reconnect",
+      now: 2000,
+      attempt: 3,
+      message: "Reconnecting in 8s"
+    });
+    const recovered = streamReducer(reconnecting, { type: "start", now: 3000 });
+
+    expect(reconnecting.health.reconnectAttempts).toBe(3);
+    expect(reconnecting.health.message).toBe("Reconnecting in 8s");
+    expect(recovered.status).toBe("live");
+    expect(recovered.health.reconnectAttempts).toBe(0);
   });
 });

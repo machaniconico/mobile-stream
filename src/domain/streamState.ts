@@ -5,6 +5,7 @@ export interface StreamHealth {
   droppedFrames: number;
   fps: number;
   elapsedSeconds: number;
+  reconnectAttempts: number;
   message: string;
 }
 
@@ -18,8 +19,8 @@ export interface StreamState {
 export type StreamEvent =
   | { type: "prepare"; now: number }
   | { type: "start"; now: number }
-  | { type: "health"; now: number; bitrateKbps: number; droppedFrames: number; fps: number; message?: string }
-  | { type: "reconnect"; now: number }
+  | { type: "health"; now: number; bitrateKbps: number; droppedFrames: number; fps: number; reconnectAttempts?: number; message?: string }
+  | { type: "reconnect"; now: number; attempt?: number; message?: string }
   | { type: "stop"; now: number }
   | { type: "stopped" }
   | { type: "fail"; error: string };
@@ -32,6 +33,7 @@ export const initialStreamState: StreamState = {
     droppedFrames: 0,
     fps: 0,
     elapsedSeconds: 0,
+    reconnectAttempts: 0,
     message: "Ready"
   }
 };
@@ -56,7 +58,7 @@ export const streamReducer = (state: StreamState, event: StreamEvent): StreamSta
         ...state,
         status: "live",
         startedAt: state.startedAt ?? event.now,
-        health: { ...state.health, message: "Live" }
+        health: { ...state.health, reconnectAttempts: 0, message: "Live" }
       };
     case "health": {
       const startedAt = state.startedAt ?? event.now;
@@ -67,6 +69,7 @@ export const streamReducer = (state: StreamState, event: StreamEvent): StreamSta
           droppedFrames: event.droppedFrames,
           fps: event.fps,
           elapsedSeconds: Math.max(0, Math.floor((event.now - startedAt) / 1000)),
+          reconnectAttempts: event.reconnectAttempts ?? state.health.reconnectAttempts,
           message: event.message ?? state.health.message
         }
       };
@@ -78,7 +81,11 @@ export const streamReducer = (state: StreamState, event: StreamEvent): StreamSta
       return {
         ...state,
         status: "reconnecting",
-        health: { ...state.health, message: "Reconnecting" }
+        health: {
+          ...state.health,
+          reconnectAttempts: event.attempt ?? state.health.reconnectAttempts + 1,
+          message: event.message ?? "Reconnecting"
+        }
       };
     case "stop":
       if (state.status === "idle") {

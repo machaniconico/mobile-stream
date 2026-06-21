@@ -179,6 +179,7 @@ export const MobileStudioScreen = ({
           <Metric label={`${snapshot.health.bitrateKbps} kbps`} />
           <Metric label={`${snapshot.health.fps} fps`} />
           <Metric label={`${snapshot.health.droppedFrames} drops`} />
+          {snapshot.health.reconnectAttempts > 0 ? <Metric label={`${snapshot.health.reconnectAttempts} retries`} /> : null}
         </View>
 
         <Panel title="Sources">

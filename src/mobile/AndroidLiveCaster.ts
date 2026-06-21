@@ -3,7 +3,7 @@ import type { SceneDocument } from "../domain/scene";
 import { toRenderGraph } from "../domain/scene";
 import type { StudioProfile } from "../domain/profiles";
 import type { LiveCasterNative, NativeEngineSnapshot } from "../native/LiveCasterNative";
-import { initialStreamState } from "../domain/streamState";
+import { initialStreamState, type StreamHealth } from "../domain/streamState";
 
 interface AndroidLiveCasterModule {
   getSnapshot(): Promise<NativeEngineSnapshot>;
@@ -126,7 +126,14 @@ const normalizeSnapshot = (snapshot: NativeEngineSnapshot): NativeEngineSnapshot
   platform: "android",
   state: {
     ...snapshot.state,
-    startedAt: snapshot.state.startedAt || null
+    startedAt: snapshot.state.startedAt || null,
+    health: normalizeHealth(snapshot.state.health)
   },
-  health: snapshot.health
+  health: normalizeHealth(snapshot.health)
+});
+
+const normalizeHealth = (health: Partial<StreamHealth> | undefined): StreamHealth => ({
+  ...initialStreamState.health,
+  ...health,
+  reconnectAttempts: health?.reconnectAttempts ?? 0
 });

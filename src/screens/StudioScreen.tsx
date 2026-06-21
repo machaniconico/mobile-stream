@@ -171,6 +171,9 @@ export const StudioScreen = ({
           <Metric icon={<Wifi size={16} />} label={`${snapshot.health.bitrateKbps} kbps`} />
           <Metric icon={<Activity size={16} />} label={`${snapshot.health.fps} fps`} />
           <Metric icon={<Radio size={16} />} label={`${snapshot.health.droppedFrames} drops`} />
+          {snapshot.health.reconnectAttempts > 0 ? (
+            <Metric icon={<RotateCcw size={16} />} label={`${snapshot.health.reconnectAttempts} retries`} />
+          ) : null}
         </div>
       </header>
 
