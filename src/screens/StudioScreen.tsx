@@ -29,7 +29,7 @@ import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
 import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../domain/platformChat";
 import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
-import type { PlatformChatOAuthFlow, PlatformChatOAuthSettings } from "../domain/platformChatOAuth";
+import type { PlatformChatOAuthFlow, PlatformChatOAuthSettings, TwitchDeviceCodeOAuthFlow } from "../domain/platformChatOAuth";
 import type { YouTubeBroadcastTransitionStatus } from "../domain/platformPublishing";
 import { applyMicEffectPreset, micEffectPresets, type MicEffectPresetId, type StudioProfile } from "../domain/profiles";
 import type { ReadinessReport } from "../domain/readiness";
@@ -70,6 +70,7 @@ interface StudioScreenProps {
   platformChatAuth: PlatformChatAuthSession;
   platformChatOAuth: PlatformChatOAuthSettings;
   platformChatOAuthFlow: PlatformChatOAuthFlow | null;
+  twitchDeviceOAuthFlow: TwitchDeviceCodeOAuthFlow | null;
   platformChatOAuthStatus: string;
   platformStreamKeyStatus: string;
   platformPublishingStatus: string;
@@ -91,6 +92,8 @@ interface StudioScreenProps {
   onPlatformChatAuthChange(settings: Partial<PlatformChatAuthSession>): void;
   onPlatformChatOAuthChange(settings: Partial<PlatformChatOAuthSettings>): void;
   onPlatformChatOAuthStart(): void | Promise<void>;
+  onTwitchDeviceOAuthStart(): void | Promise<void>;
+  onTwitchDeviceOAuthPoll(): void | Promise<void>;
   onPlatformChatOAuthCallbackApply(): void | Promise<void>;
   onPlatformStreamKeyApply(): void | Promise<void>;
   onPlatformPublishingApply(): void | Promise<void>;
@@ -142,6 +145,7 @@ export const StudioScreen = ({
   platformChatAuth,
   platformChatOAuth,
   platformChatOAuthFlow,
+  twitchDeviceOAuthFlow,
   platformChatOAuthStatus,
   platformStreamKeyStatus,
   platformPublishingStatus,
@@ -163,6 +167,8 @@ export const StudioScreen = ({
   onPlatformChatAuthChange,
   onPlatformChatOAuthChange,
   onPlatformChatOAuthStart,
+  onTwitchDeviceOAuthStart,
+  onTwitchDeviceOAuthPoll,
   onPlatformChatOAuthCallbackApply,
   onPlatformStreamKeyApply,
   onPlatformPublishingApply,
@@ -623,6 +629,7 @@ export const StudioScreen = ({
         platformChatAuth={platformChatAuth}
         platformChatOAuth={platformChatOAuth}
         platformChatOAuthFlow={platformChatOAuthFlow}
+        twitchDeviceOAuthFlow={twitchDeviceOAuthFlow}
         platformChatOAuthStatus={platformChatOAuthStatus}
         platformStreamKeyStatus={platformStreamKeyStatus}
         platformChatConnection={platformChatConnection}
@@ -632,6 +639,8 @@ export const StudioScreen = ({
         onPlatformChatAuthChange={onPlatformChatAuthChange}
         onPlatformChatOAuthChange={onPlatformChatOAuthChange}
         onPlatformChatOAuthStart={onPlatformChatOAuthStart}
+        onTwitchDeviceOAuthStart={onTwitchDeviceOAuthStart}
+        onTwitchDeviceOAuthPoll={onTwitchDeviceOAuthPoll}
         onPlatformChatOAuthCallbackApply={onPlatformChatOAuthCallbackApply}
         onPlatformStreamKeyApply={onPlatformStreamKeyApply}
         onPlatformChatConnect={onPlatformChatConnect}
@@ -705,6 +714,7 @@ const ChatReaderPanel = ({
   platformChatAuth,
   platformChatOAuth,
   platformChatOAuthFlow,
+  twitchDeviceOAuthFlow,
   platformChatOAuthStatus,
   platformStreamKeyStatus,
   platformChatConnection,
@@ -714,6 +724,8 @@ const ChatReaderPanel = ({
   onPlatformChatAuthChange,
   onPlatformChatOAuthChange,
   onPlatformChatOAuthStart,
+  onTwitchDeviceOAuthStart,
+  onTwitchDeviceOAuthPoll,
   onPlatformChatOAuthCallbackApply,
   onPlatformStreamKeyApply,
   onPlatformChatConnect,
@@ -725,6 +737,7 @@ const ChatReaderPanel = ({
   platformChatAuth: PlatformChatAuthSession;
   platformChatOAuth: PlatformChatOAuthSettings;
   platformChatOAuthFlow: PlatformChatOAuthFlow | null;
+  twitchDeviceOAuthFlow: TwitchDeviceCodeOAuthFlow | null;
   platformChatOAuthStatus: string;
   platformStreamKeyStatus: string;
   platformChatConnection: PlatformChatConnectionState;
@@ -734,6 +747,8 @@ const ChatReaderPanel = ({
   onPlatformChatAuthChange(settings: Partial<PlatformChatAuthSession>): void;
   onPlatformChatOAuthChange(settings: Partial<PlatformChatOAuthSettings>): void;
   onPlatformChatOAuthStart(): void | Promise<void>;
+  onTwitchDeviceOAuthStart(): void | Promise<void>;
+  onTwitchDeviceOAuthPoll(): void | Promise<void>;
   onPlatformChatOAuthCallbackApply(): void | Promise<void>;
   onPlatformStreamKeyApply(): void | Promise<void>;
   onPlatformChatConnect(): void;
@@ -840,6 +855,24 @@ const ChatReaderPanel = ({
               Start OAuth
             </button>
           </div>
+          {platformChat.platform === "twitch" ? (
+            <div className="chat-platform-row chat-device-row">
+              <span className={`chat-source-status ${twitchDeviceOAuthFlow ? "connecting" : "idle"}`}>
+                {twitchDeviceOAuthFlow ? `Device code ${twitchDeviceOAuthFlow.userCode}` : "Device OAuth idle"}
+              </span>
+              <button className="secondary-action compact-action" type="button" onClick={onTwitchDeviceOAuthStart}>
+                Device OAuth
+              </button>
+              <button
+                className="secondary-action compact-action"
+                type="button"
+                disabled={!twitchDeviceOAuthFlow}
+                onClick={onTwitchDeviceOAuthPoll}
+              >
+                Check
+              </button>
+            </div>
+          ) : null}
           <label className="field">
             <span>Callback URL</span>
             <input

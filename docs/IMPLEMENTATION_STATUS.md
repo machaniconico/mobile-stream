@@ -14,9 +14,9 @@
 - Chat/comment read-aloud domain model with queueing, muted words, duplicate suppression, queue limits, URL redaction, and speech text shaping.
 - Platform chat adapter model for YouTube LiveChatMessages responses and Twitch EventSub chat notifications.
 - Platform chat adapter settings persisted with the shared studio profile on web and mobile.
-- OAuth chat authorization layer for YouTube PKCE authorization-code callbacks and Twitch implicit callbacks, with tokens kept out of persisted profiles.
+- OAuth chat authorization layer for YouTube PKCE authorization-code callbacks, Twitch implicit callbacks, and Twitch Device Code Flow, with tokens kept out of persisted profiles.
 - Secure mobile OAuth credential persistence through Keychain/Android Keystore-backed native storage.
-- YouTube OAuth refresh-token rotation and hourly Twitch token validation scheduling for mobile chat authorization.
+- YouTube/Twitch OAuth refresh-token rotation and hourly Twitch token validation scheduling for mobile chat authorization.
 - OAuth/API-backed platform stream key controls: YouTube reusable stream creation for key rotation and Twitch Helix current-key sync.
 - OAuth/API-backed platform publishing controls: YouTube scheduled Live Broadcast creation, stream binding, broadcast/ingest health refresh, and test/live/complete lifecycle transitions; Twitch channel title/category/language metadata update plus live/offline status refresh.
 - OAuth-token chat connection layer for YouTube live chat polling and Twitch IRC WebSocket ingestion.

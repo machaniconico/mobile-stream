@@ -30,9 +30,12 @@ import {
   createDefaultPlatformChatOAuthSettings,
   createPlatformChatOAuthFlow,
   normalizePlatformChatOAuthSettings,
+  pollTwitchDeviceCodeOAuthFlow,
+  startTwitchDeviceCodeOAuthFlow,
   type PlatformChatOAuthCredential,
   type PlatformChatOAuthFlow,
-  type PlatformChatOAuthSettings
+  type PlatformChatOAuthSettings,
+  type TwitchDeviceCodeOAuthFlow
 } from "../domain/platformChatOAuth";
 import {
   applyTwitchChannelMetadata,
@@ -79,6 +82,7 @@ export const App = () => {
   const [platformChatAuth, setPlatformChatAuth] = useState<PlatformChatAuthSession>(() => createDefaultPlatformChatAuthSession());
   const [platformChatOAuth, setPlatformChatOAuth] = useState<PlatformChatOAuthSettings>(() => createDefaultPlatformChatOAuthSettings());
   const [platformChatOAuthFlow, setPlatformChatOAuthFlow] = useState<PlatformChatOAuthFlow | null>(null);
+  const [twitchDeviceOAuthFlow, setTwitchDeviceOAuthFlow] = useState<TwitchDeviceCodeOAuthFlow | null>(null);
   const [platformChatOAuthStatus, setPlatformChatOAuthStatus] = useState("OAuth not started.");
   const [platformChatOAuthCredential, setPlatformChatOAuthCredential] = useState<PlatformChatOAuthCredential | null>(null);
   const [platformStreamKeyStatus, setPlatformStreamKeyStatus] = useState("Platform stream key sync idle.");
@@ -263,6 +267,35 @@ export const App = () => {
     }
   };
 
+  const startTwitchDeviceOAuth = async () => {
+    try {
+      const result = await startTwitchDeviceCodeOAuthFlow(platformChatOAuth, fetch);
+      setTwitchDeviceOAuthFlow(result.flow);
+      setPlatformChatOAuthStatus(result.message);
+      window.open(result.flow.verificationUri, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      setPlatformChatOAuthStatus(toErrorMessage(error));
+    }
+  };
+
+  const pollTwitchDeviceOAuth = async () => {
+    try {
+      const result = await pollTwitchDeviceCodeOAuthFlow(twitchDeviceOAuthFlow, platformChatOAuth, fetch);
+      if (result.status === "pending") {
+        setTwitchDeviceOAuthFlow(result.flow);
+        setPlatformChatOAuthStatus(result.message);
+        return;
+      }
+
+      setPlatformChatAuth((current) => mergeOAuthAuth(current, result.auth));
+      setPlatformChatOAuthCredential(result.credential);
+      setTwitchDeviceOAuthFlow(null);
+      setPlatformChatOAuthStatus(result.message);
+    } catch (error) {
+      setPlatformChatOAuthStatus(toErrorMessage(error));
+    }
+  };
+
   const applyPlatformChatOAuthCallback = async () => {
     try {
       const result = await completePlatformChatOAuthCallback(platformChatOAuth.callbackUrl, platformChatOAuthFlow, platformChatOAuth, fetch);
@@ -363,6 +396,7 @@ export const App = () => {
       platformChatAuth={platformChatAuth}
       platformChatOAuth={platformChatOAuth}
       platformChatOAuthFlow={platformChatOAuthFlow}
+      twitchDeviceOAuthFlow={twitchDeviceOAuthFlow}
       platformChatOAuthStatus={platformChatOAuthStatus}
       platformStreamKeyStatus={platformStreamKeyStatus}
       platformPublishingStatus={platformPublishingStatus}
@@ -384,6 +418,8 @@ export const App = () => {
       onPlatformChatAuthChange={updatePlatformChatAuth}
       onPlatformChatOAuthChange={updatePlatformChatOAuth}
       onPlatformChatOAuthStart={startPlatformChatOAuth}
+      onTwitchDeviceOAuthStart={startTwitchDeviceOAuth}
+      onTwitchDeviceOAuthPoll={pollTwitchDeviceOAuth}
       onPlatformChatOAuthCallbackApply={applyPlatformChatOAuthCallback}
       onPlatformStreamKeyApply={applyPlatformStreamKey}
       onPlatformPublishingApply={applyPlatformPublishingSetup}

@@ -7,9 +7,12 @@ import {
   createPkceS256Challenge,
   exchangeYouTubeOAuthCode,
   parseOAuthCallback,
+  pollTwitchDeviceCodeOAuthFlow,
+  refreshTwitchOAuthCredential,
   refreshYouTubeOAuthCredential,
   shouldRefreshPlatformChatOAuthCredential,
   shouldValidateTwitchOAuthCredential,
+  startTwitchDeviceCodeOAuthFlow,
   validateTwitchOAuthToken
 } from "./platformChatOAuth";
 
@@ -194,6 +197,210 @@ describe("platformChatOAuth", () => {
     });
   });
 
+  it("starts Twitch device OAuth without a client secret", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        device_code: "device-code",
+        user_code: "ABCD-EFGH",
+        verification_uri: "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH",
+        expires_in: 1800,
+        interval: 5
+      })
+    });
+
+    const result = await startTwitchDeviceCodeOAuthFlow(oauthSettings(), fetcher, 1000);
+
+    expect(fetcher).toHaveBeenCalledWith("https://id.twitch.tv/oauth2/device", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: expect.stringContaining("client_id=twitch-client")
+    });
+    expect(fetcher.mock.calls[0][1].body).toContain("scopes=chat%3Aread+channel%3Aread%3Astream_key+channel%3Amanage%3Abroadcast");
+    expect(fetcher.mock.calls[0][1].body).not.toContain("client_secret");
+    expect(result.flow).toMatchObject({
+      platform: "twitch",
+      deviceCode: "device-code",
+      userCode: "ABCD-EFGH",
+      expiresAt: 1801000,
+      intervalMs: 5000,
+      lastPollAt: null
+    });
+  });
+
+  it("keeps Twitch device OAuth pending until the user authorizes", async () => {
+    const flow = {
+      platform: "twitch" as const,
+      deviceCode: "device-code",
+      userCode: "ABCD-EFGH",
+      verificationUri: "https://www.twitch.tv/activate",
+      expiresAt: 20000,
+      intervalMs: 5000,
+      createdAt: 1000,
+      lastPollAt: null
+    };
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        status: 400,
+        message: "authorization_pending"
+      })
+    });
+
+    const result = await pollTwitchDeviceCodeOAuthFlow(flow, oauthSettings(), fetcher, 6000);
+
+    expect(result.status).toBe("pending");
+    if (result.status !== "pending") {
+      throw new Error("expected pending");
+    }
+    expect(result.flow.lastPollAt).toBe(6000);
+    expect(fetcher).toHaveBeenCalledWith("https://id.twitch.tv/oauth2/token", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: expect.stringContaining("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code")
+    });
+    expect(fetcher.mock.calls[0][1].body).toContain("device_code=device-code");
+  });
+
+  it("polls Twitch device OAuth into a stored refreshable credential", async () => {
+    const flow = {
+      platform: "twitch" as const,
+      deviceCode: "device-code",
+      userCode: "ABCD-EFGH",
+      verificationUri: "https://www.twitch.tv/activate",
+      expiresAt: 20000,
+      intervalMs: 5000,
+      createdAt: 1000,
+      lastPollAt: null
+    };
+    const fetcher = vi.fn(async (...args: [string, RequestInit?]) => {
+      const [url] = args;
+      if (url === "https://id.twitch.tv/oauth2/validate") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            client_id: "twitch-client",
+            login: "macha",
+            scopes: ["chat:read", "channel:read:stream_key"],
+            user_id: "123",
+            expires_in: 1800
+          })
+        };
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          access_token: "tw-access",
+          refresh_token: "tw-refresh",
+          expires_in: 14400,
+          scope: ["chat:read", "channel:read:stream_key", "channel:manage:broadcast"],
+          token_type: "bearer"
+        })
+      };
+    });
+
+    const result = await pollTwitchDeviceCodeOAuthFlow(flow, oauthSettings(), fetcher, 6000);
+
+    expect(result.status).toBe("authorized");
+    if (result.status !== "authorized") {
+      throw new Error("expected authorized");
+    }
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[0][0]).toBe("https://id.twitch.tv/oauth2/token");
+    expect(String(fetcher.mock.calls[0]?.[1]?.body ?? "")).not.toContain("tw-refresh");
+    expect(fetcher.mock.calls[1][0]).toBe("https://id.twitch.tv/oauth2/validate");
+    expect(result.credential).toMatchObject({
+      platform: "twitch",
+      accessToken: "tw-access",
+      refreshToken: "tw-refresh",
+      expiresAt: 14406000,
+      scopes: ["chat:read", "channel:read:stream_key", "channel:manage:broadcast"],
+      twitchLogin: "macha",
+      twitchUserId: "123",
+      clientId: "twitch-client"
+    });
+    expect(result.auth).toMatchObject({
+      twitchOauthToken: "tw-access",
+      twitchLogin: "macha"
+    });
+  });
+
+  it("refreshes Twitch device OAuth access tokens and rotates refresh tokens", async () => {
+    const fetcher = vi.fn(async (...args: [string, RequestInit?]) => {
+      const [url] = args;
+      if (url === "https://id.twitch.tv/oauth2/validate") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            login: "macha",
+            scopes: ["chat:read"],
+            user_id: "123",
+            expires_in: 1800
+          })
+        };
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          access_token: "tw-access-2",
+          refresh_token: "tw-refresh-2",
+          expires_in: 1800,
+          scope: ["chat:read"],
+          token_type: "bearer"
+        })
+      };
+    });
+
+    const credential = await refreshTwitchOAuthCredential(
+      {
+        platform: "twitch",
+        accessToken: "tw-access-1",
+        refreshToken: "tw-refresh-1",
+        expiresAt: 2000,
+        scopes: ["chat:read"],
+        twitchLogin: "macha",
+        twitchUserId: "123",
+        validatedAt: 1,
+        clientId: "stored-twitch-client",
+        redirectUri: null
+      },
+      {
+        ...oauthSettings(),
+        twitchClientId: ""
+      },
+      fetcher,
+      1000
+    );
+
+    expect(fetcher.mock.calls[0][0]).toBe("https://id.twitch.tv/oauth2/token");
+    expect(String(fetcher.mock.calls[0]?.[1]?.body ?? "")).toContain("client_id=stored-twitch-client");
+    expect(String(fetcher.mock.calls[0]?.[1]?.body ?? "")).toContain("grant_type=refresh_token");
+    expect(fetcher.mock.calls[0][0]).not.toContain("tw-refresh-1");
+    expect(credential).toMatchObject({
+      platform: "twitch",
+      accessToken: "tw-access-2",
+      refreshToken: "tw-refresh-2",
+      expiresAt: 1801000,
+      clientId: "stored-twitch-client",
+      twitchLogin: "macha",
+      twitchUserId: "123"
+    });
+  });
+
   it("derives chat auth and refresh/validation scheduling from stored credentials", () => {
     expect(
       createPlatformChatAuthFromCredential({
@@ -214,16 +421,16 @@ describe("platformChatOAuth", () => {
     });
     expect(
       shouldRefreshPlatformChatOAuthCredential({
-        platform: "youtube",
-        accessToken: "yt-token",
-        refreshToken: "yt-refresh",
+        platform: "twitch",
+        accessToken: "tw-token",
+        refreshToken: "tw-refresh",
         expiresAt: 1000,
         scopes: [],
-        twitchLogin: null,
-        twitchUserId: null,
+        twitchLogin: "macha",
+        twitchUserId: "123",
         validatedAt: 1,
-        clientId: "youtube-client",
-        redirectUri: "com.example.mobilelivecaster:/oauth/youtube"
+        clientId: "twitch-client",
+        redirectUri: null
       }, 900)
     ).toBe(true);
     expect(

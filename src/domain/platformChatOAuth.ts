@@ -17,6 +17,17 @@ export interface PlatformChatOAuthFlow {
   createdAt: number;
 }
 
+export interface TwitchDeviceCodeOAuthFlow {
+  platform: "twitch";
+  deviceCode: string;
+  userCode: string;
+  verificationUri: string;
+  expiresAt: number;
+  intervalMs: number;
+  createdAt: number;
+  lastPollAt: number | null;
+}
+
 export interface PlatformChatOAuthCredential {
   platform: PlatformChatPlatform;
   accessToken: string;
@@ -36,6 +47,24 @@ export interface PlatformChatOAuthResult {
   message: string;
 }
 
+export interface TwitchDeviceCodeOAuthStartResult {
+  flow: TwitchDeviceCodeOAuthFlow;
+  message: string;
+}
+
+export type TwitchDeviceCodeOAuthPollResult =
+  | {
+      status: "pending";
+      flow: TwitchDeviceCodeOAuthFlow;
+      message: string;
+    }
+  | {
+      status: "authorized";
+      credential: PlatformChatOAuthCredential;
+      auth: PlatformChatAuthSession;
+      message: string;
+    };
+
 export class PlatformChatOAuthError extends Error {
   constructor(message: string) {
     super(message);
@@ -46,12 +75,15 @@ export class PlatformChatOAuthError extends Error {
 const YOUTUBE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const YOUTUBE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const TWITCH_AUTH_URL = "https://id.twitch.tv/oauth2/authorize";
+const TWITCH_DEVICE_URL = "https://id.twitch.tv/oauth2/device";
+const TWITCH_TOKEN_URL = "https://id.twitch.tv/oauth2/token";
 const TWITCH_VALIDATE_URL = "https://id.twitch.tv/oauth2/validate";
 export const YOUTUBE_LIVE_CHAT_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
 export const YOUTUBE_LIVE_MANAGE_SCOPE = "https://www.googleapis.com/auth/youtube.force-ssl";
 export const TWITCH_CHAT_SCOPE = "chat:read";
 export const TWITCH_STREAM_KEY_SCOPE = "channel:read:stream_key";
 export const TWITCH_CHANNEL_MANAGE_SCOPE = "channel:manage:broadcast";
+const TWITCH_REQUIRED_SCOPES = `${TWITCH_CHAT_SCOPE} ${TWITCH_STREAM_KEY_SCOPE} ${TWITCH_CHANNEL_MANAGE_SCOPE}`;
 
 export const createDefaultPlatformChatOAuthSettings = (): PlatformChatOAuthSettings => ({
   youtubeClientId: "",
@@ -113,7 +145,7 @@ export const createPlatformChatOAuthFlow = (
     client_id: normalized.twitchClientId,
     redirect_uri: normalized.twitchRedirectUri,
     response_type: "token",
-    scope: `${TWITCH_CHAT_SCOPE} ${TWITCH_STREAM_KEY_SCOPE} ${TWITCH_CHANNEL_MANAGE_SCOPE}`,
+    scope: TWITCH_REQUIRED_SCOPES,
     state
   });
 
@@ -123,6 +155,141 @@ export const createPlatformChatOAuthFlow = (
     state,
     codeVerifier: null,
     createdAt
+  };
+};
+
+export const startTwitchDeviceCodeOAuthFlow = async (
+  settings: PlatformChatOAuthSettings,
+  fetcher: PlatformChatFetch,
+  receivedAt: number = Date.now()
+): Promise<TwitchDeviceCodeOAuthStartResult> => {
+  const normalized = normalizePlatformChatOAuthSettings(settings);
+  if (!normalized.twitchClientId) {
+    throw new PlatformChatOAuthError("Twitch OAuth client ID is required.");
+  }
+
+  const response = await fetcher(TWITCH_DEVICE_URL, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: createQueryParams({
+      client_id: normalized.twitchClientId,
+      scopes: TWITCH_REQUIRED_SCOPES
+    })
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new PlatformChatOAuthError(`Twitch device OAuth start failed with HTTP ${response.status}.`);
+  }
+
+  const deviceCode = readStringField(payload, "device_code");
+  const userCode = readStringField(payload, "user_code");
+  const verificationUri =
+    readStringField(payload, "verification_uri_complete") || readStringField(payload, "verification_uri");
+  const expiresIn = readNumberField(payload, "expires_in");
+  const interval = readNumberField(payload, "interval") ?? 5;
+
+  if (!deviceCode || !userCode || !verificationUri || !expiresIn) {
+    throw new PlatformChatOAuthError("Twitch device OAuth response was incomplete.");
+  }
+
+  const flow: TwitchDeviceCodeOAuthFlow = {
+    platform: "twitch",
+    deviceCode,
+    userCode,
+    verificationUri,
+    expiresAt: receivedAt + expiresIn * 1000,
+    intervalMs: Math.max(1000, interval * 1000),
+    createdAt: receivedAt,
+    lastPollAt: null
+  };
+
+  return {
+    flow,
+    message: `Twitch device OAuth started. User code: ${userCode}`
+  };
+};
+
+export const pollTwitchDeviceCodeOAuthFlow = async (
+  flow: TwitchDeviceCodeOAuthFlow | null,
+  settings: PlatformChatOAuthSettings,
+  fetcher: PlatformChatFetch,
+  receivedAt: number = Date.now()
+): Promise<TwitchDeviceCodeOAuthPollResult> => {
+  const normalized = normalizePlatformChatOAuthSettings(settings);
+  if (!flow) {
+    throw new PlatformChatOAuthError("Start Twitch device OAuth before checking authorization.");
+  }
+  if (!normalized.twitchClientId) {
+    throw new PlatformChatOAuthError("Twitch OAuth client ID is required.");
+  }
+  if (receivedAt >= flow.expiresAt) {
+    throw new PlatformChatOAuthError("Twitch device OAuth code expired. Start a new device authorization.");
+  }
+  if (flow.lastPollAt && receivedAt - flow.lastPollAt < flow.intervalMs) {
+    const waitSeconds = Math.ceil((flow.intervalMs - (receivedAt - flow.lastPollAt)) / 1000);
+    return {
+      status: "pending",
+      flow,
+      message: `Twitch device OAuth is waiting. Try again in ${waitSeconds}s.`
+    };
+  }
+
+  const response = await fetcher(TWITCH_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: createQueryParams({
+      client_id: normalized.twitchClientId,
+      scopes: TWITCH_REQUIRED_SCOPES,
+      device_code: flow.deviceCode,
+      grant_type: "urn:ietf:params:oauth:grant-type:device_code"
+    })
+  });
+  const payload = await response.json();
+  const nextFlow: TwitchDeviceCodeOAuthFlow = {
+    ...flow,
+    lastPollAt: receivedAt
+  };
+
+  if (!response.ok) {
+    const errorCode = readStringField(payload, "message") || readStringField(payload, "error");
+    if (errorCode === "authorization_pending") {
+      return {
+        status: "pending",
+        flow: nextFlow,
+        message: "Twitch device OAuth is still pending."
+      };
+    }
+    if (errorCode === "slow_down") {
+      return {
+        status: "pending",
+        flow: {
+          ...nextFlow,
+          intervalMs: nextFlow.intervalMs + 5000
+        },
+        message: "Twitch requested slower device OAuth polling."
+      };
+    }
+    throw new PlatformChatOAuthError(`Twitch device OAuth token request failed with HTTP ${response.status}.`);
+  }
+
+  const token = normalizeTokenPayload("twitch", payload, receivedAt);
+  const credential = await hydrateTwitchCredential(token, normalized.twitchClientId, null, fetcher, receivedAt);
+  const auth = createPlatformChatAuthFromCredential(credential);
+
+  return {
+    status: "authorized",
+    credential,
+    auth,
+    message: credential.refreshToken
+      ? "Twitch device OAuth connected with refresh token storage support."
+      : "Twitch device OAuth connected."
   };
 };
 
@@ -292,6 +459,55 @@ export const refreshYouTubeOAuthCredential = async (
   };
 };
 
+export const refreshTwitchOAuthCredential = async (
+  credential: PlatformChatOAuthCredential,
+  settings: PlatformChatOAuthSettings,
+  fetcher: PlatformChatFetch,
+  receivedAt: number = Date.now()
+): Promise<PlatformChatOAuthCredential> => {
+  const normalizedCredential = normalizePlatformChatOAuthCredential(credential);
+  const normalizedSettings = normalizePlatformChatOAuthSettings(settings);
+  const clientId = normalizedSettings.twitchClientId || normalizedCredential?.clientId || "";
+
+  if (!normalizedCredential || normalizedCredential.platform !== "twitch" || !normalizedCredential.refreshToken) {
+    throw new PlatformChatOAuthError("A Twitch refresh token is required.");
+  }
+  if (!clientId) {
+    throw new PlatformChatOAuthError("Twitch OAuth client ID is required.");
+  }
+
+  const response = await fetcher(TWITCH_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: createQueryParams({
+      client_id: clientId,
+      grant_type: "refresh_token",
+      refresh_token: normalizedCredential.refreshToken
+    })
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new PlatformChatOAuthError(`Twitch token refresh failed with HTTP ${response.status}.`);
+  }
+
+  const refreshed = normalizeTokenPayload("twitch", payload, receivedAt);
+  return hydrateTwitchCredential(
+    {
+      ...refreshed,
+      refreshToken: refreshed.refreshToken ?? normalizedCredential.refreshToken,
+      scopes: refreshed.scopes.length > 0 ? refreshed.scopes : normalizedCredential.scopes
+    },
+    clientId,
+    normalizedCredential.redirectUri,
+    fetcher,
+    receivedAt
+  );
+};
+
 export const validateTwitchOAuthToken = async (
   accessToken: string,
   fetcher: PlatformChatFetch,
@@ -420,12 +636,31 @@ const normalizeTokenPayload = (
     accessToken,
     refreshToken: readStringField(payload, "refresh_token") || null,
     expiresAt: secondsToExpiresAt(readNumberField(payload, "expires_in"), receivedAt),
-    scopes: normalizeScopes(readStringField(payload, "scope")),
+    scopes: readScopesField(payload),
     twitchLogin: null,
     twitchUserId: null,
     validatedAt: receivedAt,
     clientId: null,
     redirectUri: null
+  };
+};
+
+const hydrateTwitchCredential = async (
+  token: PlatformChatOAuthCredential,
+  clientId: string,
+  redirectUri: string | null,
+  fetcher: PlatformChatFetch,
+  receivedAt: number
+): Promise<PlatformChatOAuthCredential> => {
+  const validated = await validateTwitchOAuthToken(token.accessToken, fetcher, receivedAt);
+  return {
+    ...token,
+    scopes: token.scopes.length > 0 ? token.scopes : validated.scopes,
+    twitchLogin: validated.twitchLogin,
+    twitchUserId: validated.twitchUserId,
+    validatedAt: validated.validatedAt,
+    clientId,
+    redirectUri
   };
 };
 
@@ -469,6 +704,18 @@ const readStringArrayField = (payload: unknown, key: string): string[] => {
   }
   const value = (payload as Record<string, unknown>)[key];
   return Array.isArray(value) ? value.map(normalizeSingleLine).filter(Boolean).slice(0, 24) : [];
+};
+
+const readScopesField = (payload: unknown): string[] => {
+  const scope = readStringField(payload, "scope");
+  if (scope) {
+    return normalizeScopes(scope);
+  }
+  const scopeArray = readStringArrayField(payload, "scope");
+  if (scopeArray.length > 0) {
+    return scopeArray.slice(0, 24);
+  }
+  return readStringArrayField(payload, "scopes");
 };
 
 const base64UrlEncode = (bytes: number[]): string => {

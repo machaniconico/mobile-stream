@@ -25,8 +25,8 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Chat/comment read-aloud queue with test comments, muted words, duplicate suppression, queue limits, and speech controls.
 - YouTube LiveChatMessages and Twitch EventSub chat payload adapters feeding the shared read-aloud queue.
 - Durable platform chat adapter settings through the shared profile store.
-- OAuth chat authorization controls for YouTube PKCE authorization-code callbacks and Twitch implicit callbacks, feeding YouTube live chat polling and Twitch IRC WebSocket ingestion.
-- Keychain/Android Keystore-backed mobile OAuth credential storage, with YouTube refresh-token rotation and periodic Twitch token validation.
+- OAuth chat authorization controls for YouTube PKCE authorization-code callbacks, Twitch implicit callbacks, and Twitch Device Code Flow, feeding YouTube live chat polling and Twitch IRC WebSocket ingestion.
+- Keychain/Android Keystore-backed mobile OAuth credential storage, with YouTube/Twitch refresh-token rotation and periodic Twitch token validation.
 - Mobile OAuth callback deep links for `mobilelivecaster://oauth/*` and `com.example.mobilelivecaster:/oauth/*`.
 - Mock Go Live, Stop, and Reconnect controls.
 - iOS ReplayKit Broadcast Upload Extension target and startup bridge.
@@ -69,7 +69,7 @@ npm run ios:build:simulator
 - Secret storage: browser persistence strips stream keys; mobile persistence uses Keychain/Android Keystore-backed native storage.
 - Stream key management: users can clear the stored key in-app and paste a replacement key without changing the destination preset.
 - Scene storage: web uses localStorage; Android uses app SharedPreferences; iOS writes an atomic scene JSON file under Application Support.
-- Chat reader: YouTube/Twitch payload adapters can feed the shared queue; current UI includes manual/test comments, platform adapter test ingest, OAuth authorization/callback controls, network connect controls, and native/browser TTS output. Browser OAuth remains session-only; mobile credentials are stored through Keychain/Android Keystore-backed native storage.
+- Chat reader: YouTube/Twitch payload adapters can feed the shared queue; current UI includes manual/test comments, platform adapter test ingest, OAuth authorization/callback controls, Twitch device-code authorization, network connect controls, and native/browser TTS output. Browser OAuth remains session-only; mobile credentials are stored through Keychain/Android Keystore-backed native storage.
 - Platform stream key management: YouTube OAuth uses Live Streaming API `liveStreams.insert` to rotate by creating a new reusable stream; Twitch OAuth uses Helix Get Stream Key to sync the current key because Twitch does not expose a public reset endpoint.
 - Platform publishing management: YouTube OAuth uses Live Streaming API `liveBroadcasts.insert`, `liveBroadcasts.bind`, `liveBroadcasts.list`, `liveStreams.list`, and `liveBroadcasts.transition` for scheduled broadcast setup, ingest health refresh, and lifecycle control; Twitch OAuth uses Helix `PATCH /channels`, category search, `GET /channels`, and `GET /streams` for channel metadata and live/offline status.
 - Avatar rendering: PNGTuber first, Live2D after licensing and runtime validation.
