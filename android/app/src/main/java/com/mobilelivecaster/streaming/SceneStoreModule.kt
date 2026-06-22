@@ -15,6 +15,7 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
         const val NAME = "LiveCasterSceneStore"
         private const val PREFS_NAME = "mobile_live_caster_scene_store"
         private const val SCENE_JSON = "scene_json"
+        private const val SESSION_SUMMARIES_JSON = "session_summaries_json"
     }
 
     override fun getName(): String = NAME
@@ -41,6 +42,31 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun clearScene(promise: Promise) {
         prefs().edit().remove(SCENE_JSON).apply()
+        promise.resolve(true)
+    }
+
+    @ReactMethod
+    fun saveSessionSummaries(summariesJson: String, promise: Promise) {
+        try {
+            prefs().edit().putString(SESSION_SUMMARIES_JSON, summariesJson).apply()
+            promise.resolve(true)
+        } catch (error: Throwable) {
+            promise.reject("session_summary_store_save_failed", error)
+        }
+    }
+
+    @ReactMethod
+    fun loadSessionSummaries(promise: Promise) {
+        try {
+            promise.resolve(prefs().getString(SESSION_SUMMARIES_JSON, null))
+        } catch (error: Throwable) {
+            promise.reject("session_summary_store_load_failed", error)
+        }
+    }
+
+    @ReactMethod
+    fun clearSessionSummaries(promise: Promise) {
+        prefs().edit().remove(SESSION_SUMMARIES_JSON).apply()
         promise.resolve(true)
     }
 

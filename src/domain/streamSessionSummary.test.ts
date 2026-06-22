@@ -3,7 +3,9 @@ import { type StreamHealthSample } from "./streamHealthHistory";
 import { type StreamSessionEvent } from "./streamSessionLog";
 import {
   appendStreamSessionSummary,
-  createStreamSessionSummary
+  createStreamSessionSummary,
+  mergeStreamSessionSummaries,
+  normalizeStreamSessionSummaries
 } from "./streamSessionSummary";
 
 const sample = (elapsedSeconds: number, update: Partial<StreamHealthSample> = {}): StreamHealthSample => ({
@@ -87,5 +89,78 @@ describe("stream session summary", () => {
 
     expect(appendStreamSessionSummary([], summary)).toHaveLength(1);
     expect(appendStreamSessionSummary(summary ? [summary] : [], summary)).toHaveLength(1);
+  });
+
+  it("normalizes persisted session summaries and drops malformed entries", () => {
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+
+    const normalized = normalizeStreamSessionSummaries([
+      summary,
+      {
+        id: "bad",
+        startedAt: "2026-06-23T00:00:01.000Z",
+        endedAt: "2026-06-23T00:00:05.000Z",
+        endReason: "unknown",
+        outcome: "clean",
+        health: summary.health
+      }
+    ]);
+
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0]?.id).toBe(summary.id);
+  });
+
+  it("limits persisted session summaries to the retention cap", () => {
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+
+    const summaries = Array.from({ length: 12 }, (_, index) => ({
+      ...summary,
+      id: `summary-${index}`
+    }));
+
+    expect(normalizeStreamSessionSummaries(summaries)).toHaveLength(10);
+  });
+
+  it("merges newly completed and persisted summaries without losing history", () => {
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+
+    const newest = { ...summary, id: "newest-session" };
+    const persisted = { ...summary, id: "persisted-session" };
+    const merged = mergeStreamSessionSummaries(
+      [newest],
+      [persisted, newest]
+    );
+
+    expect(merged.map((item) => item.id)).toEqual([
+      "newest-session",
+      "persisted-session"
+    ]);
   });
 });

@@ -5,6 +5,8 @@ import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import {
   appendStreamSessionSummary,
   createStreamSessionSummary,
+  mergeStreamSessionSummaries,
+  normalizeStreamSessionSummaries,
   type StreamSessionEndReason,
   type StreamSessionSummary
 } from "../domain/streamSessionSummary";
@@ -20,18 +22,41 @@ export const useStreamSessionSummaries = ({
   snapshot,
   events,
   healthSamples,
-  quality
+  quality,
+  initialSummaries = [],
+  initialSummariesReady = true,
+  onSummariesChange
 }: {
   snapshot: NativeEngineSnapshot;
   events: StreamSessionEvent[];
   healthSamples: StreamHealthSample[];
   quality: QualityProfile;
+  initialSummaries?: StreamSessionSummary[];
+  initialSummariesReady?: boolean;
+  onSummariesChange?(summaries: StreamSessionSummary[]): void;
 }): StreamSessionSummaries => {
-  const [summaries, setSummaries] = useState<StreamSessionSummary[]>([]);
+  const [summaries, setSummaries] = useState<StreamSessionSummary[]>(() =>
+    initialSummariesReady ? normalizeStreamSessionSummaries(initialSummaries) : []
+  );
+  const [summariesHydrated, setSummariesHydrated] = useState(initialSummariesReady);
   const [pendingEndReason, setPendingEndReason] = useState<StreamSessionEndReason | null>(null);
   const previousStatus = useRef<StreamStatus>(snapshot.state.status);
   const terminalReason = useRef<StreamSessionEndReason>("stopped");
   const summaryRequestedForSession = useRef(false);
+  const lastEmittedSummariesKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!initialSummariesReady || summariesHydrated) {
+      return;
+    }
+
+    setSummaries((current) => mergeStreamSessionSummaries(current, initialSummaries));
+    setSummariesHydrated(true);
+  }, [
+    initialSummaries,
+    initialSummariesReady,
+    summariesHydrated
+  ]);
 
   useEffect(() => {
     const previous = previousStatus.current;
@@ -79,6 +104,25 @@ export const useStreamSessionSummaries = ({
     pendingEndReason,
     quality.fps,
     quality.videoBitrateKbps
+  ]);
+
+  useEffect(() => {
+    if (!initialSummariesReady || !summariesHydrated || !onSummariesChange) {
+      return;
+    }
+
+    const summariesKey = summaries.map((summary) => summary.id).join("|");
+    if (summariesKey === lastEmittedSummariesKey.current) {
+      return;
+    }
+
+    lastEmittedSummariesKey.current = summariesKey;
+    onSummariesChange(summaries);
+  }, [
+    initialSummariesReady,
+    onSummariesChange,
+    summaries,
+    summariesHydrated
   ]);
 
   return {

@@ -75,7 +75,14 @@ import { useStreamAutoRecovery } from "../native/useStreamAutoRecovery";
 import { useStreamHealthHistory } from "../native/useStreamHealthHistory";
 import { useStreamSessionLog } from "../native/useStreamSessionLog";
 import { useStreamSessionSummaries } from "../native/useStreamSessionSummaries";
-import { loadProfile, loadScene, saveProfile, saveScene } from "../storage/localStore";
+import {
+  loadProfile,
+  loadScene,
+  loadStreamSessionSummaries,
+  saveProfile,
+  saveScene,
+  saveStreamSessionSummaries
+} from "../storage/localStore";
 import { StudioScreen } from "../screens/StudioScreen";
 import { WebChatSpeechEngine } from "./WebChatSpeechEngine";
 
@@ -104,6 +111,7 @@ export const App = () => {
   const operationInFlight = useRef(false);
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
   const persistableSceneJson = useMemo(() => JSON.stringify(stripTransientSceneRuntime(scene)), [scene]);
+  const initialStreamSessionSummaries = useMemo(() => loadStreamSessionSummaries(), []);
   const platformChatConnection = usePlatformChatConnection({
     settings: profile.platformChat,
     auth: platformChatAuth,
@@ -117,7 +125,9 @@ export const App = () => {
     snapshot,
     events: streamSessionEvents,
     healthSamples: streamHealthSamples,
-    quality: readiness.sanitizedProfile.quality
+    quality: readiness.sanitizedProfile.quality,
+    initialSummaries: initialStreamSessionSummaries,
+    onSummariesChange: saveStreamSessionSummaries
   });
 
   useEffect(() => engine.subscribe(setSnapshot), [engine]);

@@ -4,6 +4,7 @@ import React
 @objc(LiveCasterSceneStore)
 final class LiveCasterSceneStore: NSObject {
     private let fileName = "mobile-live-caster-scene.json"
+    private let sessionSummariesFileName = "mobile-live-caster-session-summaries.json"
 
     @objc
     static func requiresMainQueueSetup() -> Bool {
@@ -70,7 +71,71 @@ final class LiveCasterSceneStore: NSObject {
         }
     }
 
+    @objc(saveSessionSummaries:resolver:rejecter:)
+    func saveSessionSummaries(
+        _ summariesJson: String,
+        resolver resolve: RCTPromiseResolveBlock,
+        rejecter reject: RCTPromiseRejectBlock
+    ) {
+        guard let data = summariesJson.data(using: .utf8), let url = sessionSummariesURL() else {
+            reject("session_summary_store_encode_failed", "Session summaries could not be encoded as UTF-8", nil)
+            return
+        }
+
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: url, options: .atomic)
+            resolve(true)
+        } catch {
+            reject("session_summary_store_save_failed", "Session summaries save failed", error)
+        }
+    }
+
+    @objc(loadSessionSummaries:rejecter:)
+    func loadSessionSummaries(
+        _ resolve: RCTPromiseResolveBlock,
+        rejecter reject: RCTPromiseRejectBlock
+    ) {
+        guard let url = sessionSummariesURL() else {
+            resolve(nil)
+            return
+        }
+
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            resolve(nil)
+            return
+        }
+
+        do {
+            resolve(try String(contentsOf: url, encoding: .utf8))
+        } catch {
+            reject("session_summary_store_load_failed", "Session summaries load failed", error)
+        }
+    }
+
+    @objc(clearSessionSummaries:rejecter:)
+    func clearSessionSummaries(
+        _ resolve: RCTPromiseResolveBlock,
+        rejecter reject: RCTPromiseRejectBlock
+    ) {
+        guard let url = sessionSummariesURL(), FileManager.default.fileExists(atPath: url.path) else {
+            resolve(true)
+            return
+        }
+
+        do {
+            try FileManager.default.removeItem(at: url)
+            resolve(true)
+        } catch {
+            reject("session_summary_store_clear_failed", "Session summaries clear failed", error)
+        }
+    }
+
     private func sceneURL() -> URL? {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appendingPathComponent(fileName)
+    }
+
+    private func sessionSummariesURL() -> URL? {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appendingPathComponent(sessionSummariesFileName)
     }
 }

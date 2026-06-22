@@ -38,6 +38,21 @@ export interface StreamSessionSummaryInput {
 
 export const maxStreamSessionSummaries = 10;
 
+export const normalizeStreamSessionSummaries = (
+  value: unknown,
+  maxSummaries = maxStreamSessionSummaries
+): StreamSessionSummary[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const summaries = value
+    .map(normalizeStreamSessionSummary)
+    .filter((summary): summary is StreamSessionSummary => Boolean(summary));
+
+  return summaries.slice(0, Math.max(1, maxSummaries));
+};
+
 export const appendStreamSessionSummary = (
   summaries: StreamSessionSummary[],
   summary: StreamSessionSummary | null,
@@ -52,6 +67,33 @@ export const appendStreamSessionSummary = (
   }
 
   return [summary, ...summaries].slice(0, Math.max(1, maxSummaries));
+};
+
+export const mergeStreamSessionSummaries = (
+  primarySummaries: StreamSessionSummary[],
+  secondarySummaries: unknown,
+  maxSummaries = maxStreamSessionSummaries
+): StreamSessionSummary[] => {
+  const maxCount = Math.max(1, maxSummaries);
+  const merged: StreamSessionSummary[] = [];
+  const seen = new Set<string>();
+
+  for (const summary of [
+    ...normalizeStreamSessionSummaries(primarySummaries, maxCount),
+    ...normalizeStreamSessionSummaries(secondarySummaries, maxCount)
+  ]) {
+    if (seen.has(summary.id)) {
+      continue;
+    }
+
+    seen.add(summary.id);
+    merged.push(summary);
+    if (merged.length >= maxCount) {
+      break;
+    }
+  }
+
+  return merged;
 };
 
 export const createStreamSessionSummary = ({
@@ -148,3 +190,77 @@ const createRecommendation = (
 
 const createSummaryId = (startedAt: string, endedAt: string, endReason: StreamSessionEndReason): string =>
   [startedAt, endedAt, endReason].join(":");
+
+const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const endReason = normalizeEndReason(value.endReason);
+  const outcome = normalizeOutcome(value.outcome);
+  const health = normalizeHealthSummary(value.health);
+  if (!endReason || !outcome || !health || typeof value.startedAt !== "string" || typeof value.endedAt !== "string") {
+    return null;
+  }
+
+  return {
+    id: typeof value.id === "string" && value.id.trim() ? value.id : createSummaryId(value.startedAt, value.endedAt, endReason),
+    startedAt: value.startedAt,
+    endedAt: value.endedAt,
+    endReason,
+    outcome,
+    durationSeconds: normalizeNonNegativeNumber(value.durationSeconds),
+    eventCount: normalizeNonNegativeInteger(value.eventCount),
+    warningCount: normalizeNonNegativeInteger(value.warningCount),
+    failureCount: normalizeNonNegativeInteger(value.failureCount),
+    recoveryEventCount: normalizeNonNegativeInteger(value.recoveryEventCount),
+    operationFailureCount: normalizeNonNegativeInteger(value.operationFailureCount),
+    health,
+    summary: typeof value.summary === "string" ? value.summary : createSummaryText(outcome, endReason, health),
+    recommendation: typeof value.recommendation === "string" ? value.recommendation : createRecommendation(outcome, endReason, health, 0, 0)
+  };
+};
+
+const normalizeHealthSummary = (value: unknown): StreamHealthHistorySummary | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const stability = normalizeStability(value.stability);
+  if (!stability) {
+    return null;
+  }
+
+  return {
+    sampleCount: normalizeNonNegativeInteger(value.sampleCount),
+    durationSeconds: normalizeNonNegativeNumber(value.durationSeconds),
+    averageBitrateKbps: normalizeNonNegativeInteger(value.averageBitrateKbps),
+    minimumBitrateKbps: normalizeNonNegativeInteger(value.minimumBitrateKbps),
+    maximumBitrateKbps: normalizeNonNegativeInteger(value.maximumBitrateKbps),
+    averageFps: normalizeNonNegativeNumber(value.averageFps),
+    minimumFps: normalizeNonNegativeNumber(value.minimumFps),
+    droppedFrameIncrease: normalizeNonNegativeInteger(value.droppedFrameIncrease),
+    observedDroppedFrames: normalizeNonNegativeInteger(value.observedDroppedFrames),
+    observedReconnectAttempts: normalizeNonNegativeInteger(value.observedReconnectAttempts),
+    stability,
+    summary: typeof value.summary === "string" ? value.summary : "No stream health history captured yet."
+  };
+};
+
+const normalizeEndReason = (value: unknown): StreamSessionEndReason | null =>
+  value === "stopped" || value === "failed" ? value : null;
+
+const normalizeOutcome = (value: unknown): StreamSessionOutcome | null =>
+  value === "clean" || value === "warn" || value === "fail" ? value : null;
+
+const normalizeStability = (value: unknown): StreamHealthHistorySummary["stability"] | null =>
+  value === "unknown" || value === "stable" || value === "watch" || value === "unstable" ? value : null;
+
+const normalizeNonNegativeInteger = (value: unknown): number =>
+  Math.max(0, Math.round(typeof value === "number" && Number.isFinite(value) ? value : 0));
+
+const normalizeNonNegativeNumber = (value: unknown): number =>
+  Math.max(0, typeof value === "number" && Number.isFinite(value) ? value : 0);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;

@@ -75,6 +75,7 @@ import {
   formatStreamStartPreflightBlockMessage
 } from "../domain/streamStartPreflight";
 import { createStreamOperationEvent, createStreamRecoveryEvent } from "../domain/streamSessionLog";
+import type { StreamSessionSummary } from "../domain/streamSessionSummary";
 import { MockLiveCaster } from "../native/MockLiveCaster";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { useChatSpeechQueue } from "../native/ChatSpeechEngine";
@@ -89,6 +90,10 @@ import { MobileStudioScreen } from "./MobileStudioScreen";
 import { NativeChatSpeechEngine } from "./NativeChatSpeechEngine";
 import { NativeFaceTrackingInput } from "./NativeFaceTrackingInput";
 import { loadMobileScene, saveMobileScene } from "./sceneStore";
+import {
+  loadMobileStreamSessionSummaries,
+  saveMobileStreamSessionSummaries
+} from "./sessionSummaryStore";
 import {
   clearSecureOAuthCredential,
   loadSecureOAuthCredential,
@@ -111,6 +116,8 @@ export const MobileApp = () => {
   const [profile, setProfile] = useState<StudioProfile>(() => createDefaultStudioProfile());
   const [sceneLoaded, setSceneLoaded] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [persistedStreamSessionSummaries, setPersistedStreamSessionSummaries] = useState<StreamSessionSummary[]>([]);
+  const [streamSessionSummariesLoaded, setStreamSessionSummariesLoaded] = useState(false);
   const [chatReader, setChatReader] = useState(() => createDefaultChatReaderState());
   const [platformChatAuth, setPlatformChatAuth] = useState<PlatformChatAuthSession>(() => createDefaultPlatformChatAuthSession());
   const [platformChatOAuth, setPlatformChatOAuth] = useState<PlatformChatOAuthSettings>(() => createDefaultPlatformChatOAuthSettings());
@@ -138,11 +145,20 @@ export const MobileApp = () => {
   });
   const { events: streamSessionEvents, recordEvent: recordStreamSessionEvent } = useStreamSessionLog(snapshot);
   const streamHealthSamples = useStreamHealthHistory(snapshot);
+  const persistStreamSessionSummaries = useCallback((summaries: StreamSessionSummary[]) => {
+    if (!streamSessionSummariesLoaded) {
+      return;
+    }
+    void saveMobileStreamSessionSummaries(summaries).catch(() => undefined);
+  }, [streamSessionSummariesLoaded]);
   const streamSessionSummaries = useStreamSessionSummaries({
     snapshot,
     events: streamSessionEvents,
     healthSamples: streamHealthSamples,
-    quality: readiness.sanitizedProfile.quality
+    quality: readiness.sanitizedProfile.quality,
+    initialSummaries: persistedStreamSessionSummaries,
+    initialSummariesReady: streamSessionSummariesLoaded,
+    onSummariesChange: streamSessionSummariesLoaded ? persistStreamSessionSummaries : undefined
   });
   const captureOAuthCallbackUrl = useCallback((url: string | null) => {
     if (!url || !isPlatformChatOAuthCallbackUrl(url)) {
@@ -283,6 +299,25 @@ export const MobileApp = () => {
       .finally(() => {
         if (!cancelled) {
           setProfileLoaded(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadMobileStreamSessionSummaries()
+      .catch(() => [])
+      .then((storedSummaries) => {
+        if (!cancelled) {
+          setPersistedStreamSessionSummaries(storedSummaries);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setStreamSessionSummariesLoaded(true);
         }
       });
     return () => {
