@@ -31,6 +31,7 @@ import {
   type SourceKind
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
+import { createStreamDiagnostics, type StreamDiagnostics } from "../domain/streamDiagnostics";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 
 interface MobileStudioScreenProps {
@@ -98,6 +99,7 @@ export const MobileStudioScreen = ({
   const operationBusy = operationStatus?.kind === "pending";
   const setupLocked = isLive || isBusy || operationBusy;
   const canGoLive = readiness.canStart && !isBusy && !isLive && !operationBusy;
+  const diagnostics = createStreamDiagnostics(scene, profile, readiness, snapshot);
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
     if (setupLocked) {
@@ -601,10 +603,44 @@ export const MobileStudioScreen = ({
 
           <ReadinessPanel readiness={readiness} />
         </Panel>
+
+        <StreamDiagnosticsPanel diagnostics={diagnostics} />
       </ScrollView>
     </SafeAreaView>
   );
 };
+
+const StreamDiagnosticsPanel = ({ diagnostics }: { diagnostics: StreamDiagnostics }) => (
+  <Panel title="Diagnostics">
+    <View style={[styles.diagnosticSummary, diagnosticSummaryStyle(diagnostics.status)]}>
+      <Text style={[styles.diagnosticSummaryText, diagnosticSummaryTextStyle(diagnostics.status)]}>{diagnostics.summary}</Text>
+    </View>
+    <View style={styles.diagnosticGrid}>
+      <DiagnosticMetric label="Target" value={diagnostics.target.platform} />
+      <DiagnosticMetric label="Endpoint" value={diagnostics.target.host} />
+      <DiagnosticMetric label="App" value={diagnostics.target.application} />
+      <DiagnosticMetric label="Publish URL" value={diagnostics.target.publishUrlPreview} />
+      <DiagnosticMetric label="Quality" value={`${diagnostics.quality.resolution} / ${diagnostics.quality.fps}fps`} />
+      <DiagnosticMetric label="Upload target" value={`${diagnostics.quality.estimatedUploadKbps} kbps`} />
+      <DiagnosticMetric label="Telemetry" value={`${diagnostics.telemetry.bitrateKbps} kbps / ${diagnostics.telemetry.fps} fps`} />
+    </View>
+    <View style={styles.diagnosticChecks}>
+      {diagnostics.checks.map((check) => (
+        <View key={check.code} style={[styles.diagnosticCheck, diagnosticCheckStyle(check.status)]}>
+          <Text style={styles.diagnosticCheckLabel}>{check.label}</Text>
+          <Text style={[styles.diagnosticCheckText, diagnosticCheckTextStyle(check.status)]}>{check.message}</Text>
+        </View>
+      ))}
+    </View>
+  </Panel>
+);
+
+const DiagnosticMetric = ({ label, value }: { label: string; value: string }) => (
+  <View style={styles.diagnosticMetric}>
+    <Text style={styles.diagnosticMetricLabel}>{label}</Text>
+    <Text style={styles.diagnosticMetricValue}>{value}</Text>
+  </View>
+);
 
 const ChatReaderPanel = ({
   chatReader,
@@ -971,6 +1007,56 @@ const NumberStepper = ({
       </View>
     </View>
   );
+};
+
+const diagnosticSummaryStyle = (status: StreamDiagnostics["status"]) => {
+  switch (status) {
+    case "pass":
+      return styles.diagnosticPass;
+    case "warn":
+      return styles.diagnosticWarn;
+    case "fail":
+      return styles.diagnosticFail;
+    default:
+      return null;
+  }
+};
+
+const diagnosticSummaryTextStyle = (status: StreamDiagnostics["status"]) => {
+  switch (status) {
+    case "pass":
+      return styles.diagnosticPassText;
+    case "warn":
+      return styles.diagnosticWarnText;
+    case "fail":
+      return styles.diagnosticFailText;
+    default:
+      return null;
+  }
+};
+
+const diagnosticCheckStyle = (status: StreamDiagnostics["checks"][number]["status"]) => {
+  switch (status) {
+    case "pass":
+      return styles.diagnosticCheckPass;
+    case "warn":
+      return styles.diagnosticCheckWarn;
+    case "fail":
+      return styles.diagnosticCheckFail;
+    default:
+      return null;
+  }
+};
+
+const diagnosticCheckTextStyle = (status: StreamDiagnostics["checks"][number]["status"]) => {
+  switch (status) {
+    case "warn":
+      return styles.diagnosticWarnText;
+    case "fail":
+      return styles.diagnosticFailText;
+    default:
+      return null;
+  }
 };
 
 const expressionStyle = (expression: string) => {
@@ -1570,6 +1656,98 @@ const styles = StyleSheet.create({
   },
   readinessIssueWarningText: {
     color: "#fde68a"
+  },
+  diagnosticSummary: {
+    minHeight: 40,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: "#101015"
+  },
+  diagnosticSummaryText: {
+    color: "#a1a1aa",
+    fontSize: 13,
+    fontWeight: "900",
+    lineHeight: 18
+  },
+  diagnosticPass: {
+    borderColor: "rgba(34, 197, 94, 0.42)"
+  },
+  diagnosticWarn: {
+    borderColor: "rgba(245, 158, 11, 0.46)"
+  },
+  diagnosticFail: {
+    borderColor: "rgba(251, 113, 133, 0.54)"
+  },
+  diagnosticPassText: {
+    color: "#bbf7d0"
+  },
+  diagnosticWarnText: {
+    color: "#fde68a"
+  },
+  diagnosticFailText: {
+    color: "#fecdd3"
+  },
+  diagnosticGrid: {
+    gap: 7
+  },
+  diagnosticMetric: {
+    minHeight: 42,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    backgroundColor: "#101015"
+  },
+  diagnosticMetricLabel: {
+    color: "#a1a1aa",
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  diagnosticMetricValue: {
+    marginTop: 3,
+    color: "#f8fafc",
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 17
+  },
+  diagnosticChecks: {
+    gap: 7
+  },
+  diagnosticCheck: {
+    minHeight: 42,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    backgroundColor: "#101015"
+  },
+  diagnosticCheckPass: {
+    borderColor: "rgba(34, 197, 94, 0.32)"
+  },
+  diagnosticCheckWarn: {
+    borderColor: "rgba(245, 158, 11, 0.38)"
+  },
+  diagnosticCheckFail: {
+    borderColor: "rgba(251, 113, 133, 0.42)"
+  },
+  diagnosticCheckLabel: {
+    color: "#f8fafc",
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  diagnosticCheckText: {
+    marginTop: 3,
+    color: "#a1a1aa",
+    fontSize: 12,
+    lineHeight: 17
   },
   destinationRow: {
     gap: 8,

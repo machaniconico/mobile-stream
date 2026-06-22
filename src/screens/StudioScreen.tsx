@@ -42,6 +42,7 @@ import {
   type SourceKind
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
+import { createStreamDiagnostics, type StreamDiagnostics } from "../domain/streamDiagnostics";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { LiveSetupScreen } from "./LiveSetupScreen";
 import { PanelTitle } from "./ui";
@@ -112,6 +113,7 @@ export const StudioScreen = ({
   const operationBusy = operationStatus?.kind === "pending";
   const setupLocked = isLive || isBusy || operationBusy;
   const canGoLive = readiness.canStart && !isBusy && !isLive && !operationBusy;
+  const diagnostics = createStreamDiagnostics(scene, profile, readiness, snapshot);
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
     if (setupLocked) {
       return;
@@ -562,11 +564,48 @@ export const StudioScreen = ({
             onProfileChange={onProfileChange}
             onClearStreamKey={onClearStreamKey}
           />
+
+          <StreamDiagnosticsPanel diagnostics={diagnostics} />
         </aside>
       </section>
     </main>
   );
 };
+
+const StreamDiagnosticsPanel = ({ diagnostics }: { diagnostics: StreamDiagnostics }) => (
+  <section className="control-panel">
+    <PanelTitle icon={<Activity size={18} />} title="Diagnostics" />
+    <div className={`diagnostic-summary ${diagnostics.status}`}>{diagnostics.summary}</div>
+    <div className="diagnostic-grid">
+      <span>Target</span>
+      <strong>{diagnostics.target.platform}</strong>
+      <span>Endpoint</span>
+      <strong>{diagnostics.target.host}</strong>
+      <span>App</span>
+      <strong>{diagnostics.target.application}</strong>
+      <span>Publish URL</span>
+      <strong>{diagnostics.target.publishUrlPreview}</strong>
+      <span>Quality</span>
+      <strong>
+        {diagnostics.quality.resolution} / {diagnostics.quality.fps}fps
+      </strong>
+      <span>Upload target</span>
+      <strong>{diagnostics.quality.estimatedUploadKbps} kbps</strong>
+      <span>Telemetry</span>
+      <strong>
+        {diagnostics.telemetry.bitrateKbps} kbps / {diagnostics.telemetry.fps} fps
+      </strong>
+    </div>
+    <div className="diagnostic-checks">
+      {diagnostics.checks.map((check) => (
+        <div key={check.code} className={`diagnostic-check ${check.status}`}>
+          <strong>{check.label}</strong>
+          <span>{check.message}</span>
+        </div>
+      ))}
+    </div>
+  </section>
+);
 
 const ChatReaderPanel = ({
   chatReader,
