@@ -24,6 +24,9 @@ export interface PlatformChatOAuthCredential {
   expiresAt: number | null;
   scopes: string[];
   twitchLogin: string | null;
+  validatedAt: number | null;
+  clientId: string | null;
+  redirectUri: string | null;
 }
 
 export interface PlatformChatOAuthResult {
@@ -152,7 +155,7 @@ export const completePlatformChatOAuthCallback = async (
       credential: token,
       auth,
       message: token.refreshToken
-        ? "YouTube OAuth connected. Refresh token was returned; store it only in secure native storage before production."
+        ? "YouTube OAuth connected. Refresh token was returned for secure native storage."
         : "YouTube OAuth connected for this session."
     };
   }
@@ -161,7 +164,12 @@ export const completePlatformChatOAuthCallback = async (
     throw new PlatformChatOAuthError("Twitch callback does not contain an access token.");
   }
 
-  const token = await validateTwitchOAuthToken(callback.accessToken, fetcher, receivedAt);
+  const normalizedSettings = normalizePlatformChatOAuthSettings(settings);
+  const token = {
+    ...(await validateTwitchOAuthToken(callback.accessToken, fetcher, receivedAt)),
+    clientId: normalizedSettings.twitchClientId || null,
+    redirectUri: normalizedSettings.twitchRedirectUri || null
+  };
   const auth = normalizePlatformChatAuthSession({
     twitchOauthToken: token.accessToken,
     twitchLogin: token.twitchLogin ?? ""
@@ -227,7 +235,57 @@ export const exchangeYouTubeOAuthCode = async (
     throw new PlatformChatOAuthError(`YouTube token exchange failed with HTTP ${response.status}.`);
   }
 
-  return normalizeTokenPayload("youtube", payload, receivedAt);
+  return {
+    ...normalizeTokenPayload("youtube", payload, receivedAt),
+    clientId: normalized.youtubeClientId,
+    redirectUri: normalized.youtubeRedirectUri
+  };
+};
+
+export const refreshYouTubeOAuthCredential = async (
+  credential: PlatformChatOAuthCredential,
+  settings: PlatformChatOAuthSettings,
+  fetcher: PlatformChatFetch,
+  receivedAt: number = Date.now()
+): Promise<PlatformChatOAuthCredential> => {
+  const normalizedCredential = normalizePlatformChatOAuthCredential(credential);
+  const normalizedSettings = normalizePlatformChatOAuthSettings(settings);
+  const clientId = normalizedSettings.youtubeClientId || normalizedCredential?.clientId || "";
+  const redirectUri = normalizedCredential?.redirectUri || normalizedSettings.youtubeRedirectUri || null;
+
+  if (!normalizedCredential || normalizedCredential.platform !== "youtube" || !normalizedCredential.refreshToken) {
+    throw new PlatformChatOAuthError("A YouTube refresh token is required.");
+  }
+  if (!clientId) {
+    throw new PlatformChatOAuthError("YouTube OAuth client ID is required.");
+  }
+
+  const response = await fetcher(YOUTUBE_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: createQueryParams({
+      client_id: clientId,
+      grant_type: "refresh_token",
+      refresh_token: normalizedCredential.refreshToken
+    })
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new PlatformChatOAuthError(`YouTube token refresh failed with HTTP ${response.status}.`);
+  }
+
+  const refreshed = normalizeTokenPayload("youtube", payload, receivedAt);
+  return {
+    ...refreshed,
+    refreshToken: refreshed.refreshToken ?? normalizedCredential.refreshToken,
+    scopes: refreshed.scopes.length > 0 ? refreshed.scopes : normalizedCredential.scopes,
+    clientId,
+    redirectUri
+  };
 };
 
 export const validateTwitchOAuthToken = async (
@@ -258,8 +316,71 @@ export const validateTwitchOAuthToken = async (
     refreshToken: null,
     expiresAt: secondsToExpiresAt(readNumberField(payload, "expires_in"), receivedAt),
     scopes: readStringArrayField(payload, "scopes"),
-    twitchLogin: readStringField(payload, "login")
+    twitchLogin: readStringField(payload, "login"),
+    validatedAt: receivedAt,
+    clientId: null,
+    redirectUri: null
   };
+};
+
+export const normalizePlatformChatOAuthCredential = (
+  credential: Partial<PlatformChatOAuthCredential> | null | undefined
+): PlatformChatOAuthCredential | null => {
+  const platform = credential?.platform === "twitch" ? "twitch" : credential?.platform === "youtube" ? "youtube" : null;
+  const accessToken = normalizeSingleLine(credential?.accessToken);
+  if (!platform || !accessToken) {
+    return null;
+  }
+
+  return {
+    platform,
+    accessToken,
+    refreshToken: normalizeSingleLine(credential?.refreshToken) || null,
+    expiresAt: normalizeTimestamp(credential?.expiresAt),
+    scopes: Array.isArray(credential?.scopes) ? credential.scopes.map(normalizeSingleLine).filter(Boolean).slice(0, 24) : [],
+    twitchLogin: normalizeSingleLine(credential?.twitchLogin) || null,
+    validatedAt: normalizeTimestamp(credential?.validatedAt),
+    clientId: normalizeSingleLine(credential?.clientId) || null,
+    redirectUri: normalizeSingleLine(credential?.redirectUri) || null
+  };
+};
+
+export const createPlatformChatAuthFromCredential = (
+  credential: PlatformChatOAuthCredential | null
+): PlatformChatAuthSession => {
+  const normalized = normalizePlatformChatOAuthCredential(credential);
+  if (!normalized) {
+    return normalizePlatformChatAuthSession({});
+  }
+
+  if (normalized.platform === "youtube") {
+    return normalizePlatformChatAuthSession({
+      youtubeAccessToken: normalized.accessToken
+    });
+  }
+
+  return normalizePlatformChatAuthSession({
+    twitchOauthToken: normalized.accessToken,
+    twitchLogin: normalized.twitchLogin ?? ""
+  });
+};
+
+export const shouldRefreshPlatformChatOAuthCredential = (
+  credential: PlatformChatOAuthCredential | null,
+  now: number = Date.now(),
+  leewayMs = 120000
+): boolean => {
+  const normalized = normalizePlatformChatOAuthCredential(credential);
+  return Boolean(normalized?.refreshToken && normalized.expiresAt !== null && normalized.expiresAt - now <= leewayMs);
+};
+
+export const shouldValidateTwitchOAuthCredential = (
+  credential: PlatformChatOAuthCredential | null,
+  now: number = Date.now(),
+  intervalMs = 3600000
+): boolean => {
+  const normalized = normalizePlatformChatOAuthCredential(credential);
+  return Boolean(normalized?.platform === "twitch" && (!normalized.validatedAt || now - normalized.validatedAt >= intervalMs));
 };
 
 export const createPkceCodeVerifier = (): string => createOAuthNonce(64);
@@ -294,7 +415,10 @@ const normalizeTokenPayload = (
     refreshToken: readStringField(payload, "refresh_token") || null,
     expiresAt: secondsToExpiresAt(readNumberField(payload, "expires_in"), receivedAt),
     scopes: normalizeScopes(readStringField(payload, "scope")),
-    twitchLogin: null
+    twitchLogin: null,
+    validatedAt: receivedAt,
+    clientId: null,
+    redirectUri: null
   };
 };
 
@@ -312,6 +436,9 @@ const normalizeScopes = (value: string): string[] => value.split(/[ +]/).map(nor
 
 const secondsToExpiresAt = (seconds: number | null, receivedAt: number): number | null =>
   seconds && Number.isFinite(seconds) && seconds > 0 ? receivedAt + seconds * 1000 : null;
+
+const normalizeTimestamp = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.round(value) : null;
 
 const readStringField = (payload: unknown, key: string): string => {
   if (!payload || typeof payload !== "object") {

@@ -15,6 +15,8 @@
 - Platform chat adapter model for YouTube LiveChatMessages responses and Twitch EventSub chat notifications.
 - Platform chat adapter settings persisted with the shared studio profile on web and mobile.
 - OAuth chat authorization layer for YouTube PKCE authorization-code callbacks and Twitch implicit callbacks, with tokens kept out of persisted profiles.
+- Secure mobile OAuth credential persistence through Keychain/Android Keystore-backed native storage.
+- YouTube OAuth refresh-token rotation and hourly Twitch token validation scheduling for mobile chat authorization.
 - OAuth-token chat connection layer for YouTube live chat polling and Twitch IRC WebSocket ingestion.
 - Mobile OAuth callback URL scheme registration and React Native callback capture for chat authorization.
 - Avatar runtime model for PNGTuber/Live2D expression, lip sync, and auto blink.
@@ -80,7 +82,6 @@
 - Native compositor.
 - First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
 - Live2D Cubism SDK integration.
-- Secure refresh-token storage and refresh scheduling for OAuth-backed live chat.
 - OAuth/API-backed platform stream key rotation.
 
 ## Local Environment Notes
@@ -96,5 +97,5 @@
 
 1. Run iOS and Android on physical devices against a private RTMPS endpoint and tune bitrate/fps/audio sync behavior.
 2. Validate YouTube Live and Twitch ingest with real stream keys on both platforms.
-3. Add secure refresh-token storage/rotation for OAuth-backed YouTube chat and hourly Twitch token validation.
-4. Add OAuth/API-backed platform stream key rotation.
+3. Add OAuth/API-backed platform stream key rotation.
+4. Add native compositor and device-level latency tuning after physical endpoint validation.

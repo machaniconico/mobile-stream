@@ -25,7 +25,7 @@ const twitchSettings = (): PlatformChatSettings => ({
 });
 
 describe("platformChatConnection", () => {
-  it("requires non-persisted auth before network chat can connect", () => {
+  it("requires OAuth auth before network chat can connect", () => {
     expect(getPlatformChatNetworkReadiness(youtubeSettings(), createDefaultPlatformChatAuthSession())).toMatchObject({
       status: "needs-auth",
       label: "Needs auth"

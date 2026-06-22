@@ -26,6 +26,8 @@ class SecureProfileStoreModule(private val reactContext: ReactApplicationContext
         private const val PREFS_NAME = "mobile_live_caster_secure_store"
         private const val PROFILE_CIPHERTEXT = "profile_ciphertext"
         private const val PROFILE_IV = "profile_iv"
+        private const val OAUTH_CIPHERTEXT = "oauth_credential_ciphertext"
+        private const val OAUTH_IV = "oauth_credential_iv"
         private const val GCM_TAG_BITS = 128
     }
 
@@ -34,14 +36,7 @@ class SecureProfileStoreModule(private val reactContext: ReactApplicationContext
     @ReactMethod
     fun saveProfile(profileJson: String, promise: Promise) {
         try {
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
-            val ciphertext = cipher.doFinal(profileJson.toByteArray(StandardCharsets.UTF_8))
-            prefs()
-                .edit()
-                .putString(PROFILE_CIPHERTEXT, Base64.encodeToString(ciphertext, Base64.NO_WRAP))
-                .putString(PROFILE_IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
-                .apply()
+            saveEncryptedValue(profileJson, PROFILE_CIPHERTEXT, PROFILE_IV)
             promise.resolve(true)
         } catch (error: Throwable) {
             promise.reject("secure_profile_save_failed", error)
@@ -51,19 +46,7 @@ class SecureProfileStoreModule(private val reactContext: ReactApplicationContext
     @ReactMethod
     fun loadProfile(promise: Promise) {
         try {
-            val ciphertextValue = prefs().getString(PROFILE_CIPHERTEXT, null)
-            val ivValue = prefs().getString(PROFILE_IV, null)
-            if (ciphertextValue == null || ivValue == null) {
-                promise.resolve(null)
-                return
-            }
-
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            val iv = Base64.decode(ivValue, Base64.NO_WRAP)
-            val ciphertext = Base64.decode(ciphertextValue, Base64.NO_WRAP)
-            cipher.init(Cipher.DECRYPT_MODE, getOrCreateSecretKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
-            val plaintext = cipher.doFinal(ciphertext)
-            promise.resolve(String(plaintext, StandardCharsets.UTF_8))
+            promise.resolve(loadEncryptedValue(PROFILE_CIPHERTEXT, PROFILE_IV))
         } catch (error: Throwable) {
             prefs().edit().remove(PROFILE_CIPHERTEXT).remove(PROFILE_IV).apply()
             promise.reject("secure_profile_load_failed", error)
@@ -76,7 +59,59 @@ class SecureProfileStoreModule(private val reactContext: ReactApplicationContext
         promise.resolve(true)
     }
 
+    @ReactMethod
+    fun saveOAuthCredential(credentialJson: String, promise: Promise) {
+        try {
+            saveEncryptedValue(credentialJson, OAUTH_CIPHERTEXT, OAUTH_IV)
+            promise.resolve(true)
+        } catch (error: Throwable) {
+            promise.reject("secure_oauth_save_failed", error)
+        }
+    }
+
+    @ReactMethod
+    fun loadOAuthCredential(promise: Promise) {
+        try {
+            promise.resolve(loadEncryptedValue(OAUTH_CIPHERTEXT, OAUTH_IV))
+        } catch (error: Throwable) {
+            prefs().edit().remove(OAUTH_CIPHERTEXT).remove(OAUTH_IV).apply()
+            promise.reject("secure_oauth_load_failed", error)
+        }
+    }
+
+    @ReactMethod
+    fun clearOAuthCredential(promise: Promise) {
+        prefs().edit().remove(OAUTH_CIPHERTEXT).remove(OAUTH_IV).apply()
+        promise.resolve(true)
+    }
+
     private fun prefs() = reactContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    private fun saveEncryptedValue(value: String, ciphertextKey: String, ivKey: String) {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
+        val ciphertext = cipher.doFinal(value.toByteArray(StandardCharsets.UTF_8))
+        prefs()
+            .edit()
+            .putString(ciphertextKey, Base64.encodeToString(ciphertext, Base64.NO_WRAP))
+            .putString(ivKey, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+            .apply()
+    }
+
+    private fun loadEncryptedValue(ciphertextKey: String, ivKey: String): String? {
+        val ciphertextValue = prefs().getString(ciphertextKey, null)
+        val ivValue = prefs().getString(ivKey, null)
+        if (ciphertextValue == null || ivValue == null) {
+            return null
+        }
+
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        val iv = Base64.decode(ivValue, Base64.NO_WRAP)
+        val ciphertext = Base64.decode(ciphertextValue, Base64.NO_WRAP)
+        cipher.init(Cipher.DECRYPT_MODE, getOrCreateSecretKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
+        val plaintext = cipher.doFinal(ciphertext)
+        return String(plaintext, StandardCharsets.UTF_8)
+    }
 
     private fun getOrCreateSecretKey(): SecretKey {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }

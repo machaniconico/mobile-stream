@@ -12,4 +12,14 @@ RCT_EXTERN_METHOD(loadProfile:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(clearProfile:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(saveOAuthCredential:(NSString *)credentialJson
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(loadOAuthCredential:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(clearOAuthCredential:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end

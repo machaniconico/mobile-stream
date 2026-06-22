@@ -3,9 +3,13 @@ import {
   completePlatformChatOAuthCallback,
   createDefaultPlatformChatOAuthSettings,
   createPlatformChatOAuthFlow,
+  createPlatformChatAuthFromCredential,
   createPkceS256Challenge,
   exchangeYouTubeOAuthCode,
   parseOAuthCallback,
+  refreshYouTubeOAuthCredential,
+  shouldRefreshPlatformChatOAuthCredential,
+  shouldValidateTwitchOAuthCredential,
   validateTwitchOAuthToken
 } from "./platformChatOAuth";
 
@@ -100,7 +104,60 @@ describe("platformChatOAuth", () => {
       platform: "youtube",
       accessToken: "yt-access",
       refreshToken: "yt-refresh",
-      expiresAt: 3601000
+      expiresAt: 3601000,
+      clientId: "youtube-client",
+      redirectUri: "com.example.mobilelivecaster:/oauth/youtube"
+    });
+  });
+
+  it("refreshes YouTube access tokens with stored refresh tokens", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        access_token: "yt-access-2",
+        expires_in: 1800,
+        scope: "https://www.googleapis.com/auth/youtube.readonly",
+        token_type: "Bearer"
+      })
+    });
+
+    const credential = await refreshYouTubeOAuthCredential(
+      {
+        platform: "youtube",
+        accessToken: "yt-access-1",
+        refreshToken: "yt-refresh",
+        expiresAt: 2000,
+        scopes: ["https://www.googleapis.com/auth/youtube.readonly"],
+        twitchLogin: null,
+        validatedAt: 1,
+        clientId: "stored-youtube-client",
+        redirectUri: "com.example.mobilelivecaster:/oauth/youtube"
+      },
+      {
+        ...oauthSettings(),
+        youtubeClientId: ""
+      },
+      fetcher,
+      1000
+    );
+
+    expect(fetcher).toHaveBeenCalledWith("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: expect.stringContaining("client_id=stored-youtube-client")
+    });
+    expect(fetcher.mock.calls[0][1].body).toContain("grant_type=refresh_token");
+    expect(fetcher.mock.calls[0][0]).not.toContain("yt-refresh");
+    expect(credential).toMatchObject({
+      platform: "youtube",
+      accessToken: "yt-access-2",
+      refreshToken: "yt-refresh",
+      expiresAt: 1801000,
+      clientId: "stored-youtube-client"
     });
   });
 
@@ -130,8 +187,54 @@ describe("platformChatOAuth", () => {
       accessToken: "tw-access",
       twitchLogin: "macha",
       scopes: ["chat:read"],
-      expiresAt: 1805000
+      expiresAt: 1805000,
+      validatedAt: 5000
     });
+  });
+
+  it("derives chat auth and refresh/validation scheduling from stored credentials", () => {
+    expect(
+      createPlatformChatAuthFromCredential({
+        platform: "twitch",
+        accessToken: "tw-token",
+        refreshToken: null,
+      expiresAt: 100000,
+      scopes: ["chat:read"],
+      twitchLogin: "macha",
+      validatedAt: 1,
+      clientId: "twitch-client",
+      redirectUri: "mobilelivecaster://oauth/twitch"
+    })
+    ).toMatchObject({
+      twitchOauthToken: "tw-token",
+      twitchLogin: "macha"
+    });
+    expect(
+      shouldRefreshPlatformChatOAuthCredential({
+        platform: "youtube",
+        accessToken: "yt-token",
+        refreshToken: "yt-refresh",
+        expiresAt: 1000,
+        scopes: [],
+        twitchLogin: null,
+        validatedAt: 1,
+        clientId: "youtube-client",
+        redirectUri: "com.example.mobilelivecaster:/oauth/youtube"
+      }, 900)
+    ).toBe(true);
+    expect(
+      shouldValidateTwitchOAuthCredential({
+        platform: "twitch",
+        accessToken: "tw-token",
+        refreshToken: null,
+        expiresAt: null,
+        scopes: ["chat:read"],
+        twitchLogin: "macha",
+        validatedAt: 0,
+        clientId: "twitch-client",
+        redirectUri: "mobilelivecaster://oauth/twitch"
+      }, 3600000)
+    ).toBe(true);
   });
 
   it("completes Twitch callbacks into in-memory chat auth", async () => {
