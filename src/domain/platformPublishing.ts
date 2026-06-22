@@ -40,6 +40,32 @@ interface YouTubeLiveBroadcastResource {
   };
 }
 
+interface YouTubeLiveBroadcastListResponse {
+  items?: YouTubeLiveBroadcastResource[];
+}
+
+interface YouTubeLiveStreamHealthIssue {
+  type?: string;
+  severity?: string;
+  reason?: string;
+  description?: string;
+}
+
+interface YouTubeLiveStreamResource {
+  id?: string;
+  status?: {
+    streamStatus?: string;
+    healthStatus?: {
+      status?: string;
+      configurationIssues?: YouTubeLiveStreamHealthIssue[];
+    };
+  };
+}
+
+interface YouTubeLiveStreamListResponse {
+  items?: YouTubeLiveStreamResource[];
+}
+
 interface TwitchCategorySearchResponse {
   data?: Array<{
     id?: string;
@@ -53,6 +79,7 @@ interface TwitchCategoryResult {
 }
 
 const YOUTUBE_LIVE_BROADCASTS_URL = "https://www.googleapis.com/youtube/v3/liveBroadcasts";
+const YOUTUBE_LIVE_STREAMS_URL = "https://www.googleapis.com/youtube/v3/liveStreams";
 const TWITCH_CHANNELS_URL = "https://api.twitch.tv/helix/channels";
 const TWITCH_SEARCH_CATEGORIES_URL = "https://api.twitch.tv/helix/search/categories";
 
@@ -210,6 +237,104 @@ export const transitionYouTubeBroadcast = async (
   };
 };
 
+export const refreshYouTubeBroadcastStatus = async (
+  profile: StudioProfile,
+  credential: PlatformChatOAuthCredential | null,
+  fetcher: PlatformChatFetch
+): Promise<PlatformPublishingResult> => {
+  const normalizedCredential = requirePlatformCredential(credential, "youtube");
+  requireScope(normalizedCredential, YOUTUBE_LIVE_MANAGE_SCOPE, "YouTube broadcast status refresh requires OAuth scope youtube.force-ssl.");
+  const settings = normalizePlatformPublishingSettings(profile.platformPublishing);
+
+  if (!settings.youtubeBroadcastId) {
+    throw new PlatformPublishingError("Create a YouTube broadcast before refreshing its status.");
+  }
+
+  const broadcastResponse = await fetcher(
+    `${YOUTUBE_LIVE_BROADCASTS_URL}?${createQueryParams({
+      id: settings.youtubeBroadcastId,
+      part: "snippet,contentDetails,status"
+    })}`,
+    {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${normalizedCredential.accessToken}`
+      }
+    }
+  );
+  const broadcastPayload = (await broadcastResponse.json()) as YouTubeLiveBroadcastListResponse;
+
+  if (!broadcastResponse.ok) {
+    throw new PlatformPublishingError(`YouTube broadcast status request failed with HTTP ${broadcastResponse.status}.`);
+  }
+
+  const broadcast = broadcastPayload.items?.[0];
+  if (!broadcast) {
+    throw new PlatformPublishingError("YouTube broadcast status response did not include the saved broadcast.");
+  }
+
+  const streamId = normalizeSingleLine(broadcast.contentDetails?.boundStreamId || settings.youtubeStreamId);
+  const liveChatId = normalizeSingleLine(broadcast.snippet?.liveChatId || settings.youtubeLiveChatId);
+  const nextPublishing: PlatformPublishingSettings = {
+    ...settings,
+    youtubeBroadcastStatus: normalizeSingleLine(broadcast.status?.lifeCycleStatus) || settings.youtubeBroadcastStatus,
+    youtubeLiveChatId: liveChatId,
+    youtubeStreamId: streamId || settings.youtubeStreamId,
+    youtubeStreamStatus: settings.youtubeStreamStatus,
+    youtubeStreamHealthStatus: settings.youtubeStreamHealthStatus,
+    youtubeStreamHealthIssues: settings.youtubeStreamHealthIssues
+  };
+
+  if (streamId) {
+    const streamResponse = await fetcher(
+      `${YOUTUBE_LIVE_STREAMS_URL}?${createQueryParams({
+        id: streamId,
+        part: "status"
+      })}`,
+      {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${normalizedCredential.accessToken}`
+        }
+      }
+    );
+    const streamPayload = (await streamResponse.json()) as YouTubeLiveStreamListResponse;
+
+    if (!streamResponse.ok) {
+      throw new PlatformPublishingError(`YouTube stream status request failed with HTTP ${streamResponse.status}.`);
+    }
+
+    const stream = streamPayload.items?.[0];
+    if (stream) {
+      nextPublishing.youtubeStreamStatus = normalizeSingleLine(stream.status?.streamStatus);
+      nextPublishing.youtubeStreamHealthStatus = normalizeSingleLine(stream.status?.healthStatus?.status);
+      nextPublishing.youtubeStreamHealthIssues = (stream.status?.healthStatus?.configurationIssues ?? [])
+        .map(formatYouTubeHealthIssue)
+        .filter(Boolean)
+        .slice(0, 12);
+    }
+  }
+
+  const statusSummary = [
+    `broadcast ${nextPublishing.youtubeBroadcastStatus || "unknown"}`,
+    streamId ? `stream ${nextPublishing.youtubeStreamStatus || "unknown"}` : "no bound stream"
+  ].join(", ");
+
+  return {
+    profile: {
+      ...profile,
+      platformPublishing: nextPublishing,
+      platformChat: liveChatId
+        ? {
+            ...profile.platformChat,
+            youtubeLiveChatId: liveChatId
+          }
+        : profile.platformChat
+    },
+    message: `YouTube status refreshed: ${statusSummary}.`
+  };
+};
+
 export const applyTwitchChannelMetadata = async (
   profile: StudioProfile,
   credential: PlatformChatOAuthCredential | null,
@@ -336,6 +461,14 @@ const createQueryParams = (params: Record<string, string>): string => {
     query.set(key, value);
   }
   return query.toString();
+};
+
+const formatYouTubeHealthIssue = (issue: YouTubeLiveStreamHealthIssue): string => {
+  const severity = normalizeSingleLine(issue?.severity);
+  const type = normalizeSingleLine(issue?.type);
+  const reason = normalizeSingleLine(issue?.reason);
+  const description = normalizeSingleLine(issue?.description);
+  return [severity, type, reason || description].filter(Boolean).join(": ");
 };
 
 const normalizeSingleLine = (value: unknown): string => (typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "");

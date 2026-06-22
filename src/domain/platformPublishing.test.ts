@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PlatformChatOAuthCredential } from "./platformChatOAuth";
 import type { PlatformChatFetch } from "./platformChatConnection";
-import { applyTwitchChannelMetadata, createYouTubeBroadcastAndBindStream, transitionYouTubeBroadcast } from "./platformPublishing";
+import {
+  applyTwitchChannelMetadata,
+  createYouTubeBroadcastAndBindStream,
+  refreshYouTubeBroadcastStatus,
+  transitionYouTubeBroadcast
+} from "./platformPublishing";
 import { applyDestinationPreset, createDefaultStudioProfile } from "./profiles";
 
 const youtubeCredential = (): PlatformChatOAuthCredential => ({
@@ -151,6 +156,82 @@ describe("platformPublishing", () => {
     expect(result.profile.platformPublishing.youtubeBroadcastStatus).toBe("live");
     expect(result.profile.platformPublishing.youtubeLiveChatId).toBe("chat-2");
     expect(result.profile.platformChat.youtubeLiveChatId).toBe("chat-2");
+  });
+
+  it("refreshes YouTube broadcast and ingest stream status", async () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        youtubeBroadcastId: "broadcast-1",
+        youtubeStreamId: "stream-1"
+      }
+    };
+    const fetcher = vi.fn(async (...args: Parameters<PlatformChatFetch>) => {
+      const [url] = args;
+      if (url.startsWith("https://www.googleapis.com/youtube/v3/liveStreams")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            items: [
+              {
+                id: "stream-1",
+                status: {
+                  streamStatus: "active",
+                  healthStatus: {
+                    status: "ok",
+                    configurationIssues: [
+                      {
+                        severity: "warning",
+                        type: "bitrateLow",
+                        reason: "Video output low",
+                        description: "Bitrate is below target."
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          })
+        };
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: [
+            {
+              id: "broadcast-1",
+              snippet: {
+                liveChatId: "chat-1"
+              },
+              contentDetails: {
+                boundStreamId: "stream-1"
+              },
+              status: {
+                lifeCycleStatus: "testing"
+              }
+            }
+          ]
+        })
+      };
+    });
+
+    const result = await refreshYouTubeBroadcastStatus(profile, youtubeCredential(), fetcher);
+
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[0][0]).toBe(
+      "https://www.googleapis.com/youtube/v3/liveBroadcasts?id=broadcast-1&part=snippet%2CcontentDetails%2Cstatus"
+    );
+    expect(fetcher.mock.calls[1][0]).toBe("https://www.googleapis.com/youtube/v3/liveStreams?id=stream-1&part=status");
+    expect(fetcher.mock.calls[0][0]).not.toContain("yt-access");
+    expect(result.profile.platformPublishing.youtubeBroadcastStatus).toBe("testing");
+    expect(result.profile.platformPublishing.youtubeStreamStatus).toBe("active");
+    expect(result.profile.platformPublishing.youtubeStreamHealthStatus).toBe("ok");
+    expect(result.profile.platformPublishing.youtubeStreamHealthIssues).toEqual(["warning: bitrateLow: Video output low"]);
+    expect(result.profile.platformChat.youtubeLiveChatId).toBe("chat-1");
   });
 
   it("updates Twitch channel metadata with resolved category IDs", async () => {

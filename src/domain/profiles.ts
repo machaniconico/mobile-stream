@@ -85,6 +85,9 @@ export interface PlatformPublishingSettings {
   youtubeBroadcastId: string;
   youtubeLiveChatId: string;
   youtubeBroadcastStatus: string;
+  youtubeStreamStatus: string;
+  youtubeStreamHealthStatus: string;
+  youtubeStreamHealthIssues: string[];
   twitchCategory: string;
   twitchCategoryId: string;
   twitchLanguage: string;
@@ -371,6 +374,9 @@ export const defaultPlatformPublishingSettings: PlatformPublishingSettings = {
   youtubeBroadcastId: "",
   youtubeLiveChatId: "",
   youtubeBroadcastStatus: "",
+  youtubeStreamStatus: "",
+  youtubeStreamHealthStatus: "",
+  youtubeStreamHealthIssues: [],
   twitchCategory: "Just Chatting",
   twitchCategoryId: "",
   twitchLanguage: "ja"
@@ -473,6 +479,11 @@ export const normalizePlatformPublishingSettings = (
     youtubeBroadcastId: normalizeSingleLine(settings?.youtubeBroadcastId).slice(0, 180),
     youtubeLiveChatId: normalizeSingleLine(settings?.youtubeLiveChatId).slice(0, 180),
     youtubeBroadcastStatus: normalizeSingleLine(settings?.youtubeBroadcastStatus).slice(0, 40),
+    youtubeStreamStatus: normalizeSingleLine(settings?.youtubeStreamStatus).slice(0, 40),
+    youtubeStreamHealthStatus: normalizeSingleLine(settings?.youtubeStreamHealthStatus).slice(0, 40),
+    youtubeStreamHealthIssues: Array.isArray(settings?.youtubeStreamHealthIssues)
+      ? settings.youtubeStreamHealthIssues.map(normalizeSingleLine).filter(Boolean).slice(0, 12)
+      : [],
     twitchCategory: normalizeSingleLine(settings?.twitchCategory || fallback.twitchCategory).slice(0, 140),
     twitchCategoryId: normalizeSingleLine(settings?.twitchCategoryId).slice(0, 80),
     twitchLanguage: normalizeSingleLine(settings?.twitchLanguage || fallback.twitchLanguage).slice(0, 12).toLowerCase()

@@ -50,6 +50,9 @@ describe("studio profiles", () => {
         youtubeBroadcastId: " broadcast-id ",
         youtubeLiveChatId: " chat-id ",
         youtubeBroadcastStatus: " live ",
+        youtubeStreamStatus: " active ",
+        youtubeStreamHealthStatus: " good ",
+        youtubeStreamHealthIssues: [" warning: bitrateLow ", "", " error: noAudioStream "],
         twitchCategory: " Just Chatting ",
         twitchCategoryId: " 509658 ",
         twitchLanguage: " JA "
@@ -61,6 +64,9 @@ describe("studio profiles", () => {
     expect(profile.platformPublishing.scheduledStartMinutesFromNow).toBe(1);
     expect(profile.platformPublishing.youtubeStreamId).toBe("stream-id");
     expect(profile.platformPublishing.youtubeBroadcastStatus).toBe("live");
+    expect(profile.platformPublishing.youtubeStreamStatus).toBe("active");
+    expect(profile.platformPublishing.youtubeStreamHealthStatus).toBe("good");
+    expect(profile.platformPublishing.youtubeStreamHealthIssues).toEqual(["warning: bitrateLow", "error: noAudioStream"]);
     expect(profile.platformPublishing.twitchCategoryId).toBe("509658");
     expect(profile.platformPublishing.twitchLanguage).toBe("ja");
   });

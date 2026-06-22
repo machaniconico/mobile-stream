@@ -79,6 +79,7 @@ interface MobileStudioScreenProps {
   onPlatformChatOAuthCallbackApply(): void | Promise<void>;
   onPlatformStreamKeyApply(): void | Promise<void>;
   onPlatformPublishingApply(): void | Promise<void>;
+  onYouTubePublishingStatusRefresh(): void | Promise<void>;
   onYouTubeBroadcastTransition(status: YouTubeBroadcastTransitionStatus): void | Promise<void>;
   onPlatformChatConnect(): void;
   onPlatformChatDisconnect(): void;
@@ -142,6 +143,7 @@ export const MobileStudioScreen = ({
   onPlatformChatOAuthCallbackApply,
   onPlatformStreamKeyApply,
   onPlatformPublishingApply,
+  onYouTubePublishingStatusRefresh,
   onYouTubeBroadcastTransition,
   onPlatformChatConnect,
   onPlatformChatDisconnect,
@@ -738,6 +740,27 @@ export const MobileStudioScreen = ({
                     "No YouTube resource ID"}
                 </Text>
               </View>
+              <View style={styles.grid3}>
+                <Text style={styles.statusCell} numberOfLines={1}>
+                  Broadcast {profile.platformPublishing.youtubeBroadcastStatus || "unknown"}
+                </Text>
+                <Text style={styles.statusCell} numberOfLines={1}>
+                  Stream {profile.platformPublishing.youtubeStreamStatus || "unknown"}
+                </Text>
+                <Text style={styles.statusCell} numberOfLines={1}>
+                  Health {profile.platformPublishing.youtubeStreamHealthStatus || "unknown"}
+                </Text>
+              </View>
+              {profile.platformPublishing.youtubeStreamHealthIssues.map((issue) => (
+                <Text key={issue} style={styles.healthIssue} numberOfLines={2}>
+                  {issue}
+                </Text>
+              ))}
+              <ActionButton
+                label="Refresh Status"
+                disabled={setupLocked || !profile.platformPublishing.youtubeBroadcastId}
+                onPress={onYouTubePublishingStatusRefresh}
+              />
               <View style={styles.grid3}>
                 {(["testing", "live", "complete"] as YouTubeBroadcastTransitionStatus[]).map((broadcastStatus) => (
                   <ActionButton
@@ -1895,6 +1918,32 @@ const styles = StyleSheet.create({
     color: "#a1a1aa",
     fontSize: 12,
     fontWeight: "800"
+  },
+  statusCell: {
+    flex: 1,
+    minHeight: 42,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    backgroundColor: "#101015",
+    color: "#a1a1aa",
+    fontSize: 11,
+    fontWeight: "800",
+    textAlign: "center"
+  },
+  healthIssue: {
+    minHeight: 38,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.45)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    backgroundColor: "rgba(245, 158, 11, 0.08)",
+    color: "#fde68a",
+    fontSize: 11,
+    fontWeight: "700"
   },
   stepper: {
     gap: 8

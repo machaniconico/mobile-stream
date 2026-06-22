@@ -94,6 +94,7 @@ interface StudioScreenProps {
   onPlatformChatOAuthCallbackApply(): void | Promise<void>;
   onPlatformStreamKeyApply(): void | Promise<void>;
   onPlatformPublishingApply(): void | Promise<void>;
+  onYouTubePublishingStatusRefresh(): void | Promise<void>;
   onYouTubeBroadcastTransition(status: YouTubeBroadcastTransitionStatus): void | Promise<void>;
   onPlatformChatConnect(): void;
   onPlatformChatDisconnect(): void;
@@ -165,6 +166,7 @@ export const StudioScreen = ({
   onPlatformChatOAuthCallbackApply,
   onPlatformStreamKeyApply,
   onPlatformPublishingApply,
+  onYouTubePublishingStatusRefresh,
   onYouTubeBroadcastTransition,
   onPlatformChatConnect,
   onPlatformChatDisconnect,
@@ -644,6 +646,7 @@ export const StudioScreen = ({
             platformPublishingStatus={platformPublishingStatus}
             onProfileChange={onProfileChange}
             onPlatformPublishingApply={onPlatformPublishingApply}
+            onYouTubePublishingStatusRefresh={onYouTubePublishingStatusRefresh}
             onYouTubeBroadcastTransition={onYouTubeBroadcastTransition}
             onClearStreamKey={onClearStreamKey}
           />

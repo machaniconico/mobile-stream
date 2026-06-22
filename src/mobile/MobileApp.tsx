@@ -44,6 +44,7 @@ import {
 import {
   applyTwitchChannelMetadata,
   createYouTubeBroadcastAndBindStream,
+  refreshYouTubeBroadcastStatus,
   transitionYouTubeBroadcast,
   type YouTubeBroadcastTransitionStatus
 } from "../domain/platformPublishing";
@@ -516,6 +517,17 @@ export const MobileApp = () => {
     }
   };
 
+  const refreshYouTubePublishingStatus = async () => {
+    try {
+      const result = await refreshYouTubeBroadcastStatus(profile, platformChatOAuthCredential, fetch);
+      setProfile(result.profile);
+      await saveSecureProfile(result.profile).catch(() => undefined);
+      setPlatformPublishingStatus(result.message);
+    } catch (error) {
+      setPlatformPublishingStatus(toErrorMessage(error));
+    }
+  };
+
   const ingestPlatformChatSample = () => {
     if (!profile.platformChat.enabled) {
       return;
@@ -571,6 +583,7 @@ export const MobileApp = () => {
         onPlatformChatOAuthCallbackApply={applyPlatformChatOAuthCallback}
         onPlatformStreamKeyApply={applyPlatformStreamKey}
         onPlatformPublishingApply={applyPlatformPublishingSetup}
+        onYouTubePublishingStatusRefresh={refreshYouTubePublishingStatus}
         onYouTubeBroadcastTransition={transitionYouTubeBroadcastState}
         onPlatformChatConnect={platformChatConnection.connect}
         onPlatformChatDisconnect={platformChatConnection.disconnect}

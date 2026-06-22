@@ -22,6 +22,7 @@ interface LiveSetupScreenProps {
   platformPublishingStatus: string;
   onProfileChange(profile: StudioProfile): void;
   onPlatformPublishingApply(): void | Promise<void>;
+  onYouTubePublishingStatusRefresh(): void | Promise<void>;
   onYouTubeBroadcastTransition(status: YouTubeBroadcastTransitionStatus): void | Promise<void>;
   onClearStreamKey(): void;
 }
@@ -33,6 +34,7 @@ export const LiveSetupScreen = ({
   platformPublishingStatus,
   onProfileChange,
   onPlatformPublishingApply,
+  onYouTubePublishingStatusRefresh,
   onYouTubeBroadcastTransition,
   onClearStreamKey
 }: LiveSetupScreenProps) => {
@@ -226,6 +228,26 @@ export const LiveSetupScreen = ({
                 "No YouTube resource ID"}
             </span>
           </div>
+          <div className="youtube-status-grid">
+            <span>Broadcast {profile.platformPublishing.youtubeBroadcastStatus || "unknown"}</span>
+            <span>Stream {profile.platformPublishing.youtubeStreamStatus || "unknown"}</span>
+            <span>Health {profile.platformPublishing.youtubeStreamHealthStatus || "unknown"}</span>
+          </div>
+          {profile.platformPublishing.youtubeStreamHealthIssues.length > 0 ? (
+            <div className="youtube-health-list">
+              {profile.platformPublishing.youtubeStreamHealthIssues.map((issue) => (
+                <span key={issue}>{issue}</span>
+              ))}
+            </div>
+          ) : null}
+          <button
+            className="secondary-action compact-action platform-wide-action"
+            type="button"
+            disabled={locked || !profile.platformPublishing.youtubeBroadcastId}
+            onClick={onYouTubePublishingStatusRefresh}
+          >
+            Refresh Status
+          </button>
           <div className="broadcast-transition-row">
             {(["testing", "live", "complete"] as YouTubeBroadcastTransitionStatus[]).map((broadcastStatus) => (
               <button
