@@ -39,6 +39,8 @@ describe("stream diagnostics", () => {
     expect(diagnostics.target.publishUrlPreview).toContain(redactStreamKey(demoStreamKey));
     expect(diagnostics.target.publishUrlPreview).not.toContain(demoStreamKey);
     expect(diagnostics.quality.estimatedUploadKbps).toBe(4535);
+    expect(diagnostics.recovery.mode).toBe("idle");
+    expect(diagnostics.recovery.attemptsRemaining).toBe(5);
   });
 
   it("reports blocking checks when the stream key is missing", () => {
@@ -80,8 +82,15 @@ describe("stream diagnostics", () => {
     });
 
     expect(diagnostics.status).toBe("warn");
+    expect(diagnostics.recovery.recommendedAction).toBe("reconnect");
     expect(diagnostics.checks.map((check) => check.code)).toEqual(
-      expect.arrayContaining(["telemetry-bitrate-low", "telemetry-fps-low", "telemetry-drops-present", "telemetry-reconnects"])
+      expect.arrayContaining([
+        "telemetry-bitrate-low",
+        "telemetry-fps-low",
+        "telemetry-drops-present",
+        "telemetry-reconnects",
+        "recovery-watching"
+      ])
     );
   });
 
@@ -152,6 +161,8 @@ describe("stream diagnostics", () => {
     expect(diagnostics.status).toBe("fail");
     expect(diagnostics.summary).toContain("blocking");
     expect(diagnostics.checks.some((check) => check.code === "engine-failed")).toBe(true);
+    expect(diagnostics.recovery.mode).toBe("failed");
+    expect(diagnostics.recovery.nextRetryDelayMs).toBe(1000);
   });
 
   it("redacts stream keys from engine health messages", () => {
@@ -198,6 +209,8 @@ describe("stream diagnostics", () => {
     expect(report.generatedAt).toBe("2026-06-22T00:00:00.000Z");
     expect(json).toContain("MobileLiveCaster");
     expect(text).toContain("MobileLiveCaster Diagnostics");
+    expect(text).toContain("Recovery");
+    expect(json).toContain("backoffWindow");
     expect(json).toContain(redactStreamKey(demoStreamKey));
     expect(text).toContain(redactStreamKey(demoStreamKey));
     expect(json).not.toContain(demoStreamKey);

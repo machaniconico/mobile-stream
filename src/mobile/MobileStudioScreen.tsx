@@ -110,6 +110,12 @@ const shareStreamDiagnosticReport = async (diagnostics: StreamDiagnostics) => {
   });
 };
 
+const recoveryMetricLabel = (diagnostics: StreamDiagnostics): string => {
+  const retryDelay =
+    diagnostics.recovery.nextRetryDelayMs === null ? "" : ` / next ${Math.round(diagnostics.recovery.nextRetryDelayMs / 1000)}s`;
+  return `${diagnostics.recovery.mode} / ${diagnostics.recovery.attemptsRemaining} retries left${retryDelay}`;
+};
+
 export const MobileStudioScreen = ({
   scene,
   profile,
@@ -875,6 +881,7 @@ const StreamDiagnosticsPanel = ({ diagnostics }: { diagnostics: StreamDiagnostic
       <DiagnosticMetric label="Quality" value={`${diagnostics.quality.resolution} / ${diagnostics.quality.fps}fps`} />
       <DiagnosticMetric label="Upload target" value={`${diagnostics.quality.estimatedUploadKbps} kbps`} />
       <DiagnosticMetric label="Telemetry" value={`${diagnostics.telemetry.bitrateKbps} kbps / ${diagnostics.telemetry.fps} fps`} />
+      <DiagnosticMetric label="Recovery" value={recoveryMetricLabel(diagnostics)} />
     </View>
     <View style={styles.diagnosticChecks}>
       {diagnostics.checks.map((check) => (

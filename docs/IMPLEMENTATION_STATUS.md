@@ -8,6 +8,7 @@
 - Stream profile model for RTMP and RTMPS destinations, including YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Stream diagnostics model for redacted publish URL, endpoint parsing, upload target estimate, readiness issues, live telemetry health checks, and sanitized diagnostic reports.
+- Shared stream recovery policy model for retry budget, bounded exponential backoff, degraded telemetry detection, failed-engine recovery advice, and sanitized report export.
 - Stream key redaction and no-secret browser persistence.
 - In-app stream key clear/replacement controls for browser and mobile setup screens.
 - Mic effect profile model with presets, gain, noise gate, compression, and headphone monitor settings.
@@ -81,6 +82,7 @@
 - iOS Broadcast Upload Extension production signing/provisioning validation.
 - Android end-to-end physical device validation against a real RTMP/RTMPS endpoint.
 - Android physical-device tuning for mic monitor latency and Bluetooth route behavior.
+- App-level automatic reconnect scheduler wired through both native engines after physical endpoint validation.
 - Native compositor.
 - First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
 - Live2D Cubism SDK integration.
@@ -101,3 +103,4 @@
 2. Validate YouTube Live and Twitch ingest with real stream keys on both platforms.
 3. Add native compositor and device-level latency tuning after physical endpoint validation.
 4. Validate YouTube broadcast status refresh and lifecycle transitions with a real account and active ingest stream.
+5. Wire the shared recovery policy into app-level automatic reconnect scheduling once physical-device ingest behavior is measured.

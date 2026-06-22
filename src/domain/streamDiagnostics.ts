@@ -1,6 +1,13 @@
 import { buildPublishUrl, getDestinationPreset, redactStreamKey, type StudioProfile } from "./profiles";
 import type { ReadinessReport } from "./readiness";
 import type { SceneDocument } from "./scene";
+import {
+  createDefaultStreamRecoveryPolicy,
+  createStreamRecoveryStatus,
+  formatRecoveryBackoff,
+  formatDelay,
+  type StreamRecoveryStatus
+} from "./streamRecovery";
 import type { StreamHealth, StreamStatus } from "./streamState";
 
 export type DiagnosticStatus = "pass" | "warn" | "fail" | "info";
@@ -40,6 +47,9 @@ export interface StreamDiagnostics {
     reconnectAttempts: number;
     elapsedSeconds: number;
     message: string;
+  };
+  recovery: StreamRecoveryStatus & {
+    backoffWindow: string;
   };
   checks: DiagnosticCheck[];
 }
@@ -83,6 +93,8 @@ export const createStreamDiagnostics = (
   const targetAudioBitrateKbps = quality.audioBitrateKbps;
   const estimatedUploadKbps = Math.round((targetVideoBitrateKbps + targetAudioBitrateKbps) * 1.25);
   const sanitizedHealthMessage = redactStreamKeyOccurrences(snapshot.health.message, destination.streamKey);
+  const recoveryPolicy = createDefaultStreamRecoveryPolicy();
+  const recoveryStatus = createStreamRecoveryStatus(snapshot, quality, recoveryPolicy);
   const checks = [
     ...readiness.issues.map<DiagnosticCheck>((issue) => ({
       code: `readiness-${issue.code}`,
@@ -98,7 +110,8 @@ export const createStreamDiagnostics = (
     createTelemetryBitrateCheck(snapshot, targetVideoBitrateKbps),
     createTelemetryFpsCheck(snapshot, quality.fps),
     createTelemetryDropsCheck(snapshot),
-    createReconnectCheck(snapshot)
+    createReconnectCheck(snapshot),
+    createRecoveryCheck(recoveryStatus)
   ];
   const status = summaryStatus(checks);
 
@@ -130,6 +143,10 @@ export const createStreamDiagnostics = (
       reconnectAttempts: snapshot.health.reconnectAttempts,
       elapsedSeconds: snapshot.health.elapsedSeconds,
       message: sanitizedHealthMessage
+    },
+    recovery: {
+      ...recoveryStatus,
+      backoffWindow: formatRecoveryBackoff(recoveryPolicy)
     },
     checks
   };
@@ -178,6 +195,14 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Dropped frames: ${diagnostics.telemetry.droppedFrames}`,
     `- Reconnect attempts: ${diagnostics.telemetry.reconnectAttempts}`,
     `- Message: ${diagnostics.telemetry.message || "-"}`,
+    "",
+    "Recovery",
+    `- Mode: ${diagnostics.recovery.mode}`,
+    `- Action: ${diagnostics.recovery.recommendedAction}`,
+    `- Remaining attempts: ${diagnostics.recovery.attemptsRemaining}/${diagnostics.recovery.maxAttempts}`,
+    `- Backoff: ${diagnostics.recovery.backoffWindow}`,
+    `- Next retry: ${diagnostics.recovery.nextRetryDelayMs === null ? "-" : formatDelay(diagnostics.recovery.nextRetryDelayMs)}`,
+    `- Message: ${diagnostics.recovery.message}`,
     "",
     "Checks",
     ...diagnostics.checks.map((check) => `- [${check.status.toUpperCase()}] ${check.label}: ${check.message}`)
@@ -401,6 +426,13 @@ const createReconnectCheck = (snapshot: SnapshotLike): DiagnosticCheck => {
     message: "No reconnect attempts reported."
   };
 };
+
+const createRecoveryCheck = (recovery: StreamRecoveryStatus): DiagnosticCheck => ({
+  code: `recovery-${recovery.mode}`,
+  status: recovery.severity,
+  label: "Recovery",
+  message: recovery.message
+});
 
 const summaryStatus = (checks: DiagnosticCheck[]): DiagnosticStatus => {
   if (checks.some((check) => check.status === "fail")) {

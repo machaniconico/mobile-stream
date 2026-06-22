@@ -133,6 +133,12 @@ const downloadStreamDiagnosticReport = (diagnostics: StreamDiagnostics) => {
   URL.revokeObjectURL(url);
 };
 
+const recoveryMetricLabel = (diagnostics: StreamDiagnostics): string => {
+  const retryDelay =
+    diagnostics.recovery.nextRetryDelayMs === null ? "" : ` / next ${Math.round(diagnostics.recovery.nextRetryDelayMs / 1000)}s`;
+  return `${diagnostics.recovery.mode} / ${diagnostics.recovery.attemptsRemaining} retries left${retryDelay}`;
+};
+
 export const StudioScreen = ({
   scene,
   profile,
@@ -696,6 +702,8 @@ const StreamDiagnosticsPanel = ({ diagnostics }: { diagnostics: StreamDiagnostic
       <strong>
         {diagnostics.telemetry.bitrateKbps} kbps / {diagnostics.telemetry.fps} fps
       </strong>
+      <span>Recovery</span>
+      <strong>{recoveryMetricLabel(diagnostics)}</strong>
     </div>
     <div className="diagnostic-checks">
       {diagnostics.checks.map((check) => (
