@@ -2,7 +2,7 @@
 
 MobileLiveCaster is an OBS-like mobile VTuber streaming studio concept for iOS and Android.
 
-The current implementation includes a verified TypeScript/Vite prototype and a React Native bare app. Both share the core scene model, stream profile model, avatar runtime, and live-engine contract. Android now has a native MediaProjection/RTMP path behind that contract, while iOS remains staged around ReplayKit skeletons.
+The current implementation includes a verified TypeScript/Vite prototype and a React Native bare app. Both share the core scene model, stream profile model, avatar runtime, and live-engine contract. Android has a native MediaProjection/RTMP path behind that contract, and iOS now includes a ReplayKit Broadcast Upload Extension path with VideoToolbox H.264, AudioToolbox AAC, and an in-extension RTMP/RTMPS publisher foundation.
 
 ## Current Prototype
 
@@ -19,7 +19,9 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Headphone-only mic monitor settings for hearing the processed mic signal locally.
 - Chat/comment read-aloud queue with test comments, muted words, and speech controls.
 - Mock Go Live, Stop, and Reconnect controls.
-- iOS ReplayKit Broadcast Upload Extension skeleton.
+- iOS ReplayKit Broadcast Upload Extension target and startup bridge.
+- iOS Broadcast Upload Extension H.264/AAC encode path with app/mic audio mixing.
+- iOS RTMP/RTMPS publisher foundation with reconnect backoff state.
 - Android MediaProjection service skeleton.
 - React Native host app scaffold with standard `ios/` and `android/` projects.
 - React Native mobile Studio screen using the shared domain model and mock engine.
@@ -57,7 +59,7 @@ npm run ios:build:simulator
 - Chat reader: platform chat APIs can feed the shared queue; current UI includes manual/test comments and native/browser TTS output.
 - Avatar rendering: PNGTuber first, Live2D after licensing and runtime validation.
 
-Android device streaming now routes through `LiveCasterNative` when the native module is linked. iOS and non-device development still fall back to the mock engine.
+Android device streaming routes through `LiveCasterNative` when the native module is linked. iOS app-side setup can launch the Broadcast Upload Extension picker and pass App Group configuration into the extension. Non-device development still falls back to the mock engine.
 
 ## Device Builds
 

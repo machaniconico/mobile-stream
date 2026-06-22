@@ -613,6 +613,7 @@ enum BroadcastRTMPPublisherState: String, Equatable {
     case handshaking
     case publishing
     case published
+    case reconnecting
     case stopped
     case failed
 }
@@ -628,6 +629,8 @@ struct BroadcastRTMPPublisherStats: Equatable {
     private(set) var bytesWritten: Int = 0
     private(set) var streamId: Int = 0
     private(set) var lastTimestampMs: Int = 0
+    private(set) var reconnectAttempts: Int = 0
+    private(set) var nextReconnectDelayMs: Int = 0
     private(set) var lastError: String = ""
 
     mutating func updateState(_ nextState: BroadcastRTMPPublisherState) {
@@ -662,6 +665,19 @@ struct BroadcastRTMPPublisherStats: Equatable {
         droppedAudioFrames += 1
     }
 
+    mutating func recordReconnectAttempt(_ attempt: Int, delayMs: Int, reason: String) {
+        state = .reconnecting
+        reconnectAttempts = attempt
+        nextReconnectDelayMs = delayMs
+        lastError = reason
+    }
+
+    mutating func recordReconnectSuccess() {
+        reconnectAttempts = 0
+        nextReconnectDelayMs = 0
+        lastError = ""
+    }
+
     mutating func recordBytesWritten(_ count: Int) {
         bytesWritten += count
     }
@@ -683,6 +699,8 @@ struct BroadcastRTMPPublisherStats: Equatable {
             "bytesWritten": bytesWritten,
             "streamId": streamId,
             "lastTimestampMs": lastTimestampMs,
+            "reconnectAttempts": reconnectAttempts,
+            "nextReconnectDelayMs": nextReconnectDelayMs,
             "lastError": lastError
         ]
     }
@@ -788,13 +806,21 @@ private struct RTMPIncomingChunk {
 }
 
 final class BroadcastRTMPPublisher {
+    private enum ReconnectPolicy {
+        static let maxAttempts = 5
+        static let initialDelayMilliseconds = 1_500
+        static let maxDelayMilliseconds = 15_000
+    }
+
     private let target: RTMPPublishTarget
     private let queue = DispatchQueue(label: "MobileLiveCaster.broadcast.rtmp.publisher")
     private let callbackQueue = DispatchQueue(label: "MobileLiveCaster.broadcast.rtmp.network")
     private let statsLock = NSLock()
     private var currentStats = BroadcastRTMPPublisherStats()
     private var connection: NWConnection?
+    private var reconnectWorkItem: DispatchWorkItem?
     private var stopped = false
+    private var reconnectAttempts = 0
     private var outboundChunkSize = 128
     private var inboundChunkSize = 128
     private var incomingChunks: [Int: RTMPIncomingChunk] = [:]
@@ -816,7 +842,7 @@ final class BroadcastRTMPPublisher {
 
     func start() {
         queue.async { [weak self] in
-            self?.connectAndPublish()
+            self?.connectAndPublish(resetReconnectAttempts: true)
         }
     }
 
@@ -826,6 +852,8 @@ final class BroadcastRTMPPublisher {
                 return
             }
             stopped = true
+            reconnectWorkItem?.cancel()
+            reconnectWorkItem = nil
             statsLock.performLocked {
                 self.currentStats.updateState(.stopped)
             }
@@ -846,8 +874,13 @@ final class BroadcastRTMPPublisher {
         }
     }
 
-    private func connectAndPublish() {
+    private func connectAndPublish(resetReconnectAttempts: Bool) {
         do {
+            reconnectWorkItem = nil
+            if resetReconnectAttempts {
+                reconnectAttempts = 0
+            }
+            resetConnectionState()
             try connect()
             try performHandshake()
             statsLock.performLocked {
@@ -864,15 +897,58 @@ final class BroadcastRTMPPublisher {
             messageStreamId = UInt32(streamId)
             try sendCommand(name: "publish", transactionId: 5, commandObject: .null, arguments: [.string(target.streamName), .string("live")], messageStreamId: messageStreamId)
             statsLock.performLocked {
+                self.currentStats.recordReconnectSuccess()
                 self.currentStats.recordPublishedStream(streamId)
             }
         } catch {
-            statsLock.performLocked {
-                self.currentStats.fail(error.localizedDescription)
-            }
-            connection?.cancel()
-            connection = nil
+            handleConnectionFailure(error)
         }
+    }
+
+    private func handleConnectionFailure(_ error: Error) {
+        connection?.cancel()
+        connection = nil
+        resetConnectionState()
+
+        guard !stopped else {
+            return
+        }
+        guard reconnectWorkItem == nil else {
+            return
+        }
+        guard reconnectAttempts < ReconnectPolicy.maxAttempts else {
+            statsLock.performLocked {
+                self.currentStats.fail("Connection lost after \(ReconnectPolicy.maxAttempts) reconnect attempts: \(error.localizedDescription)")
+            }
+            return
+        }
+
+        reconnectAttempts += 1
+        let delayMs = min(
+            ReconnectPolicy.maxDelayMilliseconds,
+            ReconnectPolicy.initialDelayMilliseconds * (1 << max(0, reconnectAttempts - 1))
+        )
+        statsLock.performLocked {
+            self.currentStats.recordReconnectAttempt(reconnectAttempts, delayMs: delayMs, reason: error.localizedDescription)
+        }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.connectAndPublish(resetReconnectAttempts: false)
+        }
+        reconnectWorkItem?.cancel()
+        reconnectWorkItem = workItem
+        queue.asyncAfter(deadline: .now() + .milliseconds(delayMs), execute: workItem)
+    }
+
+    private func resetConnectionState() {
+        outboundChunkSize = 128
+        inboundChunkSize = 128
+        incomingChunks = [:]
+        messageStreamId = 0
+        sentAVCSequenceHeader = false
+        sentAACSequenceHeader = false
+        lastAACAudioSpecificConfig = nil
+        firstMediaPresentationTimeSeconds = nil
     }
 
     private func connect() throws {
@@ -894,13 +970,24 @@ final class BroadcastRTMPPublisher {
 
         let semaphore = DispatchSemaphore(value: 0)
         var connectedError: Error?
-        nextConnection.stateUpdateHandler = { state in
+        var connectionReady = false
+        nextConnection.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
+                connectionReady = true
                 semaphore.signal()
             case .failed(let error):
-                connectedError = error
-                semaphore.signal()
+                if connectionReady {
+                    self?.queue.async {
+                        guard self?.connection === nextConnection else {
+                            return
+                        }
+                        self?.handleConnectionFailure(error)
+                    }
+                } else {
+                    connectedError = error
+                    semaphore.signal()
+                }
             default:
                 break
             }
@@ -1115,9 +1202,7 @@ final class BroadcastRTMPPublisher {
                 self.currentStats.recordVideoMessage(bytes: payload.count, timestampMs: timestampMs)
             }
         } catch {
-            statsLock.performLocked {
-                self.currentStats.fail(error.localizedDescription)
-            }
+            handleConnectionFailure(error)
         }
     }
 
@@ -1146,9 +1231,7 @@ final class BroadcastRTMPPublisher {
                 self.currentStats.recordAudioMessage(bytes: payload.count, timestampMs: timestampMs)
             }
         } catch {
-            statsLock.performLocked {
-                self.currentStats.fail(error.localizedDescription)
-            }
+            handleConnectionFailure(error)
         }
     }
 

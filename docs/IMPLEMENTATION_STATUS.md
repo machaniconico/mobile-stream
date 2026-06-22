@@ -27,7 +27,13 @@
   - Go Live, Stop, Reconnect mock controls
 - React Native mobile readiness panel and Go Live blocking for invalid profiles.
 - React Native mobile chat reader panel with test comments and speech settings.
-- iOS ReplayKit Broadcast Upload Extension skeleton.
+- iOS ReplayKit Broadcast Upload Extension target registered in the Xcode project.
+- iOS app-side Broadcast Picker startup bridge with App Group configuration handoff.
+- iOS Broadcast Upload Extension runtime state reporting through App Group storage.
+- iOS Broadcast Upload Extension VideoToolbox H.264 encoder.
+- iOS Broadcast Upload Extension AudioToolbox AAC encoder with app/mic PCM mixing.
+- iOS Broadcast Upload Extension RTMP/RTMPS publisher foundation with H.264/AAC packetization.
+- iOS RTMP publisher reconnect backoff state with bounded retry attempts.
 - Android MediaProjection service skeleton.
 - Android `LiveCasterNative` React Native module registered in the host app.
 - Android MediaProjection consent flow from React Native.
@@ -54,8 +60,9 @@
 
 ## Not Implemented Yet
 
-- iOS RTMP/RTMPS native publisher.
-- iOS screen capture in a packaged app.
+- iOS end-to-end physical device validation against a real RTMP/RTMPS endpoint.
+- iOS YouTube Live/Twitch RTMP ingest validation with real stream keys.
+- iOS Broadcast Upload Extension production signing/provisioning validation.
 - Android end-to-end physical device validation against a real RTMP/RTMPS endpoint.
 - Android physical-device tuning for mic monitor latency and Bluetooth route behavior.
 - Native compositor.
@@ -64,7 +71,6 @@
 - YouTube/Twitch/platform comment API ingestion.
 - OAuth-backed live chat connection.
 - Durable mobile-side scene persistence.
-- iOS Broadcast Upload Extension Xcode target registration.
 - In-app settings management for clearing or rotating stored stream keys.
 
 ## Local Environment Notes
@@ -78,8 +84,8 @@
 
 ## Next Slice
 
-1. Run Android on a physical device against a private RTMPS endpoint and tune bitrate/fps behavior.
-2. Add durable mobile scene persistence through platform storage.
-3. Add YouTube/Twitch chat adapters behind the shared chat queue.
-4. Add in-app key clear/rotation controls.
-5. Register the iOS Broadcast Upload Extension target once app group storage and render graph serialization are stable.
+1. Run iOS and Android on physical devices against a private RTMPS endpoint and tune bitrate/fps/audio sync behavior.
+2. Validate YouTube Live and Twitch ingest with real stream keys on both platforms.
+3. Add durable mobile scene persistence through platform storage.
+4. Add YouTube/Twitch chat adapters behind the shared chat queue.
+5. Add in-app key clear/rotation controls.
