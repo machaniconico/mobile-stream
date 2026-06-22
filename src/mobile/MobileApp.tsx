@@ -16,7 +16,7 @@ import {
   createSimulatedFaceTrackingFrame,
   updateFaceTrackingRuntime
 } from "../domain/faceTracking";
-import { createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
+import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
   createDefaultScene,
@@ -212,6 +212,15 @@ export const MobileApp = () => {
     setChatReader((current) => updateChatReaderSettings(current, settings));
   };
 
+  const clearSavedStreamKey = async () => {
+    if (operationInFlight.current) {
+      return;
+    }
+    const nextProfile = clearStreamKey(profile);
+    setProfile(nextProfile);
+    await saveSecureProfile(nextProfile).catch(() => undefined);
+  };
+
   return (
     <SafeAreaProvider>
       <MobileStudioScreen
@@ -235,6 +244,7 @@ export const MobileApp = () => {
         onReconnect={reconnectStream}
         onChatCommentSubmit={submitChatComment}
         onChatReaderSettingsChange={updateChatSettings}
+        onClearStreamKey={clearSavedStreamKey}
       />
     </SafeAreaProvider>
   );

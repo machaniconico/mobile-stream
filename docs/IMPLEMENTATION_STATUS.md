@@ -7,6 +7,7 @@
 - Stream profile model for RTMP and RTMPS destinations, including YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Stream key redaction and no-secret browser persistence.
+- In-app stream key clear/replacement controls for browser and mobile setup screens.
 - Mic effect profile model with presets, gain, noise gate, compression, and headphone monitor settings.
 - Chat/comment read-aloud domain model with queueing, muted words, URL redaction, and speech text shaping.
 - Avatar runtime model for PNGTuber/Live2D expression, lip sync, and auto blink.
@@ -44,6 +45,7 @@
 - Android headphone-only mic monitor playback through `AudioTrack`.
 - Android microphone/notification runtime permission preflight before MediaProjection launch.
 - Android Keystore-backed encrypted mobile profile storage for stream keys.
+- Mobile stream key clearing by overwriting the secure native profile with a cleared key.
 - Android TextToSpeech native module for chat read-aloud.
 - iOS Keychain-backed mobile profile storage exposed to React Native.
 - iOS AVSpeechSynthesizer native module for chat read-aloud.
@@ -70,8 +72,8 @@
 - Live2D Cubism SDK integration.
 - YouTube/Twitch/platform comment API ingestion.
 - OAuth-backed live chat connection.
+- OAuth/API-backed platform stream key rotation.
 - Durable mobile-side scene persistence.
-- In-app settings management for clearing or rotating stored stream keys.
 
 ## Local Environment Notes
 
@@ -88,4 +90,4 @@
 2. Validate YouTube Live and Twitch ingest with real stream keys on both platforms.
 3. Add durable mobile scene persistence through platform storage.
 4. Add YouTube/Twitch chat adapters behind the shared chat queue.
-5. Add in-app key clear/rotation controls.
+5. Add OAuth-backed YouTube/Twitch account connection for chat and platform-managed stream key rotation.

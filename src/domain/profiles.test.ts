@@ -3,6 +3,7 @@ import {
   applyDestinationPreset,
   applyMicEffectPreset,
   buildPublishUrl,
+  clearStreamKey,
   createDefaultStudioProfile,
   markDestinationCustom,
   normalizeStudioProfile,
@@ -58,6 +59,23 @@ describe("studio profiles", () => {
     expect(updated.destination.protocol).toBe("rtmp");
     expect(updated.destination.serverUrl).toBe("rtmp://apn10.contribute.live-video.net/app");
     expect(updated.destination.streamKey).toBe("live_user_123456");
+  });
+
+  it("clears stream keys without changing destination routing", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://a.rtmps.youtube.com/live2/",
+        streamKey: "secret-stream-key"
+      }
+    };
+
+    const updated = clearStreamKey(profile);
+
+    expect(updated.destination.streamKey).toBe("");
+    expect(updated.destination.serverUrl).toBe("rtmps://a.rtmps.youtube.com/live2/");
+    expect(updated.destination.presetId).toBe(profile.destination.presetId);
   });
 
   it("marks edited endpoints as custom destinations", () => {

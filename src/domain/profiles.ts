@@ -174,6 +174,14 @@ export const applyDestinationPreset = (profile: StudioProfile, presetId: Destina
   destination: createDestinationFromPreset(presetId, profile.destination.streamKey)
 });
 
+export const clearStreamKey = (profile: StudioProfile): StudioProfile => ({
+  ...profile,
+  destination: {
+    ...profile.destination,
+    streamKey: ""
+  }
+});
+
 export const markDestinationCustom = (
   destination: DestinationProfile,
   update: Partial<Pick<DestinationProfile, "protocol" | "serverUrl">>

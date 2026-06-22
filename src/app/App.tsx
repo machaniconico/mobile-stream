@@ -15,7 +15,7 @@ import {
   createSimulatedFaceTrackingFrame,
   updateFaceTrackingRuntime
 } from "../domain/faceTracking";
-import { createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
+import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
   createDefaultScene,
@@ -181,6 +181,10 @@ export const App = () => {
     setChatReader((current) => updateChatReaderSettings(current, settings));
   };
 
+  const clearSavedStreamKey = () => {
+    setProfile((current) => clearStreamKey(current));
+  };
+
   return (
     <StudioScreen
       scene={scene}
@@ -203,6 +207,7 @@ export const App = () => {
       onReconnect={reconnectStream}
       onChatCommentSubmit={submitChatComment}
       onChatReaderSettingsChange={updateChatSettings}
+      onClearStreamKey={clearSavedStreamKey}
     />
   );
 };

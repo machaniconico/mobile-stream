@@ -13,6 +13,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Stream key redaction and no-secret browser persistence.
 - Keychain/Android Keystore-backed mobile profile storage for stream keys.
+- In-app stream key clear and replacement controls.
 - Quality presets.
 - Voice lip-sync meter and expression buttons.
 - Mic effect presets with gain, noise gate, compression, and Android PCM processing.
@@ -56,6 +57,7 @@ npm run ios:build:simulator
 - Streaming: RTMP/RTMPS publisher behind `src/native/LiveCasterNative.ts`.
 - Go Live readiness: fail closed before native capture starts, with UI-visible blocking reasons.
 - Secret storage: browser persistence strips stream keys; mobile persistence uses Keychain/Android Keystore-backed native storage.
+- Stream key management: users can clear the stored key in-app and paste a replacement key without changing the destination preset.
 - Chat reader: platform chat APIs can feed the shared queue; current UI includes manual/test comments and native/browser TTS output.
 - Avatar rendering: PNGTuber first, Live2D after licensing and runtime validation.
 

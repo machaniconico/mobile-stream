@@ -12,6 +12,7 @@ import {
   markDestinationCustom,
   micEffectPresets,
   qualityProfiles,
+  redactStreamKey,
   serverUrlWithProtocol
 } from "../domain/profiles";
 import type { ReadinessIssue, ReadinessReport } from "../domain/readiness";
@@ -53,6 +54,7 @@ interface MobileStudioScreenProps {
   onReconnect(): Promise<void>;
   onChatCommentSubmit(author: string, body: string): void;
   onChatReaderSettingsChange(settings: Partial<ChatReaderSettings>): void;
+  onClearStreamKey(): void | Promise<void>;
 }
 
 const sourceLabels: Record<SourceKind, string> = {
@@ -87,7 +89,8 @@ export const MobileStudioScreen = ({
   onStop,
   onReconnect,
   onChatCommentSubmit,
-  onChatReaderSettingsChange
+  onChatReaderSettingsChange,
+  onClearStreamKey
 }: MobileStudioScreenProps) => {
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
@@ -566,6 +569,17 @@ export const MobileStudioScreen = ({
             editable={!setupLocked}
             placeholderTextColor="#71717a"
           />
+          <View style={styles.secretRow}>
+            <Text style={styles.secretStatus} numberOfLines={1}>
+              {profile.destination.streamKey ? `Saved as ${redactStreamKey(profile.destination.streamKey)}` : "No stream key saved"}
+            </Text>
+            <ActionButton
+              label="Clear key"
+              variant="danger"
+              disabled={setupLocked || !profile.destination.streamKey}
+              onPress={onClearStreamKey}
+            />
+          </View>
 
           <Label text="Quality" />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.qualityRow}>
@@ -1361,6 +1375,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: "#101015",
     color: "#f8fafc"
+  },
+  secretRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+  secretStatus: {
+    flex: 1,
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 13,
+    backgroundColor: "#101015",
+    color: "#a1a1aa",
+    fontSize: 12,
+    fontWeight: "800"
   },
   stepper: {
     gap: 8

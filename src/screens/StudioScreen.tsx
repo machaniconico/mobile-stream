@@ -67,6 +67,7 @@ interface StudioScreenProps {
   onReconnect(): Promise<void>;
   onChatCommentSubmit(author: string, body: string): void;
   onChatReaderSettingsChange(settings: Partial<ChatReaderSettings>): void;
+  onClearStreamKey(): void;
 }
 
 const sourceLabels: Record<SourceKind, string> = {
@@ -102,7 +103,8 @@ export const StudioScreen = ({
   onStop,
   onReconnect,
   onChatCommentSubmit,
-  onChatReaderSettingsChange
+  onChatReaderSettingsChange,
+  onClearStreamKey
 }: StudioScreenProps) => {
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
@@ -553,7 +555,13 @@ export const StudioScreen = ({
             onSettingsChange={onChatReaderSettingsChange}
           />
 
-          <LiveSetupScreen profile={profile} readiness={readiness} locked={setupLocked} onProfileChange={onProfileChange} />
+          <LiveSetupScreen
+            profile={profile}
+            readiness={readiness}
+            locked={setupLocked}
+            onProfileChange={onProfileChange}
+            onClearStreamKey={onClearStreamKey}
+          />
         </aside>
       </section>
     </main>

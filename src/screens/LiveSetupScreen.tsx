@@ -1,10 +1,11 @@
-import { Settings, ShieldCheck } from "lucide-react";
+import { Settings, ShieldCheck, Trash2 } from "lucide-react";
 import {
   applyDestinationPreset,
   destinationPresets,
   getDestinationPreset,
   markDestinationCustom,
   qualityProfiles,
+  redactStreamKey,
   serverUrlWithProtocol,
   type DestinationPresetId,
   type StudioProfile,
@@ -18,9 +19,10 @@ interface LiveSetupScreenProps {
   readiness: ReadinessReport;
   locked: boolean;
   onProfileChange(profile: StudioProfile): void;
+  onClearStreamKey(): void;
 }
 
-export const LiveSetupScreen = ({ profile, readiness, locked, onProfileChange }: LiveSetupScreenProps) => {
+export const LiveSetupScreen = ({ profile, readiness, locked, onProfileChange, onClearStreamKey }: LiveSetupScreenProps) => {
   const activePreset = getDestinationPreset(profile.destination.presetId) ?? getDestinationPreset("custom-rtmps");
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
@@ -104,6 +106,18 @@ export const LiveSetupScreen = ({ profile, readiness, locked, onProfileChange }:
           onChange={(event) => updateDestination({ streamKey: event.target.value })}
         />
       </label>
+      <div className="secret-tools">
+        <span>{profile.destination.streamKey ? `Saved as ${redactStreamKey(profile.destination.streamKey)}` : "No stream key saved"}</span>
+        <button
+          className="danger-action compact-action"
+          type="button"
+          disabled={locked || !profile.destination.streamKey}
+          onClick={onClearStreamKey}
+        >
+          <Trash2 size={15} />
+          Clear key
+        </button>
+      </div>
 
       <label className="field">
         <span>Quality</span>

@@ -581,6 +581,36 @@ select:focus-visible {
   padding: 0 10px;
 }
 
+.secret-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0 12px;
+}
+
+.secret-tools span {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #101015;
+  color: var(--muted);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-action {
+  min-height: 38px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
 .slider-field span {
   display: flex;
   justify-content: space-between;
