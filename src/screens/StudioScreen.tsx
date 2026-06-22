@@ -60,6 +60,7 @@ import {
   type StreamDiagnostics
 } from "../domain/streamDiagnostics";
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
+import type { StreamSessionSummary } from "../domain/streamSessionSummary";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import {
   createSupportBundle,
@@ -75,6 +76,7 @@ interface StudioScreenProps {
   snapshot: NativeEngineSnapshot;
   streamSessionEvents: StreamSessionEvent[];
   streamHealthSamples: StreamHealthSample[];
+  streamSessionSummaries: StreamSessionSummary[];
   operationStatus: StreamOperationStatus | null;
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
@@ -192,12 +194,20 @@ const historyMetricLabel = (diagnostics: StreamDiagnostics): string =>
     ? "No samples yet"
     : `${diagnostics.history.stability} / avg ${diagnostics.history.averageBitrateKbps} kbps / ${diagnostics.history.averageFps} fps`;
 
+const sessionMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.session.lastSummary
+    ? `${diagnostics.session.lastSummary.outcome} / ${Math.round(diagnostics.session.lastSummary.durationSeconds)}s / ${diagnostics.session.lastSummary.eventCount} events`
+    : "No completed sessions yet";
+
 const qualityIncidentSummaryTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" => {
   if (diagnostics.qualityIncidents.incidents.some((incident) => incident.severity === "fail")) {
     return "fail";
   }
   return diagnostics.qualityIncidents.incidents.length > 0 ? "warn" : "pass";
 };
+
+const sessionSummaryTone = (summary: StreamSessionSummary): "pass" | "warn" | "fail" =>
+  summary.outcome === "clean" ? "pass" : summary.outcome;
 
 export const StudioScreen = ({
   scene,
@@ -206,6 +216,7 @@ export const StudioScreen = ({
   snapshot,
   streamSessionEvents,
   streamHealthSamples,
+  streamSessionSummaries,
   operationStatus,
   readiness,
   chatReader,
@@ -258,7 +269,15 @@ export const StudioScreen = ({
     operationStatus
   });
   const canGoLive = startPreflight.canStart;
-  const diagnostics = createStreamDiagnostics(scene, profile, readiness, snapshot, streamSessionEvents, streamHealthSamples);
+  const diagnostics = createStreamDiagnostics(
+    scene,
+    profile,
+    readiness,
+    snapshot,
+    streamSessionEvents,
+    streamHealthSamples,
+    streamSessionSummaries
+  );
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
     if (setupLocked) {
       return;
@@ -811,7 +830,26 @@ const StreamDiagnosticsPanel = ({
       <strong>{recoveryMetricLabel(diagnostics)}</strong>
       <span>History</span>
       <strong>{historyMetricLabel(diagnostics)}</strong>
+      <span>Completed sessions</span>
+      <strong>{diagnostics.session.summaries.length}</strong>
+      <span>Last session</span>
+      <strong>{sessionMetricLabel(diagnostics)}</strong>
     </div>
+    {diagnostics.session.lastSummary ? (
+      <div className="diagnostic-incidents">
+        <div className={`diagnostic-incident-summary ${sessionSummaryTone(diagnostics.session.lastSummary)}`}>
+          {diagnostics.session.lastSummary.summary}
+        </div>
+        <div className={`diagnostic-incident ${sessionSummaryTone(diagnostics.session.lastSummary)}`}>
+          <strong>Next stream</strong>
+          <span>{diagnostics.session.lastSummary.recommendation}</span>
+          <em>
+            Warnings {diagnostics.session.lastSummary.warningCount} / failures {diagnostics.session.lastSummary.failureCount} /
+            recoveries {diagnostics.session.lastSummary.recoveryEventCount}
+          </em>
+        </div>
+      </div>
+    ) : null}
     <div className="diagnostic-incidents">
       <div className={`diagnostic-incident-summary ${qualityIncidentSummaryTone(diagnostics)}`}>
         {diagnostics.qualityIncidents.summary}

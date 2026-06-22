@@ -74,6 +74,7 @@ import { usePlatformChatConnection } from "../native/usePlatformChatConnection";
 import { useStreamAutoRecovery } from "../native/useStreamAutoRecovery";
 import { useStreamHealthHistory } from "../native/useStreamHealthHistory";
 import { useStreamSessionLog } from "../native/useStreamSessionLog";
+import { useStreamSessionSummaries } from "../native/useStreamSessionSummaries";
 import { loadProfile, loadScene, saveProfile, saveScene } from "../storage/localStore";
 import { StudioScreen } from "../screens/StudioScreen";
 import { WebChatSpeechEngine } from "./WebChatSpeechEngine";
@@ -112,6 +113,12 @@ export const App = () => {
   });
   const { events: streamSessionEvents, recordEvent: recordStreamSessionEvent } = useStreamSessionLog(snapshot);
   const streamHealthSamples = useStreamHealthHistory(snapshot);
+  const streamSessionSummaries = useStreamSessionSummaries({
+    snapshot,
+    events: streamSessionEvents,
+    healthSamples: streamHealthSamples,
+    quality: readiness.sanitizedProfile.quality
+  });
 
   useEffect(() => engine.subscribe(setSnapshot), [engine]);
   useChatSpeechQueue(chatReader, setChatReader, chatSpeechEngine);
@@ -426,6 +433,7 @@ export const App = () => {
       snapshot={snapshot}
       streamSessionEvents={streamSessionEvents}
       streamHealthSamples={streamHealthSamples}
+      streamSessionSummaries={streamSessionSummaries.summaries}
       operationStatus={operationStatus}
       readiness={readiness}
       chatReader={chatReader}

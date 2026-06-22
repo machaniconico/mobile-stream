@@ -8,6 +8,7 @@ import {
   formatStreamDiagnosticReport,
   serializeStreamDiagnosticReport
 } from "./streamDiagnostics";
+import { createStreamSessionSummary } from "./streamSessionSummary";
 import { initialStreamState, type StreamHealth } from "./streamState";
 
 const health = (update: Partial<StreamHealth> = {}): StreamHealth => ({
@@ -212,10 +213,45 @@ describe("stream diagnostics", () => {
       }
     };
     const readiness = createReadinessReport(scene, profile);
-    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
-      state: { status: "live" },
-      health: health({ message: `Publishing with ${demoStreamKey}`, bitrateKbps: 3600, fps: 30 })
+    const healthSamples = [
+      {
+        at: "2026-06-22T00:00:01.000Z",
+        status: "live" as const,
+        elapsedSeconds: 1,
+        bitrateKbps: 3600,
+        fps: 30,
+        droppedFrames: 0,
+        reconnectAttempts: 0
+      },
+      {
+        at: "2026-06-22T00:00:05.000Z",
+        status: "live" as const,
+        elapsedSeconds: 5,
+        bitrateKbps: 3500,
+        fps: 30,
+        droppedFrames: 0,
+        reconnectAttempts: 0
+      }
+    ];
+    const sessionSummary = createStreamSessionSummary({
+      events: [],
+      healthSamples,
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-22T00:00:06.000Z")
     });
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "live" },
+        health: health({ message: `Publishing with ${demoStreamKey}`, bitrateKbps: 3600, fps: 30 })
+      },
+      [],
+      healthSamples,
+      sessionSummary ? [sessionSummary] : []
+    );
 
     const report = createStreamDiagnosticReport(diagnostics, new Date("2026-06-22T00:00:00.000Z"));
     const json = serializeStreamDiagnosticReport(report);
@@ -228,10 +264,13 @@ describe("stream diagnostics", () => {
     expect(text).toContain("Recovery");
     expect(text).toContain("Active Quality Incidents");
     expect(text).toContain("Health History");
+    expect(text).toContain("Completed Sessions");
     expect(text).toContain("Session Events");
     expect(json).toContain("backoffWindow");
     expect(json).toContain("qualityIncidents");
     expect(json).toContain("history");
+    expect(json).toContain("lastSummary");
+    expect(report.diagnostics.session.lastSummary?.outcome).toBe("clean");
     expect(json).toContain(redactStreamKey(demoStreamKey));
     expect(text).toContain(redactStreamKey(demoStreamKey));
     expect(json).not.toContain(demoStreamKey);

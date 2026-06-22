@@ -19,6 +19,7 @@ import {
   type StreamHealthSample
 } from "./streamHealthHistory";
 import type { StreamSessionEvent } from "./streamSessionLog";
+import type { StreamSessionSummary } from "./streamSessionSummary";
 import type { StreamHealth, StreamStatus } from "./streamState";
 
 export type DiagnosticStatus = "pass" | "warn" | "fail" | "info";
@@ -69,6 +70,8 @@ export interface StreamDiagnostics {
   history: StreamHealthHistorySummary;
   session: {
     events: StreamSessionEvent[];
+    summaries: StreamSessionSummary[];
+    lastSummary: StreamSessionSummary | null;
   };
   checks: DiagnosticCheck[];
 }
@@ -101,7 +104,8 @@ export const createStreamDiagnostics = (
   readiness: ReadinessReport,
   snapshot: SnapshotLike,
   sessionEvents: StreamSessionEvent[] = [],
-  healthSamples: StreamHealthSample[] = []
+  healthSamples: StreamHealthSample[] = [],
+  sessionSummaries: StreamSessionSummary[] = []
 ): StreamDiagnostics => {
   const destination = readiness.sanitizedProfile.destination;
   const quality = readiness.sanitizedProfile.quality;
@@ -183,7 +187,9 @@ export const createStreamDiagnostics = (
     },
     history,
     session: {
-      events: sanitizedSessionEvents
+      events: sanitizedSessionEvents,
+      summaries: sessionSummaries,
+      lastSummary: sessionSummaries[0] ?? null
     },
     checks
   };
@@ -259,6 +265,17 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Min FPS: ${diagnostics.history.minimumFps}`,
     `- Drop increase: ${diagnostics.history.droppedFrameIncrease}`,
     `- Observed reconnects: ${diagnostics.history.observedReconnectAttempts}`,
+    "",
+    "Completed Sessions",
+    ...(diagnostics.session.lastSummary
+      ? [
+          `- Last outcome: ${diagnostics.session.lastSummary.outcome}`,
+          `- Last duration: ${formatDelay(diagnostics.session.lastSummary.durationSeconds * 1000)}`,
+          `- Last summary: ${diagnostics.session.lastSummary.summary}`,
+          `- Recommendation: ${diagnostics.session.lastSummary.recommendation}`,
+          `- Stored summaries: ${diagnostics.session.summaries.length}`
+        ]
+      : ["- No completed session summaries yet."]),
     "",
     "Session Events",
     ...(diagnostics.session.events.length === 0

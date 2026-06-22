@@ -47,6 +47,7 @@ import {
   type StreamDiagnostics
 } from "../domain/streamDiagnostics";
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
+import type { StreamSessionSummary } from "../domain/streamSessionSummary";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import {
   createSupportBundle,
@@ -60,6 +61,7 @@ interface MobileStudioScreenProps {
   snapshot: NativeEngineSnapshot;
   streamSessionEvents: StreamSessionEvent[];
   streamHealthSamples: StreamHealthSample[];
+  streamSessionSummaries: StreamSessionSummary[];
   operationStatus: StreamOperationStatus | null;
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
@@ -153,6 +155,11 @@ const historyMetricLabel = (diagnostics: StreamDiagnostics): string =>
     ? "No samples yet"
     : `${diagnostics.history.stability} / avg ${diagnostics.history.averageBitrateKbps} kbps / ${diagnostics.history.averageFps} fps`;
 
+const sessionMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.session.lastSummary
+    ? `${diagnostics.session.lastSummary.outcome} / ${Math.round(diagnostics.session.lastSummary.durationSeconds)}s / ${diagnostics.session.lastSummary.eventCount} events`
+    : "No completed sessions yet";
+
 export const MobileStudioScreen = ({
   scene,
   profile,
@@ -160,6 +167,7 @@ export const MobileStudioScreen = ({
   snapshot,
   streamSessionEvents,
   streamHealthSamples,
+  streamSessionSummaries,
   operationStatus,
   readiness,
   chatReader,
@@ -212,7 +220,15 @@ export const MobileStudioScreen = ({
     operationStatus
   });
   const canGoLive = startPreflight.canStart;
-  const diagnostics = createStreamDiagnostics(scene, profile, readiness, snapshot, streamSessionEvents, streamHealthSamples);
+  const diagnostics = createStreamDiagnostics(
+    scene,
+    profile,
+    readiness,
+    snapshot,
+    streamSessionEvents,
+    streamHealthSamples,
+    streamSessionSummaries
+  );
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
     if (setupLocked) {
@@ -946,7 +962,26 @@ const StreamDiagnosticsPanel = ({
       <DiagnosticMetric label="Telemetry" value={`${diagnostics.telemetry.bitrateKbps} kbps / ${diagnostics.telemetry.fps} fps`} />
       <DiagnosticMetric label="Recovery" value={recoveryMetricLabel(diagnostics)} />
       <DiagnosticMetric label="History" value={historyMetricLabel(diagnostics)} />
+      <DiagnosticMetric label="Completed sessions" value={`${diagnostics.session.summaries.length}`} />
+      <DiagnosticMetric label="Last session" value={sessionMetricLabel(diagnostics)} />
     </View>
+    {diagnostics.session.lastSummary ? (
+      <View style={styles.diagnosticIncidents}>
+        <View style={[styles.diagnosticIncidentSummary, diagnosticSessionSummaryStyle(diagnostics.session.lastSummary)]}>
+          <Text style={[styles.diagnosticIncidentSummaryText, diagnosticSessionSummaryTextStyle(diagnostics.session.lastSummary)]}>
+            {diagnostics.session.lastSummary.summary}
+          </Text>
+        </View>
+        <View style={[styles.diagnosticIncident, diagnosticSessionStyle(diagnostics.session.lastSummary)]}>
+          <Text style={styles.diagnosticIncidentTitle}>Next stream</Text>
+          <Text style={styles.diagnosticIncidentText}>{diagnostics.session.lastSummary.recommendation}</Text>
+          <Text style={styles.diagnosticIncidentRecommendation}>
+            Warnings {diagnostics.session.lastSummary.warningCount} / failures {diagnostics.session.lastSummary.failureCount} /
+            recoveries {diagnostics.session.lastSummary.recoveryEventCount}
+          </Text>
+        </View>
+      </View>
+    ) : null}
     <View style={styles.diagnosticIncidents}>
       <View style={[styles.diagnosticIncidentSummary, diagnosticIncidentSummaryStyle(diagnostics)]}>
         <Text style={[styles.diagnosticIncidentSummaryText, diagnosticIncidentSummaryTextStyle(diagnostics)]}>
@@ -1633,6 +1668,29 @@ const diagnosticEventStyle = (severity: StreamDiagnostics["session"]["events"][n
       return null;
   }
 };
+
+const diagnosticSessionSummaryStyle = (summary: StreamSessionSummary) => {
+  if (summary.outcome === "fail") {
+    return styles.diagnosticFail;
+  }
+  if (summary.outcome === "warn") {
+    return styles.diagnosticWarn;
+  }
+  return styles.diagnosticPass;
+};
+
+const diagnosticSessionSummaryTextStyle = (summary: StreamSessionSummary) => {
+  if (summary.outcome === "fail") {
+    return styles.diagnosticFailText;
+  }
+  if (summary.outcome === "warn") {
+    return styles.diagnosticWarnText;
+  }
+  return styles.diagnosticPassText;
+};
+
+const diagnosticSessionStyle = (summary: StreamSessionSummary) =>
+  summary.outcome === "fail" ? styles.diagnosticCheckFail : summary.outcome === "warn" ? styles.diagnosticCheckWarn : null;
 
 const hasCriticalQualityIncident = (diagnostics: StreamDiagnostics): boolean =>
   diagnostics.qualityIncidents.incidents.some((incident) => incident.severity === "fail");

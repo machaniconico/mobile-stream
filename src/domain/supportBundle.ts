@@ -31,6 +31,8 @@ export interface SupportBundle {
     healthSampleCount: number;
     healthStability: StreamDiagnostics["history"]["stability"];
     sessionEventCount: number;
+    completedSessionCount: number;
+    lastSessionOutcome: NonNullable<StreamDiagnostics["session"]["lastSummary"]>["outcome"] | null;
     sourceCount: number;
     visibleSourceCount: number;
   };
@@ -126,6 +128,8 @@ export const createSupportBundle = ({
       healthSampleCount: diagnostics.history.sampleCount,
       healthStability: diagnostics.history.stability,
       sessionEventCount: diagnostics.session.events.length,
+      completedSessionCount: diagnostics.session.summaries.length,
+      lastSessionOutcome: diagnostics.session.lastSummary?.outcome ?? null,
       sourceCount: scene.sources.length,
       visibleSourceCount
     },
@@ -219,6 +223,10 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     "",
     "Session",
     `- Events: ${bundle.summary.sessionEventCount}`,
+    `- Completed summaries: ${bundle.summary.completedSessionCount}`,
+    `- Last outcome: ${bundle.summary.lastSessionOutcome ?? "-"}`,
+    `- Last summary: ${bundle.diagnostics.session.lastSummary?.summary ?? "-"}`,
+    `- Last recommendation: ${bundle.diagnostics.session.lastSummary?.recommendation ?? "-"}`,
     `- Health history: ${bundle.diagnostics.history.summary}`,
     `- Quality incidents: ${bundle.diagnostics.qualityIncidents.summary}`,
     `- Recovery: ${bundle.diagnostics.recovery.mode} / ${bundle.diagnostics.recovery.recommendedAction}`,

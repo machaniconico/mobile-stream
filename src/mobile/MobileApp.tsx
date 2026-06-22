@@ -82,6 +82,7 @@ import { usePlatformChatConnection } from "../native/usePlatformChatConnection";
 import { useStreamAutoRecovery } from "../native/useStreamAutoRecovery";
 import { useStreamHealthHistory } from "../native/useStreamHealthHistory";
 import { useStreamSessionLog } from "../native/useStreamSessionLog";
+import { useStreamSessionSummaries } from "../native/useStreamSessionSummaries";
 import { AndroidLiveCaster, canUseAndroidLiveCaster } from "./AndroidLiveCaster";
 import { IOSLiveCaster, canUseIOSLiveCaster } from "./IOSLiveCaster";
 import { MobileStudioScreen } from "./MobileStudioScreen";
@@ -137,6 +138,12 @@ export const MobileApp = () => {
   });
   const { events: streamSessionEvents, recordEvent: recordStreamSessionEvent } = useStreamSessionLog(snapshot);
   const streamHealthSamples = useStreamHealthHistory(snapshot);
+  const streamSessionSummaries = useStreamSessionSummaries({
+    snapshot,
+    events: streamSessionEvents,
+    healthSamples: streamHealthSamples,
+    quality: readiness.sanitizedProfile.quality
+  });
   const captureOAuthCallbackUrl = useCallback((url: string | null) => {
     if (!url || !isPlatformChatOAuthCallbackUrl(url)) {
       return;
@@ -637,10 +644,11 @@ export const MobileApp = () => {
         scene={scene}
         profile={profile}
         selectedSourceId={selectedSourceId}
-      snapshot={snapshot}
-      streamSessionEvents={streamSessionEvents}
-      streamHealthSamples={streamHealthSamples}
-      operationStatus={operationStatus}
+        snapshot={snapshot}
+        streamSessionEvents={streamSessionEvents}
+        streamHealthSamples={streamHealthSamples}
+        streamSessionSummaries={streamSessionSummaries.summaries}
+        operationStatus={operationStatus}
         readiness={readiness}
         chatReader={chatReader}
         platformChat={profile.platformChat}

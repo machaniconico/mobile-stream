@@ -3,6 +3,7 @@ import { createDefaultStudioProfile, redactStreamKey } from "./profiles";
 import { createReadinessReport } from "./readiness";
 import { createDefaultScene } from "./scene";
 import { createStreamDiagnostics } from "./streamDiagnostics";
+import { createStreamSessionSummary } from "./streamSessionSummary";
 import { createStreamStartPreflightReport } from "./streamStartPreflight";
 import {
   createSupportBundle,
@@ -33,7 +34,42 @@ describe("support bundle", () => {
       state: { status: "live" as const },
       health: health({ bitrateKbps: 3600, fps: 30, message: `Publishing ${streamKey}` })
     };
-    const diagnostics = createStreamDiagnostics(scene, profile, readiness, snapshot);
+    const healthSamples = [
+      {
+        at: "2026-06-23T00:00:01.000Z",
+        status: "live" as const,
+        elapsedSeconds: 1,
+        bitrateKbps: 3600,
+        fps: 30,
+        droppedFrames: 0,
+        reconnectAttempts: 0
+      },
+      {
+        at: "2026-06-23T00:00:05.000Z",
+        status: "live" as const,
+        elapsedSeconds: 5,
+        bitrateKbps: 3500,
+        fps: 30,
+        droppedFrames: 0,
+        reconnectAttempts: 0
+      }
+    ];
+    const sessionSummary = createStreamSessionSummary({
+      events: [],
+      healthSamples,
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:06.000Z")
+    });
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      snapshot,
+      [],
+      healthSamples,
+      sessionSummary ? [sessionSummary] : []
+    );
     const preflight = createStreamStartPreflightReport({
       readiness,
       streamStatus: snapshot.state.status
@@ -55,6 +91,9 @@ describe("support bundle", () => {
     expect(bundle.profile.destination.streamKeyPreview).toBe(redactStreamKey(streamKey));
     expect(bundle.profile.platformPublishing.titleLength).toBe(profile.platformPublishing.title.length);
     expect(bundle.diagnostics.telemetry.message).toContain(redactStreamKey(streamKey));
+    expect(bundle.summary.completedSessionCount).toBe(1);
+    expect(bundle.summary.lastSessionOutcome).toBe("clean");
+    expect(formatSupportBundle(bundle)).toContain("Completed summaries: 1");
   });
 
   it("serializes and formats without leaking raw stream keys or text source content", () => {
