@@ -14,6 +14,7 @@
 - Chat/comment read-aloud domain model with queueing, muted words, duplicate suppression, queue limits, URL redaction, and speech text shaping.
 - Platform chat adapter model for YouTube LiveChatMessages responses and Twitch EventSub chat notifications.
 - Platform chat adapter settings persisted with the shared studio profile on web and mobile.
+- OAuth-token chat connection layer for YouTube live chat polling and Twitch IRC WebSocket ingestion, with tokens kept out of persisted profiles.
 - Avatar runtime model for PNGTuber/Live2D expression, lip sync, and auto blink.
 - Stream state machine for idle, preparing, live, reconnecting, stopping, and failed states.
 - Mock live engine for UI development without native capture.
@@ -77,7 +78,6 @@
 - Native compositor.
 - First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
 - Live2D Cubism SDK integration.
-- Authenticated YouTube/Twitch live network chat ingestion.
 - OAuth-backed live chat connection.
 - OAuth/API-backed platform stream key rotation.
 
@@ -94,5 +94,5 @@
 
 1. Run iOS and Android on physical devices against a private RTMPS endpoint and tune bitrate/fps/audio sync behavior.
 2. Validate YouTube Live and Twitch ingest with real stream keys on both platforms.
-3. Add OAuth-backed YouTube/Twitch live chat network connection on top of the shared adapters.
+3. Replace manual OAuth-token chat entry with first-party YouTube/Twitch OAuth authorization flows and token refresh.
 4. Add OAuth/API-backed platform stream key rotation.

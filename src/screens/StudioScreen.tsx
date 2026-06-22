@@ -27,6 +27,7 @@ import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
 import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
 import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../domain/platformChat";
+import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
 import { applyMicEffectPreset, micEffectPresets, type MicEffectPresetId, type StudioProfile } from "../domain/profiles";
 import type { ReadinessReport } from "../domain/readiness";
 import {
@@ -63,6 +64,8 @@ interface StudioScreenProps {
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
   platformChat: PlatformChatSettings;
+  platformChatAuth: PlatformChatAuthSession;
+  platformChatConnection: PlatformChatConnectionState;
   avatarRuntime: AvatarRuntimeState;
   faceTrackingRuntime: FaceTrackingRuntimeState;
   onSceneChange(scene: SceneDocument): void;
@@ -77,6 +80,9 @@ interface StudioScreenProps {
   onChatCommentSubmit(author: string, body: string): void;
   onChatReaderSettingsChange(settings: Partial<ChatReaderSettings>): void;
   onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
+  onPlatformChatAuthChange(settings: Partial<PlatformChatAuthSession>): void;
+  onPlatformChatConnect(): void;
+  onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
   onClearStreamKey(): void;
 }
@@ -118,6 +124,8 @@ export const StudioScreen = ({
   readiness,
   chatReader,
   platformChat,
+  platformChatAuth,
+  platformChatConnection,
   avatarRuntime,
   faceTrackingRuntime,
   onSceneChange,
@@ -132,6 +140,9 @@ export const StudioScreen = ({
   onChatCommentSubmit,
   onChatReaderSettingsChange,
   onPlatformChatSettingsChange,
+  onPlatformChatAuthChange,
+  onPlatformChatConnect,
+  onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
   onClearStreamKey
 }: StudioScreenProps) => {
@@ -580,13 +591,18 @@ export const StudioScreen = ({
           </section>
 
           <ChatReaderPanel
-            chatReader={chatReader}
-            platformChat={platformChat}
-            onSubmit={onChatCommentSubmit}
-            onSettingsChange={onChatReaderSettingsChange}
-            onPlatformChatSettingsChange={onPlatformChatSettingsChange}
-            onPlatformChatSampleIngest={onPlatformChatSampleIngest}
-          />
+        chatReader={chatReader}
+        platformChat={platformChat}
+        platformChatAuth={platformChatAuth}
+        platformChatConnection={platformChatConnection}
+        onSubmit={onChatCommentSubmit}
+        onSettingsChange={onChatReaderSettingsChange}
+        onPlatformChatSettingsChange={onPlatformChatSettingsChange}
+        onPlatformChatAuthChange={onPlatformChatAuthChange}
+        onPlatformChatConnect={onPlatformChatConnect}
+        onPlatformChatDisconnect={onPlatformChatDisconnect}
+        onPlatformChatSampleIngest={onPlatformChatSampleIngest}
+      />
 
           <LiveSetupScreen
             profile={profile}
@@ -647,22 +663,33 @@ const StreamDiagnosticsPanel = ({ diagnostics }: { diagnostics: StreamDiagnostic
 const ChatReaderPanel = ({
   chatReader,
   platformChat,
+  platformChatAuth,
+  platformChatConnection,
   onSubmit,
   onSettingsChange,
   onPlatformChatSettingsChange,
+  onPlatformChatAuthChange,
+  onPlatformChatConnect,
+  onPlatformChatDisconnect,
   onPlatformChatSampleIngest
 }: {
   chatReader: ChatReaderState;
   platformChat: PlatformChatSettings;
+  platformChatAuth: PlatformChatAuthSession;
+  platformChatConnection: PlatformChatConnectionState;
   onSubmit(author: string, body: string): void;
   onSettingsChange(settings: Partial<ChatReaderSettings>): void;
   onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
+  onPlatformChatAuthChange(settings: Partial<PlatformChatAuthSession>): void;
+  onPlatformChatConnect(): void;
+  onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
 }) => {
   const [author, setAuthor] = useState("viewer");
   const [body, setBody] = useState("Nice stream!");
   const [mutedWords, setMutedWords] = useState(chatReader.settings.mutedWords.join(", "));
   const platformStatus = getPlatformChatConnectionStatus(platformChat);
+  const isNetworkConnected = platformChatConnection.phase === "connected" || platformChatConnection.phase === "connecting";
 
   const submit = () => {
     if (!body.trim()) {
@@ -733,19 +760,62 @@ const ChatReaderPanel = ({
           </button>
         </div>
         {platformChat.platform === "youtube" ? (
-          <label className="field">
-            <span>Live chat ID</span>
-            <input
-              value={platformChat.youtubeLiveChatId}
-              onChange={(event) => onPlatformChatSettingsChange({ youtubeLiveChatId: event.target.value })}
-            />
-          </label>
+          <>
+            <label className="field">
+              <span>Live chat ID</span>
+              <input
+                value={platformChat.youtubeLiveChatId}
+                onChange={(event) => onPlatformChatSettingsChange({ youtubeLiveChatId: event.target.value })}
+              />
+            </label>
+            <label className="field">
+              <span>Access token</span>
+              <input
+                autoComplete="off"
+                type="password"
+                value={platformChatAuth.youtubeAccessToken}
+                onChange={(event) => onPlatformChatAuthChange({ youtubeAccessToken: event.target.value })}
+              />
+            </label>
+          </>
         ) : (
-          <label className="field">
-            <span>Twitch channel</span>
-            <input value={platformChat.twitchChannel} onChange={(event) => onPlatformChatSettingsChange({ twitchChannel: event.target.value })} />
-          </label>
+          <>
+            <label className="field">
+              <span>Twitch channel</span>
+              <input value={platformChat.twitchChannel} onChange={(event) => onPlatformChatSettingsChange({ twitchChannel: event.target.value })} />
+            </label>
+            <label className="field">
+              <span>Twitch login</span>
+              <input
+                autoComplete="off"
+                value={platformChatAuth.twitchLogin}
+                onChange={(event) => onPlatformChatAuthChange({ twitchLogin: event.target.value })}
+              />
+            </label>
+            <label className="field">
+              <span>Access token</span>
+              <input
+                autoComplete="off"
+                type="password"
+                value={platformChatAuth.twitchOauthToken}
+                onChange={(event) => onPlatformChatAuthChange({ twitchOauthToken: event.target.value })}
+              />
+            </label>
+          </>
         )}
+        <div className="chat-platform-row">
+          <span className={`chat-source-status ${platformChatConnection.phase}`}>{platformChatConnection.label}</span>
+          <button
+            className="secondary-action compact-action"
+            type="button"
+            disabled={!platformChat.enabled}
+            onClick={isNetworkConnected ? onPlatformChatDisconnect : onPlatformChatConnect}
+          >
+            <Wifi size={15} />
+            {isNetworkConnected ? "Disconnect" : "Connect"}
+          </button>
+        </div>
+        <span className="chat-network-message">{platformChatConnection.message}</span>
         <button className="secondary-action compact-action chat-ingest-action" type="button" disabled={!platformChat.enabled} onClick={onPlatformChatSampleIngest}>
           <MessageCircle size={15} />
           Test Platform Chat

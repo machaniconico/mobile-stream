@@ -21,6 +21,11 @@ import {
   normalizePlatformChatSettings,
   type PlatformChatSettings
 } from "../domain/platformChat";
+import {
+  createDefaultPlatformChatAuthSession,
+  normalizePlatformChatAuthSession,
+  type PlatformChatAuthSession
+} from "../domain/platformChatConnection";
 import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
@@ -40,6 +45,7 @@ import {
 import { MockLiveCaster } from "../native/MockLiveCaster";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { useChatSpeechQueue } from "../native/ChatSpeechEngine";
+import { usePlatformChatConnection } from "../native/usePlatformChatConnection";
 import { AndroidLiveCaster, canUseAndroidLiveCaster } from "./AndroidLiveCaster";
 import { IOSLiveCaster, canUseIOSLiveCaster } from "./IOSLiveCaster";
 import { MobileStudioScreen } from "./MobileStudioScreen";
@@ -63,6 +69,7 @@ export const MobileApp = () => {
   const [sceneLoaded, setSceneLoaded] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [chatReader, setChatReader] = useState(() => createDefaultChatReaderState());
+  const [platformChatAuth, setPlatformChatAuth] = useState<PlatformChatAuthSession>(() => createDefaultPlatformChatAuthSession());
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeStateFromScene(scene, Date.now()));
@@ -71,6 +78,13 @@ export const MobileApp = () => {
   const operationInFlight = useRef(false);
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
   const persistableSceneJson = useMemo(() => JSON.stringify(stripTransientSceneRuntime(scene)), [scene]);
+  const platformChatConnection = usePlatformChatConnection({
+    settings: profile.platformChat,
+    auth: platformChatAuth,
+    onMessages: (messages) => {
+      setChatReader((current) => messages.reduce(enqueueChatMessage, current));
+    }
+  });
 
   useEffect(() => engine.subscribe(setSnapshot), [engine]);
   useChatSpeechQueue(chatReader, setChatReader, chatSpeechEngine);
@@ -264,6 +278,15 @@ export const MobileApp = () => {
     }));
   };
 
+  const updatePlatformChatAuth = (settings: Partial<PlatformChatAuthSession>) => {
+    setPlatformChatAuth((current) =>
+      normalizePlatformChatAuthSession({
+        ...current,
+        ...settings
+      })
+    );
+  };
+
   const ingestPlatformChatSample = () => {
     if (!profile.platformChat.enabled) {
       return;
@@ -292,6 +315,8 @@ export const MobileApp = () => {
         readiness={readiness}
         chatReader={chatReader}
         platformChat={profile.platformChat}
+        platformChatAuth={platformChatAuth}
+        platformChatConnection={platformChatConnection.connection}
         avatarRuntime={avatarRuntime}
         faceTrackingRuntime={faceTrackingRuntime}
         onSceneChange={setScene}
@@ -306,6 +331,9 @@ export const MobileApp = () => {
         onChatCommentSubmit={submitChatComment}
         onChatReaderSettingsChange={updateChatSettings}
         onPlatformChatSettingsChange={updatePlatformChatSettings}
+        onPlatformChatAuthChange={updatePlatformChatAuth}
+        onPlatformChatConnect={platformChatConnection.connect}
+        onPlatformChatDisconnect={platformChatConnection.disconnect}
         onPlatformChatSampleIngest={ingestPlatformChatSample}
         onClearStreamKey={clearSavedStreamKey}
       />

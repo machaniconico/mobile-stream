@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
 import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
+import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
 import type { DestinationPresetId, MicEffectPresetId, StudioProfile, StreamProtocol } from "../domain/profiles";
 import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../domain/platformChat";
 import {
@@ -49,6 +50,8 @@ interface MobileStudioScreenProps {
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
   platformChat: PlatformChatSettings;
+  platformChatAuth: PlatformChatAuthSession;
+  platformChatConnection: PlatformChatConnectionState;
   avatarRuntime: AvatarRuntimeState;
   faceTrackingRuntime: FaceTrackingRuntimeState;
   onSceneChange(scene: SceneDocument): void;
@@ -63,6 +66,9 @@ interface MobileStudioScreenProps {
   onChatCommentSubmit(author: string, body: string): void;
   onChatReaderSettingsChange(settings: Partial<ChatReaderSettings>): void;
   onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
+  onPlatformChatAuthChange(settings: Partial<PlatformChatAuthSession>): void;
+  onPlatformChatConnect(): void;
+  onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
   onClearStreamKey(): void | Promise<void>;
 }
@@ -96,6 +102,8 @@ export const MobileStudioScreen = ({
   readiness,
   chatReader,
   platformChat,
+  platformChatAuth,
+  platformChatConnection,
   avatarRuntime,
   faceTrackingRuntime,
   onSceneChange,
@@ -110,6 +118,9 @@ export const MobileStudioScreen = ({
   onChatCommentSubmit,
   onChatReaderSettingsChange,
   onPlatformChatSettingsChange,
+  onPlatformChatAuthChange,
+  onPlatformChatConnect,
+  onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
   onClearStreamKey
 }: MobileStudioScreenProps) => {
@@ -537,13 +548,18 @@ export const MobileStudioScreen = ({
         </Panel>
 
         <ChatReaderPanel
-          chatReader={chatReader}
-          platformChat={platformChat}
-          onSubmit={onChatCommentSubmit}
-          onSettingsChange={onChatReaderSettingsChange}
-          onPlatformChatSettingsChange={onPlatformChatSettingsChange}
-          onPlatformChatSampleIngest={onPlatformChatSampleIngest}
-        />
+        chatReader={chatReader}
+        platformChat={platformChat}
+        platformChatAuth={platformChatAuth}
+        platformChatConnection={platformChatConnection}
+        onSubmit={onChatCommentSubmit}
+        onSettingsChange={onChatReaderSettingsChange}
+        onPlatformChatSettingsChange={onPlatformChatSettingsChange}
+        onPlatformChatAuthChange={onPlatformChatAuthChange}
+        onPlatformChatConnect={onPlatformChatConnect}
+        onPlatformChatDisconnect={onPlatformChatDisconnect}
+        onPlatformChatSampleIngest={onPlatformChatSampleIngest}
+      />
 
         <Panel title="Live Setup">
           <Label text="Destination" />
@@ -671,22 +687,33 @@ const DiagnosticMetric = ({ label, value }: { label: string; value: string }) =>
 const ChatReaderPanel = ({
   chatReader,
   platformChat,
+  platformChatAuth,
+  platformChatConnection,
   onSubmit,
   onSettingsChange,
   onPlatformChatSettingsChange,
+  onPlatformChatAuthChange,
+  onPlatformChatConnect,
+  onPlatformChatDisconnect,
   onPlatformChatSampleIngest
 }: {
   chatReader: ChatReaderState;
   platformChat: PlatformChatSettings;
+  platformChatAuth: PlatformChatAuthSession;
+  platformChatConnection: PlatformChatConnectionState;
   onSubmit(author: string, body: string): void;
   onSettingsChange(settings: Partial<ChatReaderSettings>): void;
   onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
+  onPlatformChatAuthChange(settings: Partial<PlatformChatAuthSession>): void;
+  onPlatformChatConnect(): void;
+  onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
 }) => {
   const [author, setAuthor] = useState("viewer");
   const [body, setBody] = useState("Nice stream!");
   const [mutedWords, setMutedWords] = useState(chatReader.settings.mutedWords.join(", "));
   const platformStatus = getPlatformChatConnectionStatus(platformChat);
+  const isNetworkConnected = platformChatConnection.phase === "connected" || platformChatConnection.phase === "connecting";
 
   const submit = () => {
     if (!body.trim()) {
@@ -768,6 +795,15 @@ const ChatReaderPanel = ({
               autoCapitalize="none"
               placeholderTextColor="#71717a"
             />
+            <Label text="Access token" />
+            <TextInput
+              value={platformChatAuth.youtubeAccessToken}
+              onChangeText={(youtubeAccessToken) => onPlatformChatAuthChange({ youtubeAccessToken })}
+              style={styles.input}
+              autoCapitalize="none"
+              secureTextEntry
+              placeholderTextColor="#71717a"
+            />
           </>
         ) : (
           <>
@@ -779,8 +815,50 @@ const ChatReaderPanel = ({
               autoCapitalize="none"
               placeholderTextColor="#71717a"
             />
+            <Label text="Twitch login" />
+            <TextInput
+              value={platformChatAuth.twitchLogin}
+              onChangeText={(twitchLogin) => onPlatformChatAuthChange({ twitchLogin })}
+              style={styles.input}
+              autoCapitalize="none"
+              placeholderTextColor="#71717a"
+            />
+            <Label text="Access token" />
+            <TextInput
+              value={platformChatAuth.twitchOauthToken}
+              onChangeText={(twitchOauthToken) => onPlatformChatAuthChange({ twitchOauthToken })}
+              style={styles.input}
+              autoCapitalize="none"
+              secureTextEntry
+              placeholderTextColor="#71717a"
+            />
           </>
         )}
+        <View style={styles.chatStatusRow}>
+          <View
+            style={[
+              styles.platformStatusBadge,
+              platformChatConnection.phase === "connected" && styles.platformStatusReady,
+              platformChatConnection.phase === "failed" && styles.platformStatusFailed
+            ]}
+          >
+            <Text
+              style={[
+                styles.platformStatusText,
+                platformChatConnection.phase === "connected" && styles.platformStatusReadyText,
+                platformChatConnection.phase === "failed" && styles.platformStatusFailedText
+              ]}
+            >
+              {platformChatConnection.label}
+            </Text>
+          </View>
+          <ActionButton
+            label={isNetworkConnected ? "Disconnect" : "Connect"}
+            disabled={!platformChat.enabled}
+            onPress={isNetworkConnected ? onPlatformChatDisconnect : onPlatformChatConnect}
+          />
+        </View>
+        <Text style={styles.platformConnectionMessage}>{platformChatConnection.message}</Text>
         <ActionButton label="Test Platform Chat" disabled={!platformChat.enabled} onPress={onPlatformChatSampleIngest} />
       </View>
 
@@ -1693,6 +1771,9 @@ const styles = StyleSheet.create({
   platformStatusReady: {
     borderColor: "rgba(34, 197, 94, 0.42)"
   },
+  platformStatusFailed: {
+    borderColor: "rgba(244, 63, 94, 0.42)"
+  },
   platformStatusText: {
     color: "#a1a1aa",
     fontSize: 12,
@@ -1700,6 +1781,15 @@ const styles = StyleSheet.create({
   },
   platformStatusReadyText: {
     color: "#bbf7d0"
+  },
+  platformStatusFailedText: {
+    color: "#fecdd3"
+  },
+  platformConnectionMessage: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 17
   },
   chatHistory: {
     gap: 6

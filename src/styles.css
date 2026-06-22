@@ -783,6 +783,30 @@ select:focus-visible {
   color: #bbf7d0;
 }
 
+.chat-source-status.connected {
+  border-color: rgba(34, 197, 94, 0.42);
+  color: #bbf7d0;
+}
+
+.chat-source-status.connecting,
+.chat-source-status.needs-auth,
+.chat-source-status.needs-configuration {
+  border-color: rgba(251, 191, 36, 0.42);
+  color: #fde68a;
+}
+
+.chat-source-status.failed {
+  border-color: rgba(244, 63, 94, 0.42);
+  color: #fecdd3;
+}
+
+.chat-network-message {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .chat-ingest-action {
   width: 100%;
 }

@@ -1,0 +1,139 @@
+import { describe, expect, it, vi } from "vitest";
+import { createDefaultPlatformChatSettings, type PlatformChatSettings } from "./platformChat";
+import {
+  buildYouTubeLiveChatRequest,
+  createDefaultPlatformChatAuthSession,
+  createTwitchIrcAuthenticationCommands,
+  fetchYouTubeLiveChatPage,
+  getPlatformChatNetworkReadiness,
+  normalizePlatformChatAuthSession,
+  parseTwitchIrcPayload
+} from "./platformChatConnection";
+
+const youtubeSettings = (): PlatformChatSettings => ({
+  ...createDefaultPlatformChatSettings(),
+  enabled: true,
+  platform: "youtube",
+  youtubeLiveChatId: "live-chat-123"
+});
+
+const twitchSettings = (): PlatformChatSettings => ({
+  ...createDefaultPlatformChatSettings(),
+  enabled: true,
+  platform: "twitch",
+  twitchChannel: "  @MachaChannel  "
+});
+
+describe("platformChatConnection", () => {
+  it("requires non-persisted auth before network chat can connect", () => {
+    expect(getPlatformChatNetworkReadiness(youtubeSettings(), createDefaultPlatformChatAuthSession())).toMatchObject({
+      status: "needs-auth",
+      label: "Needs auth"
+    });
+
+    expect(
+      getPlatformChatNetworkReadiness(
+        youtubeSettings(),
+        normalizePlatformChatAuthSession({
+          youtubeAccessToken: "  Bearer yt-token  "
+        })
+      )
+    ).toMatchObject({
+      status: "ready"
+    });
+  });
+
+  it("builds sanitized YouTube live chat requests with bearer auth", () => {
+    const request = buildYouTubeLiveChatRequest(
+      youtubeSettings(),
+      normalizePlatformChatAuthSession({
+        youtubeAccessToken: "  Bearer yt-token  "
+      }),
+      "next-page"
+    );
+
+    expect(request.url).toBe(
+      "https://www.googleapis.com/youtube/v3/liveChat/messages?liveChatId=live-chat-123&part=snippet%2CauthorDetails&maxResults=200&pageToken=next-page"
+    );
+    expect(request.headers.Authorization).toBe("Bearer yt-token");
+    expect(request.url).not.toContain("yt-token");
+  });
+
+  it("fetches and adapts YouTube live chat pages", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        nextPageToken: "next",
+        pollingIntervalMillis: 2500,
+        items: [
+          {
+            id: "message-1",
+            snippet: {
+              displayMessage: "hello live chat",
+              publishedAt: "2026-06-22T00:00:00.000Z",
+              type: "textMessageEvent"
+            },
+            authorDetails: {
+              displayName: "Macha"
+            }
+          }
+        ]
+      })
+    });
+
+    const page = await fetchYouTubeLiveChatPage(
+      youtubeSettings(),
+      normalizePlatformChatAuthSession({ youtubeAccessToken: "yt-token" }),
+      null,
+      fetcher,
+      1
+    );
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(page.nextCursor).toBe("next");
+    expect(page.nextPollIntervalMs).toBe(2500);
+    expect(page.ingest.messages[0]).toMatchObject({
+      source: "youtube",
+      author: "Macha",
+      body: "hello live chat"
+    });
+  });
+
+  it("creates Twitch IRC auth commands without duplicating oauth prefixes", () => {
+    expect(
+      createTwitchIrcAuthenticationCommands(
+        twitchSettings(),
+        normalizePlatformChatAuthSession({
+          twitchLogin: "  Macha_Login  ",
+          twitchOauthToken: "oauth:tw-token"
+        })
+      )
+    ).toEqual([
+      "CAP REQ :twitch.tv/tags twitch.tv/commands",
+      "PASS oauth:tw-token",
+      "NICK macha_login",
+      "JOIN #machachannel"
+    ]);
+  });
+
+  it("parses Twitch IRC ping, notices, and tagged chat messages", () => {
+    const result = parseTwitchIrcPayload(
+      [
+        "PING :tmi.twitch.tv",
+        ":tmi.twitch.tv NOTICE * :Login authentication failed",
+        "@display-name=Macha\\sViewer;id=tw-message-1;tmi-sent-ts=1782086400000 :macha!macha@macha.tmi.twitch.tv PRIVMSG #machachannel :hello from twitch"
+      ].join("\r\n"),
+      1
+    );
+
+    expect(result.pongResponses).toEqual(["PONG :tmi.twitch.tv"]);
+    expect(result.notices).toEqual(["Login authentication failed"]);
+    expect(result.messages[0]).toMatchObject({
+      source: "twitch",
+      author: "Macha Viewer",
+      body: "hello from twitch",
+      receivedAt: 1782086400000
+    });
+  });
+});
