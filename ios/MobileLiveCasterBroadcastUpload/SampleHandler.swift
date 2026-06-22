@@ -495,9 +495,10 @@ struct BroadcastEncodedVideoFrame {
     let annexBNALUnits: [Data]
 }
 
-enum BroadcastAudioSource: String, Equatable {
+enum BroadcastAudioSource: String, Equatable, Hashable {
     case app
     case microphone
+    case mixed
 }
 
 struct BroadcastEncodedAudioFrame {
@@ -509,6 +510,22 @@ struct BroadcastEncodedAudioFrame {
     let byteCount: Int
     let audioSpecificConfig: Data
     let aacPayload: Data
+}
+
+private struct BroadcastPCMAudioFrame {
+    let source: BroadcastAudioSource
+    let presentationTimeSeconds: Double
+    let durationSeconds: Double
+    let sampleRate: Double
+    let channelCount: Int
+    let samples: [Float]
+
+    var frameCount: Int {
+        guard channelCount > 0 else {
+            return 0
+        }
+        return samples.count / channelCount
+    }
 }
 
 struct BroadcastVideoEncoderStats: Equatable {
@@ -547,6 +564,7 @@ struct BroadcastAudioEncoderStats: Equatable {
     private(set) var encodedFrames: Int = 0
     private(set) var appFrames: Int = 0
     private(set) var microphoneFrames: Int = 0
+    private(set) var mixedFrames: Int = 0
     private(set) var encodedBytes: Int = 0
     private(set) var sampleRate: Double = 0
     private(set) var channelCount: Int = 0
@@ -560,6 +578,8 @@ struct BroadcastAudioEncoderStats: Equatable {
             appFrames += 1
         case .microphone:
             microphoneFrames += 1
+        case .mixed:
+            mixedFrames += 1
         }
         encodedBytes += frame.byteCount
         sampleRate = frame.sampleRate
@@ -577,6 +597,7 @@ struct BroadcastAudioEncoderStats: Equatable {
             "encodedFrames": encodedFrames,
             "appFrames": appFrames,
             "microphoneFrames": microphoneFrames,
+            "mixedFrames": mixedFrames,
             "encodedBytes": encodedBytes,
             "sampleRate": sampleRate,
             "channelCount": channelCount,
@@ -1317,6 +1338,177 @@ private let audioConverterInputCallback: AudioConverterComplexInputDataProc = { 
     return noErr
 }
 
+private final class BroadcastAudioPCMConverter {
+    private let outputFormat: AudioStreamBasicDescription
+    private var converter: AudioConverterRef?
+    private var inputSignature: BroadcastAudioInputSignature?
+
+    init(outputFormat: AudioStreamBasicDescription) {
+        self.outputFormat = outputFormat
+    }
+
+    deinit {
+        finish()
+    }
+
+    func finish() {
+        if let converter {
+            AudioConverterDispose(converter)
+        }
+        converter = nil
+        inputSignature = nil
+    }
+
+    func convert(sampleBuffer: CMSampleBuffer) throws -> BroadcastPCMAudioFrame {
+        guard let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer) else {
+            throw BroadcastAudioEncoderError.formatDescriptionMissing
+        }
+        guard let inputFormatPointer = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription) else {
+            throw BroadcastAudioEncoderError.formatDescriptionMissing
+        }
+        var inputFormat = inputFormatPointer.pointee
+        try configureConverterIfNeeded(inputFormat: &inputFormat)
+
+        guard let converter else {
+            throw BroadcastAudioEncoderError.converterCreateFailed(kAudio_ParamError)
+        }
+        guard let dataBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else {
+            throw BroadcastAudioEncoderError.dataBufferMissing
+        }
+
+        let inputData = Self.copyBlockBufferData(dataBuffer)
+        let inputPacketCount = UInt32(max(CMSampleBufferGetNumSamples(sampleBuffer), 0))
+        guard !inputData.isEmpty, inputPacketCount > 0 else {
+            return BroadcastPCMAudioFrame(
+                source: .mixed,
+                presentationTimeSeconds: 0,
+                durationSeconds: 0,
+                sampleRate: outputFormat.mSampleRate,
+                channelCount: Int(outputFormat.mChannelsPerFrame),
+                samples: []
+            )
+        }
+
+        let outputFrameCapacity = max(
+            1,
+            Int(ceil(Double(inputPacketCount) * outputFormat.mSampleRate / max(inputFormat.mSampleRate, 1))) + 2048
+        )
+        let outputBufferSize = max(outputFrameCapacity * Int(outputFormat.mBytesPerFrame), Int(outputFormat.mBytesPerFrame))
+        var outputData = Data(count: outputBufferSize)
+
+        let samples = try inputData.withUnsafeBytes { inputBytes -> [Float] in
+            guard let inputBaseAddress = inputBytes.baseAddress else {
+                return []
+            }
+            var inputContext = BroadcastAudioConverterInputContext(
+                data: inputBaseAddress,
+                dataSize: UInt32(inputData.count),
+                channelCount: inputFormat.mChannelsPerFrame,
+                packetCount: inputPacketCount
+            )
+
+            return try outputData.withUnsafeMutableBytes { outputBytes -> [Float] in
+                guard let outputBaseAddress = outputBytes.baseAddress else {
+                    return []
+                }
+
+                var outputBufferList = AudioBufferList(
+                    mNumberBuffers: 1,
+                    mBuffers: AudioBuffer(
+                        mNumberChannels: outputFormat.mChannelsPerFrame,
+                        mDataByteSize: UInt32(outputBufferSize),
+                        mData: outputBaseAddress
+                    )
+                )
+                var outputPacketCount = UInt32(outputFrameCapacity)
+                let convertStatus = AudioConverterFillComplexBuffer(
+                    converter,
+                    audioConverterInputCallback,
+                    &inputContext,
+                    &outputPacketCount,
+                    &outputBufferList,
+                    nil
+                )
+                guard convertStatus == noErr else {
+                    throw BroadcastAudioEncoderError.encodeFailed(convertStatus)
+                }
+
+                let validByteCount = Int(outputBufferList.mBuffers.mDataByteSize)
+                guard validByteCount > 0 else {
+                    return []
+                }
+
+                let convertedData = Data(bytes: outputBaseAddress, count: validByteCount)
+                return convertedData.withUnsafeBytes { convertedBytes in
+                    let floatBuffer = convertedBytes.bindMemory(to: Float.self)
+                    return Array(floatBuffer.prefix(validByteCount / MemoryLayout<Float>.size))
+                }
+            }
+        }
+
+        let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        let duration = CMSampleBufferGetDuration(sampleBuffer)
+        return BroadcastPCMAudioFrame(
+            source: .mixed,
+            presentationTimeSeconds: presentationTime.isValid ? CMTimeGetSeconds(presentationTime) : 0,
+            durationSeconds: duration.isValid && duration.isNumeric ? CMTimeGetSeconds(duration) : 0,
+            sampleRate: outputFormat.mSampleRate,
+            channelCount: Int(outputFormat.mChannelsPerFrame),
+            samples: samples
+        )
+    }
+
+    private func configureConverterIfNeeded(inputFormat: inout AudioStreamBasicDescription) throws {
+        guard inputFormat.mFormatID == kAudioFormatLinearPCM else {
+            throw BroadcastAudioEncoderError.unsupportedInputFormat(inputFormat.mFormatID)
+        }
+
+        let signature = BroadcastAudioInputSignature(
+            sampleRate: inputFormat.mSampleRate,
+            channelCount: inputFormat.mChannelsPerFrame,
+            formatID: inputFormat.mFormatID,
+            formatFlags: inputFormat.mFormatFlags,
+            bytesPerPacket: inputFormat.mBytesPerPacket,
+            framesPerPacket: inputFormat.mFramesPerPacket,
+            bytesPerFrame: inputFormat.mBytesPerFrame,
+            bitsPerChannel: inputFormat.mBitsPerChannel
+        )
+
+        guard signature != inputSignature else {
+            return
+        }
+
+        var nextOutputFormat = outputFormat
+        var nextConverter: AudioConverterRef?
+        let createStatus = AudioConverterNew(&inputFormat, &nextOutputFormat, &nextConverter)
+        guard createStatus == noErr, let nextConverter else {
+            throw BroadcastAudioEncoderError.converterCreateFailed(createStatus)
+        }
+
+        if let converter {
+            AudioConverterDispose(converter)
+        }
+        converter = nextConverter
+        inputSignature = signature
+    }
+
+    private static func copyBlockBufferData(_ blockBuffer: CMBlockBuffer) -> Data {
+        let dataLength = CMBlockBufferGetDataLength(blockBuffer)
+        guard dataLength > 0 else {
+            return Data()
+        }
+
+        var data = Data(count: dataLength)
+        data.withUnsafeMutableBytes { destination in
+            guard let baseAddress = destination.baseAddress else {
+                return
+            }
+            CMBlockBufferCopyDataBytes(blockBuffer, atOffset: 0, dataLength: dataLength, destination: baseAddress)
+        }
+        return data
+    }
+}
+
 final class BroadcastAudioEncoder {
     private let configuration: BroadcastUploadConfiguration
     private let onEncodedFrame: (BroadcastEncodedAudioFrame) -> Void
@@ -1327,7 +1519,17 @@ final class BroadcastAudioEncoder {
     private var outputFormat = AudioStreamBasicDescription()
     private var maxOutputPacketSize: UInt32 = 4096
     private var audioSpecificConfig = Data()
+    private var mixerInputFormat: AudioStreamBasicDescription?
+    private var sourceConverters: [BroadcastAudioSource: BroadcastAudioPCMConverter] = [:]
+    private var appPCMQueue: [Float] = []
+    private var microphonePCMQueue: [Float] = []
+    private var mixerNextPresentationTimeSeconds: Double?
     private var currentStats = BroadcastAudioEncoderStats()
+    private let mixerChannelCount = 2
+    private let mixerFramesPerAACPacket = 1024
+    private let mixerSoloFlushFrameThreshold = 2048
+    private let appGain: Float = 0.85
+    private let microphoneGain: Float = 1.0
 
     var stats: BroadcastAudioEncoderStats {
         statsLock.performLocked {
@@ -1370,9 +1572,15 @@ final class BroadcastAudioEncoder {
         if let converter {
             AudioConverterDispose(converter)
         }
+        sourceConverters.values.forEach { $0.finish() }
         converter = nil
         inputSignature = nil
         audioSpecificConfig = Data()
+        mixerInputFormat = nil
+        sourceConverters = [:]
+        appPCMQueue.removeAll(keepingCapacity: false)
+        microphonePCMQueue.removeAll(keepingCapacity: false)
+        mixerNextPresentationTimeSeconds = nil
     }
 
     private func encodeLocked(_ sampleBuffer: CMSampleBuffer, source: BroadcastAudioSource) throws {
@@ -1383,36 +1591,22 @@ final class BroadcastAudioEncoder {
             throw BroadcastAudioEncoderError.formatDescriptionMissing
         }
         var inputFormat = inputFormatPointer.pointee
-        try configureConverterIfNeeded(inputFormat: &inputFormat)
-
-        guard let converter else {
+        try configureMixerIfNeeded(sampleRate: inputFormat.mSampleRate)
+        guard let mixerInputFormat else {
             throw BroadcastAudioEncoderError.converterCreateFailed(kAudio_ParamError)
         }
-        guard let dataBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else {
-            throw BroadcastAudioEncoderError.dataBufferMissing
-        }
 
-        let inputData = Self.copyBlockBufferData(dataBuffer)
-        guard !inputData.isEmpty else {
+        let pcmConverter = try sourcePCMConverter(for: source, outputFormat: mixerInputFormat)
+        let pcmFrame = try pcmConverter.convert(sampleBuffer: sampleBuffer)
+        guard pcmFrame.frameCount > 0 else {
             return
         }
 
-        let inputPacketCount = UInt32(max(CMSampleBufferGetNumSamples(sampleBuffer), 0))
-        guard inputPacketCount > 0 else {
-            return
+        if mixerNextPresentationTimeSeconds == nil {
+            mixerNextPresentationTimeSeconds = pcmFrame.presentationTimeSeconds
         }
-
-        let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        let duration = CMSampleBufferGetDuration(sampleBuffer)
-        let frames = try encodeInputData(
-            inputData,
-            source: source,
-            converter: converter,
-            inputPacketCount: inputPacketCount,
-            inputChannelCount: inputFormat.mChannelsPerFrame,
-            presentationTimeSeconds: presentationTime.isValid ? CMTimeGetSeconds(presentationTime) : 0,
-            durationSeconds: duration.isValid && duration.isNumeric ? CMTimeGetSeconds(duration) : 0
-        )
+        appendPCMFrame(pcmFrame, source: source)
+        let frames = try drainMixer()
 
         frames.forEach { frame in
             statsLock.performLocked {
@@ -1420,6 +1614,134 @@ final class BroadcastAudioEncoder {
             }
             onEncodedFrame(frame)
         }
+    }
+
+    private func configureMixerIfNeeded(sampleRate: Double) throws {
+        guard mixerInputFormat == nil else {
+            return
+        }
+
+        let resolvedSampleRate = sampleRate > 0 ? sampleRate : 44100
+        let bytesPerFrame = UInt32(mixerChannelCount * MemoryLayout<Float>.size)
+        mixerInputFormat = AudioStreamBasicDescription(
+            mSampleRate: resolvedSampleRate,
+            mFormatID: kAudioFormatLinearPCM,
+            mFormatFlags: AudioFormatFlags(kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked),
+            mBytesPerPacket: bytesPerFrame,
+            mFramesPerPacket: 1,
+            mBytesPerFrame: bytesPerFrame,
+            mChannelsPerFrame: UInt32(mixerChannelCount),
+            mBitsPerChannel: UInt32(MemoryLayout<Float>.size * 8),
+            mReserved: 0
+        )
+    }
+
+    private func sourcePCMConverter(
+        for source: BroadcastAudioSource,
+        outputFormat: AudioStreamBasicDescription
+    ) throws -> BroadcastAudioPCMConverter {
+        if let converter = sourceConverters[source] {
+            return converter
+        }
+
+        let converter = BroadcastAudioPCMConverter(outputFormat: outputFormat)
+        sourceConverters[source] = converter
+        return converter
+    }
+
+    private func appendPCMFrame(_ frame: BroadcastPCMAudioFrame, source: BroadcastAudioSource) {
+        switch source {
+        case .app:
+            appPCMQueue.append(contentsOf: frame.samples)
+        case .microphone:
+            microphonePCMQueue.append(contentsOf: frame.samples)
+        case .mixed:
+            break
+        }
+    }
+
+    private func drainMixer() throws -> [BroadcastEncodedAudioFrame] {
+        guard let mixerInputFormat else {
+            return []
+        }
+
+        var outputFrames: [BroadcastEncodedAudioFrame] = []
+        let chunkSamples = mixerFramesPerAACPacket * mixerChannelCount
+
+        while true {
+            let appFrames = appPCMQueue.count / mixerChannelCount
+            let microphoneFrames = microphonePCMQueue.count / mixerChannelCount
+            let bothReady = appFrames >= mixerFramesPerAACPacket && microphoneFrames >= mixerFramesPerAACPacket
+            let appSoloReady = appFrames >= mixerSoloFlushFrameThreshold && microphoneFrames < mixerFramesPerAACPacket
+            let microphoneSoloReady = microphoneFrames >= mixerSoloFlushFrameThreshold && appFrames < mixerFramesPerAACPacket
+
+            guard bothReady || appSoloReady || microphoneSoloReady else {
+                break
+            }
+
+            let includeApp = bothReady || appSoloReady
+            let includeMicrophone = bothReady || microphoneSoloReady
+            let appSamples = includeApp
+                ? dequeueSamples(from: &appPCMQueue, sampleCount: chunkSamples)
+                : [Float](repeating: 0, count: chunkSamples)
+            let microphoneSamples = includeMicrophone
+                ? dequeueSamples(from: &microphonePCMQueue, sampleCount: chunkSamples)
+                : [Float](repeating: 0, count: chunkSamples)
+
+            var mixedSamples = [Float](repeating: 0, count: chunkSamples)
+            for index in 0..<chunkSamples {
+                let mixed = appSamples[index] * appGain + microphoneSamples[index] * microphoneGain
+                mixedSamples[index] = Swift.min(Float(1), Swift.max(Float(-1), mixed))
+            }
+
+            outputFrames.append(contentsOf: try encodeMixedSamples(mixedSamples, inputFormat: mixerInputFormat))
+        }
+
+        return outputFrames
+    }
+
+    private func dequeueSamples(from queue: inout [Float], sampleCount: Int) -> [Float] {
+        var output = [Float](repeating: 0, count: sampleCount)
+        let copiedSampleCount = min(sampleCount, queue.count)
+        if copiedSampleCount > 0 {
+            output.replaceSubrange(0..<copiedSampleCount, with: queue.prefix(copiedSampleCount))
+            queue.removeFirst(copiedSampleCount)
+        }
+        return output
+    }
+
+    private func encodeMixedSamples(
+        _ samples: [Float],
+        inputFormat: AudioStreamBasicDescription
+    ) throws -> [BroadcastEncodedAudioFrame] {
+        var mutableInputFormat = inputFormat
+        try configureConverterIfNeeded(inputFormat: &mutableInputFormat)
+        guard let converter else {
+            throw BroadcastAudioEncoderError.converterCreateFailed(kAudio_ParamError)
+        }
+
+        let presentationTimeSeconds = mixerNextPresentationTimeSeconds ?? 0
+        let durationSeconds = inputFormat.mSampleRate > 0
+            ? Double(mixerFramesPerAACPacket) / inputFormat.mSampleRate
+            : 0
+        mixerNextPresentationTimeSeconds = presentationTimeSeconds + durationSeconds
+
+        let inputData = samples.withUnsafeBufferPointer { bufferPointer -> Data in
+            guard let baseAddress = bufferPointer.baseAddress else {
+                return Data()
+            }
+            return Data(bytes: baseAddress, count: samples.count * MemoryLayout<Float>.size)
+        }
+
+        return try encodeInputData(
+            inputData,
+            source: .mixed,
+            converter: converter,
+            inputPacketCount: UInt32(mixerFramesPerAACPacket),
+            inputChannelCount: UInt32(mixerChannelCount),
+            presentationTimeSeconds: presentationTimeSeconds,
+            durationSeconds: durationSeconds
+        )
     }
 
     private func configureConverterIfNeeded(inputFormat: inout AudioStreamBasicDescription) throws {
