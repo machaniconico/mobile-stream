@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultStudioProfile } from "./profiles";
 import {
+  createInitialStreamRecoveryAutomationState,
+  createStreamRecoveryAutomationDecision,
   createStreamRecoveryStatus,
   formatDelay,
   formatRecoveryBackoff,
   getReconnectDelayMs,
+  type StreamRecoveryAutomationState,
   type StreamRecoverySnapshot
 } from "./streamRecovery";
 import { initialStreamState, type StreamHealth } from "./streamState";
@@ -133,5 +136,122 @@ describe("stream recovery policy", () => {
     expect(getReconnectDelayMs(6)).toBe(30000);
     expect(formatDelay(1500)).toBe("1.5s");
     expect(formatRecoveryBackoff()).toBe("1s-30s");
+  });
+
+  it("does not automate reconnect when readiness is blocking start", () => {
+    const decision = createStreamRecoveryAutomationDecision({
+      snapshot: snapshot("failed", { reconnectAttempts: 1 }),
+      quality,
+      canStart: false,
+      operationInFlight: false,
+      now: 1000
+    });
+
+    expect(decision.command).toBe("cancel");
+    expect(decision.state.scheduledKey).toBeNull();
+  });
+
+  it("schedules failed-engine reconnect with bounded backoff", () => {
+    const decision = createStreamRecoveryAutomationDecision({
+      snapshot: snapshot("failed", { reconnectAttempts: 2 }),
+      quality,
+      canStart: true,
+      operationInFlight: false,
+      now: 1000
+    });
+
+    expect(decision.command).toBe("schedule-reconnect");
+    expect(decision.delayMs).toBe(4000);
+    expect(decision.key).toContain("reconnect:failed");
+  });
+
+  it("waits for critical live telemetry to persist before scheduling reconnect", () => {
+    const first = createStreamRecoveryAutomationDecision({
+      snapshot: snapshot("live", {
+        bitrateKbps: Math.round(quality.videoBitrateKbps * 0.2),
+        fps: quality.fps - 15,
+        elapsedSeconds: 30
+      }),
+      quality,
+      canStart: true,
+      operationInFlight: false,
+      now: 1000
+    });
+
+    const second = createStreamRecoveryAutomationDecision({
+      snapshot: snapshot("live", {
+        bitrateKbps: Math.round(quality.videoBitrateKbps * 0.2),
+        fps: quality.fps - 15,
+        elapsedSeconds: 30
+      }),
+      quality,
+      canStart: true,
+      operationInFlight: false,
+      now: 6999,
+      state: first.state
+    });
+
+    expect(first.command).toBe("cancel");
+    expect(first.state.criticalSince).toBe(1000);
+    expect(second.command).toBe("schedule-reconnect");
+    expect(second.delayMs).toBe(1000);
+  });
+
+  it("does not duplicate an already scheduled recovery action", () => {
+    const existingState: StreamRecoveryAutomationState = {
+      scheduledKey: "reconnect:failed:2:3:reconnect:engine-failed",
+      criticalSince: null
+    };
+    const decision = createStreamRecoveryAutomationDecision({
+      snapshot: snapshot("failed", { reconnectAttempts: 2 }),
+      quality,
+      canStart: true,
+      operationInFlight: false,
+      now: 1000,
+      state: existingState
+    });
+
+    expect(decision.command).toBe("none");
+    expect(decision.key).toBe(existingState.scheduledKey);
+  });
+
+  it("cancels a scheduled recovery action after telemetry becomes healthy", () => {
+    const decision = createStreamRecoveryAutomationDecision({
+      snapshot: snapshot("live", {
+        bitrateKbps: quality.videoBitrateKbps,
+        fps: quality.fps,
+        elapsedSeconds: 30
+      }),
+      quality,
+      canStart: true,
+      operationInFlight: false,
+      now: 2000,
+      state: {
+        ...createInitialStreamRecoveryAutomationState(),
+        scheduledKey: "reconnect:watching:0:5:reconnect:bitrate-critical"
+      }
+    });
+
+    expect(decision.command).toBe("cancel");
+    expect(decision.state.scheduledKey).toBeNull();
+    expect(decision.state.criticalSince).toBeNull();
+  });
+
+  it("requests stop when retry budget is exhausted during critical live telemetry", () => {
+    const decision = createStreamRecoveryAutomationDecision({
+      snapshot: snapshot("live", {
+        bitrateKbps: Math.round(quality.videoBitrateKbps * 0.2),
+        fps: quality.fps - 15,
+        elapsedSeconds: 30,
+        reconnectAttempts: 5
+      }),
+      quality,
+      canStart: true,
+      operationInFlight: false,
+      now: 1000
+    });
+
+    expect(decision.command).toBe("stop");
+    expect(decision.key).toContain("stop:exhausted");
   });
 });

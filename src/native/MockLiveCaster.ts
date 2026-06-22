@@ -62,7 +62,13 @@ export class MockLiveCaster implements LiveCasterNative {
 
   async reconnect(): Promise<void> {
     this.reduce({ type: "reconnect", now: Date.now() });
-    setTimeout(() => this.reduce({ type: "start", now: Date.now() }), 900);
+    setTimeout(() => {
+      const wasReconnecting = this.state.status === "reconnecting";
+      this.reduce({ type: "start", now: Date.now() });
+      if (wasReconnecting && this.state.status === "live") {
+        this.startHealthLoop();
+      }
+    }, 900);
   }
 
   async updateScene(scene: SceneDocument): Promise<void> {

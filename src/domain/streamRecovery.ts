@@ -10,6 +10,7 @@ export interface StreamRecoveryPolicy {
   maxAttempts: number;
   baseDelayMs: number;
   maxDelayMs: number;
+  criticalHoldMs: number;
   degradedBitrateRatio: number;
   criticalBitrateRatio: number;
   degradedFpsTolerance: number;
@@ -35,11 +36,28 @@ export interface StreamRecoverySnapshot {
   health: StreamHealth;
 }
 
+export interface StreamRecoveryAutomationState {
+  scheduledKey: string | null;
+  criticalSince: number | null;
+}
+
+export type StreamRecoveryAutomationCommand = "none" | "cancel" | "schedule-reconnect" | "stop";
+
+export interface StreamRecoveryAutomationDecision {
+  command: StreamRecoveryAutomationCommand;
+  key: string | null;
+  delayMs: number | null;
+  reason: string;
+  recovery: StreamRecoveryStatus;
+  state: StreamRecoveryAutomationState;
+}
+
 export const defaultStreamRecoveryPolicy: StreamRecoveryPolicy = {
   enabled: true,
   maxAttempts: 5,
   baseDelayMs: 1000,
   maxDelayMs: 30000,
+  criticalHoldMs: 5000,
   degradedBitrateRatio: 0.75,
   criticalBitrateRatio: 0.35,
   degradedFpsTolerance: 5,
@@ -47,6 +65,11 @@ export const defaultStreamRecoveryPolicy: StreamRecoveryPolicy = {
 };
 
 export const createDefaultStreamRecoveryPolicy = (): StreamRecoveryPolicy => ({ ...defaultStreamRecoveryPolicy });
+
+export const createInitialStreamRecoveryAutomationState = (): StreamRecoveryAutomationState => ({
+  scheduledKey: null,
+  criticalSince: null
+});
 
 export const createStreamRecoveryStatus = (
   snapshot: StreamRecoverySnapshot,
@@ -181,6 +204,86 @@ export const getReconnectDelayMs = (attemptNumber: number, policy: StreamRecover
 export const formatRecoveryBackoff = (policy: StreamRecoveryPolicy = defaultStreamRecoveryPolicy): string =>
   `${formatDelay(policy.baseDelayMs)}-${formatDelay(policy.maxDelayMs)}`;
 
+export const createStreamRecoveryAutomationDecision = ({
+  snapshot,
+  quality,
+  canStart,
+  operationInFlight,
+  now,
+  state = createInitialStreamRecoveryAutomationState(),
+  policy = defaultStreamRecoveryPolicy
+}: {
+  snapshot: StreamRecoverySnapshot;
+  quality: Pick<QualityProfile, "fps" | "videoBitrateKbps">;
+  canStart: boolean;
+  operationInFlight: boolean;
+  now: number;
+  state?: StreamRecoveryAutomationState;
+  policy?: StreamRecoveryPolicy;
+}): StreamRecoveryAutomationDecision => {
+  const recovery = createStreamRecoveryStatus(snapshot, quality, policy);
+  const criticalSince =
+    snapshot.state.status === "live" && recovery.recommendedAction === "reconnect"
+      ? state.criticalSince ?? now
+      : null;
+  const nextState = {
+    scheduledKey: state.scheduledKey,
+    criticalSince
+  };
+
+  if (!policy.enabled || !canStart || operationInFlight) {
+    return createAutomationDecision("cancel", null, null, "Recovery automation is not currently eligible.", recovery, {
+      ...nextState,
+      scheduledKey: null
+    });
+  }
+
+  if (recovery.recommendedAction === "stop") {
+    const key = createAutomationKey("stop", recovery);
+    if (state.scheduledKey === key) {
+      return createAutomationDecision("none", key, null, "Recovery stop action is already in flight.", recovery, nextState);
+    }
+    return createAutomationDecision("stop", key, 0, recovery.message, recovery, {
+      ...nextState,
+      scheduledKey: key
+    });
+  }
+
+  if (recovery.recommendedAction !== "reconnect") {
+    return createAutomationDecision(
+      state.scheduledKey ? "cancel" : "none",
+      null,
+      null,
+      "No automatic recovery action is required.",
+      recovery,
+      {
+        scheduledKey: null,
+        criticalSince: null
+      }
+    );
+  }
+
+  if (snapshot.state.status === "live" && criticalSince !== null) {
+    const observedForMs = Math.max(0, now - criticalSince);
+    if (observedForMs < policy.criticalHoldMs) {
+      return createAutomationDecision("cancel", null, null, "Waiting for critical telemetry to persist.", recovery, {
+        scheduledKey: null,
+        criticalSince
+      });
+    }
+  }
+
+  const key = createAutomationKey("reconnect", recovery);
+  if (state.scheduledKey === key) {
+    return createAutomationDecision("none", key, recovery.nextRetryDelayMs, "Reconnect is already scheduled.", recovery, nextState);
+  }
+
+  return createAutomationDecision("schedule-reconnect", key, recovery.nextRetryDelayMs ?? 0, recovery.message, recovery, {
+    ...nextState,
+    scheduledKey: key
+  });
+};
+
 export const formatDelay = (delayMs: number): string => {
   if (delayMs < 1000) {
     return `${delayMs}ms`;
@@ -224,6 +327,32 @@ const createLiveHealthTriggers = (
 
   return { degraded, critical };
 };
+
+const createAutomationDecision = (
+  command: StreamRecoveryAutomationCommand,
+  key: string | null,
+  delayMs: number | null,
+  reason: string,
+  recovery: StreamRecoveryStatus,
+  state: StreamRecoveryAutomationState
+): StreamRecoveryAutomationDecision => ({
+  command,
+  key,
+  delayMs,
+  reason,
+  recovery,
+  state
+});
+
+const createAutomationKey = (action: "reconnect" | "stop", recovery: StreamRecoveryStatus): string =>
+  [
+    action,
+    recovery.mode,
+    recovery.attemptsUsed,
+    recovery.attemptsRemaining,
+    recovery.recommendedAction,
+    ...recovery.triggers
+  ].join(":");
 
 const clampAttempts = (attempts: number, maxAttempts: number): number =>
   Math.min(Math.max(0, Math.floor(attempts)), Math.max(0, Math.floor(maxAttempts)));

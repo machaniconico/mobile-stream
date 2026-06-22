@@ -74,6 +74,7 @@ import { MockLiveCaster } from "../native/MockLiveCaster";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { useChatSpeechQueue } from "../native/ChatSpeechEngine";
 import { usePlatformChatConnection } from "../native/usePlatformChatConnection";
+import { useStreamAutoRecovery } from "../native/useStreamAutoRecovery";
 import { AndroidLiveCaster, canUseAndroidLiveCaster } from "./AndroidLiveCaster";
 import { IOSLiveCaster, canUseIOSLiveCaster } from "./IOSLiveCaster";
 import { MobileStudioScreen } from "./MobileStudioScreen";
@@ -425,6 +426,15 @@ export const MobileApp = () => {
       operationInFlight.current = false;
     }
   };
+
+  useStreamAutoRecovery({
+    engine,
+    snapshot,
+    quality: readiness.sanitizedProfile.quality,
+    canStart: readiness.canStart,
+    operationInFlight,
+    runStreamOperation
+  });
 
   const submitChatComment = (author: string, body: string) => {
     setChatReader((current) => enqueueChatMessage(current, createChatMessage({ author, body })));

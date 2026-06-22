@@ -75,7 +75,7 @@ export const streamReducer = (state: StreamState, event: StreamEvent): StreamSta
       };
     }
     case "reconnect":
-      if (state.status !== "live") {
+      if (state.status !== "live" && state.status !== "failed") {
         return state;
       }
       return {

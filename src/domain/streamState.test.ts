@@ -67,4 +67,18 @@ describe("stream state machine", () => {
     expect(recovered.status).toBe("live");
     expect(recovered.health.reconnectAttempts).toBe(0);
   });
+
+  it("allows reconnect attempts after a failed engine state", () => {
+    const failed = streamReducer(initialStreamState, { type: "fail", error: "RTMP handshake failed" });
+    const reconnecting = streamReducer(failed, {
+      type: "reconnect",
+      now: 2000,
+      attempt: 2,
+      message: "Retrying RTMP publish"
+    });
+
+    expect(reconnecting.status).toBe("reconnecting");
+    expect(reconnecting.health.reconnectAttempts).toBe(2);
+    expect(reconnecting.health.message).toBe("Retrying RTMP publish");
+  });
 });

@@ -66,6 +66,7 @@ import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { MockLiveCaster } from "../native/MockLiveCaster";
 import { useChatSpeechQueue } from "../native/ChatSpeechEngine";
 import { usePlatformChatConnection } from "../native/usePlatformChatConnection";
+import { useStreamAutoRecovery } from "../native/useStreamAutoRecovery";
 import { loadProfile, loadScene, saveProfile, saveScene } from "../storage/localStore";
 import { StudioScreen } from "../screens/StudioScreen";
 import { WebChatSpeechEngine } from "./WebChatSpeechEngine";
@@ -219,6 +220,15 @@ export const App = () => {
       operationInFlight.current = false;
     }
   };
+
+  useStreamAutoRecovery({
+    engine,
+    snapshot,
+    quality: readiness.sanitizedProfile.quality,
+    canStart: readiness.canStart,
+    operationInFlight,
+    runStreamOperation
+  });
 
   const submitChatComment = (author: string, body: string) => {
     setChatReader((current) => enqueueChatMessage(current, createChatMessage({ author, body })));
