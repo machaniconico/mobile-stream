@@ -1063,6 +1063,71 @@ select:focus-visible {
   margin-top: 12px;
 }
 
+.diagnostic-incidents {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.diagnostic-incident-summary {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: #101015;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.diagnostic-incident-summary.pass {
+  border-color: rgba(34, 197, 94, 0.32);
+  color: #bbf7d0;
+}
+
+.diagnostic-incident-summary.warn {
+  border-color: rgba(245, 158, 11, 0.38);
+  color: #fde68a;
+}
+
+.diagnostic-incident-summary.fail {
+  border-color: rgba(251, 113, 133, 0.42);
+  color: #fecdd3;
+}
+
+.diagnostic-incident {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: #121218;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.diagnostic-incident strong {
+  color: var(--text);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.diagnostic-incident em {
+  color: #a1a1aa;
+  font-style: normal;
+}
+
+.diagnostic-incident.warn {
+  border-color: rgba(245, 158, 11, 0.38);
+  color: #fde68a;
+}
+
+.diagnostic-incident.fail {
+  border-color: rgba(251, 113, 133, 0.42);
+  color: #fecdd3;
+}
+
 .diagnostic-event {
   display: grid;
   gap: 4px;

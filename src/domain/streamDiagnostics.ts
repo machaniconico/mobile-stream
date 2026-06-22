@@ -8,6 +8,11 @@ import {
   formatDelay,
   type StreamRecoveryStatus
 } from "./streamRecovery";
+import {
+  createStreamQualityIncidents,
+  summarizeStreamQualityIncidents,
+  type StreamQualityIncident
+} from "./streamQualityIncidents";
 import type { StreamSessionEvent } from "./streamSessionLog";
 import type { StreamHealth, StreamStatus } from "./streamState";
 
@@ -51,6 +56,10 @@ export interface StreamDiagnostics {
   };
   recovery: StreamRecoveryStatus & {
     backoffWindow: string;
+  };
+  qualityIncidents: {
+    summary: string;
+    incidents: StreamQualityIncident[];
   };
   session: {
     events: StreamSessionEvent[];
@@ -101,6 +110,7 @@ export const createStreamDiagnostics = (
   const sanitizedSessionEvents = sessionEvents.map((event) => sanitizeSessionEvent(event, destination.streamKey));
   const recoveryPolicy = createDefaultStreamRecoveryPolicy();
   const recoveryStatus = createStreamRecoveryStatus(snapshot, quality, recoveryPolicy);
+  const qualityIncidents = createStreamQualityIncidents(snapshot, quality);
   const checks = [
     ...readiness.issues.map<DiagnosticCheck>((issue) => ({
       code: `readiness-${issue.code}`,
@@ -117,6 +127,7 @@ export const createStreamDiagnostics = (
     createTelemetryFpsCheck(snapshot, quality.fps),
     createTelemetryDropsCheck(snapshot),
     createReconnectCheck(snapshot),
+    createQualityIncidentCheck(qualityIncidents),
     createRecoveryCheck(recoveryStatus)
   ];
   const status = summaryStatus(checks);
@@ -153,6 +164,10 @@ export const createStreamDiagnostics = (
     recovery: {
       ...recoveryStatus,
       backoffWindow: formatRecoveryBackoff(recoveryPolicy)
+    },
+    qualityIncidents: {
+      summary: summarizeStreamQualityIncidents(qualityIncidents),
+      incidents: qualityIncidents
     },
     session: {
       events: sanitizedSessionEvents
@@ -212,6 +227,14 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Backoff: ${diagnostics.recovery.backoffWindow}`,
     `- Next retry: ${diagnostics.recovery.nextRetryDelayMs === null ? "-" : formatDelay(diagnostics.recovery.nextRetryDelayMs)}`,
     `- Message: ${diagnostics.recovery.message}`,
+    "",
+    "Active Quality Incidents",
+    `- Summary: ${diagnostics.qualityIncidents.summary}`,
+    ...(diagnostics.qualityIncidents.incidents.length === 0
+      ? ["- No active quality incidents."]
+      : diagnostics.qualityIncidents.incidents.map(
+          (incident) => `- [${incident.severity.toUpperCase()}] ${incident.label}: ${incident.message} Recommendation: ${incident.recommendation}`
+        )),
     "",
     "Session Events",
     ...(diagnostics.session.events.length === 0
@@ -446,6 +469,32 @@ const createReconnectCheck = (snapshot: SnapshotLike): DiagnosticCheck => {
     status: "pass",
     label: "Reconnect",
     message: "No reconnect attempts reported."
+  };
+};
+
+const createQualityIncidentCheck = (incidents: StreamQualityIncident[]): DiagnosticCheck => {
+  const summary = summarizeStreamQualityIncidents(incidents);
+  if (incidents.some((incident) => incident.severity === "fail")) {
+    return {
+      code: "quality-incidents-critical",
+      status: "fail",
+      label: "Quality incidents",
+      message: summary
+    };
+  }
+  if (incidents.length > 0) {
+    return {
+      code: "quality-incidents-warn",
+      status: "warn",
+      label: "Quality incidents",
+      message: summary
+    };
+  }
+  return {
+    code: "quality-incidents-ok",
+    status: "pass",
+    label: "Quality incidents",
+    message: summary
   };
 };
 

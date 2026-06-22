@@ -886,6 +886,20 @@ const StreamDiagnosticsPanel = ({ diagnostics }: { diagnostics: StreamDiagnostic
       <DiagnosticMetric label="Telemetry" value={`${diagnostics.telemetry.bitrateKbps} kbps / ${diagnostics.telemetry.fps} fps`} />
       <DiagnosticMetric label="Recovery" value={recoveryMetricLabel(diagnostics)} />
     </View>
+    <View style={styles.diagnosticIncidents}>
+      <View style={[styles.diagnosticIncidentSummary, diagnosticIncidentSummaryStyle(diagnostics)]}>
+        <Text style={[styles.diagnosticIncidentSummaryText, diagnosticIncidentSummaryTextStyle(diagnostics)]}>
+          {diagnostics.qualityIncidents.summary}
+        </Text>
+      </View>
+      {diagnostics.qualityIncidents.incidents.map((incident) => (
+        <View key={incident.code} style={[styles.diagnosticIncident, diagnosticIncidentStyle(incident.severity)]}>
+          <Text style={styles.diagnosticIncidentTitle}>{incident.label}</Text>
+          <Text style={[styles.diagnosticIncidentText, diagnosticIncidentTextStyle(incident.severity)]}>{incident.message}</Text>
+          <Text style={styles.diagnosticIncidentRecommendation}>{incident.recommendation}</Text>
+        </View>
+      ))}
+    </View>
     <View style={styles.diagnosticEvents}>
       {diagnostics.session.events.length === 0 ? (
         <Text style={styles.diagnosticEventEmpty}>No session events yet.</Text>
@@ -1558,6 +1572,35 @@ const diagnosticEventStyle = (severity: StreamDiagnostics["session"]["events"][n
       return null;
   }
 };
+
+const hasCriticalQualityIncident = (diagnostics: StreamDiagnostics): boolean =>
+  diagnostics.qualityIncidents.incidents.some((incident) => incident.severity === "fail");
+
+const diagnosticIncidentSummaryStyle = (diagnostics: StreamDiagnostics) => {
+  if (hasCriticalQualityIncident(diagnostics)) {
+    return styles.diagnosticFail;
+  }
+  if (diagnostics.qualityIncidents.incidents.length > 0) {
+    return styles.diagnosticWarn;
+  }
+  return styles.diagnosticPass;
+};
+
+const diagnosticIncidentSummaryTextStyle = (diagnostics: StreamDiagnostics) => {
+  if (hasCriticalQualityIncident(diagnostics)) {
+    return styles.diagnosticFailText;
+  }
+  if (diagnostics.qualityIncidents.incidents.length > 0) {
+    return styles.diagnosticWarnText;
+  }
+  return styles.diagnosticPassText;
+};
+
+const diagnosticIncidentStyle = (severity: StreamDiagnostics["qualityIncidents"]["incidents"][number]["severity"]) =>
+  severity === "fail" ? styles.diagnosticCheckFail : styles.diagnosticCheckWarn;
+
+const diagnosticIncidentTextStyle = (severity: StreamDiagnostics["qualityIncidents"]["incidents"][number]["severity"]) =>
+  severity === "fail" ? styles.diagnosticFailText : styles.diagnosticWarnText;
 
 const expressionStyle = (expression: string) => {
   switch (expression) {
@@ -2310,6 +2353,52 @@ const styles = StyleSheet.create({
     color: "#f8fafc",
     fontSize: 12,
     fontWeight: "800",
+    lineHeight: 17
+  },
+  diagnosticIncidents: {
+    gap: 7
+  },
+  diagnosticIncidentSummary: {
+    minHeight: 38,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    backgroundColor: "#101015"
+  },
+  diagnosticIncidentSummaryText: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    fontWeight: "900",
+    lineHeight: 17
+  },
+  diagnosticIncident: {
+    minHeight: 42,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    backgroundColor: "#121218"
+  },
+  diagnosticIncidentTitle: {
+    color: "#f8fafc",
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  diagnosticIncidentText: {
+    marginTop: 3,
+    color: "#a1a1aa",
+    fontSize: 12,
+    lineHeight: 17
+  },
+  diagnosticIncidentRecommendation: {
+    marginTop: 3,
+    color: "#a1a1aa",
+    fontSize: 12,
     lineHeight: 17
   },
   diagnosticEvents: {

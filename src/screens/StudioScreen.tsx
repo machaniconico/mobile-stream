@@ -141,6 +141,13 @@ const recoveryMetricLabel = (diagnostics: StreamDiagnostics): string => {
   return `${diagnostics.recovery.mode} / ${diagnostics.recovery.attemptsRemaining} retries left${retryDelay}`;
 };
 
+const qualityIncidentSummaryTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" => {
+  if (diagnostics.qualityIncidents.incidents.some((incident) => incident.severity === "fail")) {
+    return "fail";
+  }
+  return diagnostics.qualityIncidents.incidents.length > 0 ? "warn" : "pass";
+};
+
 export const StudioScreen = ({
   scene,
   profile,
@@ -707,6 +714,18 @@ const StreamDiagnosticsPanel = ({ diagnostics }: { diagnostics: StreamDiagnostic
       </strong>
       <span>Recovery</span>
       <strong>{recoveryMetricLabel(diagnostics)}</strong>
+    </div>
+    <div className="diagnostic-incidents">
+      <div className={`diagnostic-incident-summary ${qualityIncidentSummaryTone(diagnostics)}`}>
+        {diagnostics.qualityIncidents.summary}
+      </div>
+      {diagnostics.qualityIncidents.incidents.map((incident) => (
+        <div key={incident.code} className={`diagnostic-incident ${incident.severity}`}>
+          <strong>{incident.label}</strong>
+          <span>{incident.message}</span>
+          <em>{incident.recommendation}</em>
+        </div>
+      ))}
     </div>
     <div className="diagnostic-events">
       {diagnostics.session.events.slice(-5).map((event) => (
