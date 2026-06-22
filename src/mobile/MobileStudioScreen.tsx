@@ -5,6 +5,7 @@ import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
 import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
 import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
+import type { PlatformChatOAuthFlow, PlatformChatOAuthSettings } from "../domain/platformChatOAuth";
 import type { DestinationPresetId, MicEffectPresetId, StudioProfile, StreamProtocol } from "../domain/profiles";
 import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../domain/platformChat";
 import {
@@ -51,6 +52,9 @@ interface MobileStudioScreenProps {
   chatReader: ChatReaderState;
   platformChat: PlatformChatSettings;
   platformChatAuth: PlatformChatAuthSession;
+  platformChatOAuth: PlatformChatOAuthSettings;
+  platformChatOAuthFlow: PlatformChatOAuthFlow | null;
+  platformChatOAuthStatus: string;
   platformChatConnection: PlatformChatConnectionState;
   avatarRuntime: AvatarRuntimeState;
   faceTrackingRuntime: FaceTrackingRuntimeState;
@@ -67,6 +71,9 @@ interface MobileStudioScreenProps {
   onChatReaderSettingsChange(settings: Partial<ChatReaderSettings>): void;
   onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
   onPlatformChatAuthChange(settings: Partial<PlatformChatAuthSession>): void;
+  onPlatformChatOAuthChange(settings: Partial<PlatformChatOAuthSettings>): void;
+  onPlatformChatOAuthStart(): void | Promise<void>;
+  onPlatformChatOAuthCallbackApply(): void | Promise<void>;
   onPlatformChatConnect(): void;
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
@@ -103,6 +110,9 @@ export const MobileStudioScreen = ({
   chatReader,
   platformChat,
   platformChatAuth,
+  platformChatOAuth,
+  platformChatOAuthFlow,
+  platformChatOAuthStatus,
   platformChatConnection,
   avatarRuntime,
   faceTrackingRuntime,
@@ -119,6 +129,9 @@ export const MobileStudioScreen = ({
   onChatReaderSettingsChange,
   onPlatformChatSettingsChange,
   onPlatformChatAuthChange,
+  onPlatformChatOAuthChange,
+  onPlatformChatOAuthStart,
+  onPlatformChatOAuthCallbackApply,
   onPlatformChatConnect,
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
@@ -551,11 +564,17 @@ export const MobileStudioScreen = ({
         chatReader={chatReader}
         platformChat={platformChat}
         platformChatAuth={platformChatAuth}
+        platformChatOAuth={platformChatOAuth}
+        platformChatOAuthFlow={platformChatOAuthFlow}
+        platformChatOAuthStatus={platformChatOAuthStatus}
         platformChatConnection={platformChatConnection}
         onSubmit={onChatCommentSubmit}
         onSettingsChange={onChatReaderSettingsChange}
         onPlatformChatSettingsChange={onPlatformChatSettingsChange}
         onPlatformChatAuthChange={onPlatformChatAuthChange}
+        onPlatformChatOAuthChange={onPlatformChatOAuthChange}
+        onPlatformChatOAuthStart={onPlatformChatOAuthStart}
+        onPlatformChatOAuthCallbackApply={onPlatformChatOAuthCallbackApply}
         onPlatformChatConnect={onPlatformChatConnect}
         onPlatformChatDisconnect={onPlatformChatDisconnect}
         onPlatformChatSampleIngest={onPlatformChatSampleIngest}
@@ -688,11 +707,17 @@ const ChatReaderPanel = ({
   chatReader,
   platformChat,
   platformChatAuth,
+  platformChatOAuth,
+  platformChatOAuthFlow,
+  platformChatOAuthStatus,
   platformChatConnection,
   onSubmit,
   onSettingsChange,
   onPlatformChatSettingsChange,
   onPlatformChatAuthChange,
+  onPlatformChatOAuthChange,
+  onPlatformChatOAuthStart,
+  onPlatformChatOAuthCallbackApply,
   onPlatformChatConnect,
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest
@@ -700,11 +725,17 @@ const ChatReaderPanel = ({
   chatReader: ChatReaderState;
   platformChat: PlatformChatSettings;
   platformChatAuth: PlatformChatAuthSession;
+  platformChatOAuth: PlatformChatOAuthSettings;
+  platformChatOAuthFlow: PlatformChatOAuthFlow | null;
+  platformChatOAuthStatus: string;
   platformChatConnection: PlatformChatConnectionState;
   onSubmit(author: string, body: string): void;
   onSettingsChange(settings: Partial<ChatReaderSettings>): void;
   onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
   onPlatformChatAuthChange(settings: Partial<PlatformChatAuthSession>): void;
+  onPlatformChatOAuthChange(settings: Partial<PlatformChatOAuthSettings>): void;
+  onPlatformChatOAuthStart(): void | Promise<void>;
+  onPlatformChatOAuthCallbackApply(): void | Promise<void>;
   onPlatformChatConnect(): void;
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
@@ -714,6 +745,12 @@ const ChatReaderPanel = ({
   const [mutedWords, setMutedWords] = useState(chatReader.settings.mutedWords.join(", "));
   const platformStatus = getPlatformChatConnectionStatus(platformChat);
   const isNetworkConnected = platformChatConnection.phase === "connected" || platformChatConnection.phase === "connecting";
+  const oauthClientId = platformChat.platform === "youtube" ? platformChatOAuth.youtubeClientId : platformChatOAuth.twitchClientId;
+  const oauthRedirectUri = platformChat.platform === "youtube" ? platformChatOAuth.youtubeRedirectUri : platformChatOAuth.twitchRedirectUri;
+  const updateOAuthClientId = (value: string) =>
+    onPlatformChatOAuthChange(platformChat.platform === "youtube" ? { youtubeClientId: value } : { twitchClientId: value });
+  const updateOAuthRedirectUri = (value: string) =>
+    onPlatformChatOAuthChange(platformChat.platform === "youtube" ? { youtubeRedirectUri: value } : { twitchRedirectUri: value });
 
   const submit = () => {
     if (!body.trim()) {
@@ -784,6 +821,43 @@ const ChatReaderPanel = ({
             variant={platformChat.platform === "twitch" ? "active" : "default"}
             onPress={() => onPlatformChatSettingsChange({ platform: "twitch" })}
           />
+        </View>
+        <View style={styles.oauthPanel}>
+          <Label text="OAuth client ID" />
+          <TextInput
+            value={oauthClientId}
+            onChangeText={updateOAuthClientId}
+            style={styles.input}
+            autoCapitalize="none"
+            placeholderTextColor="#71717a"
+          />
+          <Label text="Redirect URI" />
+          <TextInput
+            value={oauthRedirectUri}
+            onChangeText={updateOAuthRedirectUri}
+            style={styles.input}
+            autoCapitalize="none"
+            placeholderTextColor="#71717a"
+          />
+          <View style={styles.chatStatusRow}>
+            <View style={[styles.platformStatusBadge, platformChatOAuthFlow?.platform === platformChat.platform && styles.platformStatusPending]}>
+              <Text style={[styles.platformStatusText, platformChatOAuthFlow?.platform === platformChat.platform && styles.platformStatusPendingText]}>
+                {platformChatOAuthFlow?.platform === platformChat.platform ? "OAuth pending" : "OAuth idle"}
+              </Text>
+            </View>
+            <ActionButton label="Start OAuth" onPress={onPlatformChatOAuthStart} />
+          </View>
+          <Label text="Callback URL" />
+          <TextInput
+            value={platformChatOAuth.callbackUrl}
+            onChangeText={(callbackUrl) => onPlatformChatOAuthChange({ callbackUrl })}
+            style={styles.input}
+            autoCapitalize="none"
+            secureTextEntry
+            placeholderTextColor="#71717a"
+          />
+          <ActionButton label="Apply OAuth Callback" onPress={onPlatformChatOAuthCallbackApply} />
+          <Text style={styles.platformConnectionMessage}>{platformChatOAuthStatus}</Text>
         </View>
         {platformChat.platform === "youtube" ? (
           <>
@@ -1759,6 +1833,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8
   },
+  oauthPanel: {
+    borderTopWidth: 1,
+    borderTopColor: "#343442",
+    paddingTop: 10,
+    gap: 9
+  },
   platformStatusBadge: {
     minHeight: 46,
     justifyContent: "center",
@@ -1771,6 +1851,9 @@ const styles = StyleSheet.create({
   platformStatusReady: {
     borderColor: "rgba(34, 197, 94, 0.42)"
   },
+  platformStatusPending: {
+    borderColor: "rgba(251, 191, 36, 0.42)"
+  },
   platformStatusFailed: {
     borderColor: "rgba(244, 63, 94, 0.42)"
   },
@@ -1781,6 +1864,9 @@ const styles = StyleSheet.create({
   },
   platformStatusReadyText: {
     color: "#bbf7d0"
+  },
+  platformStatusPendingText: {
+    color: "#fde68a"
   },
   platformStatusFailedText: {
     color: "#fecdd3"

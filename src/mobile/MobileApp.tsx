@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Linking } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { createAvatarRuntimeStateFromScene, setExpression, tickAutoBlink, type AvatarExpression } from "../domain/avatar";
 import {
@@ -26,6 +27,14 @@ import {
   normalizePlatformChatAuthSession,
   type PlatformChatAuthSession
 } from "../domain/platformChatConnection";
+import {
+  completePlatformChatOAuthCallback,
+  createDefaultPlatformChatOAuthSettings,
+  createPlatformChatOAuthFlow,
+  normalizePlatformChatOAuthSettings,
+  type PlatformChatOAuthFlow,
+  type PlatformChatOAuthSettings
+} from "../domain/platformChatOAuth";
 import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
@@ -70,6 +79,9 @@ export const MobileApp = () => {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [chatReader, setChatReader] = useState(() => createDefaultChatReaderState());
   const [platformChatAuth, setPlatformChatAuth] = useState<PlatformChatAuthSession>(() => createDefaultPlatformChatAuthSession());
+  const [platformChatOAuth, setPlatformChatOAuth] = useState<PlatformChatOAuthSettings>(() => createDefaultPlatformChatOAuthSettings());
+  const [platformChatOAuthFlow, setPlatformChatOAuthFlow] = useState<PlatformChatOAuthFlow | null>(null);
+  const [platformChatOAuthStatus, setPlatformChatOAuthStatus] = useState("OAuth not started.");
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeStateFromScene(scene, Date.now()));
@@ -85,11 +97,31 @@ export const MobileApp = () => {
       setChatReader((current) => messages.reduce(enqueueChatMessage, current));
     }
   });
+  const captureOAuthCallbackUrl = useCallback((url: string | null) => {
+    if (!url || !isPlatformChatOAuthCallbackUrl(url)) {
+      return;
+    }
+    setPlatformChatOAuth((current) => ({
+      ...current,
+      callbackUrl: url
+    }));
+    setPlatformChatOAuthStatus("OAuth callback received. Apply it to finish this session.");
+  }, []);
 
   useEffect(() => engine.subscribe(setSnapshot), [engine]);
   useChatSpeechQueue(chatReader, setChatReader, chatSpeechEngine);
 
   useEffect(() => () => faceTrackingInput.stop(), [faceTrackingInput]);
+
+  useEffect(() => {
+    void Linking.getInitialURL().then(captureOAuthCallbackUrl).catch(() => undefined);
+    const subscription = Linking.addEventListener("url", (event) => {
+      captureOAuthCallbackUrl(event.url);
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [captureOAuthCallbackUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -287,6 +319,41 @@ export const MobileApp = () => {
     );
   };
 
+  const updatePlatformChatOAuth = (settings: Partial<PlatformChatOAuthSettings>) => {
+    setPlatformChatOAuth((current) =>
+      normalizePlatformChatOAuthSettings({
+        ...current,
+        ...settings
+      })
+    );
+  };
+
+  const startPlatformChatOAuth = async () => {
+    try {
+      const flow = createPlatformChatOAuthFlow(profile.platformChat.platform, platformChatOAuth);
+      setPlatformChatOAuthFlow(flow);
+      setPlatformChatOAuthStatus(`OAuth started for ${profile.platformChat.platform}. Complete consent and paste the callback URL.`);
+      await Linking.openURL(flow.authorizationUrl);
+    } catch (error) {
+      setPlatformChatOAuthStatus(toErrorMessage(error));
+    }
+  };
+
+  const applyPlatformChatOAuthCallback = async () => {
+    try {
+      const result = await completePlatformChatOAuthCallback(platformChatOAuth.callbackUrl, platformChatOAuthFlow, platformChatOAuth, fetch);
+      setPlatformChatAuth((current) => mergeOAuthAuth(current, result.auth));
+      setPlatformChatOAuthFlow(null);
+      setPlatformChatOAuth((current) => ({
+        ...current,
+        callbackUrl: ""
+      }));
+      setPlatformChatOAuthStatus(result.message);
+    } catch (error) {
+      setPlatformChatOAuthStatus(toErrorMessage(error));
+    }
+  };
+
   const ingestPlatformChatSample = () => {
     if (!profile.platformChat.enabled) {
       return;
@@ -316,6 +383,9 @@ export const MobileApp = () => {
         chatReader={chatReader}
         platformChat={profile.platformChat}
         platformChatAuth={platformChatAuth}
+        platformChatOAuth={platformChatOAuth}
+        platformChatOAuthFlow={platformChatOAuthFlow}
+        platformChatOAuthStatus={platformChatOAuthStatus}
         platformChatConnection={platformChatConnection.connection}
         avatarRuntime={avatarRuntime}
         faceTrackingRuntime={faceTrackingRuntime}
@@ -332,6 +402,9 @@ export const MobileApp = () => {
         onChatReaderSettingsChange={updateChatSettings}
         onPlatformChatSettingsChange={updatePlatformChatSettings}
         onPlatformChatAuthChange={updatePlatformChatAuth}
+        onPlatformChatOAuthChange={updatePlatformChatOAuth}
+        onPlatformChatOAuthStart={startPlatformChatOAuth}
+        onPlatformChatOAuthCallbackApply={applyPlatformChatOAuthCallback}
         onPlatformChatConnect={platformChatConnection.connect}
         onPlatformChatDisconnect={platformChatConnection.disconnect}
         onPlatformChatSampleIngest={ingestPlatformChatSample}
@@ -374,3 +447,18 @@ const applyAvatarRuntime = (
 
 const shouldPushSceneToEngine = (status: NativeEngineSnapshot["state"]["status"]) =>
   status === "preparing" || status === "live" || status === "reconnecting";
+
+const mergeOAuthAuth = (
+  current: PlatformChatAuthSession,
+  update: PlatformChatAuthSession
+): PlatformChatAuthSession =>
+  normalizePlatformChatAuthSession({
+    youtubeAccessToken: update.youtubeAccessToken || current.youtubeAccessToken,
+    twitchOauthToken: update.twitchOauthToken || current.twitchOauthToken,
+    twitchLogin: update.twitchLogin || current.twitchLogin
+  });
+
+const toErrorMessage = (error: unknown): string => (error instanceof Error && error.message ? error.message : "OAuth operation failed.");
+
+const isPlatformChatOAuthCallbackUrl = (url: string): boolean =>
+  url.startsWith("mobilelivecaster://oauth/") || url.startsWith("com.example.mobilelivecaster:/oauth/");

@@ -25,6 +25,14 @@ import {
   normalizePlatformChatAuthSession,
   type PlatformChatAuthSession
 } from "../domain/platformChatConnection";
+import {
+  completePlatformChatOAuthCallback,
+  createDefaultPlatformChatOAuthSettings,
+  createPlatformChatOAuthFlow,
+  normalizePlatformChatOAuthSettings,
+  type PlatformChatOAuthFlow,
+  type PlatformChatOAuthSettings
+} from "../domain/platformChatOAuth";
 import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
@@ -59,6 +67,9 @@ export const App = () => {
   const [profile, setProfile] = useState<StudioProfile>(() => loadProfile() ?? createDefaultStudioProfile());
   const [chatReader, setChatReader] = useState(() => createDefaultChatReaderState());
   const [platformChatAuth, setPlatformChatAuth] = useState<PlatformChatAuthSession>(() => createDefaultPlatformChatAuthSession());
+  const [platformChatOAuth, setPlatformChatOAuth] = useState<PlatformChatOAuthSettings>(() => createDefaultPlatformChatOAuthSettings());
+  const [platformChatOAuthFlow, setPlatformChatOAuthFlow] = useState<PlatformChatOAuthFlow | null>(null);
+  const [platformChatOAuthStatus, setPlatformChatOAuthStatus] = useState("OAuth not started.");
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeStateFromScene(scene, Date.now()));
@@ -219,6 +230,41 @@ export const App = () => {
     );
   };
 
+  const updatePlatformChatOAuth = (settings: Partial<PlatformChatOAuthSettings>) => {
+    setPlatformChatOAuth((current) =>
+      normalizePlatformChatOAuthSettings({
+        ...current,
+        ...settings
+      })
+    );
+  };
+
+  const startPlatformChatOAuth = () => {
+    try {
+      const flow = createPlatformChatOAuthFlow(profile.platformChat.platform, platformChatOAuth);
+      setPlatformChatOAuthFlow(flow);
+      setPlatformChatOAuthStatus(`OAuth started for ${profile.platformChat.platform}. Complete consent and paste the callback URL.`);
+      window.open(flow.authorizationUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      setPlatformChatOAuthStatus(toErrorMessage(error));
+    }
+  };
+
+  const applyPlatformChatOAuthCallback = async () => {
+    try {
+      const result = await completePlatformChatOAuthCallback(platformChatOAuth.callbackUrl, platformChatOAuthFlow, platformChatOAuth, fetch);
+      setPlatformChatAuth((current) => mergeOAuthAuth(current, result.auth));
+      setPlatformChatOAuthFlow(null);
+      setPlatformChatOAuth((current) => ({
+        ...current,
+        callbackUrl: ""
+      }));
+      setPlatformChatOAuthStatus(result.message);
+    } catch (error) {
+      setPlatformChatOAuthStatus(toErrorMessage(error));
+    }
+  };
+
   const ingestPlatformChatSample = () => {
     if (!profile.platformChat.enabled) {
       return;
@@ -242,6 +288,9 @@ export const App = () => {
       chatReader={chatReader}
       platformChat={profile.platformChat}
       platformChatAuth={platformChatAuth}
+      platformChatOAuth={platformChatOAuth}
+      platformChatOAuthFlow={platformChatOAuthFlow}
+      platformChatOAuthStatus={platformChatOAuthStatus}
       platformChatConnection={platformChatConnection.connection}
       avatarRuntime={avatarRuntime}
       faceTrackingRuntime={faceTrackingRuntime}
@@ -258,6 +307,9 @@ export const App = () => {
       onChatReaderSettingsChange={updateChatSettings}
       onPlatformChatSettingsChange={updatePlatformChatSettings}
       onPlatformChatAuthChange={updatePlatformChatAuth}
+      onPlatformChatOAuthChange={updatePlatformChatOAuth}
+      onPlatformChatOAuthStart={startPlatformChatOAuth}
+      onPlatformChatOAuthCallbackApply={applyPlatformChatOAuthCallback}
       onPlatformChatConnect={platformChatConnection.connect}
       onPlatformChatDisconnect={platformChatConnection.disconnect}
       onPlatformChatSampleIngest={ingestPlatformChatSample}
@@ -298,3 +350,15 @@ const applyAvatarRuntime = (
 
 const shouldPushSceneToEngine = (status: NativeEngineSnapshot["state"]["status"]) =>
   status === "preparing" || status === "live" || status === "reconnecting";
+
+const mergeOAuthAuth = (
+  current: PlatformChatAuthSession,
+  update: PlatformChatAuthSession
+): PlatformChatAuthSession =>
+  normalizePlatformChatAuthSession({
+    youtubeAccessToken: update.youtubeAccessToken || current.youtubeAccessToken,
+    twitchOauthToken: update.twitchOauthToken || current.twitchOauthToken,
+    twitchLogin: update.twitchLogin || current.twitchLogin
+  });
+
+const toErrorMessage = (error: unknown): string => (error instanceof Error && error.message ? error.message : "OAuth operation failed.");

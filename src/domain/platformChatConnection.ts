@@ -41,7 +41,9 @@ export interface PlatformChatFetchResponse {
 export type PlatformChatFetch = (
   url: string,
   init: {
+    method?: string;
     headers: Record<string, string>;
+    body?: string;
   }
 ) => Promise<PlatformChatFetchResponse>;
 
