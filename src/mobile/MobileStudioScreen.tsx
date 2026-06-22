@@ -55,6 +55,7 @@ interface MobileStudioScreenProps {
   platformChatOAuth: PlatformChatOAuthSettings;
   platformChatOAuthFlow: PlatformChatOAuthFlow | null;
   platformChatOAuthStatus: string;
+  platformStreamKeyStatus: string;
   platformChatConnection: PlatformChatConnectionState;
   avatarRuntime: AvatarRuntimeState;
   faceTrackingRuntime: FaceTrackingRuntimeState;
@@ -74,6 +75,7 @@ interface MobileStudioScreenProps {
   onPlatformChatOAuthChange(settings: Partial<PlatformChatOAuthSettings>): void;
   onPlatformChatOAuthStart(): void | Promise<void>;
   onPlatformChatOAuthCallbackApply(): void | Promise<void>;
+  onPlatformStreamKeyApply(): void | Promise<void>;
   onPlatformChatConnect(): void;
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
@@ -113,6 +115,7 @@ export const MobileStudioScreen = ({
   platformChatOAuth,
   platformChatOAuthFlow,
   platformChatOAuthStatus,
+  platformStreamKeyStatus,
   platformChatConnection,
   avatarRuntime,
   faceTrackingRuntime,
@@ -132,6 +135,7 @@ export const MobileStudioScreen = ({
   onPlatformChatOAuthChange,
   onPlatformChatOAuthStart,
   onPlatformChatOAuthCallbackApply,
+  onPlatformStreamKeyApply,
   onPlatformChatConnect,
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
@@ -567,6 +571,7 @@ export const MobileStudioScreen = ({
         platformChatOAuth={platformChatOAuth}
         platformChatOAuthFlow={platformChatOAuthFlow}
         platformChatOAuthStatus={platformChatOAuthStatus}
+        platformStreamKeyStatus={platformStreamKeyStatus}
         platformChatConnection={platformChatConnection}
         onSubmit={onChatCommentSubmit}
         onSettingsChange={onChatReaderSettingsChange}
@@ -575,6 +580,7 @@ export const MobileStudioScreen = ({
         onPlatformChatOAuthChange={onPlatformChatOAuthChange}
         onPlatformChatOAuthStart={onPlatformChatOAuthStart}
         onPlatformChatOAuthCallbackApply={onPlatformChatOAuthCallbackApply}
+        onPlatformStreamKeyApply={onPlatformStreamKeyApply}
         onPlatformChatConnect={onPlatformChatConnect}
         onPlatformChatDisconnect={onPlatformChatDisconnect}
         onPlatformChatSampleIngest={onPlatformChatSampleIngest}
@@ -710,6 +716,7 @@ const ChatReaderPanel = ({
   platformChatOAuth,
   platformChatOAuthFlow,
   platformChatOAuthStatus,
+  platformStreamKeyStatus,
   platformChatConnection,
   onSubmit,
   onSettingsChange,
@@ -718,6 +725,7 @@ const ChatReaderPanel = ({
   onPlatformChatOAuthChange,
   onPlatformChatOAuthStart,
   onPlatformChatOAuthCallbackApply,
+  onPlatformStreamKeyApply,
   onPlatformChatConnect,
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest
@@ -728,6 +736,7 @@ const ChatReaderPanel = ({
   platformChatOAuth: PlatformChatOAuthSettings;
   platformChatOAuthFlow: PlatformChatOAuthFlow | null;
   platformChatOAuthStatus: string;
+  platformStreamKeyStatus: string;
   platformChatConnection: PlatformChatConnectionState;
   onSubmit(author: string, body: string): void;
   onSettingsChange(settings: Partial<ChatReaderSettings>): void;
@@ -736,6 +745,7 @@ const ChatReaderPanel = ({
   onPlatformChatOAuthChange(settings: Partial<PlatformChatOAuthSettings>): void;
   onPlatformChatOAuthStart(): void | Promise<void>;
   onPlatformChatOAuthCallbackApply(): void | Promise<void>;
+  onPlatformStreamKeyApply(): void | Promise<void>;
   onPlatformChatConnect(): void;
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
@@ -858,6 +868,11 @@ const ChatReaderPanel = ({
           />
           <ActionButton label="Apply OAuth Callback" onPress={onPlatformChatOAuthCallbackApply} />
           <Text style={styles.platformConnectionMessage}>{platformChatOAuthStatus}</Text>
+          <ActionButton
+            label={platformChat.platform === "youtube" ? "Rotate Stream Key" : "Sync Stream Key"}
+            onPress={onPlatformStreamKeyApply}
+          />
+          <Text style={styles.platformConnectionMessage}>{platformStreamKeyStatus}</Text>
         </View>
         {platformChat.platform === "youtube" ? (
           <>

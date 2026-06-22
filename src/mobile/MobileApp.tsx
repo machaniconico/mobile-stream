@@ -41,6 +41,7 @@ import {
   type PlatformChatOAuthFlow,
   type PlatformChatOAuthSettings
 } from "../domain/platformChatOAuth";
+import { rotateYouTubeStreamKey, syncTwitchStreamKey } from "../domain/platformStreamKeys";
 import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
@@ -95,6 +96,7 @@ export const MobileApp = () => {
   const [platformChatOAuthFlow, setPlatformChatOAuthFlow] = useState<PlatformChatOAuthFlow | null>(null);
   const [platformChatOAuthStatus, setPlatformChatOAuthStatus] = useState("OAuth not started.");
   const [platformChatOAuthCredential, setPlatformChatOAuthCredential] = useState<PlatformChatOAuthCredential | null>(null);
+  const [platformStreamKeyStatus, setPlatformStreamKeyStatus] = useState("Platform stream key sync idle.");
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeStateFromScene(scene, Date.now()));
@@ -465,6 +467,20 @@ export const MobileApp = () => {
     }
   };
 
+  const applyPlatformStreamKey = async () => {
+    try {
+      const result =
+        profile.platformChat.platform === "youtube"
+          ? await rotateYouTubeStreamKey(profile, platformChatOAuthCredential, fetch)
+          : await syncTwitchStreamKey(profile, platformChatOAuthCredential, fetch);
+      setProfile(result.profile);
+      await saveSecureProfile(result.profile).catch(() => undefined);
+      setPlatformStreamKeyStatus(result.message);
+    } catch (error) {
+      setPlatformStreamKeyStatus(toErrorMessage(error));
+    }
+  };
+
   const ingestPlatformChatSample = () => {
     if (!profile.platformChat.enabled) {
       return;
@@ -497,6 +513,7 @@ export const MobileApp = () => {
         platformChatOAuth={platformChatOAuth}
         platformChatOAuthFlow={platformChatOAuthFlow}
         platformChatOAuthStatus={platformChatOAuthStatus}
+        platformStreamKeyStatus={platformStreamKeyStatus}
         platformChatConnection={platformChatConnection.connection}
         avatarRuntime={avatarRuntime}
         faceTrackingRuntime={faceTrackingRuntime}
@@ -516,6 +533,7 @@ export const MobileApp = () => {
         onPlatformChatOAuthChange={updatePlatformChatOAuth}
         onPlatformChatOAuthStart={startPlatformChatOAuth}
         onPlatformChatOAuthCallbackApply={applyPlatformChatOAuthCallback}
+        onPlatformStreamKeyApply={applyPlatformStreamKey}
         onPlatformChatConnect={platformChatConnection.connect}
         onPlatformChatDisconnect={platformChatConnection.disconnect}
         onPlatformChatSampleIngest={ingestPlatformChatSample}

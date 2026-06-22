@@ -30,9 +30,11 @@ import {
   createDefaultPlatformChatOAuthSettings,
   createPlatformChatOAuthFlow,
   normalizePlatformChatOAuthSettings,
+  type PlatformChatOAuthCredential,
   type PlatformChatOAuthFlow,
   type PlatformChatOAuthSettings
 } from "../domain/platformChatOAuth";
+import { rotateYouTubeStreamKey, syncTwitchStreamKey } from "../domain/platformStreamKeys";
 import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
@@ -70,6 +72,8 @@ export const App = () => {
   const [platformChatOAuth, setPlatformChatOAuth] = useState<PlatformChatOAuthSettings>(() => createDefaultPlatformChatOAuthSettings());
   const [platformChatOAuthFlow, setPlatformChatOAuthFlow] = useState<PlatformChatOAuthFlow | null>(null);
   const [platformChatOAuthStatus, setPlatformChatOAuthStatus] = useState("OAuth not started.");
+  const [platformChatOAuthCredential, setPlatformChatOAuthCredential] = useState<PlatformChatOAuthCredential | null>(null);
+  const [platformStreamKeyStatus, setPlatformStreamKeyStatus] = useState("Platform stream key sync idle.");
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeStateFromScene(scene, Date.now()));
@@ -254,6 +258,7 @@ export const App = () => {
     try {
       const result = await completePlatformChatOAuthCallback(platformChatOAuth.callbackUrl, platformChatOAuthFlow, platformChatOAuth, fetch);
       setPlatformChatAuth((current) => mergeOAuthAuth(current, result.auth));
+      setPlatformChatOAuthCredential(result.credential);
       setPlatformChatOAuthFlow(null);
       setPlatformChatOAuth((current) => ({
         ...current,
@@ -262,6 +267,19 @@ export const App = () => {
       setPlatformChatOAuthStatus(result.message);
     } catch (error) {
       setPlatformChatOAuthStatus(toErrorMessage(error));
+    }
+  };
+
+  const applyPlatformStreamKey = async () => {
+    try {
+      const result =
+        profile.platformChat.platform === "youtube"
+          ? await rotateYouTubeStreamKey(profile, platformChatOAuthCredential, fetch)
+          : await syncTwitchStreamKey(profile, platformChatOAuthCredential, fetch);
+      setProfile(result.profile);
+      setPlatformStreamKeyStatus(result.message);
+    } catch (error) {
+      setPlatformStreamKeyStatus(toErrorMessage(error));
     }
   };
 
@@ -291,6 +309,7 @@ export const App = () => {
       platformChatOAuth={platformChatOAuth}
       platformChatOAuthFlow={platformChatOAuthFlow}
       platformChatOAuthStatus={platformChatOAuthStatus}
+      platformStreamKeyStatus={platformStreamKeyStatus}
       platformChatConnection={platformChatConnection.connection}
       avatarRuntime={avatarRuntime}
       faceTrackingRuntime={faceTrackingRuntime}
@@ -310,6 +329,7 @@ export const App = () => {
       onPlatformChatOAuthChange={updatePlatformChatOAuth}
       onPlatformChatOAuthStart={startPlatformChatOAuth}
       onPlatformChatOAuthCallbackApply={applyPlatformChatOAuthCallback}
+      onPlatformStreamKeyApply={applyPlatformStreamKey}
       onPlatformChatConnect={platformChatConnection.connect}
       onPlatformChatDisconnect={platformChatConnection.disconnect}
       onPlatformChatSampleIngest={ingestPlatformChatSample}

@@ -38,7 +38,7 @@ describe("platformChatOAuth", () => {
     }
   });
 
-  it("builds YouTube OAuth authorization URLs with PKCE and readonly scope", () => {
+  it("builds YouTube OAuth authorization URLs with PKCE and live management scopes", () => {
     const flow = createPlatformChatOAuthFlow("youtube", oauthSettings(), 10);
     const url = new URL(flow.authorizationUrl);
 
@@ -46,13 +46,13 @@ describe("platformChatOAuth", () => {
     expect(url.searchParams.get("client_id")).toBe("youtube-client");
     expect(url.searchParams.get("redirect_uri")).toBe("com.example.mobilelivecaster:/oauth/youtube");
     expect(url.searchParams.get("response_type")).toBe("code");
-    expect(url.searchParams.get("scope")).toBe("https://www.googleapis.com/auth/youtube.readonly");
+    expect(url.searchParams.get("scope")).toBe("https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl");
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");
     expect(url.searchParams.get("access_type")).toBe("offline");
     expect(flow.codeVerifier?.length).toBe(64);
   });
 
-  it("builds Twitch implicit OAuth URLs with chat read scope", () => {
+  it("builds Twitch implicit OAuth URLs with chat and stream key scopes", () => {
     const flow = createPlatformChatOAuthFlow("twitch", oauthSettings(), 10);
     const url = new URL(flow.authorizationUrl);
 
@@ -60,7 +60,7 @@ describe("platformChatOAuth", () => {
     expect(url.searchParams.get("client_id")).toBe("twitch-client");
     expect(url.searchParams.get("redirect_uri")).toBe("mobilelivecaster://oauth/twitch");
     expect(url.searchParams.get("response_type")).toBe("token");
-    expect(url.searchParams.get("scope")).toBe("chat:read");
+    expect(url.searchParams.get("scope")).toBe("chat:read channel:read:stream_key");
     expect(flow.codeVerifier).toBeNull();
   });
 
@@ -130,6 +130,7 @@ describe("platformChatOAuth", () => {
         expiresAt: 2000,
         scopes: ["https://www.googleapis.com/auth/youtube.readonly"],
         twitchLogin: null,
+        twitchUserId: null,
         validatedAt: 1,
         clientId: "stored-youtube-client",
         redirectUri: "com.example.mobilelivecaster:/oauth/youtube"
@@ -188,7 +189,8 @@ describe("platformChatOAuth", () => {
       twitchLogin: "macha",
       scopes: ["chat:read"],
       expiresAt: 1805000,
-      validatedAt: 5000
+      validatedAt: 5000,
+      twitchUserId: "123"
     });
   });
 
@@ -198,13 +200,14 @@ describe("platformChatOAuth", () => {
         platform: "twitch",
         accessToken: "tw-token",
         refreshToken: null,
-      expiresAt: 100000,
-      scopes: ["chat:read"],
-      twitchLogin: "macha",
-      validatedAt: 1,
-      clientId: "twitch-client",
-      redirectUri: "mobilelivecaster://oauth/twitch"
-    })
+        expiresAt: 100000,
+        scopes: ["chat:read"],
+        twitchLogin: "macha",
+        twitchUserId: "123",
+        validatedAt: 1,
+        clientId: "twitch-client",
+        redirectUri: "mobilelivecaster://oauth/twitch"
+      })
     ).toMatchObject({
       twitchOauthToken: "tw-token",
       twitchLogin: "macha"
@@ -217,6 +220,7 @@ describe("platformChatOAuth", () => {
         expiresAt: 1000,
         scopes: [],
         twitchLogin: null,
+        twitchUserId: null,
         validatedAt: 1,
         clientId: "youtube-client",
         redirectUri: "com.example.mobilelivecaster:/oauth/youtube"
@@ -230,6 +234,7 @@ describe("platformChatOAuth", () => {
         expiresAt: null,
         scopes: ["chat:read"],
         twitchLogin: "macha",
+        twitchUserId: "123",
         validatedAt: 0,
         clientId: "twitch-client",
         redirectUri: "mobilelivecaster://oauth/twitch"

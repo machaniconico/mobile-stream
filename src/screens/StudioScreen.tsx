@@ -6,6 +6,7 @@ import {
   Eye,
   EyeOff,
   Headphones,
+  KeyRound,
   Layers,
   Lock,
   MessageCircle,
@@ -69,6 +70,7 @@ interface StudioScreenProps {
   platformChatOAuth: PlatformChatOAuthSettings;
   platformChatOAuthFlow: PlatformChatOAuthFlow | null;
   platformChatOAuthStatus: string;
+  platformStreamKeyStatus: string;
   platformChatConnection: PlatformChatConnectionState;
   avatarRuntime: AvatarRuntimeState;
   faceTrackingRuntime: FaceTrackingRuntimeState;
@@ -88,6 +90,7 @@ interface StudioScreenProps {
   onPlatformChatOAuthChange(settings: Partial<PlatformChatOAuthSettings>): void;
   onPlatformChatOAuthStart(): void | Promise<void>;
   onPlatformChatOAuthCallbackApply(): void | Promise<void>;
+  onPlatformStreamKeyApply(): void | Promise<void>;
   onPlatformChatConnect(): void;
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
@@ -135,6 +138,7 @@ export const StudioScreen = ({
   platformChatOAuth,
   platformChatOAuthFlow,
   platformChatOAuthStatus,
+  platformStreamKeyStatus,
   platformChatConnection,
   avatarRuntime,
   faceTrackingRuntime,
@@ -154,6 +158,7 @@ export const StudioScreen = ({
   onPlatformChatOAuthChange,
   onPlatformChatOAuthStart,
   onPlatformChatOAuthCallbackApply,
+  onPlatformStreamKeyApply,
   onPlatformChatConnect,
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
@@ -610,6 +615,7 @@ export const StudioScreen = ({
         platformChatOAuth={platformChatOAuth}
         platformChatOAuthFlow={platformChatOAuthFlow}
         platformChatOAuthStatus={platformChatOAuthStatus}
+        platformStreamKeyStatus={platformStreamKeyStatus}
         platformChatConnection={platformChatConnection}
         onSubmit={onChatCommentSubmit}
         onSettingsChange={onChatReaderSettingsChange}
@@ -618,6 +624,7 @@ export const StudioScreen = ({
         onPlatformChatOAuthChange={onPlatformChatOAuthChange}
         onPlatformChatOAuthStart={onPlatformChatOAuthStart}
         onPlatformChatOAuthCallbackApply={onPlatformChatOAuthCallbackApply}
+        onPlatformStreamKeyApply={onPlatformStreamKeyApply}
         onPlatformChatConnect={onPlatformChatConnect}
         onPlatformChatDisconnect={onPlatformChatDisconnect}
         onPlatformChatSampleIngest={onPlatformChatSampleIngest}
@@ -686,6 +693,7 @@ const ChatReaderPanel = ({
   platformChatOAuth,
   platformChatOAuthFlow,
   platformChatOAuthStatus,
+  platformStreamKeyStatus,
   platformChatConnection,
   onSubmit,
   onSettingsChange,
@@ -694,6 +702,7 @@ const ChatReaderPanel = ({
   onPlatformChatOAuthChange,
   onPlatformChatOAuthStart,
   onPlatformChatOAuthCallbackApply,
+  onPlatformStreamKeyApply,
   onPlatformChatConnect,
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest
@@ -704,6 +713,7 @@ const ChatReaderPanel = ({
   platformChatOAuth: PlatformChatOAuthSettings;
   platformChatOAuthFlow: PlatformChatOAuthFlow | null;
   platformChatOAuthStatus: string;
+  platformStreamKeyStatus: string;
   platformChatConnection: PlatformChatConnectionState;
   onSubmit(author: string, body: string): void;
   onSettingsChange(settings: Partial<ChatReaderSettings>): void;
@@ -712,6 +722,7 @@ const ChatReaderPanel = ({
   onPlatformChatOAuthChange(settings: Partial<PlatformChatOAuthSettings>): void;
   onPlatformChatOAuthStart(): void | Promise<void>;
   onPlatformChatOAuthCallbackApply(): void | Promise<void>;
+  onPlatformStreamKeyApply(): void | Promise<void>;
   onPlatformChatConnect(): void;
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
@@ -829,6 +840,11 @@ const ChatReaderPanel = ({
             Apply OAuth Callback
           </button>
           <span className="chat-network-message">{platformChatOAuthStatus}</span>
+          <button className="secondary-action compact-action chat-ingest-action" type="button" onClick={onPlatformStreamKeyApply}>
+            <KeyRound size={15} />
+            {platformChat.platform === "youtube" ? "Rotate Stream Key" : "Sync Stream Key"}
+          </button>
+          <span className="chat-network-message">{platformStreamKeyStatus}</span>
         </div>
         {platformChat.platform === "youtube" ? (
           <>

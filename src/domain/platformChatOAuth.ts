@@ -24,6 +24,7 @@ export interface PlatformChatOAuthCredential {
   expiresAt: number | null;
   scopes: string[];
   twitchLogin: string | null;
+  twitchUserId: string | null;
   validatedAt: number | null;
   clientId: string | null;
   redirectUri: string | null;
@@ -47,7 +48,9 @@ const YOUTUBE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const TWITCH_AUTH_URL = "https://id.twitch.tv/oauth2/authorize";
 const TWITCH_VALIDATE_URL = "https://id.twitch.tv/oauth2/validate";
 export const YOUTUBE_LIVE_CHAT_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
+export const YOUTUBE_LIVE_MANAGE_SCOPE = "https://www.googleapis.com/auth/youtube.force-ssl";
 export const TWITCH_CHAT_SCOPE = "chat:read";
+export const TWITCH_STREAM_KEY_SCOPE = "channel:read:stream_key";
 
 export const createDefaultPlatformChatOAuthSettings = (): PlatformChatOAuthSettings => ({
   youtubeClientId: "",
@@ -84,7 +87,7 @@ export const createPlatformChatOAuthFlow = (
       client_id: normalized.youtubeClientId,
       redirect_uri: normalized.youtubeRedirectUri,
       response_type: "code",
-      scope: YOUTUBE_LIVE_CHAT_SCOPE,
+      scope: `${YOUTUBE_LIVE_CHAT_SCOPE} ${YOUTUBE_LIVE_MANAGE_SCOPE}`,
       state,
       code_challenge: createPkceS256Challenge(codeVerifier),
       code_challenge_method: "S256",
@@ -109,7 +112,7 @@ export const createPlatformChatOAuthFlow = (
     client_id: normalized.twitchClientId,
     redirect_uri: normalized.twitchRedirectUri,
     response_type: "token",
-    scope: TWITCH_CHAT_SCOPE,
+    scope: `${TWITCH_CHAT_SCOPE} ${TWITCH_STREAM_KEY_SCOPE}`,
     state
   });
 
@@ -317,6 +320,7 @@ export const validateTwitchOAuthToken = async (
     expiresAt: secondsToExpiresAt(readNumberField(payload, "expires_in"), receivedAt),
     scopes: readStringArrayField(payload, "scopes"),
     twitchLogin: readStringField(payload, "login"),
+    twitchUserId: readStringField(payload, "user_id"),
     validatedAt: receivedAt,
     clientId: null,
     redirectUri: null
@@ -339,6 +343,7 @@ export const normalizePlatformChatOAuthCredential = (
     expiresAt: normalizeTimestamp(credential?.expiresAt),
     scopes: Array.isArray(credential?.scopes) ? credential.scopes.map(normalizeSingleLine).filter(Boolean).slice(0, 24) : [],
     twitchLogin: normalizeSingleLine(credential?.twitchLogin) || null,
+    twitchUserId: normalizeSingleLine(credential?.twitchUserId) || null,
     validatedAt: normalizeTimestamp(credential?.validatedAt),
     clientId: normalizeSingleLine(credential?.clientId) || null,
     redirectUri: normalizeSingleLine(credential?.redirectUri) || null
@@ -416,6 +421,7 @@ const normalizeTokenPayload = (
     expiresAt: secondsToExpiresAt(readNumberField(payload, "expires_in"), receivedAt),
     scopes: normalizeScopes(readStringField(payload, "scope")),
     twitchLogin: null,
+    twitchUserId: null,
     validatedAt: receivedAt,
     clientId: null,
     redirectUri: null
