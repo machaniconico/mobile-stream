@@ -86,10 +86,15 @@ export const rotateYouTubeStreamKey = async (
   }
 
   const destination = createYouTubeDestinationFromStream(profile.destination, payload);
+  const youtubeStreamId = normalizeSingleLine(payload.id);
   return {
     profile: {
       ...profile,
-      destination
+      destination,
+      platformPublishing: {
+        ...profile.platformPublishing,
+        youtubeStreamId: youtubeStreamId || profile.platformPublishing.youtubeStreamId
+      }
     },
     destination,
     message: `YouTube stream key rotated with ${payload.snippet?.title || "a new reusable stream"}.`

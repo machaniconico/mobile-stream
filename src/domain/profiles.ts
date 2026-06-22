@@ -8,6 +8,7 @@ import {
 export type StreamProtocol = "rtmp" | "rtmps";
 export type StreamPlatform = "custom" | "youtube-live" | "twitch";
 export type MicEffectPresetId = "clean" | "broadcast" | "bright" | "robot";
+export type YouTubePrivacyStatus = "private" | "unlisted" | "public";
 export type DestinationPresetId =
   | "youtube-live-rtmps"
   | "twitch-auto"
@@ -72,6 +73,22 @@ export interface MicEffectPreset {
   compression: number;
 }
 
+export interface PlatformPublishingSettings {
+  title: string;
+  description: string;
+  privacyStatus: YouTubePrivacyStatus;
+  scheduledStartMinutesFromNow: number;
+  madeForKids: boolean;
+  enableAutoStart: boolean;
+  enableAutoStop: boolean;
+  youtubeStreamId: string;
+  youtubeBroadcastId: string;
+  youtubeLiveChatId: string;
+  twitchCategory: string;
+  twitchCategoryId: string;
+  twitchLanguage: string;
+}
+
 export interface StudioProfile {
   destination: DestinationProfile;
   quality: QualityProfile;
@@ -79,6 +96,7 @@ export interface StudioProfile {
   micEffects: MicEffectsProfile;
   faceTracking: FaceTrackingProfile;
   platformChat: PlatformChatSettings;
+  platformPublishing: PlatformPublishingSettings;
 }
 
 export const destinationPresets: DestinationPreset[] = [
@@ -340,6 +358,22 @@ export const defaultMicEffectsProfile: MicEffectsProfile = {
   monitorHeadphonesOnly: true
 };
 
+export const defaultPlatformPublishingSettings: PlatformPublishingSettings = {
+  title: "MobileLiveCaster Live",
+  description: "",
+  privacyStatus: "private",
+  scheduledStartMinutesFromNow: 10,
+  madeForKids: false,
+  enableAutoStart: true,
+  enableAutoStop: true,
+  youtubeStreamId: "",
+  youtubeBroadcastId: "",
+  youtubeLiveChatId: "",
+  twitchCategory: "Just Chatting",
+  twitchCategoryId: "",
+  twitchLanguage: "ja"
+};
+
 export const getMicEffectPreset = (presetId: string | null | undefined): MicEffectPreset | undefined =>
   micEffectPresets.find((preset) => preset.id === presetId);
 
@@ -364,7 +398,8 @@ export const createDefaultStudioProfile = (): StudioProfile => ({
   avatar: { ...defaultAvatarProfile },
   micEffects: { ...defaultMicEffectsProfile },
   faceTracking: { ...defaultFaceTrackingProfile },
-  platformChat: createDefaultPlatformChatSettings()
+  platformChat: createDefaultPlatformChatSettings(),
+  platformPublishing: { ...defaultPlatformPublishingSettings }
 });
 
 export const redactStreamKey = (streamKey: string): string => {
@@ -408,7 +443,36 @@ export const normalizeStudioProfile = (profile: Partial<StudioProfile> | null | 
     },
     micEffects: normalizeMicEffectsProfile(profile?.micEffects),
     faceTracking: normalizeFaceTrackingProfile(profile?.faceTracking),
-    platformChat: normalizePlatformChatSettings(profile?.platformChat ?? fallback.platformChat)
+    platformChat: normalizePlatformChatSettings(profile?.platformChat ?? fallback.platformChat),
+    platformPublishing: normalizePlatformPublishingSettings(profile?.platformPublishing)
+  };
+};
+
+export const normalizePlatformPublishingSettings = (
+  settings: Partial<PlatformPublishingSettings> | null | undefined
+): PlatformPublishingSettings => {
+  const fallback = defaultPlatformPublishingSettings;
+  const privacyStatus: YouTubePrivacyStatus =
+    settings?.privacyStatus === "public" || settings?.privacyStatus === "unlisted" || settings?.privacyStatus === "private"
+      ? settings.privacyStatus
+      : fallback.privacyStatus;
+
+  return {
+    title: normalizeSingleLine(settings?.title || fallback.title).slice(0, 100) || fallback.title,
+    description: normalizeMultiline(settings?.description).slice(0, 5000),
+    privacyStatus,
+    scheduledStartMinutesFromNow: Math.round(
+      clampNumber(settings?.scheduledStartMinutesFromNow ?? fallback.scheduledStartMinutesFromNow, 1, 10080)
+    ),
+    madeForKids: settings?.madeForKids ?? fallback.madeForKids,
+    enableAutoStart: settings?.enableAutoStart ?? fallback.enableAutoStart,
+    enableAutoStop: settings?.enableAutoStop ?? fallback.enableAutoStop,
+    youtubeStreamId: normalizeSingleLine(settings?.youtubeStreamId).slice(0, 180),
+    youtubeBroadcastId: normalizeSingleLine(settings?.youtubeBroadcastId).slice(0, 180),
+    youtubeLiveChatId: normalizeSingleLine(settings?.youtubeLiveChatId).slice(0, 180),
+    twitchCategory: normalizeSingleLine(settings?.twitchCategory || fallback.twitchCategory).slice(0, 140),
+    twitchCategoryId: normalizeSingleLine(settings?.twitchCategoryId).slice(0, 80),
+    twitchLanguage: normalizeSingleLine(settings?.twitchLanguage || fallback.twitchLanguage).slice(0, 12).toLowerCase()
   };
 };
 
@@ -433,6 +497,10 @@ const clampNumber = (value: number, min: number, max: number): number => {
   }
   return Math.max(min, Math.min(max, value));
 };
+
+const normalizeSingleLine = (value: unknown): string => (typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "");
+
+const normalizeMultiline = (value: unknown): string => (typeof value === "string" ? value.replace(/\r\n/g, "\n").trim() : "");
 
 export const stripSensitiveProfileData = (profile: StudioProfile): StudioProfile => ({
   ...profile,

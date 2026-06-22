@@ -34,6 +34,7 @@ import {
   type PlatformChatOAuthFlow,
   type PlatformChatOAuthSettings
 } from "../domain/platformChatOAuth";
+import { applyTwitchChannelMetadata, createYouTubeBroadcastAndBindStream } from "../domain/platformPublishing";
 import { rotateYouTubeStreamKey, syncTwitchStreamKey } from "../domain/platformStreamKeys";
 import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
@@ -74,6 +75,7 @@ export const App = () => {
   const [platformChatOAuthStatus, setPlatformChatOAuthStatus] = useState("OAuth not started.");
   const [platformChatOAuthCredential, setPlatformChatOAuthCredential] = useState<PlatformChatOAuthCredential | null>(null);
   const [platformStreamKeyStatus, setPlatformStreamKeyStatus] = useState("Platform stream key sync idle.");
+  const [platformPublishingStatus, setPlatformPublishingStatus] = useState("Platform publishing setup idle.");
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeStateFromScene(scene, Date.now()));
@@ -283,6 +285,22 @@ export const App = () => {
     }
   };
 
+  const applyPlatformPublishingSetup = async () => {
+    try {
+      if (profile.destination.platform === "custom") {
+        throw new Error("Platform publishing setup requires a YouTube Live or Twitch destination.");
+      }
+      const result =
+        profile.destination.platform === "youtube-live"
+          ? await createYouTubeBroadcastAndBindStream(profile, platformChatOAuthCredential, fetch)
+          : await applyTwitchChannelMetadata(profile, platformChatOAuthCredential, fetch);
+      setProfile(result.profile);
+      setPlatformPublishingStatus(result.message);
+    } catch (error) {
+      setPlatformPublishingStatus(toErrorMessage(error));
+    }
+  };
+
   const ingestPlatformChatSample = () => {
     if (!profile.platformChat.enabled) {
       return;
@@ -310,6 +328,7 @@ export const App = () => {
       platformChatOAuthFlow={platformChatOAuthFlow}
       platformChatOAuthStatus={platformChatOAuthStatus}
       platformStreamKeyStatus={platformStreamKeyStatus}
+      platformPublishingStatus={platformPublishingStatus}
       platformChatConnection={platformChatConnection.connection}
       avatarRuntime={avatarRuntime}
       faceTrackingRuntime={faceTrackingRuntime}
@@ -330,6 +349,7 @@ export const App = () => {
       onPlatformChatOAuthStart={startPlatformChatOAuth}
       onPlatformChatOAuthCallbackApply={applyPlatformChatOAuthCallback}
       onPlatformStreamKeyApply={applyPlatformStreamKey}
+      onPlatformPublishingApply={applyPlatformPublishingSetup}
       onPlatformChatConnect={platformChatConnection.connect}
       onPlatformChatDisconnect={platformChatConnection.disconnect}
       onPlatformChatSampleIngest={ingestPlatformChatSample}

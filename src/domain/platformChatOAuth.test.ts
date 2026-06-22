@@ -52,7 +52,7 @@ describe("platformChatOAuth", () => {
     expect(flow.codeVerifier?.length).toBe(64);
   });
 
-  it("builds Twitch implicit OAuth URLs with chat and stream key scopes", () => {
+  it("builds Twitch implicit OAuth URLs with chat, stream key, and metadata scopes", () => {
     const flow = createPlatformChatOAuthFlow("twitch", oauthSettings(), 10);
     const url = new URL(flow.authorizationUrl);
 
@@ -60,7 +60,7 @@ describe("platformChatOAuth", () => {
     expect(url.searchParams.get("client_id")).toBe("twitch-client");
     expect(url.searchParams.get("redirect_uri")).toBe("mobilelivecaster://oauth/twitch");
     expect(url.searchParams.get("response_type")).toBe("token");
-    expect(url.searchParams.get("scope")).toBe("chat:read channel:read:stream_key");
+    expect(url.searchParams.get("scope")).toBe("chat:read channel:read:stream_key channel:manage:broadcast");
     expect(flow.codeVerifier).toBeNull();
   });
 

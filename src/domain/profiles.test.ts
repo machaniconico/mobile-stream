@@ -32,6 +32,35 @@ describe("studio profiles", () => {
     expect(profile.faceTracking.inputMode).toBe("simulated");
     expect(profile.platformChat.enabled).toBe(false);
     expect(profile.platformChat.platform).toBe("youtube");
+    expect(profile.platformPublishing.title).toBe("MobileLiveCaster Live");
+    expect(profile.platformPublishing.privacyStatus).toBe("private");
+  });
+
+  it("normalizes platform publishing settings for API limits", () => {
+    const profile = normalizeStudioProfile({
+      platformPublishing: {
+        title: "  ".padEnd(160, "A"),
+        description: "Line 1\r\nLine 2",
+        privacyStatus: "public",
+        scheduledStartMinutesFromNow: 0,
+        madeForKids: true,
+        enableAutoStart: false,
+        enableAutoStop: false,
+        youtubeStreamId: " stream-id ",
+        youtubeBroadcastId: " broadcast-id ",
+        youtubeLiveChatId: " chat-id ",
+        twitchCategory: " Just Chatting ",
+        twitchCategoryId: " 509658 ",
+        twitchLanguage: " JA "
+      }
+    });
+
+    expect(profile.platformPublishing.title).toHaveLength(100);
+    expect(profile.platformPublishing.description).toBe("Line 1\nLine 2");
+    expect(profile.platformPublishing.scheduledStartMinutesFromNow).toBe(1);
+    expect(profile.platformPublishing.youtubeStreamId).toBe("stream-id");
+    expect(profile.platformPublishing.twitchCategoryId).toBe("509658");
+    expect(profile.platformPublishing.twitchLanguage).toBe("ja");
   });
 
   it("removes stream keys before persistence", () => {

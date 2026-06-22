@@ -71,6 +71,7 @@ describe("platformStreamKeys", () => {
       serverUrl: "rtmps://a.rtmps.youtube.com/live2",
       streamKey: "yt-stream-key"
     });
+    expect(result.profile.platformPublishing.youtubeStreamId).toBe("stream-1");
   });
 
   it("syncs Twitch stream keys through Helix and keeps the current Twitch ingest preset", async () => {

@@ -56,6 +56,7 @@ interface MobileStudioScreenProps {
   platformChatOAuthFlow: PlatformChatOAuthFlow | null;
   platformChatOAuthStatus: string;
   platformStreamKeyStatus: string;
+  platformPublishingStatus: string;
   platformChatConnection: PlatformChatConnectionState;
   avatarRuntime: AvatarRuntimeState;
   faceTrackingRuntime: FaceTrackingRuntimeState;
@@ -76,6 +77,7 @@ interface MobileStudioScreenProps {
   onPlatformChatOAuthStart(): void | Promise<void>;
   onPlatformChatOAuthCallbackApply(): void | Promise<void>;
   onPlatformStreamKeyApply(): void | Promise<void>;
+  onPlatformPublishingApply(): void | Promise<void>;
   onPlatformChatConnect(): void;
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
@@ -116,6 +118,7 @@ export const MobileStudioScreen = ({
   platformChatOAuthFlow,
   platformChatOAuthStatus,
   platformStreamKeyStatus,
+  platformPublishingStatus,
   platformChatConnection,
   avatarRuntime,
   faceTrackingRuntime,
@@ -136,6 +139,7 @@ export const MobileStudioScreen = ({
   onPlatformChatOAuthStart,
   onPlatformChatOAuthCallbackApply,
   onPlatformStreamKeyApply,
+  onPlatformPublishingApply,
   onPlatformChatConnect,
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
@@ -177,6 +181,18 @@ export const MobileStudioScreen = ({
   };
   const updateServerUrl = (serverUrl: string) => {
     updateDestination(markDestinationCustom(profile.destination, { serverUrl }));
+  };
+  const updatePublishing = (update: Partial<StudioProfile["platformPublishing"]>) => {
+    if (setupLocked) {
+      return;
+    }
+    onProfileChange({
+      ...profile,
+      platformPublishing: {
+        ...profile.platformPublishing,
+        ...update
+      }
+    });
   };
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
     if (setupLocked) {
@@ -646,6 +662,115 @@ export const MobileStudioScreen = ({
               onPress={onClearStreamKey}
             />
           </View>
+
+          <Label text="Stream title" />
+          <TextInput
+            value={profile.platformPublishing.title}
+            onChangeText={(title) => updatePublishing({ title })}
+            style={styles.input}
+            maxLength={100}
+            editable={!setupLocked}
+            placeholderTextColor="#71717a"
+          />
+
+          <Label text="Description" />
+          <TextInput
+            value={profile.platformPublishing.description}
+            onChangeText={(description) => updatePublishing({ description })}
+            style={[styles.input, styles.multilineInput]}
+            maxLength={5000}
+            editable={!setupLocked}
+            multiline
+            placeholderTextColor="#71717a"
+          />
+
+          {profile.destination.platform === "youtube-live" ? (
+            <>
+              <Label text="YouTube privacy" />
+              <View style={styles.grid3}>
+                {(["private", "unlisted", "public"] as StudioProfile["platformPublishing"]["privacyStatus"][]).map((privacyStatus) => (
+                  <ActionButton
+                    key={privacyStatus}
+                    label={privacyStatus}
+                    variant={profile.platformPublishing.privacyStatus === privacyStatus ? "active" : "default"}
+                    disabled={setupLocked}
+                    onPress={() => updatePublishing({ privacyStatus })}
+                  />
+                ))}
+              </View>
+              <Label text="Start offset minutes" />
+              <TextInput
+                value={String(profile.platformPublishing.scheduledStartMinutesFromNow)}
+                onChangeText={(value) => updatePublishing({ scheduledStartMinutesFromNow: Number(value) })}
+                style={styles.input}
+                keyboardType="number-pad"
+                editable={!setupLocked}
+                placeholderTextColor="#71717a"
+              />
+              <View style={styles.grid2}>
+                <ActionButton
+                  label="Auto Start"
+                  variant={profile.platformPublishing.enableAutoStart ? "active" : "default"}
+                  disabled={setupLocked}
+                  onPress={() => updatePublishing({ enableAutoStart: !profile.platformPublishing.enableAutoStart })}
+                />
+                <ActionButton
+                  label="Auto Stop"
+                  variant={profile.platformPublishing.enableAutoStop ? "active" : "default"}
+                  disabled={setupLocked}
+                  onPress={() => updatePublishing({ enableAutoStop: !profile.platformPublishing.enableAutoStop })}
+                />
+              </View>
+              <View style={styles.grid2}>
+                <ActionButton
+                  label="Made for Kids"
+                  variant={profile.platformPublishing.madeForKids ? "active" : "default"}
+                  disabled={setupLocked}
+                  onPress={() => updatePublishing({ madeForKids: !profile.platformPublishing.madeForKids })}
+                />
+                <Text style={styles.secretStatus} numberOfLines={1}>
+                  {profile.platformPublishing.youtubeBroadcastId || profile.platformPublishing.youtubeStreamId || "No YouTube resource ID"}
+                </Text>
+              </View>
+            </>
+          ) : null}
+
+          {profile.destination.platform === "twitch" ? (
+            <>
+              <Label text="Twitch category" />
+              <TextInput
+                value={profile.platformPublishing.twitchCategory}
+                onChangeText={(twitchCategory) => updatePublishing({ twitchCategory, twitchCategoryId: "" })}
+                style={styles.input}
+                editable={!setupLocked}
+                placeholderTextColor="#71717a"
+              />
+              <Label text="Twitch category ID" />
+              <TextInput
+                value={profile.platformPublishing.twitchCategoryId}
+                onChangeText={(twitchCategoryId) => updatePublishing({ twitchCategoryId })}
+                style={styles.input}
+                editable={!setupLocked}
+                placeholderTextColor="#71717a"
+              />
+              <Label text="Twitch language" />
+              <TextInput
+                value={profile.platformPublishing.twitchLanguage}
+                onChangeText={(twitchLanguage) => updatePublishing({ twitchLanguage })}
+                style={styles.input}
+                maxLength={12}
+                editable={!setupLocked}
+                placeholderTextColor="#71717a"
+              />
+            </>
+          ) : null}
+
+          <ActionButton
+            label={profile.destination.platform === "youtube-live" ? "Create Broadcast" : "Update Metadata"}
+            disabled={setupLocked || (profile.destination.platform !== "youtube-live" && profile.destination.platform !== "twitch")}
+            onPress={onPlatformPublishingApply}
+          />
+          <Text style={styles.platformConnectionMessage}>{platformPublishingStatus}</Text>
 
           <Label text="Quality" />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.qualityRow}>
@@ -1474,6 +1599,11 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8
   },
+  grid3: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
   grid4: {
     flexDirection: "row",
     gap: 8
@@ -1726,6 +1856,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: "#101015",
     color: "#f8fafc"
+  },
+  multilineInput: {
+    minHeight: 92,
+    paddingTop: 12,
+    textAlignVertical: "top"
   },
   secretRow: {
     flexDirection: "row",

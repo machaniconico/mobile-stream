@@ -18,12 +18,23 @@ interface LiveSetupScreenProps {
   profile: StudioProfile;
   readiness: ReadinessReport;
   locked: boolean;
+  platformPublishingStatus: string;
   onProfileChange(profile: StudioProfile): void;
+  onPlatformPublishingApply(): void | Promise<void>;
   onClearStreamKey(): void;
 }
 
-export const LiveSetupScreen = ({ profile, readiness, locked, onProfileChange, onClearStreamKey }: LiveSetupScreenProps) => {
+export const LiveSetupScreen = ({
+  profile,
+  readiness,
+  locked,
+  platformPublishingStatus,
+  onProfileChange,
+  onPlatformPublishingApply,
+  onClearStreamKey
+}: LiveSetupScreenProps) => {
   const activePreset = getDestinationPreset(profile.destination.presetId) ?? getDestinationPreset("custom-rtmps");
+  const canApplyPlatformPublishing = profile.destination.platform === "youtube-live" || profile.destination.platform === "twitch";
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
     if (locked) {
@@ -53,6 +64,18 @@ export const LiveSetupScreen = ({ profile, readiness, locked, onProfileChange, o
   };
   const updateServerUrl = (serverUrl: string) => {
     updateDestination(markDestinationCustom(profile.destination, { serverUrl }));
+  };
+  const updatePublishing = (update: Partial<StudioProfile["platformPublishing"]>) => {
+    if (locked) {
+      return;
+    }
+    onProfileChange({
+      ...profile,
+      platformPublishing: {
+        ...profile.platformPublishing,
+        ...update
+      }
+    });
   };
 
   return (
@@ -116,6 +139,129 @@ export const LiveSetupScreen = ({ profile, readiness, locked, onProfileChange, o
         >
           <Trash2 size={15} />
           Clear key
+        </button>
+      </div>
+
+      <label className="field">
+        <span>Stream title</span>
+        <input
+          value={profile.platformPublishing.title}
+          maxLength={100}
+          disabled={locked}
+          onChange={(event) => updatePublishing({ title: event.target.value })}
+        />
+      </label>
+      <label className="field">
+        <span>Description</span>
+        <textarea
+          value={profile.platformPublishing.description}
+          maxLength={5000}
+          disabled={locked}
+          rows={3}
+          onChange={(event) => updatePublishing({ description: event.target.value })}
+        />
+      </label>
+
+      {profile.destination.platform === "youtube-live" ? (
+        <>
+          <label className="field">
+            <span>YouTube privacy</span>
+            <select
+              value={profile.platformPublishing.privacyStatus}
+              disabled={locked}
+              onChange={(event) =>
+                updatePublishing({ privacyStatus: event.target.value as StudioProfile["platformPublishing"]["privacyStatus"] })
+              }
+            >
+              <option value="private">Private</option>
+              <option value="unlisted">Unlisted</option>
+              <option value="public">Public</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>Start offset minutes</span>
+            <input
+              type="number"
+              min={1}
+              max={10080}
+              value={profile.platformPublishing.scheduledStartMinutesFromNow}
+              disabled={locked}
+              onChange={(event) => updatePublishing({ scheduledStartMinutesFromNow: Number(event.target.value) })}
+            />
+          </label>
+          <div className="monitor-row">
+            <button
+              className={`segmented-button ${profile.platformPublishing.enableAutoStart ? "active" : ""}`}
+              type="button"
+              disabled={locked}
+              onClick={() => updatePublishing({ enableAutoStart: !profile.platformPublishing.enableAutoStart })}
+            >
+              Auto Start
+            </button>
+            <button
+              className={`segmented-button ${profile.platformPublishing.enableAutoStop ? "active" : ""}`}
+              type="button"
+              disabled={locked}
+              onClick={() => updatePublishing({ enableAutoStop: !profile.platformPublishing.enableAutoStop })}
+            >
+              Auto Stop
+            </button>
+          </div>
+          <div className="monitor-row">
+            <button
+              className={`segmented-button ${profile.platformPublishing.madeForKids ? "active" : ""}`}
+              type="button"
+              disabled={locked}
+              onClick={() => updatePublishing({ madeForKids: !profile.platformPublishing.madeForKids })}
+            >
+              Made for Kids
+            </button>
+            <span className="platform-resource-id">
+              {profile.platformPublishing.youtubeBroadcastId || profile.platformPublishing.youtubeStreamId || "No YouTube resource ID"}
+            </span>
+          </div>
+        </>
+      ) : null}
+
+      {profile.destination.platform === "twitch" ? (
+        <>
+          <label className="field">
+            <span>Twitch category</span>
+            <input
+              value={profile.platformPublishing.twitchCategory}
+              disabled={locked}
+              onChange={(event) => updatePublishing({ twitchCategory: event.target.value, twitchCategoryId: "" })}
+            />
+          </label>
+          <label className="field">
+            <span>Twitch category ID</span>
+            <input
+              value={profile.platformPublishing.twitchCategoryId}
+              disabled={locked}
+              onChange={(event) => updatePublishing({ twitchCategoryId: event.target.value })}
+            />
+          </label>
+          <label className="field">
+            <span>Twitch language</span>
+            <input
+              value={profile.platformPublishing.twitchLanguage}
+              maxLength={12}
+              disabled={locked}
+              onChange={(event) => updatePublishing({ twitchLanguage: event.target.value })}
+            />
+          </label>
+        </>
+      ) : null}
+
+      <div className="secret-tools">
+        <span>{platformPublishingStatus}</span>
+        <button
+          className="secondary-action compact-action"
+          type="button"
+          disabled={locked || !canApplyPlatformPublishing}
+          onClick={onPlatformPublishingApply}
+        >
+          {profile.destination.platform === "youtube-live" ? "Create Broadcast" : "Update Metadata"}
         </button>
       </div>
 

@@ -571,7 +571,8 @@ select:focus-visible {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   min-height: 44px;
   width: 100%;
   border: 1px solid var(--line);
@@ -579,6 +580,12 @@ select:focus-visible {
   background: #101015;
   color: var(--text);
   padding: 0 10px;
+}
+
+.field textarea {
+  min-height: 86px;
+  padding: 10px;
+  resize: vertical;
 }
 
 .secret-tools {
@@ -680,6 +687,22 @@ select:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 6px;
+}
+
+.platform-resource-id {
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  color: var(--muted);
+  background: #101015;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tracking-readout {

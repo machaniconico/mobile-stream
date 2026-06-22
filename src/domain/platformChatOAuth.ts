@@ -51,6 +51,7 @@ export const YOUTUBE_LIVE_CHAT_SCOPE = "https://www.googleapis.com/auth/youtube.
 export const YOUTUBE_LIVE_MANAGE_SCOPE = "https://www.googleapis.com/auth/youtube.force-ssl";
 export const TWITCH_CHAT_SCOPE = "chat:read";
 export const TWITCH_STREAM_KEY_SCOPE = "channel:read:stream_key";
+export const TWITCH_CHANNEL_MANAGE_SCOPE = "channel:manage:broadcast";
 
 export const createDefaultPlatformChatOAuthSettings = (): PlatformChatOAuthSettings => ({
   youtubeClientId: "",
@@ -112,7 +113,7 @@ export const createPlatformChatOAuthFlow = (
     client_id: normalized.twitchClientId,
     redirect_uri: normalized.twitchRedirectUri,
     response_type: "token",
-    scope: `${TWITCH_CHAT_SCOPE} ${TWITCH_STREAM_KEY_SCOPE}`,
+    scope: `${TWITCH_CHAT_SCOPE} ${TWITCH_STREAM_KEY_SCOPE} ${TWITCH_CHANNEL_MANAGE_SCOPE}`,
     state
   });
 

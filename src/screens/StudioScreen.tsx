@@ -71,6 +71,7 @@ interface StudioScreenProps {
   platformChatOAuthFlow: PlatformChatOAuthFlow | null;
   platformChatOAuthStatus: string;
   platformStreamKeyStatus: string;
+  platformPublishingStatus: string;
   platformChatConnection: PlatformChatConnectionState;
   avatarRuntime: AvatarRuntimeState;
   faceTrackingRuntime: FaceTrackingRuntimeState;
@@ -91,6 +92,7 @@ interface StudioScreenProps {
   onPlatformChatOAuthStart(): void | Promise<void>;
   onPlatformChatOAuthCallbackApply(): void | Promise<void>;
   onPlatformStreamKeyApply(): void | Promise<void>;
+  onPlatformPublishingApply(): void | Promise<void>;
   onPlatformChatConnect(): void;
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
@@ -139,6 +141,7 @@ export const StudioScreen = ({
   platformChatOAuthFlow,
   platformChatOAuthStatus,
   platformStreamKeyStatus,
+  platformPublishingStatus,
   platformChatConnection,
   avatarRuntime,
   faceTrackingRuntime,
@@ -159,6 +162,7 @@ export const StudioScreen = ({
   onPlatformChatOAuthStart,
   onPlatformChatOAuthCallbackApply,
   onPlatformStreamKeyApply,
+  onPlatformPublishingApply,
   onPlatformChatConnect,
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
@@ -634,7 +638,9 @@ export const StudioScreen = ({
             profile={profile}
             readiness={readiness}
             locked={setupLocked}
+            platformPublishingStatus={platformPublishingStatus}
             onProfileChange={onProfileChange}
+            onPlatformPublishingApply={onPlatformPublishingApply}
             onClearStreamKey={onClearStreamKey}
           />
 
