@@ -26,6 +26,7 @@ import { useState, type ReactNode } from "react";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
 import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
+import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../domain/platformChat";
 import { applyMicEffectPreset, micEffectPresets, type MicEffectPresetId, type StudioProfile } from "../domain/profiles";
 import type { ReadinessReport } from "../domain/readiness";
 import {
@@ -61,6 +62,7 @@ interface StudioScreenProps {
   operationStatus: StreamOperationStatus | null;
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
+  platformChat: PlatformChatSettings;
   avatarRuntime: AvatarRuntimeState;
   faceTrackingRuntime: FaceTrackingRuntimeState;
   onSceneChange(scene: SceneDocument): void;
@@ -74,6 +76,8 @@ interface StudioScreenProps {
   onReconnect(): Promise<void>;
   onChatCommentSubmit(author: string, body: string): void;
   onChatReaderSettingsChange(settings: Partial<ChatReaderSettings>): void;
+  onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
+  onPlatformChatSampleIngest(): void;
   onClearStreamKey(): void;
 }
 
@@ -113,6 +117,7 @@ export const StudioScreen = ({
   operationStatus,
   readiness,
   chatReader,
+  platformChat,
   avatarRuntime,
   faceTrackingRuntime,
   onSceneChange,
@@ -126,6 +131,8 @@ export const StudioScreen = ({
   onReconnect,
   onChatCommentSubmit,
   onChatReaderSettingsChange,
+  onPlatformChatSettingsChange,
+  onPlatformChatSampleIngest,
   onClearStreamKey
 }: StudioScreenProps) => {
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
@@ -574,8 +581,11 @@ export const StudioScreen = ({
 
           <ChatReaderPanel
             chatReader={chatReader}
+            platformChat={platformChat}
             onSubmit={onChatCommentSubmit}
             onSettingsChange={onChatReaderSettingsChange}
+            onPlatformChatSettingsChange={onPlatformChatSettingsChange}
+            onPlatformChatSampleIngest={onPlatformChatSampleIngest}
           />
 
           <LiveSetupScreen
@@ -636,16 +646,23 @@ const StreamDiagnosticsPanel = ({ diagnostics }: { diagnostics: StreamDiagnostic
 
 const ChatReaderPanel = ({
   chatReader,
+  platformChat,
   onSubmit,
-  onSettingsChange
+  onSettingsChange,
+  onPlatformChatSettingsChange,
+  onPlatformChatSampleIngest
 }: {
   chatReader: ChatReaderState;
+  platformChat: PlatformChatSettings;
   onSubmit(author: string, body: string): void;
   onSettingsChange(settings: Partial<ChatReaderSettings>): void;
+  onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
+  onPlatformChatSampleIngest(): void;
 }) => {
   const [author, setAuthor] = useState("viewer");
   const [body, setBody] = useState("Nice stream!");
   const [mutedWords, setMutedWords] = useState(chatReader.settings.mutedWords.join(", "));
+  const platformStatus = getPlatformChatConnectionStatus(platformChat);
 
   const submit = () => {
     if (!body.trim()) {
@@ -686,6 +703,54 @@ const ChatReaderPanel = ({
       <button className="secondary-action chat-submit" type="button" onClick={submit}>
         Test Read
       </button>
+
+      <div className="chat-platform-panel">
+        <div className="chat-platform-row">
+          <button
+            className={`segmented-button ${platformChat.enabled ? "active" : ""}`}
+            type="button"
+            onClick={() => onPlatformChatSettingsChange({ enabled: !platformChat.enabled })}
+          >
+            <Radio size={15} />
+            <span>{platformChat.enabled ? "Platform On" : "Platform Off"}</span>
+          </button>
+          <span className={`chat-source-status ${platformStatus.status}`}>{platformStatus.label}</span>
+        </div>
+        <div className="protocol-row">
+          <button
+            className={`segmented-button ${platformChat.platform === "youtube" ? "active" : ""}`}
+            type="button"
+            onClick={() => onPlatformChatSettingsChange({ platform: "youtube" })}
+          >
+            YouTube
+          </button>
+          <button
+            className={`segmented-button ${platformChat.platform === "twitch" ? "active" : ""}`}
+            type="button"
+            onClick={() => onPlatformChatSettingsChange({ platform: "twitch" })}
+          >
+            Twitch
+          </button>
+        </div>
+        {platformChat.platform === "youtube" ? (
+          <label className="field">
+            <span>Live chat ID</span>
+            <input
+              value={platformChat.youtubeLiveChatId}
+              onChange={(event) => onPlatformChatSettingsChange({ youtubeLiveChatId: event.target.value })}
+            />
+          </label>
+        ) : (
+          <label className="field">
+            <span>Twitch channel</span>
+            <input value={platformChat.twitchChannel} onChange={(event) => onPlatformChatSettingsChange({ twitchChannel: event.target.value })} />
+          </label>
+        )}
+        <button className="secondary-action compact-action chat-ingest-action" type="button" disabled={!platformChat.enabled} onClick={onPlatformChatSampleIngest}>
+          <MessageCircle size={15} />
+          Test Platform Chat
+        </button>
+      </div>
 
       <SpeechSlider label="Rate" value={chatReader.settings.rate} min={0.5} max={1.5} step={0.05} onChange={(rate) => onSettingsChange({ rate })} />
       <SpeechSlider label="Pitch" value={chatReader.settings.pitch} min={0.5} max={1.5} step={0.05} onChange={(pitch) => onSettingsChange({ pitch })} />

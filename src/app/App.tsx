@@ -15,6 +15,12 @@ import {
   createSimulatedFaceTrackingFrame,
   updateFaceTrackingRuntime
 } from "../domain/faceTracking";
+import {
+  createDefaultPlatformChatSettings,
+  createPlatformChatSample,
+  normalizePlatformChatSettings,
+  type PlatformChatSettings
+} from "../domain/platformChat";
 import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
@@ -47,6 +53,7 @@ export const App = () => {
   const [scene, setScene] = useState<SceneDocument>(() => loadScene() ?? createDefaultScene());
   const [profile, setProfile] = useState<StudioProfile>(() => loadProfile() ?? createDefaultStudioProfile());
   const [chatReader, setChatReader] = useState(() => createDefaultChatReaderState());
+  const [platformChat, setPlatformChat] = useState(() => createDefaultPlatformChatSettings());
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeStateFromScene(scene, Date.now()));
@@ -181,6 +188,18 @@ export const App = () => {
     setChatReader((current) => updateChatReaderSettings(current, settings));
   };
 
+  const updatePlatformChatSettings = (settings: Partial<PlatformChatSettings>) => {
+    setPlatformChat((current) => normalizePlatformChatSettings({ ...current, ...settings }));
+  };
+
+  const ingestPlatformChatSample = () => {
+    if (!platformChat.enabled) {
+      return;
+    }
+    const result = createPlatformChatSample(platformChat);
+    setChatReader((current) => result.messages.reduce(enqueueChatMessage, current));
+  };
+
   const clearSavedStreamKey = () => {
     setProfile((current) => clearStreamKey(current));
   };
@@ -194,6 +213,7 @@ export const App = () => {
       operationStatus={operationStatus}
       readiness={readiness}
       chatReader={chatReader}
+      platformChat={platformChat}
       avatarRuntime={avatarRuntime}
       faceTrackingRuntime={faceTrackingRuntime}
       onSceneChange={setScene}
@@ -207,6 +227,8 @@ export const App = () => {
       onReconnect={reconnectStream}
       onChatCommentSubmit={submitChatComment}
       onChatReaderSettingsChange={updateChatSettings}
+      onPlatformChatSettingsChange={updatePlatformChatSettings}
+      onPlatformChatSampleIngest={ingestPlatformChatSample}
       onClearStreamKey={clearSavedStreamKey}
     />
   );

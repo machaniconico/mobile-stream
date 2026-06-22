@@ -21,6 +21,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Mic effect presets with gain, noise gate, compression, and Android PCM processing.
 - Headphone-only mic monitor settings for hearing the processed mic signal locally.
 - Chat/comment read-aloud queue with test comments, muted words, and speech controls.
+- YouTube LiveChatMessages and Twitch EventSub chat payload adapters feeding the shared read-aloud queue.
 - Mock Go Live, Stop, and Reconnect controls.
 - iOS ReplayKit Broadcast Upload Extension target and startup bridge.
 - iOS Broadcast Upload Extension H.264/AAC encode path with app/mic audio mixing.
@@ -62,7 +63,7 @@ npm run ios:build:simulator
 - Secret storage: browser persistence strips stream keys; mobile persistence uses Keychain/Android Keystore-backed native storage.
 - Stream key management: users can clear the stored key in-app and paste a replacement key without changing the destination preset.
 - Scene storage: web uses localStorage; Android uses app SharedPreferences; iOS writes an atomic scene JSON file under Application Support.
-- Chat reader: platform chat APIs can feed the shared queue; current UI includes manual/test comments and native/browser TTS output.
+- Chat reader: YouTube/Twitch payload adapters can feed the shared queue; current UI includes manual/test comments, platform adapter test ingest, and native/browser TTS output.
 - Avatar rendering: PNGTuber first, Live2D after licensing and runtime validation.
 
 Android device streaming routes through `LiveCasterNative` when the native module is linked. iOS app-side setup can launch the Broadcast Upload Extension picker and pass App Group configuration into the extension. Non-device development still falls back to the mock engine.

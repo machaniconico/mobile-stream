@@ -12,6 +12,7 @@
 - In-app stream key clear/replacement controls for browser and mobile setup screens.
 - Mic effect profile model with presets, gain, noise gate, compression, and headphone monitor settings.
 - Chat/comment read-aloud domain model with queueing, muted words, URL redaction, and speech text shaping.
+- Platform chat adapter model for YouTube LiveChatMessages responses and Twitch EventSub chat notifications.
 - Avatar runtime model for PNGTuber/Live2D expression, lip sync, and auto blink.
 - Stream state machine for idle, preparing, live, reconnecting, stopping, and failed states.
 - Mock live engine for UI development without native capture.
@@ -27,11 +28,11 @@
   - readiness panel with blocking errors and warnings
   - stream diagnostics panel with endpoint/quality/telemetry checks and JSON report export
   - quality profiles
-  - chat reader panel with test comments and speech settings
+  - chat reader panel with test comments, platform adapter ingest, and speech settings
   - Go Live, Stop, Reconnect mock controls
 - React Native mobile readiness panel and Go Live blocking for invalid profiles.
 - React Native mobile stream diagnostics panel using the shared diagnostics model, including sanitized report sharing.
-- React Native mobile chat reader panel with test comments and speech settings.
+- React Native mobile chat reader panel with test comments, platform adapter ingest, and speech settings.
 - iOS ReplayKit Broadcast Upload Extension target registered in the Xcode project.
 - iOS app-side Broadcast Picker startup bridge with App Group configuration handoff.
 - iOS Broadcast Upload Extension runtime state reporting through App Group storage.
@@ -75,7 +76,7 @@
 - Native compositor.
 - First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
 - Live2D Cubism SDK integration.
-- YouTube/Twitch/platform comment API ingestion.
+- Authenticated YouTube/Twitch live network chat ingestion.
 - OAuth-backed live chat connection.
 - OAuth/API-backed platform stream key rotation.
 
@@ -92,5 +93,5 @@
 
 1. Run iOS and Android on physical devices against a private RTMPS endpoint and tune bitrate/fps/audio sync behavior.
 2. Validate YouTube Live and Twitch ingest with real stream keys on both platforms.
-3. Add YouTube/Twitch chat adapters behind the shared chat queue.
-4. Add OAuth-backed YouTube/Twitch account connection for chat and platform-managed stream key rotation.
+3. Add OAuth-backed YouTube/Twitch live chat network connection on top of the shared adapters.
+4. Add OAuth/API-backed platform stream key rotation.

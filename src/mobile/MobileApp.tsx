@@ -16,6 +16,12 @@ import {
   createSimulatedFaceTrackingFrame,
   updateFaceTrackingRuntime
 } from "../domain/faceTracking";
+import {
+  createDefaultPlatformChatSettings,
+  createPlatformChatSample,
+  normalizePlatformChatSettings,
+  type PlatformChatSettings
+} from "../domain/platformChat";
 import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
@@ -58,6 +64,7 @@ export const MobileApp = () => {
   const [sceneLoaded, setSceneLoaded] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [chatReader, setChatReader] = useState(() => createDefaultChatReaderState());
+  const [platformChat, setPlatformChat] = useState(() => createDefaultPlatformChatSettings());
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeStateFromScene(scene, Date.now()));
@@ -249,6 +256,18 @@ export const MobileApp = () => {
     setChatReader((current) => updateChatReaderSettings(current, settings));
   };
 
+  const updatePlatformChatSettings = (settings: Partial<PlatformChatSettings>) => {
+    setPlatformChat((current) => normalizePlatformChatSettings({ ...current, ...settings }));
+  };
+
+  const ingestPlatformChatSample = () => {
+    if (!platformChat.enabled) {
+      return;
+    }
+    const result = createPlatformChatSample(platformChat);
+    setChatReader((current) => result.messages.reduce(enqueueChatMessage, current));
+  };
+
   const clearSavedStreamKey = async () => {
     if (operationInFlight.current) {
       return;
@@ -268,6 +287,7 @@ export const MobileApp = () => {
         operationStatus={operationStatus}
         readiness={readiness}
         chatReader={chatReader}
+        platformChat={platformChat}
         avatarRuntime={avatarRuntime}
         faceTrackingRuntime={faceTrackingRuntime}
         onSceneChange={setScene}
@@ -281,6 +301,8 @@ export const MobileApp = () => {
         onReconnect={reconnectStream}
         onChatCommentSubmit={submitChatComment}
         onChatReaderSettingsChange={updateChatSettings}
+        onPlatformChatSettingsChange={updatePlatformChatSettings}
+        onPlatformChatSampleIngest={ingestPlatformChatSample}
         onClearStreamKey={clearSavedStreamKey}
       />
     </SafeAreaProvider>

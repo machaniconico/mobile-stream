@@ -25,6 +25,7 @@ export interface ChatReaderState {
 }
 
 export interface ChatMessageInput {
+  id?: string;
   source?: ChatMessage["source"];
   author: string;
   body: string;
@@ -52,11 +53,12 @@ export const createDefaultChatReaderState = (): ChatReaderState => ({
   skippedCount: 0
 });
 
-export const createChatMessage = ({ source = "manual", author, body, receivedAt = Date.now() }: ChatMessageInput): ChatMessage => {
+export const createChatMessage = ({ id, source = "manual", author, body, receivedAt = Date.now() }: ChatMessageInput): ChatMessage => {
   const cleanAuthor = normalizeWhitespace(author) || "viewer";
   const cleanBody = normalizeWhitespace(body);
+  const stableId = normalizeWhitespace(id ?? "");
   return {
-    id: `chat-${receivedAt}-${hashMessage(`${source}:${cleanAuthor}:${cleanBody}`)}`,
+    id: stableId ? `chat-${source}-${hashMessage(stableId)}` : `chat-${receivedAt}-${hashMessage(`${source}:${cleanAuthor}:${cleanBody}`)}`,
     source,
     author: cleanAuthor.slice(0, 48),
     body: cleanBody,

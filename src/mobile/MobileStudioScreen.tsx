@@ -5,6 +5,7 @@ import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
 import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
 import type { DestinationPresetId, MicEffectPresetId, StudioProfile, StreamProtocol } from "../domain/profiles";
+import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../domain/platformChat";
 import {
   applyDestinationPreset,
   applyMicEffectPreset,
@@ -47,6 +48,7 @@ interface MobileStudioScreenProps {
   operationStatus: StreamOperationStatus | null;
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
+  platformChat: PlatformChatSettings;
   avatarRuntime: AvatarRuntimeState;
   faceTrackingRuntime: FaceTrackingRuntimeState;
   onSceneChange(scene: SceneDocument): void;
@@ -60,6 +62,8 @@ interface MobileStudioScreenProps {
   onReconnect(): Promise<void>;
   onChatCommentSubmit(author: string, body: string): void;
   onChatReaderSettingsChange(settings: Partial<ChatReaderSettings>): void;
+  onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
+  onPlatformChatSampleIngest(): void;
   onClearStreamKey(): void | Promise<void>;
 }
 
@@ -91,6 +95,7 @@ export const MobileStudioScreen = ({
   operationStatus,
   readiness,
   chatReader,
+  platformChat,
   avatarRuntime,
   faceTrackingRuntime,
   onSceneChange,
@@ -104,6 +109,8 @@ export const MobileStudioScreen = ({
   onReconnect,
   onChatCommentSubmit,
   onChatReaderSettingsChange,
+  onPlatformChatSettingsChange,
+  onPlatformChatSampleIngest,
   onClearStreamKey
 }: MobileStudioScreenProps) => {
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
@@ -531,8 +538,11 @@ export const MobileStudioScreen = ({
 
         <ChatReaderPanel
           chatReader={chatReader}
+          platformChat={platformChat}
           onSubmit={onChatCommentSubmit}
           onSettingsChange={onChatReaderSettingsChange}
+          onPlatformChatSettingsChange={onPlatformChatSettingsChange}
+          onPlatformChatSampleIngest={onPlatformChatSampleIngest}
         />
 
         <Panel title="Live Setup">
@@ -660,16 +670,23 @@ const DiagnosticMetric = ({ label, value }: { label: string; value: string }) =>
 
 const ChatReaderPanel = ({
   chatReader,
+  platformChat,
   onSubmit,
-  onSettingsChange
+  onSettingsChange,
+  onPlatformChatSettingsChange,
+  onPlatformChatSampleIngest
 }: {
   chatReader: ChatReaderState;
+  platformChat: PlatformChatSettings;
   onSubmit(author: string, body: string): void;
   onSettingsChange(settings: Partial<ChatReaderSettings>): void;
+  onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
+  onPlatformChatSampleIngest(): void;
 }) => {
   const [author, setAuthor] = useState("viewer");
   const [body, setBody] = useState("Nice stream!");
   const [mutedWords, setMutedWords] = useState(chatReader.settings.mutedWords.join(", "));
+  const platformStatus = getPlatformChatConnectionStatus(platformChat);
 
   const submit = () => {
     if (!body.trim()) {
@@ -717,6 +734,55 @@ const ChatReaderPanel = ({
       />
 
       <ActionButton label="Test Read" onPress={submit} />
+
+      <View style={styles.platformChatPanel}>
+        <View style={styles.chatStatusRow}>
+          <ActionButton
+            label={platformChat.enabled ? "Platform On" : "Platform Off"}
+            variant={platformChat.enabled ? "active" : "default"}
+            onPress={() => onPlatformChatSettingsChange({ enabled: !platformChat.enabled })}
+          />
+          <View style={[styles.platformStatusBadge, platformStatus.status === "ready" && styles.platformStatusReady]}>
+            <Text style={[styles.platformStatusText, platformStatus.status === "ready" && styles.platformStatusReadyText]}>{platformStatus.label}</Text>
+          </View>
+        </View>
+        <View style={styles.platformChoiceRow}>
+          <ActionButton
+            label="YouTube"
+            variant={platformChat.platform === "youtube" ? "active" : "default"}
+            onPress={() => onPlatformChatSettingsChange({ platform: "youtube" })}
+          />
+          <ActionButton
+            label="Twitch"
+            variant={platformChat.platform === "twitch" ? "active" : "default"}
+            onPress={() => onPlatformChatSettingsChange({ platform: "twitch" })}
+          />
+        </View>
+        {platformChat.platform === "youtube" ? (
+          <>
+            <Label text="Live chat ID" />
+            <TextInput
+              value={platformChat.youtubeLiveChatId}
+              onChangeText={(youtubeLiveChatId) => onPlatformChatSettingsChange({ youtubeLiveChatId })}
+              style={styles.input}
+              autoCapitalize="none"
+              placeholderTextColor="#71717a"
+            />
+          </>
+        ) : (
+          <>
+            <Label text="Twitch channel" />
+            <TextInput
+              value={platformChat.twitchChannel}
+              onChangeText={(twitchChannel) => onPlatformChatSettingsChange({ twitchChannel })}
+              style={styles.input}
+              autoCapitalize="none"
+              placeholderTextColor="#71717a"
+            />
+          </>
+        )}
+        <ActionButton label="Test Platform Chat" disabled={!platformChat.enabled} onPress={onPlatformChatSampleIngest} />
+      </View>
 
       <NumberStepper label="Rate" value={chatReader.settings.rate} min={0.5} max={1.5} step={0.05} onChange={(rate) => onSettingsChange({ rate })} />
       <NumberStepper label="Pitch" value={chatReader.settings.pitch} min={0.5} max={1.5} step={0.05} onChange={(pitch) => onSettingsChange({ pitch })} />
@@ -1586,6 +1652,38 @@ const styles = StyleSheet.create({
     color: "#a1a1aa",
     fontSize: 12,
     fontWeight: "800"
+  },
+  platformChatPanel: {
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: "#101015",
+    gap: 10
+  },
+  platformChoiceRow: {
+    flexDirection: "row",
+    gap: 8
+  },
+  platformStatusBadge: {
+    minHeight: 46,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    backgroundColor: "#18181f"
+  },
+  platformStatusReady: {
+    borderColor: "rgba(34, 197, 94, 0.42)"
+  },
+  platformStatusText: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    fontWeight: "900"
+  },
+  platformStatusReadyText: {
+    color: "#bbf7d0"
   },
   chatHistory: {
     gap: 6

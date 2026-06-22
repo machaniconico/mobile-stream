@@ -46,6 +46,30 @@ describe("chatReader", () => {
     expect(next.skippedCount).toBe(1);
   });
 
+  it("uses external message ids for stable queue dedupe", () => {
+    const state = createDefaultChatReaderState();
+    const first = createChatMessage({
+      id: "platform-message-1",
+      source: "youtube",
+      author: "viewer",
+      body: "first body",
+      receivedAt: 10
+    });
+    const second = createChatMessage({
+      id: "platform-message-1",
+      source: "youtube",
+      author: "viewer",
+      body: "edited body",
+      receivedAt: 11
+    });
+
+    const next = enqueueChatMessage(enqueueChatMessage(state, first), second);
+
+    expect(first.id).toBe(second.id);
+    expect(next.queue).toHaveLength(1);
+    expect(next.queue[0].body).toBe("edited body");
+  });
+
   it("selects and clears the next spoken message", () => {
     const message = createChatMessage({
       author: "viewer",
