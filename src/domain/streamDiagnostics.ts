@@ -13,6 +13,11 @@ import {
   summarizeStreamQualityIncidents,
   type StreamQualityIncident
 } from "./streamQualityIncidents";
+import {
+  summarizeStreamHealthHistory,
+  type StreamHealthHistorySummary,
+  type StreamHealthSample
+} from "./streamHealthHistory";
 import type { StreamSessionEvent } from "./streamSessionLog";
 import type { StreamHealth, StreamStatus } from "./streamState";
 
@@ -61,6 +66,7 @@ export interface StreamDiagnostics {
     summary: string;
     incidents: StreamQualityIncident[];
   };
+  history: StreamHealthHistorySummary;
   session: {
     events: StreamSessionEvent[];
   };
@@ -94,7 +100,8 @@ export const createStreamDiagnostics = (
   profile: StudioProfile,
   readiness: ReadinessReport,
   snapshot: SnapshotLike,
-  sessionEvents: StreamSessionEvent[] = []
+  sessionEvents: StreamSessionEvent[] = [],
+  healthSamples: StreamHealthSample[] = []
 ): StreamDiagnostics => {
   const destination = readiness.sanitizedProfile.destination;
   const quality = readiness.sanitizedProfile.quality;
@@ -111,6 +118,10 @@ export const createStreamDiagnostics = (
   const recoveryPolicy = createDefaultStreamRecoveryPolicy();
   const recoveryStatus = createStreamRecoveryStatus(snapshot, quality, recoveryPolicy);
   const qualityIncidents = createStreamQualityIncidents(snapshot, quality);
+  const history = summarizeStreamHealthHistory(healthSamples, {
+    bitrateKbps: targetVideoBitrateKbps,
+    fps: quality.fps
+  });
   const checks = [
     ...readiness.issues.map<DiagnosticCheck>((issue) => ({
       code: `readiness-${issue.code}`,
@@ -128,6 +139,7 @@ export const createStreamDiagnostics = (
     createTelemetryDropsCheck(snapshot),
     createReconnectCheck(snapshot),
     createQualityIncidentCheck(qualityIncidents),
+    createHistoryCheck(history),
     createRecoveryCheck(recoveryStatus)
   ];
   const status = summaryStatus(checks);
@@ -169,6 +181,7 @@ export const createStreamDiagnostics = (
       summary: summarizeStreamQualityIncidents(qualityIncidents),
       incidents: qualityIncidents
     },
+    history,
     session: {
       events: sanitizedSessionEvents
     },
@@ -235,6 +248,17 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
       : diagnostics.qualityIncidents.incidents.map(
           (incident) => `- [${incident.severity.toUpperCase()}] ${incident.label}: ${incident.message} Recommendation: ${incident.recommendation}`
         )),
+    "",
+    "Health History",
+    `- Summary: ${diagnostics.history.summary}`,
+    `- Samples: ${diagnostics.history.sampleCount}`,
+    `- Duration: ${formatDelay(diagnostics.history.durationSeconds * 1000)}`,
+    `- Avg bitrate: ${diagnostics.history.averageBitrateKbps} kbps`,
+    `- Min bitrate: ${diagnostics.history.minimumBitrateKbps} kbps`,
+    `- Avg FPS: ${diagnostics.history.averageFps}`,
+    `- Min FPS: ${diagnostics.history.minimumFps}`,
+    `- Drop increase: ${diagnostics.history.droppedFrameIncrease}`,
+    `- Observed reconnects: ${diagnostics.history.observedReconnectAttempts}`,
     "",
     "Session Events",
     ...(diagnostics.session.events.length === 0
@@ -495,6 +519,39 @@ const createQualityIncidentCheck = (incidents: StreamQualityIncident[]): Diagnos
     status: "pass",
     label: "Quality incidents",
     message: summary
+  };
+};
+
+const createHistoryCheck = (history: StreamHealthHistorySummary): DiagnosticCheck => {
+  if (history.stability === "unstable") {
+    return {
+      code: "history-unstable",
+      status: "warn",
+      label: "Health history",
+      message: history.summary
+    };
+  }
+  if (history.stability === "watch") {
+    return {
+      code: "history-watch",
+      status: "warn",
+      label: "Health history",
+      message: history.summary
+    };
+  }
+  if (history.stability === "stable") {
+    return {
+      code: "history-stable",
+      status: "pass",
+      label: "Health history",
+      message: history.summary
+    };
+  }
+  return {
+    code: "history-empty",
+    status: "info",
+    label: "Health history",
+    message: history.summary
   };
 };
 

@@ -28,6 +28,8 @@ export interface SupportBundle {
     launchBlockCount: number;
     launchWarningCount: number;
     diagnosticCheckCount: number;
+    healthSampleCount: number;
+    healthStability: StreamDiagnostics["history"]["stability"];
     sessionEventCount: number;
     sourceCount: number;
     visibleSourceCount: number;
@@ -121,6 +123,8 @@ export const createSupportBundle = ({
       launchBlockCount: preflight.blocks.length,
       launchWarningCount: preflight.warnings.length,
       diagnosticCheckCount: diagnostics.checks.length,
+      healthSampleCount: diagnostics.history.sampleCount,
+      healthStability: diagnostics.history.stability,
       sessionEventCount: diagnostics.session.events.length,
       sourceCount: scene.sources.length,
       visibleSourceCount
@@ -215,6 +219,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     "",
     "Session",
     `- Events: ${bundle.summary.sessionEventCount}`,
+    `- Health history: ${bundle.diagnostics.history.summary}`,
     `- Quality incidents: ${bundle.diagnostics.qualityIncidents.summary}`,
     `- Recovery: ${bundle.diagnostics.recovery.mode} / ${bundle.diagnostics.recovery.recommendedAction}`,
     "",

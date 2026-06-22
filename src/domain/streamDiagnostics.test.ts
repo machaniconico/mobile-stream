@@ -227,9 +227,11 @@ describe("stream diagnostics", () => {
     expect(text).toContain("MobileLiveCaster Diagnostics");
     expect(text).toContain("Recovery");
     expect(text).toContain("Active Quality Incidents");
+    expect(text).toContain("Health History");
     expect(text).toContain("Session Events");
     expect(json).toContain("backoffWindow");
     expect(json).toContain("qualityIncidents");
+    expect(json).toContain("history");
     expect(json).toContain(redactStreamKey(demoStreamKey));
     expect(text).toContain(redactStreamKey(demoStreamKey));
     expect(json).not.toContain(demoStreamKey);

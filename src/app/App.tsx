@@ -72,6 +72,7 @@ import { MockLiveCaster } from "../native/MockLiveCaster";
 import { useChatSpeechQueue } from "../native/ChatSpeechEngine";
 import { usePlatformChatConnection } from "../native/usePlatformChatConnection";
 import { useStreamAutoRecovery } from "../native/useStreamAutoRecovery";
+import { useStreamHealthHistory } from "../native/useStreamHealthHistory";
 import { useStreamSessionLog } from "../native/useStreamSessionLog";
 import { loadProfile, loadScene, saveProfile, saveScene } from "../storage/localStore";
 import { StudioScreen } from "../screens/StudioScreen";
@@ -110,6 +111,7 @@ export const App = () => {
     }
   });
   const { events: streamSessionEvents, recordEvent: recordStreamSessionEvent } = useStreamSessionLog(snapshot);
+  const streamHealthSamples = useStreamHealthHistory(snapshot);
 
   useEffect(() => engine.subscribe(setSnapshot), [engine]);
   useChatSpeechQueue(chatReader, setChatReader, chatSpeechEngine);
@@ -423,6 +425,7 @@ export const App = () => {
       selectedSourceId={selectedSourceId}
       snapshot={snapshot}
       streamSessionEvents={streamSessionEvents}
+      streamHealthSamples={streamHealthSamples}
       operationStatus={operationStatus}
       readiness={readiness}
       chatReader={chatReader}

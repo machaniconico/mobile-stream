@@ -48,6 +48,7 @@ import {
   type SourceKind
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
+import type { StreamHealthSample } from "../domain/streamHealthHistory";
 import {
   createStreamStartPreflightReport,
   type StreamStartPreflightReport
@@ -73,6 +74,7 @@ interface StudioScreenProps {
   selectedSourceId: string;
   snapshot: NativeEngineSnapshot;
   streamSessionEvents: StreamSessionEvent[];
+  streamHealthSamples: StreamHealthSample[];
   operationStatus: StreamOperationStatus | null;
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
@@ -185,6 +187,11 @@ const recoveryMetricLabel = (diagnostics: StreamDiagnostics): string => {
   return `${diagnostics.recovery.mode} / ${diagnostics.recovery.attemptsRemaining} retries left${retryDelay}`;
 };
 
+const historyMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.history.sampleCount === 0
+    ? "No samples yet"
+    : `${diagnostics.history.stability} / avg ${diagnostics.history.averageBitrateKbps} kbps / ${diagnostics.history.averageFps} fps`;
+
 const qualityIncidentSummaryTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" => {
   if (diagnostics.qualityIncidents.incidents.some((incident) => incident.severity === "fail")) {
     return "fail";
@@ -198,6 +205,7 @@ export const StudioScreen = ({
   selectedSourceId,
   snapshot,
   streamSessionEvents,
+  streamHealthSamples,
   operationStatus,
   readiness,
   chatReader,
@@ -250,7 +258,7 @@ export const StudioScreen = ({
     operationStatus
   });
   const canGoLive = startPreflight.canStart;
-  const diagnostics = createStreamDiagnostics(scene, profile, readiness, snapshot, streamSessionEvents);
+  const diagnostics = createStreamDiagnostics(scene, profile, readiness, snapshot, streamSessionEvents, streamHealthSamples);
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
     if (setupLocked) {
       return;
@@ -801,6 +809,8 @@ const StreamDiagnosticsPanel = ({
       </strong>
       <span>Recovery</span>
       <strong>{recoveryMetricLabel(diagnostics)}</strong>
+      <span>History</span>
+      <strong>{historyMetricLabel(diagnostics)}</strong>
     </div>
     <div className="diagnostic-incidents">
       <div className={`diagnostic-incident-summary ${qualityIncidentSummaryTone(diagnostics)}`}>

@@ -35,6 +35,7 @@ import {
   type SourceKind
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
+import type { StreamHealthSample } from "../domain/streamHealthHistory";
 import {
   createStreamStartPreflightReport,
   type StreamStartPreflightReport
@@ -58,6 +59,7 @@ interface MobileStudioScreenProps {
   selectedSourceId: string;
   snapshot: NativeEngineSnapshot;
   streamSessionEvents: StreamSessionEvent[];
+  streamHealthSamples: StreamHealthSample[];
   operationStatus: StreamOperationStatus | null;
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
@@ -146,12 +148,18 @@ const recoveryMetricLabel = (diagnostics: StreamDiagnostics): string => {
   return `${diagnostics.recovery.mode} / ${diagnostics.recovery.attemptsRemaining} retries left${retryDelay}`;
 };
 
+const historyMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.history.sampleCount === 0
+    ? "No samples yet"
+    : `${diagnostics.history.stability} / avg ${diagnostics.history.averageBitrateKbps} kbps / ${diagnostics.history.averageFps} fps`;
+
 export const MobileStudioScreen = ({
   scene,
   profile,
   selectedSourceId,
   snapshot,
   streamSessionEvents,
+  streamHealthSamples,
   operationStatus,
   readiness,
   chatReader,
@@ -204,7 +212,7 @@ export const MobileStudioScreen = ({
     operationStatus
   });
   const canGoLive = startPreflight.canStart;
-  const diagnostics = createStreamDiagnostics(scene, profile, readiness, snapshot, streamSessionEvents);
+  const diagnostics = createStreamDiagnostics(scene, profile, readiness, snapshot, streamSessionEvents, streamHealthSamples);
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
     if (setupLocked) {
@@ -937,6 +945,7 @@ const StreamDiagnosticsPanel = ({
       <DiagnosticMetric label="Upload target" value={`${diagnostics.quality.estimatedUploadKbps} kbps`} />
       <DiagnosticMetric label="Telemetry" value={`${diagnostics.telemetry.bitrateKbps} kbps / ${diagnostics.telemetry.fps} fps`} />
       <DiagnosticMetric label="Recovery" value={recoveryMetricLabel(diagnostics)} />
+      <DiagnosticMetric label="History" value={historyMetricLabel(diagnostics)} />
     </View>
     <View style={styles.diagnosticIncidents}>
       <View style={[styles.diagnosticIncidentSummary, diagnosticIncidentSummaryStyle(diagnostics)]}>
