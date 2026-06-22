@@ -15,6 +15,8 @@ export interface PlatformPublishingResult {
   message: string;
 }
 
+export type YouTubeBroadcastTransitionStatus = "testing" | "live" | "complete";
+
 export class PlatformPublishingError extends Error {
   constructor(message: string) {
     super(message);
@@ -92,7 +94,7 @@ export const createYouTubeBroadcastAndBindStream = async (
         enableDvr: true,
         recordFromStart: true,
         monitorStream: {
-          enableMonitorStream: false
+          enableMonitorStream: true
         }
       }
     })
@@ -133,6 +135,7 @@ export const createYouTubeBroadcastAndBindStream = async (
     ...settings,
     youtubeBroadcastId: broadcastId,
     youtubeLiveChatId: liveChatId,
+    youtubeBroadcastStatus: normalizeSingleLine(bound.status?.lifeCycleStatus || inserted.status?.lifeCycleStatus) || "created",
     youtubeStreamId: normalizeSingleLine(bound.contentDetails?.boundStreamId) || settings.youtubeStreamId
   };
 
@@ -148,6 +151,62 @@ export const createYouTubeBroadcastAndBindStream = async (
         : profile.platformChat
     },
     message: `YouTube broadcast "${bound.snippet?.title || settings.title}" created and bound to the saved stream.`
+  };
+};
+
+export const transitionYouTubeBroadcast = async (
+  profile: StudioProfile,
+  credential: PlatformChatOAuthCredential | null,
+  broadcastStatus: YouTubeBroadcastTransitionStatus,
+  fetcher: PlatformChatFetch
+): Promise<PlatformPublishingResult> => {
+  const normalizedCredential = requirePlatformCredential(credential, "youtube");
+  requireScope(normalizedCredential, YOUTUBE_LIVE_MANAGE_SCOPE, "YouTube broadcast transition requires OAuth scope youtube.force-ssl.");
+  const settings = normalizePlatformPublishingSettings(profile.platformPublishing);
+
+  if (!settings.youtubeBroadcastId) {
+    throw new PlatformPublishingError("Create a YouTube broadcast before changing its lifecycle state.");
+  }
+
+  const response = await fetcher(
+    `${YOUTUBE_LIVE_BROADCASTS_URL}/transition?${createQueryParams({
+      broadcastStatus,
+      id: settings.youtubeBroadcastId,
+      part: "snippet,contentDetails,status"
+    })}`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${normalizedCredential.accessToken}`
+      }
+    }
+  );
+  const payload = (await response.json()) as YouTubeLiveBroadcastResource;
+
+  if (!response.ok) {
+    throw new PlatformPublishingError(`YouTube broadcast transition to ${broadcastStatus} failed with HTTP ${response.status}.`);
+  }
+
+  const liveChatId = normalizeSingleLine(payload.snippet?.liveChatId || settings.youtubeLiveChatId);
+  const nextStatus = normalizeSingleLine(payload.status?.lifeCycleStatus) || broadcastStatus;
+
+  return {
+    profile: {
+      ...profile,
+      platformPublishing: {
+        ...settings,
+        youtubeBroadcastStatus: nextStatus,
+        youtubeLiveChatId: liveChatId
+      },
+      platformChat: liveChatId
+        ? {
+            ...profile.platformChat,
+            youtubeLiveChatId: liveChatId
+          }
+        : profile.platformChat
+    },
+    message: `YouTube broadcast transition requested: ${nextStatus}.`
   };
 };
 

@@ -6,6 +6,7 @@ import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
 import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
 import type { PlatformChatOAuthFlow, PlatformChatOAuthSettings } from "../domain/platformChatOAuth";
+import type { YouTubeBroadcastTransitionStatus } from "../domain/platformPublishing";
 import type { DestinationPresetId, MicEffectPresetId, StudioProfile, StreamProtocol } from "../domain/profiles";
 import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../domain/platformChat";
 import {
@@ -78,6 +79,7 @@ interface MobileStudioScreenProps {
   onPlatformChatOAuthCallbackApply(): void | Promise<void>;
   onPlatformStreamKeyApply(): void | Promise<void>;
   onPlatformPublishingApply(): void | Promise<void>;
+  onYouTubeBroadcastTransition(status: YouTubeBroadcastTransitionStatus): void | Promise<void>;
   onPlatformChatConnect(): void;
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
@@ -140,6 +142,7 @@ export const MobileStudioScreen = ({
   onPlatformChatOAuthCallbackApply,
   onPlatformStreamKeyApply,
   onPlatformPublishingApply,
+  onYouTubeBroadcastTransition,
   onPlatformChatConnect,
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
@@ -729,8 +732,21 @@ export const MobileStudioScreen = ({
                   onPress={() => updatePublishing({ madeForKids: !profile.platformPublishing.madeForKids })}
                 />
                 <Text style={styles.secretStatus} numberOfLines={1}>
-                  {profile.platformPublishing.youtubeBroadcastId || profile.platformPublishing.youtubeStreamId || "No YouTube resource ID"}
+                  {profile.platformPublishing.youtubeBroadcastStatus ||
+                    profile.platformPublishing.youtubeBroadcastId ||
+                    profile.platformPublishing.youtubeStreamId ||
+                    "No YouTube resource ID"}
                 </Text>
+              </View>
+              <View style={styles.grid3}>
+                {(["testing", "live", "complete"] as YouTubeBroadcastTransitionStatus[]).map((broadcastStatus) => (
+                  <ActionButton
+                    key={broadcastStatus}
+                    label={broadcastStatus === "testing" ? "Test" : broadcastStatus === "live" ? "Live" : "Complete"}
+                    disabled={setupLocked || !profile.platformPublishing.youtubeBroadcastId}
+                    onPress={() => onYouTubeBroadcastTransition(broadcastStatus)}
+                  />
+                ))}
               </View>
             </>
           ) : null}

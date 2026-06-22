@@ -49,6 +49,7 @@ describe("studio profiles", () => {
         youtubeStreamId: " stream-id ",
         youtubeBroadcastId: " broadcast-id ",
         youtubeLiveChatId: " chat-id ",
+        youtubeBroadcastStatus: " live ",
         twitchCategory: " Just Chatting ",
         twitchCategoryId: " 509658 ",
         twitchLanguage: " JA "
@@ -59,6 +60,7 @@ describe("studio profiles", () => {
     expect(profile.platformPublishing.description).toBe("Line 1\nLine 2");
     expect(profile.platformPublishing.scheduledStartMinutesFromNow).toBe(1);
     expect(profile.platformPublishing.youtubeStreamId).toBe("stream-id");
+    expect(profile.platformPublishing.youtubeBroadcastStatus).toBe("live");
     expect(profile.platformPublishing.twitchCategoryId).toBe("509658");
     expect(profile.platformPublishing.twitchLanguage).toBe("ja");
   });

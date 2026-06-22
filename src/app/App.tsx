@@ -34,7 +34,12 @@ import {
   type PlatformChatOAuthFlow,
   type PlatformChatOAuthSettings
 } from "../domain/platformChatOAuth";
-import { applyTwitchChannelMetadata, createYouTubeBroadcastAndBindStream } from "../domain/platformPublishing";
+import {
+  applyTwitchChannelMetadata,
+  createYouTubeBroadcastAndBindStream,
+  transitionYouTubeBroadcast,
+  type YouTubeBroadcastTransitionStatus
+} from "../domain/platformPublishing";
 import { rotateYouTubeStreamKey, syncTwitchStreamKey } from "../domain/platformStreamKeys";
 import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
@@ -301,6 +306,16 @@ export const App = () => {
     }
   };
 
+  const transitionYouTubeBroadcastState = async (broadcastStatus: YouTubeBroadcastTransitionStatus) => {
+    try {
+      const result = await transitionYouTubeBroadcast(profile, platformChatOAuthCredential, broadcastStatus, fetch);
+      setProfile(result.profile);
+      setPlatformPublishingStatus(result.message);
+    } catch (error) {
+      setPlatformPublishingStatus(toErrorMessage(error));
+    }
+  };
+
   const ingestPlatformChatSample = () => {
     if (!profile.platformChat.enabled) {
       return;
@@ -350,6 +365,7 @@ export const App = () => {
       onPlatformChatOAuthCallbackApply={applyPlatformChatOAuthCallback}
       onPlatformStreamKeyApply={applyPlatformStreamKey}
       onPlatformPublishingApply={applyPlatformPublishingSetup}
+      onYouTubeBroadcastTransition={transitionYouTubeBroadcastState}
       onPlatformChatConnect={platformChatConnection.connect}
       onPlatformChatDisconnect={platformChatConnection.disconnect}
       onPlatformChatSampleIngest={ingestPlatformChatSample}

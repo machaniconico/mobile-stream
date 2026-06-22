@@ -11,7 +11,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Layer visibility, lock, ordering, and transform controls.
 - RTMP/RTMPS destination profiles with YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - OAuth/API-backed platform stream key controls: YouTube can create a new reusable Live Stream and apply its RTMPS key; Twitch can sync the current Helix stream key.
-- OAuth/API-backed publishing controls: YouTube can create and bind scheduled Live Broadcasts; Twitch can update title, category, and broadcaster language.
+- OAuth/API-backed publishing controls: YouTube can create, bind, test, start, and complete scheduled Live Broadcasts; Twitch can update title, category, and broadcaster language.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, and sanitized report export/share.
 - Stream key redaction and no-secret browser persistence.
@@ -71,7 +71,7 @@ npm run ios:build:simulator
 - Scene storage: web uses localStorage; Android uses app SharedPreferences; iOS writes an atomic scene JSON file under Application Support.
 - Chat reader: YouTube/Twitch payload adapters can feed the shared queue; current UI includes manual/test comments, platform adapter test ingest, OAuth authorization/callback controls, network connect controls, and native/browser TTS output. Browser OAuth remains session-only; mobile credentials are stored through Keychain/Android Keystore-backed native storage.
 - Platform stream key management: YouTube OAuth uses Live Streaming API `liveStreams.insert` to rotate by creating a new reusable stream; Twitch OAuth uses Helix Get Stream Key to sync the current key because Twitch does not expose a public reset endpoint.
-- Platform publishing management: YouTube OAuth uses Live Streaming API `liveBroadcasts.insert` and `liveBroadcasts.bind` for scheduled broadcast setup; Twitch OAuth uses Helix `PATCH /channels` and category search for channel metadata.
+- Platform publishing management: YouTube OAuth uses Live Streaming API `liveBroadcasts.insert`, `liveBroadcasts.bind`, and `liveBroadcasts.transition` for scheduled broadcast setup and lifecycle control; Twitch OAuth uses Helix `PATCH /channels` and category search for channel metadata.
 - Avatar rendering: PNGTuber first, Live2D after licensing and runtime validation.
 
 Android device streaming routes through `LiveCasterNative` when the native module is linked. iOS app-side setup can launch the Broadcast Upload Extension picker and pass App Group configuration into the extension. Non-device development still falls back to the mock engine.

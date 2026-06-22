@@ -11,6 +11,7 @@ import {
   type StudioProfile,
   type StreamProtocol
 } from "../domain/profiles";
+import type { YouTubeBroadcastTransitionStatus } from "../domain/platformPublishing";
 import type { ReadinessReport } from "../domain/readiness";
 import { PanelTitle, ProtocolBadge } from "./ui";
 
@@ -21,6 +22,7 @@ interface LiveSetupScreenProps {
   platformPublishingStatus: string;
   onProfileChange(profile: StudioProfile): void;
   onPlatformPublishingApply(): void | Promise<void>;
+  onYouTubeBroadcastTransition(status: YouTubeBroadcastTransitionStatus): void | Promise<void>;
   onClearStreamKey(): void;
 }
 
@@ -31,6 +33,7 @@ export const LiveSetupScreen = ({
   platformPublishingStatus,
   onProfileChange,
   onPlatformPublishingApply,
+  onYouTubeBroadcastTransition,
   onClearStreamKey
 }: LiveSetupScreenProps) => {
   const activePreset = getDestinationPreset(profile.destination.presetId) ?? getDestinationPreset("custom-rtmps");
@@ -217,8 +220,24 @@ export const LiveSetupScreen = ({
               Made for Kids
             </button>
             <span className="platform-resource-id">
-              {profile.platformPublishing.youtubeBroadcastId || profile.platformPublishing.youtubeStreamId || "No YouTube resource ID"}
+              {profile.platformPublishing.youtubeBroadcastStatus ||
+                profile.platformPublishing.youtubeBroadcastId ||
+                profile.platformPublishing.youtubeStreamId ||
+                "No YouTube resource ID"}
             </span>
+          </div>
+          <div className="broadcast-transition-row">
+            {(["testing", "live", "complete"] as YouTubeBroadcastTransitionStatus[]).map((broadcastStatus) => (
+              <button
+                key={broadcastStatus}
+                className="segmented-button"
+                type="button"
+                disabled={locked || !profile.platformPublishing.youtubeBroadcastId}
+                onClick={() => onYouTubeBroadcastTransition(broadcastStatus)}
+              >
+                {broadcastStatus === "testing" ? "Test" : broadcastStatus === "live" ? "Live" : "Complete"}
+              </button>
+            ))}
           </div>
         </>
       ) : null}

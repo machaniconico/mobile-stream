@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PlatformChatOAuthCredential } from "./platformChatOAuth";
 import type { PlatformChatFetch } from "./platformChatConnection";
-import { applyTwitchChannelMetadata, createYouTubeBroadcastAndBindStream } from "./platformPublishing";
+import { applyTwitchChannelMetadata, createYouTubeBroadcastAndBindStream, transitionYouTubeBroadcast } from "./platformPublishing";
 import { applyDestinationPreset, createDefaultStudioProfile } from "./profiles";
 
 const youtubeCredential = (): PlatformChatOAuthCredential => ({
@@ -98,7 +98,10 @@ describe("platformPublishing", () => {
       },
       contentDetails: {
         enableAutoStart: true,
-        enableAutoStop: true
+        enableAutoStop: true,
+        monitorStream: {
+          enableMonitorStream: true
+        }
       }
     });
     expect(fetcher.mock.calls[1][0]).toBe(
@@ -107,6 +110,47 @@ describe("platformPublishing", () => {
     expect(result.profile.platformPublishing.youtubeBroadcastId).toBe("broadcast-1");
     expect(result.profile.platformPublishing.youtubeLiveChatId).toBe("chat-1");
     expect(result.profile.platformChat.youtubeLiveChatId).toBe("chat-1");
+  });
+
+  it("transitions a YouTube broadcast lifecycle state", async () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        youtubeBroadcastId: "broadcast-1",
+        youtubeLiveChatId: "chat-1"
+      }
+    };
+    const fetcher = vi.fn(async (..._args: Parameters<PlatformChatFetch>) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: "broadcast-1",
+        snippet: {
+          liveChatId: "chat-2"
+        },
+        status: {
+          lifeCycleStatus: "live"
+        }
+      })
+    }));
+
+    const result = await transitionYouTubeBroadcast(profile, youtubeCredential(), "live", fetcher);
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://www.googleapis.com/youtube/v3/liveBroadcasts/transition?broadcastStatus=live&id=broadcast-1&part=snippet%2CcontentDetails%2Cstatus",
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          Authorization: "Bearer yt-access"
+        }
+      }
+    );
+    expect(fetcher.mock.calls[0][0]).not.toContain("yt-access");
+    expect(result.profile.platformPublishing.youtubeBroadcastStatus).toBe("live");
+    expect(result.profile.platformPublishing.youtubeLiveChatId).toBe("chat-2");
+    expect(result.profile.platformChat.youtubeLiveChatId).toBe("chat-2");
   });
 
   it("updates Twitch channel metadata with resolved category IDs", async () => {
@@ -170,6 +214,12 @@ describe("platformPublishing", () => {
     await expect(
       createYouTubeBroadcastAndBindStream(createDefaultStudioProfile(), youtubeCredential(), vi.fn())
     ).rejects.toThrow("stream key");
+  });
+
+  it("requires a saved YouTube broadcast ID before transitions", async () => {
+    await expect(
+      transitionYouTubeBroadcast(createDefaultStudioProfile(), youtubeCredential(), "testing", vi.fn())
+    ).rejects.toThrow("broadcast");
   });
 
   it("rejects Twitch credentials missing channel metadata scope", async () => {

@@ -84,6 +84,7 @@ export interface PlatformPublishingSettings {
   youtubeStreamId: string;
   youtubeBroadcastId: string;
   youtubeLiveChatId: string;
+  youtubeBroadcastStatus: string;
   twitchCategory: string;
   twitchCategoryId: string;
   twitchLanguage: string;
@@ -369,6 +370,7 @@ export const defaultPlatformPublishingSettings: PlatformPublishingSettings = {
   youtubeStreamId: "",
   youtubeBroadcastId: "",
   youtubeLiveChatId: "",
+  youtubeBroadcastStatus: "",
   twitchCategory: "Just Chatting",
   twitchCategoryId: "",
   twitchLanguage: "ja"
@@ -470,6 +472,7 @@ export const normalizePlatformPublishingSettings = (
     youtubeStreamId: normalizeSingleLine(settings?.youtubeStreamId).slice(0, 180),
     youtubeBroadcastId: normalizeSingleLine(settings?.youtubeBroadcastId).slice(0, 180),
     youtubeLiveChatId: normalizeSingleLine(settings?.youtubeLiveChatId).slice(0, 180),
+    youtubeBroadcastStatus: normalizeSingleLine(settings?.youtubeBroadcastStatus).slice(0, 40),
     twitchCategory: normalizeSingleLine(settings?.twitchCategory || fallback.twitchCategory).slice(0, 140),
     twitchCategoryId: normalizeSingleLine(settings?.twitchCategoryId).slice(0, 80),
     twitchLanguage: normalizeSingleLine(settings?.twitchLanguage || fallback.twitchLanguage).slice(0, 12).toLowerCase()

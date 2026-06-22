@@ -30,6 +30,7 @@ import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
 import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../domain/platformChat";
 import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
 import type { PlatformChatOAuthFlow, PlatformChatOAuthSettings } from "../domain/platformChatOAuth";
+import type { YouTubeBroadcastTransitionStatus } from "../domain/platformPublishing";
 import { applyMicEffectPreset, micEffectPresets, type MicEffectPresetId, type StudioProfile } from "../domain/profiles";
 import type { ReadinessReport } from "../domain/readiness";
 import {
@@ -93,6 +94,7 @@ interface StudioScreenProps {
   onPlatformChatOAuthCallbackApply(): void | Promise<void>;
   onPlatformStreamKeyApply(): void | Promise<void>;
   onPlatformPublishingApply(): void | Promise<void>;
+  onYouTubeBroadcastTransition(status: YouTubeBroadcastTransitionStatus): void | Promise<void>;
   onPlatformChatConnect(): void;
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
@@ -163,6 +165,7 @@ export const StudioScreen = ({
   onPlatformChatOAuthCallbackApply,
   onPlatformStreamKeyApply,
   onPlatformPublishingApply,
+  onYouTubeBroadcastTransition,
   onPlatformChatConnect,
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
@@ -641,6 +644,7 @@ export const StudioScreen = ({
             platformPublishingStatus={platformPublishingStatus}
             onProfileChange={onProfileChange}
             onPlatformPublishingApply={onPlatformPublishingApply}
+            onYouTubeBroadcastTransition={onYouTubeBroadcastTransition}
             onClearStreamKey={onClearStreamKey}
           />
 

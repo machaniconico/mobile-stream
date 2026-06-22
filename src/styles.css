@@ -682,6 +682,12 @@ select:focus-visible {
   gap: 8px;
 }
 
+.broadcast-transition-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .monitor-row .segmented-button {
   display: inline-flex;
   align-items: center;
