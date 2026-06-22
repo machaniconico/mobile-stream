@@ -13,6 +13,7 @@
 - Mic effect profile model with presets, gain, noise gate, compression, and headphone monitor settings.
 - Chat/comment read-aloud domain model with queueing, muted words, duplicate suppression, queue limits, URL redaction, and speech text shaping.
 - Platform chat adapter model for YouTube LiveChatMessages responses and Twitch EventSub chat notifications.
+- Platform chat adapter settings persisted with the shared studio profile on web and mobile.
 - Avatar runtime model for PNGTuber/Live2D expression, lip sync, and auto blink.
 - Stream state machine for idle, preparing, live, reconnecting, stopping, and failed states.
 - Mock live engine for UI development without native capture.

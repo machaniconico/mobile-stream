@@ -22,6 +22,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Headphone-only mic monitor settings for hearing the processed mic signal locally.
 - Chat/comment read-aloud queue with test comments, muted words, duplicate suppression, queue limits, and speech controls.
 - YouTube LiveChatMessages and Twitch EventSub chat payload adapters feeding the shared read-aloud queue.
+- Durable platform chat adapter settings through the shared profile store.
 - Mock Go Live, Stop, and Reconnect controls.
 - iOS ReplayKit Broadcast Upload Extension target and startup bridge.
 - iOS Broadcast Upload Extension H.264/AAC encode path with app/mic audio mixing.

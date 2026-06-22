@@ -17,7 +17,6 @@ import {
   updateFaceTrackingRuntime
 } from "../domain/faceTracking";
 import {
-  createDefaultPlatformChatSettings,
   createPlatformChatSample,
   normalizePlatformChatSettings,
   type PlatformChatSettings
@@ -64,7 +63,6 @@ export const MobileApp = () => {
   const [sceneLoaded, setSceneLoaded] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [chatReader, setChatReader] = useState(() => createDefaultChatReaderState());
-  const [platformChat, setPlatformChat] = useState(() => createDefaultPlatformChatSettings());
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeStateFromScene(scene, Date.now()));
@@ -257,14 +255,20 @@ export const MobileApp = () => {
   };
 
   const updatePlatformChatSettings = (settings: Partial<PlatformChatSettings>) => {
-    setPlatformChat((current) => normalizePlatformChatSettings({ ...current, ...settings }));
+    setProfile((current) => ({
+      ...current,
+      platformChat: normalizePlatformChatSettings({
+        ...current.platformChat,
+        ...settings
+      })
+    }));
   };
 
   const ingestPlatformChatSample = () => {
-    if (!platformChat.enabled) {
+    if (!profile.platformChat.enabled) {
       return;
     }
-    const result = createPlatformChatSample(platformChat);
+    const result = createPlatformChatSample(profile.platformChat);
     setChatReader((current) => result.messages.reduce(enqueueChatMessage, current));
   };
 
@@ -287,7 +291,7 @@ export const MobileApp = () => {
         operationStatus={operationStatus}
         readiness={readiness}
         chatReader={chatReader}
-        platformChat={platformChat}
+        platformChat={profile.platformChat}
         avatarRuntime={avatarRuntime}
         faceTrackingRuntime={faceTrackingRuntime}
         onSceneChange={setScene}

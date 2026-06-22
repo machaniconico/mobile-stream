@@ -1,4 +1,9 @@
 import { defaultFaceTrackingProfile, normalizeFaceTrackingProfile, type FaceTrackingProfile } from "./faceTracking";
+import {
+  createDefaultPlatformChatSettings,
+  normalizePlatformChatSettings,
+  type PlatformChatSettings
+} from "./platformChat";
 
 export type StreamProtocol = "rtmp" | "rtmps";
 export type StreamPlatform = "custom" | "youtube-live" | "twitch";
@@ -73,6 +78,7 @@ export interface StudioProfile {
   avatar: AvatarProfile;
   micEffects: MicEffectsProfile;
   faceTracking: FaceTrackingProfile;
+  platformChat: PlatformChatSettings;
 }
 
 export const destinationPresets: DestinationPreset[] = [
@@ -357,7 +363,8 @@ export const createDefaultStudioProfile = (): StudioProfile => ({
   quality: qualityProfiles[0],
   avatar: { ...defaultAvatarProfile },
   micEffects: { ...defaultMicEffectsProfile },
-  faceTracking: { ...defaultFaceTrackingProfile }
+  faceTracking: { ...defaultFaceTrackingProfile },
+  platformChat: createDefaultPlatformChatSettings()
 });
 
 export const redactStreamKey = (streamKey: string): string => {
@@ -400,7 +407,8 @@ export const normalizeStudioProfile = (profile: Partial<StudioProfile> | null | 
       ...profile?.avatar
     },
     micEffects: normalizeMicEffectsProfile(profile?.micEffects),
-    faceTracking: normalizeFaceTrackingProfile(profile?.faceTracking)
+    faceTracking: normalizeFaceTrackingProfile(profile?.faceTracking),
+    platformChat: normalizePlatformChatSettings(profile?.platformChat ?? fallback.platformChat)
   };
 };
 

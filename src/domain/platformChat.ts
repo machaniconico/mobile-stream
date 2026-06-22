@@ -68,11 +68,18 @@ export const createDefaultPlatformChatSettings = (): PlatformChatSettings => ({
   twitchChannel: ""
 });
 
-export const normalizePlatformChatSettings = (settings: PlatformChatSettings): PlatformChatSettings => ({
-  enabled: settings.enabled,
-  platform: settings.platform === "twitch" ? "twitch" : "youtube",
-  youtubeLiveChatId: normalizeIdentifier(settings.youtubeLiveChatId).slice(0, 160),
-  twitchChannel: normalizeIdentifier(settings.twitchChannel).replace(/^@/, "").toLowerCase().slice(0, 80)
+export const normalizePlatformChatSettings = (
+  settings: Partial<PlatformChatSettings> | null | undefined
+): PlatformChatSettings => ({
+  enabled: settings?.enabled === true,
+  platform: settings?.platform === "twitch" ? "twitch" : "youtube",
+  youtubeLiveChatId: normalizeIdentifier(
+    typeof settings?.youtubeLiveChatId === "string" ? settings.youtubeLiveChatId : ""
+  ).slice(0, 160),
+  twitchChannel: normalizeIdentifier(typeof settings?.twitchChannel === "string" ? settings.twitchChannel : "")
+    .replace(/^@/, "")
+    .toLowerCase()
+    .slice(0, 80)
 });
 
 export const getPlatformChatConnectionStatus = (settings: PlatformChatSettings): PlatformChatConnectionStatus => {

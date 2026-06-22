@@ -30,6 +30,8 @@ describe("studio profiles", () => {
     expect(profile.micEffects.monitorHeadphonesOnly).toBe(true);
     expect(profile.faceTracking.enabled).toBe(false);
     expect(profile.faceTracking.inputMode).toBe("simulated");
+    expect(profile.platformChat.enabled).toBe(false);
+    expect(profile.platformChat.platform).toBe("youtube");
   });
 
   it("removes stream keys before persistence", () => {
@@ -175,5 +177,39 @@ describe("studio profiles", () => {
     expect(profile.faceTracking.trackingStrength).toBe(1);
     expect(profile.faceTracking.mouthSensitivity).toBe(0.2);
     expect(profile.faceTracking.neutralRoll).toBe(-1);
+  });
+
+  it("normalizes persisted platform chat settings", () => {
+    const profile = normalizeStudioProfile({
+      platformChat: {
+        enabled: true,
+        platform: "twitch",
+        youtubeLiveChatId: "",
+        twitchChannel: "  @MachaChannel  "
+      }
+    });
+
+    expect(profile.platformChat).toEqual({
+      enabled: true,
+      platform: "twitch",
+      youtubeLiveChatId: "",
+      twitchChannel: "machachannel"
+    });
+  });
+
+  it("tolerates partial persisted platform chat settings", () => {
+    const profile = normalizeStudioProfile({
+      platformChat: {
+        enabled: true,
+        platform: "twitch"
+      } as any
+    });
+
+    expect(profile.platformChat).toEqual({
+      enabled: true,
+      platform: "twitch",
+      youtubeLiveChatId: "",
+      twitchChannel: ""
+    });
   });
 });
