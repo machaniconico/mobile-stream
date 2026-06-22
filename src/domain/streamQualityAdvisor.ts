@@ -1,6 +1,7 @@
 import {
   qualityProfiles,
-  type QualityProfile
+  type QualityProfile,
+  type StudioProfile
 } from "./profiles";
 import type { StreamHealthHistorySummary } from "./streamHealthHistory";
 import type { StreamQualityIncident } from "./streamQualityIncidents";
@@ -113,6 +114,31 @@ export const createStreamQualityAdvisor = ({
   });
 };
 
+export const applyStreamQualityAdvisorTarget = (
+  profile: StudioProfile,
+  target: StreamQualityAdvisorTarget | null
+): StudioProfile => {
+  if (!target) {
+    return profile;
+  }
+
+  const preset = target.profileId ? qualityProfiles.find((quality) => quality.id === target.profileId) : null;
+  const quality = preset ?? {
+    id: target.profileId ?? "quality-advisor-custom",
+    name: target.profileName,
+    width: target.width,
+    height: target.height,
+    fps: toSupportedFps(target.fps),
+    videoBitrateKbps: target.videoBitrateKbps,
+    audioBitrateKbps: target.audioBitrateKbps
+  };
+
+  return {
+    ...profile,
+    quality
+  };
+};
+
 const createRecommendation = (recommendation: StreamQualityAdvisorRecommendation): StreamQualityAdvisorRecommendation =>
   recommendation;
 
@@ -181,6 +207,8 @@ const roundToHundred = (value: number): number => Math.max(100, Math.round(value
 
 const qualityCost = (quality: QualityProfile): number =>
   quality.videoBitrateKbps + Math.round((quality.width * quality.height * quality.fps) / 10000);
+
+const toSupportedFps = (fps: number): QualityProfile["fps"] => (fps === 60 ? 60 : 30);
 
 const hasAnyIncident = (incidents: StreamQualityIncident[], codes: StreamQualityIncident["code"][]): boolean =>
   incidents.some((incident) => codes.includes(incident.code));

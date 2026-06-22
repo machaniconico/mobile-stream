@@ -46,6 +46,7 @@ import {
   formatStreamDiagnosticReport,
   type StreamDiagnostics
 } from "../domain/streamDiagnostics";
+import { applyStreamQualityAdvisorTarget } from "../domain/streamQualityAdvisor";
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { StreamSessionSummary } from "../domain/streamSessionSummary";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
@@ -930,6 +931,8 @@ export const MobileStudioScreen = ({
           readiness={readiness}
           preflight={startPreflight}
           diagnostics={diagnostics}
+          setupLocked={setupLocked}
+          onProfileChange={onProfileChange}
         />
       </ScrollView>
     </SafeAreaView>
@@ -941,13 +944,17 @@ const StreamDiagnosticsPanel = ({
   profile,
   readiness,
   preflight,
-  diagnostics
+  diagnostics,
+  setupLocked,
+  onProfileChange
 }: {
   scene: SceneDocument;
   profile: StudioProfile;
   readiness: ReadinessReport;
   preflight: StreamStartPreflightReport;
   diagnostics: StreamDiagnostics;
+  setupLocked: boolean;
+  onProfileChange(profile: StudioProfile): void;
 }) => (
   <Panel title="Diagnostics">
     <View style={[styles.diagnosticSummary, diagnosticSummaryStyle(diagnostics.status)]}>
@@ -983,6 +990,13 @@ const StreamDiagnosticsPanel = ({
         <Text style={styles.diagnosticIncidentRecommendation}>
           {diagnostics.qualityAdvisor.reason || "No quality pressure detected."}
         </Text>
+        {diagnostics.qualityAdvisor.suggestedTarget ? (
+          <ActionButton
+            label="Apply Quality"
+            disabled={setupLocked}
+            onPress={() => onProfileChange(applyStreamQualityAdvisorTarget(profile, diagnostics.qualityAdvisor.suggestedTarget))}
+          />
+        ) : null}
       </View>
     </View>
     {diagnostics.session.lastSummary ? (

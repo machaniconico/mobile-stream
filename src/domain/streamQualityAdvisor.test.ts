@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultStudioProfile, qualityProfiles, type QualityProfile } from "./profiles";
 import { createStreamHealthSample, summarizeStreamHealthHistory } from "./streamHealthHistory";
-import { createStreamQualityAdvisor } from "./streamQualityAdvisor";
+import {
+  applyStreamQualityAdvisorTarget,
+  createStreamQualityAdvisor
+} from "./streamQualityAdvisor";
 import { createStreamQualityIncidents } from "./streamQualityIncidents";
 import { createStreamRecoveryStatus } from "./streamRecovery";
 import { initialStreamState, type StreamHealth } from "./streamState";
@@ -93,5 +96,36 @@ describe("stream quality advisor", () => {
     expect(recommendation.action).toBe("reconnect");
     expect(recommendation.severity).toBe("fail");
     expect(recommendation.summary).toContain("Telemetry is missing");
+  });
+
+  it("applies an existing suggested quality profile to the studio profile", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      quality: quality("quality-sharp")
+    };
+    const recommendation = advisorFor(profile.quality, {
+      bitrateKbps: 1200,
+      fps: 18
+    });
+
+    const updated = applyStreamQualityAdvisorTarget(profile, recommendation.suggestedTarget);
+
+    expect(updated.quality.id).toBe("quality-balanced");
+    expect(updated.quality.name).toBe("Balanced 720p");
+  });
+
+  it("applies a custom safer target when no lower preset exists", () => {
+    const profile = createDefaultStudioProfile();
+    const recommendation = advisorFor(profile.quality, {
+      bitrateKbps: 1200,
+      fps: 18
+    });
+
+    const updated = applyStreamQualityAdvisorTarget(profile, recommendation.suggestedTarget);
+
+    expect(updated.quality.id).toBe("quality-advisor-custom");
+    expect(updated.quality.name).toContain("Custom safer");
+    expect(updated.quality.fps).toBe(30);
+    expect(updated.quality.videoBitrateKbps).toBe(2500);
   });
 });

@@ -59,6 +59,7 @@ import {
   serializeStreamDiagnosticReport,
   type StreamDiagnostics
 } from "../domain/streamDiagnostics";
+import { applyStreamQualityAdvisorTarget } from "../domain/streamQualityAdvisor";
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { StreamSessionSummary } from "../domain/streamSessionSummary";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
@@ -757,6 +758,8 @@ export const StudioScreen = ({
             readiness={readiness}
             preflight={startPreflight}
             diagnostics={diagnostics}
+            setupLocked={setupLocked}
+            onProfileChange={onProfileChange}
           />
         </aside>
       </section>
@@ -788,13 +791,17 @@ const StreamDiagnosticsPanel = ({
   profile,
   readiness,
   preflight,
-  diagnostics
+  diagnostics,
+  setupLocked,
+  onProfileChange
 }: {
   scene: SceneDocument;
   profile: StudioProfile;
   readiness: ReadinessReport;
   preflight: StreamStartPreflightReport;
   diagnostics: StreamDiagnostics;
+  setupLocked: boolean;
+  onProfileChange(profile: StudioProfile): void;
 }) => (
   <section className="control-panel">
     <PanelTitle icon={<Activity size={18} />} title="Diagnostics" />
@@ -853,6 +860,16 @@ const StreamDiagnosticsPanel = ({
         <strong>{qualityAdvisorTargetLabel(diagnostics)}</strong>
         <span>{diagnostics.qualityAdvisor.recommendation}</span>
         <em>{diagnostics.qualityAdvisor.reason || "No quality pressure detected."}</em>
+        {diagnostics.qualityAdvisor.suggestedTarget ? (
+          <button
+            className="secondary-action compact-action"
+            type="button"
+            disabled={setupLocked}
+            onClick={() => onProfileChange(applyStreamQualityAdvisorTarget(profile, diagnostics.qualityAdvisor.suggestedTarget))}
+          >
+            Apply Quality
+          </button>
+        ) : null}
       </div>
     </div>
     {diagnostics.session.lastSummary ? (

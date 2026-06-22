@@ -11,7 +11,7 @@
 - Stream diagnostics model for redacted publish URL, endpoint parsing, upload target estimate, readiness issues, live telemetry health checks, and sanitized diagnostic reports.
 - Stream health history model for average/min bitrate and FPS, dropped-frame/reconnect trend summaries, diagnostics checks, and report export.
 - Post-stream session summary model for completed session outcome, warning/failure/recovery counts, health summary, and next-stream recommendations.
-- Live quality advisor model for maintaining, monitoring, lowering quality, reconnecting, or stopping based on active incidents, history, and recovery state.
+- Live quality advisor model for maintaining, monitoring, lowering quality, reconnecting, or stopping based on active incidents, history, and recovery state, with safe suggested-quality application in Web and React Native.
 - Redacted support bundle export combining preflight, diagnostics, scene composition, stream target, and safe profile summaries for support triage.
 - Stream quality incident model for active bitrate/FPS/drop/reconnect problems, recommendations, UI surfacing, and report export.
 - Shared stream recovery policy model for retry budget, bounded exponential backoff, degraded telemetry detection, failed-engine recovery advice, and sanitized report export.
@@ -44,7 +44,7 @@
   - YouTube Live/Twitch/Custom RTMP setup
   - Go Live preflight banner with blocking reasons and operator recommendations
   - readiness panel with blocking errors and warnings
-  - stream diagnostics panel with endpoint/quality/telemetry/history/quality-advisor/last-session checks, JSON report export, and support bundle export
+  - stream diagnostics panel with endpoint/quality/telemetry/history/quality-advisor/last-session checks, suggested-quality apply, JSON report export, and support bundle export
   - active stream quality incident panel with operator recommendations
   - stream session event timeline for live support diagnostics
   - quality profiles
