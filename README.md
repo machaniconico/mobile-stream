@@ -20,7 +20,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Voice lip-sync meter and expression buttons.
 - Mic effect presets with gain, noise gate, compression, and Android PCM processing.
 - Headphone-only mic monitor settings for hearing the processed mic signal locally.
-- Chat/comment read-aloud queue with test comments, muted words, and speech controls.
+- Chat/comment read-aloud queue with test comments, muted words, duplicate suppression, queue limits, and speech controls.
 - YouTube LiveChatMessages and Twitch EventSub chat payload adapters feeding the shared read-aloud queue.
 - Mock Go Live, Stop, and Reconnect controls.
 - iOS ReplayKit Broadcast Upload Extension target and startup bridge.

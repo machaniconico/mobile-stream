@@ -763,6 +763,22 @@ const ChatReaderPanel = ({
         step={10}
         onChange={(maxMessageLength) => onSettingsChange({ maxMessageLength })}
       />
+      <SpeechSlider
+        label="Queue limit"
+        value={chatReader.settings.maxQueueLength}
+        min={4}
+        max={24}
+        step={1}
+        onChange={(maxQueueLength) => onSettingsChange({ maxQueueLength })}
+      />
+      <SpeechSlider
+        label="Dedupe window"
+        value={chatReader.settings.duplicateWindowSeconds}
+        min={0}
+        max={120}
+        step={5}
+        onChange={(duplicateWindowSeconds) => onSettingsChange({ duplicateWindowSeconds })}
+      />
 
       <label className="field">
         <span>Muted words</span>

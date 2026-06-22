@@ -13,6 +13,8 @@ export interface ChatReaderSettings {
   pitch: number;
   volume: number;
   maxMessageLength: number;
+  maxQueueLength: number;
+  duplicateWindowSeconds: number;
   mutedWords: string[];
 }
 
@@ -42,6 +44,8 @@ export const createDefaultChatReaderSettings = (): ChatReaderSettings => ({
   pitch: 1,
   volume: 0.85,
   maxMessageLength: 140,
+  maxQueueLength: MAX_QUEUE_LENGTH,
+  duplicateWindowSeconds: 20,
   mutedWords: []
 });
 
@@ -74,6 +78,13 @@ export const enqueueChatMessage = (state: ChatReaderState, message: ChatMessage)
     };
   }
 
+  if (isDuplicateRecentMessage(message, state.history, state.settings.duplicateWindowSeconds)) {
+    return {
+      ...state,
+      skippedCount: state.skippedCount + 1
+    };
+  }
+
   const history = [message, ...state.history.filter((item) => item.id !== message.id)].slice(0, MAX_HISTORY_LENGTH);
 
   if (isMutedMessage(message, state.settings)) {
@@ -84,7 +95,7 @@ export const enqueueChatMessage = (state: ChatReaderState, message: ChatMessage)
     };
   }
 
-  const queue = [...state.queue.filter((item) => item.id !== message.id), message].slice(-MAX_QUEUE_LENGTH);
+  const queue = [...state.queue.filter((item) => item.id !== message.id), message].slice(-state.settings.maxQueueLength);
 
   return {
     ...state,
@@ -96,13 +107,17 @@ export const enqueueChatMessage = (state: ChatReaderState, message: ChatMessage)
 export const updateChatReaderSettings = (
   state: ChatReaderState,
   update: Partial<ChatReaderSettings>
-): ChatReaderState => ({
-  ...state,
-  settings: normalizeChatReaderSettings({
+): ChatReaderState => {
+  const settings = normalizeChatReaderSettings({
     ...state.settings,
     ...update
-  })
-});
+  });
+  return {
+    ...state,
+    settings,
+    queue: state.queue.slice(-settings.maxQueueLength)
+  };
+};
 
 export const selectNextReadableMessage = (state: ChatReaderState): ChatMessage | null => {
   if (!state.settings.enabled || state.speakingMessageId || state.queue.length === 0) {
@@ -154,6 +169,8 @@ const normalizeChatReaderSettings = (settings: ChatReaderSettings): ChatReaderSe
   pitch: clamp(settings.pitch, 0.5, 1.5),
   volume: clamp(settings.volume, 0, 1),
   maxMessageLength: Math.round(clamp(settings.maxMessageLength, 40, 240)),
+  maxQueueLength: Math.round(clamp(settings.maxQueueLength, 4, MAX_QUEUE_LENGTH)),
+  duplicateWindowSeconds: Math.round(clamp(settings.duplicateWindowSeconds, 0, 120)),
   mutedWords: settings.mutedWords.map((word) => normalizeWhitespace(word).toLowerCase()).filter(Boolean).slice(0, 24)
 });
 
@@ -165,6 +182,24 @@ const isMutedMessage = (message: ChatMessage, settings: ChatReaderSettings): boo
   const haystack = `${message.author} ${message.body}`.toLowerCase();
   return settings.mutedWords.some((word) => haystack.includes(word));
 };
+
+const isDuplicateRecentMessage = (message: ChatMessage, history: ChatMessage[], duplicateWindowSeconds: number): boolean => {
+  if (duplicateWindowSeconds <= 0) {
+    return false;
+  }
+
+  const signature = messageSignature(message);
+  const windowMillis = duplicateWindowSeconds * 1000;
+  return history.some((item) => {
+    if (message.receivedAt - item.receivedAt > windowMillis) {
+      return false;
+    }
+    return messageSignature(item) === signature;
+  });
+};
+
+const messageSignature = (message: ChatMessage): string =>
+  `${message.source}:${normalizeWhitespace(message.author).toLowerCase()}:${normalizeWhitespace(message.body).toLowerCase()}`;
 
 const stripUrls = (value: string): string => value.replace(/https?:\/\/\S+/gi, "link omitted");
 

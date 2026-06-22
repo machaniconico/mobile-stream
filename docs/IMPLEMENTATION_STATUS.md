@@ -11,7 +11,7 @@
 - Stream key redaction and no-secret browser persistence.
 - In-app stream key clear/replacement controls for browser and mobile setup screens.
 - Mic effect profile model with presets, gain, noise gate, compression, and headphone monitor settings.
-- Chat/comment read-aloud domain model with queueing, muted words, URL redaction, and speech text shaping.
+- Chat/comment read-aloud domain model with queueing, muted words, duplicate suppression, queue limits, URL redaction, and speech text shaping.
 - Platform chat adapter model for YouTube LiveChatMessages responses and Twitch EventSub chat notifications.
 - Avatar runtime model for PNGTuber/Live2D expression, lip sync, and auto blink.
 - Stream state machine for idle, preparing, live, reconnecting, stopping, and failed states.
@@ -28,11 +28,11 @@
   - readiness panel with blocking errors and warnings
   - stream diagnostics panel with endpoint/quality/telemetry checks and JSON report export
   - quality profiles
-  - chat reader panel with test comments, platform adapter ingest, and speech settings
+  - chat reader panel with test comments, platform adapter ingest, safety controls, and speech settings
   - Go Live, Stop, Reconnect mock controls
 - React Native mobile readiness panel and Go Live blocking for invalid profiles.
 - React Native mobile stream diagnostics panel using the shared diagnostics model, including sanitized report sharing.
-- React Native mobile chat reader panel with test comments, platform adapter ingest, and speech settings.
+- React Native mobile chat reader panel with test comments, platform adapter ingest, safety controls, and speech settings.
 - iOS ReplayKit Broadcast Upload Extension target registered in the Xcode project.
 - iOS app-side Broadcast Picker startup bridge with App Group configuration handoff.
 - iOS Broadcast Upload Extension runtime state reporting through App Group storage.
