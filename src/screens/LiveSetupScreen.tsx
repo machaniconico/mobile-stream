@@ -22,7 +22,7 @@ interface LiveSetupScreenProps {
   platformPublishingStatus: string;
   onProfileChange(profile: StudioProfile): void;
   onPlatformPublishingApply(): void | Promise<void>;
-  onYouTubePublishingStatusRefresh(): void | Promise<void>;
+  onPlatformPublishingStatusRefresh(): void | Promise<void>;
   onYouTubeBroadcastTransition(status: YouTubeBroadcastTransitionStatus): void | Promise<void>;
   onClearStreamKey(): void;
 }
@@ -34,7 +34,7 @@ export const LiveSetupScreen = ({
   platformPublishingStatus,
   onProfileChange,
   onPlatformPublishingApply,
-  onYouTubePublishingStatusRefresh,
+  onPlatformPublishingStatusRefresh,
   onYouTubeBroadcastTransition,
   onClearStreamKey
 }: LiveSetupScreenProps) => {
@@ -228,7 +228,7 @@ export const LiveSetupScreen = ({
                 "No YouTube resource ID"}
             </span>
           </div>
-          <div className="youtube-status-grid">
+          <div className="platform-status-grid">
             <span>Broadcast {profile.platformPublishing.youtubeBroadcastStatus || "unknown"}</span>
             <span>Stream {profile.platformPublishing.youtubeStreamStatus || "unknown"}</span>
             <span>Health {profile.platformPublishing.youtubeStreamHealthStatus || "unknown"}</span>
@@ -244,7 +244,7 @@ export const LiveSetupScreen = ({
             className="secondary-action compact-action platform-wide-action"
             type="button"
             disabled={locked || !profile.platformPublishing.youtubeBroadcastId}
-            onClick={onYouTubePublishingStatusRefresh}
+            onClick={onPlatformPublishingStatusRefresh}
           >
             Refresh Status
           </button>
@@ -291,6 +291,19 @@ export const LiveSetupScreen = ({
               onChange={(event) => updatePublishing({ twitchLanguage: event.target.value })}
             />
           </label>
+          <div className="platform-status-grid">
+            <span>Status {profile.platformPublishing.twitchLiveStatus || "unknown"}</span>
+            <span>Viewers {profile.platformPublishing.twitchViewerCount.toLocaleString()}</span>
+            <span>Started {profile.platformPublishing.twitchStartedAt || "offline"}</span>
+          </div>
+          <button
+            className="secondary-action compact-action platform-wide-action"
+            type="button"
+            disabled={locked}
+            onClick={onPlatformPublishingStatusRefresh}
+          >
+            Refresh Status
+          </button>
         </>
       ) : null}
 

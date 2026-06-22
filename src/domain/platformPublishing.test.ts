@@ -4,6 +4,7 @@ import type { PlatformChatFetch } from "./platformChatConnection";
 import {
   applyTwitchChannelMetadata,
   createYouTubeBroadcastAndBindStream,
+  refreshTwitchChannelStatus,
   refreshYouTubeBroadcastStatus,
   transitionYouTubeBroadcast
 } from "./platformPublishing";
@@ -289,6 +290,120 @@ describe("platformPublishing", () => {
       broadcaster_language: "ja"
     });
     expect(result.profile.platformPublishing.twitchCategoryId).toBe("509660");
+  });
+
+  it("refreshes Twitch channel metadata and live stream status", async () => {
+    const profile = {
+      ...applyDestinationPreset(createDefaultStudioProfile(), "twitch-auto"),
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        title: "Old title",
+        twitchCategory: "Just Chatting",
+        twitchCategoryId: "509658",
+        twitchLanguage: "en"
+      }
+    };
+    const fetcher = vi.fn(async (...args: Parameters<PlatformChatFetch>) => {
+      const [url] = args;
+      if (url.startsWith("https://api.twitch.tv/helix/streams")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [
+              {
+                type: "live",
+                title: "Live title",
+                game_id: "509658",
+                game_name: "Just Chatting",
+                viewer_count: 1234,
+                started_at: "2026-06-22T12:00:00Z",
+                language: "ja"
+              }
+            ]
+          })
+        };
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            {
+              broadcaster_language: "en",
+              game_id: "509660",
+              game_name: "Art",
+              title: "Drawing stream"
+            }
+          ]
+        })
+      };
+    });
+
+    const result = await refreshTwitchChannelStatus(
+      profile,
+      {
+        ...twitchCredential(),
+        scopes: ["chat:read"]
+      },
+      fetcher
+    );
+
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[0][0]).toBe("https://api.twitch.tv/helix/channels?broadcaster_id=12345");
+    expect(fetcher.mock.calls[1][0]).toBe("https://api.twitch.tv/helix/streams?user_id=12345");
+    expect(fetcher.mock.calls[0][0]).not.toContain("tw-access");
+    expect(fetcher.mock.calls[0][1]).toMatchObject({
+      headers: {
+        Authorization: "Bearer tw-access",
+        "Client-Id": "twitch-client"
+      }
+    });
+    expect(result.profile.platformPublishing.title).toBe("Drawing stream");
+    expect(result.profile.platformPublishing.twitchCategory).toBe("Art");
+    expect(result.profile.platformPublishing.twitchCategoryId).toBe("509660");
+    expect(result.profile.platformPublishing.twitchLanguage).toBe("ja");
+    expect(result.profile.platformPublishing.twitchLiveStatus).toBe("live");
+    expect(result.profile.platformPublishing.twitchViewerCount).toBe(1234);
+    expect(result.profile.platformPublishing.twitchStartedAt).toBe("2026-06-22T12:00:00Z");
+  });
+
+  it("marks Twitch status offline when no active stream is returned", async () => {
+    const profile = applyDestinationPreset(createDefaultStudioProfile(), "twitch-auto");
+    const fetcher = vi.fn(async (...args: Parameters<PlatformChatFetch>) => {
+      const [url] = args;
+      if (url.startsWith("https://api.twitch.tv/helix/streams")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] })
+        };
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            {
+              broadcaster_language: "ja",
+              game_id: "509658",
+              game_name: "Just Chatting",
+              title: "Offline setup"
+            }
+          ]
+        })
+      };
+    });
+
+    const result = await refreshTwitchChannelStatus(profile, twitchCredential(), fetcher);
+
+    expect(result.profile.platformPublishing.title).toBe("Offline setup");
+    expect(result.profile.platformPublishing.twitchLiveStatus).toBe("offline");
+    expect(result.profile.platformPublishing.twitchViewerCount).toBe(0);
+    expect(result.profile.platformPublishing.twitchStartedAt).toBe("");
+    expect(result.message).toBe("Twitch status refreshed: offline.");
   });
 
   it("requires a saved YouTube stream ID before creating a bound broadcast", async () => {

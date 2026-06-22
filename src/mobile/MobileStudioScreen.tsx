@@ -79,7 +79,7 @@ interface MobileStudioScreenProps {
   onPlatformChatOAuthCallbackApply(): void | Promise<void>;
   onPlatformStreamKeyApply(): void | Promise<void>;
   onPlatformPublishingApply(): void | Promise<void>;
-  onYouTubePublishingStatusRefresh(): void | Promise<void>;
+  onPlatformPublishingStatusRefresh(): void | Promise<void>;
   onYouTubeBroadcastTransition(status: YouTubeBroadcastTransitionStatus): void | Promise<void>;
   onPlatformChatConnect(): void;
   onPlatformChatDisconnect(): void;
@@ -143,7 +143,7 @@ export const MobileStudioScreen = ({
   onPlatformChatOAuthCallbackApply,
   onPlatformStreamKeyApply,
   onPlatformPublishingApply,
-  onYouTubePublishingStatusRefresh,
+  onPlatformPublishingStatusRefresh,
   onYouTubeBroadcastTransition,
   onPlatformChatConnect,
   onPlatformChatDisconnect,
@@ -759,7 +759,7 @@ export const MobileStudioScreen = ({
               <ActionButton
                 label="Refresh Status"
                 disabled={setupLocked || !profile.platformPublishing.youtubeBroadcastId}
-                onPress={onYouTubePublishingStatusRefresh}
+                onPress={onPlatformPublishingStatusRefresh}
               />
               <View style={styles.grid3}>
                 {(["testing", "live", "complete"] as YouTubeBroadcastTransitionStatus[]).map((broadcastStatus) => (
@@ -801,6 +801,18 @@ export const MobileStudioScreen = ({
                 editable={!setupLocked}
                 placeholderTextColor="#71717a"
               />
+              <View style={styles.grid3}>
+                <Text style={styles.statusCell} numberOfLines={1}>
+                  Status {profile.platformPublishing.twitchLiveStatus || "unknown"}
+                </Text>
+                <Text style={styles.statusCell} numberOfLines={1}>
+                  Viewers {profile.platformPublishing.twitchViewerCount.toLocaleString()}
+                </Text>
+                <Text style={styles.statusCell} numberOfLines={1}>
+                  Started {profile.platformPublishing.twitchStartedAt || "offline"}
+                </Text>
+              </View>
+              <ActionButton label="Refresh Status" disabled={setupLocked} onPress={onPlatformPublishingStatusRefresh} />
             </>
           ) : null}
 

@@ -688,14 +688,14 @@ select:focus-visible {
   gap: 8px;
 }
 
-.youtube-status-grid {
+.platform-status-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 8px;
 }
 
-.youtube-status-grid span,
+.platform-status-grid span,
 .youtube-health-list span {
   min-height: 34px;
   display: grid;

@@ -78,10 +78,36 @@ interface TwitchCategoryResult {
   name: string;
 }
 
+interface TwitchChannelInformationResponse {
+  data?: TwitchChannelInformationResource[];
+}
+
+interface TwitchChannelInformationResource {
+  broadcaster_language?: string;
+  game_id?: string;
+  game_name?: string;
+  title?: string;
+}
+
+interface TwitchStreamsResponse {
+  data?: TwitchStreamResource[];
+}
+
+interface TwitchStreamResource {
+  game_id?: string;
+  game_name?: string;
+  type?: string;
+  title?: string;
+  viewer_count?: number;
+  started_at?: string;
+  language?: string;
+}
+
 const YOUTUBE_LIVE_BROADCASTS_URL = "https://www.googleapis.com/youtube/v3/liveBroadcasts";
 const YOUTUBE_LIVE_STREAMS_URL = "https://www.googleapis.com/youtube/v3/liveStreams";
 const TWITCH_CHANNELS_URL = "https://api.twitch.tv/helix/channels";
 const TWITCH_SEARCH_CATEGORIES_URL = "https://api.twitch.tv/helix/search/categories";
+const TWITCH_STREAMS_URL = "https://api.twitch.tv/helix/streams";
 
 export const createYouTubeBroadcastAndBindStream = async (
   profile: StudioProfile,
@@ -335,6 +361,83 @@ export const refreshYouTubeBroadcastStatus = async (
   };
 };
 
+export const refreshTwitchChannelStatus = async (
+  profile: StudioProfile,
+  credential: PlatformChatOAuthCredential | null,
+  fetcher: PlatformChatFetch
+): Promise<PlatformPublishingResult> => {
+  const normalizedCredential = requirePlatformCredential(credential, "twitch");
+  const settings = normalizePlatformPublishingSettings(profile.platformPublishing);
+
+  if (!normalizedCredential.twitchUserId) {
+    throw new PlatformPublishingError("Twitch broadcaster user ID is required. Reconnect OAuth first.");
+  }
+  if (!normalizedCredential.clientId) {
+    throw new PlatformPublishingError("Twitch OAuth client ID is required. Reconnect OAuth first.");
+  }
+
+  const channelResponse = await fetcher(
+    `${TWITCH_CHANNELS_URL}?${createQueryParams({ broadcaster_id: normalizedCredential.twitchUserId })}`,
+    {
+      headers: createTwitchJsonHeaders(normalizedCredential)
+    }
+  );
+  const channelPayload = (await channelResponse.json()) as TwitchChannelInformationResponse;
+
+  if (!channelResponse.ok) {
+    throw new PlatformPublishingError(`Twitch channel status request failed with HTTP ${channelResponse.status}.`);
+  }
+
+  const channel = channelPayload.data?.[0];
+  if (!channel) {
+    throw new PlatformPublishingError("Twitch channel status response did not include the broadcaster channel.");
+  }
+
+  const streamResponse = await fetcher(
+    `${TWITCH_STREAMS_URL}?${createQueryParams({ user_id: normalizedCredential.twitchUserId })}`,
+    {
+      headers: createTwitchJsonHeaders(normalizedCredential)
+    }
+  );
+  const streamPayload = (await streamResponse.json()) as TwitchStreamsResponse;
+
+  if (!streamResponse.ok) {
+    throw new PlatformPublishingError(`Twitch stream status request failed with HTTP ${streamResponse.status}.`);
+  }
+
+  const stream = streamPayload.data?.[0];
+  const channelTitle = normalizeSingleLine(channel.title);
+  const streamTitle = normalizeSingleLine(stream?.title);
+  const categoryId = normalizeSingleLine(channel.game_id || stream?.game_id || settings.twitchCategoryId);
+  const categoryName = normalizeSingleLine(channel.game_name || stream?.game_name || settings.twitchCategory);
+  const language = normalizeSingleLine(stream?.language || channel.broadcaster_language || settings.twitchLanguage).toLowerCase();
+  const liveStatus = stream ? normalizeSingleLine(stream.type) || "live" : "offline";
+  const viewerCount = stream ? normalizeViewerCount(stream.viewer_count) : 0;
+  const startedAt = stream ? normalizeSingleLine(stream.started_at) : "";
+
+  const nextPublishing: PlatformPublishingSettings = normalizePlatformPublishingSettings({
+    ...settings,
+    title: channelTitle || streamTitle || settings.title,
+    twitchCategory: categoryName || settings.twitchCategory,
+    twitchCategoryId: categoryId || settings.twitchCategoryId,
+    twitchLanguage: language || settings.twitchLanguage,
+    twitchLiveStatus: liveStatus,
+    twitchViewerCount: viewerCount,
+    twitchStartedAt: startedAt
+  });
+
+  const statusSummary =
+    liveStatus === "offline" ? "offline" : `${liveStatus}, ${nextPublishing.twitchViewerCount.toLocaleString()} viewers`;
+
+  return {
+    profile: {
+      ...profile,
+      platformPublishing: nextPublishing
+    },
+    message: `Twitch status refreshed: ${statusSummary}.`
+  };
+};
+
 export const applyTwitchChannelMetadata = async (
   profile: StudioProfile,
   credential: PlatformChatOAuthCredential | null,
@@ -461,6 +564,19 @@ const createQueryParams = (params: Record<string, string>): string => {
     query.set(key, value);
   }
   return query.toString();
+};
+
+const createTwitchJsonHeaders = (credential: PlatformChatOAuthCredential): Record<string, string> => ({
+  Accept: "application/json",
+  Authorization: `Bearer ${credential.accessToken}`,
+  "Client-Id": credential.clientId ?? ""
+});
+
+const normalizeViewerCount = (value: unknown): number => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.round(value));
 };
 
 const formatYouTubeHealthIssue = (issue: YouTubeLiveStreamHealthIssue): string => {

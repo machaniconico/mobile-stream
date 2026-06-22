@@ -37,6 +37,7 @@ import {
 import {
   applyTwitchChannelMetadata,
   createYouTubeBroadcastAndBindStream,
+  refreshTwitchChannelStatus,
   refreshYouTubeBroadcastStatus,
   transitionYouTubeBroadcast,
   type YouTubeBroadcastTransitionStatus
@@ -317,9 +318,19 @@ export const App = () => {
     }
   };
 
-  const refreshYouTubePublishingStatus = async () => {
+  const refreshPlatformPublishingStatus = async () => {
     try {
-      const result = await refreshYouTubeBroadcastStatus(profile, platformChatOAuthCredential, fetch);
+      const result =
+        profile.destination.platform === "youtube-live"
+          ? await refreshYouTubeBroadcastStatus(profile, platformChatOAuthCredential, fetch)
+          : profile.destination.platform === "twitch"
+            ? await refreshTwitchChannelStatus(profile, platformChatOAuthCredential, fetch)
+            : null;
+
+      if (!result) {
+        throw new Error("Platform publishing status refresh requires a YouTube Live or Twitch destination.");
+      }
+
       setProfile(result.profile);
       setPlatformPublishingStatus(result.message);
     } catch (error) {
@@ -376,7 +387,7 @@ export const App = () => {
       onPlatformChatOAuthCallbackApply={applyPlatformChatOAuthCallback}
       onPlatformStreamKeyApply={applyPlatformStreamKey}
       onPlatformPublishingApply={applyPlatformPublishingSetup}
-      onYouTubePublishingStatusRefresh={refreshYouTubePublishingStatus}
+      onPlatformPublishingStatusRefresh={refreshPlatformPublishingStatus}
       onYouTubeBroadcastTransition={transitionYouTubeBroadcastState}
       onPlatformChatConnect={platformChatConnection.connect}
       onPlatformChatDisconnect={platformChatConnection.disconnect}

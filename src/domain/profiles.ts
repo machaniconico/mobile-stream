@@ -91,6 +91,9 @@ export interface PlatformPublishingSettings {
   twitchCategory: string;
   twitchCategoryId: string;
   twitchLanguage: string;
+  twitchLiveStatus: string;
+  twitchViewerCount: number;
+  twitchStartedAt: string;
 }
 
 export interface StudioProfile {
@@ -379,7 +382,10 @@ export const defaultPlatformPublishingSettings: PlatformPublishingSettings = {
   youtubeStreamHealthIssues: [],
   twitchCategory: "Just Chatting",
   twitchCategoryId: "",
-  twitchLanguage: "ja"
+  twitchLanguage: "ja",
+  twitchLiveStatus: "",
+  twitchViewerCount: 0,
+  twitchStartedAt: ""
 };
 
 export const getMicEffectPreset = (presetId: string | null | undefined): MicEffectPreset | undefined =>
@@ -486,7 +492,10 @@ export const normalizePlatformPublishingSettings = (
       : [],
     twitchCategory: normalizeSingleLine(settings?.twitchCategory || fallback.twitchCategory).slice(0, 140),
     twitchCategoryId: normalizeSingleLine(settings?.twitchCategoryId).slice(0, 80),
-    twitchLanguage: normalizeSingleLine(settings?.twitchLanguage || fallback.twitchLanguage).slice(0, 12).toLowerCase()
+    twitchLanguage: normalizeSingleLine(settings?.twitchLanguage || fallback.twitchLanguage).slice(0, 12).toLowerCase(),
+    twitchLiveStatus: normalizeSingleLine(settings?.twitchLiveStatus).slice(0, 40),
+    twitchViewerCount: Math.round(clampNumber(settings?.twitchViewerCount ?? fallback.twitchViewerCount, 0, 10_000_000)),
+    twitchStartedAt: normalizeSingleLine(settings?.twitchStartedAt).slice(0, 80)
   };
 };
 

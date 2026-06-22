@@ -55,7 +55,10 @@ describe("studio profiles", () => {
         youtubeStreamHealthIssues: [" warning: bitrateLow ", "", " error: noAudioStream "],
         twitchCategory: " Just Chatting ",
         twitchCategoryId: " 509658 ",
-        twitchLanguage: " JA "
+        twitchLanguage: " JA ",
+        twitchLiveStatus: " live ",
+        twitchViewerCount: 12.6,
+        twitchStartedAt: " 2026-06-22T12:00:00Z "
       }
     });
 
@@ -69,6 +72,9 @@ describe("studio profiles", () => {
     expect(profile.platformPublishing.youtubeStreamHealthIssues).toEqual(["warning: bitrateLow", "error: noAudioStream"]);
     expect(profile.platformPublishing.twitchCategoryId).toBe("509658");
     expect(profile.platformPublishing.twitchLanguage).toBe("ja");
+    expect(profile.platformPublishing.twitchLiveStatus).toBe("live");
+    expect(profile.platformPublishing.twitchViewerCount).toBe(13);
+    expect(profile.platformPublishing.twitchStartedAt).toBe("2026-06-22T12:00:00Z");
   });
 
   it("removes stream keys before persistence", () => {
