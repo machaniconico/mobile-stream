@@ -3,6 +3,10 @@ import Foundation
 import os
 import ReplayKit
 
+private let broadcastAppGroup = "group.org.reactjs.native.example.MobileLiveCaster"
+private let broadcastConfigurationKey = "MobileLiveCaster.broadcastConfiguration.v1"
+private let broadcastRuntimeStateKey = "MobileLiveCaster.broadcastRuntimeState.v1"
+
 final class SampleHandler: RPBroadcastSampleHandler {
     private let pipeline = BroadcastUploadPipeline()
 
@@ -51,6 +55,23 @@ enum BroadcastUploadState: Equatable {
 
     var acceptsSamples: Bool {
         self == .running
+    }
+
+    var sharedStatus: String {
+        switch self {
+        case .idle:
+            return "idle"
+        case .starting:
+            return "preparing"
+        case .running:
+            return "live"
+        case .paused:
+            return "paused"
+        case .stopped:
+            return "idle"
+        case .failed:
+            return "failed"
+        }
     }
 }
 
@@ -260,6 +281,19 @@ struct BroadcastUploadStats: Equatable {
         unknownSamples += 1
     }
 
+    func asDictionary() -> [String: Any] {
+        [
+            "elapsedSeconds": elapsedSeconds,
+            "videoFrames": videoFrames,
+            "appAudioBuffers": appAudioBuffers,
+            "microphoneBuffers": microphoneBuffers,
+            "droppedSamples": droppedSamples,
+            "unknownSamples": unknownSamples,
+            "lastVideoPresentationTimeSeconds": lastVideoPresentationTimeSeconds ?? 0,
+            "lastAudioPresentationTimeSeconds": lastAudioPresentationTimeSeconds ?? 0
+        ]
+    }
+
     private func sampleTimeSeconds(_ sampleBuffer: CMSampleBuffer) -> Double? {
         let time = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         guard time.isValid && time.timescale != 0 else {
@@ -280,6 +314,65 @@ struct BroadcastUploadSnapshot: Equatable {
     let videoBitrateKbps: Int?
     let audioBitrateKbps: Int?
     let stats: BroadcastUploadStats
+}
+
+final class BroadcastSharedStore {
+    private static var defaults: UserDefaults? {
+        UserDefaults(suiteName: broadcastAppGroup)
+    }
+
+    static func loadConfigurationSetupInfo() -> [String: NSObject]? {
+        guard let payload = defaults?.dictionary(forKey: broadcastConfigurationKey) else {
+            return nil
+        }
+
+        let now = Date().timeIntervalSince1970 * 1000
+        if let expiresAt = payload["expiresAt"] as? NSNumber, expiresAt.doubleValue < now {
+            return nil
+        }
+
+        var setupInfo: [String: NSObject] = [:]
+        for (key, value) in payload {
+            if let object = value as? NSObject {
+                setupInfo[key] = object
+            }
+        }
+        return setupInfo
+    }
+
+    static func saveRuntimeState(
+        state: BroadcastUploadState,
+        configuration: BroadcastUploadConfiguration?,
+        stats: BroadcastUploadStats
+    ) {
+        guard let defaults else {
+            return
+        }
+
+        var payload: [String: Any] = [
+            "status": state.sharedStatus,
+            "updatedAt": Date().timeIntervalSince1970 * 1000,
+            "stats": stats.asDictionary()
+        ]
+
+        if case .failed(let message) = state {
+            payload["error"] = message
+        }
+
+        if let configuration {
+            payload["destinationName"] = configuration.destinationName
+            payload["transportScheme"] = configuration.transportScheme
+            payload["usesSecureTransport"] = configuration.usesSecureTransport
+            payload["width"] = configuration.width
+            payload["height"] = configuration.height
+            payload["fps"] = configuration.fps
+            payload["videoBitrateKbps"] = configuration.videoBitrateKbps
+            payload["audioBitrateKbps"] = configuration.audioBitrateKbps
+        }
+
+        defaults.set(payload, forKey: broadcastRuntimeStateKey)
+        defaults.synchronize()
+    }
 }
 
 final class BroadcastUploadPipeline {
@@ -308,20 +401,25 @@ final class BroadcastUploadPipeline {
 
     func start(setupInfo: [String: NSObject]) -> Result<Void, Error> {
         state = .starting
+        let effectiveSetupInfo = BroadcastSharedStore.loadConfigurationSetupInfo()?.merging(setupInfo) { _, explicitValue in
+            explicitValue
+        } ?? setupInfo
 
         do {
-            let nextConfiguration = try BroadcastUploadConfiguration(setupInfo: setupInfo)
+            let nextConfiguration = try BroadcastUploadConfiguration(setupInfo: effectiveSetupInfo)
             configuration = nextConfiguration
             stats.start()
             state = .running
             logger.info(
                 "Broadcast upload started destination=\(nextConfiguration.destinationName, privacy: .public) scheme=\(nextConfiguration.transportScheme, privacy: .public) size=\(nextConfiguration.width)x\(nextConfiguration.height) fps=\(nextConfiguration.fps)"
             )
+            saveRuntimeState()
             return .success(())
         } catch {
             configuration = nil
             state = .failed(error.localizedDescription)
             logger.error("Broadcast upload failed to start: \(error.localizedDescription, privacy: .public)")
+            saveRuntimeState()
             return .failure(error)
         }
     }
@@ -333,6 +431,7 @@ final class BroadcastUploadPipeline {
 
         state = .paused
         logger.info("Broadcast upload paused")
+        saveRuntimeState()
     }
 
     func resume() {
@@ -342,6 +441,7 @@ final class BroadcastUploadPipeline {
 
         state = .running
         logger.info("Broadcast upload resumed")
+        saveRuntimeState()
     }
 
     func stop() {
@@ -352,6 +452,7 @@ final class BroadcastUploadPipeline {
         stats.stop()
         state = .stopped
         logger.info("Broadcast upload stopped frames=\(self.stats.videoFrames) dropped=\(self.stats.droppedSamples)")
+        saveRuntimeState()
     }
 
     func consumeVideo(_ sampleBuffer: CMSampleBuffer) {
@@ -361,6 +462,9 @@ final class BroadcastUploadPipeline {
         }
 
         stats.recordVideo(sampleBuffer)
+        if stats.videoFrames == 1 || stats.videoFrames % max(configuration?.fps ?? 30, 1) == 0 {
+            saveRuntimeState()
+        }
     }
 
     func consumeAppAudio(_ sampleBuffer: CMSampleBuffer) {
@@ -383,6 +487,11 @@ final class BroadcastUploadPipeline {
 
     func dropUnknownSample() {
         stats.dropUnknownSample()
+        saveRuntimeState()
+    }
+
+    private func saveRuntimeState() {
+        BroadcastSharedStore.saveRuntimeState(state: state, configuration: configuration, stats: stats)
     }
 }
 

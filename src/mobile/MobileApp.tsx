@@ -35,6 +35,7 @@ import { MockLiveCaster } from "../native/MockLiveCaster";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { useChatSpeechQueue } from "../native/ChatSpeechEngine";
 import { AndroidLiveCaster, canUseAndroidLiveCaster } from "./AndroidLiveCaster";
+import { IOSLiveCaster, canUseIOSLiveCaster } from "./IOSLiveCaster";
 import { MobileStudioScreen } from "./MobileStudioScreen";
 import { NativeChatSpeechEngine } from "./NativeChatSpeechEngine";
 import { NativeFaceTrackingInput } from "./NativeFaceTrackingInput";
@@ -44,7 +45,10 @@ const isAvatarSource = (source: SceneDocument["sources"][number]): source is PNG
   source.kind === "pngtuber" || source.kind === "live2d";
 
 export const MobileApp = () => {
-  const engine = useMemo(() => (canUseAndroidLiveCaster() ? new AndroidLiveCaster() : new MockLiveCaster()), []);
+  const engine = useMemo(
+    () => (canUseIOSLiveCaster() ? new IOSLiveCaster() : canUseAndroidLiveCaster() ? new AndroidLiveCaster() : new MockLiveCaster()),
+    []
+  );
   const chatSpeechEngine = useMemo(() => new NativeChatSpeechEngine(), []);
   const faceTrackingInput = useMemo(() => new NativeFaceTrackingInput(), []);
   const [scene, setScene] = useState<SceneDocument>(() => createDefaultScene());

@@ -19,6 +19,7 @@
 		A10000000000000000000005 /* LiveCasterSpeechBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* LiveCasterSpeechBridge.m */; };
 		A10000000000000000000006 /* LiveCasterFaceTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000016 /* LiveCasterFaceTracker.swift */; };
 		A10000000000000000000007 /* LiveCasterFaceTrackerBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* LiveCasterFaceTrackerBridge.m */; };
+		A10000000000000000000008 /* LiveCasterNativeBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000018 /* LiveCasterNativeBridge.m */; };
 		B10000000000000000000001 /* SampleHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* SampleHandler.swift */; };
 		B10000000000000000000002 /* MobileLiveCasterBroadcastUpload.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* MobileLiveCasterBroadcastUpload.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -64,9 +65,12 @@
 		A10000000000000000000015 /* LiveCasterSpeechBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LiveCasterSpeechBridge.m; path = MobileLiveCaster/LiveCasterSpeechBridge.m; sourceTree = "<group>"; };
 		A10000000000000000000016 /* LiveCasterFaceTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LiveCasterFaceTracker.swift; path = MobileLiveCaster/LiveCasterFaceTracker.swift; sourceTree = "<group>"; };
 		A10000000000000000000017 /* LiveCasterFaceTrackerBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LiveCasterFaceTrackerBridge.m; path = MobileLiveCaster/LiveCasterFaceTrackerBridge.m; sourceTree = "<group>"; };
+		A10000000000000000000018 /* LiveCasterNativeBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LiveCasterNativeBridge.m; path = MobileLiveCaster/LiveCasterNativeBridge.m; sourceTree = "<group>"; };
+		A10000000000000000000019 /* MobileLiveCaster.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = MobileLiveCaster.entitlements; path = MobileLiveCaster/MobileLiveCaster.entitlements; sourceTree = "<group>"; };
 		B10000000000000000000003 /* SampleHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleHandler.swift; sourceTree = "<group>"; };
 		B10000000000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B10000000000000000000005 /* MobileLiveCasterBroadcastUpload.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MobileLiveCasterBroadcastUpload.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000017 /* MobileLiveCasterBroadcastUpload.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MobileLiveCasterBroadcastUpload.entitlements; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -101,8 +105,10 @@
 				A10000000000000000000015 /* LiveCasterSpeechBridge.m */,
 				A10000000000000000000016 /* LiveCasterFaceTracker.swift */,
 				A10000000000000000000017 /* LiveCasterFaceTrackerBridge.m */,
+				A10000000000000000000018 /* LiveCasterNativeBridge.m */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
+				A10000000000000000000019 /* MobileLiveCaster.entitlements */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
 			);
 			name = MobileLiveCaster;
@@ -153,6 +159,7 @@
 			children = (
 				B10000000000000000000003 /* SampleHandler.swift */,
 				B10000000000000000000004 /* Info.plist */,
+				B10000000000000000000017 /* MobileLiveCasterBroadcastUpload.entitlements */,
 			);
 			path = MobileLiveCasterBroadcastUpload;
 			sourceTree = "<group>";
@@ -352,6 +359,7 @@
 				A10000000000000000000005 /* LiveCasterSpeechBridge.m in Sources */,
 				A10000000000000000000006 /* LiveCasterFaceTracker.swift in Sources */,
 				A10000000000000000000007 /* LiveCasterFaceTrackerBridge.m in Sources */,
+				A10000000000000000000008 /* LiveCasterNativeBridge.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -380,6 +388,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = MobileLiveCaster/MobileLiveCaster.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = MobileLiveCaster/Info.plist;
@@ -410,6 +419,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = MobileLiveCaster/MobileLiveCaster.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = MobileLiveCaster/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
@@ -437,6 +447,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = MobileLiveCasterBroadcastUpload/MobileLiveCasterBroadcastUpload.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_BITCODE = NO;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -463,6 +474,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = MobileLiveCasterBroadcastUpload/MobileLiveCasterBroadcastUpload.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_BITCODE = NO;
 				GENERATE_INFOPLIST_FILE = NO;
