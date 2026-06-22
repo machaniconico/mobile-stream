@@ -8,6 +8,7 @@ import {
   formatDelay,
   type StreamRecoveryStatus
 } from "./streamRecovery";
+import type { StreamSessionEvent } from "./streamSessionLog";
 import type { StreamHealth, StreamStatus } from "./streamState";
 
 export type DiagnosticStatus = "pass" | "warn" | "fail" | "info";
@@ -51,6 +52,9 @@ export interface StreamDiagnostics {
   recovery: StreamRecoveryStatus & {
     backoffWindow: string;
   };
+  session: {
+    events: StreamSessionEvent[];
+  };
   checks: DiagnosticCheck[];
 }
 
@@ -80,7 +84,8 @@ export const createStreamDiagnostics = (
   scene: SceneDocument,
   profile: StudioProfile,
   readiness: ReadinessReport,
-  snapshot: SnapshotLike
+  snapshot: SnapshotLike,
+  sessionEvents: StreamSessionEvent[] = []
 ): StreamDiagnostics => {
   const destination = readiness.sanitizedProfile.destination;
   const quality = readiness.sanitizedProfile.quality;
@@ -93,6 +98,7 @@ export const createStreamDiagnostics = (
   const targetAudioBitrateKbps = quality.audioBitrateKbps;
   const estimatedUploadKbps = Math.round((targetVideoBitrateKbps + targetAudioBitrateKbps) * 1.25);
   const sanitizedHealthMessage = redactStreamKeyOccurrences(snapshot.health.message, destination.streamKey);
+  const sanitizedSessionEvents = sessionEvents.map((event) => sanitizeSessionEvent(event, destination.streamKey));
   const recoveryPolicy = createDefaultStreamRecoveryPolicy();
   const recoveryStatus = createStreamRecoveryStatus(snapshot, quality, recoveryPolicy);
   const checks = [
@@ -147,6 +153,9 @@ export const createStreamDiagnostics = (
     recovery: {
       ...recoveryStatus,
       backoffWindow: formatRecoveryBackoff(recoveryPolicy)
+    },
+    session: {
+      events: sanitizedSessionEvents
     },
     checks
   };
@@ -204,10 +213,23 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Next retry: ${diagnostics.recovery.nextRetryDelayMs === null ? "-" : formatDelay(diagnostics.recovery.nextRetryDelayMs)}`,
     `- Message: ${diagnostics.recovery.message}`,
     "",
+    "Session Events",
+    ...(diagnostics.session.events.length === 0
+      ? ["- No session events recorded yet."]
+      : diagnostics.session.events.map(
+          (event) => `- [${event.severity.toUpperCase()}] ${event.at} ${event.title}: ${event.message}`
+        )),
+    "",
     "Checks",
     ...diagnostics.checks.map((check) => `- [${check.status.toUpperCase()}] ${check.label}: ${check.message}`)
   ].join("\n");
 };
+
+const sanitizeSessionEvent = (event: StreamSessionEvent, streamKey: string): StreamSessionEvent => ({
+  ...event,
+  title: redactStreamKeyOccurrences(event.title, streamKey),
+  message: redactStreamKeyOccurrences(event.message, streamKey)
+});
 
 const parseEndpoint = (serverUrl: string): { host: string; application: string } => {
   try {

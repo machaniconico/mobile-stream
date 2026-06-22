@@ -70,11 +70,13 @@ import {
   type StreamControlAction,
   type StreamOperationStatus
 } from "../domain/streamOperation";
+import { createStreamOperationEvent, createStreamRecoveryEvent } from "../domain/streamSessionLog";
 import { MockLiveCaster } from "../native/MockLiveCaster";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { useChatSpeechQueue } from "../native/ChatSpeechEngine";
 import { usePlatformChatConnection } from "../native/usePlatformChatConnection";
 import { useStreamAutoRecovery } from "../native/useStreamAutoRecovery";
+import { useStreamSessionLog } from "../native/useStreamSessionLog";
 import { AndroidLiveCaster, canUseAndroidLiveCaster } from "./AndroidLiveCaster";
 import { IOSLiveCaster, canUseIOSLiveCaster } from "./IOSLiveCaster";
 import { MobileStudioScreen } from "./MobileStudioScreen";
@@ -128,6 +130,7 @@ export const MobileApp = () => {
       setChatReader((current) => messages.reduce(enqueueChatMessage, current));
     }
   });
+  const { events: streamSessionEvents, recordEvent: recordStreamSessionEvent } = useStreamSessionLog(snapshot);
   const captureOAuthCallbackUrl = useCallback((url: string | null) => {
     if (!url || !isPlatformChatOAuthCallbackUrl(url)) {
       return;
@@ -411,21 +414,32 @@ export const MobileApp = () => {
     await runStreamOperation("reconnect", () => engine.reconnect());
   };
 
-  const runStreamOperation = async (action: StreamControlAction, operation: () => Promise<void>) => {
+  const runStreamOperation = useCallback(async (action: StreamControlAction, operation: () => Promise<void>) => {
     if (operationInFlight.current) {
       return;
     }
     operationInFlight.current = true;
-    setOperationStatus(createPendingStreamOperation(action));
+    const pending = createPendingStreamOperation(action);
+    setOperationStatus(pending);
+    recordStreamSessionEvent(createStreamOperationEvent(action, "started", pending.message));
     try {
       await operation();
       setOperationStatus(null);
+      recordStreamSessionEvent(createStreamOperationEvent(action, "succeeded", `${pending.message} completed.`));
     } catch (error) {
-      setOperationStatus(createFailedStreamOperation(action, error));
+      const failed = createFailedStreamOperation(action, error);
+      setOperationStatus(failed);
+      recordStreamSessionEvent(createStreamOperationEvent(action, "failed", failed.message));
     } finally {
       operationInFlight.current = false;
     }
-  };
+  }, [recordStreamSessionEvent]);
+  const recordRecoveryDecision = useCallback(
+    (decision: Parameters<typeof createStreamRecoveryEvent>[0]) => {
+      recordStreamSessionEvent(createStreamRecoveryEvent(decision));
+    },
+    [recordStreamSessionEvent]
+  );
 
   useStreamAutoRecovery({
     engine,
@@ -433,7 +447,8 @@ export const MobileApp = () => {
     quality: readiness.sanitizedProfile.quality,
     canStart: readiness.canStart,
     operationInFlight,
-    runStreamOperation
+    runStreamOperation,
+    onRecoveryDecision: recordRecoveryDecision
   });
 
   const submitChatComment = (author: string, body: string) => {
@@ -613,6 +628,7 @@ export const MobileApp = () => {
         profile={profile}
         selectedSourceId={selectedSourceId}
         snapshot={snapshot}
+        streamSessionEvents={streamSessionEvents}
         operationStatus={operationStatus}
         readiness={readiness}
         chatReader={chatReader}

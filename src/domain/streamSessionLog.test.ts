@@ -1,0 +1,99 @@
+import { describe, expect, it } from "vitest";
+import {
+  appendStreamSessionEvent,
+  createStreamOperationEvent,
+  createStreamRecoveryEvent,
+  createStreamStatusEvent,
+  maxStreamSessionEvents,
+  type StreamSessionEvent,
+  type StreamSessionSnapshot
+} from "./streamSessionLog";
+import { createStreamRecoveryAutomationDecision } from "./streamRecovery";
+import { createDefaultStudioProfile } from "./profiles";
+import { initialStreamState, type StreamHealth } from "./streamState";
+
+const quality = createDefaultStudioProfile().quality;
+const health = (update: Partial<StreamHealth> = {}): StreamHealth => ({
+  ...initialStreamState.health,
+  ...update
+});
+const snapshot = (status: StreamSessionSnapshot["state"]["status"], update: Partial<StreamHealth> = {}): StreamSessionSnapshot => ({
+  state: { status },
+  health: health(update)
+});
+
+describe("stream session log", () => {
+  it("keeps the newest bounded events", () => {
+    const events = Array.from({ length: maxStreamSessionEvents + 5 }).reduce<StreamSessionEvent[]>(
+      (current, _, index) =>
+        appendStreamSessionEvent(current, {
+          id: `event-${index}`,
+          at: new Date(index).toISOString(),
+          kind: "status",
+          severity: "info",
+          title: `Event ${index}`,
+          message: `Message ${index}`
+        }),
+      []
+    );
+
+    expect(events).toHaveLength(maxStreamSessionEvents);
+    expect(events[0].id).toBe("event-5");
+    expect(events.at(-1)?.id).toBe(`event-${maxStreamSessionEvents + 4}`);
+  });
+
+  it("creates status transition events and ignores unchanged states", () => {
+    const started = createStreamStatusEvent(null, snapshot("idle"), new Date("2026-06-23T00:00:00.000Z"));
+    const unchanged = createStreamStatusEvent(snapshot("live"), snapshot("live"), new Date("2026-06-23T00:00:01.000Z"));
+    const failed = createStreamStatusEvent(
+      snapshot("live"),
+      snapshot("failed", { message: "RTMP handshake failed" }),
+      new Date("2026-06-23T00:00:02.000Z")
+    );
+
+    expect(started?.title).toBe("Stream idle");
+    expect(unchanged).toBeNull();
+    expect(failed?.severity).toBe("fail");
+    expect(failed?.message).toContain("live -> failed");
+  });
+
+  it("creates stream operation events", () => {
+    const started = createStreamOperationEvent("start", "started", "Starting stream", new Date("2026-06-23T00:00:00.000Z"));
+    const failed = createStreamOperationEvent("reconnect", "failed", "Reconnect failed", new Date("2026-06-23T00:00:01.000Z"));
+
+    expect(started.title).toBe("Start started");
+    expect(started.severity).toBe("info");
+    expect(failed.title).toBe("Reconnect failed");
+    expect(failed.severity).toBe("fail");
+  });
+
+  it("creates recovery events for scheduled reconnect and exhausted retry budget", () => {
+    const scheduledDecision = createStreamRecoveryAutomationDecision({
+      snapshot: snapshot("failed", { reconnectAttempts: 2 }),
+      quality,
+      canStart: true,
+      operationInFlight: false,
+      now: 1000
+    });
+    const exhaustedDecision = createStreamRecoveryAutomationDecision({
+      snapshot: snapshot("live", {
+        bitrateKbps: Math.round(quality.videoBitrateKbps * 0.2),
+        fps: quality.fps - 15,
+        elapsedSeconds: 30,
+        reconnectAttempts: 5
+      }),
+      quality,
+      canStart: true,
+      operationInFlight: false,
+      now: 1000
+    });
+
+    const scheduled = createStreamRecoveryEvent(scheduledDecision, new Date("2026-06-23T00:00:00.000Z"));
+    const exhausted = createStreamRecoveryEvent(exhaustedDecision, new Date("2026-06-23T00:00:01.000Z"));
+
+    expect(scheduled?.title).toBe("Auto recovery scheduled");
+    expect(scheduled?.message).toContain("Attempts 2/5");
+    expect(exhausted?.title).toBe("Auto recovery stopped stream");
+    expect(exhausted?.severity).toBe("fail");
+  });
+});

@@ -10,6 +10,7 @@
 - Stream diagnostics model for redacted publish URL, endpoint parsing, upload target estimate, readiness issues, live telemetry health checks, and sanitized diagnostic reports.
 - Shared stream recovery policy model for retry budget, bounded exponential backoff, degraded telemetry detection, failed-engine recovery advice, and sanitized report export.
 - Shared app-level automatic recovery scheduler for Web and React Native, including failed-engine reconnect, critical telemetry hold time, retry budget enforcement, and timer deduplication.
+- Shared stream session event log for status transitions, manual operations, automatic recovery actions, support diagnostics, and redacted report export.
 - Stream key redaction and no-secret browser persistence.
 - In-app stream key clear/replacement controls for browser and mobile setup screens.
 - Mic effect profile model with presets, gain, noise gate, compression, and headphone monitor settings.
@@ -37,11 +38,13 @@
   - YouTube Live/Twitch/Custom RTMP setup
   - readiness panel with blocking errors and warnings
   - stream diagnostics panel with endpoint/quality/telemetry checks and JSON report export
+  - stream session event timeline for live support diagnostics
   - quality profiles
   - chat reader panel with test comments, platform adapter ingest, safety controls, and speech settings
   - Go Live, Stop, Reconnect mock controls
 - React Native mobile readiness panel and Go Live blocking for invalid profiles.
 - React Native mobile stream diagnostics panel using the shared diagnostics model, including sanitized report sharing.
+- React Native mobile stream session event timeline using the shared diagnostics model.
 - React Native mobile chat reader panel with test comments, platform adapter ingest, safety controls, and speech settings.
 - iOS ReplayKit Broadcast Upload Extension target registered in the Xcode project.
 - iOS app-side Broadcast Picker startup bridge with App Group configuration handoff.

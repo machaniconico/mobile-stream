@@ -1057,6 +1057,46 @@ select:focus-visible {
   margin-top: 12px;
 }
 
+.diagnostic-events {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.diagnostic-event {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: #121218;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.diagnostic-event strong {
+  color: var(--text);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.diagnostic-event.warn {
+  border-color: rgba(245, 158, 11, 0.38);
+  color: #fde68a;
+}
+
+.diagnostic-event.fail {
+  border-color: rgba(251, 113, 133, 0.42);
+  color: #fecdd3;
+}
+
+.diagnostic-empty {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .diagnostic-check {
   display: grid;
   gap: 4px;

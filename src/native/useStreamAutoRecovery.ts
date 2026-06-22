@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import type { QualityProfile } from "../domain/profiles";
 import {
   createInitialStreamRecoveryAutomationState,
-  createStreamRecoveryAutomationDecision
+  createStreamRecoveryAutomationDecision,
+  type StreamRecoveryAutomationDecision
 } from "../domain/streamRecovery";
 import type { StreamControlAction } from "../domain/streamOperation";
 import type { LiveCasterNative, NativeEngineSnapshot } from "./LiveCasterNative";
@@ -14,6 +15,7 @@ interface StreamAutoRecoveryOptions {
   canStart: boolean;
   operationInFlight: { current: boolean };
   runStreamOperation(action: StreamControlAction, operation: () => Promise<void>): Promise<void>;
+  onRecoveryDecision?(decision: StreamRecoveryAutomationDecision): void;
 }
 
 export const useStreamAutoRecovery = ({
@@ -22,7 +24,8 @@ export const useStreamAutoRecovery = ({
   quality,
   canStart,
   operationInFlight,
-  runStreamOperation
+  runStreamOperation,
+  onRecoveryDecision
 }: StreamAutoRecoveryOptions): void => {
   const recoveryState = useRef(createInitialStreamRecoveryAutomationState());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -56,6 +59,7 @@ export const useStreamAutoRecovery = ({
 
     if (decision.command === "stop") {
       clearTimer();
+      onRecoveryDecision?.(decision);
       if (!operationInFlight.current) {
         void runStreamOperation("stop", () => engine.stop());
       }
@@ -71,6 +75,7 @@ export const useStreamAutoRecovery = ({
     }
 
     clearTimer();
+    onRecoveryDecision?.(decision);
     timerKey.current = decision.key;
     timer.current = setTimeout(() => {
       timer.current = null;
@@ -88,6 +93,7 @@ export const useStreamAutoRecovery = ({
     canStart,
     engine,
     operationInFlight,
+    onRecoveryDecision,
     quality.fps,
     quality.videoBitrateKbps,
     runStreamOperation,

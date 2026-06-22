@@ -134,11 +134,22 @@ describe("stream diagnostics", () => {
     const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
       state: { status: "idle" },
       health: health()
-    });
+    }, [
+      {
+        id: "event-1",
+        at: "2026-06-22T00:00:00.000Z",
+        kind: "operation",
+        severity: "fail",
+        title: "Start failed",
+        message: `RTMP rejected ${demoStreamKey}`
+      }
+    ]);
     const report = serializeStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics, new Date("2026-06-22T00:00:00.000Z")));
 
     expect(diagnostics.target.application).toContain(redactStreamKey(demoStreamKey));
     expect(diagnostics.target.application).not.toContain(demoStreamKey);
+    expect(diagnostics.session.events[0].message).toContain(redactStreamKey(demoStreamKey));
+    expect(diagnostics.session.events[0].message).not.toContain(demoStreamKey);
     expect(report).not.toContain(demoStreamKey);
   });
 
@@ -210,6 +221,7 @@ describe("stream diagnostics", () => {
     expect(json).toContain("MobileLiveCaster");
     expect(text).toContain("MobileLiveCaster Diagnostics");
     expect(text).toContain("Recovery");
+    expect(text).toContain("Session Events");
     expect(json).toContain("backoffWindow");
     expect(json).toContain(redactStreamKey(demoStreamKey));
     expect(text).toContain(redactStreamKey(demoStreamKey));

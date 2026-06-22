@@ -54,6 +54,7 @@ import {
   serializeStreamDiagnosticReport,
   type StreamDiagnostics
 } from "../domain/streamDiagnostics";
+import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { LiveSetupScreen } from "./LiveSetupScreen";
 import { PanelTitle } from "./ui";
@@ -63,6 +64,7 @@ interface StudioScreenProps {
   profile: StudioProfile;
   selectedSourceId: string;
   snapshot: NativeEngineSnapshot;
+  streamSessionEvents: StreamSessionEvent[];
   operationStatus: StreamOperationStatus | null;
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
@@ -144,6 +146,7 @@ export const StudioScreen = ({
   profile,
   selectedSourceId,
   snapshot,
+  streamSessionEvents,
   operationStatus,
   readiness,
   chatReader,
@@ -191,7 +194,7 @@ export const StudioScreen = ({
   const operationBusy = operationStatus?.kind === "pending";
   const setupLocked = isLive || isBusy || operationBusy;
   const canGoLive = readiness.canStart && !isBusy && !isLive && !operationBusy;
-  const diagnostics = createStreamDiagnostics(scene, profile, readiness, snapshot);
+  const diagnostics = createStreamDiagnostics(scene, profile, readiness, snapshot, streamSessionEvents);
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
     if (setupLocked) {
       return;
@@ -704,6 +707,15 @@ const StreamDiagnosticsPanel = ({ diagnostics }: { diagnostics: StreamDiagnostic
       </strong>
       <span>Recovery</span>
       <strong>{recoveryMetricLabel(diagnostics)}</strong>
+    </div>
+    <div className="diagnostic-events">
+      {diagnostics.session.events.slice(-5).map((event) => (
+        <div key={event.id} className={`diagnostic-event ${event.severity}`}>
+          <strong>{event.title}</strong>
+          <span>{event.message}</span>
+        </div>
+      ))}
+      {diagnostics.session.events.length === 0 ? <span className="diagnostic-empty">No session events yet.</span> : null}
     </div>
     <div className="diagnostic-checks">
       {diagnostics.checks.map((check) => (

@@ -41,6 +41,7 @@ import {
   formatStreamDiagnosticReport,
   type StreamDiagnostics
 } from "../domain/streamDiagnostics";
+import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 
 interface MobileStudioScreenProps {
@@ -48,6 +49,7 @@ interface MobileStudioScreenProps {
   profile: StudioProfile;
   selectedSourceId: string;
   snapshot: NativeEngineSnapshot;
+  streamSessionEvents: StreamSessionEvent[];
   operationStatus: StreamOperationStatus | null;
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
@@ -121,6 +123,7 @@ export const MobileStudioScreen = ({
   profile,
   selectedSourceId,
   snapshot,
+  streamSessionEvents,
   operationStatus,
   readiness,
   chatReader,
@@ -168,7 +171,7 @@ export const MobileStudioScreen = ({
   const operationBusy = operationStatus?.kind === "pending";
   const setupLocked = isLive || isBusy || operationBusy;
   const canGoLive = readiness.canStart && !isBusy && !isLive && !operationBusy;
-  const diagnostics = createStreamDiagnostics(scene, profile, readiness, snapshot);
+  const diagnostics = createStreamDiagnostics(scene, profile, readiness, snapshot, streamSessionEvents);
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
     if (setupLocked) {
@@ -883,6 +886,18 @@ const StreamDiagnosticsPanel = ({ diagnostics }: { diagnostics: StreamDiagnostic
       <DiagnosticMetric label="Telemetry" value={`${diagnostics.telemetry.bitrateKbps} kbps / ${diagnostics.telemetry.fps} fps`} />
       <DiagnosticMetric label="Recovery" value={recoveryMetricLabel(diagnostics)} />
     </View>
+    <View style={styles.diagnosticEvents}>
+      {diagnostics.session.events.length === 0 ? (
+        <Text style={styles.diagnosticEventEmpty}>No session events yet.</Text>
+      ) : (
+        diagnostics.session.events.slice(-5).map((event) => (
+          <View key={event.id} style={[styles.diagnosticEvent, diagnosticEventStyle(event.severity)]}>
+            <Text style={styles.diagnosticEventTitle}>{event.title}</Text>
+            <Text style={styles.diagnosticEventText}>{event.message}</Text>
+          </View>
+        ))
+      )}
+    </View>
     <View style={styles.diagnosticChecks}>
       {diagnostics.checks.map((check) => (
         <View key={check.code} style={[styles.diagnosticCheck, diagnosticCheckStyle(check.status)]}>
@@ -1528,6 +1543,17 @@ const diagnosticCheckTextStyle = (status: StreamDiagnostics["checks"][number]["s
       return styles.diagnosticWarnText;
     case "fail":
       return styles.diagnosticFailText;
+    default:
+      return null;
+  }
+};
+
+const diagnosticEventStyle = (severity: StreamDiagnostics["session"]["events"][number]["severity"]) => {
+  switch (severity) {
+    case "warn":
+      return styles.diagnosticCheckWarn;
+    case "fail":
+      return styles.diagnosticCheckFail;
     default:
       return null;
   }
@@ -2284,6 +2310,35 @@ const styles = StyleSheet.create({
     color: "#f8fafc",
     fontSize: 12,
     fontWeight: "800",
+    lineHeight: 17
+  },
+  diagnosticEvents: {
+    gap: 7
+  },
+  diagnosticEvent: {
+    minHeight: 42,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    backgroundColor: "#121218"
+  },
+  diagnosticEventTitle: {
+    color: "#f8fafc",
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  diagnosticEventText: {
+    marginTop: 3,
+    color: "#a1a1aa",
+    fontSize: 12,
+    lineHeight: 17
+  },
+  diagnosticEventEmpty: {
+    color: "#a1a1aa",
+    fontSize: 12,
     lineHeight: 17
   },
   diagnosticChecks: {
