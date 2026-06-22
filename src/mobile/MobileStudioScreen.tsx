@@ -36,6 +36,10 @@ import {
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
 import {
+  createStreamStartPreflightReport,
+  type StreamStartPreflightReport
+} from "../domain/streamStartPreflight";
+import {
   createStreamDiagnosticReport,
   createStreamDiagnostics,
   formatStreamDiagnosticReport,
@@ -170,7 +174,12 @@ export const MobileStudioScreen = ({
   const isBusy = snapshot.state.status === "preparing" || snapshot.state.status === "stopping";
   const operationBusy = operationStatus?.kind === "pending";
   const setupLocked = isLive || isBusy || operationBusy;
-  const canGoLive = readiness.canStart && !isBusy && !isLive && !operationBusy;
+  const startPreflight = createStreamStartPreflightReport({
+    readiness,
+    streamStatus: snapshot.state.status,
+    operationStatus
+  });
+  const canGoLive = startPreflight.canStart;
   const diagnostics = createStreamDiagnostics(scene, profile, readiness, snapshot, streamSessionEvents);
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
@@ -337,7 +346,7 @@ export const MobileStudioScreen = ({
               </Text>
             </View>
           ) : null}
-          <ReadinessBanner readiness={readiness} />
+          <StartPreflightBanner report={startPreflight} />
         </View>
 
         <Panel title="Transform">
@@ -1371,15 +1380,15 @@ const Metric = ({ label }: { label: string }) => (
   </View>
 );
 
-const ReadinessBanner = ({ readiness }: { readiness: ReadinessReport }) => (
-  <View style={[styles.readinessBanner, readiness.canStart ? styles.readinessReady : styles.readinessBlocked]}>
-    <Text style={[styles.readinessBannerText, readiness.canStart ? styles.readinessReadyText : styles.readinessBlockedText]}>
-      {readiness.canStart
-        ? readiness.warningCount > 0
-          ? `${readiness.warningCount} warning${readiness.warningCount === 1 ? "" : "s"} before live`
-          : "Ready to go live"
-        : `${readiness.errorCount} blocking item${readiness.errorCount === 1 ? "" : "s"} before live`}
-    </Text>
+const StartPreflightBanner = ({ report }: { report: StreamStartPreflightReport }) => (
+  <View style={[styles.startPreflightBanner, startPreflightBannerStyle(report.status)]}>
+    <Text style={[styles.startPreflightSummary, startPreflightSummaryTextStyle(report.status)]}>{report.summary}</Text>
+    <Text style={styles.startPreflightAction}>{report.primaryAction}</Text>
+    {report.issues.slice(0, 3).map((issue) => (
+      <Text key={issue.code} style={[styles.startPreflightIssue, startPreflightIssueTextStyle(issue.severity)]} numberOfLines={2}>
+        {issue.label}: {issue.message}
+      </Text>
+    ))}
   </View>
 );
 
@@ -1601,6 +1610,31 @@ const diagnosticIncidentStyle = (severity: StreamDiagnostics["qualityIncidents"]
 
 const diagnosticIncidentTextStyle = (severity: StreamDiagnostics["qualityIncidents"]["incidents"][number]["severity"]) =>
   severity === "fail" ? styles.diagnosticFailText : styles.diagnosticWarnText;
+
+const startPreflightBannerStyle = (status: StreamStartPreflightReport["status"]) => {
+  switch (status) {
+    case "ready":
+      return styles.startPreflightReady;
+    case "warning":
+      return styles.startPreflightWarning;
+    case "blocked":
+      return styles.startPreflightBlocked;
+  }
+};
+
+const startPreflightSummaryTextStyle = (status: StreamStartPreflightReport["status"]) => {
+  switch (status) {
+    case "ready":
+      return styles.startPreflightReadyText;
+    case "warning":
+      return styles.startPreflightWarningText;
+    case "blocked":
+      return styles.startPreflightBlockedText;
+  }
+};
+
+const startPreflightIssueTextStyle = (severity: StreamStartPreflightReport["issues"][number]["severity"]) =>
+  severity === "block" ? styles.startPreflightBlockedText : styles.startPreflightWarningText;
 
 const expressionStyle = (expression: string) => {
   switch (expression) {
@@ -1968,30 +2002,47 @@ const styles = StyleSheet.create({
   operationBannerErrorText: {
     color: "#fecdd3"
   },
-  readinessBanner: {
-    minHeight: 38,
-    justifyContent: "center",
+  startPreflightBanner: {
+    gap: 6,
     borderWidth: 1,
     borderColor: "#343442",
     borderRadius: 8,
-    paddingHorizontal: 10,
+    padding: 10,
     backgroundColor: "#101015"
   },
-  readinessReady: {
+  startPreflightReady: {
     borderColor: "rgba(34, 197, 94, 0.42)"
   },
-  readinessBlocked: {
+  startPreflightWarning: {
+    borderColor: "rgba(245, 158, 11, 0.42)"
+  },
+  startPreflightBlocked: {
     borderColor: "rgba(251, 113, 133, 0.54)"
   },
-  readinessBannerText: {
+  startPreflightSummary: {
     fontSize: 13,
-    fontWeight: "800"
+    fontWeight: "900"
   },
-  readinessReadyText: {
+  startPreflightReadyText: {
     color: "#bbf7d0"
   },
-  readinessBlockedText: {
+  startPreflightWarningText: {
+    color: "#fde68a"
+  },
+  startPreflightBlockedText: {
     color: "#fecdd3"
+  },
+  startPreflightAction: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 17
+  },
+  startPreflightIssue: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 17
   },
   mutedText: {
     color: "#a1a1aa"

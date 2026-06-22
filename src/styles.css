@@ -561,6 +561,78 @@ select:focus-visible {
   color: #fecdd3;
 }
 
+.start-preflight-banner {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  color: var(--muted);
+  background: var(--panel);
+  font-size: 13px;
+}
+
+.start-preflight-banner.ready {
+  border-color: rgba(34, 197, 94, 0.42);
+}
+
+.start-preflight-banner.warning {
+  border-color: rgba(245, 158, 11, 0.42);
+}
+
+.start-preflight-banner.blocked {
+  border-color: rgba(251, 113, 133, 0.54);
+}
+
+.start-preflight-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.start-preflight-banner.ready .start-preflight-summary {
+  color: #bbf7d0;
+}
+
+.start-preflight-banner.warning .start-preflight-summary {
+  color: #fde68a;
+}
+
+.start-preflight-banner.blocked .start-preflight-summary {
+  color: #fecdd3;
+}
+
+.start-preflight-action {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.start-preflight-list {
+  display: grid;
+  gap: 6px;
+}
+
+.start-preflight-issue {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: #101015;
+  line-height: 1.35;
+}
+
+.start-preflight-issue.warning {
+  border-color: rgba(245, 158, 11, 0.34);
+  color: #fde68a;
+}
+
+.start-preflight-issue.block {
+  border-color: rgba(251, 113, 133, 0.36);
+  color: #fecdd3;
+}
+
 .field,
 .slider-field {
   display: grid;

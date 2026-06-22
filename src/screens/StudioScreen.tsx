@@ -49,6 +49,10 @@ import {
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
 import {
+  createStreamStartPreflightReport,
+  type StreamStartPreflightReport
+} from "../domain/streamStartPreflight";
+import {
   createStreamDiagnosticReport,
   createStreamDiagnostics,
   serializeStreamDiagnosticReport,
@@ -200,7 +204,12 @@ export const StudioScreen = ({
   const isBusy = snapshot.state.status === "preparing" || snapshot.state.status === "stopping";
   const operationBusy = operationStatus?.kind === "pending";
   const setupLocked = isLive || isBusy || operationBusy;
-  const canGoLive = readiness.canStart && !isBusy && !isLive && !operationBusy;
+  const startPreflight = createStreamStartPreflightReport({
+    readiness,
+    streamStatus: snapshot.state.status,
+    operationStatus
+  });
+  const canGoLive = startPreflight.canStart;
   const diagnostics = createStreamDiagnostics(scene, profile, readiness, snapshot, streamSessionEvents);
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
     if (setupLocked) {
@@ -374,16 +383,7 @@ export const StudioScreen = ({
               {operationStatus.message}
             </div>
           ) : null}
-          <div id="go-live-readiness" className={`readiness-banner ${readiness.canStart ? "ready" : "blocked"}`}>
-            <ShieldCheck size={16} />
-            <span>
-              {readiness.canStart
-                ? readiness.warningCount > 0
-                  ? `${readiness.warningCount} warning${readiness.warningCount === 1 ? "" : "s"} before live`
-                  : "Ready to go live"
-                : `${readiness.errorCount} blocking item${readiness.errorCount === 1 ? "" : "s"} before live`}
-            </span>
-          </div>
+          <StartPreflightBanner report={startPreflight} />
         </section>
 
         <aside className="right-rail" aria-label="inspector and setup">
@@ -682,6 +682,25 @@ export const StudioScreen = ({
     </main>
   );
 };
+
+const StartPreflightBanner = ({ report }: { report: StreamStartPreflightReport }) => (
+  <div id="go-live-readiness" className={`start-preflight-banner ${report.status}`}>
+    <div className="start-preflight-summary">
+      <ShieldCheck size={16} />
+      <span>{report.summary}</span>
+    </div>
+    <span className="start-preflight-action">{report.primaryAction}</span>
+    {report.issues.length > 0 ? (
+      <div className="start-preflight-list">
+        {report.issues.slice(0, 3).map((issue) => (
+          <span key={issue.code} className={`start-preflight-issue ${issue.severity}`}>
+            {issue.label}: {issue.message}
+          </span>
+        ))}
+      </div>
+    ) : null}
+  </div>
+);
 
 const StreamDiagnosticsPanel = ({ diagnostics }: { diagnostics: StreamDiagnostics }) => (
   <section className="control-panel">

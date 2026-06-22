@@ -7,6 +7,7 @@
 - Persisted scene normalization with clamped canvas/source/transform/avatar runtime values.
 - Stream profile model for RTMP and RTMPS destinations, including YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
+- Shared Go Live preflight model for launch blocking, warning surfacing, engine-state duplicate-start protection, and failed-start operation logging.
 - Stream diagnostics model for redacted publish URL, endpoint parsing, upload target estimate, readiness issues, live telemetry health checks, and sanitized diagnostic reports.
 - Stream quality incident model for active bitrate/FPS/drop/reconnect problems, recommendations, UI surfacing, and report export.
 - Shared stream recovery policy model for retry budget, bounded exponential backoff, degraded telemetry detection, failed-engine recovery advice, and sanitized report export.
@@ -37,6 +38,7 @@
   - mic effect and monitor controls
   - expression buttons
   - YouTube Live/Twitch/Custom RTMP setup
+  - Go Live preflight banner with blocking reasons and operator recommendations
   - readiness panel with blocking errors and warnings
   - stream diagnostics panel with endpoint/quality/telemetry checks and JSON report export
   - active stream quality incident panel with operator recommendations
@@ -44,7 +46,7 @@
   - quality profiles
   - chat reader panel with test comments, platform adapter ingest, safety controls, and speech settings
   - Go Live, Stop, Reconnect mock controls
-- React Native mobile readiness panel and Go Live blocking for invalid profiles.
+- React Native mobile readiness panel, Go Live preflight banner, and invalid-profile blocking.
 - React Native mobile stream diagnostics panel using the shared diagnostics model, including sanitized report sharing.
 - React Native mobile active stream quality incident panel with operator recommendations.
 - React Native mobile stream session event timeline using the shared diagnostics model.

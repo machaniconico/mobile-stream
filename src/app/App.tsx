@@ -62,6 +62,10 @@ import {
   type StreamControlAction,
   type StreamOperationStatus
 } from "../domain/streamOperation";
+import {
+  createStreamStartPreflightReport,
+  formatStreamStartPreflightBlockMessage
+} from "../domain/streamStartPreflight";
 import { createStreamOperationEvent, createStreamRecoveryEvent } from "../domain/streamSessionLog";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { MockLiveCaster } from "../native/MockLiveCaster";
@@ -192,8 +196,12 @@ export const App = () => {
 
   const startStream = async () => {
     await runStreamOperation("start", async () => {
-      if (!readiness.canStart) {
-        return;
+      const preflight = createStreamStartPreflightReport({
+        readiness,
+        streamStatus: engine.getSnapshot().state.status
+      });
+      if (!preflight.canStart) {
+        throw new Error(formatStreamStartPreflightBlockMessage(preflight));
       }
       await engine.prepare(scene, readiness.sanitizedProfile);
       await engine.start();
