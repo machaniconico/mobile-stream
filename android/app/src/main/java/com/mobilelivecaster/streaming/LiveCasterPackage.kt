@@ -12,6 +12,7 @@ class LiveCasterPackage : BaseReactPackage() {
         when (name) {
             LiveCasterNativeModule.NAME -> LiveCasterNativeModule(reactContext)
             SecureProfileStoreModule.NAME -> SecureProfileStoreModule(reactContext)
+            SceneStoreModule.NAME -> SceneStoreModule(reactContext)
             LiveCasterSpeechModule.NAME -> LiveCasterSpeechModule(reactContext)
             LiveCasterFaceTrackerModule.NAME -> LiveCasterFaceTrackerModule(reactContext)
             else -> null
@@ -34,6 +35,14 @@ class LiveCasterPackage : BaseReactPackage() {
                 false,
                 false,
                 ReactModuleInfo.classIsTurboModule(SecureProfileStoreModule::class.java)
+            ),
+            SceneStoreModule.NAME to ReactModuleInfo(
+                SceneStoreModule.NAME,
+                SceneStoreModule::class.java.name,
+                false,
+                false,
+                false,
+                ReactModuleInfo.classIsTurboModule(SceneStoreModule::class.java)
             ),
             LiveCasterSpeechModule.NAME to ReactModuleInfo(
                 LiveCasterSpeechModule.NAME,

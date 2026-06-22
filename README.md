@@ -14,6 +14,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Stream key redaction and no-secret browser persistence.
 - Keychain/Android Keystore-backed mobile profile storage for stream keys.
 - In-app stream key clear and replacement controls.
+- Durable scene persistence on web, iOS, and Android with persisted-scene normalization.
 - Quality presets.
 - Voice lip-sync meter and expression buttons.
 - Mic effect presets with gain, noise gate, compression, and Android PCM processing.
@@ -58,6 +59,7 @@ npm run ios:build:simulator
 - Go Live readiness: fail closed before native capture starts, with UI-visible blocking reasons.
 - Secret storage: browser persistence strips stream keys; mobile persistence uses Keychain/Android Keystore-backed native storage.
 - Stream key management: users can clear the stored key in-app and paste a replacement key without changing the destination preset.
+- Scene storage: web uses localStorage; Android uses app SharedPreferences; iOS writes an atomic scene JSON file under Application Support.
 - Chat reader: platform chat APIs can feed the shared queue; current UI includes manual/test comments and native/browser TTS output.
 - Avatar rendering: PNGTuber first, Live2D after licensing and runtime validation.
 

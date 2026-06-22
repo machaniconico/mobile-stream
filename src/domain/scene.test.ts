@@ -3,9 +3,11 @@ import {
   addSource,
   createDefaultScene,
   createSource,
+  normalizeSceneDocument,
   reorderSource,
   setLocked,
   setVisibility,
+  stripTransientSceneRuntime,
   toRenderGraph,
   updateTransform
 } from "./scene";
@@ -75,5 +77,68 @@ describe("scene document", () => {
 
     expect(avatarNode?.payload.trackingConfidence).toBe(0);
     expect(avatarNode?.payload.headYaw).toBe(0);
+  });
+
+  it("normalizes persisted scene data into safe renderable sources", () => {
+    const scene = normalizeSceneDocument({
+      version: 1,
+      id: "saved",
+      name: "Saved Scene",
+      canvas: { width: 99999, height: -1, fps: 240 },
+      sources: [
+        {
+          id: "bad-transform",
+          kind: "text",
+          name: "Caption",
+          visible: true,
+          locked: false,
+          blendMode: "invalid",
+          text: "Hello",
+          color: "#fff",
+          fontSize: 999,
+          transform: { x: 2, y: -1, width: 5, height: -5, rotation: 999, opacity: 4 }
+        },
+        { kind: "missing-required" }
+      ]
+    });
+
+    expect(scene.id).toBe("saved");
+    expect(scene.canvas).toEqual({ width: 7680, height: 1, fps: 120 });
+    expect(scene.sources).toHaveLength(1);
+    expect(scene.sources[0]).toMatchObject({
+      id: "bad-transform",
+      kind: "text",
+      blendMode: "normal",
+      fontSize: 180,
+      transform: { x: 1, y: 0, width: 1, height: 0, rotation: 180, opacity: 1 }
+    });
+  });
+
+  it("strips transient avatar runtime before scene persistence", () => {
+    const scene = createDefaultScene();
+    const persisted = stripTransientSceneRuntime({
+      ...scene,
+      sources: scene.sources.map((source) =>
+        source.kind === "pngtuber"
+          ? {
+              ...source,
+              mouthOpen: 0.9,
+              blink: 0.8,
+              motion: {
+                ...source.motion,
+                headYaw: 0.7,
+                confidence: 1
+              }
+            }
+          : source
+      )
+    });
+
+    const avatar = persisted.sources.find((source) => source.kind === "pngtuber");
+
+    expect(avatar?.mouthOpen).toBe(0);
+    expect(avatar?.blink).toBe(0);
+    expect(avatar?.motion.headYaw).toBe(0);
+    expect(avatar?.motion.confidence).toBe(0);
   });
 });

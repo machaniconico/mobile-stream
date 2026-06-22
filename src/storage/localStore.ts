@@ -1,4 +1,4 @@
-import type { SceneDocument } from "../domain/scene";
+import { normalizeSceneDocument, stripTransientSceneRuntime, type SceneDocument } from "../domain/scene";
 import { normalizeStudioProfile, stripSensitiveProfileData, type StudioProfile } from "../domain/profiles";
 
 const SCENE_KEY = "mobile-live-caster.scene";
@@ -21,14 +21,15 @@ export const loadScene = (): SceneDocument | null => {
   if (!hasLocalStorage()) {
     return null;
   }
-  return safeParse<SceneDocument>(localStorage.getItem(SCENE_KEY));
+  const scene = safeParse<Partial<SceneDocument>>(localStorage.getItem(SCENE_KEY));
+  return scene ? normalizeSceneDocument(scene) : null;
 };
 
 export const saveScene = (scene: SceneDocument): void => {
   if (!hasLocalStorage()) {
     return;
   }
-  localStorage.setItem(SCENE_KEY, JSON.stringify(scene));
+  localStorage.setItem(SCENE_KEY, JSON.stringify(stripTransientSceneRuntime(normalizeSceneDocument(scene))));
 };
 
 export const loadProfile = (): StudioProfile | null => {

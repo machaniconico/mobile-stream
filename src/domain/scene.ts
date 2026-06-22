@@ -102,6 +102,8 @@ export interface RenderNode {
 }
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+const sourceKinds: readonly SourceKind[] = ["screen", "pngtuber", "live2d", "image", "solid", "text"];
+const blendModes: readonly BlendMode[] = ["normal", "multiply", "screen"];
 
 const clampTransform = (transform: Transform): Transform => ({
   x: clamp01(transform.x),
@@ -240,6 +242,43 @@ export const createSource = (kind: SourceKind): SceneSource => {
   }
 };
 
+export const normalizeSceneDocument = (value: unknown): SceneDocument => {
+  const fallback = createDefaultScene();
+  if (!isRecord(value)) {
+    return fallback;
+  }
+
+  const sources = Array.isArray(value.sources)
+    ? value.sources.flatMap((source) => {
+        const normalized = normalizeSceneSource(source);
+        return normalized ? [normalized] : [];
+      })
+    : fallback.sources;
+
+  return {
+    version: 1,
+    id: stringValue(value.id, fallback.id),
+    name: stringValue(value.name, fallback.name),
+    canvas: normalizeCanvas(value.canvas, fallback.canvas),
+    sources: sources.length > 0 ? sources : fallback.sources
+  };
+};
+
+export const stripTransientSceneRuntime = (scene: SceneDocument): SceneDocument => ({
+  ...scene,
+  sources: scene.sources.map((source) => {
+    if (!isAvatarSource(source)) {
+      return source;
+    }
+    return {
+      ...source,
+      mouthOpen: 0,
+      blink: 0,
+      motion: defaultAvatarMotion()
+    };
+  })
+});
+
 export const addSource = (scene: SceneDocument, source: SceneSource): SceneDocument => ({
   ...scene,
   sources: [...scene.sources, source]
@@ -341,3 +380,136 @@ const sourcePayload = (source: SceneSource): Record<string, string | number | bo
       return { text: source.text, color: source.color, fontSize: source.fontSize };
   }
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const stringValue = (value: unknown, fallback: string): string =>
+  typeof value === "string" && value.trim().length > 0 ? value : fallback;
+
+const booleanValue = (value: unknown, fallback: boolean): boolean =>
+  typeof value === "boolean" ? value : fallback;
+
+const finiteNumber = (value: unknown, fallback: number): number =>
+  typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
+const clampedNumber = (value: unknown, fallback: number, min: number, max: number): number =>
+  Math.max(min, Math.min(max, finiteNumber(value, fallback)));
+
+const normalizeCanvas = (value: unknown, fallback: SceneDocument["canvas"]): SceneDocument["canvas"] => {
+  if (!isRecord(value)) {
+    return fallback;
+  }
+  return {
+    width: Math.round(clampedNumber(value.width, fallback.width, 1, 7680)),
+    height: Math.round(clampedNumber(value.height, fallback.height, 1, 4320)),
+    fps: Math.round(clampedNumber(value.fps, fallback.fps, 1, 120))
+  };
+};
+
+const normalizeTransformValue = (value: unknown, fallback: Transform): Transform => {
+  if (!isRecord(value)) {
+    return fallback;
+  }
+  return clampTransform({
+    x: finiteNumber(value.x, fallback.x),
+    y: finiteNumber(value.y, fallback.y),
+    width: finiteNumber(value.width, fallback.width),
+    height: finiteNumber(value.height, fallback.height),
+    rotation: finiteNumber(value.rotation, fallback.rotation),
+    opacity: finiteNumber(value.opacity, fallback.opacity)
+  });
+};
+
+const normalizeMotionValue = (value: unknown): AvatarMotion => {
+  if (!isRecord(value)) {
+    return defaultAvatarMotion();
+  }
+  return defaultAvatarMotion({
+    headYaw: clampedNumber(value.headYaw, 0, -1, 1),
+    headPitch: clampedNumber(value.headPitch, 0, -1, 1),
+    headRoll: clampedNumber(value.headRoll, 0, -1, 1),
+    headX: clampedNumber(value.headX, 0, -1, 1),
+    headY: clampedNumber(value.headY, 0, -1, 1),
+    bodyLean: clampedNumber(value.bodyLean, 0, -1, 1),
+    bodyBounce: clampedNumber(value.bodyBounce, 0, -1, 1),
+    breathing: clampedNumber(value.breathing, 0, -1, 1),
+    confidence: clampedNumber(value.confidence, 0, 0, 1)
+  });
+};
+
+const normalizeSceneSource = (value: unknown): SceneSource | null => {
+  if (!isRecord(value) || !isSourceKind(value.kind)) {
+    return null;
+  }
+
+  const fallback = createSource(value.kind);
+  const base = {
+    id: stringValue(value.id, fallback.id),
+    name: stringValue(value.name, fallback.name),
+    visible: booleanValue(value.visible, fallback.visible),
+    locked: booleanValue(value.locked, fallback.locked),
+    transform: normalizeTransformValue(value.transform, fallback.transform),
+    blendMode: isBlendMode(value.blendMode) ? value.blendMode : fallback.blendMode
+  };
+
+  switch (value.kind) {
+    case "screen":
+      return {
+        ...base,
+        kind: "screen",
+        captureMode: value.captureMode === "ios-replaykit" ? "ios-replaykit" : "android-media-projection"
+      };
+    case "pngtuber": {
+      const sourceFallback = createSource("pngtuber") as PNGTuberSource;
+      return {
+        ...base,
+        kind: "pngtuber",
+        avatarId: stringValue(value.avatarId, sourceFallback.avatarId),
+        expression: stringValue(value.expression, sourceFallback.expression),
+        mouthOpen: clampedNumber(value.mouthOpen, sourceFallback.mouthOpen, 0, 1),
+        blink: clampedNumber(value.blink, sourceFallback.blink, 0, 1),
+        motion: normalizeMotionValue(value.motion)
+      };
+    }
+    case "live2d": {
+      const sourceFallback = createSource("live2d") as Live2DSource;
+      return {
+        ...base,
+        kind: "live2d",
+        modelId: stringValue(value.modelId, sourceFallback.modelId),
+        expression: stringValue(value.expression, sourceFallback.expression),
+        mouthOpen: clampedNumber(value.mouthOpen, sourceFallback.mouthOpen, 0, 1),
+        blink: clampedNumber(value.blink, sourceFallback.blink, 0, 1),
+        motion: normalizeMotionValue(value.motion)
+      };
+    }
+    case "image": {
+      const sourceFallback = createSource("image") as ImageSource;
+      return { ...base, kind: "image", uri: typeof value.uri === "string" ? value.uri : sourceFallback.uri };
+    }
+    case "solid": {
+      const sourceFallback = createSource("solid") as SolidSource;
+      return { ...base, kind: "solid", color: stringValue(value.color, sourceFallback.color) };
+    }
+    case "text": {
+      const sourceFallback = createSource("text") as TextSource;
+      return {
+        ...base,
+        kind: "text",
+        text: typeof value.text === "string" ? value.text : sourceFallback.text,
+        color: stringValue(value.color, sourceFallback.color),
+        fontSize: clampedNumber(value.fontSize, sourceFallback.fontSize, 8, 180)
+      };
+    }
+  }
+};
+
+const isSourceKind = (value: unknown): value is SourceKind =>
+  typeof value === "string" && sourceKinds.includes(value as SourceKind);
+
+const isBlendMode = (value: unknown): value is BlendMode =>
+  typeof value === "string" && blendModes.includes(value as BlendMode);
+
+const isAvatarSource = (source: SceneSource): source is PNGTuberSource | Live2DSource =>
+  source.kind === "pngtuber" || source.kind === "live2d";

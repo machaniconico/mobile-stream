@@ -4,6 +4,7 @@
 
 - TypeScript app scaffold with Vite.
 - OBS-like scene/source/render graph domain model.
+- Persisted scene normalization with clamped canvas/source/transform/avatar runtime values.
 - Stream profile model for RTMP and RTMPS destinations, including YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Stream key redaction and no-secret browser persistence.
@@ -46,6 +47,7 @@
 - Android microphone/notification runtime permission preflight before MediaProjection launch.
 - Android Keystore-backed encrypted mobile profile storage for stream keys.
 - Mobile stream key clearing by overwriting the secure native profile with a cleared key.
+- Durable mobile-side scene persistence through Android SharedPreferences and iOS atomic Application Support JSON storage.
 - Android TextToSpeech native module for chat read-aloud.
 - iOS Keychain-backed mobile profile storage exposed to React Native.
 - iOS AVSpeechSynthesizer native module for chat read-aloud.
@@ -73,7 +75,6 @@
 - YouTube/Twitch/platform comment API ingestion.
 - OAuth-backed live chat connection.
 - OAuth/API-backed platform stream key rotation.
-- Durable mobile-side scene persistence.
 
 ## Local Environment Notes
 
@@ -88,6 +89,5 @@
 
 1. Run iOS and Android on physical devices against a private RTMPS endpoint and tune bitrate/fps/audio sync behavior.
 2. Validate YouTube Live and Twitch ingest with real stream keys on both platforms.
-3. Add durable mobile scene persistence through platform storage.
-4. Add YouTube/Twitch chat adapters behind the shared chat queue.
-5. Add OAuth-backed YouTube/Twitch account connection for chat and platform-managed stream key rotation.
+3. Add YouTube/Twitch chat adapters behind the shared chat queue.
+4. Add OAuth-backed YouTube/Twitch account connection for chat and platform-managed stream key rotation.

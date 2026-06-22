@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { createAvatarRuntimeState, setExpression, tickAutoBlink, type AvatarExpression } from "../domain/avatar";
+import { createAvatarRuntimeStateFromScene, setExpression, tickAutoBlink, type AvatarExpression } from "../domain/avatar";
 import {
   createChatMessage,
   createDefaultChatReaderState,
@@ -20,6 +20,7 @@ import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "
 import { createReadinessReport } from "../domain/readiness";
 import {
   createDefaultScene,
+  stripTransientSceneRuntime,
   updateSource,
   type Live2DSource,
   type PNGTuberSource,
@@ -39,6 +40,7 @@ import { IOSLiveCaster, canUseIOSLiveCaster } from "./IOSLiveCaster";
 import { MobileStudioScreen } from "./MobileStudioScreen";
 import { NativeChatSpeechEngine } from "./NativeChatSpeechEngine";
 import { NativeFaceTrackingInput } from "./NativeFaceTrackingInput";
+import { loadMobileScene, saveMobileScene } from "./sceneStore";
 import { loadSecureProfile, saveSecureProfile } from "./secureProfileStore";
 
 const isAvatarSource = (source: SceneDocument["sources"][number]): source is PNGTuberSource | Live2DSource =>
@@ -53,20 +55,48 @@ export const MobileApp = () => {
   const faceTrackingInput = useMemo(() => new NativeFaceTrackingInput(), []);
   const [scene, setScene] = useState<SceneDocument>(() => createDefaultScene());
   const [profile, setProfile] = useState<StudioProfile>(() => createDefaultStudioProfile());
+  const [sceneLoaded, setSceneLoaded] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [chatReader, setChatReader] = useState(() => createDefaultChatReaderState());
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
-  const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeState(Date.now()));
+  const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeStateFromScene(scene, Date.now()));
   const [faceTrackingRuntime, setFaceTrackingRuntime] = useState(() => createFaceTrackingRuntimeState(Date.now()));
   const [operationStatus, setOperationStatus] = useState<StreamOperationStatus | null>(null);
   const operationInFlight = useRef(false);
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
+  const persistableSceneJson = useMemo(() => JSON.stringify(stripTransientSceneRuntime(scene)), [scene]);
 
   useEffect(() => engine.subscribe(setSnapshot), [engine]);
   useChatSpeechQueue(chatReader, setChatReader, chatSpeechEngine);
 
   useEffect(() => () => faceTrackingInput.stop(), [faceTrackingInput]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadMobileScene()
+      .catch(() => null)
+      .then((storedScene) => {
+        if (cancelled || !storedScene) {
+          return;
+        }
+        setScene(storedScene);
+        setAvatarRuntime(createAvatarRuntimeStateFromScene(storedScene, Date.now()));
+        setSelectedSourceId((currentSourceId) =>
+          storedScene.sources.some((source) => source.id === currentSourceId)
+            ? currentSourceId
+            : storedScene.sources[0]?.id ?? currentSourceId
+        );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSceneLoaded(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,6 +130,13 @@ export const MobileApp = () => {
     }
     void saveSecureProfile(profile).catch(() => undefined);
   }, [profile, profileLoaded]);
+
+  useEffect(() => {
+    if (!sceneLoaded) {
+      return;
+    }
+    void saveMobileScene(JSON.parse(persistableSceneJson) as SceneDocument).catch(() => undefined);
+  }, [persistableSceneJson, sceneLoaded]);
 
   useEffect(() => {
     const timer = setInterval(() => {

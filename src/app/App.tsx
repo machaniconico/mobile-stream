@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createAvatarRuntimeState, setExpression, tickAutoBlink, type AvatarExpression } from "../domain/avatar";
+import { createAvatarRuntimeStateFromScene, setExpression, tickAutoBlink, type AvatarExpression } from "../domain/avatar";
 import {
   createChatMessage,
   createDefaultChatReaderState,
@@ -19,7 +19,7 @@ import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "
 import { createReadinessReport } from "../domain/readiness";
 import {
   createDefaultScene,
-  defaultAvatarMotion,
+  stripTransientSceneRuntime,
   updateSource,
   type PNGTuberSource,
   type Live2DSource,
@@ -49,12 +49,12 @@ export const App = () => {
   const [chatReader, setChatReader] = useState(() => createDefaultChatReaderState());
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
-  const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeState(Date.now()));
+  const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeStateFromScene(scene, Date.now()));
   const [faceTrackingRuntime, setFaceTrackingRuntime] = useState(() => createFaceTrackingRuntimeState(Date.now()));
   const [operationStatus, setOperationStatus] = useState<StreamOperationStatus | null>(null);
   const operationInFlight = useRef(false);
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
-  const persistableSceneJson = useMemo(() => JSON.stringify(stripTransientAvatarRuntime(scene)), [scene]);
+  const persistableSceneJson = useMemo(() => JSON.stringify(stripTransientSceneRuntime(scene)), [scene]);
 
   useEffect(() => engine.subscribe(setSnapshot), [engine]);
   useChatSpeechQueue(chatReader, setChatReader, chatSpeechEngine);
@@ -241,21 +241,6 @@ const applyAvatarRuntime = (
 
   return changed ? next : scene;
 };
-
-const stripTransientAvatarRuntime = (scene: SceneDocument): SceneDocument => ({
-  ...scene,
-  sources: scene.sources.map((source) => {
-    if (!isAvatarSource(source)) {
-      return source;
-    }
-    return {
-      ...source,
-      mouthOpen: 0,
-      blink: 0,
-      motion: defaultAvatarMotion()
-    };
-  })
-});
 
 const shouldPushSceneToEngine = (status: NativeEngineSnapshot["state"]["status"]) =>
   status === "preparing" || status === "live" || status === "reconnecting";
