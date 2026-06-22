@@ -2,6 +2,7 @@ import {
   Activity,
   ArrowDown,
   ArrowUp,
+  Download,
   Eye,
   EyeOff,
   Headphones,
@@ -42,7 +43,12 @@ import {
   type SourceKind
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
-import { createStreamDiagnostics, type StreamDiagnostics } from "../domain/streamDiagnostics";
+import {
+  createStreamDiagnosticReport,
+  createStreamDiagnostics,
+  serializeStreamDiagnosticReport,
+  type StreamDiagnostics
+} from "../domain/streamDiagnostics";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { LiveSetupScreen } from "./LiveSetupScreen";
 import { PanelTitle } from "./ui";
@@ -83,6 +89,21 @@ const sourceLabels: Record<SourceKind, string> = {
 const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "text", "image", "solid"];
 
 const expressions: AvatarExpression[] = ["neutral", "happy", "angry", "surprised"];
+
+const downloadStreamDiagnosticReport = (diagnostics: StreamDiagnostics) => {
+  const generatedAt = new Date();
+  const report = serializeStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics, generatedAt));
+  const blob = new Blob([report], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = `mobile-live-caster-diagnostics-${generatedAt.toISOString().replace(/[:.]/g, "-")}.json`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+};
 
 export const StudioScreen = ({
   scene,
@@ -575,7 +596,13 @@ export const StudioScreen = ({
 const StreamDiagnosticsPanel = ({ diagnostics }: { diagnostics: StreamDiagnostics }) => (
   <section className="control-panel">
     <PanelTitle icon={<Activity size={18} />} title="Diagnostics" />
-    <div className={`diagnostic-summary ${diagnostics.status}`}>{diagnostics.summary}</div>
+    <div className="diagnostic-summary-row">
+      <div className={`diagnostic-summary ${diagnostics.status}`}>{diagnostics.summary}</div>
+      <button className="secondary-action compact-action diagnostic-export" type="button" onClick={() => downloadStreamDiagnosticReport(diagnostics)}>
+        <Download size={15} />
+        Export
+      </button>
+    </div>
     <div className="diagnostic-grid">
       <span>Target</span>
       <strong>{diagnostics.target.platform}</strong>

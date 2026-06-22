@@ -7,7 +7,7 @@
 - Persisted scene normalization with clamped canvas/source/transform/avatar runtime values.
 - Stream profile model for RTMP and RTMPS destinations, including YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
-- Stream diagnostics model for redacted publish URL, endpoint parsing, upload target estimate, readiness issues, and live telemetry health checks.
+- Stream diagnostics model for redacted publish URL, endpoint parsing, upload target estimate, readiness issues, live telemetry health checks, and sanitized diagnostic reports.
 - Stream key redaction and no-secret browser persistence.
 - In-app stream key clear/replacement controls for browser and mobile setup screens.
 - Mic effect profile model with presets, gain, noise gate, compression, and headphone monitor settings.
@@ -25,12 +25,12 @@
   - expression buttons
   - YouTube Live/Twitch/Custom RTMP setup
   - readiness panel with blocking errors and warnings
-  - stream diagnostics panel with endpoint/quality/telemetry checks
+  - stream diagnostics panel with endpoint/quality/telemetry checks and JSON report export
   - quality profiles
   - chat reader panel with test comments and speech settings
   - Go Live, Stop, Reconnect mock controls
 - React Native mobile readiness panel and Go Live blocking for invalid profiles.
-- React Native mobile stream diagnostics panel using the shared diagnostics model.
+- React Native mobile stream diagnostics panel using the shared diagnostics model, including sanitized report sharing.
 - React Native mobile chat reader panel with test comments and speech settings.
 - iOS ReplayKit Broadcast Upload Extension target registered in the Xcode project.
 - iOS app-side Broadcast Picker startup bridge with App Group configuration handoff.

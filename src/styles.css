@@ -854,6 +854,13 @@ select:focus-visible {
   color: #fde68a;
 }
 
+.diagnostic-summary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
 .diagnostic-summary {
   min-height: 38px;
   display: flex;
@@ -866,6 +873,10 @@ select:focus-visible {
   font-size: 13px;
   font-weight: 800;
   line-height: 1.35;
+}
+
+.diagnostic-export {
+  min-width: 92px;
 }
 
 .diagnostic-summary.pass {

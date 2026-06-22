@@ -44,6 +44,15 @@ export interface StreamDiagnostics {
   checks: DiagnosticCheck[];
 }
 
+export interface StreamDiagnosticReport {
+  generatedAt: string;
+  app: {
+    name: "MobileLiveCaster";
+    reportVersion: 1;
+  };
+  diagnostics: StreamDiagnostics;
+}
+
 interface SnapshotLike {
   state: {
     status: StreamStatus;
@@ -66,9 +75,14 @@ export const createStreamDiagnostics = (
   const destination = readiness.sanitizedProfile.destination;
   const quality = readiness.sanitizedProfile.quality;
   const endpoint = parseEndpoint(destination.serverUrl);
+  const redactedEndpoint = {
+    host: endpoint.host,
+    application: redactStreamKeyOccurrences(endpoint.application, destination.streamKey)
+  };
   const targetVideoBitrateKbps = quality.videoBitrateKbps;
   const targetAudioBitrateKbps = quality.audioBitrateKbps;
   const estimatedUploadKbps = Math.round((targetVideoBitrateKbps + targetAudioBitrateKbps) * 1.25);
+  const sanitizedHealthMessage = redactStreamKeyOccurrences(snapshot.health.message, destination.streamKey);
   const checks = [
     ...readiness.issues.map<DiagnosticCheck>((issue) => ({
       code: `readiness-${issue.code}`,
@@ -77,10 +91,10 @@ export const createStreamDiagnostics = (
       message: issue.message
     })),
     createTransportCheck(destination.protocol),
-    createEndpointCheck(endpoint),
+    createEndpointCheck(redactedEndpoint),
     createStreamKeyCheck(destination.streamKey),
     createSceneCheck(scene),
-    createEngineStateCheck(snapshot),
+    createEngineStateCheck(snapshot, sanitizedHealthMessage),
     createTelemetryBitrateCheck(snapshot, targetVideoBitrateKbps),
     createTelemetryFpsCheck(snapshot, quality.fps),
     createTelemetryDropsCheck(snapshot),
@@ -95,8 +109,8 @@ export const createStreamDiagnostics = (
       platform: platformLabels[destination.platform],
       presetName: getDestinationPreset(destination.presetId)?.name ?? destination.name,
       protocol: destination.protocol.toUpperCase(),
-      host: endpoint.host || "Invalid endpoint",
-      application: endpoint.application || "-",
+      host: redactedEndpoint.host || "Invalid endpoint",
+      application: redactedEndpoint.application || "-",
       publishUrlPreview: redactPublishUrl(buildPublishUrl(destination), destination.streamKey),
       streamKeyPreview: destination.streamKey ? redactStreamKey(destination.streamKey) : "Not set",
       secureTransport: destination.protocol === "rtmps"
@@ -115,10 +129,59 @@ export const createStreamDiagnostics = (
       droppedFrames: snapshot.health.droppedFrames,
       reconnectAttempts: snapshot.health.reconnectAttempts,
       elapsedSeconds: snapshot.health.elapsedSeconds,
-      message: snapshot.health.message
+      message: sanitizedHealthMessage
     },
     checks
   };
+};
+
+export const createStreamDiagnosticReport = (
+  diagnostics: StreamDiagnostics,
+  now: Date = new Date()
+): StreamDiagnosticReport => ({
+  generatedAt: now.toISOString(),
+  app: {
+    name: "MobileLiveCaster",
+    reportVersion: 1
+  },
+  diagnostics
+});
+
+export const serializeStreamDiagnosticReport = (report: StreamDiagnosticReport): string => JSON.stringify(report, null, 2);
+
+export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): string => {
+  const diagnostics = report.diagnostics;
+  return [
+    "MobileLiveCaster Diagnostics",
+    `Generated: ${report.generatedAt}`,
+    `Status: ${diagnostics.status}`,
+    `Summary: ${diagnostics.summary}`,
+    "",
+    "Target",
+    `- Platform: ${diagnostics.target.platform}`,
+    `- Preset: ${diagnostics.target.presetName}`,
+    `- Protocol: ${diagnostics.target.protocol}`,
+    `- Endpoint: ${diagnostics.target.host}/${diagnostics.target.application}`,
+    `- Publish URL: ${diagnostics.target.publishUrlPreview}`,
+    "",
+    "Quality",
+    `- Resolution: ${diagnostics.quality.resolution}`,
+    `- FPS: ${diagnostics.quality.fps}`,
+    `- Video bitrate: ${diagnostics.quality.targetVideoBitrateKbps} kbps`,
+    `- Audio bitrate: ${diagnostics.quality.targetAudioBitrateKbps} kbps`,
+    `- Upload target: ${diagnostics.quality.estimatedUploadKbps} kbps`,
+    "",
+    "Telemetry",
+    `- State: ${diagnostics.telemetry.streamStatus}`,
+    `- Bitrate: ${diagnostics.telemetry.bitrateKbps} kbps`,
+    `- FPS: ${diagnostics.telemetry.fps}`,
+    `- Dropped frames: ${diagnostics.telemetry.droppedFrames}`,
+    `- Reconnect attempts: ${diagnostics.telemetry.reconnectAttempts}`,
+    `- Message: ${diagnostics.telemetry.message || "-"}`,
+    "",
+    "Checks",
+    ...diagnostics.checks.map((check) => `- [${check.status.toUpperCase()}] ${check.label}: ${check.message}`)
+  ].join("\n");
 };
 
 const parseEndpoint = (serverUrl: string): { host: string; application: string } => {
@@ -134,14 +197,18 @@ const parseEndpoint = (serverUrl: string): { host: string; application: string }
 };
 
 const redactPublishUrl = (publishUrl: string, streamKey: string): string => {
+  return redactStreamKeyOccurrences(publishUrl, streamKey);
+};
+
+const redactStreamKeyOccurrences = (value: string, streamKey: string): string => {
   const candidates = streamKeyCandidates(streamKey);
   if (candidates.length === 0) {
-    return publishUrl;
+    return value;
   }
 
   return candidates.reduce(
     (current, candidate) => replaceAll(current, candidate, redactStreamKey(candidate)),
-    publishUrl
+    value
   );
 };
 
@@ -209,13 +276,13 @@ const createSceneCheck = (scene: SceneDocument): DiagnosticCheck => {
   };
 };
 
-const createEngineStateCheck = (snapshot: SnapshotLike): DiagnosticCheck => {
+const createEngineStateCheck = (snapshot: SnapshotLike, healthMessage: string): DiagnosticCheck => {
   if (snapshot.state.status === "failed") {
     return {
       code: "engine-failed",
       status: "fail",
       label: "Engine",
-      message: snapshot.health.message || "Streaming engine is in failed state."
+      message: healthMessage || "Streaming engine is in failed state."
     };
   }
 

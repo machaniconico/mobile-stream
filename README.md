@@ -11,7 +11,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Layer visibility, lock, ordering, and transform controls.
 - RTMP/RTMPS destination profiles with YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
-- Stream diagnostics panel with redacted publish URL, upload target estimate, and live telemetry checks.
+- Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, and sanitized report export/share.
 - Stream key redaction and no-secret browser persistence.
 - Keychain/Android Keystore-backed mobile profile storage for stream keys.
 - In-app stream key clear and replacement controls.
@@ -58,7 +58,7 @@ npm run ios:build:simulator
 - Encoding: VideoToolbox on iOS, MediaCodec on Android.
 - Streaming: RTMP/RTMPS publisher behind `src/native/LiveCasterNative.ts`.
 - Go Live readiness: fail closed before native capture starts, with UI-visible blocking reasons.
-- Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, bitrate/FPS/drop/reconnect telemetry, and estimated upload target are shown before and during live sessions.
+- Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, bitrate/FPS/drop/reconnect telemetry, estimated upload target, and sanitized export/share reports are available before and during live sessions.
 - Secret storage: browser persistence strips stream keys; mobile persistence uses Keychain/Android Keystore-backed native storage.
 - Stream key management: users can clear the stored key in-app and paste a replacement key without changing the destination preset.
 - Scene storage: web uses localStorage; Android uses app SharedPreferences; iOS writes an atomic scene JSON file under Application Support.

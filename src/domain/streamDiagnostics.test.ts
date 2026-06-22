@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { createDefaultStudioProfile, redactStreamKey } from "./profiles";
 import { createReadinessReport } from "./readiness";
 import { createDefaultScene } from "./scene";
-import { createStreamDiagnostics } from "./streamDiagnostics";
+import {
+  createStreamDiagnosticReport,
+  createStreamDiagnostics,
+  formatStreamDiagnosticReport,
+  serializeStreamDiagnosticReport
+} from "./streamDiagnostics";
 import { initialStreamState, type StreamHealth } from "./streamState";
 
 const health = (update: Partial<StreamHealth> = {}): StreamHealth => ({
@@ -103,6 +108,31 @@ describe("stream diagnostics", () => {
     expect(diagnostics.target.publishUrlPreview).not.toContain(demoStreamKey);
   });
 
+  it("redacts stream keys from endpoint application paths", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        platform: "custom" as const,
+        presetId: "custom-rtmps" as const,
+        serverUrl: `rtmps://live.example.test/app/${demoStreamKey}`,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health()
+    });
+    const report = serializeStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics, new Date("2026-06-22T00:00:00.000Z")));
+
+    expect(diagnostics.target.application).toContain(redactStreamKey(demoStreamKey));
+    expect(diagnostics.target.application).not.toContain(demoStreamKey);
+    expect(report).not.toContain(demoStreamKey);
+  });
+
   it("fails diagnostics when the engine snapshot is failed", () => {
     const scene = createDefaultScene();
     const profile = {
@@ -122,5 +152,55 @@ describe("stream diagnostics", () => {
     expect(diagnostics.status).toBe("fail");
     expect(diagnostics.summary).toContain("blocking");
     expect(diagnostics.checks.some((check) => check.code === "engine-failed")).toBe(true);
+  });
+
+  it("redacts stream keys from engine health messages", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "failed" },
+      health: health({ message: `RTMP handshake failed for ${demoStreamKey}` })
+    });
+
+    expect(diagnostics.telemetry.message).toContain(redactStreamKey(demoStreamKey));
+    expect(diagnostics.telemetry.message).not.toContain(demoStreamKey);
+    expect(diagnostics.checks.find((check) => check.code === "engine-failed")?.message).not.toContain(demoStreamKey);
+  });
+
+  it("serializes a shareable diagnostic report without raw stream keys", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ message: `Publishing with ${demoStreamKey}`, bitrateKbps: 3600, fps: 30 })
+    });
+
+    const report = createStreamDiagnosticReport(diagnostics, new Date("2026-06-22T00:00:00.000Z"));
+    const json = serializeStreamDiagnosticReport(report);
+    const text = formatStreamDiagnosticReport(report);
+
+    expect(report.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1 });
+    expect(report.generatedAt).toBe("2026-06-22T00:00:00.000Z");
+    expect(json).toContain("MobileLiveCaster");
+    expect(text).toContain("MobileLiveCaster Diagnostics");
+    expect(json).toContain(redactStreamKey(demoStreamKey));
+    expect(text).toContain(redactStreamKey(demoStreamKey));
+    expect(json).not.toContain(demoStreamKey);
+    expect(text).not.toContain(demoStreamKey);
   });
 });

@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
@@ -31,7 +31,12 @@ import {
   type SourceKind
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
-import { createStreamDiagnostics, type StreamDiagnostics } from "../domain/streamDiagnostics";
+import {
+  createStreamDiagnosticReport,
+  createStreamDiagnostics,
+  formatStreamDiagnosticReport,
+  type StreamDiagnostics
+} from "../domain/streamDiagnostics";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 
 interface MobileStudioScreenProps {
@@ -69,6 +74,14 @@ const sourceLabels: Record<SourceKind, string> = {
 
 const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "text", "image", "solid"];
 const expressions: AvatarExpression[] = ["neutral", "happy", "angry", "surprised"];
+
+const shareStreamDiagnosticReport = async (diagnostics: StreamDiagnostics) => {
+  const report = createStreamDiagnosticReport(diagnostics);
+  await Share.share({
+    title: "MobileLiveCaster diagnostics",
+    message: formatStreamDiagnosticReport(report)
+  });
+};
 
 export const MobileStudioScreen = ({
   scene,
@@ -614,6 +627,9 @@ const StreamDiagnosticsPanel = ({ diagnostics }: { diagnostics: StreamDiagnostic
   <Panel title="Diagnostics">
     <View style={[styles.diagnosticSummary, diagnosticSummaryStyle(diagnostics.status)]}>
       <Text style={[styles.diagnosticSummaryText, diagnosticSummaryTextStyle(diagnostics.status)]}>{diagnostics.summary}</Text>
+    </View>
+    <View style={styles.diagnosticActions}>
+      <ActionButton label="Share Report" onPress={() => shareStreamDiagnosticReport(diagnostics)} />
     </View>
     <View style={styles.diagnosticGrid}>
       <DiagnosticMetric label="Target" value={diagnostics.target.platform} />
@@ -1672,6 +1688,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "900",
     lineHeight: 18
+  },
+  diagnosticActions: {
+    alignItems: "stretch"
   },
   diagnosticPass: {
     borderColor: "rgba(34, 197, 94, 0.42)"
