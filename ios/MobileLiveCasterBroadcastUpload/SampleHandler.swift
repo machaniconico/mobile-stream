@@ -2,6 +2,7 @@ import CoreMedia
 import Foundation
 import os
 import ReplayKit
+import VideoToolbox
 
 private let broadcastAppGroup = "group.org.reactjs.native.example.MobileLiveCaster"
 private let broadcastConfigurationKey = "MobileLiveCaster.broadcastConfiguration.v1"
@@ -104,6 +105,35 @@ enum BroadcastUploadError: LocalizedError, Equatable {
             code: uploadError?.code ?? -1,
             userInfo: [NSLocalizedDescriptionKey: error.localizedDescription]
         )
+    }
+}
+
+enum BroadcastVideoEncoderError: LocalizedError, Equatable {
+    case pixelBufferMissing
+    case sessionCreateFailed(OSStatus)
+    case propertySetFailed(String, OSStatus)
+    case encodeFailed(OSStatus)
+
+    var errorDescription: String? {
+        switch self {
+        case .pixelBufferMissing:
+            return "ReplayKit video sample did not contain a pixel buffer"
+        case .sessionCreateFailed(let status):
+            return "VideoToolbox encoder could not be created: \(status)"
+        case .propertySetFailed(let property, let status):
+            return "VideoToolbox property \(property) could not be set: \(status)"
+        case .encodeFailed(let status):
+            return "VideoToolbox frame encode failed: \(status)"
+        }
+    }
+
+    var statusCode: OSStatus? {
+        switch self {
+        case .pixelBufferMissing:
+            return nil
+        case .sessionCreateFailed(let status), .propertySetFailed(_, let status), .encodeFailed(let status):
+            return status
+        }
     }
 }
 
@@ -232,6 +262,8 @@ struct BroadcastUploadStats: Equatable {
     private(set) var unknownSamples: Int = 0
     private(set) var lastVideoPresentationTimeSeconds: Double?
     private(set) var lastAudioPresentationTimeSeconds: Double?
+    private(set) var videoEncodeFailures: Int = 0
+    private(set) var lastVideoEncodeStatus: Int32 = 0
 
     var elapsedSeconds: Int {
         guard let startedAt else {
@@ -252,6 +284,8 @@ struct BroadcastUploadStats: Equatable {
         unknownSamples = 0
         lastVideoPresentationTimeSeconds = nil
         lastAudioPresentationTimeSeconds = nil
+        videoEncodeFailures = 0
+        lastVideoEncodeStatus = 0
     }
 
     mutating func stop() {
@@ -281,6 +315,11 @@ struct BroadcastUploadStats: Equatable {
         unknownSamples += 1
     }
 
+    mutating func recordVideoEncodeFailure(_ error: BroadcastVideoEncoderError) {
+        videoEncodeFailures += 1
+        lastVideoEncodeStatus = error.statusCode ?? -1
+    }
+
     func asDictionary() -> [String: Any] {
         [
             "elapsedSeconds": elapsedSeconds,
@@ -290,7 +329,9 @@ struct BroadcastUploadStats: Equatable {
             "droppedSamples": droppedSamples,
             "unknownSamples": unknownSamples,
             "lastVideoPresentationTimeSeconds": lastVideoPresentationTimeSeconds ?? 0,
-            "lastAudioPresentationTimeSeconds": lastAudioPresentationTimeSeconds ?? 0
+            "lastAudioPresentationTimeSeconds": lastAudioPresentationTimeSeconds ?? 0,
+            "videoEncodeFailures": videoEncodeFailures,
+            "lastVideoEncodeStatus": lastVideoEncodeStatus
         ]
     }
 
@@ -314,6 +355,7 @@ struct BroadcastUploadSnapshot: Equatable {
     let videoBitrateKbps: Int?
     let audioBitrateKbps: Int?
     let stats: BroadcastUploadStats
+    let videoEncoderStats: BroadcastVideoEncoderStats?
 }
 
 final class BroadcastSharedStore {
@@ -343,7 +385,8 @@ final class BroadcastSharedStore {
     static func saveRuntimeState(
         state: BroadcastUploadState,
         configuration: BroadcastUploadConfiguration?,
-        stats: BroadcastUploadStats
+        stats: BroadcastUploadStats,
+        videoEncoderStats: BroadcastVideoEncoderStats?
     ) {
         guard let defaults else {
             return
@@ -354,6 +397,10 @@ final class BroadcastSharedStore {
             "updatedAt": Date().timeIntervalSince1970 * 1000,
             "stats": stats.asDictionary()
         ]
+
+        if let videoEncoderStats {
+            payload["videoEncoder"] = videoEncoderStats.asDictionary()
+        }
 
         if case .failed(let message) = state {
             payload["error"] = message
@@ -375,11 +422,319 @@ final class BroadcastSharedStore {
     }
 }
 
+struct BroadcastEncodedVideoFrame {
+    let presentationTimeSeconds: Double
+    let durationSeconds: Double
+    let isKeyframe: Bool
+    let byteCount: Int
+    let parameterSets: [Data]
+    let annexBNALUnits: [Data]
+}
+
+struct BroadcastVideoEncoderStats: Equatable {
+    private(set) var encodedFrames: Int = 0
+    private(set) var keyframes: Int = 0
+    private(set) var encodedBytes: Int = 0
+    private(set) var lastPresentationTimeSeconds: Double = 0
+    private(set) var lastStatus: Int32 = 0
+
+    mutating func record(_ frame: BroadcastEncodedVideoFrame) {
+        encodedFrames += 1
+        if frame.isKeyframe {
+            keyframes += 1
+        }
+        encodedBytes += frame.byteCount
+        lastPresentationTimeSeconds = frame.presentationTimeSeconds
+        lastStatus = 0
+    }
+
+    mutating func recordStatus(_ status: OSStatus) {
+        lastStatus = status
+    }
+
+    func asDictionary() -> [String: Any] {
+        [
+            "encodedFrames": encodedFrames,
+            "keyframes": keyframes,
+            "encodedBytes": encodedBytes,
+            "lastPresentationTimeSeconds": lastPresentationTimeSeconds,
+            "lastStatus": lastStatus
+        ]
+    }
+}
+
+private let videoCompressionOutputCallback: VTCompressionOutputCallback = { refcon, _, status, _, sampleBuffer in
+    guard let refcon else {
+        return
+    }
+    let encoder = Unmanaged<BroadcastVideoEncoder>.fromOpaque(refcon).takeUnretainedValue()
+    encoder.handleOutput(status: status, sampleBuffer: sampleBuffer)
+}
+
+final class BroadcastVideoEncoder {
+    private let configuration: BroadcastUploadConfiguration
+    private let onEncodedFrame: (BroadcastEncodedVideoFrame) -> Void
+    private var session: VTCompressionSession?
+    private let statsLock = NSLock()
+    private var currentStats = BroadcastVideoEncoderStats()
+
+    var stats: BroadcastVideoEncoderStats {
+        statsLock.performLocked {
+            currentStats
+        }
+    }
+
+    init(
+        configuration: BroadcastUploadConfiguration,
+        onEncodedFrame: @escaping (BroadcastEncodedVideoFrame) -> Void
+    ) throws {
+        self.configuration = configuration
+        self.onEncodedFrame = onEncodedFrame
+        try configureSession()
+    }
+
+    func encode(_ sampleBuffer: CMSampleBuffer) throws {
+        guard let session else {
+            throw BroadcastVideoEncoderError.sessionCreateFailed(kVTInvalidSessionErr)
+        }
+        guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+            throw BroadcastVideoEncoderError.pixelBufferMissing
+        }
+
+        let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        let duration = normalizedDuration(CMSampleBufferGetDuration(sampleBuffer))
+        let status = VTCompressionSessionEncodeFrame(
+            session,
+            imageBuffer: imageBuffer,
+            presentationTimeStamp: presentationTime.isValid ? presentationTime : CMTime(value: 0, timescale: 1),
+            duration: duration,
+            frameProperties: nil,
+            sourceFrameRefcon: nil,
+            infoFlagsOut: nil
+        )
+        guard status == noErr else {
+            statsLock.performLocked {
+                currentStats.recordStatus(status)
+            }
+            throw BroadcastVideoEncoderError.encodeFailed(status)
+        }
+    }
+
+    func finish() {
+        guard let session else {
+            return
+        }
+        VTCompressionSessionCompleteFrames(session, untilPresentationTimeStamp: .invalid)
+        VTCompressionSessionInvalidate(session)
+        self.session = nil
+    }
+
+    fileprivate func handleOutput(status: OSStatus, sampleBuffer: CMSampleBuffer?) {
+        guard status == noErr else {
+            statsLock.performLocked {
+                currentStats.recordStatus(status)
+            }
+            return
+        }
+        guard let sampleBuffer, CMSampleBufferDataIsReady(sampleBuffer), let encodedFrame = Self.makeEncodedFrame(sampleBuffer) else {
+            return
+        }
+
+        statsLock.performLocked {
+            currentStats.record(encodedFrame)
+        }
+        onEncodedFrame(encodedFrame)
+    }
+
+    private func configureSession() throws {
+        var nextSession: VTCompressionSession?
+        let createStatus = VTCompressionSessionCreate(
+            allocator: kCFAllocatorDefault,
+            width: Int32(configuration.width),
+            height: Int32(configuration.height),
+            codecType: kCMVideoCodecType_H264,
+            encoderSpecification: nil,
+            imageBufferAttributes: nil,
+            compressedDataAllocator: nil,
+            outputCallback: videoCompressionOutputCallback,
+            refcon: Unmanaged.passUnretained(self).toOpaque(),
+            compressionSessionOut: &nextSession
+        )
+
+        guard createStatus == noErr, let nextSession else {
+            throw BroadcastVideoEncoderError.sessionCreateFailed(createStatus)
+        }
+
+        session = nextSession
+        try setProperty(kVTCompressionPropertyKey_RealTime, kCFBooleanTrue, name: "RealTime")
+        try setProperty(kVTCompressionPropertyKey_AllowFrameReordering, kCFBooleanFalse, name: "AllowFrameReordering")
+        try setProperty(kVTCompressionPropertyKey_ProfileLevel, kVTProfileLevel_H264_Baseline_AutoLevel, name: "ProfileLevel")
+        try setProperty(
+            kVTCompressionPropertyKey_AverageBitRate,
+            NSNumber(value: configuration.videoBitrateKbps * 1000),
+            name: "AverageBitRate"
+        )
+        try setProperty(kVTCompressionPropertyKey_MaxKeyFrameInterval, NSNumber(value: configuration.fps * 2), name: "MaxKeyFrameInterval")
+        try setProperty(kVTCompressionPropertyKey_ExpectedFrameRate, NSNumber(value: configuration.fps), name: "ExpectedFrameRate")
+
+        VTCompressionSessionPrepareToEncodeFrames(nextSession)
+    }
+
+    private func setProperty(_ key: CFString, _ value: CFTypeRef, name: String) throws {
+        guard let session else {
+            throw BroadcastVideoEncoderError.sessionCreateFailed(kVTInvalidSessionErr)
+        }
+        let status = VTSessionSetProperty(session, key: key, value: value)
+        guard status == noErr else {
+            throw BroadcastVideoEncoderError.propertySetFailed(name, status)
+        }
+    }
+
+    private func normalizedDuration(_ duration: CMTime) -> CMTime {
+        if duration.isValid && duration.isNumeric && duration.value > 0 {
+            return duration
+        }
+        return CMTime(value: 1, timescale: CMTimeScale(max(configuration.fps, 1)))
+    }
+
+    private static func makeEncodedFrame(_ sampleBuffer: CMSampleBuffer) -> BroadcastEncodedVideoFrame? {
+        guard let dataBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else {
+            return nil
+        }
+
+        let isKeyframe = isKeyframe(sampleBuffer)
+        let parameterSets = isKeyframe ? h264ParameterSets(sampleBuffer) : []
+        let sampleData = copyBlockBufferData(dataBuffer)
+        let nalUnitHeaderLength = h264NALUnitHeaderLength(sampleBuffer) ?? 4
+        let annexB = annexBNALUnits(from: sampleData, nalUnitHeaderLength: nalUnitHeaderLength)
+        let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        let duration = CMSampleBufferGetDuration(sampleBuffer)
+
+        return BroadcastEncodedVideoFrame(
+            presentationTimeSeconds: presentationTime.isValid ? CMTimeGetSeconds(presentationTime) : 0,
+            durationSeconds: duration.isValid && duration.isNumeric ? CMTimeGetSeconds(duration) : 0,
+            isKeyframe: isKeyframe,
+            byteCount: sampleData.count + parameterSets.reduce(0) { $0 + $1.count },
+            parameterSets: parameterSets,
+            annexBNALUnits: annexB
+        )
+    }
+
+    private static func copyBlockBufferData(_ blockBuffer: CMBlockBuffer) -> Data {
+        let dataLength = CMBlockBufferGetDataLength(blockBuffer)
+        guard dataLength > 0 else {
+            return Data()
+        }
+
+        var data = Data(count: dataLength)
+        data.withUnsafeMutableBytes { destination in
+            guard let baseAddress = destination.baseAddress else {
+                return
+            }
+            CMBlockBufferCopyDataBytes(blockBuffer, atOffset: 0, dataLength: dataLength, destination: baseAddress)
+        }
+        return data
+    }
+
+    private static func isKeyframe(_ sampleBuffer: CMSampleBuffer) -> Bool {
+        guard
+            let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false) as? [[CFString: Any]],
+            let firstAttachment = attachments.first
+        else {
+            return true
+        }
+        return !(firstAttachment[kCMSampleAttachmentKey_NotSync] as? Bool ?? false)
+    }
+
+    private static func h264ParameterSets(_ sampleBuffer: CMSampleBuffer) -> [Data] {
+        guard let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer) else {
+            return []
+        }
+
+        var parameterSets: [Data] = []
+        var parameterSetCount = 0
+        var nalUnitHeaderLength: Int32 = 0
+        var index = 0
+
+        while true {
+            var parameterSetPointer: UnsafePointer<UInt8>?
+            var parameterSetSize = 0
+            let status = CMVideoFormatDescriptionGetH264ParameterSetAtIndex(
+                formatDescription,
+                parameterSetIndex: index,
+                parameterSetPointerOut: &parameterSetPointer,
+                parameterSetSizeOut: &parameterSetSize,
+                parameterSetCountOut: &parameterSetCount,
+                nalUnitHeaderLengthOut: &nalUnitHeaderLength
+            )
+
+            guard status == noErr, let parameterSetPointer, parameterSetSize > 0 else {
+                break
+            }
+
+            parameterSets.append(Data(bytes: parameterSetPointer, count: parameterSetSize))
+            index += 1
+            if parameterSetCount > 0 && index >= parameterSetCount {
+                break
+            }
+        }
+
+        return parameterSets
+    }
+
+    private static func h264NALUnitHeaderLength(_ sampleBuffer: CMSampleBuffer) -> Int? {
+        guard let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer) else {
+            return nil
+        }
+
+        var nalUnitHeaderLength: Int32 = 0
+        let status = CMVideoFormatDescriptionGetH264ParameterSetAtIndex(
+            formatDescription,
+            parameterSetIndex: 0,
+            parameterSetPointerOut: nil,
+            parameterSetSizeOut: nil,
+            parameterSetCountOut: nil,
+            nalUnitHeaderLengthOut: &nalUnitHeaderLength
+        )
+        guard status == noErr, nalUnitHeaderLength > 0 else {
+            return nil
+        }
+
+        return Int(nalUnitHeaderLength)
+    }
+
+    private static func annexBNALUnits(from avccData: Data, nalUnitHeaderLength: Int) -> [Data] {
+        guard nalUnitHeaderLength > 0 else {
+            return []
+        }
+
+        var units: [Data] = []
+        var offset = 0
+        while offset + nalUnitHeaderLength <= avccData.count {
+            var nalLength = 0
+            for byteIndex in 0..<nalUnitHeaderLength {
+                nalLength = (nalLength << 8) | Int(avccData[offset + byteIndex])
+            }
+            offset += nalUnitHeaderLength
+            guard nalLength > 0, offset + nalLength <= avccData.count else {
+                break
+            }
+
+            var unit = Data([0, 0, 0, 1])
+            unit.append(avccData[offset..<(offset + nalLength)])
+            units.append(unit)
+            offset += nalLength
+        }
+        return units
+    }
+}
+
 final class BroadcastUploadPipeline {
     private let logger = Logger(subsystem: "MobileLiveCaster", category: "BroadcastUpload")
     private(set) var state: BroadcastUploadState = .idle
     private(set) var configuration: BroadcastUploadConfiguration?
     private(set) var stats = BroadcastUploadStats()
+    private var videoEncoder: BroadcastVideoEncoder?
 
     var isRunning: Bool {
         state.acceptsSamples
@@ -395,7 +750,8 @@ final class BroadcastUploadPipeline {
             fps: configuration?.fps,
             videoBitrateKbps: configuration?.videoBitrateKbps,
             audioBitrateKbps: configuration?.audioBitrateKbps,
-            stats: stats
+            stats: stats,
+            videoEncoderStats: videoEncoder?.stats
         )
     }
 
@@ -407,7 +763,9 @@ final class BroadcastUploadPipeline {
 
         do {
             let nextConfiguration = try BroadcastUploadConfiguration(setupInfo: effectiveSetupInfo)
+            let nextVideoEncoder = try BroadcastVideoEncoder(configuration: nextConfiguration) { _ in }
             configuration = nextConfiguration
+            videoEncoder = nextVideoEncoder
             stats.start()
             state = .running
             logger.info(
@@ -416,6 +774,8 @@ final class BroadcastUploadPipeline {
             saveRuntimeState()
             return .success(())
         } catch {
+            videoEncoder?.finish()
+            videoEncoder = nil
             configuration = nil
             state = .failed(error.localizedDescription)
             logger.error("Broadcast upload failed to start: \(error.localizedDescription, privacy: .public)")
@@ -450,6 +810,8 @@ final class BroadcastUploadPipeline {
         }
 
         stats.stop()
+        videoEncoder?.finish()
+        videoEncoder = nil
         state = .stopped
         logger.info("Broadcast upload stopped frames=\(self.stats.videoFrames) dropped=\(self.stats.droppedSamples)")
         saveRuntimeState()
@@ -462,6 +824,15 @@ final class BroadcastUploadPipeline {
         }
 
         stats.recordVideo(sampleBuffer)
+        do {
+            try videoEncoder?.encode(sampleBuffer)
+        } catch let error as BroadcastVideoEncoderError {
+            stats.recordVideoEncodeFailure(error)
+            logger.error("Video encode failed: \(error.localizedDescription, privacy: .public)")
+        } catch {
+            stats.recordVideoEncodeFailure(.encodeFailed(-1))
+            logger.error("Video encode failed: \(error.localizedDescription, privacy: .public)")
+        }
         if stats.videoFrames == 1 || stats.videoFrames % max(configuration?.fps ?? 30, 1) == 0 {
             saveRuntimeState()
         }
@@ -491,7 +862,12 @@ final class BroadcastUploadPipeline {
     }
 
     private func saveRuntimeState() {
-        BroadcastSharedStore.saveRuntimeState(state: state, configuration: configuration, stats: stats)
+        BroadcastSharedStore.saveRuntimeState(
+            state: state,
+            configuration: configuration,
+            stats: stats,
+            videoEncoderStats: videoEncoder?.stats
+        )
     }
 }
 
@@ -510,5 +886,13 @@ private extension String {
             output.removeLast()
         }
         return output
+    }
+}
+
+private extension NSLock {
+    func performLocked<T>(_ body: () -> T) -> T {
+        lock()
+        defer { unlock() }
+        return body()
     }
 }
