@@ -1,3 +1,4 @@
+import AudioToolbox
 import CoreMedia
 import Foundation
 import Network
@@ -138,6 +139,44 @@ enum BroadcastVideoEncoderError: LocalizedError, Equatable {
     }
 }
 
+enum BroadcastAudioEncoderError: LocalizedError, Equatable {
+    case dataBufferMissing
+    case formatDescriptionMissing
+    case unsupportedInputFormat(AudioFormatID)
+    case unsupportedSampleRate(Double)
+    case converterCreateFailed(OSStatus)
+    case propertySetFailed(String, OSStatus)
+    case encodeFailed(OSStatus)
+
+    var errorDescription: String? {
+        switch self {
+        case .dataBufferMissing:
+            return "ReplayKit audio sample did not contain a data buffer"
+        case .formatDescriptionMissing:
+            return "ReplayKit audio sample did not contain an audio format description"
+        case .unsupportedInputFormat(let formatID):
+            return "ReplayKit audio input format is not supported: \(formatID)"
+        case .unsupportedSampleRate(let sampleRate):
+            return "AAC audio sample rate is not supported: \(sampleRate)"
+        case .converterCreateFailed(let status):
+            return "AudioToolbox AAC converter could not be created: \(status)"
+        case .propertySetFailed(let property, let status):
+            return "AudioToolbox property \(property) could not be set: \(status)"
+        case .encodeFailed(let status):
+            return "AudioToolbox AAC encode failed: \(status)"
+        }
+    }
+
+    var statusCode: OSStatus? {
+        switch self {
+        case .dataBufferMissing, .formatDescriptionMissing, .unsupportedInputFormat, .unsupportedSampleRate:
+            return nil
+        case .converterCreateFailed(let status), .propertySetFailed(_, let status), .encodeFailed(let status):
+            return status
+        }
+    }
+}
+
 struct BroadcastUploadConfiguration: Equatable {
     let publishURL: URL
     let destinationName: String
@@ -265,6 +304,8 @@ struct BroadcastUploadStats: Equatable {
     private(set) var lastAudioPresentationTimeSeconds: Double?
     private(set) var videoEncodeFailures: Int = 0
     private(set) var lastVideoEncodeStatus: Int32 = 0
+    private(set) var audioEncodeFailures: Int = 0
+    private(set) var lastAudioEncodeStatus: Int32 = 0
 
     var elapsedSeconds: Int {
         guard let startedAt else {
@@ -287,6 +328,8 @@ struct BroadcastUploadStats: Equatable {
         lastAudioPresentationTimeSeconds = nil
         videoEncodeFailures = 0
         lastVideoEncodeStatus = 0
+        audioEncodeFailures = 0
+        lastAudioEncodeStatus = 0
     }
 
     mutating func stop() {
@@ -321,6 +364,11 @@ struct BroadcastUploadStats: Equatable {
         lastVideoEncodeStatus = error.statusCode ?? -1
     }
 
+    mutating func recordAudioEncodeFailure(_ error: BroadcastAudioEncoderError) {
+        audioEncodeFailures += 1
+        lastAudioEncodeStatus = error.statusCode ?? -1
+    }
+
     func asDictionary() -> [String: Any] {
         [
             "elapsedSeconds": elapsedSeconds,
@@ -332,7 +380,9 @@ struct BroadcastUploadStats: Equatable {
             "lastVideoPresentationTimeSeconds": lastVideoPresentationTimeSeconds ?? 0,
             "lastAudioPresentationTimeSeconds": lastAudioPresentationTimeSeconds ?? 0,
             "videoEncodeFailures": videoEncodeFailures,
-            "lastVideoEncodeStatus": lastVideoEncodeStatus
+            "lastVideoEncodeStatus": lastVideoEncodeStatus,
+            "audioEncodeFailures": audioEncodeFailures,
+            "lastAudioEncodeStatus": lastAudioEncodeStatus
         ]
     }
 
@@ -357,6 +407,7 @@ struct BroadcastUploadSnapshot: Equatable {
     let audioBitrateKbps: Int?
     let stats: BroadcastUploadStats
     let videoEncoderStats: BroadcastVideoEncoderStats?
+    let audioEncoderStats: BroadcastAudioEncoderStats?
     let publisherStats: BroadcastRTMPPublisherStats?
 }
 
@@ -389,6 +440,7 @@ final class BroadcastSharedStore {
         configuration: BroadcastUploadConfiguration?,
         stats: BroadcastUploadStats,
         videoEncoderStats: BroadcastVideoEncoderStats?,
+        audioEncoderStats: BroadcastAudioEncoderStats?,
         publisherStats: BroadcastRTMPPublisherStats?
     ) {
         guard let defaults else {
@@ -403,6 +455,10 @@ final class BroadcastSharedStore {
 
         if let videoEncoderStats {
             payload["videoEncoder"] = videoEncoderStats.asDictionary()
+        }
+
+        if let audioEncoderStats {
+            payload["audioEncoder"] = audioEncoderStats.asDictionary()
         }
 
         if let publisherStats {
@@ -439,6 +495,22 @@ struct BroadcastEncodedVideoFrame {
     let annexBNALUnits: [Data]
 }
 
+enum BroadcastAudioSource: String, Equatable {
+    case app
+    case microphone
+}
+
+struct BroadcastEncodedAudioFrame {
+    let source: BroadcastAudioSource
+    let presentationTimeSeconds: Double
+    let durationSeconds: Double
+    let sampleRate: Double
+    let channelCount: Int
+    let byteCount: Int
+    let audioSpecificConfig: Data
+    let aacPayload: Data
+}
+
 struct BroadcastVideoEncoderStats: Equatable {
     private(set) var encodedFrames: Int = 0
     private(set) var keyframes: Int = 0
@@ -471,6 +543,49 @@ struct BroadcastVideoEncoderStats: Equatable {
     }
 }
 
+struct BroadcastAudioEncoderStats: Equatable {
+    private(set) var encodedFrames: Int = 0
+    private(set) var appFrames: Int = 0
+    private(set) var microphoneFrames: Int = 0
+    private(set) var encodedBytes: Int = 0
+    private(set) var sampleRate: Double = 0
+    private(set) var channelCount: Int = 0
+    private(set) var lastPresentationTimeSeconds: Double = 0
+    private(set) var lastStatus: Int32 = 0
+
+    mutating func record(_ frame: BroadcastEncodedAudioFrame) {
+        encodedFrames += 1
+        switch frame.source {
+        case .app:
+            appFrames += 1
+        case .microphone:
+            microphoneFrames += 1
+        }
+        encodedBytes += frame.byteCount
+        sampleRate = frame.sampleRate
+        channelCount = frame.channelCount
+        lastPresentationTimeSeconds = frame.presentationTimeSeconds
+        lastStatus = 0
+    }
+
+    mutating func recordStatus(_ status: OSStatus) {
+        lastStatus = status
+    }
+
+    func asDictionary() -> [String: Any] {
+        [
+            "encodedFrames": encodedFrames,
+            "appFrames": appFrames,
+            "microphoneFrames": microphoneFrames,
+            "encodedBytes": encodedBytes,
+            "sampleRate": sampleRate,
+            "channelCount": channelCount,
+            "lastPresentationTimeSeconds": lastPresentationTimeSeconds,
+            "lastStatus": lastStatus
+        ]
+    }
+}
+
 enum BroadcastRTMPPublisherState: String, Equatable {
     case idle
     case connecting
@@ -486,6 +601,9 @@ struct BroadcastRTMPPublisherStats: Equatable {
     private(set) var videoMessagesSent: Int = 0
     private(set) var videoBytesSent: Int = 0
     private(set) var droppedVideoFrames: Int = 0
+    private(set) var audioMessagesSent: Int = 0
+    private(set) var audioBytesSent: Int = 0
+    private(set) var droppedAudioFrames: Int = 0
     private(set) var bytesWritten: Int = 0
     private(set) var streamId: Int = 0
     private(set) var lastTimestampMs: Int = 0
@@ -509,8 +627,18 @@ struct BroadcastRTMPPublisherStats: Equatable {
         lastTimestampMs = timestampMs
     }
 
+    mutating func recordAudioMessage(bytes: Int, timestampMs: Int) {
+        audioMessagesSent += 1
+        audioBytesSent += bytes
+        lastTimestampMs = timestampMs
+    }
+
     mutating func recordDroppedVideoFrame() {
         droppedVideoFrames += 1
+    }
+
+    mutating func recordDroppedAudioFrame() {
+        droppedAudioFrames += 1
     }
 
     mutating func recordBytesWritten(_ count: Int) {
@@ -528,6 +656,9 @@ struct BroadcastRTMPPublisherStats: Equatable {
             "videoMessagesSent": videoMessagesSent,
             "videoBytesSent": videoBytesSent,
             "droppedVideoFrames": droppedVideoFrames,
+            "audioMessagesSent": audioMessagesSent,
+            "audioBytesSent": audioBytesSent,
+            "droppedAudioFrames": droppedAudioFrames,
             "bytesWritten": bytesWritten,
             "streamId": streamId,
             "lastTimestampMs": lastTimestampMs,
@@ -648,7 +779,9 @@ final class BroadcastRTMPPublisher {
     private var incomingChunks: [Int: RTMPIncomingChunk] = [:]
     private var messageStreamId: UInt32 = 0
     private var sentAVCSequenceHeader = false
-    private var firstVideoPresentationTimeSeconds: Double?
+    private var sentAACSequenceHeader = false
+    private var lastAACAudioSpecificConfig: Data?
+    private var firstMediaPresentationTimeSeconds: Double?
 
     var stats: BroadcastRTMPPublisherStats {
         statsLock.performLocked {
@@ -683,6 +816,12 @@ final class BroadcastRTMPPublisher {
     func publishVideoFrame(_ frame: BroadcastEncodedVideoFrame) {
         queue.async { [weak self] in
             self?.publishVideoFrameLocked(frame)
+        }
+    }
+
+    func publishAudioFrame(_ frame: BroadcastEncodedAudioFrame) {
+        queue.async { [weak self] in
+            self?.publishAudioFrameLocked(frame)
         }
     }
 
@@ -961,6 +1100,37 @@ final class BroadcastRTMPPublisher {
         }
     }
 
+    private func publishAudioFrameLocked(_ frame: BroadcastEncodedAudioFrame) {
+        guard stats.state == .published, messageStreamId > 0 else {
+            statsLock.performLocked {
+                self.currentStats.recordDroppedAudioFrame()
+            }
+            return
+        }
+
+        do {
+            if !sentAACSequenceHeader || lastAACAudioSpecificConfig != frame.audioSpecificConfig {
+                try sendAACSequenceHeader(frame)
+                sentAACSequenceHeader = true
+                lastAACAudioSpecificConfig = frame.audioSpecificConfig
+            }
+
+            let timestampMs = relativeTimestampMs(frame.presentationTimeSeconds)
+            var payload = Data()
+            payload.append(aacAudioHeader(channelCount: frame.channelCount))
+            payload.append(1)
+            payload.append(frame.aacPayload)
+            try sendMessage(typeId: 8, streamId: messageStreamId, timestamp: timestampMs, chunkStreamId: 4, payload: payload)
+            statsLock.performLocked {
+                self.currentStats.recordAudioMessage(bytes: payload.count, timestampMs: timestampMs)
+            }
+        } catch {
+            statsLock.performLocked {
+                self.currentStats.fail(error.localizedDescription)
+            }
+        }
+    }
+
     private func sendAVCSequenceHeader(_ frame: BroadcastEncodedVideoFrame) throws -> Bool {
         guard
             let sps = frame.parameterSets.first(where: { ($0.first.map { $0 & 0x1f } ?? 0) == 7 }),
@@ -992,11 +1162,27 @@ final class BroadcastRTMPPublisher {
         return true
     }
 
+    private func sendAACSequenceHeader(_ frame: BroadcastEncodedAudioFrame) throws {
+        var payload = Data()
+        payload.append(aacAudioHeader(channelCount: frame.channelCount))
+        payload.append(0)
+        payload.append(frame.audioSpecificConfig)
+        try sendMessage(typeId: 8, streamId: messageStreamId, timestamp: 0, chunkStreamId: 4, payload: payload)
+    }
+
+    private func aacAudioHeader(channelCount: Int) -> UInt8 {
+        let soundFormatAAC = UInt8(10 << 4)
+        let soundRate44k = UInt8(3 << 2)
+        let soundSize16Bit = UInt8(1 << 1)
+        let soundTypeStereo = UInt8(channelCount > 1 ? 1 : 0)
+        return soundFormatAAC | soundRate44k | soundSize16Bit | soundTypeStereo
+    }
+
     private func relativeTimestampMs(_ presentationTimeSeconds: Double) -> Int {
-        if firstVideoPresentationTimeSeconds == nil {
-            firstVideoPresentationTimeSeconds = presentationTimeSeconds
+        if firstMediaPresentationTimeSeconds == nil {
+            firstMediaPresentationTimeSeconds = presentationTimeSeconds
         }
-        let base = firstVideoPresentationTimeSeconds ?? presentationTimeSeconds
+        let base = firstMediaPresentationTimeSeconds ?? presentationTimeSeconds
         return max(0, Int((presentationTimeSeconds - base) * 1000))
     }
 
@@ -1086,6 +1272,387 @@ final class BroadcastRTMPPublisher {
             output.append(chunk)
         }
         return output
+    }
+}
+
+private struct BroadcastAudioInputSignature: Equatable {
+    let sampleRate: Double
+    let channelCount: UInt32
+    let formatID: AudioFormatID
+    let formatFlags: AudioFormatFlags
+    let bytesPerPacket: UInt32
+    let framesPerPacket: UInt32
+    let bytesPerFrame: UInt32
+    let bitsPerChannel: UInt32
+}
+
+private struct BroadcastAudioConverterInputContext {
+    let data: UnsafeRawPointer
+    let dataSize: UInt32
+    let channelCount: UInt32
+    let packetCount: UInt32
+    var consumed = false
+}
+
+private let audioConverterInputCallback: AudioConverterComplexInputDataProc = { _, ioNumberDataPackets, ioData, _, userData in
+    guard let userData else {
+        ioNumberDataPackets.pointee = 0
+        return kAudio_ParamError
+    }
+
+    let context = userData.assumingMemoryBound(to: BroadcastAudioConverterInputContext.self)
+    guard !context.pointee.consumed else {
+        ioNumberDataPackets.pointee = 0
+        return noErr
+    }
+
+    ioNumberDataPackets.pointee = context.pointee.packetCount
+    ioData.pointee.mNumberBuffers = 1
+    ioData.pointee.mBuffers = AudioBuffer(
+        mNumberChannels: context.pointee.channelCount,
+        mDataByteSize: context.pointee.dataSize,
+        mData: UnsafeMutableRawPointer(mutating: context.pointee.data)
+    )
+    context.pointee.consumed = true
+    return noErr
+}
+
+final class BroadcastAudioEncoder {
+    private let configuration: BroadcastUploadConfiguration
+    private let onEncodedFrame: (BroadcastEncodedAudioFrame) -> Void
+    private let encoderLock = NSLock()
+    private let statsLock = NSLock()
+    private var converter: AudioConverterRef?
+    private var inputSignature: BroadcastAudioInputSignature?
+    private var outputFormat = AudioStreamBasicDescription()
+    private var maxOutputPacketSize: UInt32 = 4096
+    private var audioSpecificConfig = Data()
+    private var currentStats = BroadcastAudioEncoderStats()
+
+    var stats: BroadcastAudioEncoderStats {
+        statsLock.performLocked {
+            self.currentStats
+        }
+    }
+
+    init(
+        configuration: BroadcastUploadConfiguration,
+        onEncodedFrame: @escaping (BroadcastEncodedAudioFrame) -> Void
+    ) {
+        self.configuration = configuration
+        self.onEncodedFrame = onEncodedFrame
+    }
+
+    deinit {
+        finish()
+    }
+
+    func encode(_ sampleBuffer: CMSampleBuffer, source: BroadcastAudioSource) throws {
+        encoderLock.lock()
+        defer { encoderLock.unlock() }
+
+        do {
+            try encodeLocked(sampleBuffer, source: source)
+        } catch let error as BroadcastAudioEncoderError {
+            if let status = error.statusCode {
+                statsLock.performLocked {
+                    self.currentStats.recordStatus(status)
+                }
+            }
+            throw error
+        }
+    }
+
+    func finish() {
+        encoderLock.lock()
+        defer { encoderLock.unlock() }
+
+        if let converter {
+            AudioConverterDispose(converter)
+        }
+        converter = nil
+        inputSignature = nil
+        audioSpecificConfig = Data()
+    }
+
+    private func encodeLocked(_ sampleBuffer: CMSampleBuffer, source: BroadcastAudioSource) throws {
+        guard let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer) else {
+            throw BroadcastAudioEncoderError.formatDescriptionMissing
+        }
+        guard let inputFormatPointer = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription) else {
+            throw BroadcastAudioEncoderError.formatDescriptionMissing
+        }
+        var inputFormat = inputFormatPointer.pointee
+        try configureConverterIfNeeded(inputFormat: &inputFormat)
+
+        guard let converter else {
+            throw BroadcastAudioEncoderError.converterCreateFailed(kAudio_ParamError)
+        }
+        guard let dataBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else {
+            throw BroadcastAudioEncoderError.dataBufferMissing
+        }
+
+        let inputData = Self.copyBlockBufferData(dataBuffer)
+        guard !inputData.isEmpty else {
+            return
+        }
+
+        let inputPacketCount = UInt32(max(CMSampleBufferGetNumSamples(sampleBuffer), 0))
+        guard inputPacketCount > 0 else {
+            return
+        }
+
+        let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        let duration = CMSampleBufferGetDuration(sampleBuffer)
+        let frames = try encodeInputData(
+            inputData,
+            source: source,
+            converter: converter,
+            inputPacketCount: inputPacketCount,
+            inputChannelCount: inputFormat.mChannelsPerFrame,
+            presentationTimeSeconds: presentationTime.isValid ? CMTimeGetSeconds(presentationTime) : 0,
+            durationSeconds: duration.isValid && duration.isNumeric ? CMTimeGetSeconds(duration) : 0
+        )
+
+        frames.forEach { frame in
+            statsLock.performLocked {
+                self.currentStats.record(frame)
+            }
+            onEncodedFrame(frame)
+        }
+    }
+
+    private func configureConverterIfNeeded(inputFormat: inout AudioStreamBasicDescription) throws {
+        guard inputFormat.mFormatID == kAudioFormatLinearPCM else {
+            throw BroadcastAudioEncoderError.unsupportedInputFormat(inputFormat.mFormatID)
+        }
+
+        let outputChannelCount = UInt32(max(1, min(Int(inputFormat.mChannelsPerFrame), 2)))
+        let signature = BroadcastAudioInputSignature(
+            sampleRate: inputFormat.mSampleRate,
+            channelCount: outputChannelCount,
+            formatID: inputFormat.mFormatID,
+            formatFlags: inputFormat.mFormatFlags,
+            bytesPerPacket: inputFormat.mBytesPerPacket,
+            framesPerPacket: inputFormat.mFramesPerPacket,
+            bytesPerFrame: inputFormat.mBytesPerFrame,
+            bitsPerChannel: inputFormat.mBitsPerChannel
+        )
+
+        guard signature != inputSignature else {
+            return
+        }
+
+        guard let nextAudioSpecificConfig = Self.makeAudioSpecificConfig(
+            sampleRate: inputFormat.mSampleRate,
+            channelCount: Int(outputChannelCount)
+        ) else {
+            throw BroadcastAudioEncoderError.unsupportedSampleRate(inputFormat.mSampleRate)
+        }
+
+        var nextOutputFormat = AudioStreamBasicDescription(
+            mSampleRate: inputFormat.mSampleRate,
+            mFormatID: kAudioFormatMPEG4AAC,
+            mFormatFlags: 0,
+            mBytesPerPacket: 0,
+            mFramesPerPacket: 1024,
+            mBytesPerFrame: 0,
+            mChannelsPerFrame: outputChannelCount,
+            mBitsPerChannel: 0,
+            mReserved: 0
+        )
+        var outputFormatSize = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+        let formatStatus = AudioFormatGetProperty(
+            kAudioFormatProperty_FormatInfo,
+            0,
+            nil,
+            &outputFormatSize,
+            &nextOutputFormat
+        )
+        guard formatStatus == noErr else {
+            throw BroadcastAudioEncoderError.converterCreateFailed(formatStatus)
+        }
+
+        var nextConverter: AudioConverterRef?
+        let createStatus = AudioConverterNew(&inputFormat, &nextOutputFormat, &nextConverter)
+        guard createStatus == noErr, let nextConverter else {
+            throw BroadcastAudioEncoderError.converterCreateFailed(createStatus)
+        }
+
+        var bitrate = UInt32(configuration.audioBitrateKbps * 1000)
+        let bitrateStatus = AudioConverterSetProperty(
+            nextConverter,
+            kAudioConverterEncodeBitRate,
+            UInt32(MemoryLayout<UInt32>.size),
+            &bitrate
+        )
+        guard bitrateStatus == noErr else {
+            AudioConverterDispose(nextConverter)
+            throw BroadcastAudioEncoderError.propertySetFailed("EncodeBitRate", bitrateStatus)
+        }
+
+        var nextMaxOutputPacketSize: UInt32 = 0
+        var packetSizePropertySize = UInt32(MemoryLayout<UInt32>.size)
+        let packetSizeStatus = AudioConverterGetProperty(
+            nextConverter,
+            kAudioConverterPropertyMaximumOutputPacketSize,
+            &packetSizePropertySize,
+            &nextMaxOutputPacketSize
+        )
+        if packetSizeStatus != noErr || nextMaxOutputPacketSize == 0 {
+            nextMaxOutputPacketSize = 4096
+        }
+
+        if let converter {
+            AudioConverterDispose(converter)
+        }
+        converter = nextConverter
+        inputSignature = signature
+        outputFormat = nextOutputFormat
+        maxOutputPacketSize = nextMaxOutputPacketSize
+        audioSpecificConfig = nextAudioSpecificConfig
+    }
+
+    private func encodeInputData(
+        _ inputData: Data,
+        source: BroadcastAudioSource,
+        converter: AudioConverterRef,
+        inputPacketCount: UInt32,
+        inputChannelCount: UInt32,
+        presentationTimeSeconds: Double,
+        durationSeconds: Double
+    ) throws -> [BroadcastEncodedAudioFrame] {
+        let framesPerPacket = max(Int(outputFormat.mFramesPerPacket), 1)
+        let outputPacketCapacity = max(1, min(32, Int(inputPacketCount) / framesPerPacket + 2))
+        let outputBufferSize = max(Int(maxOutputPacketSize) * outputPacketCapacity, 1024)
+        var outputData = Data(count: outputBufferSize)
+        var packetDescriptions = [AudioStreamPacketDescription](
+            repeating: AudioStreamPacketDescription(mStartOffset: 0, mVariableFramesInPacket: 0, mDataByteSize: 0),
+            count: outputPacketCapacity
+        )
+
+        return try inputData.withUnsafeBytes { inputBytes -> [BroadcastEncodedAudioFrame] in
+            guard let inputBaseAddress = inputBytes.baseAddress else {
+                return []
+            }
+            var inputContext = BroadcastAudioConverterInputContext(
+                data: inputBaseAddress,
+                dataSize: UInt32(inputData.count),
+                channelCount: inputChannelCount,
+                packetCount: inputPacketCount
+            )
+
+            return try outputData.withUnsafeMutableBytes { outputBytes -> [BroadcastEncodedAudioFrame] in
+                guard let outputBaseAddress = outputBytes.baseAddress else {
+                    return []
+                }
+
+                var outputBufferList = AudioBufferList(
+                    mNumberBuffers: 1,
+                    mBuffers: AudioBuffer(
+                        mNumberChannels: outputFormat.mChannelsPerFrame,
+                        mDataByteSize: UInt32(outputBufferSize),
+                        mData: outputBaseAddress
+                    )
+                )
+                var outputPacketCount = UInt32(outputPacketCapacity)
+                let encodeStatus = packetDescriptions.withUnsafeMutableBufferPointer { packetDescriptionBuffer in
+                    AudioConverterFillComplexBuffer(
+                        converter,
+                        audioConverterInputCallback,
+                        &inputContext,
+                        &outputPacketCount,
+                        &outputBufferList,
+                        packetDescriptionBuffer.baseAddress
+                    )
+                }
+                guard encodeStatus == noErr else {
+                    throw BroadcastAudioEncoderError.encodeFailed(encodeStatus)
+                }
+
+                let validByteCount = Int(outputBufferList.mBuffers.mDataByteSize)
+                guard outputPacketCount > 0, validByteCount > 0 else {
+                    return []
+                }
+
+                let encodedBytes = Data(bytes: outputBaseAddress, count: validByteCount)
+                let packetDuration = outputFormat.mSampleRate > 0
+                    ? Double(framesPerPacket) / outputFormat.mSampleRate
+                    : durationSeconds
+                var frames: [BroadcastEncodedAudioFrame] = []
+
+                for packetIndex in 0..<Int(outputPacketCount) {
+                    let description = packetDescriptions[packetIndex]
+                    let packetOffset = description.mDataByteSize > 0 ? Int(description.mStartOffset) : 0
+                    let packetSize = description.mDataByteSize > 0 ? Int(description.mDataByteSize) : validByteCount
+                    guard packetSize > 0, packetOffset >= 0, packetOffset + packetSize <= encodedBytes.count else {
+                        continue
+                    }
+
+                    frames.append(
+                        BroadcastEncodedAudioFrame(
+                            source: source,
+                            presentationTimeSeconds: presentationTimeSeconds + Double(packetIndex) * packetDuration,
+                            durationSeconds: packetDuration,
+                            sampleRate: outputFormat.mSampleRate,
+                            channelCount: Int(outputFormat.mChannelsPerFrame),
+                            byteCount: packetSize,
+                            audioSpecificConfig: audioSpecificConfig,
+                            aacPayload: encodedBytes.subdata(in: packetOffset..<(packetOffset + packetSize))
+                        )
+                    )
+
+                    if description.mDataByteSize == 0 {
+                        break
+                    }
+                }
+
+                return frames
+            }
+        }
+    }
+
+    private static func makeAudioSpecificConfig(sampleRate: Double, channelCount: Int) -> Data? {
+        let sampleRateIndexes: [Int: UInt8] = [
+            96000: 0,
+            88200: 1,
+            64000: 2,
+            48000: 3,
+            44100: 4,
+            32000: 5,
+            24000: 6,
+            22050: 7,
+            16000: 8,
+            12000: 9,
+            11025: 10,
+            8000: 11,
+            7350: 12
+        ]
+
+        guard let sampleRateIndex = sampleRateIndexes[Int(sampleRate.rounded())] else {
+            return nil
+        }
+
+        let objectTypeAACLC = UInt16(2)
+        let channelConfig = UInt16(max(1, min(channelCount, 7)))
+        let config = (objectTypeAACLC << 11) | (UInt16(sampleRateIndex) << 7) | (channelConfig << 3)
+        return Data([UInt8((config >> 8) & 0xff), UInt8(config & 0xff)])
+    }
+
+    private static func copyBlockBufferData(_ blockBuffer: CMBlockBuffer) -> Data {
+        let dataLength = CMBlockBufferGetDataLength(blockBuffer)
+        guard dataLength > 0 else {
+            return Data()
+        }
+
+        var data = Data(count: dataLength)
+        data.withUnsafeMutableBytes { destination in
+            guard let baseAddress = destination.baseAddress else {
+                return
+            }
+            CMBlockBufferCopyDataBytes(blockBuffer, atOffset: 0, dataLength: dataLength, destination: baseAddress)
+        }
+        return data
     }
 }
 
@@ -1362,6 +1929,7 @@ final class BroadcastUploadPipeline {
     private(set) var configuration: BroadcastUploadConfiguration?
     private(set) var stats = BroadcastUploadStats()
     private var videoEncoder: BroadcastVideoEncoder?
+    private var audioEncoder: BroadcastAudioEncoder?
     private var publisher: BroadcastRTMPPublisher?
 
     var isRunning: Bool {
@@ -1380,6 +1948,7 @@ final class BroadcastUploadPipeline {
             audioBitrateKbps: configuration?.audioBitrateKbps,
             stats: stats,
             videoEncoderStats: videoEncoder?.stats,
+            audioEncoderStats: audioEncoder?.stats,
             publisherStats: publisher?.stats
         )
     }
@@ -1396,9 +1965,13 @@ final class BroadcastUploadPipeline {
             let nextVideoEncoder = try BroadcastVideoEncoder(configuration: nextConfiguration) { encodedFrame in
                 nextPublisher.publishVideoFrame(encodedFrame)
             }
+            let nextAudioEncoder = BroadcastAudioEncoder(configuration: nextConfiguration) { encodedFrame in
+                nextPublisher.publishAudioFrame(encodedFrame)
+            }
             configuration = nextConfiguration
             publisher = nextPublisher
             videoEncoder = nextVideoEncoder
+            audioEncoder = nextAudioEncoder
             stats.start()
             state = .running
             nextPublisher.start()
@@ -1410,6 +1983,8 @@ final class BroadcastUploadPipeline {
         } catch {
             publisher?.stop()
             publisher = nil
+            audioEncoder?.finish()
+            audioEncoder = nil
             videoEncoder?.finish()
             videoEncoder = nil
             configuration = nil
@@ -1448,6 +2023,8 @@ final class BroadcastUploadPipeline {
         stats.stop()
         videoEncoder?.finish()
         videoEncoder = nil
+        audioEncoder?.finish()
+        audioEncoder = nil
         publisher?.stop()
         publisher = nil
         state = .stopped
@@ -1483,6 +2060,7 @@ final class BroadcastUploadPipeline {
         }
 
         stats.recordAppAudio(sampleBuffer)
+        encodeAudio(sampleBuffer, source: .app)
     }
 
     func consumeMicrophone(_ sampleBuffer: CMSampleBuffer) {
@@ -1492,6 +2070,7 @@ final class BroadcastUploadPipeline {
         }
 
         stats.recordMicrophone(sampleBuffer)
+        encodeAudio(sampleBuffer, source: .microphone)
     }
 
     func dropUnknownSample() {
@@ -1505,8 +2084,26 @@ final class BroadcastUploadPipeline {
             configuration: configuration,
             stats: stats,
             videoEncoderStats: videoEncoder?.stats,
+            audioEncoderStats: audioEncoder?.stats,
             publisherStats: publisher?.stats
         )
+    }
+
+    private func encodeAudio(_ sampleBuffer: CMSampleBuffer, source: BroadcastAudioSource) {
+        do {
+            try audioEncoder?.encode(sampleBuffer, source: source)
+        } catch let error as BroadcastAudioEncoderError {
+            stats.recordAudioEncodeFailure(error)
+            logger.error("Audio encode failed source=\(source.rawValue, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        } catch {
+            stats.recordAudioEncodeFailure(.encodeFailed(-1))
+            logger.error("Audio encode failed source=\(source.rawValue, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
+
+        let audioBuffers = stats.appAudioBuffers + stats.microphoneBuffers
+        if audioBuffers == 1 || audioBuffers % 50 == 0 {
+            saveRuntimeState()
+        }
     }
 }
 
