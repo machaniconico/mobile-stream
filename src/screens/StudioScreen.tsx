@@ -41,6 +41,7 @@ import {
   type SceneSource,
   type SourceKind
 } from "../domain/scene";
+import type { StreamOperationStatus } from "../domain/streamOperation";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { LiveSetupScreen } from "./LiveSetupScreen";
 import { PanelTitle } from "./ui";
@@ -50,6 +51,7 @@ interface StudioScreenProps {
   profile: StudioProfile;
   selectedSourceId: string;
   snapshot: NativeEngineSnapshot;
+  operationStatus: StreamOperationStatus | null;
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
   avatarRuntime: AvatarRuntimeState;
@@ -85,6 +87,7 @@ export const StudioScreen = ({
   profile,
   selectedSourceId,
   snapshot,
+  operationStatus,
   readiness,
   chatReader,
   avatarRuntime,
@@ -104,8 +107,9 @@ export const StudioScreen = ({
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
   const isBusy = snapshot.state.status === "preparing" || snapshot.state.status === "stopping";
-  const setupLocked = isLive || isBusy;
-  const canGoLive = readiness.canStart && !isBusy && !isLive;
+  const operationBusy = operationStatus?.kind === "pending";
+  const setupLocked = isLive || isBusy || operationBusy;
+  const canGoLive = readiness.canStart && !isBusy && !isLive && !operationBusy;
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
     if (setupLocked) {
       return;
@@ -260,11 +264,11 @@ export const StudioScreen = ({
               <Play size={18} />
               <span>Go Live</span>
             </button>
-            <button className="danger-action" type="button" disabled={isBusy || !isLive} onClick={onStop}>
+            <button className="danger-action" type="button" disabled={operationBusy || isBusy || !isLive} onClick={onStop}>
               <Square size={18} />
               <span>Stop</span>
             </button>
-            <button className="secondary-action" type="button" disabled={!isLive} onClick={onReconnect}>
+            <button className="secondary-action" type="button" disabled={operationBusy || !isLive} onClick={onReconnect}>
               <RotateCcw size={18} />
               <span>Reconnect</span>
             </button>
@@ -273,6 +277,11 @@ export const StudioScreen = ({
               <span>{snapshot.health.message}</span>
             </div>
           </div>
+          {operationStatus ? (
+            <div className={`operation-banner ${operationStatus.kind}`} role={operationStatus.kind === "error" ? "alert" : "status"}>
+              {operationStatus.message}
+            </div>
+          ) : null}
           <div id="go-live-readiness" className={`readiness-banner ${readiness.canStart ? "ready" : "blocked"}`}>
             <ShieldCheck size={16} />
             <span>

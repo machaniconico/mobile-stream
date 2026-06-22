@@ -512,6 +512,30 @@ select:focus-visible {
   font-size: 13px;
 }
 
+.operation-banner {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.operation-banner.pending {
+  border-color: rgba(14, 165, 233, 0.46);
+  color: #bae6fd;
+  background: rgba(14, 165, 233, 0.1);
+}
+
+.operation-banner.error {
+  border-color: rgba(251, 113, 133, 0.54);
+  color: #fecdd3;
+  background: rgba(251, 113, 133, 0.1);
+}
+
 .readiness-banner {
   display: inline-flex;
   align-items: center;

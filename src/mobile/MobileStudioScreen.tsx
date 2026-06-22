@@ -29,6 +29,7 @@ import {
   type SceneSource,
   type SourceKind
 } from "../domain/scene";
+import type { StreamOperationStatus } from "../domain/streamOperation";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 
 interface MobileStudioScreenProps {
@@ -36,6 +37,7 @@ interface MobileStudioScreenProps {
   profile: StudioProfile;
   selectedSourceId: string;
   snapshot: NativeEngineSnapshot;
+  operationStatus: StreamOperationStatus | null;
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
   avatarRuntime: AvatarRuntimeState;
@@ -70,6 +72,7 @@ export const MobileStudioScreen = ({
   profile,
   selectedSourceId,
   snapshot,
+  operationStatus,
   readiness,
   chatReader,
   avatarRuntime,
@@ -89,8 +92,9 @@ export const MobileStudioScreen = ({
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
   const isBusy = snapshot.state.status === "preparing" || snapshot.state.status === "stopping";
-  const setupLocked = isLive || isBusy;
-  const canGoLive = readiness.canStart && !isBusy && !isLive;
+  const operationBusy = operationStatus?.kind === "pending";
+  const setupLocked = isLive || isBusy || operationBusy;
+  const canGoLive = readiness.canStart && !isBusy && !isLive && !operationBusy;
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
     if (setupLocked) {
@@ -226,12 +230,24 @@ export const MobileStudioScreen = ({
 
         <View style={styles.transport}>
           <ActionButton label="Go Live" variant="primary" disabled={!canGoLive} onPress={onStart} />
-          <ActionButton label="Stop" variant="danger" disabled={isBusy || !isLive} onPress={onStop} />
-          <ActionButton label="Reconnect" disabled={!isLive} onPress={onReconnect} />
+          <ActionButton label="Stop" variant="danger" disabled={operationBusy || isBusy || !isLive} onPress={onStop} />
+          <ActionButton label="Reconnect" disabled={operationBusy || !isLive} onPress={onReconnect} />
           <View style={styles.transportReadout}>
             <Text style={styles.mutedText}>{formatElapsed(snapshot.health.elapsedSeconds)}</Text>
             <Text style={styles.mutedText}>{snapshot.health.message}</Text>
           </View>
+          {operationStatus ? (
+            <View style={[styles.operationBanner, operationStatus.kind === "error" ? styles.operationBannerError : styles.operationBannerPending]}>
+              <Text
+                style={[
+                  styles.operationBannerText,
+                  operationStatus.kind === "error" ? styles.operationBannerErrorText : styles.operationBannerPendingText
+                ]}
+              >
+                {operationStatus.message}
+              </Text>
+            </View>
+          ) : null}
           <ReadinessBanner readiness={readiness} />
         </View>
 
@@ -1278,6 +1294,31 @@ const styles = StyleSheet.create({
   transportReadout: {
     flexDirection: "row",
     justifyContent: "space-between"
+  },
+  operationBanner: {
+    minHeight: 38,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10
+  },
+  operationBannerPending: {
+    borderColor: "rgba(14, 165, 233, 0.46)",
+    backgroundColor: "rgba(14, 165, 233, 0.1)"
+  },
+  operationBannerError: {
+    borderColor: "rgba(251, 113, 133, 0.54)",
+    backgroundColor: "rgba(251, 113, 133, 0.1)"
+  },
+  operationBannerText: {
+    fontSize: 13,
+    fontWeight: "800"
+  },
+  operationBannerPendingText: {
+    color: "#bae6fd"
+  },
+  operationBannerErrorText: {
+    color: "#fecdd3"
   },
   readinessBanner: {
     minHeight: 38,

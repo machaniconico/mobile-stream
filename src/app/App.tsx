@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createAvatarRuntimeState, setExpression, tickAutoBlink, type AvatarExpression } from "../domain/avatar";
 import {
   createChatMessage,
@@ -25,6 +25,12 @@ import {
   type Live2DSource,
   type SceneDocument
 } from "../domain/scene";
+import {
+  createFailedStreamOperation,
+  createPendingStreamOperation,
+  type StreamControlAction,
+  type StreamOperationStatus
+} from "../domain/streamOperation";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { MockLiveCaster } from "../native/MockLiveCaster";
 import { useChatSpeechQueue } from "../native/ChatSpeechEngine";
@@ -45,6 +51,8 @@ export const App = () => {
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeState(Date.now()));
   const [faceTrackingRuntime, setFaceTrackingRuntime] = useState(() => createFaceTrackingRuntimeState(Date.now()));
+  const [operationStatus, setOperationStatus] = useState<StreamOperationStatus | null>(null);
+  const operationInFlight = useRef(false);
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
   const persistableSceneJson = useMemo(() => JSON.stringify(stripTransientAvatarRuntime(scene)), [scene]);
 
@@ -132,19 +140,37 @@ export const App = () => {
   };
 
   const startStream = async () => {
-    if (!readiness.canStart) {
-      return;
-    }
-    await engine.prepare(scene, readiness.sanitizedProfile);
-    await engine.start();
+    await runStreamOperation("start", async () => {
+      if (!readiness.canStart) {
+        return;
+      }
+      await engine.prepare(scene, readiness.sanitizedProfile);
+      await engine.start();
+    });
   };
 
   const stopStream = async () => {
-    await engine.stop();
+    await runStreamOperation("stop", () => engine.stop());
   };
 
   const reconnectStream = async () => {
-    await engine.reconnect();
+    await runStreamOperation("reconnect", () => engine.reconnect());
+  };
+
+  const runStreamOperation = async (action: StreamControlAction, operation: () => Promise<void>) => {
+    if (operationInFlight.current) {
+      return;
+    }
+    operationInFlight.current = true;
+    setOperationStatus(createPendingStreamOperation(action));
+    try {
+      await operation();
+      setOperationStatus(null);
+    } catch (error) {
+      setOperationStatus(createFailedStreamOperation(action, error));
+    } finally {
+      operationInFlight.current = false;
+    }
   };
 
   const submitChatComment = (author: string, body: string) => {
@@ -161,6 +187,7 @@ export const App = () => {
       profile={profile}
       selectedSourceId={selectedSourceId}
       snapshot={snapshot}
+      operationStatus={operationStatus}
       readiness={readiness}
       chatReader={chatReader}
       avatarRuntime={avatarRuntime}
