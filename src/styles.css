@@ -1071,6 +1071,13 @@ select:focus-visible {
   align-items: stretch;
 }
 
+.diagnostic-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .diagnostic-summary {
   min-height: 38px;
   display: flex;

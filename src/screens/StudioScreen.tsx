@@ -60,6 +60,10 @@ import {
 } from "../domain/streamDiagnostics";
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
+import {
+  createSupportBundle,
+  serializeSupportBundle
+} from "../domain/supportBundle";
 import { LiveSetupScreen } from "./LiveSetupScreen";
 import { PanelTitle } from "./ui";
 
@@ -133,6 +137,42 @@ const downloadStreamDiagnosticReport = (diagnostics: StreamDiagnostics) => {
 
   anchor.href = url;
   anchor.download = `mobile-live-caster-diagnostics-${generatedAt.toISOString().replace(/[:.]/g, "-")}.json`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+};
+
+const downloadSupportBundle = ({
+  scene,
+  profile,
+  readiness,
+  preflight,
+  diagnostics
+}: {
+  scene: SceneDocument;
+  profile: StudioProfile;
+  readiness: ReadinessReport;
+  preflight: StreamStartPreflightReport;
+  diagnostics: StreamDiagnostics;
+}) => {
+  const generatedAt = new Date();
+  const bundle = serializeSupportBundle(
+    createSupportBundle({
+      scene,
+      profile,
+      readiness,
+      preflight,
+      diagnostics,
+      now: generatedAt
+    })
+  );
+  const blob = new Blob([bundle], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = `mobile-live-caster-support-${generatedAt.toISOString().replace(/[:.]/g, "-")}.json`;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
@@ -676,7 +716,13 @@ export const StudioScreen = ({
             onClearStreamKey={onClearStreamKey}
           />
 
-          <StreamDiagnosticsPanel diagnostics={diagnostics} />
+          <StreamDiagnosticsPanel
+            scene={scene}
+            profile={profile}
+            readiness={readiness}
+            preflight={startPreflight}
+            diagnostics={diagnostics}
+          />
         </aside>
       </section>
     </main>
@@ -702,15 +748,37 @@ const StartPreflightBanner = ({ report }: { report: StreamStartPreflightReport }
   </div>
 );
 
-const StreamDiagnosticsPanel = ({ diagnostics }: { diagnostics: StreamDiagnostics }) => (
+const StreamDiagnosticsPanel = ({
+  scene,
+  profile,
+  readiness,
+  preflight,
+  diagnostics
+}: {
+  scene: SceneDocument;
+  profile: StudioProfile;
+  readiness: ReadinessReport;
+  preflight: StreamStartPreflightReport;
+  diagnostics: StreamDiagnostics;
+}) => (
   <section className="control-panel">
     <PanelTitle icon={<Activity size={18} />} title="Diagnostics" />
     <div className="diagnostic-summary-row">
       <div className={`diagnostic-summary ${diagnostics.status}`}>{diagnostics.summary}</div>
-      <button className="secondary-action compact-action diagnostic-export" type="button" onClick={() => downloadStreamDiagnosticReport(diagnostics)}>
-        <Download size={15} />
-        Export
-      </button>
+      <div className="diagnostic-actions">
+        <button className="secondary-action compact-action diagnostic-export" type="button" onClick={() => downloadStreamDiagnosticReport(diagnostics)}>
+          <Download size={15} />
+          Diagnostics
+        </button>
+        <button
+          className="secondary-action compact-action diagnostic-export"
+          type="button"
+          onClick={() => downloadSupportBundle({ scene, profile, readiness, preflight, diagnostics })}
+        >
+          <Download size={15} />
+          Support
+        </button>
+      </div>
     </div>
     <div className="diagnostic-grid">
       <span>Target</span>

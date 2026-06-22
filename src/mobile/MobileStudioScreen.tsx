@@ -47,6 +47,10 @@ import {
 } from "../domain/streamDiagnostics";
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
+import {
+  createSupportBundle,
+  formatSupportBundle
+} from "../domain/supportBundle";
 
 interface MobileStudioScreenProps {
   scene: SceneDocument;
@@ -113,6 +117,26 @@ const shareStreamDiagnosticReport = async (diagnostics: StreamDiagnostics) => {
   await Share.share({
     title: "MobileLiveCaster diagnostics",
     message: formatStreamDiagnosticReport(report)
+  });
+};
+
+const shareSupportBundle = async ({
+  scene,
+  profile,
+  readiness,
+  preflight,
+  diagnostics
+}: {
+  scene: SceneDocument;
+  profile: StudioProfile;
+  readiness: ReadinessReport;
+  preflight: StreamStartPreflightReport;
+  diagnostics: StreamDiagnostics;
+}) => {
+  const bundle = createSupportBundle({ scene, profile, readiness, preflight, diagnostics });
+  await Share.share({
+    title: "MobileLiveCaster support bundle",
+    message: formatSupportBundle(bundle)
   });
 };
 
@@ -871,19 +895,38 @@ export const MobileStudioScreen = ({
           <ReadinessPanel readiness={readiness} />
         </Panel>
 
-        <StreamDiagnosticsPanel diagnostics={diagnostics} />
+        <StreamDiagnosticsPanel
+          scene={scene}
+          profile={profile}
+          readiness={readiness}
+          preflight={startPreflight}
+          diagnostics={diagnostics}
+        />
       </ScrollView>
     </SafeAreaView>
   );
 };
 
-const StreamDiagnosticsPanel = ({ diagnostics }: { diagnostics: StreamDiagnostics }) => (
+const StreamDiagnosticsPanel = ({
+  scene,
+  profile,
+  readiness,
+  preflight,
+  diagnostics
+}: {
+  scene: SceneDocument;
+  profile: StudioProfile;
+  readiness: ReadinessReport;
+  preflight: StreamStartPreflightReport;
+  diagnostics: StreamDiagnostics;
+}) => (
   <Panel title="Diagnostics">
     <View style={[styles.diagnosticSummary, diagnosticSummaryStyle(diagnostics.status)]}>
       <Text style={[styles.diagnosticSummaryText, diagnosticSummaryTextStyle(diagnostics.status)]}>{diagnostics.summary}</Text>
     </View>
     <View style={styles.diagnosticActions}>
       <ActionButton label="Share Report" onPress={() => shareStreamDiagnosticReport(diagnostics)} />
+      <ActionButton label="Share Bundle" onPress={() => shareSupportBundle({ scene, profile, readiness, preflight, diagnostics })} />
     </View>
     <View style={styles.diagnosticGrid}>
       <DiagnosticMetric label="Target" value={diagnostics.target.platform} />
