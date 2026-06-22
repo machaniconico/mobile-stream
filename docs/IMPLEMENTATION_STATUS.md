@@ -11,6 +11,7 @@
 - Stream diagnostics model for redacted publish URL, endpoint parsing, upload target estimate, readiness issues, live telemetry health checks, and sanitized diagnostic reports.
 - Stream health history model for average/min bitrate and FPS, dropped-frame/reconnect trend summaries, diagnostics checks, and report export.
 - Post-stream session summary model for completed session outcome, warning/failure/recovery counts, health summary, and next-stream recommendations.
+- Live quality advisor model for maintaining, monitoring, lowering quality, reconnecting, or stopping based on active incidents, history, and recovery state.
 - Redacted support bundle export combining preflight, diagnostics, scene composition, stream target, and safe profile summaries for support triage.
 - Stream quality incident model for active bitrate/FPS/drop/reconnect problems, recommendations, UI surfacing, and report export.
 - Shared stream recovery policy model for retry budget, bounded exponential backoff, degraded telemetry detection, failed-engine recovery advice, and sanitized report export.
@@ -43,14 +44,14 @@
   - YouTube Live/Twitch/Custom RTMP setup
   - Go Live preflight banner with blocking reasons and operator recommendations
   - readiness panel with blocking errors and warnings
-  - stream diagnostics panel with endpoint/quality/telemetry/history/last-session checks, JSON report export, and support bundle export
+  - stream diagnostics panel with endpoint/quality/telemetry/history/quality-advisor/last-session checks, JSON report export, and support bundle export
   - active stream quality incident panel with operator recommendations
   - stream session event timeline for live support diagnostics
   - quality profiles
   - chat reader panel with test comments, platform adapter ingest, safety controls, and speech settings
   - Go Live, Stop, Reconnect mock controls
 - React Native mobile readiness panel, Go Live preflight banner, and invalid-profile blocking.
-- React Native mobile stream diagnostics panel using the shared diagnostics model, including health history, last-session summary, sanitized report sharing, and support bundle sharing.
+- React Native mobile stream diagnostics panel using the shared diagnostics model, including health history, quality advisor, last-session summary, sanitized report sharing, and support bundle sharing.
 - React Native mobile active stream quality incident panel with operator recommendations.
 - React Native mobile stream session event timeline using the shared diagnostics model.
 - React Native mobile chat reader panel with test comments, platform adapter ingest, safety controls, and speech settings.

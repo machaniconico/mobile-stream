@@ -160,6 +160,11 @@ const sessionMetricLabel = (diagnostics: StreamDiagnostics): string =>
     ? `${diagnostics.session.lastSummary.outcome} / ${Math.round(diagnostics.session.lastSummary.durationSeconds)}s / ${diagnostics.session.lastSummary.eventCount} events`
     : "No completed sessions yet";
 
+const qualityAdvisorTargetLabel = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.qualityAdvisor.suggestedTarget
+    ? `${diagnostics.qualityAdvisor.suggestedTarget.profileName} / ${diagnostics.qualityAdvisor.suggestedTarget.videoBitrateKbps} kbps / ${diagnostics.qualityAdvisor.suggestedTarget.fps}fps`
+    : "Current target";
+
 export const MobileStudioScreen = ({
   scene,
   profile,
@@ -964,6 +969,21 @@ const StreamDiagnosticsPanel = ({
       <DiagnosticMetric label="History" value={historyMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Completed sessions" value={`${diagnostics.session.summaries.length}`} />
       <DiagnosticMetric label="Last session" value={sessionMetricLabel(diagnostics)} />
+      <DiagnosticMetric label="Advisor" value={diagnostics.qualityAdvisor.action} />
+    </View>
+    <View style={styles.diagnosticIncidents}>
+      <View style={[styles.diagnosticIncidentSummary, diagnosticAdvisorSummaryStyle(diagnostics)]}>
+        <Text style={[styles.diagnosticIncidentSummaryText, diagnosticAdvisorSummaryTextStyle(diagnostics)]}>
+          {diagnostics.qualityAdvisor.summary}
+        </Text>
+      </View>
+      <View style={[styles.diagnosticIncident, diagnosticAdvisorStyle(diagnostics)]}>
+        <Text style={styles.diagnosticIncidentTitle}>{qualityAdvisorTargetLabel(diagnostics)}</Text>
+        <Text style={styles.diagnosticIncidentText}>{diagnostics.qualityAdvisor.recommendation}</Text>
+        <Text style={styles.diagnosticIncidentRecommendation}>
+          {diagnostics.qualityAdvisor.reason || "No quality pressure detected."}
+        </Text>
+      </View>
     </View>
     {diagnostics.session.lastSummary ? (
       <View style={styles.diagnosticIncidents}>
@@ -1691,6 +1711,33 @@ const diagnosticSessionSummaryTextStyle = (summary: StreamSessionSummary) => {
 
 const diagnosticSessionStyle = (summary: StreamSessionSummary) =>
   summary.outcome === "fail" ? styles.diagnosticCheckFail : summary.outcome === "warn" ? styles.diagnosticCheckWarn : null;
+
+const diagnosticAdvisorSummaryStyle = (diagnostics: StreamDiagnostics) => {
+  if (diagnostics.qualityAdvisor.severity === "fail") {
+    return styles.diagnosticFail;
+  }
+  if (diagnostics.qualityAdvisor.severity === "warn") {
+    return styles.diagnosticWarn;
+  }
+  return styles.diagnosticPass;
+};
+
+const diagnosticAdvisorSummaryTextStyle = (diagnostics: StreamDiagnostics) => {
+  if (diagnostics.qualityAdvisor.severity === "fail") {
+    return styles.diagnosticFailText;
+  }
+  if (diagnostics.qualityAdvisor.severity === "warn") {
+    return styles.diagnosticWarnText;
+  }
+  return styles.diagnosticPassText;
+};
+
+const diagnosticAdvisorStyle = (diagnostics: StreamDiagnostics) =>
+  diagnostics.qualityAdvisor.severity === "fail"
+    ? styles.diagnosticCheckFail
+    : diagnostics.qualityAdvisor.severity === "warn"
+      ? styles.diagnosticCheckWarn
+      : null;
 
 const hasCriticalQualityIncident = (diagnostics: StreamDiagnostics): boolean =>
   diagnostics.qualityIncidents.incidents.some((incident) => incident.severity === "fail");

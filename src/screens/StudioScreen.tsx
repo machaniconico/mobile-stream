@@ -206,6 +206,14 @@ const qualityIncidentSummaryTone = (diagnostics: StreamDiagnostics): "pass" | "w
   return diagnostics.qualityIncidents.incidents.length > 0 ? "warn" : "pass";
 };
 
+const qualityAdvisorTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" =>
+  diagnostics.qualityAdvisor.severity === "fail" ? "fail" : diagnostics.qualityAdvisor.severity === "warn" ? "warn" : "pass";
+
+const qualityAdvisorTargetLabel = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.qualityAdvisor.suggestedTarget
+    ? `${diagnostics.qualityAdvisor.suggestedTarget.profileName} / ${diagnostics.qualityAdvisor.suggestedTarget.videoBitrateKbps} kbps / ${diagnostics.qualityAdvisor.suggestedTarget.fps}fps`
+    : "Current target";
+
 const sessionSummaryTone = (summary: StreamSessionSummary): "pass" | "warn" | "fail" =>
   summary.outcome === "clean" ? "pass" : summary.outcome;
 
@@ -834,6 +842,18 @@ const StreamDiagnosticsPanel = ({
       <strong>{diagnostics.session.summaries.length}</strong>
       <span>Last session</span>
       <strong>{sessionMetricLabel(diagnostics)}</strong>
+      <span>Advisor</span>
+      <strong>{diagnostics.qualityAdvisor.action}</strong>
+    </div>
+    <div className="diagnostic-incidents">
+      <div className={`diagnostic-incident-summary ${qualityAdvisorTone(diagnostics)}`}>
+        {diagnostics.qualityAdvisor.summary}
+      </div>
+      <div className={`diagnostic-incident ${qualityAdvisorTone(diagnostics)}`}>
+        <strong>{qualityAdvisorTargetLabel(diagnostics)}</strong>
+        <span>{diagnostics.qualityAdvisor.recommendation}</span>
+        <em>{diagnostics.qualityAdvisor.reason || "No quality pressure detected."}</em>
+      </div>
     </div>
     {diagnostics.session.lastSummary ? (
       <div className="diagnostic-incidents">

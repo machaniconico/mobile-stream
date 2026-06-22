@@ -14,6 +14,10 @@ import {
   type StreamQualityIncident
 } from "./streamQualityIncidents";
 import {
+  createStreamQualityAdvisor,
+  type StreamQualityAdvisorRecommendation
+} from "./streamQualityAdvisor";
+import {
   summarizeStreamHealthHistory,
   type StreamHealthHistorySummary,
   type StreamHealthSample
@@ -67,6 +71,7 @@ export interface StreamDiagnostics {
     summary: string;
     incidents: StreamQualityIncident[];
   };
+  qualityAdvisor: StreamQualityAdvisorRecommendation;
   history: StreamHealthHistorySummary;
   session: {
     events: StreamSessionEvent[];
@@ -126,6 +131,12 @@ export const createStreamDiagnostics = (
     bitrateKbps: targetVideoBitrateKbps,
     fps: quality.fps
   });
+  const qualityAdvisor = createStreamQualityAdvisor({
+    quality,
+    incidents: qualityIncidents,
+    history,
+    recovery: recoveryStatus
+  });
   const checks = [
     ...readiness.issues.map<DiagnosticCheck>((issue) => ({
       code: `readiness-${issue.code}`,
@@ -143,6 +154,7 @@ export const createStreamDiagnostics = (
     createTelemetryDropsCheck(snapshot),
     createReconnectCheck(snapshot),
     createQualityIncidentCheck(qualityIncidents),
+    createQualityAdvisorCheck(qualityAdvisor),
     createHistoryCheck(history),
     createRecoveryCheck(recoveryStatus)
   ];
@@ -185,6 +197,7 @@ export const createStreamDiagnostics = (
       summary: summarizeStreamQualityIncidents(qualityIncidents),
       incidents: qualityIncidents
     },
+    qualityAdvisor,
     history,
     session: {
       events: sanitizedSessionEvents,
@@ -255,6 +268,15 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
           (incident) => `- [${incident.severity.toUpperCase()}] ${incident.label}: ${incident.message} Recommendation: ${incident.recommendation}`
         )),
     "",
+    "Quality Advisor",
+    `- Action: ${diagnostics.qualityAdvisor.action}`,
+    `- Severity: ${diagnostics.qualityAdvisor.severity}`,
+    `- Summary: ${diagnostics.qualityAdvisor.summary}`,
+    `- Reason: ${diagnostics.qualityAdvisor.reason || "-"}`,
+    `- Recommendation: ${diagnostics.qualityAdvisor.recommendation}`,
+    `- Current target: ${formatAdvisorTarget(diagnostics.qualityAdvisor.currentTarget)}`,
+    `- Suggested target: ${diagnostics.qualityAdvisor.suggestedTarget ? formatAdvisorTarget(diagnostics.qualityAdvisor.suggestedTarget) : "-"}`,
+    "",
     "Health History",
     `- Summary: ${diagnostics.history.summary}`,
     `- Samples: ${diagnostics.history.sampleCount}`,
@@ -294,6 +316,9 @@ const sanitizeSessionEvent = (event: StreamSessionEvent, streamKey: string): Str
   title: redactStreamKeyOccurrences(event.title, streamKey),
   message: redactStreamKeyOccurrences(event.message, streamKey)
 });
+
+const formatAdvisorTarget = (target: StreamQualityAdvisorRecommendation["currentTarget"]): string =>
+  `${target.profileName} (${target.width}x${target.height} / ${target.fps}fps / ${target.videoBitrateKbps} kbps, upload ${target.estimatedUploadKbps} kbps)`;
 
 const parseEndpoint = (serverUrl: string): { host: string; application: string } => {
   try {
@@ -538,6 +563,13 @@ const createQualityIncidentCheck = (incidents: StreamQualityIncident[]): Diagnos
     message: summary
   };
 };
+
+const createQualityAdvisorCheck = (advisor: StreamQualityAdvisorRecommendation): DiagnosticCheck => ({
+  code: `quality-advisor-${advisor.action}`,
+  status: advisor.severity,
+  label: "Quality advisor",
+  message: advisor.summary
+});
 
 const createHistoryCheck = (history: StreamHealthHistorySummary): DiagnosticCheck => {
   if (history.stability === "unstable") {

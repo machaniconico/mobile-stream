@@ -33,6 +33,9 @@ export interface SupportBundle {
     sessionEventCount: number;
     completedSessionCount: number;
     lastSessionOutcome: NonNullable<StreamDiagnostics["session"]["lastSummary"]>["outcome"] | null;
+    qualityAdvisorAction: StreamDiagnostics["qualityAdvisor"]["action"];
+    qualityAdvisorSeverity: StreamDiagnostics["qualityAdvisor"]["severity"];
+    suggestedQualityTarget: string | null;
     sourceCount: number;
     visibleSourceCount: number;
   };
@@ -130,6 +133,11 @@ export const createSupportBundle = ({
       sessionEventCount: diagnostics.session.events.length,
       completedSessionCount: diagnostics.session.summaries.length,
       lastSessionOutcome: diagnostics.session.lastSummary?.outcome ?? null,
+      qualityAdvisorAction: diagnostics.qualityAdvisor.action,
+      qualityAdvisorSeverity: diagnostics.qualityAdvisor.severity,
+      suggestedQualityTarget: diagnostics.qualityAdvisor.suggestedTarget
+        ? formatQualityAdvisorTarget(diagnostics.qualityAdvisor.suggestedTarget)
+        : null,
       sourceCount: scene.sources.length,
       visibleSourceCount
     },
@@ -229,6 +237,8 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Last recommendation: ${bundle.diagnostics.session.lastSummary?.recommendation ?? "-"}`,
     `- Health history: ${bundle.diagnostics.history.summary}`,
     `- Quality incidents: ${bundle.diagnostics.qualityIncidents.summary}`,
+    `- Quality advisor: ${bundle.summary.qualityAdvisorAction} / ${bundle.summary.qualityAdvisorSeverity}`,
+    `- Suggested quality: ${bundle.summary.suggestedQualityTarget ?? "-"}`,
     `- Recovery: ${bundle.diagnostics.recovery.mode} / ${bundle.diagnostics.recovery.recommendedAction}`,
     "",
     "Profile",
@@ -256,6 +266,9 @@ const countSources = (sources: SceneSource[]): Record<SourceKind, number> => {
 
   return counts;
 };
+
+const formatQualityAdvisorTarget = (target: NonNullable<StreamDiagnostics["qualityAdvisor"]["suggestedTarget"]>): string =>
+  `${target.profileName} ${target.width}x${target.height}/${target.fps}fps/${target.videoBitrateKbps}kbps`;
 
 const toSourceSummary = (source: SceneSource): SupportBundleSourceSummary => ({
   id: source.id,

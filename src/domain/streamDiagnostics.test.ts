@@ -85,6 +85,9 @@ describe("stream diagnostics", () => {
     expect(diagnostics.status).toBe("fail");
     expect(diagnostics.recovery.recommendedAction).toBe("reconnect");
     expect(diagnostics.qualityIncidents.summary).toContain("critical");
+    expect(diagnostics.qualityAdvisor.action).toBe("lower-quality");
+    expect(diagnostics.qualityAdvisor.suggestedTarget?.profileId).toBeNull();
+    expect(diagnostics.qualityAdvisor.suggestedTarget?.videoBitrateKbps).toBe(2500);
     expect(diagnostics.qualityIncidents.incidents.map((incident) => incident.code)).toEqual(
       expect.arrayContaining(["bitrate-critical", "fps-low", "dropped-frames", "reconnects"])
     );
@@ -95,6 +98,7 @@ describe("stream diagnostics", () => {
         "telemetry-drops-present",
         "telemetry-reconnects",
         "quality-incidents-critical",
+        "quality-advisor-lower-quality",
         "recovery-watching"
       ])
     );
@@ -263,11 +267,13 @@ describe("stream diagnostics", () => {
     expect(text).toContain("MobileLiveCaster Diagnostics");
     expect(text).toContain("Recovery");
     expect(text).toContain("Active Quality Incidents");
+    expect(text).toContain("Quality Advisor");
     expect(text).toContain("Health History");
     expect(text).toContain("Completed Sessions");
     expect(text).toContain("Session Events");
     expect(json).toContain("backoffWindow");
     expect(json).toContain("qualityIncidents");
+    expect(json).toContain("qualityAdvisor");
     expect(json).toContain("history");
     expect(json).toContain("lastSummary");
     expect(report.diagnostics.session.lastSummary?.outcome).toBe("clean");

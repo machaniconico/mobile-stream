@@ -93,7 +93,11 @@ describe("support bundle", () => {
     expect(bundle.diagnostics.telemetry.message).toContain(redactStreamKey(streamKey));
     expect(bundle.summary.completedSessionCount).toBe(1);
     expect(bundle.summary.lastSessionOutcome).toBe("clean");
+    expect(bundle.summary.qualityAdvisorAction).toBe("maintain");
+    expect(bundle.summary.qualityAdvisorSeverity).toBe("pass");
+    expect(bundle.summary.suggestedQualityTarget).toBeNull();
     expect(formatSupportBundle(bundle)).toContain("Completed summaries: 1");
+    expect(formatSupportBundle(bundle)).toContain("Quality advisor: maintain / pass");
   });
 
   it("serializes and formats without leaking raw stream keys or text source content", () => {
