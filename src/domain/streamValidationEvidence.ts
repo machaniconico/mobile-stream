@@ -378,8 +378,8 @@ export const summarizeStreamValidationEvidence = (
   const faceTrackingReadyCount = faceTrackingRuns.filter((run) => run.faceTracking?.status === "pass").length;
   const audioRuns = scopedRuns.filter((run) => run.audio);
   const audioRunCount = audioRuns.length;
-  const audioReadyCount = audioRuns.filter((run) => run.audio?.status === "pass").length;
-  const audioWarningCount = audioRuns.filter((run) => run.audio?.status !== "pass").length;
+  const audioReadyCount = audioRuns.filter((run) => isAudioEvidencePass(run.audio)).length;
+  const audioWarningCount = audioRuns.filter((run) => !isAudioEvidencePass(run.audio)).length;
   const chatReadoutRuns = scopedRuns.filter((run) => run.chatReadout);
   const chatReadoutRunCount = chatReadoutRuns.length;
   const chatReadoutReadyCount = chatReadoutRuns.filter((run) => run.chatReadout?.status === "pass").length;
@@ -432,8 +432,8 @@ export const summarizeStreamValidationEvidence = (
   const androidPass = androidLatestRun?.result === "pass";
   const faceTrackingIosPass = iosPass && isAvatarMotionEvidencePass(iosLatestRun?.faceTracking);
   const faceTrackingAndroidPass = androidPass && isAvatarMotionEvidencePass(androidLatestRun?.faceTracking);
-  const audioIosPass = iosPass && isFeatureEvidencePass(iosLatestRun?.audio);
-  const audioAndroidPass = androidPass && isFeatureEvidencePass(androidLatestRun?.audio);
+  const audioIosPass = iosPass && isAudioEvidencePass(iosLatestRun?.audio);
+  const audioAndroidPass = androidPass && isAudioEvidencePass(androidLatestRun?.audio);
   const chatReadoutIosPass = iosPass && isFeatureEvidencePass(iosLatestRun?.chatReadout);
   const chatReadoutAndroidPass = androidPass && isFeatureEvidencePass(androidLatestRun?.chatReadout);
   const appBuildMismatch = Boolean(
@@ -736,6 +736,15 @@ const isFeatureEvidencePass = (
   feature: { status: StreamValidationFeatureStatus } | null | undefined
 ): boolean => feature?.status === "pass";
 
+const isAudioEvidencePass = (audio: StreamValidationAudioSummary | null | undefined): boolean =>
+  audio?.status === "pass" &&
+  audio.nativeMonitorReported &&
+  audio.nativeMonitorWrittenFrames > 0 &&
+  audio.nativeMonitorWrittenBuffers > 0 &&
+  audio.nativeMonitorDroppedFrames === 0 &&
+  audio.nativeMonitorDroppedBuffers === 0 &&
+  (!audio.monitorHeadphonesOnly || audio.nativeMonitorHeadphonesConnected);
+
 const createEvidenceSummary = (
   status: StreamValidationEvidenceSummary["status"],
   counts: {
@@ -779,7 +788,7 @@ const createEvidenceSummary = (
     return `Physical validation is partial: iOS and Android passed, but retained VTuber avatar-motion evidence is incomplete: iOS ${counts.faceTrackingIosPass ? "pass" : "missing"} / Android ${counts.faceTrackingAndroidPass ? "pass" : "missing"}.`;
   }
   if (counts.iosPass && counts.androidPass && (!counts.audioIosPass || !counts.audioAndroidPass)) {
-    return `Physical validation is partial: iOS and Android passed, but retained mic FX/headphone monitor evidence is incomplete: iOS ${counts.audioIosPass ? "pass" : "missing"} / Android ${counts.audioAndroidPass ? "pass" : "missing"}.`;
+    return `Physical validation is partial: iOS and Android passed, but retained mic FX/headphone monitor evidence is incomplete: iOS ${counts.audioIosPass ? "pass" : "missing native self-monitor proof"} / Android ${counts.audioAndroidPass ? "pass" : "missing native self-monitor proof"}.`;
   }
   if (counts.iosPass && counts.androidPass && (!counts.chatReadoutIosPass || !counts.chatReadoutAndroidPass)) {
     return `Physical validation is partial: iOS and Android passed, but retained chat readout evidence is incomplete: iOS ${counts.chatReadoutIosPass ? "pass" : "missing"} / Android ${counts.chatReadoutAndroidPass ? "pass" : "missing"}.`;
@@ -819,7 +828,7 @@ const createEvidenceRecommendation = (
     return "Record fresh iOS and Android validation runs with native camera tracking active and visible PNGTuber motion applied.";
   }
   if (context.iosPass && context.androidPass && (!context.audioIosPass || !context.audioAndroidPass)) {
-    return "Record fresh iOS and Android validation runs with mic effects enabled and headphones-only self-monitoring verified.";
+    return "Record fresh iOS and Android validation runs with mic effects enabled, headphones-only self-monitoring verified, and native monitor write/drop proof retained.";
   }
   if (context.iosPass && context.androidPass && (!context.chatReadoutIosPass || !context.chatReadoutAndroidPass)) {
     return "Record fresh iOS and Android validation runs with YouTube/Twitch chat connected and readout speaking a sample message.";
@@ -854,7 +863,7 @@ const createEffectiveValidationResult = (
     result === "warn" ||
     nativeRuntime?.status === "warn" ||
     faceTracking?.status === "warn" ||
-    !isFeatureEvidencePass(audio) ||
+    !isAudioEvidencePass(audio) ||
     !isFeatureEvidencePass(chatReadout) ||
     platformPublishing?.status === "warn"
   ) {
@@ -954,8 +963,16 @@ const createAudioValidationSummary = (
   const item = findRunbookItem(diagnostics, "audio");
   const audioLevel = diagnostics.session.lastSummary?.audioLevel ?? null;
   const nativeMonitor = createNativeMonitorEvidence(diagnostics);
+  const baseStatus = item?.status ?? "pending";
+  const nativeMonitorPass = isNativeMonitorProofPass(nativeMonitor, diagnostics.audio.monitorHeadphonesOnly);
+  const status: StreamValidationFeatureStatus = baseStatus === "pass" && !nativeMonitorPass ? "warn" : baseStatus;
+  const nativeMonitorSummary = createNativeMonitorProofSummary(nativeMonitor);
+  const nativeMonitorRecommendation =
+    baseStatus === "pass" && !nativeMonitorPass
+      ? "Repeat validation until native self-monitoring reports written frames, zero drops, and headphone route proof."
+      : null;
   return {
-    status: item?.status ?? "pending",
+    status,
     micEffectsEnabled: diagnostics.audio.micEffectsEnabled,
     presetId: diagnostics.audio.presetId,
     inputGainDb: diagnostics.audio.inputGainDb,
@@ -986,12 +1003,51 @@ const createAudioValidationSummary = (
     summary: sanitizeStoredText(
       `${audioLevel && audioLevel.sampleCount > 0 ? `${audioLevel.summary} ` : ""}${
         item?.detail ?? "No mic FX/headphone monitor validation retained."
-      }${nativeMonitor.nativeMonitorReported ? ` Native monitor wrote ${nativeMonitor.nativeMonitorWrittenFrames} frame${nativeMonitor.nativeMonitorWrittenFrames === 1 ? "" : "s"} across ${nativeMonitor.nativeMonitorWrittenBuffers} buffer${nativeMonitor.nativeMonitorWrittenBuffers === 1 ? "" : "s"} with ${nativeMonitor.nativeMonitorDroppedFrames} dropped frame${nativeMonitor.nativeMonitorDroppedFrames === 1 ? "" : "s"} on ${nativeMonitor.nativeMonitorOutputName}.` : ""}`,
+      } ${nativeMonitorSummary}`,
       secrets
     ),
-    recommendation: sanitizeStoredText(item?.action ?? "Repeat validation with mic effects and headphone monitoring checked.", secrets)
+    recommendation: sanitizeStoredText(
+      nativeMonitorRecommendation ?? item?.action ?? "Repeat validation with mic effects and headphone monitoring checked.",
+      secrets
+    )
   };
 };
+
+const isNativeMonitorProofPass = (
+  nativeMonitor: Pick<
+    StreamValidationAudioSummary,
+    | "nativeMonitorReported"
+    | "nativeMonitorHeadphonesConnected"
+    | "nativeMonitorWrittenFrames"
+    | "nativeMonitorDroppedFrames"
+    | "nativeMonitorWrittenBuffers"
+    | "nativeMonitorDroppedBuffers"
+  >,
+  headphonesOnly: boolean
+): boolean =>
+  nativeMonitor.nativeMonitorReported &&
+  nativeMonitor.nativeMonitorWrittenFrames > 0 &&
+  nativeMonitor.nativeMonitorWrittenBuffers > 0 &&
+  nativeMonitor.nativeMonitorDroppedFrames === 0 &&
+  nativeMonitor.nativeMonitorDroppedBuffers === 0 &&
+  (!headphonesOnly || nativeMonitor.nativeMonitorHeadphonesConnected);
+
+const createNativeMonitorProofSummary = (
+  nativeMonitor: Pick<
+    StreamValidationAudioSummary,
+    | "nativeMonitorReported"
+    | "nativeMonitorRunning"
+    | "nativeMonitorHeadphonesConnected"
+    | "nativeMonitorWrittenFrames"
+    | "nativeMonitorDroppedFrames"
+    | "nativeMonitorWrittenBuffers"
+    | "nativeMonitorDroppedBuffers"
+    | "nativeMonitorOutputName"
+  >
+): string =>
+  nativeMonitor.nativeMonitorReported
+    ? `Native monitor ${nativeMonitor.nativeMonitorRunning ? "running" : "reported"}: wrote ${nativeMonitor.nativeMonitorWrittenFrames} frame${nativeMonitor.nativeMonitorWrittenFrames === 1 ? "" : "s"} across ${nativeMonitor.nativeMonitorWrittenBuffers} buffer${nativeMonitor.nativeMonitorWrittenBuffers === 1 ? "" : "s"} with ${nativeMonitor.nativeMonitorDroppedFrames} dropped frame${nativeMonitor.nativeMonitorDroppedFrames === 1 ? "" : "s"} and ${nativeMonitor.nativeMonitorDroppedBuffers} dropped buffer${nativeMonitor.nativeMonitorDroppedBuffers === 1 ? "" : "s"} on ${nativeMonitor.nativeMonitorOutputName}; headphones ${nativeMonitor.nativeMonitorHeadphonesConnected ? "yes" : "no"}.`
+    : "Native monitor write/drop proof is missing.";
 
 const createNativeMonitorEvidence = (
   diagnostics: StreamDiagnostics

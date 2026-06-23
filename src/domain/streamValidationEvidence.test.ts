@@ -74,6 +74,61 @@ const connectedChatOptions = {
   audioRoute: headphoneAudioRoute
 };
 const validationNow = new Date("2026-06-23T00:02:00.000Z");
+const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
+  platform,
+  runtimeStatus: "live",
+  updatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+  stale: false,
+  elapsedSeconds: 4,
+  videoFrames: 120,
+  encodedBytes: 2_200_000,
+  droppedFrames: 0,
+  publisher: {
+    state: "published",
+    reconnectAttempts: 0,
+    sentVideoFrames: 120,
+    sentAudioFrames: 190,
+    droppedVideoFrames: 0,
+    droppedAudioFrames: 0,
+    bytesWritten: 2_200_000,
+    cacheSize: 120,
+    itemsInCache: 0,
+    congested: false,
+    lastError: ""
+  },
+  composition: {
+    status: "applied" as const,
+    appliedCount: 1,
+    skippedCount: 0,
+    skippedKinds: [],
+    stillImageAssetCount: 1,
+    stillImageAssetLoadedCount: 1,
+    stillImageAssetMissingCount: 0,
+    stillImageAssetMissingKinds: [],
+    message: "Native overlays applied"
+  },
+  audioProcessing: {
+    micEffectsEnabled: true,
+    micEffectsPresetId: "broadcast",
+    micEffectsProcessedFrames: 48,
+    micEffectsProcessedSamples: 24_576,
+    micEffectsGatedSamples: 64,
+    micEffectsLimitedSamples: 2,
+    monitorEnabled: true,
+    monitorRunning: true,
+    monitorVolume: 0.45,
+    monitorHeadphonesOnly: true,
+    monitorRoute: "wired-headphones",
+    monitorOutputName: "Wired headphones",
+    monitorHeadphonesConnected: true,
+    monitorWrittenFrames: 24_576,
+    monitorDroppedFrames: 0,
+    monitorWrittenBuffers: 48,
+    monitorDroppedBuffers: 0,
+    monitorLastError: ""
+  },
+  message: "Live"
+});
 
 describe("stream validation evidence", () => {
   it("creates a redacted validation run from diagnostics", () => {
@@ -182,61 +237,7 @@ describe("stream validation evidence", () => {
       {
         state: { status: "idle" },
         health: health(),
-        nativeRuntime: {
-          platform: "ios",
-          runtimeStatus: "live",
-          updatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
-          stale: false,
-          elapsedSeconds: 4,
-          videoFrames: 120,
-          encodedBytes: 2_200_000,
-          droppedFrames: 0,
-          publisher: {
-            state: "published",
-            reconnectAttempts: 0,
-            sentVideoFrames: 120,
-            sentAudioFrames: 190,
-            droppedVideoFrames: 0,
-            droppedAudioFrames: 0,
-            bytesWritten: 2_200_000,
-            cacheSize: 120,
-            itemsInCache: 0,
-            congested: false,
-            lastError: ""
-          },
-          composition: {
-            status: "applied",
-            appliedCount: 1,
-            skippedCount: 0,
-            skippedKinds: [],
-            stillImageAssetCount: 1,
-            stillImageAssetLoadedCount: 1,
-            stillImageAssetMissingCount: 0,
-            stillImageAssetMissingKinds: [],
-            message: "Native overlays applied"
-          },
-          audioProcessing: {
-            micEffectsEnabled: true,
-            micEffectsPresetId: "broadcast",
-            micEffectsProcessedFrames: 48,
-            micEffectsProcessedSamples: 24_576,
-            micEffectsGatedSamples: 64,
-            micEffectsLimitedSamples: 2,
-            monitorEnabled: true,
-            monitorRunning: true,
-            monitorVolume: 0.45,
-            monitorHeadphonesOnly: true,
-            monitorRoute: "wired-headphones",
-            monitorOutputName: "Wired headphones",
-            monitorHeadphonesConnected: true,
-            monitorWrittenFrames: 24_576,
-            monitorDroppedFrames: 0,
-            monitorWrittenBuffers: 48,
-            monitorDroppedBuffers: 0,
-            monitorLastError: ""
-          },
-          message: "Live"
-        }
+        nativeRuntime: nativeMonitorRuntime("ios")
       },
       [],
       [],
@@ -277,6 +278,47 @@ describe("stream validation evidence", () => {
     });
     expect(run.audio?.summary).toContain("Audio meter retained 2 sam");
     expect(run.chatReadout?.summary).toContain("Chat speech retained 1 spoken / 0 failed");
+  });
+
+  it("requires native self-monitor write and drop proof for audio evidence to pass", () => {
+    const scene = createDefaultScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health()
+      },
+      [],
+      [],
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.audio).toMatchObject({
+      status: "warn",
+      nativeMonitorReported: false,
+      nativeMonitorWrittenFrames: 0,
+      nativeMonitorDroppedFrames: 0
+    });
+    expect(run.audio?.recommendation).toContain("native self-monitoring reports written frames");
+    expect(summary.audioReadyCount).toBe(0);
+    expect(summary.audioWarningCount).toBe(1);
+    expect(summary.audioIosPass).toBe(false);
   });
 
   it("copies retained quality automation outcomes into validation evidence", () => {
@@ -542,41 +584,43 @@ describe("stream validation evidence", () => {
       }
     };
     const readiness = createReadinessReport(scene, profile);
-    const diagnostics = createStreamDiagnostics(
+    const faceTrackingRuntime = {
+      status: "tracking" as const,
+      yaw: 0.1,
+      pitch: 0,
+      roll: 0,
+      mouthOpen: 0.4,
+      blink: 0,
+      smile: 0.2,
+      browRaise: 0.1,
+      confidence: 0.92,
+      expression: "neutral" as const,
+      lastFrameAt: Date.parse("2026-06-23T00:00:00.000Z")
+    };
+    const diagnosticsFor = (platform: "ios" | "android") => createStreamDiagnostics(
       scene,
       profile,
       readiness,
       {
         state: { status: "live" },
-        health: health({ bitrateKbps: 3500, fps: 30 })
+        health: health({ bitrateKbps: 3500, fps: 30 }),
+        nativeRuntime: nativeMonitorRuntime(platform)
       },
       [],
       [],
       [],
       [],
-      {
-        status: "tracking",
-        yaw: 0.1,
-        pitch: 0,
-        roll: 0,
-        mouthOpen: 0.4,
-        blink: 0,
-        smile: 0.2,
-        browRaise: 0.1,
-        confidence: 0.92,
-        expression: "neutral",
-        lastFrameAt: Date.parse("2026-06-23T00:00:00.000Z")
-      },
+      faceTrackingRuntime,
       connectedChatOptions
     );
     const iosRun = createStreamValidationRun({
-      diagnostics,
+      diagnostics: diagnosticsFor("ios"),
       devicePlatform: "ios",
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
     });
     const androidRun = createStreamValidationRun({
-      diagnostics,
+      diagnostics: diagnosticsFor("android"),
       devicePlatform: "android",
       result: "pass",
       now: new Date("2026-06-23T00:01:00.000Z")
@@ -726,13 +770,14 @@ describe("stream validation evidence", () => {
     const scene = createDefaultScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
-    const diagnostics = createStreamDiagnostics(
+    const diagnosticsFor = (platform: "ios" | "android") => createStreamDiagnostics(
       scene,
       profile,
       readiness,
       {
         state: { status: "idle" },
-        health: health()
+        health: health(),
+        nativeRuntime: nativeMonitorRuntime(platform)
       },
       [],
       [],
@@ -742,13 +787,13 @@ describe("stream validation evidence", () => {
       connectedChatOptions
     );
     const iosRun = createStreamValidationRun({
-      diagnostics,
+      diagnostics: diagnosticsFor("ios"),
       devicePlatform: "ios",
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
     });
     const androidRun = createStreamValidationRun({
-      diagnostics,
+      diagnostics: diagnosticsFor("android"),
       devicePlatform: "android",
       result: "pass",
       now: new Date("2026-06-23T00:01:00.000Z")
@@ -801,13 +846,14 @@ describe("stream validation evidence", () => {
     const scene = createDefaultScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
-    const diagnostics = createStreamDiagnostics(
+    const diagnosticsFor = (platform: "ios" | "android") => createStreamDiagnostics(
       scene,
       profile,
       readiness,
       {
         state: { status: "idle" },
-        health: health()
+        health: health(),
+        nativeRuntime: nativeMonitorRuntime(platform)
       },
       [],
       [],
@@ -817,21 +863,21 @@ describe("stream validation evidence", () => {
       connectedChatOptions
     );
     const iosRun = createStreamValidationRun({
-      diagnostics,
+      diagnostics: diagnosticsFor("ios"),
       devicePlatform: "ios",
       appBuild: "rc-1",
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
     });
     const androidRun = createStreamValidationRun({
-      diagnostics,
+      diagnostics: diagnosticsFor("android"),
       devicePlatform: "android",
       appBuild: "rc-2",
       result: "pass",
       now: new Date("2026-06-23T00:01:00.000Z")
     });
     const matchingAndroidRun = createStreamValidationRun({
-      diagnostics,
+      diagnostics: diagnosticsFor("android"),
       devicePlatform: "android",
       appBuild: "rc-1",
       result: "pass",
