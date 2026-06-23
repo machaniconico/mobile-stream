@@ -27,6 +27,7 @@ export type StreamStartPreflightArea =
   | "avatar"
   | "chat"
   | "validation"
+  | "publishing"
   | "engine"
   | "operation";
 
@@ -77,6 +78,7 @@ export const createStreamStartPreflightReport = ({
     ...createAudioMonitorRouteIssues(profile, audioRoute),
     ...createChatReadoutIssues(profile, chatReader, platformChatAuth, platformChatConnection),
     ...createCommercialValidationIssues(profile, validation),
+    ...createPlatformPublishingIssues(profile, validation),
     ...createEngineStateIssues(streamStatus),
     ...createOperationIssues(operationStatus)
   ];
@@ -300,6 +302,98 @@ const createCommercialValidationIssues = (
   }
 
   return [];
+};
+
+const createPlatformPublishingIssues = (
+  profile: StreamStartPreflightInput["profile"],
+  validation: StreamStartPreflightInput["validation"]
+): StreamStartPreflightIssue[] => {
+  if (!profile) {
+    return [];
+  }
+
+  if (profile.destination.platform === "youtube-live") {
+    return createYouTubePublishingIssues(profile, validation);
+  }
+
+  if (profile.destination.platform === "twitch") {
+    return createTwitchPublishingIssues(profile);
+  }
+
+  return [];
+};
+
+const createYouTubePublishingIssues = (
+  profile: NonNullable<StreamStartPreflightInput["profile"]>,
+  validation: StreamStartPreflightInput["validation"]
+): StreamStartPreflightIssue[] => {
+  const settings = profile.platformPublishing;
+  const visibilityRequiresManagedBroadcast = settings.privacyStatus !== "private" && validation?.status === "ready";
+  if (!visibilityRequiresManagedBroadcast) {
+    return [];
+  }
+
+  const issues: StreamStartPreflightIssue[] = [];
+  if (!settings.youtubeBroadcastId.trim()) {
+    issues.push({
+      code: "publishing-youtube-broadcast-required",
+      severity: "block",
+      area: "publishing",
+      label: "YouTube broadcast",
+      message: "YouTube Live is platform-visible, but no bound broadcast is selected.",
+      recommendation: "Create and bind a YouTube broadcast before starting a platform-visible stream."
+    });
+  }
+  if (!settings.youtubeStreamId.trim()) {
+    issues.push({
+      code: "publishing-youtube-stream-required",
+      severity: "block",
+      area: "publishing",
+      label: "YouTube stream",
+      message: "YouTube Live is platform-visible, but no YouTube stream ID is saved.",
+      recommendation: "Create or sync a reusable YouTube stream key, then bind it to a broadcast."
+    });
+  }
+
+  const broadcastStatus = settings.youtubeBroadcastStatus.trim().toLowerCase();
+  if (broadcastStatus === "complete") {
+    issues.push({
+      code: "publishing-youtube-broadcast-complete",
+      severity: "block",
+      area: "publishing",
+      label: "YouTube broadcast",
+      message: "The selected YouTube broadcast is already complete.",
+      recommendation: "Create a new YouTube broadcast before starting another platform-visible stream."
+    });
+  } else if (broadcastStatus === "live") {
+    issues.push({
+      code: "publishing-youtube-broadcast-already-live",
+      severity: "warning",
+      area: "publishing",
+      label: "YouTube broadcast",
+      message: "The selected YouTube broadcast is already live.",
+      recommendation: "Refresh YouTube status and confirm the previous broadcast is not still active before starting the local encoder."
+    });
+  }
+
+  return issues;
+};
+
+const createTwitchPublishingIssues = (profile: NonNullable<StreamStartPreflightInput["profile"]>): StreamStartPreflightIssue[] => {
+  if (profile.platformPublishing.twitchLiveStatus.trim().toLowerCase() !== "live") {
+    return [];
+  }
+
+  return [
+    {
+      code: "publishing-twitch-already-live",
+      severity: "block",
+      area: "publishing",
+      label: "Twitch status",
+      message: "Twitch channel status is already live.",
+      recommendation: "Refresh Twitch status or stop the existing live stream before starting another encoder session."
+    }
+  ];
 };
 
 const createAudioMonitorRouteIssues = (

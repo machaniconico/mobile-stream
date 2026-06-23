@@ -103,7 +103,10 @@ describe("stream start preflight", () => {
       ...validProfile(),
       platformPublishing: {
         ...validProfile().platformPublishing,
-        privacyStatus: "public" as const
+        privacyStatus: "public" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "stream-id",
+        youtubeBroadcastStatus: "testing"
       }
     };
     const report = createStreamStartPreflightReport({
@@ -119,6 +122,58 @@ describe("stream start preflight", () => {
     expect(report.canStart).toBe(true);
     expect(report.status).toBe("ready");
     expect(report.issues.map((issue) => issue.code)).not.toContain("validation-youtube-public-not-ready");
+  });
+
+  it("blocks platform-visible YouTube launches without a bound broadcast after validation is ready", () => {
+    const profile = {
+      ...validProfile(),
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "public" as const,
+        youtubeBroadcastId: "",
+        youtubeStreamId: ""
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      }
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining(["publishing-youtube-broadcast-required", "publishing-youtube-stream-required"])
+    );
+    expect(formatStreamStartPreflightBlockMessage(report)).toContain("no bound broadcast is selected");
+  });
+
+  it("blocks platform-visible YouTube launches when the selected broadcast is already complete", () => {
+    const profile = {
+      ...validProfile(),
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "unlisted" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "stream-id",
+        youtubeBroadcastStatus: "complete"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      }
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toContain("publishing-youtube-broadcast-complete");
   });
 
   it("blocks Twitch launches until commercial validation is ready", () => {
@@ -142,6 +197,33 @@ describe("stream start preflight", () => {
 
     expect(report.canStart).toBe(false);
     expect(report.blocks.map((issue) => issue.code)).toContain("validation-twitch-public-not-ready");
+  });
+
+  it("blocks Twitch launches when the channel is already live", () => {
+    const baseProfile = applyDestinationPreset(validProfile(), "twitch-auto");
+    const profile = {
+      ...baseProfile,
+      destination: {
+        ...baseProfile.destination,
+        streamKey: "placeholder-twitch-key"
+      },
+      platformPublishing: {
+        ...baseProfile.platformPublishing,
+        twitchLiveStatus: "live"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      }
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toContain("publishing-twitch-already-live");
   });
 
   it("warns for unlisted YouTube launches before commercial validation is ready", () => {
