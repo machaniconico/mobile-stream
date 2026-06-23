@@ -159,6 +159,7 @@ export const App = () => {
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeStateFromScene(scene, Date.now()));
   const [faceTrackingRuntime, setFaceTrackingRuntime] = useState(() => createFaceTrackingRuntimeState(Date.now()));
   const [operationStatus, setOperationStatus] = useState<StreamOperationStatus | null>(null);
+  const [platformApiOperationLabel, setPlatformApiOperationLabel] = useState<string | null>(null);
   const operationInFlight = useRef(false);
   const audioLevelSamplesRef = useRef<StreamAudioLevelSample[]>([]);
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
@@ -414,6 +415,19 @@ export const App = () => {
       operationInFlight.current = false;
     }
   }, [recordStreamSessionEvent]);
+  const runPlatformApiOperation = useCallback(async <T,>(label: string, operation: () => Promise<T>): Promise<T> => {
+    const currentLabel = platformApiOperationGate.getCurrentLabel();
+    if (currentLabel) {
+      throw new Error(`${label} skipped because ${currentLabel} is already running.`);
+    }
+
+    setPlatformApiOperationLabel(label);
+    try {
+      return await platformApiOperationGate.run(label, operation);
+    } finally {
+      setPlatformApiOperationLabel(null);
+    }
+  }, [platformApiOperationGate]);
   const recordRecoveryDecision = useCallback(
     (decision: Parameters<typeof createStreamRecoveryEvent>[0]) => {
       recordStreamSessionEvent(createStreamRecoveryEvent(decision));
@@ -625,7 +639,7 @@ export const App = () => {
 
   const startTwitchDeviceOAuth = async () => {
     try {
-      const result = await platformApiOperationGate.run("Twitch device OAuth start", () =>
+      const result = await runPlatformApiOperation("Twitch device OAuth start", () =>
         startTwitchDeviceCodeOAuthFlow(platformChatOAuth, fetch)
       );
       setTwitchDeviceOAuthFlow(result.flow);
@@ -638,7 +652,7 @@ export const App = () => {
 
   const pollTwitchDeviceOAuth = async () => {
     try {
-      const result = await platformApiOperationGate.run("Twitch device OAuth polling", () =>
+      const result = await runPlatformApiOperation("Twitch device OAuth polling", () =>
         pollTwitchDeviceCodeOAuthFlow(twitchDeviceOAuthFlow, platformChatOAuth, fetch)
       );
       if (result.status === "pending") {
@@ -658,7 +672,7 @@ export const App = () => {
 
   const applyPlatformChatOAuthCallback = async () => {
     try {
-      const result = await platformApiOperationGate.run("OAuth callback exchange", () =>
+      const result = await runPlatformApiOperation("OAuth callback exchange", () =>
         completePlatformChatOAuthCallback(platformChatOAuth.callbackUrl, platformChatOAuthFlow, platformChatOAuth, fetch)
       );
       setPlatformChatAuth((current) => mergeOAuthAuth(current, result.auth));
@@ -693,7 +707,7 @@ export const App = () => {
 
   const applyPlatformStreamKey = async () => {
     try {
-      await platformApiOperationGate.run("Platform stream key sync", async () => {
+      await runPlatformApiOperation("Platform stream key sync", async () => {
         const platform = resolvePlatformApiCredentialPlatform(profile);
         const credential = await preparePlatformApiCredential(platform);
         const result =
@@ -710,7 +724,7 @@ export const App = () => {
 
   const applyPlatformPublishingSetup = async () => {
     try {
-      await platformApiOperationGate.run("Platform publishing setup", async () => {
+      await runPlatformApiOperation("Platform publishing setup", async () => {
         if (profile.destination.platform === "custom") {
           throw new Error("Platform publishing setup requires a YouTube Live or Twitch destination.");
         }
@@ -729,7 +743,7 @@ export const App = () => {
 
   const transitionYouTubeBroadcastState = async (broadcastStatus: YouTubeBroadcastTransitionStatus) => {
     try {
-      await platformApiOperationGate.run(`YouTube broadcast ${broadcastStatus}`, async () => {
+      await runPlatformApiOperation(`YouTube broadcast ${broadcastStatus}`, async () => {
         const engineSnapshot = engine.getSnapshot();
         const diagnostics = createStreamDiagnostics(
           scene,
@@ -785,7 +799,7 @@ export const App = () => {
 
   const refreshPlatformPublishingStatus = async () => {
     try {
-      await platformApiOperationGate.run("Platform publishing status refresh", async () => {
+      await runPlatformApiOperation("Platform publishing status refresh", async () => {
         const credential = await preparePlatformApiCredential(profile.destination.platform === "youtube-live" ? "youtube" : "twitch");
         const result =
           profile.destination.platform === "youtube-live"
@@ -858,6 +872,7 @@ export const App = () => {
       platformChatOAuthStatus={platformChatOAuthStatus}
       platformStreamKeyStatus={platformStreamKeyStatus}
       platformPublishingStatus={platformPublishingStatus}
+      platformApiOperationLabel={platformApiOperationLabel}
       platformChatConnection={platformChatConnection.connection}
       avatarRuntime={avatarRuntime}
       faceTrackingRuntime={faceTrackingRuntime}

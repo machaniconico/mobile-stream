@@ -32,6 +32,7 @@ interface LiveSetupScreenProps {
   platformChatOAuthCredentials?: PlatformChatOAuthCredentialStore | null;
   locked: boolean;
   platformPublishingStatus: string;
+  platformApiOperationLabel: string | null;
   onProfileChange(profile: StudioProfile): void;
   onPlatformPublishingApply(): void | Promise<void>;
   onPlatformPublishingStatusRefresh(): void | Promise<void>;
@@ -48,6 +49,7 @@ export const LiveSetupScreen = ({
   platformChatOAuthCredentials = null,
   locked,
   platformPublishingStatus,
+  platformApiOperationLabel,
   onProfileChange,
   onPlatformPublishingApply,
   onPlatformPublishingStatusRefresh,
@@ -345,7 +347,7 @@ export const LiveSetupScreen = ({
       ) : null}
 
       <div className="secret-tools">
-        <span>{platformPublishingStatus}</span>
+        <span>{platformApiOperationLabel ? `Running ${platformApiOperationLabel}. ${platformPublishingStatus}` : platformPublishingStatus}</span>
         <button
           className="secondary-action compact-action"
           type="button"

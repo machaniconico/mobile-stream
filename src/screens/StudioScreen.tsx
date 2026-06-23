@@ -115,6 +115,7 @@ interface StudioScreenProps {
   platformChatOAuthStatus: string;
   platformStreamKeyStatus: string;
   platformPublishingStatus: string;
+  platformApiOperationLabel: string | null;
   platformChatConnection: PlatformChatConnectionState;
   avatarRuntime: AvatarRuntimeState;
   faceTrackingRuntime: FaceTrackingRuntimeState;
@@ -323,6 +324,7 @@ export const StudioScreen = ({
   platformChatOAuthStatus,
   platformStreamKeyStatus,
   platformPublishingStatus,
+  platformApiOperationLabel,
   platformChatConnection,
   avatarRuntime,
   faceTrackingRuntime,
@@ -361,7 +363,8 @@ export const StudioScreen = ({
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
   const isBusy = snapshot.state.status === "preparing" || snapshot.state.status === "stopping";
   const operationBusy = operationStatus?.kind === "pending";
-  const setupLocked = isLive || isBusy || operationBusy;
+  const platformApiBusy = Boolean(platformApiOperationLabel);
+  const setupLocked = isLive || isBusy || operationBusy || platformApiBusy;
   const diagnostics = createStreamDiagnostics(
     scene,
     profile,
@@ -882,6 +885,7 @@ export const StudioScreen = ({
         twitchDeviceOAuthFlow={twitchDeviceOAuthFlow}
         platformChatOAuthStatus={platformChatOAuthStatus}
         platformStreamKeyStatus={platformStreamKeyStatus}
+        platformApiOperationLabel={platformApiOperationLabel}
         platformChatConnection={platformChatConnection}
         onSubmit={onChatCommentSubmit}
         onSettingsChange={onChatReaderSettingsChange}
@@ -908,6 +912,7 @@ export const StudioScreen = ({
             platformChatOAuthCredentials={platformChatOAuthCredentials}
             locked={setupLocked}
             platformPublishingStatus={platformPublishingStatus}
+            platformApiOperationLabel={platformApiOperationLabel}
             onProfileChange={onProfileChange}
             onPlatformPublishingApply={onPlatformPublishingApply}
             onPlatformPublishingStatusRefresh={onPlatformPublishingStatusRefresh}
@@ -1447,6 +1452,7 @@ const ChatReaderPanel = ({
   twitchDeviceOAuthFlow,
   platformChatOAuthStatus,
   platformStreamKeyStatus,
+  platformApiOperationLabel,
   platformChatConnection,
   onSubmit,
   onSettingsChange,
@@ -1471,6 +1477,7 @@ const ChatReaderPanel = ({
   twitchDeviceOAuthFlow: TwitchDeviceCodeOAuthFlow | null;
   platformChatOAuthStatus: string;
   platformStreamKeyStatus: string;
+  platformApiOperationLabel: string | null;
   platformChatConnection: PlatformChatConnectionState;
   onSubmit(author: string, body: string): void;
   onSettingsChange(settings: Partial<ChatReaderSettings>): void;
@@ -1496,6 +1503,7 @@ const ChatReaderPanel = ({
   const oauthRedirectUri = platformChat.platform === "youtube" ? platformChatOAuth.youtubeRedirectUri : platformChatOAuth.twitchRedirectUri;
   const oauthClientKey = platformChat.platform === "youtube" ? "youtubeClientId" : "twitchClientId";
   const oauthRedirectKey = platformChat.platform === "youtube" ? "youtubeRedirectUri" : "twitchRedirectUri";
+  const platformApiBusy = Boolean(platformApiOperationLabel);
 
   const submit = () => {
     if (!body.trim()) {
@@ -1595,7 +1603,7 @@ const ChatReaderPanel = ({
             <span className={`chat-source-status ${platformChatOAuthFlow?.platform === platformChat.platform ? "connecting" : "idle"}`}>
               {platformChatOAuthFlow?.platform === platformChat.platform ? "OAuth pending" : "OAuth idle"}
             </span>
-            <button className="secondary-action compact-action" type="button" onClick={onPlatformChatOAuthStart}>
+            <button className="secondary-action compact-action" type="button" disabled={platformApiBusy} onClick={onPlatformChatOAuthStart}>
               <ShieldCheck size={15} />
               Start OAuth
             </button>
@@ -1605,13 +1613,13 @@ const ChatReaderPanel = ({
               <span className={`chat-source-status ${twitchDeviceOAuthFlow ? "connecting" : "idle"}`}>
                 {twitchDeviceOAuthFlow ? `Device code ${twitchDeviceOAuthFlow.userCode}` : "Device OAuth idle"}
               </span>
-              <button className="secondary-action compact-action" type="button" onClick={onTwitchDeviceOAuthStart}>
+              <button className="secondary-action compact-action" type="button" disabled={platformApiBusy} onClick={onTwitchDeviceOAuthStart}>
                 Device OAuth
               </button>
               <button
                 className="secondary-action compact-action"
                 type="button"
-                disabled={!twitchDeviceOAuthFlow}
+                disabled={platformApiBusy || !twitchDeviceOAuthFlow}
                 onClick={onTwitchDeviceOAuthPoll}
               >
                 Check
@@ -1627,15 +1635,15 @@ const ChatReaderPanel = ({
               onChange={(event) => onPlatformChatOAuthChange({ callbackUrl: event.target.value })}
             />
           </label>
-          <button className="secondary-action compact-action chat-ingest-action" type="button" onClick={onPlatformChatOAuthCallbackApply}>
+          <button className="secondary-action compact-action chat-ingest-action" type="button" disabled={platformApiBusy} onClick={onPlatformChatOAuthCallbackApply}>
             Apply OAuth Callback
           </button>
-          <span className="chat-network-message">{platformChatOAuthStatus}</span>
-          <button className="secondary-action compact-action chat-ingest-action" type="button" onClick={onPlatformStreamKeyApply}>
+          <span className="chat-network-message">{platformApiOperationLabel ? `Running ${platformApiOperationLabel}. ${platformChatOAuthStatus}` : platformChatOAuthStatus}</span>
+          <button className="secondary-action compact-action chat-ingest-action" type="button" disabled={platformApiBusy} onClick={onPlatformStreamKeyApply}>
             <KeyRound size={15} />
             {platformChat.platform === "youtube" ? "Rotate Stream Key" : "Sync Stream Key"}
           </button>
-          <span className="chat-network-message">{platformStreamKeyStatus}</span>
+          <span className="chat-network-message">{platformApiOperationLabel ? `Running ${platformApiOperationLabel}. ${platformStreamKeyStatus}` : platformStreamKeyStatus}</span>
         </div>
         {platformChat.platform === "youtube" ? (
           <>
