@@ -133,6 +133,20 @@ export const createFaceTrackingDiagnostics = (
     );
   }
 
+  if (activeMotionCount === 0) {
+    return createWarning(
+      faceTracking,
+      runtimeStatus,
+      visibleAvatars.length,
+      visiblePngTubers.length,
+      visibleLive2D.length,
+      preparedPngTubers.length,
+      activeMotionCount,
+      "Native face tracking is reading, but no visible avatar source has applied motion yet.",
+      "Confirm the prepared PNGTuber moves with head, blink, and mouth input during physical validation."
+    );
+  }
+
   return {
     status: "pass",
     enabled: true,

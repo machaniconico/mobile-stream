@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultStudioProfile, type StudioProfile } from "./profiles";
 import { createReadinessReport } from "./readiness";
-import { createDefaultScene } from "./scene";
+import { createDefaultScene, defaultAvatarMotion, updateSource } from "./scene";
 import { createStreamDiagnostics } from "./streamDiagnostics";
 import {
   appendStreamValidationRun,
@@ -240,6 +240,118 @@ describe("stream validation evidence", () => {
     expect(summary.latestFaceTracking?.status).toBe("warn");
   });
 
+  it("tracks iOS and Android face tracking coverage from retained passing runs", () => {
+    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...source,
+            imageUri: "file:///shared/avatar.png",
+            motion: defaultAvatarMotion({ confidence: 0.9, headYaw: 0.12 })
+          }
+        : source
+    );
+    const profile = {
+      ...profileWithKey("validation-key"),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const,
+        rigMode: "still-image-2d" as const
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "live" },
+        health: health({ bitrateKbps: 3500, fps: 30 })
+      },
+      [],
+      [],
+      [],
+      [],
+      {
+        status: "tracking",
+        yaw: 0.1,
+        pitch: 0,
+        roll: 0,
+        mouthOpen: 0.4,
+        blink: 0,
+        smile: 0.2,
+        browRaise: 0.1,
+        confidence: 0.92,
+        expression: "neutral",
+        lastFrameAt: Date.parse("2026-06-23T00:00:00.000Z")
+      }
+    );
+    const iosRun = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const androidRun = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      result: "pass",
+      now: new Date("2026-06-23T00:01:00.000Z")
+    });
+
+    const summary = summarizeStreamValidationEvidence([androidRun, iosRun], { now: validationNow });
+
+    expect(iosRun.faceTracking?.status).toBe("pass");
+    expect(androidRun.faceTracking?.status).toBe("pass");
+    expect(summary.faceTrackingIosPass).toBe(true);
+    expect(summary.faceTrackingAndroidPass).toBe(true);
+    expect(summary.faceTrackingReadyCount).toBe(2);
+    expect(summary.latestFaceTracking?.runtimeStatus).toBe("tracking");
+    expect(summary.status).toBe("ready");
+  });
+
+  it("does not treat retained face tracking pass as avatar evidence when motion count is zero", () => {
+    const baseRun = createStreamValidationRun({
+      diagnostics: createStreamDiagnostics(createDefaultScene(), profileWithKey("validation-key"), createReadinessReport(createDefaultScene(), profileWithKey("validation-key")), {
+        state: { status: "idle" },
+        health: health()
+      }),
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const iosRun = {
+      ...baseRun,
+      result: "pass" as const,
+      faceTracking: {
+        status: "pass" as const,
+        enabled: true,
+        inputMode: "native-camera" as const,
+        rigMode: "still-image-2d" as const,
+        runtimeStatus: "tracking" as const,
+        visibleAvatarCount: 1,
+        preparedPngTuberCount: 1,
+        activeMotionCount: 0,
+        summary: "Legacy pass retained without motion count.",
+        recommendation: "Repeat validation."
+      }
+    };
+    const androidRun = {
+      ...iosRun,
+      id: `${iosRun.id}-android`,
+      devicePlatform: "android" as const,
+      createdAt: "2026-06-23T00:01:00.000Z"
+    };
+
+    const summary = summarizeStreamValidationEvidence([androidRun, iosRun], { now: validationNow });
+
+    expect(summary.faceTrackingReadyCount).toBe(2);
+    expect(summary.faceTrackingIosPass).toBe(false);
+    expect(summary.faceTrackingAndroidPass).toBe(false);
+    expect(summary.status).toBe("partial");
+    expect(summary.summary).toContain("avatar-motion evidence is incomplete");
+  });
+
   it("fails validation runs when the native publisher reports a failure", () => {
     const scene = createDefaultScene();
     const profile = profileWithKey("validation-key");
@@ -348,11 +460,12 @@ describe("stream validation evidence", () => {
     expect(partial.status).toBe("partial");
     expect(partial.iosPass).toBe(true);
     expect(partial.androidPass).toBe(false);
-    expect(ready.status).toBe("ready");
+    expect(ready.status).toBe("partial");
     expect(ready.eligibleRunCount).toBe(2);
     expect(ready.staleRunCount).toBe(0);
     expect(ready.consistentAppBuild).toBe("-");
-    expect(ready.summary).toContain("iOS and Android");
+    expect(ready.summary).toContain("avatar-motion evidence is incomplete");
+    expect(ready.recommendation).toContain("native camera tracking");
     expect(ready.passedTargetPlatforms).toEqual(["YouTube Live"]);
   });
 
@@ -423,8 +536,9 @@ describe("stream validation evidence", () => {
     expect(mismatch.status).toBe("partial");
     expect(mismatch.appBuildMismatch).toBe(true);
     expect(mismatch.summary).toContain("app builds do not match");
-    expect(ready.status).toBe("ready");
+    expect(ready.status).toBe("partial");
     expect(ready.consistentAppBuild).toBe("rc-1");
+    expect(ready.summary).toContain("avatar-motion evidence is incomplete");
     expect(stale.status).toBe("stale");
     expect(stale.eligibleRunCount).toBe(0);
     expect(stale.staleRunCount).toBe(2);

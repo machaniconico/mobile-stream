@@ -196,6 +196,54 @@ describe("stream validation checklist", () => {
     expect(item?.action).toContain("native camera");
   });
 
+  it("keeps VTuber motion in needs-test until retained avatar evidence covers iOS and Android", () => {
+    const checklist = createStreamValidationChecklist({
+      ...defaultInput(),
+      evidence: readyEvidence(),
+      faceTracking: readyFaceTracking()
+    });
+
+    const item = checklist.items.find((entry) => entry.id === "avatar-motion-evidence-missing");
+
+    expect(checklist.status).toBe("needs-test");
+    expect(item?.area).toBe("avatar");
+    expect(item?.status).toBe("warn");
+    expect(item?.detail).toContain("iOS missing / Android missing");
+  });
+
+  it("passes VTuber motion when current tracking and retained iOS/Android avatar evidence are ready", () => {
+    const checklist = createStreamValidationChecklist({
+      ...defaultInput(),
+      telemetry: {
+        streamStatus: "live",
+        bitrateKbps: 3500,
+        fps: 30,
+        droppedFrames: 0,
+        reconnectAttempts: 0
+      },
+      health: {
+        sampleCount: 5,
+        stability: "stable"
+      },
+      session: {
+        eventCount: 0,
+        summaryCount: 3,
+        historySummary: createStreamSessionHistorySummary([cleanSession(1), cleanSession(2), cleanSession(3)]),
+        lastOutcome: "clean"
+      },
+      evidence: readyEvidence({
+        faceTrackingRunCount: 2,
+        faceTrackingReadyCount: 2,
+        faceTrackingIosPass: true,
+        faceTrackingAndroidPass: true
+      }),
+      faceTracking: readyFaceTracking()
+    });
+
+    expect(checklist.status).toBe("ready");
+    expect(checklist.items.find((entry) => entry.id === "avatar-motion-ready")?.status).toBe("pass");
+  });
+
   it("blocks when retained session history is unstable", () => {
     const failedSession: StreamSessionSummary = {
       ...cleanSession(1),
@@ -240,7 +288,22 @@ describe("stream validation checklist", () => {
   });
 });
 
-const readyEvidence = (): StreamValidationEvidenceSummary => ({
+const readyFaceTracking = () => ({
+  status: "pass" as const,
+  enabled: true,
+  inputMode: "native-camera" as const,
+  rigMode: "still-image-2d" as const,
+  runtimeStatus: "tracking" as const,
+  visibleAvatarCount: 1,
+  visiblePngTuberCount: 1,
+  visibleLive2DCount: 0,
+  preparedPngTuberCount: 1,
+  activeMotionCount: 1,
+  summary: "Face tracking is ready with 1 prepared PNGTuber source.",
+  recommendation: "Keep this tracker state with the next private iOS/Android validation run."
+});
+
+const readyEvidence = (overrides: Partial<StreamValidationEvidenceSummary> = {}): StreamValidationEvidenceSummary => ({
   totalRuns: 2,
   eligibleRunCount: 2,
   staleRunCount: 0,
@@ -253,6 +316,8 @@ const readyEvidence = (): StreamValidationEvidenceSummary => ({
   faceTrackingRunCount: 0,
   faceTrackingWarningCount: 0,
   faceTrackingReadyCount: 0,
+  faceTrackingIosPass: false,
+  faceTrackingAndroidPass: false,
   platformPublishingRunCount: 0,
   platformPublishingWarningCount: 0,
   platformPublishingFailureCount: 0,
@@ -271,5 +336,6 @@ const readyEvidence = (): StreamValidationEvidenceSummary => ({
   latestRunAgeDays: null,
   maxAgeDays: 14,
   summary: "Fresh physical validation baseline retained for iOS and Android on build rc-1 across 2 eligible runs.",
-  recommendation: "Keep iOS and Android validation runs updated for every release candidate."
+  recommendation: "Keep iOS and Android validation runs updated for every release candidate.",
+  ...overrides
 });

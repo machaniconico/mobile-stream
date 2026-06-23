@@ -73,6 +73,8 @@ export interface StreamValidationEvidenceSummary {
   faceTrackingRunCount: number;
   faceTrackingWarningCount: number;
   faceTrackingReadyCount: number;
+  faceTrackingIosPass: boolean;
+  faceTrackingAndroidPass: boolean;
   platformPublishingRunCount: number;
   platformPublishingWarningCount: number;
   platformPublishingFailureCount: number;
@@ -291,6 +293,8 @@ export const summarizeStreamValidationEvidence = (
   const androidLatestRun = latestDeviceRuns.find((run) => run.devicePlatform === "android") ?? null;
   const iosPass = iosLatestRun?.result === "pass";
   const androidPass = androidLatestRun?.result === "pass";
+  const faceTrackingIosPass = iosPass && isAvatarMotionEvidencePass(iosLatestRun?.faceTracking);
+  const faceTrackingAndroidPass = androidPass && isAvatarMotionEvidencePass(androidLatestRun?.faceTracking);
   const appBuildMismatch = Boolean(
     iosPass &&
       androidPass &&
@@ -310,7 +314,9 @@ export const summarizeStreamValidationEvidence = (
     latestDeviceRuns,
     iosPass,
     androidPass,
-    appBuildMismatch
+    appBuildMismatch,
+    faceTrackingIosPass,
+    faceTrackingAndroidPass
   });
 
   return {
@@ -326,6 +332,8 @@ export const summarizeStreamValidationEvidence = (
     faceTrackingRunCount,
     faceTrackingWarningCount,
     faceTrackingReadyCount,
+    faceTrackingIosPass,
+    faceTrackingAndroidPass,
     platformPublishingRunCount,
     platformPublishingWarningCount,
     platformPublishingFailureCount,
@@ -352,13 +360,22 @@ export const summarizeStreamValidationEvidence = (
       failureCount,
       iosPass,
       androidPass,
+      faceTrackingIosPass,
+      faceTrackingAndroidPass,
       appBuildMismatch,
       iosAppBuild: iosLatestRun?.appBuild ?? null,
       androidAppBuild: androidLatestRun?.appBuild ?? null,
       consistentAppBuild,
       maxAgeDays
     }),
-    recommendation: createEvidenceRecommendation(status, latestEligibleRun ?? latestRun, { appBuildMismatch, maxAgeDays })
+    recommendation: createEvidenceRecommendation(status, latestEligibleRun ?? latestRun, {
+      appBuildMismatch,
+      maxAgeDays,
+      iosPass,
+      androidPass,
+      faceTrackingIosPass,
+      faceTrackingAndroidPass
+    })
   };
 };
 
@@ -453,7 +470,9 @@ const createEvidenceStatus = ({
   latestDeviceRuns,
   iosPass,
   androidPass,
-  appBuildMismatch
+  appBuildMismatch,
+  faceTrackingIosPass,
+  faceTrackingAndroidPass
 }: {
   totalRuns: number;
   eligibleRunCount: number;
@@ -462,6 +481,8 @@ const createEvidenceStatus = ({
   iosPass: boolean;
   androidPass: boolean;
   appBuildMismatch: boolean;
+  faceTrackingIosPass: boolean;
+  faceTrackingAndroidPass: boolean;
 }): StreamValidationEvidenceSummary["status"] => {
   if (totalRuns === 0) {
     return "none";
@@ -472,7 +493,7 @@ const createEvidenceStatus = ({
   if (latestEligibleRun?.result === "fail" || latestDeviceRuns.some((run) => run.result === "fail")) {
     return "failing";
   }
-  if (iosPass && androidPass && !appBuildMismatch) {
+  if (iosPass && androidPass && !appBuildMismatch && faceTrackingIosPass && faceTrackingAndroidPass) {
     return "ready";
   }
   return "partial";
@@ -508,6 +529,9 @@ const latestRunsByTargetPlatform = (runs: StreamValidationRun[]): StreamValidati
   return latestRuns;
 };
 
+const isAvatarMotionEvidencePass = (faceTracking: StreamValidationFaceTrackingSummary | null | undefined): boolean =>
+  faceTracking?.status === "pass" && faceTracking.activeMotionCount > 0;
+
 const createEvidenceSummary = (
   status: StreamValidationEvidenceSummary["status"],
   counts: {
@@ -519,6 +543,8 @@ const createEvidenceSummary = (
     failureCount: number;
     iosPass: boolean;
     androidPass: boolean;
+    faceTrackingIosPass: boolean;
+    faceTrackingAndroidPass: boolean;
     appBuildMismatch: boolean;
     iosAppBuild: string | null;
     androidAppBuild: string | null;
@@ -541,6 +567,9 @@ const createEvidenceSummary = (
   if (counts.appBuildMismatch) {
     return `Physical validation app builds do not match: iOS ${counts.iosAppBuild ?? "-"} / Android ${counts.androidAppBuild ?? "-"}.`;
   }
+  if (counts.iosPass && counts.androidPass && (!counts.faceTrackingIosPass || !counts.faceTrackingAndroidPass)) {
+    return `Physical validation is partial: iOS and Android passed, but retained VTuber avatar-motion evidence is incomplete: iOS ${counts.faceTrackingIosPass ? "pass" : "missing"} / Android ${counts.faceTrackingAndroidPass ? "pass" : "missing"}.`;
+  }
   const covered = [counts.iosPass ? "iOS" : null, counts.androidPass ? "Android" : null].filter(Boolean).join(" and ");
   return covered
     ? `Physical validation is partial: ${covered} passed, remaining platform still needs evidence.`
@@ -553,6 +582,10 @@ const createEvidenceRecommendation = (
   context: {
     appBuildMismatch: boolean;
     maxAgeDays: number;
+    iosPass: boolean;
+    androidPass: boolean;
+    faceTrackingIosPass: boolean;
+    faceTrackingAndroidPass: boolean;
   }
 ): string => {
   if (status === "ready") {
@@ -563,6 +596,9 @@ const createEvidenceRecommendation = (
   }
   if (context.appBuildMismatch) {
     return "Record fresh iOS and Android validation passes on the same release-candidate build.";
+  }
+  if (context.iosPass && context.androidPass && (!context.faceTrackingIosPass || !context.faceTrackingAndroidPass)) {
+    return "Record fresh iOS and Android validation runs with native camera tracking active and visible PNGTuber motion applied.";
   }
   if (status === "stale") {
     return `Repeat private RTMPS validation on physical iOS and Android devices; retained evidence expires after ${context.maxAgeDays} days.`;

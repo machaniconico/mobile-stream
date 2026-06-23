@@ -493,9 +493,7 @@ const formatValidationNativeRuntime = (diagnostics: StreamDiagnostics): string =
     : "-";
 
 const formatValidationFaceTracking = (diagnostics: StreamDiagnostics): string =>
-  diagnostics.validationEvidence.latestFaceTracking
-    ? `${diagnostics.validationEvidence.faceTrackingRunCount} retained / ${diagnostics.validationEvidence.faceTrackingReadyCount} ready / ${diagnostics.validationEvidence.faceTrackingWarningCount} warn / latest ${diagnostics.validationEvidence.latestFaceTracking.status} ${diagnostics.validationEvidence.latestFaceTracking.runtimeStatus} / prepared ${diagnostics.validationEvidence.latestFaceTracking.preparedPngTuberCount} / moving ${diagnostics.validationEvidence.latestFaceTracking.activeMotionCount}`
-    : "-";
+  `${diagnostics.validationEvidence.faceTrackingRunCount} retained / ${diagnostics.validationEvidence.faceTrackingReadyCount} ready / ${diagnostics.validationEvidence.faceTrackingWarningCount} warn / iOS ${diagnostics.validationEvidence.faceTrackingIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestFaceTracking?.status ?? "-"} ${diagnostics.validationEvidence.latestFaceTracking?.runtimeStatus ?? "-"} / prepared ${diagnostics.validationEvidence.latestFaceTracking?.preparedPngTuberCount ?? 0} / moving ${diagnostics.validationEvidence.latestFaceTracking?.activeMotionCount ?? 0}`;
 
 const formatValidationPlatformPublishing = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestPlatformPublishing

@@ -85,7 +85,7 @@ export const createStreamValidationChecklist = ({
     createIngestItem(diagnosticStatus, telemetry, health),
     createPlatformItem(target.platform, telemetry, health, evidence),
     createDeviceItem(session, evidence),
-    createAvatarMotionItem(faceTracking),
+    createAvatarMotionItem(faceTracking, evidence),
     createSessionBaselineItem(session),
     createEvidenceItem(readiness, health, session, evidence)
   ].filter((item): item is StreamValidationChecklistItem => item !== null);
@@ -440,19 +440,31 @@ const createDeviceItem = (
 };
 
 const createAvatarMotionItem = (
-  faceTracking: FaceTrackingDiagnostics | undefined
+  faceTracking: FaceTrackingDiagnostics | undefined,
+  evidence: StreamValidationEvidenceSummary
 ): StreamValidationChecklistItem | null => {
   if (!faceTracking) {
     return null;
   }
 
   if (faceTracking.status === "pass") {
+    if (!evidence.faceTrackingIosPass || !evidence.faceTrackingAndroidPass) {
+      return {
+        id: evidence.faceTrackingRunCount > 0 ? "avatar-motion-evidence-partial" : "avatar-motion-evidence-missing",
+        area: "avatar",
+        status: "warn",
+        title: "VTuber avatar motion",
+        detail: `Current tracker is ready, but retained avatar-motion evidence is incomplete: iOS ${evidence.faceTrackingIosPass ? "pass" : "missing"} / Android ${evidence.faceTrackingAndroidPass ? "pass" : "missing"}.`,
+        action: "Record fresh iOS and Android physical validation runs with native camera tracking active and a prepared PNGTuber source."
+      };
+    }
+
     return {
       id: "avatar-motion-ready",
       area: "avatar",
       status: "pass",
       title: "VTuber avatar motion",
-      detail: `${faceTracking.preparedPngTuberCount} prepared PNGTuber source${faceTracking.preparedPngTuberCount === 1 ? "" : "s"} with ${faceTracking.runtimeStatus} tracking.`,
+      detail: `${faceTracking.preparedPngTuberCount} prepared PNGTuber source${faceTracking.preparedPngTuberCount === 1 ? "" : "s"} with ${faceTracking.runtimeStatus} tracking and retained iOS/Android avatar-motion evidence.`,
       action: "Keep the prepared avatar asset and tracker state with the release-candidate validation run."
     };
   }
