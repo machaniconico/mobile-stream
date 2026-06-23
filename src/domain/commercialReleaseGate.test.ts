@@ -92,6 +92,55 @@ describe("commercial release gate", () => {
       expect.arrayContaining(["bundle-version", "validation-evidence-manifest-missing"])
     );
   });
+
+  it("blocks support bundles that contain unredacted sensitive data", () => {
+    const bundle = supportBundle();
+    const mutableBundle = bundle as unknown as {
+      diagnostics: {
+        api: {
+          lastError: string;
+          streamKey: string;
+        };
+      };
+    };
+    mutableBundle.diagnostics = {
+      api: {
+        lastError: "Authorization: Bearer youtube-access-token-secret failed after code=oauth-code-secret",
+        streamKey: "rtmp-live-secret-key"
+      }
+    };
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues.map((issue) => issue.code)).toContain("support-bundle-sensitive-data");
+    expect(formatCommercialReleaseGate(gate)).toContain("Support bundle privacy");
+  });
+
+  it("allows support bundles with redacted sensitive placeholders", () => {
+    const bundle = supportBundle();
+    const mutableBundle = bundle as unknown as {
+      diagnostics: {
+        api: {
+          lastError: string;
+          streamKey: string;
+        };
+      };
+    };
+    mutableBundle.diagnostics = {
+      api: {
+        lastError: "Authorization: Bearer [redacted] failed after code=[redacted]",
+        streamKey: "[redacted]"
+      }
+    };
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("ready");
+    expect(gate.canRelease).toBe(true);
+    expect(gate.issues.map((issue) => issue.code)).not.toContain("support-bundle-sensitive-data");
+  });
 });
 
 const supportBundle = ({

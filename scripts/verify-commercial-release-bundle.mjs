@@ -4,6 +4,23 @@ import { argv, exit } from "node:process";
 
 const minimumSupportBundleVersion = 13;
 const defaultMaxBundleAgeHours = 24;
+const redactedMarker = "[redacted]";
+const sensitivePropertyNames = new Set([
+  "accesstoken",
+  "refreshtoken",
+  "idtoken",
+  "codeverifier",
+  "devicecode",
+  "clientsecret",
+  "streamkey",
+  "authorization"
+]);
+const sensitiveAssignmentPattern =
+  /\b(access_token|refresh_token|id_token|code|code_verifier|device_code|client_secret|stream_key)=([^&#\s"']+)/gi;
+const sensitiveJsonPattern =
+  /["'](access_token|refresh_token|id_token|code_verifier|device_code|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|clientSecret|streamKey)["']\s*:\s*["']([^"']+)["']/g;
+const authorizationHeaderPattern = /\bAuthorization\s*:\s*(Bearer|OAuth)\s+([^\s,;]+)/gi;
+const bearerTokenPattern = /\b(Bearer|OAuth)\s+([A-Za-z0-9._~+/=-]{12,})/g;
 
 const args = argv.slice(2);
 const filePath = args.find((arg) => !arg.startsWith("--"));
@@ -52,6 +69,7 @@ if (!gate.canRelease) {
 function createGate(bundle, { now, maxBundleAgeHours, allowWarnings }) {
   const issues = [
     bundleIdentityIssue(bundle),
+    supportBundleRedactionIssue(bundle),
     bundleAgeIssue(bundle, now, maxBundleAgeHours),
     summaryIssue(bundle),
     preflightIssue(bundle),
@@ -337,6 +355,23 @@ function staleEvidenceIssue(bundle) {
   );
 }
 
+function supportBundleRedactionIssue(bundle) {
+  const findings = findSensitiveBundleFindings(bundle);
+  if (findings.length === 0) {
+    return null;
+  }
+  const examples = findings
+    .slice(0, 3)
+    .map((finding) => `${finding.path} ${finding.reason}`)
+    .join("; ");
+  return fail(
+    "support-bundle-sensitive-data",
+    "Support bundle privacy",
+    `Support bundle contains ${findings.length} unredacted sensitive value(s): ${examples}.`,
+    "Fix redaction, export a fresh support bundle, and do not archive the leaking evidence."
+  );
+}
+
 function gateSummary(status, canRelease, warningCount, failureCount) {
   if (canRelease) {
     return status === "warning"
@@ -375,4 +410,83 @@ function number(value) {
 
 function text(value) {
   return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function findSensitiveBundleFindings(value) {
+  const findings = [];
+  const seen = new WeakSet();
+
+  const visit = (entry, path, key) => {
+    if (findings.length >= 10) {
+      return;
+    }
+
+    if (typeof entry === "string") {
+      if (key && sensitivePropertyNames.has(normalizePropertyName(key)) && !isSafeSensitiveValue(entry)) {
+        findings.push({ path, reason: `stores ${key}` });
+      }
+      findings.push(...findSensitiveStringFindings(entry, path).slice(0, 10 - findings.length));
+      return;
+    }
+
+    if (entry === null || typeof entry !== "object") {
+      if (key && sensitivePropertyNames.has(normalizePropertyName(key)) && entry !== null && entry !== undefined) {
+        findings.push({ path, reason: `stores non-redacted ${key}` });
+      }
+      return;
+    }
+
+    if (seen.has(entry)) {
+      return;
+    }
+    seen.add(entry);
+
+    if (Array.isArray(entry)) {
+      entry.forEach((item, index) => visit(item, `${path}[${index}]`));
+      return;
+    }
+
+    for (const [childKey, childValue] of Object.entries(entry)) {
+      visit(childValue, `${path}.${childKey}`, childKey);
+    }
+  };
+
+  visit(value, "bundle");
+  return findings;
+}
+
+function findSensitiveStringFindings(value, path) {
+  if (!value || !hasSensitiveTextLeak(value)) {
+    return [];
+  }
+  return [{ path, reason: "contains an unredacted token pattern" }];
+}
+
+function hasSensitiveTextLeak(value) {
+  return (
+    hasUnredactedMatch(value, sensitiveAssignmentPattern) ||
+    hasUnredactedMatch(value, sensitiveJsonPattern) ||
+    hasUnredactedMatch(value, authorizationHeaderPattern) ||
+    hasUnredactedMatch(value, bearerTokenPattern)
+  );
+}
+
+function hasUnredactedMatch(value, pattern) {
+  pattern.lastIndex = 0;
+  for (const match of value.matchAll(pattern)) {
+    const candidate = match[2] ?? "";
+    if (!isSafeSensitiveValue(candidate)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isSafeSensitiveValue(value) {
+  const trimmed = value.trim();
+  return !trimmed || trimmed.includes(redactedMarker);
+}
+
+function normalizePropertyName(value) {
+  return value.replace(/[^a-z0-9]/gi, "").toLowerCase();
 }

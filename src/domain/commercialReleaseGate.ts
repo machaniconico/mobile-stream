@@ -46,6 +46,7 @@ export const createCommercialReleaseGate = (
 ): CommercialReleaseGate => {
   const issueCandidates = [
     createBundleVersionIssue(bundle),
+    createSupportBundleRedactionIssue(bundle),
     createBundleAgeIssue(bundle, now, maxBundleAgeHours),
     createPreflightIssue(bundle),
     createPublicLaunchIssue(bundle),
@@ -137,6 +138,23 @@ const createBundleAgeIssue = (
     );
   }
   return null;
+};
+
+const createSupportBundleRedactionIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+  const findings = findSensitiveBundleFindings(bundle);
+  if (findings.length === 0) {
+    return null;
+  }
+  const examples = findings
+    .slice(0, 3)
+    .map((finding) => `${finding.path} ${finding.reason}`)
+    .join("; ");
+  return failIssue(
+    "support-bundle-sensitive-data",
+    "Support bundle privacy",
+    `Support bundle contains ${findings.length} unredacted sensitive value(s): ${examples}.`,
+    "Fix redaction, export a fresh support bundle, and do not archive the leaking evidence."
+  );
 };
 
 const createPreflightIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
@@ -392,3 +410,100 @@ const ageInHours = (createdAt: string, now: Date): number | null => {
 
 const nonEmptyText = (value: string | null | undefined): string | null =>
   typeof value === "string" && value.trim() ? value.trim() : null;
+
+interface SensitiveBundleFinding {
+  path: string;
+  reason: string;
+}
+
+const redactedMarker = "[redacted]";
+const sensitivePropertyNames = new Set([
+  "accesstoken",
+  "refreshtoken",
+  "idtoken",
+  "codeverifier",
+  "devicecode",
+  "clientsecret",
+  "streamkey",
+  "authorization"
+]);
+const sensitiveAssignmentPattern =
+  /\b(access_token|refresh_token|id_token|code|code_verifier|device_code|client_secret|stream_key)=([^&#\s"']+)/gi;
+const sensitiveJsonPattern =
+  /["'](access_token|refresh_token|id_token|code_verifier|device_code|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|clientSecret|streamKey)["']\s*:\s*["']([^"']+)["']/g;
+const authorizationHeaderPattern = /\bAuthorization\s*:\s*(Bearer|OAuth)\s+([^\s,;]+)/gi;
+const bearerTokenPattern = /\b(Bearer|OAuth)\s+([A-Za-z0-9._~+/=-]{12,})/g;
+
+const findSensitiveBundleFindings = (value: unknown): SensitiveBundleFinding[] => {
+  const findings: SensitiveBundleFinding[] = [];
+  const seen = new WeakSet<object>();
+
+  const visit = (entry: unknown, path: string, key?: string) => {
+    if (findings.length >= 10) {
+      return;
+    }
+
+    if (typeof entry === "string") {
+      if (key && sensitivePropertyNames.has(normalizePropertyName(key)) && !isSafeSensitiveValue(entry)) {
+        findings.push({ path, reason: `stores ${key}` });
+      }
+      findings.push(...findSensitiveStringFindings(entry, path).slice(0, 10 - findings.length));
+      return;
+    }
+
+    if (entry === null || typeof entry !== "object") {
+      if (key && sensitivePropertyNames.has(normalizePropertyName(key)) && entry !== null && entry !== undefined) {
+        findings.push({ path, reason: `stores non-redacted ${key}` });
+      }
+      return;
+    }
+
+    if (seen.has(entry)) {
+      return;
+    }
+    seen.add(entry);
+
+    if (Array.isArray(entry)) {
+      entry.forEach((item, index) => visit(item, `${path}[${index}]`));
+      return;
+    }
+
+    for (const [childKey, childValue] of Object.entries(entry as Record<string, unknown>)) {
+      visit(childValue, `${path}.${childKey}`, childKey);
+    }
+  };
+
+  visit(value, "bundle");
+  return findings;
+};
+
+const findSensitiveStringFindings = (value: string, path: string): SensitiveBundleFinding[] => {
+  if (!value || !hasSensitiveTextLeak(value)) {
+    return [];
+  }
+  return [{ path, reason: "contains an unredacted token pattern" }];
+};
+
+const hasSensitiveTextLeak = (value: string): boolean =>
+  hasUnredactedMatch(value, sensitiveAssignmentPattern) ||
+  hasUnredactedMatch(value, sensitiveJsonPattern) ||
+  hasUnredactedMatch(value, authorizationHeaderPattern) ||
+  hasUnredactedMatch(value, bearerTokenPattern);
+
+const hasUnredactedMatch = (value: string, pattern: RegExp): boolean => {
+  pattern.lastIndex = 0;
+  for (const match of value.matchAll(pattern)) {
+    const candidate = match[2] ?? "";
+    if (!isSafeSensitiveValue(candidate)) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const isSafeSensitiveValue = (value: string): boolean => {
+  const trimmed = value.trim();
+  return !trimmed || trimmed.includes(redactedMarker);
+};
+
+const normalizePropertyName = (value: string): string => value.replace(/[^a-z0-9]/gi, "").toLowerCase();
