@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, resolve } from "node:path";
-import { argv, env, exit, platform } from "node:process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, relative, resolve } from "node:path";
+import { argv, env, exit, platform, cwd } from "node:process";
 
 const defaultUiUrl = "http://127.0.0.1:5173/";
 const devServerTimeoutMs = 30_000;
@@ -391,6 +391,10 @@ function createReport(options, supportBundle) {
       uiUrl: options.uiUrl || null
     },
     supportBundle,
+    artifacts: {
+      generatedAt: null,
+      files: []
+    },
     gates: [],
     error: null
   };
@@ -400,6 +404,10 @@ function finishReport(report, status, error = null) {
   report.status = status;
   report.finishedAt = new Date().toISOString();
   report.durationMs = Date.parse(report.finishedAt) - Date.parse(report.startedAt);
+  report.artifacts = {
+    generatedAt: report.finishedAt,
+    files: collectReleaseArtifacts()
+  };
   report.error = error ? (error instanceof Error ? error.message : String(error)) : null;
 }
 
@@ -418,6 +426,39 @@ function commandOutput(command, args) {
     return "";
   }
   return result.stdout.trim();
+}
+
+function collectReleaseArtifacts() {
+  return [
+    ...collectFiles("web", ["dist/index.html"]),
+    ...collectDirectoryFiles("web", "dist/assets", (path) => path.endsWith(".js") || path.endsWith(".css")),
+    ...collectFiles("react-native", [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"])
+  ].sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function collectFiles(group, paths) {
+  return paths.flatMap((path) => (existsSync(path) ? [createArtifactRecord(group, path)] : []));
+}
+
+function collectDirectoryFiles(group, directory, include) {
+  if (!existsSync(directory)) {
+    return [];
+  }
+  return readdirSync(directory)
+    .map((entry) => join(directory, entry))
+    .filter((path) => statSync(path).isFile() && include(path))
+    .map((path) => createArtifactRecord(group, path));
+}
+
+function createArtifactRecord(group, path) {
+  const absolutePath = resolve(path);
+  const content = readFileSync(absolutePath);
+  return {
+    group,
+    path: relative(cwd(), absolutePath),
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
 }
 
 function printUsage() {
