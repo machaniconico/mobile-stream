@@ -13,7 +13,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - OAuth/API-backed platform stream key controls: YouTube can create a new reusable Live Stream and apply its RTMPS key; Twitch can sync the current Helix stream key.
 - OAuth/API-backed publishing controls: YouTube can create, bind, refresh status, test, start, and complete scheduled Live Broadcasts; Twitch can update title, category, broadcaster language, and refresh live/offline status.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
-- Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, and sanitized report export/share.
+- Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, native runtime validation evidence, and sanitized report export/share.
 - Native composition readiness and diagnostics for native-supported avatar/text/image/solid overlays, underlay ordering, and Live2D gaps before device RTMP publishing.
 - Stream key redaction and no-secret browser persistence.
 - Keychain/Android Keystore-backed mobile profile storage for stream keys.
@@ -75,7 +75,7 @@ GitHub Actions runs the required `test` status check on pull requests and `main`
 - Encoding: VideoToolbox on iOS, MediaCodec on Android.
 - Streaming: RTMP/RTMPS publisher behind `src/native/LiveCasterNative.ts`.
 - Go Live readiness: fail closed before native capture starts, with UI-visible blocking reasons.
-- Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, bitrate/FPS/drop/reconnect telemetry, native publisher/compositor evidence, estimated upload target, post-stream session evidence, and sanitized export/share reports are available before, during, and after live sessions.
+- Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, bitrate/FPS/drop/reconnect telemetry, native publisher/compositor evidence, estimated upload target, post-stream session evidence, physical validation native-runtime evidence, and sanitized export/share reports are available before, during, and after live sessions.
 - Secret storage: browser persistence strips stream keys; mobile persistence uses Keychain/Android Keystore-backed native storage.
 - Stream key management: users can clear the stored key in-app and paste a replacement key without changing the destination preset.
 - Scene storage: web uses localStorage; Android uses app SharedPreferences; iOS writes an atomic scene JSON file under Application Support.

@@ -1240,6 +1240,9 @@ const StreamValidationRecorder = ({
               ? ""
               : ` / ${diagnostics.validationEvidence.latestRunAgeDays}d old`}
           </Text>
+          {validationRunNativeRuntimeLabel(latestRun) ? (
+            <Text style={styles.diagnosticIncidentRecommendation}>{validationRunNativeRuntimeLabel(latestRun)}</Text>
+          ) : null}
         </View>
       ) : null}
       <View style={styles.validationRecorder}>
@@ -1296,6 +1299,11 @@ const StreamValidationRecorder = ({
 
 const validationRunResultFromDiagnostics = (diagnostics: StreamDiagnostics): StreamValidationRunResult =>
   diagnostics.validation.status === "ready" ? "pass" : diagnostics.validation.status === "blocked" ? "fail" : "warn";
+
+const validationRunNativeRuntimeLabel = (run: StreamValidationRun): string | null =>
+  run.nativeRuntime
+    ? `native ${run.nativeRuntime.status} / ${run.nativeRuntime.platform} / publisher ${run.nativeRuntime.publisherState || "-"} / queue ${run.nativeRuntime.queuedItems}/${run.nativeRuntime.cacheSize}`
+    : null;
 
 const DiagnosticMetric = ({ label, value }: { label: string; value: string }) => (
   <View style={styles.diagnosticMetric}>

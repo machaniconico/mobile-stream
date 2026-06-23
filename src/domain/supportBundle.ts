@@ -50,6 +50,14 @@ export interface SupportBundle {
     validationEvidenceStaleRunCount: number;
     validationEvidencePassCount: number;
     validationEvidenceFailureCount: number;
+    validationEvidenceNativeRuntimeRunCount: number;
+    validationEvidenceNativeRuntimeWarningCount: number;
+    validationEvidenceNativeRuntimeFailureCount: number;
+    validationEvidenceLatestNativeRuntimeStatus: NonNullable<StreamDiagnostics["validationEvidence"]["latestNativeRuntime"]>["status"] | null;
+    validationEvidenceLatestNativeRuntimePlatform: NonNullable<StreamDiagnostics["validationEvidence"]["latestNativeRuntime"]>["platform"] | null;
+    validationEvidenceLatestNativeRuntimeCongested: boolean;
+    validationEvidenceLatestNativeRuntimeQueuedItems: number;
+    validationEvidenceLatestNativeRuntimeCacheSize: number;
     validationEvidenceIosPass: boolean;
     validationEvidenceAndroidPass: boolean;
     validationEvidenceAppBuildMismatch: boolean;
@@ -183,6 +191,14 @@ export const createSupportBundle = ({
       validationEvidenceStaleRunCount: diagnostics.validationEvidence.staleRunCount,
       validationEvidencePassCount: diagnostics.validationEvidence.passCount,
       validationEvidenceFailureCount: diagnostics.validationEvidence.failureCount,
+      validationEvidenceNativeRuntimeRunCount: diagnostics.validationEvidence.nativeRuntimeRunCount,
+      validationEvidenceNativeRuntimeWarningCount: diagnostics.validationEvidence.nativeRuntimeWarningCount,
+      validationEvidenceNativeRuntimeFailureCount: diagnostics.validationEvidence.nativeRuntimeFailureCount,
+      validationEvidenceLatestNativeRuntimeStatus: diagnostics.validationEvidence.latestNativeRuntime?.status ?? null,
+      validationEvidenceLatestNativeRuntimePlatform: diagnostics.validationEvidence.latestNativeRuntime?.platform ?? null,
+      validationEvidenceLatestNativeRuntimeCongested: diagnostics.validationEvidence.latestNativeRuntime?.congested ?? false,
+      validationEvidenceLatestNativeRuntimeQueuedItems: diagnostics.validationEvidence.latestNativeRuntime?.queuedItems ?? 0,
+      validationEvidenceLatestNativeRuntimeCacheSize: diagnostics.validationEvidence.latestNativeRuntime?.cacheSize ?? 0,
       validationEvidenceIosPass: diagnostics.validationEvidence.iosPass,
       validationEvidenceAndroidPass: diagnostics.validationEvidence.androidPass,
       validationEvidenceAppBuildMismatch: diagnostics.validationEvidence.appBuildMismatch,
@@ -324,6 +340,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Next step: ${bundle.diagnostics.validation.recommendedNextStep}`,
     `- Evidence: ${bundle.summary.validationEvidenceStatus} / ${bundle.summary.validationEvidenceRunCount} retained / ${bundle.summary.validationEvidenceEligibleRunCount} eligible / ${bundle.summary.validationEvidenceStaleRunCount} stale`,
     `- Evidence outcomes: ${bundle.summary.validationEvidencePassCount} pass / ${bundle.summary.validationEvidenceFailureCount} fail`,
+    `- Evidence native runtime: ${bundle.summary.validationEvidenceNativeRuntimeRunCount} retained / ${bundle.summary.validationEvidenceNativeRuntimeWarningCount} warn / ${bundle.summary.validationEvidenceNativeRuntimeFailureCount} fail / latest ${bundle.summary.validationEvidenceLatestNativeRuntimeStatus ?? "-"} ${bundle.summary.validationEvidenceLatestNativeRuntimePlatform ?? "-"} / congested ${bundle.summary.validationEvidenceLatestNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.validationEvidenceLatestNativeRuntimeQueuedItems}/${bundle.summary.validationEvidenceLatestNativeRuntimeCacheSize}`,
     `- Physical coverage: iOS ${bundle.summary.validationEvidenceIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAndroidPass ? "pass" : "missing"}`,
     `- Validation build: ${bundle.summary.validationEvidenceConsistentAppBuild ?? (bundle.summary.validationEvidenceAppBuildMismatch ? "mismatch" : "-")}`,
     `- Evidence summary: ${bundle.diagnostics.validationEvidence.summary}`,

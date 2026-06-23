@@ -1,4 +1,9 @@
 import type { StreamDiagnostics } from "./streamDiagnostics";
+import {
+  createNativeRuntimeSessionSummary,
+  normalizeNativeRuntimeSessionSummary,
+  type StreamSessionNativeRuntimeSummary
+} from "./streamSessionSummary";
 
 export type StreamValidationDevicePlatform = "ios" | "android";
 export type StreamValidationRunResult = "pass" | "warn" | "fail";
@@ -19,6 +24,7 @@ export interface StreamValidationRun {
   sessionOutcome: NonNullable<StreamDiagnostics["session"]["lastSummary"]>["outcome"] | null;
   healthSampleCount: number;
   completedSessionCount: number;
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null;
   validationItemStatuses: Array<{
     id: string;
     status: StreamDiagnostics["validation"]["items"][number]["status"];
@@ -46,6 +52,9 @@ export interface StreamValidationEvidenceSummary {
   passCount: number;
   warningCount: number;
   failureCount: number;
+  nativeRuntimeRunCount: number;
+  nativeRuntimeWarningCount: number;
+  nativeRuntimeFailureCount: number;
   status: "none" | "partial" | "failing" | "ready" | "stale";
   iosPass: boolean;
   androidPass: boolean;
@@ -55,6 +64,7 @@ export interface StreamValidationEvidenceSummary {
   latestRun: StreamValidationRun | null;
   latestEligibleRun: StreamValidationRun | null;
   latestPassingRun: StreamValidationRun | null;
+  latestNativeRuntime: StreamSessionNativeRuntimeSummary | null;
   latestRunAgeDays: number | null;
   maxAgeDays: number;
   summary: string;
@@ -88,13 +98,17 @@ export const createStreamValidationRun = ({
   const sanitizedOsVersion = sanitizeStoredText(osVersion, secrets) || "-";
   const sanitizedAppBuild = sanitizeStoredText(appBuild, secrets) || "-";
   const sanitizedNetworkProfile = sanitizeStoredText(networkProfile, secrets) || "private test";
+  const nativeRuntime =
+    createNativeRuntimeSessionSummary(diagnostics.nativeRuntime) ??
+    normalizeNativeRuntimeSessionSummary(diagnostics.session.lastSummary?.nativeRuntime);
+  const effectiveResult = createEffectiveValidationResult(result, nativeRuntime);
   const runBase = {
     createdAt,
     devicePlatform,
     deviceName: sanitizedDeviceName,
     targetPlatform: diagnostics.target.platform,
     transport: diagnostics.target.protocol,
-    result
+    result: effectiveResult
   };
 
   return {
@@ -107,18 +121,25 @@ export const createStreamValidationRun = ({
     networkProfile: sanitizedNetworkProfile,
     targetPlatform: diagnostics.target.platform,
     transport: diagnostics.target.protocol,
-    result,
+    result: effectiveResult,
     diagnosticStatus: diagnostics.status,
     checklistStatus: diagnostics.validation.status,
     sessionOutcome: diagnostics.session.lastSummary?.outcome ?? null,
     healthSampleCount: diagnostics.history.sampleCount,
     completedSessionCount: diagnostics.session.summaries.length,
+    nativeRuntime,
     validationItemStatuses: diagnostics.validation.items.map((item) => ({
       id: item.id,
       status: item.status
     })),
-    summary: createRunSummary(result, sanitizedDeviceName, diagnostics.target.platform, diagnostics.validation.status),
-    recommendation: createRunRecommendation(result, diagnostics.validation.recommendedNextStep)
+    summary: createRunSummary(
+      effectiveResult,
+      sanitizedDeviceName,
+      diagnostics.target.platform,
+      diagnostics.validation.status,
+      nativeRuntime
+    ),
+    recommendation: createRunRecommendation(effectiveResult, diagnostics.validation.recommendedNextStep, nativeRuntime)
   };
 };
 
@@ -205,9 +226,15 @@ export const summarizeStreamValidationEvidence = (
   const passCount = normalized.filter((run) => run.result === "pass").length;
   const warningCount = normalized.filter((run) => run.result === "warn").length;
   const failureCount = normalized.filter((run) => run.result === "fail").length;
+  const nativeRuntimeRuns = scopedRuns.filter((run) => run.nativeRuntime);
+  const nativeRuntimeRunCount = nativeRuntimeRuns.length;
+  const nativeRuntimeWarningCount = nativeRuntimeRuns.filter((run) => run.nativeRuntime?.status === "warn").length;
+  const nativeRuntimeFailureCount = nativeRuntimeRuns.filter((run) => run.nativeRuntime?.status === "fail").length;
   const latestRun = normalized[0] ?? null;
   const latestEligibleRun = eligibleRuns[0] ?? null;
   const latestPassingRun = eligibleRuns.find((run) => run.result === "pass") ?? null;
+  const latestNativeRuntime =
+    eligibleRuns.find((run) => run.nativeRuntime)?.nativeRuntime ?? scopedRuns.find((run) => run.nativeRuntime)?.nativeRuntime ?? null;
   const latestDeviceRuns = latestRunsByDevicePlatform(eligibleRuns);
   const iosLatestRun = latestDeviceRuns.find((run) => run.devicePlatform === "ios") ?? null;
   const androidLatestRun = latestDeviceRuns.find((run) => run.devicePlatform === "android") ?? null;
@@ -242,6 +269,9 @@ export const summarizeStreamValidationEvidence = (
     passCount,
     warningCount,
     failureCount,
+    nativeRuntimeRunCount,
+    nativeRuntimeWarningCount,
+    nativeRuntimeFailureCount,
     status,
     iosPass,
     androidPass,
@@ -251,6 +281,7 @@ export const summarizeStreamValidationEvidence = (
     latestRun,
     latestEligibleRun,
     latestPassingRun,
+    latestNativeRuntime,
     latestRunAgeDays: latestRun ? ageInDays(latestRun.createdAt, now) : null,
     maxAgeDays,
     summary: createEvidenceSummary(status, {
@@ -322,9 +353,22 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
     sessionOutcome,
     healthSampleCount: normalizeCount(value.healthSampleCount),
     completedSessionCount: normalizeCount(value.completedSessionCount),
+    nativeRuntime: normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
     validationItemStatuses: normalizeValidationItemStatuses(value.validationItemStatuses),
-    summary: normalizeText(value.summary, createRunSummary(result, normalizeText(value.deviceName, defaultDeviceName(devicePlatform)), targetPlatform, checklistStatus)),
-    recommendation: normalizeText(value.recommendation, createRunRecommendation(result, "Run another private validation pass."))
+    summary: normalizeText(
+      value.summary,
+      createRunSummary(
+        result,
+        normalizeText(value.deviceName, defaultDeviceName(devicePlatform)),
+        targetPlatform,
+        checklistStatus,
+        normalizeNativeRuntimeSessionSummary(value.nativeRuntime)
+      )
+    ),
+    recommendation: normalizeText(
+      value.recommendation,
+      createRunRecommendation(result, "Run another private validation pass.", normalizeNativeRuntimeSessionSummary(value.nativeRuntime))
+    )
   };
 
   return normalized;
@@ -457,25 +501,46 @@ const createEvidenceRecommendation = (
   return "Record private RTMPS validation runs from physical iOS and Android devices.";
 };
 
+const createEffectiveValidationResult = (
+  result: StreamValidationRunResult,
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null
+): StreamValidationRunResult => {
+  if (result === "fail" || nativeRuntime?.status === "fail") {
+    return "fail";
+  }
+  if (result === "warn" || nativeRuntime?.status === "warn") {
+    return "warn";
+  }
+  return "pass";
+};
+
 const createRunSummary = (
   result: StreamValidationRunResult,
   deviceName: string,
   targetPlatform: string,
-  checklistStatus: StreamDiagnostics["validation"]["status"]
+  checklistStatus: StreamDiagnostics["validation"]["status"],
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null
 ): string => {
   const prefix = result === "pass" ? "Passed" : result === "warn" ? "Needs review" : "Failed";
-  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}.`;
+  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}.${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}`;
 };
 
 const createRunRecommendation = (
   result: StreamValidationRunResult,
-  fallbackRecommendation: string
+  fallbackRecommendation: string,
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null
 ): string => {
+  if (nativeRuntime?.status === "fail") {
+    return nativeRuntime.recommendation;
+  }
   if (result === "pass") {
     return "Keep this run as release-candidate evidence and repeat on the other mobile platform.";
   }
   if (result === "fail") {
     return "Fix the validation failure, then repeat a private RTMPS run before public launch.";
+  }
+  if (nativeRuntime?.status === "warn") {
+    return nativeRuntime.recommendation;
   }
   return fallbackRecommendation;
 };

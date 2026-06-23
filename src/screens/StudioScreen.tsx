@@ -1110,6 +1110,7 @@ const StreamValidationRecorder = ({
               ? ""
               : ` / ${diagnostics.validationEvidence.latestRunAgeDays}d old`}
           </em>
+          {validationRunNativeRuntimeLabel(latestRun) ? <em>{validationRunNativeRuntimeLabel(latestRun)}</em> : null}
         </div>
       ) : null}
       <div className="validation-recorder">
@@ -1187,6 +1188,11 @@ const validationEvidenceTone = (diagnostics: StreamDiagnostics): "pass" | "warn"
 
 const validationRunTone = (result: StreamValidationRunResult): "pass" | "warn" | "fail" =>
   result === "pass" ? "pass" : result === "fail" ? "fail" : "warn";
+
+const validationRunNativeRuntimeLabel = (run: StreamValidationRun): string | null =>
+  run.nativeRuntime
+    ? `native ${run.nativeRuntime.status} / ${run.nativeRuntime.platform} / publisher ${run.nativeRuntime.publisherState || "-"} / queue ${run.nativeRuntime.queuedItems}/${run.nativeRuntime.cacheSize}`
+    : null;
 
 const ChatReaderPanel = ({
   chatReader,

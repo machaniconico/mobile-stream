@@ -19,6 +19,7 @@
 - Commercial pre-release validation checklist for configuration readiness, RTMPS transport, private ingest smoke tests, destination dashboard checks, physical-device evidence, retained session baselines, and support-bundle evidence across diagnostics, support bundles, Web, and React Native.
 - Physical validation evidence recording for iOS/Android private RTMP(S) runs, including retained pass/warn/fail run history, Web localStorage, mobile native storage, diagnostics integration, support bundle summaries, and Web/React Native recorder UI.
 - Release-candidate validation evidence gating for freshness, current destination/protocol matching, same-build iOS/Android coverage, stale evidence warnings, and support-bundle eligible/stale run counts.
+- Physical validation runs retain safe native runtime evidence from the current native publisher/compositor or the latest completed session, and native warn/fail states automatically downgrade retained validation outcomes.
 - Live quality advisor model for maintaining, monitoring, lowering quality, reconnecting, or stopping based on active incidents, history, and recovery state, with safe suggested-quality application in Web and React Native.
 - Redacted support bundle export combining preflight, diagnostics, scene composition, stream target, and safe profile summaries for support triage.
 - Stream quality incident model for active bitrate/FPS/drop/reconnect problems, recommendations, UI surfacing, and report export.
@@ -61,6 +62,7 @@
 - React Native mobile readiness panel, Go Live preflight banner, and invalid-profile blocking.
 - React Native mobile stream diagnostics panel using the shared diagnostics model, including health history, quality advisor, last-session summary, sanitized report sharing, and support bundle sharing.
 - Web and React Native diagnostics show last-session native runtime evidence for post-stream support triage.
+- Web and React Native validation evidence panels show latest-run native runtime evidence so release-candidate records can prove the native publisher/compositor path.
 - React Native mobile active stream quality incident panel with operator recommendations.
 - React Native mobile stream session event timeline using the shared diagnostics model.
 - React Native mobile chat reader panel with test comments, platform adapter ingest, safety controls, and speech settings.

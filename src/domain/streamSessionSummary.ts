@@ -299,7 +299,7 @@ const createRecommendation = (
   return "Review warnings before the next long session.";
 };
 
-const createNativeRuntimeSessionSummary = (
+export const createNativeRuntimeSessionSummary = (
   runtime: NativeRuntimeTelemetry | null | undefined
 ): StreamSessionNativeRuntimeSummary | null => {
   if (!runtime) {
@@ -456,7 +456,7 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
   };
 };
 
-const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSessionNativeRuntimeSummary | null => {
+export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSessionNativeRuntimeSummary | null => {
   if (!isRecord(value)) {
     return null;
   }

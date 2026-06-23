@@ -58,6 +58,126 @@ describe("stream validation evidence", () => {
     expect(run.recommendation).toContain("Start a private");
   });
 
+  it("stores safe native runtime evidence and downgrades passing runs that need review", () => {
+    const scene = createDefaultScene();
+    const streamKey = "validation-key";
+    const profile = profileWithKey(streamKey);
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30, message: `Publishing ${streamKey}` }),
+      nativeRuntime: {
+        platform: "android" as const,
+        runtimeStatus: "live",
+        updatedAt: Date.parse("2026-06-23T00:00:05.000Z"),
+        stale: false,
+        elapsedSeconds: 5,
+        videoFrames: 144,
+        encodedBytes: 2_200_000,
+        droppedFrames: 1,
+        publisher: {
+          state: "published",
+          reconnectAttempts: 0,
+          sentVideoFrames: 144,
+          sentAudioFrames: 240,
+          droppedVideoFrames: 1,
+          droppedAudioFrames: 0,
+          bytesWritten: 2_200_000,
+          cacheSize: 120,
+          itemsInCache: 64,
+          congested: true,
+          lastError: ""
+        },
+        composition: {
+          status: "applied" as const,
+          appliedCount: 1,
+          skippedCount: 0,
+          skippedKinds: [],
+          message: `Native screen capture ready ${streamKey}`
+        },
+        message: `Publishing ${streamKey}`
+      }
+    });
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z"),
+      secrets: [streamKey]
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.nativeRuntime).toMatchObject({
+      platform: "android",
+      status: "warn",
+      publisherState: "published",
+      congested: true,
+      queuedItems: 64,
+      cacheSize: 120
+    });
+    expect(JSON.stringify(run)).not.toContain(streamKey);
+    expect(JSON.stringify(run)).not.toContain("Native screen capture ready");
+    expect(summary.nativeRuntimeRunCount).toBe(1);
+    expect(summary.nativeRuntimeWarningCount).toBe(1);
+    expect(summary.nativeRuntimeFailureCount).toBe(0);
+    expect(summary.latestNativeRuntime?.status).toBe("warn");
+  });
+
+  it("fails validation runs when the native publisher reports a failure", () => {
+    const scene = createDefaultScene();
+    const profile = profileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30 }),
+      nativeRuntime: {
+        platform: "ios" as const,
+        runtimeStatus: "failed",
+        updatedAt: Date.parse("2026-06-23T00:00:05.000Z"),
+        stale: false,
+        elapsedSeconds: 5,
+        videoFrames: 48,
+        encodedBytes: 500_000,
+        droppedFrames: 0,
+        publisher: {
+          state: "failed",
+          reconnectAttempts: 2,
+          sentVideoFrames: 48,
+          sentAudioFrames: 90,
+          droppedVideoFrames: 0,
+          droppedAudioFrames: 1,
+          bytesWritten: 500_000,
+          cacheSize: 120,
+          itemsInCache: 0,
+          congested: false,
+          lastError: "socket reset while publishing"
+        },
+        composition: {
+          status: "applied" as const,
+          appliedCount: 1,
+          skippedCount: 0,
+          skippedKinds: [],
+          message: "Native compositor was ready"
+        },
+        message: "Publisher failed"
+      }
+    });
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+
+    expect(run.result).toBe("fail");
+    expect(run.nativeRuntime?.status).toBe("fail");
+    expect(run.recommendation).toContain("native runtime");
+    expect(JSON.stringify(run)).not.toContain("socket reset");
+  });
+
   it("normalizes, deduplicates, and retains newest validation runs first", () => {
     const scene = createDefaultScene();
     const profile = profileWithKey("validation-key");
