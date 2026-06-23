@@ -321,6 +321,105 @@ describe("stream validation evidence", () => {
     expect(summary.audioIosPass).toBe(false);
   });
 
+  it("requires native publisher and compositor proof for validation runs to pass", () => {
+    const scene = createDefaultScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntime("ios");
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: {
+          ...runtime,
+          publisher: {
+            ...runtime.publisher,
+            sentVideoFrames: 0,
+            sentAudioFrames: 0,
+            bytesWritten: 0
+          }
+        }
+      },
+      [],
+      [],
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.nativeRuntime).toMatchObject({
+      status: "pass",
+      sentVideoFrames: 0,
+      sentAudioFrames: 0,
+      bytesWritten: 0,
+      compositionStatus: "applied",
+      stillImageAssetLoadedCount: 1,
+      stillImageAssetMissingCount: 0
+    });
+    expect(run.audio?.status).toBe("pass");
+    expect(run.chatReadout?.status).toBe("pass");
+    expect(run.recommendation).toContain("native publisher/compositor telemetry");
+    expect(summary.nativeRuntimeRunCount).toBe(1);
+    expect(summary.nativeRuntimeReadyCount).toBe(0);
+    expect(summary.nativeRuntimeIosPass).toBe(false);
+  });
+
+  it("requires native runtime proof to match the validation device platform", () => {
+    const scene = createDefaultScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: nativeMonitorRuntime("android")
+      },
+      [],
+      [],
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.nativeRuntime).toMatchObject({
+      platform: "android",
+      status: "pass",
+      sentVideoFrames: 120,
+      sentAudioFrames: 190,
+      bytesWritten: 2_200_000
+    });
+    expect(run.recommendation).toContain("matching this validation device");
+    expect(summary.nativeRuntimeRunCount).toBe(1);
+    expect(summary.nativeRuntimeReadyCount).toBe(0);
+    expect(summary.nativeRuntimeIosPass).toBe(false);
+  });
+
   it("copies retained quality automation outcomes into validation evidence", () => {
     const scene = createDefaultScene();
     const profile = commercialProfileWithKey("validation-key");
@@ -642,17 +741,31 @@ describe("stream validation evidence", () => {
   });
 
   it("does not treat retained face tracking pass as avatar evidence when motion count is zero", () => {
-    const baseRun = createStreamValidationRun({
-      diagnostics: createStreamDiagnostics(createDefaultScene(), profileWithKey("validation-key"), createReadinessReport(createDefaultScene(), profileWithKey("validation-key")), {
+    const scene = createDefaultScene();
+    const profile = profileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const iosBaseRun = createStreamValidationRun({
+      diagnostics: createStreamDiagnostics(scene, profile, readiness, {
         state: { status: "idle" },
-        health: health()
+        health: health(),
+        nativeRuntime: nativeMonitorRuntime("ios")
       }),
       devicePlatform: "ios",
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
     });
+    const androidBaseRun = createStreamValidationRun({
+      diagnostics: createStreamDiagnostics(scene, profile, readiness, {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: nativeMonitorRuntime("android")
+      }),
+      devicePlatform: "android",
+      result: "pass",
+      now: new Date("2026-06-23T00:01:00.000Z")
+    });
     const iosRun = {
-      ...baseRun,
+      ...iosBaseRun,
       result: "pass" as const,
       faceTracking: {
         status: "pass" as const,
@@ -668,10 +781,9 @@ describe("stream validation evidence", () => {
       }
     };
     const androidRun = {
-      ...iosRun,
-      id: `${iosRun.id}-android`,
-      devicePlatform: "android" as const,
-      createdAt: "2026-06-23T00:01:00.000Z"
+      ...androidBaseRun,
+      result: "pass" as const,
+      faceTracking: iosRun.faceTracking
     };
 
     const summary = summarizeStreamValidationEvidence([androidRun, iosRun], { now: validationNow });

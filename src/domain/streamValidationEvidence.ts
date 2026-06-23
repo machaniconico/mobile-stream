@@ -128,8 +128,11 @@ export interface StreamValidationEvidenceSummary {
   warningCount: number;
   failureCount: number;
   nativeRuntimeRunCount: number;
+  nativeRuntimeReadyCount: number;
   nativeRuntimeWarningCount: number;
   nativeRuntimeFailureCount: number;
+  nativeRuntimeIosPass: boolean;
+  nativeRuntimeAndroidPass: boolean;
   faceTrackingRunCount: number;
   faceTrackingWarningCount: number;
   faceTrackingReadyCount: number;
@@ -224,7 +227,15 @@ export const createStreamValidationRun = ({
   const chatReadout = createChatReadoutValidationSummary(diagnostics, secrets);
   const qualityAutomation = createQualityAutomationValidationSummary(diagnostics, secrets);
   const platformPublishing = diagnostics.platformPublishing;
-  const effectiveResult = createEffectiveValidationResult(result, nativeRuntime, faceTracking, audio, chatReadout, platformPublishing);
+  const effectiveResult = createEffectiveValidationResult(
+    result,
+    devicePlatform,
+    nativeRuntime,
+    faceTracking,
+    audio,
+    chatReadout,
+    platformPublishing
+  );
   const runBase = {
     createdAt,
     devicePlatform,
@@ -370,6 +381,9 @@ export const summarizeStreamValidationEvidence = (
   const failureCount = normalized.filter((run) => run.result === "fail").length;
   const nativeRuntimeRuns = scopedRuns.filter((run) => run.nativeRuntime);
   const nativeRuntimeRunCount = nativeRuntimeRuns.length;
+  const nativeRuntimeReadyCount = nativeRuntimeRuns.filter((run) =>
+    isNativeRuntimeEvidencePass(run.nativeRuntime, run.devicePlatform)
+  ).length;
   const nativeRuntimeWarningCount = nativeRuntimeRuns.filter((run) => run.nativeRuntime?.status === "warn").length;
   const nativeRuntimeFailureCount = nativeRuntimeRuns.filter((run) => run.nativeRuntime?.status === "fail").length;
   const faceTrackingRuns = scopedRuns.filter((run) => run.faceTracking && run.faceTracking.status !== "info");
@@ -430,6 +444,8 @@ export const summarizeStreamValidationEvidence = (
   const androidLatestRun = latestDeviceRuns.find((run) => run.devicePlatform === "android") ?? null;
   const iosPass = iosLatestRun?.result === "pass";
   const androidPass = androidLatestRun?.result === "pass";
+  const nativeRuntimeIosPass = iosPass && isNativeRuntimeEvidencePass(iosLatestRun?.nativeRuntime, "ios");
+  const nativeRuntimeAndroidPass = androidPass && isNativeRuntimeEvidencePass(androidLatestRun?.nativeRuntime, "android");
   const faceTrackingIosPass = iosPass && isAvatarMotionEvidencePass(iosLatestRun?.faceTracking);
   const faceTrackingAndroidPass = androidPass && isAvatarMotionEvidencePass(androidLatestRun?.faceTracking);
   const audioIosPass = iosPass && isAudioEvidencePass(iosLatestRun?.audio);
@@ -456,6 +472,8 @@ export const summarizeStreamValidationEvidence = (
     iosPass,
     androidPass,
     appBuildMismatch,
+    nativeRuntimeIosPass,
+    nativeRuntimeAndroidPass,
     faceTrackingIosPass,
     faceTrackingAndroidPass,
     audioIosPass,
@@ -472,8 +490,11 @@ export const summarizeStreamValidationEvidence = (
     warningCount,
     failureCount,
     nativeRuntimeRunCount,
+    nativeRuntimeReadyCount,
     nativeRuntimeWarningCount,
     nativeRuntimeFailureCount,
+    nativeRuntimeIosPass,
+    nativeRuntimeAndroidPass,
     faceTrackingRunCount,
     faceTrackingWarningCount,
     faceTrackingReadyCount,
@@ -522,6 +543,8 @@ export const summarizeStreamValidationEvidence = (
       failureCount,
       iosPass,
       androidPass,
+      nativeRuntimeIosPass,
+      nativeRuntimeAndroidPass,
       faceTrackingIosPass,
       faceTrackingAndroidPass,
       audioIosPass,
@@ -539,6 +562,8 @@ export const summarizeStreamValidationEvidence = (
       maxAgeDays,
       iosPass,
       androidPass,
+      nativeRuntimeIosPass,
+      nativeRuntimeAndroidPass,
       faceTrackingIosPass,
       faceTrackingAndroidPass,
       audioIosPass,
@@ -653,6 +678,8 @@ const createEvidenceStatus = ({
   iosPass,
   androidPass,
   appBuildMismatch,
+  nativeRuntimeIosPass,
+  nativeRuntimeAndroidPass,
   faceTrackingIosPass,
   faceTrackingAndroidPass,
   audioIosPass,
@@ -667,6 +694,8 @@ const createEvidenceStatus = ({
   iosPass: boolean;
   androidPass: boolean;
   appBuildMismatch: boolean;
+  nativeRuntimeIosPass: boolean;
+  nativeRuntimeAndroidPass: boolean;
   faceTrackingIosPass: boolean;
   faceTrackingAndroidPass: boolean;
   audioIosPass: boolean;
@@ -687,6 +716,8 @@ const createEvidenceStatus = ({
     iosPass &&
     androidPass &&
     !appBuildMismatch &&
+    nativeRuntimeIosPass &&
+    nativeRuntimeAndroidPass &&
     faceTrackingIosPass &&
     faceTrackingAndroidPass &&
     audioIosPass &&
@@ -732,6 +763,19 @@ const latestRunsByTargetPlatform = (runs: StreamValidationRun[]): StreamValidati
 const isAvatarMotionEvidencePass = (faceTracking: StreamValidationFaceTrackingSummary | null | undefined): boolean =>
   faceTracking?.status === "pass" && faceTracking.activeMotionCount > 0;
 
+const isNativeRuntimeEvidencePass = (
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null | undefined,
+  expectedPlatform: StreamValidationDevicePlatform
+): boolean =>
+  nativeRuntime?.status === "pass" &&
+  nativeRuntime.platform === expectedPlatform &&
+  nativeRuntime.sentVideoFrames > 0 &&
+  nativeRuntime.sentAudioFrames > 0 &&
+  nativeRuntime.bytesWritten > 0 &&
+  (nativeRuntime.compositionStatus === "applied" || nativeRuntime.compositionStatus === "screen-only") &&
+  nativeRuntime.stillImageAssetMissingCount === 0 &&
+  nativeRuntime.stillImageAssetLoadedCount >= nativeRuntime.stillImageAssetCount;
+
 const isFeatureEvidencePass = (
   feature: { status: StreamValidationFeatureStatus } | null | undefined
 ): boolean => feature?.status === "pass";
@@ -756,6 +800,8 @@ const createEvidenceSummary = (
     failureCount: number;
     iosPass: boolean;
     androidPass: boolean;
+    nativeRuntimeIosPass: boolean;
+    nativeRuntimeAndroidPass: boolean;
     faceTrackingIosPass: boolean;
     faceTrackingAndroidPass: boolean;
     audioIosPass: boolean;
@@ -784,6 +830,9 @@ const createEvidenceSummary = (
   if (counts.appBuildMismatch) {
     return `Physical validation app builds do not match: iOS ${counts.iosAppBuild ?? "-"} / Android ${counts.androidAppBuild ?? "-"}.`;
   }
+  if (counts.iosPass && counts.androidPass && (!counts.nativeRuntimeIosPass || !counts.nativeRuntimeAndroidPass)) {
+    return `Physical validation is partial: iOS and Android passed, but retained native publisher/compositor evidence is incomplete: iOS ${counts.nativeRuntimeIosPass ? "pass" : "missing native runtime proof"} / Android ${counts.nativeRuntimeAndroidPass ? "pass" : "missing native runtime proof"}.`;
+  }
   if (counts.iosPass && counts.androidPass && (!counts.faceTrackingIosPass || !counts.faceTrackingAndroidPass)) {
     return `Physical validation is partial: iOS and Android passed, but retained VTuber avatar-motion evidence is incomplete: iOS ${counts.faceTrackingIosPass ? "pass" : "missing"} / Android ${counts.faceTrackingAndroidPass ? "pass" : "missing"}.`;
   }
@@ -807,6 +856,8 @@ const createEvidenceRecommendation = (
     maxAgeDays: number;
     iosPass: boolean;
     androidPass: boolean;
+    nativeRuntimeIosPass: boolean;
+    nativeRuntimeAndroidPass: boolean;
     faceTrackingIosPass: boolean;
     faceTrackingAndroidPass: boolean;
     audioIosPass: boolean;
@@ -823,6 +874,9 @@ const createEvidenceRecommendation = (
   }
   if (context.appBuildMismatch) {
     return "Record fresh iOS and Android validation passes on the same release-candidate build.";
+  }
+  if (context.iosPass && context.androidPass && (!context.nativeRuntimeIosPass || !context.nativeRuntimeAndroidPass)) {
+    return "Record fresh iOS and Android validation runs with native publisher/compositor telemetry showing sent video/audio frames, bytes written, clean compositor state, and all still-image assets loaded.";
   }
   if (context.iosPass && context.androidPass && (!context.faceTrackingIosPass || !context.faceTrackingAndroidPass)) {
     return "Record fresh iOS and Android validation runs with native camera tracking active and visible PNGTuber motion applied.";
@@ -844,6 +898,7 @@ const createEvidenceRecommendation = (
 
 const createEffectiveValidationResult = (
   result: StreamValidationRunResult,
+  devicePlatform: StreamValidationDevicePlatform,
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
   faceTracking: StreamValidationFaceTrackingSummary | null,
   audio: StreamValidationAudioSummary | null,
@@ -861,6 +916,7 @@ const createEffectiveValidationResult = (
   }
   if (
     result === "warn" ||
+    !isNativeRuntimeEvidencePass(nativeRuntime, devicePlatform) ||
     nativeRuntime?.status === "warn" ||
     faceTracking?.status === "warn" ||
     !isAudioEvidencePass(audio) ||
@@ -936,6 +992,9 @@ const createRunRecommendation = (
   }
   if (platformPublishing?.status === "warn") {
     return platformPublishing.recommendation;
+  }
+  if (nativeRuntime) {
+    return "Record native publisher/compositor telemetry matching this validation device and showing sent video/audio frames, bytes written, clean compositor state, and all still-image assets loaded.";
   }
   return fallbackRecommendation;
 };

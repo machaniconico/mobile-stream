@@ -102,13 +102,19 @@ export interface SupportBundle {
     validationEvidencePassCount: number;
     validationEvidenceFailureCount: number;
     validationEvidenceNativeRuntimeRunCount: number;
+    validationEvidenceNativeRuntimeReadyCount: number;
     validationEvidenceNativeRuntimeWarningCount: number;
     validationEvidenceNativeRuntimeFailureCount: number;
+    validationEvidenceNativeRuntimeIosPass: boolean;
+    validationEvidenceNativeRuntimeAndroidPass: boolean;
     validationEvidenceLatestNativeRuntimeStatus: NonNullable<StreamDiagnostics["validationEvidence"]["latestNativeRuntime"]>["status"] | null;
     validationEvidenceLatestNativeRuntimePlatform: NonNullable<StreamDiagnostics["validationEvidence"]["latestNativeRuntime"]>["platform"] | null;
     validationEvidenceLatestNativeRuntimeCongested: boolean;
     validationEvidenceLatestNativeRuntimeQueuedItems: number;
     validationEvidenceLatestNativeRuntimeCacheSize: number;
+    validationEvidenceLatestNativeRuntimeSentVideoFrames: number;
+    validationEvidenceLatestNativeRuntimeSentAudioFrames: number;
+    validationEvidenceLatestNativeRuntimeBytesWritten: number;
     validationEvidenceLatestNativeRuntimeStillImageAssetCount: number;
     validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount: number;
     validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount: number;
@@ -373,13 +379,19 @@ export const createSupportBundle = ({
       validationEvidencePassCount: diagnostics.validationEvidence.passCount,
       validationEvidenceFailureCount: diagnostics.validationEvidence.failureCount,
       validationEvidenceNativeRuntimeRunCount: diagnostics.validationEvidence.nativeRuntimeRunCount,
+      validationEvidenceNativeRuntimeReadyCount: diagnostics.validationEvidence.nativeRuntimeReadyCount,
       validationEvidenceNativeRuntimeWarningCount: diagnostics.validationEvidence.nativeRuntimeWarningCount,
       validationEvidenceNativeRuntimeFailureCount: diagnostics.validationEvidence.nativeRuntimeFailureCount,
+      validationEvidenceNativeRuntimeIosPass: diagnostics.validationEvidence.nativeRuntimeIosPass,
+      validationEvidenceNativeRuntimeAndroidPass: diagnostics.validationEvidence.nativeRuntimeAndroidPass,
       validationEvidenceLatestNativeRuntimeStatus: diagnostics.validationEvidence.latestNativeRuntime?.status ?? null,
       validationEvidenceLatestNativeRuntimePlatform: diagnostics.validationEvidence.latestNativeRuntime?.platform ?? null,
       validationEvidenceLatestNativeRuntimeCongested: diagnostics.validationEvidence.latestNativeRuntime?.congested ?? false,
       validationEvidenceLatestNativeRuntimeQueuedItems: diagnostics.validationEvidence.latestNativeRuntime?.queuedItems ?? 0,
       validationEvidenceLatestNativeRuntimeCacheSize: diagnostics.validationEvidence.latestNativeRuntime?.cacheSize ?? 0,
+      validationEvidenceLatestNativeRuntimeSentVideoFrames: diagnostics.validationEvidence.latestNativeRuntime?.sentVideoFrames ?? 0,
+      validationEvidenceLatestNativeRuntimeSentAudioFrames: diagnostics.validationEvidence.latestNativeRuntime?.sentAudioFrames ?? 0,
+      validationEvidenceLatestNativeRuntimeBytesWritten: diagnostics.validationEvidence.latestNativeRuntime?.bytesWritten ?? 0,
       validationEvidenceLatestNativeRuntimeStillImageAssetCount: diagnostics.validationEvidence.latestNativeRuntime?.stillImageAssetCount ?? 0,
       validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount: diagnostics.validationEvidence.latestNativeRuntime?.stillImageAssetLoadedCount ?? 0,
       validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount: diagnostics.validationEvidence.latestNativeRuntime?.stillImageAssetMissingCount ?? 0,
@@ -624,7 +636,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Next step: ${bundle.diagnostics.validation.recommendedNextStep}`,
     `- Evidence: ${bundle.summary.validationEvidenceStatus} / ${bundle.summary.validationEvidenceRunCount} retained / ${bundle.summary.validationEvidenceEligibleRunCount} eligible / ${bundle.summary.validationEvidenceStaleRunCount} stale`,
     `- Evidence outcomes: ${bundle.summary.validationEvidencePassCount} pass / ${bundle.summary.validationEvidenceFailureCount} fail`,
-    `- Evidence native runtime: ${bundle.summary.validationEvidenceNativeRuntimeRunCount} retained / ${bundle.summary.validationEvidenceNativeRuntimeWarningCount} warn / ${bundle.summary.validationEvidenceNativeRuntimeFailureCount} fail / latest ${bundle.summary.validationEvidenceLatestNativeRuntimeStatus ?? "-"} ${bundle.summary.validationEvidenceLatestNativeRuntimePlatform ?? "-"} / assets ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount} missing / congested ${bundle.summary.validationEvidenceLatestNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.validationEvidenceLatestNativeRuntimeQueuedItems}/${bundle.summary.validationEvidenceLatestNativeRuntimeCacheSize}`,
+    `- Evidence native runtime: ${bundle.summary.validationEvidenceNativeRuntimeRunCount} retained / ${bundle.summary.validationEvidenceNativeRuntimeReadyCount} ready / ${bundle.summary.validationEvidenceNativeRuntimeWarningCount} warn / ${bundle.summary.validationEvidenceNativeRuntimeFailureCount} fail / iOS ${bundle.summary.validationEvidenceNativeRuntimeIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceNativeRuntimeAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestNativeRuntimeStatus ?? "-"} ${bundle.summary.validationEvidenceLatestNativeRuntimePlatform ?? "-"} / sent ${bundle.summary.validationEvidenceLatestNativeRuntimeSentVideoFrames} video ${bundle.summary.validationEvidenceLatestNativeRuntimeSentAudioFrames} audio / bytes ${bundle.summary.validationEvidenceLatestNativeRuntimeBytesWritten} / assets ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount} missing / congested ${bundle.summary.validationEvidenceLatestNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.validationEvidenceLatestNativeRuntimeQueuedItems}/${bundle.summary.validationEvidenceLatestNativeRuntimeCacheSize}`,
     `- Evidence face tracking: ${bundle.summary.validationEvidenceFaceTrackingRunCount} retained / ${bundle.summary.validationEvidenceFaceTrackingReadyCount} ready / ${bundle.summary.validationEvidenceFaceTrackingWarningCount} warn / iOS ${bundle.summary.validationEvidenceFaceTrackingIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceFaceTrackingAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestFaceTrackingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestFaceTrackingRuntimeStatus ?? "-"} / prepared ${bundle.summary.validationEvidenceLatestFaceTrackingPreparedPngTuberCount} / moving ${bundle.summary.validationEvidenceLatestFaceTrackingActiveMotionCount}`,
     `- Evidence audio: ${bundle.summary.validationEvidenceAudioRunCount} retained / ${bundle.summary.validationEvidenceAudioReadyCount} ready / ${bundle.summary.validationEvidenceAudioWarningCount} warn / iOS ${bundle.summary.validationEvidenceAudioIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAudioAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestAudioStatus ?? "-"} ${bundle.summary.validationEvidenceLatestAudioPresetId ?? "-"} / monitor ${bundle.summary.validationEvidenceLatestAudioMonitorEnabled ? "on" : "off"} / headphones-only ${bundle.summary.validationEvidenceLatestAudioMonitorHeadphonesOnly ? "yes" : "no"} / route ${bundle.summary.validationEvidenceLatestAudioMonitorRouteStatus ?? "-"} ${bundle.summary.validationEvidenceLatestAudioOutputName ?? "-"} / headphones ${bundle.summary.validationEvidenceLatestAudioHeadphonesConnected ? "yes" : "no"} / stale ${bundle.summary.validationEvidenceLatestAudioRouteStale ? "yes" : "no"} / native monitor ${bundle.summary.validationEvidenceLatestAudioNativeMonitorReported ? (bundle.summary.validationEvidenceLatestAudioNativeMonitorRunning ? "running" : "reported") : "missing"} ${bundle.summary.validationEvidenceLatestAudioNativeMonitorWrittenFrames}/${bundle.summary.validationEvidenceLatestAudioNativeMonitorDroppedFrames} frames ${bundle.summary.validationEvidenceLatestAudioNativeMonitorOutputName ?? "-"} / buffers ${bundle.summary.validationEvidenceLatestAudioNativeMonitorWrittenBuffers}/${bundle.summary.validationEvidenceLatestAudioNativeMonitorDroppedBuffers} / samples ${bundle.summary.validationEvidenceLatestAudioLevelSampleCount} / peak ${Math.round(bundle.summary.validationEvidenceLatestAudioPeakLevel * 100)}% / clipped ${bundle.summary.validationEvidenceLatestAudioClippedLevelCount}`,
     `- Evidence chat readout: ${bundle.summary.validationEvidenceChatReadoutRunCount} retained / ${bundle.summary.validationEvidenceChatReadoutReadyCount} ready / ${bundle.summary.validationEvidenceChatReadoutWarningCount} warn / iOS ${bundle.summary.validationEvidenceChatReadoutIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceChatReadoutAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestChatReadoutStatus ?? "-"} ${bundle.summary.validationEvidenceLatestChatReadoutConnectionPhase ?? "-"} / spoken ${bundle.summary.validationEvidenceLatestChatReadoutSpokenMessageCount} / failed ${bundle.summary.validationEvidenceLatestChatReadoutSpeechFailureCount}`,

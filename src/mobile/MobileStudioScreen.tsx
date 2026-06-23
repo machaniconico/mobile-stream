@@ -1519,7 +1519,9 @@ const StreamValidationRecorder = ({
           {diagnostics.validationEvidence.eligibleRunCount}/{diagnostics.validationEvidence.totalRuns} eligible /{" "}
           {diagnostics.validationEvidence.staleRunCount} stale / iOS {diagnostics.validationEvidence.iosPass ? "pass" : "missing"} / Android{" "}
           {diagnostics.validationEvidence.androidPass ? "pass" : "missing"} / build{" "}
-          {diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")} / face{" "}
+          {diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")} / native iOS{" "}
+          {diagnostics.validationEvidence.nativeRuntimeIosPass ? "pass" : "missing"} / Android{" "}
+          {diagnostics.validationEvidence.nativeRuntimeAndroidPass ? "pass" : "missing"} / face{" "}
           iOS {diagnostics.validationEvidence.faceTrackingIosPass ? "pass" : "missing"} / Android{" "}
           {diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"} / audio iOS{" "}
           {diagnostics.validationEvidence.audioIosPass ? "pass" : "missing"} / Android{" "}

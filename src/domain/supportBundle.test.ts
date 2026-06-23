@@ -236,7 +236,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / assets 1/1 loaded / 0 missing / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
-    expect(formatSupportBundle(bundle)).toContain("Evidence native runtime: 0 retained / 0 warn / 0 fail");
+    expect(formatSupportBundle(bundle)).toContain("Evidence native runtime: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - - / sent 0 video 0 audio / bytes 0");
     expect(formatSupportBundle(bundle)).toContain("Evidence face tracking: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence audio: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence chat readout: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
@@ -268,7 +268,42 @@ describe("support bundle", () => {
     const readiness = createReadinessReport(scene, profile);
     const baseDiagnostics = createStreamDiagnostics(scene, profile, readiness, {
       state: { status: "live" },
-      health: health({ bitrateKbps: 3500, fps: 30 })
+      health: health({ bitrateKbps: 3500, fps: 30 }),
+      nativeRuntime: {
+        platform: "ios",
+        runtimeStatus: "live",
+        updatedAt: Date.parse("2026-06-23T00:00:45.000Z"),
+        stale: false,
+        elapsedSeconds: 45,
+        videoFrames: 0,
+        encodedBytes: 0,
+        droppedFrames: 0,
+        publisher: {
+          state: "published",
+          reconnectAttempts: 0,
+          sentVideoFrames: 0,
+          sentAudioFrames: 0,
+          droppedVideoFrames: 0,
+          droppedAudioFrames: 0,
+          bytesWritten: 0,
+          cacheSize: 120,
+          itemsInCache: 0,
+          congested: false,
+          lastError: ""
+        },
+        composition: {
+          status: "applied",
+          appliedCount: 1,
+          skippedCount: 0,
+          skippedKinds: [],
+          stillImageAssetCount: 1,
+          stillImageAssetLoadedCount: 1,
+          stillImageAssetMissingCount: 0,
+          stillImageAssetMissingKinds: [],
+          message: "Native overlays applied"
+        },
+        message: "Native runtime live"
+      }
     }, [
       {
         id: "quality-live-update-validation",
@@ -322,6 +357,10 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidencePlatformPublishingFreshnessAgeMinutes).toBe(20);
     expect(bundle.summary.validationEvidencePlatformPublishingFreshnessSummary).toContain("20 minutes old");
     expect(bundle.summary.platformPublishingFreshnessStatus).toBe("stale");
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeSentVideoFrames).toBe(0);
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeSentAudioFrames).toBe(0);
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeBytesWritten).toBe(0);
+    expect(text).toContain("Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / sent 0 video 0 audio / bytes 0");
     expect(text).toContain("Evidence quality automation: 1 retained / live 1 / next-start 0 / failed 0");
     expect(text).toContain("Evidence platform dashboard freshness: stale / YouTube dashboard status is 20 minutes old.");
     expect(text).toContain("Publishing status freshness: stale / YouTube dashboard status is 20 minutes old.");

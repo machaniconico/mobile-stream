@@ -12,6 +12,7 @@ import {
 } from "./streamDiagnostics";
 import { createStreamSessionSummary } from "./streamSessionSummary";
 import { createStreamStartPreflightReport } from "./streamStartPreflight";
+import { createStreamValidationRun } from "./streamValidationEvidence";
 import { initialStreamState, type StreamHealth } from "./streamState";
 
 const health = (update: Partial<StreamHealth> = {}): StreamHealth => ({
@@ -90,6 +91,84 @@ describe("stream diagnostics", () => {
     expect(report).toContain("Platform Publishing");
     expect(report).toContain("YouTube dashboard: broadcast live, stream active, health ok, issues 0, checked 2026-06-23T00:00:00.000Z.");
     expect(report).toContain("- Freshness: fresh / YouTube dashboard status was checked 5 minutes ago.");
+  });
+
+  it("exports retained native runtime proof frame and byte counts in validation evidence", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const nativeRuntime = {
+      platform: "ios" as const,
+      runtimeStatus: "live" as const,
+      updatedAt: Date.parse("2026-06-23T00:00:45.000Z"),
+      stale: false,
+      elapsedSeconds: 45,
+      videoFrames: 0,
+      encodedBytes: 0,
+      droppedFrames: 0,
+      publisher: {
+        state: "published" as const,
+        reconnectAttempts: 0,
+        sentVideoFrames: 0,
+        sentAudioFrames: 0,
+        droppedVideoFrames: 0,
+        droppedAudioFrames: 0,
+        bytesWritten: 0,
+        cacheSize: 120,
+        itemsInCache: 0,
+        congested: false,
+        lastError: ""
+      },
+      composition: {
+        status: "applied" as const,
+        appliedCount: 1,
+        skippedCount: 0,
+        skippedKinds: [],
+        stillImageAssetCount: 1,
+        stillImageAssetLoadedCount: 1,
+        stillImageAssetMissingCount: 0,
+        stillImageAssetMissingKinds: [],
+        message: "Native overlays applied"
+      },
+      message: "Native runtime live"
+    };
+    const baseDiagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30 }),
+      nativeRuntime
+    });
+    const run = createStreamValidationRun({
+      diagnostics: baseDiagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:01:00.000Z")
+    });
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health()
+      },
+      [],
+      [],
+      [],
+      [run]
+    );
+    const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics, new Date("2026-06-23T00:05:00.000Z")));
+
+    expect(diagnostics.validationEvidence.nativeRuntimeRunCount).toBe(1);
+    expect(diagnostics.validationEvidence.nativeRuntimeReadyCount).toBe(0);
+    expect(report).toContain(
+      "Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / sent 0 video 0 audio / bytes 0"
+    );
   });
 
   it("reports blocking checks when the stream key is missing", () => {
