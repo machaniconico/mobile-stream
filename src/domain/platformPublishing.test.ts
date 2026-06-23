@@ -418,6 +418,50 @@ describe("platformPublishing", () => {
     expect(result.message).toBe("Twitch status refreshed: offline.");
   });
 
+  it("fails safely when platform publishing HTTP errors have unreadable JSON bodies", async () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        youtubeStreamId: "stream-1"
+      }
+    };
+    const json = vi.fn(async () => {
+      throw new Error("raw upstream body with yt-access token");
+    });
+    const fetcher = vi.fn(async (..._args: Parameters<PlatformChatFetch>) => ({
+      ok: false,
+      status: 503,
+      json
+    }));
+
+    await expect(createYouTubeBroadcastAndBindStream(profile, youtubeCredential(), fetcher)).rejects.toThrow(
+      "YouTube broadcast creation failed with HTTP 503."
+    );
+    expect(json).not.toHaveBeenCalled();
+  });
+
+  it("fails safely when a successful platform publishing response is not JSON", async () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        youtubeBroadcastId: "broadcast-1"
+      }
+    };
+    const fetcher = vi.fn(async (..._args: Parameters<PlatformChatFetch>) => ({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new Error("html outage page with tw-access token");
+      }
+    }));
+
+    await expect(refreshYouTubeBroadcastStatus(profile, youtubeCredential(), fetcher)).rejects.toThrow(
+      "YouTube broadcast status request returned unreadable JSON with HTTP 200."
+    );
+  });
+
   it("requires a saved YouTube stream ID before creating a bound broadcast", async () => {
     await expect(
       createYouTubeBroadcastAndBindStream(createDefaultStudioProfile(), youtubeCredential(), vi.fn())

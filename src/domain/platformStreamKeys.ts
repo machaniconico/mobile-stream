@@ -79,11 +79,11 @@ export const rotateYouTubeStreamKey = async (
       }
     })
   });
-  const payload = (await response.json()) as YouTubeLiveStreamResource;
-
-  if (!response.ok) {
-    throw new PlatformStreamKeyError(`YouTube live stream creation failed with HTTP ${response.status}.`);
-  }
+  assertPlatformStreamKeyResponseOk(response, "YouTube live stream creation");
+  const payload = await readPlatformStreamKeyJson<YouTubeLiveStreamResource>(
+    response,
+    "YouTube live stream creation"
+  );
 
   const destination = createYouTubeDestinationFromStream(profile.destination, payload);
   const youtubeStreamId = normalizeSingleLine(payload.id);
@@ -123,11 +123,8 @@ export const syncTwitchStreamKey = async (
       "Client-Id": normalizedCredential.clientId
     }
   });
-  const payload = (await response.json()) as TwitchStreamKeyResponse;
-
-  if (!response.ok) {
-    throw new PlatformStreamKeyError(`Twitch stream key request failed with HTTP ${response.status}.`);
-  }
+  assertPlatformStreamKeyResponseOk(response, "Twitch stream key request");
+  const payload = await readPlatformStreamKeyJson<TwitchStreamKeyResponse>(response, "Twitch stream key request");
 
   const streamKey = normalizeSingleLine(payload.data?.[0]?.stream_key);
   if (!streamKey) {
@@ -204,6 +201,26 @@ const requirePlatformCredential = (
 const requireScope = (credential: PlatformChatOAuthCredential, scope: string, message: string) => {
   if (!credential.scopes.includes(scope)) {
     throw new PlatformStreamKeyError(message);
+  }
+};
+
+const assertPlatformStreamKeyResponseOk = (
+  response: Awaited<ReturnType<PlatformChatFetch>>,
+  operation: string
+) => {
+  if (!response.ok) {
+    throw new PlatformStreamKeyError(`${operation} failed with HTTP ${response.status}.`);
+  }
+};
+
+const readPlatformStreamKeyJson = async <T>(
+  response: Awaited<ReturnType<PlatformChatFetch>>,
+  operation: string
+): Promise<T> => {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new PlatformStreamKeyError(`${operation} returned unreadable JSON with HTTP ${response.status}.`);
   }
 };
 

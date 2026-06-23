@@ -152,11 +152,11 @@ export const createYouTubeBroadcastAndBindStream = async (
       }
     })
   });
-  const inserted = (await insertResponse.json()) as YouTubeLiveBroadcastResource;
-
-  if (!insertResponse.ok) {
-    throw new PlatformPublishingError(`YouTube broadcast creation failed with HTTP ${insertResponse.status}.`);
-  }
+  assertPlatformPublishingResponseOk(insertResponse, "YouTube broadcast creation");
+  const inserted = await readPlatformPublishingJson<YouTubeLiveBroadcastResource>(
+    insertResponse,
+    "YouTube broadcast creation"
+  );
 
   const broadcastId = normalizeSingleLine(inserted.id);
   if (!broadcastId) {
@@ -177,11 +177,8 @@ export const createYouTubeBroadcastAndBindStream = async (
       }
     }
   );
-  const bound = (await bindResponse.json()) as YouTubeLiveBroadcastResource;
-
-  if (!bindResponse.ok) {
-    throw new PlatformPublishingError(`YouTube broadcast bind failed with HTTP ${bindResponse.status}.`);
-  }
+  assertPlatformPublishingResponseOk(bindResponse, "YouTube broadcast bind");
+  const bound = await readPlatformPublishingJson<YouTubeLiveBroadcastResource>(bindResponse, "YouTube broadcast bind");
 
   const liveChatId = normalizeSingleLine(bound.snippet?.liveChatId || inserted.snippet?.liveChatId);
   const nextPublishing: PlatformPublishingSettings = {
@@ -237,11 +234,11 @@ export const transitionYouTubeBroadcast = async (
       }
     }
   );
-  const payload = (await response.json()) as YouTubeLiveBroadcastResource;
-
-  if (!response.ok) {
-    throw new PlatformPublishingError(`YouTube broadcast transition to ${broadcastStatus} failed with HTTP ${response.status}.`);
-  }
+  assertPlatformPublishingResponseOk(response, `YouTube broadcast transition to ${broadcastStatus}`);
+  const payload = await readPlatformPublishingJson<YouTubeLiveBroadcastResource>(
+    response,
+    `YouTube broadcast transition to ${broadcastStatus}`
+  );
 
   const liveChatId = normalizeSingleLine(payload.snippet?.liveChatId || settings.youtubeLiveChatId);
   const nextStatus = normalizeSingleLine(payload.status?.lifeCycleStatus) || broadcastStatus;
@@ -292,11 +289,11 @@ export const refreshYouTubeBroadcastStatus = async (
       }
     }
   );
-  const broadcastPayload = (await broadcastResponse.json()) as YouTubeLiveBroadcastListResponse;
-
-  if (!broadcastResponse.ok) {
-    throw new PlatformPublishingError(`YouTube broadcast status request failed with HTTP ${broadcastResponse.status}.`);
-  }
+  assertPlatformPublishingResponseOk(broadcastResponse, "YouTube broadcast status request");
+  const broadcastPayload = await readPlatformPublishingJson<YouTubeLiveBroadcastListResponse>(
+    broadcastResponse,
+    "YouTube broadcast status request"
+  );
 
   const broadcast = broadcastPayload.items?.[0];
   if (!broadcast) {
@@ -329,11 +326,11 @@ export const refreshYouTubeBroadcastStatus = async (
         }
       }
     );
-    const streamPayload = (await streamResponse.json()) as YouTubeLiveStreamListResponse;
-
-    if (!streamResponse.ok) {
-      throw new PlatformPublishingError(`YouTube stream status request failed with HTTP ${streamResponse.status}.`);
-    }
+    assertPlatformPublishingResponseOk(streamResponse, "YouTube stream status request");
+    const streamPayload = await readPlatformPublishingJson<YouTubeLiveStreamListResponse>(
+      streamResponse,
+      "YouTube stream status request"
+    );
 
     const stream = streamPayload.items?.[0];
     if (stream) {
@@ -388,11 +385,11 @@ export const refreshTwitchChannelStatus = async (
       headers: createTwitchJsonHeaders(normalizedCredential)
     }
   );
-  const channelPayload = (await channelResponse.json()) as TwitchChannelInformationResponse;
-
-  if (!channelResponse.ok) {
-    throw new PlatformPublishingError(`Twitch channel status request failed with HTTP ${channelResponse.status}.`);
-  }
+  assertPlatformPublishingResponseOk(channelResponse, "Twitch channel status request");
+  const channelPayload = await readPlatformPublishingJson<TwitchChannelInformationResponse>(
+    channelResponse,
+    "Twitch channel status request"
+  );
 
   const channel = channelPayload.data?.[0];
   if (!channel) {
@@ -405,11 +402,11 @@ export const refreshTwitchChannelStatus = async (
       headers: createTwitchJsonHeaders(normalizedCredential)
     }
   );
-  const streamPayload = (await streamResponse.json()) as TwitchStreamsResponse;
-
-  if (!streamResponse.ok) {
-    throw new PlatformPublishingError(`Twitch stream status request failed with HTTP ${streamResponse.status}.`);
-  }
+  assertPlatformPublishingResponseOk(streamResponse, "Twitch stream status request");
+  const streamPayload = await readPlatformPublishingJson<TwitchStreamsResponse>(
+    streamResponse,
+    "Twitch stream status request"
+  );
 
   const stream = streamPayload.data?.[0];
   const channelTitle = normalizeSingleLine(channel.title);
@@ -527,11 +524,8 @@ const resolveTwitchCategory = async (
       "Client-Id": credential.clientId ?? ""
     }
   });
-  const payload = (await response.json()) as TwitchCategorySearchResponse;
-
-  if (!response.ok) {
-    throw new PlatformPublishingError(`Twitch category search failed with HTTP ${response.status}.`);
-  }
+  assertPlatformPublishingResponseOk(response, "Twitch category search");
+  const payload = await readPlatformPublishingJson<TwitchCategorySearchResponse>(response, "Twitch category search");
 
   const categories = (payload.data ?? [])
     .map((category) => ({
@@ -562,6 +556,26 @@ const requirePlatformCredential = (
 const requireScope = (credential: PlatformChatOAuthCredential, scope: string, message: string) => {
   if (!credential.scopes.includes(scope)) {
     throw new PlatformPublishingError(message);
+  }
+};
+
+const assertPlatformPublishingResponseOk = (
+  response: Awaited<ReturnType<PlatformChatFetch>>,
+  operation: string
+) => {
+  if (!response.ok) {
+    throw new PlatformPublishingError(`${operation} failed with HTTP ${response.status}.`);
+  }
+};
+
+const readPlatformPublishingJson = async <T>(
+  response: Awaited<ReturnType<PlatformChatFetch>>,
+  operation: string
+): Promise<T> => {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new PlatformPublishingError(`${operation} returned unreadable JSON with HTTP ${response.status}.`);
   }
 };
 

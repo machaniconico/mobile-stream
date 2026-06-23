@@ -125,6 +125,36 @@ describe("platformStreamKeys", () => {
     ).rejects.toThrow("channel:read:stream_key");
   });
 
+  it("fails safely when stream key HTTP errors have unreadable JSON bodies", async () => {
+    const json = vi.fn(async () => {
+      throw new Error("raw upstream body with tw-access token");
+    });
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json
+    });
+
+    await expect(syncTwitchStreamKey(createDefaultStudioProfile(), twitchCredential(), fetcher)).rejects.toThrow(
+      "Twitch stream key request failed with HTTP 401."
+    );
+    expect(json).not.toHaveBeenCalled();
+  });
+
+  it("fails safely when a successful stream key response is not JSON", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new Error("html outage page with yt-access token");
+      }
+    });
+
+    await expect(rotateYouTubeStreamKey(createDefaultStudioProfile(), youtubeCredential(), fetcher)).rejects.toThrow(
+      "YouTube live stream creation returned unreadable JSON with HTTP 200."
+    );
+  });
+
   it("normalizes YouTube and Twitch destinations from API stream keys", () => {
     expect(
       createYouTubeDestinationFromStream(createDefaultStudioProfile().destination, {

@@ -103,7 +103,7 @@ export interface TwitchIrcParseResult {
 }
 
 export class PlatformChatNetworkError extends Error {
-  readonly code: PlatformChatNetworkReadinessStatus | "http-error" | "invalid-platform";
+  readonly code: PlatformChatNetworkReadinessStatus | "http-error" | "invalid-json" | "invalid-platform";
   readonly statusCode: number | null;
 
   constructor(code: PlatformChatNetworkError["code"], message: string, statusCode: number | null = null) {
@@ -453,7 +453,7 @@ export const fetchYouTubeLiveChatPage = async (
     throw new PlatformChatNetworkError("http-error", `YouTube chat request failed with HTTP ${response.status}.`, response.status);
   }
 
-  const payload = (await response.json()) as YouTubeLiveChatListResponse;
+  const payload = await readPlatformChatJson<YouTubeLiveChatListResponse>(response, "YouTube chat request");
   const ingest = ingestYouTubeLiveChatResponse(payload, receivedAt);
 
   return {
@@ -461,6 +461,21 @@ export const fetchYouTubeLiveChatPage = async (
     nextCursor: ingest.nextCursor,
     nextPollIntervalMs: ingest.nextPollIntervalMs ?? DEFAULT_YOUTUBE_POLL_INTERVAL_MS
   };
+};
+
+const readPlatformChatJson = async <T>(
+  response: PlatformChatFetchResponse,
+  operation: string
+): Promise<T> => {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new PlatformChatNetworkError(
+      "invalid-json",
+      `${operation} returned unreadable JSON with HTTP ${response.status}.`,
+      response.status
+    );
+  }
 };
 
 export const createTwitchIrcAuthenticationCommands = (

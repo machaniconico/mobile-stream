@@ -42,6 +42,7 @@
 - Shared stream session event log for status transitions, manual operations, automatic recovery actions, support diagnostics, and redacted report export.
 - Stream key redaction and no-secret browser persistence.
 - Sensitive OAuth/API error message redaction before user-facing status display.
+- OAuth, stream-key, platform publishing, and YouTube chat API calls fail closed with sanitized HTTP/unreadable-JSON errors when upstream responses are empty, non-JSON, or unavailable.
 - Native Android/iOS status and publisher-runtime message redaction for publish URLs, stream keys, and bearer tokens before app display.
 - In-app stream key clear/replacement controls for browser and mobile setup screens.
 - Mic effect profile model with presets, gain, noise gate, compression, and headphone monitor settings.

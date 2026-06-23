@@ -204,11 +204,8 @@ export const startTwitchDeviceCodeOAuthFlow = async (
       scopes: TWITCH_REQUIRED_SCOPES
     })
   });
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new PlatformChatOAuthError(`Twitch device OAuth start failed with HTTP ${response.status}.`);
-  }
+  assertPlatformChatOAuthResponseOk(response, "Twitch device OAuth start");
+  const payload = await readPlatformChatOAuthJson(response, "Twitch device OAuth start");
 
   const deviceCode = readStringField(payload, "device_code");
   const userCode = readStringField(payload, "user_code");
@@ -276,11 +273,11 @@ export const pollTwitchDeviceCodeOAuthFlow = async (
       grant_type: "urn:ietf:params:oauth:grant-type:device_code"
     })
   });
-  const payload = await response.json();
   const nextFlow: TwitchDeviceCodeOAuthFlow = {
     ...flow,
     lastPollAt: receivedAt
   };
+  const payload = await readPlatformChatOAuthJson(response, "Twitch device OAuth token request");
 
   if (!response.ok) {
     const errorCode = readStringField(payload, "message") || readStringField(payload, "error");
@@ -426,10 +423,8 @@ export const exchangeYouTubeOAuthCode = async (
     })
   });
 
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new PlatformChatOAuthError(`YouTube token exchange failed with HTTP ${response.status}.`);
-  }
+  assertPlatformChatOAuthResponseOk(response, "YouTube token exchange");
+  const payload = await readPlatformChatOAuthJson(response, "YouTube token exchange");
 
   return {
     ...normalizeTokenPayload("youtube", payload, receivedAt),
@@ -468,11 +463,8 @@ export const refreshYouTubeOAuthCredential = async (
       refresh_token: normalizedCredential.refreshToken
     })
   });
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new PlatformChatOAuthError(`YouTube token refresh failed with HTTP ${response.status}.`);
-  }
+  assertPlatformChatOAuthResponseOk(response, "YouTube token refresh");
+  const payload = await readPlatformChatOAuthJson(response, "YouTube token refresh");
 
   const refreshed = normalizeTokenPayload("youtube", payload, receivedAt);
   return {
@@ -513,11 +505,8 @@ export const refreshTwitchOAuthCredential = async (
       refresh_token: normalizedCredential.refreshToken
     })
   });
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new PlatformChatOAuthError(`Twitch token refresh failed with HTTP ${response.status}.`);
-  }
+  assertPlatformChatOAuthResponseOk(response, "Twitch token refresh");
+  const payload = await readPlatformChatOAuthJson(response, "Twitch token refresh");
 
   const refreshed = normalizeTokenPayload("twitch", payload, receivedAt);
   return hydrateTwitchCredential(
@@ -549,11 +538,8 @@ export const validateTwitchOAuthToken = async (
       Authorization: `OAuth ${token}`
     }
   });
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new PlatformChatOAuthError(`Twitch token validation failed with HTTP ${response.status}.`);
-  }
+  assertPlatformChatOAuthResponseOk(response, "Twitch token validation");
+  const payload = await readPlatformChatOAuthJson(response, "Twitch token validation");
 
   return {
     platform: "twitch",
@@ -937,6 +923,26 @@ const createQueryParams = (params: Record<string, string>): string => {
     query.set(key, value);
   }
   return query.toString();
+};
+
+const assertPlatformChatOAuthResponseOk = (
+  response: Awaited<ReturnType<PlatformChatFetch>>,
+  operation: string
+) => {
+  if (!response.ok) {
+    throw new PlatformChatOAuthError(`${operation} failed with HTTP ${response.status}.`);
+  }
+};
+
+const readPlatformChatOAuthJson = async (
+  response: Awaited<ReturnType<PlatformChatFetch>>,
+  operation: string
+): Promise<unknown> => {
+  try {
+    return await response.json();
+  } catch {
+    throw new PlatformChatOAuthError(`${operation} returned unreadable JSON with HTTP ${response.status}.`);
+  }
 };
 
 const normalizeSingleLine = (value: unknown): string => (typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "");

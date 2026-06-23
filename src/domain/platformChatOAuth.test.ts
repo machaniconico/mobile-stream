@@ -190,6 +190,20 @@ describe("platformChatOAuth", () => {
     });
   });
 
+  it("fails safely when a successful YouTube token response is not JSON", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new Error("html outage page with yt-code");
+      }
+    });
+
+    await expect(exchangeYouTubeOAuthCode("yt-code", "verifier", oauthSettings(), fetcher, 1000)).rejects.toThrow(
+      "YouTube token exchange returned unreadable JSON with HTTP 200."
+    );
+  });
+
   it("refreshes YouTube access tokens with stored refresh tokens", async () => {
     const fetcher = vi.fn().mockResolvedValue({
       ok: true,
@@ -307,6 +321,22 @@ describe("platformChatOAuth", () => {
       intervalMs: 5000,
       lastPollAt: null
     });
+  });
+
+  it("does not parse Twitch device OAuth start HTTP error bodies", async () => {
+    const json = vi.fn(async () => {
+      throw new Error("raw body with twitch-client");
+    });
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      json
+    });
+
+    await expect(startTwitchDeviceCodeOAuthFlow(oauthSettings(), fetcher, 1000)).rejects.toThrow(
+      "Twitch device OAuth start failed with HTTP 503."
+    );
+    expect(json).not.toHaveBeenCalled();
   });
 
   it("keeps Twitch device OAuth pending until the user authorizes", async () => {

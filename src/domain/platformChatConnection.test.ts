@@ -246,6 +246,54 @@ describe("platformChatConnection", () => {
     });
   });
 
+  it("does not parse YouTube chat HTTP error bodies", async () => {
+    const json = vi.fn(async () => {
+      throw new Error("raw body with yt-token");
+    });
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      json
+    });
+
+    await expect(
+      fetchYouTubeLiveChatPage(
+        youtubeSettings(),
+        normalizePlatformChatAuthSession({ youtubeAccessToken: "yt-token" }),
+        null,
+        fetcher
+      )
+    ).rejects.toMatchObject({
+      code: "http-error",
+      statusCode: 429,
+      message: "YouTube chat request failed with HTTP 429."
+    });
+    expect(json).not.toHaveBeenCalled();
+  });
+
+  it("fails safely when a YouTube chat response is not JSON", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new Error("html outage page with yt-token");
+      }
+    });
+
+    await expect(
+      fetchYouTubeLiveChatPage(
+        youtubeSettings(),
+        normalizePlatformChatAuthSession({ youtubeAccessToken: "yt-token" }),
+        null,
+        fetcher
+      )
+    ).rejects.toMatchObject({
+      code: "invalid-json",
+      statusCode: 200,
+      message: "YouTube chat request returned unreadable JSON with HTTP 200."
+    });
+  });
+
   it("creates Twitch IRC auth commands without duplicating oauth prefixes", () => {
     expect(
       createTwitchIrcAuthenticationCommands(
