@@ -9,6 +9,11 @@ import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../do
 import type { PlatformChatOAuthFlow, PlatformChatOAuthSettings, TwitchDeviceCodeOAuthFlow } from "../domain/platformChatOAuth";
 import type { YouTubeBroadcastTransitionStatus } from "../domain/platformPublishing";
 import {
+  assessPlatformPublishingFreshness,
+  type PlatformPublishingFreshness,
+  type PlatformPublishingFreshnessStatus
+} from "../domain/platformPublishingFreshness";
+import {
   createYouTubeBroadcastTransitionPreflightReport,
   type PlatformPublishingPreflightReport
 } from "../domain/platformPublishingPreflight";
@@ -192,6 +197,12 @@ const sessionHistoryMetricLabel = (diagnostics: StreamDiagnostics): string =>
 
 const validationMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.validation.status} / ${diagnostics.validation.pendingCount} pending / ${diagnostics.validation.failCount} fail`;
+
+const platformPublishingFreshnessMetricLabel = (
+  diagnostics: StreamDiagnostics,
+  freshness: PlatformPublishingFreshness
+): string =>
+  `${diagnostics.platformPublishing.status} / ${freshness.status}${freshness.ageMinutes === null ? "" : ` / ${freshness.ageMinutes}m old`}`;
 
 const nativeCompositionMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.nativeComposition.coverage} / ${diagnostics.nativeComposition.previewOnlySourceCount} preview-only`;
@@ -1200,7 +1211,10 @@ const StreamDiagnosticsPanel = ({
   onClearStreamSessionSummaries(): void | Promise<void>;
   onRecordStreamValidationRun(run: StreamValidationRun): void | Promise<void>;
   onClearStreamValidationRuns(): void | Promise<void>;
-}) => (
+}) => {
+  const platformPublishingFreshness = assessPlatformPublishingFreshness(diagnostics.platformPublishing);
+
+  return (
   <Panel title="Diagnostics">
     <View style={[styles.diagnosticSummary, diagnosticSummaryStyle(diagnostics.status)]}>
       <Text style={[styles.diagnosticSummaryText, diagnosticSummaryTextStyle(diagnostics.status)]}>{diagnostics.summary}</Text>
@@ -1247,6 +1261,7 @@ const StreamDiagnosticsPanel = ({
       <DiagnosticMetric label="Advisor" value={diagnostics.qualityAdvisor.action} />
       <DiagnosticMetric label="Native comp" value={nativeCompositionMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Validation" value={validationMetricLabel(diagnostics)} />
+      <DiagnosticMetric label="Dashboard" value={platformPublishingFreshnessMetricLabel(diagnostics, platformPublishingFreshness)} />
     </View>
     <View style={styles.diagnosticIncidents}>
       <View style={[styles.diagnosticIncidentSummary, diagnosticAdvisorSummaryStyle(diagnostics)]}>
@@ -1290,6 +1305,11 @@ const StreamDiagnosticsPanel = ({
           <Text style={styles.diagnosticIncidentRecommendation}>{item.action}</Text>
         </View>
       ))}
+      <View style={[styles.diagnosticIncident, diagnosticPlatformPublishingFreshnessStyle(platformPublishingFreshness.status)]}>
+        <Text style={styles.diagnosticIncidentTitle}>Platform dashboard freshness</Text>
+        <Text style={styles.diagnosticIncidentText}>{platformPublishingFreshness.summary}</Text>
+        <Text style={styles.diagnosticIncidentRecommendation}>{platformPublishingFreshness.recommendation}</Text>
+      </View>
     </View>
     <StreamValidationRecorder
       diagnostics={diagnostics}
@@ -1355,7 +1375,8 @@ const StreamDiagnosticsPanel = ({
       ))}
     </View>
   </Panel>
-);
+  );
+};
 
 const StreamValidationRecorder = ({
   diagnostics,
@@ -1376,6 +1397,9 @@ const StreamValidationRecorder = ({
   const [result, setResult] = useState<StreamValidationRunResult>(() => validationRunResultFromDiagnostics(diagnostics));
   const latestRun = diagnostics.validationEvidence.latestRun;
   const latestRunAudioLabel = latestRun ? formatStreamValidationRunAudioLabel(latestRun) : null;
+  const latestDashboardFreshness = diagnostics.validationEvidence.latestPlatformPublishing
+    ? assessPlatformPublishingFreshness(diagnostics.validationEvidence.latestPlatformPublishing)
+    : null;
 
   useEffect(() => {
     setResult(validationRunResultFromDiagnostics(diagnostics));
@@ -1448,6 +1472,13 @@ const StreamValidationRecorder = ({
           {diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"}
         </Text>
       </View>
+      {latestDashboardFreshness ? (
+        <View style={[styles.diagnosticIncident, diagnosticPlatformPublishingFreshnessStyle(latestDashboardFreshness.status)]}>
+          <Text style={styles.diagnosticIncidentTitle}>Validation dashboard freshness</Text>
+          <Text style={styles.diagnosticIncidentText}>{latestDashboardFreshness.summary}</Text>
+          <Text style={styles.diagnosticIncidentRecommendation}>{latestDashboardFreshness.recommendation}</Text>
+        </View>
+      ) : null}
       {latestRun ? (
         <View style={[styles.diagnosticIncident, diagnosticValidationRunStyle(latestRun.result)]}>
           <Text style={styles.diagnosticIncidentTitle}>Latest validation run</Text>
@@ -2432,6 +2463,13 @@ const diagnosticValidationRunbookStyle = (diagnostics: StreamDiagnostics) =>
 
 const diagnosticValidationRunStyle = (result: StreamValidationRunResult) =>
   result === "fail" ? styles.diagnosticCheckFail : result === "pass" ? null : styles.diagnosticCheckWarn;
+
+const diagnosticPlatformPublishingFreshnessStyle = (status: PlatformPublishingFreshnessStatus) =>
+  status === "fresh" || status === "not-applicable"
+    ? null
+    : status === "invalid"
+      ? styles.diagnosticCheckFail
+      : styles.diagnosticCheckWarn;
 
 const hasCriticalQualityIncident = (diagnostics: StreamDiagnostics): boolean =>
   diagnostics.qualityIncidents.incidents.some((incident) => incident.severity === "fail");

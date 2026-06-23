@@ -31,6 +31,11 @@ import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../d
 import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
 import type { PlatformChatOAuthFlow, PlatformChatOAuthSettings, TwitchDeviceCodeOAuthFlow } from "../domain/platformChatOAuth";
 import type { YouTubeBroadcastTransitionStatus } from "../domain/platformPublishing";
+import {
+  assessPlatformPublishingFreshness,
+  type PlatformPublishingFreshness,
+  type PlatformPublishingFreshnessStatus
+} from "../domain/platformPublishingFreshness";
 import { applyMicEffectPreset, micEffectPresets, type MicEffectPresetId, type StudioProfile } from "../domain/profiles";
 import type { ReadinessReport } from "../domain/readiness";
 import {
@@ -224,6 +229,12 @@ const sessionHistoryMetricLabel = (diagnostics: StreamDiagnostics): string =>
 
 const validationMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.validation.status} / ${diagnostics.validation.pendingCount} pending / ${diagnostics.validation.failCount} fail`;
+
+const platformPublishingFreshnessMetricLabel = (
+  diagnostics: StreamDiagnostics,
+  freshness: PlatformPublishingFreshness
+): string =>
+  `${diagnostics.platformPublishing.status} / ${freshness.status}${freshness.ageMinutes === null ? "" : ` / ${freshness.ageMinutes}m old`}`;
 
 const nativeCompositionMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.nativeComposition.coverage} / ${diagnostics.nativeComposition.previewOnlySourceCount} preview-only`;
@@ -924,124 +935,134 @@ const StreamDiagnosticsPanel = ({
   onClearStreamSessionSummaries(): void;
   onRecordStreamValidationRun(run: StreamValidationRun): void;
   onClearStreamValidationRuns(): void;
-}) => (
-  <section className="control-panel">
-    <PanelTitle icon={<Activity size={18} />} title="Diagnostics" />
-    <div className="diagnostic-summary-row">
-      <div className={`diagnostic-summary ${diagnostics.status}`}>{diagnostics.summary}</div>
-      <div className="diagnostic-actions">
-        <button className="secondary-action compact-action diagnostic-export" type="button" onClick={() => downloadStreamDiagnosticReport(diagnostics)}>
-          <Download size={15} />
-          Diagnostics
-        </button>
-        <button
-          className="secondary-action compact-action diagnostic-export"
-          type="button"
-          onClick={() => downloadSupportBundle({ scene, profile, readiness, preflight, diagnostics })}
-        >
-          <Download size={15} />
-          Support
-        </button>
-        <button
-          className="secondary-action compact-action diagnostic-export"
-          type="button"
-          disabled={diagnostics.session.summaries.length === 0}
-          onClick={() => {
-            if (window.confirm("Clear completed stream session history on this device?")) {
-              onClearStreamSessionSummaries();
-            }
-          }}
-        >
-          <RotateCcw size={15} />
-          Clear History
-        </button>
-      </div>
-    </div>
-    <div className="diagnostic-grid">
-      <span>Target</span>
-      <strong>{diagnostics.target.platform}</strong>
-      <span>Endpoint</span>
-      <strong>{diagnostics.target.host}</strong>
-      <span>App</span>
-      <strong>{diagnostics.target.application}</strong>
-      <span>Publish URL</span>
-      <strong>{diagnostics.target.publishUrlPreview}</strong>
-      <span>Quality</span>
-      <strong>
-        {diagnostics.quality.resolution} / {diagnostics.quality.fps}fps
-      </strong>
-      <span>Upload target</span>
-      <strong>{diagnostics.quality.estimatedUploadKbps} kbps</strong>
-      <span>Telemetry</span>
-      <strong>
-        {diagnostics.telemetry.bitrateKbps} kbps / {diagnostics.telemetry.fps} fps
-      </strong>
-      <span>Native runtime</span>
-      <strong>{nativeRuntimeMetricLabel(diagnostics)}</strong>
-      <span>Recovery</span>
-      <strong>{recoveryMetricLabel(diagnostics)}</strong>
-      <span>History</span>
-      <strong>{historyMetricLabel(diagnostics)}</strong>
-      <span>Completed sessions</span>
-      <strong>{diagnostics.session.summaries.length}</strong>
-      <span>Session trend</span>
-      <strong>{sessionHistoryMetricLabel(diagnostics)}</strong>
-      <span>Last session</span>
-      <strong>{sessionMetricLabel(diagnostics)}</strong>
-      <span>Advisor</span>
-      <strong>{diagnostics.qualityAdvisor.action}</strong>
-      <span>Native comp</span>
-      <strong>{nativeCompositionMetricLabel(diagnostics)}</strong>
-      <span>Validation</span>
-      <strong>{validationMetricLabel(diagnostics)}</strong>
-    </div>
-    <div className="diagnostic-incidents">
-      <div className={`diagnostic-incident-summary ${qualityAdvisorTone(diagnostics)}`}>
-        {diagnostics.qualityAdvisor.summary}
-      </div>
-      <div className={`diagnostic-incident ${qualityAdvisorTone(diagnostics)}`}>
-        <strong>{qualityAdvisorTargetLabel(diagnostics)}</strong>
-        <span>{diagnostics.qualityAdvisor.recommendation}</span>
-        <em>{diagnostics.qualityAdvisor.reason || "No quality pressure detected."}</em>
-        {diagnostics.qualityAdvisor.suggestedTarget ? (
-          <button
-            className="secondary-action compact-action"
-            type="button"
-            disabled={setupLocked}
-            onClick={() => onProfileChange(applyStreamQualityAdvisorTarget(profile, diagnostics.qualityAdvisor.suggestedTarget))}
-          >
-            Apply Quality
+}) => {
+  const platformPublishingFreshness = assessPlatformPublishingFreshness(diagnostics.platformPublishing);
+
+  return (
+    <section className="control-panel">
+      <PanelTitle icon={<Activity size={18} />} title="Diagnostics" />
+      <div className="diagnostic-summary-row">
+        <div className={`diagnostic-summary ${diagnostics.status}`}>{diagnostics.summary}</div>
+        <div className="diagnostic-actions">
+          <button className="secondary-action compact-action diagnostic-export" type="button" onClick={() => downloadStreamDiagnosticReport(diagnostics)}>
+            <Download size={15} />
+            Diagnostics
           </button>
-        ) : null}
-      </div>
-    </div>
-    <div className="diagnostic-incidents">
-      <div className={`diagnostic-incident-summary ${validationTone(diagnostics)}`}>
-        {diagnostics.validation.summary}
-      </div>
-      <div className={`diagnostic-incident ${validationTone(diagnostics)}`}>
-        <strong>Commercial validation</strong>
-        <span>{diagnostics.validation.recommendedNextStep}</span>
-        <em>
-          {diagnostics.validation.passCount} pass / {diagnostics.validation.warningCount} warn / {diagnostics.validation.failCount} fail /{" "}
-          {diagnostics.validation.pendingCount} pending
-        </em>
-      </div>
-      {diagnostics.validation.items.map((item) => (
-        <div key={item.id} className={`diagnostic-incident ${validationItemTone(item.status)}`}>
-          <strong>{item.title}</strong>
-          <span>{item.detail}</span>
-          <em>{item.action}</em>
+          <button
+            className="secondary-action compact-action diagnostic-export"
+            type="button"
+            onClick={() => downloadSupportBundle({ scene, profile, readiness, preflight, diagnostics })}
+          >
+            <Download size={15} />
+            Support
+          </button>
+          <button
+            className="secondary-action compact-action diagnostic-export"
+            type="button"
+            disabled={diagnostics.session.summaries.length === 0}
+            onClick={() => {
+              if (window.confirm("Clear completed stream session history on this device?")) {
+                onClearStreamSessionSummaries();
+              }
+            }}
+          >
+            <RotateCcw size={15} />
+            Clear History
+          </button>
         </div>
-      ))}
-    </div>
-    <StreamValidationRecorder
-      diagnostics={diagnostics}
-      profile={profile}
-      onRecordStreamValidationRun={onRecordStreamValidationRun}
-      onClearStreamValidationRuns={onClearStreamValidationRuns}
-    />
-    {diagnostics.session.lastSummary ? (
+      </div>
+      <div className="diagnostic-grid">
+        <span>Target</span>
+        <strong>{diagnostics.target.platform}</strong>
+        <span>Endpoint</span>
+        <strong>{diagnostics.target.host}</strong>
+        <span>App</span>
+        <strong>{diagnostics.target.application}</strong>
+        <span>Publish URL</span>
+        <strong>{diagnostics.target.publishUrlPreview}</strong>
+        <span>Quality</span>
+        <strong>
+          {diagnostics.quality.resolution} / {diagnostics.quality.fps}fps
+        </strong>
+        <span>Upload target</span>
+        <strong>{diagnostics.quality.estimatedUploadKbps} kbps</strong>
+        <span>Telemetry</span>
+        <strong>
+          {diagnostics.telemetry.bitrateKbps} kbps / {diagnostics.telemetry.fps} fps
+        </strong>
+        <span>Dashboard</span>
+        <strong>{platformPublishingFreshnessMetricLabel(diagnostics, platformPublishingFreshness)}</strong>
+        <span>Native runtime</span>
+        <strong>{nativeRuntimeMetricLabel(diagnostics)}</strong>
+        <span>Recovery</span>
+        <strong>{recoveryMetricLabel(diagnostics)}</strong>
+        <span>History</span>
+        <strong>{historyMetricLabel(diagnostics)}</strong>
+        <span>Completed sessions</span>
+        <strong>{diagnostics.session.summaries.length}</strong>
+        <span>Session trend</span>
+        <strong>{sessionHistoryMetricLabel(diagnostics)}</strong>
+        <span>Last session</span>
+        <strong>{sessionMetricLabel(diagnostics)}</strong>
+        <span>Advisor</span>
+        <strong>{diagnostics.qualityAdvisor.action}</strong>
+        <span>Native comp</span>
+        <strong>{nativeCompositionMetricLabel(diagnostics)}</strong>
+        <span>Validation</span>
+        <strong>{validationMetricLabel(diagnostics)}</strong>
+      </div>
+      <div className="diagnostic-incidents">
+        <div className={`diagnostic-incident-summary ${qualityAdvisorTone(diagnostics)}`}>
+          {diagnostics.qualityAdvisor.summary}
+        </div>
+        <div className={`diagnostic-incident ${qualityAdvisorTone(diagnostics)}`}>
+          <strong>{qualityAdvisorTargetLabel(diagnostics)}</strong>
+          <span>{diagnostics.qualityAdvisor.recommendation}</span>
+          <em>{diagnostics.qualityAdvisor.reason || "No quality pressure detected."}</em>
+          {diagnostics.qualityAdvisor.suggestedTarget ? (
+            <button
+              className="secondary-action compact-action"
+              type="button"
+              disabled={setupLocked}
+              onClick={() => onProfileChange(applyStreamQualityAdvisorTarget(profile, diagnostics.qualityAdvisor.suggestedTarget))}
+            >
+              Apply Quality
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <div className="diagnostic-incidents">
+        <div className={`diagnostic-incident-summary ${validationTone(diagnostics)}`}>
+          {diagnostics.validation.summary}
+        </div>
+        <div className={`diagnostic-incident ${validationTone(diagnostics)}`}>
+          <strong>Commercial validation</strong>
+          <span>{diagnostics.validation.recommendedNextStep}</span>
+          <em>
+            {diagnostics.validation.passCount} pass / {diagnostics.validation.warningCount} warn / {diagnostics.validation.failCount} fail /{" "}
+            {diagnostics.validation.pendingCount} pending
+          </em>
+        </div>
+        <div className={`diagnostic-incident ${platformPublishingFreshnessTone(platformPublishingFreshness.status)}`}>
+          <strong>Platform dashboard freshness</strong>
+          <span>{platformPublishingFreshness.summary}</span>
+          <em>{platformPublishingFreshness.recommendation}</em>
+        </div>
+        {diagnostics.validation.items.map((item) => (
+          <div key={item.id} className={`diagnostic-incident ${validationItemTone(item.status)}`}>
+            <strong>{item.title}</strong>
+            <span>{item.detail}</span>
+            <em>{item.action}</em>
+          </div>
+        ))}
+      </div>
+      <StreamValidationRecorder
+        diagnostics={diagnostics}
+        profile={profile}
+        onRecordStreamValidationRun={onRecordStreamValidationRun}
+        onClearStreamValidationRuns={onClearStreamValidationRuns}
+      />
+      {diagnostics.session.lastSummary ? (
       <div className="diagnostic-incidents">
         <div className={`diagnostic-incident ${sessionHistoryTone(diagnostics)}`}>
           <strong>History trend</strong>
@@ -1091,8 +1112,9 @@ const StreamDiagnosticsPanel = ({
         </div>
       ))}
     </div>
-  </section>
-);
+    </section>
+  );
+};
 
 const StreamValidationRecorder = ({
   diagnostics,
@@ -1113,6 +1135,9 @@ const StreamValidationRecorder = ({
   const [result, setResult] = useState<StreamValidationRunResult>(() => validationRunResultFromDiagnostics(diagnostics));
   const latestRun = diagnostics.validationEvidence.latestRun;
   const latestRunAudioLabel = latestRun ? formatStreamValidationRunAudioLabel(latestRun) : null;
+  const latestDashboardFreshness = diagnostics.validationEvidence.latestPlatformPublishing
+    ? assessPlatformPublishingFreshness(diagnostics.validationEvidence.latestPlatformPublishing)
+    : null;
 
   useEffect(() => {
     setResult(validationRunResultFromDiagnostics(diagnostics));
@@ -1168,6 +1193,13 @@ const StreamValidationRecorder = ({
           {diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"}
         </em>
       </div>
+      {latestDashboardFreshness ? (
+        <div className={`diagnostic-incident ${platformPublishingFreshnessTone(latestDashboardFreshness.status)}`}>
+          <strong>Validation dashboard freshness</strong>
+          <span>{latestDashboardFreshness.summary}</span>
+          <em>{latestDashboardFreshness.recommendation}</em>
+        </div>
+      ) : null}
       {latestRun ? (
         <div className={`diagnostic-incident ${validationRunTone(latestRun.result)}`}>
           <strong>Latest validation run</strong>
@@ -1267,6 +1299,9 @@ const validationRunbookTone = (diagnostics: StreamDiagnostics): "pass" | "warn" 
 
 const validationRunTone = (result: StreamValidationRunResult): "pass" | "warn" | "fail" =>
   result === "pass" ? "pass" : result === "fail" ? "fail" : "warn";
+
+const platformPublishingFreshnessTone = (status: PlatformPublishingFreshnessStatus): "pass" | "warn" | "fail" =>
+  status === "fresh" || status === "not-applicable" ? "pass" : status === "invalid" ? "fail" : "warn";
 
 const validationRunNativeRuntimeLabel = (run: StreamValidationRun): string | null =>
   run.nativeRuntime
