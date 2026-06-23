@@ -3,6 +3,7 @@ import { createDefaultPlatformChatSettings, type PlatformChatSettings } from "./
 import {
   buildYouTubeLiveChatRequest,
   createDefaultPlatformChatAuthSession,
+  createPlatformChatAutoConnectPlan,
   createTwitchIrcAuthenticationCommands,
   fetchYouTubeLiveChatPage,
   getPlatformChatNetworkReadiness,
@@ -40,6 +41,39 @@ describe("platformChatConnection", () => {
       )
     ).toMatchObject({
       status: "ready"
+    });
+  });
+
+  it("plans platform chat auto-connect only when readout is enabled and the connection is not active", () => {
+    const auth = normalizePlatformChatAuthSession({ youtubeAccessToken: "yt-token" });
+
+    expect(createPlatformChatAutoConnectPlan(createDefaultPlatformChatSettings(), auth, true)).toMatchObject({
+      action: "skip",
+      reason: "platform-chat-disabled",
+      severity: "info"
+    });
+    expect(createPlatformChatAutoConnectPlan(youtubeSettings(), auth, false)).toMatchObject({
+      action: "skip",
+      reason: "chat-reader-disabled",
+      severity: "warn"
+    });
+    expect(createPlatformChatAutoConnectPlan(youtubeSettings(), createDefaultPlatformChatAuthSession(), true)).toMatchObject({
+      action: "skip",
+      reason: "needs-auth",
+      severity: "warn"
+    });
+    expect(createPlatformChatAutoConnectPlan(youtubeSettings(), auth, true, { phase: "connected" })).toMatchObject({
+      action: "skip",
+      reason: "already-connected"
+    });
+    expect(createPlatformChatAutoConnectPlan(youtubeSettings(), auth, true, { phase: "connecting" })).toMatchObject({
+      action: "skip",
+      reason: "already-connecting"
+    });
+    expect(createPlatformChatAutoConnectPlan(youtubeSettings(), auth, true, { phase: "failed" })).toMatchObject({
+      action: "connect",
+      reason: "connect",
+      severity: "info"
     });
   });
 

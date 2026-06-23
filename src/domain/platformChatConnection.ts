@@ -32,6 +32,22 @@ export interface PlatformChatConnectionState {
   nextPollAt: number | null;
 }
 
+export type PlatformChatAutoConnectReason =
+  | "platform-chat-disabled"
+  | "chat-reader-disabled"
+  | "needs-configuration"
+  | "needs-auth"
+  | "already-connected"
+  | "already-connecting"
+  | "connect";
+
+export interface PlatformChatAutoConnectPlan {
+  action: "connect" | "skip";
+  reason: PlatformChatAutoConnectReason;
+  severity: "info" | "warn";
+  message: string;
+}
+
 export interface PlatformChatFetchResponse {
   ok: boolean;
   status: number;
@@ -144,6 +160,67 @@ export const getPlatformChatNetworkReadiness = (
     status: "ready",
     label: "Ready",
     message: `${normalizedSettings.platform === "youtube" ? "YouTube" : "Twitch"} chat can connect.`
+  };
+};
+
+export const createPlatformChatAutoConnectPlan = (
+  settings: PlatformChatSettings,
+  auth: PlatformChatAuthSession,
+  chatReaderEnabled: boolean,
+  connection: Pick<PlatformChatConnectionState, "phase"> = createPlatformChatConnectionState()
+): PlatformChatAutoConnectPlan => {
+  const normalizedSettings = normalizePlatformChatSettings(settings);
+  if (!normalizedSettings.enabled) {
+    return {
+      action: "skip",
+      reason: "platform-chat-disabled",
+      severity: "info",
+      message: "Platform chat auto-connect skipped because platform chat is off."
+    };
+  }
+
+  if (!chatReaderEnabled) {
+    return {
+      action: "skip",
+      reason: "chat-reader-disabled",
+      severity: "warn",
+      message: "Platform chat auto-connect skipped because chat readout is off."
+    };
+  }
+
+  const readiness = getPlatformChatNetworkReadiness(normalizedSettings, auth);
+  if (readiness.status === "needs-configuration" || readiness.status === "needs-auth") {
+    return {
+      action: "skip",
+      reason: readiness.status,
+      severity: "warn",
+      message: readiness.message
+    };
+  }
+
+  if (connection.phase === "connected") {
+    return {
+      action: "skip",
+      reason: "already-connected",
+      severity: "info",
+      message: "Platform chat is already connected."
+    };
+  }
+
+  if (connection.phase === "connecting") {
+    return {
+      action: "skip",
+      reason: "already-connecting",
+      severity: "info",
+      message: "Platform chat is already connecting."
+    };
+  }
+
+  return {
+    action: "connect",
+    reason: "connect",
+    severity: "info",
+    message: `Starting ${normalizedSettings.platform === "youtube" ? "YouTube" : "Twitch"} chat readout connection.`
   };
 };
 

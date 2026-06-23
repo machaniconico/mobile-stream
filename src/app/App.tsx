@@ -67,7 +67,7 @@ import {
   formatStreamStartPreflightBlockMessage
 } from "../domain/streamStartPreflight";
 import { createStreamDiagnostics } from "../domain/streamDiagnostics";
-import { createStreamOperationEvent, createStreamRecoveryEvent } from "../domain/streamSessionLog";
+import { createStreamChatEvent, createStreamOperationEvent, createStreamRecoveryEvent } from "../domain/streamSessionLog";
 import {
   appendStreamValidationRun,
   normalizeStreamValidationRuns,
@@ -259,6 +259,16 @@ export const App = () => {
       }
       await engine.prepare(scene, readiness.sanitizedProfile);
       await engine.start();
+      const chatPlan = platformChatConnection.ensureConnected(chatReader.settings.enabled);
+      if (chatPlan.reason !== "platform-chat-disabled") {
+        recordStreamSessionEvent(
+          createStreamChatEvent(
+            chatPlan.action === "connect" ? "auto-connect-started" : "auto-connect-skipped",
+            chatPlan.message,
+            chatPlan.severity
+          )
+        );
+      }
     });
   };
 

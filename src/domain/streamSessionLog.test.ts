@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   appendStreamSessionEvent,
+  createStreamChatEvent,
   createStreamOperationEvent,
   createStreamRecoveryEvent,
   createStreamStatusEvent,
@@ -65,6 +66,27 @@ describe("stream session log", () => {
     expect(started.severity).toBe("info");
     expect(failed.title).toBe("Reconnect failed");
     expect(failed.severity).toBe("fail");
+  });
+
+  it("creates chat auto-connect events", () => {
+    const started = createStreamChatEvent(
+      "auto-connect-started",
+      "Starting YouTube chat readout connection.",
+      "info",
+      new Date("2026-06-23T00:00:00.000Z")
+    );
+    const skipped = createStreamChatEvent(
+      "auto-connect-skipped",
+      "Platform chat auto-connect skipped because chat readout is off.",
+      "warn",
+      new Date("2026-06-23T00:00:01.000Z")
+    );
+
+    expect(started.kind).toBe("chat");
+    expect(started.title).toBe("Chat auto-connect started");
+    expect(started.severity).toBe("info");
+    expect(skipped.title).toBe("Chat auto-connect skipped");
+    expect(skipped.severity).toBe("warn");
   });
 
   it("creates recovery events for scheduled reconnect and exhausted retry budget", () => {

@@ -3,7 +3,7 @@ import type { StreamControlAction, StreamOperationStatus } from "./streamOperati
 import type { StreamHealth, StreamStatus } from "./streamState";
 
 export type StreamSessionEventSeverity = "info" | "warn" | "fail";
-export type StreamSessionEventKind = "status" | "operation" | "recovery";
+export type StreamSessionEventKind = "status" | "operation" | "recovery" | "chat";
 
 export interface StreamSessionEvent {
   id: string;
@@ -84,6 +84,20 @@ export const createStreamRecoveryEvent = (
     message: recoveryMessage(decision)
   };
 };
+
+export const createStreamChatEvent = (
+  phase: "auto-connect-started" | "auto-connect-skipped",
+  message: string,
+  severity: Extract<StreamSessionEventSeverity, "info" | "warn"> = "info",
+  now: Date = new Date()
+): StreamSessionEvent => ({
+  id: createEventId(now, "chat", phase),
+  at: now.toISOString(),
+  kind: "chat",
+  severity,
+  title: phase === "auto-connect-started" ? "Chat auto-connect started" : "Chat auto-connect skipped",
+  message
+});
 
 const statusSeverity = (status: StreamStatus): StreamSessionEventSeverity => {
   if (status === "failed") {

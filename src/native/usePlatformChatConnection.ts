@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "../domain/chatReader";
 import {
+  createPlatformChatAutoConnectPlan,
   createPlatformChatConnectionState,
   createTwitchIrcAuthenticationCommands,
   fetchYouTubeLiveChatPage,
@@ -9,6 +10,7 @@ import {
   parseTwitchIrcPayload,
   TWITCH_IRC_WEBSOCKET_URL,
   type PlatformChatAuthSession,
+  type PlatformChatAutoConnectPlan,
   type PlatformChatConnectionState
 } from "../domain/platformChatConnection";
 import type { PlatformChatSettings } from "../domain/platformChat";
@@ -32,6 +34,7 @@ type PlatformChatSocketConstructor = new (url: string) => PlatformChatSocket;
 
 export const usePlatformChatConnection = ({ settings, auth, onMessages }: PlatformChatConnectionOptions) => {
   const [connection, setConnection] = useState<PlatformChatConnectionState>(() => createPlatformChatConnectionState());
+  const connectionRef = useRef(connection);
   const settingsRef = useRef(settings);
   const authRef = useRef(auth);
   const onMessagesRef = useRef(onMessages);
@@ -40,6 +43,10 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages }: Platfo
   const connectionKeyRef = useRef(platformConnectionKey(settings, auth));
   const youtubeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const socketRef = useRef<PlatformChatSocket | null>(null);
+
+  useEffect(() => {
+    connectionRef.current = connection;
+  }, [connection]);
 
   useEffect(() => {
     settingsRef.current = settings;
@@ -216,6 +223,24 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages }: Platfo
     connectTwitch(connectionId);
   }, [connectTwitch, disconnect, pollYouTube]);
 
+  const ensureConnected = useCallback(
+    (chatReaderEnabled = true): PlatformChatAutoConnectPlan => {
+      const plan = createPlatformChatAutoConnectPlan(
+        settingsRef.current,
+        normalizePlatformChatAuthSession(authRef.current),
+        chatReaderEnabled,
+        connectionRef.current
+      );
+
+      if (plan.action === "connect") {
+        connect();
+      }
+
+      return plan;
+    },
+    [connect]
+  );
+
   useEffect(() => {
     const nextKey = platformConnectionKey(settings, auth);
     if (connectionKeyRef.current === nextKey) {
@@ -238,7 +263,8 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages }: Platfo
   return {
     connection,
     connect,
-    disconnect
+    disconnect,
+    ensureConnected
   };
 };
 
