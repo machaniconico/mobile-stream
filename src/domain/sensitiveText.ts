@@ -1,3 +1,5 @@
+import { createPlatformApiRetrySchedule } from "./platformApiRetry";
+
 const sensitiveQueryKeys = [
   "access_token",
   "refresh_token",
@@ -36,38 +38,18 @@ export const errorToSafeMessage = (error: unknown, fallback: string): string => 
 };
 
 const createRetryHint = (error: unknown): string => {
-  if (!hasRetryMetadata(error) || !error.retryable) {
+  const retry = createPlatformApiRetrySchedule(error, {
+    fallbackDelayMs: null,
+    minDelayMs: 0,
+    maxDelayMs: null
+  });
+  if (!retry.retryable) {
     return "";
   }
 
-  if (typeof error.retryAfterMs === "number" && Number.isFinite(error.retryAfterMs) && error.retryAfterMs >= 0) {
-    return ` Retry after ${formatRetryAfter(error.retryAfterMs)}.`;
+  if (retry.label) {
+    return ` Retry after ${retry.label}.`;
   }
 
   return " Retry once the platform is available again.";
-};
-
-const hasRetryMetadata = (error: unknown): error is {
-  retryable: boolean;
-  retryAfterMs?: number | null;
-} =>
-  typeof error === "object" &&
-  error !== null &&
-  "retryable" in error &&
-  typeof (error as { retryable?: unknown }).retryable === "boolean";
-
-const formatRetryAfter = (retryAfterMs: number): string => {
-  const totalSeconds = Math.max(0, Math.ceil(retryAfterMs / 1000));
-  if (totalSeconds < 60) {
-    return `${totalSeconds}s`;
-  }
-
-  const totalMinutes = Math.ceil(totalSeconds / 60);
-  if (totalMinutes < 60) {
-    return `${totalMinutes}m`;
-  }
-
-  const totalHours = Math.floor(totalMinutes / 60);
-  const remainingMinutes = totalMinutes % 60;
-  return remainingMinutes > 0 ? `${totalHours}h ${remainingMinutes}m` : `${totalHours}h`;
 };

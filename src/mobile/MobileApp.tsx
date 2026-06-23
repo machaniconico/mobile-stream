@@ -92,6 +92,7 @@ import {
   formatStreamStartPreflightBlockMessage
 } from "../domain/streamStartPreflight";
 import { createStreamDiagnostics } from "../domain/streamDiagnostics";
+import { createPlatformApiRetrySchedule } from "../domain/platformApiRetry";
 import { errorToSafeMessage } from "../domain/sensitiveText";
 import {
   createStreamChatEvent,
@@ -190,6 +191,9 @@ export const MobileApp = () => {
   const audioRoute = useAudioRouteMonitor();
   const operationInFlight = useRef(false);
   const platformChatOAuthSyncInFlight = useRef(false);
+  const platformChatOAuthSyncRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const platformChatOAuthSyncRetryUntil = useRef(0);
+  const platformChatOAuthSyncRequest = useRef<(() => void) | null>(null);
   const audioLevelSamplesRef = useRef<StreamAudioLevelSample[]>([]);
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
   const persistableSceneJson = useMemo(() => JSON.stringify(stripTransientSceneRuntime(scene)), [scene]);
@@ -267,21 +271,31 @@ export const MobileApp = () => {
     setPlatformChatOAuthStatus("OAuth callback received. Apply it to finish this session.");
   }, []);
 
+  const clearPlatformChatOAuthSyncRetry = useCallback(() => {
+    if (platformChatOAuthSyncRetryTimer.current) {
+      clearTimeout(platformChatOAuthSyncRetryTimer.current);
+      platformChatOAuthSyncRetryTimer.current = null;
+    }
+    platformChatOAuthSyncRetryUntil.current = 0;
+  }, []);
+
   const persistPlatformChatOAuthCredential = useCallback(async (
     credential: PlatformChatOAuthCredential,
     baseCredentials: PlatformChatOAuthCredentialStore = platformChatOAuthCredentials
   ): Promise<PlatformChatOAuthCredentialStore> => {
+    clearPlatformChatOAuthSyncRetry();
     const nextCredentials = upsertPlatformChatOAuthCredential(baseCredentials, credential);
     setPlatformChatAuth((current) => mergeOAuthAuth(current, createPlatformChatAuthFromCredentialStore(nextCredentials)));
     setPlatformChatOAuthCredentials(nextCredentials);
     await saveSecureOAuthCredentials(nextCredentials);
     return nextCredentials;
-  }, [platformChatOAuthCredentials]);
+  }, [clearPlatformChatOAuthSyncRetry, platformChatOAuthCredentials]);
 
   const clearStoredPlatformChatOAuthCredential = useCallback(async (
     status: string,
     platform?: PlatformChatOAuthCredential["platform"]
   ) => {
+    clearPlatformChatOAuthSyncRetry();
     const nextCredentials = platform
       ? {
           ...platformChatOAuthCredentials,
@@ -303,10 +317,14 @@ export const MobileApp = () => {
       await clearSecureOAuthCredential().catch(() => undefined);
     }
     setPlatformChatOAuthStatus(status);
-  }, [platformChatOAuthCredentials]);
+  }, [clearPlatformChatOAuthSyncRetry, platformChatOAuthCredentials]);
 
   const syncStoredPlatformChatOAuthCredential = useCallback(
     async (credentialOverride?: PlatformChatOAuthCredential | null) => {
+      if (!credentialOverride && platformChatOAuthSyncRetryUntil.current > Date.now()) {
+        return;
+      }
+
       const credentials = credentialOverride
         ? [credentialOverride]
         : [platformChatOAuthCredentials.youtube, platformChatOAuthCredentials.twitch].filter(
@@ -317,6 +335,7 @@ export const MobileApp = () => {
       }
 
       platformChatOAuthSyncInFlight.current = true;
+      clearPlatformChatOAuthSyncRetry();
       let activeCredential: PlatformChatOAuthCredential | null = null;
       let nextCredentials = platformChatOAuthCredentials;
       try {
@@ -351,7 +370,25 @@ export const MobileApp = () => {
         if (activeCredential && shouldClearStoredOAuthCredential(message)) {
           await clearStoredPlatformChatOAuthCredential(`Stored OAuth credential needs reconnect: ${message}`, activeCredential.platform);
         } else {
-          setPlatformChatOAuthStatus(`Stored OAuth credential sync failed; will retry: ${message}`);
+          const retrySchedule = createPlatformApiRetrySchedule(error, {
+            fallbackDelayMs: 60000,
+            minDelayMs: 5000,
+            maxDelayMs: 300000
+          });
+          if (retrySchedule.retryable && retrySchedule.delayMs !== null) {
+            const retryLabel = retrySchedule.label ?? "soon";
+            platformChatOAuthSyncRetryUntil.current = Date.now() + retrySchedule.delayMs;
+            platformChatOAuthSyncRetryTimer.current = setTimeout(() => {
+              platformChatOAuthSyncRetryTimer.current = null;
+              platformChatOAuthSyncRetryUntil.current = 0;
+              platformChatOAuthSyncRequest.current?.();
+            }, retrySchedule.delayMs);
+            setPlatformChatOAuthStatus(
+              `Stored OAuth credential sync failed; scheduled background retry in ${retryLabel}: ${message}`
+            );
+          } else {
+            setPlatformChatOAuthStatus(`Stored OAuth credential sync failed; will retry: ${message}`);
+          }
         }
       } finally {
         platformChatOAuthSyncInFlight.current = false;
@@ -359,11 +396,21 @@ export const MobileApp = () => {
     },
     [
       clearStoredPlatformChatOAuthCredential,
+      clearPlatformChatOAuthSyncRetry,
       persistPlatformChatOAuthCredential,
       platformChatOAuth,
       platformChatOAuthCredentials
     ]
   );
+
+  useEffect(() => {
+    platformChatOAuthSyncRequest.current = () => {
+      void syncStoredPlatformChatOAuthCredential();
+    };
+    return () => {
+      platformChatOAuthSyncRequest.current = null;
+    };
+  }, [syncStoredPlatformChatOAuthCredential]);
 
   useEffect(() => engine.subscribe(setSnapshot), [engine]);
   useChatSpeechQueue(chatReader, setChatReader, chatSpeechEngine, { onSpeechEvent: recordChatSpeechEvent });
@@ -491,6 +538,7 @@ export const MobileApp = () => {
 
   useEffect(() => {
     if (!platformChatOAuthCredentials.youtube && !platformChatOAuthCredentials.twitch) {
+      clearPlatformChatOAuthSyncRetry();
       return undefined;
     }
 
@@ -499,7 +547,9 @@ export const MobileApp = () => {
     }, 60000);
     void syncStoredPlatformChatOAuthCredential();
     return () => clearInterval(timer);
-  }, [platformChatOAuthCredentials, syncStoredPlatformChatOAuthCredential]);
+  }, [clearPlatformChatOAuthSyncRetry, platformChatOAuthCredentials, syncStoredPlatformChatOAuthCredential]);
+
+  useEffect(() => () => clearPlatformChatOAuthSyncRetry(), [clearPlatformChatOAuthSyncRetry]);
 
   useEffect(() => {
     if (!shouldPushSceneToEngine(snapshot.state.status)) {
