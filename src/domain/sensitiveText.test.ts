@@ -34,4 +34,46 @@ describe("sensitive text redaction", () => {
     expect(errorToSafeMessage(null, "Fallback message")).toBe("Fallback message");
     expect(errorToSafeMessage(new Error("Bearer abcdefghijklmnop"), "Fallback message")).toBe("Bearer [redacted]");
   });
+
+  it("adds retry timing hints for retryable platform errors", () => {
+    const error = Object.assign(new Error("YouTube chat request failed with HTTP 429."), {
+      retryable: true,
+      retryAfterMs: 61_000
+    });
+
+    expect(errorToSafeMessage(error, "Fallback message")).toBe(
+      "YouTube chat request failed with HTTP 429. Retry after 2m."
+    );
+  });
+
+  it("adds a generic retry hint when no retry-after value is available", () => {
+    const error = Object.assign(new Error("Twitch stream key request failed with HTTP 503."), {
+      retryable: true,
+      retryAfterMs: null
+    });
+
+    expect(errorToSafeMessage(error, "Fallback message")).toBe(
+      "Twitch stream key request failed with HTTP 503. Retry once the platform is available again."
+    );
+  });
+
+  it("does not add retry hints for non-retryable platform errors", () => {
+    const error = Object.assign(new Error("Twitch OAuth failed with HTTP 401."), {
+      retryable: false,
+      retryAfterMs: 10_000
+    });
+
+    expect(errorToSafeMessage(error, "Fallback message")).toBe("Twitch OAuth failed with HTTP 401.");
+  });
+
+  it("redacts secrets before showing retry hints", () => {
+    const error = Object.assign(new Error("Authorization: Bearer abcdefghijklmnop failed with HTTP 429."), {
+      retryable: true,
+      retryAfterMs: 5_000
+    });
+
+    expect(errorToSafeMessage(error, "Fallback message")).toBe(
+      "Authorization: Bearer [redacted] failed with HTTP 429. Retry after 5s."
+    );
+  });
 });

@@ -23,7 +23,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Mobile PNGTuber/image still-image picking and preparation that copies local assets into native-readable storage before streaming.
 - Stream key redaction and no-secret browser persistence.
 - Sensitive OAuth/API error message redaction before user-facing status display.
-- OAuth, stream-key, publishing, and YouTube chat API calls convert empty or non-JSON upstream responses into sanitized HTTP/unreadable-JSON errors with retryability and `Retry-After` metadata.
+- OAuth, stream-key, publishing, and YouTube chat API calls convert empty or non-JSON upstream responses into sanitized HTTP/unreadable-JSON errors with retryability and `Retry-After` metadata that is surfaced as safe retry guidance in app status messages.
 - Native Android/iOS status and publisher-runtime messages redact publish URLs, stream keys, and bearer tokens before app display.
 - Keychain/Android Keystore-backed mobile profile storage for stream keys.
 - In-app stream key clear and replacement controls.
