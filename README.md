@@ -14,6 +14,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - OAuth/API-backed publishing controls: YouTube can create, bind, refresh status, test, start, and complete scheduled Live Broadcasts; Twitch can update title, category, broadcaster language, and refresh live/offline status.
 - Platform API controls refresh expiring YouTube/Twitch OAuth credentials before stream-key, broadcast, and channel operations.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
+- Private RTMP(S) validation runbook that walks setup, native start, monitor hold, dashboard check, clean stop, and evidence recording.
 - RTMP/RTMPS publish URL normalization that can split pasted YouTube/Twitch full publish URLs into endpoint and stream key before start.
 - Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, native runtime validation evidence, native compositor still-image asset load evidence, platform dashboard validation evidence, and sanitized report export/share.
 - Face-tracking production diagnostics for prepared PNGTuber assets, native-camera readiness, tracking runtime state, active avatar motion, support bundles, and commercial validation checks.
@@ -82,7 +83,7 @@ GitHub Actions runs the required `test` status check on pull requests and `main`
 - Encoding: VideoToolbox on iOS, MediaCodec on Android.
 - Streaming: RTMP/RTMPS publisher behind `src/native/LiveCasterNative.ts`.
 - Go Live readiness: fail closed before native capture starts, with UI-visible blocking reasons.
-- Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, bitrate/FPS/drop/reconnect telemetry, native publisher/compositor evidence, native still-image asset loaded/missing evidence, estimated upload target, post-stream session evidence, physical validation native-runtime evidence, platform dashboard evidence, and sanitized export/share reports are available before, during, and after live sessions.
+- Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, bitrate/FPS/drop/reconnect telemetry, native publisher/compositor evidence, native still-image asset loaded/missing evidence, private validation runbook state, estimated upload target, post-stream session evidence, physical validation native-runtime evidence, platform dashboard evidence, and sanitized export/share reports are available before, during, and after live sessions.
 - Secret storage: browser persistence strips stream keys; mobile persistence uses Keychain/Android Keystore-backed native storage.
 - Stream key management: users can clear the stored key in-app and paste a replacement key without changing the destination preset.
 - Scene storage: web uses localStorage; Android uses app SharedPreferences; iOS writes an atomic scene JSON file under Application Support.

@@ -1130,6 +1130,24 @@ const StreamValidationRecorder = ({
       <div className={`diagnostic-incident-summary ${validationEvidenceTone(diagnostics)}`}>
         {diagnostics.validationEvidence.summary}
       </div>
+      <div className={`diagnostic-incident-summary ${validationRunbookTone(diagnostics)}`}>
+        {diagnostics.validationRunbook.summary}
+      </div>
+      <div className={`diagnostic-incident ${validationRunbookTone(diagnostics)}`}>
+        <strong>Private validation runbook</strong>
+        <span>{diagnostics.validationRunbook.nextAction}</span>
+        <em>
+          {diagnostics.validationRunbook.passCount} pass / {diagnostics.validationRunbook.warningCount} warn /{" "}
+          {diagnostics.validationRunbook.failCount} fail / {diagnostics.validationRunbook.pendingCount} pending
+        </em>
+      </div>
+      {diagnostics.validationRunbook.items.map((item) => (
+        <div key={item.id} className={`diagnostic-incident ${validationItemTone(item.status)}`}>
+          <strong>{item.title}</strong>
+          <span>{item.detail}</span>
+          <em>{item.action}</em>
+        </div>
+      ))}
       <div className={`diagnostic-incident ${validationEvidenceTone(diagnostics)}`}>
         <strong>Physical validation evidence</strong>
         <span>{diagnostics.validationEvidence.recommendation}</span>
@@ -1227,6 +1245,13 @@ const validationEvidenceTone = (diagnostics: StreamDiagnostics): "pass" | "warn"
   diagnostics.validationEvidence.status === "ready"
     ? "pass"
     : diagnostics.validationEvidence.status === "failing"
+      ? "fail"
+      : "warn";
+
+const validationRunbookTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" =>
+  diagnostics.validationRunbook.status === "complete"
+    ? "pass"
+    : diagnostics.validationRunbook.status === "blocked"
       ? "fail"
       : "warn";
 

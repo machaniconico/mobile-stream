@@ -129,7 +129,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 3 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 4 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.scene.sourceCounts.pngtuber).toBe(1);
@@ -152,6 +152,8 @@ describe("support bundle", () => {
     expect(bundle.summary.lastSessionNativeRuntimeStillImageAssetCount).toBe(1);
     expect(bundle.summary.lastSessionNativeRuntimeStillImageAssetLoadedCount).toBe(1);
     expect(bundle.summary.lastSessionNativeRuntimeStillImageAssetMissingCount).toBe(0);
+    expect(bundle.summary.validationRunbookStatus).toBe("running");
+    expect(bundle.summary.validationRunbookPendingCount).toBeGreaterThan(0);
     expect(bundle.summary.qualityAdvisorAction).toBe("maintain");
     expect(bundle.summary.qualityAdvisorSeverity).toBe("pass");
     expect(bundle.summary.suggestedQualityTarget).toBeNull();
@@ -192,6 +194,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Quality advisor: maintain / pass");
     expect(formatSupportBundle(bundle)).toContain("Face tracking: info / runtime unavailable");
     expect(formatSupportBundle(bundle)).toContain("Commercial Validation");
+    expect(formatSupportBundle(bundle)).toContain("Runbook: running");
     expect(formatSupportBundle(bundle)).toContain("Native composition: warn / preview-only-overlays");
     expect(formatSupportBundle(bundle)).toContain("asset issues 1 / file-backed 0");
     expect(formatSupportBundle(bundle)).toContain("assets 1/1 loaded / 0 missing");

@@ -40,6 +40,10 @@ import {
   type StreamValidationChecklist
 } from "./streamValidationChecklist";
 import {
+  createStreamValidationRunbook,
+  type StreamValidationRunbook
+} from "./streamValidationRunbook";
+import {
   summarizeStreamValidationEvidence,
   type StreamValidationEvidenceSummary,
   type StreamValidationRun
@@ -128,6 +132,7 @@ export interface StreamDiagnostics {
   };
   validationEvidence: StreamValidationEvidenceSummary;
   validation: StreamValidationChecklist;
+  validationRunbook: StreamValidationRunbook;
   checks: DiagnosticCheck[];
 }
 
@@ -253,6 +258,33 @@ export const createStreamDiagnostics = (
     evidence: validationEvidence,
     faceTracking
   });
+  const validationRunbook = createStreamValidationRunbook({
+    readiness,
+    target: {
+      platform: targetPlatform,
+      protocol: destination.protocol,
+      secureTransport: destination.protocol === "rtmps"
+    },
+    telemetry: {
+      streamStatus: snapshot.state.status,
+      bitrateKbps: snapshot.health.bitrateKbps,
+      fps: snapshot.health.fps,
+      droppedFrames: snapshot.health.droppedFrames,
+      reconnectAttempts: snapshot.health.reconnectAttempts,
+      elapsedSeconds: snapshot.health.elapsedSeconds
+    },
+    health: history,
+    session: {
+      summaryCount: sessionSummaries.length,
+      historySummary: sessionHistorySummary,
+      lastOutcome: sessionSummaries[0]?.outcome ?? null
+    },
+    nativeRuntime,
+    nativeComposition,
+    faceTracking,
+    platformPublishing,
+    evidence: validationEvidence
+  });
 
   return {
     summary: summaryText(status, checks),
@@ -305,6 +337,7 @@ export const createStreamDiagnostics = (
     },
     validationEvidence,
     validation,
+    validationRunbook,
     checks
   };
 };
@@ -463,6 +496,11 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Evidence native runtime: ${formatValidationNativeRuntime(diagnostics)}`,
     `- Evidence face tracking: ${formatValidationFaceTracking(diagnostics)}`,
     `- Evidence platform dashboard: ${formatValidationPlatformPublishing(diagnostics)}`,
+    `- Runbook: ${diagnostics.validationRunbook.status} / ${diagnostics.validationRunbook.summary}`,
+    `- Runbook next: ${diagnostics.validationRunbook.nextAction}`,
+    ...diagnostics.validationRunbook.items.map(
+      (item) => `- [${item.status.toUpperCase()}] ${item.title}: ${item.detail} Action: ${item.action}`
+    ),
     ...diagnostics.validation.items.map(
       (item) => `- [${item.status.toUpperCase()}] ${item.title}: ${item.detail} Action: ${item.action}`
     ),

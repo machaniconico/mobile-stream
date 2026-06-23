@@ -19,7 +19,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 3;
+    bundleVersion: 4;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -53,6 +53,11 @@ export interface SupportBundle {
     validationPendingCount: number;
     validationWarningCount: number;
     validationFailCount: number;
+    validationRunbookStatus: StreamDiagnostics["validationRunbook"]["status"];
+    validationRunbookPendingCount: number;
+    validationRunbookWarningCount: number;
+    validationRunbookFailCount: number;
+    validationRunbookNextAction: string;
     validationEvidenceStatus: StreamDiagnostics["validationEvidence"]["status"];
     validationEvidenceRunCount: number;
     validationEvidenceEligibleRunCount: number;
@@ -197,7 +202,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 3
+      bundleVersion: 4
     },
     summary: {
       status: diagnostics.status,
@@ -231,6 +236,11 @@ export const createSupportBundle = ({
       validationPendingCount: diagnostics.validation.pendingCount,
       validationWarningCount: diagnostics.validation.warningCount,
       validationFailCount: diagnostics.validation.failCount,
+      validationRunbookStatus: diagnostics.validationRunbook.status,
+      validationRunbookPendingCount: diagnostics.validationRunbook.pendingCount,
+      validationRunbookWarningCount: diagnostics.validationRunbook.warningCount,
+      validationRunbookFailCount: diagnostics.validationRunbook.failCount,
+      validationRunbookNextAction: diagnostics.validationRunbook.nextAction,
       validationEvidenceStatus: diagnostics.validationEvidence.status,
       validationEvidenceRunCount: diagnostics.validationEvidence.totalRuns,
       validationEvidenceEligibleRunCount: diagnostics.validationEvidence.eligibleRunCount,
@@ -411,6 +421,8 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     "",
     "Commercial Validation",
     `- Status: ${bundle.summary.validationStatus}`,
+    `- Runbook: ${bundle.summary.validationRunbookStatus} / ${bundle.summary.validationRunbookWarningCount} warn / ${bundle.summary.validationRunbookFailCount} fail / ${bundle.summary.validationRunbookPendingCount} pending`,
+    `- Runbook next: ${bundle.summary.validationRunbookNextAction}`,
     `- Pending: ${bundle.summary.validationPendingCount}`,
     `- Warnings: ${bundle.summary.validationWarningCount}`,
     `- Failures: ${bundle.summary.validationFailCount}`,

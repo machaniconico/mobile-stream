@@ -1353,6 +1353,26 @@ const StreamValidationRecorder = ({
           {diagnostics.validationEvidence.summary}
         </Text>
       </View>
+      <View style={[styles.diagnosticIncidentSummary, diagnosticValidationRunbookSummaryStyle(diagnostics)]}>
+        <Text style={[styles.diagnosticIncidentSummaryText, diagnosticValidationRunbookSummaryTextStyle(diagnostics)]}>
+          {diagnostics.validationRunbook.summary}
+        </Text>
+      </View>
+      <View style={[styles.diagnosticIncident, diagnosticValidationRunbookStyle(diagnostics)]}>
+        <Text style={styles.diagnosticIncidentTitle}>Private validation runbook</Text>
+        <Text style={styles.diagnosticIncidentText}>{diagnostics.validationRunbook.nextAction}</Text>
+        <Text style={styles.diagnosticIncidentRecommendation}>
+          {diagnostics.validationRunbook.passCount} pass / {diagnostics.validationRunbook.warningCount} warn /{" "}
+          {diagnostics.validationRunbook.failCount} fail / {diagnostics.validationRunbook.pendingCount} pending
+        </Text>
+      </View>
+      {diagnostics.validationRunbook.items.map((item) => (
+        <View key={item.id} style={[styles.diagnosticIncident, diagnosticValidationItemStyle(item.status)]}>
+          <Text style={styles.diagnosticIncidentTitle}>{item.title}</Text>
+          <Text style={styles.diagnosticIncidentText}>{item.detail}</Text>
+          <Text style={styles.diagnosticIncidentRecommendation}>{item.action}</Text>
+        </View>
+      ))}
       <View style={[styles.diagnosticIncident, diagnosticValidationEvidenceStyle(diagnostics)]}>
         <Text style={styles.diagnosticIncidentTitle}>Physical validation evidence</Text>
         <Text style={styles.diagnosticIncidentText}>{diagnostics.validationEvidence.recommendation}</Text>
@@ -2258,6 +2278,33 @@ const diagnosticValidationEvidenceStyle = (diagnostics: StreamDiagnostics) =>
   diagnostics.validationEvidence.status === "failing"
     ? styles.diagnosticCheckFail
     : diagnostics.validationEvidence.status === "ready"
+      ? null
+      : styles.diagnosticCheckWarn;
+
+const diagnosticValidationRunbookSummaryStyle = (diagnostics: StreamDiagnostics) => {
+  if (diagnostics.validationRunbook.status === "blocked") {
+    return styles.diagnosticFail;
+  }
+  if (diagnostics.validationRunbook.status === "complete") {
+    return styles.diagnosticPass;
+  }
+  return styles.diagnosticWarn;
+};
+
+const diagnosticValidationRunbookSummaryTextStyle = (diagnostics: StreamDiagnostics) => {
+  if (diagnostics.validationRunbook.status === "blocked") {
+    return styles.diagnosticFailText;
+  }
+  if (diagnostics.validationRunbook.status === "complete") {
+    return styles.diagnosticPassText;
+  }
+  return styles.diagnosticWarnText;
+};
+
+const diagnosticValidationRunbookStyle = (diagnostics: StreamDiagnostics) =>
+  diagnostics.validationRunbook.status === "blocked"
+    ? styles.diagnosticCheckFail
+    : diagnostics.validationRunbook.status === "complete"
       ? null
       : styles.diagnosticCheckWarn;
 
