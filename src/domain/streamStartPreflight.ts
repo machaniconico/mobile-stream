@@ -1,3 +1,9 @@
+import type { ChatReaderSettings } from "./chatReader";
+import {
+  getPlatformChatNetworkReadiness,
+  type PlatformChatAuthSession,
+  type PlatformChatConnectionState
+} from "./platformChatConnection";
 import type { ReadinessIssue, ReadinessReport } from "./readiness";
 import type { StudioProfile } from "./profiles";
 import type { StreamOperationStatus } from "./streamOperation";
@@ -13,6 +19,7 @@ export type StreamStartPreflightArea =
   | "security"
   | "audio"
   | "avatar"
+  | "chat"
   | "validation"
   | "engine"
   | "operation";
@@ -40,8 +47,11 @@ export interface StreamStartPreflightInput {
   readiness: ReadinessReport;
   streamStatus: StreamStatus;
   operationStatus?: StreamOperationStatus | null;
-  profile?: Pick<StudioProfile, "destination" | "platformPublishing">;
+  profile?: Pick<StudioProfile, "destination" | "platformPublishing" | "platformChat">;
   validation?: Pick<StreamValidationChecklist, "status" | "recommendedNextStep"> | null;
+  chatReader?: Pick<ChatReaderSettings, "enabled"> | null;
+  platformChatAuth?: PlatformChatAuthSession | null;
+  platformChatConnection?: Pick<PlatformChatConnectionState, "phase" | "message"> | null;
 }
 
 export const createStreamStartPreflightReport = ({
@@ -49,10 +59,14 @@ export const createStreamStartPreflightReport = ({
   streamStatus,
   operationStatus = null,
   profile,
-  validation = null
+  validation = null,
+  chatReader = null,
+  platformChatAuth = null,
+  platformChatConnection = null
 }: StreamStartPreflightInput): StreamStartPreflightReport => {
   const issues = [
     ...readiness.issues.map(toPreflightIssue),
+    ...createChatReadoutIssues(profile, chatReader, platformChatAuth, platformChatConnection),
     ...createCommercialValidationIssues(profile, validation),
     ...createEngineStateIssues(streamStatus),
     ...createOperationIssues(operationStatus)
@@ -272,6 +286,77 @@ const createCommercialValidationIssues = (
         label: "Commercial validation",
         message: "Custom ingest visibility is unknown, and commercial validation is not ready.",
         recommendation: "Use a private endpoint or staging ingest until commercial validation is ready."
+      }
+    ];
+  }
+
+  return [];
+};
+
+const createChatReadoutIssues = (
+  profile: StreamStartPreflightInput["profile"],
+  chatReader: StreamStartPreflightInput["chatReader"],
+  platformChatAuth: StreamStartPreflightInput["platformChatAuth"],
+  platformChatConnection: StreamStartPreflightInput["platformChatConnection"]
+): StreamStartPreflightIssue[] => {
+  if (!profile?.platformChat.enabled) {
+    return [];
+  }
+
+  if (!chatReader?.enabled) {
+    return [
+      {
+        code: "chat-reader-disabled",
+        severity: "warning",
+        area: "chat",
+        label: "Chat readout",
+        message: "Platform chat is enabled, but chat readout is turned off.",
+        recommendation: "Turn on chat readout before production streams if comments should be spoken aloud."
+      }
+    ];
+  }
+
+  const networkReadiness = getPlatformChatNetworkReadiness(
+    profile.platformChat,
+    platformChatAuth ?? {
+      youtubeAccessToken: "",
+      twitchOauthToken: "",
+      twitchLogin: ""
+    }
+  );
+
+  if (networkReadiness.status === "needs-configuration" || networkReadiness.status === "needs-auth") {
+    return [
+      {
+        code: `chat-platform-${networkReadiness.status}`,
+        severity: "block",
+        area: "chat",
+        label: "Platform chat",
+        message: networkReadiness.message,
+        recommendation:
+          networkReadiness.status === "needs-auth"
+            ? "Connect the platform OAuth session before starting a stream with chat readout enabled."
+            : "Set the YouTube live chat ID or Twitch channel before starting a stream with chat readout enabled."
+      }
+    ];
+  }
+
+  const phase = platformChatConnection?.phase ?? "idle";
+  if (networkReadiness.status === "ready" && phase !== "connected") {
+    return [
+      {
+        code: phase === "failed" ? "chat-platform-connection-failed" : "chat-platform-not-connected",
+        severity: "warning",
+        area: "chat",
+        label: "Platform chat",
+        message:
+          phase === "failed"
+            ? platformChatConnection?.message || "Platform chat connection is failed."
+            : "Platform chat is configured but not connected.",
+        recommendation:
+          phase === "connecting"
+            ? "Wait for chat connection to finish before production validation."
+            : "Connect and test platform chat before production validation so comments can be read aloud."
       }
     ];
   }

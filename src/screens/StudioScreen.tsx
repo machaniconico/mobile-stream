@@ -336,7 +336,10 @@ export const StudioScreen = ({
     streamStatus: snapshot.state.status,
     operationStatus,
     profile,
-    validation: diagnostics.validation
+    validation: diagnostics.validation,
+    chatReader: chatReader.settings,
+    platformChatAuth,
+    platformChatConnection
   });
   const canGoLive = startPreflight.canStart;
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {

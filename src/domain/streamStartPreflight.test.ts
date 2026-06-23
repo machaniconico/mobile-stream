@@ -181,6 +181,137 @@ describe("stream start preflight", () => {
     expect(report.warnings.map((issue) => issue.code)).toContain("validation-custom-not-ready");
   });
 
+  it("blocks platform chat readout when chat is enabled without a target", () => {
+    const profile = {
+      ...validProfile(),
+      platformChat: {
+        ...validProfile().platformChat,
+        enabled: true,
+        platform: "youtube" as const,
+        youtubeLiveChatId: ""
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      chatReader: { enabled: true }
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toContain("chat-platform-needs-configuration");
+  });
+
+  it("blocks platform chat readout when OAuth is missing", () => {
+    const profile = {
+      ...validProfile(),
+      platformChat: {
+        ...validProfile().platformChat,
+        enabled: true,
+        platform: "youtube" as const,
+        youtubeLiveChatId: "live-chat-id"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      chatReader: { enabled: true },
+      platformChatAuth: {
+        youtubeAccessToken: "",
+        twitchOauthToken: "",
+        twitchLogin: ""
+      }
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toContain("chat-platform-needs-auth");
+  });
+
+  it("warns when platform chat readout is configured but not connected", () => {
+    const profile = {
+      ...validProfile(),
+      platformChat: {
+        ...validProfile().platformChat,
+        enabled: true,
+        platform: "youtube" as const,
+        youtubeLiveChatId: "live-chat-id"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      chatReader: { enabled: true },
+      platformChatAuth: {
+        youtubeAccessToken: "oauth-placeholder",
+        twitchOauthToken: "",
+        twitchLogin: ""
+      },
+      platformChatConnection: {
+        phase: "idle",
+        message: "Not connected."
+      }
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("warning");
+    expect(report.warnings.map((issue) => issue.code)).toContain("chat-platform-not-connected");
+  });
+
+  it("passes platform chat readout when chat is connected", () => {
+    const profile = {
+      ...validProfile(),
+      platformChat: {
+        ...validProfile().platformChat,
+        enabled: true,
+        platform: "youtube" as const,
+        youtubeLiveChatId: "live-chat-id"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      chatReader: { enabled: true },
+      platformChatAuth: {
+        youtubeAccessToken: "oauth-placeholder",
+        twitchOauthToken: "",
+        twitchLogin: ""
+      },
+      platformChatConnection: {
+        phase: "connected",
+        message: "Connected."
+      }
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("ready");
+    expect(report.issues.map((issue) => issue.area)).not.toContain("chat");
+  });
+
+  it("warns when platform chat is enabled but readout is disabled", () => {
+    const profile = {
+      ...validProfile(),
+      platformChat: {
+        ...validProfile().platformChat,
+        enabled: true,
+        platform: "twitch" as const,
+        twitchChannel: "streamer"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      chatReader: { enabled: false }
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("warning");
+    expect(report.warnings.map((issue) => issue.code)).toContain("chat-reader-disabled");
+  });
+
   it("keeps warnings visible without blocking start", () => {
     const readiness = createReadinessReport(createDefaultScene(), {
       ...createDefaultStudioProfile(),

@@ -512,7 +512,10 @@ export const MobileApp = () => {
         readiness,
         streamStatus: engineSnapshot.state.status,
         profile,
-        validation: diagnostics.validation
+        validation: diagnostics.validation,
+        chatReader: chatReader.settings,
+        platformChatAuth,
+        platformChatConnection: platformChatConnection.connection
       });
       if (!preflight.canStart) {
         throw new Error(formatStreamStartPreflightBlockMessage(preflight));
