@@ -50,6 +50,7 @@
 - Platform publishing status refreshes retain YouTube/Twitch dashboard checked-at timestamps across profile storage, diagnostics, support bundles, and Web/React Native setup screens.
 - Diagnostics reports and support bundles surface YouTube/Twitch dashboard status freshness so release-candidate evidence can prove whether platform checks were current.
 - Web and React Native diagnostics panels show current and retained dashboard freshness so stale/missing YouTube/Twitch checks are visible before recording release evidence.
+- Web and React Native Go Live areas show a shared public launch checklist covering destination/scene, platform dashboard freshness, chat readout, mic FX headphone monitoring, commercial evidence, and encoder state.
 - YouTube Live broadcast lifecycle transition preflight for Test/Live/Complete actions, including public-validation gating, local encoder state checks, active ingest checks, fresh dashboard-status checks, health checks, and local-stream-stop protection before completing a broadcast across Web and React Native.
 - OAuth-token chat connection layer for YouTube live chat polling and Twitch IRC WebSocket ingestion.
 - Platform API controls refresh expiring YouTube/Twitch OAuth credentials before stream-key, broadcast, and channel operations on Web and React Native.

@@ -36,6 +36,11 @@ import {
   type PlatformPublishingFreshness,
   type PlatformPublishingFreshnessStatus
 } from "../domain/platformPublishingFreshness";
+import {
+  createPublicLaunchChecklist,
+  type PublicLaunchChecklist,
+  type PublicLaunchChecklistItemStatus
+} from "../domain/publicLaunchChecklist";
 import { applyMicEffectPreset, micEffectPresets, type MicEffectPresetId, type StudioProfile } from "../domain/profiles";
 import type { ReadinessReport } from "../domain/readiness";
 import {
@@ -359,6 +364,12 @@ export const StudioScreen = ({
     platformChatAuth,
     platformChatConnection
   });
+  const platformPublishingFreshness = assessPlatformPublishingFreshness(diagnostics.platformPublishing);
+  const publicLaunchChecklist = createPublicLaunchChecklist({
+    preflight: startPreflight,
+    diagnostics,
+    platformPublishingFreshness
+  });
   const canGoLive = startPreflight.canStart;
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
     if (setupLocked) {
@@ -533,6 +544,7 @@ export const StudioScreen = ({
             </div>
           ) : null}
           <StartPreflightBanner report={startPreflight} />
+          <PublicLaunchChecklistPanel checklist={publicLaunchChecklist} />
         </section>
 
         <aside className="right-rail" aria-label="inspector and setup">
@@ -910,6 +922,33 @@ const StartPreflightBanner = ({ report }: { report: StreamStartPreflightReport }
         ))}
       </div>
     ) : null}
+  </div>
+);
+
+const PublicLaunchChecklistPanel = ({ checklist }: { checklist: PublicLaunchChecklist }) => (
+  <div className={`public-launch-checklist ${checklist.status}`} aria-label="public launch checklist">
+    <div className="public-launch-header">
+      <div className="public-launch-title">
+        <ShieldCheck size={16} />
+        <span>Public checklist</span>
+      </div>
+      <div className="public-launch-counts" aria-label="public checklist counts">
+        <span className="public-launch-count pass">{checklist.passCount} pass</span>
+        <span className="public-launch-count warn">{checklist.warningCount} warn</span>
+        <span className="public-launch-count fail">{checklist.failCount} fail</span>
+      </div>
+    </div>
+    <strong className="public-launch-summary">{checklist.summary}</strong>
+    <span className="public-launch-action">{checklist.primaryAction}</span>
+    <div className="public-launch-items">
+      {checklist.items.map((item) => (
+        <div key={item.id} className={`public-launch-item ${publicLaunchChecklistTone(item.status)}`}>
+          <strong>{item.label}</strong>
+          <span>{item.detail}</span>
+          <em>{item.action}</em>
+        </div>
+      ))}
+    </div>
   </div>
 );
 
@@ -1302,6 +1341,8 @@ const validationRunTone = (result: StreamValidationRunResult): "pass" | "warn" |
 
 const platformPublishingFreshnessTone = (status: PlatformPublishingFreshnessStatus): "pass" | "warn" | "fail" =>
   status === "fresh" || status === "not-applicable" ? "pass" : status === "invalid" ? "fail" : "warn";
+
+const publicLaunchChecklistTone = (status: PublicLaunchChecklistItemStatus): "pass" | "warn" | "fail" => status;
 
 const validationRunNativeRuntimeLabel = (run: StreamValidationRun): string | null =>
   run.nativeRuntime

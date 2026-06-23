@@ -654,6 +654,144 @@ select:focus-visible {
   color: #fecdd3;
 }
 
+.public-launch-checklist {
+  display: grid;
+  gap: 9px;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #101015;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.public-launch-checklist.ready {
+  border-color: rgba(34, 197, 94, 0.42);
+}
+
+.public-launch-checklist.warning {
+  border-color: rgba(245, 158, 11, 0.42);
+}
+
+.public-launch-checklist.blocked {
+  border-color: rgba(251, 113, 133, 0.54);
+}
+
+.public-launch-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.public-launch-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-weight: 900;
+}
+
+.public-launch-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.public-launch-count {
+  min-height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 3px 7px;
+  background: #121218;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.public-launch-count.pass {
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #bbf7d0;
+}
+
+.public-launch-count.warn {
+  border-color: rgba(245, 158, 11, 0.34);
+  color: #fde68a;
+}
+
+.public-launch-count.fail {
+  border-color: rgba(251, 113, 133, 0.36);
+  color: #fecdd3;
+}
+
+.public-launch-summary {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.public-launch-checklist.ready .public-launch-summary {
+  color: #bbf7d0;
+}
+
+.public-launch-checklist.warning .public-launch-summary {
+  color: #fde68a;
+}
+
+.public-launch-checklist.blocked .public-launch-summary {
+  color: #fecdd3;
+}
+
+.public-launch-action {
+  line-height: 1.35;
+}
+
+.public-launch-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.public-launch-item {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: #121218;
+  line-height: 1.35;
+}
+
+.public-launch-item strong {
+  color: var(--text);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.public-launch-item em {
+  color: #a1a1aa;
+  font-style: normal;
+}
+
+.public-launch-item.pass {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.public-launch-item.pass strong {
+  color: #bbf7d0;
+}
+
+.public-launch-item.warn {
+  border-color: rgba(245, 158, 11, 0.34);
+  color: #fde68a;
+}
+
+.public-launch-item.fail {
+  border-color: rgba(251, 113, 133, 0.36);
+  color: #fecdd3;
+}
+
 .field,
 .slider-field {
   display: grid;

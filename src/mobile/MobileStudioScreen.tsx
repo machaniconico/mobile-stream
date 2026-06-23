@@ -14,6 +14,11 @@ import {
   type PlatformPublishingFreshnessStatus
 } from "../domain/platformPublishingFreshness";
 import {
+  createPublicLaunchChecklist,
+  type PublicLaunchChecklist,
+  type PublicLaunchChecklistItemStatus
+} from "../domain/publicLaunchChecklist";
+import {
   createYouTubeBroadcastTransitionPreflightReport,
   type PlatformPublishingPreflightReport
 } from "../domain/platformPublishingPreflight";
@@ -308,6 +313,12 @@ export const MobileStudioScreen = ({
     platformChatConnection,
     audioRoute
   });
+  const platformPublishingFreshness = assessPlatformPublishingFreshness(diagnostics.platformPublishing);
+  const publicLaunchChecklist = createPublicLaunchChecklist({
+    preflight: startPreflight,
+    diagnostics,
+    platformPublishingFreshness
+  });
   const canGoLive = startPreflight.canStart;
   const youtubeTransitionReport = (transitionStatus: YouTubeBroadcastTransitionStatus) =>
     createYouTubeBroadcastTransitionPreflightReport({
@@ -551,6 +562,7 @@ export const MobileStudioScreen = ({
             </View>
           ) : null}
           <StartPreflightBanner report={startPreflight} />
+          <PublicLaunchChecklistPanel checklist={publicLaunchChecklist} />
         </View>
 
         <Panel title="Transform">
@@ -2107,6 +2119,34 @@ const StartPreflightBanner = ({ report }: { report: StreamStartPreflightReport }
   </View>
 );
 
+const PublicLaunchChecklistPanel = ({ checklist }: { checklist: PublicLaunchChecklist }) => (
+  <View style={[styles.publicLaunchChecklist, publicLaunchChecklistStyle(checklist.status)]}>
+    <View style={styles.publicLaunchHeader}>
+      <Text style={[styles.publicLaunchTitle, publicLaunchChecklistTextStyle(checklist.status)]}>Public checklist</Text>
+      <View style={styles.publicLaunchCounts}>
+        <Text style={[styles.publicLaunchCount, styles.publicLaunchCountPass]}>{checklist.passCount} pass</Text>
+        <Text style={[styles.publicLaunchCount, styles.publicLaunchCountWarn]}>{checklist.warningCount} warn</Text>
+        <Text style={[styles.publicLaunchCount, styles.publicLaunchCountFail]}>{checklist.failCount} fail</Text>
+      </View>
+    </View>
+    <Text style={[styles.publicLaunchSummary, publicLaunchChecklistTextStyle(checklist.status)]}>{checklist.summary}</Text>
+    <Text style={styles.publicLaunchAction}>{checklist.primaryAction}</Text>
+    <View style={styles.publicLaunchItems}>
+      {checklist.items.map((item) => (
+        <View key={item.id} style={[styles.publicLaunchItem, publicLaunchItemStyle(item.status)]}>
+          <Text style={[styles.publicLaunchItemLabel, publicLaunchItemTextStyle(item.status)]}>{item.label}</Text>
+          <Text style={styles.publicLaunchItemDetail} numberOfLines={3}>
+            {item.detail}
+          </Text>
+          <Text style={styles.publicLaunchItemAction} numberOfLines={3}>
+            {item.action}
+          </Text>
+        </View>
+      ))}
+    </View>
+  </View>
+);
+
 const ReadinessPanel = ({ readiness }: { readiness: ReadinessReport }) => (
   <View style={[styles.readinessPanel, readiness.canStart ? styles.readinessPanelReady : styles.readinessPanelBlocked]}>
     <Text style={styles.readinessTitle}>{readiness.canStart ? "Start checks passed" : "Start checks need attention"}</Text>
@@ -2524,6 +2564,46 @@ const startPreflightSummaryTextStyle = (status: StreamStartPreflightReport["stat
 
 const startPreflightIssueTextStyle = (severity: StreamStartPreflightReport["issues"][number]["severity"]) =>
   severity === "block" ? styles.startPreflightBlockedText : styles.startPreflightWarningText;
+
+const publicLaunchChecklistStyle = (status: PublicLaunchChecklist["status"]) => {
+  switch (status) {
+    case "ready":
+      return styles.publicLaunchReady;
+    case "warning":
+      return styles.publicLaunchWarning;
+    case "blocked":
+      return styles.publicLaunchBlocked;
+  }
+};
+
+const publicLaunchChecklistTextStyle = (status: PublicLaunchChecklist["status"]) => {
+  switch (status) {
+    case "ready":
+      return styles.startPreflightReadyText;
+    case "warning":
+      return styles.startPreflightWarningText;
+    case "blocked":
+      return styles.startPreflightBlockedText;
+  }
+};
+
+const publicLaunchItemStyle = (status: PublicLaunchChecklistItemStatus) => {
+  switch (status) {
+    case "pass":
+      return styles.publicLaunchItemPass;
+    case "warn":
+      return styles.publicLaunchItemWarn;
+    case "fail":
+      return styles.publicLaunchItemFail;
+  }
+};
+
+const publicLaunchItemTextStyle = (status: PublicLaunchChecklistItemStatus) =>
+  status === "pass"
+    ? styles.startPreflightReadyText
+    : status === "warn"
+      ? styles.startPreflightWarningText
+      : styles.startPreflightBlockedText;
 
 const platformPublishingPreflightTextStyle = (status: PlatformPublishingPreflightReport["status"]) => {
   switch (status) {
@@ -2950,6 +3030,102 @@ const styles = StyleSheet.create({
     color: "#a1a1aa",
     fontSize: 12,
     fontWeight: "700",
+    lineHeight: 17
+  },
+  publicLaunchChecklist: {
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: "#101015"
+  },
+  publicLaunchReady: {
+    borderColor: "rgba(34, 197, 94, 0.42)"
+  },
+  publicLaunchWarning: {
+    borderColor: "rgba(245, 158, 11, 0.42)"
+  },
+  publicLaunchBlocked: {
+    borderColor: "rgba(251, 113, 133, 0.54)"
+  },
+  publicLaunchHeader: {
+    gap: 8
+  },
+  publicLaunchTitle: {
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  publicLaunchCounts: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6
+  },
+  publicLaunchCount: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    backgroundColor: "#121218",
+    fontSize: 11,
+    fontWeight: "900"
+  },
+  publicLaunchCountPass: {
+    borderColor: "rgba(34, 197, 94, 0.3)",
+    color: "#bbf7d0"
+  },
+  publicLaunchCountWarn: {
+    borderColor: "rgba(245, 158, 11, 0.34)",
+    color: "#fde68a"
+  },
+  publicLaunchCountFail: {
+    borderColor: "rgba(251, 113, 133, 0.36)",
+    color: "#fecdd3"
+  },
+  publicLaunchSummary: {
+    fontSize: 13,
+    fontWeight: "900",
+    lineHeight: 18
+  },
+  publicLaunchAction: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 17
+  },
+  publicLaunchItems: {
+    gap: 7
+  },
+  publicLaunchItem: {
+    gap: 4,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    padding: 8,
+    backgroundColor: "#121218"
+  },
+  publicLaunchItemPass: {
+    borderColor: "rgba(34, 197, 94, 0.3)"
+  },
+  publicLaunchItemWarn: {
+    borderColor: "rgba(245, 158, 11, 0.34)"
+  },
+  publicLaunchItemFail: {
+    borderColor: "rgba(251, 113, 133, 0.36)"
+  },
+  publicLaunchItemLabel: {
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  publicLaunchItemDetail: {
+    color: "#d4d4d8",
+    fontSize: 12,
+    lineHeight: 17
+  },
+  publicLaunchItemAction: {
+    color: "#a1a1aa",
+    fontSize: 12,
     lineHeight: 17
   },
   youtubeTransitionPreflights: {
