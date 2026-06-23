@@ -82,6 +82,7 @@ import {
   type StreamControlAction,
   type StreamOperationStatus
 } from "../domain/streamOperation";
+import { canAutomateStreamRecovery } from "../domain/streamRecovery";
 import {
   createStreamStartPreflightReport,
   formatStreamStartPreflightBlockMessage
@@ -669,12 +670,77 @@ export const MobileApp = () => {
     },
     [recordStreamSessionEvent]
   );
+  const autoRecoveryCanStart = useMemo(() => {
+    const activeSessionEligible = canAutomateStreamRecovery({
+      streamStatus: snapshot.state.status,
+      elapsedSeconds: snapshot.health.elapsedSeconds,
+      reconnectAttempts: snapshot.health.reconnectAttempts,
+      publicLaunchCanStart: false
+    });
+    if (activeSessionEligible) {
+      return true;
+    }
+
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      snapshot,
+      streamSessionEvents,
+      streamHealthSamples,
+      streamSessionSummaries.summaries,
+      streamValidationRuns,
+      faceTrackingRuntime,
+      {
+        chatReader: chatReader.settings,
+        platformChatConnection: platformChatConnection.connection,
+        audioRoute
+      }
+    );
+    const preflight = createStreamStartPreflightReport({
+      readiness,
+      streamStatus: snapshot.state.status,
+      profile,
+      validation: diagnostics.validation,
+      chatReader: chatReader.settings,
+      platformChatAuth,
+      platformChatConnection: platformChatConnection.connection,
+      audioRoute
+    });
+    const publicLaunchChecklist = createPublicLaunchChecklist({
+      preflight,
+      diagnostics,
+      platformPublishingFreshness: assessPlatformPublishingFreshness(diagnostics.platformPublishing),
+      profile
+    });
+
+    return canAutomateStreamRecovery({
+      streamStatus: snapshot.state.status,
+      elapsedSeconds: snapshot.health.elapsedSeconds,
+      reconnectAttempts: snapshot.health.reconnectAttempts,
+      publicLaunchCanStart: publicLaunchChecklist.canStart
+    });
+  }, [
+    audioRoute,
+    chatReader.settings,
+    faceTrackingRuntime,
+    platformChatAuth,
+    platformChatConnection.connection,
+    profile,
+    readiness,
+    scene,
+    snapshot,
+    streamHealthSamples,
+    streamSessionEvents,
+    streamSessionSummaries.summaries,
+    streamValidationRuns
+  ]);
 
   useStreamAutoRecovery({
     engine,
     snapshot,
     quality: readiness.sanitizedProfile.quality,
-    canStart: readiness.canStart,
+    canStart: autoRecoveryCanStart,
     operationInFlight,
     runStreamOperation,
     onRecoveryDecision: recordRecoveryDecision

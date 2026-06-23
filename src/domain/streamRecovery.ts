@@ -36,6 +36,13 @@ export interface StreamRecoverySnapshot {
   health: StreamHealth;
 }
 
+export interface StreamRecoveryEligibilityInput {
+  streamStatus: StreamStatus;
+  elapsedSeconds: number;
+  reconnectAttempts: number;
+  publicLaunchCanStart: boolean;
+}
+
 export interface StreamRecoveryAutomationState {
   scheduledKey: string | null;
   criticalSince: number | null;
@@ -203,6 +210,23 @@ export const getReconnectDelayMs = (attemptNumber: number, policy: StreamRecover
 
 export const formatRecoveryBackoff = (policy: StreamRecoveryPolicy = defaultStreamRecoveryPolicy): string =>
   `${formatDelay(policy.baseDelayMs)}-${formatDelay(policy.maxDelayMs)}`;
+
+export const canAutomateStreamRecovery = ({
+  streamStatus,
+  elapsedSeconds,
+  reconnectAttempts,
+  publicLaunchCanStart
+}: StreamRecoveryEligibilityInput): boolean => {
+  if (streamStatus === "live" || streamStatus === "reconnecting" || streamStatus === "stopping") {
+    return true;
+  }
+
+  if (streamStatus === "failed" && (elapsedSeconds > 0 || reconnectAttempts > 0)) {
+    return true;
+  }
+
+  return publicLaunchCanStart;
+};
 
 export const createStreamRecoveryAutomationDecision = ({
   snapshot,

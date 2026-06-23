@@ -32,6 +32,7 @@
 - Stream quality incident model for active bitrate/FPS/drop/reconnect problems, recommendations, UI surfacing, and report export.
 - Shared stream recovery policy model for retry budget, bounded exponential backoff, degraded telemetry detection, failed-engine recovery advice, and sanitized report export.
 - Shared app-level automatic recovery scheduler for Web and React Native, including failed-engine reconnect, critical telemetry hold time, retry budget enforcement, and timer deduplication.
+- Web and React Native automatic recovery respects the public launch checklist for unstarted failed-stream recovery while still allowing active live/reconnecting sessions to recover without being blocked by transient dashboard/chat/audio evidence changes.
 - Shared stream session event log for status transitions, manual operations, automatic recovery actions, support diagnostics, and redacted report export.
 - Stream key redaction and no-secret browser persistence.
 - Sensitive OAuth/API error message redaction before user-facing status display.

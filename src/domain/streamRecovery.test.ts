@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultStudioProfile } from "./profiles";
 import {
+  canAutomateStreamRecovery,
   createInitialStreamRecoveryAutomationState,
   createStreamRecoveryAutomationDecision,
   createStreamRecoveryStatus,
@@ -25,6 +26,57 @@ const snapshot = (status: StreamRecoverySnapshot["state"]["status"], update: Par
 });
 
 describe("stream recovery policy", () => {
+  it("allows active stream recovery even when public launch checks are currently blocking start", () => {
+    expect(
+      canAutomateStreamRecovery({
+        streamStatus: "live",
+        elapsedSeconds: 30,
+        reconnectAttempts: 0,
+        publicLaunchCanStart: false
+      })
+    ).toBe(true);
+
+    expect(
+      canAutomateStreamRecovery({
+        streamStatus: "reconnecting",
+        elapsedSeconds: 30,
+        reconnectAttempts: 2,
+        publicLaunchCanStart: false
+      })
+    ).toBe(true);
+  });
+
+  it("blocks unstarted failed-stream automation when public launch checks are blocking start", () => {
+    expect(
+      canAutomateStreamRecovery({
+        streamStatus: "failed",
+        elapsedSeconds: 0,
+        reconnectAttempts: 0,
+        publicLaunchCanStart: false
+      })
+    ).toBe(false);
+  });
+
+  it("allows failed-stream automation after an active attempt or when public launch checks pass", () => {
+    expect(
+      canAutomateStreamRecovery({
+        streamStatus: "failed",
+        elapsedSeconds: 20,
+        reconnectAttempts: 0,
+        publicLaunchCanStart: false
+      })
+    ).toBe(true);
+
+    expect(
+      canAutomateStreamRecovery({
+        streamStatus: "failed",
+        elapsedSeconds: 0,
+        reconnectAttempts: 0,
+        publicLaunchCanStart: true
+      })
+    ).toBe(true);
+  });
+
   it("arms recovery while live telemetry is healthy", () => {
     const recovery = createStreamRecoveryStatus(
       snapshot("live", {
