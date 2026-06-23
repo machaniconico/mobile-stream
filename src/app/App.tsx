@@ -52,6 +52,7 @@ import {
   transitionYouTubeBroadcast,
   type YouTubeBroadcastTransitionStatus
 } from "../domain/platformPublishing";
+import { createPlatformApiOperationGate } from "../domain/platformApiOperationGate";
 import {
   createYouTubeBroadcastTransitionPreflightReport,
   formatPlatformPublishingPreflightBlockMessage
@@ -138,6 +139,7 @@ const isAvatarSource = (source: SceneDocument["sources"][number]): source is PNG
 
 export const App = () => {
   const engine = useMemo(() => new MockLiveCaster(), []);
+  const platformApiOperationGate = useMemo(() => createPlatformApiOperationGate(), []);
   const chatSpeechEngine = useMemo(() => new WebChatSpeechEngine(), []);
   const [scene, setScene] = useState<SceneDocument>(() => loadScene() ?? createDefaultScene());
   const [profile, setProfile] = useState<StudioProfile>(() => loadProfile() ?? createDefaultStudioProfile());
@@ -623,7 +625,9 @@ export const App = () => {
 
   const startTwitchDeviceOAuth = async () => {
     try {
-      const result = await startTwitchDeviceCodeOAuthFlow(platformChatOAuth, fetch);
+      const result = await platformApiOperationGate.run("Twitch device OAuth start", () =>
+        startTwitchDeviceCodeOAuthFlow(platformChatOAuth, fetch)
+      );
       setTwitchDeviceOAuthFlow(result.flow);
       setPlatformChatOAuthStatus(result.message);
       window.open(result.flow.verificationUri, "_blank", "noopener,noreferrer");
@@ -634,7 +638,9 @@ export const App = () => {
 
   const pollTwitchDeviceOAuth = async () => {
     try {
-      const result = await pollTwitchDeviceCodeOAuthFlow(twitchDeviceOAuthFlow, platformChatOAuth, fetch);
+      const result = await platformApiOperationGate.run("Twitch device OAuth polling", () =>
+        pollTwitchDeviceCodeOAuthFlow(twitchDeviceOAuthFlow, platformChatOAuth, fetch)
+      );
       if (result.status === "pending") {
         setTwitchDeviceOAuthFlow(result.flow);
         setPlatformChatOAuthStatus(result.message);
@@ -652,7 +658,9 @@ export const App = () => {
 
   const applyPlatformChatOAuthCallback = async () => {
     try {
-      const result = await completePlatformChatOAuthCallback(platformChatOAuth.callbackUrl, platformChatOAuthFlow, platformChatOAuth, fetch);
+      const result = await platformApiOperationGate.run("OAuth callback exchange", () =>
+        completePlatformChatOAuthCallback(platformChatOAuth.callbackUrl, platformChatOAuthFlow, platformChatOAuth, fetch)
+      );
       setPlatformChatAuth((current) => mergeOAuthAuth(current, result.auth));
       rememberPlatformChatOAuthCredential(result.credential);
       setPlatformChatOAuthFlow(null);
@@ -685,14 +693,16 @@ export const App = () => {
 
   const applyPlatformStreamKey = async () => {
     try {
-      const platform = resolvePlatformApiCredentialPlatform(profile);
-      const credential = await preparePlatformApiCredential(platform);
-      const result =
-        platform === "youtube"
-          ? await rotateYouTubeStreamKey(profile, credential, fetch)
-          : await syncTwitchStreamKey(profile, credential, fetch);
-      setProfile(result.profile);
-      setPlatformStreamKeyStatus(result.message);
+      await platformApiOperationGate.run("Platform stream key sync", async () => {
+        const platform = resolvePlatformApiCredentialPlatform(profile);
+        const credential = await preparePlatformApiCredential(platform);
+        const result =
+          platform === "youtube"
+            ? await rotateYouTubeStreamKey(profile, credential, fetch)
+            : await syncTwitchStreamKey(profile, credential, fetch);
+        setProfile(result.profile);
+        setPlatformStreamKeyStatus(result.message);
+      });
     } catch (error) {
       setPlatformStreamKeyStatus(toErrorMessage(error));
     }
@@ -700,16 +710,18 @@ export const App = () => {
 
   const applyPlatformPublishingSetup = async () => {
     try {
-      if (profile.destination.platform === "custom") {
-        throw new Error("Platform publishing setup requires a YouTube Live or Twitch destination.");
-      }
-      const credential = await preparePlatformApiCredential(profile.destination.platform === "youtube-live" ? "youtube" : "twitch");
-      const result =
-        profile.destination.platform === "youtube-live"
-          ? await createYouTubeBroadcastAndBindStream(profile, credential, fetch)
-          : await applyTwitchChannelMetadata(profile, credential, fetch);
-      setProfile(result.profile);
-      setPlatformPublishingStatus(result.message);
+      await platformApiOperationGate.run("Platform publishing setup", async () => {
+        if (profile.destination.platform === "custom") {
+          throw new Error("Platform publishing setup requires a YouTube Live or Twitch destination.");
+        }
+        const credential = await preparePlatformApiCredential(profile.destination.platform === "youtube-live" ? "youtube" : "twitch");
+        const result =
+          profile.destination.platform === "youtube-live"
+            ? await createYouTubeBroadcastAndBindStream(profile, credential, fetch)
+            : await applyTwitchChannelMetadata(profile, credential, fetch);
+        setProfile(result.profile);
+        setPlatformPublishingStatus(result.message);
+      });
     } catch (error) {
       setPlatformPublishingStatus(toErrorMessage(error));
     }
@@ -717,53 +729,55 @@ export const App = () => {
 
   const transitionYouTubeBroadcastState = async (broadcastStatus: YouTubeBroadcastTransitionStatus) => {
     try {
-      const engineSnapshot = engine.getSnapshot();
-      const diagnostics = createStreamDiagnostics(
-        scene,
-        profile,
-        readiness,
-        engineSnapshot,
-        streamSessionEvents,
-        streamHealthSamples,
-        streamSessionSummaries.summaries,
-        streamValidationRuns,
-        faceTrackingRuntime,
-        {
+      await platformApiOperationGate.run(`YouTube broadcast ${broadcastStatus}`, async () => {
+        const engineSnapshot = engine.getSnapshot();
+        const diagnostics = createStreamDiagnostics(
+          scene,
+          profile,
+          readiness,
+          engineSnapshot,
+          streamSessionEvents,
+          streamHealthSamples,
+          streamSessionSummaries.summaries,
+          streamValidationRuns,
+          faceTrackingRuntime,
+          {
+            chatReader: chatReader.settings,
+            platformChatConnection: platformChatConnection.connection
+          }
+        );
+        const startPreflight = createStreamStartPreflightReport({
+          readiness,
+          streamStatus: engineSnapshot.state.status,
+          profile,
+          validation: diagnostics.validation,
           chatReader: chatReader.settings,
+          platformChatAuth,
+          platformChatOAuthCredentials,
           platformChatConnection: platformChatConnection.connection
+        });
+        const publicLaunchChecklist = createPublicLaunchChecklist({
+          preflight: startPreflight,
+          diagnostics,
+          platformPublishingFreshness: assessPlatformPublishingFreshness(diagnostics.platformPublishing),
+          profile
+        });
+        const preflight = createYouTubeBroadcastTransitionPreflightReport({
+          profile,
+          transitionStatus: broadcastStatus,
+          streamStatus: engineSnapshot.state.status,
+          validation: diagnostics.validation,
+          publicLaunchChecklist,
+          platformChatOAuthCredentials
+        });
+        if (!preflight.canProceed) {
+          throw new Error(formatPlatformPublishingPreflightBlockMessage(preflight));
         }
-      );
-      const startPreflight = createStreamStartPreflightReport({
-        readiness,
-        streamStatus: engineSnapshot.state.status,
-        profile,
-        validation: diagnostics.validation,
-        chatReader: chatReader.settings,
-        platformChatAuth,
-        platformChatOAuthCredentials,
-        platformChatConnection: platformChatConnection.connection
+        const credential = await preparePlatformApiCredential("youtube");
+        const result = await transitionYouTubeBroadcast(profile, credential, broadcastStatus, fetch);
+        setProfile(result.profile);
+        setPlatformPublishingStatus(result.message);
       });
-      const publicLaunchChecklist = createPublicLaunchChecklist({
-        preflight: startPreflight,
-        diagnostics,
-        platformPublishingFreshness: assessPlatformPublishingFreshness(diagnostics.platformPublishing),
-        profile
-      });
-      const preflight = createYouTubeBroadcastTransitionPreflightReport({
-        profile,
-        transitionStatus: broadcastStatus,
-        streamStatus: engineSnapshot.state.status,
-        validation: diagnostics.validation,
-        publicLaunchChecklist,
-        platformChatOAuthCredentials
-      });
-      if (!preflight.canProceed) {
-        throw new Error(formatPlatformPublishingPreflightBlockMessage(preflight));
-      }
-      const credential = await preparePlatformApiCredential("youtube");
-      const result = await transitionYouTubeBroadcast(profile, credential, broadcastStatus, fetch);
-      setProfile(result.profile);
-      setPlatformPublishingStatus(result.message);
     } catch (error) {
       setPlatformPublishingStatus(toErrorMessage(error));
     }
@@ -771,20 +785,22 @@ export const App = () => {
 
   const refreshPlatformPublishingStatus = async () => {
     try {
-      const credential = await preparePlatformApiCredential(profile.destination.platform === "youtube-live" ? "youtube" : "twitch");
-      const result =
-        profile.destination.platform === "youtube-live"
-          ? await refreshYouTubeBroadcastStatus(profile, credential, fetch)
-          : profile.destination.platform === "twitch"
-            ? await refreshTwitchChannelStatus(profile, credential, fetch)
-            : null;
+      await platformApiOperationGate.run("Platform publishing status refresh", async () => {
+        const credential = await preparePlatformApiCredential(profile.destination.platform === "youtube-live" ? "youtube" : "twitch");
+        const result =
+          profile.destination.platform === "youtube-live"
+            ? await refreshYouTubeBroadcastStatus(profile, credential, fetch)
+            : profile.destination.platform === "twitch"
+              ? await refreshTwitchChannelStatus(profile, credential, fetch)
+              : null;
 
-      if (!result) {
-        throw new Error("Platform publishing status refresh requires a YouTube Live or Twitch destination.");
-      }
+        if (!result) {
+          throw new Error("Platform publishing status refresh requires a YouTube Live or Twitch destination.");
+        }
 
-      setProfile(result.profile);
-      setPlatformPublishingStatus(result.message);
+        setProfile(result.profile);
+        setPlatformPublishingStatus(result.message);
+      });
     } catch (error) {
       setPlatformPublishingStatus(toErrorMessage(error));
     }

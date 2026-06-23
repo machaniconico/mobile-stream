@@ -93,6 +93,7 @@ import {
 } from "../domain/streamStartPreflight";
 import { createStreamDiagnostics } from "../domain/streamDiagnostics";
 import { createPlatformApiRetrySchedule } from "../domain/platformApiRetry";
+import { createPlatformApiOperationGate } from "../domain/platformApiOperationGate";
 import { errorToSafeMessage } from "../domain/sensitiveText";
 import {
   createStreamChatEvent,
@@ -162,6 +163,7 @@ export const MobileApp = () => {
     () => (canUseIOSLiveCaster() ? new IOSLiveCaster() : canUseAndroidLiveCaster() ? new AndroidLiveCaster() : new MockLiveCaster()),
     []
   );
+  const platformApiOperationGate = useMemo(() => createPlatformApiOperationGate(), []);
   const chatSpeechEngine = useMemo(() => new NativeChatSpeechEngine(), []);
   const faceTrackingInput = useMemo(() => new NativeFaceTrackingInput(), []);
   const [scene, setScene] = useState<SceneDocument>(() => createDefaultScene());
@@ -333,42 +335,47 @@ export const MobileApp = () => {
       if (credentials.length === 0 || platformChatOAuthSyncInFlight.current) {
         return;
       }
+      if (!credentialOverride && platformApiOperationGate.getCurrentLabel()) {
+        return;
+      }
 
       platformChatOAuthSyncInFlight.current = true;
       clearPlatformChatOAuthSyncRetry();
-      let activeCredential: PlatformChatOAuthCredential | null = null;
+      let activeCredentialPlatform: PlatformChatOAuthCredential["platform"] | null = null;
       let nextCredentials = platformChatOAuthCredentials;
       try {
-        for (const credential of credentials) {
-          activeCredential = credential;
-          if (shouldRefreshPlatformChatOAuthCredential(credential)) {
-            const refreshed =
-              credential.platform === "youtube"
-                ? await refreshYouTubeOAuthCredential(credential, platformChatOAuth, fetch)
-                : await refreshTwitchOAuthCredential(credential, platformChatOAuth, fetch);
-            nextCredentials = await persistPlatformChatOAuthCredential(refreshed, nextCredentials);
-            setPlatformChatOAuthStatus(`${credential.platform === "youtube" ? "YouTube" : "Twitch"} OAuth token refreshed from secure storage.`);
-            continue;
-          }
+        await platformApiOperationGate.run("Stored OAuth credential maintenance", async () => {
+          for (const credential of credentials) {
+            activeCredentialPlatform = credential.platform;
+            if (shouldRefreshPlatformChatOAuthCredential(credential)) {
+              const refreshed =
+                credential.platform === "youtube"
+                  ? await refreshYouTubeOAuthCredential(credential, platformChatOAuth, fetch)
+                  : await refreshTwitchOAuthCredential(credential, platformChatOAuth, fetch);
+              nextCredentials = await persistPlatformChatOAuthCredential(refreshed, nextCredentials);
+              setPlatformChatOAuthStatus(`${credential.platform === "youtube" ? "YouTube" : "Twitch"} OAuth token refreshed from secure storage.`);
+              continue;
+            }
 
-          if (credential.platform === "twitch" && shouldValidateTwitchOAuthCredential(credential)) {
-            const validatedToken = await validateTwitchOAuthToken(credential.accessToken, fetch);
-            const validated = {
-              ...credential,
-              ...validatedToken,
-              refreshToken: credential.refreshToken,
-              scopes: validatedToken.scopes.length > 0 ? validatedToken.scopes : credential.scopes,
-              clientId: credential.clientId,
-              redirectUri: credential.redirectUri
-            };
-            nextCredentials = await persistPlatformChatOAuthCredential(validated, nextCredentials);
-            setPlatformChatOAuthStatus("Twitch OAuth token validated from secure storage.");
+            if (credential.platform === "twitch" && shouldValidateTwitchOAuthCredential(credential)) {
+              const validatedToken = await validateTwitchOAuthToken(credential.accessToken, fetch);
+              const validated = {
+                ...credential,
+                ...validatedToken,
+                refreshToken: credential.refreshToken,
+                scopes: validatedToken.scopes.length > 0 ? validatedToken.scopes : credential.scopes,
+                clientId: credential.clientId,
+                redirectUri: credential.redirectUri
+              };
+              nextCredentials = await persistPlatformChatOAuthCredential(validated, nextCredentials);
+              setPlatformChatOAuthStatus("Twitch OAuth token validated from secure storage.");
+            }
           }
-        }
+        });
       } catch (error) {
         const message = toErrorMessage(error);
-        if (activeCredential && shouldClearStoredOAuthCredential(message)) {
-          await clearStoredPlatformChatOAuthCredential(`Stored OAuth credential needs reconnect: ${message}`, activeCredential.platform);
+        if (activeCredentialPlatform && shouldClearStoredOAuthCredential(message)) {
+          await clearStoredPlatformChatOAuthCredential(`Stored OAuth credential needs reconnect: ${message}`, activeCredentialPlatform);
         } else {
           const retrySchedule = createPlatformApiRetrySchedule(error, {
             fallbackDelayMs: 60000,
@@ -398,6 +405,7 @@ export const MobileApp = () => {
       clearStoredPlatformChatOAuthCredential,
       clearPlatformChatOAuthSyncRetry,
       persistPlatformChatOAuthCredential,
+      platformApiOperationGate,
       platformChatOAuth,
       platformChatOAuthCredentials
     ]
@@ -963,7 +971,9 @@ export const MobileApp = () => {
 
   const startTwitchDeviceOAuth = async () => {
     try {
-      const result = await startTwitchDeviceCodeOAuthFlow(platformChatOAuth, fetch);
+      const result = await platformApiOperationGate.run("Twitch device OAuth start", () =>
+        startTwitchDeviceCodeOAuthFlow(platformChatOAuth, fetch)
+      );
       setTwitchDeviceOAuthFlow(result.flow);
       setPlatformChatOAuthStatus(result.message);
       await Linking.openURL(result.flow.verificationUri);
@@ -974,7 +984,9 @@ export const MobileApp = () => {
 
   const pollTwitchDeviceOAuth = async () => {
     try {
-      const result = await pollTwitchDeviceCodeOAuthFlow(twitchDeviceOAuthFlow, platformChatOAuth, fetch);
+      const result = await platformApiOperationGate.run("Twitch device OAuth polling", () =>
+        pollTwitchDeviceCodeOAuthFlow(twitchDeviceOAuthFlow, platformChatOAuth, fetch)
+      );
       if (result.status === "pending") {
         setTwitchDeviceOAuthFlow(result.flow);
         setPlatformChatOAuthStatus(result.message);
@@ -991,7 +1003,9 @@ export const MobileApp = () => {
 
   const applyPlatformChatOAuthCallback = async () => {
     try {
-      const result = await completePlatformChatOAuthCallback(platformChatOAuth.callbackUrl, platformChatOAuthFlow, platformChatOAuth, fetch);
+      const result = await platformApiOperationGate.run("OAuth callback exchange", () =>
+        completePlatformChatOAuthCallback(platformChatOAuth.callbackUrl, platformChatOAuthFlow, platformChatOAuth, fetch)
+      );
       await persistPlatformChatOAuthCredential(result.credential);
       setPlatformChatOAuthFlow(null);
       setPlatformChatOAuth((current) => ({
@@ -1023,15 +1037,17 @@ export const MobileApp = () => {
 
   const applyPlatformStreamKey = async () => {
     try {
-      const platform = resolvePlatformApiCredentialPlatform(profile);
-      const credential = await preparePlatformApiCredential(platform);
-      const result =
-        platform === "youtube"
-          ? await rotateYouTubeStreamKey(profile, credential, fetch)
-          : await syncTwitchStreamKey(profile, credential, fetch);
-      setProfile(result.profile);
-      await saveSecureProfile(result.profile).catch(() => undefined);
-      setPlatformStreamKeyStatus(result.message);
+      await platformApiOperationGate.run("Platform stream key sync", async () => {
+        const platform = resolvePlatformApiCredentialPlatform(profile);
+        const credential = await preparePlatformApiCredential(platform);
+        const result =
+          platform === "youtube"
+            ? await rotateYouTubeStreamKey(profile, credential, fetch)
+            : await syncTwitchStreamKey(profile, credential, fetch);
+        setProfile(result.profile);
+        await saveSecureProfile(result.profile).catch(() => undefined);
+        setPlatformStreamKeyStatus(result.message);
+      });
     } catch (error) {
       setPlatformStreamKeyStatus(toErrorMessage(error));
     }
@@ -1039,17 +1055,19 @@ export const MobileApp = () => {
 
   const applyPlatformPublishingSetup = async () => {
     try {
-      if (profile.destination.platform === "custom") {
-        throw new Error("Platform publishing setup requires a YouTube Live or Twitch destination.");
-      }
-      const credential = await preparePlatformApiCredential(profile.destination.platform === "youtube-live" ? "youtube" : "twitch");
-      const result =
-        profile.destination.platform === "youtube-live"
-          ? await createYouTubeBroadcastAndBindStream(profile, credential, fetch)
-          : await applyTwitchChannelMetadata(profile, credential, fetch);
-      setProfile(result.profile);
-      await saveSecureProfile(result.profile).catch(() => undefined);
-      setPlatformPublishingStatus(result.message);
+      await platformApiOperationGate.run("Platform publishing setup", async () => {
+        if (profile.destination.platform === "custom") {
+          throw new Error("Platform publishing setup requires a YouTube Live or Twitch destination.");
+        }
+        const credential = await preparePlatformApiCredential(profile.destination.platform === "youtube-live" ? "youtube" : "twitch");
+        const result =
+          profile.destination.platform === "youtube-live"
+            ? await createYouTubeBroadcastAndBindStream(profile, credential, fetch)
+            : await applyTwitchChannelMetadata(profile, credential, fetch);
+        setProfile(result.profile);
+        await saveSecureProfile(result.profile).catch(() => undefined);
+        setPlatformPublishingStatus(result.message);
+      });
     } catch (error) {
       setPlatformPublishingStatus(toErrorMessage(error));
     }
@@ -1057,56 +1075,58 @@ export const MobileApp = () => {
 
   const transitionYouTubeBroadcastState = async (broadcastStatus: YouTubeBroadcastTransitionStatus) => {
     try {
-      const engineSnapshot = engine.getSnapshot();
-      const diagnostics = createStreamDiagnostics(
-        scene,
-        profile,
-        readiness,
-        engineSnapshot,
-        streamSessionEvents,
-        streamHealthSamples,
-        streamSessionSummaries.summaries,
-        streamValidationRuns,
-        faceTrackingRuntime,
-        {
+      await platformApiOperationGate.run(`YouTube broadcast ${broadcastStatus}`, async () => {
+        const engineSnapshot = engine.getSnapshot();
+        const diagnostics = createStreamDiagnostics(
+          scene,
+          profile,
+          readiness,
+          engineSnapshot,
+          streamSessionEvents,
+          streamHealthSamples,
+          streamSessionSummaries.summaries,
+          streamValidationRuns,
+          faceTrackingRuntime,
+          {
+            chatReader: chatReader.settings,
+            platformChatConnection: platformChatConnection.connection,
+            audioRoute
+          }
+        );
+        const startPreflight = createStreamStartPreflightReport({
+          readiness,
+          streamStatus: engineSnapshot.state.status,
+          profile,
+          validation: diagnostics.validation,
           chatReader: chatReader.settings,
+          platformChatAuth,
+          platformChatOAuthCredentials,
           platformChatConnection: platformChatConnection.connection,
           audioRoute
+        });
+        const publicLaunchChecklist = createPublicLaunchChecklist({
+          preflight: startPreflight,
+          diagnostics,
+          platformPublishingFreshness: assessPlatformPublishingFreshness(diagnostics.platformPublishing),
+          profile
+        });
+        const preflight = createYouTubeBroadcastTransitionPreflightReport({
+          profile,
+          transitionStatus: broadcastStatus,
+          streamStatus: engineSnapshot.state.status,
+          validation: diagnostics.validation,
+          publicLaunchChecklist,
+          platformChatOAuthCredentials
+        });
+        if (!preflight.canProceed) {
+          throw new Error(formatPlatformPublishingPreflightBlockMessage(preflight));
         }
-      );
-      const startPreflight = createStreamStartPreflightReport({
-        readiness,
-        streamStatus: engineSnapshot.state.status,
-        profile,
-        validation: diagnostics.validation,
-        chatReader: chatReader.settings,
-        platformChatAuth,
-        platformChatOAuthCredentials,
-        platformChatConnection: platformChatConnection.connection,
-        audioRoute
+        const credential = await preparePlatformApiCredential("youtube");
+        const result = await transitionYouTubeBroadcast(profile, credential, broadcastStatus, fetch);
+        setProfile(result.profile);
+        await saveSecureProfile(result.profile).catch(() => undefined);
+        setPlatformPublishingStatus(result.message);
       });
-      const publicLaunchChecklist = createPublicLaunchChecklist({
-        preflight: startPreflight,
-        diagnostics,
-        platformPublishingFreshness: assessPlatformPublishingFreshness(diagnostics.platformPublishing),
-        profile
-      });
-      const preflight = createYouTubeBroadcastTransitionPreflightReport({
-        profile,
-        transitionStatus: broadcastStatus,
-        streamStatus: engineSnapshot.state.status,
-        validation: diagnostics.validation,
-        publicLaunchChecklist,
-        platformChatOAuthCredentials
-      });
-      if (!preflight.canProceed) {
-        throw new Error(formatPlatformPublishingPreflightBlockMessage(preflight));
-      }
-      const credential = await preparePlatformApiCredential("youtube");
-      const result = await transitionYouTubeBroadcast(profile, credential, broadcastStatus, fetch);
-      setProfile(result.profile);
-      await saveSecureProfile(result.profile).catch(() => undefined);
-      setPlatformPublishingStatus(result.message);
     } catch (error) {
       setPlatformPublishingStatus(toErrorMessage(error));
     }
@@ -1114,21 +1134,23 @@ export const MobileApp = () => {
 
   const refreshPlatformPublishingStatus = async () => {
     try {
-      const credential = await preparePlatformApiCredential(profile.destination.platform === "youtube-live" ? "youtube" : "twitch");
-      const result =
-        profile.destination.platform === "youtube-live"
-          ? await refreshYouTubeBroadcastStatus(profile, credential, fetch)
-          : profile.destination.platform === "twitch"
-            ? await refreshTwitchChannelStatus(profile, credential, fetch)
-            : null;
+      await platformApiOperationGate.run("Platform publishing status refresh", async () => {
+        const credential = await preparePlatformApiCredential(profile.destination.platform === "youtube-live" ? "youtube" : "twitch");
+        const result =
+          profile.destination.platform === "youtube-live"
+            ? await refreshYouTubeBroadcastStatus(profile, credential, fetch)
+            : profile.destination.platform === "twitch"
+              ? await refreshTwitchChannelStatus(profile, credential, fetch)
+              : null;
 
-      if (!result) {
-        throw new Error("Platform publishing status refresh requires a YouTube Live or Twitch destination.");
-      }
+        if (!result) {
+          throw new Error("Platform publishing status refresh requires a YouTube Live or Twitch destination.");
+        }
 
-      setProfile(result.profile);
-      await saveSecureProfile(result.profile).catch(() => undefined);
-      setPlatformPublishingStatus(result.message);
+        setProfile(result.profile);
+        await saveSecureProfile(result.profile).catch(() => undefined);
+        setPlatformPublishingStatus(result.message);
+      });
     } catch (error) {
       setPlatformPublishingStatus(toErrorMessage(error));
     }
