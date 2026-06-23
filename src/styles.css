@@ -746,6 +746,30 @@ select:focus-visible {
   line-height: 1.35;
 }
 
+.public-launch-lock {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: #121218;
+  line-height: 1.35;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.public-launch-lock.active {
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #bbf7d0;
+}
+
+.public-launch-lock.blocked {
+  border-color: rgba(251, 113, 133, 0.36);
+  color: #fecdd3;
+}
+
+.public-launch-lock.off {
+  color: #a1a1aa;
+}
+
 .public-launch-items {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

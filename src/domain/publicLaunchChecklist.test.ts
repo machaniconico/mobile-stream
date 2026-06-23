@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PlatformPublishingFreshness } from "./platformPublishingFreshness";
+import { createDefaultStudioProfile } from "./profiles";
 import {
   createPublicLaunchChecklist,
   type PublicLaunchChecklistInput
@@ -99,15 +100,42 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
   }
 });
 
+const youtubePublicProfile = (): NonNullable<PublicLaunchChecklistInput["profile"]> => ({
+  ...createDefaultStudioProfile(),
+  platformPublishing: {
+    ...createDefaultStudioProfile().platformPublishing,
+    privacyStatus: "public"
+  }
+});
+
+const youtubePrivateProfile = (): NonNullable<PublicLaunchChecklistInput["profile"]> => ({
+  ...createDefaultStudioProfile(),
+  platformPublishing: {
+    ...createDefaultStudioProfile().platformPublishing,
+    privacyStatus: "private"
+  }
+});
+
+const twitchProfile = (): NonNullable<PublicLaunchChecklistInput["profile"]> => ({
+  ...createDefaultStudioProfile(),
+  destination: {
+    ...createDefaultStudioProfile().destination,
+    platform: "twitch"
+  }
+});
+
 describe("public launch checklist", () => {
   it("marks a fully proven public launch as ready", () => {
     const checklist = createPublicLaunchChecklist({
       preflight: readyPreflight,
       diagnostics: readyDiagnostics(),
-      platformPublishingFreshness: freshDashboard
+      platformPublishingFreshness: freshDashboard,
+      profile: youtubePublicProfile()
     });
 
     expect(checklist.status).toBe("ready");
+    expect(checklist.canStart).toBe(true);
+    expect(checklist.startLock).toMatchObject({ applies: true, blocked: false });
     expect(checklist.passCount).toBe(6);
     expect(checklist.summary).toBe("Public launch checklist is ready.");
   });
@@ -130,10 +158,12 @@ describe("public launch checklist", () => {
         issues: [destinationBlock]
       },
       diagnostics: readyDiagnostics(),
-      platformPublishingFreshness: freshDashboard
+      platformPublishingFreshness: freshDashboard,
+      profile: youtubePublicProfile()
     });
 
     expect(checklist.status).toBe("blocked");
+    expect(checklist.canStart).toBe(false);
     expect(checklist.items.find((item) => item.id === "destination")).toMatchObject({
       status: "fail",
       action: "Paste the destination stream key."
@@ -155,6 +185,7 @@ describe("public launch checklist", () => {
     });
 
     expect(checklist.status).toBe("warning");
+    expect(checklist.canStart).toBe(true);
     expect(checklist.items.find((item) => item.id === "chat-readout")).toMatchObject({
       status: "warn",
       label: "Chat readout"
@@ -170,10 +201,13 @@ describe("public launch checklist", () => {
         status: "invalid",
         summary: "YouTube dashboard status timestamp is invalid.",
         recommendation: "Refresh YouTube status before release."
-      }
+      },
+      profile: youtubePublicProfile()
     });
 
     expect(checklist.status).toBe("blocked");
+    expect(checklist.canStart).toBe(false);
+    expect(checklist.startLock).toMatchObject({ applies: true, blocked: true });
     expect(checklist.items.find((item) => item.id === "platform-dashboard")).toMatchObject({
       status: "fail",
       action: "Refresh YouTube status before release."
@@ -190,12 +224,50 @@ describe("public launch checklist", () => {
         ageMinutes: 24,
         summary: "YouTube dashboard status is 24 minutes old.",
         recommendation: "Refresh YouTube status within 10 minutes of launch."
-      }
+      },
+      profile: youtubePublicProfile()
     });
 
     expect(checklist.status).toBe("warning");
+    expect(checklist.canStart).toBe(true);
     expect(checklist.items.find((item) => item.id === "platform-dashboard")).toMatchObject({
       status: "warn"
     });
+  });
+
+  it("does not lock private validation starts when the public checklist has a fail", () => {
+    const checklist = createPublicLaunchChecklist({
+      preflight: readyPreflight,
+      diagnostics: readyDiagnostics(),
+      platformPublishingFreshness: {
+        ...freshDashboard,
+        status: "invalid",
+        summary: "YouTube dashboard status timestamp is invalid.",
+        recommendation: "Refresh YouTube status before release."
+      },
+      profile: youtubePrivateProfile()
+    });
+
+    expect(checklist.status).toBe("blocked");
+    expect(checklist.canStart).toBe(true);
+    expect(checklist.startLock).toMatchObject({ applies: false, blocked: false });
+  });
+
+  it("locks Twitch starts when public checklist failures remain", () => {
+    const checklist = createPublicLaunchChecklist({
+      preflight: readyPreflight,
+      diagnostics: readyDiagnostics(),
+      platformPublishingFreshness: {
+        ...freshDashboard,
+        status: "invalid",
+        summary: "Twitch dashboard status timestamp is invalid.",
+        recommendation: "Refresh Twitch status before release."
+      },
+      profile: twitchProfile()
+    });
+
+    expect(checklist.status).toBe("blocked");
+    expect(checklist.canStart).toBe(false);
+    expect(checklist.startLock).toMatchObject({ applies: true, blocked: true });
   });
 });

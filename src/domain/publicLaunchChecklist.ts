@@ -1,4 +1,5 @@
 import type { PlatformPublishingFreshness } from "./platformPublishingFreshness";
+import type { StudioProfile } from "./profiles";
 import type { StreamDiagnostics } from "./streamDiagnostics";
 import type {
   StreamStartPreflightArea,
@@ -25,9 +26,16 @@ export interface PublicLaunchChecklistItem {
 }
 
 export interface PublicLaunchChecklist {
+  canStart: boolean;
   status: PublicLaunchChecklistStatus;
   summary: string;
   primaryAction: string;
+  startLock: {
+    applies: boolean;
+    blocked: boolean;
+    summary: string;
+    action: string;
+  };
   passCount: number;
   warningCount: number;
   failCount: number;
@@ -41,12 +49,14 @@ export interface PublicLaunchChecklistInput {
     "target" | "telemetry" | "audio" | "chatReadout" | "platformPublishing" | "validation"
   >;
   platformPublishingFreshness: PlatformPublishingFreshness;
+  profile?: Pick<StudioProfile, "destination" | "platformPublishing">;
 }
 
 export const createPublicLaunchChecklist = ({
   preflight,
   diagnostics,
-  platformPublishingFreshness
+  platformPublishingFreshness,
+  profile
 }: PublicLaunchChecklistInput): PublicLaunchChecklist => {
   const items = [
     createDestinationItem(preflight, diagnostics),
@@ -60,16 +70,33 @@ export const createPublicLaunchChecklist = ({
   const warningCount = countItems(items, "warn");
   const failCount = countItems(items, "fail");
   const status: PublicLaunchChecklistStatus = failCount > 0 ? "blocked" : warningCount > 0 ? "warning" : "ready";
+  const startLockApplies = shouldApplyPublicLaunchStartLock(profile);
+  const startLockBlocked = startLockApplies && status === "blocked";
+  const startLock = createStartLock(startLockApplies, startLockBlocked, status, items);
 
   return {
+    canStart: preflight.canStart && !startLockBlocked,
     status,
     summary: createSummary(status, { failCount, warningCount }),
     primaryAction: createPrimaryAction(status, items),
+    startLock,
     passCount,
     warningCount,
     failCount,
     items
   };
+};
+
+export const shouldApplyPublicLaunchStartLock = (
+  profile: PublicLaunchChecklistInput["profile"] | null | undefined
+): boolean => {
+  if (!profile) {
+    return false;
+  }
+  if (profile.destination.platform === "twitch") {
+    return true;
+  }
+  return profile.destination.platform === "youtube-live" && profile.platformPublishing.privacyStatus === "public";
 };
 
 const createDestinationItem = (
@@ -359,4 +386,45 @@ const createPrimaryAction = (
     return items.find((item) => item.status === "warn")?.action ?? "Review warnings before public launch.";
   }
   return "Go live when the platform dashboard and operator checks are still fresh.";
+};
+
+const createStartLock = (
+  applies: boolean,
+  blocked: boolean,
+  status: PublicLaunchChecklistStatus,
+  items: PublicLaunchChecklistItem[]
+): PublicLaunchChecklist["startLock"] => {
+  if (!applies) {
+    return {
+      applies,
+      blocked: false,
+      summary: "Public start lock is off for private, unlisted, or custom validation targets.",
+      action: "Use this target for controlled validation; switch to YouTube Public or Twitch when release evidence is ready."
+    };
+  }
+
+  if (blocked) {
+    return {
+      applies,
+      blocked,
+      summary: "Public start lock is active because launch blockers remain.",
+      action: items.find((item) => item.status === "fail")?.action ?? "Resolve public launch blockers before Go Live."
+    };
+  }
+
+  if (status === "warning") {
+    return {
+      applies,
+      blocked,
+      summary: "Public start lock allows launch, with warnings to review.",
+      action: items.find((item) => item.status === "warn")?.action ?? "Review public launch warnings before Go Live."
+    };
+  }
+
+  return {
+    applies,
+    blocked,
+    summary: "Public start lock is clear.",
+    action: "Go Live while dashboard freshness, chat, audio monitoring, and validation evidence remain current."
+  };
 };

@@ -317,9 +317,10 @@ export const MobileStudioScreen = ({
   const publicLaunchChecklist = createPublicLaunchChecklist({
     preflight: startPreflight,
     diagnostics,
-    platformPublishingFreshness
+    platformPublishingFreshness,
+    profile
   });
-  const canGoLive = startPreflight.canStart;
+  const canGoLive = publicLaunchChecklist.canStart;
   const youtubeTransitionReport = (transitionStatus: YouTubeBroadcastTransitionStatus) =>
     createYouTubeBroadcastTransitionPreflightReport({
       profile,
@@ -2130,6 +2131,7 @@ const PublicLaunchChecklistPanel = ({ checklist }: { checklist: PublicLaunchChec
       </View>
     </View>
     <Text style={[styles.publicLaunchSummary, publicLaunchChecklistTextStyle(checklist.status)]}>{checklist.summary}</Text>
+    <Text style={[styles.publicLaunchLock, publicLaunchLockTextStyle(checklist)]}>{checklist.startLock.summary}</Text>
     <Text style={styles.publicLaunchAction}>{checklist.primaryAction}</Text>
     <View style={styles.publicLaunchItems}>
       {checklist.items.map((item) => (
@@ -2604,6 +2606,13 @@ const publicLaunchItemTextStyle = (status: PublicLaunchChecklistItemStatus) =>
     : status === "warn"
       ? styles.startPreflightWarningText
       : styles.startPreflightBlockedText;
+
+const publicLaunchLockTextStyle = (checklist: PublicLaunchChecklist) =>
+  checklist.startLock.blocked
+    ? styles.startPreflightBlockedText
+    : checklist.startLock.applies
+      ? styles.startPreflightReadyText
+      : styles.publicLaunchLockOffText;
 
 const platformPublishingPreflightTextStyle = (status: PlatformPublishingPreflightReport["status"]) => {
   switch (status) {
@@ -3086,6 +3095,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "900",
     lineHeight: 18
+  },
+  publicLaunchLock: {
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: "#121218",
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 17
+  },
+  publicLaunchLockOffText: {
+    color: "#a1a1aa"
   },
   publicLaunchAction: {
     color: "#a1a1aa",

@@ -368,9 +368,10 @@ export const StudioScreen = ({
   const publicLaunchChecklist = createPublicLaunchChecklist({
     preflight: startPreflight,
     diagnostics,
-    platformPublishingFreshness
+    platformPublishingFreshness,
+    profile
   });
-  const canGoLive = startPreflight.canStart;
+  const canGoLive = publicLaunchChecklist.canStart;
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
     if (setupLocked) {
       return;
@@ -519,7 +520,7 @@ export const StudioScreen = ({
               className="primary-action"
               type="button"
               disabled={!canGoLive}
-              aria-describedby="go-live-readiness"
+              aria-describedby="go-live-readiness public-launch-readiness"
               onClick={onStart}
             >
               <Play size={18} />
@@ -926,7 +927,7 @@ const StartPreflightBanner = ({ report }: { report: StreamStartPreflightReport }
 );
 
 const PublicLaunchChecklistPanel = ({ checklist }: { checklist: PublicLaunchChecklist }) => (
-  <div className={`public-launch-checklist ${checklist.status}`} aria-label="public launch checklist">
+  <div id="public-launch-readiness" className={`public-launch-checklist ${checklist.status}`} aria-label="public launch checklist">
     <div className="public-launch-header">
       <div className="public-launch-title">
         <ShieldCheck size={16} />
@@ -939,6 +940,9 @@ const PublicLaunchChecklistPanel = ({ checklist }: { checklist: PublicLaunchChec
       </div>
     </div>
     <strong className="public-launch-summary">{checklist.summary}</strong>
+    <span className={`public-launch-lock ${checklist.startLock.blocked ? "blocked" : checklist.startLock.applies ? "active" : "off"}`}>
+      {checklist.startLock.summary}
+    </span>
     <span className="public-launch-action">{checklist.primaryAction}</span>
     <div className="public-launch-items">
       {checklist.items.map((item) => (
