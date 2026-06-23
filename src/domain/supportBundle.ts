@@ -35,6 +35,10 @@ export interface SupportBundle {
     sessionCleanRate: number;
     sessionHistoryStability: StreamDiagnostics["session"]["historySummary"]["stability"];
     lastSessionOutcome: NonNullable<StreamDiagnostics["session"]["lastSummary"]>["outcome"] | null;
+    validationStatus: StreamDiagnostics["validation"]["status"];
+    validationPendingCount: number;
+    validationWarningCount: number;
+    validationFailCount: number;
     qualityAdvisorAction: StreamDiagnostics["qualityAdvisor"]["action"];
     qualityAdvisorSeverity: StreamDiagnostics["qualityAdvisor"]["severity"];
     suggestedQualityTarget: string | null;
@@ -137,6 +141,10 @@ export const createSupportBundle = ({
       sessionCleanRate: diagnostics.session.historySummary.cleanRate,
       sessionHistoryStability: diagnostics.session.historySummary.stability,
       lastSessionOutcome: diagnostics.session.lastSummary?.outcome ?? null,
+      validationStatus: diagnostics.validation.status,
+      validationPendingCount: diagnostics.validation.pendingCount,
+      validationWarningCount: diagnostics.validation.warningCount,
+      validationFailCount: diagnostics.validation.failCount,
       qualityAdvisorAction: diagnostics.qualityAdvisor.action,
       qualityAdvisorSeverity: diagnostics.qualityAdvisor.severity,
       suggestedQualityTarget: diagnostics.qualityAdvisor.suggestedTarget
@@ -248,6 +256,17 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Quality advisor: ${bundle.summary.qualityAdvisorAction} / ${bundle.summary.qualityAdvisorSeverity}`,
     `- Suggested quality: ${bundle.summary.suggestedQualityTarget ?? "-"}`,
     `- Recovery: ${bundle.diagnostics.recovery.mode} / ${bundle.diagnostics.recovery.recommendedAction}`,
+    "",
+    "Commercial Validation",
+    `- Status: ${bundle.summary.validationStatus}`,
+    `- Pending: ${bundle.summary.validationPendingCount}`,
+    `- Warnings: ${bundle.summary.validationWarningCount}`,
+    `- Failures: ${bundle.summary.validationFailCount}`,
+    `- Summary: ${bundle.diagnostics.validation.summary}`,
+    `- Next step: ${bundle.diagnostics.validation.recommendedNextStep}`,
+    ...bundle.diagnostics.validation.items.map(
+      (item) => `- [${item.status.toUpperCase()}] ${item.title}: ${item.detail} Action: ${item.action}`
+    ),
     "",
     "Profile",
     `- Mic effects: ${bundle.profile.micEffects.enabled ? bundle.profile.micEffects.presetId : "off"}`,

@@ -42,6 +42,8 @@ describe("stream diagnostics", () => {
     expect(diagnostics.quality.estimatedUploadKbps).toBe(4535);
     expect(diagnostics.recovery.mode).toBe("idle");
     expect(diagnostics.recovery.attemptsRemaining).toBe(5);
+    expect(diagnostics.validation.status).toBe("needs-test");
+    expect(diagnostics.validation.items.find((item) => item.id === "ingest-not-run")?.status).toBe("pending");
   });
 
   it("reports blocking checks when the stream key is missing", () => {
@@ -270,6 +272,7 @@ describe("stream diagnostics", () => {
     expect(text).toContain("Quality Advisor");
     expect(text).toContain("Health History");
     expect(text).toContain("Completed Sessions");
+    expect(text).toContain("Commercial Validation");
     expect(text).toContain("Session Events");
     expect(json).toContain("backoffWindow");
     expect(json).toContain("qualityIncidents");
@@ -277,9 +280,11 @@ describe("stream diagnostics", () => {
     expect(json).toContain("history");
     expect(json).toContain("historySummary");
     expect(json).toContain("lastSummary");
+    expect(json).toContain("validation");
     expect(report.diagnostics.session.lastSummary?.outcome).toBe("clean");
     expect(report.diagnostics.session.historySummary.totalSessions).toBe(1);
     expect(report.diagnostics.session.historySummary.cleanRate).toBe(100);
+    expect(report.diagnostics.validation.status).toBe("needs-test");
     expect(text).toContain("History recommendation");
     expect(json).toContain(redactStreamKey(demoStreamKey));
     expect(text).toContain(redactStreamKey(demoStreamKey));

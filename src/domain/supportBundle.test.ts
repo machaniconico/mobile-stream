@@ -98,9 +98,13 @@ describe("support bundle", () => {
     expect(bundle.summary.qualityAdvisorAction).toBe("maintain");
     expect(bundle.summary.qualityAdvisorSeverity).toBe("pass");
     expect(bundle.summary.suggestedQualityTarget).toBeNull();
+    expect(bundle.summary.validationStatus).toBe("needs-test");
+    expect(bundle.summary.validationFailCount).toBe(0);
+    expect(bundle.summary.validationWarningCount).toBeGreaterThan(0);
     expect(formatSupportBundle(bundle)).toContain("Completed summaries: 1");
     expect(formatSupportBundle(bundle)).toContain("Clean rate: 100%");
     expect(formatSupportBundle(bundle)).toContain("Quality advisor: maintain / pass");
+    expect(formatSupportBundle(bundle)).toContain("Commercial Validation");
   });
 
   it("serializes and formats without leaking raw stream keys or text source content", () => {

@@ -167,6 +167,9 @@ const sessionHistoryMetricLabel = (diagnostics: StreamDiagnostics): string =>
     ? "No baseline yet"
     : `${diagnostics.session.historySummary.stability} / ${diagnostics.session.historySummary.cleanRate}% clean / avg ${diagnostics.session.historySummary.averageDurationSeconds}s`;
 
+const validationMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  `${diagnostics.validation.status} / ${diagnostics.validation.pendingCount} pending / ${diagnostics.validation.failCount} fail`;
+
 const qualityAdvisorTargetLabel = (diagnostics: StreamDiagnostics): string =>
   diagnostics.qualityAdvisor.suggestedTarget
     ? `${diagnostics.qualityAdvisor.suggestedTarget.profileName} / ${diagnostics.qualityAdvisor.suggestedTarget.videoBitrateKbps} kbps / ${diagnostics.qualityAdvisor.suggestedTarget.fps}fps`
@@ -1008,6 +1011,7 @@ const StreamDiagnosticsPanel = ({
       <DiagnosticMetric label="Session trend" value={sessionHistoryMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Last session" value={sessionMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Advisor" value={diagnostics.qualityAdvisor.action} />
+      <DiagnosticMetric label="Validation" value={validationMetricLabel(diagnostics)} />
     </View>
     <View style={styles.diagnosticIncidents}>
       <View style={[styles.diagnosticIncidentSummary, diagnosticAdvisorSummaryStyle(diagnostics)]}>
@@ -1029,6 +1033,28 @@ const StreamDiagnosticsPanel = ({
           />
         ) : null}
       </View>
+    </View>
+    <View style={styles.diagnosticIncidents}>
+      <View style={[styles.diagnosticIncidentSummary, diagnosticValidationSummaryStyle(diagnostics)]}>
+        <Text style={[styles.diagnosticIncidentSummaryText, diagnosticValidationSummaryTextStyle(diagnostics)]}>
+          {diagnostics.validation.summary}
+        </Text>
+      </View>
+      <View style={[styles.diagnosticIncident, diagnosticValidationStyle(diagnostics)]}>
+        <Text style={styles.diagnosticIncidentTitle}>Commercial validation</Text>
+        <Text style={styles.diagnosticIncidentText}>{diagnostics.validation.recommendedNextStep}</Text>
+        <Text style={styles.diagnosticIncidentRecommendation}>
+          {diagnostics.validation.passCount} pass / {diagnostics.validation.warningCount} warn / {diagnostics.validation.failCount} fail /{" "}
+          {diagnostics.validation.pendingCount} pending
+        </Text>
+      </View>
+      {diagnostics.validation.items.map((item) => (
+        <View key={item.id} style={[styles.diagnosticIncident, diagnosticValidationItemStyle(item.status)]}>
+          <Text style={styles.diagnosticIncidentTitle}>{item.title}</Text>
+          <Text style={styles.diagnosticIncidentText}>{item.detail}</Text>
+          <Text style={styles.diagnosticIncidentRecommendation}>{item.action}</Text>
+        </View>
+      ))}
     </View>
     {diagnostics.session.lastSummary ? (
       <View style={styles.diagnosticIncidents}>
@@ -1795,6 +1821,36 @@ const diagnosticAdvisorStyle = (diagnostics: StreamDiagnostics) =>
     : diagnostics.qualityAdvisor.severity === "warn"
       ? styles.diagnosticCheckWarn
       : null;
+
+const diagnosticValidationSummaryStyle = (diagnostics: StreamDiagnostics) => {
+  if (diagnostics.validation.status === "blocked") {
+    return styles.diagnosticFail;
+  }
+  if (diagnostics.validation.status === "needs-test") {
+    return styles.diagnosticWarn;
+  }
+  return styles.diagnosticPass;
+};
+
+const diagnosticValidationSummaryTextStyle = (diagnostics: StreamDiagnostics) => {
+  if (diagnostics.validation.status === "blocked") {
+    return styles.diagnosticFailText;
+  }
+  if (diagnostics.validation.status === "needs-test") {
+    return styles.diagnosticWarnText;
+  }
+  return styles.diagnosticPassText;
+};
+
+const diagnosticValidationStyle = (diagnostics: StreamDiagnostics) =>
+  diagnostics.validation.status === "blocked"
+    ? styles.diagnosticCheckFail
+    : diagnostics.validation.status === "needs-test"
+      ? styles.diagnosticCheckWarn
+      : null;
+
+const diagnosticValidationItemStyle = (status: StreamDiagnostics["validation"]["items"][number]["status"]) =>
+  status === "fail" ? styles.diagnosticCheckFail : status === "pass" ? null : styles.diagnosticCheckWarn;
 
 const hasCriticalQualityIncident = (diagnostics: StreamDiagnostics): boolean =>
   diagnostics.qualityIncidents.incidents.some((incident) => incident.severity === "fail");

@@ -206,6 +206,9 @@ const sessionHistoryMetricLabel = (diagnostics: StreamDiagnostics): string =>
     ? "No baseline yet"
     : `${diagnostics.session.historySummary.stability} / ${diagnostics.session.historySummary.cleanRate}% clean / avg ${diagnostics.session.historySummary.averageDurationSeconds}s`;
 
+const validationMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  `${diagnostics.validation.status} / ${diagnostics.validation.pendingCount} pending / ${diagnostics.validation.failCount} fail`;
+
 const qualityIncidentSummaryTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" => {
   if (diagnostics.qualityIncidents.incidents.some((incident) => incident.severity === "fail")) {
     return "fail";
@@ -230,6 +233,12 @@ const sessionHistoryTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "
     : diagnostics.session.historySummary.stability === "unstable"
       ? "fail"
       : "warn";
+
+const validationTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" =>
+  diagnostics.validation.status === "ready" ? "pass" : diagnostics.validation.status === "blocked" ? "fail" : "warn";
+
+const validationItemTone = (status: StreamDiagnostics["validation"]["items"][number]["status"]): "pass" | "warn" | "fail" =>
+  status === "fail" ? "fail" : status === "pass" ? "pass" : "warn";
 
 export const StudioScreen = ({
   scene,
@@ -883,6 +892,8 @@ const StreamDiagnosticsPanel = ({
       <strong>{sessionMetricLabel(diagnostics)}</strong>
       <span>Advisor</span>
       <strong>{diagnostics.qualityAdvisor.action}</strong>
+      <span>Validation</span>
+      <strong>{validationMetricLabel(diagnostics)}</strong>
     </div>
     <div className="diagnostic-incidents">
       <div className={`diagnostic-incident-summary ${qualityAdvisorTone(diagnostics)}`}>
@@ -903,6 +914,26 @@ const StreamDiagnosticsPanel = ({
           </button>
         ) : null}
       </div>
+    </div>
+    <div className="diagnostic-incidents">
+      <div className={`diagnostic-incident-summary ${validationTone(diagnostics)}`}>
+        {diagnostics.validation.summary}
+      </div>
+      <div className={`diagnostic-incident ${validationTone(diagnostics)}`}>
+        <strong>Commercial validation</strong>
+        <span>{diagnostics.validation.recommendedNextStep}</span>
+        <em>
+          {diagnostics.validation.passCount} pass / {diagnostics.validation.warningCount} warn / {diagnostics.validation.failCount} fail /{" "}
+          {diagnostics.validation.pendingCount} pending
+        </em>
+      </div>
+      {diagnostics.validation.items.map((item) => (
+        <div key={item.id} className={`diagnostic-incident ${validationItemTone(item.status)}`}>
+          <strong>{item.title}</strong>
+          <span>{item.detail}</span>
+          <em>{item.action}</em>
+        </div>
+      ))}
     </div>
     {diagnostics.session.lastSummary ? (
       <div className="diagnostic-incidents">

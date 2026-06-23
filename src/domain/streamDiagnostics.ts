@@ -28,6 +28,10 @@ import {
   type StreamSessionHistorySummary,
   type StreamSessionSummary
 } from "./streamSessionSummary";
+import {
+  createStreamValidationChecklist,
+  type StreamValidationChecklist
+} from "./streamValidationChecklist";
 import type { StreamHealth, StreamStatus } from "./streamState";
 
 export type DiagnosticStatus = "pass" | "warn" | "fail" | "info";
@@ -83,6 +87,7 @@ export interface StreamDiagnostics {
     lastSummary: StreamSessionSummary | null;
     historySummary: StreamSessionHistorySummary;
   };
+  validation: StreamValidationChecklist;
   checks: DiagnosticCheck[];
 }
 
@@ -165,6 +170,32 @@ export const createStreamDiagnostics = (
   ];
   const status = summaryStatus(checks);
   const sessionHistorySummary = createStreamSessionHistorySummary(sessionSummaries);
+  const validation = createStreamValidationChecklist({
+    readiness,
+    diagnosticStatus: status,
+    target: {
+      platform: platformLabels[destination.platform],
+      protocol: destination.protocol,
+      secureTransport: destination.protocol === "rtmps"
+    },
+    telemetry: {
+      streamStatus: snapshot.state.status,
+      bitrateKbps: snapshot.health.bitrateKbps,
+      fps: snapshot.health.fps,
+      droppedFrames: snapshot.health.droppedFrames,
+      reconnectAttempts: snapshot.health.reconnectAttempts
+    },
+    health: {
+      sampleCount: history.sampleCount,
+      stability: history.stability
+    },
+    session: {
+      eventCount: sanitizedSessionEvents.length,
+      summaryCount: sessionSummaries.length,
+      historySummary: sessionHistorySummary,
+      lastOutcome: sessionSummaries[0]?.outcome ?? null
+    }
+  });
 
   return {
     summary: summaryText(status, checks),
@@ -211,6 +242,7 @@ export const createStreamDiagnostics = (
       lastSummary: sessionSummaries[0] ?? null,
       historySummary: sessionHistorySummary
     },
+    validation,
     checks
   };
 };
@@ -309,6 +341,15 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
           `- Stored summaries: ${diagnostics.session.summaries.length}`
         ]
       : ["- No completed session summaries yet."]),
+    "",
+    "Commercial Validation",
+    `- Status: ${diagnostics.validation.status}`,
+    `- Summary: ${diagnostics.validation.summary}`,
+    `- Next step: ${diagnostics.validation.recommendedNextStep}`,
+    `- Counts: ${diagnostics.validation.passCount} pass / ${diagnostics.validation.warningCount} warn / ${diagnostics.validation.failCount} fail / ${diagnostics.validation.pendingCount} pending`,
+    ...diagnostics.validation.items.map(
+      (item) => `- [${item.status.toUpperCase()}] ${item.title}: ${item.detail} Action: ${item.action}`
+    ),
     "",
     "Session Events",
     ...(diagnostics.session.events.length === 0
