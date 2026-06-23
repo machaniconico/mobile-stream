@@ -6,7 +6,7 @@ import os
 import ReplayKit
 import VideoToolbox
 
-private let broadcastAppGroup = "group.org.reactjs.native.example.MobileLiveCaster"
+private let broadcastAppGroup = "group.com.mobilelivecaster.app"
 private let broadcastConfigurationKey = "MobileLiveCaster.broadcastConfiguration.v1"
 private let broadcastRuntimeStateKey = "MobileLiveCaster.broadcastRuntimeState.v1"
 

@@ -26,7 +26,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>mobilelivecaster</string>
-				<string>com.example.mobilelivecaster</string>
+				<string>com.mobilelivecaster.app</string>
 			</array>
 		</dict>
 	</array>

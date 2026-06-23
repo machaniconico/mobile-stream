@@ -840,6 +840,6 @@ const mergeOAuthAuth = (
 const toErrorMessage = (error: unknown): string => (error instanceof Error && error.message ? error.message : "OAuth operation failed.");
 
 const isPlatformChatOAuthCallbackUrl = (url: string): boolean =>
-  url.startsWith("mobilelivecaster://oauth/") || url.startsWith("com.example.mobilelivecaster:/oauth/");
+  url.startsWith("mobilelivecaster://oauth/") || url.startsWith("com.mobilelivecaster.app:/oauth/");
 
 const shouldClearStoredOAuthCredential = (message: string): boolean => /HTTP (400|401|403)\b/.test(message);

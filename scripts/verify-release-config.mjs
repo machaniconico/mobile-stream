@@ -9,8 +9,12 @@ const files = {
   androidManifest: read("android/app/src/main/AndroidManifest.xml"),
   iosInfo: read("ios/MobileLiveCaster/Info.plist"),
   iosPrivacy: read("ios/MobileLiveCaster/PrivacyInfo.xcprivacy"),
+  iosEntitlements: read("ios/MobileLiveCaster/MobileLiveCaster.entitlements"),
   broadcastInfo: read("ios/MobileLiveCasterBroadcastUpload/Info.plist"),
-  xcodeProject: read("ios/MobileLiveCaster.xcodeproj/project.pbxproj")
+  broadcastEntitlements: read("ios/MobileLiveCasterBroadcastUpload/MobileLiveCasterBroadcastUpload.entitlements"),
+  xcodeProject: read("ios/MobileLiveCaster.xcodeproj/project.pbxproj"),
+  liveCasterBridge: read("ios/MobileLiveCaster/LiveCasterBridge.swift"),
+  broadcastHandler: read("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift")
 };
 
 const checks = [
@@ -38,7 +42,8 @@ const checks = [
   }),
   check("Android OAuth callback schemes are registered", () => {
     expectIncludes(files.androidManifest, 'android:scheme="mobilelivecaster" android:host="oauth"');
-    expectIncludes(files.androidManifest, 'android:scheme="com.example.mobilelivecaster"');
+    expectIncludes(files.androidManifest, 'android:scheme="com.mobilelivecaster.app"');
+    expectNotIncludes(files.androidManifest, "com.example.mobilelivecaster");
   }),
   check("iOS privacy usage descriptions are present", () => {
     expectIncludes(files.iosInfo, "NSCameraUsageDescription");
@@ -50,7 +55,21 @@ const checks = [
   }),
   check("iOS OAuth callback schemes are registered", () => {
     expectIncludes(files.iosInfo, "mobilelivecaster");
-    expectIncludes(files.iosInfo, "com.example.mobilelivecaster");
+    expectIncludes(files.iosInfo, "com.mobilelivecaster.app");
+    expectNotIncludes(files.iosInfo, "com.example.mobilelivecaster");
+  }),
+  check("iOS commercial identifiers replace React Native defaults", () => {
+    expectIncludes(files.xcodeProject, "PRODUCT_BUNDLE_IDENTIFIER = com.mobilelivecaster.app;");
+    expectIncludes(files.xcodeProject, "PRODUCT_BUNDLE_IDENTIFIER = com.mobilelivecaster.app.BroadcastUpload;");
+    expectIncludes(files.xcodeProject, "CODE_SIGN_ENTITLEMENTS = MobileLiveCaster/MobileLiveCaster.entitlements;");
+    expectIncludes(files.xcodeProject, "CODE_SIGN_ENTITLEMENTS = MobileLiveCasterBroadcastUpload/MobileLiveCasterBroadcastUpload.entitlements;");
+    expectIncludes(files.iosEntitlements, "group.com.mobilelivecaster.app");
+    expectIncludes(files.broadcastEntitlements, "group.com.mobilelivecaster.app");
+    expectIncludes(files.liveCasterBridge, 'liveCasterAppGroup = "group.com.mobilelivecaster.app"');
+    expectIncludes(files.liveCasterBridge, 'liveCasterBroadcastExtensionId = "com.mobilelivecaster.app.BroadcastUpload"');
+    expectIncludes(files.broadcastHandler, 'broadcastAppGroup = "group.com.mobilelivecaster.app"');
+    expectNotIncludes(allNativeConfigText(), "org.reactjs.native.example");
+    expectNotIncludes(allNativeConfigText(), "group.org.reactjs.native.example");
   }),
   check("iOS privacy manifest is packaged and non-tracking", () => {
     expectIncludes(files.iosPrivacy, "NSPrivacyTracking");
@@ -124,4 +143,17 @@ function releaseBlock(gradleText) {
   }
 
   throw new Error("unterminated release build type");
+}
+
+function allNativeConfigText() {
+  return [
+    files.androidManifest,
+    files.iosInfo,
+    files.iosEntitlements,
+    files.broadcastInfo,
+    files.broadcastEntitlements,
+    files.xcodeProject,
+    files.liveCasterBridge,
+    files.broadcastHandler
+  ].join("\n");
 }

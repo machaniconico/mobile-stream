@@ -3,8 +3,8 @@ import React
 import ReplayKit
 import UIKit
 
-private let liveCasterAppGroup = "group.org.reactjs.native.example.MobileLiveCaster"
-private let liveCasterBroadcastExtensionId = "org.reactjs.native.example.MobileLiveCaster.BroadcastUpload"
+private let liveCasterAppGroup = "group.com.mobilelivecaster.app"
+private let liveCasterBroadcastExtensionId = "com.mobilelivecaster.app.BroadcastUpload"
 private let broadcastConfigurationKey = "MobileLiveCaster.broadcastConfiguration.v1"
 private let broadcastControlKey = "MobileLiveCaster.broadcastControl.v1"
 

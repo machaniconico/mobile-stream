@@ -87,7 +87,7 @@ const TWITCH_REQUIRED_SCOPES = `${TWITCH_CHAT_SCOPE} ${TWITCH_STREAM_KEY_SCOPE} 
 
 export const createDefaultPlatformChatOAuthSettings = (): PlatformChatOAuthSettings => ({
   youtubeClientId: "",
-  youtubeRedirectUri: "com.example.mobilelivecaster:/oauth/youtube",
+  youtubeRedirectUri: "com.mobilelivecaster.app:/oauth/youtube",
   twitchClientId: "",
   twitchRedirectUri: "mobilelivecaster://oauth/twitch",
   callbackUrl: ""

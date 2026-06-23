@@ -63,6 +63,7 @@
 - React Native mobile chat reader panel with test comments, platform adapter ingest, safety controls, and speech settings.
 - iOS ReplayKit Broadcast Upload Extension target registered in the Xcode project.
 - iOS app-side Broadcast Picker startup bridge with App Group configuration handoff.
+- iOS commercial bundle identifiers and App Group alignment for the host app and ReplayKit Broadcast Upload Extension.
 - iOS Broadcast Upload Extension runtime state reporting through App Group storage.
 - iOS Broadcast Upload Extension VideoToolbox H.264 encoder.
 - iOS Broadcast Upload Extension AudioToolbox AAC encoder with app/mic PCM mixing.

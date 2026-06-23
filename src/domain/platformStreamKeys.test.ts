@@ -18,7 +18,7 @@ const youtubeCredential = (): PlatformChatOAuthCredential => ({
   twitchUserId: null,
   validatedAt: 1,
   clientId: "youtube-client",
-  redirectUri: "com.example.mobilelivecaster:/oauth/youtube"
+  redirectUri: "com.mobilelivecaster.app:/oauth/youtube"
 });
 
 const twitchCredential = (): PlatformChatOAuthCredential => ({
