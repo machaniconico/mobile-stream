@@ -86,8 +86,11 @@ import {
   createStreamChatSpeechEvent,
   createStreamChatReconnectEvent,
   createStreamOperationEvent,
+  createStreamQualityAutomationEvent,
   createStreamRecoveryEvent
 } from "../domain/streamSessionLog";
+import { applyStreamQualityAdvisorTarget } from "../domain/streamQualityAdvisor";
+import { createStreamQualityAutomationDecision } from "../domain/streamQualityAutomation";
 import {
   appendStreamAudioLevelSample,
   createStreamAudioLevelSample,
@@ -105,6 +108,7 @@ import { useChatSpeechQueue, type ChatSpeechQueueEvent } from "../native/ChatSpe
 import { usePlatformChatConnection } from "../native/usePlatformChatConnection";
 import { useStreamAutoRecovery } from "../native/useStreamAutoRecovery";
 import { useStreamHealthHistory } from "../native/useStreamHealthHistory";
+import { useStreamQualityAutomation } from "../native/useStreamQualityAutomation";
 import { useStreamSessionLog } from "../native/useStreamSessionLog";
 import { useStreamSessionSummaries } from "../native/useStreamSessionSummaries";
 import {
@@ -466,6 +470,46 @@ export const App = () => {
     streamSessionSummaries.summaries,
     streamValidationRuns
   ]);
+  const qualityAutomationDiagnostics = useMemo(
+    () =>
+      createStreamDiagnostics(
+        scene,
+        profile,
+        readiness,
+        snapshot,
+        streamSessionEvents,
+        streamHealthSamples,
+        streamSessionSummaries.summaries,
+        streamValidationRuns,
+        faceTrackingRuntime,
+        {
+          chatReader: chatReader.settings,
+          platformChatConnection: platformChatConnection.connection
+        }
+      ),
+    [
+      chatReader.settings,
+      faceTrackingRuntime,
+      platformChatConnection.connection,
+      profile,
+      readiness,
+      scene,
+      snapshot,
+      streamHealthSamples,
+      streamSessionEvents,
+      streamSessionSummaries.summaries,
+      streamValidationRuns
+    ]
+  );
+  const qualityAutomationDecision = useMemo(
+    () =>
+      createStreamQualityAutomationDecision({
+        advisor: qualityAutomationDiagnostics.qualityAdvisor,
+        streamStatus: snapshot.state.status,
+        elapsedSeconds: snapshot.health.elapsedSeconds
+      }),
+    [qualityAutomationDiagnostics.qualityAdvisor, snapshot.health.elapsedSeconds, snapshot.state.status]
+  );
 
   useStreamAutoRecovery({
     engine,
@@ -475,6 +519,14 @@ export const App = () => {
     operationInFlight,
     runStreamOperation,
     onRecoveryDecision: recordRecoveryDecision
+  });
+  useStreamQualityAutomation({
+    decision: qualityAutomationDecision,
+    streamStatus: snapshot.state.status,
+    onDecision: (decision) => recordStreamSessionEvent(createStreamQualityAutomationEvent(decision)),
+    onApplyNextTarget: (target) => {
+      setProfile((current) => applyStreamQualityAdvisorTarget(current, target));
+    }
   });
 
   const submitChatComment = (author: string, body: string) => {
@@ -728,6 +780,7 @@ export const App = () => {
       streamHealthSamples={streamHealthSamples}
       streamSessionSummaries={streamSessionSummaries.summaries}
       streamValidationRuns={streamValidationRuns}
+      qualityAutomationDecision={qualityAutomationDecision}
       operationStatus={operationStatus}
       readiness={readiness}
       chatReader={chatReader}

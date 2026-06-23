@@ -62,6 +62,7 @@ import {
   type StreamDiagnostics
 } from "../domain/streamDiagnostics";
 import { applyStreamQualityAdvisorTarget } from "../domain/streamQualityAdvisor";
+import type { StreamQualityAutomationDecision } from "../domain/streamQualityAutomation";
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { StreamSessionSummary } from "../domain/streamSessionSummary";
 import {
@@ -87,6 +88,7 @@ interface MobileStudioScreenProps {
   streamHealthSamples: StreamHealthSample[];
   streamSessionSummaries: StreamSessionSummary[];
   streamValidationRuns: StreamValidationRun[];
+  qualityAutomationDecision: StreamQualityAutomationDecision;
   operationStatus: StreamOperationStatus | null;
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
@@ -231,6 +233,7 @@ export const MobileStudioScreen = ({
   streamHealthSamples,
   streamSessionSummaries,
   streamValidationRuns,
+  qualityAutomationDecision,
   operationStatus,
   readiness,
   chatReader,
@@ -1192,6 +1195,7 @@ export const MobileStudioScreen = ({
           readiness={readiness}
           preflight={startPreflight}
           diagnostics={diagnostics}
+          qualityAutomationDecision={qualityAutomationDecision}
           setupLocked={setupLocked}
           onProfileChange={onProfileChange}
           onClearStreamSessionSummaries={onClearStreamSessionSummaries}
@@ -1209,6 +1213,7 @@ const StreamDiagnosticsPanel = ({
   readiness,
   preflight,
   diagnostics,
+  qualityAutomationDecision,
   setupLocked,
   onProfileChange,
   onClearStreamSessionSummaries,
@@ -1220,6 +1225,7 @@ const StreamDiagnosticsPanel = ({
   readiness: ReadinessReport;
   preflight: StreamStartPreflightReport;
   diagnostics: StreamDiagnostics;
+  qualityAutomationDecision: StreamQualityAutomationDecision;
   setupLocked: boolean;
   onProfileChange(profile: StudioProfile): void;
   onClearStreamSessionSummaries(): void | Promise<void>;
@@ -1303,6 +1309,13 @@ const StreamDiagnosticsPanel = ({
           />
         ) : null}
       </View>
+      {qualityAutomationDecision.command !== "none" ? (
+        <View style={[styles.diagnosticIncident, diagnosticQualityAutomationStyle(qualityAutomationDecision)]}>
+          <Text style={styles.diagnosticIncidentTitle}>{qualityAutomationDecision.title}</Text>
+          <Text style={styles.diagnosticIncidentText}>{qualityAutomationDecision.summary}</Text>
+          <Text style={styles.diagnosticIncidentRecommendation}>{qualityAutomationDecision.action}</Text>
+        </View>
+      ) : null}
     </View>
     <View style={styles.diagnosticIncidents}>
       <View style={[styles.diagnosticIncidentSummary, diagnosticValidationSummaryStyle(diagnostics)]}>
@@ -2425,6 +2438,13 @@ const diagnosticAdvisorStyle = (diagnostics: StreamDiagnostics) =>
     : diagnostics.qualityAdvisor.severity === "warn"
       ? styles.diagnosticCheckWarn
       : null;
+
+const diagnosticQualityAutomationStyle = (decision: StreamQualityAutomationDecision) =>
+  decision.command === "none"
+    ? null
+    : decision.severity === "fail"
+      ? styles.diagnosticCheckFail
+      : styles.diagnosticCheckWarn;
 
 const diagnosticValidationSummaryStyle = (diagnostics: StreamDiagnostics) => {
   if (diagnostics.validation.status === "blocked") {

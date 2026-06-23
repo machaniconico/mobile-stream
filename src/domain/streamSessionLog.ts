@@ -1,10 +1,11 @@
 import type { StreamRecoveryAutomationDecision } from "./streamRecovery";
+import type { StreamQualityAutomationDecision } from "./streamQualityAutomation";
 import type { StreamControlAction, StreamOperationStatus } from "./streamOperation";
 import type { StreamHealth, StreamStatus } from "./streamState";
 import type { PlatformChatReconnectDecision } from "./platformChatConnection";
 
 export type StreamSessionEventSeverity = "info" | "warn" | "fail";
-export type StreamSessionEventKind = "status" | "operation" | "recovery" | "chat";
+export type StreamSessionEventKind = "status" | "operation" | "recovery" | "quality" | "chat";
 
 export interface StreamSessionEvent {
   id: string;
@@ -98,6 +99,24 @@ export const createStreamRecoveryEvent = (
     severity: decision.command === "stop" ? "fail" : "warn",
     title: recoveryTitle(decision.command),
     message: recoveryMessage(decision)
+  };
+};
+
+export const createStreamQualityAutomationEvent = (
+  decision: StreamQualityAutomationDecision,
+  now: Date = new Date()
+): StreamSessionEvent | null => {
+  if (decision.command === "none") {
+    return null;
+  }
+
+  return {
+    id: createEventId(now, "quality", decision.command, decision.key ?? "none"),
+    at: now.toISOString(),
+    kind: "quality",
+    severity: decision.severity,
+    title: decision.title,
+    message: `${decision.summary} ${decision.action}${decision.reason ? ` Reason: ${decision.reason}` : ""}`
   };
 };
 

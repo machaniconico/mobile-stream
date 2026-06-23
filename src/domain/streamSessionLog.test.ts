@@ -4,6 +4,7 @@ import {
   createStreamChatEvent,
   createStreamChatReconnectEvent,
   createStreamOperationEvent,
+  createStreamQualityAutomationEvent,
   createStreamRecoveryEvent,
   createStreamStatusEvent,
   maxStreamSessionEvents,
@@ -177,5 +178,71 @@ describe("stream session log", () => {
     expect(scheduled?.message).toContain("Attempts 2/5");
     expect(exhausted?.title).toBe("Auto recovery stopped stream");
     expect(exhausted?.severity).toBe("fail");
+  });
+
+  it("creates quality automation events and ignores idle decisions", () => {
+    const idle = createStreamQualityAutomationEvent(
+      {
+        command: "none",
+        key: null,
+        severity: "info",
+        title: "Quality automation idle",
+        summary: "Current quality target is acceptable.",
+        reason: "",
+        action: "Keep the current quality target.",
+        currentTarget: {
+          profileId: quality.id,
+          profileName: quality.name,
+          width: quality.width,
+          height: quality.height,
+          fps: quality.fps,
+          videoBitrateKbps: quality.videoBitrateKbps,
+          audioBitrateKbps: quality.audioBitrateKbps,
+          estimatedUploadKbps: 4535
+        },
+        suggestedTarget: null
+      },
+      new Date("2026-06-23T00:00:00.000Z")
+    );
+    const event = createStreamQualityAutomationEvent(
+      {
+        command: "apply-next-target",
+        key: "quality-lower",
+        severity: "warn",
+        title: "Auto quality target lowered",
+        summary: "Next stream target will use Balanced 720p.",
+        reason: "Bitrate critical.",
+        action: "The safer target can be applied for the next start.",
+        currentTarget: {
+          profileId: "quality-sharp",
+          profileName: "Sharp 1080p",
+          width: 1920,
+          height: 1080,
+          fps: 60,
+          videoBitrateKbps: 6500,
+          audioBitrateKbps: 160,
+          estimatedUploadKbps: 8325
+        },
+        suggestedTarget: {
+          profileId: quality.id,
+          profileName: quality.name,
+          width: quality.width,
+          height: quality.height,
+          fps: quality.fps,
+          videoBitrateKbps: quality.videoBitrateKbps,
+          audioBitrateKbps: quality.audioBitrateKbps,
+          estimatedUploadKbps: 4535
+        }
+      },
+      new Date("2026-06-23T00:00:01.000Z")
+    );
+
+    expect(idle).toBeNull();
+    expect(event).toMatchObject({
+      kind: "quality",
+      severity: "warn",
+      title: "Auto quality target lowered"
+    });
+    expect(event?.message).toContain("Bitrate critical");
   });
 });

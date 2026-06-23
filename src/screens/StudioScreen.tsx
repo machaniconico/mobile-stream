@@ -70,6 +70,7 @@ import {
   type StreamDiagnostics
 } from "../domain/streamDiagnostics";
 import { applyStreamQualityAdvisorTarget } from "../domain/streamQualityAdvisor";
+import type { StreamQualityAutomationDecision } from "../domain/streamQualityAutomation";
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { StreamSessionSummary } from "../domain/streamSessionSummary";
 import {
@@ -96,6 +97,7 @@ interface StudioScreenProps {
   streamHealthSamples: StreamHealthSample[];
   streamSessionSummaries: StreamSessionSummary[];
   streamValidationRuns: StreamValidationRun[];
+  qualityAutomationDecision: StreamQualityAutomationDecision;
   operationStatus: StreamOperationStatus | null;
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
@@ -264,6 +266,9 @@ const qualityAdvisorTargetLabel = (diagnostics: StreamDiagnostics): string =>
     ? `${diagnostics.qualityAdvisor.suggestedTarget.profileName} / ${diagnostics.qualityAdvisor.suggestedTarget.videoBitrateKbps} kbps / ${diagnostics.qualityAdvisor.suggestedTarget.fps}fps`
     : "Current target";
 
+const qualityAutomationTone = (decision: StreamQualityAutomationDecision): "pass" | "warn" | "fail" =>
+  decision.command === "none" ? "pass" : decision.severity === "fail" ? "fail" : "warn";
+
 const sessionSummaryTone = (summary: StreamSessionSummary): "pass" | "warn" | "fail" =>
   summary.outcome === "clean" ? "pass" : summary.outcome;
 
@@ -289,6 +294,7 @@ export const StudioScreen = ({
   streamHealthSamples,
   streamSessionSummaries,
   streamValidationRuns,
+  qualityAutomationDecision,
   operationStatus,
   readiness,
   chatReader,
@@ -896,6 +902,7 @@ export const StudioScreen = ({
             readiness={readiness}
             preflight={startPreflight}
             diagnostics={diagnostics}
+            qualityAutomationDecision={qualityAutomationDecision}
             setupLocked={setupLocked}
             onProfileChange={onProfileChange}
             onClearStreamSessionSummaries={onClearStreamSessionSummaries}
@@ -963,6 +970,7 @@ const StreamDiagnosticsPanel = ({
   readiness,
   preflight,
   diagnostics,
+  qualityAutomationDecision,
   setupLocked,
   onProfileChange,
   onClearStreamSessionSummaries,
@@ -974,6 +982,7 @@ const StreamDiagnosticsPanel = ({
   readiness: ReadinessReport;
   preflight: StreamStartPreflightReport;
   diagnostics: StreamDiagnostics;
+  qualityAutomationDecision: StreamQualityAutomationDecision;
   setupLocked: boolean;
   onProfileChange(profile: StudioProfile): void;
   onClearStreamSessionSummaries(): void;
@@ -1080,6 +1089,13 @@ const StreamDiagnosticsPanel = ({
             </button>
           ) : null}
         </div>
+        {qualityAutomationDecision.command !== "none" ? (
+          <div className={`diagnostic-incident ${qualityAutomationTone(qualityAutomationDecision)}`}>
+            <strong>{qualityAutomationDecision.title}</strong>
+            <span>{qualityAutomationDecision.summary}</span>
+            <em>{qualityAutomationDecision.action}</em>
+          </div>
+        ) : null}
       </div>
       <div className="diagnostic-incidents">
         <div className={`diagnostic-incident-summary ${validationTone(diagnostics)}`}>
