@@ -19,7 +19,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 2;
+    bundleVersion: 3;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -46,6 +46,9 @@ export interface SupportBundle {
     lastSessionNativeRuntimeCongested: boolean;
     lastSessionNativeRuntimeQueuedItems: number;
     lastSessionNativeRuntimeCacheSize: number;
+    lastSessionNativeRuntimeStillImageAssetCount: number;
+    lastSessionNativeRuntimeStillImageAssetLoadedCount: number;
+    lastSessionNativeRuntimeStillImageAssetMissingCount: number;
     validationStatus: StreamDiagnostics["validation"]["status"];
     validationPendingCount: number;
     validationWarningCount: number;
@@ -64,6 +67,9 @@ export interface SupportBundle {
     validationEvidenceLatestNativeRuntimeCongested: boolean;
     validationEvidenceLatestNativeRuntimeQueuedItems: number;
     validationEvidenceLatestNativeRuntimeCacheSize: number;
+    validationEvidenceLatestNativeRuntimeStillImageAssetCount: number;
+    validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount: number;
+    validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount: number;
     validationEvidenceFaceTrackingRunCount: number;
     validationEvidenceFaceTrackingReadyCount: number;
     validationEvidenceFaceTrackingWarningCount: number;
@@ -101,6 +107,9 @@ export interface SupportBundle {
     nativeRuntimeStatus: string | null;
     nativeRuntimePublisherState: string | null;
     nativeRuntimeCompositionStatus: string | null;
+    nativeRuntimeStillImageAssetCount: number;
+    nativeRuntimeStillImageAssetLoadedCount: number;
+    nativeRuntimeStillImageAssetMissingCount: number;
     nativeRuntimeStale: boolean;
     nativeRuntimeCongested: boolean;
     nativeRuntimeQueuedItems: number;
@@ -188,7 +197,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 2
+      bundleVersion: 3
     },
     summary: {
       status: diagnostics.status,
@@ -215,6 +224,9 @@ export const createSupportBundle = ({
       lastSessionNativeRuntimeCongested: diagnostics.session.lastSummary?.nativeRuntime?.congested ?? false,
       lastSessionNativeRuntimeQueuedItems: diagnostics.session.lastSummary?.nativeRuntime?.queuedItems ?? 0,
       lastSessionNativeRuntimeCacheSize: diagnostics.session.lastSummary?.nativeRuntime?.cacheSize ?? 0,
+      lastSessionNativeRuntimeStillImageAssetCount: diagnostics.session.lastSummary?.nativeRuntime?.stillImageAssetCount ?? 0,
+      lastSessionNativeRuntimeStillImageAssetLoadedCount: diagnostics.session.lastSummary?.nativeRuntime?.stillImageAssetLoadedCount ?? 0,
+      lastSessionNativeRuntimeStillImageAssetMissingCount: diagnostics.session.lastSummary?.nativeRuntime?.stillImageAssetMissingCount ?? 0,
       validationStatus: diagnostics.validation.status,
       validationPendingCount: diagnostics.validation.pendingCount,
       validationWarningCount: diagnostics.validation.warningCount,
@@ -233,6 +245,9 @@ export const createSupportBundle = ({
       validationEvidenceLatestNativeRuntimeCongested: diagnostics.validationEvidence.latestNativeRuntime?.congested ?? false,
       validationEvidenceLatestNativeRuntimeQueuedItems: diagnostics.validationEvidence.latestNativeRuntime?.queuedItems ?? 0,
       validationEvidenceLatestNativeRuntimeCacheSize: diagnostics.validationEvidence.latestNativeRuntime?.cacheSize ?? 0,
+      validationEvidenceLatestNativeRuntimeStillImageAssetCount: diagnostics.validationEvidence.latestNativeRuntime?.stillImageAssetCount ?? 0,
+      validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount: diagnostics.validationEvidence.latestNativeRuntime?.stillImageAssetLoadedCount ?? 0,
+      validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount: diagnostics.validationEvidence.latestNativeRuntime?.stillImageAssetMissingCount ?? 0,
       validationEvidenceFaceTrackingRunCount: diagnostics.validationEvidence.faceTrackingRunCount,
       validationEvidenceFaceTrackingReadyCount: diagnostics.validationEvidence.faceTrackingReadyCount,
       validationEvidenceFaceTrackingWarningCount: diagnostics.validationEvidence.faceTrackingWarningCount,
@@ -272,6 +287,9 @@ export const createSupportBundle = ({
       nativeRuntimeStatus: diagnostics.nativeRuntime?.runtimeStatus ?? null,
       nativeRuntimePublisherState: diagnostics.nativeRuntime?.publisher.state ?? null,
       nativeRuntimeCompositionStatus: diagnostics.nativeRuntime?.composition.status ?? null,
+      nativeRuntimeStillImageAssetCount: diagnostics.nativeRuntime?.composition.stillImageAssetCount ?? 0,
+      nativeRuntimeStillImageAssetLoadedCount: diagnostics.nativeRuntime?.composition.stillImageAssetLoadedCount ?? 0,
+      nativeRuntimeStillImageAssetMissingCount: diagnostics.nativeRuntime?.composition.stillImageAssetMissingCount ?? 0,
       nativeRuntimeStale: diagnostics.nativeRuntime?.stale ?? false,
       nativeRuntimeCongested: diagnostics.nativeRuntime?.publisher.congested ?? false,
       nativeRuntimeQueuedItems: diagnostics.nativeRuntime?.publisher.itemsInCache ?? 0,
@@ -378,7 +396,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Last outcome: ${bundle.summary.lastSessionOutcome ?? "-"}`,
     `- Last chat readout: ${bundle.summary.lastSessionChatEventCount} events / ${bundle.summary.lastSessionChatReconnectEventCount} reconnects / ${bundle.summary.lastSessionChatReconnectFailureCount} exhausted`,
     `- Last summary: ${bundle.diagnostics.session.lastSummary?.summary ?? "-"}`,
-    `- Last native runtime: ${bundle.summary.lastSessionNativeRuntimeStatus ?? "-"} / ${bundle.summary.lastSessionNativeRuntimePlatform ?? "-"} / congested ${bundle.summary.lastSessionNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.lastSessionNativeRuntimeQueuedItems}/${bundle.summary.lastSessionNativeRuntimeCacheSize}`,
+    `- Last native runtime: ${bundle.summary.lastSessionNativeRuntimeStatus ?? "-"} / ${bundle.summary.lastSessionNativeRuntimePlatform ?? "-"} / assets ${bundle.summary.lastSessionNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.lastSessionNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.lastSessionNativeRuntimeStillImageAssetMissingCount} missing / congested ${bundle.summary.lastSessionNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.lastSessionNativeRuntimeQueuedItems}/${bundle.summary.lastSessionNativeRuntimeCacheSize}`,
     `- Last recommendation: ${bundle.diagnostics.session.lastSummary?.recommendation ?? "-"}`,
     `- Health history: ${bundle.diagnostics.history.summary}`,
     `- Quality incidents: ${bundle.diagnostics.qualityIncidents.summary}`,
@@ -389,7 +407,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Recovery: ${bundle.diagnostics.recovery.mode} / ${bundle.diagnostics.recovery.recommendedAction}`,
     `- Native composition: ${bundle.summary.nativeCompositionStatus} / ${bundle.summary.nativeCompositionCoverage} / preview-only ${bundle.summary.nativeCompositionPreviewOnlySourceCount} / asset issues ${bundle.summary.nativeCompositionAssetIssueCount} / file-backed ${bundle.summary.nativeCompositionFileBackedAssetIssueCount}`,
     `- Native compositor required: ${bundle.summary.nativeCompositionRequiresCompositor ? "yes" : "no"}`,
-    `- Native runtime: ${bundle.summary.nativeRuntimePlatform ?? "-"} / ${bundle.summary.nativeRuntimeStatus ?? "-"} / publisher ${bundle.summary.nativeRuntimePublisherState ?? "-"} / composition ${bundle.summary.nativeRuntimeCompositionStatus ?? "-"} / stale ${bundle.summary.nativeRuntimeStale ? "yes" : "no"} / congested ${bundle.summary.nativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.nativeRuntimeQueuedItems}/${bundle.summary.nativeRuntimeCacheSize}`,
+    `- Native runtime: ${bundle.summary.nativeRuntimePlatform ?? "-"} / ${bundle.summary.nativeRuntimeStatus ?? "-"} / publisher ${bundle.summary.nativeRuntimePublisherState ?? "-"} / composition ${bundle.summary.nativeRuntimeCompositionStatus ?? "-"} / assets ${bundle.summary.nativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.nativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.nativeRuntimeStillImageAssetMissingCount} missing / stale ${bundle.summary.nativeRuntimeStale ? "yes" : "no"} / congested ${bundle.summary.nativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.nativeRuntimeQueuedItems}/${bundle.summary.nativeRuntimeCacheSize}`,
     "",
     "Commercial Validation",
     `- Status: ${bundle.summary.validationStatus}`,
@@ -400,7 +418,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Next step: ${bundle.diagnostics.validation.recommendedNextStep}`,
     `- Evidence: ${bundle.summary.validationEvidenceStatus} / ${bundle.summary.validationEvidenceRunCount} retained / ${bundle.summary.validationEvidenceEligibleRunCount} eligible / ${bundle.summary.validationEvidenceStaleRunCount} stale`,
     `- Evidence outcomes: ${bundle.summary.validationEvidencePassCount} pass / ${bundle.summary.validationEvidenceFailureCount} fail`,
-    `- Evidence native runtime: ${bundle.summary.validationEvidenceNativeRuntimeRunCount} retained / ${bundle.summary.validationEvidenceNativeRuntimeWarningCount} warn / ${bundle.summary.validationEvidenceNativeRuntimeFailureCount} fail / latest ${bundle.summary.validationEvidenceLatestNativeRuntimeStatus ?? "-"} ${bundle.summary.validationEvidenceLatestNativeRuntimePlatform ?? "-"} / congested ${bundle.summary.validationEvidenceLatestNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.validationEvidenceLatestNativeRuntimeQueuedItems}/${bundle.summary.validationEvidenceLatestNativeRuntimeCacheSize}`,
+    `- Evidence native runtime: ${bundle.summary.validationEvidenceNativeRuntimeRunCount} retained / ${bundle.summary.validationEvidenceNativeRuntimeWarningCount} warn / ${bundle.summary.validationEvidenceNativeRuntimeFailureCount} fail / latest ${bundle.summary.validationEvidenceLatestNativeRuntimeStatus ?? "-"} ${bundle.summary.validationEvidenceLatestNativeRuntimePlatform ?? "-"} / assets ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount} missing / congested ${bundle.summary.validationEvidenceLatestNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.validationEvidenceLatestNativeRuntimeQueuedItems}/${bundle.summary.validationEvidenceLatestNativeRuntimeCacheSize}`,
     `- Evidence face tracking: ${bundle.summary.validationEvidenceFaceTrackingRunCount} retained / ${bundle.summary.validationEvidenceFaceTrackingReadyCount} ready / ${bundle.summary.validationEvidenceFaceTrackingWarningCount} warn / iOS ${bundle.summary.validationEvidenceFaceTrackingIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceFaceTrackingAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestFaceTrackingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestFaceTrackingRuntimeStatus ?? "-"} / prepared ${bundle.summary.validationEvidenceLatestFaceTrackingPreparedPngTuberCount} / moving ${bundle.summary.validationEvidenceLatestFaceTrackingActiveMotionCount}`,
     `- Evidence platform dashboard: ${bundle.summary.validationEvidencePlatformPublishingRunCount} retained / ${bundle.summary.validationEvidencePlatformPublishingWarningCount} warn / ${bundle.summary.validationEvidencePlatformPublishingFailureCount} fail / latest ${bundle.summary.validationEvidenceLatestPlatformPublishingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestPlatformPublishingSummary ?? "-"}`,
     `- Physical coverage: iOS ${bundle.summary.validationEvidenceIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAndroidPass ? "pass" : "missing"}`,

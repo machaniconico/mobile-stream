@@ -5,6 +5,10 @@ export interface NativeRuntimeComposition {
   appliedCount: number;
   skippedCount: number;
   skippedKinds: string[];
+  stillImageAssetCount?: number;
+  stillImageAssetLoadedCount?: number;
+  stillImageAssetMissingCount?: number;
+  stillImageAssetMissingKinds?: string[];
   message: string;
 }
 

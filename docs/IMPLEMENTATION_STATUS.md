@@ -17,14 +17,14 @@
 - Durable completed stream session summary persistence for Web localStorage and React Native native storage, with corrupt payload recovery and retention limiting.
 - Completed stream session history management in Web and React Native diagnostics, including local history clearing for privacy/support resets.
 - Completed stream session history trend analysis for clean-rate, stability, average duration, recovery totals, and next-stream recommendations across diagnostics, support bundles, Web, and React Native.
-- Completed stream session summaries retain safe native runtime evidence, including publisher state, compositor status, congestion, queue size, sent/dropped frame counts, and bytes, without storing raw native error messages.
+- Completed stream session summaries retain safe native runtime evidence, including publisher state, compositor status, still-image asset loaded/missing counts, congestion, queue size, sent/dropped frame counts, and bytes, without storing raw native error messages.
 - Commercial pre-release validation checklist for configuration readiness, RTMPS transport, private ingest smoke tests, destination dashboard checks, physical-device evidence, retained session baselines, and support-bundle evidence across diagnostics, support bundles, Web, and React Native.
 - Physical validation evidence recording for iOS/Android private RTMP(S) runs, including retained pass/warn/fail run history, Web localStorage, mobile native storage, diagnostics integration, support bundle summaries, and Web/React Native recorder UI.
 - Release-candidate validation evidence gating for freshness, current destination/protocol matching, same-build iOS/Android coverage, stale evidence warnings, and support-bundle eligible/stale run counts.
 - Physical validation runs retain safe native runtime evidence from the current native publisher/compositor or the latest completed session, and native warn/fail states automatically downgrade retained validation outcomes.
 - Physical validation runs retain safe YouTube/Twitch dashboard evidence, including YouTube broadcast/stream/health status and Twitch live/offline status, and unhealthy dashboard states downgrade retained validation outcomes.
 - Live quality advisor model for maintaining, monitoring, lowering quality, reconnecting, or stopping based on active incidents, history, and recovery state, with safe suggested-quality application in Web and React Native.
-- Redacted support bundle export combining preflight, diagnostics, scene composition, stream target, and safe profile summaries for support triage.
+- Redacted support bundle export combining preflight, diagnostics, scene composition, native still-image asset load evidence, stream target, and safe profile summaries for support triage.
 - Stream quality incident model for active bitrate/FPS/drop/reconnect problems, recommendations, UI surfacing, and report export.
 - Shared stream recovery policy model for retry budget, bounded exponential backoff, degraded telemetry detection, failed-engine recovery advice, and sanitized report export.
 - Shared app-level automatic recovery scheduler for Web and React Native, including failed-engine reconnect, critical telemetry hold time, retry budget enforcement, and timer deduplication.
@@ -78,12 +78,12 @@
 - iOS app-side Broadcast Picker startup bridge with App Group configuration handoff.
 - iOS commercial bundle identifiers and App Group alignment for the host app and ReplayKit Broadcast Upload Extension.
 - iOS Broadcast Upload Extension runtime state reporting through App Group storage.
-- iOS host app runtime telemetry polling from the Broadcast Upload Extension, feeding bitrate, FPS, drops, reconnect attempts, errors, and composition status into the React Native snapshot.
+- iOS host app runtime telemetry polling from the Broadcast Upload Extension, feeding bitrate, FPS, drops, reconnect attempts, errors, composition status, and still-image asset loaded/missing counts into the React Native snapshot.
 - iOS Broadcast Upload Extension VideoToolbox H.264 encoder.
 - iOS Broadcast Upload Extension AudioToolbox AAC encoder with app/mic PCM mixing.
 - iOS Broadcast Upload Extension RTMP/RTMPS publisher foundation with H.264/AAC packetization.
 - iOS RTMP publisher reconnect backoff state with bounded retry attempts.
-- iOS ReplayKit Broadcast Upload Extension compositor for PNGTuber still-image/fallback, text, image, and solid overlays on encoded frames, with App Group runtime composition status.
+- iOS ReplayKit Broadcast Upload Extension compositor for PNGTuber still-image/fallback, text, image, and solid overlays on encoded frames, with App Group runtime composition status and still-image asset load/miss evidence.
 - iOS native-compositor preflight diagnostics warn when PNGTuber/image overlays use missing, host-sandbox file-backed, relative, content, http(s), data, or otherwise unsupported still-image asset URIs that the Broadcast Upload Extension cannot reliably load.
 - iOS mobile still-image asset picker/preparation copies selected PNGTuber/image source files into the shared App Group container and stores a ReplayKit-extension-readable `file://` URI in the scene.
 - Android MediaProjection service skeleton.

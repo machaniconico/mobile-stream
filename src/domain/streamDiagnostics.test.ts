@@ -251,6 +251,10 @@ describe("stream diagnostics", () => {
           appliedCount: 2,
           skippedCount: 0,
           skippedKinds: [],
+          stillImageAssetCount: 2,
+          stillImageAssetLoadedCount: 2,
+          stillImageAssetMissingCount: 0,
+          stillImageAssetMissingKinds: [],
           message: `Native overlays applied for ${demoStreamKey}`
         },
         message: `iOS extension live for ${demoStreamKey}`
@@ -262,7 +266,66 @@ describe("stream diagnostics", () => {
     expect(diagnostics.nativeRuntime?.message).not.toContain(demoStreamKey);
     expect(diagnostics.nativeRuntime?.composition.message).toContain(redactStreamKey(demoStreamKey));
     expect(diagnostics.checks.find((check) => check.code === "native-runtime-ios")?.status).toBe("pass");
-    expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain("Native Runtime");
+    const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics));
+    expect(report).toContain("Native Runtime");
+    expect(report).toContain("Composition assets: 2/2 loaded / 0 missing");
+  });
+
+  it("warns when the native runtime reports missing still-image assets", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3200, fps: 30, message: "Live" }),
+      nativeRuntime: {
+        platform: "ios",
+        runtimeStatus: "live",
+        updatedAt: Date.now(),
+        stale: false,
+        elapsedSeconds: 12,
+        videoFrames: 330,
+        encodedBytes: 4_400_000,
+        droppedFrames: 0,
+        publisher: {
+          state: "published",
+          reconnectAttempts: 0,
+          sentVideoFrames: 330,
+          sentAudioFrames: 500,
+          droppedVideoFrames: 0,
+          droppedAudioFrames: 0,
+          bytesWritten: 4_400_000,
+          cacheSize: 100,
+          itemsInCache: 0,
+          congested: false,
+          lastError: ""
+        },
+        composition: {
+          status: "pending",
+          appliedCount: 2,
+          skippedCount: 0,
+          skippedKinds: [],
+          stillImageAssetCount: 2,
+          stillImageAssetLoadedCount: 1,
+          stillImageAssetMissingCount: 1,
+          stillImageAssetMissingKinds: ["pngtuber"],
+          message: "Native overlays applied: 2; image assets 1/2, missing 1: pngtuber"
+        },
+        message: "iOS extension live"
+      }
+    });
+
+    const nativeCheck = diagnostics.checks.find((check) => check.code === "native-runtime-composition-pending");
+    expect(nativeCheck?.status).toBe("warn");
+    expect(nativeCheck?.message).toContain("missing 1");
+    expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain("Composition assets: 1/2 loaded / 1 missing");
   });
 
   it("keeps native runtime failures blocking even when telemetry is stale", () => {

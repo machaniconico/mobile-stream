@@ -16,6 +16,10 @@ export interface StreamSessionNativeRuntimeSummary {
   runtimeStatus: string;
   publisherState: string;
   compositionStatus: NativeRuntimeTelemetry["composition"]["status"];
+  stillImageAssetCount: number;
+  stillImageAssetLoadedCount: number;
+  stillImageAssetMissingCount: number;
+  stillImageAssetMissingKinds: string[];
   stale: boolean;
   congested: boolean;
   queuedItems: number;
@@ -374,8 +378,10 @@ export const createNativeRuntimeSessionSummary = (
   const stale = runtime.stale;
   const congested = runtime.publisher.congested;
   const pendingComposition = runtime.composition.status === "pending";
-  const status: StreamSessionNativeRuntimeStatus = failed ? "fail" : stale || congested || pendingComposition ? "warn" : "pass";
-  const issueCount = [failed, stale, congested, pendingComposition].filter(Boolean).length;
+  const missingAssetCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetMissingCount);
+  const missingAssets = missingAssetCount > 0;
+  const status: StreamSessionNativeRuntimeStatus = failed ? "fail" : stale || congested || pendingComposition || missingAssets ? "warn" : "pass";
+  const issueCount = [failed, stale, congested, pendingComposition, missingAssets].filter(Boolean).length;
   const queue = `${runtime.publisher.itemsInCache}/${runtime.publisher.cacheSize}`;
 
   return {
@@ -384,6 +390,10 @@ export const createNativeRuntimeSessionSummary = (
     runtimeStatus: runtime.runtimeStatus,
     publisherState: runtime.publisher.state,
     compositionStatus: runtime.composition.status,
+    stillImageAssetCount: normalizeNonNegativeInteger(runtime.composition.stillImageAssetCount),
+    stillImageAssetLoadedCount: normalizeNonNegativeInteger(runtime.composition.stillImageAssetLoadedCount),
+    stillImageAssetMissingCount: missingAssetCount,
+    stillImageAssetMissingKinds: runtime.composition.stillImageAssetMissingKinds ?? [],
     stale,
     congested,
     queuedItems: normalizeNonNegativeInteger(runtime.publisher.itemsInCache),
@@ -408,6 +418,8 @@ export const createNativeRuntimeSessionSummary = (
           ? "Lower bitrate/FPS or improve network stability before a long public stream."
           : stale
             ? "Confirm the native runtime is still reporting current telemetry during device validation."
+            : missingAssets
+              ? "Confirm App Group-copied PNGTuber/image assets load inside the iOS Broadcast Upload Extension before public streams."
             : pendingComposition
               ? "Review native compositor coverage before treating this scene as production-ready."
               : "Keep this native runtime result as supporting evidence for the destination."
@@ -569,6 +581,12 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     runtimeStatus: typeof value.runtimeStatus === "string" ? value.runtimeStatus : "unknown",
     publisherState: typeof value.publisherState === "string" ? value.publisherState : "",
     compositionStatus,
+    stillImageAssetCount: normalizeNonNegativeInteger(value.stillImageAssetCount),
+    stillImageAssetLoadedCount: normalizeNonNegativeInteger(value.stillImageAssetLoadedCount),
+    stillImageAssetMissingCount: normalizeNonNegativeInteger(value.stillImageAssetMissingCount),
+    stillImageAssetMissingKinds: Array.isArray(value.stillImageAssetMissingKinds)
+      ? value.stillImageAssetMissingKinds.filter((kind): kind is string => typeof kind === "string")
+      : [],
     stale: value.stale === true,
     congested: value.congested === true,
     queuedItems: normalizeNonNegativeInteger(value.queuedItems),

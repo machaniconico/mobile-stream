@@ -723,11 +723,12 @@ final class LiveCasterNative: RCTEventEmitter {
         let publisherState = redactSensitiveText(publisher.stringValue("state"), streamKey: streamKey, publishURL: publishURL)
         let skippedCount = sceneComposition.intValue("skippedCount")
         let appliedCount = sceneComposition.intValue("appliedCount")
+        let stillImageAssetMissingCount = sceneComposition.intValue("stillImageAssetMissingCount")
         let parseFailed = sceneComposition.boolValue("parseFailed")
         let compositionStatus: String
         if parseFailed {
             compositionStatus = "failed"
-        } else if skippedCount > 0 {
+        } else if skippedCount > 0 || stillImageAssetMissingCount > 0 {
             compositionStatus = "pending"
         } else if appliedCount > 0 {
             compositionStatus = "applied"
@@ -768,6 +769,12 @@ final class LiveCasterNative: RCTEventEmitter {
                 "appliedCount": appliedCount,
                 "skippedCount": skippedCount,
                 "skippedKinds": sceneComposition.stringArrayValue("skippedKinds").map {
+                    redactSensitiveText($0, streamKey: streamKey, publishURL: publishURL)
+                },
+                "stillImageAssetCount": sceneComposition.intValue("stillImageAssetCount"),
+                "stillImageAssetLoadedCount": sceneComposition.intValue("stillImageAssetLoadedCount"),
+                "stillImageAssetMissingCount": stillImageAssetMissingCount,
+                "stillImageAssetMissingKinds": sceneComposition.stringArrayValue("stillImageAssetMissingKinds").map {
                     redactSensitiveText($0, streamKey: streamKey, publishURL: publishURL)
                 },
                 "message": redactSensitiveText(sceneComposition.stringValue("message"), streamKey: streamKey, publishURL: publishURL)

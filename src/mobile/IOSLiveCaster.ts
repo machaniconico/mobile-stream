@@ -161,6 +161,10 @@ const normalizeNativeRuntime = (
           appliedCount: runtime.composition?.appliedCount ?? 0,
           skippedCount: runtime.composition?.skippedCount ?? 0,
           skippedKinds: runtime.composition?.skippedKinds ?? [],
+          stillImageAssetCount: runtime.composition?.stillImageAssetCount ?? 0,
+          stillImageAssetLoadedCount: runtime.composition?.stillImageAssetLoadedCount ?? 0,
+          stillImageAssetMissingCount: runtime.composition?.stillImageAssetMissingCount ?? 0,
+          stillImageAssetMissingKinds: runtime.composition?.stillImageAssetMissingKinds ?? [],
           message: runtime.composition?.message ?? ""
         },
         message: runtime.message ?? ""

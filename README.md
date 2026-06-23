@@ -15,9 +15,9 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Platform API controls refresh expiring YouTube/Twitch OAuth credentials before stream-key, broadcast, and channel operations.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - RTMP/RTMPS publish URL normalization that can split pasted YouTube/Twitch full publish URLs into endpoint and stream key before start.
-- Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, native runtime validation evidence, platform dashboard validation evidence, and sanitized report export/share.
+- Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, native runtime validation evidence, native compositor still-image asset load evidence, platform dashboard validation evidence, and sanitized report export/share.
 - Face-tracking production diagnostics for prepared PNGTuber assets, native-camera readiness, tracking runtime state, active avatar motion, support bundles, and commercial validation checks.
-- Native composition readiness and diagnostics for native-supported avatar/text/image/solid overlays, underlay ordering, Live2D gaps, and iOS Broadcast Upload Extension still-image asset access risks before device RTMP publishing.
+- Native composition readiness and diagnostics for native-supported avatar/text/image/solid overlays, underlay ordering, Live2D gaps, iOS Broadcast Upload Extension still-image asset access risks before device RTMP publishing, and runtime loaded/missing asset evidence.
 - Mobile PNGTuber/image still-image picking and preparation that copies local assets into native-readable storage before streaming.
 - Stream key redaction and no-secret browser persistence.
 - Sensitive OAuth/API error message redaction before user-facing status display.
@@ -40,14 +40,14 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - iOS ReplayKit Broadcast Upload Extension target and startup bridge.
 - iOS Broadcast Upload Extension H.264/AAC encode path with app/mic audio mixing.
 - iOS RTMP/RTMPS publisher foundation with reconnect backoff state.
-- iOS host app telemetry bridge that polls Broadcast Upload Extension runtime state for FPS, bitrate, drops, reconnects, errors, and native composition status.
+- iOS host app telemetry bridge that polls Broadcast Upload Extension runtime state for FPS, bitrate, drops, reconnects, errors, native composition status, and still-image asset loaded/missing counts.
 - Android MediaProjection service skeleton.
 - React Native host app scaffold with standard `ios/` and `android/` projects.
 - React Native mobile Studio screen using the shared domain model and mock engine.
 - Android native bridge for MediaProjection consent, foreground service streaming, H.264/AAC encoding, and RTMP/RTMPS publishing through RootEncoder.
 - Android publish URLs are assembled from the selected server URL plus the stored stream key at start time.
 - Android native GL overlay compositor for visible PNGTuber still-image, text, image, and solid scene sources on top of MediaProjection capture.
-- iOS ReplayKit Broadcast Upload Extension compositor for visible PNGTuber still-image, text, image, and solid overlays on top of captured frames.
+- iOS ReplayKit Broadcast Upload Extension compositor for visible PNGTuber still-image, text, image, and solid overlays on top of captured frames, with runtime still-image asset load/miss evidence.
 - Android microphone effects are applied before AAC encoding, with optional headphone monitor playback.
 - Android start-time microphone/notification runtime permission preflight.
 - Native chat speech output through Android TextToSpeech and iOS AVSpeechSynthesizer.
@@ -82,7 +82,7 @@ GitHub Actions runs the required `test` status check on pull requests and `main`
 - Encoding: VideoToolbox on iOS, MediaCodec on Android.
 - Streaming: RTMP/RTMPS publisher behind `src/native/LiveCasterNative.ts`.
 - Go Live readiness: fail closed before native capture starts, with UI-visible blocking reasons.
-- Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, bitrate/FPS/drop/reconnect telemetry, native publisher/compositor evidence, estimated upload target, post-stream session evidence, physical validation native-runtime evidence, platform dashboard evidence, and sanitized export/share reports are available before, during, and after live sessions.
+- Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, bitrate/FPS/drop/reconnect telemetry, native publisher/compositor evidence, native still-image asset loaded/missing evidence, estimated upload target, post-stream session evidence, physical validation native-runtime evidence, platform dashboard evidence, and sanitized export/share reports are available before, during, and after live sessions.
 - Secret storage: browser persistence strips stream keys; mobile persistence uses Keychain/Android Keystore-backed native storage.
 - Stream key management: users can clear the stored key in-app and paste a replacement key without changing the destination preset.
 - Scene storage: web uses localStorage; Android uses app SharedPreferences; iOS writes an atomic scene JSON file under Application Support.

@@ -2393,12 +2393,20 @@ struct BroadcastSceneCompositionSummary: Equatable {
     let skippedCount: Int
     let skippedKinds: [String]
     let parseFailed: Bool
+    let stillImageAssetCount: Int
+    let stillImageAssetLoadedCount: Int
+    let stillImageAssetMissingCount: Int
+    let stillImageAssetMissingKinds: [String]
 
     static let screenOnly = BroadcastSceneCompositionSummary(
         appliedCount: 0,
         skippedCount: 0,
         skippedKinds: [],
-        parseFailed: false
+        parseFailed: false,
+        stillImageAssetCount: 0,
+        stillImageAssetLoadedCount: 0,
+        stillImageAssetMissingCount: 0,
+        stillImageAssetMissingKinds: []
     )
 
     var message: String {
@@ -2408,13 +2416,25 @@ struct BroadcastSceneCompositionSummary: Equatable {
         if appliedCount == 0 && skippedCount == 0 {
             return "Native composition screen-only"
         }
+        let assetSuffix = assetEvidenceMessage.map { "; \($0)" } ?? ""
         if skippedCount == 0 {
-            return "Native overlays applied: \(appliedCount)"
+            return "Native overlays applied: \(appliedCount)\(assetSuffix)"
         }
         if appliedCount == 0 {
-            return "Native overlays pending: \(skippedKinds.joined(separator: "/"))"
+            return "Native overlays pending: \(skippedKinds.joined(separator: "/"))\(assetSuffix)"
         }
-        return "Native overlays applied: \(appliedCount), pending: \(skippedKinds.joined(separator: "/"))"
+        return "Native overlays applied: \(appliedCount), pending: \(skippedKinds.joined(separator: "/"))\(assetSuffix)"
+    }
+
+    private var assetEvidenceMessage: String? {
+        guard stillImageAssetCount > 0 else {
+            return nil
+        }
+        let assetSummary = "image assets \(stillImageAssetLoadedCount)/\(stillImageAssetCount)"
+        if stillImageAssetMissingCount > 0 {
+            return "\(assetSummary), missing \(stillImageAssetMissingCount): \(stillImageAssetMissingKinds.joined(separator: "/"))"
+        }
+        return assetSummary
     }
 
     func asDictionary() -> [String: Any] {
@@ -2423,6 +2443,10 @@ struct BroadcastSceneCompositionSummary: Equatable {
             "skippedCount": skippedCount,
             "skippedKinds": skippedKinds,
             "parseFailed": parseFailed,
+            "stillImageAssetCount": stillImageAssetCount,
+            "stillImageAssetLoadedCount": stillImageAssetLoadedCount,
+            "stillImageAssetMissingCount": stillImageAssetMissingCount,
+            "stillImageAssetMissingKinds": stillImageAssetMissingKinds,
             "message": message
         ]
     }
@@ -2522,8 +2546,27 @@ final class BroadcastSceneCompositor {
     private let targetWidth: Int
     private let targetHeight: Int
     private let overlayNodes: [BroadcastRenderNode]
+    private let skippedCount: Int
+    private let skippedKinds: [String]
+    private let parseFailed: Bool
     private var cachedImages: [String: UIImage] = [:]
-    let summary: BroadcastSceneCompositionSummary
+    private var stillImageAssetResults: [String: Bool] = [:]
+
+    var summary: BroadcastSceneCompositionSummary {
+        let stillImageNodes = overlayNodes.filter(Self.requiresStillImageAsset)
+        let loadedCount = stillImageAssetResults.values.filter { $0 }.count
+        let missingNodes = stillImageNodes.filter { stillImageAssetResults[Self.assetEvidenceKey(for: $0)] == false }
+        return BroadcastSceneCompositionSummary(
+            appliedCount: overlayNodes.count,
+            skippedCount: skippedCount,
+            skippedKinds: skippedKinds,
+            parseFailed: parseFailed,
+            stillImageAssetCount: stillImageNodes.count,
+            stillImageAssetLoadedCount: loadedCount,
+            stillImageAssetMissingCount: missingNodes.count,
+            stillImageAssetMissingKinds: Array(Set(missingNodes.map(\.kind))).sorted()
+        )
+    }
 
     init(configuration: BroadcastUploadConfiguration) {
         targetWidth = configuration.width
@@ -2531,18 +2574,17 @@ final class BroadcastSceneCompositor {
 
         guard let renderGraphJSON = configuration.renderGraphJSON, !renderGraphJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             overlayNodes = []
-            summary = .screenOnly
+            skippedCount = 0
+            skippedKinds = []
+            parseFailed = false
             return
         }
 
         guard let renderNodes = Self.parseRenderGraph(renderGraphJSON) else {
             overlayNodes = []
-            summary = BroadcastSceneCompositionSummary(
-                appliedCount: 0,
-                skippedCount: 0,
-                skippedKinds: [],
-                parseFailed: true
-            )
+            skippedCount = 0
+            skippedKinds = []
+            parseFailed = true
             return
         }
 
@@ -2563,12 +2605,9 @@ final class BroadcastSceneCompositor {
         let skippedNodes = underlays + overlays.filter { !supportedKinds.contains($0.kind) }
 
         overlayNodes = supportedOverlays
-        summary = BroadcastSceneCompositionSummary(
-            appliedCount: supportedOverlays.count,
-            skippedCount: skippedNodes.count,
-            skippedKinds: Array(Set(skippedNodes.map(\.kind))).sorted(),
-            parseFailed: false
-        )
+        skippedCount = skippedNodes.count
+        skippedKinds = Array(Set(skippedNodes.map(\.kind))).sorted()
+        parseFailed = false
     }
 
     func compose(_ sampleBuffer: CMSampleBuffer) -> CMSampleBuffer {
@@ -2698,7 +2737,7 @@ final class BroadcastSceneCompositor {
     }
 
     private func drawPngTuber(_ node: BroadcastRenderNode, in context: CGContext, rect: CGRect) {
-        if let image = image(for: node.payload.stringValue("imageUri")) {
+        if let image = image(for: node.payload.stringValue("imageUri"), node: node) {
             UIGraphicsPushContext(context)
             image.draw(in: rect)
             UIGraphicsPopContext()
@@ -2789,7 +2828,7 @@ final class BroadcastSceneCompositor {
     }
 
     private func drawImage(_ node: BroadcastRenderNode, in context: CGContext, rect: CGRect) {
-        guard let image = image(for: node.payload.stringValue("uri")) else {
+        guard let image = image(for: node.payload.stringValue("uri"), node: node) else {
             return
         }
         UIGraphicsPushContext(context)
@@ -2797,12 +2836,14 @@ final class BroadcastSceneCompositor {
         UIGraphicsPopContext()
     }
 
-    private func image(for rawURI: String) -> UIImage? {
+    private func image(for rawURI: String, node: BroadcastRenderNode) -> UIImage? {
         let trimmedURI = rawURI.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedURI.isEmpty else {
+            recordStillImageAssetResult(for: node, loaded: false)
             return nil
         }
         if let cachedImage = cachedImages[trimmedURI] {
+            recordStillImageAssetResult(for: node, loaded: true)
             return cachedImage
         }
 
@@ -2818,7 +2859,23 @@ final class BroadcastSceneCompositor {
         if let image {
             cachedImages[trimmedURI] = image
         }
+        recordStillImageAssetResult(for: node, loaded: image != nil)
         return image
+    }
+
+    private func recordStillImageAssetResult(for node: BroadcastRenderNode, loaded: Bool) {
+        guard Self.requiresStillImageAsset(node) else {
+            return
+        }
+        stillImageAssetResults[Self.assetEvidenceKey(for: node)] = loaded
+    }
+
+    private static func requiresStillImageAsset(_ node: BroadcastRenderNode) -> Bool {
+        node.kind == "pngtuber" || node.kind == "image"
+    }
+
+    private static func assetEvidenceKey(for node: BroadcastRenderNode) -> String {
+        "\(node.kind):\(node.id)"
     }
 
     private func mapBlueprintRect(_ blueprintRect: CGRect, into targetRect: CGRect) -> CGRect {

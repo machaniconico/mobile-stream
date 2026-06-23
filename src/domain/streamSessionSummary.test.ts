@@ -199,6 +199,59 @@ describe("stream session summary", () => {
     expect(summary?.recommendation).toContain("Lower bitrate");
   });
 
+  it("keeps iOS still-image asset misses in completed native runtime evidence", () => {
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z"),
+      nativeRuntime: {
+        platform: "ios",
+        runtimeStatus: "live",
+        updatedAt: Date.now(),
+        stale: false,
+        elapsedSeconds: 4,
+        videoFrames: 92,
+        encodedBytes: 1_900_000,
+        droppedFrames: 0,
+        publisher: {
+          state: "published",
+          reconnectAttempts: 0,
+          sentVideoFrames: 92,
+          sentAudioFrames: 180,
+          droppedVideoFrames: 0,
+          droppedAudioFrames: 0,
+          bytesWritten: 1_900_000,
+          cacheSize: 120,
+          itemsInCache: 0,
+          congested: false,
+          lastError: ""
+        },
+        composition: {
+          status: "pending",
+          appliedCount: 2,
+          skippedCount: 0,
+          skippedKinds: [],
+          stillImageAssetCount: 2,
+          stillImageAssetLoadedCount: 1,
+          stillImageAssetMissingCount: 1,
+          stillImageAssetMissingKinds: ["pngtuber"],
+          message: "Native overlays applied: 2; image assets 1/2, missing 1: pngtuber"
+        },
+        message: "Live"
+      }
+    });
+
+    expect(summary?.outcome).toBe("warn");
+    expect(summary?.nativeRuntime?.status).toBe("warn");
+    expect(summary?.nativeRuntime?.stillImageAssetCount).toBe(2);
+    expect(summary?.nativeRuntime?.stillImageAssetLoadedCount).toBe(1);
+    expect(summary?.nativeRuntime?.stillImageAssetMissingCount).toBe(1);
+    expect(summary?.nativeRuntime?.stillImageAssetMissingKinds).toEqual(["pngtuber"]);
+    expect(summary?.nativeRuntime?.recommendation).toContain("App Group-copied");
+  });
+
   it("lets native runtime failures make the completed session fail", () => {
     const summary = createStreamSessionSummary({
       events: [],
@@ -307,6 +360,10 @@ describe("stream session summary", () => {
           runtimeStatus: "live",
           publisherState: "published",
           compositionStatus: "applied",
+          stillImageAssetCount: 2,
+          stillImageAssetLoadedCount: 1,
+          stillImageAssetMissingCount: 1,
+          stillImageAssetMissingKinds: ["image"],
           stale: false,
           congested: true,
           queuedItems: 8,
@@ -324,6 +381,7 @@ describe("stream session summary", () => {
 
     expect(normalized[0]?.nativeRuntime?.status).toBe("warn");
     expect(normalized[0]?.nativeRuntime?.sentVideoFrames).toBe(120);
+    expect(normalized[0]?.nativeRuntime?.stillImageAssetMissingKinds).toEqual(["image"]);
     expect(normalized[0]?.nativeRuntime?.summary).toContain("Native runtime warn");
   });
 

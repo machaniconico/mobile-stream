@@ -358,6 +358,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Runtime status: ${diagnostics.nativeRuntime?.runtimeStatus ?? "-"}`,
     `- Publisher: ${diagnostics.nativeRuntime?.publisher.state || "-"} / cache ${diagnostics.nativeRuntime?.publisher.itemsInCache ?? 0}/${diagnostics.nativeRuntime?.publisher.cacheSize ?? 0} / congested ${diagnostics.nativeRuntime?.publisher.congested ? "yes" : "no"}`,
     `- Composition: ${diagnostics.nativeRuntime?.composition.status ?? "-"} / ${diagnostics.nativeRuntime?.composition.message || "-"}`,
+    `- Composition assets: ${diagnostics.nativeRuntime?.composition.stillImageAssetLoadedCount ?? 0}/${diagnostics.nativeRuntime?.composition.stillImageAssetCount ?? 0} loaded / ${diagnostics.nativeRuntime?.composition.stillImageAssetMissingCount ?? 0} missing`,
     `- Native frames: ${diagnostics.nativeRuntime?.videoFrames ?? 0} video / ${diagnostics.nativeRuntime?.publisher.sentAudioFrames ?? 0} audio sent`,
     `- Native encoded bytes: ${diagnostics.nativeRuntime?.encodedBytes ?? 0}`,
     `- Native drops: ${diagnostics.nativeRuntime?.droppedFrames ?? 0} video / ${diagnostics.nativeRuntime?.publisher.droppedAudioFrames ?? 0} audio`,
@@ -524,12 +525,12 @@ const chatEventPrivacyMessage = (title: string): string => {
 
 const formatSessionNativeRuntime = (summary: StreamSessionSummary): string =>
   summary.nativeRuntime
-    ? `${summary.nativeRuntime.status} / ${summary.nativeRuntime.platform} / ${summary.nativeRuntime.publisherState || "-"} / queue ${summary.nativeRuntime.queuedItems}/${summary.nativeRuntime.cacheSize} / drops ${summary.nativeRuntime.droppedVideoFrames} video ${summary.nativeRuntime.droppedAudioFrames} audio`
+    ? `${summary.nativeRuntime.status} / ${summary.nativeRuntime.platform} / ${summary.nativeRuntime.publisherState || "-"} / queue ${summary.nativeRuntime.queuedItems}/${summary.nativeRuntime.cacheSize} / assets ${summary.nativeRuntime.stillImageAssetLoadedCount}/${summary.nativeRuntime.stillImageAssetCount} loaded / ${summary.nativeRuntime.stillImageAssetMissingCount} missing / drops ${summary.nativeRuntime.droppedVideoFrames} video ${summary.nativeRuntime.droppedAudioFrames} audio`
     : "-";
 
 const formatValidationNativeRuntime = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestNativeRuntime
-    ? `${diagnostics.validationEvidence.nativeRuntimeRunCount} retained / ${diagnostics.validationEvidence.nativeRuntimeWarningCount} warn / ${diagnostics.validationEvidence.nativeRuntimeFailureCount} fail / latest ${diagnostics.validationEvidence.latestNativeRuntime.status} ${diagnostics.validationEvidence.latestNativeRuntime.platform} / queue ${diagnostics.validationEvidence.latestNativeRuntime.queuedItems}/${diagnostics.validationEvidence.latestNativeRuntime.cacheSize}`
+    ? `${diagnostics.validationEvidence.nativeRuntimeRunCount} retained / ${diagnostics.validationEvidence.nativeRuntimeWarningCount} warn / ${diagnostics.validationEvidence.nativeRuntimeFailureCount} fail / latest ${diagnostics.validationEvidence.latestNativeRuntime.status} ${diagnostics.validationEvidence.latestNativeRuntime.platform} / queue ${diagnostics.validationEvidence.latestNativeRuntime.queuedItems}/${diagnostics.validationEvidence.latestNativeRuntime.cacheSize} / assets ${diagnostics.validationEvidence.latestNativeRuntime.stillImageAssetLoadedCount}/${diagnostics.validationEvidence.latestNativeRuntime.stillImageAssetCount} loaded / ${diagnostics.validationEvidence.latestNativeRuntime.stillImageAssetMissingCount} missing`
     : "-";
 
 const formatValidationFaceTracking = (diagnostics: StreamDiagnostics): string =>
@@ -677,7 +678,10 @@ const sanitizeNativeRuntime = (
         composition: {
           ...runtime.composition,
           message: redactStreamKeyOccurrences(runtime.composition.message, streamKey),
-          skippedKinds: runtime.composition.skippedKinds.map((kind) => redactStreamKeyOccurrences(kind, streamKey))
+          skippedKinds: runtime.composition.skippedKinds.map((kind) => redactStreamKeyOccurrences(kind, streamKey)),
+          stillImageAssetMissingKinds: (runtime.composition.stillImageAssetMissingKinds ?? []).map((kind) =>
+            redactStreamKeyOccurrences(kind, streamKey)
+          )
         }
       }
     : null;
@@ -1035,12 +1039,17 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
       message: `Native publisher is congested with ${runtime.publisher.itemsInCache}/${runtime.publisher.cacheSize} queued items.`
     };
   }
-  if (runtime.composition.status === "pending" || runtime.composition.status === "failed") {
+  const missingAssetCount = runtime.composition.stillImageAssetMissingCount ?? 0;
+  if (runtime.composition.status === "pending" || runtime.composition.status === "failed" || missingAssetCount > 0) {
     return {
       code: `native-runtime-composition-${runtime.composition.status}`,
       status: "warn",
       label: "Native runtime",
-      message: runtime.composition.message || "Native compositor has pending or failed sources."
+      message:
+        runtime.composition.message ||
+        (missingAssetCount > 0
+          ? `Native compositor could not load ${missingAssetCount} still-image asset${missingAssetCount === 1 ? "" : "s"}.`
+          : "Native compositor has pending or failed sources.")
     };
   }
   return {

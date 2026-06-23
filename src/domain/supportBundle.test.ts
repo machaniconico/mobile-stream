@@ -60,6 +60,10 @@ describe("support bundle", () => {
           appliedCount: 1,
           skippedCount: 0,
           skippedKinds: [],
+          stillImageAssetCount: 1,
+          stillImageAssetLoadedCount: 1,
+          stillImageAssetMissingCount: 0,
+          stillImageAssetMissingKinds: [],
           message: "Native screen capture ready"
         },
         message: `Publishing ${streamKey}`
@@ -125,7 +129,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 2 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 3 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.scene.sourceCounts.pngtuber).toBe(1);
@@ -145,6 +149,9 @@ describe("support bundle", () => {
     expect(bundle.summary.lastSessionNativeRuntimeStatus).toBe("warn");
     expect(bundle.summary.lastSessionNativeRuntimePlatform).toBe("android");
     expect(bundle.summary.lastSessionNativeRuntimeCongested).toBe(true);
+    expect(bundle.summary.lastSessionNativeRuntimeStillImageAssetCount).toBe(1);
+    expect(bundle.summary.lastSessionNativeRuntimeStillImageAssetLoadedCount).toBe(1);
+    expect(bundle.summary.lastSessionNativeRuntimeStillImageAssetMissingCount).toBe(0);
     expect(bundle.summary.qualityAdvisorAction).toBe("maintain");
     expect(bundle.summary.qualityAdvisorSeverity).toBe("pass");
     expect(bundle.summary.suggestedQualityTarget).toBeNull();
@@ -161,6 +168,9 @@ describe("support bundle", () => {
     expect(bundle.summary.nativeRuntimeCongested).toBe(true);
     expect(bundle.summary.nativeRuntimeQueuedItems).toBe(64);
     expect(bundle.summary.nativeRuntimeCacheSize).toBe(120);
+    expect(bundle.summary.nativeRuntimeStillImageAssetCount).toBe(1);
+    expect(bundle.summary.nativeRuntimeStillImageAssetLoadedCount).toBe(1);
+    expect(bundle.summary.nativeRuntimeStillImageAssetMissingCount).toBe(0);
     expect(bundle.summary.validationStatus).toBe("needs-test");
     expect(bundle.summary.validationFailCount).toBe(0);
     expect(bundle.summary.validationWarningCount).toBeGreaterThan(0);
@@ -184,8 +194,9 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Commercial Validation");
     expect(formatSupportBundle(bundle)).toContain("Native composition: warn / preview-only-overlays");
     expect(formatSupportBundle(bundle)).toContain("asset issues 1 / file-backed 0");
+    expect(formatSupportBundle(bundle)).toContain("assets 1/1 loaded / 0 missing");
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
-    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / congested yes / queue 64/120");
+    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / assets 1/1 loaded / 0 missing / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
     expect(formatSupportBundle(bundle)).toContain("Evidence native runtime: 0 retained / 0 warn / 0 fail");
     expect(formatSupportBundle(bundle)).toContain("Evidence face tracking: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
