@@ -136,6 +136,8 @@ describe("support bundle", () => {
     expect(bundle.summary.nativeCompositionStatus).toBe("warn");
     expect(bundle.summary.nativeCompositionCoverage).toBe("preview-only-overlays");
     expect(bundle.summary.nativeCompositionPreviewOnlySourceCount).toBeGreaterThan(0);
+    expect(bundle.summary.nativeCompositionAssetIssueCount).toBe(1);
+    expect(bundle.summary.nativeCompositionFileBackedAssetIssueCount).toBe(0);
     expect(bundle.summary.nativeCompositionRequiresCompositor).toBe(true);
     expect(bundle.summary.nativeRuntimePlatform).toBe("android");
     expect(bundle.summary.nativeRuntimeCongested).toBe(true);
@@ -157,6 +159,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Quality advisor: maintain / pass");
     expect(formatSupportBundle(bundle)).toContain("Commercial Validation");
     expect(formatSupportBundle(bundle)).toContain("Native composition: warn / preview-only-overlays");
+    expect(formatSupportBundle(bundle)).toContain("asset issues 1 / file-backed 0");
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");

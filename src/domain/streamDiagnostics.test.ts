@@ -50,6 +50,7 @@ describe("stream diagnostics", () => {
     expect(diagnostics.validationEvidence.totalRuns).toBe(0);
     expect(diagnostics.nativeComposition.status).toBe("warn");
     expect(diagnostics.nativeComposition.coverage).toBe("preview-only-overlays");
+    expect(diagnostics.nativeComposition.assetIssueCount).toBe(1);
     expect(diagnostics.checks.some((check) => check.code === "native-composition-preview-only-overlays")).toBe(true);
   });
 

@@ -73,6 +73,8 @@ export interface SupportBundle {
     nativeCompositionStatus: StreamDiagnostics["nativeComposition"]["status"];
     nativeCompositionCoverage: StreamDiagnostics["nativeComposition"]["coverage"];
     nativeCompositionPreviewOnlySourceCount: number;
+    nativeCompositionAssetIssueCount: number;
+    nativeCompositionFileBackedAssetIssueCount: number;
     nativeCompositionRequiresCompositor: boolean;
     nativeRuntimePlatform: string | null;
     nativeRuntimeStatus: string | null;
@@ -221,6 +223,8 @@ export const createSupportBundle = ({
       nativeCompositionStatus: diagnostics.nativeComposition.status,
       nativeCompositionCoverage: diagnostics.nativeComposition.coverage,
       nativeCompositionPreviewOnlySourceCount: diagnostics.nativeComposition.previewOnlySourceCount,
+      nativeCompositionAssetIssueCount: diagnostics.nativeComposition.assetIssueCount,
+      nativeCompositionFileBackedAssetIssueCount: diagnostics.nativeComposition.fileBackedAssetIssueCount,
       nativeCompositionRequiresCompositor: diagnostics.nativeComposition.requiresNativeCompositor,
       nativeRuntimePlatform: diagnostics.nativeRuntime?.platform ?? null,
       nativeRuntimeStatus: diagnostics.nativeRuntime?.runtimeStatus ?? null,
@@ -337,7 +341,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Quality advisor: ${bundle.summary.qualityAdvisorAction} / ${bundle.summary.qualityAdvisorSeverity}`,
     `- Suggested quality: ${bundle.summary.suggestedQualityTarget ?? "-"}`,
     `- Recovery: ${bundle.diagnostics.recovery.mode} / ${bundle.diagnostics.recovery.recommendedAction}`,
-    `- Native composition: ${bundle.summary.nativeCompositionStatus} / ${bundle.summary.nativeCompositionCoverage} / preview-only ${bundle.summary.nativeCompositionPreviewOnlySourceCount}`,
+    `- Native composition: ${bundle.summary.nativeCompositionStatus} / ${bundle.summary.nativeCompositionCoverage} / preview-only ${bundle.summary.nativeCompositionPreviewOnlySourceCount} / asset issues ${bundle.summary.nativeCompositionAssetIssueCount} / file-backed ${bundle.summary.nativeCompositionFileBackedAssetIssueCount}`,
     `- Native compositor required: ${bundle.summary.nativeCompositionRequiresCompositor ? "yes" : "no"}`,
     `- Native runtime: ${bundle.summary.nativeRuntimePlatform ?? "-"} / ${bundle.summary.nativeRuntimeStatus ?? "-"} / publisher ${bundle.summary.nativeRuntimePublisherState ?? "-"} / composition ${bundle.summary.nativeRuntimeCompositionStatus ?? "-"} / stale ${bundle.summary.nativeRuntimeStale ? "yes" : "no"} / congested ${bundle.summary.nativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.nativeRuntimeQueuedItems}/${bundle.summary.nativeRuntimeCacheSize}`,
     "",

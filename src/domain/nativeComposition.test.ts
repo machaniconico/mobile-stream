@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createNativeCompositionReport } from "./nativeComposition";
-import { createDefaultScene, setVisibility } from "./scene";
+import { createDefaultScene, setVisibility, updateSource } from "./scene";
+
+const appGroupAvatarUri = "file:///private/var/mobile/Containers/Shared/AppGroup/ABCDEF/avatar.png";
 
 describe("native composition report", () => {
   it("warns when a visible source is below the native screen capture layer", () => {
@@ -19,7 +21,11 @@ describe("native composition report", () => {
   });
 
   it("passes when native-supported overlays are above the screen layer", () => {
-    const scene = setVisibility(createDefaultScene(), "source-background", false);
+    const scene = updateSource(
+      setVisibility(createDefaultScene(), "source-background", false),
+      "source-avatar",
+      (source) => (source.kind === "pngtuber" ? { ...source, imageUri: appGroupAvatarUri } : source)
+    );
 
     const report = createNativeCompositionReport(scene);
 
@@ -27,7 +33,74 @@ describe("native composition report", () => {
     expect(report.coverage).toBe("native-overlays");
     expect(report.requiresNativeCompositor).toBe(false);
     expect(report.previewOnlySourceCount).toBe(0);
+    expect(report.assetIssueCount).toBe(0);
+    expect(report.fileBackedAssetIssueCount).toBe(0);
     expect(report.issues).toHaveLength(0);
+  });
+
+  it("warns when native still-image overlays use host-sandbox file URLs", () => {
+    const scene = updateSource(
+      setVisibility(createDefaultScene(), "source-background", false),
+      "source-avatar",
+      (source) =>
+        source.kind === "pngtuber"
+          ? {
+              ...source,
+              imageUri: "file:///var/mobile/Containers/Data/Application/APP/Documents/avatar.png"
+            }
+          : source
+    );
+
+    const report = createNativeCompositionReport(scene);
+
+    expect(report.status).toBe("warn");
+    expect(report.coverage).toBe("native-overlays");
+    expect(report.assetIssueCount).toBe(1);
+    expect(report.fileBackedAssetIssueCount).toBe(1);
+    expect(report.issues.map((issue) => issue.code)).toEqual(["native-compositor-asset-file-sandbox"]);
+    expect(report.recommendedNextStep).toContain("App Group");
+  });
+
+  it("warns when native still-image overlays use URI schemes the iOS extension cannot load", () => {
+    const scene = updateSource(
+      setVisibility(createDefaultScene(), "source-background", false),
+      "source-avatar",
+      (source) =>
+        source.kind === "pngtuber"
+          ? {
+              ...source,
+              imageUri: "content://media/external/images/media/42"
+            }
+          : source
+    );
+
+    const report = createNativeCompositionReport(scene);
+
+    expect(report.status).toBe("warn");
+    expect(report.assetIssueCount).toBe(1);
+    expect(report.fileBackedAssetIssueCount).toBe(0);
+    expect(report.issues[0]?.code).toBe("native-compositor-asset-uri-scheme");
+    expect(report.issues[0]?.message).toContain("Android content URI");
+  });
+
+  it("keeps diagnostics stable when file paths contain literal percent characters", () => {
+    const scene = updateSource(
+      setVisibility(createDefaultScene(), "source-background", false),
+      "source-avatar",
+      (source) =>
+        source.kind === "pngtuber"
+          ? {
+              ...source,
+              imageUri: "/var/mobile/Containers/Data/Application/APP/Documents/100%ready/avatar.png"
+            }
+          : source
+    );
+
+    const report = createNativeCompositionReport(scene);
+
+    expect(report.status).toBe("warn");
+    expect(report.assetIssueCount).toBe(1);
+    expect(report.issues[0]?.code).toBe("native-compositor-asset-file-sandbox");
   });
 
   it("passes for screen-only native publishing", () => {

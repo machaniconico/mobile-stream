@@ -27,6 +27,8 @@ export interface NativeCompositionReport {
   screenSourceCount: number;
   avatarSourceCount: number;
   previewOnlySourceCount: number;
+  assetIssueCount: number;
+  fileBackedAssetIssueCount: number;
   requiresNativeCompositor: boolean;
   unsupportedSourceKinds: SourceKind[];
   issues: NativeCompositionIssue[];
@@ -34,6 +36,8 @@ export interface NativeCompositionReport {
 
 const avatarKinds = new Set<SourceKind>(["pngtuber", "live2d"]);
 const nativeOverlayKinds = new Set<SourceKind>(["pngtuber", "image", "solid", "text"]);
+const nativeStillImageKinds = new Set<SourceKind>(["pngtuber", "image"]);
+const iosBroadcastAppGroup = "group.com.mobilelivecaster.app";
 
 export const createNativeCompositionReport = (scene: SceneDocument): NativeCompositionReport => {
   const visibleSources = scene.sources.filter((source) => source.visible);
@@ -47,10 +51,13 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
   const nativeOverlaySources = overlaySources.filter((source) => nativeOverlayKinds.has(source.kind));
   const unsupportedOverlaySources = overlaySources.filter((source) => !nativeOverlayKinds.has(source.kind));
   const previewOnlySources = [...underlaySources, ...unsupportedOverlaySources];
-  const issues = [
+  const previewIssues = [
     ...underlaySources.map((source) => createPreviewOnlyIssue(source, "underlay")),
     ...unsupportedOverlaySources.map((source) => createPreviewOnlyIssue(source, "unsupported"))
   ];
+  const assetIssues = nativeOverlaySources.flatMap((source) => createNativeStillImageAssetIssue(source));
+  const issues = [...previewIssues, ...assetIssues];
+  const fileBackedAssetIssueCount = assetIssues.filter((issue) => issue.code === "native-compositor-asset-file-sandbox").length;
   const unsupportedSourceKinds = [...new Set(previewOnlySources.map((source) => source.kind))];
 
   if (visibleSources.length === 0) {
@@ -63,6 +70,8 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       screenSourceCount: 0,
       avatarSourceCount: 0,
       previewOnlySourceCount: 0,
+      assetIssueCount: 0,
+      fileBackedAssetIssueCount: 0,
       requiresNativeCompositor: false,
       unsupportedSourceKinds: [],
       issues: []
@@ -80,9 +89,11 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       screenSourceCount: 0,
       avatarSourceCount: countAvatarSources(visibleSources),
       previewOnlySourceCount: visibleNonScreenSources.length,
+      assetIssueCount: assetIssues.length,
+      fileBackedAssetIssueCount,
       requiresNativeCompositor: visibleNonScreenSources.length > 0,
       unsupportedSourceKinds: [...new Set(visibleNonScreenSources.map((source) => source.kind))],
-      issues: noScreenIssues
+      issues: [...noScreenIssues, ...assetIssues]
     };
   }
 
@@ -96,6 +107,8 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       screenSourceCount: screenSources.length,
       avatarSourceCount: countAvatarSources(visibleSources),
       previewOnlySourceCount: previewOnlySources.length,
+      assetIssueCount: assetIssues.length,
+      fileBackedAssetIssueCount,
       requiresNativeCompositor: true,
       unsupportedSourceKinds,
       issues
@@ -103,6 +116,24 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
   }
 
   if (nativeOverlaySources.length > 0) {
+    if (assetIssues.length > 0) {
+      return {
+        status: "warn",
+        coverage: "native-overlays",
+        summary: `${nativeOverlaySources.length} visible overlay source${nativeOverlaySources.length === 1 ? "" : "s"} are native-supported, but ${assetIssues.length} still-image asset${assetIssues.length === 1 ? "" : "s"} need extension-accessible local storage before iOS ReplayKit publishing.`,
+        recommendedNextStep: "Copy PNGTuber and image assets into the App Group container before physical ingest validation.",
+        visibleSourceCount: visibleSources.length,
+        screenSourceCount: screenSources.length,
+        avatarSourceCount: countAvatarSources(visibleSources),
+        previewOnlySourceCount: 0,
+        assetIssueCount: assetIssues.length,
+        fileBackedAssetIssueCount,
+        requiresNativeCompositor: false,
+        unsupportedSourceKinds: [],
+        issues: assetIssues
+      };
+    }
+
     return {
       status: "pass",
       coverage: "native-overlays",
@@ -112,6 +143,8 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       screenSourceCount: screenSources.length,
       avatarSourceCount: countAvatarSources(visibleSources),
       previewOnlySourceCount: 0,
+      assetIssueCount: 0,
+      fileBackedAssetIssueCount: 0,
       requiresNativeCompositor: false,
       unsupportedSourceKinds: [],
       issues: []
@@ -127,10 +160,149 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
     screenSourceCount: screenSources.length,
     avatarSourceCount: 0,
     previewOnlySourceCount: 0,
+    assetIssueCount: 0,
+    fileBackedAssetIssueCount: 0,
     requiresNativeCompositor: false,
     unsupportedSourceKinds: [],
     issues: []
   };
+};
+
+const createNativeStillImageAssetIssue = (source: SceneSource): NativeCompositionIssue[] => {
+  if (!nativeStillImageKinds.has(source.kind)) {
+    return [];
+  }
+
+  const uri = nativeStillImageUri(source);
+  const base = {
+    sourceId: source.id,
+    sourceName: source.name,
+    sourceKind: source.kind,
+    status: "warn" as const
+  };
+
+  if (!uri) {
+    return [
+      {
+        ...base,
+        code: "native-compositor-asset-missing",
+        message: `${source.name} (${source.kind}) has no still-image asset URI for native overlay rendering.`,
+        action: "Select a still-image asset and store it in extension-accessible app storage before physical validation."
+      }
+    ];
+  }
+
+  const scheme = uriScheme(uri);
+  if (scheme === "file") {
+    const path = fileUriPath(uri);
+    if (path && isIosBroadcastAppGroupPath(path)) {
+      return [];
+    }
+    return [
+      {
+        ...base,
+        code: "native-compositor-asset-file-sandbox",
+        message: `${source.name} (${source.kind}) points to a file URL that may be inside the host app sandbox and unreadable by the iOS Broadcast Upload Extension.`,
+        action: "Copy the asset into the App Group container and save that file URL in the scene before release-critical streams."
+      }
+    ];
+  }
+
+  if (!scheme && uri.startsWith("/")) {
+    if (isIosBroadcastAppGroupPath(uri)) {
+      return [];
+    }
+    return [
+      {
+        ...base,
+        code: "native-compositor-asset-file-sandbox",
+        message: `${source.name} (${source.kind}) points to an absolute file path that may be outside the iOS Broadcast Upload Extension sandbox.`,
+        action: "Use an App Group container path for still-image overlays shared with the ReplayKit extension."
+      }
+    ];
+  }
+
+  if (scheme === "content") {
+    return [
+      {
+        ...base,
+        code: "native-compositor-asset-uri-scheme",
+        message: `${source.name} (${source.kind}) uses an Android content URI that the iOS ReplayKit extension cannot load.`,
+        action: "Mirror the selected asset into extension-accessible file storage and keep platform-specific native URI records."
+      }
+    ];
+  }
+
+  if (scheme === "http" || scheme === "https" || scheme === "data") {
+    return [
+      {
+        ...base,
+        code: "native-compositor-asset-uri-scheme",
+        message: `${source.name} (${source.kind}) uses a ${scheme} URI, but the current iOS native compositor only loads local files.`,
+        action: "Download or materialize the image into the App Group container before starting a native iOS broadcast."
+      }
+    ];
+  }
+
+  if (!scheme) {
+    return [
+      {
+        ...base,
+        code: "native-compositor-asset-relative-path",
+        message: `${source.name} (${source.kind}) uses a relative asset path that is not guaranteed to exist inside the iOS Broadcast Upload Extension bundle.`,
+        action: "Resolve the asset to a real App Group file URL during import or profile preparation."
+      }
+    ];
+  }
+
+  return [
+    {
+      ...base,
+      code: "native-compositor-asset-uri-scheme",
+      message: `${source.name} (${source.kind}) uses an unsupported ${scheme} URI for native still-image overlay rendering.`,
+      action: "Store the still image as an extension-accessible local file before physical-device ingest validation."
+    }
+  ];
+};
+
+const nativeStillImageUri = (source: SceneSource): string => {
+  if (source.kind === "pngtuber") {
+    return source.imageUri.trim();
+  }
+  if (source.kind === "image") {
+    return source.uri.trim();
+  }
+  return "";
+};
+
+const uriScheme = (uri: string): string | null => {
+  const match = uri.match(/^([a-z][a-z0-9+.-]*):/i);
+  return match ? match[1].toLowerCase() : null;
+};
+
+const fileUriPath = (uri: string): string | null => {
+  try {
+    return safeDecodeURIComponent(new URL(uri).pathname);
+  } catch {
+    return null;
+  }
+};
+
+const isIosBroadcastAppGroupPath = (path: string): boolean => {
+  const normalizedPath = safeDecodeURIComponent(path);
+  return (
+    normalizedPath.includes("/Shared/AppGroup/") ||
+    normalizedPath.includes(`/Group Containers/${iosBroadcastAppGroup}/`) ||
+    normalizedPath.includes(`/${iosBroadcastAppGroup}/`)
+  );
+};
+
+const safeDecodeURIComponent = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 };
 
 const countAvatarSources = (sources: SceneSource[]): number =>

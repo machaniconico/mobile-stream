@@ -9,7 +9,7 @@
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Shared Go Live preflight model for launch blocking, warning surfacing, engine-state duplicate-start protection, and failed-start operation logging.
 - Stream diagnostics model for redacted publish URL, endpoint parsing, upload target estimate, readiness issues, live telemetry health checks, and sanitized diagnostic reports.
-- Native composition readiness/diagnostics model that distinguishes native-supported avatar/image/solid/text overlays from underlay ordering and Live2D production gaps before device RTMP publishing.
+- Native composition readiness/diagnostics model that distinguishes native-supported avatar/image/solid/text overlays from underlay ordering, Live2D production gaps, and iOS Broadcast Upload Extension still-image asset access risks before device RTMP publishing.
 - Stream health history model for average/min bitrate and FPS, dropped-frame/reconnect trend summaries, diagnostics checks, and report export.
 - Post-stream session summary model for completed session outcome, warning/failure/recovery counts, health summary, and next-stream recommendations.
 - Durable completed stream session summary persistence for Web localStorage and React Native native storage, with corrupt payload recovery and retention limiting.
@@ -78,6 +78,7 @@
 - iOS Broadcast Upload Extension RTMP/RTMPS publisher foundation with H.264/AAC packetization.
 - iOS RTMP publisher reconnect backoff state with bounded retry attempts.
 - iOS ReplayKit Broadcast Upload Extension compositor for PNGTuber still-image/fallback, text, image, and solid overlays on encoded frames, with App Group runtime composition status.
+- iOS native-compositor preflight diagnostics warn when PNGTuber/image overlays use missing, host-sandbox file-backed, relative, content, http(s), data, or otherwise unsupported still-image asset URIs that the Broadcast Upload Extension cannot reliably load.
 - Android MediaProjection service skeleton.
 - Android `LiveCasterNative` React Native module registered in the host app.
 - Android MediaProjection consent flow from React Native.
@@ -115,7 +116,7 @@
 - iOS Broadcast Upload Extension production signing/provisioning validation.
 - Android end-to-end physical device validation against a real RTMP/RTMPS endpoint.
 - Android physical-device tuning for mic monitor latency and Bluetooth route behavior.
-- iOS Broadcast Upload Extension validation for file-backed still-image asset access from the host app sandbox.
+- iOS physical-device evidence that App Group-copied PNGTuber/image assets render correctly inside the Broadcast Upload Extension compositor.
 - First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
 - Live2D Cubism SDK integration.
 - Twitch stream key reset/rotation through API. Twitch currently exposes stream key retrieval through Helix, not a public reset endpoint.
