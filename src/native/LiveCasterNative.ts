@@ -19,6 +19,7 @@ export interface LiveCasterNative {
   stop(): Promise<void>;
   reconnect(): Promise<void>;
   updateScene(scene: SceneDocument): Promise<void>;
+  updateQuality(profile: StudioProfile): Promise<void>;
 }
 
 export class NativeNotLinkedError extends Error {

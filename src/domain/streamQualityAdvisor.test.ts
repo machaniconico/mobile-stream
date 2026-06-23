@@ -3,6 +3,7 @@ import { createDefaultStudioProfile, qualityProfiles, type QualityProfile } from
 import { createStreamHealthSample, summarizeStreamHealthHistory } from "./streamHealthHistory";
 import {
   applyStreamQualityAdvisorTarget,
+  canApplyStreamQualityAdvisorTargetLive,
   createStreamQualityAdvisor
 } from "./streamQualityAdvisor";
 import { createStreamQualityIncidents } from "./streamQualityIncidents";
@@ -127,5 +128,25 @@ describe("stream quality advisor", () => {
     expect(updated.quality.name).toContain("Custom safer");
     expect(updated.quality.fps).toBe(30);
     expect(updated.quality.videoBitrateKbps).toBe(2500);
+  });
+
+  it("allows live target changes only when resolution does not change and quality moves downward", () => {
+    const motionProfile = {
+      ...createDefaultStudioProfile(),
+      quality: quality("quality-motion")
+    };
+    const sharpProfile = {
+      ...createDefaultStudioProfile(),
+      quality: quality("quality-sharp")
+    };
+
+    expect(canApplyStreamQualityAdvisorTargetLive(motionProfile, advisorFor(quality("quality-motion"), {
+      bitrateKbps: 1200,
+      fps: 18
+    }).suggestedTarget)).toBe(true);
+    expect(canApplyStreamQualityAdvisorTargetLive(sharpProfile, advisorFor(quality("quality-sharp"), {
+      bitrateKbps: 1200,
+      fps: 18
+    }).suggestedTarget)).toBe(false);
   });
 });

@@ -67,6 +67,7 @@ enum LiveCasterNativeError: LocalizedError {
     case profileMissing
     case presentationUnavailable
     case broadcastButtonUnavailable
+    case qualityDestinationChange
 
     var errorDescription: String? {
         switch self {
@@ -84,6 +85,8 @@ enum LiveCasterNativeError: LocalizedError {
             return "Could not present the iOS broadcast picker"
         case .broadcastButtonUnavailable:
             return "Could not open the iOS broadcast picker"
+        case .qualityDestinationChange:
+            return "Quality update cannot change the stream destination"
         }
     }
 
@@ -103,6 +106,8 @@ enum LiveCasterNativeError: LocalizedError {
             return "presentation_unavailable"
         case .broadcastButtonUnavailable:
             return "broadcast_button_unavailable"
+        case .qualityDestinationChange:
+            return "quality_destination_change"
         }
     }
 }
@@ -174,6 +179,10 @@ struct LiveCasterPreparedConfiguration {
             "audioBitrateKbps": audioBitrateKbps,
             "renderGraph": renderGraphJSON
         ]
+    }
+
+    func hasSameDestination(as other: LiveCasterPreparedConfiguration) -> Bool {
+        serverURL == other.serverURL && streamKey == other.streamKey && publishURL == other.publishURL
     }
 
     private static func normalizeDestination(serverURL: String, streamKey: String) -> (serverURL: String, streamKey: String) {
@@ -523,6 +532,41 @@ final class LiveCasterNative: RCTEventEmitter {
             }
             let snapshot = self.snapshotLocked()
             resolve(snapshot)
+        }
+    }
+
+    @objc(updateQuality:resolver:rejecter:)
+    func updateQuality(
+        _ profileJson: String,
+        resolver resolve: @escaping RCTPromiseResolveBlock,
+        rejecter reject: @escaping RCTPromiseRejectBlock
+    ) {
+        stateQueue.async { [weak self] in
+            guard let self else {
+                resolve(nil)
+                return
+            }
+            do {
+                let nextConfiguration = try LiveCasterPreparedConfiguration(profileJSON: profileJson)
+                if let currentConfiguration = self.preparedConfiguration,
+                   !nextConfiguration.hasSameDestination(as: currentConfiguration) {
+                    throw LiveCasterNativeError.qualityDestinationChange
+                }
+
+                self.preparedConfiguration = nextConfiguration
+                try self.sharedStore.saveConfiguration(nextConfiguration, renderGraphJSON: self.renderGraphJSON)
+                self.health.fps = nextConfiguration.fps
+                self.health.message =
+                    self.status == .live || self.status == .reconnecting
+                    ? "Quality target updated for the next iOS broadcast restart"
+                    : "Quality target updated"
+                let snapshot = self.snapshotLocked()
+                self.emitSnapshot(snapshot)
+                resolve(snapshot)
+            } catch {
+                let message = self.redactSensitiveTextLocked(error.localizedDescription)
+                reject((error as? LiveCasterNativeError)?.code ?? "quality_update_failed", message, error)
+            }
         }
     }
 

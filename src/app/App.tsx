@@ -89,7 +89,10 @@ import {
   createStreamQualityAutomationEvent,
   createStreamRecoveryEvent
 } from "../domain/streamSessionLog";
-import { applyStreamQualityAdvisorTarget } from "../domain/streamQualityAdvisor";
+import {
+  applyStreamQualityAdvisorTarget,
+  canApplyStreamQualityAdvisorTargetLive
+} from "../domain/streamQualityAdvisor";
 import { createStreamQualityAutomationDecision } from "../domain/streamQualityAutomation";
 import {
   appendStreamAudioLevelSample,
@@ -506,9 +509,13 @@ export const App = () => {
       createStreamQualityAutomationDecision({
         advisor: qualityAutomationDiagnostics.qualityAdvisor,
         streamStatus: snapshot.state.status,
-        elapsedSeconds: snapshot.health.elapsedSeconds
+        elapsedSeconds: snapshot.health.elapsedSeconds,
+        canApplyLiveTarget: canApplyStreamQualityAdvisorTargetLive(
+          profile,
+          qualityAutomationDiagnostics.qualityAdvisor.suggestedTarget
+        )
       }),
-    [qualityAutomationDiagnostics.qualityAdvisor, snapshot.health.elapsedSeconds, snapshot.state.status]
+    [profile, qualityAutomationDiagnostics.qualityAdvisor, snapshot.health.elapsedSeconds, snapshot.state.status]
   );
 
   useStreamAutoRecovery({
@@ -524,6 +531,26 @@ export const App = () => {
     decision: qualityAutomationDecision,
     streamStatus: snapshot.state.status,
     onDecision: (decision) => recordStreamSessionEvent(createStreamQualityAutomationEvent(decision)),
+    onApplyLiveTarget: (target) => {
+      const nextProfile = applyStreamQualityAdvisorTarget(profile, target);
+      void engine.updateQuality(nextProfile)
+        .then(() => setProfile(nextProfile))
+        .catch((error) => {
+          const safeMessage = errorToSafeMessage(error, "Live quality update failed.");
+          recordStreamSessionEvent(
+            createStreamQualityAutomationEvent({
+              ...qualityAutomationDecision,
+              command: "alert",
+              key: `live-quality-update-failed:${Date.now()}`,
+              severity: "fail",
+              title: "Live quality update failed",
+              summary: "The native encoder rejected the live quality update.",
+              reason: safeMessage,
+              action: "Keep the current stream stable; stop and restart with the safer quality target if instability continues."
+            })
+          );
+        });
+    },
     onApplyNextTarget: (target) => {
       setProfile((current) => applyStreamQualityAdvisorTarget(current, target));
     }

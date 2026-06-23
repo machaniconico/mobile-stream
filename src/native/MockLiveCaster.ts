@@ -75,6 +75,20 @@ export class MockLiveCaster implements LiveCasterNative {
     this.preparedScene = scene;
   }
 
+  async updateQuality(profile: StudioProfile): Promise<void> {
+    this.preparedProfile = profile;
+    if (this.state.status === "live" || this.state.status === "reconnecting") {
+      this.reduce({
+        type: "health",
+        now: Date.now(),
+        bitrateKbps: this.preparedProfile.quality.videoBitrateKbps,
+        droppedFrames: this.state.health.droppedFrames,
+        fps: this.preparedProfile.quality.fps,
+        message: `Live quality updated to ${this.preparedProfile.quality.videoBitrateKbps} kbps / ${this.preparedProfile.quality.fps}fps`
+      });
+    }
+  }
+
   private startHealthLoop() {
     clearInterval(this.timer);
     this.timer = setInterval(() => {

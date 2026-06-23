@@ -1,7 +1,7 @@
 import type { StreamQualityAdvisorRecommendation, StreamQualityAdvisorTarget } from "./streamQualityAdvisor";
 import type { StreamStatus } from "./streamState";
 
-export type StreamQualityAutomationCommand = "none" | "alert" | "apply-next-target";
+export type StreamQualityAutomationCommand = "none" | "alert" | "apply-live-target" | "apply-next-target";
 
 export interface StreamQualityAutomationDecision {
   command: StreamQualityAutomationCommand;
@@ -19,12 +19,14 @@ export interface StreamQualityAutomationDecisionInput {
   advisor: StreamQualityAdvisorRecommendation;
   streamStatus: StreamStatus;
   elapsedSeconds: number;
+  canApplyLiveTarget?: boolean;
 }
 
 export const createStreamQualityAutomationDecision = ({
   advisor,
   streamStatus,
-  elapsedSeconds
+  elapsedSeconds,
+  canApplyLiveTarget = false
 }: StreamQualityAutomationDecisionInput): StreamQualityAutomationDecision => {
   const base = {
     currentTarget: advisor.currentTarget,
@@ -70,6 +72,18 @@ export const createStreamQualityAutomationDecision = ({
 
   if (streamStatus === "live" || streamStatus === "reconnecting") {
     const hasRunPastStartupGrace = elapsedSeconds >= 10 || streamStatus === "reconnecting";
+    if (advisor.action === "lower-quality" && advisor.suggestedTarget && hasRunPastStartupGrace && canApplyLiveTarget) {
+      return createDecision({
+        command: "apply-live-target",
+        severity: "warn",
+        title: "Live quality target lowered",
+        summary: `Live encoder target will use ${formatTarget(advisor.suggestedTarget)}.`,
+        reason: advisor.reason,
+        action: "The target keeps the current resolution and lowers encoder pressure while the stream stays live.",
+        ...base
+      });
+    }
+
     return createDecision({
       command: "alert",
       severity: advisor.severity === "fail" ? "fail" : "warn",

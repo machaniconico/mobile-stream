@@ -139,6 +139,18 @@ export const applyStreamQualityAdvisorTarget = (
   };
 };
 
+export const canApplyStreamQualityAdvisorTargetLive = (
+  profile: StudioProfile,
+  target: StreamQualityAdvisorTarget | null
+): boolean =>
+  Boolean(
+    target &&
+      target.width === profile.quality.width &&
+      target.height === profile.quality.height &&
+      target.videoBitrateKbps <= profile.quality.videoBitrateKbps &&
+      target.fps <= profile.quality.fps
+  );
+
 const createRecommendation = (recommendation: StreamQualityAdvisorRecommendation): StreamQualityAdvisorRecommendation =>
   recommendation;
 

@@ -27,4 +27,8 @@ RCT_EXTERN_METHOD(updateScene:(NSString *)renderGraphJson
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(updateQuality:(NSString *)profileJson
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end

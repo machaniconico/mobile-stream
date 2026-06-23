@@ -26,6 +26,7 @@ class MediaProjectionService : Service(), ConnectChecker {
         const val ACTION_START_STREAM = "com.mobilelivecaster.streaming.START_STREAM"
         const val ACTION_STOP_STREAM = "com.mobilelivecaster.streaming.STOP_STREAM"
         const val ACTION_RECONNECT_STREAM = "com.mobilelivecaster.streaming.RECONNECT_STREAM"
+        const val ACTION_UPDATE_QUALITY = "com.mobilelivecaster.streaming.UPDATE_QUALITY"
         private const val CHANNEL_ID = "mobile_live_caster_stream"
         private const val NOTIFICATION_ID = 4309
         private const val MAX_RECONNECT_ATTEMPTS = 5
@@ -56,6 +57,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             ACTION_START_STREAM -> startStreamFromSession()
             ACTION_STOP_STREAM -> stopStream()
             ACTION_RECONNECT_STREAM -> reconnectStream()
+            ACTION_UPDATE_QUALITY -> updateStreamQuality()
         }
         return START_STICKY
     }
@@ -195,6 +197,32 @@ class MediaProjectionService : Service(), ConnectChecker {
         releaseStreamResources()
         LiveCasterSession.markStopped()
         stopSelf()
+    }
+
+    private fun updateStreamQuality() {
+        val profile = LiveCasterSession.profile ?: return
+        val stream = genericStream ?: return
+
+        try {
+            stream.setVideoBitrateOnFly(profile.videoBitrate)
+            stream.getGlInterface().setForceRender(true, profile.fps)
+            stream.requestKeyframe()
+            lastNativeFps = profile.fps
+            val message = liveMessage("Live quality updated to ${profile.videoBitrate / 1000} kbps / ${profile.fps}fps")
+            LiveCasterSession.updateHealth(
+                fps = profile.fps,
+                message = message
+            )
+            updateNativeRuntimeFromStream(
+                publisherState = if (stream.isStreaming) "published" else null,
+                message = message
+            )
+        } catch (error: Throwable) {
+            updateNativeRuntimeFromStream(
+                lastError = error.message ?: "Live quality update failed",
+                message = LiveCasterSession.health.message
+            )
+        }
     }
 
     private fun resetNativeRuntimeCounters() {

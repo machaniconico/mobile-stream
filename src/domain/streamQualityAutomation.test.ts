@@ -80,6 +80,41 @@ describe("stream quality automation", () => {
     expect(decision.suggestedTarget?.profileId).toBe("quality-balanced");
   });
 
+  it("applies a live target when the safer target keeps the same resolution", () => {
+    const advisor = advisorFor(quality("quality-motion"), {
+      bitrateKbps: 1200,
+      fps: 18,
+      droppedFrames: 2
+    });
+    const decision = createStreamQualityAutomationDecision({
+      advisor,
+      streamStatus: "live",
+      elapsedSeconds: 20,
+      canApplyLiveTarget: true
+    });
+
+    expect(decision.command).toBe("apply-live-target");
+    expect(decision.severity).toBe("warn");
+    expect(decision.suggestedTarget?.profileId).toBe("quality-balanced");
+  });
+
+  it("keeps live downgrade armed when the safer target changes resolution", () => {
+    const advisor = advisorFor(quality("quality-sharp"), {
+      bitrateKbps: 1200,
+      fps: 18,
+      droppedFrames: 2
+    });
+    const decision = createStreamQualityAutomationDecision({
+      advisor,
+      streamStatus: "live",
+      elapsedSeconds: 20,
+      canApplyLiveTarget: false
+    });
+
+    expect(decision.command).toBe("alert");
+    expect(decision.title).toBe("Quality downgrade armed");
+  });
+
   it("applies the lower target only once the encoder is no longer live", () => {
     const advisor = advisorFor(quality("quality-sharp"), {
       bitrateKbps: 1200,

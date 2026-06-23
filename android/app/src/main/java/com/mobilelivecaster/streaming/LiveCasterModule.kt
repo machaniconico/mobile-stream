@@ -188,6 +188,28 @@ object LiveCasterSession {
         this.renderGraphJson = renderGraphJson
     }
 
+    fun updateQuality(profileJson: String): LiveCasterProfile {
+        val currentProfile = profile ?: throw IllegalStateException("Stream profile is missing")
+        val nextProfile = parseProfile(profileJson)
+        require(nextProfile.endpoint == currentProfile.endpoint && nextProfile.streamKey == currentProfile.streamKey) {
+            "Quality update cannot change the stream destination"
+        }
+
+        val updatedProfile = currentProfile.copy(
+            width = nextProfile.width,
+            height = nextProfile.height,
+            fps = nextProfile.fps,
+            videoBitrate = nextProfile.videoBitrate,
+            audioBitrate = nextProfile.audioBitrate
+        )
+        profile = updatedProfile
+        updateHealth(
+            fps = updatedProfile.fps,
+            message = "Quality target updated to ${updatedProfile.videoBitrate / 1000} kbps / ${updatedProfile.fps}fps"
+        )
+        return updatedProfile
+    }
+
     fun storeCaptureConsent(resultCode: Int, data: Intent) {
         captureResultCode = resultCode
         captureData = data

@@ -12,6 +12,7 @@ interface IOSLiveCasterModule {
   stop(): Promise<NativeEngineSnapshot>;
   reconnect(): Promise<NativeEngineSnapshot>;
   updateScene(renderGraphJson: string): Promise<NativeEngineSnapshot>;
+  updateQuality(profileJson: string): Promise<NativeEngineSnapshot>;
   addListener(eventName: string): void;
   removeListeners(count: number): void;
 }
@@ -78,6 +79,12 @@ export class IOSLiveCaster implements LiveCasterNative {
   async updateScene(scene: SceneDocument): Promise<void> {
     const module = requireNativeModule();
     this.snapshot = normalizeSnapshot(await module.updateScene(JSON.stringify(toRenderGraph(scene))));
+    this.emit();
+  }
+
+  async updateQuality(profile: StudioProfile): Promise<void> {
+    const module = requireNativeModule();
+    this.snapshot = normalizeSnapshot(await module.updateQuality(JSON.stringify(profile)));
     this.emit();
   }
 

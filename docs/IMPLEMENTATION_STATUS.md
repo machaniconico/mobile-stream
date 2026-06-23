@@ -29,6 +29,7 @@
 - Release-candidate checklist and private validation runbook require fresh YouTube/Twitch dashboard checked-at evidence before treating destination dashboard validation as complete.
 - Live quality advisor model for maintaining, monitoring, lowering quality, reconnecting, or stopping based on active incidents, history, and recovery state, with safe suggested-quality application in Web and React Native.
 - Shared quality automation guard for Web and React Native that raises live-session quality alerts, records quality automation events, and automatically applies a safer next-stream target only after the encoder is no longer live.
+- Live quality update API for Mock, Android, and iOS, allowing same-resolution bitrate/FPS pressure relief while Android stays live, while iOS refreshes the App Group quality target for the next ReplayKit broadcast restart.
 - Redacted support bundle export combining preflight, diagnostics, scene composition, native still-image asset load evidence, stream target, and safe profile summaries for support triage.
 - Stream quality incident model for active bitrate/FPS/drop/reconnect problems, recommendations, UI surfacing, and report export.
 - Shared stream recovery policy model for retry budget, bounded exponential backoff, degraded telemetry detection, failed-engine recovery advice, and sanitized report export.

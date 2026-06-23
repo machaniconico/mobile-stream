@@ -203,6 +203,22 @@ class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) 
     }
 
     @ReactMethod
+    fun updateQuality(profileJson: String, promise: Promise) {
+        try {
+            LiveCasterSession.updateQuality(profileJson)
+            if (LiveCasterSession.status == LiveCasterStatus.Live || LiveCasterSession.status == LiveCasterStatus.Reconnecting) {
+                val serviceIntent = Intent(reactContext, MediaProjectionService::class.java).apply {
+                    action = MediaProjectionService.ACTION_UPDATE_QUALITY
+                }
+                ContextCompat.startForegroundService(reactContext, serviceIntent)
+            }
+            promise.resolve(LiveCasterSession.snapshot())
+        } catch (error: Throwable) {
+            promise.reject("quality_update_failed", error)
+        }
+    }
+
+    @ReactMethod
     fun addListener(eventName: String) {
         // Required by NativeEventEmitter.
     }

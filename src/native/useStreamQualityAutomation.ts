@@ -10,6 +10,7 @@ interface StreamQualityAutomationOptions {
   decision: StreamQualityAutomationDecision;
   streamStatus: StreamStatus;
   onDecision?(decision: StreamQualityAutomationDecision): void;
+  onApplyLiveTarget?(target: StreamQualityAdvisorTarget): void;
   onApplyNextTarget?(target: StreamQualityAdvisorTarget): void;
 }
 
@@ -17,6 +18,7 @@ export const useStreamQualityAutomation = ({
   decision,
   streamStatus,
   onDecision,
+  onApplyLiveTarget,
   onApplyNextTarget
 }: StreamQualityAutomationOptions): void => {
   const lastDecisionKey = useRef<string | null>(null);
@@ -36,6 +38,21 @@ export const useStreamQualityAutomation = ({
   useEffect(() => {
     if (decision.command === "none") {
       lastDecisionKey.current = null;
+      pendingNextTarget.current = null;
+      pendingDecision.current = null;
+      return;
+    }
+
+    if (decision.command === "apply-live-target" && decision.suggestedTarget) {
+      if (decision.key !== null && lastDecisionKey.current === decision.key) {
+        return;
+      }
+      lastDecisionKey.current = decision.key;
+      appliedNextTargetThisSession.current = true;
+      pendingNextTarget.current = null;
+      pendingDecision.current = null;
+      onDecision?.(decision);
+      onApplyLiveTarget?.(decision.suggestedTarget);
       return;
     }
 
@@ -81,5 +98,5 @@ export const useStreamQualityAutomation = ({
       appliedNextTargetThisSession.current = true;
       onApplyNextTarget?.(decision.suggestedTarget);
     }
-  }, [decision, onApplyNextTarget, onDecision, streamStatus]);
+  }, [decision, onApplyLiveTarget, onApplyNextTarget, onDecision, streamStatus]);
 };
