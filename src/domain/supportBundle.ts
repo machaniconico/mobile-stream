@@ -32,6 +32,8 @@ export interface SupportBundle {
     healthStability: StreamDiagnostics["history"]["stability"];
     sessionEventCount: number;
     completedSessionCount: number;
+    sessionCleanRate: number;
+    sessionHistoryStability: StreamDiagnostics["session"]["historySummary"]["stability"];
     lastSessionOutcome: NonNullable<StreamDiagnostics["session"]["lastSummary"]>["outcome"] | null;
     qualityAdvisorAction: StreamDiagnostics["qualityAdvisor"]["action"];
     qualityAdvisorSeverity: StreamDiagnostics["qualityAdvisor"]["severity"];
@@ -132,6 +134,8 @@ export const createSupportBundle = ({
       healthStability: diagnostics.history.stability,
       sessionEventCount: diagnostics.session.events.length,
       completedSessionCount: diagnostics.session.summaries.length,
+      sessionCleanRate: diagnostics.session.historySummary.cleanRate,
+      sessionHistoryStability: diagnostics.session.historySummary.stability,
       lastSessionOutcome: diagnostics.session.lastSummary?.outcome ?? null,
       qualityAdvisorAction: diagnostics.qualityAdvisor.action,
       qualityAdvisorSeverity: diagnostics.qualityAdvisor.severity,
@@ -232,6 +236,10 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     "Session",
     `- Events: ${bundle.summary.sessionEventCount}`,
     `- Completed summaries: ${bundle.summary.completedSessionCount}`,
+    `- History stability: ${bundle.summary.sessionHistoryStability}`,
+    `- Clean rate: ${bundle.summary.sessionCleanRate}%`,
+    `- History summary: ${bundle.diagnostics.session.historySummary.summary}`,
+    `- History recommendation: ${bundle.diagnostics.session.historySummary.recommendation}`,
     `- Last outcome: ${bundle.summary.lastSessionOutcome ?? "-"}`,
     `- Last summary: ${bundle.diagnostics.session.lastSummary?.summary ?? "-"}`,
     `- Last recommendation: ${bundle.diagnostics.session.lastSummary?.recommendation ?? "-"}`,

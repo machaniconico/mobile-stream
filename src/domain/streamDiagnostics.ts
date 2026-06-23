@@ -23,7 +23,11 @@ import {
   type StreamHealthSample
 } from "./streamHealthHistory";
 import type { StreamSessionEvent } from "./streamSessionLog";
-import type { StreamSessionSummary } from "./streamSessionSummary";
+import {
+  createStreamSessionHistorySummary,
+  type StreamSessionHistorySummary,
+  type StreamSessionSummary
+} from "./streamSessionSummary";
 import type { StreamHealth, StreamStatus } from "./streamState";
 
 export type DiagnosticStatus = "pass" | "warn" | "fail" | "info";
@@ -77,6 +81,7 @@ export interface StreamDiagnostics {
     events: StreamSessionEvent[];
     summaries: StreamSessionSummary[];
     lastSummary: StreamSessionSummary | null;
+    historySummary: StreamSessionHistorySummary;
   };
   checks: DiagnosticCheck[];
 }
@@ -159,6 +164,7 @@ export const createStreamDiagnostics = (
     createRecoveryCheck(recoveryStatus)
   ];
   const status = summaryStatus(checks);
+  const sessionHistorySummary = createStreamSessionHistorySummary(sessionSummaries);
 
   return {
     summary: summaryText(status, checks),
@@ -202,7 +208,8 @@ export const createStreamDiagnostics = (
     session: {
       events: sanitizedSessionEvents,
       summaries: sessionSummaries,
-      lastSummary: sessionSummaries[0] ?? null
+      lastSummary: sessionSummaries[0] ?? null,
+      historySummary: sessionHistorySummary
     },
     checks
   };
@@ -289,6 +296,10 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Observed reconnects: ${diagnostics.history.observedReconnectAttempts}`,
     "",
     "Completed Sessions",
+    `- History: ${diagnostics.session.historySummary.summary}`,
+    `- Clean rate: ${diagnostics.session.historySummary.cleanRate}%`,
+    `- Average duration: ${formatDelay(diagnostics.session.historySummary.averageDurationSeconds * 1000)}`,
+    `- History recommendation: ${diagnostics.session.historySummary.recommendation}`,
     ...(diagnostics.session.lastSummary
       ? [
           `- Last outcome: ${diagnostics.session.lastSummary.outcome}`,

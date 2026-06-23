@@ -162,6 +162,11 @@ const sessionMetricLabel = (diagnostics: StreamDiagnostics): string =>
     ? `${diagnostics.session.lastSummary.outcome} / ${Math.round(diagnostics.session.lastSummary.durationSeconds)}s / ${diagnostics.session.lastSummary.eventCount} events`
     : "No completed sessions yet";
 
+const sessionHistoryMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.session.historySummary.totalSessions === 0
+    ? "No baseline yet"
+    : `${diagnostics.session.historySummary.stability} / ${diagnostics.session.historySummary.cleanRate}% clean / avg ${diagnostics.session.historySummary.averageDurationSeconds}s`;
+
 const qualityAdvisorTargetLabel = (diagnostics: StreamDiagnostics): string =>
   diagnostics.qualityAdvisor.suggestedTarget
     ? `${diagnostics.qualityAdvisor.suggestedTarget.profileName} / ${diagnostics.qualityAdvisor.suggestedTarget.videoBitrateKbps} kbps / ${diagnostics.qualityAdvisor.suggestedTarget.fps}fps`
@@ -1000,6 +1005,7 @@ const StreamDiagnosticsPanel = ({
       <DiagnosticMetric label="Recovery" value={recoveryMetricLabel(diagnostics)} />
       <DiagnosticMetric label="History" value={historyMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Completed sessions" value={`${diagnostics.session.summaries.length}`} />
+      <DiagnosticMetric label="Session trend" value={sessionHistoryMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Last session" value={sessionMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Advisor" value={diagnostics.qualityAdvisor.action} />
     </View>
@@ -1026,6 +1032,11 @@ const StreamDiagnosticsPanel = ({
     </View>
     {diagnostics.session.lastSummary ? (
       <View style={styles.diagnosticIncidents}>
+        <View style={[styles.diagnosticIncident, diagnosticSessionHistoryStyle(diagnostics)]}>
+          <Text style={styles.diagnosticIncidentTitle}>History trend</Text>
+          <Text style={styles.diagnosticIncidentText}>{diagnostics.session.historySummary.summary}</Text>
+          <Text style={styles.diagnosticIncidentRecommendation}>{diagnostics.session.historySummary.recommendation}</Text>
+        </View>
         <View style={[styles.diagnosticIncidentSummary, diagnosticSessionSummaryStyle(diagnostics.session.lastSummary)]}>
           <Text style={[styles.diagnosticIncidentSummaryText, diagnosticSessionSummaryTextStyle(diagnostics.session.lastSummary)]}>
             {diagnostics.session.lastSummary.summary}
@@ -1750,6 +1761,13 @@ const diagnosticSessionSummaryTextStyle = (summary: StreamSessionSummary) => {
 
 const diagnosticSessionStyle = (summary: StreamSessionSummary) =>
   summary.outcome === "fail" ? styles.diagnosticCheckFail : summary.outcome === "warn" ? styles.diagnosticCheckWarn : null;
+
+const diagnosticSessionHistoryStyle = (diagnostics: StreamDiagnostics) =>
+  diagnostics.session.historySummary.stability === "baseline"
+    ? null
+    : diagnostics.session.historySummary.stability === "unstable"
+      ? styles.diagnosticCheckFail
+      : styles.diagnosticCheckWarn;
 
 const diagnosticAdvisorSummaryStyle = (diagnostics: StreamDiagnostics) => {
   if (diagnostics.qualityAdvisor.severity === "fail") {

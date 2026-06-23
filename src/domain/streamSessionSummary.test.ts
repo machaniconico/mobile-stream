@@ -3,6 +3,7 @@ import { type StreamHealthSample } from "./streamHealthHistory";
 import { type StreamSessionEvent } from "./streamSessionLog";
 import {
   appendStreamSessionSummary,
+  createStreamSessionHistorySummary,
   createStreamSessionSummary,
   mergeStreamSessionSummaries,
   normalizeStreamSessionSummaries
@@ -162,5 +163,65 @@ describe("stream session summary", () => {
       "newest-session",
       "persisted-session"
     ]);
+  });
+
+  it("summarizes empty completed session history", () => {
+    const history = createStreamSessionHistorySummary([]);
+
+    expect(history.stability).toBe("unknown");
+    expect(history.totalSessions).toBe(0);
+    expect(history.recommendation).toContain("test stream");
+  });
+
+  it("marks repeated clean sessions as a known-good baseline", () => {
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+
+    const history = createStreamSessionHistorySummary([
+      { ...summary, id: "clean-3" },
+      { ...summary, id: "clean-2" },
+      { ...summary, id: "clean-1" }
+    ]);
+
+    expect(history.stability).toBe("baseline");
+    expect(history.cleanRate).toBe(100);
+    expect(history.summary).toContain("Known-good baseline");
+  });
+
+  it("flags recent failed session history as unstable", () => {
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+
+    const history = createStreamSessionHistorySummary([
+      {
+        ...summary,
+        id: "failed-session",
+        endReason: "failed",
+        outcome: "fail",
+        failureCount: 1
+      },
+      { ...summary, id: "clean-session" }
+    ]);
+
+    expect(history.stability).toBe("unstable");
+    expect(history.cleanRate).toBe(50);
+    expect(history.totalFailureEvents).toBe(1);
+    expect(history.recommendation).toContain("private ingest test");
   });
 });

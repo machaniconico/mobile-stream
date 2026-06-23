@@ -275,8 +275,12 @@ describe("stream diagnostics", () => {
     expect(json).toContain("qualityIncidents");
     expect(json).toContain("qualityAdvisor");
     expect(json).toContain("history");
+    expect(json).toContain("historySummary");
     expect(json).toContain("lastSummary");
     expect(report.diagnostics.session.lastSummary?.outcome).toBe("clean");
+    expect(report.diagnostics.session.historySummary.totalSessions).toBe(1);
+    expect(report.diagnostics.session.historySummary.cleanRate).toBe(100);
+    expect(text).toContain("History recommendation");
     expect(json).toContain(redactStreamKey(demoStreamKey));
     expect(text).toContain(redactStreamKey(demoStreamKey));
     expect(json).not.toContain(demoStreamKey);

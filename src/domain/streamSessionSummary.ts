@@ -38,6 +38,21 @@ export interface StreamSessionSummaryInput {
 
 export const maxStreamSessionSummaries = 10;
 
+export interface StreamSessionHistorySummary {
+  totalSessions: number;
+  cleanCount: number;
+  warningCount: number;
+  failureCount: number;
+  cleanRate: number;
+  averageDurationSeconds: number;
+  totalWarningEvents: number;
+  totalFailureEvents: number;
+  totalRecoveryEvents: number;
+  stability: "unknown" | "baseline" | "watch" | "unstable";
+  summary: string;
+  recommendation: string;
+}
+
 export const normalizeStreamSessionSummaries = (
   value: unknown,
   maxSummaries = maxStreamSessionSummaries
@@ -94,6 +109,63 @@ export const mergeStreamSessionSummaries = (
   }
 
   return merged;
+};
+
+export const createStreamSessionHistorySummary = (
+  summaries: StreamSessionSummary[]
+): StreamSessionHistorySummary => {
+  const normalized = normalizeStreamSessionSummaries(summaries);
+  const totalSessions = normalized.length;
+
+  if (totalSessions === 0) {
+    return {
+      totalSessions: 0,
+      cleanCount: 0,
+      warningCount: 0,
+      failureCount: 0,
+      cleanRate: 0,
+      averageDurationSeconds: 0,
+      totalWarningEvents: 0,
+      totalFailureEvents: 0,
+      totalRecoveryEvents: 0,
+      stability: "unknown",
+      summary: "No completed stream history yet.",
+      recommendation: "Complete a test stream to establish a local quality baseline."
+    };
+  }
+
+  const cleanCount = normalized.filter((summary) => summary.outcome === "clean").length;
+  const warningCount = normalized.filter((summary) => summary.outcome === "warn").length;
+  const failureCount = normalized.filter((summary) => summary.outcome === "fail").length;
+  const totalWarningEvents = normalized.reduce((total, summary) => total + summary.warningCount, 0);
+  const totalFailureEvents = normalized.reduce((total, summary) => total + summary.failureCount, 0);
+  const totalRecoveryEvents = normalized.reduce((total, summary) => total + summary.recoveryEventCount, 0);
+  const averageDurationSeconds = Math.round(
+    normalized.reduce((total, summary) => total + summary.durationSeconds, 0) / totalSessions
+  );
+  const cleanRate = Math.round((cleanCount / totalSessions) * 100);
+  const stability = createHistoryStability({
+    totalSessions,
+    cleanRate,
+    failureCount,
+    warningCount,
+    totalRecoveryEvents
+  });
+
+  return {
+    totalSessions,
+    cleanCount,
+    warningCount,
+    failureCount,
+    cleanRate,
+    averageDurationSeconds,
+    totalWarningEvents,
+    totalFailureEvents,
+    totalRecoveryEvents,
+    stability,
+    summary: createHistorySummaryText(stability, totalSessions, cleanRate, failureCount, warningCount),
+    recommendation: createHistoryRecommendation(stability, failureCount, warningCount, totalRecoveryEvents)
+  };
 };
 
 export const createStreamSessionSummary = ({
@@ -190,6 +262,73 @@ const createRecommendation = (
 
 const createSummaryId = (startedAt: string, endedAt: string, endReason: StreamSessionEndReason): string =>
   [startedAt, endedAt, endReason].join(":");
+
+const createHistoryStability = ({
+  totalSessions,
+  cleanRate,
+  failureCount,
+  warningCount,
+  totalRecoveryEvents
+}: {
+  totalSessions: number;
+  cleanRate: number;
+  failureCount: number;
+  warningCount: number;
+  totalRecoveryEvents: number;
+}): StreamSessionHistorySummary["stability"] => {
+  if (failureCount > 0 || cleanRate < 70) {
+    return "unstable";
+  }
+
+  if (warningCount > 0 || totalRecoveryEvents > 0 || cleanRate < 100) {
+    return "watch";
+  }
+
+  return totalSessions >= 3 ? "baseline" : "watch";
+};
+
+const createHistorySummaryText = (
+  stability: StreamSessionHistorySummary["stability"],
+  totalSessions: number,
+  cleanRate: number,
+  failureCount: number,
+  warningCount: number
+): string => {
+  if (stability === "baseline") {
+    return `Known-good baseline: ${totalSessions} clean sessions retained.`;
+  }
+
+  if (stability === "unstable") {
+    return `Recent stream history is unstable: ${cleanRate}% clean, ${failureCount} failed, ${warningCount} warning sessions.`;
+  }
+
+  return `Recent stream history needs watch: ${cleanRate}% clean across ${totalSessions} sessions.`;
+};
+
+const createHistoryRecommendation = (
+  stability: StreamSessionHistorySummary["stability"],
+  failureCount: number,
+  warningCount: number,
+  totalRecoveryEvents: number
+): string => {
+  if (stability === "baseline") {
+    return "Keep this destination and quality profile as the reference baseline.";
+  }
+
+  if (failureCount > 0) {
+    return "Run a private ingest test and review failed sessions before the next public stream.";
+  }
+
+  if (totalRecoveryEvents > 0) {
+    return "Watch network stability and lower bitrate if recovery events repeat.";
+  }
+
+  if (warningCount > 0) {
+    return "Review warning sessions and avoid increasing quality until another clean test passes.";
+  }
+
+  return "Capture at least three clean sessions before treating this setup as a baseline.";
+};
 
 const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | null => {
   if (!isRecord(value)) {

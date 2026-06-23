@@ -201,6 +201,11 @@ const sessionMetricLabel = (diagnostics: StreamDiagnostics): string =>
     ? `${diagnostics.session.lastSummary.outcome} / ${Math.round(diagnostics.session.lastSummary.durationSeconds)}s / ${diagnostics.session.lastSummary.eventCount} events`
     : "No completed sessions yet";
 
+const sessionHistoryMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.session.historySummary.totalSessions === 0
+    ? "No baseline yet"
+    : `${diagnostics.session.historySummary.stability} / ${diagnostics.session.historySummary.cleanRate}% clean / avg ${diagnostics.session.historySummary.averageDurationSeconds}s`;
+
 const qualityIncidentSummaryTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" => {
   if (diagnostics.qualityIncidents.incidents.some((incident) => incident.severity === "fail")) {
     return "fail";
@@ -218,6 +223,13 @@ const qualityAdvisorTargetLabel = (diagnostics: StreamDiagnostics): string =>
 
 const sessionSummaryTone = (summary: StreamSessionSummary): "pass" | "warn" | "fail" =>
   summary.outcome === "clean" ? "pass" : summary.outcome;
+
+const sessionHistoryTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" =>
+  diagnostics.session.historySummary.stability === "baseline"
+    ? "pass"
+    : diagnostics.session.historySummary.stability === "unstable"
+      ? "fail"
+      : "warn";
 
 export const StudioScreen = ({
   scene,
@@ -865,6 +877,8 @@ const StreamDiagnosticsPanel = ({
       <strong>{historyMetricLabel(diagnostics)}</strong>
       <span>Completed sessions</span>
       <strong>{diagnostics.session.summaries.length}</strong>
+      <span>Session trend</span>
+      <strong>{sessionHistoryMetricLabel(diagnostics)}</strong>
       <span>Last session</span>
       <strong>{sessionMetricLabel(diagnostics)}</strong>
       <span>Advisor</span>
@@ -892,6 +906,11 @@ const StreamDiagnosticsPanel = ({
     </div>
     {diagnostics.session.lastSummary ? (
       <div className="diagnostic-incidents">
+        <div className={`diagnostic-incident ${sessionHistoryTone(diagnostics)}`}>
+          <strong>History trend</strong>
+          <span>{diagnostics.session.historySummary.summary}</span>
+          <em>{diagnostics.session.historySummary.recommendation}</em>
+        </div>
         <div className={`diagnostic-incident-summary ${sessionSummaryTone(diagnostics.session.lastSummary)}`}>
           {diagnostics.session.lastSummary.summary}
         </div>

@@ -92,11 +92,14 @@ describe("support bundle", () => {
     expect(bundle.profile.platformPublishing.titleLength).toBe(profile.platformPublishing.title.length);
     expect(bundle.diagnostics.telemetry.message).toContain(redactStreamKey(streamKey));
     expect(bundle.summary.completedSessionCount).toBe(1);
+    expect(bundle.summary.sessionCleanRate).toBe(100);
+    expect(bundle.summary.sessionHistoryStability).toBe("watch");
     expect(bundle.summary.lastSessionOutcome).toBe("clean");
     expect(bundle.summary.qualityAdvisorAction).toBe("maintain");
     expect(bundle.summary.qualityAdvisorSeverity).toBe("pass");
     expect(bundle.summary.suggestedQualityTarget).toBeNull();
     expect(formatSupportBundle(bundle)).toContain("Completed summaries: 1");
+    expect(formatSupportBundle(bundle)).toContain("Clean rate: 100%");
     expect(formatSupportBundle(bundle)).toContain("Quality advisor: maintain / pass");
   });
 
