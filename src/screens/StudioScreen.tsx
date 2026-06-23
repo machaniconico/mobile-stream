@@ -64,6 +64,7 @@ import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { StreamSessionSummary } from "../domain/streamSessionSummary";
 import {
   createStreamValidationRun,
+  formatStreamValidationRunAudioLabel,
   type StreamValidationDevicePlatform,
   type StreamValidationRun,
   type StreamValidationRunResult
@@ -1109,6 +1110,7 @@ const StreamValidationRecorder = ({
   const [networkProfile, setNetworkProfile] = useState("private RTMPS");
   const [result, setResult] = useState<StreamValidationRunResult>(() => validationRunResultFromDiagnostics(diagnostics));
   const latestRun = diagnostics.validationEvidence.latestRun;
+  const latestRunAudioLabel = latestRun ? formatStreamValidationRunAudioLabel(latestRun) : null;
 
   useEffect(() => {
     setResult(validationRunResultFromDiagnostics(diagnostics));
@@ -1176,7 +1178,7 @@ const StreamValidationRecorder = ({
           </em>
           {validationRunNativeRuntimeLabel(latestRun) ? <em>{validationRunNativeRuntimeLabel(latestRun)}</em> : null}
           {validationRunFaceTrackingLabel(latestRun) ? <em>{validationRunFaceTrackingLabel(latestRun)}</em> : null}
-          {validationRunAudioLabel(latestRun) ? <em>{validationRunAudioLabel(latestRun)}</em> : null}
+          {latestRunAudioLabel ? <em>{latestRunAudioLabel}</em> : null}
           {validationRunChatReadoutLabel(latestRun) ? <em>{validationRunChatReadoutLabel(latestRun)}</em> : null}
           {validationRunPlatformPublishingLabel(latestRun) ? <em>{validationRunPlatformPublishingLabel(latestRun)}</em> : null}
         </div>
@@ -1272,11 +1274,6 @@ const validationRunNativeRuntimeLabel = (run: StreamValidationRun): string | nul
 const validationRunFaceTrackingLabel = (run: StreamValidationRun): string | null =>
   run.faceTracking && run.faceTracking.status !== "info"
     ? `face ${run.faceTracking.status} / ${run.faceTracking.inputMode} / ${run.faceTracking.runtimeStatus} / prepared ${run.faceTracking.preparedPngTuberCount} / moving ${run.faceTracking.activeMotionCount}`
-    : null;
-
-const validationRunAudioLabel = (run: StreamValidationRun): string | null =>
-  run.audio
-    ? `audio ${run.audio.status} / ${run.audio.presetId} / monitor ${run.audio.monitorEnabled ? "on" : "off"} / headphones-only ${run.audio.monitorHeadphonesOnly ? "yes" : "no"} / samples ${run.audio.levelSampleCount} / peak ${Math.round(run.audio.peakLevel * 100)}%`
     : null;
 
 const validationRunChatReadoutLabel = (run: StreamValidationRun): string | null =>

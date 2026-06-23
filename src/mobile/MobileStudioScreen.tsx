@@ -1,4 +1,4 @@
-import { Alert, Image, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Image, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { useEffect, useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
@@ -52,6 +52,7 @@ import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { StreamSessionSummary } from "../domain/streamSessionSummary";
 import {
   createStreamValidationRun,
+  formatStreamValidationRunAudioLabel,
   type StreamValidationDevicePlatform,
   type StreamValidationRun,
   type StreamValidationRunResult
@@ -1340,13 +1341,14 @@ const StreamValidationRecorder = ({
   onRecordStreamValidationRun(run: StreamValidationRun): void | Promise<void>;
   onClearStreamValidationRuns(): void | Promise<void>;
 }) => {
-  const [devicePlatform, setDevicePlatform] = useState<StreamValidationDevicePlatform>("ios");
-  const [deviceName, setDeviceName] = useState("iPhone test device");
-  const [osVersion, setOsVersion] = useState("");
+  const [devicePlatform, setDevicePlatform] = useState<StreamValidationDevicePlatform>(() => getDefaultValidationDevicePlatform());
+  const [deviceName, setDeviceName] = useState(() => getDefaultValidationDeviceName(getDefaultValidationDevicePlatform()));
+  const [osVersion, setOsVersion] = useState(() => getDefaultValidationOsVersion(getDefaultValidationDevicePlatform()));
   const [appBuild, setAppBuild] = useState("debug");
   const [networkProfile, setNetworkProfile] = useState("private RTMPS");
   const [result, setResult] = useState<StreamValidationRunResult>(() => validationRunResultFromDiagnostics(diagnostics));
   const latestRun = diagnostics.validationEvidence.latestRun;
+  const latestRunAudioLabel = latestRun ? formatStreamValidationRunAudioLabel(latestRun) : null;
 
   useEffect(() => {
     setResult(validationRunResultFromDiagnostics(diagnostics));
@@ -1365,6 +1367,19 @@ const StreamValidationRecorder = ({
         secrets: [profile.destination.streamKey]
       })
     );
+  };
+  const selectDevicePlatform = (nextPlatform: StreamValidationDevicePlatform) => {
+    setDeviceName((currentDeviceName) =>
+      currentDeviceName.trim() === "" || currentDeviceName === getDefaultValidationDeviceName(devicePlatform)
+        ? getDefaultValidationDeviceName(nextPlatform)
+        : currentDeviceName
+    );
+    setOsVersion((currentOsVersion) =>
+      currentOsVersion.trim() === "" || currentOsVersion === getDefaultValidationOsVersion(devicePlatform)
+        ? getDefaultValidationOsVersion(nextPlatform)
+        : currentOsVersion
+    );
+    setDevicePlatform(nextPlatform);
   };
 
   return (
@@ -1422,9 +1437,7 @@ const StreamValidationRecorder = ({
           {validationRunFaceTrackingLabel(latestRun) ? (
             <Text style={styles.diagnosticIncidentRecommendation}>{validationRunFaceTrackingLabel(latestRun)}</Text>
           ) : null}
-          {validationRunAudioLabel(latestRun) ? (
-            <Text style={styles.diagnosticIncidentRecommendation}>{validationRunAudioLabel(latestRun)}</Text>
-          ) : null}
+          {latestRunAudioLabel ? <Text style={styles.diagnosticIncidentRecommendation}>{latestRunAudioLabel}</Text> : null}
           {validationRunChatReadoutLabel(latestRun) ? (
             <Text style={styles.diagnosticIncidentRecommendation}>{validationRunChatReadoutLabel(latestRun)}</Text>
           ) : null}
@@ -1438,12 +1451,12 @@ const StreamValidationRecorder = ({
           <ActionButton
             label="iOS"
             variant={devicePlatform === "ios" ? "active" : "default"}
-            onPress={() => setDevicePlatform("ios")}
+            onPress={() => selectDevicePlatform("ios")}
           />
           <ActionButton
             label="Android"
             variant={devicePlatform === "android" ? "active" : "default"}
-            onPress={() => setDevicePlatform("android")}
+            onPress={() => selectDevicePlatform("android")}
           />
         </View>
         <Label text="Device" />
@@ -1485,6 +1498,22 @@ const StreamValidationRecorder = ({
   );
 };
 
+const getDefaultValidationDevicePlatform = (): StreamValidationDevicePlatform => (Platform.OS === "android" ? "android" : "ios");
+
+const getDefaultValidationDeviceName = (platform: StreamValidationDevicePlatform): string =>
+  platform === "android" ? "Android test device" : "iPhone test device";
+
+const getDefaultValidationOsVersion = (platform: StreamValidationDevicePlatform): string => {
+  const label = platform === "android" ? "Android" : "iOS";
+  const currentPlatform = getDefaultValidationDevicePlatform();
+  if (platform !== currentPlatform) {
+    return label;
+  }
+
+  const version = String(Platform.Version ?? "").trim();
+  return version ? `${label} ${version}` : label;
+};
+
 const validationRunResultFromDiagnostics = (diagnostics: StreamDiagnostics): StreamValidationRunResult =>
   diagnostics.validation.status === "ready" ? "pass" : diagnostics.validation.status === "blocked" ? "fail" : "warn";
 
@@ -1496,11 +1525,6 @@ const validationRunNativeRuntimeLabel = (run: StreamValidationRun): string | nul
 const validationRunFaceTrackingLabel = (run: StreamValidationRun): string | null =>
   run.faceTracking && run.faceTracking.status !== "info"
     ? `face ${run.faceTracking.status} / ${run.faceTracking.inputMode} / ${run.faceTracking.runtimeStatus} / prepared ${run.faceTracking.preparedPngTuberCount} / moving ${run.faceTracking.activeMotionCount}`
-    : null;
-
-const validationRunAudioLabel = (run: StreamValidationRun): string | null =>
-  run.audio
-    ? `audio ${run.audio.status} / ${run.audio.presetId} / monitor ${run.audio.monitorEnabled ? "on" : "off"} / headphones-only ${run.audio.monitorHeadphonesOnly ? "yes" : "no"} / samples ${run.audio.levelSampleCount} / peak ${Math.round(run.audio.peakLevel * 100)}%`
     : null;
 
 const validationRunChatReadoutLabel = (run: StreamValidationRun): string | null =>

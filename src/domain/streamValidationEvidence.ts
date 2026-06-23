@@ -159,6 +159,19 @@ export interface StreamValidationEvidenceOptions {
 export const maxStreamValidationRuns = 20;
 export const defaultStreamValidationEvidenceMaxAgeDays = 14;
 
+export const formatStreamValidationRunAudioLabel = (run: StreamValidationRun): string | null => {
+  if (!run.audio) {
+    return null;
+  }
+
+  const audio = run.audio;
+  return `audio ${audio.status} / ${audio.presetId} / monitor ${audio.monitorEnabled ? "on" : "off"} / headphones-only ${
+    audio.monitorHeadphonesOnly ? "yes" : "no"
+  } / route ${audio.monitorRouteStatus} ${audio.outputName} / headphones ${audio.headphonesConnected ? "yes" : "no"} / stale ${
+    audio.routeStale ? "yes" : "no"
+  } / samples ${audio.levelSampleCount} / peak ${Math.round(audio.peakLevel * 100)}%`;
+};
+
 export const createStreamValidationRun = ({
   diagnostics,
   devicePlatform,

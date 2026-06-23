@@ -7,6 +7,7 @@ import { createStreamSessionSummary } from "./streamSessionSummary";
 import {
   appendStreamValidationRun,
   createStreamValidationRun,
+  formatStreamValidationRunAudioLabel,
   mergeStreamValidationRuns,
   normalizeStreamValidationRuns,
   summarizeStreamValidationEvidence
@@ -206,6 +207,9 @@ describe("stream validation evidence", () => {
       peakLevel: 0.8,
       activeLevelPercent: 100
     });
+    expect(formatStreamValidationRunAudioLabel(run)).toBe(
+      "audio pass / broadcast / monitor on / headphones-only yes / route pass Wired headphones / headphones yes / stale no / samples 2 / peak 80%"
+    );
     expect(run.chatReadout).toMatchObject({
       spokenMessageCount: 1,
       speechFailureCount: 0
