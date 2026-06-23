@@ -8,6 +8,10 @@ import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
 import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
 import type { PlatformChatOAuthFlow, PlatformChatOAuthSettings, TwitchDeviceCodeOAuthFlow } from "../domain/platformChatOAuth";
 import type { YouTubeBroadcastTransitionStatus } from "../domain/platformPublishing";
+import {
+  createYouTubeBroadcastTransitionPreflightReport,
+  type PlatformPublishingPreflightReport
+} from "../domain/platformPublishingPreflight";
 import type { DestinationPresetId, MicEffectPresetId, StudioProfile, StreamProtocol } from "../domain/profiles";
 import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../domain/platformChat";
 import {
@@ -294,6 +298,13 @@ export const MobileStudioScreen = ({
     audioRoute
   });
   const canGoLive = startPreflight.canStart;
+  const youtubeTransitionReport = (transitionStatus: YouTubeBroadcastTransitionStatus) =>
+    createYouTubeBroadcastTransitionPreflightReport({
+      profile,
+      transitionStatus,
+      streamStatus: snapshot.state.status,
+      validation: diagnostics.validation
+    });
 
   useEffect(() => {
     setAssetPrepareStatus(null);
@@ -1052,15 +1063,25 @@ export const MobileStudioScreen = ({
                 onPress={onPlatformPublishingStatusRefresh}
               />
               <View style={styles.grid3}>
-                {(["testing", "live", "complete"] as YouTubeBroadcastTransitionStatus[]).map((broadcastStatus) => (
-                  <ActionButton
-                    key={broadcastStatus}
-                    label={broadcastStatus === "testing" ? "Test" : broadcastStatus === "live" ? "Live" : "Complete"}
-                    disabled={setupLocked || !profile.platformPublishing.youtubeBroadcastId}
-                    onPress={() => onYouTubeBroadcastTransition(broadcastStatus)}
-                  />
-                ))}
+                {(["testing", "live", "complete"] as YouTubeBroadcastTransitionStatus[]).map((broadcastStatus) => {
+                  const report = youtubeTransitionReport(broadcastStatus);
+                  return (
+                    <ActionButton
+                      key={broadcastStatus}
+                      label={broadcastStatus === "testing" ? "Test" : broadcastStatus === "live" ? "Live" : "Complete"}
+                      variant={report.status === "warning" ? "warn" : report.status === "blocked" ? "danger" : "default"}
+                      disabled={setupLocked || !report.canProceed}
+                      onPress={() => onYouTubeBroadcastTransition(broadcastStatus)}
+                    />
+                  );
+                })}
               </View>
+              <YouTubeTransitionPreflightList
+                reports={(["testing", "live", "complete"] as YouTubeBroadcastTransitionStatus[]).map((transitionStatus) => ({
+                  transitionStatus,
+                  report: youtubeTransitionReport(transitionStatus)
+                }))}
+              />
             </>
           ) : null}
 
@@ -2057,6 +2078,28 @@ const ReadinessIssueRow = ({ issue }: { issue: ReadinessIssue }) => (
   </View>
 );
 
+const YouTubeTransitionPreflightList = ({
+  reports
+}: {
+  reports: Array<{
+    transitionStatus: YouTubeBroadcastTransitionStatus;
+    report: PlatformPublishingPreflightReport;
+  }>;
+}) => (
+  <View style={styles.youtubeTransitionPreflights}>
+    {reports.map(({ transitionStatus, report }) => (
+      <Text
+        key={transitionStatus}
+        style={[styles.youtubeTransitionPreflight, platformPublishingPreflightTextStyle(report.status)]}
+        numberOfLines={2}
+      >
+        {transitionStatus === "testing" ? "Test" : transitionStatus === "live" ? "Live" : "Complete"}:{" "}
+        {report.issues[0]?.message ?? report.summary}
+      </Text>
+    ))}
+  </View>
+);
+
 const ActionButton = ({
   label,
   variant = "default",
@@ -2064,7 +2107,7 @@ const ActionButton = ({
   onPress
 }: {
   label: string;
-  variant?: "default" | "primary" | "danger" | "active";
+  variant?: "default" | "primary" | "danger" | "warn" | "active";
   disabled?: boolean;
   onPress(): void | Promise<void>;
 }) => (
@@ -2075,6 +2118,7 @@ const ActionButton = ({
       styles.actionButton,
       variant === "primary" && styles.primaryButton,
       variant === "danger" && styles.dangerButton,
+      variant === "warn" && styles.warningButton,
       variant === "active" && styles.activeButton,
       disabled && styles.disabledButton
     ]}
@@ -2426,6 +2470,17 @@ const startPreflightSummaryTextStyle = (status: StreamStartPreflightReport["stat
 const startPreflightIssueTextStyle = (severity: StreamStartPreflightReport["issues"][number]["severity"]) =>
   severity === "block" ? styles.startPreflightBlockedText : styles.startPreflightWarningText;
 
+const platformPublishingPreflightTextStyle = (status: PlatformPublishingPreflightReport["status"]) => {
+  switch (status) {
+    case "ready":
+      return styles.startPreflightReadyText;
+    case "warning":
+      return styles.startPreflightWarningText;
+    case "blocked":
+      return styles.startPreflightBlockedText;
+  }
+};
+
 const expressionStyle = (expression: string) => {
   switch (expression) {
     case "happy":
@@ -2604,6 +2659,10 @@ const styles = StyleSheet.create({
   dangerButton: {
     borderColor: "rgba(251, 113, 133, 0.54)",
     backgroundColor: "rgba(251, 113, 133, 0.16)"
+  },
+  warningButton: {
+    borderColor: "rgba(245, 158, 11, 0.54)",
+    backgroundColor: "rgba(245, 158, 11, 0.14)"
   },
   activeButton: {
     borderColor: "#2dd4bf",
@@ -2833,6 +2892,22 @@ const styles = StyleSheet.create({
     lineHeight: 17
   },
   startPreflightIssue: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 17
+  },
+  youtubeTransitionPreflights: {
+    gap: 6
+  },
+  youtubeTransitionPreflight: {
+    minHeight: 34,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: "#101015",
     color: "#a1a1aa",
     fontSize: 12,
     fontWeight: "700",

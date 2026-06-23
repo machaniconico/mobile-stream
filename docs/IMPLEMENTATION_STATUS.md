@@ -45,6 +45,7 @@
 - YouTube/Twitch OAuth refresh-token rotation and hourly Twitch token validation scheduling for mobile chat authorization.
 - OAuth/API-backed platform stream key controls: YouTube reusable stream creation for key rotation and Twitch Helix current-key sync.
 - OAuth/API-backed platform publishing controls: YouTube scheduled Live Broadcast creation, stream binding, broadcast/ingest health refresh, and test/live/complete lifecycle transitions; Twitch channel title/category/language metadata update plus live/offline status refresh.
+- YouTube Live broadcast lifecycle transition preflight for Test/Live/Complete actions, including public-validation gating, local encoder state checks, active ingest checks, health checks, and local-stream-stop protection before completing a broadcast across Web and React Native.
 - OAuth-token chat connection layer for YouTube live chat polling and Twitch IRC WebSocket ingestion.
 - Platform API controls refresh expiring YouTube/Twitch OAuth credentials before stream-key, broadcast, and channel operations on Web and React Native.
 - Mobile OAuth callback URL scheme registration and React Native callback capture for chat authorization.

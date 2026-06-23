@@ -48,6 +48,10 @@ import {
   transitionYouTubeBroadcast,
   type YouTubeBroadcastTransitionStatus
 } from "../domain/platformPublishing";
+import {
+  createYouTubeBroadcastTransitionPreflightReport,
+  formatPlatformPublishingPreflightBlockMessage
+} from "../domain/platformPublishingPreflight";
 import { rotateYouTubeStreamKey, syncTwitchStreamKey } from "../domain/platformStreamKeys";
 import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
@@ -537,6 +541,31 @@ export const App = () => {
 
   const transitionYouTubeBroadcastState = async (broadcastStatus: YouTubeBroadcastTransitionStatus) => {
     try {
+      const engineSnapshot = engine.getSnapshot();
+      const diagnostics = createStreamDiagnostics(
+        scene,
+        profile,
+        readiness,
+        engineSnapshot,
+        streamSessionEvents,
+        streamHealthSamples,
+        streamSessionSummaries.summaries,
+        streamValidationRuns,
+        faceTrackingRuntime,
+        {
+          chatReader: chatReader.settings,
+          platformChatConnection: platformChatConnection.connection
+        }
+      );
+      const preflight = createYouTubeBroadcastTransitionPreflightReport({
+        profile,
+        transitionStatus: broadcastStatus,
+        streamStatus: engineSnapshot.state.status,
+        validation: diagnostics.validation
+      });
+      if (!preflight.canProceed) {
+        throw new Error(formatPlatformPublishingPreflightBlockMessage(preflight));
+      }
       const credential = await preparePlatformApiCredential();
       const result = await transitionYouTubeBroadcast(profile, credential, broadcastStatus, fetch);
       setProfile(result.profile);

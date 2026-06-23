@@ -854,6 +854,8 @@ export const StudioScreen = ({
           <LiveSetupScreen
             profile={profile}
             readiness={readiness}
+            streamStatus={snapshot.state.status}
+            validation={diagnostics.validation}
             locked={setupLocked}
             platformPublishingStatus={platformPublishingStatus}
             onProfileChange={onProfileChange}

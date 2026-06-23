@@ -12,12 +12,20 @@ import {
   type StreamProtocol
 } from "../domain/profiles";
 import type { YouTubeBroadcastTransitionStatus } from "../domain/platformPublishing";
+import {
+  createYouTubeBroadcastTransitionPreflightReport,
+  type PlatformPublishingPreflightReport
+} from "../domain/platformPublishingPreflight";
 import type { ReadinessReport } from "../domain/readiness";
+import type { StreamStatus } from "../domain/streamState";
+import type { StreamValidationChecklist } from "../domain/streamValidationChecklist";
 import { PanelTitle, ProtocolBadge } from "./ui";
 
 interface LiveSetupScreenProps {
   profile: StudioProfile;
   readiness: ReadinessReport;
+  streamStatus: StreamStatus;
+  validation: Pick<StreamValidationChecklist, "status" | "recommendedNextStep">;
   locked: boolean;
   platformPublishingStatus: string;
   onProfileChange(profile: StudioProfile): void;
@@ -30,6 +38,8 @@ interface LiveSetupScreenProps {
 export const LiveSetupScreen = ({
   profile,
   readiness,
+  streamStatus,
+  validation,
   locked,
   platformPublishingStatus,
   onProfileChange,
@@ -40,6 +50,13 @@ export const LiveSetupScreen = ({
 }: LiveSetupScreenProps) => {
   const activePreset = getDestinationPreset(profile.destination.presetId) ?? getDestinationPreset("custom-rtmps");
   const canApplyPlatformPublishing = profile.destination.platform === "youtube-live" || profile.destination.platform === "twitch";
+  const youtubeTransitionReport = (transitionStatus: YouTubeBroadcastTransitionStatus) =>
+    createYouTubeBroadcastTransitionPreflightReport({
+      profile,
+      transitionStatus,
+      streamStatus,
+      validation
+    });
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
     if (locked) {
@@ -249,18 +266,28 @@ export const LiveSetupScreen = ({
             Refresh Status
           </button>
           <div className="broadcast-transition-row">
-            {(["testing", "live", "complete"] as YouTubeBroadcastTransitionStatus[]).map((broadcastStatus) => (
-              <button
-                key={broadcastStatus}
-                className="segmented-button"
-                type="button"
-                disabled={locked || !profile.platformPublishing.youtubeBroadcastId}
-                onClick={() => onYouTubeBroadcastTransition(broadcastStatus)}
-              >
-                {broadcastStatus === "testing" ? "Test" : broadcastStatus === "live" ? "Live" : "Complete"}
-              </button>
-            ))}
+            {(["testing", "live", "complete"] as YouTubeBroadcastTransitionStatus[]).map((broadcastStatus) => {
+              const report = youtubeTransitionReport(broadcastStatus);
+              return (
+                <button
+                  key={broadcastStatus}
+                  className={`segmented-button ${report.status}`}
+                  type="button"
+                  title={report.primaryAction}
+                  disabled={locked || !report.canProceed}
+                  onClick={() => onYouTubeBroadcastTransition(broadcastStatus)}
+                >
+                  {broadcastStatus === "testing" ? "Test" : broadcastStatus === "live" ? "Live" : "Complete"}
+                </button>
+              );
+            })}
           </div>
+          <YouTubeTransitionPreflightList
+            reports={(["testing", "live", "complete"] as YouTubeBroadcastTransitionStatus[]).map((transitionStatus) => ({
+              transitionStatus,
+              report: youtubeTransitionReport(transitionStatus)
+            }))}
+          />
         </>
       ) : null}
 
@@ -363,3 +390,21 @@ export const LiveSetupScreen = ({
     </section>
   );
 };
+
+const YouTubeTransitionPreflightList = ({
+  reports
+}: {
+  reports: Array<{
+    transitionStatus: YouTubeBroadcastTransitionStatus;
+    report: PlatformPublishingPreflightReport;
+  }>;
+}) => (
+  <div className="youtube-transition-preflights">
+    {reports.map(({ transitionStatus, report }) => (
+      <span key={transitionStatus} className={`youtube-transition-preflight ${report.status}`}>
+        {transitionStatus === "testing" ? "Test" : transitionStatus === "live" ? "Live" : "Complete"}:{" "}
+        {report.issues[0]?.message ?? report.summary}
+      </span>
+    ))}
+  </div>
+);
