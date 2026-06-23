@@ -1,4 +1,5 @@
 import type { FaceTrackingDiagnostics } from "./faceTrackingDiagnostics";
+import type { AudioMonitorSafetyStatus } from "./audioRoute";
 import type { NativeCompositionReport } from "./nativeComposition";
 import type { NativeRuntimeTelemetry } from "./nativeRuntime";
 import type { ReadinessReport } from "./readiness";
@@ -74,6 +75,7 @@ export interface StreamValidationRunbookInput {
     monitorEnabled: boolean;
     monitorVolume: number;
     monitorHeadphonesOnly: boolean;
+    monitorSafety: AudioMonitorSafetyStatus;
   };
   chatReadout: {
     platformChatEnabled: boolean;
@@ -278,12 +280,34 @@ const createAudioItem = ({ audio }: StreamValidationRunbookInput): StreamValidat
     };
   }
 
+  if (audio.monitorSafety.status === "fail") {
+    return {
+      id: "runbook-audio-route-unsafe",
+      phase: "audio",
+      status: "fail",
+      title: "Validate mic FX and monitor",
+      detail: audio.monitorSafety.summary,
+      action: audio.monitorSafety.recommendation
+    };
+  }
+
+  if (audio.monitorSafety.status === "warn") {
+    return {
+      id: "runbook-audio-route-unconfirmed",
+      phase: "audio",
+      status: "warn",
+      title: "Validate mic FX and monitor",
+      detail: audio.monitorSafety.summary,
+      action: audio.monitorSafety.recommendation
+    };
+  }
+
   return {
     id: "runbook-audio-ready",
     phase: "audio",
     status: "pass",
     title: "Validate mic FX and monitor",
-    detail: `${audio.presetId} mic effects are active with ${Math.round(audio.monitorVolume * 100)}% headphones-only monitoring.`,
+    detail: `${audio.presetId} mic effects are active with ${Math.round(audio.monitorVolume * 100)}% headphones-only monitoring on ${audio.monitorSafety.outputName}.`,
     action: "Keep input gain, compression, preset, and monitor routing unchanged for the private stream."
   };
 };

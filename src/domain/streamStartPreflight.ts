@@ -1,5 +1,11 @@
 import type { ChatReaderSettings } from "./chatReader";
 import {
+  createAudioMonitorSafetyStatus,
+  createDefaultAudioRouteState,
+  normalizeAudioRouteState,
+  type AudioRouteState
+} from "./audioRoute";
+import {
   getPlatformChatNetworkReadiness,
   type PlatformChatAuthSession,
   type PlatformChatConnectionState
@@ -47,11 +53,12 @@ export interface StreamStartPreflightInput {
   readiness: ReadinessReport;
   streamStatus: StreamStatus;
   operationStatus?: StreamOperationStatus | null;
-  profile?: Pick<StudioProfile, "destination" | "platformPublishing" | "platformChat">;
+  profile?: Pick<StudioProfile, "destination" | "platformPublishing" | "platformChat" | "micEffects">;
   validation?: Pick<StreamValidationChecklist, "status" | "recommendedNextStep"> | null;
   chatReader?: Pick<ChatReaderSettings, "enabled"> | null;
   platformChatAuth?: PlatformChatAuthSession | null;
   platformChatConnection?: Pick<PlatformChatConnectionState, "phase" | "message"> | null;
+  audioRoute?: AudioRouteState | null;
 }
 
 export const createStreamStartPreflightReport = ({
@@ -62,10 +69,12 @@ export const createStreamStartPreflightReport = ({
   validation = null,
   chatReader = null,
   platformChatAuth = null,
-  platformChatConnection = null
+  platformChatConnection = null,
+  audioRoute = null
 }: StreamStartPreflightInput): StreamStartPreflightReport => {
   const issues = [
     ...readiness.issues.map(toPreflightIssue),
+    ...createAudioMonitorRouteIssues(profile, audioRoute),
     ...createChatReadoutIssues(profile, chatReader, platformChatAuth, platformChatConnection),
     ...createCommercialValidationIssues(profile, validation),
     ...createEngineStateIssues(streamStatus),
@@ -286,6 +295,45 @@ const createCommercialValidationIssues = (
         label: "Commercial validation",
         message: "Custom ingest visibility is unknown, and commercial validation is not ready.",
         recommendation: "Use a private endpoint or staging ingest until commercial validation is ready."
+      }
+    ];
+  }
+
+  return [];
+};
+
+const createAudioMonitorRouteIssues = (
+  profile: StreamStartPreflightInput["profile"],
+  audioRoute: StreamStartPreflightInput["audioRoute"]
+): StreamStartPreflightIssue[] => {
+  if (!profile?.micEffects.monitorEnabled || !profile.micEffects.monitorHeadphonesOnly || profile.micEffects.monitorVolume <= 0) {
+    return [];
+  }
+
+  const route = normalizeAudioRouteState(audioRoute ?? createDefaultAudioRouteState());
+  const safety = createAudioMonitorSafetyStatus(profile.micEffects, route);
+  if (safety.status === "fail") {
+    return [
+      {
+        code: "audio-monitor-route-unsafe",
+        severity: "block",
+        area: "audio",
+        label: "Monitor route",
+        message: safety.summary,
+        recommendation: safety.recommendation
+      }
+    ];
+  }
+
+  if (safety.status === "warn") {
+    return [
+      {
+        code: "audio-monitor-route-unconfirmed",
+        severity: "warning",
+        area: "audio",
+        label: "Monitor route",
+        message: safety.summary,
+        recommendation: safety.recommendation
       }
     ];
   }

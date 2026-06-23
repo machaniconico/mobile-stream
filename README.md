@@ -15,9 +15,9 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Platform API controls refresh expiring YouTube/Twitch OAuth credentials before stream-key, broadcast, and channel operations.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Private RTMP(S) validation runbook that walks setup, native start, mic FX/headphone monitor checks, chat readout checks, monitor hold, dashboard check, clean stop, and evidence recording.
-- Physical validation evidence now retains mic FX/headphone monitor snapshots, lip-sync/audio-meter sample summaries, YouTube/Twitch chat readout snapshots, and spoken-chat success/failure counts, and downgrades retained pass attempts when either commercial feature is not validated.
+- Physical validation evidence now retains mic FX/headphone monitor snapshots, device output-route/headphone safety, lip-sync/audio-meter sample summaries, YouTube/Twitch chat readout snapshots, and spoken-chat success/failure counts, and downgrades retained pass attempts when either commercial feature is not validated.
 - RTMP/RTMPS publish URL normalization that can split pasted YouTube/Twitch full publish URLs into endpoint and stream key before start.
-- Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, mic FX/headphone monitor validation, chat readout validation, native runtime validation evidence, native compositor still-image asset load evidence, platform dashboard validation evidence, and sanitized report export/share.
+- Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, mic FX/headphone monitor route validation, chat readout validation, native runtime validation evidence, native compositor still-image asset load evidence, platform dashboard validation evidence, and sanitized report export/share.
 - Face-tracking production diagnostics for prepared PNGTuber assets, native-camera readiness, tracking runtime state, active avatar motion, support bundles, and commercial validation checks.
 - Native composition readiness and diagnostics for native-supported avatar/text/image/solid overlays, underlay ordering, Live2D gaps, iOS Broadcast Upload Extension still-image asset access risks before device RTMP publishing, and runtime loaded/missing asset evidence.
 - Mobile PNGTuber/image still-image picking and preparation that copies local assets into native-readable storage before streaming.
@@ -31,7 +31,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Voice lip-sync meter and expression buttons.
 - Still-image VTuber face tracking with native-camera input on mobile, simulated input on web, calibration, dead-zone filtering, jump limiting, lost-face return tuning, and native 2.5D motion scaling in the iOS/Android compositor.
 - Mic effect presets with gain, noise gate, compression, and Android PCM processing.
-- Headphone-only mic monitor settings for hearing the processed mic signal locally.
+- Headphone-only mic monitor settings for hearing the processed mic signal locally, with native iOS/Android output-route detection and Go Live blocking when monitoring would route to speakers.
 - Chat/comment read-aloud queue with test comments, muted words, duplicate suppression, queue limits, speech controls, queued/recent comment privacy reset, and stream-stop chat auto-disconnect/readout silence.
 - YouTube LiveChatMessages and Twitch EventSub chat payload adapters feeding the shared read-aloud queue.
 - Durable platform chat adapter settings through the shared profile store.
@@ -53,6 +53,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Android microphone effects are applied before AAC encoding, with optional headphone monitor playback.
 - Android start-time microphone/notification runtime permission preflight.
 - Native chat speech output through Android TextToSpeech and iOS AVSpeechSynthesizer.
+- Native iOS/Android audio-route bridge reports speaker, receiver, wired, USB, Bluetooth, AirPlay, HDMI, or unknown output state for monitor-safety diagnostics.
 
 ## Commands
 
@@ -84,7 +85,7 @@ GitHub Actions runs the required `test` status check on pull requests and `main`
 - Encoding: VideoToolbox on iOS, MediaCodec on Android.
 - Streaming: RTMP/RTMPS publisher behind `src/native/LiveCasterNative.ts`.
 - Go Live readiness: fail closed before native capture starts, with UI-visible blocking reasons.
-- Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, bitrate/FPS/drop/reconnect telemetry, mic FX/headphone monitor readiness, audio-meter sample evidence, chat readout connection/readiness, spoken-chat success/failure evidence, native publisher/compositor evidence, native still-image asset loaded/missing evidence, private validation runbook state, estimated upload target, post-stream session evidence, physical validation audio/chat evidence, physical validation native-runtime evidence, platform dashboard evidence, and sanitized export/share reports are available before, during, and after live sessions.
+- Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, bitrate/FPS/drop/reconnect telemetry, mic FX/headphone monitor route readiness, audio-meter sample evidence, chat readout connection/readiness, spoken-chat success/failure evidence, native publisher/compositor evidence, native still-image asset loaded/missing evidence, private validation runbook state, estimated upload target, post-stream session evidence, physical validation audio/chat evidence, physical validation native-runtime evidence, platform dashboard evidence, and sanitized export/share reports are available before, during, and after live sessions.
 - Secret storage: browser persistence strips stream keys; mobile persistence uses Keychain/Android Keystore-backed native storage.
 - Stream key management: users can clear the stored key in-app and paste a replacement key without changing the destination preset.
 - Scene storage: web uses localStorage; Android uses app SharedPreferences; iOS writes an atomic scene JSON file under Application Support.

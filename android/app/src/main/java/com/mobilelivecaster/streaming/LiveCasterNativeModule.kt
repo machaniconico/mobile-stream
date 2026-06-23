@@ -5,6 +5,8 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import com.facebook.react.modules.core.PermissionAwareActivity
@@ -20,6 +22,10 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.modules.core.DeviceEventManagerModule
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 @ReactModule(name = LiveCasterNativeModule.NAME)
 class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) :
@@ -91,6 +97,15 @@ class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) 
     @ReactMethod
     fun getSnapshot(promise: Promise) {
         promise.resolve(LiveCasterSession.snapshot())
+    }
+
+    @ReactMethod
+    fun getAudioRoute(promise: Promise) {
+        try {
+            promise.resolve(createAudioRouteReport())
+        } catch (error: Throwable) {
+            promise.reject("audio_route_failed", error)
+        }
     }
 
     @ReactMethod
@@ -220,4 +235,83 @@ class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) 
             )
         }
     }
+
+    private fun createAudioRouteReport(): WritableMap {
+        val audioManager = reactContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val outputDevices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        val headphonesConnected = outputDevices.any { isHeadphoneDevice(it) }
+        val device = outputDevices.firstOrNull { isHeadphoneDevice(it) }
+            ?: outputDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+            ?: outputDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE }
+            ?: outputDevices.firstOrNull()
+        val route = routeKind(device)
+        val outputName = device?.productName?.toString()?.trim()?.takeIf { it.isNotEmpty() } ?: routeLabel(route)
+        val stale = device == null
+
+        return Arguments.createMap().apply {
+            putString("route", route)
+            putString("outputName", outputName)
+            putBoolean("headphonesConnected", headphonesConnected)
+            putString("checkedAt", isoNow())
+            putBoolean("stale", stale)
+            putString(
+                "summary",
+                if (stale) {
+                    "Android audio output route could not be resolved."
+                } else {
+                    "$outputName route is active; headphones ${if (headphonesConnected) "connected" else "not connected"}."
+                }
+            )
+            putString(
+                "recommendation",
+                if (headphonesConnected) {
+                    "Keep headphones connected while self-monitoring is enabled."
+                } else {
+                    "Connect wired, USB, or Bluetooth headphones before enabling self-monitoring."
+                }
+            )
+        }
+    }
+
+    private fun isHeadphoneDevice(device: AudioDeviceInfo): Boolean =
+        when (device.type) {
+            AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+            AudioDeviceInfo.TYPE_WIRED_HEADSET,
+            AudioDeviceInfo.TYPE_USB_HEADSET,
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> true
+            else -> false
+        }
+
+    private fun routeKind(device: AudioDeviceInfo?): String =
+        when (device?.type) {
+            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "speaker"
+            AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "receiver"
+            AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "wired-headphones"
+            AudioDeviceInfo.TYPE_WIRED_HEADSET -> "wired-headset"
+            AudioDeviceInfo.TYPE_USB_HEADSET -> "usb-headset"
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "bluetooth-a2dp"
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "bluetooth-sco"
+            AudioDeviceInfo.TYPE_HDMI -> "hdmi"
+            null -> "unknown"
+            else -> "other"
+        }
+
+    private fun routeLabel(route: String): String =
+        when (route) {
+            "speaker" -> "Speaker"
+            "receiver" -> "Receiver"
+            "wired-headphones" -> "Wired headphones"
+            "wired-headset" -> "Wired headset"
+            "usb-headset" -> "USB headset"
+            "bluetooth-a2dp" -> "Bluetooth headphones"
+            "bluetooth-sco" -> "Bluetooth headset"
+            "hdmi" -> "HDMI"
+            else -> "Unknown output"
+        }
+
+    private fun isoNow(): String =
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }.format(Date())
 }

@@ -1,4 +1,5 @@
 import type { StreamDiagnostics } from "./streamDiagnostics";
+import type { AudioOutputRouteKind, AudioRouteMonitorStatus } from "./audioRoute";
 import {
   createNativeRuntimeSessionSummary,
   normalizeNativeRuntimeSessionSummary,
@@ -31,6 +32,12 @@ export interface StreamValidationAudioSummary {
   monitorEnabled: boolean;
   monitorVolume: number;
   monitorHeadphonesOnly: boolean;
+  monitorRouteStatus: AudioRouteMonitorStatus;
+  outputRoute: AudioOutputRouteKind;
+  outputName: string;
+  headphonesConnected: boolean;
+  routeCheckedAt: string | null;
+  routeStale: boolean;
   levelSampleCount: number;
   averageLevel: number;
   peakLevel: number;
@@ -875,14 +882,20 @@ const createAudioValidationSummary = (
     monitorEnabled: diagnostics.audio.monitorEnabled,
     monitorVolume: diagnostics.audio.monitorVolume,
     monitorHeadphonesOnly: diagnostics.audio.monitorHeadphonesOnly,
+    monitorRouteStatus: diagnostics.audio.monitorSafety.status,
+    outputRoute: diagnostics.audio.monitorSafety.route,
+    outputName: diagnostics.audio.monitorSafety.outputName,
+    headphonesConnected: diagnostics.audio.monitorSafety.headphonesConnected,
+    routeCheckedAt: diagnostics.audio.monitorSafety.checkedAt,
+    routeStale: diagnostics.audio.monitorSafety.stale,
     levelSampleCount: audioLevel?.sampleCount ?? 0,
     averageLevel: audioLevel?.averageLevel ?? 0,
     peakLevel: audioLevel?.peakLevel ?? 0,
     activeLevelPercent: audioLevel?.activePercent ?? 0,
     clippedLevelCount: audioLevel?.clippedSampleCount ?? 0,
     summary: sanitizeStoredText(
-      `${item?.detail ?? "No mic FX/headphone monitor validation retained."}${
-        audioLevel && audioLevel.sampleCount > 0 ? ` ${audioLevel.summary}` : ""
+      `${audioLevel && audioLevel.sampleCount > 0 ? `${audioLevel.summary} ` : ""}${
+        item?.detail ?? "No mic FX/headphone monitor validation retained."
       }`,
       secrets
     ),
@@ -1057,6 +1070,12 @@ const normalizeAudioValidationSummary = (value: unknown): StreamValidationAudioS
     monitorEnabled: value.monitorEnabled === true,
     monitorVolume: normalizeFiniteNumber(value.monitorVolume, 0, 0, 1),
     monitorHeadphonesOnly: value.monitorHeadphonesOnly === true,
+    monitorRouteStatus: normalizeAudioRouteStatus(value.monitorRouteStatus),
+    outputRoute: normalizeAudioOutputRoute(value.outputRoute),
+    outputName: normalizeText(value.outputName, "Unknown output"),
+    headphonesConnected: value.headphonesConnected === true,
+    routeCheckedAt: normalizeDateString(value.routeCheckedAt),
+    routeStale: value.routeStale === true,
     levelSampleCount: normalizeCount(value.levelSampleCount),
     averageLevel: normalizeFiniteNumber(value.averageLevel, 0, 0, 1),
     peakLevel: normalizeFiniteNumber(value.peakLevel, 0, 0, 1),
@@ -1086,6 +1105,24 @@ const normalizeChatReadoutValidationSummary = (value: unknown): StreamValidation
 
 const normalizeFeatureStatus = (value: unknown): StreamValidationFeatureStatus =>
   value === "pass" || value === "warn" || value === "fail" || value === "pending" ? value : "pending";
+
+const normalizeAudioRouteStatus = (value: unknown): AudioRouteMonitorStatus =>
+  value === "pass" || value === "warn" || value === "fail" || value === "info" ? value : "info";
+
+const normalizeAudioOutputRoute = (value: unknown): AudioOutputRouteKind =>
+  value === "speaker" ||
+  value === "receiver" ||
+  value === "wired-headphones" ||
+  value === "wired-headset" ||
+  value === "usb-headset" ||
+  value === "bluetooth-a2dp" ||
+  value === "bluetooth-sco" ||
+  value === "airplay" ||
+  value === "hdmi" ||
+  value === "other" ||
+  value === "unknown"
+    ? value
+    : "unknown";
 
 const normalizePlatformPublishingDiagnostics = (value: unknown): StreamDiagnostics["platformPublishing"] | null => {
   if (!isRecord(value)) {

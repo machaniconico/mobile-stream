@@ -54,13 +54,23 @@ const commercialProfileWithKey = (streamKey: string): StudioProfile => ({
     youtubeLiveChatId: "live-chat-1"
   }
 });
+const headphoneAudioRoute = {
+  route: "wired-headphones" as const,
+  outputName: "Wired headphones",
+  headphonesConnected: true,
+  checkedAt: "2026-06-23T00:00:00.000Z",
+  stale: false,
+  summary: "Wired headphones route is active; headphones connected.",
+  recommendation: "Keep headphones connected while self-monitoring is enabled."
+};
 const connectedChatOptions = {
   chatReader: { enabled: true },
   platformChatConnection: {
     phase: "connected",
     label: "Connected",
     message: "YouTube Live chat is connected."
-  }
+  },
+  audioRoute: headphoneAudioRoute
 };
 const validationNow = new Date("2026-06-23T00:02:00.000Z");
 
@@ -118,7 +128,9 @@ describe("stream validation evidence", () => {
       status: "warn",
       micEffectsEnabled: false,
       monitorEnabled: false,
-      monitorHeadphonesOnly: true
+      monitorHeadphonesOnly: true,
+      monitorRouteStatus: "info",
+      outputRoute: "unknown"
     });
     expect(run.chatReadout).toMatchObject({
       status: "warn",
@@ -186,6 +198,10 @@ describe("stream validation evidence", () => {
     });
 
     expect(run.audio).toMatchObject({
+      status: "pass",
+      monitorRouteStatus: "pass",
+      outputRoute: "wired-headphones",
+      headphonesConnected: true,
       levelSampleCount: 2,
       peakLevel: 0.8,
       activeLevelPercent: 100

@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 import React
 import ReplayKit
 import UIKit
@@ -336,6 +337,14 @@ final class LiveCasterNative: RCTEventEmitter {
         }
     }
 
+    @objc(getAudioRoute:rejecter:)
+    func getAudioRoute(
+        _ resolve: @escaping RCTPromiseResolveBlock,
+        rejecter reject: RCTPromiseRejectBlock
+    ) {
+        resolve(Self.audioRouteMap())
+    }
+
     @objc(prepare:profileJson:resolver:rejecter:)
     func prepare(
         _ nextRenderGraphJSON: String,
@@ -546,6 +555,91 @@ final class LiveCasterNative: RCTEventEmitter {
             .first { $0.isKeyWindow }?
             .rootViewController?
             .view
+    }
+
+    private static func audioRouteMap() -> [String: Any] {
+        let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
+        let headphonesConnected = outputs.contains { isHeadphonePort($0.portType) }
+        let output = outputs.first { isHeadphonePort($0.portType) }
+            ?? outputs.first { $0.portType == .builtInSpeaker }
+            ?? outputs.first { $0.portType == .builtInReceiver }
+            ?? outputs.first
+        let route = routeKind(output?.portType)
+        let outputName = output?.portName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? output?.portName ?? routeLabel(route)
+            : routeLabel(route)
+        let stale = output == nil
+
+        return [
+            "route": route,
+            "outputName": outputName,
+            "headphonesConnected": headphonesConnected,
+            "checkedAt": ISO8601DateFormatter().string(from: Date()),
+            "stale": stale,
+            "summary": stale
+                ? "iOS audio output route could not be resolved."
+                : "\(outputName) route is active; headphones \(headphonesConnected ? "connected" : "not connected").",
+            "recommendation": headphonesConnected
+                ? "Keep headphones connected while self-monitoring is enabled."
+                : "Connect wired, USB, AirPods, or Bluetooth headphones before enabling self-monitoring."
+        ]
+    }
+
+    private static func isHeadphonePort(_ port: AVAudioSession.Port) -> Bool {
+        switch port {
+        case .headphones, .bluetoothA2DP, .bluetoothHFP, .bluetoothLE, .usbAudio:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func routeKind(_ port: AVAudioSession.Port?) -> String {
+        switch port {
+        case .builtInSpeaker:
+            return "speaker"
+        case .builtInReceiver:
+            return "receiver"
+        case .headphones:
+            return "wired-headphones"
+        case .usbAudio:
+            return "usb-headset"
+        case .bluetoothA2DP:
+            return "bluetooth-a2dp"
+        case .bluetoothHFP, .bluetoothLE:
+            return "bluetooth-sco"
+        case .airPlay:
+            return "airplay"
+        case .HDMI:
+            return "hdmi"
+        case nil:
+            return "unknown"
+        default:
+            return "other"
+        }
+    }
+
+    private static func routeLabel(_ route: String) -> String {
+        switch route {
+        case "speaker":
+            return "Speaker"
+        case "receiver":
+            return "Receiver"
+        case "wired-headphones":
+            return "Wired headphones"
+        case "usb-headset":
+            return "USB headset"
+        case "bluetooth-a2dp":
+            return "Bluetooth headphones"
+        case "bluetooth-sco":
+            return "Bluetooth headset"
+        case "airplay":
+            return "AirPlay"
+        case "hdmi":
+            return "HDMI"
+        default:
+            return "Unknown output"
+        }
     }
 
     private func failLocked(_ message: String) {

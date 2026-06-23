@@ -57,6 +57,10 @@ export interface SupportBundle {
     lastSessionNativeRuntimeStillImageAssetCount: number;
     lastSessionNativeRuntimeStillImageAssetLoadedCount: number;
     lastSessionNativeRuntimeStillImageAssetMissingCount: number;
+    audioMonitorRouteStatus: StreamDiagnostics["audio"]["monitorSafety"]["status"];
+    audioMonitorRouteOutputName: string;
+    audioMonitorRouteHeadphonesConnected: boolean;
+    audioMonitorRouteStale: boolean;
     validationStatus: StreamDiagnostics["validation"]["status"];
     validationPendingCount: number;
     validationWarningCount: number;
@@ -101,6 +105,10 @@ export interface SupportBundle {
     validationEvidenceLatestAudioPresetId: string | null;
     validationEvidenceLatestAudioMonitorEnabled: boolean;
     validationEvidenceLatestAudioMonitorHeadphonesOnly: boolean;
+    validationEvidenceLatestAudioMonitorRouteStatus: NonNullable<StreamDiagnostics["validationEvidence"]["latestAudio"]>["monitorRouteStatus"] | null;
+    validationEvidenceLatestAudioOutputName: string | null;
+    validationEvidenceLatestAudioHeadphonesConnected: boolean;
+    validationEvidenceLatestAudioRouteStale: boolean;
     validationEvidenceLatestAudioLevelSampleCount: number;
     validationEvidenceLatestAudioPeakLevel: number;
     validationEvidenceLatestAudioClippedLevelCount: number;
@@ -269,6 +277,10 @@ export const createSupportBundle = ({
       lastSessionNativeRuntimeStillImageAssetCount: diagnostics.session.lastSummary?.nativeRuntime?.stillImageAssetCount ?? 0,
       lastSessionNativeRuntimeStillImageAssetLoadedCount: diagnostics.session.lastSummary?.nativeRuntime?.stillImageAssetLoadedCount ?? 0,
       lastSessionNativeRuntimeStillImageAssetMissingCount: diagnostics.session.lastSummary?.nativeRuntime?.stillImageAssetMissingCount ?? 0,
+      audioMonitorRouteStatus: diagnostics.audio.monitorSafety.status,
+      audioMonitorRouteOutputName: diagnostics.audio.monitorSafety.outputName,
+      audioMonitorRouteHeadphonesConnected: diagnostics.audio.monitorSafety.headphonesConnected,
+      audioMonitorRouteStale: diagnostics.audio.monitorSafety.stale,
       validationStatus: diagnostics.validation.status,
       validationPendingCount: diagnostics.validation.pendingCount,
       validationWarningCount: diagnostics.validation.warningCount,
@@ -313,6 +325,10 @@ export const createSupportBundle = ({
       validationEvidenceLatestAudioPresetId: diagnostics.validationEvidence.latestAudio?.presetId ?? null,
       validationEvidenceLatestAudioMonitorEnabled: diagnostics.validationEvidence.latestAudio?.monitorEnabled ?? false,
       validationEvidenceLatestAudioMonitorHeadphonesOnly: diagnostics.validationEvidence.latestAudio?.monitorHeadphonesOnly ?? false,
+      validationEvidenceLatestAudioMonitorRouteStatus: diagnostics.validationEvidence.latestAudio?.monitorRouteStatus ?? null,
+      validationEvidenceLatestAudioOutputName: diagnostics.validationEvidence.latestAudio?.outputName ?? null,
+      validationEvidenceLatestAudioHeadphonesConnected: diagnostics.validationEvidence.latestAudio?.headphonesConnected ?? false,
+      validationEvidenceLatestAudioRouteStale: diagnostics.validationEvidence.latestAudio?.routeStale ?? false,
       validationEvidenceLatestAudioLevelSampleCount: diagnostics.validationEvidence.latestAudio?.levelSampleCount ?? 0,
       validationEvidenceLatestAudioPeakLevel: diagnostics.validationEvidence.latestAudio?.peakLevel ?? 0,
       validationEvidenceLatestAudioClippedLevelCount: diagnostics.validationEvidence.latestAudio?.clippedLevelCount ?? 0,
@@ -479,6 +495,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Native composition: ${bundle.summary.nativeCompositionStatus} / ${bundle.summary.nativeCompositionCoverage} / preview-only ${bundle.summary.nativeCompositionPreviewOnlySourceCount} / asset issues ${bundle.summary.nativeCompositionAssetIssueCount} / file-backed ${bundle.summary.nativeCompositionFileBackedAssetIssueCount}`,
     `- Native compositor required: ${bundle.summary.nativeCompositionRequiresCompositor ? "yes" : "no"}`,
     `- Native runtime: ${bundle.summary.nativeRuntimePlatform ?? "-"} / ${bundle.summary.nativeRuntimeStatus ?? "-"} / publisher ${bundle.summary.nativeRuntimePublisherState ?? "-"} / composition ${bundle.summary.nativeRuntimeCompositionStatus ?? "-"} / assets ${bundle.summary.nativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.nativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.nativeRuntimeStillImageAssetMissingCount} missing / stale ${bundle.summary.nativeRuntimeStale ? "yes" : "no"} / congested ${bundle.summary.nativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.nativeRuntimeQueuedItems}/${bundle.summary.nativeRuntimeCacheSize}`,
+    `- Audio monitor route: ${bundle.summary.audioMonitorRouteStatus} / ${bundle.summary.audioMonitorRouteOutputName} / headphones ${bundle.summary.audioMonitorRouteHeadphonesConnected ? "yes" : "no"} / stale ${bundle.summary.audioMonitorRouteStale ? "yes" : "no"}`,
     "",
     "Commercial Validation",
     `- Status: ${bundle.summary.validationStatus}`,
@@ -493,7 +510,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Evidence outcomes: ${bundle.summary.validationEvidencePassCount} pass / ${bundle.summary.validationEvidenceFailureCount} fail`,
     `- Evidence native runtime: ${bundle.summary.validationEvidenceNativeRuntimeRunCount} retained / ${bundle.summary.validationEvidenceNativeRuntimeWarningCount} warn / ${bundle.summary.validationEvidenceNativeRuntimeFailureCount} fail / latest ${bundle.summary.validationEvidenceLatestNativeRuntimeStatus ?? "-"} ${bundle.summary.validationEvidenceLatestNativeRuntimePlatform ?? "-"} / assets ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount} missing / congested ${bundle.summary.validationEvidenceLatestNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.validationEvidenceLatestNativeRuntimeQueuedItems}/${bundle.summary.validationEvidenceLatestNativeRuntimeCacheSize}`,
     `- Evidence face tracking: ${bundle.summary.validationEvidenceFaceTrackingRunCount} retained / ${bundle.summary.validationEvidenceFaceTrackingReadyCount} ready / ${bundle.summary.validationEvidenceFaceTrackingWarningCount} warn / iOS ${bundle.summary.validationEvidenceFaceTrackingIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceFaceTrackingAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestFaceTrackingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestFaceTrackingRuntimeStatus ?? "-"} / prepared ${bundle.summary.validationEvidenceLatestFaceTrackingPreparedPngTuberCount} / moving ${bundle.summary.validationEvidenceLatestFaceTrackingActiveMotionCount}`,
-    `- Evidence audio: ${bundle.summary.validationEvidenceAudioRunCount} retained / ${bundle.summary.validationEvidenceAudioReadyCount} ready / ${bundle.summary.validationEvidenceAudioWarningCount} warn / iOS ${bundle.summary.validationEvidenceAudioIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAudioAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestAudioStatus ?? "-"} ${bundle.summary.validationEvidenceLatestAudioPresetId ?? "-"} / monitor ${bundle.summary.validationEvidenceLatestAudioMonitorEnabled ? "on" : "off"} / headphones-only ${bundle.summary.validationEvidenceLatestAudioMonitorHeadphonesOnly ? "yes" : "no"} / samples ${bundle.summary.validationEvidenceLatestAudioLevelSampleCount} / peak ${Math.round(bundle.summary.validationEvidenceLatestAudioPeakLevel * 100)}% / clipped ${bundle.summary.validationEvidenceLatestAudioClippedLevelCount}`,
+    `- Evidence audio: ${bundle.summary.validationEvidenceAudioRunCount} retained / ${bundle.summary.validationEvidenceAudioReadyCount} ready / ${bundle.summary.validationEvidenceAudioWarningCount} warn / iOS ${bundle.summary.validationEvidenceAudioIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAudioAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestAudioStatus ?? "-"} ${bundle.summary.validationEvidenceLatestAudioPresetId ?? "-"} / monitor ${bundle.summary.validationEvidenceLatestAudioMonitorEnabled ? "on" : "off"} / headphones-only ${bundle.summary.validationEvidenceLatestAudioMonitorHeadphonesOnly ? "yes" : "no"} / route ${bundle.summary.validationEvidenceLatestAudioMonitorRouteStatus ?? "-"} ${bundle.summary.validationEvidenceLatestAudioOutputName ?? "-"} / headphones ${bundle.summary.validationEvidenceLatestAudioHeadphonesConnected ? "yes" : "no"} / stale ${bundle.summary.validationEvidenceLatestAudioRouteStale ? "yes" : "no"} / samples ${bundle.summary.validationEvidenceLatestAudioLevelSampleCount} / peak ${Math.round(bundle.summary.validationEvidenceLatestAudioPeakLevel * 100)}% / clipped ${bundle.summary.validationEvidenceLatestAudioClippedLevelCount}`,
     `- Evidence chat readout: ${bundle.summary.validationEvidenceChatReadoutRunCount} retained / ${bundle.summary.validationEvidenceChatReadoutReadyCount} ready / ${bundle.summary.validationEvidenceChatReadoutWarningCount} warn / iOS ${bundle.summary.validationEvidenceChatReadoutIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceChatReadoutAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestChatReadoutStatus ?? "-"} ${bundle.summary.validationEvidenceLatestChatReadoutConnectionPhase ?? "-"} / spoken ${bundle.summary.validationEvidenceLatestChatReadoutSpokenMessageCount} / failed ${bundle.summary.validationEvidenceLatestChatReadoutSpeechFailureCount}`,
     `- Evidence platform dashboard: ${bundle.summary.validationEvidencePlatformPublishingRunCount} retained / ${bundle.summary.validationEvidencePlatformPublishingWarningCount} warn / ${bundle.summary.validationEvidencePlatformPublishingFailureCount} fail / latest ${bundle.summary.validationEvidenceLatestPlatformPublishingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestPlatformPublishingSummary ?? "-"}`,
     `- Physical coverage: iOS ${bundle.summary.validationEvidenceIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAndroidPass ? "pass" : "missing"}`,

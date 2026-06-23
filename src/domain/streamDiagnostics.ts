@@ -1,4 +1,11 @@
 import { buildPublishUrl, getDestinationPreset, redactStreamKey, type StudioProfile } from "./profiles";
+import {
+  createAudioMonitorSafetyStatus,
+  createDefaultAudioRouteState,
+  normalizeAudioRouteState,
+  type AudioMonitorSafetyStatus,
+  type AudioRouteState
+} from "./audioRoute";
 import type { FaceTrackingRuntimeState } from "./faceTracking";
 import {
   createFaceTrackingDiagnostics,
@@ -130,7 +137,9 @@ export interface StreamDiagnostics {
     monitorEnabled: boolean;
     monitorVolume: number;
     monitorHeadphonesOnly: boolean;
+    monitorSafety: AudioMonitorSafetyStatus;
   };
+  audioRoute: AudioRouteState;
   chatReadout: {
     platformChatEnabled: boolean;
     readerEnabled: boolean;
@@ -178,6 +187,7 @@ export interface StreamDiagnosticsOptions {
     label?: string;
     message?: string;
   } | null;
+  audioRoute?: AudioRouteState | null;
 }
 
 const platformLabels: Record<StudioProfile["destination"]["platform"], string> = {
@@ -230,6 +240,8 @@ export const createStreamDiagnostics = (
   const faceTracking = createFaceTrackingDiagnostics(scene, profile, faceTrackingRuntime);
   const nativeComposition = sanitizeNativeCompositionReport(createNativeCompositionReport(scene), destination.streamKey);
   const platformPublishing = createPlatformPublishingDiagnostics(destination.platform, profile.platformPublishing);
+  const audioRoute = normalizeAudioRouteState(options.audioRoute ?? createDefaultAudioRouteState());
+  const monitorSafety = createAudioMonitorSafetyStatus(micEffects, audioRoute);
   const checks = [
     ...readiness.issues.map<DiagnosticCheck>((issue) => ({
       code: `readiness-${issue.code}`,
@@ -251,6 +263,7 @@ export const createStreamDiagnostics = (
     createQualityAdvisorCheck(qualityAdvisor),
     createFaceTrackingCheck(faceTracking),
     createNativeCompositionCheck(nativeComposition),
+    createAudioRouteCheck(monitorSafety),
     createHistoryCheck(history),
     createRecoveryCheck(recoveryStatus)
   ];
@@ -296,7 +309,8 @@ export const createStreamDiagnostics = (
     compression: micEffects.compression,
     monitorEnabled: micEffects.monitorEnabled,
     monitorVolume: micEffects.monitorVolume,
-    monitorHeadphonesOnly: micEffects.monitorHeadphonesOnly
+    monitorHeadphonesOnly: micEffects.monitorHeadphonesOnly,
+    monitorSafety
   };
   const chatReadout = {
     platformChatEnabled: platformChat.enabled,
@@ -377,6 +391,7 @@ export const createStreamDiagnostics = (
     faceTracking,
     nativeComposition,
     audio,
+    audioRoute,
     chatReadout,
     platformPublishing,
     history,
@@ -486,6 +501,8 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     "Audio Validation",
     `- Mic effects: ${diagnostics.audio.micEffectsEnabled ? "on" : "off"} / preset ${diagnostics.audio.presetId} / gain ${diagnostics.audio.inputGainDb} dB / compression ${diagnostics.audio.compression}`,
     `- Monitor: ${diagnostics.audio.monitorEnabled ? "on" : "off"} / volume ${Math.round(diagnostics.audio.monitorVolume * 100)}% / headphones-only ${diagnostics.audio.monitorHeadphonesOnly ? "yes" : "no"}`,
+    `- Monitor route: ${diagnostics.audio.monitorSafety.status} / ${diagnostics.audio.monitorSafety.outputName} / headphones ${diagnostics.audio.monitorSafety.headphonesConnected ? "yes" : "no"} / stale ${diagnostics.audio.monitorSafety.stale ? "yes" : "no"}`,
+    `- Route action: ${diagnostics.audio.monitorSafety.recommendation}`,
     "",
     "Chat Readout",
     `- Platform chat: ${diagnostics.chatReadout.platformChatEnabled ? "on" : "off"}`,
@@ -653,7 +670,7 @@ const formatValidationFaceTracking = (diagnostics: StreamDiagnostics): string =>
 
 const formatValidationAudio = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestAudio
-    ? `${diagnostics.validationEvidence.audioRunCount} retained / ${diagnostics.validationEvidence.audioReadyCount} ready / ${diagnostics.validationEvidence.audioWarningCount} warn / iOS ${diagnostics.validationEvidence.audioIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.audioAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestAudio.status} ${diagnostics.validationEvidence.latestAudio.presetId} / monitor ${diagnostics.validationEvidence.latestAudio.monitorEnabled ? "on" : "off"} / headphones-only ${diagnostics.validationEvidence.latestAudio.monitorHeadphonesOnly ? "yes" : "no"} / samples ${diagnostics.validationEvidence.latestAudio.levelSampleCount} / peak ${Math.round(diagnostics.validationEvidence.latestAudio.peakLevel * 100)}%`
+    ? `${diagnostics.validationEvidence.audioRunCount} retained / ${diagnostics.validationEvidence.audioReadyCount} ready / ${diagnostics.validationEvidence.audioWarningCount} warn / iOS ${diagnostics.validationEvidence.audioIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.audioAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestAudio.status} ${diagnostics.validationEvidence.latestAudio.presetId} / monitor ${diagnostics.validationEvidence.latestAudio.monitorEnabled ? "on" : "off"} / headphones-only ${diagnostics.validationEvidence.latestAudio.monitorHeadphonesOnly ? "yes" : "no"} / route ${diagnostics.validationEvidence.latestAudio.monitorRouteStatus} ${diagnostics.validationEvidence.latestAudio.outputName} / samples ${diagnostics.validationEvidence.latestAudio.levelSampleCount} / peak ${Math.round(diagnostics.validationEvidence.latestAudio.peakLevel * 100)}%`
     : "-";
 
 const formatValidationChatReadout = (diagnostics: StreamDiagnostics): string =>
@@ -1129,6 +1146,13 @@ const createNativeCompositionCheck = (composition: NativeCompositionReport): Dia
   status: composition.status,
   label: "Native composition",
   message: composition.summary
+});
+
+const createAudioRouteCheck = (monitorSafety: AudioMonitorSafetyStatus): DiagnosticCheck => ({
+  code: `audio-monitor-route-${monitorSafety.status}`,
+  status: monitorSafety.status,
+  label: "Audio monitor route",
+  message: monitorSafety.summary
 });
 
 const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): DiagnosticCheck => {

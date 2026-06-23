@@ -111,7 +111,17 @@ const readyAudio: StreamValidationRunbookInput["audio"] = {
   compression: 0.62,
   monitorEnabled: true,
   monitorVolume: 0.45,
-  monitorHeadphonesOnly: true
+  monitorHeadphonesOnly: true,
+  monitorSafety: {
+    status: "pass",
+    route: "wired-headphones",
+    outputName: "Wired headphones",
+    headphonesConnected: true,
+    checkedAt: "2026-06-23T00:00:00.000Z",
+    stale: false,
+    summary: "Headphones-only monitoring is routed to Wired headphones.",
+    recommendation: "Keep this route connected during the private validation run."
+  }
 };
 
 const readyChatReadout: StreamValidationRunbookInput["chatReadout"] = {
@@ -208,6 +218,29 @@ describe("stream validation runbook", () => {
 
     expect(runbook.items.find((item) => item.id === "runbook-audio-monitor-open")?.status).toBe("warn");
     expect(runbook.nextAction).toContain("headphones-only");
+  });
+
+  it("fails when headphones-only monitoring is routed to speakers", () => {
+    const runbook = createStreamValidationRunbook(
+      input({
+        audio: {
+          ...readyAudio,
+          monitorSafety: {
+            status: "fail",
+            route: "speaker",
+            outputName: "Speaker",
+            headphonesConnected: false,
+            checkedAt: "2026-06-23T00:00:00.000Z",
+            stale: false,
+            summary: "Headphones-only monitoring is enabled, but output is routed to Speaker.",
+            recommendation: "Connect headphones or turn monitoring off before starting a stream."
+          }
+        }
+      })
+    );
+
+    expect(runbook.items.find((item) => item.id === "runbook-audio-route-unsafe")?.status).toBe("fail");
+    expect(runbook.nextAction).toContain("Connect headphones");
   });
 
   it("warns when platform chat readout is not connected", () => {

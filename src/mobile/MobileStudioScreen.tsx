@@ -2,6 +2,7 @@ import { Alert, Image, Pressable, ScrollView, Share, StyleSheet, Text, TextInput
 import { useEffect, useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
+import type { AudioRouteState } from "../domain/audioRoute";
 import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
 import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
@@ -83,6 +84,7 @@ interface MobileStudioScreenProps {
   platformStreamKeyStatus: string;
   platformPublishingStatus: string;
   platformChatConnection: PlatformChatConnectionState;
+  audioRoute: AudioRouteState;
   avatarRuntime: AvatarRuntimeState;
   faceTrackingRuntime: FaceTrackingRuntimeState;
   onSceneChange(scene: SceneDocument): void;
@@ -220,6 +222,7 @@ export const MobileStudioScreen = ({
   platformStreamKeyStatus,
   platformPublishingStatus,
   platformChatConnection,
+  audioRoute,
   avatarRuntime,
   faceTrackingRuntime,
   onSceneChange,
@@ -274,7 +277,8 @@ export const MobileStudioScreen = ({
     faceTrackingRuntime,
     {
       chatReader: chatReader.settings,
-      platformChatConnection
+      platformChatConnection,
+      audioRoute
     }
   );
   const startPreflight = createStreamStartPreflightReport({
@@ -285,7 +289,8 @@ export const MobileStudioScreen = ({
     validation: diagnostics.validation,
     chatReader: chatReader.settings,
     platformChatAuth,
-    platformChatConnection
+    platformChatConnection,
+    audioRoute
   });
   const canGoLive = startPreflight.canStart;
 
@@ -705,6 +710,17 @@ export const MobileStudioScreen = ({
             disabled={setupLocked || !profile.micEffects.monitorEnabled}
             onChange={(monitorVolume) => updateMicEffects({ monitorVolume })}
           />
+          <View style={styles.trackingReadout}>
+            <Text style={[styles.trackingCell, diagnostics.audio.monitorSafety.status === "pass" && styles.trackingCellActive]}>
+              {diagnostics.audio.monitorSafety.status}
+            </Text>
+            <Text style={styles.trackingCell} numberOfLines={1}>
+              {diagnostics.audio.monitorSafety.outputName}
+            </Text>
+            <Text style={styles.trackingCell}>
+              phones {diagnostics.audio.monitorSafety.headphonesConnected ? "yes" : "no"}
+            </Text>
+          </View>
 
           <View style={styles.sectionDivider} />
           <View style={styles.grid2}>
@@ -1193,6 +1209,7 @@ const StreamDiagnosticsPanel = ({
       <DiagnosticMetric label="Quality" value={`${diagnostics.quality.resolution} / ${diagnostics.quality.fps}fps`} />
       <DiagnosticMetric label="Upload target" value={`${diagnostics.quality.estimatedUploadKbps} kbps`} />
       <DiagnosticMetric label="Telemetry" value={`${diagnostics.telemetry.bitrateKbps} kbps / ${diagnostics.telemetry.fps} fps`} />
+      <DiagnosticMetric label="Audio route" value={`${diagnostics.audio.monitorSafety.status} / ${diagnostics.audio.monitorSafety.outputName}`} />
       <DiagnosticMetric label="Native runtime" value={nativeRuntimeMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Recovery" value={recoveryMetricLabel(diagnostics)} />
       <DiagnosticMetric label="History" value={historyMetricLabel(diagnostics)} />

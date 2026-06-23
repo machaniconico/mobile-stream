@@ -6,6 +6,9 @@
 RCT_EXTERN_METHOD(getSnapshot:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(getAudioRoute:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 RCT_EXTERN_METHOD(prepare:(NSString *)renderGraphJson
                   profileJson:(NSString *)profileJson
                   resolver:(RCTPromiseResolveBlock)resolve

@@ -19,6 +19,17 @@ const validProfile = (): StudioProfile => ({
   }
 });
 
+const monitorProfile = (): StudioProfile => ({
+  ...validProfile(),
+  micEffects: {
+    ...validProfile().micEffects,
+    enabled: true,
+    monitorEnabled: true,
+    monitorVolume: 0.5,
+    monitorHeadphonesOnly: true
+  }
+});
+
 const createScreenOnlyScene = (): SceneDocument =>
   createDefaultScene().sources
     .filter((source) => source.kind !== "screen")
@@ -357,6 +368,50 @@ describe("stream start preflight", () => {
 
     expect(report.canStart).toBe(false);
     expect(report.blocks.map((issue) => issue.code)).toContain("operation-stop-pending");
+  });
+
+  it("blocks headphone self-monitoring when the device route is speaker", () => {
+    const profile = monitorProfile();
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      audioRoute: {
+        route: "speaker",
+        outputName: "Speaker",
+        headphonesConnected: false,
+        checkedAt: "2026-06-23T00:00:00.000Z",
+        stale: false,
+        summary: "Speaker route is active; headphones not connected.",
+        recommendation: "Connect headphones before starting."
+      }
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.status).toBe("blocked");
+    expect(report.blocks.map((issue) => issue.code)).toContain("audio-monitor-route-unsafe");
+  });
+
+  it("warns when headphone self-monitoring route has not been confirmed", () => {
+    const profile = monitorProfile();
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      audioRoute: {
+        route: "unknown",
+        outputName: "Unknown output",
+        headphonesConnected: false,
+        checkedAt: null,
+        stale: true,
+        summary: "Audio output route has not been confirmed on this device.",
+        recommendation: "Refresh route detection."
+      }
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("warning");
+    expect(report.warnings.map((issue) => issue.code)).toContain("audio-monitor-route-unconfirmed");
   });
 
   it("formats blocking failures for operation errors", () => {

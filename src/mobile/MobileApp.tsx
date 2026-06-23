@@ -130,6 +130,7 @@ import {
   saveSecureOAuthCredential,
   saveSecureProfile
 } from "./secureProfileStore";
+import { useAudioRouteMonitor } from "./useAudioRouteMonitor";
 
 const isAvatarSource = (source: SceneDocument["sources"][number]): source is PNGTuberSource | Live2DSource =>
   source.kind === "pngtuber" || source.kind === "live2d";
@@ -163,6 +164,7 @@ export const MobileApp = () => {
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeStateFromScene(scene, Date.now()));
   const [faceTrackingRuntime, setFaceTrackingRuntime] = useState(() => createFaceTrackingRuntimeState(Date.now()));
   const [operationStatus, setOperationStatus] = useState<StreamOperationStatus | null>(null);
+  const audioRoute = useAudioRouteMonitor();
   const operationInFlight = useRef(false);
   const platformChatOAuthSyncInFlight = useRef(false);
   const audioLevelSamplesRef = useRef<StreamAudioLevelSample[]>([]);
@@ -566,7 +568,8 @@ export const MobileApp = () => {
         faceTrackingRuntime,
         {
           chatReader: chatReader.settings,
-          platformChatConnection: platformChatConnection.connection
+          platformChatConnection: platformChatConnection.connection,
+          audioRoute
         }
       );
       const preflight = createStreamStartPreflightReport({
@@ -576,7 +579,8 @@ export const MobileApp = () => {
         validation: diagnostics.validation,
         chatReader: chatReader.settings,
         platformChatAuth,
-        platformChatConnection: platformChatConnection.connection
+        platformChatConnection: platformChatConnection.connection,
+        audioRoute
       });
       if (!preflight.canStart) {
         throw new Error(formatStreamStartPreflightBlockMessage(preflight));
@@ -886,6 +890,7 @@ export const MobileApp = () => {
         platformStreamKeyStatus={platformStreamKeyStatus}
         platformPublishingStatus={platformPublishingStatus}
         platformChatConnection={platformChatConnection.connection}
+        audioRoute={audioRoute}
         avatarRuntime={avatarRuntime}
         faceTrackingRuntime={faceTrackingRuntime}
         onSceneChange={setScene}
