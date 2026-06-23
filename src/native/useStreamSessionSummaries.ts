@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { QualityProfile } from "../domain/profiles";
 import type { StreamHealthSample } from "../domain/streamHealthHistory";
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
@@ -16,6 +16,7 @@ import type { NativeEngineSnapshot } from "./LiveCasterNative";
 export interface StreamSessionSummaries {
   summaries: StreamSessionSummary[];
   lastSummary: StreamSessionSummary | null;
+  clearSummaries(): void;
 }
 
 export const useStreamSessionSummaries = ({
@@ -25,7 +26,8 @@ export const useStreamSessionSummaries = ({
   quality,
   initialSummaries = [],
   initialSummariesReady = true,
-  onSummariesChange
+  onSummariesChange,
+  onSummariesClear
 }: {
   snapshot: NativeEngineSnapshot;
   events: StreamSessionEvent[];
@@ -34,6 +36,7 @@ export const useStreamSessionSummaries = ({
   initialSummaries?: StreamSessionSummary[];
   initialSummariesReady?: boolean;
   onSummariesChange?(summaries: StreamSessionSummary[]): void;
+  onSummariesClear?(): void;
 }): StreamSessionSummaries => {
   const [summaries, setSummaries] = useState<StreamSessionSummary[]>(() =>
     initialSummariesReady ? normalizeStreamSessionSummaries(initialSummaries) : []
@@ -125,8 +128,22 @@ export const useStreamSessionSummaries = ({
     summariesHydrated
   ]);
 
+  const clearSummaries = useCallback(() => {
+    lastEmittedSummariesKey.current = "";
+    setSummaries([]);
+    if (onSummariesClear) {
+      onSummariesClear();
+      return;
+    }
+    onSummariesChange?.([]);
+  }, [
+    onSummariesChange,
+    onSummariesClear
+  ]);
+
   return {
     summaries,
-    lastSummary: summaries[0] ?? null
+    lastSummary: summaries[0] ?? null,
+    clearSummaries
   };
 };

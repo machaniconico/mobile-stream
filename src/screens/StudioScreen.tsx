@@ -118,6 +118,7 @@ interface StudioScreenProps {
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
   onClearStreamKey(): void;
+  onClearStreamSessionSummaries(): void;
 }
 
 const sourceLabels: Record<SourceKind, string> = {
@@ -265,7 +266,8 @@ export const StudioScreen = ({
   onPlatformChatConnect,
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
-  onClearStreamKey
+  onClearStreamKey,
+  onClearStreamSessionSummaries
 }: StudioScreenProps) => {
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
@@ -760,6 +762,7 @@ export const StudioScreen = ({
             diagnostics={diagnostics}
             setupLocked={setupLocked}
             onProfileChange={onProfileChange}
+            onClearStreamSessionSummaries={onClearStreamSessionSummaries}
           />
         </aside>
       </section>
@@ -793,7 +796,8 @@ const StreamDiagnosticsPanel = ({
   preflight,
   diagnostics,
   setupLocked,
-  onProfileChange
+  onProfileChange,
+  onClearStreamSessionSummaries
 }: {
   scene: SceneDocument;
   profile: StudioProfile;
@@ -802,6 +806,7 @@ const StreamDiagnosticsPanel = ({
   diagnostics: StreamDiagnostics;
   setupLocked: boolean;
   onProfileChange(profile: StudioProfile): void;
+  onClearStreamSessionSummaries(): void;
 }) => (
   <section className="control-panel">
     <PanelTitle icon={<Activity size={18} />} title="Diagnostics" />
@@ -819,6 +824,19 @@ const StreamDiagnosticsPanel = ({
         >
           <Download size={15} />
           Support
+        </button>
+        <button
+          className="secondary-action compact-action diagnostic-export"
+          type="button"
+          disabled={diagnostics.session.summaries.length === 0}
+          onClick={() => {
+            if (window.confirm("Clear completed stream session history on this device?")) {
+              onClearStreamSessionSummaries();
+            }
+          }}
+        >
+          <RotateCcw size={15} />
+          Clear History
         </button>
       </div>
     </div>

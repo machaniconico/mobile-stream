@@ -76,6 +76,7 @@ import { useStreamHealthHistory } from "../native/useStreamHealthHistory";
 import { useStreamSessionLog } from "../native/useStreamSessionLog";
 import { useStreamSessionSummaries } from "../native/useStreamSessionSummaries";
 import {
+  clearStreamSessionSummaries,
   loadProfile,
   loadScene,
   loadStreamSessionSummaries,
@@ -121,13 +122,17 @@ export const App = () => {
   });
   const { events: streamSessionEvents, recordEvent: recordStreamSessionEvent } = useStreamSessionLog(snapshot);
   const streamHealthSamples = useStreamHealthHistory(snapshot);
+  const clearPersistedStreamSessionSummaries = useCallback(() => {
+    clearStreamSessionSummaries();
+  }, []);
   const streamSessionSummaries = useStreamSessionSummaries({
     snapshot,
     events: streamSessionEvents,
     healthSamples: streamHealthSamples,
     quality: readiness.sanitizedProfile.quality,
     initialSummaries: initialStreamSessionSummaries,
-    onSummariesChange: saveStreamSessionSummaries
+    onSummariesChange: saveStreamSessionSummaries,
+    onSummariesClear: clearPersistedStreamSessionSummaries
   });
 
   useEffect(() => engine.subscribe(setSnapshot), [engine]);
@@ -435,6 +440,10 @@ export const App = () => {
     setProfile((current) => clearStreamKey(current));
   };
 
+  const clearCompletedStreamSessionSummaries = () => {
+    streamSessionSummaries.clearSummaries();
+  };
+
   return (
     <StudioScreen
       scene={scene}
@@ -484,6 +493,7 @@ export const App = () => {
       onPlatformChatDisconnect={platformChatConnection.disconnect}
       onPlatformChatSampleIngest={ingestPlatformChatSample}
       onClearStreamKey={clearSavedStreamKey}
+      onClearStreamSessionSummaries={clearCompletedStreamSessionSummaries}
     />
   );
 };

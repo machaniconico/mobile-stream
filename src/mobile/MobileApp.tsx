@@ -91,6 +91,7 @@ import { NativeChatSpeechEngine } from "./NativeChatSpeechEngine";
 import { NativeFaceTrackingInput } from "./NativeFaceTrackingInput";
 import { loadMobileScene, saveMobileScene } from "./sceneStore";
 import {
+  clearMobileStreamSessionSummaries,
   loadMobileStreamSessionSummaries,
   saveMobileStreamSessionSummaries
 } from "./sessionSummaryStore";
@@ -151,6 +152,10 @@ export const MobileApp = () => {
     }
     void saveMobileStreamSessionSummaries(summaries).catch(() => undefined);
   }, [streamSessionSummariesLoaded]);
+  const clearPersistedStreamSessionSummaries = useCallback(() => {
+    setPersistedStreamSessionSummaries([]);
+    void clearMobileStreamSessionSummaries().catch(() => undefined);
+  }, []);
   const streamSessionSummaries = useStreamSessionSummaries({
     snapshot,
     events: streamSessionEvents,
@@ -158,7 +163,8 @@ export const MobileApp = () => {
     quality: readiness.sanitizedProfile.quality,
     initialSummaries: persistedStreamSessionSummaries,
     initialSummariesReady: streamSessionSummariesLoaded,
-    onSummariesChange: streamSessionSummariesLoaded ? persistStreamSessionSummaries : undefined
+    onSummariesChange: streamSessionSummariesLoaded ? persistStreamSessionSummaries : undefined,
+    onSummariesClear: clearPersistedStreamSessionSummaries
   });
   const captureOAuthCallbackUrl = useCallback((url: string | null) => {
     if (!url || !isPlatformChatOAuthCallbackUrl(url)) {
@@ -673,6 +679,10 @@ export const MobileApp = () => {
     await saveSecureProfile(nextProfile).catch(() => undefined);
   };
 
+  const clearCompletedStreamSessionSummaries = () => {
+    streamSessionSummaries.clearSummaries();
+  };
+
   return (
     <SafeAreaProvider>
       <MobileStudioScreen
@@ -723,6 +733,7 @@ export const MobileApp = () => {
         onPlatformChatDisconnect={platformChatConnection.disconnect}
         onPlatformChatSampleIngest={ingestPlatformChatSample}
         onClearStreamKey={clearSavedStreamKey}
+        onClearStreamSessionSummaries={clearCompletedStreamSessionSummaries}
       />
     </SafeAreaProvider>
   );

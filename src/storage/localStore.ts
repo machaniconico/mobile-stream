@@ -65,3 +65,10 @@ export const saveStreamSessionSummaries = (summaries: StreamSessionSummary[]): v
   }
   localStorage.setItem(STREAM_SESSION_SUMMARIES_KEY, JSON.stringify(normalizeStreamSessionSummaries(summaries)));
 };
+
+export const clearStreamSessionSummaries = (): void => {
+  if (!hasLocalStorage()) {
+    return;
+  }
+  localStorage.removeItem(STREAM_SESSION_SUMMARIES_KEY);
+};

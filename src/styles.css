@@ -1306,6 +1306,18 @@ select:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .diagnostic-summary-row {
+    grid-template-columns: 1fr;
+  }
+
+  .diagnostic-actions {
+    justify-content: stretch;
+  }
+
+  .diagnostic-export {
+    flex: 1 1 120px;
+  }
+
   .transport-bar {
     align-items: stretch;
   }

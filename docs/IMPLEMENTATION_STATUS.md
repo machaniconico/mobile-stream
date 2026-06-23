@@ -12,6 +12,7 @@
 - Stream health history model for average/min bitrate and FPS, dropped-frame/reconnect trend summaries, diagnostics checks, and report export.
 - Post-stream session summary model for completed session outcome, warning/failure/recovery counts, health summary, and next-stream recommendations.
 - Durable completed stream session summary persistence for Web localStorage and React Native native storage, with corrupt payload recovery and retention limiting.
+- Completed stream session history management in Web and React Native diagnostics, including local history clearing for privacy/support resets.
 - Live quality advisor model for maintaining, monitoring, lowering quality, reconnecting, or stopping based on active incidents, history, and recovery state, with safe suggested-quality application in Web and React Native.
 - Redacted support bundle export combining preflight, diagnostics, scene composition, stream target, and safe profile summaries for support triage.
 - Stream quality incident model for active bitrate/FPS/drop/reconnect problems, recommendations, UI surfacing, and report export.

@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
@@ -103,6 +103,7 @@ interface MobileStudioScreenProps {
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
   onClearStreamKey(): void | Promise<void>;
+  onClearStreamSessionSummaries(): void | Promise<void>;
 }
 
 const sourceLabels: Record<SourceKind, string> = {
@@ -213,7 +214,8 @@ export const MobileStudioScreen = ({
   onPlatformChatConnect,
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
-  onClearStreamKey
+  onClearStreamKey,
+  onClearStreamSessionSummaries
 }: MobileStudioScreenProps) => {
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
@@ -933,6 +935,7 @@ export const MobileStudioScreen = ({
           diagnostics={diagnostics}
           setupLocked={setupLocked}
           onProfileChange={onProfileChange}
+          onClearStreamSessionSummaries={onClearStreamSessionSummaries}
         />
       </ScrollView>
     </SafeAreaView>
@@ -946,7 +949,8 @@ const StreamDiagnosticsPanel = ({
   preflight,
   diagnostics,
   setupLocked,
-  onProfileChange
+  onProfileChange,
+  onClearStreamSessionSummaries
 }: {
   scene: SceneDocument;
   profile: StudioProfile;
@@ -955,6 +959,7 @@ const StreamDiagnosticsPanel = ({
   diagnostics: StreamDiagnostics;
   setupLocked: boolean;
   onProfileChange(profile: StudioProfile): void;
+  onClearStreamSessionSummaries(): void | Promise<void>;
 }) => (
   <Panel title="Diagnostics">
     <View style={[styles.diagnosticSummary, diagnosticSummaryStyle(diagnostics.status)]}>
@@ -963,6 +968,26 @@ const StreamDiagnosticsPanel = ({
     <View style={styles.diagnosticActions}>
       <ActionButton label="Share Report" onPress={() => shareStreamDiagnosticReport(diagnostics)} />
       <ActionButton label="Share Bundle" onPress={() => shareSupportBundle({ scene, profile, readiness, preflight, diagnostics })} />
+      <ActionButton
+        label="Clear History"
+        disabled={diagnostics.session.summaries.length === 0}
+        onPress={() => {
+          Alert.alert(
+            "Clear stream history?",
+            "Completed session summaries stored on this device will be removed.",
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Clear",
+                style: "destructive",
+                onPress: () => {
+                  void onClearStreamSessionSummaries();
+                }
+              }
+            ]
+          );
+        }}
+      />
     </View>
     <View style={styles.diagnosticGrid}>
       <DiagnosticMetric label="Target" value={diagnostics.target.platform} />
