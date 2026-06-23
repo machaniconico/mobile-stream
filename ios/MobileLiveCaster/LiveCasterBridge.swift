@@ -122,6 +122,7 @@ struct LiveCasterPreparedConfiguration {
     let fps: Int
     let videoBitrateKbps: Int
     let audioBitrateKbps: Int
+    let micEffects: LiveCasterMicEffectsConfiguration
 
     init(profileJSON: String) throws {
         guard
@@ -159,6 +160,7 @@ struct LiveCasterPreparedConfiguration {
         fps = Self.intValue(quality["fps"], fallback: 30, range: 15...60)
         videoBitrateKbps = Self.intValue(quality["videoBitrateKbps"], fallback: 4500, range: 800...20000)
         audioBitrateKbps = Self.intValue(quality["audioBitrateKbps"], fallback: 128, range: 64...320)
+        micEffects = LiveCasterMicEffectsConfiguration(payload: root["micEffects"] as? [String: Any])
     }
 
     func payload(renderGraphJSON: String) -> [String: Any] {
@@ -177,6 +179,7 @@ struct LiveCasterPreparedConfiguration {
             "fps": fps,
             "videoBitrateKbps": videoBitrateKbps,
             "audioBitrateKbps": audioBitrateKbps,
+            "micEffects": micEffects.payload,
             "renderGraph": renderGraphJSON
         ]
     }
@@ -246,6 +249,87 @@ struct LiveCasterPreparedConfiguration {
             parsed = numberValue.intValue
         } else if let stringValue = value as? String {
             parsed = Int(stringValue)
+        } else {
+            parsed = nil
+        }
+        guard let parsed else {
+            return fallback
+        }
+        return min(max(parsed, range.lowerBound), range.upperBound)
+    }
+}
+
+struct LiveCasterMicEffectsConfiguration {
+    let enabled: Bool
+    let presetId: String
+    let inputGainDb: Double
+    let noiseGateDb: Double
+    let compression: Double
+    let monitorEnabled: Bool
+    let monitorVolume: Double
+    let monitorHeadphonesOnly: Bool
+
+    init(payload: [String: Any]?) {
+        enabled = Self.boolValue(payload?["enabled"], fallback: false)
+        presetId = Self.stringValue(payload?["presetId"], fallback: "clean")
+        inputGainDb = Self.doubleValue(payload?["inputGainDb"], fallback: 0, range: -12...12)
+        noiseGateDb = Self.doubleValue(payload?["noiseGateDb"], fallback: -60, range: (-70)...(-25))
+        compression = Self.doubleValue(payload?["compression"], fallback: 0.15, range: 0...1)
+        monitorEnabled = Self.boolValue(payload?["monitorEnabled"], fallback: false)
+        monitorVolume = Self.doubleValue(payload?["monitorVolume"], fallback: 0.45, range: 0...1)
+        monitorHeadphonesOnly = Self.boolValue(payload?["monitorHeadphonesOnly"], fallback: true)
+    }
+
+    var payload: [String: Any] {
+        [
+            "enabled": enabled,
+            "presetId": presetId,
+            "inputGainDb": inputGainDb,
+            "noiseGateDb": noiseGateDb,
+            "compression": compression,
+            "monitorEnabled": monitorEnabled,
+            "monitorVolume": monitorVolume,
+            "monitorHeadphonesOnly": monitorHeadphonesOnly
+        ]
+    }
+
+    private static func stringValue(_ value: Any?, fallback: String) -> String {
+        if let stringValue = value as? String {
+            let normalized = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            return normalized.isEmpty ? fallback : normalized
+        }
+        if let numberValue = value as? NSNumber {
+            return numberValue.stringValue
+        }
+        return fallback
+    }
+
+    private static func boolValue(_ value: Any?, fallback: Bool) -> Bool {
+        if let boolValue = value as? Bool {
+            return boolValue
+        }
+        if let numberValue = value as? NSNumber {
+            return numberValue.boolValue
+        }
+        if let stringValue = value as? String {
+            switch stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "true", "1", "yes":
+                return true
+            case "false", "0", "no":
+                return false
+            default:
+                break
+            }
+        }
+        return fallback
+    }
+
+    private static func doubleValue(_ value: Any?, fallback: Double, range: ClosedRange<Double>) -> Double {
+        let parsed: Double?
+        if let numberValue = value as? NSNumber {
+            parsed = numberValue.doubleValue
+        } else if let stringValue = value as? String {
+            parsed = Double(stringValue)
         } else {
             parsed = nil
         }
@@ -855,6 +939,8 @@ final class LiveCasterNative: RCTEventEmitter {
     ) -> [String: Any] {
         let stats = runtimeState.dictionaryValue("stats")
         let videoEncoder = runtimeState.dictionaryValue("videoEncoder")
+        let audioEncoder = runtimeState.dictionaryValue("audioEncoder")
+        let micEffects = audioEncoder.dictionaryValue("micEffects")
         let publisher = runtimeState.dictionaryValue("publisher")
         let sceneComposition = runtimeState.dictionaryValue("sceneComposition")
         let runtimeStatus = redactSensitiveText(runtimeState.stringValue("status", fallback: status.rawValue), streamKey: streamKey, publishURL: publishURL)
@@ -916,6 +1002,14 @@ final class LiveCasterNative: RCTEventEmitter {
                     redactSensitiveText($0, streamKey: streamKey, publishURL: publishURL)
                 },
                 "message": redactSensitiveText(sceneComposition.stringValue("message"), streamKey: streamKey, publishURL: publishURL)
+            ],
+            "audioProcessing": [
+                "micEffectsEnabled": micEffects.boolValue("enabled"),
+                "micEffectsPresetId": micEffects.stringValue("presetId", fallback: "clean"),
+                "micEffectsProcessedFrames": micEffects.intValue("processedFrames"),
+                "micEffectsProcessedSamples": micEffects.intValue("processedSamples"),
+                "micEffectsGatedSamples": micEffects.intValue("gatedSamples"),
+                "micEffectsLimitedSamples": micEffects.intValue("limitedSamples")
             ],
             "message": redactSensitiveText(message, streamKey: streamKey, publishURL: publishURL)
         ]

@@ -174,6 +174,14 @@ const normalizeNativeRuntime = (
           stillImageAssetMissingKinds: runtime.composition?.stillImageAssetMissingKinds ?? [],
           message: runtime.composition?.message ?? ""
         },
+        audioProcessing: {
+          micEffectsEnabled: runtime.audioProcessing?.micEffectsEnabled ?? false,
+          micEffectsPresetId: runtime.audioProcessing?.micEffectsPresetId ?? "clean",
+          micEffectsProcessedFrames: runtime.audioProcessing?.micEffectsProcessedFrames ?? 0,
+          micEffectsProcessedSamples: runtime.audioProcessing?.micEffectsProcessedSamples ?? 0,
+          micEffectsGatedSamples: runtime.audioProcessing?.micEffectsGatedSamples ?? 0,
+          micEffectsLimitedSamples: runtime.audioProcessing?.micEffectsLimitedSamples ?? 0
+        },
         message: runtime.message ?? ""
       }
     : null;

@@ -26,6 +26,15 @@ export interface NativeRuntimePublisher {
   lastError: string;
 }
 
+export interface NativeRuntimeAudioProcessing {
+  micEffectsEnabled: boolean;
+  micEffectsPresetId: string;
+  micEffectsProcessedFrames: number;
+  micEffectsProcessedSamples: number;
+  micEffectsGatedSamples: number;
+  micEffectsLimitedSamples: number;
+}
+
 export interface NativeRuntimeTelemetry {
   platform: "ios" | "android";
   runtimeStatus: string;
@@ -37,5 +46,6 @@ export interface NativeRuntimeTelemetry {
   droppedFrames: number;
   publisher: NativeRuntimePublisher;
   composition: NativeRuntimeComposition;
+  audioProcessing?: NativeRuntimeAudioProcessing;
   message: string;
 }

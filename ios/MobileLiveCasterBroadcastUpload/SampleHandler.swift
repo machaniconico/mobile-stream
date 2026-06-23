@@ -3,6 +3,7 @@ import CoreGraphics
 import CoreImage
 import CoreMedia
 import CoreVideo
+import Darwin
 import Foundation
 import Network
 import os
@@ -190,6 +191,7 @@ struct BroadcastUploadConfiguration: Equatable {
     let videoBitrateKbps: Int
     let audioBitrateKbps: Int
     let renderGraphJSON: String?
+    let micEffects: BroadcastMicEffectsConfiguration
 
     var transportScheme: String {
         publishURL.scheme?.lowercased() ?? ""
@@ -209,6 +211,7 @@ struct BroadcastUploadConfiguration: Equatable {
         videoBitrateKbps = Self.clampedInt(["videoBitrateKbps", "bitrateKbps"], in: setupInfo, defaultValue: 4500, range: 800...20000)
         audioBitrateKbps = Self.clampedInt(["audioBitrateKbps"], in: setupInfo, defaultValue: 128, range: 64...320)
         renderGraphJSON = Self.stringValue(["renderGraph", "renderGraphJSON"], in: setupInfo)
+        micEffects = BroadcastMicEffectsConfiguration(payload: Self.dictionaryValue(["micEffects"], in: setupInfo))
     }
 
     private static func resolvePublishURL(setupInfo: [String: NSObject]) throws -> URL {
@@ -322,6 +325,109 @@ struct BroadcastUploadConfiguration: Equatable {
         }
 
         return min(max(parsedValue, range.lowerBound), range.upperBound)
+    }
+
+    private static func dictionaryValue(_ keys: [String], in setupInfo: [String: NSObject]) -> [String: Any]? {
+        for key in keys {
+            guard let value = setupInfo[key] else {
+                continue
+            }
+            if let dictionary = value as? [String: Any] {
+                return dictionary
+            }
+            if let dictionary = value as? NSDictionary {
+                var output: [String: Any] = [:]
+                dictionary.forEach { key, value in
+                    guard let stringKey = key as? String else {
+                        return
+                    }
+                    output[stringKey] = value
+                }
+                return output
+            }
+        }
+        return nil
+    }
+}
+
+struct BroadcastMicEffectsConfiguration: Equatable {
+    let enabled: Bool
+    let presetId: String
+    let inputGainDb: Float
+    let noiseGateDb: Float
+    let compression: Float
+    let monitorEnabled: Bool
+    let monitorVolume: Float
+    let monitorHeadphonesOnly: Bool
+
+    init(payload: [String: Any]?) {
+        enabled = Self.boolValue(payload?["enabled"], fallback: false)
+        presetId = Self.stringValue(payload?["presetId"], fallback: "clean")
+        inputGainDb = Self.floatValue(payload?["inputGainDb"], fallback: 0, range: -12...12)
+        noiseGateDb = Self.floatValue(payload?["noiseGateDb"], fallback: -60, range: (-70)...(-25))
+        compression = Self.floatValue(payload?["compression"], fallback: 0.15, range: 0...1)
+        monitorEnabled = Self.boolValue(payload?["monitorEnabled"], fallback: false)
+        monitorVolume = Self.floatValue(payload?["monitorVolume"], fallback: 0.45, range: 0...1)
+        monitorHeadphonesOnly = Self.boolValue(payload?["monitorHeadphonesOnly"], fallback: true)
+    }
+
+    func asDictionary() -> [String: Any] {
+        [
+            "enabled": enabled,
+            "presetId": presetId,
+            "inputGainDb": inputGainDb,
+            "noiseGateDb": noiseGateDb,
+            "compression": compression,
+            "monitorEnabled": monitorEnabled,
+            "monitorVolume": monitorVolume,
+            "monitorHeadphonesOnly": monitorHeadphonesOnly
+        ]
+    }
+
+    private static func stringValue(_ value: Any?, fallback: String) -> String {
+        if let stringValue = value as? String {
+            let normalized = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            return normalized.isEmpty ? fallback : normalized
+        }
+        if let numberValue = value as? NSNumber {
+            return numberValue.stringValue
+        }
+        return fallback
+    }
+
+    private static func boolValue(_ value: Any?, fallback: Bool) -> Bool {
+        if let boolValue = value as? Bool {
+            return boolValue
+        }
+        if let numberValue = value as? NSNumber {
+            return numberValue.boolValue
+        }
+        if let stringValue = value as? String {
+            switch stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "true", "1", "yes":
+                return true
+            case "false", "0", "no":
+                return false
+            default:
+                break
+            }
+        }
+        return fallback
+    }
+
+    private static func floatValue(_ value: Any?, fallback: Float, range: ClosedRange<Float>) -> Float {
+        let parsed: Float?
+        if let numberValue = value as? NSNumber {
+            parsed = numberValue.floatValue
+        } else if let stringValue = value as? String {
+            parsed = Float(stringValue)
+        } else {
+            parsed = nil
+        }
+        guard let parsed else {
+            return fallback
+        }
+        return min(max(parsed, range.lowerBound), range.upperBound)
     }
 }
 
@@ -516,6 +622,7 @@ final class BroadcastSharedStore {
             payload["fps"] = configuration.fps
             payload["videoBitrateKbps"] = configuration.videoBitrateKbps
             payload["audioBitrateKbps"] = configuration.audioBitrateKbps
+            payload["micEffects"] = configuration.micEffects.asDictionary()
         }
 
         defaults.set(payload, forKey: broadcastRuntimeStateKey)
@@ -598,6 +705,13 @@ struct BroadcastVideoEncoderStats: Equatable {
     }
 }
 
+fileprivate struct BroadcastMicrophoneProcessingResult: Equatable {
+    let applied: Bool
+    let samples: [Float]
+    let gatedSamples: Int
+    let limitedSamples: Int
+}
+
 struct BroadcastAudioEncoderStats: Equatable {
     private(set) var encodedFrames: Int = 0
     private(set) var appFrames: Int = 0
@@ -608,6 +722,21 @@ struct BroadcastAudioEncoderStats: Equatable {
     private(set) var channelCount: Int = 0
     private(set) var lastPresentationTimeSeconds: Double = 0
     private(set) var lastStatus: Int32 = 0
+    private(set) var micEffectsEnabled = false
+    private(set) var micEffectsPresetId = "clean"
+    private(set) var micEffectsProcessedFrames = 0
+    private(set) var micEffectsProcessedSamples = 0
+    private(set) var micEffectsGatedSamples = 0
+    private(set) var micEffectsLimitedSamples = 0
+
+    mutating func configureMicEffects(_ configuration: BroadcastMicEffectsConfiguration) {
+        micEffectsEnabled = configuration.enabled
+        micEffectsPresetId = configuration.presetId
+        micEffectsProcessedFrames = 0
+        micEffectsProcessedSamples = 0
+        micEffectsGatedSamples = 0
+        micEffectsLimitedSamples = 0
+    }
 
     mutating func record(_ frame: BroadcastEncodedAudioFrame) {
         encodedFrames += 1
@@ -626,6 +755,16 @@ struct BroadcastAudioEncoderStats: Equatable {
         lastStatus = 0
     }
 
+    fileprivate mutating func recordMicrophoneProcessing(_ result: BroadcastMicrophoneProcessingResult) {
+        guard result.applied else {
+            return
+        }
+        micEffectsProcessedFrames += 1
+        micEffectsProcessedSamples += result.samples.count
+        micEffectsGatedSamples += result.gatedSamples
+        micEffectsLimitedSamples += result.limitedSamples
+    }
+
     mutating func recordStatus(_ status: OSStatus) {
         lastStatus = status
     }
@@ -640,7 +779,15 @@ struct BroadcastAudioEncoderStats: Equatable {
             "sampleRate": sampleRate,
             "channelCount": channelCount,
             "lastPresentationTimeSeconds": lastPresentationTimeSeconds,
-            "lastStatus": lastStatus
+            "lastStatus": lastStatus,
+            "micEffects": [
+                "enabled": micEffectsEnabled,
+                "presetId": micEffectsPresetId,
+                "processedFrames": micEffectsProcessedFrames,
+                "processedSamples": micEffectsProcessedSamples,
+                "gatedSamples": micEffectsGatedSamples,
+                "limitedSamples": micEffectsLimitedSamples
+            ]
         ]
     }
 }
@@ -1652,6 +1799,90 @@ private final class BroadcastAudioPCMConverter {
     }
 }
 
+private final class BroadcastMicrophoneProcessor {
+    private let configuration: BroadcastMicEffectsConfiguration
+    private let gain: Float
+    private let gateThreshold: Float
+    private let compressorThreshold: Float = 0.42
+    private let compressorRatio: Float
+    private var robotPhase: Float = 0
+    private var sampleCursor: Int64 = 0
+
+    init(configuration: BroadcastMicEffectsConfiguration) {
+        self.configuration = configuration
+        gain = Float(Darwin.pow(10.0, Double(configuration.inputGainDb) / 20.0))
+        gateThreshold = Float(Darwin.pow(10.0, Double(configuration.noiseGateDb) / 20.0))
+        compressorRatio = 1 + configuration.compression * 7
+    }
+
+    func process(_ samples: [Float], channelCount: Int, sampleRate: Double) -> BroadcastMicrophoneProcessingResult {
+        guard configuration.enabled, !samples.isEmpty else {
+            return BroadcastMicrophoneProcessingResult(applied: false, samples: samples, gatedSamples: 0, limitedSamples: 0)
+        }
+
+        let resolvedChannelCount = max(channelCount, 1)
+        let robotStep = sampleRate > 0 ? Float(2.0 * Double.pi * 32.0 / sampleRate) : 0
+        var processed = [Float]()
+        processed.reserveCapacity(samples.count)
+        var gatedSamples = 0
+        var limitedSamples = 0
+
+        for sample in samples {
+            var normalized = sample
+
+            if abs(normalized) < gateThreshold {
+                normalized = 0
+                gatedSamples += 1
+            }
+
+            normalized *= gain
+
+            if configuration.compression > 0 {
+                let direction: Float = normalized < 0 ? -1 : 1
+                let magnitude = abs(normalized)
+                if magnitude > compressorThreshold {
+                    normalized = direction * (compressorThreshold + (magnitude - compressorThreshold) / compressorRatio)
+                }
+            }
+
+            switch configuration.presetId {
+            case "bright":
+                normalized += normalized * abs(normalized) * 0.16
+            case "robot":
+                if sampleCursor % Int64(resolvedChannelCount) == 0 {
+                    robotPhase = (robotPhase + robotStep).truncatingRemainder(dividingBy: 2 * Float.pi)
+                }
+                normalized *= 0.55 + 0.45 * Float(Darwin.sin(Double(robotPhase)))
+            default:
+                break
+            }
+
+            let limited = softLimit(normalized)
+            if abs(limited - normalized) > 0.0001 {
+                limitedSamples += 1
+            }
+            processed.append(min(Float(1), max(Float(-1), limited)))
+            sampleCursor += 1
+        }
+
+        return BroadcastMicrophoneProcessingResult(
+            applied: true,
+            samples: processed,
+            gatedSamples: gatedSamples,
+            limitedSamples: limitedSamples
+        )
+    }
+
+    private func softLimit(_ value: Float) -> Float {
+        let numerator = Darwin.tanh(Double(value * 1.25))
+        let denominator = Darwin.tanh(1.25)
+        guard denominator != 0 else {
+            return min(Float(1), max(Float(-1), value))
+        }
+        return min(Float(1), max(Float(-1), Float(numerator / denominator)))
+    }
+}
+
 final class BroadcastAudioEncoder {
     private let configuration: BroadcastUploadConfiguration
     private let onEncodedFrame: (BroadcastEncodedAudioFrame) -> Void
@@ -1668,6 +1899,7 @@ final class BroadcastAudioEncoder {
     private var microphonePCMQueue: [Float] = []
     private var mixerNextPresentationTimeSeconds: Double?
     private var currentStats = BroadcastAudioEncoderStats()
+    private let microphoneProcessor: BroadcastMicrophoneProcessor
     private let mixerChannelCount = 2
     private let mixerFramesPerAACPacket = 1024
     private let mixerSoloFlushFrameThreshold = 2048
@@ -1686,6 +1918,8 @@ final class BroadcastAudioEncoder {
     ) {
         self.configuration = configuration
         self.onEncodedFrame = onEncodedFrame
+        microphoneProcessor = BroadcastMicrophoneProcessor(configuration: configuration.micEffects)
+        currentStats.configureMicEffects(configuration.micEffects)
     }
 
     deinit {
@@ -1797,7 +2031,15 @@ final class BroadcastAudioEncoder {
         case .app:
             appPCMQueue.append(contentsOf: frame.samples)
         case .microphone:
-            microphonePCMQueue.append(contentsOf: frame.samples)
+            let processedFrame = microphoneProcessor.process(
+                frame.samples,
+                channelCount: frame.channelCount,
+                sampleRate: frame.sampleRate
+            )
+            statsLock.performLocked {
+                self.currentStats.recordMicrophoneProcessing(processedFrame)
+            }
+            microphonePCMQueue.append(contentsOf: processedFrame.samples)
         case .mixed:
             break
         }

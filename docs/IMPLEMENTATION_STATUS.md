@@ -103,6 +103,7 @@
 - iOS host app runtime telemetry polling from the Broadcast Upload Extension, feeding bitrate, FPS, drops, reconnect attempts, errors, composition status, and still-image asset loaded/missing counts into the React Native snapshot.
 - iOS Broadcast Upload Extension VideoToolbox H.264 encoder.
 - iOS Broadcast Upload Extension AudioToolbox AAC encoder with app/mic PCM mixing.
+- iOS Broadcast Upload Extension microphone DSP applies the shared mic effects profile to ReplayKit microphone PCM before AAC mixing, including input gain, noise gate, compression, bright/robot presets, soft limiting, and runtime processing evidence.
 - iOS Broadcast Upload Extension RTMP/RTMPS publisher foundation with H.264/AAC packetization.
 - iOS RTMP publisher reconnect backoff state with bounded retry attempts.
 - iOS ReplayKit Broadcast Upload Extension compositor for PNGTuber still-image/fallback, text, image, and solid overlays on encoded frames, with App Group runtime composition status and still-image asset load/miss evidence.
@@ -149,6 +150,7 @@
 - Apple Developer account-backed iOS production archive/export validation for Broadcast Upload Extension provisioning.
 - Android end-to-end physical device validation against a real RTMP/RTMPS endpoint.
 - Android physical-device tuning for mic monitor latency and Bluetooth route behavior.
+- iOS headphone self-monitor playback from ReplayKit microphone samples with measured latency and route behavior.
 - iOS physical-device evidence that App Group-copied PNGTuber/image assets render correctly inside the Broadcast Upload Extension compositor.
 - First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
 - Live2D Cubism SDK integration.
