@@ -1,5 +1,5 @@
 import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
 import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
@@ -49,6 +49,12 @@ import {
 import { applyStreamQualityAdvisorTarget } from "../domain/streamQualityAdvisor";
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { StreamSessionSummary } from "../domain/streamSessionSummary";
+import {
+  createStreamValidationRun,
+  type StreamValidationDevicePlatform,
+  type StreamValidationRun,
+  type StreamValidationRunResult
+} from "../domain/streamValidationEvidence";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import {
   createSupportBundle,
@@ -63,6 +69,7 @@ interface MobileStudioScreenProps {
   streamSessionEvents: StreamSessionEvent[];
   streamHealthSamples: StreamHealthSample[];
   streamSessionSummaries: StreamSessionSummary[];
+  streamValidationRuns: StreamValidationRun[];
   operationStatus: StreamOperationStatus | null;
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
@@ -104,6 +111,8 @@ interface MobileStudioScreenProps {
   onPlatformChatSampleIngest(): void;
   onClearStreamKey(): void | Promise<void>;
   onClearStreamSessionSummaries(): void | Promise<void>;
+  onRecordStreamValidationRun(run: StreamValidationRun): void | Promise<void>;
+  onClearStreamValidationRuns(): void | Promise<void>;
 }
 
 const sourceLabels: Record<SourceKind, string> = {
@@ -183,6 +192,7 @@ export const MobileStudioScreen = ({
   streamSessionEvents,
   streamHealthSamples,
   streamSessionSummaries,
+  streamValidationRuns,
   operationStatus,
   readiness,
   chatReader,
@@ -223,7 +233,9 @@ export const MobileStudioScreen = ({
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
   onClearStreamKey,
-  onClearStreamSessionSummaries
+  onClearStreamSessionSummaries,
+  onRecordStreamValidationRun,
+  onClearStreamValidationRuns
 }: MobileStudioScreenProps) => {
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
@@ -243,7 +255,8 @@ export const MobileStudioScreen = ({
     snapshot,
     streamSessionEvents,
     streamHealthSamples,
-    streamSessionSummaries
+    streamSessionSummaries,
+    streamValidationRuns
   );
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
@@ -944,6 +957,8 @@ export const MobileStudioScreen = ({
           setupLocked={setupLocked}
           onProfileChange={onProfileChange}
           onClearStreamSessionSummaries={onClearStreamSessionSummaries}
+          onRecordStreamValidationRun={onRecordStreamValidationRun}
+          onClearStreamValidationRuns={onClearStreamValidationRuns}
         />
       </ScrollView>
     </SafeAreaView>
@@ -958,7 +973,9 @@ const StreamDiagnosticsPanel = ({
   diagnostics,
   setupLocked,
   onProfileChange,
-  onClearStreamSessionSummaries
+  onClearStreamSessionSummaries,
+  onRecordStreamValidationRun,
+  onClearStreamValidationRuns
 }: {
   scene: SceneDocument;
   profile: StudioProfile;
@@ -968,6 +985,8 @@ const StreamDiagnosticsPanel = ({
   setupLocked: boolean;
   onProfileChange(profile: StudioProfile): void;
   onClearStreamSessionSummaries(): void | Promise<void>;
+  onRecordStreamValidationRun(run: StreamValidationRun): void | Promise<void>;
+  onClearStreamValidationRuns(): void | Promise<void>;
 }) => (
   <Panel title="Diagnostics">
     <View style={[styles.diagnosticSummary, diagnosticSummaryStyle(diagnostics.status)]}>
@@ -1056,6 +1075,12 @@ const StreamDiagnosticsPanel = ({
         </View>
       ))}
     </View>
+    <StreamValidationRecorder
+      diagnostics={diagnostics}
+      profile={profile}
+      onRecordStreamValidationRun={onRecordStreamValidationRun}
+      onClearStreamValidationRuns={onClearStreamValidationRuns}
+    />
     {diagnostics.session.lastSummary ? (
       <View style={styles.diagnosticIncidents}>
         <View style={[styles.diagnosticIncident, diagnosticSessionHistoryStyle(diagnostics)]}>
@@ -1114,6 +1139,123 @@ const StreamDiagnosticsPanel = ({
     </View>
   </Panel>
 );
+
+const StreamValidationRecorder = ({
+  diagnostics,
+  profile,
+  onRecordStreamValidationRun,
+  onClearStreamValidationRuns
+}: {
+  diagnostics: StreamDiagnostics;
+  profile: StudioProfile;
+  onRecordStreamValidationRun(run: StreamValidationRun): void | Promise<void>;
+  onClearStreamValidationRuns(): void | Promise<void>;
+}) => {
+  const [devicePlatform, setDevicePlatform] = useState<StreamValidationDevicePlatform>("ios");
+  const [deviceName, setDeviceName] = useState("iPhone test device");
+  const [osVersion, setOsVersion] = useState("");
+  const [appBuild, setAppBuild] = useState("debug");
+  const [networkProfile, setNetworkProfile] = useState("private RTMPS");
+  const [result, setResult] = useState<StreamValidationRunResult>(() => validationRunResultFromDiagnostics(diagnostics));
+  const latestRun = diagnostics.validationEvidence.latestRun;
+
+  useEffect(() => {
+    setResult(validationRunResultFromDiagnostics(diagnostics));
+  }, [diagnostics.validation.status]);
+
+  const record = () => {
+    void onRecordStreamValidationRun(
+      createStreamValidationRun({
+        diagnostics,
+        devicePlatform,
+        deviceName,
+        osVersion,
+        appBuild,
+        networkProfile,
+        result,
+        secrets: [profile.destination.streamKey]
+      })
+    );
+  };
+
+  return (
+    <View style={styles.diagnosticIncidents}>
+      <View style={[styles.diagnosticIncidentSummary, diagnosticValidationEvidenceSummaryStyle(diagnostics)]}>
+        <Text style={[styles.diagnosticIncidentSummaryText, diagnosticValidationEvidenceSummaryTextStyle(diagnostics)]}>
+          {diagnostics.validationEvidence.summary}
+        </Text>
+      </View>
+      <View style={[styles.diagnosticIncident, diagnosticValidationEvidenceStyle(diagnostics)]}>
+        <Text style={styles.diagnosticIncidentTitle}>Physical validation evidence</Text>
+        <Text style={styles.diagnosticIncidentText}>{diagnostics.validationEvidence.recommendation}</Text>
+        <Text style={styles.diagnosticIncidentRecommendation}>
+          {diagnostics.validationEvidence.totalRuns} runs / iOS {diagnostics.validationEvidence.iosPass ? "pass" : "missing"} / Android{" "}
+          {diagnostics.validationEvidence.androidPass ? "pass" : "missing"}
+        </Text>
+      </View>
+      {latestRun ? (
+        <View style={[styles.diagnosticIncident, diagnosticValidationRunStyle(latestRun.result)]}>
+          <Text style={styles.diagnosticIncidentTitle}>Latest validation run</Text>
+          <Text style={styles.diagnosticIncidentText}>{latestRun.summary}</Text>
+          <Text style={styles.diagnosticIncidentRecommendation}>
+            {latestRun.devicePlatform} / {latestRun.osVersion} / {latestRun.networkProfile}
+          </Text>
+        </View>
+      ) : null}
+      <View style={styles.validationRecorder}>
+        <View style={styles.grid2}>
+          <ActionButton
+            label="iOS"
+            variant={devicePlatform === "ios" ? "active" : "default"}
+            onPress={() => setDevicePlatform("ios")}
+          />
+          <ActionButton
+            label="Android"
+            variant={devicePlatform === "android" ? "active" : "default"}
+            onPress={() => setDevicePlatform("android")}
+          />
+        </View>
+        <Label text="Device" />
+        <TextInput value={deviceName} onChangeText={setDeviceName} style={styles.input} placeholderTextColor="#71717a" />
+        <Label text="OS" />
+        <TextInput value={osVersion} onChangeText={setOsVersion} style={styles.input} placeholderTextColor="#71717a" />
+        <Label text="Build" />
+        <TextInput value={appBuild} onChangeText={setAppBuild} style={styles.input} placeholderTextColor="#71717a" />
+        <Label text="Network" />
+        <TextInput value={networkProfile} onChangeText={setNetworkProfile} style={styles.input} placeholderTextColor="#71717a" />
+        <View style={styles.grid3}>
+          {(["pass", "warn", "fail"] as StreamValidationRunResult[]).map((item) => (
+            <ActionButton key={item} label={item} variant={result === item ? "active" : "default"} onPress={() => setResult(item)} />
+          ))}
+        </View>
+        <ActionButton label="Record Evidence" onPress={record} />
+        <ActionButton
+          label="Clear Evidence"
+          disabled={diagnostics.validationEvidence.totalRuns === 0}
+          onPress={() => {
+            Alert.alert(
+              "Clear validation evidence?",
+              "Physical validation runs stored on this device will be removed.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Clear",
+                  style: "destructive",
+                  onPress: () => {
+                    void onClearStreamValidationRuns();
+                  }
+                }
+              ]
+            );
+          }}
+        />
+      </View>
+    </View>
+  );
+};
+
+const validationRunResultFromDiagnostics = (diagnostics: StreamDiagnostics): StreamValidationRunResult =>
+  diagnostics.validation.status === "ready" ? "pass" : diagnostics.validation.status === "blocked" ? "fail" : "warn";
 
 const DiagnosticMetric = ({ label, value }: { label: string; value: string }) => (
   <View style={styles.diagnosticMetric}>
@@ -1851,6 +1993,36 @@ const diagnosticValidationStyle = (diagnostics: StreamDiagnostics) =>
 
 const diagnosticValidationItemStyle = (status: StreamDiagnostics["validation"]["items"][number]["status"]) =>
   status === "fail" ? styles.diagnosticCheckFail : status === "pass" ? null : styles.diagnosticCheckWarn;
+
+const diagnosticValidationEvidenceSummaryStyle = (diagnostics: StreamDiagnostics) => {
+  if (diagnostics.validationEvidence.status === "failing") {
+    return styles.diagnosticFail;
+  }
+  if (diagnostics.validationEvidence.status === "ready") {
+    return styles.diagnosticPass;
+  }
+  return styles.diagnosticWarn;
+};
+
+const diagnosticValidationEvidenceSummaryTextStyle = (diagnostics: StreamDiagnostics) => {
+  if (diagnostics.validationEvidence.status === "failing") {
+    return styles.diagnosticFailText;
+  }
+  if (diagnostics.validationEvidence.status === "ready") {
+    return styles.diagnosticPassText;
+  }
+  return styles.diagnosticWarnText;
+};
+
+const diagnosticValidationEvidenceStyle = (diagnostics: StreamDiagnostics) =>
+  diagnostics.validationEvidence.status === "failing"
+    ? styles.diagnosticCheckFail
+    : diagnostics.validationEvidence.status === "ready"
+      ? null
+      : styles.diagnosticCheckWarn;
+
+const diagnosticValidationRunStyle = (result: StreamValidationRunResult) =>
+  result === "fail" ? styles.diagnosticCheckFail : result === "pass" ? null : styles.diagnosticCheckWarn;
 
 const hasCriticalQualityIncident = (diagnostics: StreamDiagnostics): boolean =>
   diagnostics.qualityIncidents.incidents.some((incident) => incident.severity === "fail");
@@ -2721,6 +2893,14 @@ const styles = StyleSheet.create({
     color: "#a1a1aa",
     fontSize: 12,
     lineHeight: 17
+  },
+  validationRecorder: {
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    padding: 9,
+    backgroundColor: "#101015"
   },
   diagnosticEvents: {
     gap: 7

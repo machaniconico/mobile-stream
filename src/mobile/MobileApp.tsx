@@ -76,6 +76,12 @@ import {
 } from "../domain/streamStartPreflight";
 import { createStreamOperationEvent, createStreamRecoveryEvent } from "../domain/streamSessionLog";
 import type { StreamSessionSummary } from "../domain/streamSessionSummary";
+import {
+  appendStreamValidationRun,
+  mergeStreamValidationRuns,
+  normalizeStreamValidationRuns,
+  type StreamValidationRun
+} from "../domain/streamValidationEvidence";
 import { MockLiveCaster } from "../native/MockLiveCaster";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { useChatSpeechQueue } from "../native/ChatSpeechEngine";
@@ -95,6 +101,11 @@ import {
   loadMobileStreamSessionSummaries,
   saveMobileStreamSessionSummaries
 } from "./sessionSummaryStore";
+import {
+  clearMobileStreamValidationRuns,
+  loadMobileStreamValidationRuns,
+  saveMobileStreamValidationRuns
+} from "./validationRunStore";
 import {
   clearSecureOAuthCredential,
   loadSecureOAuthCredential,
@@ -119,6 +130,8 @@ export const MobileApp = () => {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [persistedStreamSessionSummaries, setPersistedStreamSessionSummaries] = useState<StreamSessionSummary[]>([]);
   const [streamSessionSummariesLoaded, setStreamSessionSummariesLoaded] = useState(false);
+  const [streamValidationRuns, setStreamValidationRuns] = useState<StreamValidationRun[]>([]);
+  const [streamValidationRunsLoaded, setStreamValidationRunsLoaded] = useState(false);
   const [chatReader, setChatReader] = useState(() => createDefaultChatReaderState());
   const [platformChatAuth, setPlatformChatAuth] = useState<PlatformChatAuthSession>(() => createDefaultPlatformChatAuthSession());
   const [platformChatOAuth, setPlatformChatOAuth] = useState<PlatformChatOAuthSettings>(() => createDefaultPlatformChatOAuthSettings());
@@ -330,6 +343,32 @@ export const MobileApp = () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadMobileStreamValidationRuns()
+      .catch(() => [])
+      .then((storedRuns) => {
+        if (!cancelled) {
+          setStreamValidationRuns((current) => mergeStreamValidationRuns(current, storedRuns));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setStreamValidationRunsLoaded(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!streamValidationRunsLoaded) {
+      return;
+    }
+    void saveMobileStreamValidationRuns(streamValidationRuns).catch(() => undefined);
+  }, [streamValidationRuns, streamValidationRunsLoaded]);
 
   useEffect(() => {
     let cancelled = false;
@@ -683,6 +722,18 @@ export const MobileApp = () => {
     streamSessionSummaries.clearSummaries();
   };
 
+  const recordStreamValidationRun = (run: StreamValidationRun) => {
+    setStreamValidationRuns((current) => {
+      const next = appendStreamValidationRun(current, run);
+      return next;
+    });
+  };
+
+  const clearRecordedStreamValidationRuns = () => {
+    setStreamValidationRuns([]);
+    void clearMobileStreamValidationRuns().catch(() => undefined);
+  };
+
   return (
     <SafeAreaProvider>
       <MobileStudioScreen
@@ -693,6 +744,7 @@ export const MobileApp = () => {
         streamSessionEvents={streamSessionEvents}
         streamHealthSamples={streamHealthSamples}
         streamSessionSummaries={streamSessionSummaries.summaries}
+        streamValidationRuns={streamValidationRuns}
         operationStatus={operationStatus}
         readiness={readiness}
         chatReader={chatReader}
@@ -734,6 +786,8 @@ export const MobileApp = () => {
         onPlatformChatSampleIngest={ingestPlatformChatSample}
         onClearStreamKey={clearSavedStreamKey}
         onClearStreamSessionSummaries={clearCompletedStreamSessionSummaries}
+        onRecordStreamValidationRun={recordStreamValidationRun}
+        onClearStreamValidationRuns={clearRecordedStreamValidationRuns}
       />
     </SafeAreaProvider>
   );

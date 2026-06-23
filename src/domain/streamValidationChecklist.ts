@@ -4,6 +4,7 @@ import type {
   StreamSessionHistorySummary,
   StreamSessionOutcome
 } from "./streamSessionSummary";
+import type { StreamValidationEvidenceSummary } from "./streamValidationEvidence";
 import type { StreamStatus } from "./streamState";
 
 export type StreamValidationChecklistStatus = "blocked" | "needs-test" | "ready";
@@ -62,6 +63,7 @@ export interface StreamValidationChecklistInput {
     historySummary: StreamSessionHistorySummary;
     lastOutcome: StreamSessionOutcome | null;
   };
+  evidence: StreamValidationEvidenceSummary;
 }
 
 export const createStreamValidationChecklist = ({
@@ -70,16 +72,17 @@ export const createStreamValidationChecklist = ({
   target,
   telemetry,
   health,
-  session
+  session,
+  evidence
 }: StreamValidationChecklistInput): StreamValidationChecklist => {
   const items = [
     createReadinessItem(readiness),
     createTransportItem(target),
     createIngestItem(diagnosticStatus, telemetry, health),
-    createPlatformItem(target.platform, telemetry, health),
-    createDeviceItem(session),
+    createPlatformItem(target.platform, telemetry, health, evidence),
+    createDeviceItem(session, evidence),
     createSessionBaselineItem(session),
-    createEvidenceItem(readiness, health, session)
+    createEvidenceItem(readiness, health, session, evidence)
   ];
   const passCount = countStatus(items, "pass");
   const warningCount = countStatus(items, "warn");
@@ -257,9 +260,43 @@ const createIngestItem = (
 const createPlatformItem = (
   platform: string,
   telemetry: StreamValidationChecklistInput["telemetry"],
-  health: StreamValidationChecklistInput["health"]
+  health: StreamValidationChecklistInput["health"],
+  evidence: StreamValidationEvidenceSummary
 ): StreamValidationChecklistItem => {
   const platformLabel = platform || "Custom";
+
+  if (evidence.passedTargetPlatforms.includes(platformLabel)) {
+    return {
+      id: "platform-ingest-validated",
+      area: "platform",
+      status: "pass",
+      title: "Destination ingest dashboard",
+      detail: `${platformLabel} has a retained passing physical validation run.`,
+      action: "Keep the destination dashboard evidence refreshed for each release candidate."
+    };
+  }
+
+  if (evidence.latestRun?.targetPlatform === platformLabel && evidence.latestRun.result === "fail") {
+    return {
+      id: "platform-ingest-validation-failed",
+      area: "platform",
+      status: "fail",
+      title: "Destination ingest dashboard",
+      detail: `${platformLabel} latest physical validation run failed.`,
+      action: "Fix the destination ingest failure and record a passing private validation run."
+    };
+  }
+
+  if (evidence.latestRun?.targetPlatform === platformLabel && evidence.latestRun.result === "warn") {
+    return {
+      id: "platform-ingest-validation-watch",
+      area: "platform",
+      status: "warn",
+      title: "Destination ingest dashboard",
+      detail: `${platformLabel} has a retained validation run that still needs review.`,
+      action: "Repeat the destination dashboard validation until it passes cleanly."
+    };
+  }
 
   if (telemetry.streamStatus === "failed") {
     return {
@@ -274,12 +311,12 @@ const createPlatformItem = (
 
   if (telemetry.streamStatus === "live" && health.sampleCount > 0) {
     return {
-      id: "platform-ingest-live",
+      id: "platform-ingest-live-unretained",
       area: "platform",
-      status: "pass",
+      status: "warn",
       title: "Destination ingest dashboard",
-      detail: `${platformLabel} is receiving a live publish session from the app.`,
-      action: "Confirm the destination dashboard shows healthy ingest before making the stream public."
+      detail: `${platformLabel} is receiving a live publish session, but no retained validation run confirms dashboard health.`,
+      action: "Record a physical validation run after confirming the destination dashboard is healthy."
     };
   }
 
@@ -294,16 +331,50 @@ const createPlatformItem = (
 };
 
 const createDeviceItem = (
-  session: StreamValidationChecklistInput["session"]
+  session: StreamValidationChecklistInput["session"],
+  evidence: StreamValidationEvidenceSummary
 ): StreamValidationChecklistItem => {
-  if (session.historySummary.stability === "baseline") {
+  if (evidence.status === "ready") {
     return {
-      id: "device-baseline",
+      id: "device-validation-ready",
       area: "device",
       status: "pass",
       title: "Physical device audio/video pass",
-      detail: `${session.historySummary.totalSessions} clean completed sessions are retained as a device baseline.`,
-      action: "Repeat the baseline on each target iOS and Android device class before store release."
+      detail: "Passing validation runs are retained for both iOS and Android.",
+      action: "Repeat the validation baseline on each release candidate build."
+    };
+  }
+
+  if (evidence.status === "failing") {
+    return {
+      id: "device-validation-failing",
+      area: "device",
+      status: "fail",
+      title: "Physical device audio/video pass",
+      detail: evidence.summary,
+      action: evidence.recommendation
+    };
+  }
+
+  if (evidence.status === "partial") {
+    return {
+      id: "device-validation-partial",
+      area: "device",
+      status: "warn",
+      title: "Physical device audio/video pass",
+      detail: evidence.summary,
+      action: evidence.recommendation
+    };
+  }
+
+  if (session.historySummary.stability === "baseline") {
+    return {
+      id: "device-session-baseline-only",
+      area: "device",
+      status: "warn",
+      title: "Physical device audio/video pass",
+      detail: `${session.historySummary.totalSessions} clean completed sessions are retained, but no explicit physical validation run exists.`,
+      action: "Record passing validation runs on both iOS and Android devices before store release."
     };
   }
 
@@ -388,7 +459,8 @@ const createSessionBaselineItem = (
 const createEvidenceItem = (
   readiness: ReadinessReport,
   health: StreamValidationChecklistInput["health"],
-  session: StreamValidationChecklistInput["session"]
+  session: StreamValidationChecklistInput["session"],
+  evidence: StreamValidationEvidenceSummary
 ): StreamValidationChecklistItem => {
   if (readiness.errorCount > 0) {
     return {
@@ -401,14 +473,47 @@ const createEvidenceItem = (
     };
   }
 
-  if (health.sampleCount > 0 && session.summaryCount > 0) {
+  if (evidence.status === "ready" && health.sampleCount > 0 && session.summaryCount > 0) {
     return {
-      id: "evidence-retained",
+      id: "evidence-release-candidate",
       area: "evidence",
       status: "pass",
       title: "Support evidence bundle",
-      detail: "Health telemetry and a completed session summary are available for export.",
-      action: "Export diagnostics and a support bundle after each release-candidate stream."
+      detail: "Physical validation runs, health telemetry, and completed session summaries are ready for export.",
+      action: "Export diagnostics and support bundle for every release-candidate validation pass."
+    };
+  }
+
+  if (evidence.status === "failing") {
+    return {
+      id: "evidence-validation-failing",
+      area: "evidence",
+      status: "fail",
+      title: "Support evidence bundle",
+      detail: evidence.summary,
+      action: evidence.recommendation
+    };
+  }
+
+  if (evidence.totalRuns > 0) {
+    return {
+      id: "evidence-validation-partial",
+      area: "evidence",
+      status: "warn",
+      title: "Support evidence bundle",
+      detail: evidence.summary,
+      action: evidence.recommendation
+    };
+  }
+
+  if (health.sampleCount > 0 && session.summaryCount > 0) {
+    return {
+      id: "evidence-session-retained",
+      area: "evidence",
+      status: "warn",
+      title: "Support evidence bundle",
+      detail: "Health telemetry and a completed session summary are available, but physical validation evidence is not retained.",
+      action: "Record physical iOS and Android validation runs, then export diagnostics and support bundle."
     };
   }
 

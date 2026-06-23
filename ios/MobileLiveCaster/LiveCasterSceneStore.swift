@@ -5,6 +5,7 @@ import React
 final class LiveCasterSceneStore: NSObject {
     private let fileName = "mobile-live-caster-scene.json"
     private let sessionSummariesFileName = "mobile-live-caster-session-summaries.json"
+    private let validationRunsFileName = "mobile-live-caster-validation-runs.json"
 
     @objc
     static func requiresMainQueueSetup() -> Bool {
@@ -131,11 +132,75 @@ final class LiveCasterSceneStore: NSObject {
         }
     }
 
+    @objc(saveValidationRuns:resolver:rejecter:)
+    func saveValidationRuns(
+        _ runsJson: String,
+        resolver resolve: RCTPromiseResolveBlock,
+        rejecter reject: RCTPromiseRejectBlock
+    ) {
+        guard let data = runsJson.data(using: .utf8), let url = validationRunsURL() else {
+            reject("validation_run_store_encode_failed", "Validation runs could not be encoded as UTF-8", nil)
+            return
+        }
+
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: url, options: .atomic)
+            resolve(true)
+        } catch {
+            reject("validation_run_store_save_failed", "Validation runs save failed", error)
+        }
+    }
+
+    @objc(loadValidationRuns:rejecter:)
+    func loadValidationRuns(
+        _ resolve: RCTPromiseResolveBlock,
+        rejecter reject: RCTPromiseRejectBlock
+    ) {
+        guard let url = validationRunsURL() else {
+            resolve(nil)
+            return
+        }
+
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            resolve(nil)
+            return
+        }
+
+        do {
+            resolve(try String(contentsOf: url, encoding: .utf8))
+        } catch {
+            reject("validation_run_store_load_failed", "Validation runs load failed", error)
+        }
+    }
+
+    @objc(clearValidationRuns:rejecter:)
+    func clearValidationRuns(
+        _ resolve: RCTPromiseResolveBlock,
+        rejecter reject: RCTPromiseRejectBlock
+    ) {
+        guard let url = validationRunsURL(), FileManager.default.fileExists(atPath: url.path) else {
+            resolve(true)
+            return
+        }
+
+        do {
+            try FileManager.default.removeItem(at: url)
+            resolve(true)
+        } catch {
+            reject("validation_run_store_clear_failed", "Validation runs clear failed", error)
+        }
+    }
+
     private func sceneURL() -> URL? {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appendingPathComponent(fileName)
     }
 
     private func sessionSummariesURL() -> URL? {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appendingPathComponent(sessionSummariesFileName)
+    }
+
+    private func validationRunsURL() -> URL? {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appendingPathComponent(validationRunsFileName)
     }
 }

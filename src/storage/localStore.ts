@@ -4,10 +4,15 @@ import {
   normalizeStreamSessionSummaries,
   type StreamSessionSummary
 } from "../domain/streamSessionSummary";
+import {
+  normalizeStreamValidationRuns,
+  type StreamValidationRun
+} from "../domain/streamValidationEvidence";
 
 const SCENE_KEY = "mobile-live-caster.scene";
 const PROFILE_KEY = "mobile-live-caster.profile";
 const STREAM_SESSION_SUMMARIES_KEY = "mobile-live-caster.stream-session-summaries";
+const STREAM_VALIDATION_RUNS_KEY = "mobile-live-caster.stream-validation-runs";
 
 const safeParse = <T>(value: string | null): T | null => {
   if (!value) {
@@ -71,4 +76,25 @@ export const clearStreamSessionSummaries = (): void => {
     return;
   }
   localStorage.removeItem(STREAM_SESSION_SUMMARIES_KEY);
+};
+
+export const loadStreamValidationRuns = (): StreamValidationRun[] => {
+  if (!hasLocalStorage()) {
+    return [];
+  }
+  return normalizeStreamValidationRuns(safeParse<unknown>(localStorage.getItem(STREAM_VALIDATION_RUNS_KEY)));
+};
+
+export const saveStreamValidationRuns = (runs: StreamValidationRun[]): void => {
+  if (!hasLocalStorage()) {
+    return;
+  }
+  localStorage.setItem(STREAM_VALIDATION_RUNS_KEY, JSON.stringify(normalizeStreamValidationRuns(runs)));
+};
+
+export const clearStreamValidationRuns = (): void => {
+  if (!hasLocalStorage()) {
+    return;
+  }
+  localStorage.removeItem(STREAM_VALIDATION_RUNS_KEY);
 };

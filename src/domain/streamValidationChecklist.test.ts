@@ -11,6 +11,7 @@ import {
   createStreamValidationChecklist,
   type StreamValidationChecklistInput
 } from "./streamValidationChecklist";
+import { summarizeStreamValidationEvidence, type StreamValidationEvidenceSummary } from "./streamValidationEvidence";
 
 const stableHealth: StreamHealthHistorySummary = {
   sampleCount: 5,
@@ -79,7 +80,8 @@ const defaultInput = (streamKey = "validation-demo"): StreamValidationChecklistI
       summaryCount: 0,
       historySummary: createStreamSessionHistorySummary([]),
       lastOutcome: null
-    }
+    },
+    evidence: summarizeStreamValidationEvidence([])
   };
 };
 
@@ -102,7 +104,7 @@ describe("stream validation checklist", () => {
     expect(checklist.items.find((item) => item.id === "ingest-not-run")?.status).toBe("pending");
   });
 
-  it("passes when live telemetry and a clean retained baseline are available", () => {
+  it("stays in needs-test when live telemetry is clean but physical validation evidence is missing", () => {
     const sessions = [cleanSession(1), cleanSession(2), cleanSession(3)];
     const input = defaultInput();
     const checklist = createStreamValidationChecklist({
@@ -124,6 +126,35 @@ describe("stream validation checklist", () => {
         historySummary: createStreamSessionHistorySummary(sessions),
         lastOutcome: "clean"
       }
+    });
+
+    expect(checklist.status).toBe("needs-test");
+    expect(checklist.items.find((item) => item.id === "device-session-baseline-only")?.status).toBe("warn");
+  });
+
+  it("passes when live telemetry, a clean baseline, and iOS/Android validation evidence are available", () => {
+    const sessions = [cleanSession(1), cleanSession(2), cleanSession(3)];
+    const input = defaultInput();
+    const checklist = createStreamValidationChecklist({
+      ...input,
+      telemetry: {
+        streamStatus: "live",
+        bitrateKbps: 3500,
+        fps: 30,
+        droppedFrames: 0,
+        reconnectAttempts: 0
+      },
+      health: {
+        sampleCount: 5,
+        stability: "stable"
+      },
+      session: {
+        eventCount: 0,
+        summaryCount: sessions.length,
+        historySummary: createStreamSessionHistorySummary(sessions),
+        lastOutcome: "clean"
+      },
+      evidence: readyEvidence()
     });
 
     expect(checklist.status).toBe("ready");
@@ -161,10 +192,33 @@ describe("stream validation checklist", () => {
         summaryCount: 1,
         historySummary: createStreamSessionHistorySummary([failedSession]),
         lastOutcome: "fail"
+      },
+      evidence: {
+        ...summarizeStreamValidationEvidence([]),
+        totalRuns: 1,
+        failureCount: 1,
+        status: "failing",
+        summary: "1 failed validation run retained.",
+        recommendation: "Fix the failed physical validation run before public launch."
       }
     });
 
     expect(checklist.status).toBe("blocked");
     expect(checklist.items.find((item) => item.id === "session-unstable")?.status).toBe("fail");
   });
+});
+
+const readyEvidence = (): StreamValidationEvidenceSummary => ({
+  totalRuns: 2,
+  passCount: 2,
+  warningCount: 0,
+  failureCount: 0,
+  status: "ready",
+  iosPass: true,
+  androidPass: true,
+  passedTargetPlatforms: ["YouTube Live"],
+  latestRun: null,
+  latestPassingRun: null,
+  summary: "Physical validation baseline retained for iOS and Android across 2 runs.",
+  recommendation: "Keep iOS and Android validation runs updated for every release candidate."
 });

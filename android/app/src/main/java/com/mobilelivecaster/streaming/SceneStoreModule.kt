@@ -16,6 +16,7 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
         private const val PREFS_NAME = "mobile_live_caster_scene_store"
         private const val SCENE_JSON = "scene_json"
         private const val SESSION_SUMMARIES_JSON = "session_summaries_json"
+        private const val VALIDATION_RUNS_JSON = "validation_runs_json"
     }
 
     override fun getName(): String = NAME
@@ -67,6 +68,31 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun clearSessionSummaries(promise: Promise) {
         prefs().edit().remove(SESSION_SUMMARIES_JSON).apply()
+        promise.resolve(true)
+    }
+
+    @ReactMethod
+    fun saveValidationRuns(runsJson: String, promise: Promise) {
+        try {
+            prefs().edit().putString(VALIDATION_RUNS_JSON, runsJson).apply()
+            promise.resolve(true)
+        } catch (error: Throwable) {
+            promise.reject("validation_run_store_save_failed", error)
+        }
+    }
+
+    @ReactMethod
+    fun loadValidationRuns(promise: Promise) {
+        try {
+            promise.resolve(prefs().getString(VALIDATION_RUNS_JSON, null))
+        } catch (error: Throwable) {
+            promise.reject("validation_run_store_load_failed", error)
+        }
+    }
+
+    @ReactMethod
+    fun clearValidationRuns(promise: Promise) {
+        prefs().edit().remove(VALIDATION_RUNS_JSON).apply()
         promise.resolve(true)
     }
 

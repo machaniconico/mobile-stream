@@ -1,13 +1,23 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createDefaultStudioProfile } from "../domain/profiles";
+import { createReadinessReport } from "../domain/readiness";
+import { createDefaultScene } from "../domain/scene";
 import { type StreamHealthSample } from "../domain/streamHealthHistory";
+import { createStreamDiagnostics } from "../domain/streamDiagnostics";
 import { createStreamSessionSummary } from "../domain/streamSessionSummary";
+import { createStreamValidationRun } from "../domain/streamValidationEvidence";
+import { initialStreamState } from "../domain/streamState";
 import {
   clearStreamSessionSummaries,
+  clearStreamValidationRuns,
   loadStreamSessionSummaries,
-  saveStreamSessionSummaries
+  loadStreamValidationRuns,
+  saveStreamSessionSummaries,
+  saveStreamValidationRuns
 } from "./localStore";
 
 const sessionSummaryStorageKey = "mobile-live-caster.stream-session-summaries";
+const validationRunsStorageKey = "mobile-live-caster.stream-validation-runs";
 
 const createMemoryStorage = (): Storage => {
   const values = new Map<string, string>();
@@ -65,5 +75,39 @@ describe("local stream session summary store", () => {
 
     expect(loadStreamSessionSummaries()).toEqual([]);
     expect(storage.getItem(sessionSummaryStorageKey)).toBeNull();
+  });
+
+  it("saves, loads, and clears physical validation runs", () => {
+    const storage = createMemoryStorage();
+    vi.stubGlobal("localStorage", storage);
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: "validation-key"
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: initialStreamState.health
+    });
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      result: "warn",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+
+    saveStreamValidationRuns([run]);
+
+    expect(loadStreamValidationRuns()).toHaveLength(1);
+    expect(storage.getItem(validationRunsStorageKey)).toContain(run.id);
+
+    clearStreamValidationRuns();
+
+    expect(loadStreamValidationRuns()).toEqual([]);
+    expect(storage.getItem(validationRunsStorageKey)).toBeNull();
   });
 });

@@ -22,4 +22,14 @@ RCT_EXTERN_METHOD(loadSessionSummaries:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(clearSessionSummaries:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(saveValidationRuns:(NSString *)runsJson
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(loadValidationRuns:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(clearValidationRuns:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end

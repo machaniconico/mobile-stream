@@ -32,6 +32,11 @@ import {
   createStreamValidationChecklist,
   type StreamValidationChecklist
 } from "./streamValidationChecklist";
+import {
+  summarizeStreamValidationEvidence,
+  type StreamValidationEvidenceSummary,
+  type StreamValidationRun
+} from "./streamValidationEvidence";
 import type { StreamHealth, StreamStatus } from "./streamState";
 
 export type DiagnosticStatus = "pass" | "warn" | "fail" | "info";
@@ -87,6 +92,7 @@ export interface StreamDiagnostics {
     lastSummary: StreamSessionSummary | null;
     historySummary: StreamSessionHistorySummary;
   };
+  validationEvidence: StreamValidationEvidenceSummary;
   validation: StreamValidationChecklist;
   checks: DiagnosticCheck[];
 }
@@ -120,7 +126,8 @@ export const createStreamDiagnostics = (
   snapshot: SnapshotLike,
   sessionEvents: StreamSessionEvent[] = [],
   healthSamples: StreamHealthSample[] = [],
-  sessionSummaries: StreamSessionSummary[] = []
+  sessionSummaries: StreamSessionSummary[] = [],
+  validationRuns: StreamValidationRun[] = []
 ): StreamDiagnostics => {
   const destination = readiness.sanitizedProfile.destination;
   const quality = readiness.sanitizedProfile.quality;
@@ -170,6 +177,7 @@ export const createStreamDiagnostics = (
   ];
   const status = summaryStatus(checks);
   const sessionHistorySummary = createStreamSessionHistorySummary(sessionSummaries);
+  const validationEvidence = summarizeStreamValidationEvidence(validationRuns);
   const validation = createStreamValidationChecklist({
     readiness,
     diagnosticStatus: status,
@@ -194,7 +202,8 @@ export const createStreamDiagnostics = (
       summaryCount: sessionSummaries.length,
       historySummary: sessionHistorySummary,
       lastOutcome: sessionSummaries[0]?.outcome ?? null
-    }
+    },
+    evidence: validationEvidence
   });
 
   return {
@@ -242,6 +251,7 @@ export const createStreamDiagnostics = (
       lastSummary: sessionSummaries[0] ?? null,
       historySummary: sessionHistorySummary
     },
+    validationEvidence,
     validation,
     checks
   };
@@ -347,6 +357,9 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Summary: ${diagnostics.validation.summary}`,
     `- Next step: ${diagnostics.validation.recommendedNextStep}`,
     `- Counts: ${diagnostics.validation.passCount} pass / ${diagnostics.validation.warningCount} warn / ${diagnostics.validation.failCount} fail / ${diagnostics.validation.pendingCount} pending`,
+    `- Evidence: ${diagnostics.validationEvidence.summary}`,
+    `- Evidence recommendation: ${diagnostics.validationEvidence.recommendation}`,
+    `- Evidence runs: ${diagnostics.validationEvidence.totalRuns}`,
     ...diagnostics.validation.items.map(
       (item) => `- [${item.status.toUpperCase()}] ${item.title}: ${item.detail} Action: ${item.action}`
     ),

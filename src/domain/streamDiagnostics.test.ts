@@ -44,6 +44,8 @@ describe("stream diagnostics", () => {
     expect(diagnostics.recovery.attemptsRemaining).toBe(5);
     expect(diagnostics.validation.status).toBe("needs-test");
     expect(diagnostics.validation.items.find((item) => item.id === "ingest-not-run")?.status).toBe("pending");
+    expect(diagnostics.validationEvidence.status).toBe("none");
+    expect(diagnostics.validationEvidence.totalRuns).toBe(0);
   });
 
   it("reports blocking checks when the stream key is missing", () => {
@@ -281,10 +283,12 @@ describe("stream diagnostics", () => {
     expect(json).toContain("historySummary");
     expect(json).toContain("lastSummary");
     expect(json).toContain("validation");
+    expect(json).toContain("validationEvidence");
     expect(report.diagnostics.session.lastSummary?.outcome).toBe("clean");
     expect(report.diagnostics.session.historySummary.totalSessions).toBe(1);
     expect(report.diagnostics.session.historySummary.cleanRate).toBe(100);
     expect(report.diagnostics.validation.status).toBe("needs-test");
+    expect(report.diagnostics.validationEvidence.summary).toContain("No physical validation");
     expect(text).toContain("History recommendation");
     expect(json).toContain(redactStreamKey(demoStreamKey));
     expect(text).toContain(redactStreamKey(demoStreamKey));

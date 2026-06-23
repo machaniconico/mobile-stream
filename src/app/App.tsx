@@ -67,6 +67,11 @@ import {
   formatStreamStartPreflightBlockMessage
 } from "../domain/streamStartPreflight";
 import { createStreamOperationEvent, createStreamRecoveryEvent } from "../domain/streamSessionLog";
+import {
+  appendStreamValidationRun,
+  normalizeStreamValidationRuns,
+  type StreamValidationRun
+} from "../domain/streamValidationEvidence";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { MockLiveCaster } from "../native/MockLiveCaster";
 import { useChatSpeechQueue } from "../native/ChatSpeechEngine";
@@ -77,12 +82,15 @@ import { useStreamSessionLog } from "../native/useStreamSessionLog";
 import { useStreamSessionSummaries } from "../native/useStreamSessionSummaries";
 import {
   clearStreamSessionSummaries,
+  clearStreamValidationRuns,
   loadProfile,
   loadScene,
   loadStreamSessionSummaries,
+  loadStreamValidationRuns,
   saveProfile,
   saveScene,
-  saveStreamSessionSummaries
+  saveStreamSessionSummaries,
+  saveStreamValidationRuns
 } from "../storage/localStore";
 import { StudioScreen } from "../screens/StudioScreen";
 import { WebChatSpeechEngine } from "./WebChatSpeechEngine";
@@ -113,6 +121,10 @@ export const App = () => {
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
   const persistableSceneJson = useMemo(() => JSON.stringify(stripTransientSceneRuntime(scene)), [scene]);
   const initialStreamSessionSummaries = useMemo(() => loadStreamSessionSummaries(), []);
+  const initialStreamValidationRuns = useMemo(() => loadStreamValidationRuns(), []);
+  const [streamValidationRuns, setStreamValidationRuns] = useState<StreamValidationRun[]>(() =>
+    normalizeStreamValidationRuns(initialStreamValidationRuns)
+  );
   const platformChatConnection = usePlatformChatConnection({
     settings: profile.platformChat,
     auth: platformChatAuth,
@@ -444,6 +456,19 @@ export const App = () => {
     streamSessionSummaries.clearSummaries();
   };
 
+  const recordStreamValidationRun = (run: StreamValidationRun) => {
+    setStreamValidationRuns((current) => {
+      const next = appendStreamValidationRun(current, run);
+      saveStreamValidationRuns(next);
+      return next;
+    });
+  };
+
+  const clearRecordedStreamValidationRuns = () => {
+    clearStreamValidationRuns();
+    setStreamValidationRuns([]);
+  };
+
   return (
     <StudioScreen
       scene={scene}
@@ -453,6 +478,7 @@ export const App = () => {
       streamSessionEvents={streamSessionEvents}
       streamHealthSamples={streamHealthSamples}
       streamSessionSummaries={streamSessionSummaries.summaries}
+      streamValidationRuns={streamValidationRuns}
       operationStatus={operationStatus}
       readiness={readiness}
       chatReader={chatReader}
@@ -494,6 +520,8 @@ export const App = () => {
       onPlatformChatSampleIngest={ingestPlatformChatSample}
       onClearStreamKey={clearSavedStreamKey}
       onClearStreamSessionSummaries={clearCompletedStreamSessionSummaries}
+      onRecordStreamValidationRun={recordStreamValidationRun}
+      onClearStreamValidationRuns={clearRecordedStreamValidationRuns}
     />
   );
 };

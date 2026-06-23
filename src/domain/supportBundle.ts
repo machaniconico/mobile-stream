@@ -39,6 +39,12 @@ export interface SupportBundle {
     validationPendingCount: number;
     validationWarningCount: number;
     validationFailCount: number;
+    validationEvidenceStatus: StreamDiagnostics["validationEvidence"]["status"];
+    validationEvidenceRunCount: number;
+    validationEvidencePassCount: number;
+    validationEvidenceFailureCount: number;
+    validationEvidenceIosPass: boolean;
+    validationEvidenceAndroidPass: boolean;
     qualityAdvisorAction: StreamDiagnostics["qualityAdvisor"]["action"];
     qualityAdvisorSeverity: StreamDiagnostics["qualityAdvisor"]["severity"];
     suggestedQualityTarget: string | null;
@@ -145,6 +151,12 @@ export const createSupportBundle = ({
       validationPendingCount: diagnostics.validation.pendingCount,
       validationWarningCount: diagnostics.validation.warningCount,
       validationFailCount: diagnostics.validation.failCount,
+      validationEvidenceStatus: diagnostics.validationEvidence.status,
+      validationEvidenceRunCount: diagnostics.validationEvidence.totalRuns,
+      validationEvidencePassCount: diagnostics.validationEvidence.passCount,
+      validationEvidenceFailureCount: diagnostics.validationEvidence.failureCount,
+      validationEvidenceIosPass: diagnostics.validationEvidence.iosPass,
+      validationEvidenceAndroidPass: diagnostics.validationEvidence.androidPass,
       qualityAdvisorAction: diagnostics.qualityAdvisor.action,
       qualityAdvisorSeverity: diagnostics.qualityAdvisor.severity,
       suggestedQualityTarget: diagnostics.qualityAdvisor.suggestedTarget
@@ -264,6 +276,10 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Failures: ${bundle.summary.validationFailCount}`,
     `- Summary: ${bundle.diagnostics.validation.summary}`,
     `- Next step: ${bundle.diagnostics.validation.recommendedNextStep}`,
+    `- Evidence: ${bundle.summary.validationEvidenceStatus} / ${bundle.summary.validationEvidenceRunCount} runs / ${bundle.summary.validationEvidencePassCount} pass / ${bundle.summary.validationEvidenceFailureCount} fail`,
+    `- Physical coverage: iOS ${bundle.summary.validationEvidenceIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAndroidPass ? "pass" : "missing"}`,
+    `- Evidence summary: ${bundle.diagnostics.validationEvidence.summary}`,
+    `- Evidence recommendation: ${bundle.diagnostics.validationEvidence.recommendation}`,
     ...bundle.diagnostics.validation.items.map(
       (item) => `- [${item.status.toUpperCase()}] ${item.title}: ${item.detail} Action: ${item.action}`
     ),

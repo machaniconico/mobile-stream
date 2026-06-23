@@ -23,7 +23,7 @@ import {
   Volume2,
   Wifi
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
 import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
@@ -62,6 +62,12 @@ import {
 import { applyStreamQualityAdvisorTarget } from "../domain/streamQualityAdvisor";
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { StreamSessionSummary } from "../domain/streamSessionSummary";
+import {
+  createStreamValidationRun,
+  type StreamValidationDevicePlatform,
+  type StreamValidationRun,
+  type StreamValidationRunResult
+} from "../domain/streamValidationEvidence";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import {
   createSupportBundle,
@@ -78,6 +84,7 @@ interface StudioScreenProps {
   streamSessionEvents: StreamSessionEvent[];
   streamHealthSamples: StreamHealthSample[];
   streamSessionSummaries: StreamSessionSummary[];
+  streamValidationRuns: StreamValidationRun[];
   operationStatus: StreamOperationStatus | null;
   readiness: ReadinessReport;
   chatReader: ChatReaderState;
@@ -119,6 +126,8 @@ interface StudioScreenProps {
   onPlatformChatSampleIngest(): void;
   onClearStreamKey(): void;
   onClearStreamSessionSummaries(): void;
+  onRecordStreamValidationRun(run: StreamValidationRun): void;
+  onClearStreamValidationRuns(): void;
 }
 
 const sourceLabels: Record<SourceKind, string> = {
@@ -248,6 +257,7 @@ export const StudioScreen = ({
   streamSessionEvents,
   streamHealthSamples,
   streamSessionSummaries,
+  streamValidationRuns,
   operationStatus,
   readiness,
   chatReader,
@@ -288,7 +298,9 @@ export const StudioScreen = ({
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
   onClearStreamKey,
-  onClearStreamSessionSummaries
+  onClearStreamSessionSummaries,
+  onRecordStreamValidationRun,
+  onClearStreamValidationRuns
 }: StudioScreenProps) => {
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
@@ -308,7 +320,8 @@ export const StudioScreen = ({
     snapshot,
     streamSessionEvents,
     streamHealthSamples,
-    streamSessionSummaries
+    streamSessionSummaries,
+    streamValidationRuns
   );
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
     if (setupLocked) {
@@ -784,6 +797,8 @@ export const StudioScreen = ({
             setupLocked={setupLocked}
             onProfileChange={onProfileChange}
             onClearStreamSessionSummaries={onClearStreamSessionSummaries}
+            onRecordStreamValidationRun={onRecordStreamValidationRun}
+            onClearStreamValidationRuns={onClearStreamValidationRuns}
           />
         </aside>
       </section>
@@ -818,7 +833,9 @@ const StreamDiagnosticsPanel = ({
   diagnostics,
   setupLocked,
   onProfileChange,
-  onClearStreamSessionSummaries
+  onClearStreamSessionSummaries,
+  onRecordStreamValidationRun,
+  onClearStreamValidationRuns
 }: {
   scene: SceneDocument;
   profile: StudioProfile;
@@ -828,6 +845,8 @@ const StreamDiagnosticsPanel = ({
   setupLocked: boolean;
   onProfileChange(profile: StudioProfile): void;
   onClearStreamSessionSummaries(): void;
+  onRecordStreamValidationRun(run: StreamValidationRun): void;
+  onClearStreamValidationRuns(): void;
 }) => (
   <section className="control-panel">
     <PanelTitle icon={<Activity size={18} />} title="Diagnostics" />
@@ -935,6 +954,12 @@ const StreamDiagnosticsPanel = ({
         </div>
       ))}
     </div>
+    <StreamValidationRecorder
+      diagnostics={diagnostics}
+      profile={profile}
+      onRecordStreamValidationRun={onRecordStreamValidationRun}
+      onClearStreamValidationRuns={onClearStreamValidationRuns}
+    />
     {diagnostics.session.lastSummary ? (
       <div className="diagnostic-incidents">
         <div className={`diagnostic-incident ${sessionHistoryTone(diagnostics)}`}>
@@ -986,6 +1011,142 @@ const StreamDiagnosticsPanel = ({
     </div>
   </section>
 );
+
+const StreamValidationRecorder = ({
+  diagnostics,
+  profile,
+  onRecordStreamValidationRun,
+  onClearStreamValidationRuns
+}: {
+  diagnostics: StreamDiagnostics;
+  profile: StudioProfile;
+  onRecordStreamValidationRun(run: StreamValidationRun): void;
+  onClearStreamValidationRuns(): void;
+}) => {
+  const [devicePlatform, setDevicePlatform] = useState<StreamValidationDevicePlatform>("ios");
+  const [deviceName, setDeviceName] = useState("iPhone test device");
+  const [osVersion, setOsVersion] = useState("");
+  const [appBuild, setAppBuild] = useState("debug");
+  const [networkProfile, setNetworkProfile] = useState("private RTMPS");
+  const [result, setResult] = useState<StreamValidationRunResult>(() => validationRunResultFromDiagnostics(diagnostics));
+  const latestRun = diagnostics.validationEvidence.latestRun;
+
+  useEffect(() => {
+    setResult(validationRunResultFromDiagnostics(diagnostics));
+  }, [diagnostics.validation.status]);
+
+  const record = () => {
+    onRecordStreamValidationRun(
+      createStreamValidationRun({
+        diagnostics,
+        devicePlatform,
+        deviceName,
+        osVersion,
+        appBuild,
+        networkProfile,
+        result,
+        secrets: [profile.destination.streamKey]
+      })
+    );
+  };
+
+  return (
+    <div className="diagnostic-incidents">
+      <div className={`diagnostic-incident-summary ${validationEvidenceTone(diagnostics)}`}>
+        {diagnostics.validationEvidence.summary}
+      </div>
+      <div className={`diagnostic-incident ${validationEvidenceTone(diagnostics)}`}>
+        <strong>Physical validation evidence</strong>
+        <span>{diagnostics.validationEvidence.recommendation}</span>
+        <em>
+          {diagnostics.validationEvidence.totalRuns} runs / iOS {diagnostics.validationEvidence.iosPass ? "pass" : "missing"} / Android{" "}
+          {diagnostics.validationEvidence.androidPass ? "pass" : "missing"}
+        </em>
+      </div>
+      {latestRun ? (
+        <div className={`diagnostic-incident ${validationRunTone(latestRun.result)}`}>
+          <strong>Latest validation run</strong>
+          <span>{latestRun.summary}</span>
+          <em>
+            {latestRun.devicePlatform} / {latestRun.osVersion} / {latestRun.networkProfile}
+          </em>
+        </div>
+      ) : null}
+      <div className="validation-recorder">
+        <div className="protocol-row" role="group" aria-label="validation device platform">
+          {(["ios", "android"] as StreamValidationDevicePlatform[]).map((platform) => (
+            <button
+              key={platform}
+              className={`segmented-button ${devicePlatform === platform ? "active" : ""}`}
+              type="button"
+              onClick={() => setDevicePlatform(platform)}
+            >
+              {platform === "ios" ? "iOS" : "Android"}
+            </button>
+          ))}
+        </div>
+        <label className="field">
+          <span>Device</span>
+          <input value={deviceName} onChange={(event) => setDeviceName(event.target.value)} />
+        </label>
+        <label className="field">
+          <span>OS</span>
+          <input value={osVersion} onChange={(event) => setOsVersion(event.target.value)} placeholder="iOS 18 / Android 15" />
+        </label>
+        <label className="field">
+          <span>Build</span>
+          <input value={appBuild} onChange={(event) => setAppBuild(event.target.value)} />
+        </label>
+        <label className="field">
+          <span>Network</span>
+          <input value={networkProfile} onChange={(event) => setNetworkProfile(event.target.value)} />
+        </label>
+        <div className="protocol-row" role="group" aria-label="validation result">
+          {(["pass", "warn", "fail"] as StreamValidationRunResult[]).map((item) => (
+            <button
+              key={item}
+              className={`segmented-button ${result === item ? "active" : ""}`}
+              type="button"
+              onClick={() => setResult(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+        <button className="secondary-action compact-action diagnostic-export" type="button" onClick={record}>
+          <ShieldCheck size={15} />
+          Record Evidence
+        </button>
+        <button
+          className="secondary-action compact-action diagnostic-export"
+          type="button"
+          disabled={diagnostics.validationEvidence.totalRuns === 0}
+          onClick={() => {
+            if (window.confirm("Clear retained physical validation evidence on this device?")) {
+              onClearStreamValidationRuns();
+            }
+          }}
+        >
+          <RotateCcw size={15} />
+          Clear Evidence
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const validationRunResultFromDiagnostics = (diagnostics: StreamDiagnostics): StreamValidationRunResult =>
+  diagnostics.validation.status === "ready" ? "pass" : diagnostics.validation.status === "blocked" ? "fail" : "warn";
+
+const validationEvidenceTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" =>
+  diagnostics.validationEvidence.status === "ready"
+    ? "pass"
+    : diagnostics.validationEvidence.status === "failing"
+      ? "fail"
+      : "warn";
+
+const validationRunTone = (result: StreamValidationRunResult): "pass" | "warn" | "fail" =>
+  result === "pass" ? "pass" : result === "fail" ? "fail" : "warn";
 
 const ChatReaderPanel = ({
   chatReader,
