@@ -41,10 +41,14 @@ export interface SupportBundle {
     validationFailCount: number;
     validationEvidenceStatus: StreamDiagnostics["validationEvidence"]["status"];
     validationEvidenceRunCount: number;
+    validationEvidenceEligibleRunCount: number;
+    validationEvidenceStaleRunCount: number;
     validationEvidencePassCount: number;
     validationEvidenceFailureCount: number;
     validationEvidenceIosPass: boolean;
     validationEvidenceAndroidPass: boolean;
+    validationEvidenceAppBuildMismatch: boolean;
+    validationEvidenceConsistentAppBuild: string | null;
     qualityAdvisorAction: StreamDiagnostics["qualityAdvisor"]["action"];
     qualityAdvisorSeverity: StreamDiagnostics["qualityAdvisor"]["severity"];
     suggestedQualityTarget: string | null;
@@ -153,10 +157,14 @@ export const createSupportBundle = ({
       validationFailCount: diagnostics.validation.failCount,
       validationEvidenceStatus: diagnostics.validationEvidence.status,
       validationEvidenceRunCount: diagnostics.validationEvidence.totalRuns,
+      validationEvidenceEligibleRunCount: diagnostics.validationEvidence.eligibleRunCount,
+      validationEvidenceStaleRunCount: diagnostics.validationEvidence.staleRunCount,
       validationEvidencePassCount: diagnostics.validationEvidence.passCount,
       validationEvidenceFailureCount: diagnostics.validationEvidence.failureCount,
       validationEvidenceIosPass: diagnostics.validationEvidence.iosPass,
       validationEvidenceAndroidPass: diagnostics.validationEvidence.androidPass,
+      validationEvidenceAppBuildMismatch: diagnostics.validationEvidence.appBuildMismatch,
+      validationEvidenceConsistentAppBuild: diagnostics.validationEvidence.consistentAppBuild,
       qualityAdvisorAction: diagnostics.qualityAdvisor.action,
       qualityAdvisorSeverity: diagnostics.qualityAdvisor.severity,
       suggestedQualityTarget: diagnostics.qualityAdvisor.suggestedTarget
@@ -276,8 +284,10 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Failures: ${bundle.summary.validationFailCount}`,
     `- Summary: ${bundle.diagnostics.validation.summary}`,
     `- Next step: ${bundle.diagnostics.validation.recommendedNextStep}`,
-    `- Evidence: ${bundle.summary.validationEvidenceStatus} / ${bundle.summary.validationEvidenceRunCount} runs / ${bundle.summary.validationEvidencePassCount} pass / ${bundle.summary.validationEvidenceFailureCount} fail`,
+    `- Evidence: ${bundle.summary.validationEvidenceStatus} / ${bundle.summary.validationEvidenceRunCount} retained / ${bundle.summary.validationEvidenceEligibleRunCount} eligible / ${bundle.summary.validationEvidenceStaleRunCount} stale`,
+    `- Evidence outcomes: ${bundle.summary.validationEvidencePassCount} pass / ${bundle.summary.validationEvidenceFailureCount} fail`,
     `- Physical coverage: iOS ${bundle.summary.validationEvidenceIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAndroidPass ? "pass" : "missing"}`,
+    `- Validation build: ${bundle.summary.validationEvidenceConsistentAppBuild ?? (bundle.summary.validationEvidenceAppBuildMismatch ? "mismatch" : "-")}`,
     `- Evidence summary: ${bundle.diagnostics.validationEvidence.summary}`,
     `- Evidence recommendation: ${bundle.diagnostics.validationEvidence.recommendation}`,
     ...bundle.diagnostics.validation.items.map(

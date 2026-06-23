@@ -177,12 +177,16 @@ export const createStreamDiagnostics = (
   ];
   const status = summaryStatus(checks);
   const sessionHistorySummary = createStreamSessionHistorySummary(sessionSummaries);
-  const validationEvidence = summarizeStreamValidationEvidence(validationRuns);
+  const targetPlatform = platformLabels[destination.platform];
+  const validationEvidence = summarizeStreamValidationEvidence(validationRuns, {
+    requiredTargetPlatform: targetPlatform,
+    requiredTransport: destination.protocol
+  });
   const validation = createStreamValidationChecklist({
     readiness,
     diagnosticStatus: status,
     target: {
-      platform: platformLabels[destination.platform],
+      platform: targetPlatform,
       protocol: destination.protocol,
       secureTransport: destination.protocol === "rtmps"
     },
@@ -359,7 +363,9 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Counts: ${diagnostics.validation.passCount} pass / ${diagnostics.validation.warningCount} warn / ${diagnostics.validation.failCount} fail / ${diagnostics.validation.pendingCount} pending`,
     `- Evidence: ${diagnostics.validationEvidence.summary}`,
     `- Evidence recommendation: ${diagnostics.validationEvidence.recommendation}`,
-    `- Evidence runs: ${diagnostics.validationEvidence.totalRuns}`,
+    `- Evidence runs: ${diagnostics.validationEvidence.totalRuns} retained / ${diagnostics.validationEvidence.eligibleRunCount} eligible / ${diagnostics.validationEvidence.staleRunCount} stale`,
+    `- Evidence freshness: ${diagnostics.validationEvidence.latestRunAgeDays === null ? "-" : `${diagnostics.validationEvidence.latestRunAgeDays} days old`} / max ${diagnostics.validationEvidence.maxAgeDays} days`,
+    `- Evidence build: ${diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")}`,
     ...diagnostics.validation.items.map(
       (item) => `- [${item.status.toUpperCase()}] ${item.title}: ${item.detail} Action: ${item.action}`
     ),

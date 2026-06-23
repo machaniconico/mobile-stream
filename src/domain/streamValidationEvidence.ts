@@ -41,20 +41,36 @@ export interface StreamValidationRunInput {
 
 export interface StreamValidationEvidenceSummary {
   totalRuns: number;
+  eligibleRunCount: number;
+  staleRunCount: number;
   passCount: number;
   warningCount: number;
   failureCount: number;
-  status: "none" | "partial" | "failing" | "ready";
+  status: "none" | "partial" | "failing" | "ready" | "stale";
   iosPass: boolean;
   androidPass: boolean;
+  appBuildMismatch: boolean;
+  consistentAppBuild: string | null;
   passedTargetPlatforms: string[];
   latestRun: StreamValidationRun | null;
+  latestEligibleRun: StreamValidationRun | null;
   latestPassingRun: StreamValidationRun | null;
+  latestRunAgeDays: number | null;
+  maxAgeDays: number;
   summary: string;
   recommendation: string;
 }
 
+export interface StreamValidationEvidenceOptions {
+  now?: Date;
+  maxAgeDays?: number;
+  requiredTargetPlatform?: string;
+  requiredTransport?: string;
+  requiredAppBuild?: string;
+}
+
 export const maxStreamValidationRuns = 20;
+export const defaultStreamValidationEvidenceMaxAgeDays = 14;
 
 export const createStreamValidationRun = ({
   diagnostics,
@@ -115,7 +131,7 @@ export const appendStreamValidationRun = (
   if (normalized.some((item) => item.id === run.id)) {
     return normalized;
   }
-  return [run, ...normalized].slice(0, Math.max(1, maxRuns));
+  return normalizeStreamValidationRuns([run, ...normalized], maxRuns);
 };
 
 export const mergeStreamValidationRuns = (
@@ -135,12 +151,9 @@ export const mergeStreamValidationRuns = (
     }
     seen.add(run.id);
     merged.push(run);
-    if (merged.length >= Math.max(1, maxRuns)) {
-      break;
-    }
   }
 
-  return merged;
+  return normalizeStreamValidationRuns(merged, maxRuns);
 };
 
 export const normalizeStreamValidationRuns = (
@@ -154,40 +167,108 @@ export const normalizeStreamValidationRuns = (
   return value
     .map(normalizeStreamValidationRun)
     .filter((run): run is StreamValidationRun => Boolean(run))
+    .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
     .slice(0, Math.max(1, maxRuns));
 };
 
 export const summarizeStreamValidationEvidence = (
-  runs: StreamValidationRun[]
+  runs: StreamValidationRun[],
+  options: StreamValidationEvidenceOptions = {}
 ): StreamValidationEvidenceSummary => {
   const normalized = normalizeStreamValidationRuns(runs);
+  const now = normalizeNow(options.now);
+  const maxAgeDays = normalizeMaxAgeDays(options.maxAgeDays);
+  const requiredTargetPlatform = normalizeRequirement(options.requiredTargetPlatform);
+  const requiredTransport = normalizeRequirement(options.requiredTransport).toUpperCase();
+  const requiredAppBuild = normalizeRequirement(options.requiredAppBuild);
+  const scopedRuns = normalized.filter((run) => {
+    if (requiredTargetPlatform && run.targetPlatform !== requiredTargetPlatform) {
+      return false;
+    }
+    if (requiredTransport && run.transport.toUpperCase() !== requiredTransport) {
+      return false;
+    }
+    if (requiredAppBuild && run.appBuild !== requiredAppBuild) {
+      return false;
+    }
+    return true;
+  });
+  const evaluatedRuns = scopedRuns.map((run) => ({
+    run,
+    ageDays: ageInDays(run.createdAt, now),
+    isFresh: ageInDays(run.createdAt, now) <= maxAgeDays
+  }));
+  const eligibleRuns = evaluatedRuns.filter((item) => item.isFresh).map((item) => item.run);
   const totalRuns = normalized.length;
+  const eligibleRunCount = eligibleRuns.length;
+  const staleRunCount = evaluatedRuns.filter((item) => !item.isFresh).length;
   const passCount = normalized.filter((run) => run.result === "pass").length;
   const warningCount = normalized.filter((run) => run.result === "warn").length;
   const failureCount = normalized.filter((run) => run.result === "fail").length;
   const latestRun = normalized[0] ?? null;
-  const latestPassingRun = normalized.find((run) => run.result === "pass") ?? null;
-  const iosPass = normalized.some((run) => run.devicePlatform === "ios" && run.result === "pass");
-  const androidPass = normalized.some((run) => run.devicePlatform === "android" && run.result === "pass");
-  const latestTargetRuns = latestRunsByTargetPlatform(normalized);
+  const latestEligibleRun = eligibleRuns[0] ?? null;
+  const latestPassingRun = eligibleRuns.find((run) => run.result === "pass") ?? null;
+  const latestDeviceRuns = latestRunsByDevicePlatform(eligibleRuns);
+  const iosLatestRun = latestDeviceRuns.find((run) => run.devicePlatform === "ios") ?? null;
+  const androidLatestRun = latestDeviceRuns.find((run) => run.devicePlatform === "android") ?? null;
+  const iosPass = iosLatestRun?.result === "pass";
+  const androidPass = androidLatestRun?.result === "pass";
+  const appBuildMismatch = Boolean(
+    iosPass &&
+      androidPass &&
+      androidLatestRun &&
+      iosLatestRun &&
+      normalizeBuildLabel(iosLatestRun.appBuild) !== normalizeBuildLabel(androidLatestRun.appBuild)
+  );
+  const consistentAppBuild = iosPass && androidPass && !appBuildMismatch && iosLatestRun ? iosLatestRun.appBuild : null;
+  const latestTargetRuns = latestRunsByTargetPlatform(eligibleRuns);
   const passedTargetPlatforms = latestTargetRuns
     .filter((run) => run.result === "pass")
     .map((run) => run.targetPlatform);
-  const status = createEvidenceStatus({ totalRuns, failureCount, latestRun, iosPass, androidPass });
+  const status = createEvidenceStatus({
+    totalRuns,
+    eligibleRunCount,
+    latestEligibleRun,
+    latestDeviceRuns,
+    iosPass,
+    androidPass,
+    appBuildMismatch
+  });
 
   return {
     totalRuns,
+    eligibleRunCount,
+    staleRunCount,
     passCount,
     warningCount,
     failureCount,
     status,
     iosPass,
     androidPass,
+    appBuildMismatch,
+    consistentAppBuild,
     passedTargetPlatforms,
     latestRun,
+    latestEligibleRun,
     latestPassingRun,
-    summary: createEvidenceSummary(status, { totalRuns, passCount, warningCount, failureCount, iosPass, androidPass }),
-    recommendation: createEvidenceRecommendation(status, latestRun)
+    latestRunAgeDays: latestRun ? ageInDays(latestRun.createdAt, now) : null,
+    maxAgeDays,
+    summary: createEvidenceSummary(status, {
+      totalRuns,
+      eligibleRunCount,
+      staleRunCount,
+      passCount,
+      warningCount,
+      failureCount,
+      iosPass,
+      androidPass,
+      appBuildMismatch,
+      iosAppBuild: iosLatestRun?.appBuild ?? null,
+      androidAppBuild: androidLatestRun?.appBuild ?? null,
+      consistentAppBuild,
+      maxAgeDays
+    }),
+    recommendation: createEvidenceRecommendation(status, latestEligibleRun ?? latestRun, { appBuildMismatch, maxAgeDays })
   };
 };
 
@@ -251,27 +332,49 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
 
 const createEvidenceStatus = ({
   totalRuns,
-  failureCount,
-  latestRun,
+  eligibleRunCount,
+  latestEligibleRun,
+  latestDeviceRuns,
   iosPass,
-  androidPass
+  androidPass,
+  appBuildMismatch
 }: {
   totalRuns: number;
-  failureCount: number;
-  latestRun: StreamValidationRun | null;
+  eligibleRunCount: number;
+  latestEligibleRun: StreamValidationRun | null;
+  latestDeviceRuns: StreamValidationRun[];
   iosPass: boolean;
   androidPass: boolean;
+  appBuildMismatch: boolean;
 }): StreamValidationEvidenceSummary["status"] => {
   if (totalRuns === 0) {
     return "none";
   }
-  if (latestRun?.result === "fail" || failureCount > 0) {
+  if (eligibleRunCount === 0) {
+    return "stale";
+  }
+  if (latestEligibleRun?.result === "fail" || latestDeviceRuns.some((run) => run.result === "fail")) {
     return "failing";
   }
-  if (iosPass && androidPass) {
+  if (iosPass && androidPass && !appBuildMismatch) {
     return "ready";
   }
   return "partial";
+};
+
+const latestRunsByDevicePlatform = (runs: StreamValidationRun[]): StreamValidationRun[] => {
+  const latestRuns: StreamValidationRun[] = [];
+  const seenPlatforms = new Set<StreamValidationDevicePlatform>();
+
+  for (const run of runs) {
+    if (seenPlatforms.has(run.devicePlatform)) {
+      continue;
+    }
+    seenPlatforms.add(run.devicePlatform);
+    latestRuns.push(run);
+  }
+
+  return latestRuns;
 };
 
 const latestRunsByTargetPlatform = (runs: StreamValidationRun[]): StreamValidationRun[] => {
@@ -293,21 +396,34 @@ const createEvidenceSummary = (
   status: StreamValidationEvidenceSummary["status"],
   counts: {
     totalRuns: number;
+    eligibleRunCount: number;
+    staleRunCount: number;
     passCount: number;
     warningCount: number;
     failureCount: number;
     iosPass: boolean;
     androidPass: boolean;
+    appBuildMismatch: boolean;
+    iosAppBuild: string | null;
+    androidAppBuild: string | null;
+    consistentAppBuild: string | null;
+    maxAgeDays: number;
   }
 ): string => {
   if (status === "none") {
     return "No physical validation runs retained yet.";
   }
+  if (status === "stale") {
+    return `Retained validation evidence is stale or does not match this target; no eligible run is within ${counts.maxAgeDays} days.`;
+  }
   if (status === "failing") {
     return `${counts.failureCount} failed validation run${counts.failureCount === 1 ? "" : "s"} retained.`;
   }
   if (status === "ready") {
-    return `Physical validation baseline retained for iOS and Android across ${counts.totalRuns} run${counts.totalRuns === 1 ? "" : "s"}.`;
+    return `Fresh physical validation baseline retained for iOS and Android on build ${counts.consistentAppBuild ?? "-"} across ${counts.eligibleRunCount} eligible run${counts.eligibleRunCount === 1 ? "" : "s"}.`;
+  }
+  if (counts.appBuildMismatch) {
+    return `Physical validation app builds do not match: iOS ${counts.iosAppBuild ?? "-"} / Android ${counts.androidAppBuild ?? "-"}.`;
   }
   const covered = [counts.iosPass ? "iOS" : null, counts.androidPass ? "Android" : null].filter(Boolean).join(" and ");
   return covered
@@ -317,13 +433,23 @@ const createEvidenceSummary = (
 
 const createEvidenceRecommendation = (
   status: StreamValidationEvidenceSummary["status"],
-  latestRun: StreamValidationRun | null
+  latestRun: StreamValidationRun | null,
+  context: {
+    appBuildMismatch: boolean;
+    maxAgeDays: number;
+  }
 ): string => {
   if (status === "ready") {
     return "Keep iOS and Android validation runs updated for every release candidate.";
   }
   if (status === "failing") {
     return latestRun?.recommendation ?? "Fix the failed physical validation run before public launch.";
+  }
+  if (context.appBuildMismatch) {
+    return "Record fresh iOS and Android validation passes on the same release-candidate build.";
+  }
+  if (status === "stale") {
+    return `Repeat private RTMPS validation on physical iOS and Android devices; retained evidence expires after ${context.maxAgeDays} days.`;
   }
   if (status === "partial") {
     return "Run the missing iOS or Android private RTMPS validation pass and retain the result.";
@@ -414,6 +540,26 @@ const normalizeDateString = (value: unknown): string | null => {
   }
   const time = Date.parse(value);
   return Number.isFinite(time) ? new Date(time).toISOString() : null;
+};
+
+const normalizeNow = (value: Date | undefined): Date => {
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return value;
+  }
+  return new Date();
+};
+
+const normalizeMaxAgeDays = (value: number | undefined): number =>
+  typeof value === "number" && Number.isFinite(value) ? Math.max(1, Math.floor(value)) : defaultStreamValidationEvidenceMaxAgeDays;
+
+const normalizeRequirement = (value: string | undefined): string =>
+  typeof value === "string" ? value.trim() : "";
+
+const normalizeBuildLabel = (value: string): string => value.trim().toLowerCase();
+
+const ageInDays = (createdAt: string, now: Date): number => {
+  const ageMs = Math.max(0, now.getTime() - Date.parse(createdAt));
+  return Math.floor(ageMs / 86_400_000);
 };
 
 const normalizeDevicePlatform = (value: unknown): StreamValidationDevicePlatform | null =>

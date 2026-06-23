@@ -1189,8 +1189,10 @@ const StreamValidationRecorder = ({
         <Text style={styles.diagnosticIncidentTitle}>Physical validation evidence</Text>
         <Text style={styles.diagnosticIncidentText}>{diagnostics.validationEvidence.recommendation}</Text>
         <Text style={styles.diagnosticIncidentRecommendation}>
-          {diagnostics.validationEvidence.totalRuns} runs / iOS {diagnostics.validationEvidence.iosPass ? "pass" : "missing"} / Android{" "}
-          {diagnostics.validationEvidence.androidPass ? "pass" : "missing"}
+          {diagnostics.validationEvidence.eligibleRunCount}/{diagnostics.validationEvidence.totalRuns} eligible /{" "}
+          {diagnostics.validationEvidence.staleRunCount} stale / iOS {diagnostics.validationEvidence.iosPass ? "pass" : "missing"} / Android{" "}
+          {diagnostics.validationEvidence.androidPass ? "pass" : "missing"} / build{" "}
+          {diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")}
         </Text>
       </View>
       {latestRun ? (
@@ -1198,7 +1200,10 @@ const StreamValidationRecorder = ({
           <Text style={styles.diagnosticIncidentTitle}>Latest validation run</Text>
           <Text style={styles.diagnosticIncidentText}>{latestRun.summary}</Text>
           <Text style={styles.diagnosticIncidentRecommendation}>
-            {latestRun.devicePlatform} / {latestRun.osVersion} / {latestRun.networkProfile}
+            {latestRun.devicePlatform} / {latestRun.osVersion} / build {latestRun.appBuild} / {latestRun.networkProfile}
+            {diagnostics.validationEvidence.latestRunAgeDays === null
+              ? ""
+              : ` / ${diagnostics.validationEvidence.latestRunAgeDays}d old`}
           </Text>
         </View>
       ) : null}

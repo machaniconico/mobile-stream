@@ -24,6 +24,7 @@ const profileWithKey = (streamKey: string): StudioProfile => ({
     streamKey
   }
 });
+const validationNow = new Date("2026-06-23T00:02:00.000Z");
 
 describe("stream validation evidence", () => {
   it("creates a redacted validation run from diagnostics", () => {
@@ -106,13 +107,16 @@ describe("stream validation evidence", () => {
       now: new Date("2026-06-23T00:01:00.000Z")
     });
 
-    const partial = summarizeStreamValidationEvidence([iosRun]);
-    const ready = summarizeStreamValidationEvidence([androidRun, iosRun]);
+    const partial = summarizeStreamValidationEvidence([iosRun], { now: validationNow });
+    const ready = summarizeStreamValidationEvidence([androidRun, iosRun], { now: validationNow });
 
     expect(partial.status).toBe("partial");
     expect(partial.iosPass).toBe(true);
     expect(partial.androidPass).toBe(false);
     expect(ready.status).toBe("ready");
+    expect(ready.eligibleRunCount).toBe(2);
+    expect(ready.staleRunCount).toBe(0);
+    expect(ready.consistentAppBuild).toBe("-");
     expect(ready.summary).toContain("iOS and Android");
     expect(ready.passedTargetPlatforms).toEqual(["YouTube Live"]);
   });
@@ -138,10 +142,56 @@ describe("stream validation evidence", () => {
       now: new Date("2026-06-23T00:01:00.000Z")
     });
 
-    const summary = summarizeStreamValidationEvidence([failedRun, passedRun]);
+    const summary = summarizeStreamValidationEvidence([passedRun, failedRun], { now: validationNow });
 
     expect(summary.status).toBe("failing");
     expect(summary.passedTargetPlatforms).toEqual([]);
     expect(summary.latestRun?.result).toBe("fail");
+  });
+
+  it("requires fresh evidence on the same app build before becoming ready", () => {
+    const scene = createDefaultScene();
+    const profile = profileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health()
+    });
+    const iosRun = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      appBuild: "rc-1",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const androidRun = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      appBuild: "rc-2",
+      result: "pass",
+      now: new Date("2026-06-23T00:01:00.000Z")
+    });
+    const matchingAndroidRun = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      appBuild: "rc-1",
+      result: "pass",
+      now: new Date("2026-06-23T00:01:30.000Z")
+    });
+    const stale = summarizeStreamValidationEvidence([matchingAndroidRun, iosRun], {
+      now: new Date("2026-07-23T00:00:00.000Z"),
+      maxAgeDays: 14
+    });
+    const mismatch = summarizeStreamValidationEvidence([androidRun, iosRun], { now: validationNow });
+    const ready = summarizeStreamValidationEvidence([matchingAndroidRun, iosRun], { now: validationNow });
+
+    expect(mismatch.status).toBe("partial");
+    expect(mismatch.appBuildMismatch).toBe(true);
+    expect(mismatch.summary).toContain("app builds do not match");
+    expect(ready.status).toBe("ready");
+    expect(ready.consistentAppBuild).toBe("rc-1");
+    expect(stale.status).toBe("stale");
+    expect(stale.eligibleRunCount).toBe(0);
+    expect(stale.staleRunCount).toBe(2);
   });
 });

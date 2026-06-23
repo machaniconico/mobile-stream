@@ -210,15 +210,22 @@ describe("stream validation checklist", () => {
 
 const readyEvidence = (): StreamValidationEvidenceSummary => ({
   totalRuns: 2,
+  eligibleRunCount: 2,
+  staleRunCount: 0,
   passCount: 2,
   warningCount: 0,
   failureCount: 0,
   status: "ready",
   iosPass: true,
   androidPass: true,
+  appBuildMismatch: false,
+  consistentAppBuild: "rc-1",
   passedTargetPlatforms: ["YouTube Live"],
   latestRun: null,
+  latestEligibleRun: null,
   latestPassingRun: null,
-  summary: "Physical validation baseline retained for iOS and Android across 2 runs.",
+  latestRunAgeDays: null,
+  maxAgeDays: 14,
+  summary: "Fresh physical validation baseline retained for iOS and Android on build rc-1 across 2 eligible runs.",
   recommendation: "Keep iOS and Android validation runs updated for every release candidate."
 });

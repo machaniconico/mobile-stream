@@ -298,6 +298,17 @@ const createPlatformItem = (
     };
   }
 
+  if (evidence.status === "stale" && evidence.latestRun?.targetPlatform === platformLabel) {
+    return {
+      id: "platform-ingest-validation-stale",
+      area: "platform",
+      status: "warn",
+      title: "Destination ingest dashboard",
+      detail: `${platformLabel} has retained validation evidence, but it is stale for the current release window.`,
+      action: evidence.recommendation
+    };
+  }
+
   if (telemetry.streamStatus === "failed") {
     return {
       id: "platform-ingest-failed",
@@ -358,7 +369,18 @@ const createDeviceItem = (
 
   if (evidence.status === "partial") {
     return {
-      id: "device-validation-partial",
+      id: evidence.appBuildMismatch ? "device-validation-build-mismatch" : "device-validation-partial",
+      area: "device",
+      status: "warn",
+      title: "Physical device audio/video pass",
+      detail: evidence.summary,
+      action: evidence.recommendation
+    };
+  }
+
+  if (evidence.status === "stale") {
+    return {
+      id: "device-validation-stale",
       area: "device",
       status: "warn",
       title: "Physical device audio/video pass",
@@ -495,9 +517,20 @@ const createEvidenceItem = (
     };
   }
 
+  if (evidence.status === "stale") {
+    return {
+      id: "evidence-validation-stale",
+      area: "evidence",
+      status: "warn",
+      title: "Support evidence bundle",
+      detail: evidence.summary,
+      action: evidence.recommendation
+    };
+  }
+
   if (evidence.totalRuns > 0) {
     return {
-      id: "evidence-validation-partial",
+      id: evidence.appBuildMismatch ? "evidence-validation-build-mismatch" : "evidence-validation-partial",
       area: "evidence",
       status: "warn",
       title: "Support evidence bundle",
