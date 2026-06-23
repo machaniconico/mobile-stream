@@ -1532,6 +1532,9 @@ const StreamValidationRecorder = ({
           {validationRunChatReadoutLabel(latestRun) ? (
             <Text style={styles.diagnosticIncidentRecommendation}>{validationRunChatReadoutLabel(latestRun)}</Text>
           ) : null}
+          {validationRunQualityAutomationLabel(latestRun) ? (
+            <Text style={styles.diagnosticIncidentRecommendation}>{validationRunQualityAutomationLabel(latestRun)}</Text>
+          ) : null}
           {validationRunPlatformPublishingLabel(latestRun) ? (
             <Text style={styles.diagnosticIncidentRecommendation}>{validationRunPlatformPublishingLabel(latestRun)}</Text>
           ) : null}
@@ -1621,6 +1624,11 @@ const validationRunFaceTrackingLabel = (run: StreamValidationRun): string | null
 const validationRunChatReadoutLabel = (run: StreamValidationRun): string | null =>
   run.chatReadout
     ? `chat ${run.chatReadout.status} / ${run.chatReadout.connectionPhase} / spoken ${run.chatReadout.spokenMessageCount} / failed ${run.chatReadout.speechFailureCount}`
+    : null;
+
+const validationRunQualityAutomationLabel = (run: StreamValidationRun): string | null =>
+  run.qualityAutomation
+    ? `quality automation ${run.qualityAutomation.status} / live ${run.qualityAutomation.liveUpdateCount} / next-start ${run.qualityAutomation.nextTargetCount} / failed ${run.qualityAutomation.failureCount}`
     : null;
 
 const validationRunPlatformPublishingLabel = (run: StreamValidationRun): string | null =>

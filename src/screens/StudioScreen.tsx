@@ -1280,6 +1280,7 @@ const StreamValidationRecorder = ({
           {validationRunFaceTrackingLabel(latestRun) ? <em>{validationRunFaceTrackingLabel(latestRun)}</em> : null}
           {latestRunAudioLabel ? <em>{latestRunAudioLabel}</em> : null}
           {validationRunChatReadoutLabel(latestRun) ? <em>{validationRunChatReadoutLabel(latestRun)}</em> : null}
+          {validationRunQualityAutomationLabel(latestRun) ? <em>{validationRunQualityAutomationLabel(latestRun)}</em> : null}
           {validationRunPlatformPublishingLabel(latestRun) ? <em>{validationRunPlatformPublishingLabel(latestRun)}</em> : null}
         </div>
       ) : null}
@@ -1384,6 +1385,11 @@ const validationRunFaceTrackingLabel = (run: StreamValidationRun): string | null
 const validationRunChatReadoutLabel = (run: StreamValidationRun): string | null =>
   run.chatReadout
     ? `chat ${run.chatReadout.status} / ${run.chatReadout.connectionPhase} / spoken ${run.chatReadout.spokenMessageCount} / failed ${run.chatReadout.speechFailureCount}`
+    : null;
+
+const validationRunQualityAutomationLabel = (run: StreamValidationRun): string | null =>
+  run.qualityAutomation
+    ? `quality automation ${run.qualityAutomation.status} / live ${run.qualityAutomation.liveUpdateCount} / next-start ${run.qualityAutomation.nextTargetCount} / failed ${run.qualityAutomation.failureCount}`
     : null;
 
 const validationRunPlatformPublishingLabel = (run: StreamValidationRun): string | null =>

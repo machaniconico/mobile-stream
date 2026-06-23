@@ -165,6 +165,46 @@ describe("stream session summary", () => {
     expect(history.totalChatSpeechFailures).toBe(0);
   });
 
+  it("stores quality automation outcomes in session and history summaries", () => {
+    const summary = createStreamSessionSummary({
+      events: [
+        event({
+          at: "2026-06-23T00:00:02.000Z",
+          kind: "quality",
+          severity: "warn",
+          title: "Live quality target lowered",
+          message: "Live encoder target will use Balanced."
+        }),
+        event({
+          at: "2026-06-23T00:00:03.000Z",
+          kind: "quality",
+          severity: "fail",
+          title: "Live quality update failed",
+          message: "The native encoder rejected the live quality update."
+        })
+      ],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+    const history = createStreamSessionHistorySummary([summary]);
+
+    expect(summary.outcome).toBe("fail");
+    expect(summary.qualityEventCount).toBe(2);
+    expect(summary.qualityLiveUpdateCount).toBe(1);
+    expect(summary.qualityNextTargetCount).toBe(0);
+    expect(summary.qualityUpdateFailureCount).toBe(1);
+    expect(summary.summary).toContain("Quality automation: 1 live update / 0 next-start targets / 1 failed");
+    expect(summary.recommendation).toContain("native live quality-update");
+    expect(history.totalQualityEvents).toBe(2);
+    expect(history.totalQualityLiveUpdates).toBe(1);
+    expect(history.totalQualityUpdateFailures).toBe(1);
+  });
+
   it("marks exhausted platform chat readout reconnects as unstable history", () => {
     const summary = createStreamSessionSummary({
       events: [

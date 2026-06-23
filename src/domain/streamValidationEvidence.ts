@@ -59,6 +59,16 @@ export interface StreamValidationChatReadoutSummary {
   recommendation: string;
 }
 
+export interface StreamValidationQualityAutomationSummary {
+  status: StreamValidationFeatureStatus;
+  eventCount: number;
+  liveUpdateCount: number;
+  nextTargetCount: number;
+  failureCount: number;
+  summary: string;
+  recommendation: string;
+}
+
 export interface StreamValidationRun {
   id: string;
   createdAt: string;
@@ -79,6 +89,7 @@ export interface StreamValidationRun {
   faceTracking: StreamValidationFaceTrackingSummary | null;
   audio: StreamValidationAudioSummary | null;
   chatReadout: StreamValidationChatReadoutSummary | null;
+  qualityAutomation: StreamValidationQualityAutomationSummary | null;
   platformPublishing: StreamDiagnostics["platformPublishing"] | null;
   validationItemStatuses: Array<{
     id: string;
@@ -125,6 +136,10 @@ export interface StreamValidationEvidenceSummary {
   chatReadoutWarningCount: number;
   chatReadoutIosPass: boolean;
   chatReadoutAndroidPass: boolean;
+  qualityAutomationRunCount: number;
+  qualityAutomationLiveUpdateCount: number;
+  qualityAutomationNextTargetCount: number;
+  qualityAutomationFailureCount: number;
   platformPublishingRunCount: number;
   platformPublishingWarningCount: number;
   platformPublishingFailureCount: number;
@@ -141,6 +156,7 @@ export interface StreamValidationEvidenceSummary {
   latestFaceTracking: StreamValidationFaceTrackingSummary | null;
   latestAudio: StreamValidationAudioSummary | null;
   latestChatReadout: StreamValidationChatReadoutSummary | null;
+  latestQualityAutomation: StreamValidationQualityAutomationSummary | null;
   latestPlatformPublishing: StreamDiagnostics["platformPublishing"] | null;
   latestRunAgeDays: number | null;
   maxAgeDays: number;
@@ -194,6 +210,7 @@ export const createStreamValidationRun = ({
   const faceTracking = createFaceTrackingValidationSummary(diagnostics.faceTracking, secrets);
   const audio = createAudioValidationSummary(diagnostics, secrets);
   const chatReadout = createChatReadoutValidationSummary(diagnostics, secrets);
+  const qualityAutomation = createQualityAutomationValidationSummary(diagnostics, secrets);
   const platformPublishing = diagnostics.platformPublishing;
   const effectiveResult = createEffectiveValidationResult(result, nativeRuntime, faceTracking, audio, chatReadout, platformPublishing);
   const runBase = {
@@ -225,6 +242,7 @@ export const createStreamValidationRun = ({
     faceTracking,
     audio,
     chatReadout,
+    qualityAutomation,
     platformPublishing,
     validationItemStatuses: diagnostics.validation.items.map((item) => ({
       id: item.id,
@@ -239,6 +257,7 @@ export const createStreamValidationRun = ({
       faceTracking,
       audio,
       chatReadout,
+      qualityAutomation,
       platformPublishing
     ),
     recommendation: createRunRecommendation(
@@ -248,6 +267,7 @@ export const createStreamValidationRun = ({
       faceTracking,
       audio,
       chatReadout,
+      qualityAutomation,
       platformPublishing
     )
   };
@@ -352,6 +372,20 @@ export const summarizeStreamValidationEvidence = (
   const chatReadoutRunCount = chatReadoutRuns.length;
   const chatReadoutReadyCount = chatReadoutRuns.filter((run) => run.chatReadout?.status === "pass").length;
   const chatReadoutWarningCount = chatReadoutRuns.filter((run) => run.chatReadout?.status !== "pass").length;
+  const qualityAutomationRuns = scopedRuns.filter((run) => run.qualityAutomation);
+  const qualityAutomationRunCount = qualityAutomationRuns.length;
+  const qualityAutomationLiveUpdateCount = qualityAutomationRuns.reduce(
+    (total, run) => total + (run.qualityAutomation?.liveUpdateCount ?? 0),
+    0
+  );
+  const qualityAutomationNextTargetCount = qualityAutomationRuns.reduce(
+    (total, run) => total + (run.qualityAutomation?.nextTargetCount ?? 0),
+    0
+  );
+  const qualityAutomationFailureCount = qualityAutomationRuns.reduce(
+    (total, run) => total + (run.qualityAutomation?.failureCount ?? 0),
+    0
+  );
   const platformPublishingRuns = scopedRuns.filter((run) => run.platformPublishing && run.platformPublishing.status !== "info");
   const platformPublishingRunCount = platformPublishingRuns.length;
   const platformPublishingWarningCount = platformPublishingRuns.filter((run) => run.platformPublishing?.status === "warn").length;
@@ -370,6 +404,10 @@ export const summarizeStreamValidationEvidence = (
   const latestChatReadout =
     eligibleRuns.find((run) => run.chatReadout)?.chatReadout ??
     scopedRuns.find((run) => run.chatReadout)?.chatReadout ??
+    null;
+  const latestQualityAutomation =
+    eligibleRuns.find((run) => run.qualityAutomation)?.qualityAutomation ??
+    scopedRuns.find((run) => run.qualityAutomation)?.qualityAutomation ??
     null;
   const latestPlatformPublishing =
     eligibleRuns.find((run) => run.platformPublishing && run.platformPublishing.status !== "info")?.platformPublishing ??
@@ -439,6 +477,10 @@ export const summarizeStreamValidationEvidence = (
     chatReadoutWarningCount,
     chatReadoutIosPass,
     chatReadoutAndroidPass,
+    qualityAutomationRunCount,
+    qualityAutomationLiveUpdateCount,
+    qualityAutomationNextTargetCount,
+    qualityAutomationFailureCount,
     platformPublishingRunCount,
     platformPublishingWarningCount,
     platformPublishingFailureCount,
@@ -455,6 +497,7 @@ export const summarizeStreamValidationEvidence = (
     latestFaceTracking,
     latestAudio,
     latestChatReadout,
+    latestQualityAutomation,
     latestPlatformPublishing,
     latestRunAgeDays: latestRun ? ageInDays(latestRun.createdAt, now) : null,
     maxAgeDays,
@@ -525,6 +568,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
   const faceTracking = normalizeFaceTrackingValidationSummary(value.faceTracking);
   const audio = normalizeAudioValidationSummary(value.audio);
   const chatReadout = normalizeChatReadoutValidationSummary(value.chatReadout);
+  const qualityAutomation = normalizeQualityAutomationValidationSummary(value.qualityAutomation);
   const platformPublishing = normalizePlatformPublishingDiagnostics(value.platformPublishing);
   const normalized: StreamValidationRun = {
     id: normalizeText(value.id, createValidationRunId({
@@ -553,6 +597,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
     faceTracking,
     audio,
     chatReadout,
+    qualityAutomation,
     platformPublishing,
     validationItemStatuses: normalizeValidationItemStatuses(value.validationItemStatuses),
     summary: normalizeText(
@@ -566,6 +611,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
         faceTracking,
         audio,
         chatReadout,
+        qualityAutomation,
         platformPublishing
       )
     ),
@@ -578,6 +624,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
         faceTracking,
         audio,
         chatReadout,
+        qualityAutomation,
         platformPublishing
       )
     )
@@ -813,10 +860,11 @@ const createRunSummary = (
   faceTracking: StreamValidationFaceTrackingSummary | null,
   audio: StreamValidationAudioSummary | null,
   chatReadout: StreamValidationChatReadoutSummary | null,
+  qualityAutomation: StreamValidationQualityAutomationSummary | null,
   platformPublishing: StreamDiagnostics["platformPublishing"] | null
 ): string => {
   const prefix = result === "pass" ? "Passed" : result === "warn" ? "Needs review" : "Failed";
-  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}.${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${faceTracking && faceTracking.status !== "info" ? ` ${faceTracking.summary}` : ""}${audio ? ` ${audio.summary}` : ""}${chatReadout ? ` ${chatReadout.summary}` : ""}${platformPublishing && platformPublishing.status !== "info" ? ` ${platformPublishing.summary}` : ""}`;
+  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}.${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${faceTracking && faceTracking.status !== "info" ? ` ${faceTracking.summary}` : ""}${audio ? ` ${audio.summary}` : ""}${chatReadout ? ` ${chatReadout.summary}` : ""}${qualityAutomation ? ` ${qualityAutomation.summary}` : ""}${platformPublishing && platformPublishing.status !== "info" ? ` ${platformPublishing.summary}` : ""}`;
 };
 
 const createRunRecommendation = (
@@ -826,6 +874,7 @@ const createRunRecommendation = (
   faceTracking: StreamValidationFaceTrackingSummary | null,
   audio: StreamValidationAudioSummary | null,
   chatReadout: StreamValidationChatReadoutSummary | null,
+  qualityAutomation: StreamValidationQualityAutomationSummary | null,
   platformPublishing: StreamDiagnostics["platformPublishing"] | null
 ): string => {
   if (nativeRuntime?.status === "fail") {
@@ -836,6 +885,9 @@ const createRunRecommendation = (
   }
   if (chatReadout?.status === "fail") {
     return chatReadout.recommendation;
+  }
+  if (qualityAutomation?.status === "fail") {
+    return qualityAutomation.recommendation;
   }
   if (platformPublishing?.status === "fail") {
     return platformPublishing.recommendation;
@@ -857,6 +909,9 @@ const createRunRecommendation = (
   }
   if (chatReadout && chatReadout.status !== "pass") {
     return chatReadout.recommendation;
+  }
+  if (qualityAutomation?.status === "warn") {
+    return qualityAutomation.recommendation;
   }
   if (platformPublishing?.status === "warn") {
     return platformPublishing.recommendation;
@@ -937,6 +992,56 @@ const createChatReadoutValidationSummary = (
       secrets
     ),
     recommendation: sanitizeStoredText(item?.action ?? "Repeat validation with YouTube/Twitch chat connected and spoken.", secrets)
+  };
+};
+
+const createQualityAutomationValidationSummary = (
+  diagnostics: StreamDiagnostics,
+  secrets: string[]
+): StreamValidationQualityAutomationSummary | null => {
+  const currentEvents = summarizeQualityAutomationEvents(diagnostics.session.events);
+  const lastSummary = diagnostics.session.lastSummary;
+  const eventCount = Math.max(currentEvents.eventCount, lastSummary?.qualityEventCount ?? 0);
+  const liveUpdateCount = Math.max(currentEvents.liveUpdateCount, lastSummary?.qualityLiveUpdateCount ?? 0);
+  const nextTargetCount = Math.max(currentEvents.nextTargetCount, lastSummary?.qualityNextTargetCount ?? 0);
+  const failureCount = Math.max(currentEvents.failureCount, lastSummary?.qualityUpdateFailureCount ?? 0);
+
+  if (eventCount === 0 && liveUpdateCount === 0 && nextTargetCount === 0 && failureCount === 0) {
+    return null;
+  }
+
+  const status: StreamValidationFeatureStatus =
+    failureCount > 0 ? "fail" : liveUpdateCount > 0 || nextTargetCount > 0 ? "pass" : "warn";
+  const summary = `Quality automation retained ${eventCount} event${eventCount === 1 ? "" : "s"}: ${liveUpdateCount} live update${liveUpdateCount === 1 ? "" : "s"}, ${nextTargetCount} next-start target${nextTargetCount === 1 ? "" : "s"}, ${failureCount} failed.`;
+  const recommendation =
+    failureCount > 0
+      ? "Repeat validation after fixing native live quality updates."
+      : liveUpdateCount > 0
+        ? "Keep this run as evidence that live bitrate/FPS relief can apply during a stream."
+        : nextTargetCount > 0
+          ? "Keep this run as evidence that the next-start quality fallback was armed and applied."
+          : "Repeat validation under a controlled weak-network condition to prove automatic quality relief.";
+
+  return {
+    status,
+    eventCount,
+    liveUpdateCount,
+    nextTargetCount,
+    failureCount,
+    summary: sanitizeStoredText(summary, secrets),
+    recommendation: sanitizeStoredText(recommendation, secrets)
+  };
+};
+
+const summarizeQualityAutomationEvents = (
+  events: StreamDiagnostics["session"]["events"]
+): Pick<StreamValidationQualityAutomationSummary, "eventCount" | "liveUpdateCount" | "nextTargetCount" | "failureCount"> => {
+  const qualityEvents = events.filter((event) => event.kind === "quality");
+  return {
+    eventCount: qualityEvents.length,
+    liveUpdateCount: qualityEvents.filter((event) => event.title === "Live quality target lowered").length,
+    nextTargetCount: qualityEvents.filter((event) => event.title === "Auto quality target lowered").length,
+    failureCount: qualityEvents.filter((event) => event.severity === "fail" || event.title === "Live quality update failed").length
   };
 };
 
@@ -1113,6 +1218,28 @@ const normalizeChatReadoutValidationSummary = (value: unknown): StreamValidation
     speechFailureCount: normalizeCount(value.speechFailureCount),
     summary: normalizeText(value.summary, "No chat readout validation evidence retained."),
     recommendation: normalizeText(value.recommendation, "Repeat validation with YouTube/Twitch chat connected and spoken.")
+  };
+};
+
+const normalizeQualityAutomationValidationSummary = (value: unknown): StreamValidationQualityAutomationSummary | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const eventCount = normalizeCount(value.eventCount);
+  const liveUpdateCount = normalizeCount(value.liveUpdateCount);
+  const nextTargetCount = normalizeCount(value.nextTargetCount);
+  const failureCount = normalizeCount(value.failureCount);
+  if (eventCount === 0 && liveUpdateCount === 0 && nextTargetCount === 0 && failureCount === 0) {
+    return null;
+  }
+  return {
+    status: normalizeFeatureStatus(value.status),
+    eventCount,
+    liveUpdateCount,
+    nextTargetCount,
+    failureCount,
+    summary: normalizeText(value.summary, "No quality automation validation evidence retained."),
+    recommendation: normalizeText(value.recommendation, "Repeat validation under weak-network conditions.")
   };
 };
 

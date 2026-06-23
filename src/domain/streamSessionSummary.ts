@@ -65,6 +65,10 @@ export interface StreamSessionSummary {
   failureCount: number;
   recoveryEventCount: number;
   operationFailureCount: number;
+  qualityEventCount: number;
+  qualityLiveUpdateCount: number;
+  qualityNextTargetCount: number;
+  qualityUpdateFailureCount: number;
   chatEventCount: number;
   chatReconnectEventCount: number;
   chatReconnectFailureCount: number;
@@ -163,6 +167,10 @@ export interface StreamSessionHistorySummary {
   totalWarningEvents: number;
   totalFailureEvents: number;
   totalRecoveryEvents: number;
+  totalQualityEvents: number;
+  totalQualityLiveUpdates: number;
+  totalQualityNextTargets: number;
+  totalQualityUpdateFailures: number;
   totalChatEvents: number;
   totalChatReconnectEvents: number;
   totalChatReconnectFailures: number;
@@ -249,6 +257,10 @@ export const createStreamSessionHistorySummary = (
       totalWarningEvents: 0,
       totalFailureEvents: 0,
       totalRecoveryEvents: 0,
+      totalQualityEvents: 0,
+      totalQualityLiveUpdates: 0,
+      totalQualityNextTargets: 0,
+      totalQualityUpdateFailures: 0,
       totalChatEvents: 0,
       totalChatReconnectEvents: 0,
       totalChatReconnectFailures: 0,
@@ -267,6 +279,10 @@ export const createStreamSessionHistorySummary = (
   const totalWarningEvents = normalized.reduce((total, summary) => total + summary.warningCount, 0);
   const totalFailureEvents = normalized.reduce((total, summary) => total + summary.failureCount, 0);
   const totalRecoveryEvents = normalized.reduce((total, summary) => total + summary.recoveryEventCount, 0);
+  const totalQualityEvents = normalized.reduce((total, summary) => total + summary.qualityEventCount, 0);
+  const totalQualityLiveUpdates = normalized.reduce((total, summary) => total + summary.qualityLiveUpdateCount, 0);
+  const totalQualityNextTargets = normalized.reduce((total, summary) => total + summary.qualityNextTargetCount, 0);
+  const totalQualityUpdateFailures = normalized.reduce((total, summary) => total + summary.qualityUpdateFailureCount, 0);
   const totalChatEvents = normalized.reduce((total, summary) => total + summary.chatEventCount, 0);
   const totalChatReconnectEvents = normalized.reduce((total, summary) => total + summary.chatReconnectEventCount, 0);
   const totalChatReconnectFailures = normalized.reduce((total, summary) => total + summary.chatReconnectFailureCount, 0);
@@ -296,6 +312,10 @@ export const createStreamSessionHistorySummary = (
     totalWarningEvents,
     totalFailureEvents,
     totalRecoveryEvents,
+    totalQualityEvents,
+    totalQualityLiveUpdates,
+    totalQualityNextTargets,
+    totalQualityUpdateFailures,
     totalChatEvents,
     totalChatReconnectEvents,
     totalChatReconnectFailures,
@@ -336,6 +356,10 @@ export const createStreamSessionSummary = ({
   const failureCount = sessionEvents.filter((event) => event.severity === "fail").length;
   const recoveryEventCount = sessionEvents.filter((event) => event.kind === "recovery").length;
   const operationFailureCount = sessionEvents.filter((event) => event.kind === "operation" && event.severity === "fail").length;
+  const qualityEventCount = sessionEvents.filter((event) => event.kind === "quality").length;
+  const qualityLiveUpdateCount = sessionEvents.filter(isQualityLiveUpdateEvent).length;
+  const qualityNextTargetCount = sessionEvents.filter(isQualityNextTargetEvent).length;
+  const qualityUpdateFailureCount = sessionEvents.filter(isQualityUpdateFailureEvent).length;
   const chatEventCount = sessionEvents.filter((event) => event.kind === "chat").length;
   const chatReconnectEventCount = sessionEvents.filter(isChatReconnectEvent).length;
   const chatReconnectFailureCount = sessionEvents.filter(isChatReconnectFailureEvent).length;
@@ -360,6 +384,10 @@ export const createStreamSessionSummary = ({
     failureCount,
     recoveryEventCount,
     operationFailureCount,
+    qualityEventCount,
+    qualityLiveUpdateCount,
+    qualityNextTargetCount,
+    qualityUpdateFailureCount,
     chatEventCount,
     chatReconnectEventCount,
     chatReconnectFailureCount,
@@ -369,7 +397,19 @@ export const createStreamSessionSummary = ({
     health,
     audioLevel,
     nativeRuntime,
-    summary: createSummaryText(outcome, endReason, health, nativeRuntime, audioLevel, chatReconnectEventCount, chatSpeechSpokenCount, chatSpeechFailureCount),
+    summary: createSummaryText(
+      outcome,
+      endReason,
+      health,
+      nativeRuntime,
+      audioLevel,
+      chatReconnectEventCount,
+      chatSpeechSpokenCount,
+      chatSpeechFailureCount,
+      qualityLiveUpdateCount,
+      qualityNextTargetCount,
+      qualityUpdateFailureCount
+    ),
     recommendation: createRecommendation(
       outcome,
       endReason,
@@ -380,7 +420,9 @@ export const createStreamSessionSummary = ({
       chatReconnectEventCount,
       chatReconnectFailureCount,
       audioLevel,
-      chatSpeechFailureCount
+      chatSpeechFailureCount,
+      qualityLiveUpdateCount,
+      qualityUpdateFailureCount
     )
   };
 };
@@ -419,7 +461,10 @@ const createSummaryText = (
   audioLevel: StreamSessionAudioLevelSummary,
   chatReconnectEventCount = 0,
   chatSpeechSpokenCount = 0,
-  chatSpeechFailureCount = 0
+  chatSpeechFailureCount = 0,
+  qualityLiveUpdateCount = 0,
+  qualityNextTargetCount = 0,
+  qualityUpdateFailureCount = 0
 ): string => {
   const prefix =
     outcome === "clean" ? "Clean session" : outcome === "warn" ? "Session needs review" : "Session ended with issues";
@@ -431,8 +476,12 @@ const createSummaryText = (
     chatSpeechSpokenCount > 0 || chatSpeechFailureCount > 0
       ? ` Chat speech: ${chatSpeechSpokenCount} spoken / ${chatSpeechFailureCount} failed.`
       : "";
+  const qualitySummary =
+    qualityLiveUpdateCount > 0 || qualityNextTargetCount > 0 || qualityUpdateFailureCount > 0
+      ? ` Quality automation: ${qualityLiveUpdateCount} live update${qualityLiveUpdateCount === 1 ? "" : "s"} / ${qualityNextTargetCount} next-start target${qualityNextTargetCount === 1 ? "" : "s"} / ${qualityUpdateFailureCount} failed.`
+      : "";
   const audioSummary = audioLevel.sampleCount > 0 ? ` ${audioLevel.summary}` : "";
-  return `${prefix}. Ended ${endReason}. ${health.summary}${audioSummary}${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${chatSummary}${speechSummary}`;
+  return `${prefix}. Ended ${endReason}. ${health.summary}${audioSummary}${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${chatSummary}${speechSummary}${qualitySummary}`;
 };
 
 const createRecommendation = (
@@ -445,7 +494,9 @@ const createRecommendation = (
   chatReconnectEventCount = 0,
   chatReconnectFailureCount = 0,
   audioLevel: StreamSessionAudioLevelSummary,
-  chatSpeechFailureCount = 0
+  chatSpeechFailureCount = 0,
+  qualityLiveUpdateCount = 0,
+  qualityUpdateFailureCount = 0
 ): string => {
   if (outcome === "clean") {
     return "Keep this profile as a known-good baseline for the destination.";
@@ -457,6 +508,10 @@ const createRecommendation = (
 
   if (chatSpeechFailureCount > 0) {
     return "Review device TTS output and chat reader settings before relying on spoken comments in public streams.";
+  }
+
+  if (qualityUpdateFailureCount > 0) {
+    return "Review native live quality-update support before relying on automatic bitrate/FPS relief in public streams.";
   }
 
   if (nativeRuntime?.status === "fail") {
@@ -473,6 +528,10 @@ const createRecommendation = (
 
   if (chatReconnectEventCount > 0) {
     return "Watch platform chat stability and keep a manual comment-monitoring fallback ready.";
+  }
+
+  if (qualityLiveUpdateCount > 0) {
+    return "Keep this run as evidence that live quality automation lowered encoder pressure; repeat if drops continue.";
   }
 
   if (audioLevel.clippedSampleCount > 0) {
@@ -504,6 +563,15 @@ const isChatSpeechSpokenEvent = (event: StreamSessionEvent): boolean =>
 
 const isChatSpeechFailureEvent = (event: StreamSessionEvent): boolean =>
   event.kind === "chat" && event.title === "Chat speech failed";
+
+const isQualityLiveUpdateEvent = (event: StreamSessionEvent): boolean =>
+  event.kind === "quality" && event.title === "Live quality target lowered";
+
+const isQualityNextTargetEvent = (event: StreamSessionEvent): boolean =>
+  event.kind === "quality" && event.title === "Auto quality target lowered";
+
+const isQualityUpdateFailureEvent = (event: StreamSessionEvent): boolean =>
+  event.kind === "quality" && (event.severity === "fail" || event.title === "Live quality update failed");
 
 export const createNativeRuntimeSessionSummary = (
   runtime: NativeRuntimeTelemetry | null | undefined
@@ -675,6 +743,10 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
     failureCount: normalizeNonNegativeInteger(value.failureCount),
     recoveryEventCount: normalizeNonNegativeInteger(value.recoveryEventCount),
     operationFailureCount: normalizeNonNegativeInteger(value.operationFailureCount),
+    qualityEventCount: normalizeNonNegativeInteger(value.qualityEventCount),
+    qualityLiveUpdateCount: normalizeNonNegativeInteger(value.qualityLiveUpdateCount),
+    qualityNextTargetCount: normalizeNonNegativeInteger(value.qualityNextTargetCount),
+    qualityUpdateFailureCount: normalizeNonNegativeInteger(value.qualityUpdateFailureCount),
     chatEventCount: normalizeNonNegativeInteger(value.chatEventCount),
     chatReconnectEventCount: normalizeNonNegativeInteger(value.chatReconnectEventCount),
     chatReconnectFailureCount: normalizeNonNegativeInteger(value.chatReconnectFailureCount),
@@ -695,7 +767,10 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
             normalizeAudioLevelSummary(value.audioLevel),
             normalizeNonNegativeInteger(value.chatReconnectEventCount),
             normalizeNonNegativeInteger(value.chatSpeechSpokenCount),
-            normalizeNonNegativeInteger(value.chatSpeechFailureCount)
+            normalizeNonNegativeInteger(value.chatSpeechFailureCount),
+            normalizeNonNegativeInteger(value.qualityLiveUpdateCount),
+            normalizeNonNegativeInteger(value.qualityNextTargetCount),
+            normalizeNonNegativeInteger(value.qualityUpdateFailureCount)
           ),
     recommendation:
       typeof value.recommendation === "string"
@@ -710,7 +785,9 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
             normalizeNonNegativeInteger(value.chatReconnectEventCount),
             normalizeNonNegativeInteger(value.chatReconnectFailureCount),
             normalizeAudioLevelSummary(value.audioLevel),
-            normalizeNonNegativeInteger(value.chatSpeechFailureCount)
+            normalizeNonNegativeInteger(value.chatSpeechFailureCount),
+            normalizeNonNegativeInteger(value.qualityLiveUpdateCount),
+            normalizeNonNegativeInteger(value.qualityUpdateFailureCount)
           )
   };
 };

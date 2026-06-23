@@ -218,6 +218,67 @@ describe("stream validation evidence", () => {
     expect(run.chatReadout?.summary).toContain("Chat speech retained 1 spoken / 0 failed");
   });
 
+  it("copies retained quality automation outcomes into validation evidence", () => {
+    const scene = createDefaultScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const sessionSummary = createStreamSessionSummary({
+      events: [
+        {
+          id: "quality-live-update",
+          at: "2026-06-23T00:00:03.000Z",
+          kind: "quality",
+          severity: "warn",
+          title: "Live quality target lowered",
+          message: "Live encoder target will use Balanced."
+        }
+      ],
+      healthSamples: [healthSample(1), healthSample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!sessionSummary) {
+      throw new Error("Expected session summary.");
+    }
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health()
+      },
+      [],
+      [],
+      [sessionSummary],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      result: "warn",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.qualityAutomation).toMatchObject({
+      status: "pass",
+      eventCount: 1,
+      liveUpdateCount: 1,
+      nextTargetCount: 0,
+      failureCount: 0
+    });
+    expect(run.summary).toContain("Quality automation retained 1 event");
+    expect(summary.qualityAutomationRunCount).toBe(1);
+    expect(summary.qualityAutomationLiveUpdateCount).toBe(1);
+    expect(summary.qualityAutomationFailureCount).toBe(0);
+    expect(summary.latestQualityAutomation?.status).toBe("pass");
+  });
+
   it("stores safe native runtime evidence and downgrades passing runs that need review", () => {
     const scene = createDefaultScene();
     const streamKey = "validation-key";

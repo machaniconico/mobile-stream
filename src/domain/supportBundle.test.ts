@@ -99,6 +99,14 @@ describe("support bundle", () => {
           severity: "warn",
           title: "Chat reconnect scheduled",
           message: "YouTube chat request failed. Retrying chat in 1s (1/5)."
+        },
+        {
+          id: "quality-live-update-1",
+          at: "2026-06-23T00:00:04.000Z",
+          kind: "quality",
+          severity: "warn",
+          title: "Live quality target lowered",
+          message: "Live encoder target will use Balanced."
         }
       ],
       healthSamples,
@@ -130,7 +138,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 7 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 8 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
@@ -147,10 +155,16 @@ describe("support bundle", () => {
     expect(bundle.summary.sessionChatEventCount).toBe(1);
     expect(bundle.summary.sessionChatReconnectEventCount).toBe(1);
     expect(bundle.summary.sessionChatReconnectFailureCount).toBe(0);
+    expect(bundle.summary.sessionQualityEventCount).toBe(1);
+    expect(bundle.summary.sessionQualityLiveUpdateCount).toBe(1);
+    expect(bundle.summary.sessionQualityUpdateFailureCount).toBe(0);
     expect(bundle.summary.lastSessionOutcome).toBe("warn");
     expect(bundle.summary.lastSessionChatEventCount).toBe(1);
     expect(bundle.summary.lastSessionChatReconnectEventCount).toBe(1);
     expect(bundle.summary.lastSessionChatReconnectFailureCount).toBe(0);
+    expect(bundle.summary.lastSessionQualityEventCount).toBe(1);
+    expect(bundle.summary.lastSessionQualityLiveUpdateCount).toBe(1);
+    expect(bundle.summary.lastSessionQualityUpdateFailureCount).toBe(0);
     expect(bundle.summary.lastSessionNativeRuntimeStatus).toBe("warn");
     expect(bundle.summary.lastSessionNativeRuntimePlatform).toBe("android");
     expect(bundle.summary.lastSessionNativeRuntimeCongested).toBe(true);
@@ -196,6 +210,9 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceChatReadoutRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceChatReadoutIosPass).toBe(false);
     expect(bundle.summary.validationEvidenceChatReadoutAndroidPass).toBe(false);
+    expect(bundle.summary.validationEvidenceQualityAutomationRunCount).toBe(0);
+    expect(bundle.summary.validationEvidenceQualityAutomationLiveUpdateCount).toBe(0);
+    expect(bundle.summary.validationEvidenceLatestQualityAutomationStatus).toBeNull();
     expect(bundle.summary.validationEvidencePlatformPublishingRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceLatestPlatformPublishingStatus).toBeNull();
     expect(bundle.summary.validationEvidencePlatformPublishingFreshnessStatus).toBeNull();
@@ -207,6 +224,8 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Clean rate: 0%");
     expect(formatSupportBundle(bundle)).toContain("Chat readout history: 1 events / 1 reconnects / 0 exhausted");
     expect(formatSupportBundle(bundle)).toContain("Last chat readout: 1 events / 1 reconnects / 0 exhausted");
+    expect(formatSupportBundle(bundle)).toContain("Quality automation history: 1 events / 1 live updates / 0 next-start targets / 0 failed");
+    expect(formatSupportBundle(bundle)).toContain("Last quality automation: 1 events / 1 live updates / 0 next-start targets / 0 failed");
     expect(formatSupportBundle(bundle)).toContain("Quality advisor: maintain / pass");
     expect(formatSupportBundle(bundle)).toContain("Face tracking: info / runtime unavailable");
     expect(formatSupportBundle(bundle)).toContain("Commercial Validation");
@@ -221,6 +240,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Evidence face tracking: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence audio: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence chat readout: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
+    expect(formatSupportBundle(bundle)).toContain("Evidence quality automation: 0 retained / live 0 / next-start 0 / failed 0");
     expect(formatSupportBundle(bundle)).toContain("Evidence platform dashboard: 0 retained / 0 warn / 0 fail");
     expect(formatSupportBundle(bundle)).toContain("Evidence platform dashboard freshness: - / -");
     expect(formatSupportBundle(bundle)).toContain("Publishing status freshness: missing / YouTube dashboard status has no checked-at timestamp.");
@@ -249,7 +269,16 @@ describe("support bundle", () => {
     const baseDiagnostics = createStreamDiagnostics(scene, profile, readiness, {
       state: { status: "live" },
       health: health({ bitrateKbps: 3500, fps: 30 })
-    });
+    }, [
+      {
+        id: "quality-live-update-validation",
+        at: "2026-06-23T00:00:30.000Z",
+        kind: "quality",
+        severity: "warn",
+        title: "Live quality target lowered",
+        message: "Live encoder target will use Balanced."
+      }
+    ]);
     const run = createStreamValidationRun({
       diagnostics: baseDiagnostics,
       devicePlatform: "ios",
@@ -285,10 +314,15 @@ describe("support bundle", () => {
     const text = formatSupportBundle(bundle);
 
     expect(bundle.summary.validationEvidencePlatformPublishingRunCount).toBe(1);
+    expect(bundle.summary.validationEvidenceQualityAutomationRunCount).toBe(1);
+    expect(bundle.summary.validationEvidenceQualityAutomationLiveUpdateCount).toBe(1);
+    expect(bundle.summary.validationEvidenceQualityAutomationFailureCount).toBe(0);
+    expect(bundle.summary.validationEvidenceLatestQualityAutomationStatus).toBe("pass");
     expect(bundle.summary.validationEvidencePlatformPublishingFreshnessStatus).toBe("stale");
     expect(bundle.summary.validationEvidencePlatformPublishingFreshnessAgeMinutes).toBe(20);
     expect(bundle.summary.validationEvidencePlatformPublishingFreshnessSummary).toContain("20 minutes old");
     expect(bundle.summary.platformPublishingFreshnessStatus).toBe("stale");
+    expect(text).toContain("Evidence quality automation: 1 retained / live 1 / next-start 0 / failed 0");
     expect(text).toContain("Evidence platform dashboard freshness: stale / YouTube dashboard status is 20 minutes old.");
     expect(text).toContain("Publishing status freshness: stale / YouTube dashboard status is 20 minutes old.");
   });

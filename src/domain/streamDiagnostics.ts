@@ -576,6 +576,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Average duration: ${formatDelay(diagnostics.session.historySummary.averageDurationSeconds * 1000)}`,
     `- Chat readout: ${diagnostics.session.historySummary.totalChatEvents} events / ${diagnostics.session.historySummary.totalChatReconnectEvents} reconnects / ${diagnostics.session.historySummary.totalChatReconnectFailures} exhausted`,
     `- Chat speech: ${diagnostics.session.historySummary.totalChatSpeechSpoken} spoken / ${diagnostics.session.historySummary.totalChatSpeechFailures} failed`,
+    `- Quality automation: ${diagnostics.session.historySummary.totalQualityEvents} events / ${diagnostics.session.historySummary.totalQualityLiveUpdates} live updates / ${diagnostics.session.historySummary.totalQualityNextTargets} next-start targets / ${diagnostics.session.historySummary.totalQualityUpdateFailures} failed`,
     `- History recommendation: ${diagnostics.session.historySummary.recommendation}`,
     ...(diagnostics.session.lastSummary
       ? [
@@ -585,6 +586,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
           `- Last audio meter: ${formatSessionAudioLevel(diagnostics.session.lastSummary)}`,
           `- Last chat readout: ${diagnostics.session.lastSummary.chatEventCount} events / ${diagnostics.session.lastSummary.chatReconnectEventCount} reconnects / ${diagnostics.session.lastSummary.chatReconnectFailureCount} exhausted`,
           `- Last chat speech: ${diagnostics.session.lastSummary.chatSpeechSpokenCount} spoken / ${diagnostics.session.lastSummary.chatSpeechFailureCount} failed`,
+          `- Last quality automation: ${diagnostics.session.lastSummary.qualityEventCount} events / ${diagnostics.session.lastSummary.qualityLiveUpdateCount} live updates / ${diagnostics.session.lastSummary.qualityNextTargetCount} next-start targets / ${diagnostics.session.lastSummary.qualityUpdateFailureCount} failed`,
           `- Last native runtime: ${formatSessionNativeRuntime(diagnostics.session.lastSummary)}`,
           `- Recommendation: ${diagnostics.session.lastSummary.recommendation}`,
           `- Stored summaries: ${diagnostics.session.summaries.length}`
@@ -605,6 +607,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Evidence face tracking: ${formatValidationFaceTracking(diagnostics)}`,
     `- Evidence audio: ${formatValidationAudio(diagnostics)}`,
     `- Evidence chat readout: ${formatValidationChatReadout(diagnostics)}`,
+    `- Evidence quality automation: ${formatValidationQualityAutomation(diagnostics)}`,
     `- Evidence platform dashboard: ${formatValidationPlatformPublishing(diagnostics, generatedAt)}`,
     `- Runbook: ${diagnostics.validationRunbook.status} / ${diagnostics.validationRunbook.summary}`,
     `- Runbook next: ${diagnostics.validationRunbook.nextAction}`,
@@ -704,6 +707,11 @@ const formatValidationAudio = (diagnostics: StreamDiagnostics): string =>
 const formatValidationChatReadout = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestChatReadout
     ? `${diagnostics.validationEvidence.chatReadoutRunCount} retained / ${diagnostics.validationEvidence.chatReadoutReadyCount} ready / ${diagnostics.validationEvidence.chatReadoutWarningCount} warn / iOS ${diagnostics.validationEvidence.chatReadoutIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.chatReadoutAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestChatReadout.status} ${diagnostics.validationEvidence.latestChatReadout.connectionPhase} / spoken ${diagnostics.validationEvidence.latestChatReadout.spokenMessageCount} / failed ${diagnostics.validationEvidence.latestChatReadout.speechFailureCount}`
+    : "-";
+
+const formatValidationQualityAutomation = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.validationEvidence.latestQualityAutomation
+    ? `${diagnostics.validationEvidence.qualityAutomationRunCount} retained / live ${diagnostics.validationEvidence.qualityAutomationLiveUpdateCount} / next-start ${diagnostics.validationEvidence.qualityAutomationNextTargetCount} / failed ${diagnostics.validationEvidence.qualityAutomationFailureCount} / latest ${diagnostics.validationEvidence.latestQualityAutomation.status} ${diagnostics.validationEvidence.latestQualityAutomation.summary}`
     : "-";
 
 const formatValidationPlatformPublishing = (diagnostics: StreamDiagnostics, now: Date): string => {

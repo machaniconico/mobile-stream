@@ -27,7 +27,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 7;
+    bundleVersion: 8;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -56,12 +56,20 @@ export interface SupportBundle {
     sessionChatReconnectFailureCount: number;
     sessionChatSpeechSpokenCount: number;
     sessionChatSpeechFailureCount: number;
+    sessionQualityEventCount: number;
+    sessionQualityLiveUpdateCount: number;
+    sessionQualityNextTargetCount: number;
+    sessionQualityUpdateFailureCount: number;
     lastSessionOutcome: NonNullable<StreamDiagnostics["session"]["lastSummary"]>["outcome"] | null;
     lastSessionChatEventCount: number;
     lastSessionChatReconnectEventCount: number;
     lastSessionChatReconnectFailureCount: number;
     lastSessionChatSpeechSpokenCount: number;
     lastSessionChatSpeechFailureCount: number;
+    lastSessionQualityEventCount: number;
+    lastSessionQualityLiveUpdateCount: number;
+    lastSessionQualityNextTargetCount: number;
+    lastSessionQualityUpdateFailureCount: number;
     lastSessionAudioLevelSampleCount: number;
     lastSessionAudioPeakLevel: number;
     lastSessionAudioActivePercent: number;
@@ -138,6 +146,12 @@ export interface SupportBundle {
     validationEvidenceLatestChatReadoutConnectionPhase: string | null;
     validationEvidenceLatestChatReadoutSpokenMessageCount: number;
     validationEvidenceLatestChatReadoutSpeechFailureCount: number;
+    validationEvidenceQualityAutomationRunCount: number;
+    validationEvidenceQualityAutomationLiveUpdateCount: number;
+    validationEvidenceQualityAutomationNextTargetCount: number;
+    validationEvidenceQualityAutomationFailureCount: number;
+    validationEvidenceLatestQualityAutomationStatus: NonNullable<StreamDiagnostics["validationEvidence"]["latestQualityAutomation"]>["status"] | null;
+    validationEvidenceLatestQualityAutomationSummary: string | null;
     validationEvidencePlatformPublishingRunCount: number;
     validationEvidencePlatformPublishingWarningCount: number;
     validationEvidencePlatformPublishingFailureCount: number;
@@ -277,7 +291,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 7
+      bundleVersion: 8
     },
     summary: {
       status: diagnostics.status,
@@ -306,12 +320,20 @@ export const createSupportBundle = ({
       sessionChatReconnectFailureCount: diagnostics.session.historySummary.totalChatReconnectFailures,
       sessionChatSpeechSpokenCount: diagnostics.session.historySummary.totalChatSpeechSpoken,
       sessionChatSpeechFailureCount: diagnostics.session.historySummary.totalChatSpeechFailures,
+      sessionQualityEventCount: diagnostics.session.historySummary.totalQualityEvents,
+      sessionQualityLiveUpdateCount: diagnostics.session.historySummary.totalQualityLiveUpdates,
+      sessionQualityNextTargetCount: diagnostics.session.historySummary.totalQualityNextTargets,
+      sessionQualityUpdateFailureCount: diagnostics.session.historySummary.totalQualityUpdateFailures,
       lastSessionOutcome: diagnostics.session.lastSummary?.outcome ?? null,
       lastSessionChatEventCount: diagnostics.session.lastSummary?.chatEventCount ?? 0,
       lastSessionChatReconnectEventCount: diagnostics.session.lastSummary?.chatReconnectEventCount ?? 0,
       lastSessionChatReconnectFailureCount: diagnostics.session.lastSummary?.chatReconnectFailureCount ?? 0,
       lastSessionChatSpeechSpokenCount: diagnostics.session.lastSummary?.chatSpeechSpokenCount ?? 0,
       lastSessionChatSpeechFailureCount: diagnostics.session.lastSummary?.chatSpeechFailureCount ?? 0,
+      lastSessionQualityEventCount: diagnostics.session.lastSummary?.qualityEventCount ?? 0,
+      lastSessionQualityLiveUpdateCount: diagnostics.session.lastSummary?.qualityLiveUpdateCount ?? 0,
+      lastSessionQualityNextTargetCount: diagnostics.session.lastSummary?.qualityNextTargetCount ?? 0,
+      lastSessionQualityUpdateFailureCount: diagnostics.session.lastSummary?.qualityUpdateFailureCount ?? 0,
       lastSessionAudioLevelSampleCount: diagnostics.session.lastSummary?.audioLevel.sampleCount ?? 0,
       lastSessionAudioPeakLevel: diagnostics.session.lastSummary?.audioLevel.peakLevel ?? 0,
       lastSessionAudioActivePercent: diagnostics.session.lastSummary?.audioLevel.activePercent ?? 0,
@@ -388,6 +410,12 @@ export const createSupportBundle = ({
       validationEvidenceLatestChatReadoutConnectionPhase: diagnostics.validationEvidence.latestChatReadout?.connectionPhase ?? null,
       validationEvidenceLatestChatReadoutSpokenMessageCount: diagnostics.validationEvidence.latestChatReadout?.spokenMessageCount ?? 0,
       validationEvidenceLatestChatReadoutSpeechFailureCount: diagnostics.validationEvidence.latestChatReadout?.speechFailureCount ?? 0,
+      validationEvidenceQualityAutomationRunCount: diagnostics.validationEvidence.qualityAutomationRunCount,
+      validationEvidenceQualityAutomationLiveUpdateCount: diagnostics.validationEvidence.qualityAutomationLiveUpdateCount,
+      validationEvidenceQualityAutomationNextTargetCount: diagnostics.validationEvidence.qualityAutomationNextTargetCount,
+      validationEvidenceQualityAutomationFailureCount: diagnostics.validationEvidence.qualityAutomationFailureCount,
+      validationEvidenceLatestQualityAutomationStatus: diagnostics.validationEvidence.latestQualityAutomation?.status ?? null,
+      validationEvidenceLatestQualityAutomationSummary: diagnostics.validationEvidence.latestQualityAutomation?.summary ?? null,
       validationEvidencePlatformPublishingRunCount: diagnostics.validationEvidence.platformPublishingRunCount,
       validationEvidencePlatformPublishingWarningCount: diagnostics.validationEvidence.platformPublishingWarningCount,
       validationEvidencePlatformPublishingFailureCount: diagnostics.validationEvidence.platformPublishingFailureCount,
@@ -548,11 +576,13 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Clean rate: ${bundle.summary.sessionCleanRate}%`,
     `- Chat readout history: ${bundle.summary.sessionChatEventCount} events / ${bundle.summary.sessionChatReconnectEventCount} reconnects / ${bundle.summary.sessionChatReconnectFailureCount} exhausted`,
     `- Chat speech history: ${bundle.summary.sessionChatSpeechSpokenCount} spoken / ${bundle.summary.sessionChatSpeechFailureCount} failed`,
+    `- Quality automation history: ${bundle.summary.sessionQualityEventCount} events / ${bundle.summary.sessionQualityLiveUpdateCount} live updates / ${bundle.summary.sessionQualityNextTargetCount} next-start targets / ${bundle.summary.sessionQualityUpdateFailureCount} failed`,
     `- History summary: ${bundle.diagnostics.session.historySummary.summary}`,
     `- History recommendation: ${bundle.diagnostics.session.historySummary.recommendation}`,
     `- Last outcome: ${bundle.summary.lastSessionOutcome ?? "-"}`,
     `- Last chat readout: ${bundle.summary.lastSessionChatEventCount} events / ${bundle.summary.lastSessionChatReconnectEventCount} reconnects / ${bundle.summary.lastSessionChatReconnectFailureCount} exhausted`,
     `- Last chat speech: ${bundle.summary.lastSessionChatSpeechSpokenCount} spoken / ${bundle.summary.lastSessionChatSpeechFailureCount} failed`,
+    `- Last quality automation: ${bundle.summary.lastSessionQualityEventCount} events / ${bundle.summary.lastSessionQualityLiveUpdateCount} live updates / ${bundle.summary.lastSessionQualityNextTargetCount} next-start targets / ${bundle.summary.lastSessionQualityUpdateFailureCount} failed`,
     `- Last audio meter: ${bundle.summary.lastSessionAudioLevelSampleCount} samples / peak ${Math.round(bundle.summary.lastSessionAudioPeakLevel * 100)}% / active ${bundle.summary.lastSessionAudioActivePercent}% / clipped ${bundle.summary.lastSessionAudioClippedSampleCount}`,
     `- Last summary: ${bundle.diagnostics.session.lastSummary?.summary ?? "-"}`,
     `- Last native runtime: ${bundle.summary.lastSessionNativeRuntimeStatus ?? "-"} / ${bundle.summary.lastSessionNativeRuntimePlatform ?? "-"} / assets ${bundle.summary.lastSessionNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.lastSessionNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.lastSessionNativeRuntimeStillImageAssetMissingCount} missing / congested ${bundle.summary.lastSessionNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.lastSessionNativeRuntimeQueuedItems}/${bundle.summary.lastSessionNativeRuntimeCacheSize}`,
@@ -584,6 +614,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Evidence face tracking: ${bundle.summary.validationEvidenceFaceTrackingRunCount} retained / ${bundle.summary.validationEvidenceFaceTrackingReadyCount} ready / ${bundle.summary.validationEvidenceFaceTrackingWarningCount} warn / iOS ${bundle.summary.validationEvidenceFaceTrackingIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceFaceTrackingAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestFaceTrackingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestFaceTrackingRuntimeStatus ?? "-"} / prepared ${bundle.summary.validationEvidenceLatestFaceTrackingPreparedPngTuberCount} / moving ${bundle.summary.validationEvidenceLatestFaceTrackingActiveMotionCount}`,
     `- Evidence audio: ${bundle.summary.validationEvidenceAudioRunCount} retained / ${bundle.summary.validationEvidenceAudioReadyCount} ready / ${bundle.summary.validationEvidenceAudioWarningCount} warn / iOS ${bundle.summary.validationEvidenceAudioIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAudioAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestAudioStatus ?? "-"} ${bundle.summary.validationEvidenceLatestAudioPresetId ?? "-"} / monitor ${bundle.summary.validationEvidenceLatestAudioMonitorEnabled ? "on" : "off"} / headphones-only ${bundle.summary.validationEvidenceLatestAudioMonitorHeadphonesOnly ? "yes" : "no"} / route ${bundle.summary.validationEvidenceLatestAudioMonitorRouteStatus ?? "-"} ${bundle.summary.validationEvidenceLatestAudioOutputName ?? "-"} / headphones ${bundle.summary.validationEvidenceLatestAudioHeadphonesConnected ? "yes" : "no"} / stale ${bundle.summary.validationEvidenceLatestAudioRouteStale ? "yes" : "no"} / samples ${bundle.summary.validationEvidenceLatestAudioLevelSampleCount} / peak ${Math.round(bundle.summary.validationEvidenceLatestAudioPeakLevel * 100)}% / clipped ${bundle.summary.validationEvidenceLatestAudioClippedLevelCount}`,
     `- Evidence chat readout: ${bundle.summary.validationEvidenceChatReadoutRunCount} retained / ${bundle.summary.validationEvidenceChatReadoutReadyCount} ready / ${bundle.summary.validationEvidenceChatReadoutWarningCount} warn / iOS ${bundle.summary.validationEvidenceChatReadoutIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceChatReadoutAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestChatReadoutStatus ?? "-"} ${bundle.summary.validationEvidenceLatestChatReadoutConnectionPhase ?? "-"} / spoken ${bundle.summary.validationEvidenceLatestChatReadoutSpokenMessageCount} / failed ${bundle.summary.validationEvidenceLatestChatReadoutSpeechFailureCount}`,
+    `- Evidence quality automation: ${bundle.summary.validationEvidenceQualityAutomationRunCount} retained / live ${bundle.summary.validationEvidenceQualityAutomationLiveUpdateCount} / next-start ${bundle.summary.validationEvidenceQualityAutomationNextTargetCount} / failed ${bundle.summary.validationEvidenceQualityAutomationFailureCount} / latest ${bundle.summary.validationEvidenceLatestQualityAutomationStatus ?? "-"} ${bundle.summary.validationEvidenceLatestQualityAutomationSummary ?? "-"}`,
     `- Evidence platform dashboard: ${bundle.summary.validationEvidencePlatformPublishingRunCount} retained / ${bundle.summary.validationEvidencePlatformPublishingWarningCount} warn / ${bundle.summary.validationEvidencePlatformPublishingFailureCount} fail / latest ${bundle.summary.validationEvidenceLatestPlatformPublishingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestPlatformPublishingSummary ?? "-"}`,
     `- Evidence platform dashboard freshness: ${bundle.summary.validationEvidencePlatformPublishingFreshnessStatus ?? "-"} / ${bundle.summary.validationEvidencePlatformPublishingFreshnessSummary ?? "-"}`,
     `- Physical coverage: iOS ${bundle.summary.validationEvidenceIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAndroidPass ? "pass" : "missing"}`,
