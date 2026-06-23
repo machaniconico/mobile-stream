@@ -43,6 +43,7 @@
 - OAuth/API-backed platform stream key controls: YouTube reusable stream creation for key rotation and Twitch Helix current-key sync.
 - OAuth/API-backed platform publishing controls: YouTube scheduled Live Broadcast creation, stream binding, broadcast/ingest health refresh, and test/live/complete lifecycle transitions; Twitch channel title/category/language metadata update plus live/offline status refresh.
 - OAuth-token chat connection layer for YouTube live chat polling and Twitch IRC WebSocket ingestion.
+- Platform API controls refresh expiring YouTube/Twitch OAuth credentials before stream-key, broadcast, and channel operations on Web and React Native.
 - Mobile OAuth callback URL scheme registration and React Native callback capture for chat authorization.
 - Avatar runtime model for PNGTuber/Live2D expression, lip sync, and auto blink.
 - Still-image VTuber face tracking runtime with native-camera frames on mobile, simulated frames on web, neutral calibration, dead-zone filtering, jump limiting, lost-face return tuning, and iOS/Android native compositor 2.5D motion scaling.

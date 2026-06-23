@@ -12,6 +12,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - RTMP/RTMPS destination profiles with YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - OAuth/API-backed platform stream key controls: YouTube can create a new reusable Live Stream and apply its RTMPS key; Twitch can sync the current Helix stream key.
 - OAuth/API-backed publishing controls: YouTube can create, bind, refresh status, test, start, and complete scheduled Live Broadcasts; Twitch can update title, category, broadcaster language, and refresh live/offline status.
+- Platform API controls refresh expiring YouTube/Twitch OAuth credentials before stream-key, broadcast, and channel operations.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - RTMP/RTMPS publish URL normalization that can split pasted YouTube/Twitch full publish URLs into endpoint and stream key before start.
 - Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, native runtime validation evidence, platform dashboard validation evidence, and sanitized report export/share.

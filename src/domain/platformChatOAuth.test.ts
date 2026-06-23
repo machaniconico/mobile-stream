@@ -5,6 +5,7 @@ import {
   createPlatformChatOAuthFlow,
   createPlatformChatAuthFromCredential,
   createPkceS256Challenge,
+  ensureFreshPlatformChatOAuthCredential,
   exchangeYouTubeOAuthCode,
   parseOAuthCallback,
   pollTwitchDeviceCodeOAuthFlow,
@@ -399,6 +400,104 @@ describe("platformChatOAuth", () => {
       twitchLogin: "macha",
       twitchUserId: "123"
     });
+  });
+
+  it("refreshes expiring credentials before platform API calls", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        access_token: "yt-access-2",
+        expires_in: 1800,
+        scope: "https://www.googleapis.com/auth/youtube.force-ssl",
+        token_type: "Bearer"
+      })
+    });
+
+    const result = await ensureFreshPlatformChatOAuthCredential(
+      {
+        platform: "youtube",
+        accessToken: "yt-access-1",
+        refreshToken: "yt-refresh",
+        expiresAt: 1050,
+        scopes: ["https://www.googleapis.com/auth/youtube.force-ssl"],
+        twitchLogin: null,
+        twitchUserId: null,
+        validatedAt: 1,
+        clientId: "stored-youtube-client",
+        redirectUri: "com.mobilelivecaster.app:/oauth/youtube"
+      },
+      {
+        ...oauthSettings(),
+        youtubeClientId: ""
+      },
+      fetcher,
+      1000
+    );
+
+    expect(result.refreshed).toBe(true);
+    expect(result.credential?.accessToken).toBe("yt-access-2");
+    expect(result.message).toBe("YouTube OAuth token refreshed before platform API call.");
+    expect(String(fetcher.mock.calls[0]?.[1]?.body ?? "")).toContain("refresh_token=yt-refresh");
+  });
+
+  it("fails closed when an expiring OAuth token cannot be refreshed", async () => {
+    await expect(
+      ensureFreshPlatformChatOAuthCredential(
+        {
+          platform: "twitch",
+          accessToken: "tw-access",
+          refreshToken: null,
+          expiresAt: 1050,
+          scopes: ["channel:manage:broadcast"],
+          twitchLogin: "macha",
+          twitchUserId: "123",
+          validatedAt: 1,
+          clientId: "twitch-client",
+          redirectUri: "mobilelivecaster://oauth/twitch"
+        },
+        oauthSettings(),
+        vi.fn(),
+        1000
+      )
+    ).rejects.toThrow("Twitch OAuth token expires soon and cannot be refreshed");
+  });
+
+  it("validates stale Twitch credentials before platform API calls", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        client_id: "twitch-client",
+        login: "macha",
+        scopes: ["channel:manage:broadcast"],
+        user_id: "123",
+        expires_in: 1800
+      })
+    });
+
+    const result = await ensureFreshPlatformChatOAuthCredential(
+      {
+        platform: "twitch",
+        accessToken: "tw-access",
+        refreshToken: "tw-refresh",
+        expiresAt: 99999999,
+        scopes: ["channel:manage:broadcast"],
+        twitchLogin: "macha",
+        twitchUserId: "123",
+        validatedAt: 1,
+        clientId: "twitch-client",
+        redirectUri: "mobilelivecaster://oauth/twitch"
+      },
+      oauthSettings(),
+      fetcher,
+      3600002
+    );
+
+    expect(result.validated).toBe(true);
+    expect(result.refreshed).toBe(false);
+    expect(result.credential?.refreshToken).toBe("tw-refresh");
+    expect(result.message).toBe("Twitch OAuth token validated before platform API call.");
   });
 
   it("derives chat auth and refresh/validation scheduling from stored credentials", () => {

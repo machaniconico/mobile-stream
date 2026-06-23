@@ -34,6 +34,7 @@ import {
   createPlatformChatAuthFromCredential,
   createDefaultPlatformChatOAuthSettings,
   createPlatformChatOAuthFlow,
+  ensureFreshPlatformChatOAuthCredential,
   normalizePlatformChatOAuthSettings,
   pollTwitchDeviceCodeOAuthFlow,
   refreshTwitchOAuthCredential,
@@ -715,12 +716,24 @@ export const MobileApp = () => {
     }
   };
 
+  const preparePlatformApiCredential = async (): Promise<PlatformChatOAuthCredential | null> => {
+    const result = await ensureFreshPlatformChatOAuthCredential(platformChatOAuthCredential, platformChatOAuth, fetch);
+    if (result.credential && (result.refreshed || result.validated)) {
+      await persistPlatformChatOAuthCredential(result.credential);
+      if (result.message) {
+        setPlatformChatOAuthStatus(result.message);
+      }
+    }
+    return result.credential;
+  };
+
   const applyPlatformStreamKey = async () => {
     try {
+      const credential = await preparePlatformApiCredential();
       const result =
         profile.platformChat.platform === "youtube"
-          ? await rotateYouTubeStreamKey(profile, platformChatOAuthCredential, fetch)
-          : await syncTwitchStreamKey(profile, platformChatOAuthCredential, fetch);
+          ? await rotateYouTubeStreamKey(profile, credential, fetch)
+          : await syncTwitchStreamKey(profile, credential, fetch);
       setProfile(result.profile);
       await saveSecureProfile(result.profile).catch(() => undefined);
       setPlatformStreamKeyStatus(result.message);
@@ -734,10 +747,11 @@ export const MobileApp = () => {
       if (profile.destination.platform === "custom") {
         throw new Error("Platform publishing setup requires a YouTube Live or Twitch destination.");
       }
+      const credential = await preparePlatformApiCredential();
       const result =
         profile.destination.platform === "youtube-live"
-          ? await createYouTubeBroadcastAndBindStream(profile, platformChatOAuthCredential, fetch)
-          : await applyTwitchChannelMetadata(profile, platformChatOAuthCredential, fetch);
+          ? await createYouTubeBroadcastAndBindStream(profile, credential, fetch)
+          : await applyTwitchChannelMetadata(profile, credential, fetch);
       setProfile(result.profile);
       await saveSecureProfile(result.profile).catch(() => undefined);
       setPlatformPublishingStatus(result.message);
@@ -748,7 +762,8 @@ export const MobileApp = () => {
 
   const transitionYouTubeBroadcastState = async (broadcastStatus: YouTubeBroadcastTransitionStatus) => {
     try {
-      const result = await transitionYouTubeBroadcast(profile, platformChatOAuthCredential, broadcastStatus, fetch);
+      const credential = await preparePlatformApiCredential();
+      const result = await transitionYouTubeBroadcast(profile, credential, broadcastStatus, fetch);
       setProfile(result.profile);
       await saveSecureProfile(result.profile).catch(() => undefined);
       setPlatformPublishingStatus(result.message);
@@ -759,11 +774,12 @@ export const MobileApp = () => {
 
   const refreshPlatformPublishingStatus = async () => {
     try {
+      const credential = await preparePlatformApiCredential();
       const result =
         profile.destination.platform === "youtube-live"
-          ? await refreshYouTubeBroadcastStatus(profile, platformChatOAuthCredential, fetch)
+          ? await refreshYouTubeBroadcastStatus(profile, credential, fetch)
           : profile.destination.platform === "twitch"
-            ? await refreshTwitchChannelStatus(profile, platformChatOAuthCredential, fetch)
+            ? await refreshTwitchChannelStatus(profile, credential, fetch)
             : null;
 
       if (!result) {

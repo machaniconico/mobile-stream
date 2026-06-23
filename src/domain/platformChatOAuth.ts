@@ -605,6 +605,65 @@ export const shouldValidateTwitchOAuthCredential = (
   return Boolean(normalized?.platform === "twitch" && (!normalized.validatedAt || now - normalized.validatedAt >= intervalMs));
 };
 
+export interface PlatformChatOAuthCredentialFreshnessResult {
+  credential: PlatformChatOAuthCredential | null;
+  refreshed: boolean;
+  validated: boolean;
+  message: string | null;
+}
+
+export const ensureFreshPlatformChatOAuthCredential = async (
+  credential: PlatformChatOAuthCredential | null,
+  settings: PlatformChatOAuthSettings,
+  fetcher: PlatformChatFetch,
+  now: number = Date.now(),
+  leewayMs = 120000
+): Promise<PlatformChatOAuthCredentialFreshnessResult> => {
+  const normalized = normalizePlatformChatOAuthCredential(credential);
+  if (!normalized) {
+    return { credential: null, refreshed: false, validated: false, message: null };
+  }
+
+  const platformName = normalized.platform === "youtube" ? "YouTube" : "Twitch";
+  const expiresSoon = normalized.expiresAt !== null && normalized.expiresAt - now <= leewayMs;
+  if (expiresSoon) {
+    if (!normalized.refreshToken) {
+      throw new PlatformChatOAuthError(`${platformName} OAuth token expires soon and cannot be refreshed. Reconnect OAuth before using platform controls.`);
+    }
+
+    const refreshed =
+      normalized.platform === "youtube"
+        ? await refreshYouTubeOAuthCredential(normalized, settings, fetcher, now)
+        : await refreshTwitchOAuthCredential(normalized, settings, fetcher, now);
+    return {
+      credential: refreshed,
+      refreshed: true,
+      validated: normalized.platform === "twitch",
+      message: `${platformName} OAuth token refreshed before platform API call.`
+    };
+  }
+
+  if (normalized.platform === "twitch" && shouldValidateTwitchOAuthCredential(normalized, now)) {
+    const validatedToken = await validateTwitchOAuthToken(normalized.accessToken, fetcher, now);
+    const validated = {
+      ...normalized,
+      ...validatedToken,
+      refreshToken: normalized.refreshToken,
+      scopes: validatedToken.scopes.length > 0 ? validatedToken.scopes : normalized.scopes,
+      clientId: normalized.clientId,
+      redirectUri: normalized.redirectUri
+    };
+    return {
+      credential: validated,
+      refreshed: false,
+      validated: true,
+      message: "Twitch OAuth token validated before platform API call."
+    };
+  }
+
+  return { credential: normalized, refreshed: false, validated: false, message: null };
+};
+
 export const createPkceCodeVerifier = (): string => createOAuthNonce(64);
 
 export const createPkceS256Challenge = (codeVerifier: string): string => base64UrlEncode(sha256Ascii(codeVerifier));
