@@ -1,9 +1,13 @@
 import AudioToolbox
+import CoreGraphics
+import CoreImage
 import CoreMedia
+import CoreVideo
 import Foundation
 import Network
 import os
 import ReplayKit
+import UIKit
 import VideoToolbox
 
 private let broadcastAppGroup = "group.com.mobilelivecaster.app"
@@ -441,7 +445,8 @@ final class BroadcastSharedStore {
         stats: BroadcastUploadStats,
         videoEncoderStats: BroadcastVideoEncoderStats?,
         audioEncoderStats: BroadcastAudioEncoderStats?,
-        publisherStats: BroadcastRTMPPublisherStats?
+        publisherStats: BroadcastRTMPPublisherStats?,
+        sceneCompositionSummary: BroadcastSceneCompositionSummary?
     ) {
         guard let defaults else {
             return
@@ -463,6 +468,10 @@ final class BroadcastSharedStore {
 
         if let publisherStats {
             payload["publisher"] = publisherStats.asDictionary()
+        }
+
+        if let sceneCompositionSummary {
+            payload["sceneComposition"] = sceneCompositionSummary.asDictionary()
         }
 
         if case .failed(let message) = state {
@@ -2328,6 +2337,513 @@ final class BroadcastVideoEncoder {
     }
 }
 
+struct BroadcastSceneCompositionSummary: Equatable {
+    let appliedCount: Int
+    let skippedCount: Int
+    let skippedKinds: [String]
+    let parseFailed: Bool
+
+    static let screenOnly = BroadcastSceneCompositionSummary(
+        appliedCount: 0,
+        skippedCount: 0,
+        skippedKinds: [],
+        parseFailed: false
+    )
+
+    var message: String {
+        if parseFailed {
+            return "Native composition skipped: invalid render graph"
+        }
+        if appliedCount == 0 && skippedCount == 0 {
+            return "Native composition screen-only"
+        }
+        if skippedCount == 0 {
+            return "Native overlays applied: \(appliedCount)"
+        }
+        if appliedCount == 0 {
+            return "Native overlays pending: \(skippedKinds.joined(separator: "/"))"
+        }
+        return "Native overlays applied: \(appliedCount), pending: \(skippedKinds.joined(separator: "/"))"
+    }
+
+    func asDictionary() -> [String: Any] {
+        [
+            "appliedCount": appliedCount,
+            "skippedCount": skippedCount,
+            "skippedKinds": skippedKinds,
+            "parseFailed": parseFailed,
+            "message": message
+        ]
+    }
+}
+
+private struct BroadcastRenderTransform {
+    let x: CGFloat
+    let y: CGFloat
+    let width: CGFloat
+    let height: CGFloat
+    let rotation: CGFloat
+    let opacity: CGFloat
+
+    static let identity = BroadcastRenderTransform(
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+        rotation: 0,
+        opacity: 1
+    )
+
+    init(
+        x: CGFloat,
+        y: CGFloat,
+        width: CGFloat,
+        height: CGFloat,
+        rotation: CGFloat,
+        opacity: CGFloat
+    ) {
+        self.x = Self.clamp(x, 0, 1)
+        self.y = Self.clamp(y, 0, 1)
+        self.width = Self.clamp(width, 0.01, 1)
+        self.height = Self.clamp(height, 0.01, 1)
+        self.rotation = Self.clamp(rotation, -180, 180)
+        self.opacity = Self.clamp(opacity, 0, 1)
+    }
+
+    init(dictionary: [String: Any]?) {
+        self.init(
+            x: Self.cgFloatValue(dictionary?["x"], fallback: 0),
+            y: Self.cgFloatValue(dictionary?["y"], fallback: 0),
+            width: Self.cgFloatValue(dictionary?["width"], fallback: 1),
+            height: Self.cgFloatValue(dictionary?["height"], fallback: 1),
+            rotation: Self.cgFloatValue(dictionary?["rotation"], fallback: 0),
+            opacity: Self.cgFloatValue(dictionary?["opacity"], fallback: 1)
+        )
+    }
+
+    private static func cgFloatValue(_ value: Any?, fallback: CGFloat) -> CGFloat {
+        if let numberValue = value as? NSNumber {
+            return CGFloat(truncating: numberValue)
+        }
+        if let stringValue = value as? String, let doubleValue = Double(stringValue) {
+            return CGFloat(doubleValue)
+        }
+        return fallback
+    }
+
+    private static func clamp(_ value: CGFloat, _ lowerBound: CGFloat, _ upperBound: CGFloat) -> CGFloat {
+        min(max(value, lowerBound), upperBound)
+    }
+}
+
+private struct BroadcastRenderNode {
+    let id: String
+    let kind: String
+    let order: Int
+    let transform: BroadcastRenderTransform
+    let payload: [String: Any]
+}
+
+final class BroadcastSceneCompositor {
+    private let ciContext = CIContext(options: nil)
+    private let targetWidth: Int
+    private let targetHeight: Int
+    private let overlayNodes: [BroadcastRenderNode]
+    private var cachedImages: [String: UIImage] = [:]
+    let summary: BroadcastSceneCompositionSummary
+
+    init(configuration: BroadcastUploadConfiguration) {
+        targetWidth = configuration.width
+        targetHeight = configuration.height
+
+        guard let renderGraphJSON = configuration.renderGraphJSON, !renderGraphJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            overlayNodes = []
+            summary = .screenOnly
+            return
+        }
+
+        guard let renderNodes = Self.parseRenderGraph(renderGraphJSON) else {
+            overlayNodes = []
+            summary = BroadcastSceneCompositionSummary(
+                appliedCount: 0,
+                skippedCount: 0,
+                skippedKinds: [],
+                parseFailed: true
+            )
+            return
+        }
+
+        let primaryScreenOrder = renderNodes
+            .filter { $0.kind == "screen" }
+            .map(\.order)
+            .min()
+        let underlays = renderNodes.filter { node in
+            node.kind != "screen" && primaryScreenOrder.map { node.order <= $0 } == true
+        }
+        let overlays = renderNodes
+            .filter { node in
+                node.kind != "screen" && (primaryScreenOrder == nil || node.order > primaryScreenOrder!)
+            }
+            .sorted { $0.order < $1.order }
+        let supportedKinds: Set<String> = ["pngtuber", "text", "solid", "image"]
+        let supportedOverlays = overlays.filter { supportedKinds.contains($0.kind) }
+        let skippedNodes = underlays + overlays.filter { !supportedKinds.contains($0.kind) }
+
+        overlayNodes = supportedOverlays
+        summary = BroadcastSceneCompositionSummary(
+            appliedCount: supportedOverlays.count,
+            skippedCount: skippedNodes.count,
+            skippedKinds: Array(Set(skippedNodes.map(\.kind))).sorted(),
+            parseFailed: false
+        )
+    }
+
+    func compose(_ sampleBuffer: CMSampleBuffer) -> CMSampleBuffer {
+        guard !overlayNodes.isEmpty, let inputPixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+            return sampleBuffer
+        }
+        guard let outputPixelBuffer = Self.makePixelBuffer(width: targetWidth, height: targetHeight) else {
+            return sampleBuffer
+        }
+
+        renderInput(inputPixelBuffer, to: outputPixelBuffer)
+        guard drawOverlays(to: outputPixelBuffer) else {
+            return sampleBuffer
+        }
+        return Self.makeSampleBuffer(pixelBuffer: outputPixelBuffer, sourceSampleBuffer: sampleBuffer) ?? sampleBuffer
+    }
+
+    private func renderInput(_ inputPixelBuffer: CVPixelBuffer, to outputPixelBuffer: CVPixelBuffer) {
+        let sourceImage = CIImage(cvPixelBuffer: inputPixelBuffer)
+        let sourceExtent = sourceImage.extent
+        let xScale = CGFloat(targetWidth) / max(sourceExtent.width, 1)
+        let yScale = CGFloat(targetHeight) / max(sourceExtent.height, 1)
+        let scaledImage = sourceImage.transformed(by: CGAffineTransform(scaleX: xScale, y: yScale))
+        ciContext.render(
+            scaledImage,
+            to: outputPixelBuffer,
+            bounds: CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight),
+            colorSpace: CGColorSpaceCreateDeviceRGB()
+        )
+    }
+
+    private func drawOverlays(to pixelBuffer: CVPixelBuffer) -> Bool {
+        CVPixelBufferLockBaseAddress(pixelBuffer, [])
+        defer {
+            CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
+        }
+
+        guard
+            let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer),
+            let context = CGContext(
+                data: baseAddress,
+                width: targetWidth,
+                height: targetHeight,
+                bitsPerComponent: 8,
+                bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
+            )
+        else {
+            return false
+        }
+
+        context.translateBy(x: 0, y: CGFloat(targetHeight))
+        context.scaleBy(x: 1, y: -1)
+        let canvasSize = CGSize(width: targetWidth, height: targetHeight)
+        overlayNodes.forEach { draw($0, in: context, canvasSize: canvasSize) }
+        return true
+    }
+
+    private func draw(_ node: BroadcastRenderNode, in context: CGContext, canvasSize: CGSize) {
+        let rect = rect(for: node, canvasSize: canvasSize)
+        guard rect.width > 0, rect.height > 0, node.transform.opacity > 0 else {
+            return
+        }
+
+        context.saveGState()
+        context.setAlpha(node.transform.opacity)
+        context.translateBy(x: rect.midX, y: rect.midY)
+        context.rotate(by: rotation(for: node) * .pi / 180)
+        let localRect = CGRect(x: -rect.width / 2, y: -rect.height / 2, width: rect.width, height: rect.height)
+
+        switch node.kind {
+        case "pngtuber":
+            drawPngTuber(node, in: context, rect: localRect)
+        case "text":
+            drawText(node, in: context, rect: localRect)
+        case "solid":
+            drawSolid(node, in: context, rect: localRect)
+        case "image":
+            drawImage(node, in: context, rect: localRect)
+        default:
+            break
+        }
+
+        context.restoreGState()
+    }
+
+    private func rect(for node: BroadcastRenderNode, canvasSize: CGSize) -> CGRect {
+        let transform = node.transform
+        let isPngTuber = node.kind == "pngtuber"
+        let motionX = isPngTuber ? node.payload.cgFloatValue("headX") * 0.025 : 0
+        let motionY = isPngTuber
+            ? (node.payload.cgFloatValue("headY") + node.payload.cgFloatValue("breathing") - node.payload.cgFloatValue("bodyBounce")) * 0.025
+            : 0
+
+        return CGRect(
+            x: min(max(transform.x + motionX, 0), 1) * canvasSize.width,
+            y: min(max(transform.y + motionY, 0), 1) * canvasSize.height,
+            width: transform.width * canvasSize.width,
+            height: transform.height * canvasSize.height
+        )
+    }
+
+    private func rotation(for node: BroadcastRenderNode) -> CGFloat {
+        let transformRotation = node.transform.rotation
+        guard node.kind == "pngtuber" else {
+            return transformRotation
+        }
+        let motionRotation =
+            node.payload.cgFloatValue("bodyLean") * 10 +
+            node.payload.cgFloatValue("headRoll") * 10 +
+            node.payload.cgFloatValue("headYaw") * 4
+        return min(max(transformRotation + motionRotation, -180), 180)
+    }
+
+    private func drawPngTuber(_ node: BroadcastRenderNode, in context: CGContext, rect: CGRect) {
+        if let image = image(for: node.payload.stringValue("imageUri")) {
+            UIGraphicsPushContext(context)
+            image.draw(in: rect)
+            UIGraphicsPopContext()
+            return
+        }
+
+        let expression = node.payload.stringValue("expression", fallback: "neutral")
+        let mouthOpen = min(max(node.payload.cgFloatValue("mouthOpen"), 0), 1)
+        let blink = min(max(node.payload.cgFloatValue("blink"), 0), 1)
+        let bodyColor: UIColor
+        switch expression {
+        case "happy":
+            bodyColor = UIColor(red: 34 / 255, green: 197 / 255, blue: 94 / 255, alpha: 1)
+        case "angry":
+            bodyColor = UIColor(red: 251 / 255, green: 113 / 255, blue: 133 / 255, alpha: 1)
+        case "surprised":
+            bodyColor = UIColor(red: 56 / 255, green: 189 / 255, blue: 248 / 255, alpha: 1)
+        default:
+            bodyColor = UIColor(red: 139 / 255, green: 92 / 255, blue: 246 / 255, alpha: 1)
+        }
+
+        let bodyRect = mapBlueprintRect(CGRect(x: 190, y: 540, width: 340, height: 360), into: rect)
+        context.setFillColor(UIColor(red: 45 / 255, green: 212 / 255, blue: 191 / 255, alpha: 0.92).cgColor)
+        context.addPath(CGPath(roundedRect: bodyRect, cornerWidth: bodyRect.width * 0.4, cornerHeight: bodyRect.height * 0.32, transform: nil))
+        context.fillPath()
+
+        let headRect = mapBlueprintRect(CGRect(x: 135, y: 135, width: 450, height: 475), into: rect)
+        context.setFillColor(bodyColor.cgColor)
+        context.addPath(CGPath(ellipseIn: headRect, transform: nil))
+        context.fillPath()
+        context.setStrokeColor(UIColor(white: 0.98, alpha: 0.86).cgColor)
+        context.setLineWidth(max(rect.width, rect.height) * 0.012)
+        context.addPath(CGPath(ellipseIn: headRect, transform: nil))
+        context.strokePath()
+
+        context.setFillColor(UIColor(white: 0.98, alpha: 1).cgColor)
+        let eyeHeight = max(42 * (1 - blink), 5)
+        context.addPath(CGPath(ellipseIn: mapBlueprintRect(CGRect(x: 255, y: 330, width: 50, height: eyeHeight), into: rect), transform: nil))
+        context.fillPath()
+        context.addPath(CGPath(ellipseIn: mapBlueprintRect(CGRect(x: 415, y: 330, width: 50, height: eyeHeight), into: rect), transform: nil))
+        context.fillPath()
+
+        context.setFillColor(UIColor(red: 24 / 255, green: 24 / 255, blue: 31 / 255, alpha: 1).cgColor)
+        let mouthHeight = 18 + mouthOpen * 86
+        context.addPath(CGPath(ellipseIn: mapBlueprintRect(CGRect(x: 320, y: 442, width: 80, height: mouthHeight), into: rect), transform: nil))
+        context.fillPath()
+
+        UIGraphicsPushContext(context)
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .center
+        NSString(string: "PNGTuber").draw(
+            in: mapBlueprintRect(CGRect(x: 0, y: 892, width: 720, height: 60), into: rect),
+            withAttributes: [
+                .font: UIFont.systemFont(ofSize: max(10, rect.height * 0.045), weight: .semibold),
+                .foregroundColor: UIColor(white: 0.98, alpha: 0.82),
+                .paragraphStyle: paragraphStyle
+            ]
+        )
+        UIGraphicsPopContext()
+    }
+
+    private func drawText(_ node: BroadcastRenderNode, in context: CGContext, rect: CGRect) {
+        let text = node.payload.stringValue("text").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            return
+        }
+        UIGraphicsPushContext(context)
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .left
+        paragraphStyle.lineBreakMode = .byTruncatingTail
+        NSString(string: String(text.prefix(240))).draw(
+            in: rect,
+            withAttributes: [
+                .font: UIFont.systemFont(
+                    ofSize: min(max(node.payload.cgFloatValue("fontSize", fallback: 36), 8), 220),
+                    weight: .semibold
+                ),
+                .foregroundColor: Self.color(node.payload.stringValue("color"), fallback: .white),
+                .paragraphStyle: paragraphStyle
+            ]
+        )
+        UIGraphicsPopContext()
+    }
+
+    private func drawSolid(_ node: BroadcastRenderNode, in context: CGContext, rect: CGRect) {
+        context.setFillColor(Self.color(node.payload.stringValue("color"), fallback: .clear).cgColor)
+        context.fill(rect)
+    }
+
+    private func drawImage(_ node: BroadcastRenderNode, in context: CGContext, rect: CGRect) {
+        guard let image = image(for: node.payload.stringValue("uri")) else {
+            return
+        }
+        UIGraphicsPushContext(context)
+        image.draw(in: rect)
+        UIGraphicsPopContext()
+    }
+
+    private func image(for rawURI: String) -> UIImage? {
+        let trimmedURI = rawURI.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedURI.isEmpty else {
+            return nil
+        }
+        if let cachedImage = cachedImages[trimmedURI] {
+            return cachedImage
+        }
+
+        let image: UIImage?
+        if let url = URL(string: trimmedURI), url.isFileURL {
+            image = UIImage(contentsOfFile: url.path)
+        } else if trimmedURI.hasPrefix("/") {
+            image = UIImage(contentsOfFile: trimmedURI)
+        } else {
+            image = nil
+        }
+
+        if let image {
+            cachedImages[trimmedURI] = image
+        }
+        return image
+    }
+
+    private func mapBlueprintRect(_ blueprintRect: CGRect, into targetRect: CGRect) -> CGRect {
+        CGRect(
+            x: targetRect.minX + (blueprintRect.minX / 720) * targetRect.width,
+            y: targetRect.minY + (blueprintRect.minY / 960) * targetRect.height,
+            width: (blueprintRect.width / 720) * targetRect.width,
+            height: (blueprintRect.height / 960) * targetRect.height
+        )
+    }
+
+    private static func parseRenderGraph(_ renderGraphJSON: String) -> [BroadcastRenderNode]? {
+        guard let data = renderGraphJSON.data(using: .utf8) else {
+            return nil
+        }
+        do {
+            guard let root = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return nil
+            }
+            return root.enumerated().map { index, rawNode in
+                BroadcastRenderNode(
+                    id: (rawNode["id"] as? String) ?? "node-\(index)",
+                    kind: (rawNode["kind"] as? String) ?? "unknown",
+                    order: (rawNode["order"] as? NSNumber)?.intValue ?? index,
+                    transform: BroadcastRenderTransform(dictionary: rawNode["transform"] as? [String: Any]),
+                    payload: rawNode["payload"] as? [String: Any] ?? [:]
+                )
+            }
+        } catch {
+            return nil
+        }
+    }
+
+    private static func makePixelBuffer(width: Int, height: Int) -> CVPixelBuffer? {
+        let attributes: [CFString: Any] = [
+            kCVPixelBufferCGImageCompatibilityKey: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey: true,
+            kCVPixelBufferIOSurfacePropertiesKey: [:] as CFDictionary
+        ]
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            width,
+            height,
+            kCVPixelFormatType_32BGRA,
+            attributes as CFDictionary,
+            &pixelBuffer
+        )
+        guard status == noErr else {
+            return nil
+        }
+        return pixelBuffer
+    }
+
+    private static func makeSampleBuffer(
+        pixelBuffer: CVPixelBuffer,
+        sourceSampleBuffer: CMSampleBuffer
+    ) -> CMSampleBuffer? {
+        var formatDescription: CMVideoFormatDescription?
+        let formatStatus = CMVideoFormatDescriptionCreateForImageBuffer(
+            allocator: kCFAllocatorDefault,
+            imageBuffer: pixelBuffer,
+            formatDescriptionOut: &formatDescription
+        )
+        guard formatStatus == noErr, let formatDescription else {
+            return nil
+        }
+
+        var timing = CMSampleTimingInfo(
+            duration: CMSampleBufferGetDuration(sourceSampleBuffer),
+            presentationTimeStamp: CMSampleBufferGetPresentationTimeStamp(sourceSampleBuffer),
+            decodeTimeStamp: CMSampleBufferGetDecodeTimeStamp(sourceSampleBuffer)
+        )
+        var outputSampleBuffer: CMSampleBuffer?
+        let sampleStatus = CMSampleBufferCreateReadyWithImageBuffer(
+            allocator: kCFAllocatorDefault,
+            imageBuffer: pixelBuffer,
+            formatDescription: formatDescription,
+            sampleTiming: &timing,
+            sampleBufferOut: &outputSampleBuffer
+        )
+        guard sampleStatus == noErr else {
+            return nil
+        }
+        return outputSampleBuffer
+    }
+
+    private static func color(_ rawValue: String, fallback: UIColor) -> UIColor {
+        var hex = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if hex.hasPrefix("#") {
+            hex.removeFirst()
+        }
+        guard hex.count == 6 || hex.count == 8, let intValue = UInt64(hex, radix: 16) else {
+            return fallback
+        }
+
+        if hex.count == 8 {
+            let red = CGFloat((intValue >> 24) & 0xff) / 255
+            let green = CGFloat((intValue >> 16) & 0xff) / 255
+            let blue = CGFloat((intValue >> 8) & 0xff) / 255
+            let alpha = CGFloat(intValue & 0xff) / 255
+            return UIColor(red: red, green: green, blue: blue, alpha: alpha)
+        }
+
+        let red = CGFloat((intValue >> 16) & 0xff) / 255
+        let green = CGFloat((intValue >> 8) & 0xff) / 255
+        let blue = CGFloat(intValue & 0xff) / 255
+        return UIColor(red: red, green: green, blue: blue, alpha: 1)
+    }
+}
+
 final class BroadcastUploadPipeline {
     private let logger = Logger(subsystem: "MobileLiveCaster", category: "BroadcastUpload")
     private(set) var state: BroadcastUploadState = .idle
@@ -2336,6 +2852,7 @@ final class BroadcastUploadPipeline {
     private var videoEncoder: BroadcastVideoEncoder?
     private var audioEncoder: BroadcastAudioEncoder?
     private var publisher: BroadcastRTMPPublisher?
+    private var sceneCompositor: BroadcastSceneCompositor?
 
     var isRunning: Bool {
         state.acceptsSamples
@@ -2373,15 +2890,17 @@ final class BroadcastUploadPipeline {
             let nextAudioEncoder = BroadcastAudioEncoder(configuration: nextConfiguration) { encodedFrame in
                 nextPublisher.publishAudioFrame(encodedFrame)
             }
+            let nextSceneCompositor = BroadcastSceneCompositor(configuration: nextConfiguration)
             configuration = nextConfiguration
             publisher = nextPublisher
             videoEncoder = nextVideoEncoder
             audioEncoder = nextAudioEncoder
+            sceneCompositor = nextSceneCompositor
             stats.start()
             state = .running
             nextPublisher.start()
             logger.info(
-                "Broadcast upload started destination=\(nextConfiguration.destinationName, privacy: .public) scheme=\(nextConfiguration.transportScheme, privacy: .public) size=\(nextConfiguration.width)x\(nextConfiguration.height) fps=\(nextConfiguration.fps)"
+                "Broadcast upload started destination=\(nextConfiguration.destinationName, privacy: .public) scheme=\(nextConfiguration.transportScheme, privacy: .public) size=\(nextConfiguration.width)x\(nextConfiguration.height) fps=\(nextConfiguration.fps) composition=\(nextSceneCompositor.summary.message, privacy: .public)"
             )
             saveRuntimeState()
             return .success(())
@@ -2392,6 +2911,7 @@ final class BroadcastUploadPipeline {
             audioEncoder = nil
             videoEncoder?.finish()
             videoEncoder = nil
+            sceneCompositor = nil
             configuration = nil
             state = .failed(error.localizedDescription)
             logger.error("Broadcast upload failed to start: \(error.localizedDescription, privacy: .public)")
@@ -2430,6 +2950,7 @@ final class BroadcastUploadPipeline {
         videoEncoder = nil
         audioEncoder?.finish()
         audioEncoder = nil
+        sceneCompositor = nil
         publisher?.stop()
         publisher = nil
         state = .stopped
@@ -2444,8 +2965,9 @@ final class BroadcastUploadPipeline {
         }
 
         stats.recordVideo(sampleBuffer)
+        let sampleForEncoding = sceneCompositor?.compose(sampleBuffer) ?? sampleBuffer
         do {
-            try videoEncoder?.encode(sampleBuffer)
+            try videoEncoder?.encode(sampleForEncoding)
         } catch let error as BroadcastVideoEncoderError {
             stats.recordVideoEncodeFailure(error)
             logger.error("Video encode failed: \(error.localizedDescription, privacy: .public)")
@@ -2490,7 +3012,8 @@ final class BroadcastUploadPipeline {
             stats: stats,
             videoEncoderStats: videoEncoder?.stats,
             audioEncoderStats: audioEncoder?.stats,
-            publisherStats: publisher?.stats
+            publisherStats: publisher?.stats,
+            sceneCompositionSummary: sceneCompositor?.summary
         )
     }
 
@@ -2509,6 +3032,28 @@ final class BroadcastUploadPipeline {
         if audioBuffers == 1 || audioBuffers % 50 == 0 {
             saveRuntimeState()
         }
+    }
+}
+
+private extension Dictionary where Key == String, Value == Any {
+    func stringValue(_ key: String, fallback: String = "") -> String {
+        if let stringValue = self[key] as? String {
+            return stringValue
+        }
+        if let numberValue = self[key] as? NSNumber {
+            return numberValue.stringValue
+        }
+        return fallback
+    }
+
+    func cgFloatValue(_ key: String, fallback: CGFloat = 0) -> CGFloat {
+        if let numberValue = self[key] as? NSNumber {
+            return CGFloat(truncating: numberValue)
+        }
+        if let stringValue = self[key] as? String, let doubleValue = Double(stringValue) {
+            return CGFloat(doubleValue)
+        }
+        return fallback
     }
 }
 

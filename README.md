@@ -14,7 +14,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - OAuth/API-backed publishing controls: YouTube can create, bind, refresh status, test, start, and complete scheduled Live Broadcasts; Twitch can update title, category, broadcaster language, and refresh live/offline status.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, and sanitized report export/share.
-- Native composition readiness and diagnostics warnings for preview-only avatar/text/image/solid overlays before device RTMP publishing.
+- Native composition readiness and diagnostics for native-supported avatar/text/image/solid overlays, underlay ordering, and Live2D gaps before device RTMP publishing.
 - Stream key redaction and no-secret browser persistence.
 - Keychain/Android Keystore-backed mobile profile storage for stream keys.
 - In-app stream key clear and replacement controls.
@@ -39,6 +39,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Android native bridge for MediaProjection consent, foreground service streaming, H.264/AAC encoding, and RTMP/RTMPS publishing through RootEncoder.
 - Android publish URLs are assembled from the selected server URL plus the stored stream key at start time.
 - Android native GL overlay compositor for visible PNGTuber still-image, text, image, and solid scene sources on top of MediaProjection capture.
+- iOS ReplayKit Broadcast Upload Extension compositor for visible PNGTuber still-image, text, image, and solid overlays on top of captured frames.
 - Android microphone effects are applied before AAC encoding, with optional headphone monitor playback.
 - Android start-time microphone/notification runtime permission preflight.
 - Native chat speech output through Android TextToSpeech and iOS AVSpeechSynthesizer.
@@ -80,7 +81,7 @@ GitHub Actions runs the required `test` status check on pull requests and `main`
 - Chat reader: YouTube/Twitch payload adapters can feed the shared queue; current UI includes manual/test comments, platform adapter test ingest, OAuth authorization/callback controls, Twitch device-code authorization, network connect controls, and native/browser TTS output. Browser OAuth remains session-only; mobile credentials are stored through Keychain/Android Keystore-backed native storage.
 - Platform stream key management: YouTube OAuth uses Live Streaming API `liveStreams.insert` to rotate by creating a new reusable stream; Twitch OAuth uses Helix Get Stream Key to sync the current key because Twitch does not expose a public reset endpoint.
 - Platform publishing management: YouTube OAuth uses Live Streaming API `liveBroadcasts.insert`, `liveBroadcasts.bind`, `liveBroadcasts.list`, `liveStreams.list`, and `liveBroadcasts.transition` for scheduled broadcast setup, ingest health refresh, and lifecycle control; Twitch OAuth uses Helix `PATCH /channels`, category search, `GET /channels`, and `GET /streams` for channel metadata and live/offline status.
-- Avatar rendering: PNGTuber first, Live2D after licensing and runtime validation.
+- Avatar rendering: native PNGTuber overlays on iOS/Android first, Live2D after licensing and runtime validation.
 
 Android device streaming routes through `LiveCasterNative` when the native module is linked. iOS app-side setup can launch the Broadcast Upload Extension picker and pass App Group configuration into the extension. Non-device development still falls back to the mock engine.
 

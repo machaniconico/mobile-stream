@@ -3,7 +3,7 @@ import { createNativeCompositionReport } from "./nativeComposition";
 import { createDefaultScene, setVisibility } from "./scene";
 
 describe("native composition report", () => {
-  it("warns when the native stream has preview-only overlays", () => {
+  it("warns when a visible source is below the native screen capture layer", () => {
     const report = createNativeCompositionReport(createDefaultScene());
 
     expect(report.status).toBe("warn");
@@ -11,11 +11,23 @@ describe("native composition report", () => {
     expect(report.requiresNativeCompositor).toBe(true);
     expect(report.screenSourceCount).toBe(1);
     expect(report.avatarSourceCount).toBe(1);
-    expect(report.previewOnlySourceCount).toBeGreaterThan(0);
-    expect(report.unsupportedSourceKinds).toEqual(expect.arrayContaining(["pngtuber", "solid", "text"]));
+    expect(report.previewOnlySourceCount).toBe(1);
+    expect(report.unsupportedSourceKinds).toEqual(["solid"]);
     expect(report.issues.map((issue) => issue.code)).toEqual(
-      expect.arrayContaining(["native-compositor-pngtuber", "native-compositor-text"])
+      expect.arrayContaining(["native-compositor-solid"])
     );
+  });
+
+  it("passes when native-supported overlays are above the screen layer", () => {
+    const scene = setVisibility(createDefaultScene(), "source-background", false);
+
+    const report = createNativeCompositionReport(scene);
+
+    expect(report.status).toBe("pass");
+    expect(report.coverage).toBe("native-overlays");
+    expect(report.requiresNativeCompositor).toBe(false);
+    expect(report.previewOnlySourceCount).toBe(0);
+    expect(report.issues).toHaveLength(0);
   });
 
   it("passes for screen-only native publishing", () => {

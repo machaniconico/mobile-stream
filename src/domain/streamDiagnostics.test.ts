@@ -198,7 +198,7 @@ describe("stream diagnostics", () => {
     const scene = {
       ...baseScene,
       sources: baseScene.sources.map((source) =>
-        source.id === "source-avatar" ? { ...source, name: `avatar ${demoStreamKey}` } : source
+        source.id === "source-background" ? { ...source, name: `background ${demoStreamKey}` } : source
       )
     };
     const profile = {
@@ -218,10 +218,10 @@ describe("stream diagnostics", () => {
     expect(diagnostics.telemetry.message).toContain(redactStreamKey(demoStreamKey));
     expect(diagnostics.telemetry.message).not.toContain(demoStreamKey);
     expect(diagnostics.checks.find((check) => check.code === "engine-failed")?.message).not.toContain(demoStreamKey);
-    expect(diagnostics.nativeComposition.issues.find((issue) => issue.sourceId === "source-avatar")?.sourceName).toContain(
+    expect(diagnostics.nativeComposition.issues.find((issue) => issue.sourceId === "source-background")?.sourceName).toContain(
       redactStreamKey(demoStreamKey)
     );
-    expect(diagnostics.nativeComposition.issues.find((issue) => issue.sourceId === "source-avatar")?.sourceName).not.toContain(
+    expect(diagnostics.nativeComposition.issues.find((issue) => issue.sourceId === "source-background")?.sourceName).not.toContain(
       demoStreamKey
     );
   });
