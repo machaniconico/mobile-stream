@@ -403,6 +403,35 @@ describe("stream diagnostics", () => {
     expect(diagnostics.target.publishUrlPreview).not.toContain(demoStreamKey);
   });
 
+  it("redacts likely embedded stream keys from server URLs when the stream key field is empty", () => {
+    const embeddedStreamKey = "demo-1234-segment";
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        platform: "youtube-live" as const,
+        presetId: "youtube-live-rtmps" as const,
+        serverUrl: `rtmps://a.rtmps.youtube.com/live2/${embeddedStreamKey}`,
+        streamKey: ""
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health({ message: "Waiting for stream key cleanup." })
+    });
+    const report = createStreamDiagnosticReport(diagnostics, new Date("2026-06-22T00:00:00.000Z"));
+    const json = serializeStreamDiagnosticReport(report);
+    const text = formatStreamDiagnosticReport(report);
+
+    expect(diagnostics.target.application).toContain(redactStreamKey(embeddedStreamKey));
+    expect(diagnostics.target.publishUrlPreview).toContain(redactStreamKey(embeddedStreamKey));
+    expect(json).not.toContain(embeddedStreamKey);
+    expect(text).not.toContain(embeddedStreamKey);
+  });
+
   it("redacts stream keys from endpoint application paths", () => {
     const scene = createDefaultScene();
     const profile = {

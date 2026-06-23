@@ -170,7 +170,7 @@ export const createStreamDiagnostics = (
   const endpoint = parseEndpoint(destination.serverUrl);
   const redactedEndpoint = {
     host: endpoint.host,
-    application: redactStreamKeyOccurrences(endpoint.application, destination.streamKey)
+    application: redactEndpointApplication(endpoint.application, destination.streamKey)
   };
   const targetVideoBitrateKbps = quality.videoBitrateKbps;
   const targetAudioBitrateKbps = quality.audioBitrateKbps;
@@ -694,8 +694,11 @@ const parseEndpoint = (serverUrl: string): { host: string; application: string }
   }
 };
 
+const redactEndpointApplication = (application: string, streamKey: string): string =>
+  redactLikelyEmbeddedStreamKeyPath(redactStreamKeyOccurrences(application, streamKey));
+
 const redactPublishUrl = (publishUrl: string, streamKey: string): string => {
-  return redactStreamKeyOccurrences(publishUrl, streamKey);
+  return redactLikelyEmbeddedStreamKeyUrl(redactStreamKeyOccurrences(publishUrl, streamKey));
 };
 
 const redactStreamKeyOccurrences = (value: string, streamKey: string): string => {
@@ -722,6 +725,55 @@ const replaceAll = (value: string, search: string, replacement: string): string 
   value.replace(new RegExp(escapeRegExp(search), "g"), replacement);
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const redactLikelyEmbeddedStreamKeyUrl = (value: string): string => {
+  try {
+    const url = new URL(value);
+    return redactLikelyEmbeddedStreamKeyPath(value, url.pathname);
+  } catch {
+    return redactLikelyEmbeddedStreamKeyPath(value);
+  }
+};
+
+const redactLikelyEmbeddedStreamKeyPath = (value: string, pathValue = value): string => {
+  const segment = likelyEmbeddedStreamKeySegment(pathValue);
+  if (!segment) {
+    return value;
+  }
+
+  const decodedSegment = safeDecodeURIComponent(segment);
+  const redactedSegment = redactStreamKey(decodedSegment);
+  return replaceAll(replaceAll(value, segment, redactedSegment), encodeURIComponent(decodedSegment), redactedSegment);
+};
+
+const likelyEmbeddedStreamKeySegment = (pathValue: string): string | null => {
+  const segments = pathValue.split("/").filter(Boolean);
+  if (segments.length < 2) {
+    return null;
+  }
+
+  const lastSegment = segments.at(-1) ?? "";
+  return isLikelyStreamKeySegment(safeDecodeURIComponent(lastSegment)) ? lastSegment : null;
+};
+
+const isLikelyStreamKeySegment = (segment: string): boolean => {
+  const normalized = segment.trim();
+  if (normalized.length < 8) {
+    return false;
+  }
+  if (/^live_[a-z0-9_]+$/i.test(normalized)) {
+    return true;
+  }
+  return normalized.length >= 12 && /^[a-z0-9._-]+$/i.test(normalized) && /[0-9_-]/.test(normalized);
+};
+
+const safeDecodeURIComponent = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
 
 const createTransportCheck = (protocol: string): DiagnosticCheck => {
   if (protocol === "rtmps") {

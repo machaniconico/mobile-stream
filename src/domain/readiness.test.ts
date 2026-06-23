@@ -107,6 +107,38 @@ describe("stream readiness", () => {
     expect(report.sanitizedProfile.destination.streamKey).toBe("key-123456");
   });
 
+  it("blocks platform server URLs that appear to include a stream key", () => {
+    const profile = {
+      ...applyDestinationPreset(createDefaultStudioProfile(), "youtube-live-rtmps"),
+      destination: {
+        ...applyDestinationPreset(createDefaultStudioProfile(), "youtube-live-rtmps").destination,
+        serverUrl: "rtmps://a.rtmps.youtube.com/live2/demo-1234-segment",
+        streamKey: "separate-key"
+      }
+    };
+
+    const report = createReadinessReport(createDefaultScene(), profile);
+
+    expect(report.canStart).toBe(false);
+    expect(report.issues.map((issue) => issue.code)).toContain("server-url-contains-stream-key");
+  });
+
+  it("blocks full RTMP URLs pasted into the stream key field", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "rtmps://live.example-stream.test/app/demo-1234-segment"
+      }
+    };
+
+    const report = createReadinessReport(createDefaultScene(), profile);
+
+    expect(report.canStart).toBe(false);
+    expect(report.issues.map((issue) => issue.code)).toContain("stream-key-url");
+  });
+
   it("warns when mic monitor is allowed through speakers", () => {
     const profile = {
       ...createDefaultStudioProfile(),

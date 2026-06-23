@@ -110,6 +110,15 @@ const validateDestination = (profile: StudioProfile): ReadinessIssue[] => {
       });
     }
 
+    if (serverUrlContainsPlatformStreamKey(profile, parsed)) {
+      issues.push({
+        code: "server-url-contains-stream-key",
+        severity: "error",
+        field: "serverUrl",
+        message: "Server URL appears to include a stream key. Put only the ingest endpoint in Server URL."
+      });
+    }
+
     if (parsed.protocol === "rtmp:") {
       issues.push({
         code: "rtmp-not-encrypted",
@@ -137,6 +146,15 @@ const validateDestination = (profile: StudioProfile): ReadinessIssue[] => {
       });
     }
 
+    if (/^rtmps?:\/\//i.test(streamKey.trim())) {
+      issues.push({
+        code: "stream-key-url",
+        severity: "error",
+        field: "streamKey",
+        message: "Stream key field contains a full RTMP URL. Paste only the stream key."
+      });
+    }
+
     if (streamKey.length < 6) {
       issues.push({
         code: "stream-key-short",
@@ -148,6 +166,27 @@ const validateDestination = (profile: StudioProfile): ReadinessIssue[] => {
   }
 
   return issues;
+};
+
+const serverUrlContainsPlatformStreamKey = (profile: StudioProfile, parsed: URL): boolean => {
+  if (/\{stream_key\}/i.test(profile.destination.serverUrl)) {
+    return false;
+  }
+
+  const pathSegments = parsed.pathname.split("/").filter(Boolean);
+  if (pathSegments.length < 2) {
+    return false;
+  }
+
+  if (profile.destination.platform === "youtube-live") {
+    return pathSegments[0]?.toLowerCase() === "live2";
+  }
+
+  if (profile.destination.platform === "twitch") {
+    return pathSegments[0]?.toLowerCase() === "app";
+  }
+
+  return false;
 };
 
 const validateMicEffects = (profile: StudioProfile): ReadinessIssue[] => {
