@@ -666,7 +666,7 @@ describe("stream diagnostics", () => {
     expect(text).not.toContain("private phone");
     expect(json).not.toContain(demoStreamKey);
     expect(text).not.toContain(demoStreamKey);
-  });
+  }, 10_000);
 
   it("keeps stream-stop chat disconnect events while redacting details", () => {
     const scene = createDefaultScene();

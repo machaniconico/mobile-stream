@@ -91,6 +91,28 @@ const checks = [
     expectNotIncludes(allNativeConfigText(), "org.reactjs.native.example");
     expectNotIncludes(allNativeConfigText(), "group.org.reactjs.native.example");
   }),
+  check("Native store version metadata is aligned", () => {
+    const defaultConfig = androidDefaultConfigBlock(files.androidGradle);
+    const androidVersionName = gradleStringSetting(defaultConfig, "versionName");
+    const androidVersionCode = gradleNumberSetting(defaultConfig, "versionCode");
+    expectIncludes(files.androidGradle, 'namespace "com.mobilelivecaster"');
+    expectIncludes(defaultConfig, 'applicationId "com.mobilelivecaster"');
+    expectIncludes(files.iosInfo, "<string>$(MARKETING_VERSION)</string>");
+    expectIncludes(files.iosInfo, "<string>$(CURRENT_PROJECT_VERSION)</string>");
+    expectIncludes(files.broadcastInfo, "<string>$(MARKETING_VERSION)</string>");
+    expectIncludes(files.broadcastInfo, "<string>$(CURRENT_PROJECT_VERSION)</string>");
+
+    for (const bundleId of [iosReleaseConfig.hostBundleId, iosReleaseConfig.broadcastBundleId]) {
+      for (const config of iosTargetBuildConfigurations(bundleId)) {
+        expectEqual(config.settings.MARKETING_VERSION, androidVersionName, `${bundleId} ${config.name} marketing version`);
+        expectEqual(
+          config.settings.CURRENT_PROJECT_VERSION,
+          String(androidVersionCode),
+          `${bundleId} ${config.name} build number`
+        );
+      }
+    }
+  }),
   check("iOS App Group entitlements are aligned for host and Broadcast Upload Extension", () => {
     const hostGroups = plistArrayStrings(files.iosEntitlements, "com.apple.security.application-groups");
     const broadcastGroups = plistArrayStrings(files.broadcastEntitlements, "com.apple.security.application-groups");
@@ -179,6 +201,18 @@ function plistArrayStrings(plistText, key) {
 }
 
 function expectIosTargetBuildSettings({ bundleId, entitlementsPath, infoPlistPath, requiredSettings = {} }) {
+  const configs = iosTargetBuildConfigurations(bundleId);
+
+  for (const config of configs) {
+    expectEqual(config.settings.CODE_SIGN_ENTITLEMENTS, entitlementsPath, `${bundleId} ${config.name} entitlements`);
+    expectEqual(config.settings.INFOPLIST_FILE, infoPlistPath, `${bundleId} ${config.name} Info.plist`);
+    for (const [settingName, expectedValue] of Object.entries(requiredSettings)) {
+      expectEqual(config.settings[settingName], expectedValue, `${bundleId} ${config.name} ${settingName}`);
+    }
+  }
+}
+
+function iosTargetBuildConfigurations(bundleId) {
   const configs = xcodeBuildConfigurations(files.xcodeProject).filter(
     (config) => config.settings.PRODUCT_BUNDLE_IDENTIFIER === bundleId
   );
@@ -189,13 +223,7 @@ function expectIosTargetBuildSettings({ bundleId, entitlementsPath, infoPlistPat
     throw new Error(`missing Debug/Release build settings for ${bundleId}`);
   }
 
-  for (const config of [debugConfig, releaseConfig]) {
-    expectEqual(config.settings.CODE_SIGN_ENTITLEMENTS, entitlementsPath, `${bundleId} ${config.name} entitlements`);
-    expectEqual(config.settings.INFOPLIST_FILE, infoPlistPath, `${bundleId} ${config.name} Info.plist`);
-    for (const [settingName, expectedValue] of Object.entries(requiredSettings)) {
-      expectEqual(config.settings[settingName], expectedValue, `${bundleId} ${config.name} ${settingName}`);
-    }
-  }
+  return [debugConfig, releaseConfig];
 }
 
 function xcodeBuildConfigurations(projectText) {
@@ -243,9 +271,29 @@ function debugBlock(gradleText) {
   return buildTypeBlock(gradleText, "debug");
 }
 
+function androidDefaultConfigBlock(gradleText) {
+  return extractGradleBlock(gradleText, "defaultConfig {", "Android defaultConfig");
+}
+
 function buildTypeBlock(gradleText, name) {
   const buildTypes = extractGradleBlock(gradleText, "buildTypes {", "buildTypes");
   return extractGradleBlock(buildTypes, `${name} {`, `${name} build type`);
+}
+
+function gradleStringSetting(blockText, name) {
+  const match = blockText.match(new RegExp(`^\\s*${escapeRegExp(name)}\\s+"([^"]+)"`, "m"));
+  if (!match) {
+    throw new Error(`missing Gradle string setting ${name}`);
+  }
+  return match[1];
+}
+
+function gradleNumberSetting(blockText, name) {
+  const match = blockText.match(new RegExp(`^\\s*${escapeRegExp(name)}\\s+(\\d+)\\b`, "m"));
+  if (!match) {
+    throw new Error(`missing Gradle number setting ${name}`);
+  }
+  return Number(match[1]);
 }
 
 function extractGradleBlock(gradleText, marker, label) {
