@@ -1243,6 +1243,9 @@ const StreamValidationRecorder = ({
           {validationRunNativeRuntimeLabel(latestRun) ? (
             <Text style={styles.diagnosticIncidentRecommendation}>{validationRunNativeRuntimeLabel(latestRun)}</Text>
           ) : null}
+          {validationRunPlatformPublishingLabel(latestRun) ? (
+            <Text style={styles.diagnosticIncidentRecommendation}>{validationRunPlatformPublishingLabel(latestRun)}</Text>
+          ) : null}
         </View>
       ) : null}
       <View style={styles.validationRecorder}>
@@ -1303,6 +1306,11 @@ const validationRunResultFromDiagnostics = (diagnostics: StreamDiagnostics): Str
 const validationRunNativeRuntimeLabel = (run: StreamValidationRun): string | null =>
   run.nativeRuntime
     ? `native ${run.nativeRuntime.status} / ${run.nativeRuntime.platform} / publisher ${run.nativeRuntime.publisherState || "-"} / queue ${run.nativeRuntime.queuedItems}/${run.nativeRuntime.cacheSize}`
+    : null;
+
+const validationRunPlatformPublishingLabel = (run: StreamValidationRun): string | null =>
+  run.platformPublishing && run.platformPublishing.status !== "info"
+    ? `dashboard ${run.platformPublishing.status} / ${run.platformPublishing.summary}`
     : null;
 
 const DiagnosticMetric = ({ label, value }: { label: string; value: string }) => (

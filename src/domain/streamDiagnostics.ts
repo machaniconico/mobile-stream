@@ -43,6 +43,29 @@ import type { StreamHealth, StreamStatus } from "./streamState";
 
 export type DiagnosticStatus = "pass" | "warn" | "fail" | "info";
 
+export interface PlatformPublishingDiagnostics {
+  platform: StudioProfile["destination"]["platform"];
+  status: DiagnosticStatus;
+  summary: string;
+  recommendation: string;
+  youtube: {
+    hasBroadcastId: boolean;
+    hasStreamId: boolean;
+    broadcastStatus: string;
+    streamStatus: string;
+    healthStatus: string;
+    healthIssueCount: number;
+  } | null;
+  twitch: {
+    liveStatus: string;
+    viewerCount: number;
+    hasCategory: boolean;
+    hasCategoryId: boolean;
+    language: string;
+    startedAt: string;
+  } | null;
+}
+
 export interface DiagnosticCheck {
   code: string;
   status: DiagnosticStatus;
@@ -89,6 +112,7 @@ export interface StreamDiagnostics {
   };
   qualityAdvisor: StreamQualityAdvisorRecommendation;
   nativeComposition: NativeCompositionReport;
+  platformPublishing: PlatformPublishingDiagnostics;
   history: StreamHealthHistorySummary;
   session: {
     events: StreamSessionEvent[];
@@ -161,6 +185,7 @@ export const createStreamDiagnostics = (
     recovery: recoveryStatus
   });
   const nativeComposition = sanitizeNativeCompositionReport(createNativeCompositionReport(scene), destination.streamKey);
+  const platformPublishing = createPlatformPublishingDiagnostics(destination.platform, profile.platformPublishing);
   const checks = [
     ...readiness.issues.map<DiagnosticCheck>((issue) => ({
       code: `readiness-${issue.code}`,
@@ -259,6 +284,7 @@ export const createStreamDiagnostics = (
     },
     qualityAdvisor,
     nativeComposition,
+    platformPublishing,
     history,
     session: {
       events: sanitizedSessionEvents,
@@ -367,6 +393,11 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
           (issue) => `- [${issue.status.toUpperCase()}] ${issue.sourceKind} ${issue.sourceName}: ${issue.message} Action: ${issue.action}`
         )),
     "",
+    "Platform Publishing",
+    `- Status: ${diagnostics.platformPublishing.status}`,
+    `- Summary: ${diagnostics.platformPublishing.summary}`,
+    `- Recommendation: ${diagnostics.platformPublishing.recommendation}`,
+    "",
     "Health History",
     `- Summary: ${diagnostics.history.summary}`,
     `- Samples: ${diagnostics.history.sampleCount}`,
@@ -405,6 +436,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Evidence freshness: ${diagnostics.validationEvidence.latestRunAgeDays === null ? "-" : `${diagnostics.validationEvidence.latestRunAgeDays} days old`} / max ${diagnostics.validationEvidence.maxAgeDays} days`,
     `- Evidence build: ${diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")}`,
     `- Evidence native runtime: ${formatValidationNativeRuntime(diagnostics)}`,
+    `- Evidence platform dashboard: ${formatValidationPlatformPublishing(diagnostics)}`,
     ...diagnostics.validation.items.map(
       (item) => `- [${item.status.toUpperCase()}] ${item.title}: ${item.detail} Action: ${item.action}`
     ),
@@ -436,6 +468,118 @@ const formatValidationNativeRuntime = (diagnostics: StreamDiagnostics): string =
   diagnostics.validationEvidence.latestNativeRuntime
     ? `${diagnostics.validationEvidence.nativeRuntimeRunCount} retained / ${diagnostics.validationEvidence.nativeRuntimeWarningCount} warn / ${diagnostics.validationEvidence.nativeRuntimeFailureCount} fail / latest ${diagnostics.validationEvidence.latestNativeRuntime.status} ${diagnostics.validationEvidence.latestNativeRuntime.platform} / queue ${diagnostics.validationEvidence.latestNativeRuntime.queuedItems}/${diagnostics.validationEvidence.latestNativeRuntime.cacheSize}`
     : "-";
+
+const formatValidationPlatformPublishing = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.validationEvidence.latestPlatformPublishing
+    ? `${diagnostics.validationEvidence.platformPublishingRunCount} retained / ${diagnostics.validationEvidence.platformPublishingWarningCount} warn / ${diagnostics.validationEvidence.platformPublishingFailureCount} fail / latest ${diagnostics.validationEvidence.latestPlatformPublishing.status} ${diagnostics.validationEvidence.latestPlatformPublishing.summary}`
+    : "-";
+
+const createPlatformPublishingDiagnostics = (
+  platform: StudioProfile["destination"]["platform"],
+  settings: StudioProfile["platformPublishing"]
+): PlatformPublishingDiagnostics => {
+  if (platform === "youtube-live") {
+    return createYouTubePublishingDiagnostics(settings);
+  }
+  if (platform === "twitch") {
+    return createTwitchPublishingDiagnostics(settings);
+  }
+  return {
+    platform,
+    status: "info",
+    summary: "Custom RTMP(S) targets do not expose first-party dashboard status inside the app.",
+    recommendation: "Confirm ingest health in the custom platform dashboard during private validation.",
+    youtube: null,
+    twitch: null
+  };
+};
+
+const createYouTubePublishingDiagnostics = (
+  settings: StudioProfile["platformPublishing"]
+): PlatformPublishingDiagnostics => {
+  const broadcastStatus = settings.youtubeBroadcastStatus || "";
+  const streamStatus = settings.youtubeStreamStatus || "";
+  const healthStatus = settings.youtubeStreamHealthStatus || "";
+  const healthIssueCount = settings.youtubeStreamHealthIssues.length;
+  const hasDashboardData = Boolean(
+    settings.youtubeBroadcastId ||
+      settings.youtubeStreamId ||
+      broadcastStatus ||
+      streamStatus ||
+      healthStatus ||
+      healthIssueCount > 0
+  );
+  const hasErrorIssue = settings.youtubeStreamHealthIssues.some((issue) => issue.trim().toLowerCase().startsWith("error:"));
+  const unhealthy =
+    ["failed", "revoked"].includes(broadcastStatus.toLowerCase()) ||
+    ["inactive", "error"].includes(streamStatus.toLowerCase()) ||
+    ["error", "bad"].includes(healthStatus.toLowerCase()) ||
+    hasErrorIssue;
+  const healthy =
+    ["live", "testing"].includes(broadcastStatus.toLowerCase()) &&
+    streamStatus.toLowerCase() === "active" &&
+    ["ok", "good"].includes(healthStatus.toLowerCase()) &&
+    healthIssueCount === 0;
+  const status: DiagnosticStatus = !hasDashboardData ? "info" : unhealthy ? "fail" : healthy ? "pass" : "warn";
+
+  return {
+    platform: "youtube-live",
+    status,
+    summary:
+      status === "info"
+        ? "No YouTube dashboard status has been captured yet."
+        : `YouTube dashboard: broadcast ${broadcastStatus || "unknown"}, stream ${streamStatus || "unknown"}, health ${healthStatus || "unknown"}, issues ${healthIssueCount}.`,
+    recommendation:
+      status === "pass"
+        ? "Keep the YouTube dashboard health snapshot with this release-candidate validation run."
+        : status === "fail"
+          ? "Fix YouTube ingest health or broadcast state before treating this run as production evidence."
+          : status === "warn"
+            ? "Refresh YouTube broadcast and stream health after the private ingest stabilizes."
+            : "Refresh YouTube broadcast status during the next private validation run.",
+    youtube: {
+      hasBroadcastId: Boolean(settings.youtubeBroadcastId.trim()),
+      hasStreamId: Boolean(settings.youtubeStreamId.trim()),
+      broadcastStatus,
+      streamStatus,
+      healthStatus,
+      healthIssueCount
+    },
+    twitch: null
+  };
+};
+
+const createTwitchPublishingDiagnostics = (
+  settings: StudioProfile["platformPublishing"]
+): PlatformPublishingDiagnostics => {
+  const liveStatus = settings.twitchLiveStatus || "";
+  const hasDashboardData = Boolean(liveStatus || settings.twitchStartedAt || settings.twitchViewerCount > 0);
+  const status: DiagnosticStatus = !hasDashboardData ? "info" : liveStatus.toLowerCase() === "live" ? "pass" : "warn";
+
+  return {
+    platform: "twitch",
+    status,
+    summary:
+      status === "info"
+        ? "No Twitch live-status snapshot has been captured yet."
+        : `Twitch dashboard: ${liveStatus || "unknown"}, viewers ${settings.twitchViewerCount}, started ${settings.twitchStartedAt || "not reported"}.`,
+    recommendation:
+      status === "pass"
+        ? "Keep the Twitch live-status snapshot with this release-candidate validation run."
+        : status === "warn"
+          ? "Refresh Twitch live status after confirming the channel is receiving ingest."
+          : "Refresh Twitch live status during the next private validation run.",
+    youtube: null,
+    twitch: {
+      liveStatus,
+      viewerCount: settings.twitchViewerCount,
+      hasCategory: Boolean(settings.twitchCategory.trim()),
+      hasCategoryId: Boolean(settings.twitchCategoryId.trim()),
+      language: settings.twitchLanguage,
+      startedAt: settings.twitchStartedAt
+    }
+  };
+};
 
 const sanitizeNativeCompositionReport = (
   report: NativeCompositionReport,

@@ -150,6 +150,8 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceStaleRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceNativeRuntimeRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeStatus).toBeNull();
+    expect(bundle.summary.validationEvidencePlatformPublishingRunCount).toBe(0);
+    expect(bundle.summary.validationEvidenceLatestPlatformPublishingStatus).toBeNull();
     expect(formatSupportBundle(bundle)).toContain("Completed summaries: 1");
     expect(formatSupportBundle(bundle)).toContain("Clean rate: 0%");
     expect(formatSupportBundle(bundle)).toContain("Quality advisor: maintain / pass");
@@ -159,6 +161,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
     expect(formatSupportBundle(bundle)).toContain("Evidence native runtime: 0 retained / 0 warn / 0 fail");
+    expect(formatSupportBundle(bundle)).toContain("Evidence platform dashboard: 0 retained / 0 warn / 0 fail");
   });
 
   it("serializes and formats without leaking raw stream keys or text source content", () => {

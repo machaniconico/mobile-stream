@@ -42,6 +42,8 @@ describe("stream diagnostics", () => {
     expect(diagnostics.quality.estimatedUploadKbps).toBe(4535);
     expect(diagnostics.recovery.mode).toBe("idle");
     expect(diagnostics.recovery.attemptsRemaining).toBe(5);
+    expect(diagnostics.platformPublishing.status).toBe("info");
+    expect(diagnostics.platformPublishing.summary).toContain("No YouTube dashboard");
     expect(diagnostics.validation.status).toBe("needs-test");
     expect(diagnostics.validation.items.find((item) => item.id === "ingest-not-run")?.status).toBe("pending");
     expect(diagnostics.validationEvidence.status).toBe("none");
@@ -49,6 +51,38 @@ describe("stream diagnostics", () => {
     expect(diagnostics.nativeComposition.status).toBe("warn");
     expect(diagnostics.nativeComposition.coverage).toBe("preview-only-overlays");
     expect(diagnostics.checks.some((check) => check.code === "native-composition-preview-only-overlays")).toBe(true);
+  });
+
+  it("summarizes YouTube dashboard status for validation evidence", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      },
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        youtubeBroadcastId: "broadcast-1",
+        youtubeStreamId: "stream-1",
+        youtubeBroadcastStatus: "live",
+        youtubeStreamStatus: "active",
+        youtubeStreamHealthStatus: "ok",
+        youtubeStreamHealthIssues: []
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30 })
+    });
+    const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics));
+
+    expect(diagnostics.platformPublishing.status).toBe("pass");
+    expect(diagnostics.platformPublishing.youtube?.healthStatus).toBe("ok");
+    expect(report).toContain("Platform Publishing");
+    expect(report).toContain("YouTube dashboard: broadcast live, stream active, health ok, issues 0.");
   });
 
   it("reports blocking checks when the stream key is missing", () => {

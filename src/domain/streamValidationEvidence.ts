@@ -25,6 +25,7 @@ export interface StreamValidationRun {
   healthSampleCount: number;
   completedSessionCount: number;
   nativeRuntime: StreamSessionNativeRuntimeSummary | null;
+  platformPublishing: StreamDiagnostics["platformPublishing"] | null;
   validationItemStatuses: Array<{
     id: string;
     status: StreamDiagnostics["validation"]["items"][number]["status"];
@@ -55,6 +56,9 @@ export interface StreamValidationEvidenceSummary {
   nativeRuntimeRunCount: number;
   nativeRuntimeWarningCount: number;
   nativeRuntimeFailureCount: number;
+  platformPublishingRunCount: number;
+  platformPublishingWarningCount: number;
+  platformPublishingFailureCount: number;
   status: "none" | "partial" | "failing" | "ready" | "stale";
   iosPass: boolean;
   androidPass: boolean;
@@ -65,6 +69,7 @@ export interface StreamValidationEvidenceSummary {
   latestEligibleRun: StreamValidationRun | null;
   latestPassingRun: StreamValidationRun | null;
   latestNativeRuntime: StreamSessionNativeRuntimeSummary | null;
+  latestPlatformPublishing: StreamDiagnostics["platformPublishing"] | null;
   latestRunAgeDays: number | null;
   maxAgeDays: number;
   summary: string;
@@ -101,7 +106,8 @@ export const createStreamValidationRun = ({
   const nativeRuntime =
     createNativeRuntimeSessionSummary(diagnostics.nativeRuntime) ??
     normalizeNativeRuntimeSessionSummary(diagnostics.session.lastSummary?.nativeRuntime);
-  const effectiveResult = createEffectiveValidationResult(result, nativeRuntime);
+  const platformPublishing = diagnostics.platformPublishing;
+  const effectiveResult = createEffectiveValidationResult(result, nativeRuntime, platformPublishing);
   const runBase = {
     createdAt,
     devicePlatform,
@@ -128,6 +134,7 @@ export const createStreamValidationRun = ({
     healthSampleCount: diagnostics.history.sampleCount,
     completedSessionCount: diagnostics.session.summaries.length,
     nativeRuntime,
+    platformPublishing,
     validationItemStatuses: diagnostics.validation.items.map((item) => ({
       id: item.id,
       status: item.status
@@ -137,9 +144,10 @@ export const createStreamValidationRun = ({
       sanitizedDeviceName,
       diagnostics.target.platform,
       diagnostics.validation.status,
-      nativeRuntime
+      nativeRuntime,
+      platformPublishing
     ),
-    recommendation: createRunRecommendation(effectiveResult, diagnostics.validation.recommendedNextStep, nativeRuntime)
+    recommendation: createRunRecommendation(effectiveResult, diagnostics.validation.recommendedNextStep, nativeRuntime, platformPublishing)
   };
 };
 
@@ -230,11 +238,19 @@ export const summarizeStreamValidationEvidence = (
   const nativeRuntimeRunCount = nativeRuntimeRuns.length;
   const nativeRuntimeWarningCount = nativeRuntimeRuns.filter((run) => run.nativeRuntime?.status === "warn").length;
   const nativeRuntimeFailureCount = nativeRuntimeRuns.filter((run) => run.nativeRuntime?.status === "fail").length;
+  const platformPublishingRuns = scopedRuns.filter((run) => run.platformPublishing && run.platformPublishing.status !== "info");
+  const platformPublishingRunCount = platformPublishingRuns.length;
+  const platformPublishingWarningCount = platformPublishingRuns.filter((run) => run.platformPublishing?.status === "warn").length;
+  const platformPublishingFailureCount = platformPublishingRuns.filter((run) => run.platformPublishing?.status === "fail").length;
   const latestRun = normalized[0] ?? null;
   const latestEligibleRun = eligibleRuns[0] ?? null;
   const latestPassingRun = eligibleRuns.find((run) => run.result === "pass") ?? null;
   const latestNativeRuntime =
     eligibleRuns.find((run) => run.nativeRuntime)?.nativeRuntime ?? scopedRuns.find((run) => run.nativeRuntime)?.nativeRuntime ?? null;
+  const latestPlatformPublishing =
+    eligibleRuns.find((run) => run.platformPublishing && run.platformPublishing.status !== "info")?.platformPublishing ??
+    scopedRuns.find((run) => run.platformPublishing && run.platformPublishing.status !== "info")?.platformPublishing ??
+    null;
   const latestDeviceRuns = latestRunsByDevicePlatform(eligibleRuns);
   const iosLatestRun = latestDeviceRuns.find((run) => run.devicePlatform === "ios") ?? null;
   const androidLatestRun = latestDeviceRuns.find((run) => run.devicePlatform === "android") ?? null;
@@ -272,6 +288,9 @@ export const summarizeStreamValidationEvidence = (
     nativeRuntimeRunCount,
     nativeRuntimeWarningCount,
     nativeRuntimeFailureCount,
+    platformPublishingRunCount,
+    platformPublishingWarningCount,
+    platformPublishingFailureCount,
     status,
     iosPass,
     androidPass,
@@ -282,6 +301,7 @@ export const summarizeStreamValidationEvidence = (
     latestEligibleRun,
     latestPassingRun,
     latestNativeRuntime,
+    latestPlatformPublishing,
     latestRunAgeDays: latestRun ? ageInDays(latestRun.createdAt, now) : null,
     maxAgeDays,
     summary: createEvidenceSummary(status, {
@@ -354,6 +374,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
     healthSampleCount: normalizeCount(value.healthSampleCount),
     completedSessionCount: normalizeCount(value.completedSessionCount),
     nativeRuntime: normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
+    platformPublishing: normalizePlatformPublishingDiagnostics(value.platformPublishing),
     validationItemStatuses: normalizeValidationItemStatuses(value.validationItemStatuses),
     summary: normalizeText(
       value.summary,
@@ -362,12 +383,18 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
         normalizeText(value.deviceName, defaultDeviceName(devicePlatform)),
         targetPlatform,
         checklistStatus,
-        normalizeNativeRuntimeSessionSummary(value.nativeRuntime)
+        normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
+        normalizePlatformPublishingDiagnostics(value.platformPublishing)
       )
     ),
     recommendation: normalizeText(
       value.recommendation,
-      createRunRecommendation(result, "Run another private validation pass.", normalizeNativeRuntimeSessionSummary(value.nativeRuntime))
+      createRunRecommendation(
+        result,
+        "Run another private validation pass.",
+        normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
+        normalizePlatformPublishingDiagnostics(value.platformPublishing)
+      )
     )
   };
 
@@ -503,12 +530,13 @@ const createEvidenceRecommendation = (
 
 const createEffectiveValidationResult = (
   result: StreamValidationRunResult,
-  nativeRuntime: StreamSessionNativeRuntimeSummary | null
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null,
+  platformPublishing: StreamDiagnostics["platformPublishing"] | null
 ): StreamValidationRunResult => {
-  if (result === "fail" || nativeRuntime?.status === "fail") {
+  if (result === "fail" || nativeRuntime?.status === "fail" || platformPublishing?.status === "fail") {
     return "fail";
   }
-  if (result === "warn" || nativeRuntime?.status === "warn") {
+  if (result === "warn" || nativeRuntime?.status === "warn" || platformPublishing?.status === "warn") {
     return "warn";
   }
   return "pass";
@@ -519,19 +547,24 @@ const createRunSummary = (
   deviceName: string,
   targetPlatform: string,
   checklistStatus: StreamDiagnostics["validation"]["status"],
-  nativeRuntime: StreamSessionNativeRuntimeSummary | null
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null,
+  platformPublishing: StreamDiagnostics["platformPublishing"] | null
 ): string => {
   const prefix = result === "pass" ? "Passed" : result === "warn" ? "Needs review" : "Failed";
-  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}.${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}`;
+  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}.${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${platformPublishing && platformPublishing.status !== "info" ? ` ${platformPublishing.summary}` : ""}`;
 };
 
 const createRunRecommendation = (
   result: StreamValidationRunResult,
   fallbackRecommendation: string,
-  nativeRuntime: StreamSessionNativeRuntimeSummary | null
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null,
+  platformPublishing: StreamDiagnostics["platformPublishing"] | null
 ): string => {
   if (nativeRuntime?.status === "fail") {
     return nativeRuntime.recommendation;
+  }
+  if (platformPublishing?.status === "fail") {
+    return platformPublishing.recommendation;
   }
   if (result === "pass") {
     return "Keep this run as release-candidate evidence and repeat on the other mobile platform.";
@@ -541,6 +574,9 @@ const createRunRecommendation = (
   }
   if (nativeRuntime?.status === "warn") {
     return nativeRuntime.recommendation;
+  }
+  if (platformPublishing?.status === "warn") {
+    return platformPublishing.recommendation;
   }
   return fallbackRecommendation;
 };
@@ -641,6 +677,60 @@ const normalizeDiagnosticStatus = (value: unknown): StreamDiagnostics["status"] 
 
 const normalizeSessionOutcome = (value: unknown): StreamValidationRun["sessionOutcome"] =>
   value === "clean" || value === "warn" || value === "fail" ? value : null;
+
+const normalizePlatformPublishingDiagnostics = (value: unknown): StreamDiagnostics["platformPublishing"] | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const platform =
+    value.platform === "youtube-live" || value.platform === "twitch" || value.platform === "custom"
+      ? value.platform
+      : null;
+  const status = normalizeDiagnosticStatus(value.status);
+  if (!platform) {
+    return null;
+  }
+  return {
+    platform,
+    status,
+    summary: normalizeText(value.summary, "No platform publishing dashboard status retained."),
+    recommendation: normalizeText(value.recommendation, "Refresh platform publishing status during private validation."),
+    youtube: normalizeYouTubePublishingDiagnostics(value.youtube),
+    twitch: normalizeTwitchPublishingDiagnostics(value.twitch)
+  };
+};
+
+const normalizeYouTubePublishingDiagnostics = (
+  value: unknown
+): StreamDiagnostics["platformPublishing"]["youtube"] => {
+  if (!isRecord(value)) {
+    return null;
+  }
+  return {
+    hasBroadcastId: value.hasBroadcastId === true,
+    hasStreamId: value.hasStreamId === true,
+    broadcastStatus: normalizeText(value.broadcastStatus, ""),
+    streamStatus: normalizeText(value.streamStatus, ""),
+    healthStatus: normalizeText(value.healthStatus, ""),
+    healthIssueCount: normalizeCount(value.healthIssueCount)
+  };
+};
+
+const normalizeTwitchPublishingDiagnostics = (
+  value: unknown
+): StreamDiagnostics["platformPublishing"]["twitch"] => {
+  if (!isRecord(value)) {
+    return null;
+  }
+  return {
+    liveStatus: normalizeText(value.liveStatus, ""),
+    viewerCount: normalizeCount(value.viewerCount),
+    hasCategory: value.hasCategory === true,
+    hasCategoryId: value.hasCategoryId === true,
+    language: normalizeText(value.language, ""),
+    startedAt: normalizeText(value.startedAt, "")
+  };
+};
 
 const normalizeValidationItemStatuses = (value: unknown): StreamValidationRun["validationItemStatuses"] => {
   if (!Array.isArray(value)) {

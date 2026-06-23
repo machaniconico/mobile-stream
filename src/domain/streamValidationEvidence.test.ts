@@ -125,6 +125,54 @@ describe("stream validation evidence", () => {
     expect(summary.latestNativeRuntime?.status).toBe("warn");
   });
 
+  it("stores platform dashboard evidence and downgrades unhealthy passing runs", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...profileWithKey("validation-key"),
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        youtubeBroadcastId: "broadcast-1",
+        youtubeStreamId: "stream-1",
+        youtubeBroadcastStatus: "testing",
+        youtubeStreamStatus: "active",
+        youtubeStreamHealthStatus: "ok",
+        youtubeStreamHealthIssues: ["warning: bitrateLow: Video output low"]
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30 })
+    });
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.platformPublishing).toMatchObject({
+      platform: "youtube-live",
+      status: "warn",
+      youtube: {
+        hasBroadcastId: true,
+        hasStreamId: true,
+        broadcastStatus: "testing",
+        streamStatus: "active",
+        healthStatus: "ok",
+        healthIssueCount: 1
+      }
+    });
+    expect(run.summary).toContain("YouTube dashboard");
+    expect(summary.platformPublishingRunCount).toBe(1);
+    expect(summary.platformPublishingWarningCount).toBe(1);
+    expect(summary.platformPublishingFailureCount).toBe(0);
+    expect(summary.latestPlatformPublishing?.status).toBe("warn");
+  });
+
   it("fails validation runs when the native publisher reports a failure", () => {
     const scene = createDefaultScene();
     const profile = profileWithKey("validation-key");
