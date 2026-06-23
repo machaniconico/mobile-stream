@@ -14,6 +14,7 @@ import com.pedro.encoder.input.gl.render.filters.`object`.TextObjectFilterRender
 import com.pedro.library.generic.GenericStream
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 data class AndroidCompositionResult(
@@ -133,36 +134,40 @@ object AndroidSceneCompositor {
     private fun applyTransform(filter: BaseObjectFilterRender, node: RenderGraphNode) {
         val transform = node.transform
         val isPngTuber = node.kind == "pngtuber"
-        val motionX = if (isPngTuber) node.payload.optDouble("headX", 0.0).toFloat() * 0.025f else 0f
-        val motionY = if (isPngTuber) {
-            (
-                node.payload.optDouble("headY", 0.0) +
-                    node.payload.optDouble("breathing", 0.0) -
-                    node.payload.optDouble("bodyBounce", 0.0)
-                ).toFloat() * 0.025f
-        } else {
-            0f
-        }
-        val motionRotation = if (isPngTuber) {
-            (
-                node.payload.optDouble("bodyLean", 0.0) * 10.0 +
-                    node.payload.optDouble("headRoll", 0.0) * 10.0 +
-                    node.payload.optDouble("headYaw", 0.0) * 4.0
-                ).toFloat()
-        } else {
-            0f
-        }
+        val motion = if (isPngTuber) parsePngTuberMotion(node) else PngTuberMotion()
+        val width = transform.width.coerceIn(0.01f, 1f)
+        val height = transform.height.coerceIn(0.01f, 1f)
+        val scaledWidth = (width * motion.scaleX).coerceIn(0.01f, 1f)
+        val scaledHeight = (height * motion.scaleY).coerceIn(0.01f, 1f)
+        val centeredX = transform.x + motion.offsetX + (width - scaledWidth) * 0.5f
+        val centeredY = transform.y + motion.offsetY + (height - scaledHeight) * 0.5f
 
         filter.setScale(
-            (transform.width.coerceIn(0.01f, 1f) * 100f),
-            (transform.height.coerceIn(0.01f, 1f) * 100f)
+            scaledWidth * 100f,
+            scaledHeight * 100f
         )
         filter.setPosition(
-            (transform.x + motionX).coerceIn(0f, 1f) * 100f,
-            (transform.y + motionY).coerceIn(0f, 1f) * 100f
+            centeredX.coerceIn(0f, 1f) * 100f,
+            centeredY.coerceIn(0f, 1f) * 100f
         )
-        filter.setRotation((transform.rotation + motionRotation).coerceIn(-180f, 180f).roundToInt())
+        filter.setRotation((transform.rotation + motion.rotation).coerceIn(-180f, 180f).roundToInt())
         filter.setAlpha(transform.opacity.coerceIn(0f, 1f))
+    }
+
+    private fun parsePngTuberMotion(node: RenderGraphNode): PngTuberMotion {
+        val headYaw = node.payload.optDouble("headYaw", 0.0).toFloat().coerceIn(-1f, 1f)
+        val headPitch = node.payload.optDouble("headPitch", 0.0).toFloat().coerceIn(-1f, 1f)
+        val headRoll = node.payload.optDouble("headRoll", 0.0).toFloat().coerceIn(-1f, 1f)
+        val bodyLean = node.payload.optDouble("bodyLean", 0.0).toFloat().coerceIn(-1f, 1f)
+        val breathing = node.payload.optDouble("breathing", 0.0).toFloat().coerceIn(-1f, 1f)
+        val bodyBounce = node.payload.optDouble("bodyBounce", 0.0).toFloat().coerceIn(-1f, 1f)
+        return PngTuberMotion(
+            offsetX = node.payload.optDouble("headX", 0.0).toFloat().coerceIn(-1f, 1f) * 0.025f,
+            offsetY = (node.payload.optDouble("headY", 0.0).toFloat().coerceIn(-1f, 1f) + breathing - bodyBounce) * 0.025f,
+            rotation = bodyLean * 10f + headRoll * 10f + headYaw * 4f,
+            scaleX = (1f - abs(headYaw) * 0.08f).coerceIn(0.88f, 1.02f),
+            scaleY = (1f - abs(headPitch) * 0.04f + breathing * 0.5f).coerceIn(0.9f, 1.04f)
+        )
     }
 
     private fun createFallbackPngTuberBitmap(node: RenderGraphNode): Bitmap {
@@ -278,4 +283,12 @@ private data class RenderTransform(
     val height: Float = 1f,
     val rotation: Float = 0f,
     val opacity: Float = 1f
+)
+
+private data class PngTuberMotion(
+    val offsetX: Float = 0f,
+    val offsetY: Float = 0f,
+    val rotation: Float = 0f,
+    val scaleX: Float = 1f,
+    val scaleY: Float = 1f
 )

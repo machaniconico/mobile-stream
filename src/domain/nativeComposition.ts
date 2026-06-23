@@ -345,7 +345,7 @@ const createPreviewOnlyIssue = (source: SceneSource, reason: NativeCompositionIs
 const nativeCompositionAction = (kind: SourceKind): string => {
   switch (kind) {
     case "pngtuber":
-      return "iOS and Android can render this as a native still-image PNGTuber with expression, blink, lip-sync, and face-motion transforms when it is above the screen source.";
+      return "iOS and Android can render this as a native still-image PNGTuber with expression, blink, lip-sync, and face-motion position, rotation, and 2.5D scale transforms when it is above the screen source.";
     case "live2d":
       return "Integrate a native Live2D Cubism renderer before relying on this source in production output.";
     case "image":

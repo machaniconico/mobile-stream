@@ -2444,6 +2444,28 @@ private struct BroadcastRenderNode {
     let payload: [String: Any]
 }
 
+private struct BroadcastPngTuberMotion {
+    let offsetX: CGFloat
+    let offsetY: CGFloat
+    let rotation: CGFloat
+    let scaleX: CGFloat
+    let scaleY: CGFloat
+
+    init(
+        offsetX: CGFloat = 0,
+        offsetY: CGFloat = 0,
+        rotation: CGFloat = 0,
+        scaleX: CGFloat = 1,
+        scaleY: CGFloat = 1
+    ) {
+        self.offsetX = offsetX
+        self.offsetY = offsetY
+        self.rotation = rotation
+        self.scaleX = scaleX
+        self.scaleY = scaleY
+    }
+}
+
 final class BroadcastSceneCompositor {
     private let ciContext = CIContext(options: nil)
     private let targetWidth: Int
@@ -2586,16 +2608,17 @@ final class BroadcastSceneCompositor {
     private func rect(for node: BroadcastRenderNode, canvasSize: CGSize) -> CGRect {
         let transform = node.transform
         let isPngTuber = node.kind == "pngtuber"
-        let motionX = isPngTuber ? node.payload.cgFloatValue("headX") * 0.025 : 0
-        let motionY = isPngTuber
-            ? (node.payload.cgFloatValue("headY") + node.payload.cgFloatValue("breathing") - node.payload.cgFloatValue("bodyBounce")) * 0.025
-            : 0
+        let motion = isPngTuber ? pngTuberMotion(for: node) : BroadcastPngTuberMotion()
+        let scaledWidth = min(max(transform.width * motion.scaleX, 0.01), 1)
+        let scaledHeight = min(max(transform.height * motion.scaleY, 0.01), 1)
+        let centeredX = transform.x + motion.offsetX + (transform.width - scaledWidth) * 0.5
+        let centeredY = transform.y + motion.offsetY + (transform.height - scaledHeight) * 0.5
 
         return CGRect(
-            x: min(max(transform.x + motionX, 0), 1) * canvasSize.width,
-            y: min(max(transform.y + motionY, 0), 1) * canvasSize.height,
-            width: transform.width * canvasSize.width,
-            height: transform.height * canvasSize.height
+            x: min(max(centeredX, 0), 1) * canvasSize.width,
+            y: min(max(centeredY, 0), 1) * canvasSize.height,
+            width: scaledWidth * canvasSize.width,
+            height: scaledHeight * canvasSize.height
         )
     }
 
@@ -2604,11 +2627,23 @@ final class BroadcastSceneCompositor {
         guard node.kind == "pngtuber" else {
             return transformRotation
         }
-        let motionRotation =
-            node.payload.cgFloatValue("bodyLean") * 10 +
-            node.payload.cgFloatValue("headRoll") * 10 +
-            node.payload.cgFloatValue("headYaw") * 4
-        return min(max(transformRotation + motionRotation, -180), 180)
+        return min(max(transformRotation + pngTuberMotion(for: node).rotation, -180), 180)
+    }
+
+    private func pngTuberMotion(for node: BroadcastRenderNode) -> BroadcastPngTuberMotion {
+        let headYaw = min(max(node.payload.cgFloatValue("headYaw"), -1), 1)
+        let headPitch = min(max(node.payload.cgFloatValue("headPitch"), -1), 1)
+        let headRoll = min(max(node.payload.cgFloatValue("headRoll"), -1), 1)
+        let bodyLean = min(max(node.payload.cgFloatValue("bodyLean"), -1), 1)
+        let breathing = min(max(node.payload.cgFloatValue("breathing"), -1), 1)
+        let bodyBounce = min(max(node.payload.cgFloatValue("bodyBounce"), -1), 1)
+        return BroadcastPngTuberMotion(
+            offsetX: min(max(node.payload.cgFloatValue("headX"), -1), 1) * 0.025,
+            offsetY: (min(max(node.payload.cgFloatValue("headY"), -1), 1) + breathing - bodyBounce) * 0.025,
+            rotation: bodyLean * 10 + headRoll * 10 + headYaw * 4,
+            scaleX: min(max(1 - abs(headYaw) * 0.08, 0.88), 1.02),
+            scaleY: min(max(1 - abs(headPitch) * 0.04 + breathing * 0.5, 0.9), 1.04)
+        )
     }
 
     private func drawPngTuber(_ node: BroadcastRenderNode, in context: CGContext, rect: CGRect) {
