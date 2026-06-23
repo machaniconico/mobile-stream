@@ -4,6 +4,7 @@ import type { PlatformChatFetch } from "./platformChatConnection";
 import {
   applyTwitchChannelMetadata,
   createYouTubeBroadcastAndBindStream,
+  PlatformPublishingError,
   refreshTwitchChannelStatus,
   refreshYouTubeBroadcastStatus,
   transitionYouTubeBroadcast
@@ -432,12 +433,21 @@ describe("platformPublishing", () => {
     const fetcher = vi.fn(async (..._args: Parameters<PlatformChatFetch>) => ({
       ok: false,
       status: 503,
+      headers: {
+        get: (name: string) => (name.toLowerCase() === "retry-after" ? "7" : null)
+      },
       json
     }));
 
     await expect(createYouTubeBroadcastAndBindStream(profile, youtubeCredential(), fetcher)).rejects.toThrow(
       "YouTube broadcast creation failed with HTTP 503."
     );
+    await expect(createYouTubeBroadcastAndBindStream(profile, youtubeCredential(), fetcher)).rejects.toMatchObject({
+      name: "PlatformPublishingError",
+      statusCode: 503,
+      retryable: true,
+      retryAfterMs: 7000
+    } satisfies Partial<PlatformPublishingError>);
     expect(json).not.toHaveBeenCalled();
   });
 
@@ -460,6 +470,11 @@ describe("platformPublishing", () => {
     await expect(refreshYouTubeBroadcastStatus(profile, youtubeCredential(), fetcher)).rejects.toThrow(
       "YouTube broadcast status request returned unreadable JSON with HTTP 200."
     );
+    await expect(refreshYouTubeBroadcastStatus(profile, youtubeCredential(), fetcher)).rejects.toMatchObject({
+      statusCode: 200,
+      retryable: false,
+      retryAfterMs: null
+    } satisfies Partial<PlatformPublishingError>);
   });
 
   it("requires a saved YouTube stream ID before creating a bound broadcast", async () => {
@@ -481,5 +496,33 @@ describe("platformPublishing", () => {
         scopes: ["chat:read", "channel:read:stream_key"]
       }, vi.fn())
     ).rejects.toThrow("channel:manage:broadcast");
+  });
+
+  it("keeps retry metadata when Twitch channel metadata update is rate-limited", async () => {
+    const profile = {
+      ...applyDestinationPreset(createDefaultStudioProfile(), "twitch-auto"),
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        title: "Drawing stream",
+        twitchCategory: "Art",
+        twitchCategoryId: "509660",
+        twitchLanguage: "ja"
+      }
+    };
+    const fetcher = vi.fn(async (..._args: Parameters<PlatformChatFetch>) => ({
+      ok: false,
+      status: 429,
+      headers: {
+        get: (name: string) => (name.toLowerCase() === "retry-after" ? "13" : null)
+      },
+      json: async () => ({ status: 429 })
+    }));
+
+    await expect(applyTwitchChannelMetadata(profile, twitchCredential(), fetcher)).rejects.toMatchObject({
+      name: "PlatformPublishingError",
+      statusCode: 429,
+      retryable: true,
+      retryAfterMs: 13000
+    } satisfies Partial<PlatformPublishingError>);
   });
 });

@@ -8,7 +8,10 @@ import {
   type PlatformPublishingSettings,
   type StudioProfile
 } from "./profiles";
-import type { PlatformChatFetch } from "./platformChatConnection";
+import {
+  getPlatformHttpFailureMetadata,
+  type PlatformChatFetch
+} from "./platformChatConnection";
 
 export interface PlatformPublishingResult {
   profile: StudioProfile;
@@ -18,9 +21,27 @@ export interface PlatformPublishingResult {
 export type YouTubeBroadcastTransitionStatus = "testing" | "live" | "complete";
 
 export class PlatformPublishingError extends Error {
-  constructor(message: string) {
+  readonly statusCode: number | null;
+  readonly retryable: boolean;
+  readonly retryAfterMs: number | null;
+
+  constructor(
+    message: string,
+    {
+      statusCode = null,
+      retryable = false,
+      retryAfterMs = null
+    }: {
+      statusCode?: number | null;
+      retryable?: boolean;
+      retryAfterMs?: number | null;
+    } = {}
+  ) {
     super(message);
     this.name = "PlatformPublishingError";
+    this.statusCode = statusCode;
+    this.retryable = retryable;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -490,9 +511,7 @@ export const applyTwitchChannelMetadata = async (
     }
   );
 
-  if (!response.ok) {
-    throw new PlatformPublishingError(`Twitch channel metadata update failed with HTTP ${response.status}.`);
-  }
+  assertPlatformPublishingResponseOk(response, "Twitch channel metadata update");
 
   return {
     profile: {
@@ -564,7 +583,7 @@ const assertPlatformPublishingResponseOk = (
   operation: string
 ) => {
   if (!response.ok) {
-    throw new PlatformPublishingError(`${operation} failed with HTTP ${response.status}.`);
+    throw new PlatformPublishingError(`${operation} failed with HTTP ${response.status}.`, getPlatformHttpFailureMetadata(response));
   }
 };
 
@@ -575,7 +594,9 @@ const readPlatformPublishingJson = async <T>(
   try {
     return (await response.json()) as T;
   } catch {
-    throw new PlatformPublishingError(`${operation} returned unreadable JSON with HTTP ${response.status}.`);
+    throw new PlatformPublishingError(`${operation} returned unreadable JSON with HTTP ${response.status}.`, {
+      statusCode: response.status
+    });
   }
 };
 

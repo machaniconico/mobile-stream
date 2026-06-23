@@ -13,6 +13,7 @@ import {
   getPlatformChatOAuthCredential,
   normalizePlatformChatOAuthCredentialStore,
   parseOAuthCallback,
+  PlatformChatOAuthError,
   pollTwitchDeviceCodeOAuthFlow,
   refreshTwitchOAuthCredential,
   refreshYouTubeOAuthCredential,
@@ -202,6 +203,11 @@ describe("platformChatOAuth", () => {
     await expect(exchangeYouTubeOAuthCode("yt-code", "verifier", oauthSettings(), fetcher, 1000)).rejects.toThrow(
       "YouTube token exchange returned unreadable JSON with HTTP 200."
     );
+    await expect(exchangeYouTubeOAuthCode("yt-code", "verifier", oauthSettings(), fetcher, 1000)).rejects.toMatchObject({
+      statusCode: 200,
+      retryable: false,
+      retryAfterMs: null
+    } satisfies Partial<PlatformChatOAuthError>);
   });
 
   it("refreshes YouTube access tokens with stored refresh tokens", async () => {
@@ -330,12 +336,21 @@ describe("platformChatOAuth", () => {
     const fetcher = vi.fn().mockResolvedValue({
       ok: false,
       status: 503,
+      headers: {
+        get: (name: string) => (name.toLowerCase() === "retry-after" ? "11" : null)
+      },
       json
     });
 
     await expect(startTwitchDeviceCodeOAuthFlow(oauthSettings(), fetcher, 1000)).rejects.toThrow(
       "Twitch device OAuth start failed with HTTP 503."
     );
+    await expect(startTwitchDeviceCodeOAuthFlow(oauthSettings(), fetcher, 1000)).rejects.toMatchObject({
+      name: "PlatformChatOAuthError",
+      statusCode: 503,
+      retryable: true,
+      retryAfterMs: 11000
+    } satisfies Partial<PlatformChatOAuthError>);
     expect(json).not.toHaveBeenCalled();
   });
 
@@ -375,6 +390,37 @@ describe("platformChatOAuth", () => {
       body: expect.stringContaining("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code")
     });
     expect(fetcher.mock.calls[0][1].body).toContain("device_code=device-code");
+  });
+
+  it("keeps retry metadata when Twitch device OAuth polling fails with a retryable error", async () => {
+    const flow = {
+      platform: "twitch" as const,
+      deviceCode: "device-code",
+      userCode: "ABCD-EFGH",
+      verificationUri: "https://www.twitch.tv/activate",
+      expiresAt: 20000,
+      intervalMs: 5000,
+      createdAt: 1000,
+      lastPollAt: null
+    };
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      headers: {
+        get: (name: string) => (name.toLowerCase() === "retry-after" ? "9" : null)
+      },
+      json: async () => ({
+        status: 429,
+        message: "temporarily_unavailable"
+      })
+    });
+
+    await expect(pollTwitchDeviceCodeOAuthFlow(flow, oauthSettings(), fetcher, 6000)).rejects.toMatchObject({
+      name: "PlatformChatOAuthError",
+      statusCode: 429,
+      retryable: true,
+      retryAfterMs: 9000
+    } satisfies Partial<PlatformChatOAuthError>);
   });
 
   it("polls Twitch device OAuth into a stored refreshable credential", async () => {

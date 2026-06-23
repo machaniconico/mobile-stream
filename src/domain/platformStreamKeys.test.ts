@@ -3,6 +3,7 @@ import { createDefaultStudioProfile } from "./profiles";
 import {
   createTwitchDestination,
   createYouTubeDestinationFromStream,
+  PlatformStreamKeyError,
   rotateYouTubeStreamKey,
   syncTwitchStreamKey
 } from "./platformStreamKeys";
@@ -131,13 +132,22 @@ describe("platformStreamKeys", () => {
     });
     const fetcher = vi.fn().mockResolvedValue({
       ok: false,
-      status: 401,
+      status: 429,
+      headers: {
+        get: (name: string) => (name.toLowerCase() === "retry-after" ? "3" : null)
+      },
       json
     });
 
     await expect(syncTwitchStreamKey(createDefaultStudioProfile(), twitchCredential(), fetcher)).rejects.toThrow(
-      "Twitch stream key request failed with HTTP 401."
+      "Twitch stream key request failed with HTTP 429."
     );
+    await expect(syncTwitchStreamKey(createDefaultStudioProfile(), twitchCredential(), fetcher)).rejects.toMatchObject({
+      name: "PlatformStreamKeyError",
+      statusCode: 429,
+      retryable: true,
+      retryAfterMs: 3000
+    } satisfies Partial<PlatformStreamKeyError>);
     expect(json).not.toHaveBeenCalled();
   });
 
@@ -153,6 +163,11 @@ describe("platformStreamKeys", () => {
     await expect(rotateYouTubeStreamKey(createDefaultStudioProfile(), youtubeCredential(), fetcher)).rejects.toThrow(
       "YouTube live stream creation returned unreadable JSON with HTTP 200."
     );
+    await expect(rotateYouTubeStreamKey(createDefaultStudioProfile(), youtubeCredential(), fetcher)).rejects.toMatchObject({
+      statusCode: 200,
+      retryable: false,
+      retryAfterMs: null
+    } satisfies Partial<PlatformStreamKeyError>);
   });
 
   it("normalizes YouTube and Twitch destinations from API stream keys", () => {

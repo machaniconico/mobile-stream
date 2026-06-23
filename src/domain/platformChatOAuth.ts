@@ -1,4 +1,9 @@
-import { normalizePlatformChatAuthSession, type PlatformChatAuthSession, type PlatformChatFetch } from "./platformChatConnection";
+import {
+  getPlatformHttpFailureMetadata,
+  normalizePlatformChatAuthSession,
+  type PlatformChatAuthSession,
+  type PlatformChatFetch
+} from "./platformChatConnection";
 import type { PlatformChatPlatform } from "./platformChat";
 
 export interface PlatformChatOAuthSettings {
@@ -91,9 +96,27 @@ export type TwitchDeviceCodeOAuthPollResult =
     };
 
 export class PlatformChatOAuthError extends Error {
-  constructor(message: string) {
+  readonly statusCode: number | null;
+  readonly retryable: boolean;
+  readonly retryAfterMs: number | null;
+
+  constructor(
+    message: string,
+    {
+      statusCode = null,
+      retryable = false,
+      retryAfterMs = null
+    }: {
+      statusCode?: number | null;
+      retryable?: boolean;
+      retryAfterMs?: number | null;
+    } = {}
+  ) {
     super(message);
     this.name = "PlatformChatOAuthError";
+    this.statusCode = statusCode;
+    this.retryable = retryable;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -298,7 +321,10 @@ export const pollTwitchDeviceCodeOAuthFlow = async (
         message: "Twitch requested slower device OAuth polling."
       };
     }
-    throw new PlatformChatOAuthError(`Twitch device OAuth token request failed with HTTP ${response.status}.`);
+    throw new PlatformChatOAuthError(
+      `Twitch device OAuth token request failed with HTTP ${response.status}.`,
+      getPlatformHttpFailureMetadata(response)
+    );
   }
 
   const token = normalizeTokenPayload("twitch", payload, receivedAt);
@@ -930,7 +956,10 @@ const assertPlatformChatOAuthResponseOk = (
   operation: string
 ) => {
   if (!response.ok) {
-    throw new PlatformChatOAuthError(`${operation} failed with HTTP ${response.status}.`);
+    throw new PlatformChatOAuthError(
+      `${operation} failed with HTTP ${response.status}.`,
+      getPlatformHttpFailureMetadata(response)
+    );
   }
 };
 
@@ -941,7 +970,9 @@ const readPlatformChatOAuthJson = async (
   try {
     return await response.json();
   } catch {
-    throw new PlatformChatOAuthError(`${operation} returned unreadable JSON with HTTP ${response.status}.`);
+    throw new PlatformChatOAuthError(`${operation} returned unreadable JSON with HTTP ${response.status}.`, {
+      statusCode: response.status
+    });
   }
 };
 

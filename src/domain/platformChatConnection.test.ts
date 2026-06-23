@@ -253,6 +253,9 @@ describe("platformChatConnection", () => {
     const fetcher = vi.fn().mockResolvedValue({
       ok: false,
       status: 429,
+      headers: {
+        get: (name: string) => (name.toLowerCase() === "retry-after" ? "5" : null)
+      },
       json
     });
 
@@ -266,6 +269,8 @@ describe("platformChatConnection", () => {
     ).rejects.toMatchObject({
       code: "http-error",
       statusCode: 429,
+      retryable: true,
+      retryAfterMs: 5000,
       message: "YouTube chat request failed with HTTP 429."
     });
     expect(json).not.toHaveBeenCalled();

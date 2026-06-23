@@ -11,7 +11,10 @@ import {
   type QualityProfile,
   type StudioProfile
 } from "./profiles";
-import type { PlatformChatFetch } from "./platformChatConnection";
+import {
+  getPlatformHttpFailureMetadata,
+  type PlatformChatFetch
+} from "./platformChatConnection";
 
 export interface PlatformStreamKeyResult {
   profile: StudioProfile;
@@ -20,9 +23,27 @@ export interface PlatformStreamKeyResult {
 }
 
 export class PlatformStreamKeyError extends Error {
-  constructor(message: string) {
+  readonly statusCode: number | null;
+  readonly retryable: boolean;
+  readonly retryAfterMs: number | null;
+
+  constructor(
+    message: string,
+    {
+      statusCode = null,
+      retryable = false,
+      retryAfterMs = null
+    }: {
+      statusCode?: number | null;
+      retryable?: boolean;
+      retryAfterMs?: number | null;
+    } = {}
+  ) {
     super(message);
     this.name = "PlatformStreamKeyError";
+    this.statusCode = statusCode;
+    this.retryable = retryable;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -209,7 +230,7 @@ const assertPlatformStreamKeyResponseOk = (
   operation: string
 ) => {
   if (!response.ok) {
-    throw new PlatformStreamKeyError(`${operation} failed with HTTP ${response.status}.`);
+    throw new PlatformStreamKeyError(`${operation} failed with HTTP ${response.status}.`, getPlatformHttpFailureMetadata(response));
   }
 };
 
@@ -220,7 +241,9 @@ const readPlatformStreamKeyJson = async <T>(
   try {
     return (await response.json()) as T;
   } catch {
-    throw new PlatformStreamKeyError(`${operation} returned unreadable JSON with HTTP ${response.status}.`);
+    throw new PlatformStreamKeyError(`${operation} returned unreadable JSON with HTTP ${response.status}.`, {
+      statusCode: response.status
+    });
   }
 };
 

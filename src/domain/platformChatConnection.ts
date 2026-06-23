@@ -78,6 +78,9 @@ export interface PlatformChatReconnectDecision {
 export interface PlatformChatFetchResponse {
   ok: boolean;
   status: number;
+  headers?: {
+    get(name: string): string | null | undefined;
+  } | null;
   json(): Promise<unknown>;
 }
 
@@ -105,14 +108,64 @@ export interface TwitchIrcParseResult {
 export class PlatformChatNetworkError extends Error {
   readonly code: PlatformChatNetworkReadinessStatus | "http-error" | "invalid-json" | "invalid-platform";
   readonly statusCode: number | null;
+  readonly retryable: boolean;
+  readonly retryAfterMs: number | null;
 
-  constructor(code: PlatformChatNetworkError["code"], message: string, statusCode: number | null = null) {
+  constructor(
+    code: PlatformChatNetworkError["code"],
+    message: string,
+    statusCode: number | null = null,
+    {
+      retryable = false,
+      retryAfterMs = null
+    }: {
+      retryable?: boolean;
+      retryAfterMs?: number | null;
+    } = {}
+  ) {
     super(message);
     this.name = "PlatformChatNetworkError";
     this.code = code;
     this.statusCode = statusCode;
+    this.retryable = retryable;
+    this.retryAfterMs = retryAfterMs;
   }
 }
+
+export interface PlatformHttpFailureMetadata {
+  statusCode: number;
+  retryable: boolean;
+  retryAfterMs: number | null;
+}
+
+export const getPlatformHttpFailureMetadata = (
+  response: PlatformChatFetchResponse,
+  now = Date.now()
+): PlatformHttpFailureMetadata => ({
+  statusCode: response.status,
+  retryable: isRetryableHttpStatus(response.status),
+  retryAfterMs: parseRetryAfterMs(response.headers?.get("Retry-After") ?? response.headers?.get("retry-after") ?? null, now)
+});
+
+const retryableHttpStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+const isRetryableHttpStatus = (status: number): boolean => retryableHttpStatuses.has(status);
+
+const parseRetryAfterMs = (value: string | null | undefined, now: number): number | null => {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return null;
+  }
+  const seconds = Number(normalized);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.round(seconds * 1000);
+  }
+  const timestamp = Date.parse(normalized);
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+  return Math.max(0, timestamp - now);
+};
 
 const YOUTUBE_LIVE_CHAT_MESSAGES_URL = "https://www.googleapis.com/youtube/v3/liveChat/messages";
 export const TWITCH_IRC_WEBSOCKET_URL = "wss://irc-ws.chat.twitch.tv:443";
@@ -450,7 +503,13 @@ export const fetchYouTubeLiveChatPage = async (
   const response = await fetcher(request.url, { headers: request.headers });
 
   if (!response.ok) {
-    throw new PlatformChatNetworkError("http-error", `YouTube chat request failed with HTTP ${response.status}.`, response.status);
+    const metadata = getPlatformHttpFailureMetadata(response);
+    throw new PlatformChatNetworkError(
+      "http-error",
+      `YouTube chat request failed with HTTP ${response.status}.`,
+      metadata.statusCode,
+      metadata
+    );
   }
 
   const payload = await readPlatformChatJson<YouTubeLiveChatListResponse>(response, "YouTube chat request");
