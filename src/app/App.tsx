@@ -52,6 +52,11 @@ import {
   createYouTubeBroadcastTransitionPreflightReport,
   formatPlatformPublishingPreflightBlockMessage
 } from "../domain/platformPublishingPreflight";
+import { assessPlatformPublishingFreshness } from "../domain/platformPublishingFreshness";
+import {
+  createPublicLaunchChecklist,
+  formatPublicLaunchChecklistBlockMessage
+} from "../domain/publicLaunchChecklist";
 import { rotateYouTubeStreamKey, syncTwitchStreamKey } from "../domain/platformStreamKeys";
 import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
@@ -322,6 +327,15 @@ export const App = () => {
       });
       if (!preflight.canStart) {
         throw new Error(formatStreamStartPreflightBlockMessage(preflight));
+      }
+      const publicLaunchChecklist = createPublicLaunchChecklist({
+        preflight,
+        diagnostics,
+        platformPublishingFreshness: assessPlatformPublishingFreshness(diagnostics.platformPublishing),
+        profile
+      });
+      if (!publicLaunchChecklist.canStart) {
+        throw new Error(formatPublicLaunchChecklistBlockMessage(publicLaunchChecklist));
       }
       await engine.prepare(scene, readiness.sanitizedProfile);
       await engine.start();

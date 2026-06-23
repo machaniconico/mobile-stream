@@ -99,6 +99,23 @@ export const shouldApplyPublicLaunchStartLock = (
   return profile.destination.platform === "youtube-live" && profile.platformPublishing.privacyStatus === "public";
 };
 
+export const formatPublicLaunchChecklistBlockMessage = (checklist: PublicLaunchChecklist): string => {
+  if (checklist.canStart) {
+    return "Public launch checklist allows start.";
+  }
+
+  const visibleFailures = checklist.items
+    .filter((item) => item.status === "fail")
+    .slice(0, 3)
+    .map((item) => `${item.label}: ${item.detail}`);
+  const remainingCount = checklist.failCount - visibleFailures.length;
+  const suffix = remainingCount > 0 ? ` (+${remainingCount} more)` : "";
+  const prefix = checklist.startLock.blocked ? "Public launch lock blocked" : "Launch preflight blocked";
+  const details = visibleFailures.length > 0 ? visibleFailures.join("; ") : checklist.summary;
+
+  return `${prefix}: ${details}${suffix}. ${checklist.startLock.action}`;
+};
+
 const createDestinationItem = (
   preflight: StreamStartPreflightReport,
   diagnostics: PublicLaunchChecklistInput["diagnostics"]

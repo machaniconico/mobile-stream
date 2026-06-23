@@ -3,6 +3,7 @@ import type { PlatformPublishingFreshness } from "./platformPublishingFreshness"
 import { createDefaultStudioProfile } from "./profiles";
 import {
   createPublicLaunchChecklist,
+  formatPublicLaunchChecklistBlockMessage,
   type PublicLaunchChecklistInput
 } from "./publicLaunchChecklist";
 import type { StreamStartPreflightReport } from "./streamStartPreflight";
@@ -269,5 +270,23 @@ describe("public launch checklist", () => {
     expect(checklist.status).toBe("blocked");
     expect(checklist.canStart).toBe(false);
     expect(checklist.startLock).toMatchObject({ applies: true, blocked: true });
+  });
+
+  it("formats a start-layer block message for unsafe public starts", () => {
+    const checklist = createPublicLaunchChecklist({
+      preflight: readyPreflight,
+      diagnostics: readyDiagnostics(),
+      platformPublishingFreshness: {
+        ...freshDashboard,
+        status: "invalid",
+        summary: "YouTube dashboard status timestamp is invalid.",
+        recommendation: "Refresh YouTube status before release."
+      },
+      profile: youtubePublicProfile()
+    });
+
+    expect(formatPublicLaunchChecklistBlockMessage(checklist)).toContain("Public launch lock blocked");
+    expect(formatPublicLaunchChecklistBlockMessage(checklist)).toContain("Platform dashboard");
+    expect(formatPublicLaunchChecklistBlockMessage(checklist)).toContain("Refresh YouTube status before release.");
   });
 });
