@@ -1,10 +1,21 @@
 import type { ReadinessIssue, ReadinessReport } from "./readiness";
+import type { StudioProfile } from "./profiles";
 import type { StreamOperationStatus } from "./streamOperation";
 import type { StreamStatus } from "./streamState";
+import type { StreamValidationChecklist } from "./streamValidationChecklist";
 
 export type StreamStartPreflightStatus = "ready" | "warning" | "blocked";
 export type StreamStartPreflightSeverity = "block" | "warning";
-export type StreamStartPreflightArea = "destination" | "quality" | "scene" | "security" | "audio" | "avatar" | "engine" | "operation";
+export type StreamStartPreflightArea =
+  | "destination"
+  | "quality"
+  | "scene"
+  | "security"
+  | "audio"
+  | "avatar"
+  | "validation"
+  | "engine"
+  | "operation";
 
 export interface StreamStartPreflightIssue {
   code: string;
@@ -29,15 +40,20 @@ export interface StreamStartPreflightInput {
   readiness: ReadinessReport;
   streamStatus: StreamStatus;
   operationStatus?: StreamOperationStatus | null;
+  profile?: Pick<StudioProfile, "destination" | "platformPublishing">;
+  validation?: Pick<StreamValidationChecklist, "status" | "recommendedNextStep"> | null;
 }
 
 export const createStreamStartPreflightReport = ({
   readiness,
   streamStatus,
-  operationStatus = null
+  operationStatus = null,
+  profile,
+  validation = null
 }: StreamStartPreflightInput): StreamStartPreflightReport => {
   const issues = [
     ...readiness.issues.map(toPreflightIssue),
+    ...createCommercialValidationIssues(profile, validation),
     ...createEngineStateIssues(streamStatus),
     ...createOperationIssues(operationStatus)
   ];
@@ -189,6 +205,78 @@ const createOperationIssues = (operationStatus: StreamOperationStatus | null): S
       recommendation: "Review the failure message and retry when the setup looks correct."
     }
   ];
+};
+
+const createCommercialValidationIssues = (
+  profile: StreamStartPreflightInput["profile"],
+  validation: StreamStartPreflightInput["validation"]
+): StreamStartPreflightIssue[] => {
+  if (!profile) {
+    return [];
+  }
+
+  const validationReady = validation?.status === "ready";
+  const recommendation =
+    validation?.recommendedNextStep ??
+    "Complete commercial validation before starting public or platform-visible streams.";
+
+  if (validationReady) {
+    return [];
+  }
+
+  if (profile.destination.platform === "youtube-live" && profile.platformPublishing.privacyStatus === "public") {
+    return [
+      {
+        code: "validation-youtube-public-not-ready",
+        severity: "block",
+        area: "validation",
+        label: "Commercial validation",
+        message: "YouTube Live is set to public, but commercial validation is not ready.",
+        recommendation
+      }
+    ];
+  }
+
+  if (profile.destination.platform === "twitch") {
+    return [
+      {
+        code: "validation-twitch-public-not-ready",
+        severity: "block",
+        area: "validation",
+        label: "Commercial validation",
+        message: "Twitch streams are platform-visible, but commercial validation is not ready.",
+        recommendation
+      }
+    ];
+  }
+
+  if (profile.destination.platform === "youtube-live" && profile.platformPublishing.privacyStatus === "unlisted") {
+    return [
+      {
+        code: "validation-youtube-unlisted-not-ready",
+        severity: "warning",
+        area: "validation",
+        label: "Commercial validation",
+        message: "YouTube Live is unlisted, but commercial validation is not ready.",
+        recommendation: "Keep this as a controlled validation stream; switch to public only after commercial validation is ready."
+      }
+    ];
+  }
+
+  if (profile.destination.platform === "custom") {
+    return [
+      {
+        code: "validation-custom-not-ready",
+        severity: "warning",
+        area: "validation",
+        label: "Commercial validation",
+        message: "Custom ingest visibility is unknown, and commercial validation is not ready.",
+        recommendation: "Use a private endpoint or staging ingest until commercial validation is ready."
+      }
+    ];
+  }
+
+  return [];
 };
 
 const createSummary = (status: StreamStartPreflightStatus, blockCount: number, warningCount: number): string => {

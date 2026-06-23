@@ -320,12 +320,6 @@ export const StudioScreen = ({
   const isBusy = snapshot.state.status === "preparing" || snapshot.state.status === "stopping";
   const operationBusy = operationStatus?.kind === "pending";
   const setupLocked = isLive || isBusy || operationBusy;
-  const startPreflight = createStreamStartPreflightReport({
-    readiness,
-    streamStatus: snapshot.state.status,
-    operationStatus
-  });
-  const canGoLive = startPreflight.canStart;
   const diagnostics = createStreamDiagnostics(
     scene,
     profile,
@@ -337,6 +331,14 @@ export const StudioScreen = ({
     streamValidationRuns,
     faceTrackingRuntime
   );
+  const startPreflight = createStreamStartPreflightReport({
+    readiness,
+    streamStatus: snapshot.state.status,
+    operationStatus,
+    profile,
+    validation: diagnostics.validation
+  });
+  const canGoLive = startPreflight.canStart;
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
     if (setupLocked) {
       return;

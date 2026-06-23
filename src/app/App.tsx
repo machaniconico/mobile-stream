@@ -66,6 +66,7 @@ import {
   createStreamStartPreflightReport,
   formatStreamStartPreflightBlockMessage
 } from "../domain/streamStartPreflight";
+import { createStreamDiagnostics } from "../domain/streamDiagnostics";
 import { createStreamOperationEvent, createStreamRecoveryEvent } from "../domain/streamSessionLog";
 import {
   appendStreamValidationRun,
@@ -232,9 +233,23 @@ export const App = () => {
 
   const startStream = async () => {
     await runStreamOperation("start", async () => {
+      const engineSnapshot = engine.getSnapshot();
+      const diagnostics = createStreamDiagnostics(
+        scene,
+        profile,
+        readiness,
+        engineSnapshot,
+        streamSessionEvents,
+        streamHealthSamples,
+        streamSessionSummaries.summaries,
+        streamValidationRuns,
+        faceTrackingRuntime
+      );
       const preflight = createStreamStartPreflightReport({
         readiness,
-        streamStatus: engine.getSnapshot().state.status
+        streamStatus: engineSnapshot.state.status,
+        profile,
+        validation: diagnostics.validation
       });
       if (!preflight.canStart) {
         throw new Error(formatStreamStartPreflightBlockMessage(preflight));

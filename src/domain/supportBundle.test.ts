@@ -175,6 +175,43 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Evidence platform dashboard: 0 retained / 0 warn / 0 fail");
   });
 
+  it("keeps commercial validation preflight blocks in support bundles", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey
+      },
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        privacyStatus: "public" as const
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health()
+    });
+    const preflight = createStreamStartPreflightReport({
+      readiness,
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "needs-test",
+        recommendedNextStep: "Record iOS and Android avatar-motion evidence."
+      }
+    });
+
+    const bundle = createSupportBundle({ scene, profile, readiness, preflight, diagnostics });
+    const text = formatSupportBundle(bundle);
+
+    expect(bundle.summary.preflightStatus).toBe("blocked");
+    expect(bundle.preflight.blocks.map((issue) => issue.code)).toContain("validation-youtube-public-not-ready");
+    expect(text).toContain("Preflight: blocked");
+    expect(text).toContain("YouTube Live is set to public");
+  });
+
   it("serializes and formats without leaking raw stream keys or text source content", () => {
     const baseScene = createDefaultScene();
     const textSource = baseScene.sources.find((source) => source.kind === "text");
