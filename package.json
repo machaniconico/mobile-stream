@@ -14,6 +14,7 @@
     "verify:ui": "node scripts/verify-ui.mjs",
     "verify:release-config": "node scripts/verify-release-config.mjs",
     "verify:commercial-release-bundle": "node scripts/verify-commercial-release-bundle.mjs",
+    "verify:release-candidate": "node scripts/verify-release-candidate.mjs",
     "mobile:start": "react-native start",
     "mobile:ios": "react-native run-ios",
     "mobile:android": "react-native run-android",
