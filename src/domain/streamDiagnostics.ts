@@ -478,11 +478,46 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
   ].join("\n");
 };
 
-const sanitizeSessionEvent = (event: StreamSessionEvent, streamKey: string): StreamSessionEvent => ({
-  ...event,
-  title: redactStreamKeyOccurrences(event.title, streamKey),
-  message: redactStreamKeyOccurrences(event.message, streamKey)
-});
+const allowedChatEventTitles = new Set([
+  "Chat auto-connect started",
+  "Chat auto-connect skipped",
+  "Chat reconnect scheduled",
+  "Chat reconnect exhausted"
+]);
+
+const sanitizeSessionEvent = (event: StreamSessionEvent, streamKey: string): StreamSessionEvent => {
+  const redactedTitle = redactStreamKeyOccurrences(event.title, streamKey);
+  const redactedMessage = redactStreamKeyOccurrences(event.message, streamKey);
+  if (event.kind !== "chat") {
+    return {
+      ...event,
+      title: redactedTitle,
+      message: redactedMessage
+    };
+  }
+
+  const title = allowedChatEventTitles.has(redactedTitle) ? redactedTitle : "Chat readout event";
+  return {
+    ...event,
+    title,
+    message: chatEventPrivacyMessage(title)
+  };
+};
+
+const chatEventPrivacyMessage = (title: string): string => {
+  switch (title) {
+    case "Chat auto-connect started":
+      return "Chat readout auto-connect started. Details redacted for viewer privacy.";
+    case "Chat auto-connect skipped":
+      return "Chat readout auto-connect was skipped. Details redacted for viewer privacy.";
+    case "Chat reconnect scheduled":
+      return "Chat readout reconnect was scheduled. Details redacted for viewer privacy.";
+    case "Chat reconnect exhausted":
+      return "Chat readout reconnect retries were exhausted. Details redacted for viewer privacy.";
+    default:
+      return "Chat readout event details redacted for viewer privacy.";
+  }
+};
 
 const formatSessionNativeRuntime = (summary: StreamSessionSummary): string =>
   summary.nativeRuntime

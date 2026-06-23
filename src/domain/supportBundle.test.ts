@@ -274,4 +274,52 @@ describe("support bundle", () => {
     expect(json).not.toContain("private label");
     expect(bundle.scene.sources.find((source) => source.id === "source-sensitive-label")?.payload.textLength).toBeGreaterThan(0);
   });
+
+  it("serializes support bundles without leaking chat author or message details", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30 })
+    }, [
+      {
+        id: "chat-private-1",
+        at: "2026-06-23T00:00:03.000Z",
+        kind: "chat",
+        severity: "warn",
+        title: `Viewer Ada ${streamKey}`,
+        message: `Ada says private support code 2468 and ${streamKey}`
+      }
+    ]);
+    const preflight = createStreamStartPreflightReport({
+      readiness,
+      streamStatus: "idle"
+    });
+
+    const bundle = createSupportBundle({ scene, profile, readiness, preflight, diagnostics });
+    const json = serializeSupportBundle(bundle);
+    const text = formatSupportBundle(bundle);
+
+    expect(bundle.diagnostics.session.events[0]).toMatchObject({
+      kind: "chat",
+      title: "Chat readout event",
+      message: "Chat readout event details redacted for viewer privacy."
+    });
+    expect(json).toContain("Chat readout event details redacted for viewer privacy.");
+    expect(json).not.toContain("Ada");
+    expect(text).not.toContain("Ada");
+    expect(json).not.toContain("2468");
+    expect(text).not.toContain("2468");
+    expect(json).not.toContain("private support code");
+    expect(text).not.toContain("private support code");
+    expect(json).not.toContain(streamKey);
+    expect(text).not.toContain(streamKey);
+  });
 });

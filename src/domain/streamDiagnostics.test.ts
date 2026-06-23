@@ -439,6 +439,52 @@ describe("stream diagnostics", () => {
     expect(report).not.toContain(demoStreamKey);
   });
 
+  it("redacts chat event details from diagnostic exports", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30 })
+    }, [
+      {
+        id: "chat-private-1",
+        at: "2026-06-22T00:00:00.000Z",
+        kind: "chat",
+        severity: "warn",
+        title: `Viewer Alice ${demoStreamKey}`,
+        message: `Alice says private phone 555-1234 and ${demoStreamKey}`
+      }
+    ]);
+    const report = createStreamDiagnosticReport(diagnostics, new Date("2026-06-22T00:00:00.000Z"));
+    const json = serializeStreamDiagnosticReport(report);
+    const text = formatStreamDiagnosticReport(report);
+
+    expect(diagnostics.session.events[0]).toMatchObject({
+      kind: "chat",
+      severity: "warn",
+      title: "Chat readout event",
+      message: "Chat readout event details redacted for viewer privacy."
+    });
+    expect(json).toContain("Chat readout event details redacted for viewer privacy.");
+    expect(text).toContain("Chat readout event details redacted for viewer privacy.");
+    expect(json).not.toContain("Alice");
+    expect(text).not.toContain("Alice");
+    expect(json).not.toContain("555-1234");
+    expect(text).not.toContain("555-1234");
+    expect(json).not.toContain("private phone");
+    expect(text).not.toContain("private phone");
+    expect(json).not.toContain(demoStreamKey);
+    expect(text).not.toContain(demoStreamKey);
+  });
+
   it("fails diagnostics when the engine snapshot is failed", () => {
     const scene = createDefaultScene();
     const profile = {
