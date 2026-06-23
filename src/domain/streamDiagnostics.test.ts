@@ -403,7 +403,7 @@ describe("stream diagnostics", () => {
     expect(diagnostics.target.publishUrlPreview).not.toContain(demoStreamKey);
   });
 
-  it("redacts likely embedded stream keys from server URLs when the stream key field is empty", () => {
+  it("normalizes likely embedded stream keys from server URLs before diagnostics", () => {
     const embeddedStreamKey = "demo-1234-segment";
     const scene = createDefaultScene();
     const profile = {
@@ -426,7 +426,10 @@ describe("stream diagnostics", () => {
     const json = serializeStreamDiagnosticReport(report);
     const text = formatStreamDiagnosticReport(report);
 
-    expect(diagnostics.target.application).toContain(redactStreamKey(embeddedStreamKey));
+    expect(readiness.sanitizedProfile.destination.serverUrl).toBe("rtmps://a.rtmps.youtube.com/live2");
+    expect(readiness.sanitizedProfile.destination.streamKey).toBe(embeddedStreamKey);
+    expect(diagnostics.target.application).toBe("live2");
+    expect(diagnostics.target.streamKeyPreview).toContain(redactStreamKey(embeddedStreamKey));
     expect(diagnostics.target.publishUrlPreview).toContain(redactStreamKey(embeddedStreamKey));
     expect(json).not.toContain(embeddedStreamKey);
     expect(text).not.toContain(embeddedStreamKey);

@@ -6,6 +6,7 @@ import {
   clearStreamKey,
   createDefaultStudioProfile,
   markDestinationCustom,
+  normalizeDestinationProfile,
   normalizeStudioProfile,
   serverUrlWithProtocol,
   stripSensitiveProfileData
@@ -161,6 +162,42 @@ describe("studio profiles", () => {
     };
 
     expect(buildPublishUrl(destination)).toBe("rtmp://ingest.global-contribute.live-video.net/app/live_user_123456");
+  });
+
+  it("normalizes full YouTube publish URLs pasted into the stream key field", () => {
+    const destination = normalizeDestinationProfile({
+      ...createDefaultStudioProfile().destination,
+      streamKey: " rtmps://a.rtmps.youtube.com/live2/abcd-1234-efgh "
+    });
+
+    expect(destination.serverUrl).toBe("rtmps://a.rtmps.youtube.com/live2");
+    expect(destination.streamKey).toBe("abcd-1234-efgh");
+    expect(buildPublishUrl(destination)).toBe("rtmps://a.rtmps.youtube.com/live2/abcd-1234-efgh");
+  });
+
+  it("normalizes full Twitch publish URLs pasted into the stream key field", () => {
+    const twitchProfile = applyDestinationPreset(createDefaultStudioProfile(), "twitch-auto");
+    const destination = normalizeDestinationProfile({
+      ...twitchProfile.destination,
+      streamKey: "rtmp://ingest.global-contribute.live-video.net/app/live_user_123456"
+    });
+
+    expect(destination.serverUrl).toBe("rtmp://ingest.global-contribute.live-video.net/app");
+    expect(destination.streamKey).toBe("live_user_123456");
+    expect(buildPublishUrl(destination)).toBe("rtmp://ingest.global-contribute.live-video.net/app/live_user_123456");
+  });
+
+  it("extracts a missing key from known platform server URLs", () => {
+    const profile = normalizeStudioProfile({
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://a.rtmps.youtube.com/live2/abcd-1234-efgh",
+        streamKey: ""
+      }
+    });
+
+    expect(profile.destination.serverUrl).toBe("rtmps://a.rtmps.youtube.com/live2");
+    expect(profile.destination.streamKey).toBe("abcd-1234-efgh");
   });
 
   it("preserves the current host when only the protocol is changed", () => {

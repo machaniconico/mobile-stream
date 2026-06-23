@@ -231,9 +231,37 @@ export const markDestinationCustom = (
   };
 };
 
+export const normalizeDestinationProfile = (destination: DestinationProfile): DestinationProfile => {
+  let serverUrl = normalizeDestinationValue(destination.serverUrl);
+  let streamKey = normalizeDestinationValue(destination.streamKey).replace(/^\/+/, "");
+  let protocol = destination.protocol;
+
+  const streamKeyPublishUrl = splitPublishUrl(streamKey, destination.platform, true);
+  if (streamKeyPublishUrl) {
+    serverUrl = streamKeyPublishUrl.serverUrl;
+    streamKey = streamKeyPublishUrl.streamKey;
+    protocol = inferStreamProtocol(serverUrl) ?? protocol;
+  } else if (!streamKey) {
+    const serverPublishUrl = splitPublishUrl(serverUrl, destination.platform, false);
+    if (serverPublishUrl) {
+      serverUrl = serverPublishUrl.serverUrl;
+      streamKey = serverPublishUrl.streamKey;
+      protocol = inferStreamProtocol(serverUrl) ?? protocol;
+    }
+  }
+
+  return {
+    ...destination,
+    protocol,
+    serverUrl,
+    streamKey
+  };
+};
+
 export const buildPublishUrl = (destination: DestinationProfile): string => {
-  const serverUrl = destination.serverUrl.trim().replace(/\/+$/, "");
-  const streamKey = normalizeStreamKeyForServer(serverUrl, destination.streamKey);
+  const normalizedDestination = normalizeDestinationProfile(destination);
+  const serverUrl = normalizedDestination.serverUrl.trim().replace(/\/+$/, "");
+  const streamKey = normalizeStreamKeyForServer(serverUrl, normalizedDestination.streamKey);
 
   if (!streamKey) {
     return serverUrl;
@@ -248,6 +276,61 @@ export const buildPublishUrl = (destination: DestinationProfile): string => {
   }
 
   return `${serverUrl}/${streamKey}`;
+};
+
+const splitPublishUrl = (
+  value: string,
+  platform: StreamPlatform,
+  allowCustomSplit: boolean
+): { serverUrl: string; streamKey: string } | null => {
+  const normalized = value.trim();
+  if (!/^rtmps?:\/\//i.test(normalized) || /\{stream_key\}/i.test(normalized)) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.protocol !== "rtmp:" && parsed.protocol !== "rtmps:") {
+      return null;
+    }
+
+    const pathSegments = parsed.pathname.split("/").filter(Boolean);
+    const streamKeyStart = getPublishUrlStreamKeyStart(platform, pathSegments, allowCustomSplit);
+    if (streamKeyStart === null) {
+      return null;
+    }
+
+    const streamKey = `${pathSegments.slice(streamKeyStart).join("/")}${parsed.search}`;
+    if (!streamKey) {
+      return null;
+    }
+
+    const endpointPath = pathSegments.slice(0, streamKeyStart).join("/");
+    const endpoint = `${parsed.protocol}//${parsed.host}${endpointPath ? `/${endpointPath}` : ""}`;
+    return { serverUrl: endpoint, streamKey };
+  } catch {
+    return null;
+  }
+};
+
+const getPublishUrlStreamKeyStart = (
+  platform: StreamPlatform,
+  pathSegments: string[],
+  allowCustomSplit: boolean
+): number | null => {
+  if (pathSegments.length < 2) {
+    return null;
+  }
+
+  if (platform === "youtube-live") {
+    return pathSegments[0]?.toLowerCase() === "live2" ? 1 : null;
+  }
+
+  if (platform === "twitch") {
+    return pathSegments[0]?.toLowerCase() === "app" ? 1 : null;
+  }
+
+  return allowCustomSplit ? pathSegments.length - 1 : null;
 };
 
 const normalizeStreamKeyForServer = (serverUrl: string, streamKey: string): string => {
@@ -439,17 +522,18 @@ export const normalizeStudioProfile = (profile: Partial<StudioProfile> | null | 
         destinationPreset.protocol === persistedDestination?.protocol
     ) ??
     (persistedDestination?.protocol ? getCustomDestinationPreset(persistedDestination.protocol) : defaultDestinationPreset);
+  const destination = normalizeDestinationProfile({
+    id: persistedDestination?.id ?? `dest-${preset.id}`,
+    name: persistedDestination?.name ?? preset.name,
+    platform: persistedDestination?.platform ?? preset.platform,
+    presetId: persistedDestination?.presetId ?? preset.id,
+    protocol: persistedDestination?.protocol ?? preset.protocol,
+    serverUrl: persistedDestination?.serverUrl ?? preset.serverUrl,
+    streamKey: persistedDestination?.streamKey ?? ""
+  });
 
   return {
-    destination: {
-      id: persistedDestination?.id ?? `dest-${preset.id}`,
-      name: persistedDestination?.name ?? preset.name,
-      platform: persistedDestination?.platform ?? preset.platform,
-      presetId: persistedDestination?.presetId ?? preset.id,
-      protocol: persistedDestination?.protocol ?? preset.protocol,
-      serverUrl: persistedDestination?.serverUrl ?? preset.serverUrl,
-      streamKey: persistedDestination?.streamKey ?? ""
-    },
+    destination,
     quality,
     avatar: {
       ...fallback.avatar,
@@ -522,6 +606,8 @@ const clampNumber = (value: number, min: number, max: number): number => {
 };
 
 const normalizeSingleLine = (value: unknown): string => (typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "");
+
+const normalizeDestinationValue = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 
 const normalizeMultiline = (value: unknown): string => (typeof value === "string" ? value.replace(/\r\n/g, "\n").trim() : "");
 

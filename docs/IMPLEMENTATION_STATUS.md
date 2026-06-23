@@ -7,6 +7,7 @@
 - Persisted scene normalization with clamped canvas/source/transform/avatar runtime values.
 - Stream profile model for RTMP and RTMPS destinations, including YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
+- RTMP/RTMPS destination normalization for pasted YouTube/Twitch full publish URLs across shared profile handling and native endpoint assembly.
 - Shared Go Live preflight model for launch blocking, warning surfacing, engine-state duplicate-start protection, and failed-start operation logging.
 - Stream diagnostics model for redacted publish URL, endpoint parsing, upload target estimate, readiness issues, live telemetry health checks, and sanitized diagnostic reports.
 - Face-tracking production diagnostics for prepared PNGTuber assets, simulated/native-camera input risk, tracking runtime state, active motion count, preflight warnings, support reports, and commercial validation checklist evidence.

@@ -129,12 +129,12 @@ struct LiveCasterPreparedConfiguration {
 
         let rawServerURL = Self.stringValue(destination["serverUrl"])
         let rawStreamKey = Self.stringValue(destination["streamKey"])
-        let normalizedStreamKey = rawStreamKey.trimmingCharacters(in: .whitespacesAndNewlines).trimmingLeadingSlashes()
-        guard !normalizedStreamKey.isEmpty else {
+        let normalizedDestination = Self.normalizeDestination(serverURL: rawServerURL, streamKey: rawStreamKey)
+        guard !normalizedDestination.streamKey.isEmpty else {
             throw LiveCasterNativeError.streamKeyMissing
         }
 
-        let endpoint = Self.buildPublishURL(serverURL: rawServerURL, streamKey: normalizedStreamKey)
+        let endpoint = Self.buildPublishURL(serverURL: normalizedDestination.serverURL, streamKey: normalizedDestination.streamKey)
         guard
             let url = URL(string: endpoint),
             let scheme = url.scheme?.lowercased(),
@@ -145,8 +145,8 @@ struct LiveCasterPreparedConfiguration {
         }
 
         destinationName = Self.stringValue(destination["presetId"], fallback: "custom-rtmps")
-        serverURL = rawServerURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        streamKey = normalizedStreamKey
+        serverURL = normalizedDestination.serverURL
+        streamKey = normalizedDestination.streamKey
         publishURL = endpoint
         width = Self.intValue(quality["width"], fallback: 1280, range: 360...3840)
         height = Self.intValue(quality["height"], fallback: 720, range: 360...2160)
@@ -175,6 +175,15 @@ struct LiveCasterPreparedConfiguration {
         ]
     }
 
+    private static func normalizeDestination(serverURL: String, streamKey: String) -> (serverURL: String, streamKey: String) {
+        let normalizedServerURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedStreamKey = streamKey.trimmingCharacters(in: .whitespacesAndNewlines).trimmingLeadingSlashes()
+        if let splitURL = splitPublishURL(normalizedStreamKey) {
+            return splitURL
+        }
+        return (normalizedServerURL, normalizedStreamKey)
+    }
+
     private static func buildPublishURL(serverURL: String, streamKey: String) -> String {
         let normalizedServerURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingTrailingSlashes()
         if let placeholderRange = normalizedServerURL.range(of: "{stream_key}", options: [.caseInsensitive]) {
@@ -184,6 +193,31 @@ struct LiveCasterPreparedConfiguration {
             return normalizedServerURL
         }
         return "\(normalizedServerURL)/\(streamKey)"
+    }
+
+    private static func splitPublishURL(_ rawValue: String) -> (serverURL: String, streamKey: String)? {
+        let normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard
+            normalized.lowercased().hasPrefix("rtmp://") || normalized.lowercased().hasPrefix("rtmps://"),
+            let url = URL(string: normalized),
+            let scheme = url.scheme?.lowercased(),
+            scheme == "rtmp" || scheme == "rtmps",
+            let host = url.host,
+            !host.isEmpty
+        else {
+            return nil
+        }
+
+        let segments = url.path.split(separator: "/").map(String.init)
+        guard segments.count >= 2 else {
+            return nil
+        }
+
+        let port = url.port.map { ":\($0)" } ?? ""
+        let endpointPath = segments.dropLast().joined(separator: "/")
+        let query = url.query.map { "?\($0)" } ?? ""
+        let streamKey = "\(segments.last ?? "")\(query)"
+        return ("\(scheme)://\(host)\(port)/\(endpointPath)", streamKey)
     }
 
     private static func stringValue(_ value: Any?, fallback: String = "") -> String {

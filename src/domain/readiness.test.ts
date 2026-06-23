@@ -107,6 +107,42 @@ describe("stream readiness", () => {
     expect(report.sanitizedProfile.destination.streamKey).toBe("key-123456");
   });
 
+  it("extracts a missing YouTube stream key from a pasted publish URL before start", () => {
+    const profile = {
+      ...applyDestinationPreset(createDefaultStudioProfile(), "youtube-live-rtmps"),
+      destination: {
+        ...applyDestinationPreset(createDefaultStudioProfile(), "youtube-live-rtmps").destination,
+        serverUrl: "rtmps://a.rtmps.youtube.com/live2/demo-1234-segment",
+        streamKey: ""
+      }
+    };
+
+    const report = createReadinessReport(createDefaultScene(), profile);
+
+    expect(report.canStart).toBe(true);
+    expect(report.sanitizedProfile.destination.serverUrl).toBe("rtmps://a.rtmps.youtube.com/live2");
+    expect(report.sanitizedProfile.destination.streamKey).toBe("demo-1234-segment");
+    expect(report.issues.map((issue) => issue.code)).not.toContain("server-url-contains-stream-key");
+    expect(report.issues.map((issue) => issue.code)).not.toContain("stream-key-required");
+  });
+
+  it("extracts a YouTube stream key from a full publish URL pasted into the key field", () => {
+    const profile = {
+      ...applyDestinationPreset(createDefaultStudioProfile(), "youtube-live-rtmps"),
+      destination: {
+        ...applyDestinationPreset(createDefaultStudioProfile(), "youtube-live-rtmps").destination,
+        streamKey: "rtmps://a.rtmps.youtube.com/live2/demo-1234-segment"
+      }
+    };
+
+    const report = createReadinessReport(createDefaultScene(), profile);
+
+    expect(report.canStart).toBe(true);
+    expect(report.sanitizedProfile.destination.serverUrl).toBe("rtmps://a.rtmps.youtube.com/live2");
+    expect(report.sanitizedProfile.destination.streamKey).toBe("demo-1234-segment");
+    expect(report.issues.map((issue) => issue.code)).not.toContain("stream-key-url");
+  });
+
   it("blocks platform server URLs that appear to include a stream key", () => {
     const profile = {
       ...applyDestinationPreset(createDefaultStudioProfile(), "youtube-live-rtmps"),

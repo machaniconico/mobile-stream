@@ -247,6 +247,10 @@ struct BroadcastUploadConfiguration: Equatable {
             return normalizedServerURL
         }
 
+        if let splitURL = splitPublishURL(normalizedStreamKey) {
+            return buildPublishURL(serverURL: splitURL.serverURL, streamKey: splitURL.streamKey)
+        }
+
         if let placeholderRange = normalizedServerURL.range(of: "{stream_key}", options: [.caseInsensitive]) {
             return normalizedServerURL.replacingCharacters(in: placeholderRange, with: normalizedStreamKey)
         }
@@ -256,6 +260,31 @@ struct BroadcastUploadConfiguration: Equatable {
         }
 
         return "\(normalizedServerURL)/\(normalizedStreamKey)"
+    }
+
+    private static func splitPublishURL(_ rawValue: String) -> (serverURL: String, streamKey: String)? {
+        let normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard
+            normalized.lowercased().hasPrefix("rtmp://") || normalized.lowercased().hasPrefix("rtmps://"),
+            let url = URL(string: normalized),
+            let scheme = url.scheme?.lowercased(),
+            scheme == "rtmp" || scheme == "rtmps",
+            let host = url.host,
+            !host.isEmpty
+        else {
+            return nil
+        }
+
+        let segments = url.path.split(separator: "/").map(String.init)
+        guard segments.count >= 2 else {
+            return nil
+        }
+
+        let port = url.port.map { ":\($0)" } ?? ""
+        let endpointPath = segments.dropLast().joined(separator: "/")
+        let query = url.query.map { "?\($0)" } ?? ""
+        let streamKey = "\(segments.last ?? "")\(query)"
+        return ("\(scheme)://\(host)\(port)/\(endpointPath)", streamKey)
     }
 
     private static func stringValue(_ keys: [String], in setupInfo: [String: NSObject]) -> String? {

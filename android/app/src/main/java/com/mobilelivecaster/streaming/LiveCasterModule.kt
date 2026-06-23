@@ -4,6 +4,7 @@ import android.content.Intent
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
+import java.net.URI
 import org.json.JSONObject
 
 data class LiveCasterHealth(
@@ -383,8 +384,13 @@ object LiveCasterSession {
     }
 
     private fun buildEndpoint(serverUrl: String, streamKey: String): String {
-        val normalizedServerUrl = serverUrl.trim().trimEnd('/')
-        val normalizedStreamKey = normalizeStreamKeyForServer(normalizedServerUrl, streamKey)
+        var normalizedServerUrl = serverUrl.trim().trimEnd('/')
+        var normalizedStreamKey = normalizeStreamKeyForServer(normalizedServerUrl, streamKey)
+
+        splitPublishUrl(normalizedStreamKey)?.let { parts ->
+            normalizedServerUrl = parts.first
+            normalizedStreamKey = parts.second
+        }
 
         require(normalizedStreamKey.isNotEmpty()) {
             "Stream key is required"
@@ -399,6 +405,40 @@ object LiveCasterSession {
         }
 
         return "$normalizedServerUrl/$normalizedStreamKey"
+    }
+
+    private fun splitPublishUrl(value: String): Pair<String, String>? {
+        val normalized = value.trim()
+        if (!normalized.startsWith("rtmp://", ignoreCase = true) && !normalized.startsWith("rtmps://", ignoreCase = true)) {
+            return null
+        }
+
+        return try {
+            val uri = URI(normalized)
+            val scheme = uri.scheme?.lowercase()
+            val host = uri.host
+            if ((scheme != "rtmp" && scheme != "rtmps") || host.isNullOrBlank()) {
+                return null
+            }
+
+            val segments = uri.path
+                ?.trim('/')
+                ?.split('/')
+                ?.filter { it.isNotEmpty() }
+                ?: emptyList()
+            if (segments.size < 2) {
+                return null
+            }
+
+            val port = if (uri.port >= 0) ":${uri.port}" else ""
+            val endpointPath = segments.dropLast(1).joinToString("/")
+            val query = uri.rawQuery?.takeIf { it.isNotBlank() }?.let { "?$it" } ?: ""
+            val endpoint = "$scheme://$host$port/$endpointPath"
+            val extractedStreamKey = "${segments.last()}$query"
+            endpoint to extractedStreamKey
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun normalizeStreamKeyForServer(serverUrl: String, streamKey: String): String {
