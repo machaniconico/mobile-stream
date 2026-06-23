@@ -9,6 +9,7 @@
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Shared Go Live preflight model for launch blocking, warning surfacing, engine-state duplicate-start protection, and failed-start operation logging.
 - Stream diagnostics model for redacted publish URL, endpoint parsing, upload target estimate, readiness issues, live telemetry health checks, and sanitized diagnostic reports.
+- Native composition readiness/diagnostics model that flags preview-only avatar, Live2D, image, solid, and text overlays before device RTMP publishing.
 - Stream health history model for average/min bitrate and FPS, dropped-frame/reconnect trend summaries, diagnostics checks, and report export.
 - Post-stream session summary model for completed session outcome, warning/failure/recovery counts, health summary, and next-stream recommendations.
 - Durable completed stream session summary persistence for Web localStorage and React Native native storage, with corrupt payload recovery and retention limiting.

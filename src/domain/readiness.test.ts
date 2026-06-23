@@ -40,6 +40,7 @@ describe("stream readiness", () => {
 
     expect(report.canStart).toBe(true);
     expect(report.errorCount).toBe(0);
+    expect(report.issues.map((issue) => issue.code)).toContain("scene-native-composition-preview-only-overlays");
   });
 
   it("accepts the YouTube Live preset with a stream key", () => {

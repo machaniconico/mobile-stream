@@ -98,6 +98,10 @@ describe("support bundle", () => {
     expect(bundle.summary.qualityAdvisorAction).toBe("maintain");
     expect(bundle.summary.qualityAdvisorSeverity).toBe("pass");
     expect(bundle.summary.suggestedQualityTarget).toBeNull();
+    expect(bundle.summary.nativeCompositionStatus).toBe("warn");
+    expect(bundle.summary.nativeCompositionCoverage).toBe("preview-only-overlays");
+    expect(bundle.summary.nativeCompositionPreviewOnlySourceCount).toBeGreaterThan(0);
+    expect(bundle.summary.nativeCompositionRequiresCompositor).toBe(true);
     expect(bundle.summary.validationStatus).toBe("needs-test");
     expect(bundle.summary.validationFailCount).toBe(0);
     expect(bundle.summary.validationWarningCount).toBeGreaterThan(0);
@@ -109,6 +113,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Clean rate: 100%");
     expect(formatSupportBundle(bundle)).toContain("Quality advisor: maintain / pass");
     expect(formatSupportBundle(bundle)).toContain("Commercial Validation");
+    expect(formatSupportBundle(bundle)).toContain("Native composition: warn / preview-only-overlays");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
   });
 

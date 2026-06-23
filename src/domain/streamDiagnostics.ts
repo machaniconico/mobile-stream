@@ -1,4 +1,5 @@
 import { buildPublishUrl, getDestinationPreset, redactStreamKey, type StudioProfile } from "./profiles";
+import { createNativeCompositionReport, type NativeCompositionReport } from "./nativeComposition";
 import type { ReadinessReport } from "./readiness";
 import type { SceneDocument } from "./scene";
 import {
@@ -85,6 +86,7 @@ export interface StreamDiagnostics {
     incidents: StreamQualityIncident[];
   };
   qualityAdvisor: StreamQualityAdvisorRecommendation;
+  nativeComposition: NativeCompositionReport;
   history: StreamHealthHistorySummary;
   session: {
     events: StreamSessionEvent[];
@@ -154,6 +156,7 @@ export const createStreamDiagnostics = (
     history,
     recovery: recoveryStatus
   });
+  const nativeComposition = sanitizeNativeCompositionReport(createNativeCompositionReport(scene), destination.streamKey);
   const checks = [
     ...readiness.issues.map<DiagnosticCheck>((issue) => ({
       code: `readiness-${issue.code}`,
@@ -172,6 +175,7 @@ export const createStreamDiagnostics = (
     createReconnectCheck(snapshot),
     createQualityIncidentCheck(qualityIncidents),
     createQualityAdvisorCheck(qualityAdvisor),
+    createNativeCompositionCheck(nativeComposition),
     createHistoryCheck(history),
     createRecoveryCheck(recoveryStatus)
   ];
@@ -248,6 +252,7 @@ export const createStreamDiagnostics = (
       incidents: qualityIncidents
     },
     qualityAdvisor,
+    nativeComposition,
     history,
     session: {
       events: sanitizedSessionEvents,
@@ -330,6 +335,21 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Current target: ${formatAdvisorTarget(diagnostics.qualityAdvisor.currentTarget)}`,
     `- Suggested target: ${diagnostics.qualityAdvisor.suggestedTarget ? formatAdvisorTarget(diagnostics.qualityAdvisor.suggestedTarget) : "-"}`,
     "",
+    "Native Composition",
+    `- Status: ${diagnostics.nativeComposition.status}`,
+    `- Coverage: ${diagnostics.nativeComposition.coverage}`,
+    `- Summary: ${diagnostics.nativeComposition.summary}`,
+    `- Visible sources: ${diagnostics.nativeComposition.visibleSourceCount}`,
+    `- Screen sources: ${diagnostics.nativeComposition.screenSourceCount}`,
+    `- Preview-only overlays: ${diagnostics.nativeComposition.previewOnlySourceCount}`,
+    `- Avatar sources: ${diagnostics.nativeComposition.avatarSourceCount}`,
+    `- Next step: ${diagnostics.nativeComposition.recommendedNextStep}`,
+    ...(diagnostics.nativeComposition.issues.length === 0
+      ? ["- No native composition issues."]
+      : diagnostics.nativeComposition.issues.map(
+          (issue) => `- [${issue.status.toUpperCase()}] ${issue.sourceKind} ${issue.sourceName}: ${issue.message} Action: ${issue.action}`
+        )),
+    "",
     "Health History",
     `- Summary: ${diagnostics.history.summary}`,
     `- Samples: ${diagnostics.history.sampleCount}`,
@@ -386,6 +406,21 @@ const sanitizeSessionEvent = (event: StreamSessionEvent, streamKey: string): Str
   ...event,
   title: redactStreamKeyOccurrences(event.title, streamKey),
   message: redactStreamKeyOccurrences(event.message, streamKey)
+});
+
+const sanitizeNativeCompositionReport = (
+  report: NativeCompositionReport,
+  streamKey: string
+): NativeCompositionReport => ({
+  ...report,
+  summary: redactStreamKeyOccurrences(report.summary, streamKey),
+  recommendedNextStep: redactStreamKeyOccurrences(report.recommendedNextStep, streamKey),
+  issues: report.issues.map((issue) => ({
+    ...issue,
+    sourceName: redactStreamKeyOccurrences(issue.sourceName, streamKey),
+    message: redactStreamKeyOccurrences(issue.message, streamKey),
+    action: redactStreamKeyOccurrences(issue.action, streamKey)
+  }))
 });
 
 const formatAdvisorTarget = (target: StreamQualityAdvisorRecommendation["currentTarget"]): string =>
@@ -640,6 +675,13 @@ const createQualityAdvisorCheck = (advisor: StreamQualityAdvisorRecommendation):
   status: advisor.severity,
   label: "Quality advisor",
   message: advisor.summary
+});
+
+const createNativeCompositionCheck = (composition: NativeCompositionReport): DiagnosticCheck => ({
+  code: `native-composition-${composition.coverage}`,
+  status: composition.status,
+  label: "Native composition",
+  message: composition.summary
 });
 
 const createHistoryCheck = (history: StreamHealthHistorySummary): DiagnosticCheck => {

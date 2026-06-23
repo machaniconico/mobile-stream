@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultScene } from "./scene";
+import { createDefaultScene, setVisibility, type SceneDocument } from "./scene";
 import { createDefaultStudioProfile } from "./profiles";
 import { createReadinessReport } from "./readiness";
 import {
@@ -8,7 +8,7 @@ import {
 } from "./streamStartPreflight";
 
 const validReadiness = () =>
-  createReadinessReport(createDefaultScene(), {
+  createReadinessReport(createScreenOnlyScene(), {
     ...createDefaultStudioProfile(),
     destination: {
       ...createDefaultStudioProfile().destination,
@@ -16,6 +16,11 @@ const validReadiness = () =>
       streamKey: "dummy-stream-value"
     }
   });
+
+const createScreenOnlyScene = (): SceneDocument =>
+  createDefaultScene().sources
+    .filter((source) => source.kind !== "screen")
+    .reduce((scene, source) => setVisibility(scene, source.id, false), createDefaultScene());
 
 describe("stream start preflight", () => {
   it("blocks start when readiness has errors", () => {

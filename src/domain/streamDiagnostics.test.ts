@@ -34,7 +34,7 @@ describe("stream diagnostics", () => {
       health: health()
     });
 
-    expect(diagnostics.status).toBe("pass");
+    expect(diagnostics.status).toBe("warn");
     expect(diagnostics.target.platform).toBe("YouTube Live");
     expect(diagnostics.target.host).toBe("a.rtmps.youtube.com");
     expect(diagnostics.target.publishUrlPreview).toContain(redactStreamKey(demoStreamKey));
@@ -46,6 +46,9 @@ describe("stream diagnostics", () => {
     expect(diagnostics.validation.items.find((item) => item.id === "ingest-not-run")?.status).toBe("pending");
     expect(diagnostics.validationEvidence.status).toBe("none");
     expect(diagnostics.validationEvidence.totalRuns).toBe(0);
+    expect(diagnostics.nativeComposition.status).toBe("warn");
+    expect(diagnostics.nativeComposition.coverage).toBe("preview-only-overlays");
+    expect(diagnostics.checks.some((check) => check.code === "native-composition-preview-only-overlays")).toBe(true);
   });
 
   it("reports blocking checks when the stream key is missing", () => {
@@ -191,7 +194,13 @@ describe("stream diagnostics", () => {
   });
 
   it("redacts stream keys from engine health messages", () => {
-    const scene = createDefaultScene();
+    const baseScene = createDefaultScene();
+    const scene = {
+      ...baseScene,
+      sources: baseScene.sources.map((source) =>
+        source.id === "source-avatar" ? { ...source, name: `avatar ${demoStreamKey}` } : source
+      )
+    };
     const profile = {
       ...createDefaultStudioProfile(),
       destination: {
@@ -209,6 +218,12 @@ describe("stream diagnostics", () => {
     expect(diagnostics.telemetry.message).toContain(redactStreamKey(demoStreamKey));
     expect(diagnostics.telemetry.message).not.toContain(demoStreamKey);
     expect(diagnostics.checks.find((check) => check.code === "engine-failed")?.message).not.toContain(demoStreamKey);
+    expect(diagnostics.nativeComposition.issues.find((issue) => issue.sourceId === "source-avatar")?.sourceName).toContain(
+      redactStreamKey(demoStreamKey)
+    );
+    expect(diagnostics.nativeComposition.issues.find((issue) => issue.sourceId === "source-avatar")?.sourceName).not.toContain(
+      demoStreamKey
+    );
   });
 
   it("serializes a shareable diagnostic report without raw stream keys", () => {

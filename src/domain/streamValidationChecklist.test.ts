@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultStudioProfile } from "./profiles";
 import { createReadinessReport } from "./readiness";
-import { createDefaultScene } from "./scene";
+import { createDefaultScene, setVisibility, type SceneDocument } from "./scene";
 import type { StreamHealthHistorySummary } from "./streamHealthHistory";
 import {
   createStreamSessionHistorySummary,
@@ -45,8 +45,13 @@ const cleanSession = (id: number): StreamSessionSummary => ({
   recommendation: "Keep this profile as a known-good baseline for the destination."
 });
 
+const createScreenOnlyScene = (): SceneDocument =>
+  createDefaultScene().sources
+    .filter((source) => source.kind !== "screen")
+    .reduce((scene, source) => setVisibility(scene, source.id, false), createDefaultScene());
+
 const defaultInput = (streamKey = "validation-demo"): StreamValidationChecklistInput => {
-  const scene = createDefaultScene();
+  const scene = createScreenOnlyScene();
   const profile = {
     ...createDefaultStudioProfile(),
     destination: {

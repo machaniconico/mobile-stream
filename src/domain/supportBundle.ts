@@ -52,6 +52,10 @@ export interface SupportBundle {
     qualityAdvisorAction: StreamDiagnostics["qualityAdvisor"]["action"];
     qualityAdvisorSeverity: StreamDiagnostics["qualityAdvisor"]["severity"];
     suggestedQualityTarget: string | null;
+    nativeCompositionStatus: StreamDiagnostics["nativeComposition"]["status"];
+    nativeCompositionCoverage: StreamDiagnostics["nativeComposition"]["coverage"];
+    nativeCompositionPreviewOnlySourceCount: number;
+    nativeCompositionRequiresCompositor: boolean;
     sourceCount: number;
     visibleSourceCount: number;
   };
@@ -170,6 +174,10 @@ export const createSupportBundle = ({
       suggestedQualityTarget: diagnostics.qualityAdvisor.suggestedTarget
         ? formatQualityAdvisorTarget(diagnostics.qualityAdvisor.suggestedTarget)
         : null,
+      nativeCompositionStatus: diagnostics.nativeComposition.status,
+      nativeCompositionCoverage: diagnostics.nativeComposition.coverage,
+      nativeCompositionPreviewOnlySourceCount: diagnostics.nativeComposition.previewOnlySourceCount,
+      nativeCompositionRequiresCompositor: diagnostics.nativeComposition.requiresNativeCompositor,
       sourceCount: scene.sources.length,
       visibleSourceCount
     },
@@ -276,6 +284,8 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Quality advisor: ${bundle.summary.qualityAdvisorAction} / ${bundle.summary.qualityAdvisorSeverity}`,
     `- Suggested quality: ${bundle.summary.suggestedQualityTarget ?? "-"}`,
     `- Recovery: ${bundle.diagnostics.recovery.mode} / ${bundle.diagnostics.recovery.recommendedAction}`,
+    `- Native composition: ${bundle.summary.nativeCompositionStatus} / ${bundle.summary.nativeCompositionCoverage} / preview-only ${bundle.summary.nativeCompositionPreviewOnlySourceCount}`,
+    `- Native compositor required: ${bundle.summary.nativeCompositionRequiresCompositor ? "yes" : "no"}`,
     "",
     "Commercial Validation",
     `- Status: ${bundle.summary.validationStatus}`,

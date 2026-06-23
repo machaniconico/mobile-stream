@@ -179,6 +179,9 @@ const sessionHistoryMetricLabel = (diagnostics: StreamDiagnostics): string =>
 const validationMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.validation.status} / ${diagnostics.validation.pendingCount} pending / ${diagnostics.validation.failCount} fail`;
 
+const nativeCompositionMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  `${diagnostics.nativeComposition.coverage} / ${diagnostics.nativeComposition.previewOnlySourceCount} preview-only`;
+
 const qualityAdvisorTargetLabel = (diagnostics: StreamDiagnostics): string =>
   diagnostics.qualityAdvisor.suggestedTarget
     ? `${diagnostics.qualityAdvisor.suggestedTarget.profileName} / ${diagnostics.qualityAdvisor.suggestedTarget.videoBitrateKbps} kbps / ${diagnostics.qualityAdvisor.suggestedTarget.fps}fps`
@@ -1030,6 +1033,7 @@ const StreamDiagnosticsPanel = ({
       <DiagnosticMetric label="Session trend" value={sessionHistoryMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Last session" value={sessionMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Advisor" value={diagnostics.qualityAdvisor.action} />
+      <DiagnosticMetric label="Native comp" value={nativeCompositionMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Validation" value={validationMetricLabel(diagnostics)} />
     </View>
     <View style={styles.diagnosticIncidents}>

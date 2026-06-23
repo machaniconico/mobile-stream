@@ -1,6 +1,7 @@
 import type { SceneDocument } from "./scene";
 import type { StudioProfile, StreamProtocol } from "./profiles";
 import { normalizeStudioProfile } from "./profiles";
+import { createNativeCompositionReport } from "./nativeComposition";
 
 export type ReadinessSeverity = "error" | "warning";
 
@@ -227,6 +228,7 @@ const validateQuality = (profile: StudioProfile): ReadinessIssue[] => {
 const validateScene = (scene: SceneDocument): ReadinessIssue[] => {
   const issues: ReadinessIssue[] = [];
   const visibleSources = scene.sources.filter((source) => source.visible);
+  const nativeComposition = createNativeCompositionReport(scene);
 
   if (visibleSources.length === 0) {
     issues.push({
@@ -261,6 +263,15 @@ const validateScene = (scene: SceneDocument): ReadinessIssue[] => {
       severity: "warning",
       field: "scene",
       message: "An image source has no asset selected."
+    });
+  }
+
+  if (nativeComposition.status === "warn") {
+    issues.push({
+      code: `scene-native-composition-${nativeComposition.coverage}`,
+      severity: "warning",
+      field: "scene",
+      message: nativeComposition.summary
     });
   }
 

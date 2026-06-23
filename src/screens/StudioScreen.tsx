@@ -218,6 +218,9 @@ const sessionHistoryMetricLabel = (diagnostics: StreamDiagnostics): string =>
 const validationMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.validation.status} / ${diagnostics.validation.pendingCount} pending / ${diagnostics.validation.failCount} fail`;
 
+const nativeCompositionMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  `${diagnostics.nativeComposition.coverage} / ${diagnostics.nativeComposition.previewOnlySourceCount} preview-only`;
+
 const qualityIncidentSummaryTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" => {
   if (diagnostics.qualityIncidents.incidents.some((incident) => incident.severity === "fail")) {
     return "fail";
@@ -911,6 +914,8 @@ const StreamDiagnosticsPanel = ({
       <strong>{sessionMetricLabel(diagnostics)}</strong>
       <span>Advisor</span>
       <strong>{diagnostics.qualityAdvisor.action}</strong>
+      <span>Native comp</span>
+      <strong>{nativeCompositionMetricLabel(diagnostics)}</strong>
       <span>Validation</span>
       <strong>{validationMetricLabel(diagnostics)}</strong>
     </div>

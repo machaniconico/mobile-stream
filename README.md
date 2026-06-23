@@ -14,6 +14,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - OAuth/API-backed publishing controls: YouTube can create, bind, refresh status, test, start, and complete scheduled Live Broadcasts; Twitch can update title, category, broadcaster language, and refresh live/offline status.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, and sanitized report export/share.
+- Native composition readiness and diagnostics warnings for preview-only avatar/text/image/solid overlays before device RTMP publishing.
 - Stream key redaction and no-secret browser persistence.
 - Keychain/Android Keystore-backed mobile profile storage for stream keys.
 - In-app stream key clear and replacement controls.
