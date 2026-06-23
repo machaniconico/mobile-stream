@@ -518,17 +518,21 @@ export const StudioScreen = ({
               <span>Name</span>
               <input value={selectedSource.name} disabled={setupLocked} onChange={(event) => updateSelectedName(event.target.value)} />
             </label>
-            {selectedSource.kind === "pngtuber" ? (
+            {selectedSource.kind === "pngtuber" || selectedSource.kind === "image" ? (
               <label className="field">
-                <span>Still image URI</span>
+                <span>{selectedSource.kind === "pngtuber" ? "Still image URI" : "Image URI"}</span>
                 <input
-                  value={selectedSource.imageUri}
+                  value={selectedSource.kind === "pngtuber" ? selectedSource.imageUri : selectedSource.uri}
                   disabled={setupLocked}
                   placeholder="content://, file://, or absolute path"
                   onChange={(event) =>
                     onSceneChange(
                       updateSource(scene, selectedSource.id, (source) =>
-                        source.kind === "pngtuber" ? { ...source, imageUri: event.target.value } : source
+                        source.kind === "pngtuber"
+                          ? { ...source, imageUri: event.target.value }
+                          : source.kind === "image"
+                            ? { ...source, uri: event.target.value }
+                            : source
                       )
                     )
                   }
@@ -1593,6 +1597,14 @@ const SourceVisual = ({ source }: { source: SceneSource }) => {
 
   if (source.kind === "solid") {
     return <span className="solid-visual" style={{ background: source.color }} />;
+  }
+
+  if (source.kind === "image" && source.uri.trim()) {
+    return (
+      <span className="image-visual still-image">
+        <img src={source.uri} alt="" />
+      </span>
+    );
   }
 
   return <span className="image-visual">Image</span>;

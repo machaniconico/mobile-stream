@@ -60,6 +60,7 @@ import {
   createSupportBundle,
   formatSupportBundle
 } from "../domain/supportBundle";
+import { prepareStillImageAsset } from "./sceneStore";
 
 interface MobileStudioScreenProps {
   scene: SceneDocument;
@@ -251,6 +252,10 @@ export const MobileStudioScreen = ({
   onClearStreamValidationRuns
 }: MobileStudioScreenProps) => {
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
+  const [assetPrepareStatus, setAssetPrepareStatus] = useState<{
+    kind: "pending" | "success" | "error";
+    message: string;
+  } | null>(null);
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
   const isBusy = snapshot.state.status === "preparing" || snapshot.state.status === "stopping";
   const operationBusy = operationStatus?.kind === "pending";
@@ -271,6 +276,10 @@ export const MobileStudioScreen = ({
     streamSessionSummaries,
     streamValidationRuns
   );
+
+  useEffect(() => {
+    setAssetPrepareStatus(null);
+  }, [selectedSourceId]);
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
     if (setupLocked) {
@@ -351,6 +360,40 @@ export const MobileStudioScreen = ({
     const source = createSource(kind);
     onSceneChange(addSource(scene, source));
     onSelectSource(source.id);
+  };
+
+  const prepareSelectedStillImageAsset = async () => {
+    if (setupLocked || (selectedSource.kind !== "pngtuber" && selectedSource.kind !== "image")) {
+      return;
+    }
+    const sourceUri = selectedSource.kind === "pngtuber" ? selectedSource.imageUri : selectedSource.uri;
+    if (!sourceUri.trim()) {
+      const message = "Enter a still-image URI before preparing it.";
+      setAssetPrepareStatus({ kind: "error", message });
+      Alert.alert("Still image", message);
+      return;
+    }
+
+    setAssetPrepareStatus({ kind: "pending", message: "Preparing native asset..." });
+    try {
+      const preparedUri = await prepareStillImageAsset(sourceUri, `${selectedSource.name}-${selectedSource.kind}.png`);
+      onSceneChange(
+        updateSource(scene, selectedSource.id, (source) => {
+          if (source.kind === "pngtuber") {
+            return { ...source, imageUri: preparedUri };
+          }
+          if (source.kind === "image") {
+            return { ...source, uri: preparedUri };
+          }
+          return source;
+        })
+      );
+      setAssetPrepareStatus({ kind: "success", message: "Ready for native compositor." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Still-image asset could not be prepared.";
+      setAssetPrepareStatus({ kind: "error", message });
+      Alert.alert("Still image", message);
+    }
   };
 
   return (
@@ -448,15 +491,15 @@ export const MobileStudioScreen = ({
             editable={!setupLocked}
             placeholderTextColor="#71717a"
           />
-          {selectedSource.kind === "pngtuber" ? (
+          {selectedSource.kind === "pngtuber" || selectedSource.kind === "image" ? (
             <>
-              <Label text="Still image URI" />
+              <Label text={selectedSource.kind === "pngtuber" ? "Still image URI" : "Image URI"} />
               <TextInput
-                value={selectedSource.imageUri}
-                onChangeText={(imageUri) =>
+                value={selectedSource.kind === "pngtuber" ? selectedSource.imageUri : selectedSource.uri}
+                onChangeText={(uri) =>
                   onSceneChange(
                     updateSource(scene, selectedSource.id, (source) =>
-                      source.kind === "pngtuber" ? { ...source, imageUri } : source
+                      source.kind === "pngtuber" ? { ...source, imageUri: uri } : source.kind === "image" ? { ...source, uri } : source
                     )
                   )
                 }
@@ -465,6 +508,24 @@ export const MobileStudioScreen = ({
                 placeholder="content://, file://, or absolute path"
                 placeholderTextColor="#71717a"
               />
+              <View style={styles.grid2}>
+                <ActionButton
+                  label="Prepare Asset"
+                  disabled={setupLocked || assetPrepareStatus?.kind === "pending"}
+                  onPress={prepareSelectedStillImageAsset}
+                />
+              </View>
+              {assetPrepareStatus ? (
+                <Text
+                  style={[
+                    styles.assetPrepareStatus,
+                    assetPrepareStatus.kind === "success" && styles.assetPrepareSuccess,
+                    assetPrepareStatus.kind === "error" && styles.assetPrepareError
+                  ]}
+                >
+                  {assetPrepareStatus.message}
+                </Text>
+              ) : null}
             </>
           ) : null}
           <Stepper
@@ -2569,6 +2630,18 @@ const styles = StyleSheet.create({
   },
   mutedText: {
     color: "#a1a1aa"
+  },
+  assetPrepareStatus: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 17
+  },
+  assetPrepareSuccess: {
+    color: "#bbf7d0"
+  },
+  assetPrepareError: {
+    color: "#fecdd3"
   },
   label: {
     color: "#a1a1aa",

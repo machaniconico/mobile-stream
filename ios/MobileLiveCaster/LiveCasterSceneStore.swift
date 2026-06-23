@@ -1,11 +1,14 @@
 import Foundation
 import React
 
+private let liveCasterSceneAppGroup = "group.com.mobilelivecaster.app"
+
 @objc(LiveCasterSceneStore)
 final class LiveCasterSceneStore: NSObject {
     private let fileName = "mobile-live-caster-scene.json"
     private let sessionSummariesFileName = "mobile-live-caster-session-summaries.json"
     private let validationRunsFileName = "mobile-live-caster-validation-runs.json"
+    private let sceneAssetsDirectoryName = "scene-assets"
 
     @objc
     static func requiresMainQueueSetup() -> Bool {
@@ -69,6 +72,56 @@ final class LiveCasterSceneStore: NSObject {
             resolve(true)
         } catch {
             reject("scene_store_clear_failed", "Scene clear failed", error)
+        }
+    }
+
+    @objc(prepareStillImageAsset:filenameHint:resolver:rejecter:)
+    func prepareStillImageAsset(
+        _ sourceURI: String,
+        filenameHint: String,
+        resolver resolve: RCTPromiseResolveBlock,
+        rejecter reject: RCTPromiseRejectBlock
+    ) {
+        let trimmedURI = sourceURI.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedURI.isEmpty else {
+            reject("scene_asset_empty_uri", "Still-image asset URI is empty", nil)
+            return
+        }
+
+        guard let sourceURL = stillImageSourceURL(trimmedURI) else {
+            reject("scene_asset_unsupported_uri", "Still-image asset must be a file URL or absolute path on iOS", nil)
+            return
+        }
+
+        guard let destinationDirectory = sceneAssetsURL() else {
+            reject("scene_asset_store_unavailable", "App Group scene asset storage is unavailable", nil)
+            return
+        }
+
+        let accessGranted = sourceURL.startAccessingSecurityScopedResource()
+        defer {
+            if accessGranted {
+                sourceURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+            reject("scene_asset_source_missing", "Still-image asset file does not exist", nil)
+            return
+        }
+
+        do {
+            try FileManager.default.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
+            let destinationURL = destinationDirectory.appendingPathComponent(
+                stillImageDestinationFileName(sourceURL: sourceURL, filenameHint: filenameHint)
+            )
+            if FileManager.default.fileExists(atPath: destinationURL.path) {
+                try FileManager.default.removeItem(at: destinationURL)
+            }
+            try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+            resolve(destinationURL.absoluteString)
+        } catch {
+            reject("scene_asset_copy_failed", "Still-image asset copy failed", error)
         }
     }
 
@@ -202,5 +255,41 @@ final class LiveCasterSceneStore: NSObject {
 
     private func validationRunsURL() -> URL? {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appendingPathComponent(validationRunsFileName)
+    }
+
+    private func sceneAssetsURL() -> URL? {
+        FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: liveCasterSceneAppGroup)?
+            .appendingPathComponent(sceneAssetsDirectoryName, isDirectory: true)
+    }
+
+    private func stillImageSourceURL(_ rawURI: String) -> URL? {
+        if let url = URL(string: rawURI), url.isFileURL {
+            return url
+        }
+        if rawURI.hasPrefix("/") {
+            return URL(fileURLWithPath: rawURI)
+        }
+        return nil
+    }
+
+    private func stillImageDestinationFileName(sourceURL: URL, filenameHint: String) -> String {
+        let sourceExtension = sourceURL.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hintExtension = URL(fileURLWithPath: filenameHint).pathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
+        let candidateExtension = sourceExtension.isEmpty ? hintExtension : sourceExtension
+        let fileExtension = candidateExtension.isEmpty ? "png" : candidateExtension
+        let sourceBaseName = sourceURL.deletingPathExtension().lastPathComponent
+        let hintBaseName = URL(fileURLWithPath: filenameHint).deletingPathExtension().lastPathComponent
+        let safeBaseName = sanitizedAssetFileComponent(sourceBaseName.isEmpty ? hintBaseName : sourceBaseName)
+        return "\(safeBaseName)-\(UUID().uuidString).\(fileExtension.lowercased())"
+    }
+
+    private func sanitizedAssetFileComponent(_ value: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        let sanitized = value.unicodeScalars
+            .map { allowed.contains($0) ? String($0) : "-" }
+            .joined()
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
+        return sanitized.isEmpty ? "still-image" : String(sanitized.prefix(48))
     }
 }

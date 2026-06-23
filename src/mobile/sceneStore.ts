@@ -5,6 +5,7 @@ interface MobileSceneStoreModule {
   saveScene(sceneJson: string): Promise<boolean>;
   loadScene(): Promise<string | null>;
   clearScene(): Promise<boolean>;
+  prepareStillImageAsset?(sourceUri: string, filenameHint: string): Promise<string>;
 }
 
 const nativeStore = NativeModules.LiveCasterSceneStore as MobileSceneStoreModule | undefined;
@@ -42,4 +43,15 @@ export const clearMobileScene = async (): Promise<void> => {
     return;
   }
   await nativeStore.clearScene();
+};
+
+export const prepareStillImageAsset = async (sourceUri: string, filenameHint = "still-image"): Promise<string> => {
+  const trimmedUri = sourceUri.trim();
+  if (!trimmedUri) {
+    return "";
+  }
+  if (!canUseMobileSceneStore() || !nativeStore?.prepareStillImageAsset) {
+    return trimmedUri;
+  }
+  return nativeStore.prepareStillImageAsset(trimmedUri, filenameHint);
 };
