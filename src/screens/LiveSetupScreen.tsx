@@ -16,6 +16,7 @@ import {
   createYouTubeBroadcastTransitionPreflightReport,
   type PlatformPublishingPreflightReport
 } from "../domain/platformPublishingPreflight";
+import type { PublicLaunchChecklist } from "../domain/publicLaunchChecklist";
 import type { ReadinessReport } from "../domain/readiness";
 import type { StreamStatus } from "../domain/streamState";
 import type { StreamValidationChecklist } from "../domain/streamValidationChecklist";
@@ -26,6 +27,7 @@ interface LiveSetupScreenProps {
   readiness: ReadinessReport;
   streamStatus: StreamStatus;
   validation: Pick<StreamValidationChecklist, "status" | "recommendedNextStep">;
+  publicLaunchChecklist?: PublicLaunchChecklist | null;
   locked: boolean;
   platformPublishingStatus: string;
   onProfileChange(profile: StudioProfile): void;
@@ -40,6 +42,7 @@ export const LiveSetupScreen = ({
   readiness,
   streamStatus,
   validation,
+  publicLaunchChecklist = null,
   locked,
   platformPublishingStatus,
   onProfileChange,
@@ -55,7 +58,8 @@ export const LiveSetupScreen = ({
       profile,
       transitionStatus,
       streamStatus,
-      validation
+      validation,
+      publicLaunchChecklist
     });
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {

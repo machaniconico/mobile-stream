@@ -571,11 +571,27 @@ export const App = () => {
           platformChatConnection: platformChatConnection.connection
         }
       );
+      const startPreflight = createStreamStartPreflightReport({
+        readiness,
+        streamStatus: engineSnapshot.state.status,
+        profile,
+        validation: diagnostics.validation,
+        chatReader: chatReader.settings,
+        platformChatAuth,
+        platformChatConnection: platformChatConnection.connection
+      });
+      const publicLaunchChecklist = createPublicLaunchChecklist({
+        preflight: startPreflight,
+        diagnostics,
+        platformPublishingFreshness: assessPlatformPublishingFreshness(diagnostics.platformPublishing),
+        profile
+      });
       const preflight = createYouTubeBroadcastTransitionPreflightReport({
         profile,
         transitionStatus: broadcastStatus,
         streamStatus: engineSnapshot.state.status,
-        validation: diagnostics.validation
+        validation: diagnostics.validation,
+        publicLaunchChecklist
       });
       if (!preflight.canProceed) {
         throw new Error(formatPlatformPublishingPreflightBlockMessage(preflight));

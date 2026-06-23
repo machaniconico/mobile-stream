@@ -1,5 +1,6 @@
 import type { YouTubeBroadcastTransitionStatus } from "./platformPublishing";
 import type { StudioProfile } from "./profiles";
+import type { PublicLaunchChecklist } from "./publicLaunchChecklist";
 import type { StreamStatus } from "./streamState";
 import type { StreamValidationChecklist } from "./streamValidationChecklist";
 
@@ -29,6 +30,7 @@ export interface YouTubeBroadcastTransitionPreflightInput {
   transitionStatus: YouTubeBroadcastTransitionStatus;
   streamStatus: StreamStatus;
   validation?: Pick<StreamValidationChecklist, "status" | "recommendedNextStep"> | null;
+  publicLaunchChecklist?: PublicLaunchChecklist | null;
   now?: Date;
 }
 
@@ -39,9 +41,10 @@ export const createYouTubeBroadcastTransitionPreflightReport = ({
   transitionStatus,
   streamStatus,
   validation = null,
+  publicLaunchChecklist = null,
   now = new Date()
 }: YouTubeBroadcastTransitionPreflightInput): PlatformPublishingPreflightReport => {
-  const issues = createYouTubeBroadcastTransitionIssues(profile, transitionStatus, streamStatus, validation, now);
+  const issues = createYouTubeBroadcastTransitionIssues(profile, transitionStatus, streamStatus, validation, publicLaunchChecklist, now);
   const blocks = issues.filter((issue) => issue.severity === "block");
   const warnings = issues.filter((issue) => issue.severity === "warning");
   const status: PlatformPublishingPreflightStatus = blocks.length > 0 ? "blocked" : warnings.length > 0 ? "warning" : "ready";
@@ -73,6 +76,7 @@ const createYouTubeBroadcastTransitionIssues = (
   transitionStatus: YouTubeBroadcastTransitionStatus,
   streamStatus: StreamStatus,
   validation: YouTubeBroadcastTransitionPreflightInput["validation"],
+  publicLaunchChecklist: YouTubeBroadcastTransitionPreflightInput["publicLaunchChecklist"],
   now: Date
 ): PlatformPublishingPreflightIssue[] => {
   const settings = profile.platformPublishing;
@@ -127,7 +131,8 @@ const createYouTubeBroadcastTransitionIssues = (
         streamHealthStatus,
         settings.youtubeStreamHealthIssues.length,
         streamStatus,
-        validation
+        validation,
+        publicLaunchChecklist
       )
     );
   }
@@ -238,7 +243,8 @@ const createLiveTransitionIssues = (
   streamHealthStatus: string,
   healthIssueCount: number,
   streamStatus: StreamStatus,
-  validation: YouTubeBroadcastTransitionPreflightInput["validation"]
+  validation: YouTubeBroadcastTransitionPreflightInput["validation"],
+  publicLaunchChecklist: YouTubeBroadcastTransitionPreflightInput["publicLaunchChecklist"]
 ): PlatformPublishingPreflightIssue[] => {
   const issues: PlatformPublishingPreflightIssue[] = [];
   const validationReady = validation?.status === "ready";
@@ -259,6 +265,10 @@ const createLiveTransitionIssues = (
       message: "This unlisted YouTube broadcast is not fully commercially validated.",
       recommendation: "Keep the stream controlled and avoid sharing it until commercial validation is ready."
     });
+  }
+
+  if (profile.platformPublishing.privacyStatus === "public") {
+    issues.push(...createPublicVisibilityChecklistIssues(publicLaunchChecklist));
   }
 
   if (broadcastStatus !== "testing") {
@@ -302,6 +312,42 @@ const createLiveTransitionIssues = (
   }
 
   return issues;
+};
+
+const publicVisibilityIgnoredItemIds = new Set(["engine"]);
+
+const createPublicVisibilityChecklistIssues = (
+  publicLaunchChecklist: YouTubeBroadcastTransitionPreflightInput["publicLaunchChecklist"]
+): PlatformPublishingPreflightIssue[] => {
+  if (!publicLaunchChecklist) {
+    return [
+      {
+        code: "youtube-transition-live-public-checklist-missing",
+        severity: "block",
+        label: "Public checklist",
+        message: "The public launch checklist was not available for this Live transition.",
+        recommendation: "Refresh diagnostics and confirm the public launch checklist before making the broadcast visible."
+      }
+    ];
+  }
+
+  const failures = publicLaunchChecklist.items.filter(
+    (item) => item.status === "fail" && !publicVisibilityIgnoredItemIds.has(item.id)
+  );
+  if (failures.length === 0) {
+    return [];
+  }
+
+  const firstFailure = failures[0];
+  return [
+    {
+      code: "youtube-transition-live-public-checklist-blocked",
+      severity: "block",
+      label: "Public checklist",
+      message: `Public launch checklist still has ${failures.length} public visibility blocker${failures.length === 1 ? "" : "s"}: ${firstFailure.label}: ${firstFailure.detail}`,
+      recommendation: firstFailure.action
+    }
+  ];
 };
 
 const createCompleteTransitionIssues = (broadcastStatus: string, streamStatus: StreamStatus): PlatformPublishingPreflightIssue[] => {

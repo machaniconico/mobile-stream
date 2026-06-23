@@ -53,6 +53,7 @@
 - Web and React Native Go Live areas show a shared public launch checklist covering destination/scene, platform dashboard freshness, chat readout, mic FX headphone monitoring, commercial evidence, and encoder state, with YouTube Public and Twitch starts locked when checklist failures remain while private/unlisted validation starts stay available.
 - Web and React Native start handlers recompute the shared public launch checklist immediately before native/mock engine prepare/start, so unsafe YouTube Public and Twitch starts are rejected even if invoked outside the disabled Go Live button path.
 - Diagnostics reports and support bundles retain the shared public launch checklist, start-lock state, pass/warn/fail counts, and operator actions for release-candidate audit trails.
+- YouTube Public broadcast Live transitions reuse the shared public launch checklist and block public-visibility failures such as chat/audio/evidence readiness while ignoring the expected already-live local encoder item.
 - YouTube Live broadcast lifecycle transition preflight for Test/Live/Complete actions, including public-validation gating, local encoder state checks, active ingest checks, fresh dashboard-status checks, health checks, and local-stream-stop protection before completing a broadcast across Web and React Native.
 - OAuth-token chat connection layer for YouTube live chat polling and Twitch IRC WebSocket ingestion.
 - Platform API controls refresh expiring YouTube/Twitch OAuth credentials before stream-key, broadcast, and channel operations on Web and React Native.

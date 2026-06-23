@@ -880,6 +880,7 @@ export const StudioScreen = ({
             readiness={readiness}
             streamStatus={snapshot.state.status}
             validation={diagnostics.validation}
+            publicLaunchChecklist={publicLaunchChecklist}
             locked={setupLocked}
             platformPublishingStatus={platformPublishingStatus}
             onProfileChange={onProfileChange}

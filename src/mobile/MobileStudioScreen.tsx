@@ -326,7 +326,8 @@ export const MobileStudioScreen = ({
       profile,
       transitionStatus,
       streamStatus: snapshot.state.status,
-      validation: diagnostics.validation
+      validation: diagnostics.validation,
+      publicLaunchChecklist
     });
 
   useEffect(() => {
