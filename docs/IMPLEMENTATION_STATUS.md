@@ -66,6 +66,7 @@
 - iOS app-side Broadcast Picker startup bridge with App Group configuration handoff.
 - iOS commercial bundle identifiers and App Group alignment for the host app and ReplayKit Broadcast Upload Extension.
 - iOS Broadcast Upload Extension runtime state reporting through App Group storage.
+- iOS host app runtime telemetry polling from the Broadcast Upload Extension, feeding bitrate, FPS, drops, reconnect attempts, errors, and composition status into the React Native snapshot.
 - iOS Broadcast Upload Extension VideoToolbox H.264 encoder.
 - iOS Broadcast Upload Extension AudioToolbox AAC encoder with app/mic PCM mixing.
 - iOS Broadcast Upload Extension RTMP/RTMPS publisher foundation with H.264/AAC packetization.

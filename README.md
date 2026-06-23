@@ -33,6 +33,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - iOS ReplayKit Broadcast Upload Extension target and startup bridge.
 - iOS Broadcast Upload Extension H.264/AAC encode path with app/mic audio mixing.
 - iOS RTMP/RTMPS publisher foundation with reconnect backoff state.
+- iOS host app telemetry bridge that polls Broadcast Upload Extension runtime state for FPS, bitrate, drops, reconnects, errors, and native composition status.
 - Android MediaProjection service skeleton.
 - React Native host app scaffold with standard `ios/` and `android/` projects.
 - React Native mobile Studio screen using the shared domain model and mock engine.

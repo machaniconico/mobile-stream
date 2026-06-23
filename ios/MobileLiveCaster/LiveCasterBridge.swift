@@ -7,6 +7,8 @@ private let liveCasterAppGroup = "group.com.mobilelivecaster.app"
 private let liveCasterBroadcastExtensionId = "com.mobilelivecaster.app.BroadcastUpload"
 private let broadcastConfigurationKey = "MobileLiveCaster.broadcastConfiguration.v1"
 private let broadcastControlKey = "MobileLiveCaster.broadcastControl.v1"
+private let broadcastRuntimeStateKey = "MobileLiveCaster.broadcastRuntimeState.v1"
+private let broadcastRuntimeStateStaleMillis: Double = 10_000
 
 enum LiveCasterStatus: String {
     case idle
@@ -15,6 +17,25 @@ enum LiveCasterStatus: String {
     case reconnecting
     case stopping
     case failed
+
+    init?(runtimeStatus: String) {
+        switch runtimeStatus {
+        case "idle", "stopped":
+            self = .idle
+        case "preparing", "starting":
+            self = .preparing
+        case "live", "running", "paused":
+            self = .live
+        case "reconnecting":
+            self = .reconnecting
+        case "stopping":
+            self = .stopping
+        case "failed":
+            self = .failed
+        default:
+            return nil
+        }
+    }
 }
 
 struct LiveCasterHealth {
@@ -204,6 +225,18 @@ final class LiveCasterSharedStore {
         defaults.synchronize()
     }
 
+    func loadRuntimeState() -> [String: Any]? {
+        defaults?.dictionary(forKey: broadcastRuntimeStateKey)
+    }
+
+    func clearRuntimeState() {
+        guard let defaults else {
+            return
+        }
+        defaults.removeObject(forKey: broadcastRuntimeStateKey)
+        defaults.synchronize()
+    }
+
     func saveControlAction(_ action: String) {
         guard let defaults else {
             return
@@ -229,6 +262,12 @@ final class LiveCasterNative: RCTEventEmitter {
     private var startedAt: Date?
     private var preparedConfiguration: LiveCasterPreparedConfiguration?
     private var renderGraphJSON = "[]"
+    private var runtimePoller: DispatchSourceTimer?
+    private var lastRuntimeUpdatedAt: Double = 0
+
+    deinit {
+        runtimePoller?.cancel()
+    }
 
     @objc
     override static func requiresMainQueueSetup() -> Bool {
@@ -257,6 +296,7 @@ final class LiveCasterNative: RCTEventEmitter {
                 resolve(nil)
                 return
             }
+            _ = self.refreshRuntimeStateFromStoreLocked(allowStale: false, emitSnapshot: false)
             resolve(self.snapshotLocked())
         }
     }
@@ -275,10 +315,13 @@ final class LiveCasterNative: RCTEventEmitter {
             }
             do {
                 let configuration = try LiveCasterPreparedConfiguration(profileJSON: profileJson)
+                self.stopRuntimePollingLocked()
+                self.sharedStore.clearRuntimeState()
                 try self.sharedStore.saveConfiguration(configuration, renderGraphJSON: nextRenderGraphJSON)
                 self.preparedConfiguration = configuration
                 self.renderGraphJSON = nextRenderGraphJSON
                 self.startedAt = nil
+                self.lastRuntimeUpdatedAt = 0
                 self.status = .preparing
                 self.health = LiveCasterHealth(
                     bitrateKbps: 0,
@@ -316,6 +359,8 @@ final class LiveCasterNative: RCTEventEmitter {
 
             self.status = .preparing
             self.health.message = "Opening iOS broadcast picker"
+            self.sharedStore.clearRuntimeState()
+            self.lastRuntimeUpdatedAt = 0
             let pendingSnapshot = self.snapshotLocked()
             self.emitSnapshot(pendingSnapshot)
 
@@ -330,6 +375,7 @@ final class LiveCasterNative: RCTEventEmitter {
                         self.status = .live
                         self.startedAt = Date()
                         self.health.message = "Broadcast picker opened; confirm Start Broadcast in iOS"
+                        self.startRuntimePollingLocked()
                         let snapshot = self.snapshotLocked()
                         self.emitSnapshot(snapshot)
                         resolve(snapshot)
@@ -355,8 +401,10 @@ final class LiveCasterNative: RCTEventEmitter {
                 return
             }
             self.sharedStore.saveControlAction("stop")
+            self.stopRuntimePollingLocked()
             self.status = .idle
             self.startedAt = nil
+            self.lastRuntimeUpdatedAt = 0
             self.health = LiveCasterHealth(message: "Stop requested; end iOS system broadcast if it is still active")
             let snapshot = self.snapshotLocked()
             self.emitSnapshot(snapshot)
@@ -377,6 +425,8 @@ final class LiveCasterNative: RCTEventEmitter {
             self.status = .reconnecting
             self.health.reconnectAttempts += 1
             self.health.message = "Reopening iOS broadcast picker"
+            self.sharedStore.clearRuntimeState()
+            self.lastRuntimeUpdatedAt = 0
             let snapshot = self.snapshotLocked()
             self.emitSnapshot(snapshot)
             DispatchQueue.main.async { [weak self] in
@@ -390,6 +440,7 @@ final class LiveCasterNative: RCTEventEmitter {
                         self.status = .live
                         self.startedAt = self.startedAt ?? Date()
                         self.health.message = "Broadcast picker reopened"
+                        self.startRuntimePollingLocked()
                         let snapshot = self.snapshotLocked()
                         self.emitSnapshot(snapshot)
                         resolve(snapshot)
@@ -456,6 +507,7 @@ final class LiveCasterNative: RCTEventEmitter {
     }
 
     private func failLocked(_ message: String) {
+        stopRuntimePollingLocked()
         status = .failed
         health.message = message
         startedAt = nil
@@ -463,8 +515,150 @@ final class LiveCasterNative: RCTEventEmitter {
         emitSnapshot(snapshot)
     }
 
+    private func startRuntimePollingLocked() {
+        guard runtimePoller == nil else {
+            return
+        }
+
+        let poller = DispatchSource.makeTimerSource(queue: stateQueue)
+        poller.schedule(deadline: .now(), repeating: .seconds(1), leeway: .milliseconds(150))
+        poller.setEventHandler { [weak self] in
+            self?.pollRuntimeStateLocked()
+        }
+        runtimePoller = poller
+        poller.resume()
+    }
+
+    private func stopRuntimePollingLocked() {
+        runtimePoller?.cancel()
+        runtimePoller = nil
+    }
+
+    private func pollRuntimeStateLocked() {
+        guard let runtimeState = sharedStore.loadRuntimeState() else {
+            if status == .live || status == .preparing || status == .reconnecting {
+                health.message = "Waiting for iOS broadcast extension telemetry"
+                emitSnapshot(snapshotLocked())
+            }
+            return
+        }
+
+        if !Self.isRuntimeStateFresh(runtimeState), status == .live || status == .preparing || status == .reconnecting {
+            health.message = "iOS broadcast extension telemetry is stale"
+            emitSnapshot(snapshotLocked())
+            return
+        }
+
+        _ = refreshRuntimeStateFromStoreLocked(allowStale: true, emitSnapshot: true)
+    }
+
+    @discardableResult
+    private func refreshRuntimeStateFromStoreLocked(allowStale: Bool, emitSnapshot shouldEmitSnapshot: Bool) -> Bool {
+        guard let runtimeState = sharedStore.loadRuntimeState() else {
+            return false
+        }
+        guard allowStale || Self.isRuntimeStateFresh(runtimeState) else {
+            return false
+        }
+
+        applyRuntimeStateLocked(runtimeState)
+        if status == .live || status == .preparing || status == .reconnecting {
+            startRuntimePollingLocked()
+        }
+        if shouldEmitSnapshot {
+            emitSnapshot(snapshotLocked())
+        }
+        return true
+    }
+
+    private func applyRuntimeStateLocked(_ runtimeState: [String: Any]) {
+        let updatedAt = runtimeState.doubleValue("updatedAt")
+        let shouldRefreshCounters = updatedAt == 0 || updatedAt != lastRuntimeUpdatedAt
+        if updatedAt > 0 {
+            lastRuntimeUpdatedAt = updatedAt
+        }
+
+        let runtimeStatus = runtimeState.stringValue("status", fallback: status.rawValue)
+        status = LiveCasterStatus(runtimeStatus: runtimeStatus) ?? status
+        if status == .live, startedAt == nil {
+            startedAt = Date()
+        }
+
+        let stats = runtimeState.dictionaryValue("stats")
+        let videoEncoder = runtimeState.dictionaryValue("videoEncoder")
+        let publisher = runtimeState.dictionaryValue("publisher")
+        let sceneComposition = runtimeState.dictionaryValue("sceneComposition")
+        let elapsedSeconds = stats.intValue("elapsedSeconds", fallback: health.elapsedSeconds)
+        let videoFrames = stats.intValue("videoFrames")
+        let encodedBytes = videoEncoder.intValue("encodedBytes", fallback: publisher.intValue("videoBytesSent"))
+        let droppedFrames = stats.intValue("droppedSamples") + publisher.intValue("droppedVideoFrames")
+        let reconnectAttempts = publisher.intValue("reconnectAttempts", fallback: health.reconnectAttempts)
+        let configuredFps = runtimeState.intValue("fps", fallback: preparedConfiguration?.fps ?? health.fps)
+        let measuredFps = elapsedSeconds > 0 && videoFrames > 0 ? max(1, Int((Double(videoFrames) / Double(elapsedSeconds)).rounded())) : configuredFps
+        let bitrateKbps = elapsedSeconds > 0 && encodedBytes > 0 ? max(1, Int((Double(encodedBytes) * 8 / 1000 / Double(elapsedSeconds)).rounded())) : 0
+        let publisherState = publisher.stringValue("state")
+        let compositionMessage = sceneComposition.stringValue("message")
+        let errorMessage = runtimeState.stringValue("error", fallback: publisher.stringValue("lastError"))
+
+        health = LiveCasterHealth(
+            bitrateKbps: bitrateKbps,
+            droppedFrames: droppedFrames,
+            fps: measuredFps,
+            elapsedSeconds: elapsedSeconds,
+            reconnectAttempts: reconnectAttempts,
+            message: Self.runtimeHealthMessage(
+                status: status,
+                runtimeStatus: runtimeStatus,
+                publisherState: publisherState,
+                compositionMessage: compositionMessage,
+                errorMessage: errorMessage,
+                refreshedCounters: shouldRefreshCounters
+            )
+        )
+
+        if status == .failed {
+            health.message = errorMessage.isEmpty ? health.message : errorMessage
+            stopRuntimePollingLocked()
+        } else if status == .idle {
+            startedAt = nil
+            stopRuntimePollingLocked()
+        }
+    }
+
+    private static func runtimeHealthMessage(
+        status: LiveCasterStatus,
+        runtimeStatus: String,
+        publisherState: String,
+        compositionMessage: String,
+        errorMessage: String,
+        refreshedCounters: Bool
+    ) -> String {
+        if status == .failed {
+            return errorMessage.isEmpty ? "iOS broadcast extension failed" : errorMessage
+        }
+        if status == .idle {
+            return "iOS broadcast extension stopped"
+        }
+
+        let publisherSummary = publisherState.isEmpty ? runtimeStatus : publisherState
+        let telemetryPrefix = refreshedCounters ? "iOS extension" : "iOS extension telemetry unchanged"
+        if !compositionMessage.isEmpty {
+            return "\(telemetryPrefix): \(publisherSummary); \(compositionMessage)"
+        }
+        return "\(telemetryPrefix): \(publisherSummary)"
+    }
+
+    private static func isRuntimeStateFresh(_ runtimeState: [String: Any]) -> Bool {
+        let updatedAt = runtimeState.doubleValue("updatedAt")
+        guard updatedAt > 0 else {
+            return false
+        }
+        return Date().timeIntervalSince1970 * 1000 - updatedAt <= broadcastRuntimeStateStaleMillis
+    }
+
     private func snapshotLocked() -> [String: Any] {
-        let elapsed = startedAt.map { Int(Date().timeIntervalSince($0)).coerceAtLeast(0) } ?? 0
+        let hostElapsed = startedAt.map { Int(Date().timeIntervalSince($0)).coerceAtLeast(0) } ?? 0
+        let elapsed = Swift.max(hostElapsed, health.elapsedSeconds)
         var nextHealth = health
         nextHealth.elapsedSeconds = elapsed
         let healthMap = nextHealth.asDictionary()
@@ -496,6 +690,42 @@ final class LiveCasterNative: RCTEventEmitter {
 private extension Int {
     func coerceAtLeast(_ minimum: Int) -> Int {
         Swift.max(self, minimum)
+    }
+}
+
+private extension Dictionary where Key == String, Value == Any {
+    func dictionaryValue(_ key: String) -> [String: Any] {
+        self[key] as? [String: Any] ?? [:]
+    }
+
+    func stringValue(_ key: String, fallback: String = "") -> String {
+        if let stringValue = self[key] as? String {
+            return stringValue
+        }
+        if let numberValue = self[key] as? NSNumber {
+            return numberValue.stringValue
+        }
+        return fallback
+    }
+
+    func intValue(_ key: String, fallback: Int = 0) -> Int {
+        if let numberValue = self[key] as? NSNumber {
+            return numberValue.intValue
+        }
+        if let stringValue = self[key] as? String, let intValue = Int(stringValue) {
+            return intValue
+        }
+        return fallback
+    }
+
+    func doubleValue(_ key: String, fallback: Double = 0) -> Double {
+        if let numberValue = self[key] as? NSNumber {
+            return numberValue.doubleValue
+        }
+        if let stringValue = self[key] as? String, let doubleValue = Double(stringValue) {
+            return doubleValue
+        }
+        return fallback
     }
 }
 
