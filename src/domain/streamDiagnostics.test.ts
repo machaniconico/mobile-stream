@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultStudioProfile, redactStreamKey } from "./profiles";
 import { createReadinessReport } from "./readiness";
-import { createDefaultScene } from "./scene";
+import { createDefaultScene, updateSource } from "./scene";
 import {
   createStreamDiagnosticReport,
   createStreamDiagnostics,
@@ -99,6 +99,65 @@ describe("stream diagnostics", () => {
     expect(diagnostics.status).toBe("fail");
     expect(diagnostics.checks.some((check) => check.code === "stream-key-missing")).toBe(true);
     expect(diagnostics.summary).toContain("blocking");
+  });
+
+  it("surfaces face tracking production diagnostics", () => {
+    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...source,
+            imageUri: "file:///shared/avatar.png",
+            motion: { ...source.motion, headYaw: 0.24, confidence: 0.9 }
+          }
+        : source
+    );
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      },
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health()
+      },
+      [],
+      [],
+      [],
+      [],
+      {
+        status: "tracking",
+        yaw: 0.24,
+        pitch: 0.08,
+        roll: 0.02,
+        mouthOpen: 0.42,
+        blink: 0,
+        smile: 0.4,
+        browRaise: 0.3,
+        confidence: 0.9,
+        expression: "neutral",
+        lastFrameAt: 2_000
+      }
+    );
+    const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics));
+
+    expect(diagnostics.faceTracking.status).toBe("pass");
+    expect(diagnostics.faceTracking.preparedPngTuberCount).toBe(1);
+    expect(diagnostics.checks.find((check) => check.code === "face-tracking-ready")?.status).toBe("pass");
+    expect(report).toContain("Face Tracking");
+    expect(report).toContain("- Runtime: tracking");
   });
 
   it("flags weak live telemetry against the configured quality target", () => {

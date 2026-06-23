@@ -334,7 +334,8 @@ export const StudioScreen = ({
     streamSessionEvents,
     streamHealthSamples,
     streamSessionSummaries,
-    streamValidationRuns
+    streamValidationRuns,
+    faceTrackingRuntime
   );
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
     if (setupLocked) {

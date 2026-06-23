@@ -2,13 +2,14 @@ import type { SceneDocument } from "./scene";
 import type { StudioProfile, StreamProtocol } from "./profiles";
 import { normalizeStudioProfile } from "./profiles";
 import { createNativeCompositionReport } from "./nativeComposition";
+import { createFaceTrackingDiagnostics } from "./faceTrackingDiagnostics";
 
 export type ReadinessSeverity = "error" | "warning";
 
 export interface ReadinessIssue {
   code: string;
   severity: ReadinessSeverity;
-  field: "serverUrl" | "streamKey" | "quality" | "scene" | "security" | "micEffects";
+  field: "serverUrl" | "streamKey" | "quality" | "scene" | "security" | "micEffects" | "faceTracking";
   message: string;
 }
 
@@ -28,6 +29,7 @@ export const createReadinessReport = (scene: SceneDocument, profile: StudioProfi
     ...validateDestination(sanitizedProfile),
     ...validateQuality(sanitizedProfile),
     ...validateMicEffects(sanitizedProfile),
+    ...validateFaceTracking(scene, sanitizedProfile),
     ...validateScene(scene)
   ];
   const errorCount = issues.filter((issue) => issue.severity === "error").length;
@@ -276,6 +278,23 @@ const validateScene = (scene: SceneDocument): ReadinessIssue[] => {
   }
 
   return issues;
+};
+
+const validateFaceTracking = (scene: SceneDocument, profile: StudioProfile): ReadinessIssue[] => {
+  const diagnostics = createFaceTrackingDiagnostics(scene, profile);
+
+  if (!profile.faceTracking.enabled || diagnostics.status !== "warn") {
+    return [];
+  }
+
+  return [
+    {
+      code: "face-tracking-not-production-ready",
+      severity: "warning",
+      field: "faceTracking",
+      message: diagnostics.summary
+    }
+  ];
 };
 
 const parseUrl = (value: string): URL | null => {

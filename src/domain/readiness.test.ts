@@ -138,4 +138,20 @@ describe("stream readiness", () => {
     expect(report.issues.map((issue) => issue.code)).toContain("mic-gain-hot");
     expect(report.issues.map((issue) => issue.code)).toContain("mic-monitor-loud");
   });
+
+  it("warns when face tracking is enabled but not production-ready", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "simulated" as const
+      }
+    };
+
+    const report = createReadinessReport(createDefaultScene(), profile);
+
+    expect(report.issues.map((issue) => issue.code)).toContain("face-tracking-not-production-ready");
+    expect(report.issues.find((issue) => issue.code === "face-tracking-not-production-ready")?.field).toBe("faceTracking");
+  });
 });

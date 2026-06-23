@@ -1,0 +1,71 @@
+import { describe, expect, it } from "vitest";
+import { createDefaultStudioProfile } from "./profiles";
+import { createDefaultScene, updateSource } from "./scene";
+import { createFaceTrackingDiagnostics } from "./faceTrackingDiagnostics";
+
+describe("face tracking diagnostics", () => {
+  it("stays informational when face tracking is disabled", () => {
+    const diagnostics = createFaceTrackingDiagnostics(createDefaultScene(), createDefaultStudioProfile());
+
+    expect(diagnostics.status).toBe("info");
+    expect(diagnostics.summary).toBe("Face tracking is disabled.");
+  });
+
+  it("warns when enabled tracking still uses simulated input", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "simulated" as const
+      }
+    };
+    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+      source.kind === "pngtuber" ? { ...source, imageUri: "file:///shared/avatar.png" } : source
+    );
+
+    const diagnostics = createFaceTrackingDiagnostics(scene, profile);
+
+    expect(diagnostics.status).toBe("warn");
+    expect(diagnostics.summary).toContain("simulated input");
+    expect(diagnostics.preparedPngTuberCount).toBe(1);
+  });
+
+  it("passes when native camera tracking has a prepared PNGTuber and active runtime", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const
+      }
+    };
+    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...source,
+            imageUri: "file:///shared/avatar.png",
+            motion: { ...source.motion, headYaw: 0.2, confidence: 0.92 }
+          }
+        : source
+    );
+
+    const diagnostics = createFaceTrackingDiagnostics(scene, profile, {
+      status: "tracking",
+      yaw: 0.2,
+      pitch: 0.1,
+      roll: 0,
+      mouthOpen: 0.4,
+      blink: 0,
+      smile: 0.4,
+      browRaise: 0.2,
+      confidence: 0.92,
+      expression: "neutral",
+      lastFrameAt: 1_000
+    });
+
+    expect(diagnostics.status).toBe("pass");
+    expect(diagnostics.runtimeStatus).toBe("tracking");
+    expect(diagnostics.activeMotionCount).toBe(1);
+  });
+});

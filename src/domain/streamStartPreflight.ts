@@ -4,7 +4,7 @@ import type { StreamStatus } from "./streamState";
 
 export type StreamStartPreflightStatus = "ready" | "warning" | "blocked";
 export type StreamStartPreflightSeverity = "block" | "warning";
-export type StreamStartPreflightArea = "destination" | "quality" | "scene" | "security" | "audio" | "engine" | "operation";
+export type StreamStartPreflightArea = "destination" | "quality" | "scene" | "security" | "audio" | "avatar" | "engine" | "operation";
 
 export interface StreamStartPreflightIssue {
   code: string;
@@ -83,6 +83,9 @@ const readinessArea = (issue: ReadinessIssue): StreamStartPreflightArea => {
   if (issue.field === "micEffects") {
     return "audio";
   }
+  if (issue.field === "faceTracking") {
+    return "avatar";
+  }
   return issue.field;
 };
 
@@ -95,6 +98,9 @@ const readinessLabel = (issue: ReadinessIssue): string => {
   }
   if (issue.field === "micEffects") {
     return "Mic";
+  }
+  if (issue.field === "faceTracking") {
+    return "Face tracking";
   }
   return capitalize(issue.field);
 };
@@ -113,6 +119,8 @@ const readinessRecommendation = (issue: ReadinessIssue): string => {
       return "Prefer RTMPS for production streams when the platform supports it.";
     case "micEffects":
       return "Lower risky monitor or gain settings before going live.";
+    case "faceTracking":
+      return "Confirm a prepared PNGTuber source and stable native camera tracking before production validation.";
   }
 };
 

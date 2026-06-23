@@ -274,7 +274,8 @@ export const MobileStudioScreen = ({
     streamSessionEvents,
     streamHealthSamples,
     streamSessionSummaries,
-    streamValidationRuns
+    streamValidationRuns,
+    faceTrackingRuntime
   );
 
   useEffect(() => {

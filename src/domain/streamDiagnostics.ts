@@ -1,4 +1,9 @@
 import { buildPublishUrl, getDestinationPreset, redactStreamKey, type StudioProfile } from "./profiles";
+import type { FaceTrackingRuntimeState } from "./faceTracking";
+import {
+  createFaceTrackingDiagnostics,
+  type FaceTrackingDiagnostics
+} from "./faceTrackingDiagnostics";
 import { createNativeCompositionReport, type NativeCompositionReport } from "./nativeComposition";
 import type { NativeRuntimeTelemetry } from "./nativeRuntime";
 import type { ReadinessReport } from "./readiness";
@@ -111,6 +116,7 @@ export interface StreamDiagnostics {
     incidents: StreamQualityIncident[];
   };
   qualityAdvisor: StreamQualityAdvisorRecommendation;
+  faceTracking: FaceTrackingDiagnostics;
   nativeComposition: NativeCompositionReport;
   platformPublishing: PlatformPublishingDiagnostics;
   history: StreamHealthHistorySummary;
@@ -156,7 +162,8 @@ export const createStreamDiagnostics = (
   sessionEvents: StreamSessionEvent[] = [],
   healthSamples: StreamHealthSample[] = [],
   sessionSummaries: StreamSessionSummary[] = [],
-  validationRuns: StreamValidationRun[] = []
+  validationRuns: StreamValidationRun[] = [],
+  faceTrackingRuntime: FaceTrackingRuntimeState | null = null
 ): StreamDiagnostics => {
   const destination = readiness.sanitizedProfile.destination;
   const quality = readiness.sanitizedProfile.quality;
@@ -184,6 +191,7 @@ export const createStreamDiagnostics = (
     history,
     recovery: recoveryStatus
   });
+  const faceTracking = createFaceTrackingDiagnostics(scene, profile, faceTrackingRuntime);
   const nativeComposition = sanitizeNativeCompositionReport(createNativeCompositionReport(scene), destination.streamKey);
   const platformPublishing = createPlatformPublishingDiagnostics(destination.platform, profile.platformPublishing);
   const checks = [
@@ -205,6 +213,7 @@ export const createStreamDiagnostics = (
     createNativeRuntimeCheck(nativeRuntime),
     createQualityIncidentCheck(qualityIncidents),
     createQualityAdvisorCheck(qualityAdvisor),
+    createFaceTrackingCheck(faceTracking),
     createNativeCompositionCheck(nativeComposition),
     createHistoryCheck(history),
     createRecoveryCheck(recoveryStatus)
@@ -283,6 +292,7 @@ export const createStreamDiagnostics = (
       incidents: qualityIncidents
     },
     qualityAdvisor,
+    faceTracking,
     nativeComposition,
     platformPublishing,
     history,
@@ -377,6 +387,15 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Recommendation: ${diagnostics.qualityAdvisor.recommendation}`,
     `- Current target: ${formatAdvisorTarget(diagnostics.qualityAdvisor.currentTarget)}`,
     `- Suggested target: ${diagnostics.qualityAdvisor.suggestedTarget ? formatAdvisorTarget(diagnostics.qualityAdvisor.suggestedTarget) : "-"}`,
+    "",
+    "Face Tracking",
+    `- Status: ${diagnostics.faceTracking.status}`,
+    `- Summary: ${diagnostics.faceTracking.summary}`,
+    `- Input: ${diagnostics.faceTracking.inputMode}`,
+    `- Runtime: ${diagnostics.faceTracking.runtimeStatus}`,
+    `- Rig: ${diagnostics.faceTracking.rigMode}`,
+    `- Avatars: ${diagnostics.faceTracking.visibleAvatarCount} visible / ${diagnostics.faceTracking.preparedPngTuberCount} prepared PNGTuber / ${diagnostics.faceTracking.activeMotionCount} moving`,
+    `- Recommendation: ${diagnostics.faceTracking.recommendation}`,
     "",
     "Native Composition",
     `- Status: ${diagnostics.nativeComposition.status}`,
@@ -870,6 +889,13 @@ const createQualityAdvisorCheck = (advisor: StreamQualityAdvisorRecommendation):
   status: advisor.severity,
   label: "Quality advisor",
   message: advisor.summary
+});
+
+const createFaceTrackingCheck = (faceTracking: FaceTrackingDiagnostics): DiagnosticCheck => ({
+  code: `face-tracking-${faceTracking.status === "pass" ? "ready" : faceTracking.enabled ? "needs-attention" : "disabled"}`,
+  status: faceTracking.status,
+  label: "Face tracking",
+  message: faceTracking.summary
 });
 
 const createNativeCompositionCheck = (composition: NativeCompositionReport): DiagnosticCheck => ({
