@@ -143,6 +143,14 @@ export const clearChatReaderQueue = (state: ChatReaderState): ChatReaderState =>
   speakingMessageId: null
 });
 
+export const clearChatReaderSession = (state: ChatReaderState): ChatReaderState => ({
+  ...state,
+  queue: [],
+  history: [],
+  speakingMessageId: null,
+  skippedCount: 0
+});
+
 export const createSpeechText = (message: ChatMessage, settings: ChatReaderSettings): string | null => {
   if (isMutedMessage(message, settings)) {
     return null;

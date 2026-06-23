@@ -885,7 +885,7 @@ select:focus-visible {
 
 .chat-reader-status {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;

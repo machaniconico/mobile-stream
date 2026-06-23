@@ -96,6 +96,7 @@ interface MobileStudioScreenProps {
   onReconnect(): Promise<void>;
   onChatCommentSubmit(author: string, body: string): void;
   onChatReaderSettingsChange(settings: Partial<ChatReaderSettings>): void;
+  onChatCommentsClear(): void;
   onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
   onPlatformChatAuthChange(settings: Partial<PlatformChatAuthSession>): void;
   onPlatformChatOAuthChange(settings: Partial<PlatformChatOAuthSettings>): void;
@@ -232,6 +233,7 @@ export const MobileStudioScreen = ({
   onReconnect,
   onChatCommentSubmit,
   onChatReaderSettingsChange,
+  onChatCommentsClear,
   onPlatformChatSettingsChange,
   onPlatformChatAuthChange,
   onPlatformChatOAuthChange,
@@ -860,6 +862,7 @@ export const MobileStudioScreen = ({
         platformChatConnection={platformChatConnection}
         onSubmit={onChatCommentSubmit}
         onSettingsChange={onChatReaderSettingsChange}
+        onClearComments={onChatCommentsClear}
         onPlatformChatSettingsChange={onPlatformChatSettingsChange}
         onPlatformChatAuthChange={onPlatformChatAuthChange}
         onPlatformChatOAuthChange={onPlatformChatOAuthChange}
@@ -1472,6 +1475,7 @@ const ChatReaderPanel = ({
   platformChatConnection,
   onSubmit,
   onSettingsChange,
+  onClearComments,
   onPlatformChatSettingsChange,
   onPlatformChatAuthChange,
   onPlatformChatOAuthChange,
@@ -1495,6 +1499,7 @@ const ChatReaderPanel = ({
   platformChatConnection: PlatformChatConnectionState;
   onSubmit(author: string, body: string): void;
   onSettingsChange(settings: Partial<ChatReaderSettings>): void;
+  onClearComments(): void;
   onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
   onPlatformChatAuthChange(settings: Partial<PlatformChatAuthSession>): void;
   onPlatformChatOAuthChange(settings: Partial<PlatformChatOAuthSettings>): void;
@@ -1543,6 +1548,24 @@ const ChatReaderPanel = ({
         <View style={styles.queueBadge}>
           <Text style={styles.queueBadgeText}>{chatReader.queue.length} queued</Text>
         </View>
+        <ActionButton
+          label="Clear"
+          disabled={chatReader.queue.length === 0 && chatReader.history.length === 0}
+          onPress={() => {
+            Alert.alert(
+              "Clear chat comments?",
+              "Queued and recent chat comments shown on this device will be removed.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Clear",
+                  style: "destructive",
+                  onPress: onClearComments
+                }
+              ]
+            );
+          }}
+        />
       </View>
 
       <Label text="Author" />

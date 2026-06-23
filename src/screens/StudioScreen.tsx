@@ -110,6 +110,7 @@ interface StudioScreenProps {
   onReconnect(): Promise<void>;
   onChatCommentSubmit(author: string, body: string): void;
   onChatReaderSettingsChange(settings: Partial<ChatReaderSettings>): void;
+  onChatCommentsClear(): void;
   onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
   onPlatformChatAuthChange(settings: Partial<PlatformChatAuthSession>): void;
   onPlatformChatOAuthChange(settings: Partial<PlatformChatOAuthSettings>): void;
@@ -296,6 +297,7 @@ export const StudioScreen = ({
   onReconnect,
   onChatCommentSubmit,
   onChatReaderSettingsChange,
+  onChatCommentsClear,
   onPlatformChatSettingsChange,
   onPlatformChatAuthChange,
   onPlatformChatOAuthChange,
@@ -830,6 +832,7 @@ export const StudioScreen = ({
         platformChatConnection={platformChatConnection}
         onSubmit={onChatCommentSubmit}
         onSettingsChange={onChatReaderSettingsChange}
+        onClearComments={onChatCommentsClear}
         onPlatformChatSettingsChange={onPlatformChatSettingsChange}
         onPlatformChatAuthChange={onPlatformChatAuthChange}
         onPlatformChatOAuthChange={onPlatformChatOAuthChange}
@@ -1257,6 +1260,7 @@ const ChatReaderPanel = ({
   platformChatConnection,
   onSubmit,
   onSettingsChange,
+  onClearComments,
   onPlatformChatSettingsChange,
   onPlatformChatAuthChange,
   onPlatformChatOAuthChange,
@@ -1280,6 +1284,7 @@ const ChatReaderPanel = ({
   platformChatConnection: PlatformChatConnectionState;
   onSubmit(author: string, body: string): void;
   onSettingsChange(settings: Partial<ChatReaderSettings>): void;
+  onClearComments(): void;
   onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
   onPlatformChatAuthChange(settings: Partial<PlatformChatAuthSession>): void;
   onPlatformChatOAuthChange(settings: Partial<PlatformChatOAuthSettings>): void;
@@ -1328,6 +1333,19 @@ const ChatReaderPanel = ({
           <span>{chatReader.settings.enabled ? "Read On" : "Read Off"}</span>
         </button>
         <span>{chatReader.queue.length} queued</span>
+        <button
+          className="secondary-action compact-action"
+          type="button"
+          disabled={chatReader.queue.length === 0 && chatReader.history.length === 0}
+          onClick={() => {
+            if (window.confirm("Clear queued and recent chat comments on this device?")) {
+              onClearComments();
+            }
+          }}
+        >
+          <RotateCcw size={15} />
+          Clear
+        </button>
       </div>
 
       <label className="field">

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createAvatarRuntimeStateFromScene, setExpression, tickAutoBlink, type AvatarExpression } from "../domain/avatar";
 import {
+  clearChatReaderSession,
   createChatMessage,
   createDefaultChatReaderState,
   enqueueChatMessage,
@@ -342,6 +343,10 @@ export const App = () => {
     setChatReader((current) => updateChatReaderSettings(current, settings));
   };
 
+  const clearChatComments = () => {
+    setChatReader(clearChatReaderSession);
+  };
+
   const updatePlatformChatSettings = (settings: Partial<PlatformChatSettings>) => {
     setProfile((current) => ({
       ...current,
@@ -549,6 +554,7 @@ export const App = () => {
       onReconnect={reconnectStream}
       onChatCommentSubmit={submitChatComment}
       onChatReaderSettingsChange={updateChatSettings}
+      onChatCommentsClear={clearChatComments}
       onPlatformChatSettingsChange={updatePlatformChatSettings}
       onPlatformChatAuthChange={updatePlatformChatAuth}
       onPlatformChatOAuthChange={updatePlatformChatOAuth}

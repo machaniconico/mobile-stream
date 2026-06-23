@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  clearChatReaderSession,
   clearChatReaderQueue,
   createChatMessage,
   createDefaultChatReaderState,
@@ -146,6 +147,27 @@ describe("chatReader", () => {
     expect(selectNextReadableMessage(speaking)).toBeNull();
     expect(spoken.queue).toHaveLength(0);
     expect(spoken.speakingMessageId).toBeNull();
+  });
+
+  it("clears chat session comments while preserving speech settings", () => {
+    const state = updateChatReaderSettings(createDefaultChatReaderState(), {
+      readAuthorName: false,
+      volume: 0.5
+    });
+    const message = createChatMessage({
+      author: "private-viewer",
+      body: "private comment",
+      receivedAt: 5
+    });
+    const queued = markChatMessageSpeaking(enqueueChatMessage(state, message), message.id);
+    const cleared = clearChatReaderSession({ ...queued, skippedCount: 3 });
+
+    expect(cleared.queue).toHaveLength(0);
+    expect(cleared.history).toHaveLength(0);
+    expect(cleared.speakingMessageId).toBeNull();
+    expect(cleared.skippedCount).toBe(0);
+    expect(cleared.settings.readAuthorName).toBe(false);
+    expect(cleared.settings.volume).toBe(0.5);
   });
 
   it("builds safe speech text", () => {

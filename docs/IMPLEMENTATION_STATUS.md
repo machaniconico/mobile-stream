@@ -60,7 +60,7 @@
   - active stream quality incident panel with operator recommendations
   - stream session event timeline for live support diagnostics
   - quality profiles
-  - chat reader panel with test comments, platform adapter ingest, safety controls, and speech settings
+  - chat reader panel with test comments, platform adapter ingest, safety controls, speech settings, and queued/recent comment privacy reset
   - Go Live, Stop, Reconnect mock controls
 - React Native mobile readiness panel, Go Live preflight banner, and invalid-profile blocking.
 - React Native mobile stream diagnostics panel using the shared diagnostics model, including health history, quality advisor, last-session summary, sanitized report sharing, and support bundle sharing.
