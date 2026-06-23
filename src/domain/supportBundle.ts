@@ -58,6 +58,13 @@ export interface SupportBundle {
     validationEvidenceLatestNativeRuntimeCongested: boolean;
     validationEvidenceLatestNativeRuntimeQueuedItems: number;
     validationEvidenceLatestNativeRuntimeCacheSize: number;
+    validationEvidenceFaceTrackingRunCount: number;
+    validationEvidenceFaceTrackingReadyCount: number;
+    validationEvidenceFaceTrackingWarningCount: number;
+    validationEvidenceLatestFaceTrackingStatus: NonNullable<StreamDiagnostics["validationEvidence"]["latestFaceTracking"]>["status"] | null;
+    validationEvidenceLatestFaceTrackingRuntimeStatus: NonNullable<StreamDiagnostics["validationEvidence"]["latestFaceTracking"]>["runtimeStatus"] | null;
+    validationEvidenceLatestFaceTrackingPreparedPngTuberCount: number;
+    validationEvidenceLatestFaceTrackingActiveMotionCount: number;
     validationEvidencePlatformPublishingRunCount: number;
     validationEvidencePlatformPublishingWarningCount: number;
     validationEvidencePlatformPublishingFailureCount: number;
@@ -212,6 +219,13 @@ export const createSupportBundle = ({
       validationEvidenceLatestNativeRuntimeCongested: diagnostics.validationEvidence.latestNativeRuntime?.congested ?? false,
       validationEvidenceLatestNativeRuntimeQueuedItems: diagnostics.validationEvidence.latestNativeRuntime?.queuedItems ?? 0,
       validationEvidenceLatestNativeRuntimeCacheSize: diagnostics.validationEvidence.latestNativeRuntime?.cacheSize ?? 0,
+      validationEvidenceFaceTrackingRunCount: diagnostics.validationEvidence.faceTrackingRunCount,
+      validationEvidenceFaceTrackingReadyCount: diagnostics.validationEvidence.faceTrackingReadyCount,
+      validationEvidenceFaceTrackingWarningCount: diagnostics.validationEvidence.faceTrackingWarningCount,
+      validationEvidenceLatestFaceTrackingStatus: diagnostics.validationEvidence.latestFaceTracking?.status ?? null,
+      validationEvidenceLatestFaceTrackingRuntimeStatus: diagnostics.validationEvidence.latestFaceTracking?.runtimeStatus ?? null,
+      validationEvidenceLatestFaceTrackingPreparedPngTuberCount: diagnostics.validationEvidence.latestFaceTracking?.preparedPngTuberCount ?? 0,
+      validationEvidenceLatestFaceTrackingActiveMotionCount: diagnostics.validationEvidence.latestFaceTracking?.activeMotionCount ?? 0,
       validationEvidencePlatformPublishingRunCount: diagnostics.validationEvidence.platformPublishingRunCount,
       validationEvidencePlatformPublishingWarningCount: diagnostics.validationEvidence.platformPublishingWarningCount,
       validationEvidencePlatformPublishingFailureCount: diagnostics.validationEvidence.platformPublishingFailureCount,
@@ -369,6 +383,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Evidence: ${bundle.summary.validationEvidenceStatus} / ${bundle.summary.validationEvidenceRunCount} retained / ${bundle.summary.validationEvidenceEligibleRunCount} eligible / ${bundle.summary.validationEvidenceStaleRunCount} stale`,
     `- Evidence outcomes: ${bundle.summary.validationEvidencePassCount} pass / ${bundle.summary.validationEvidenceFailureCount} fail`,
     `- Evidence native runtime: ${bundle.summary.validationEvidenceNativeRuntimeRunCount} retained / ${bundle.summary.validationEvidenceNativeRuntimeWarningCount} warn / ${bundle.summary.validationEvidenceNativeRuntimeFailureCount} fail / latest ${bundle.summary.validationEvidenceLatestNativeRuntimeStatus ?? "-"} ${bundle.summary.validationEvidenceLatestNativeRuntimePlatform ?? "-"} / congested ${bundle.summary.validationEvidenceLatestNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.validationEvidenceLatestNativeRuntimeQueuedItems}/${bundle.summary.validationEvidenceLatestNativeRuntimeCacheSize}`,
+    `- Evidence face tracking: ${bundle.summary.validationEvidenceFaceTrackingRunCount} retained / ${bundle.summary.validationEvidenceFaceTrackingReadyCount} ready / ${bundle.summary.validationEvidenceFaceTrackingWarningCount} warn / latest ${bundle.summary.validationEvidenceLatestFaceTrackingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestFaceTrackingRuntimeStatus ?? "-"} / prepared ${bundle.summary.validationEvidenceLatestFaceTrackingPreparedPngTuberCount} / moving ${bundle.summary.validationEvidenceLatestFaceTrackingActiveMotionCount}`,
     `- Evidence platform dashboard: ${bundle.summary.validationEvidencePlatformPublishingRunCount} retained / ${bundle.summary.validationEvidencePlatformPublishingWarningCount} warn / ${bundle.summary.validationEvidencePlatformPublishingFailureCount} fail / latest ${bundle.summary.validationEvidenceLatestPlatformPublishingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestPlatformPublishingSummary ?? "-"}`,
     `- Physical coverage: iOS ${bundle.summary.validationEvidenceIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAndroidPass ? "pass" : "missing"}`,
     `- Validation build: ${bundle.summary.validationEvidenceConsistentAppBuild ?? (bundle.summary.validationEvidenceAppBuildMismatch ? "mismatch" : "-")}`,

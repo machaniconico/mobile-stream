@@ -125,6 +125,30 @@ describe("stream validation evidence", () => {
     expect(summary.latestNativeRuntime?.status).toBe("warn");
   });
 
+  it("does not count disabled face tracking snapshots as retained avatar motion evidence", () => {
+    const scene = createDefaultScene();
+    const profile = profileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health()
+    });
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.faceTracking?.status).toBe("info");
+    expect(summary.faceTrackingRunCount).toBe(0);
+    expect(summary.faceTrackingReadyCount).toBe(0);
+    expect(summary.faceTrackingWarningCount).toBe(0);
+    expect(summary.latestFaceTracking).toBeNull();
+  });
+
   it("stores platform dashboard evidence and downgrades unhealthy passing runs", () => {
     const scene = createDefaultScene();
     const profile = {
@@ -171,6 +195,49 @@ describe("stream validation evidence", () => {
     expect(summary.platformPublishingWarningCount).toBe(1);
     expect(summary.platformPublishingFailureCount).toBe(0);
     expect(summary.latestPlatformPublishing?.status).toBe("warn");
+  });
+
+  it("stores face tracking evidence and downgrades unready avatar validation", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...profileWithKey("validation-key"),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const,
+        rigMode: "still-image-2d" as const
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30 })
+    });
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.faceTracking).toMatchObject({
+      status: "warn",
+      enabled: true,
+      inputMode: "native-camera",
+      rigMode: "still-image-2d",
+      runtimeStatus: "unavailable",
+      visibleAvatarCount: 1,
+      preparedPngTuberCount: 0
+    });
+    expect(run.summary).toContain("Face tracking is enabled");
+    expect(run.recommendation).toContain("Pick and prepare");
+    expect(summary.faceTrackingRunCount).toBe(1);
+    expect(summary.faceTrackingWarningCount).toBe(1);
+    expect(summary.faceTrackingReadyCount).toBe(0);
+    expect(summary.latestFaceTracking?.status).toBe("warn");
   });
 
   it("fails validation runs when the native publisher reports a failure", () => {

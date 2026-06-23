@@ -1129,7 +1129,8 @@ const StreamValidationRecorder = ({
           {diagnostics.validationEvidence.eligibleRunCount}/{diagnostics.validationEvidence.totalRuns} eligible /{" "}
           {diagnostics.validationEvidence.staleRunCount} stale / iOS {diagnostics.validationEvidence.iosPass ? "pass" : "missing"} / Android{" "}
           {diagnostics.validationEvidence.androidPass ? "pass" : "missing"} / build{" "}
-          {diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")}
+          {diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")} / face{" "}
+          {diagnostics.validationEvidence.faceTrackingReadyCount} ready / {diagnostics.validationEvidence.faceTrackingWarningCount} warn
         </em>
       </div>
       {latestRun ? (
@@ -1143,6 +1144,7 @@ const StreamValidationRecorder = ({
               : ` / ${diagnostics.validationEvidence.latestRunAgeDays}d old`}
           </em>
           {validationRunNativeRuntimeLabel(latestRun) ? <em>{validationRunNativeRuntimeLabel(latestRun)}</em> : null}
+          {validationRunFaceTrackingLabel(latestRun) ? <em>{validationRunFaceTrackingLabel(latestRun)}</em> : null}
           {validationRunPlatformPublishingLabel(latestRun) ? <em>{validationRunPlatformPublishingLabel(latestRun)}</em> : null}
         </div>
       ) : null}
@@ -1225,6 +1227,11 @@ const validationRunTone = (result: StreamValidationRunResult): "pass" | "warn" |
 const validationRunNativeRuntimeLabel = (run: StreamValidationRun): string | null =>
   run.nativeRuntime
     ? `native ${run.nativeRuntime.status} / ${run.nativeRuntime.platform} / publisher ${run.nativeRuntime.publisherState || "-"} / queue ${run.nativeRuntime.queuedItems}/${run.nativeRuntime.cacheSize}`
+    : null;
+
+const validationRunFaceTrackingLabel = (run: StreamValidationRun): string | null =>
+  run.faceTracking && run.faceTracking.status !== "info"
+    ? `face ${run.faceTracking.status} / ${run.faceTracking.inputMode} / ${run.faceTracking.runtimeStatus} / prepared ${run.faceTracking.preparedPngTuberCount} / moving ${run.faceTracking.activeMotionCount}`
     : null;
 
 const validationRunPlatformPublishingLabel = (run: StreamValidationRun): string | null =>

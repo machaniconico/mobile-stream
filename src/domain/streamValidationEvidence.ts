@@ -8,6 +8,19 @@ import {
 export type StreamValidationDevicePlatform = "ios" | "android";
 export type StreamValidationRunResult = "pass" | "warn" | "fail";
 
+export interface StreamValidationFaceTrackingSummary {
+  status: StreamDiagnostics["faceTracking"]["status"];
+  enabled: boolean;
+  inputMode: StreamDiagnostics["faceTracking"]["inputMode"];
+  rigMode: StreamDiagnostics["faceTracking"]["rigMode"];
+  runtimeStatus: StreamDiagnostics["faceTracking"]["runtimeStatus"];
+  visibleAvatarCount: number;
+  preparedPngTuberCount: number;
+  activeMotionCount: number;
+  summary: string;
+  recommendation: string;
+}
+
 export interface StreamValidationRun {
   id: string;
   createdAt: string;
@@ -25,6 +38,7 @@ export interface StreamValidationRun {
   healthSampleCount: number;
   completedSessionCount: number;
   nativeRuntime: StreamSessionNativeRuntimeSummary | null;
+  faceTracking: StreamValidationFaceTrackingSummary | null;
   platformPublishing: StreamDiagnostics["platformPublishing"] | null;
   validationItemStatuses: Array<{
     id: string;
@@ -56,6 +70,9 @@ export interface StreamValidationEvidenceSummary {
   nativeRuntimeRunCount: number;
   nativeRuntimeWarningCount: number;
   nativeRuntimeFailureCount: number;
+  faceTrackingRunCount: number;
+  faceTrackingWarningCount: number;
+  faceTrackingReadyCount: number;
   platformPublishingRunCount: number;
   platformPublishingWarningCount: number;
   platformPublishingFailureCount: number;
@@ -69,6 +86,7 @@ export interface StreamValidationEvidenceSummary {
   latestEligibleRun: StreamValidationRun | null;
   latestPassingRun: StreamValidationRun | null;
   latestNativeRuntime: StreamSessionNativeRuntimeSummary | null;
+  latestFaceTracking: StreamValidationFaceTrackingSummary | null;
   latestPlatformPublishing: StreamDiagnostics["platformPublishing"] | null;
   latestRunAgeDays: number | null;
   maxAgeDays: number;
@@ -106,8 +124,9 @@ export const createStreamValidationRun = ({
   const nativeRuntime =
     createNativeRuntimeSessionSummary(diagnostics.nativeRuntime) ??
     normalizeNativeRuntimeSessionSummary(diagnostics.session.lastSummary?.nativeRuntime);
+  const faceTracking = createFaceTrackingValidationSummary(diagnostics.faceTracking, secrets);
   const platformPublishing = diagnostics.platformPublishing;
-  const effectiveResult = createEffectiveValidationResult(result, nativeRuntime, platformPublishing);
+  const effectiveResult = createEffectiveValidationResult(result, nativeRuntime, faceTracking, platformPublishing);
   const runBase = {
     createdAt,
     devicePlatform,
@@ -134,6 +153,7 @@ export const createStreamValidationRun = ({
     healthSampleCount: diagnostics.history.sampleCount,
     completedSessionCount: diagnostics.session.summaries.length,
     nativeRuntime,
+    faceTracking,
     platformPublishing,
     validationItemStatuses: diagnostics.validation.items.map((item) => ({
       id: item.id,
@@ -145,9 +165,16 @@ export const createStreamValidationRun = ({
       diagnostics.target.platform,
       diagnostics.validation.status,
       nativeRuntime,
+      faceTracking,
       platformPublishing
     ),
-    recommendation: createRunRecommendation(effectiveResult, diagnostics.validation.recommendedNextStep, nativeRuntime, platformPublishing)
+    recommendation: createRunRecommendation(
+      effectiveResult,
+      diagnostics.validation.recommendedNextStep,
+      nativeRuntime,
+      faceTracking,
+      platformPublishing
+    )
   };
 };
 
@@ -238,6 +265,10 @@ export const summarizeStreamValidationEvidence = (
   const nativeRuntimeRunCount = nativeRuntimeRuns.length;
   const nativeRuntimeWarningCount = nativeRuntimeRuns.filter((run) => run.nativeRuntime?.status === "warn").length;
   const nativeRuntimeFailureCount = nativeRuntimeRuns.filter((run) => run.nativeRuntime?.status === "fail").length;
+  const faceTrackingRuns = scopedRuns.filter((run) => run.faceTracking && run.faceTracking.status !== "info");
+  const faceTrackingRunCount = faceTrackingRuns.length;
+  const faceTrackingWarningCount = faceTrackingRuns.filter((run) => run.faceTracking?.status === "warn").length;
+  const faceTrackingReadyCount = faceTrackingRuns.filter((run) => run.faceTracking?.status === "pass").length;
   const platformPublishingRuns = scopedRuns.filter((run) => run.platformPublishing && run.platformPublishing.status !== "info");
   const platformPublishingRunCount = platformPublishingRuns.length;
   const platformPublishingWarningCount = platformPublishingRuns.filter((run) => run.platformPublishing?.status === "warn").length;
@@ -247,6 +278,10 @@ export const summarizeStreamValidationEvidence = (
   const latestPassingRun = eligibleRuns.find((run) => run.result === "pass") ?? null;
   const latestNativeRuntime =
     eligibleRuns.find((run) => run.nativeRuntime)?.nativeRuntime ?? scopedRuns.find((run) => run.nativeRuntime)?.nativeRuntime ?? null;
+  const latestFaceTracking =
+    eligibleRuns.find((run) => run.faceTracking && run.faceTracking.status !== "info")?.faceTracking ??
+    scopedRuns.find((run) => run.faceTracking && run.faceTracking.status !== "info")?.faceTracking ??
+    null;
   const latestPlatformPublishing =
     eligibleRuns.find((run) => run.platformPublishing && run.platformPublishing.status !== "info")?.platformPublishing ??
     scopedRuns.find((run) => run.platformPublishing && run.platformPublishing.status !== "info")?.platformPublishing ??
@@ -288,6 +323,9 @@ export const summarizeStreamValidationEvidence = (
     nativeRuntimeRunCount,
     nativeRuntimeWarningCount,
     nativeRuntimeFailureCount,
+    faceTrackingRunCount,
+    faceTrackingWarningCount,
+    faceTrackingReadyCount,
     platformPublishingRunCount,
     platformPublishingWarningCount,
     platformPublishingFailureCount,
@@ -301,6 +339,7 @@ export const summarizeStreamValidationEvidence = (
     latestEligibleRun,
     latestPassingRun,
     latestNativeRuntime,
+    latestFaceTracking,
     latestPlatformPublishing,
     latestRunAgeDays: latestRun ? ageInDays(latestRun.createdAt, now) : null,
     maxAgeDays,
@@ -350,6 +389,9 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
   const checklistStatus = normalizeChecklistStatus(value.checklistStatus);
   const diagnosticStatus = normalizeDiagnosticStatus(value.diagnosticStatus);
   const sessionOutcome = normalizeSessionOutcome(value.sessionOutcome);
+  const nativeRuntime = normalizeNativeRuntimeSessionSummary(value.nativeRuntime);
+  const faceTracking = normalizeFaceTrackingValidationSummary(value.faceTracking);
+  const platformPublishing = normalizePlatformPublishingDiagnostics(value.platformPublishing);
   const normalized: StreamValidationRun = {
     id: normalizeText(value.id, createValidationRunId({
       createdAt,
@@ -373,8 +415,9 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
     sessionOutcome,
     healthSampleCount: normalizeCount(value.healthSampleCount),
     completedSessionCount: normalizeCount(value.completedSessionCount),
-    nativeRuntime: normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
-    platformPublishing: normalizePlatformPublishingDiagnostics(value.platformPublishing),
+    nativeRuntime,
+    faceTracking,
+    platformPublishing,
     validationItemStatuses: normalizeValidationItemStatuses(value.validationItemStatuses),
     summary: normalizeText(
       value.summary,
@@ -383,8 +426,9 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
         normalizeText(value.deviceName, defaultDeviceName(devicePlatform)),
         targetPlatform,
         checklistStatus,
-        normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
-        normalizePlatformPublishingDiagnostics(value.platformPublishing)
+        nativeRuntime,
+        faceTracking,
+        platformPublishing
       )
     ),
     recommendation: normalizeText(
@@ -392,8 +436,9 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
       createRunRecommendation(
         result,
         "Run another private validation pass.",
-        normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
-        normalizePlatformPublishingDiagnostics(value.platformPublishing)
+        nativeRuntime,
+        faceTracking,
+        platformPublishing
       )
     )
   };
@@ -531,12 +576,18 @@ const createEvidenceRecommendation = (
 const createEffectiveValidationResult = (
   result: StreamValidationRunResult,
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
+  faceTracking: StreamValidationFaceTrackingSummary | null,
   platformPublishing: StreamDiagnostics["platformPublishing"] | null
 ): StreamValidationRunResult => {
   if (result === "fail" || nativeRuntime?.status === "fail" || platformPublishing?.status === "fail") {
     return "fail";
   }
-  if (result === "warn" || nativeRuntime?.status === "warn" || platformPublishing?.status === "warn") {
+  if (
+    result === "warn" ||
+    nativeRuntime?.status === "warn" ||
+    faceTracking?.status === "warn" ||
+    platformPublishing?.status === "warn"
+  ) {
     return "warn";
   }
   return "pass";
@@ -548,16 +599,18 @@ const createRunSummary = (
   targetPlatform: string,
   checklistStatus: StreamDiagnostics["validation"]["status"],
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
+  faceTracking: StreamValidationFaceTrackingSummary | null,
   platformPublishing: StreamDiagnostics["platformPublishing"] | null
 ): string => {
   const prefix = result === "pass" ? "Passed" : result === "warn" ? "Needs review" : "Failed";
-  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}.${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${platformPublishing && platformPublishing.status !== "info" ? ` ${platformPublishing.summary}` : ""}`;
+  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}.${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${faceTracking && faceTracking.status !== "info" ? ` ${faceTracking.summary}` : ""}${platformPublishing && platformPublishing.status !== "info" ? ` ${platformPublishing.summary}` : ""}`;
 };
 
 const createRunRecommendation = (
   result: StreamValidationRunResult,
   fallbackRecommendation: string,
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
+  faceTracking: StreamValidationFaceTrackingSummary | null,
   platformPublishing: StreamDiagnostics["platformPublishing"] | null
 ): string => {
   if (nativeRuntime?.status === "fail") {
@@ -575,11 +628,30 @@ const createRunRecommendation = (
   if (nativeRuntime?.status === "warn") {
     return nativeRuntime.recommendation;
   }
+  if (faceTracking?.status === "warn") {
+    return faceTracking.recommendation;
+  }
   if (platformPublishing?.status === "warn") {
     return platformPublishing.recommendation;
   }
   return fallbackRecommendation;
 };
+
+const createFaceTrackingValidationSummary = (
+  faceTracking: StreamDiagnostics["faceTracking"],
+  secrets: string[]
+): StreamValidationFaceTrackingSummary => ({
+  status: faceTracking.status,
+  enabled: faceTracking.enabled,
+  inputMode: faceTracking.inputMode,
+  rigMode: faceTracking.rigMode,
+  runtimeStatus: faceTracking.runtimeStatus,
+  visibleAvatarCount: faceTracking.visibleAvatarCount,
+  preparedPngTuberCount: faceTracking.preparedPngTuberCount,
+  activeMotionCount: faceTracking.activeMotionCount,
+  summary: sanitizeStoredText(faceTracking.summary, secrets),
+  recommendation: sanitizeStoredText(faceTracking.recommendation, secrets)
+});
 
 const createValidationRunId = ({
   createdAt,
@@ -677,6 +749,30 @@ const normalizeDiagnosticStatus = (value: unknown): StreamDiagnostics["status"] 
 
 const normalizeSessionOutcome = (value: unknown): StreamValidationRun["sessionOutcome"] =>
   value === "clean" || value === "warn" || value === "fail" ? value : null;
+
+const normalizeFaceTrackingValidationSummary = (value: unknown): StreamValidationFaceTrackingSummary | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+  return {
+    status: normalizeFaceTrackingDiagnosticStatus(value.status),
+    enabled: value.enabled === true,
+    inputMode: value.inputMode === "native-camera" ? "native-camera" : "simulated",
+    rigMode: value.rigMode === "layered-2d" ? "layered-2d" : "still-image-2d",
+    runtimeStatus: normalizeFaceTrackingRuntimeStatus(value.runtimeStatus),
+    visibleAvatarCount: normalizeCount(value.visibleAvatarCount),
+    preparedPngTuberCount: normalizeCount(value.preparedPngTuberCount),
+    activeMotionCount: normalizeCount(value.activeMotionCount),
+    summary: normalizeText(value.summary, "No face tracking validation evidence retained."),
+    recommendation: normalizeText(value.recommendation, "Repeat face tracking validation on a physical mobile device.")
+  };
+};
+
+const normalizeFaceTrackingDiagnosticStatus = (value: unknown): StreamValidationFaceTrackingSummary["status"] =>
+  value === "pass" || value === "warn" || value === "info" ? value : "info";
+
+const normalizeFaceTrackingRuntimeStatus = (value: unknown): StreamValidationFaceTrackingSummary["runtimeStatus"] =>
+  value === "disabled" || value === "tracking" || value === "lost" || value === "unavailable" ? value : "unavailable";
 
 const normalizePlatformPublishingDiagnostics = (value: unknown): StreamDiagnostics["platformPublishing"] | null => {
   if (!isRecord(value)) {

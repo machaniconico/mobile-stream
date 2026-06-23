@@ -1352,7 +1352,8 @@ const StreamValidationRecorder = ({
           {diagnostics.validationEvidence.eligibleRunCount}/{diagnostics.validationEvidence.totalRuns} eligible /{" "}
           {diagnostics.validationEvidence.staleRunCount} stale / iOS {diagnostics.validationEvidence.iosPass ? "pass" : "missing"} / Android{" "}
           {diagnostics.validationEvidence.androidPass ? "pass" : "missing"} / build{" "}
-          {diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")}
+          {diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")} / face{" "}
+          {diagnostics.validationEvidence.faceTrackingReadyCount} ready / {diagnostics.validationEvidence.faceTrackingWarningCount} warn
         </Text>
       </View>
       {latestRun ? (
@@ -1367,6 +1368,9 @@ const StreamValidationRecorder = ({
           </Text>
           {validationRunNativeRuntimeLabel(latestRun) ? (
             <Text style={styles.diagnosticIncidentRecommendation}>{validationRunNativeRuntimeLabel(latestRun)}</Text>
+          ) : null}
+          {validationRunFaceTrackingLabel(latestRun) ? (
+            <Text style={styles.diagnosticIncidentRecommendation}>{validationRunFaceTrackingLabel(latestRun)}</Text>
           ) : null}
           {validationRunPlatformPublishingLabel(latestRun) ? (
             <Text style={styles.diagnosticIncidentRecommendation}>{validationRunPlatformPublishingLabel(latestRun)}</Text>
@@ -1431,6 +1435,11 @@ const validationRunResultFromDiagnostics = (diagnostics: StreamDiagnostics): Str
 const validationRunNativeRuntimeLabel = (run: StreamValidationRun): string | null =>
   run.nativeRuntime
     ? `native ${run.nativeRuntime.status} / ${run.nativeRuntime.platform} / publisher ${run.nativeRuntime.publisherState || "-"} / queue ${run.nativeRuntime.queuedItems}/${run.nativeRuntime.cacheSize}`
+    : null;
+
+const validationRunFaceTrackingLabel = (run: StreamValidationRun): string | null =>
+  run.faceTracking && run.faceTracking.status !== "info"
+    ? `face ${run.faceTracking.status} / ${run.faceTracking.inputMode} / ${run.faceTracking.runtimeStatus} / prepared ${run.faceTracking.preparedPngTuberCount} / moving ${run.faceTracking.activeMotionCount}`
     : null;
 
 const validationRunPlatformPublishingLabel = (run: StreamValidationRun): string | null =>

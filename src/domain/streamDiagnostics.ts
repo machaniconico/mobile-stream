@@ -458,6 +458,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Evidence freshness: ${diagnostics.validationEvidence.latestRunAgeDays === null ? "-" : `${diagnostics.validationEvidence.latestRunAgeDays} days old`} / max ${diagnostics.validationEvidence.maxAgeDays} days`,
     `- Evidence build: ${diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")}`,
     `- Evidence native runtime: ${formatValidationNativeRuntime(diagnostics)}`,
+    `- Evidence face tracking: ${formatValidationFaceTracking(diagnostics)}`,
     `- Evidence platform dashboard: ${formatValidationPlatformPublishing(diagnostics)}`,
     ...diagnostics.validation.items.map(
       (item) => `- [${item.status.toUpperCase()}] ${item.title}: ${item.detail} Action: ${item.action}`
@@ -489,6 +490,11 @@ const formatSessionNativeRuntime = (summary: StreamSessionSummary): string =>
 const formatValidationNativeRuntime = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestNativeRuntime
     ? `${diagnostics.validationEvidence.nativeRuntimeRunCount} retained / ${diagnostics.validationEvidence.nativeRuntimeWarningCount} warn / ${diagnostics.validationEvidence.nativeRuntimeFailureCount} fail / latest ${diagnostics.validationEvidence.latestNativeRuntime.status} ${diagnostics.validationEvidence.latestNativeRuntime.platform} / queue ${diagnostics.validationEvidence.latestNativeRuntime.queuedItems}/${diagnostics.validationEvidence.latestNativeRuntime.cacheSize}`
+    : "-";
+
+const formatValidationFaceTracking = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.validationEvidence.latestFaceTracking
+    ? `${diagnostics.validationEvidence.faceTrackingRunCount} retained / ${diagnostics.validationEvidence.faceTrackingReadyCount} ready / ${diagnostics.validationEvidence.faceTrackingWarningCount} warn / latest ${diagnostics.validationEvidence.latestFaceTracking.status} ${diagnostics.validationEvidence.latestFaceTracking.runtimeStatus} / prepared ${diagnostics.validationEvidence.latestFaceTracking.preparedPngTuberCount} / moving ${diagnostics.validationEvidence.latestFaceTracking.activeMotionCount}`
     : "-";
 
 const formatValidationPlatformPublishing = (diagnostics: StreamDiagnostics): string =>
