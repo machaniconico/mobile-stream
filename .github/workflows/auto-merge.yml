@@ -1,10 +1,10 @@
-# Auto-installed by setup-auto-merge.sh — turns on GitHub native auto-merge
-# for every (non-draft) PR. GitHub then merges automatically once the required
-# "test" status check passes and branch protection is satisfied.
+# Commercial safety: auto-merge is opt-in only. Add the "automerge" label to a
+# non-draft PR after review intent is clear. GitHub then merges automatically
+# once the required "test" status check passes and branch protection is satisfied.
 name: Auto-merge
 on:
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
 
 permissions:
   contents: write
@@ -13,7 +13,7 @@ permissions:
 jobs:
   enable-auto-merge:
     runs-on: ubuntu-latest
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ !github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'automerge') }}
     steps:
       - name: Enable auto-merge (squash)
         env:

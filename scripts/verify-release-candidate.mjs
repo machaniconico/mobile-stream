@@ -9,6 +9,7 @@ const devServerTimeoutMs = 30_000;
 const defaultReportPath = ".artifacts/release-candidate-verification.json";
 
 const sourceGates = [
+  ["Verify repository automation safety", ["run", "verify:repo-automation"]],
   ["Verify native release configuration", ["run", "verify:release-config"]],
   ["Run unit tests", ["test"]],
   ["Typecheck web and React Native", ["run", "typecheck"]],

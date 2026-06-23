@@ -20,6 +20,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Commercial release gate for saved support bundle JSON, checking freshness, public launch lock state, private validation runbook completion, iOS/Android same-build evidence coverage, retained-run manifests, and feature proof before release approval.
 - Release-candidate verification command that chains source gates, browser UI verification, React Native bundle generation, and the commercial support-bundle gate into one local approval step with a JSON audit report.
 - Web bundle code-splitting and bundle-size verification so the browser studio shell stays below the release chunk limit.
+- Repository automation safety checks and opt-in-only PR auto-merge through an explicit `automerge` label.
 - Physical validation audio evidence also records measured or native-estimated processed-mic monitor latency, the latency source, and Bluetooth route review notes, and prevents audio evidence from passing when latency is missing or above the route budget.
 - RTMP/RTMPS publish URL normalization that can split pasted YouTube/Twitch full publish URLs into endpoint and stream key before start.
 - Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, mic FX/headphone monitor route validation, chat readout validation, native runtime validation evidence, native compositor still-image asset load evidence, platform dashboard validation evidence, and sanitized report export/share.
@@ -70,6 +71,7 @@ npm run mobile:start
 npm test
 npm run typecheck
 npm run build
+npm run verify:repo-automation
 npm run verify:web-bundle-size
 npm run verify:rn
 npm run verify:release-config
@@ -83,15 +85,17 @@ npm run ios:build:simulator
 
 `npm run verify:rn` builds Metro JS bundles for iOS and Android. It does not require a simulator, device, Android Studio, or CocoaPods.
 
+`npm run verify:repo-automation` audits GitHub Actions release gates and checks that PR auto-merge remains explicit opt-in through the `automerge` label.
+
 `npm run verify:web-bundle-size` checks the built web assets in `dist/assets` and fails if the studio shell loses code-splitting or any JavaScript chunk exceeds the release limit. Run `npm run build` first.
 
 `npm run verify:release-config` audits native store-release configuration, including Android release signing fail-closed behavior, streaming permissions, OAuth callback schemes, iOS usage descriptions, the iOS privacy manifest, and the ReplayKit Broadcast Upload Extension bundle/entitlements/App Group setup.
 
 `npm run verify:commercial-release-bundle -- /path/to/support-bundle.json` checks a saved support bundle before release approval. It fails unless the bundle is fresh, schema v13+, public-launch ready, runbook complete, and backed by passing same-build iOS/Android validation evidence. Use `--allow-warnings` only after explicitly approving remaining warnings.
 
-`npm run verify:release-candidate -- /path/to/support-bundle.json` is the local commercial release-candidate approval command. It fails on uncommitted source changes, runs native release-config checks, unit tests, web/RN typechecks, the web build, web bundle-size verification, iOS/Android Metro bundles, browser UI verification, and the commercial support-bundle gate, then writes `.artifacts/release-candidate-verification.json` with the support-bundle SHA-256, git commit, dirty-state, gate outcomes, timings, generated web/RN artifact hashes, and failure reason if any. Use `--report-json=/path/to/report.json` to choose the evidence path, `--ui-url=http://127.0.0.1:5173/` when a preview server is already running, `--allow-dirty` only for development-only evidence before commit, and `--skip-ui` only when Chrome is unavailable and `npm run verify:ui` has already been run separately.
+`npm run verify:release-candidate -- /path/to/support-bundle.json` is the local commercial release-candidate approval command. It fails on uncommitted source changes, runs repository automation checks, native release-config checks, unit tests, web/RN typechecks, the web build, web bundle-size verification, iOS/Android Metro bundles, browser UI verification, and the commercial support-bundle gate, then writes `.artifacts/release-candidate-verification.json` with the support-bundle SHA-256, git commit, dirty-state, gate outcomes, timings, generated web/RN artifact hashes, and failure reason if any. Use `--report-json=/path/to/report.json` to choose the evidence path, `--ui-url=http://127.0.0.1:5173/` when a preview server is already running, `--allow-dirty` only for development-only evidence before commit, and `--skip-ui` only when Chrome is unavailable and `npm run verify:ui` has already been run separately.
 
-GitHub Actions runs the required `test` status check on pull requests and `main` pushes. The gate installs from `package-lock.json`, verifies native release configuration, runs unit tests, typechecks web and React Native code, builds the web prototype, verifies web bundle size, and bundles React Native JavaScript for iOS and Android.
+GitHub Actions runs the required `test` status check on pull requests and `main` pushes. The gate installs from `package-lock.json`, verifies repository automation safety, verifies native release configuration, runs unit tests, typechecks web and React Native code, builds the web prototype, verifies web bundle size, and bundles React Native JavaScript for iOS and Android.
 
 ## Native Direction
 
