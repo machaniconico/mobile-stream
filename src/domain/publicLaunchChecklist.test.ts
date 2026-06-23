@@ -98,6 +98,16 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
     failCount: 0,
     pendingCount: 0,
     items: []
+  },
+  validationRunbook: {
+    status: "complete",
+    summary: "Private RTMP(S) validation runbook is complete for this target.",
+    nextAction: "Export diagnostics and support bundle for the retained release-candidate validation run.",
+    passCount: 10,
+    warningCount: 0,
+    failCount: 0,
+    pendingCount: 0,
+    items: []
   }
 });
 
@@ -233,6 +243,36 @@ describe("public launch checklist", () => {
     expect(checklist.canStart).toBe(true);
     expect(checklist.items.find((item) => item.id === "platform-dashboard")).toMatchObject({
       status: "warn"
+    });
+  });
+
+  it("warns when validation passed but the private runbook is not complete", () => {
+    const diagnostics = readyDiagnostics();
+    const checklist = createPublicLaunchChecklist({
+      preflight: readyPreflight,
+      diagnostics: {
+        ...diagnostics,
+        validationRunbook: {
+          ...diagnostics.validationRunbook,
+          status: "record",
+          summary: "1 validation step remains before release evidence is complete.",
+          nextAction:
+            "Run a controlled weak-network private stream and retain live quality update or next-start fallback evidence.",
+          passCount: 9,
+          warningCount: 1,
+          pendingCount: 0
+        }
+      },
+      platformPublishingFreshness: freshDashboard,
+      profile: youtubePublicProfile()
+    });
+
+    expect(checklist.status).toBe("warning");
+    expect(checklist.canStart).toBe(true);
+    expect(checklist.items.find((item) => item.id === "commercial-evidence")).toMatchObject({
+      status: "warn",
+      detail: "1 validation step remains before release evidence is complete.",
+      action: expect.stringContaining("controlled weak-network")
     });
   });
 

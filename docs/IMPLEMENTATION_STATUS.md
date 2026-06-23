@@ -32,6 +32,7 @@
 - Live quality update API for Mock, Android, and iOS, allowing same-resolution bitrate/FPS pressure relief while Android stays live, while iOS refreshes the App Group quality target for the next ReplayKit broadcast restart.
 - Completed session summaries, physical validation evidence, diagnostics, validation panels, and support bundles retain live quality automation evidence, including live bitrate/FPS updates, next-start target changes, and failed native quality updates.
 - Private validation runbook includes a weak-network quality stress fallback step, requiring retained live quality-update or next-start fallback evidence before the runbook can be complete, and blocking when native quality updates fail.
+- Public launch checklist surfaces incomplete private validation runbook evidence, including missing weak-network quality stress proof, as a pre-launch commercial-evidence warning for YouTube Public and Twitch starts.
 - Redacted support bundle export combining preflight, diagnostics, scene composition, native still-image asset load evidence, stream target, and safe profile summaries for support triage.
 - Stream quality incident model for active bitrate/FPS/drop/reconnect problems, recommendations, UI surfacing, and report export.
 - Shared stream recovery policy model for retry budget, bounded exponential backoff, degraded telemetry detection, failed-engine recovery advice, and sanitized report export.

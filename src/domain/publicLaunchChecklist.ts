@@ -46,7 +46,13 @@ export interface PublicLaunchChecklistInput {
   preflight: StreamStartPreflightReport;
   diagnostics: Pick<
     StreamDiagnostics,
-    "target" | "telemetry" | "audio" | "chatReadout" | "platformPublishing" | "validation"
+    | "target"
+    | "telemetry"
+    | "audio"
+    | "chatReadout"
+    | "platformPublishing"
+    | "validation"
+    | "validationRunbook"
   >;
   platformPublishingFreshness: PlatformPublishingFreshness;
   profile?: Pick<StudioProfile, "destination" | "platformPublishing">;
@@ -330,12 +336,23 @@ const createCommercialEvidenceItem = (
     };
   }
 
+  if (diagnostics.validationRunbook.status !== "complete") {
+    return {
+      id: "commercial-evidence",
+      status: "warn",
+      label: "Commercial evidence",
+      detail: diagnostics.validationRunbook.summary,
+      action: diagnostics.validationRunbook.nextAction
+    };
+  }
+
   return {
     id: "commercial-evidence",
     status: "pass",
     label: "Commercial evidence",
     detail: diagnostics.validation.summary,
-    action: "Retain the support bundle and validation run before changing app build, platform, or stream settings."
+    action:
+      "Retain the support bundle, completed private validation runbook, and validation run before changing app build, platform, or stream settings."
   };
 };
 
