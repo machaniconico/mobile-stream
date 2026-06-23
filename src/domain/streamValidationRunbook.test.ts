@@ -293,6 +293,76 @@ describe("stream validation runbook", () => {
     expect(runbook.nextAction).toContain("App Group");
   });
 
+  it("keeps the runbook open until quality stress fallback evidence is retained", () => {
+    const runbook = createStreamValidationRunbook(
+      input({
+        telemetry: {
+          streamStatus: "idle",
+          bitrateKbps: 0,
+          fps: 0,
+          droppedFrames: 0,
+          reconnectAttempts: 0,
+          elapsedSeconds: 0
+        },
+        health: stableHealth,
+        session: {
+          summaryCount: 1,
+          historySummary: createStreamSessionHistorySummary([]),
+          lastOutcome: "clean"
+        },
+        nativeRuntime,
+        platformPublishing: readyPlatformPublishing(),
+        evidence: evidence({
+          status: "ready",
+          totalRuns: 2,
+          eligibleRunCount: 2,
+          iosPass: true,
+          androidPass: true,
+          summary: "Fresh physical validation baseline retained for iOS and Android.",
+          recommendation: "Keep evidence fresh."
+        })
+      })
+    );
+
+    const item = runbook.items.find((entry) => entry.id === "runbook-quality-stress-missing");
+
+    expect(runbook.status).toBe("record");
+    expect(item?.status).toBe("warn");
+    expect(item?.action).toContain("controlled weak-network");
+  });
+
+  it("blocks when retained quality stress fallback failed", () => {
+    const runbook = createStreamValidationRunbook(
+      input({
+        health: stableHealth,
+        session: {
+          summaryCount: 1,
+          historySummary: createStreamSessionHistorySummary([]),
+          lastOutcome: "clean"
+        },
+        nativeRuntime,
+        platformPublishing: readyPlatformPublishing(),
+        evidence: evidence({
+          status: "ready",
+          totalRuns: 2,
+          eligibleRunCount: 2,
+          iosPass: true,
+          androidPass: true,
+          qualityAutomationRunCount: 1,
+          qualityAutomationFailureCount: 1,
+          summary: "Fresh physical validation baseline retained for iOS and Android.",
+          recommendation: "Keep evidence fresh."
+        })
+      })
+    );
+
+    const item = runbook.items.find((entry) => entry.id === "runbook-quality-stress-failed");
+
+    expect(runbook.status).toBe("blocked");
+    expect(item?.status).toBe("fail");
+    expect(item?.action).toContain("Fix native bitrate/FPS update");
+  });
+
   it("completes when clean sessions and retained iOS/Android evidence are ready", () => {
     const runbook = createStreamValidationRunbook(
       input({
@@ -318,6 +388,17 @@ describe("stream validation runbook", () => {
           eligibleRunCount: 2,
           iosPass: true,
           androidPass: true,
+          qualityAutomationRunCount: 1,
+          qualityAutomationLiveUpdateCount: 1,
+          latestQualityAutomation: {
+            status: "pass",
+            eventCount: 1,
+            liveUpdateCount: 1,
+            nextTargetCount: 0,
+            failureCount: 0,
+            summary: "Quality automation retained 1 event: 1 live update, 0 next-start targets, 0 failed.",
+            recommendation: "Keep this run as evidence that live bitrate/FPS relief can apply during a stream."
+          },
           summary: "Fresh physical validation baseline retained for iOS and Android.",
           recommendation: "Keep evidence fresh."
         })
@@ -330,6 +411,7 @@ describe("stream validation runbook", () => {
     expect(runbook.pendingCount).toBe(0);
     expect(runbook.items.find((item) => item.id === "runbook-audio-ready")?.status).toBe("pass");
     expect(runbook.items.find((item) => item.id === "runbook-chat-connected")?.status).toBe("pass");
+    expect(runbook.items.find((item) => item.id === "runbook-quality-stress-live-update")?.status).toBe("pass");
   });
 
   it("keeps the runbook open when passing dashboard status is stale", () => {

@@ -24,6 +24,7 @@ export type StreamValidationRunbookPhase =
   | "audio"
   | "chat"
   | "monitor"
+  | "quality"
   | "dashboard"
   | "stop"
   | "record";
@@ -115,6 +116,7 @@ export const createStreamValidationRunbook = (input: StreamValidationRunbookInpu
     createAudioItem(input),
     createChatReadoutItem(input),
     createMonitorItem(input),
+    createQualityStressItem(input),
     createNativeRuntimeItem(input),
     createDashboardItem(input),
     createStopItem(input),
@@ -510,6 +512,95 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
     title: "Confirm native runtime",
     detail: `${nativeRuntime.platform} publisher/compositor telemetry is current and clean.`,
     action: "Keep this native runtime snapshot with the validation evidence."
+  };
+};
+
+const createQualityStressItem = ({
+  telemetry,
+  health,
+  session,
+  evidence
+}: StreamValidationRunbookInput): StreamValidationRunbookItem => {
+  const failureCount = Math.max(
+    evidence.qualityAutomationFailureCount,
+    session.historySummary.totalQualityUpdateFailures
+  );
+  const liveUpdateCount = Math.max(
+    evidence.qualityAutomationLiveUpdateCount,
+    session.historySummary.totalQualityLiveUpdates
+  );
+  const nextTargetCount = Math.max(
+    evidence.qualityAutomationNextTargetCount,
+    session.historySummary.totalQualityNextTargets
+  );
+
+  if (failureCount > 0) {
+    return {
+      id: "runbook-quality-stress-failed",
+      phase: "quality",
+      status: "fail",
+      title: "Validate quality stress fallback",
+      detail: `${failureCount} native live quality update failure${failureCount === 1 ? "" : "s"} retained.`,
+      action: "Fix native bitrate/FPS update handling, then repeat the weak-network private validation run."
+    };
+  }
+
+  if (liveUpdateCount > 0) {
+    return {
+      id: "runbook-quality-stress-live-update",
+      phase: "quality",
+      status: "pass",
+      title: "Validate quality stress fallback",
+      detail: `${liveUpdateCount} live quality update${liveUpdateCount === 1 ? "" : "s"} retained from weak-network validation.`,
+      action: "Keep this evidence with the release-candidate run and repeat it after encoder or network changes."
+    };
+  }
+
+  if (nextTargetCount > 0) {
+    return {
+      id: "runbook-quality-stress-next-target",
+      phase: "quality",
+      status: "pass",
+      title: "Validate quality stress fallback",
+      detail: `${nextTargetCount} next-start quality fallback${nextTargetCount === 1 ? "" : "s"} retained from weak-network validation.`,
+      action: "Keep this evidence; on Android also retain a same-resolution live bitrate/FPS update when practical."
+    };
+  }
+
+  const qualityPressureVisible =
+    telemetry.droppedFrames > 0 ||
+    telemetry.reconnectAttempts > 0 ||
+    health.stability === "watch" ||
+    health.stability === "unstable";
+  if ((telemetry.streamStatus === "live" || telemetry.streamStatus === "reconnecting") && qualityPressureVisible) {
+    return {
+      id: "runbook-quality-stress-waiting",
+      phase: "quality",
+      status: "warn",
+      title: "Validate quality stress fallback",
+      detail: "Quality pressure is visible, but no automatic quality relief event has been retained yet.",
+      action: "Keep the stream private and wait for the quality advisor to lower bitrate/FPS, or record this run as warn evidence."
+    };
+  }
+
+  if (session.summaryCount > 0 || evidence.totalRuns > 0) {
+    return {
+      id: "runbook-quality-stress-missing",
+      phase: "quality",
+      status: "warn",
+      title: "Validate quality stress fallback",
+      detail: "No weak-network quality automation event is retained for this release-candidate baseline.",
+      action: "Run a controlled weak-network private stream and retain live quality update or next-start fallback evidence."
+    };
+  }
+
+  return {
+    id: "runbook-quality-stress-pending",
+    phase: "quality",
+    status: "pending",
+    title: "Validate quality stress fallback",
+    detail: "Quality automation stress behavior has not been exercised yet.",
+    action: "After the basic private run works, repeat under controlled weak-network conditions to prove bitrate/FPS relief."
   };
 };
 
