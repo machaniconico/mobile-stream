@@ -1452,6 +1452,8 @@ const StreamValidationRecorder = ({
   const [osVersion, setOsVersion] = useState(() => getDefaultValidationOsVersion(getDefaultValidationDevicePlatform()));
   const [appBuild, setAppBuild] = useState("debug");
   const [networkProfile, setNetworkProfile] = useState("private RTMPS");
+  const [monitorLatencyMs, setMonitorLatencyMs] = useState("");
+  const [monitorTuningNote, setMonitorTuningNote] = useState("");
   const [result, setResult] = useState<StreamValidationRunResult>(() => validationRunResultFromDiagnostics(diagnostics));
   const latestRun = diagnostics.validationEvidence.latestRun;
   const latestRunAudioLabel = latestRun ? formatStreamValidationRunAudioLabel(latestRun) : null;
@@ -1474,6 +1476,10 @@ const StreamValidationRecorder = ({
         osVersion,
         appBuild,
         networkProfile,
+        audioMonitorTuning: {
+          measuredLatencyMs: parseOptionalLatencyMs(monitorLatencyMs),
+          note: monitorTuningNote
+        },
         result,
         secrets: [profile.destination.streamKey]
       })
@@ -1599,6 +1605,23 @@ const StreamValidationRecorder = ({
         <TextInput value={appBuild} onChangeText={setAppBuild} style={styles.input} placeholderTextColor="#71717a" />
         <Label text="Network" />
         <TextInput value={networkProfile} onChangeText={setNetworkProfile} style={styles.input} placeholderTextColor="#71717a" />
+        <Label text="Monitor latency ms" />
+        <TextInput
+          value={monitorLatencyMs}
+          onChangeText={setMonitorLatencyMs}
+          style={styles.input}
+          keyboardType="number-pad"
+          placeholder="120"
+          placeholderTextColor="#71717a"
+        />
+        <Label text="Monitor route note" />
+        <TextInput
+          value={monitorTuningNote}
+          onChangeText={setMonitorTuningNote}
+          style={styles.input}
+          placeholder="wired baseline / Bluetooth reviewed"
+          placeholderTextColor="#71717a"
+        />
         <View style={styles.grid3}>
           {(["pass", "warn", "fail"] as StreamValidationRunResult[]).map((item) => (
             <ActionButton key={item} label={item} variant={result === item ? "active" : "default"} onPress={() => setResult(item)} />
@@ -1648,6 +1671,11 @@ const getDefaultValidationOsVersion = (platform: StreamValidationDevicePlatform)
 
 const validationRunResultFromDiagnostics = (diagnostics: StreamDiagnostics): StreamValidationRunResult =>
   diagnostics.validation.status === "ready" ? "pass" : diagnostics.validation.status === "blocked" ? "fail" : "warn";
+
+const parseOptionalLatencyMs = (value: string): number | null => {
+  const normalized = Number.parseInt(value.trim(), 10);
+  return Number.isFinite(normalized) ? Math.max(0, normalized) : null;
+};
 
 const validationRunNativeRuntimeLabel = (run: StreamValidationRun): string | null =>
   run.nativeRuntime

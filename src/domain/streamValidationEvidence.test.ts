@@ -85,6 +85,10 @@ const connectedChatOptions = {
   },
   audioRoute: headphoneAudioRoute
 };
+const tunedMonitor = {
+  measuredLatencyMs: 92,
+  note: "wired monitor baseline clean"
+};
 const validationNow = new Date("2026-06-23T00:02:00.000Z");
 const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
   platform,
@@ -262,6 +266,7 @@ describe("stream validation evidence", () => {
     const run = createStreamValidationRun({
       diagnostics,
       devicePlatform: "ios",
+      audioMonitorTuning: tunedMonitor,
       result: "warn",
       now: new Date("2026-06-23T00:00:00.000Z")
     });
@@ -277,12 +282,16 @@ describe("stream validation evidence", () => {
       nativeMonitorDroppedFrames: 0,
       nativeMonitorWrittenBuffers: 48,
       nativeMonitorDroppedBuffers: 0,
+      monitorLatencyMs: 92,
+      monitorLatencyStatus: "pass",
+      monitorLatencyBudgetMs: 180,
+      bluetoothRoute: false,
       levelSampleCount: 2,
       peakLevel: 0.8,
       activeLevelPercent: 100
     });
     expect(formatStreamValidationRunAudioLabel(run)).toBe(
-      "audio pass / broadcast / monitor on / headphones-only yes / route pass Wired headphones / headphones yes / stale no / native monitor running 24576/0 frames Wired headphones / samples 2 / peak 80%"
+      "audio pass / broadcast / monitor on / headphones-only yes / route pass Wired headphones / headphones yes / stale no / native monitor running 24576/0 frames Wired headphones / latency 92ms pass/180ms / samples 2 / peak 80%"
     );
     expect(run.chatReadout).toMatchObject({
       spokenMessageCount: 1,
@@ -290,6 +299,90 @@ describe("stream validation evidence", () => {
     });
     expect(run.audio?.summary).toContain("Audio meter retained 2 sam");
     expect(run.chatReadout?.summary).toContain("Chat speech retained 1 spoken / 0 failed");
+  });
+
+  it("requires measured monitor latency before audio evidence can pass", () => {
+    const scene = createDefaultScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: nativeMonitorRuntime("ios")
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.audio).toMatchObject({
+      status: "warn",
+      monitorLatencyMs: null,
+      monitorLatencyStatus: "warn",
+      monitorLatencyBudgetMs: 180,
+      bluetoothRoute: false
+    });
+    expect(run.audio?.recommendation).toContain("Measure processed mic self-monitor latency");
+    expect(summary.audioIosPass).toBe(false);
+  });
+
+  it("fails audio evidence when measured monitor latency is above the release limit", () => {
+    const scene = createDefaultScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: nativeMonitorRuntime("ios")
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      audioMonitorTuning: {
+        measuredLatencyMs: 420,
+        note: "noticeable slapback"
+      },
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+
+    expect(run.result).toBe("fail");
+    expect(run.audio).toMatchObject({
+      status: "fail",
+      monitorLatencyMs: 420,
+      monitorLatencyStatus: "fail",
+      monitorLatencyBudgetMs: 180,
+      monitorTuningNote: "noticeable slapback"
+    });
+    expect(run.audio?.recommendation).toContain("Reduce monitor buffer size");
   });
 
   it("requires native self-monitor write and drop proof for audio evidence to pass", () => {
@@ -315,6 +408,7 @@ describe("stream validation evidence", () => {
     const run = createStreamValidationRun({
       diagnostics,
       devicePlatform: "ios",
+      audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
     });
@@ -357,6 +451,7 @@ describe("stream validation evidence", () => {
     const run = createStreamValidationRun({
       diagnostics,
       devicePlatform: "ios",
+      audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
     });
@@ -400,6 +495,7 @@ describe("stream validation evidence", () => {
     const run = createStreamValidationRun({
       diagnostics,
       devicePlatform: "ios",
+      audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
     });
@@ -495,6 +591,7 @@ describe("stream validation evidence", () => {
     const run = createStreamValidationRun({
       diagnostics,
       devicePlatform: "ios",
+      audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
     });
@@ -542,6 +639,7 @@ describe("stream validation evidence", () => {
     const run = createStreamValidationRun({
       diagnostics,
       devicePlatform: "ios",
+      audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
     });
@@ -929,12 +1027,14 @@ describe("stream validation evidence", () => {
     const iosRun = createStreamValidationRun({
       diagnostics: diagnosticsFor("ios"),
       devicePlatform: "ios",
+      audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
     });
     const androidRun = createStreamValidationRun({
       diagnostics: diagnosticsFor("android"),
       devicePlatform: "android",
+      audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:01:00.000Z")
     });
@@ -1119,12 +1219,14 @@ describe("stream validation evidence", () => {
     const iosRun = createStreamValidationRun({
       diagnostics: diagnosticsFor("ios"),
       devicePlatform: "ios",
+      audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
     });
     const androidRun = createStreamValidationRun({
       diagnostics: diagnosticsFor("android"),
       devicePlatform: "android",
+      audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:01:00.000Z")
     });
@@ -1196,6 +1298,7 @@ describe("stream validation evidence", () => {
       diagnostics: diagnosticsFor("ios"),
       devicePlatform: "ios",
       appBuild: "rc-1",
+      audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
     });
@@ -1203,6 +1306,7 @@ describe("stream validation evidence", () => {
       diagnostics: diagnosticsFor("android"),
       devicePlatform: "android",
       appBuild: "rc-2",
+      audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:01:00.000Z")
     });
@@ -1210,6 +1314,7 @@ describe("stream validation evidence", () => {
       diagnostics: diagnosticsFor("android"),
       devicePlatform: "android",
       appBuild: "rc-1",
+      audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:01:30.000Z")
     });

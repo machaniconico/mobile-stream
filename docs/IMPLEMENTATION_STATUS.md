@@ -26,6 +26,7 @@
 - Physical validation runs retain safe native runtime evidence from the current native publisher/compositor or the latest completed session; validation only passes when iOS and Android retained evidence include sent video/audio frames, bytes written, clean compositor state, and fully loaded still-image assets.
 - Physical validation runs retain stable monitor-hold proof; validation only passes when each platform has at least 60 seconds and 3 samples of stable bitrate/FPS telemetry with zero drops and zero reconnects.
 - Physical validation runs retain mic FX/headphone monitor route, native self-monitor write/drop proof, and chat readout evidence; audio validation only passes when native monitor write/drop proof is present with written frames, written buffers, zero drops, and headphone route proof.
+- Physical validation runs retain mic monitor latency and Bluetooth route tuning evidence; audio validation only passes when the measured processed-mic self-monitor latency is within the route-specific release budget.
 - Physical validation runs retain safe YouTube/Twitch dashboard evidence, including YouTube broadcast/stream/health status, Twitch live/offline status, and per-run dashboard freshness snapshots; unhealthy, stale, or unchecked dashboard states downgrade retained validation outcomes.
 - Release-candidate checklist and private validation runbook require fresh YouTube/Twitch dashboard checked-at evidence before treating destination dashboard validation as complete.
 - Live quality advisor model for maintaining, monitoring, lowering quality, reconnecting, or stopping based on active incidents, history, and recovery state, with safe suggested-quality application in Web and React Native.
@@ -153,8 +154,8 @@
 - iOS YouTube Live/Twitch RTMP ingest validation with real stream keys.
 - Apple Developer account-backed iOS production archive/export validation for Broadcast Upload Extension provisioning.
 - Android end-to-end physical device validation against a real RTMP/RTMPS endpoint.
-- Android physical-device tuning for mic monitor latency and Bluetooth route behavior.
-- iOS physical-device tuning for mic monitor latency and Bluetooth route behavior.
+- Android physical-device tuning for mic monitor latency and Bluetooth route behavior using the retained in-app latency evidence.
+- iOS physical-device tuning for mic monitor latency and Bluetooth route behavior using the retained in-app latency evidence.
 - iOS physical-device evidence that App Group-copied PNGTuber/image assets render correctly inside the Broadcast Upload Extension compositor.
 - First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
 - Live2D Cubism SDK integration.

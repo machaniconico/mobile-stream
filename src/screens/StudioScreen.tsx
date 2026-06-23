@@ -1222,6 +1222,8 @@ const StreamValidationRecorder = ({
   const [osVersion, setOsVersion] = useState("");
   const [appBuild, setAppBuild] = useState("debug");
   const [networkProfile, setNetworkProfile] = useState("private RTMPS");
+  const [monitorLatencyMs, setMonitorLatencyMs] = useState("");
+  const [monitorTuningNote, setMonitorTuningNote] = useState("");
   const [result, setResult] = useState<StreamValidationRunResult>(() => validationRunResultFromDiagnostics(diagnostics));
   const latestRun = diagnostics.validationEvidence.latestRun;
   const latestRunAudioLabel = latestRun ? formatStreamValidationRunAudioLabel(latestRun) : null;
@@ -1244,6 +1246,10 @@ const StreamValidationRecorder = ({
         osVersion,
         appBuild,
         networkProfile,
+        audioMonitorTuning: {
+          measuredLatencyMs: parseOptionalLatencyMs(monitorLatencyMs),
+          note: monitorTuningNote
+        },
         result,
         secrets: [profile.destination.streamKey]
       })
@@ -1348,6 +1354,23 @@ const StreamValidationRecorder = ({
           <span>Network</span>
           <input value={networkProfile} onChange={(event) => setNetworkProfile(event.target.value)} />
         </label>
+        <label className="field">
+          <span>Monitor latency ms</span>
+          <input
+            inputMode="numeric"
+            value={monitorLatencyMs}
+            onChange={(event) => setMonitorLatencyMs(event.target.value)}
+            placeholder="120"
+          />
+        </label>
+        <label className="field">
+          <span>Monitor route note</span>
+          <input
+            value={monitorTuningNote}
+            onChange={(event) => setMonitorTuningNote(event.target.value)}
+            placeholder="wired baseline / Bluetooth reviewed"
+          />
+        </label>
         <div className="protocol-row" role="group" aria-label="validation result">
           {(["pass", "warn", "fail"] as StreamValidationRunResult[]).map((item) => (
             <button
@@ -1384,6 +1407,11 @@ const StreamValidationRecorder = ({
 
 const validationRunResultFromDiagnostics = (diagnostics: StreamDiagnostics): StreamValidationRunResult =>
   diagnostics.validation.status === "ready" ? "pass" : diagnostics.validation.status === "blocked" ? "fail" : "warn";
+
+const parseOptionalLatencyMs = (value: string): number | null => {
+  const normalized = Number.parseInt(value.trim(), 10);
+  return Number.isFinite(normalized) ? Math.max(0, normalized) : null;
+};
 
 const validationEvidenceTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" =>
   diagnostics.validationEvidence.status === "ready"

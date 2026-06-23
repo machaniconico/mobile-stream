@@ -59,6 +59,11 @@ export interface StreamValidationAudioSummary {
   nativeMonitorDroppedFrames: number;
   nativeMonitorWrittenBuffers: number;
   nativeMonitorDroppedBuffers: number;
+  monitorLatencyMs: number | null;
+  monitorLatencyBudgetMs: number;
+  monitorLatencyStatus: StreamValidationFeatureStatus;
+  bluetoothRoute: boolean;
+  monitorTuningNote: string;
   levelSampleCount: number;
   averageLevel: number;
   peakLevel: number;
@@ -144,9 +149,15 @@ export interface StreamValidationRunInput {
   osVersion?: string;
   appBuild?: string;
   networkProfile?: string;
+  audioMonitorTuning?: StreamValidationAudioMonitorTuningInput;
   result?: StreamValidationRunResult;
   now?: Date;
   secrets?: string[];
+}
+
+export interface StreamValidationAudioMonitorTuningInput {
+  measuredLatencyMs?: number | null;
+  note?: string;
 }
 
 export interface StreamValidationEvidenceSummary {
@@ -228,6 +239,10 @@ export interface StreamValidationEvidenceOptions {
 
 export const maxStreamValidationRuns = 20;
 export const defaultStreamValidationEvidenceMaxAgeDays = 14;
+export const defaultMonitorLatencyBudgetMs = 180;
+export const bluetoothMonitorLatencyBudgetMs = 250;
+export const defaultMonitorLatencyFailureLimitMs = 350;
+export const bluetoothMonitorLatencyFailureLimitMs = 500;
 
 export const formatStreamValidationRunAudioLabel = (run: StreamValidationRun): string | null => {
   if (!run.audio) {
@@ -238,11 +253,14 @@ export const formatStreamValidationRunAudioLabel = (run: StreamValidationRun): s
   const nativeMonitor = audio.nativeMonitorReported
     ? ` / native monitor ${audio.nativeMonitorRunning ? "running" : "reported"} ${audio.nativeMonitorWrittenFrames}/${audio.nativeMonitorDroppedFrames} frames ${audio.nativeMonitorOutputName}`
     : "";
+  const latency = ` / latency ${audio.monitorLatencyMs === null ? "missing" : `${audio.monitorLatencyMs}ms`} ${
+    audio.monitorLatencyStatus
+  }/${audio.monitorLatencyBudgetMs}ms${audio.bluetoothRoute ? " bluetooth" : ""}`;
   return `audio ${audio.status} / ${audio.presetId} / monitor ${audio.monitorEnabled ? "on" : "off"} / headphones-only ${
     audio.monitorHeadphonesOnly ? "yes" : "no"
   } / route ${audio.monitorRouteStatus} ${audio.outputName} / headphones ${audio.headphonesConnected ? "yes" : "no"} / stale ${
     audio.routeStale ? "yes" : "no"
-  }${nativeMonitor} / samples ${audio.levelSampleCount} / peak ${Math.round(audio.peakLevel * 100)}%`;
+  }${nativeMonitor}${latency} / samples ${audio.levelSampleCount} / peak ${Math.round(audio.peakLevel * 100)}%`;
 };
 
 export const createStreamValidationRun = ({
@@ -252,6 +270,7 @@ export const createStreamValidationRun = ({
   osVersion = "",
   appBuild = "",
   networkProfile = "",
+  audioMonitorTuning,
   result = defaultResultForDiagnostics(diagnostics),
   now = new Date(),
   secrets = []
@@ -266,7 +285,7 @@ export const createStreamValidationRun = ({
     normalizeNativeRuntimeSessionSummary(diagnostics.session.lastSummary?.nativeRuntime);
   const monitorHold = createMonitorHoldValidationSummary(diagnostics, secrets);
   const faceTracking = createFaceTrackingValidationSummary(diagnostics.faceTracking, secrets);
-  const audio = createAudioValidationSummary(diagnostics, secrets);
+  const audio = createAudioValidationSummary(diagnostics, audioMonitorTuning, secrets);
   const chatReadout = createChatReadoutValidationSummary(diagnostics, secrets);
   const qualityAutomation = createQualityAutomationValidationSummary(diagnostics, secrets);
   const platformPublishing = diagnostics.platformPublishing;
@@ -922,6 +941,8 @@ const isAudioEvidencePass = (audio: StreamValidationAudioSummary | null | undefi
   audio.nativeMonitorWrittenBuffers > 0 &&
   audio.nativeMonitorDroppedFrames === 0 &&
   audio.nativeMonitorDroppedBuffers === 0 &&
+  audio.monitorLatencyStatus === "pass" &&
+  audio.monitorLatencyMs !== null &&
   (!audio.monitorHeadphonesOnly || audio.nativeMonitorHeadphonesConnected);
 
 const createPlatformPublishingValidationFreshness = (
@@ -1032,7 +1053,7 @@ const createEvidenceSummary = (
     return `Physical validation is partial: iOS and Android passed, but retained VTuber avatar-motion evidence is incomplete: iOS ${counts.faceTrackingIosPass ? "pass" : "missing"} / Android ${counts.faceTrackingAndroidPass ? "pass" : "missing"}.`;
   }
   if (counts.iosPass && counts.androidPass && (!counts.audioIosPass || !counts.audioAndroidPass)) {
-    return `Physical validation is partial: iOS and Android passed, but retained mic FX/headphone monitor evidence is incomplete: iOS ${counts.audioIosPass ? "pass" : "missing native self-monitor proof"} / Android ${counts.audioAndroidPass ? "pass" : "missing native self-monitor proof"}.`;
+    return `Physical validation is partial: iOS and Android passed, but retained mic FX/headphone monitor evidence is incomplete: iOS ${counts.audioIosPass ? "pass" : "missing native self-monitor or latency proof"} / Android ${counts.audioAndroidPass ? "pass" : "missing native self-monitor or latency proof"}.`;
   }
   if (counts.iosPass && counts.androidPass && (!counts.chatReadoutIosPass || !counts.chatReadoutAndroidPass)) {
     return `Physical validation is partial: iOS and Android passed, but retained chat readout evidence is incomplete: iOS ${counts.chatReadoutIosPass ? "pass" : "missing"} / Android ${counts.chatReadoutAndroidPass ? "pass" : "missing"}.`;
@@ -1087,7 +1108,7 @@ const createEvidenceRecommendation = (
     return "Record fresh iOS and Android validation runs with native camera tracking active and visible PNGTuber motion applied.";
   }
   if (context.iosPass && context.androidPass && (!context.audioIosPass || !context.audioAndroidPass)) {
-    return "Record fresh iOS and Android validation runs with mic effects enabled, headphones-only self-monitoring verified, and native monitor write/drop proof retained.";
+    return "Record fresh iOS and Android validation runs with mic effects enabled, headphones-only self-monitoring verified, native monitor write/drop proof retained, and measured monitor latency within budget.";
   }
   if (context.iosPass && context.androidPass && (!context.chatReadoutIosPass || !context.chatReadoutAndroidPass)) {
     return "Record fresh iOS and Android validation runs with YouTube/Twitch chat connected and readout speaking a sample message.";
@@ -1203,7 +1224,7 @@ const createRunRecommendation = (
   if (faceTracking?.status === "warn") {
     return faceTracking.recommendation;
   }
-  if (audio && audio.status !== "pass") {
+  if (audio && audio.status !== "pass" && !isAudioLatencyOnlyWarning(audio)) {
     return audio.recommendation;
   }
   if (chatReadout && chatReadout.status !== "pass") {
@@ -1221,11 +1242,22 @@ const createRunRecommendation = (
   if (!isPlatformPublishingEvidencePass(platformPublishing, platformPublishingFreshness) && platformPublishingFreshness) {
     return platformPublishingFreshness.recommendation;
   }
+  if (audio && audio.status !== "pass") {
+    return audio.recommendation;
+  }
   if (nativeRuntime) {
     return "Record native publisher/compositor telemetry matching this validation device and showing sent video/audio frames, bytes written, clean compositor state, and all still-image assets loaded.";
   }
   return fallbackRecommendation;
 };
+
+const isAudioLatencyOnlyWarning = (audio: StreamValidationAudioSummary): boolean =>
+  audio.status === "warn" &&
+  audio.monitorLatencyStatus !== "pass" &&
+  audio.micEffectsEnabled &&
+  audio.monitorEnabled &&
+  audio.monitorRouteStatus === "pass" &&
+  isNativeMonitorProofPass(audio, audio.monitorHeadphonesOnly);
 
 const createMonitorHoldValidationSummary = (
   diagnostics: StreamDiagnostics,
@@ -1324,19 +1356,25 @@ const createFaceTrackingValidationSummary = (
 
 const createAudioValidationSummary = (
   diagnostics: StreamDiagnostics,
+  audioMonitorTuning: StreamValidationAudioMonitorTuningInput | null | undefined,
   secrets: string[]
 ): StreamValidationAudioSummary => {
   const item = findRunbookItem(diagnostics, "audio");
   const audioLevel = diagnostics.session.lastSummary?.audioLevel ?? null;
   const nativeMonitor = createNativeMonitorEvidence(diagnostics);
+  const monitorTuning = createMonitorLatencyEvidence(diagnostics, audioMonitorTuning, secrets);
   const baseStatus = item?.status ?? "pending";
   const nativeMonitorPass = isNativeMonitorProofPass(nativeMonitor, diagnostics.audio.monitorHeadphonesOnly);
-  const status: StreamValidationFeatureStatus = baseStatus === "pass" && !nativeMonitorPass ? "warn" : baseStatus;
+  const status = combineAudioValidationStatus(baseStatus, nativeMonitorPass, monitorTuning.monitorLatencyStatus);
   const nativeMonitorSummary = createNativeMonitorProofSummary(nativeMonitor);
-  const nativeMonitorRecommendation =
-    baseStatus === "pass" && !nativeMonitorPass
-      ? "Repeat validation until native self-monitoring reports written frames, zero drops, and headphone route proof."
-      : null;
+  const audioRecommendation =
+    baseStatus !== "pass"
+      ? item?.action ?? "Repeat validation with mic effects and headphone monitoring checked."
+      : baseStatus === "pass" && !nativeMonitorPass
+        ? "Repeat validation until native self-monitoring reports written frames, zero drops, and headphone route proof."
+        : monitorTuning.monitorLatencyStatus !== "pass"
+          ? monitorTuning.recommendation
+          : null;
   return {
     status,
     micEffectsEnabled: diagnostics.audio.micEffectsEnabled,
@@ -1361,6 +1399,11 @@ const createAudioValidationSummary = (
     nativeMonitorDroppedFrames: nativeMonitor.nativeMonitorDroppedFrames,
     nativeMonitorWrittenBuffers: nativeMonitor.nativeMonitorWrittenBuffers,
     nativeMonitorDroppedBuffers: nativeMonitor.nativeMonitorDroppedBuffers,
+    monitorLatencyMs: monitorTuning.monitorLatencyMs,
+    monitorLatencyBudgetMs: monitorTuning.monitorLatencyBudgetMs,
+    monitorLatencyStatus: monitorTuning.monitorLatencyStatus,
+    bluetoothRoute: monitorTuning.bluetoothRoute,
+    monitorTuningNote: monitorTuning.monitorTuningNote,
     levelSampleCount: audioLevel?.sampleCount ?? 0,
     averageLevel: audioLevel?.averageLevel ?? 0,
     peakLevel: audioLevel?.peakLevel ?? 0,
@@ -1369,15 +1412,129 @@ const createAudioValidationSummary = (
     summary: sanitizeStoredText(
       `${audioLevel && audioLevel.sampleCount > 0 ? `${audioLevel.summary} ` : ""}${
         item?.detail ?? "No mic FX/headphone monitor validation retained."
-      } ${nativeMonitorSummary}`,
+      } ${nativeMonitorSummary} ${monitorTuning.summary}`,
       secrets
     ),
     recommendation: sanitizeStoredText(
-      nativeMonitorRecommendation ?? item?.action ?? "Repeat validation with mic effects and headphone monitoring checked.",
+      audioRecommendation ?? item?.action ?? "Repeat validation with mic effects and headphone monitoring checked.",
       secrets
     )
   };
 };
+
+const combineAudioValidationStatus = (
+  baseStatus: StreamValidationFeatureStatus,
+  nativeMonitorPass: boolean,
+  latencyStatus: StreamValidationFeatureStatus
+): StreamValidationFeatureStatus => {
+  if (baseStatus === "fail") {
+    return "fail";
+  }
+  if (baseStatus === "pending") {
+    return "pending";
+  }
+  if (baseStatus === "warn" || !nativeMonitorPass) {
+    return "warn";
+  }
+  if (latencyStatus === "fail") {
+    return "fail";
+  }
+  if (latencyStatus !== "pass") {
+    return "warn";
+  }
+  return "pass";
+};
+
+const createMonitorLatencyEvidence = (
+  diagnostics: StreamDiagnostics,
+  audioMonitorTuning: StreamValidationAudioMonitorTuningInput | null | undefined,
+  secrets: string[]
+): Pick<
+  StreamValidationAudioSummary,
+  "monitorLatencyMs" | "monitorLatencyBudgetMs" | "monitorLatencyStatus" | "bluetoothRoute" | "monitorTuningNote"
+> & {
+  summary: string;
+  recommendation: string;
+} => {
+  const route = diagnostics.audio.monitorSafety.route;
+  const nativeRoute = diagnostics.nativeRuntime?.audioProcessing?.monitorRoute ?? diagnostics.session.lastSummary?.nativeRuntime?.monitorRoute ?? "";
+  const bluetoothRoute = isBluetoothMonitorRoute(route) || nativeRoute.toLowerCase().includes("bluetooth");
+  const measuredLatencyMs = normalizeNullableCount(audioMonitorTuning?.measuredLatencyMs);
+  const monitorLatencyBudgetMs = bluetoothRoute ? bluetoothMonitorLatencyBudgetMs : defaultMonitorLatencyBudgetMs;
+  const failureLimitMs = bluetoothRoute ? bluetoothMonitorLatencyFailureLimitMs : defaultMonitorLatencyFailureLimitMs;
+  const monitorLatencyStatus = createMonitorLatencyStatus(measuredLatencyMs, monitorLatencyBudgetMs, failureLimitMs);
+  const monitorTuningNote = sanitizeStoredText(audioMonitorTuning?.note ?? "", secrets);
+  const routeLabel = bluetoothRoute ? "Bluetooth" : diagnostics.audio.monitorSafety.outputName;
+
+  return {
+    monitorLatencyMs: measuredLatencyMs,
+    monitorLatencyBudgetMs,
+    monitorLatencyStatus,
+    bluetoothRoute,
+    monitorTuningNote,
+    summary: sanitizeStoredText(
+      createMonitorLatencySummary(measuredLatencyMs, monitorLatencyStatus, monitorLatencyBudgetMs, routeLabel, monitorTuningNote),
+      secrets
+    ),
+    recommendation: sanitizeStoredText(
+      createMonitorLatencyRecommendation(measuredLatencyMs, monitorLatencyStatus, monitorLatencyBudgetMs, bluetoothRoute),
+      secrets
+    )
+  };
+};
+
+const createMonitorLatencyStatus = (
+  measuredLatencyMs: number | null,
+  budgetMs: number,
+  failureLimitMs: number
+): StreamValidationFeatureStatus => {
+  if (measuredLatencyMs === null) {
+    return "warn";
+  }
+  if (measuredLatencyMs <= budgetMs) {
+    return "pass";
+  }
+  return measuredLatencyMs <= failureLimitMs ? "warn" : "fail";
+};
+
+const createMonitorLatencySummary = (
+  measuredLatencyMs: number | null,
+  status: StreamValidationFeatureStatus,
+  budgetMs: number,
+  routeLabel: string,
+  note: string
+): string => {
+  const suffix = note ? ` Note: ${note}` : "";
+  if (measuredLatencyMs === null) {
+    return `Monitor latency was not measured for ${routeLabel}; budget is ${budgetMs}ms.${suffix}`;
+  }
+  return `Monitor latency ${status}: ${measuredLatencyMs}ms on ${routeLabel} against ${budgetMs}ms budget.${suffix}`;
+};
+
+const createMonitorLatencyRecommendation = (
+  measuredLatencyMs: number | null,
+  status: StreamValidationFeatureStatus,
+  budgetMs: number,
+  bluetoothRoute: boolean
+): string => {
+  if (status === "pass") {
+    return "Keep this monitor-latency baseline with the release-candidate validation run.";
+  }
+  if (measuredLatencyMs === null) {
+    return `Measure processed mic self-monitor latency during the physical validation run and keep it at or below ${budgetMs}ms.`;
+  }
+  if (status === "fail") {
+    return bluetoothRoute
+      ? "Bluetooth monitor latency is too high for release evidence; retest with wired/USB headphones or tune the route before launch."
+      : "Reduce monitor buffer size or disable self-monitoring for public launch, then repeat physical validation.";
+  }
+  return bluetoothRoute
+    ? "Bluetooth monitor latency is above budget; prefer wired/USB headphones or mark the route as a reviewed limitation before release."
+    : "Tune native monitor buffering and repeat the audio validation run until latency is within budget.";
+};
+
+const isBluetoothMonitorRoute = (route: AudioOutputRouteKind): boolean =>
+  route === "bluetooth-a2dp" || route === "bluetooth-sco";
 
 const isNativeMonitorProofPass = (
   nativeMonitor: Pick<
@@ -1601,6 +1758,9 @@ const secretCandidates = (secret: string): string[] => {
 const normalizeText = (value: unknown, fallback: string): string =>
   typeof value === "string" && value.trim() ? clampText(value.trim()) : fallback;
 
+const normalizeOptionalText = (value: unknown): string =>
+  typeof value === "string" ? clampText(value.trim()) : "";
+
 const clampText = (value: string): string => value.slice(0, 96);
 
 const normalizeCount = (value: unknown): number =>
@@ -1683,6 +1843,11 @@ const normalizeAudioValidationSummary = (value: unknown): StreamValidationAudioS
   if (!isRecord(value)) {
     return null;
   }
+  const outputRoute = normalizeAudioOutputRoute(value.outputRoute);
+  const bluetoothRoute = value.bluetoothRoute === true || isBluetoothMonitorRoute(outputRoute);
+  const monitorLatencyMs = normalizeNullableCount(value.monitorLatencyMs);
+  const monitorLatencyBudgetMs =
+    normalizeCount(value.monitorLatencyBudgetMs) || (bluetoothRoute ? bluetoothMonitorLatencyBudgetMs : defaultMonitorLatencyBudgetMs);
   return {
     status: normalizeFeatureStatus(value.status),
     micEffectsEnabled: value.micEffectsEnabled === true,
@@ -1693,7 +1858,7 @@ const normalizeAudioValidationSummary = (value: unknown): StreamValidationAudioS
     monitorVolume: normalizeFiniteNumber(value.monitorVolume, 0, 0, 1),
     monitorHeadphonesOnly: value.monitorHeadphonesOnly === true,
     monitorRouteStatus: normalizeAudioRouteStatus(value.monitorRouteStatus),
-    outputRoute: normalizeAudioOutputRoute(value.outputRoute),
+    outputRoute,
     outputName: normalizeText(value.outputName, "Unknown output"),
     headphonesConnected: value.headphonesConnected === true,
     routeCheckedAt: normalizeDateString(value.routeCheckedAt),
@@ -1707,6 +1872,11 @@ const normalizeAudioValidationSummary = (value: unknown): StreamValidationAudioS
     nativeMonitorDroppedFrames: normalizeCount(value.nativeMonitorDroppedFrames),
     nativeMonitorWrittenBuffers: normalizeCount(value.nativeMonitorWrittenBuffers),
     nativeMonitorDroppedBuffers: normalizeCount(value.nativeMonitorDroppedBuffers),
+    monitorLatencyMs,
+    monitorLatencyBudgetMs,
+    monitorLatencyStatus: normalizeFeatureStatus(value.monitorLatencyStatus),
+    bluetoothRoute,
+    monitorTuningNote: normalizeOptionalText(value.monitorTuningNote),
     levelSampleCount: normalizeCount(value.levelSampleCount),
     averageLevel: normalizeFiniteNumber(value.averageLevel, 0, 0, 1),
     peakLevel: normalizeFiniteNumber(value.peakLevel, 0, 0, 1),
