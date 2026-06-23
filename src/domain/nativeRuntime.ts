@@ -44,6 +44,8 @@ export interface NativeRuntimeAudioProcessing {
   monitorDroppedFrames: number;
   monitorWrittenBuffers: number;
   monitorDroppedBuffers: number;
+  monitorEstimatedLatencyMs: number;
+  monitorLatencySource: string;
   monitorLastError: string;
 }
 

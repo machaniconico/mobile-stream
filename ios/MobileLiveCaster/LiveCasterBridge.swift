@@ -1022,6 +1022,8 @@ final class LiveCasterNative: RCTEventEmitter {
                 "monitorDroppedFrames": monitor.intValue("droppedFrames"),
                 "monitorWrittenBuffers": monitor.intValue("writtenBuffers"),
                 "monitorDroppedBuffers": monitor.intValue("droppedBuffers"),
+                "monitorEstimatedLatencyMs": monitor.intValue("estimatedLatencyMs"),
+                "monitorLatencySource": monitor.stringValue("latencySource"),
                 "monitorLastError": redactSensitiveText(
                     monitor.stringValue("lastError"),
                     streamKey: streamKey,

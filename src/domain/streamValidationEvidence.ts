@@ -62,6 +62,7 @@ export interface StreamValidationAudioSummary {
   monitorLatencyMs: number | null;
   monitorLatencyBudgetMs: number;
   monitorLatencyStatus: StreamValidationFeatureStatus;
+  monitorLatencySource: string;
   bluetoothRoute: boolean;
   monitorTuningNote: string;
   levelSampleCount: number;
@@ -255,7 +256,9 @@ export const formatStreamValidationRunAudioLabel = (run: StreamValidationRun): s
     : "";
   const latency = ` / latency ${audio.monitorLatencyMs === null ? "missing" : `${audio.monitorLatencyMs}ms`} ${
     audio.monitorLatencyStatus
-  }/${audio.monitorLatencyBudgetMs}ms${audio.bluetoothRoute ? " bluetooth" : ""}`;
+  }/${audio.monitorLatencyBudgetMs}ms${audio.bluetoothRoute ? " bluetooth" : ""}${
+    audio.monitorLatencySource ? ` ${audio.monitorLatencySource}` : ""
+  }`;
   return `audio ${audio.status} / ${audio.presetId} / monitor ${audio.monitorEnabled ? "on" : "off"} / headphones-only ${
     audio.monitorHeadphonesOnly ? "yes" : "no"
   } / route ${audio.monitorRouteStatus} ${audio.outputName} / headphones ${audio.headphonesConnected ? "yes" : "no"} / stale ${
@@ -1402,6 +1405,7 @@ const createAudioValidationSummary = (
     monitorLatencyMs: monitorTuning.monitorLatencyMs,
     monitorLatencyBudgetMs: monitorTuning.monitorLatencyBudgetMs,
     monitorLatencyStatus: monitorTuning.monitorLatencyStatus,
+    monitorLatencySource: monitorTuning.monitorLatencySource,
     bluetoothRoute: monitorTuning.bluetoothRoute,
     monitorTuningNote: monitorTuning.monitorTuningNote,
     levelSampleCount: audioLevel?.sampleCount ?? 0,
@@ -1451,7 +1455,12 @@ const createMonitorLatencyEvidence = (
   secrets: string[]
 ): Pick<
   StreamValidationAudioSummary,
-  "monitorLatencyMs" | "monitorLatencyBudgetMs" | "monitorLatencyStatus" | "bluetoothRoute" | "monitorTuningNote"
+  | "monitorLatencyMs"
+  | "monitorLatencyBudgetMs"
+  | "monitorLatencyStatus"
+  | "monitorLatencySource"
+  | "bluetoothRoute"
+  | "monitorTuningNote"
 > & {
   summary: string;
   recommendation: string;
@@ -1459,10 +1468,13 @@ const createMonitorLatencyEvidence = (
   const route = diagnostics.audio.monitorSafety.route;
   const nativeRoute = diagnostics.nativeRuntime?.audioProcessing?.monitorRoute ?? diagnostics.session.lastSummary?.nativeRuntime?.monitorRoute ?? "";
   const bluetoothRoute = isBluetoothMonitorRoute(route) || nativeRoute.toLowerCase().includes("bluetooth");
-  const measuredLatencyMs = normalizeNullableCount(audioMonitorTuning?.measuredLatencyMs);
+  const nativeLatency = resolveNativeMonitorLatencyEvidence(diagnostics);
+  const manualLatencyMs = normalizeNullableCount(audioMonitorTuning?.measuredLatencyMs);
+  const measuredLatencyMs = manualLatencyMs ?? nativeLatency.monitorLatencyMs;
   const monitorLatencyBudgetMs = bluetoothRoute ? bluetoothMonitorLatencyBudgetMs : defaultMonitorLatencyBudgetMs;
   const failureLimitMs = bluetoothRoute ? bluetoothMonitorLatencyFailureLimitMs : defaultMonitorLatencyFailureLimitMs;
   const monitorLatencyStatus = createMonitorLatencyStatus(measuredLatencyMs, monitorLatencyBudgetMs, failureLimitMs);
+  const monitorLatencySource = manualLatencyMs !== null ? "manual" : nativeLatency.monitorLatencySource;
   const monitorTuningNote = sanitizeStoredText(audioMonitorTuning?.note ?? "", secrets);
   const routeLabel = bluetoothRoute ? "Bluetooth" : diagnostics.audio.monitorSafety.outputName;
 
@@ -1470,10 +1482,18 @@ const createMonitorLatencyEvidence = (
     monitorLatencyMs: measuredLatencyMs,
     monitorLatencyBudgetMs,
     monitorLatencyStatus,
+    monitorLatencySource,
     bluetoothRoute,
     monitorTuningNote,
     summary: sanitizeStoredText(
-      createMonitorLatencySummary(measuredLatencyMs, monitorLatencyStatus, monitorLatencyBudgetMs, routeLabel, monitorTuningNote),
+      createMonitorLatencySummary(
+        measuredLatencyMs,
+        monitorLatencyStatus,
+        monitorLatencyBudgetMs,
+        routeLabel,
+        monitorTuningNote,
+        monitorLatencySource
+      ),
       secrets
     ),
     recommendation: sanitizeStoredText(
@@ -1502,13 +1522,15 @@ const createMonitorLatencySummary = (
   status: StreamValidationFeatureStatus,
   budgetMs: number,
   routeLabel: string,
-  note: string
+  note: string,
+  source: string
 ): string => {
   const suffix = note ? ` Note: ${note}` : "";
+  const sourceLabel = source ? ` (${source})` : "";
   if (measuredLatencyMs === null) {
     return `Monitor latency was not measured for ${routeLabel}; budget is ${budgetMs}ms.${suffix}`;
   }
-  return `Monitor latency ${status}: ${measuredLatencyMs}ms on ${routeLabel} against ${budgetMs}ms budget.${suffix}`;
+  return `Monitor latency ${status}: ${measuredLatencyMs}ms on ${routeLabel}${sourceLabel} against ${budgetMs}ms budget.${suffix}`;
 };
 
 const createMonitorLatencyRecommendation = (
@@ -1535,6 +1557,33 @@ const createMonitorLatencyRecommendation = (
 
 const isBluetoothMonitorRoute = (route: AudioOutputRouteKind): boolean =>
   route === "bluetooth-a2dp" || route === "bluetooth-sco";
+
+const resolveNativeMonitorLatencyEvidence = (
+  diagnostics: StreamDiagnostics
+): Pick<StreamValidationAudioSummary, "monitorLatencyMs" | "monitorLatencySource"> => {
+  const current = diagnostics.nativeRuntime?.audioProcessing;
+  const currentLatencyMs = normalizeNullableCount(current?.monitorEstimatedLatencyMs);
+  if (currentLatencyMs !== null && currentLatencyMs > 0) {
+    return {
+      monitorLatencyMs: currentLatencyMs,
+      monitorLatencySource: normalizeOptionalText(current?.monitorLatencySource) || "native-runtime"
+    };
+  }
+
+  const retained = diagnostics.session.lastSummary?.nativeRuntime;
+  const retainedLatencyMs = normalizeNullableCount(retained?.monitorEstimatedLatencyMs);
+  if (retainedLatencyMs !== null && retainedLatencyMs > 0) {
+    return {
+      monitorLatencyMs: retainedLatencyMs,
+      monitorLatencySource: normalizeOptionalText(retained?.monitorLatencySource) || "native-session-summary"
+    };
+  }
+
+  return {
+    monitorLatencyMs: null,
+    monitorLatencySource: ""
+  };
+};
 
 const isNativeMonitorProofPass = (
   nativeMonitor: Pick<
@@ -1875,6 +1924,7 @@ const normalizeAudioValidationSummary = (value: unknown): StreamValidationAudioS
     monitorLatencyMs,
     monitorLatencyBudgetMs,
     monitorLatencyStatus: normalizeFeatureStatus(value.monitorLatencyStatus),
+    monitorLatencySource: normalizeOptionalText(value.monitorLatencySource),
     bluetoothRoute,
     monitorTuningNote: normalizeOptionalText(value.monitorTuningNote),
     levelSampleCount: normalizeCount(value.levelSampleCount),

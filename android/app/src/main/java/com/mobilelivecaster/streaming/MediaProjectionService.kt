@@ -284,6 +284,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             itemsInCache = client?.getItemsInCache(),
             congested = client?.hasCongestion(),
             lastError = lastError,
+            audioProcessing = micProcessingEffect?.snapshot(),
             message = message
         )
     }

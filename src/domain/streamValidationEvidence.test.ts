@@ -141,10 +141,27 @@ const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
     monitorDroppedFrames: 0,
     monitorWrittenBuffers: 48,
     monitorDroppedBuffers: 0,
+    monitorEstimatedLatencyMs: 0,
+    monitorLatencySource: "",
     monitorLastError: ""
   },
   message: "Live"
 });
+const nativeMonitorRuntimeWithLatency = (
+  platform: "ios" | "android" = "ios",
+  latencyMs = 96,
+  source = `${platform}-native-monitor-estimate`
+) => {
+  const runtime = nativeMonitorRuntime(platform);
+  return {
+    ...runtime,
+    audioProcessing: {
+      ...runtime.audioProcessing,
+      monitorEstimatedLatencyMs: latencyMs,
+      monitorLatencySource: source
+    }
+  };
+};
 
 describe("stream validation evidence", () => {
   it("creates a redacted validation run from diagnostics", () => {
@@ -285,13 +302,14 @@ describe("stream validation evidence", () => {
       monitorLatencyMs: 92,
       monitorLatencyStatus: "pass",
       monitorLatencyBudgetMs: 180,
+      monitorLatencySource: "manual",
       bluetoothRoute: false,
       levelSampleCount: 2,
       peakLevel: 0.8,
       activeLevelPercent: 100
     });
     expect(formatStreamValidationRunAudioLabel(run)).toBe(
-      "audio pass / broadcast / monitor on / headphones-only yes / route pass Wired headphones / headphones yes / stale no / native monitor running 24576/0 frames Wired headphones / latency 92ms pass/180ms / samples 2 / peak 80%"
+      "audio pass / broadcast / monitor on / headphones-only yes / route pass Wired headphones / headphones yes / stale no / native monitor running 24576/0 frames Wired headphones / latency 92ms pass/180ms manual / samples 2 / peak 80%"
     );
     expect(run.chatReadout).toMatchObject({
       spokenMessageCount: 1,
@@ -336,10 +354,49 @@ describe("stream validation evidence", () => {
       monitorLatencyMs: null,
       monitorLatencyStatus: "warn",
       monitorLatencyBudgetMs: 180,
+      monitorLatencySource: "",
       bluetoothRoute: false
     });
     expect(run.audio?.recommendation).toContain("Measure processed mic self-monitor latency");
     expect(summary.audioIosPass).toBe(false);
+  });
+
+  it("uses native monitor latency evidence when manual tuning is not entered", () => {
+    const scene = createDefaultScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: nativeMonitorRuntimeWithLatency("android", 104, "android-audiotrack-buffer")
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+
+    expect(run.audio).toMatchObject({
+      status: "pass",
+      monitorLatencyMs: 104,
+      monitorLatencyStatus: "pass",
+      monitorLatencyBudgetMs: 180,
+      monitorLatencySource: "android-audiotrack-buffer"
+    });
+    expect(formatStreamValidationRunAudioLabel(run)).toContain("104ms pass/180ms android-audiotrack-buffer");
   });
 
   it("fails audio evidence when measured monitor latency is above the release limit", () => {
@@ -380,6 +437,7 @@ describe("stream validation evidence", () => {
       monitorLatencyMs: 420,
       monitorLatencyStatus: "fail",
       monitorLatencyBudgetMs: 180,
+      monitorLatencySource: "manual",
       monitorTuningNote: "noticeable slapback"
     });
     expect(run.audio?.recommendation).toContain("Reduce monitor buffer size");

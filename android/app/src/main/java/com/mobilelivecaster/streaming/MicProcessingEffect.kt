@@ -9,6 +9,7 @@ import android.media.AudioTrack
 import com.pedro.encoder.input.audio.CustomAudioEffect
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.sin
@@ -32,30 +33,76 @@ class MicProcessingEffect(
     private var robotPhase = 0f
     private var sampleCursor = 0L
     private var monitorTrack: AudioTrack? = null
+    private var micEffectsProcessedFrames = 0L
+    private var micEffectsProcessedSamples = 0L
+    private var micEffectsGatedSamples = 0L
+    private var micEffectsLimitedSamples = 0L
+    private var monitorWrittenFrames = 0L
+    private var monitorDroppedFrames = 0L
+    private var monitorWrittenBuffers = 0L
+    private var monitorDroppedBuffers = 0L
+    private var monitorBufferSizeInBytes = 0
+    private var monitorLastError = ""
 
     override fun process(pcmBuffer: ByteArray): ByteArray {
         val processed = pcmBuffer.copyOf()
 
         if (settings.enabled) {
-            processSamples(processed, settings.presetId, 1f)
+            val stats = processSamples(processed, settings.presetId, 1f)
+            micEffectsProcessedFrames += 1
+            micEffectsProcessedSamples += stats.processedSamples.toLong()
+            micEffectsGatedSamples += stats.gatedSamples.toLong()
+            micEffectsLimitedSamples += stats.limitedSamples.toLong()
         }
 
         writeMonitor(processed)
         return processed
     }
 
+    fun snapshot(): NativeRuntimeAudioProcessing {
+        val preferredDevice = headphoneOutputDevice()
+        val outputDevice = preferredDevice ?: currentOutputDevice()
+        val estimatedLatencyMs = monitorEstimatedLatencyMs()
+        return NativeRuntimeAudioProcessing(
+            micEffectsEnabled = settings.enabled,
+            micEffectsPresetId = settings.presetId,
+            micEffectsProcessedFrames = micEffectsProcessedFrames,
+            micEffectsProcessedSamples = micEffectsProcessedSamples,
+            micEffectsGatedSamples = micEffectsGatedSamples,
+            micEffectsLimitedSamples = micEffectsLimitedSamples,
+            monitorEnabled = settings.monitorEnabled,
+            monitorRunning = monitorTrack?.playState == AudioTrack.PLAYSTATE_PLAYING,
+            monitorVolume = settings.monitorVolume,
+            monitorHeadphonesOnly = settings.monitorHeadphonesOnly,
+            monitorRoute = outputDevice?.routeKind() ?: "unknown",
+            monitorOutputName = outputDevice?.productName?.toString()?.takeIf { it.isNotBlank() } ?: "Unknown",
+            monitorHeadphonesConnected = preferredDevice != null,
+            monitorWrittenFrames = monitorWrittenFrames,
+            monitorDroppedFrames = monitorDroppedFrames,
+            monitorWrittenBuffers = monitorWrittenBuffers,
+            monitorDroppedBuffers = monitorDroppedBuffers,
+            monitorEstimatedLatencyMs = estimatedLatencyMs,
+            monitorLatencySource = if (estimatedLatencyMs > 0) "android-audiotrack-buffer" else "",
+            monitorLastError = monitorLastError
+        )
+    }
+
     fun release() {
         releaseMonitor()
     }
 
-    private fun processSamples(pcmBuffer: ByteArray, presetId: String, outputVolume: Float) {
+    private fun processSamples(pcmBuffer: ByteArray, presetId: String, outputVolume: Float): MicProcessingStats {
         var index = 0
+        var processedSamples = 0
+        var gatedSamples = 0
+        var limitedSamples = 0
         while (index + 1 < pcmBuffer.size) {
             val sample = ((pcmBuffer[index + 1].toInt() shl 8) or (pcmBuffer[index].toInt() and 0xff)).toShort().toInt()
             var normalized = sample / 32768f
 
             if (abs(normalized) < gateThreshold) {
                 normalized = 0f
+                gatedSamples += 1
             }
 
             normalized *= gain
@@ -65,6 +112,7 @@ class MicProcessingEffect(
                 val magnitude = abs(normalized)
                 if (magnitude > compressorThreshold) {
                     normalized = direction * (compressorThreshold + (magnitude - compressorThreshold) / compressorRatio)
+                    limitedSamples += 1
                 }
             }
 
@@ -85,7 +133,9 @@ class MicProcessingEffect(
             pcmBuffer[index + 1] = ((output.toInt() shr 8) and 0xff).toByte()
             index += 2
             sampleCursor += 1
+            processedSamples += 1
         }
+        return MicProcessingStats(processedSamples, gatedSamples, limitedSamples)
     }
 
     private fun softLimit(value: Float): Float =
@@ -93,20 +143,48 @@ class MicProcessingEffect(
 
     private fun writeMonitor(processed: ByteArray) {
         if (!settings.monitorEnabled || settings.monitorVolume <= 0f) {
+            monitorLastError = ""
             releaseMonitor()
             return
         }
 
+        val frameCount = (processed.size / bytesPerFrame()).coerceAtLeast(0)
         val preferredDevice = headphoneOutputDevice()
         if (settings.monitorHeadphonesOnly && preferredDevice == null) {
+            monitorDroppedFrames += frameCount.toLong()
+            monitorDroppedBuffers += 1
+            monitorLastError = "Headphones-only monitor blocked without a headphone output."
             releaseMonitor()
             return
         }
 
-        val track = ensureMonitorTrack(preferredDevice) ?: return
+        val track = ensureMonitorTrack(preferredDevice)
+        if (track == null) {
+            monitorDroppedFrames += frameCount.toLong()
+            monitorDroppedBuffers += 1
+            monitorLastError = "AudioTrack monitor output is unavailable."
+            return
+        }
         val monitorBuffer = processed.copyOf()
         applyVolume(monitorBuffer, settings.monitorVolume)
-        track.write(monitorBuffer, 0, monitorBuffer.size, AudioTrack.WRITE_NON_BLOCKING)
+        val writtenBytes = track.write(monitorBuffer, 0, monitorBuffer.size, AudioTrack.WRITE_NON_BLOCKING)
+        if (writtenBytes > 0) {
+            val writtenFrames = (writtenBytes / bytesPerFrame()).coerceAtLeast(0)
+            monitorWrittenFrames += writtenFrames.toLong()
+            monitorWrittenBuffers += 1
+            val droppedFrames = frameCount - writtenFrames
+            if (droppedFrames > 0) {
+                monitorDroppedFrames += droppedFrames.toLong()
+                monitorDroppedBuffers += 1
+                monitorLastError = "Monitor write was partially accepted."
+            } else {
+                monitorLastError = ""
+            }
+        } else {
+            monitorDroppedFrames += frameCount.toLong()
+            monitorDroppedBuffers += 1
+            monitorLastError = "Monitor write was not accepted by AudioTrack."
+        }
     }
 
     private fun ensureMonitorTrack(preferredDevice: AudioDeviceInfo?): AudioTrack? {
@@ -121,6 +199,7 @@ class MicProcessingEffect(
             return null
         }
 
+        val bufferSizeInBytes = max(minBufferSize, sampleRate / 5 * channelCount * 2)
         val track = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -135,13 +214,14 @@ class MicProcessingEffect(
                     .setChannelMask(channelMask)
                     .build()
             )
-            .setBufferSizeInBytes(max(minBufferSize, sampleRate / 5 * channelCount * 2))
+            .setBufferSizeInBytes(bufferSizeInBytes)
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
 
         preferredDevice?.let { track.setPreferredDevice(it) }
         track.play()
         monitorTrack = track
+        monitorBufferSizeInBytes = bufferSizeInBytes
         return track
     }
 
@@ -163,6 +243,7 @@ class MicProcessingEffect(
             release()
         }
         monitorTrack = null
+        monitorBufferSizeInBytes = 0
     }
 
     private fun headphoneOutputDevice(): AudioDeviceInfo? =
@@ -176,4 +257,36 @@ class MicProcessingEffect(
                 else -> false
             }
         }
+
+    private fun currentOutputDevice(): AudioDeviceInfo? =
+        audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull()
+
+    private fun monitorEstimatedLatencyMs(): Int {
+        if (monitorBufferSizeInBytes <= 0 || sampleRate <= 0) {
+            return 0
+        }
+        val bufferFrames = monitorBufferSizeInBytes.toDouble() / bytesPerFrame().toDouble()
+        return ceil(bufferFrames * 1000.0 / sampleRate.toDouble()).toInt()
+    }
+
+    private fun bytesPerFrame(): Int = channelCount * 2
+
+    private fun AudioDeviceInfo.routeKind(): String =
+        when (type) {
+            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "speaker"
+            AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "receiver"
+            AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+            AudioDeviceInfo.TYPE_WIRED_HEADSET -> "wired-headphones"
+            AudioDeviceInfo.TYPE_USB_HEADSET -> "usb-headset"
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "bluetooth-a2dp"
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "bluetooth-sco"
+            AudioDeviceInfo.TYPE_HDMI -> "hdmi"
+            else -> "other"
+        }
+
+    private data class MicProcessingStats(
+        val processedSamples: Int,
+        val gatedSamples: Int,
+        val limitedSamples: Int
+    )
 }

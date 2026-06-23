@@ -260,7 +260,8 @@ const nativeRuntimeMonitorMetricLabel = (diagnostics: StreamDiagnostics): string
   }
   const monitorStatus = audioProcessing.monitorRunning ? "on" : audioProcessing.monitorHeadphonesConnected ? "ready" : "blocked";
   const route = audioProcessing.monitorOutputName || audioProcessing.monitorRoute || "Unknown";
-  return ` / monitor ${monitorStatus} ${audioProcessing.monitorWrittenFrames}/${audioProcessing.monitorDroppedFrames} ${route}`;
+  const latency = audioProcessing.monitorEstimatedLatencyMs > 0 ? ` / ${audioProcessing.monitorEstimatedLatencyMs}ms` : "";
+  return ` / monitor ${monitorStatus} ${audioProcessing.monitorWrittenFrames}/${audioProcessing.monitorDroppedFrames} ${route}${latency}`;
 };
 
 const nativeRuntimeMetricLabel = (diagnostics: StreamDiagnostics): string =>

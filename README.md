@@ -17,7 +17,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Private RTMP(S) validation runbook that walks setup, native start, mic FX/headphone monitor checks, chat readout checks, monitor hold, dashboard check, clean stop, and evidence recording.
 - Physical validation evidence now retains stable monitor-hold bitrate/FPS history, mic FX/headphone monitor snapshots, native self-monitor write/drop proof, device output-route/headphone safety, lip-sync/audio-meter sample summaries, YouTube/Twitch chat readout snapshots, spoken-chat success/failure counts, native publisher/compositor telemetry, and fresh YouTube/Twitch dashboard checked-at proof, and downgrades retained pass attempts when stable hold, native publisher/compositor proof, native self-monitor proof, audio monitoring, chat readout validation, or destination dashboard validation is incomplete.
-- Physical validation audio evidence also records measured processed-mic monitor latency and Bluetooth route review notes, and prevents audio evidence from passing when latency is missing or above the route budget.
+- Physical validation audio evidence also records measured or native-estimated processed-mic monitor latency, the latency source, and Bluetooth route review notes, and prevents audio evidence from passing when latency is missing or above the route budget.
 - RTMP/RTMPS publish URL normalization that can split pasted YouTube/Twitch full publish URLs into endpoint and stream key before start.
 - Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, mic FX/headphone monitor route validation, chat readout validation, native runtime validation evidence, native compositor still-image asset load evidence, platform dashboard validation evidence, and sanitized report export/share.
 - Face-tracking production diagnostics for prepared PNGTuber assets, native-camera readiness, tracking runtime state, active avatar motion, support bundles, and commercial validation checks.
@@ -45,7 +45,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - iOS ReplayKit Broadcast Upload Extension target and startup bridge.
 - iOS Broadcast Upload Extension H.264/AAC encode path with app/mic audio mixing.
 - iOS RTMP/RTMPS publisher foundation with reconnect backoff state.
-- iOS host app telemetry bridge that polls Broadcast Upload Extension runtime state for FPS, bitrate, drops, reconnects, errors, native composition status, and still-image asset loaded/missing counts.
+- iOS host app telemetry bridge that polls Broadcast Upload Extension runtime state for FPS, bitrate, drops, reconnects, errors, native composition status, self-monitor latency estimates, and still-image asset loaded/missing counts.
 - Android MediaProjection service skeleton.
 - React Native host app scaffold with standard `ios/` and `android/` projects.
 - React Native mobile Studio screen using the shared domain model and mock engine.
@@ -53,7 +53,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Android publish URLs are assembled from the selected server URL plus the stored stream key at start time.
 - Android native GL overlay compositor for visible PNGTuber still-image, text, image, and solid scene sources on top of MediaProjection capture.
 - iOS ReplayKit Broadcast Upload Extension compositor for visible PNGTuber still-image, text, image, and solid overlays on top of captured frames, with runtime still-image asset load/miss evidence.
-- Android microphone effects are applied before AAC encoding, with optional headphone monitor playback.
+- Android microphone effects are applied before AAC encoding, with optional headphone monitor playback and native monitor-buffer latency estimates.
 - Android start-time microphone/notification runtime permission preflight.
 - Native chat speech output through Android TextToSpeech and iOS AVSpeechSynthesizer.
 - Native iOS/Android audio-route bridge reports speaker, receiver, wired, USB, Bluetooth, AirPlay, HDMI, or unknown output state for monitor-safety diagnostics.
@@ -88,7 +88,7 @@ GitHub Actions runs the required `test` status check on pull requests and `main`
 - Encoding: VideoToolbox on iOS, MediaCodec on Android.
 - Streaming: RTMP/RTMPS publisher behind `src/native/LiveCasterNative.ts`.
 - Go Live readiness: fail closed before native capture starts, with UI-visible blocking reasons.
-- Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, bitrate/FPS/drop/reconnect telemetry, stable monitor-hold proof, mic FX/headphone monitor route readiness, native publisher/compositor proof, native self-monitor write/drop proof, monitor latency tuning evidence, audio-meter sample evidence, chat readout connection/readiness, spoken-chat success/failure evidence, native still-image asset loaded/missing evidence, private validation runbook state, estimated upload target, post-stream session evidence, physical validation audio/chat evidence, physical validation native-runtime evidence, platform dashboard evidence, and sanitized export/share reports are available before, during, and after live sessions.
+- Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, bitrate/FPS/drop/reconnect telemetry, stable monitor-hold proof, mic FX/headphone monitor route readiness, native publisher/compositor proof, native self-monitor write/drop proof, measured/native-estimated monitor latency evidence, audio-meter sample evidence, chat readout connection/readiness, spoken-chat success/failure evidence, native still-image asset loaded/missing evidence, private validation runbook state, estimated upload target, post-stream session evidence, physical validation audio/chat evidence, physical validation native-runtime evidence, platform dashboard evidence, and sanitized export/share reports are available before, during, and after live sessions.
 - Secret storage: browser persistence strips stream keys; mobile persistence uses Keychain/Android Keystore-backed native storage.
 - Stream key management: users can clear the stored key in-app and paste a replacement key without changing the destination preset.
 - Scene storage: web uses localStorage; Android uses app SharedPreferences; iOS writes an atomic scene JSON file under Application Support.

@@ -26,7 +26,7 @@
 - Physical validation runs retain safe native runtime evidence from the current native publisher/compositor or the latest completed session; validation only passes when iOS and Android retained evidence include sent video/audio frames, bytes written, clean compositor state, and fully loaded still-image assets.
 - Physical validation runs retain stable monitor-hold proof; validation only passes when each platform has at least 60 seconds and 3 samples of stable bitrate/FPS telemetry with zero drops and zero reconnects.
 - Physical validation runs retain mic FX/headphone monitor route, native self-monitor write/drop proof, and chat readout evidence; audio validation only passes when native monitor write/drop proof is present with written frames, written buffers, zero drops, and headphone route proof.
-- Physical validation runs retain mic monitor latency and Bluetooth route tuning evidence; audio validation only passes when the measured processed-mic self-monitor latency is within the route-specific release budget.
+- Physical validation runs retain measured or native-estimated mic monitor latency, latency source, and Bluetooth route tuning evidence; audio validation only passes when processed-mic self-monitor latency is within the route-specific release budget.
 - Physical validation runs retain safe YouTube/Twitch dashboard evidence, including YouTube broadcast/stream/health status, Twitch live/offline status, and per-run dashboard freshness snapshots; unhealthy, stale, or unchecked dashboard states downgrade retained validation outcomes.
 - Release-candidate checklist and private validation runbook require fresh YouTube/Twitch dashboard checked-at evidence before treating destination dashboard validation as complete.
 - Live quality advisor model for maintaining, monitoring, lowering quality, reconnecting, or stopping based on active incidents, history, and recovery state, with safe suggested-quality application in Web and React Native.
@@ -122,9 +122,9 @@
 - Android native GL overlay compositor for PNGTuber still-image, text, image, and solid scene sources on top of MediaProjection capture, with applied/pending overlay status in stream health messages.
 - Android mobile still-image asset picker/preparation copies selected content/file/path PNGTuber/image source assets into app-internal storage and stores a stable `file://` URI for native GL overlay rendering.
 - Android microphone PCM effect path through RootEncoder `CustomAudioEffect`.
-- Android headphone-only mic monitor playback through `AudioTrack`.
+- Android headphone-only mic monitor playback through `AudioTrack`, with monitor write/drop counters and AudioTrack-buffer latency estimates surfaced in native runtime telemetry.
 - Android `LiveCasterNative.getAudioRoute()` reports current output route and headphone connection state for monitor-safety preflight.
-- iOS Broadcast Upload Extension headphone-gated self-monitor playback for processed ReplayKit microphone PCM with runtime route, write, and drop evidence.
+- iOS Broadcast Upload Extension headphone-gated self-monitor playback for processed ReplayKit microphone PCM with runtime route, write/drop, and AVAudioSession latency evidence.
 - Android microphone/notification runtime permission preflight before MediaProjection launch.
 - Android release signing fail-closed configuration using `MLC_RELEASE_*` keystore inputs instead of debug signing for release artifacts.
 - Native release-configuration audit script covering Android release signing, streaming permissions, OAuth callback schemes, iOS usage descriptions, iOS privacy manifest packaging, and ReplayKit Broadcast Upload Extension bundle identifiers, Debug/Release entitlements, extension-only settings, and matching App Group setup.

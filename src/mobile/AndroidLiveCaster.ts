@@ -203,6 +203,8 @@ const normalizeNativeRuntime = (
           monitorDroppedFrames: runtime.audioProcessing?.monitorDroppedFrames ?? 0,
           monitorWrittenBuffers: runtime.audioProcessing?.monitorWrittenBuffers ?? 0,
           monitorDroppedBuffers: runtime.audioProcessing?.monitorDroppedBuffers ?? 0,
+          monitorEstimatedLatencyMs: runtime.audioProcessing?.monitorEstimatedLatencyMs ?? 0,
+          monitorLatencySource: runtime.audioProcessing?.monitorLatencySource ?? "",
           monitorLastError: runtime.audioProcessing?.monitorLastError ?? ""
         },
         message: runtime.message ?? ""

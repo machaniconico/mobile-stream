@@ -725,6 +725,8 @@ fileprivate struct BroadcastMicrophoneMonitorSnapshot: Equatable {
     let droppedFrames: Int
     let writtenBuffers: Int
     let droppedBuffers: Int
+    let estimatedLatencyMs: Int
+    let latencySource: String
     let lastError: String
 }
 
@@ -755,6 +757,8 @@ struct BroadcastAudioEncoderStats: Equatable {
     private(set) var monitorDroppedFrames = 0
     private(set) var monitorWrittenBuffers = 0
     private(set) var monitorDroppedBuffers = 0
+    private(set) var monitorEstimatedLatencyMs = 0
+    private(set) var monitorLatencySource = ""
     private(set) var monitorLastError = ""
 
     mutating func configureMicEffects(_ configuration: BroadcastMicEffectsConfiguration) {
@@ -775,6 +779,8 @@ struct BroadcastAudioEncoderStats: Equatable {
         monitorDroppedFrames = 0
         monitorWrittenBuffers = 0
         monitorDroppedBuffers = 0
+        monitorEstimatedLatencyMs = 0
+        monitorLatencySource = ""
         monitorLastError = ""
     }
 
@@ -817,6 +823,8 @@ struct BroadcastAudioEncoderStats: Equatable {
         monitorDroppedFrames = snapshot.droppedFrames
         monitorWrittenBuffers = snapshot.writtenBuffers
         monitorDroppedBuffers = snapshot.droppedBuffers
+        monitorEstimatedLatencyMs = snapshot.estimatedLatencyMs
+        monitorLatencySource = snapshot.latencySource
         monitorLastError = snapshot.lastError
     }
 
@@ -854,6 +862,8 @@ struct BroadcastAudioEncoderStats: Equatable {
                     "droppedFrames": monitorDroppedFrames,
                     "writtenBuffers": monitorWrittenBuffers,
                     "droppedBuffers": monitorDroppedBuffers,
+                    "estimatedLatencyMs": monitorEstimatedLatencyMs,
+                    "latencySource": monitorLatencySource,
                     "lastError": monitorLastError
                 ]
             ]
@@ -1963,6 +1973,7 @@ private final class BroadcastMicrophoneMonitor {
     private var droppedFrames = 0
     private var writtenBuffers = 0
     private var droppedBuffers = 0
+    private var lastScheduledBufferFrames = 0
     private var lastError = ""
 
     init(configuration: BroadcastMicEffectsConfiguration) {
@@ -2002,6 +2013,7 @@ private final class BroadcastMicrophoneMonitor {
             }
             buffer.frameLength = AVAudioFrameCount(frameCount)
             try fill(buffer: buffer, samples: samples, channelCount: inputChannelCount, frameCount: frameCount)
+            lastScheduledBufferFrames = frameCount
             player.scheduleBuffer(buffer, completionHandler: nil)
             if !player.isPlaying {
                 player.play()
@@ -2030,6 +2042,7 @@ private final class BroadcastMicrophoneMonitor {
         format = nil
         sampleRate = 0
         channelCount = 0
+        lastScheduledBufferFrames = 0
     }
 
     private func configureIfNeeded(sampleRate nextSampleRate: Double, channelCount nextChannelCount: Int) throws {
@@ -2095,8 +2108,20 @@ private final class BroadcastMicrophoneMonitor {
             droppedFrames: droppedFrames,
             writtenBuffers: writtenBuffers,
             droppedBuffers: droppedBuffers,
+            estimatedLatencyMs: estimatedLatencyMs(running: running),
+            latencySource: running ? "ios-avaudiosession-output-buffer" : "",
             lastError: lastError
         )
+    }
+
+    private func estimatedLatencyMs(running: Bool) -> Int {
+        guard running, sampleRate > 0 else {
+            return 0
+        }
+        let audioSession = AVAudioSession.sharedInstance()
+        let scheduledBufferDuration = Double(max(lastScheduledBufferFrames, 0)) / sampleRate
+        let totalSeconds = max(0, audioSession.outputLatency + audioSession.ioBufferDuration + scheduledBufferDuration)
+        return Int((totalSeconds * 1000).rounded(.up))
     }
 
     private static func audioRoute() -> BroadcastAudioRoute {

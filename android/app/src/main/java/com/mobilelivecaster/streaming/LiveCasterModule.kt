@@ -81,6 +81,52 @@ data class NativeRuntimePublisher(
     }
 }
 
+data class NativeRuntimeAudioProcessing(
+    val micEffectsEnabled: Boolean = false,
+    val micEffectsPresetId: String = "clean",
+    val micEffectsProcessedFrames: Long = 0,
+    val micEffectsProcessedSamples: Long = 0,
+    val micEffectsGatedSamples: Long = 0,
+    val micEffectsLimitedSamples: Long = 0,
+    val monitorEnabled: Boolean = false,
+    val monitorRunning: Boolean = false,
+    val monitorVolume: Float = 0f,
+    val monitorHeadphonesOnly: Boolean = true,
+    val monitorRoute: String = "unknown",
+    val monitorOutputName: String = "Unknown",
+    val monitorHeadphonesConnected: Boolean = false,
+    val monitorWrittenFrames: Long = 0,
+    val monitorDroppedFrames: Long = 0,
+    val monitorWrittenBuffers: Long = 0,
+    val monitorDroppedBuffers: Long = 0,
+    val monitorEstimatedLatencyMs: Int = 0,
+    val monitorLatencySource: String = "",
+    val monitorLastError: String = ""
+) {
+    fun asWritableMap(): WritableMap = Arguments.createMap().apply {
+        putBoolean("micEffectsEnabled", micEffectsEnabled)
+        putString("micEffectsPresetId", micEffectsPresetId)
+        putDouble("micEffectsProcessedFrames", micEffectsProcessedFrames.toDouble())
+        putDouble("micEffectsProcessedSamples", micEffectsProcessedSamples.toDouble())
+        putDouble("micEffectsGatedSamples", micEffectsGatedSamples.toDouble())
+        putDouble("micEffectsLimitedSamples", micEffectsLimitedSamples.toDouble())
+        putBoolean("monitorEnabled", monitorEnabled)
+        putBoolean("monitorRunning", monitorRunning)
+        putDouble("monitorVolume", monitorVolume.toDouble())
+        putBoolean("monitorHeadphonesOnly", monitorHeadphonesOnly)
+        putString("monitorRoute", monitorRoute)
+        putString("monitorOutputName", monitorOutputName)
+        putBoolean("monitorHeadphonesConnected", monitorHeadphonesConnected)
+        putDouble("monitorWrittenFrames", monitorWrittenFrames.toDouble())
+        putDouble("monitorDroppedFrames", monitorDroppedFrames.toDouble())
+        putDouble("monitorWrittenBuffers", monitorWrittenBuffers.toDouble())
+        putDouble("monitorDroppedBuffers", monitorDroppedBuffers.toDouble())
+        putInt("monitorEstimatedLatencyMs", monitorEstimatedLatencyMs)
+        putString("monitorLatencySource", monitorLatencySource)
+        putString("monitorLastError", monitorLastError)
+    }
+}
+
 data class NativeRuntimeTelemetry(
     val platform: String = "android",
     val runtimeStatus: String,
@@ -92,6 +138,7 @@ data class NativeRuntimeTelemetry(
     val droppedFrames: Long = 0,
     val publisher: NativeRuntimePublisher = NativeRuntimePublisher(),
     val composition: NativeRuntimeComposition = NativeRuntimeComposition(),
+    val audioProcessing: NativeRuntimeAudioProcessing? = null,
     val message: String = ""
 ) {
     fun asWritableMap(): WritableMap = Arguments.createMap().apply {
@@ -105,6 +152,7 @@ data class NativeRuntimeTelemetry(
         putDouble("droppedFrames", droppedFrames.toDouble())
         putMap("publisher", publisher.asWritableMap())
         putMap("composition", composition.asWritableMap())
+        audioProcessing?.let { putMap("audioProcessing", it.asWritableMap()) }
         putString("message", message)
     }
 }
@@ -263,6 +311,7 @@ object LiveCasterSession {
                     lastError = safeMessage
                 ),
                 composition = current.composition,
+                audioProcessing = current.audioProcessing,
                 message = safeMessage
             )
         }
@@ -283,6 +332,7 @@ object LiveCasterSession {
         itemsInCache: Int? = null,
         congested: Boolean? = null,
         lastError: String? = null,
+        audioProcessing: NativeRuntimeAudioProcessing? = null,
         message: String = health.message
     ) {
         val current = nativeRuntime
@@ -311,6 +361,7 @@ object LiveCasterSession {
             droppedFrames = droppedVideoFrames ?: current?.droppedFrames ?: health.droppedFrames.toLong(),
             publisher = nextPublisher,
             composition = composition,
+            audioProcessing = audioProcessing ?: current?.audioProcessing,
             message = redactSensitiveText(message)
         )
         emit()

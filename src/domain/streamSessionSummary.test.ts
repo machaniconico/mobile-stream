@@ -289,6 +289,8 @@ describe("stream session summary", () => {
           monitorDroppedFrames: 0,
           monitorWrittenBuffers: 24,
           monitorDroppedBuffers: 0,
+          monitorEstimatedLatencyMs: 142,
+          monitorLatencySource: "android-audiotrack-buffer",
           monitorLastError: ""
         },
         message: "Live"
@@ -305,6 +307,8 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.monitorOutputName).toBe("Bluetooth headphones");
     expect(summary?.nativeRuntime?.monitorWrittenFrames).toBe(12288);
     expect(summary?.nativeRuntime?.monitorDroppedFrames).toBe(0);
+    expect(summary?.nativeRuntime?.monitorEstimatedLatencyMs).toBe(142);
+    expect(summary?.nativeRuntime?.monitorLatencySource).toBe("android-audiotrack-buffer");
     expect(summary?.summary).toContain("Native runtime needs review");
     expect(summary?.recommendation).toContain("Lower bitrate");
   });

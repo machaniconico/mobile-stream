@@ -59,6 +59,8 @@ export interface StreamSessionNativeRuntimeSummary {
   monitorDroppedFrames: number;
   monitorWrittenBuffers: number;
   monitorDroppedBuffers: number;
+  monitorEstimatedLatencyMs: number;
+  monitorLatencySource: string;
   issueCount: number;
   summary: string;
   recommendation: string;
@@ -637,6 +639,8 @@ export const createNativeRuntimeSessionSummary = (
     monitorDroppedFrames: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorDroppedFrames),
     monitorWrittenBuffers: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorWrittenBuffers),
     monitorDroppedBuffers: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorDroppedBuffers),
+    monitorEstimatedLatencyMs: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorEstimatedLatencyMs),
+    monitorLatencySource: runtime.audioProcessing?.monitorLatencySource ?? "",
     issueCount,
     summary:
       status === "fail"
@@ -893,6 +897,8 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     monitorDroppedFrames: normalizeNonNegativeInteger(value.monitorDroppedFrames),
     monitorWrittenBuffers: normalizeNonNegativeInteger(value.monitorWrittenBuffers),
     monitorDroppedBuffers: normalizeNonNegativeInteger(value.monitorDroppedBuffers),
+    monitorEstimatedLatencyMs: normalizeNonNegativeInteger(value.monitorEstimatedLatencyMs),
+    monitorLatencySource: typeof value.monitorLatencySource === "string" ? value.monitorLatencySource : "",
     issueCount: normalizeNonNegativeInteger(value.issueCount),
     summary: typeof value.summary === "string" ? value.summary : `Native runtime ${status} on ${platform}.`,
     recommendation: typeof value.recommendation === "string" ? value.recommendation : "Review native runtime evidence before public launch."
