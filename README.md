@@ -38,6 +38,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - React Native mobile Studio screen using the shared domain model and mock engine.
 - Android native bridge for MediaProjection consent, foreground service streaming, H.264/AAC encoding, and RTMP/RTMPS publishing through RootEncoder.
 - Android publish URLs are assembled from the selected server URL plus the stored stream key at start time.
+- Android native GL overlay compositor for visible text, image, and solid scene sources on top of MediaProjection capture.
 - Android microphone effects are applied before AAC encoding, with optional headphone monitor playback.
 - Android start-time microphone/notification runtime permission preflight.
 - Native chat speech output through Android TextToSpeech and iOS AVSpeechSynthesizer.

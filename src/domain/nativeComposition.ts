@@ -119,11 +119,11 @@ const nativeCompositionAction = (kind: SourceKind): string => {
     case "live2d":
       return "Integrate a native Live2D Cubism renderer before relying on this source in production output.";
     case "image":
-      return "Add native image asset resolution and compositing for still overlays.";
+      return "Android can render this through native overlay filters; add iOS compositor validation before claiming cross-platform release readiness.";
     case "solid":
-      return "Add native solid fill compositing for background or mask layers.";
+      return "Android can render this through native overlay filters; add iOS compositor validation before claiming cross-platform release readiness.";
     case "text":
-      return "Add native text rendering or pre-rasterized text overlays.";
+      return "Android can render this through native overlay filters; add iOS compositor validation before claiming cross-platform release readiness.";
     case "screen":
       return "Screen capture is already handled by the native capture source.";
   }

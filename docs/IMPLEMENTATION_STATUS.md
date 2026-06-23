@@ -76,6 +76,7 @@
 - Android foreground streaming service with `mediaProjection|microphone` service type.
 - Android RTMP/RTMPS publishing path through RootEncoder, using screen capture and microphone input.
 - Android publish endpoint assembly from the app's server URL and stream key fields.
+- Android native GL overlay compositor for text, image, and solid scene sources on top of MediaProjection capture, with applied/pending overlay status in stream health messages.
 - Android microphone PCM effect path through RootEncoder `CustomAudioEffect`.
 - Android headphone-only mic monitor playback through `AudioTrack`.
 - Android microphone/notification runtime permission preflight before MediaProjection launch.

@@ -36,6 +36,7 @@ class MediaProjectionService : Service(), ConnectChecker {
     private var mediaProjection: MediaProjection? = null
     private var genericStream: GenericStream? = null
     private var micProcessingEffect: MicProcessingEffect? = null
+    private var nativeCompositionResult: AndroidCompositionResult? = null
     private val reconnectHandler = Handler(Looper.getMainLooper())
     private var reconnectAttempts = 0
     private var userRequestedStop = false
@@ -116,15 +117,20 @@ class MediaProjectionService : Service(), ConnectChecker {
                 throw IllegalStateException("Encoder prepare failed")
             }
 
+            nativeCompositionResult = AndroidSceneCompositor.apply(
+                applicationContext,
+                stream,
+                LiveCasterSession.renderGraphJson
+            )
             stream.changeVideoSource(ScreenSource(applicationContext, projection))
             stream.startStream(profile.endpoint)
             if (LiveCasterSession.status == LiveCasterStatus.Reconnecting) {
                 LiveCasterSession.updateHealth(
                     reconnectAttempts = reconnectAttempts,
-                    message = "Reconnecting (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})"
+                    message = liveMessage("Reconnecting (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})")
                 )
             } else {
-                LiveCasterSession.markLive("Connecting")
+                LiveCasterSession.markLive(liveMessage("Connecting"))
             }
         } catch (error: Throwable) {
             val message = error.message ?: "Android screen stream failed"
@@ -188,6 +194,7 @@ class MediaProjectionService : Service(), ConnectChecker {
         genericStream?.stopStream()
         genericStream?.release()
         genericStream = null
+        nativeCompositionResult = null
         micProcessingEffect?.release()
         micProcessingEffect = null
         mediaProjection?.stop()
@@ -248,12 +255,12 @@ class MediaProjectionService : Service(), ConnectChecker {
     }
 
     override fun onConnectionStarted(url: String) {
-        LiveCasterSession.updateHealth(message = "Connecting")
+        LiveCasterSession.updateHealth(message = liveMessage("Connecting"))
     }
 
     override fun onConnectionSuccess() {
         reconnectAttempts = 0
-        LiveCasterSession.markLive("Live")
+        LiveCasterSession.markLive(liveMessage("Live"))
     }
 
     override fun onConnectionFailed(reason: String) {
@@ -284,6 +291,11 @@ class MediaProjectionService : Service(), ConnectChecker {
     }
 
     override fun onAuthSuccess() {
-        LiveCasterSession.updateHealth(message = "Authenticated")
+        LiveCasterSession.updateHealth(message = liveMessage("Authenticated"))
+    }
+
+    private fun liveMessage(prefix: String): String {
+        val compositionSummary = nativeCompositionResult?.summary
+        return if (compositionSummary.isNullOrBlank()) prefix else "$prefix; $compositionSummary"
     }
 }
