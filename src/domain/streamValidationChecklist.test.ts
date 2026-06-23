@@ -41,6 +41,7 @@ const cleanSession = (id: number): StreamSessionSummary => ({
   recoveryEventCount: 0,
   operationFailureCount: 0,
   health: stableHealth,
+  nativeRuntime: null,
   summary: "Clean session. Stream health is stable.",
   recommendation: "Keep this profile as a known-good baseline for the destination."
 });

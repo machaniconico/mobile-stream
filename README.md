@@ -75,7 +75,7 @@ GitHub Actions runs the required `test` status check on pull requests and `main`
 - Encoding: VideoToolbox on iOS, MediaCodec on Android.
 - Streaming: RTMP/RTMPS publisher behind `src/native/LiveCasterNative.ts`.
 - Go Live readiness: fail closed before native capture starts, with UI-visible blocking reasons.
-- Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, bitrate/FPS/drop/reconnect telemetry, estimated upload target, and sanitized export/share reports are available before and during live sessions.
+- Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, bitrate/FPS/drop/reconnect telemetry, native publisher/compositor evidence, estimated upload target, post-stream session evidence, and sanitized export/share reports are available before, during, and after live sessions.
 - Secret storage: browser persistence strips stream keys; mobile persistence uses Keychain/Android Keystore-backed native storage.
 - Stream key management: users can clear the stored key in-app and paste a replacement key without changing the destination preset.
 - Scene storage: web uses localStorage; Android uses app SharedPreferences; iOS writes an atomic scene JSON file under Application Support.

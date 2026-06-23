@@ -207,8 +207,13 @@ const historyMetricLabel = (diagnostics: StreamDiagnostics): string =>
 
 const sessionMetricLabel = (diagnostics: StreamDiagnostics): string =>
   diagnostics.session.lastSummary
-    ? `${diagnostics.session.lastSummary.outcome} / ${Math.round(diagnostics.session.lastSummary.durationSeconds)}s / ${diagnostics.session.lastSummary.eventCount} events`
+    ? `${diagnostics.session.lastSummary.outcome} / ${Math.round(diagnostics.session.lastSummary.durationSeconds)}s / ${diagnostics.session.lastSummary.eventCount} events${diagnostics.session.lastSummary.nativeRuntime ? ` / native ${diagnostics.session.lastSummary.nativeRuntime.status}` : ""}`
     : "No completed sessions yet";
+
+const sessionNativeRuntimeLabel = (summary: StreamSessionSummary): string =>
+  summary.nativeRuntime
+    ? `${summary.nativeRuntime.status} / ${summary.nativeRuntime.platform} / ${summary.nativeRuntime.publisherState || "-"} / queue ${summary.nativeRuntime.queuedItems}/${summary.nativeRuntime.cacheSize} / drops ${summary.nativeRuntime.droppedVideoFrames} video ${summary.nativeRuntime.droppedAudioFrames} audio`
+    : "No native runtime evidence stored.";
 
 const sessionHistoryMetricLabel = (diagnostics: StreamDiagnostics): string =>
   diagnostics.session.historySummary.totalSessions === 0
@@ -1006,6 +1011,7 @@ const StreamDiagnosticsPanel = ({
             Warnings {diagnostics.session.lastSummary.warningCount} / failures {diagnostics.session.lastSummary.failureCount} /
             recoveries {diagnostics.session.lastSummary.recoveryEventCount}
           </em>
+          <em>{sessionNativeRuntimeLabel(diagnostics.session.lastSummary)}</em>
         </div>
       </div>
     ) : null}

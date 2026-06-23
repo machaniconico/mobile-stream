@@ -388,6 +388,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
           `- Last outcome: ${diagnostics.session.lastSummary.outcome}`,
           `- Last duration: ${formatDelay(diagnostics.session.lastSummary.durationSeconds * 1000)}`,
           `- Last summary: ${diagnostics.session.lastSummary.summary}`,
+          `- Last native runtime: ${formatSessionNativeRuntime(diagnostics.session.lastSummary)}`,
           `- Recommendation: ${diagnostics.session.lastSummary.recommendation}`,
           `- Stored summaries: ${diagnostics.session.summaries.length}`
         ]
@@ -424,6 +425,11 @@ const sanitizeSessionEvent = (event: StreamSessionEvent, streamKey: string): Str
   title: redactStreamKeyOccurrences(event.title, streamKey),
   message: redactStreamKeyOccurrences(event.message, streamKey)
 });
+
+const formatSessionNativeRuntime = (summary: StreamSessionSummary): string =>
+  summary.nativeRuntime
+    ? `${summary.nativeRuntime.status} / ${summary.nativeRuntime.platform} / ${summary.nativeRuntime.publisherState || "-"} / queue ${summary.nativeRuntime.queuedItems}/${summary.nativeRuntime.cacheSize} / drops ${summary.nativeRuntime.droppedVideoFrames} video ${summary.nativeRuntime.droppedAudioFrames} audio`
+    : "-";
 
 const sanitizeNativeCompositionReport = (
   report: NativeCompositionReport,

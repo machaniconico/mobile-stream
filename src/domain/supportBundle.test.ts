@@ -90,7 +90,8 @@ describe("support bundle", () => {
       healthSamples,
       target: { bitrateKbps: 3500, fps: 30 },
       endReason: "stopped",
-      endedAt: new Date("2026-06-23T00:00:06.000Z")
+      endedAt: new Date("2026-06-23T00:00:06.000Z"),
+      nativeRuntime: snapshot.nativeRuntime
     });
     const diagnostics = createStreamDiagnostics(
       scene,
@@ -123,9 +124,12 @@ describe("support bundle", () => {
     expect(bundle.profile.platformPublishing.titleLength).toBe(profile.platformPublishing.title.length);
     expect(bundle.diagnostics.telemetry.message).toContain(redactStreamKey(streamKey));
     expect(bundle.summary.completedSessionCount).toBe(1);
-    expect(bundle.summary.sessionCleanRate).toBe(100);
+    expect(bundle.summary.sessionCleanRate).toBe(0);
     expect(bundle.summary.sessionHistoryStability).toBe("watch");
-    expect(bundle.summary.lastSessionOutcome).toBe("clean");
+    expect(bundle.summary.lastSessionOutcome).toBe("warn");
+    expect(bundle.summary.lastSessionNativeRuntimeStatus).toBe("warn");
+    expect(bundle.summary.lastSessionNativeRuntimePlatform).toBe("android");
+    expect(bundle.summary.lastSessionNativeRuntimeCongested).toBe(true);
     expect(bundle.summary.qualityAdvisorAction).toBe("maintain");
     expect(bundle.summary.qualityAdvisorSeverity).toBe("pass");
     expect(bundle.summary.suggestedQualityTarget).toBeNull();
@@ -145,11 +149,12 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceEligibleRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceStaleRunCount).toBe(0);
     expect(formatSupportBundle(bundle)).toContain("Completed summaries: 1");
-    expect(formatSupportBundle(bundle)).toContain("Clean rate: 100%");
+    expect(formatSupportBundle(bundle)).toContain("Clean rate: 0%");
     expect(formatSupportBundle(bundle)).toContain("Quality advisor: maintain / pass");
     expect(formatSupportBundle(bundle)).toContain("Commercial Validation");
     expect(formatSupportBundle(bundle)).toContain("Native composition: warn / preview-only-overlays");
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
+    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
   });
 

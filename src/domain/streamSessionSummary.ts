@@ -3,10 +3,33 @@ import {
   type StreamHealthHistorySummary,
   type StreamHealthSample
 } from "./streamHealthHistory";
+import type { NativeRuntimeTelemetry } from "./nativeRuntime";
 import type { StreamSessionEvent } from "./streamSessionLog";
 
 export type StreamSessionEndReason = "stopped" | "failed";
 export type StreamSessionOutcome = "clean" | "warn" | "fail";
+export type StreamSessionNativeRuntimeStatus = "pass" | "warn" | "fail";
+
+export interface StreamSessionNativeRuntimeSummary {
+  platform: NativeRuntimeTelemetry["platform"];
+  status: StreamSessionNativeRuntimeStatus;
+  runtimeStatus: string;
+  publisherState: string;
+  compositionStatus: NativeRuntimeTelemetry["composition"]["status"];
+  stale: boolean;
+  congested: boolean;
+  queuedItems: number;
+  cacheSize: number;
+  sentVideoFrames: number;
+  sentAudioFrames: number;
+  droppedVideoFrames: number;
+  droppedAudioFrames: number;
+  bytesWritten: number;
+  encodedBytes: number;
+  issueCount: number;
+  summary: string;
+  recommendation: string;
+}
 
 export interface StreamSessionSummary {
   id: string;
@@ -21,6 +44,7 @@ export interface StreamSessionSummary {
   recoveryEventCount: number;
   operationFailureCount: number;
   health: StreamHealthHistorySummary;
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null;
   summary: string;
   recommendation: string;
 }
@@ -34,6 +58,7 @@ export interface StreamSessionSummaryInput {
   };
   endReason: StreamSessionEndReason;
   endedAt?: Date;
+  nativeRuntime?: NativeRuntimeTelemetry | null;
 }
 
 export const maxStreamSessionSummaries = 10;
@@ -173,6 +198,7 @@ export const createStreamSessionSummary = ({
   healthSamples,
   target,
   endReason,
+  nativeRuntime: nativeRuntimeTelemetry = null,
   endedAt = new Date()
 }: StreamSessionSummaryInput): StreamSessionSummary | null => {
   if (healthSamples.length === 0) {
@@ -187,7 +213,8 @@ export const createStreamSessionSummary = ({
   const failureCount = sessionEvents.filter((event) => event.severity === "fail").length;
   const recoveryEventCount = sessionEvents.filter((event) => event.kind === "recovery").length;
   const operationFailureCount = sessionEvents.filter((event) => event.kind === "operation" && event.severity === "fail").length;
-  const outcome = createOutcome(endReason, health, warningCount, failureCount);
+  const nativeRuntime = createNativeRuntimeSessionSummary(nativeRuntimeTelemetry);
+  const outcome = createOutcome(endReason, health, warningCount, failureCount, nativeRuntime);
 
   return {
     id: createSummaryId(startedAt, endedAtIso, endReason),
@@ -202,8 +229,9 @@ export const createStreamSessionSummary = ({
     recoveryEventCount,
     operationFailureCount,
     health,
-    summary: createSummaryText(outcome, endReason, health),
-    recommendation: createRecommendation(outcome, endReason, health, failureCount, recoveryEventCount)
+    nativeRuntime,
+    summary: createSummaryText(outcome, endReason, health, nativeRuntime),
+    recommendation: createRecommendation(outcome, endReason, health, failureCount, recoveryEventCount, nativeRuntime)
   };
 };
 
@@ -211,13 +239,14 @@ const createOutcome = (
   endReason: StreamSessionEndReason,
   health: StreamHealthHistorySummary,
   warningCount: number,
-  failureCount: number
+  failureCount: number,
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null
 ): StreamSessionOutcome => {
-  if (endReason === "failed" || failureCount > 0 || health.stability === "unstable") {
+  if (endReason === "failed" || failureCount > 0 || health.stability === "unstable" || nativeRuntime?.status === "fail") {
     return "fail";
   }
 
-  if (warningCount > 0 || health.stability === "watch") {
+  if (warningCount > 0 || health.stability === "watch" || nativeRuntime?.status === "warn") {
     return "warn";
   }
 
@@ -227,11 +256,12 @@ const createOutcome = (
 const createSummaryText = (
   outcome: StreamSessionOutcome,
   endReason: StreamSessionEndReason,
-  health: StreamHealthHistorySummary
+  health: StreamHealthHistorySummary,
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null
 ): string => {
   const prefix =
     outcome === "clean" ? "Clean session" : outcome === "warn" ? "Session needs review" : "Session ended with issues";
-  return `${prefix}. Ended ${endReason}. ${health.summary}`;
+  return `${prefix}. Ended ${endReason}. ${health.summary}${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}`;
 };
 
 const createRecommendation = (
@@ -239,10 +269,15 @@ const createRecommendation = (
   endReason: StreamSessionEndReason,
   health: StreamHealthHistorySummary,
   failureCount: number,
-  recoveryEventCount: number
+  recoveryEventCount: number,
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null
 ): string => {
   if (outcome === "clean") {
     return "Keep this profile as a known-good baseline for the destination.";
+  }
+
+  if (nativeRuntime?.status === "fail") {
+    return nativeRuntime.recommendation;
   }
 
   if (endReason === "failed" || failureCount > 0) {
@@ -257,7 +292,67 @@ const createRecommendation = (
     return "Watch the next session and consider reducing bitrate/FPS if drops continue.";
   }
 
+  if (nativeRuntime?.status === "warn") {
+    return nativeRuntime.recommendation;
+  }
+
   return "Review warnings before the next long session.";
+};
+
+const createNativeRuntimeSessionSummary = (
+  runtime: NativeRuntimeTelemetry | null | undefined
+): StreamSessionNativeRuntimeSummary | null => {
+  if (!runtime) {
+    return null;
+  }
+
+  const failed = Boolean(
+    runtime.publisher.lastError ||
+    runtime.publisher.state === "failed" ||
+    runtime.runtimeStatus === "failed" ||
+    runtime.composition.status === "failed"
+  );
+  const stale = runtime.stale;
+  const congested = runtime.publisher.congested;
+  const pendingComposition = runtime.composition.status === "pending";
+  const status: StreamSessionNativeRuntimeStatus = failed ? "fail" : stale || congested || pendingComposition ? "warn" : "pass";
+  const issueCount = [failed, stale, congested, pendingComposition].filter(Boolean).length;
+  const queue = `${runtime.publisher.itemsInCache}/${runtime.publisher.cacheSize}`;
+
+  return {
+    platform: runtime.platform,
+    status,
+    runtimeStatus: runtime.runtimeStatus,
+    publisherState: runtime.publisher.state,
+    compositionStatus: runtime.composition.status,
+    stale,
+    congested,
+    queuedItems: normalizeNonNegativeInteger(runtime.publisher.itemsInCache),
+    cacheSize: normalizeNonNegativeInteger(runtime.publisher.cacheSize),
+    sentVideoFrames: normalizeNonNegativeInteger(runtime.publisher.sentVideoFrames),
+    sentAudioFrames: normalizeNonNegativeInteger(runtime.publisher.sentAudioFrames),
+    droppedVideoFrames: normalizeNonNegativeInteger(runtime.publisher.droppedVideoFrames),
+    droppedAudioFrames: normalizeNonNegativeInteger(runtime.publisher.droppedAudioFrames),
+    bytesWritten: normalizeNonNegativeInteger(runtime.publisher.bytesWritten),
+    encodedBytes: normalizeNonNegativeInteger(runtime.encodedBytes),
+    issueCount,
+    summary:
+      status === "fail"
+        ? `Native runtime ended with a failure on ${runtime.platform}.`
+        : status === "warn"
+          ? `Native runtime needs review on ${runtime.platform}: queue ${queue}, composition ${runtime.composition.status}.`
+          : `Native runtime ended clean on ${runtime.platform}.`,
+    recommendation:
+      status === "fail"
+        ? "Review native runtime publisher/compositor status and run a private ingest test before going public."
+        : congested
+          ? "Lower bitrate/FPS or improve network stability before a long public stream."
+          : stale
+            ? "Confirm the native runtime is still reporting current telemetry during device validation."
+            : pendingComposition
+              ? "Review native compositor coverage before treating this scene as production-ready."
+              : "Keep this native runtime result as supporting evidence for the destination."
+  };
 };
 
 const createSummaryId = (startedAt: string, endedAt: string, endReason: StreamSessionEndReason): string =>
@@ -276,7 +371,7 @@ const createHistoryStability = ({
   warningCount: number;
   totalRecoveryEvents: number;
 }): StreamSessionHistorySummary["stability"] => {
-  if (failureCount > 0 || cleanRate < 70) {
+  if (failureCount > 0 || (totalSessions >= 3 && cleanRate < 70)) {
     return "unstable";
   }
 
@@ -355,8 +450,43 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
     recoveryEventCount: normalizeNonNegativeInteger(value.recoveryEventCount),
     operationFailureCount: normalizeNonNegativeInteger(value.operationFailureCount),
     health,
-    summary: typeof value.summary === "string" ? value.summary : createSummaryText(outcome, endReason, health),
-    recommendation: typeof value.recommendation === "string" ? value.recommendation : createRecommendation(outcome, endReason, health, 0, 0)
+    nativeRuntime: normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
+    summary: typeof value.summary === "string" ? value.summary : createSummaryText(outcome, endReason, health, normalizeNativeRuntimeSessionSummary(value.nativeRuntime)),
+    recommendation: typeof value.recommendation === "string" ? value.recommendation : createRecommendation(outcome, endReason, health, 0, 0, normalizeNativeRuntimeSessionSummary(value.nativeRuntime))
+  };
+};
+
+const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSessionNativeRuntimeSummary | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const platform = value.platform === "ios" || value.platform === "android" ? value.platform : null;
+  const status = normalizeNativeRuntimeStatus(value.status);
+  const compositionStatus = normalizeCompositionStatus(value.compositionStatus);
+  if (!platform || !status || !compositionStatus) {
+    return null;
+  }
+
+  return {
+    platform,
+    status,
+    runtimeStatus: typeof value.runtimeStatus === "string" ? value.runtimeStatus : "unknown",
+    publisherState: typeof value.publisherState === "string" ? value.publisherState : "",
+    compositionStatus,
+    stale: value.stale === true,
+    congested: value.congested === true,
+    queuedItems: normalizeNonNegativeInteger(value.queuedItems),
+    cacheSize: normalizeNonNegativeInteger(value.cacheSize),
+    sentVideoFrames: normalizeNonNegativeInteger(value.sentVideoFrames),
+    sentAudioFrames: normalizeNonNegativeInteger(value.sentAudioFrames),
+    droppedVideoFrames: normalizeNonNegativeInteger(value.droppedVideoFrames),
+    droppedAudioFrames: normalizeNonNegativeInteger(value.droppedAudioFrames),
+    bytesWritten: normalizeNonNegativeInteger(value.bytesWritten),
+    encodedBytes: normalizeNonNegativeInteger(value.encodedBytes),
+    issueCount: normalizeNonNegativeInteger(value.issueCount),
+    summary: typeof value.summary === "string" ? value.summary : `Native runtime ${status} on ${platform}.`,
+    recommendation: typeof value.recommendation === "string" ? value.recommendation : "Review native runtime evidence before public launch."
   };
 };
 
@@ -391,6 +521,16 @@ const normalizeEndReason = (value: unknown): StreamSessionEndReason | null =>
 
 const normalizeOutcome = (value: unknown): StreamSessionOutcome | null =>
   value === "clean" || value === "warn" || value === "fail" ? value : null;
+
+const normalizeNativeRuntimeStatus = (value: unknown): StreamSessionNativeRuntimeStatus | null =>
+  value === "pass" || value === "warn" || value === "fail" ? value : null;
+
+const normalizeCompositionStatus = (
+  value: unknown
+): NativeRuntimeTelemetry["composition"]["status"] | null =>
+  value === "unknown" || value === "screen-only" || value === "applied" || value === "pending" || value === "failed"
+    ? value
+    : null;
 
 const normalizeStability = (value: unknown): StreamHealthHistorySummary["stability"] | null =>
   value === "unknown" || value === "stable" || value === "watch" || value === "unstable" ? value : null;

@@ -79,6 +79,101 @@ describe("stream session summary", () => {
     expect(summary?.recommendation).toContain("failed operation");
   });
 
+  it("stores native runtime evidence and marks congested sessions for review", () => {
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z"),
+      nativeRuntime: {
+        platform: "android",
+        runtimeStatus: "live",
+        updatedAt: Date.now(),
+        stale: false,
+        elapsedSeconds: 4,
+        videoFrames: 92,
+        encodedBytes: 1_900_000,
+        droppedFrames: 2,
+        publisher: {
+          state: "published",
+          reconnectAttempts: 0,
+          sentVideoFrames: 92,
+          sentAudioFrames: 180,
+          droppedVideoFrames: 2,
+          droppedAudioFrames: 1,
+          bytesWritten: 1_900_000,
+          cacheSize: 120,
+          itemsInCache: 70,
+          congested: true,
+          lastError: ""
+        },
+        composition: {
+          status: "applied",
+          appliedCount: 1,
+          skippedCount: 0,
+          skippedKinds: [],
+          message: "Native overlays applied"
+        },
+        message: "Live"
+      }
+    });
+
+    expect(summary?.outcome).toBe("warn");
+    expect(summary?.nativeRuntime?.status).toBe("warn");
+    expect(summary?.nativeRuntime?.platform).toBe("android");
+    expect(summary?.nativeRuntime?.queuedItems).toBe(70);
+    expect(summary?.nativeRuntime?.droppedVideoFrames).toBe(2);
+    expect(summary?.summary).toContain("Native runtime needs review");
+    expect(summary?.recommendation).toContain("Lower bitrate");
+  });
+
+  it("lets native runtime failures make the completed session fail", () => {
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z"),
+      nativeRuntime: {
+        platform: "ios",
+        runtimeStatus: "failed",
+        updatedAt: Date.now(),
+        stale: false,
+        elapsedSeconds: 4,
+        videoFrames: 40,
+        encodedBytes: 900_000,
+        droppedFrames: 0,
+        publisher: {
+          state: "failed",
+          reconnectAttempts: 1,
+          sentVideoFrames: 40,
+          sentAudioFrames: 80,
+          droppedVideoFrames: 0,
+          droppedAudioFrames: 0,
+          bytesWritten: 900_000,
+          cacheSize: 0,
+          itemsInCache: 0,
+          congested: false,
+          lastError: "RTMP rejected"
+        },
+        composition: {
+          status: "applied",
+          appliedCount: 1,
+          skippedCount: 0,
+          skippedKinds: [],
+          message: "Native overlays applied"
+        },
+        message: "Failed"
+      }
+    });
+
+    expect(summary?.outcome).toBe("fail");
+    expect(summary?.nativeRuntime?.status).toBe("fail");
+    expect(summary?.summary).toContain("Native runtime ended with a failure");
+    expect(summary?.recommendation).toContain("private ingest test");
+  });
+
   it("deduplicates appended summaries", () => {
     const summary = createStreamSessionSummary({
       events: [],
@@ -118,6 +213,47 @@ describe("stream session summary", () => {
 
     expect(normalized).toHaveLength(1);
     expect(normalized[0]?.id).toBe(summary.id);
+  });
+
+  it("normalizes persisted native runtime summaries without requiring raw native messages", () => {
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+
+    const normalized = normalizeStreamSessionSummaries([
+      {
+        ...summary,
+        nativeRuntime: {
+          platform: "android",
+          status: "warn",
+          runtimeStatus: "live",
+          publisherState: "published",
+          compositionStatus: "applied",
+          stale: false,
+          congested: true,
+          queuedItems: 8,
+          cacheSize: 16,
+          sentVideoFrames: 120.4,
+          sentAudioFrames: 240.4,
+          droppedVideoFrames: 2,
+          droppedAudioFrames: 1,
+          bytesWritten: 123456,
+          encodedBytes: 123456,
+          issueCount: 1
+        }
+      }
+    ]);
+
+    expect(normalized[0]?.nativeRuntime?.status).toBe("warn");
+    expect(normalized[0]?.nativeRuntime?.sentVideoFrames).toBe(120);
+    expect(normalized[0]?.nativeRuntime?.summary).toContain("Native runtime warn");
   });
 
   it("limits persisted session summaries to the retention cap", () => {
@@ -194,6 +330,58 @@ describe("stream session summary", () => {
     expect(history.stability).toBe("baseline");
     expect(history.cleanRate).toBe(100);
     expect(history.summary).toContain("Known-good baseline");
+  });
+
+  it("keeps a single warning session in watch instead of unstable", () => {
+    const summary = createStreamSessionSummary({
+      events: [
+        event({
+          severity: "warn",
+          title: "Network congestion",
+          message: "Publisher queue grew"
+        })
+      ],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+
+    const history = createStreamSessionHistorySummary([summary]);
+
+    expect(history.stability).toBe("watch");
+    expect(history.cleanRate).toBe(0);
+  });
+
+  it("marks repeated warning sessions with poor clean rate as unstable", () => {
+    const summary = createStreamSessionSummary({
+      events: [
+        event({
+          severity: "warn",
+          title: "Network congestion",
+          message: "Publisher queue grew"
+        })
+      ],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+
+    const history = createStreamSessionHistorySummary([
+      { ...summary, id: "warn-3" },
+      { ...summary, id: "warn-2" },
+      { ...summary, id: "warn-1" }
+    ]);
+
+    expect(history.stability).toBe("unstable");
+    expect(history.cleanRate).toBe(0);
   });
 
   it("flags recent failed session history as unstable", () => {

@@ -96,7 +96,8 @@ export const useStreamSessionSummaries = ({
         bitrateKbps: quality.videoBitrateKbps,
         fps: quality.fps
       },
-      endReason: pendingEndReason
+      endReason: pendingEndReason,
+      nativeRuntime: snapshot.nativeRuntime
     });
 
     setSummaries((current) => appendStreamSessionSummary(current, summary));
@@ -106,7 +107,8 @@ export const useStreamSessionSummaries = ({
     healthSamples,
     pendingEndReason,
     quality.fps,
-    quality.videoBitrateKbps
+    quality.videoBitrateKbps,
+    snapshot.nativeRuntime
   ]);
 
   useEffect(() => {

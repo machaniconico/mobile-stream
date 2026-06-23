@@ -35,6 +35,11 @@ export interface SupportBundle {
     sessionCleanRate: number;
     sessionHistoryStability: StreamDiagnostics["session"]["historySummary"]["stability"];
     lastSessionOutcome: NonNullable<StreamDiagnostics["session"]["lastSummary"]>["outcome"] | null;
+    lastSessionNativeRuntimeStatus: NonNullable<NonNullable<StreamDiagnostics["session"]["lastSummary"]>["nativeRuntime"]>["status"] | null;
+    lastSessionNativeRuntimePlatform: NonNullable<NonNullable<StreamDiagnostics["session"]["lastSummary"]>["nativeRuntime"]>["platform"] | null;
+    lastSessionNativeRuntimeCongested: boolean;
+    lastSessionNativeRuntimeQueuedItems: number;
+    lastSessionNativeRuntimeCacheSize: number;
     validationStatus: StreamDiagnostics["validation"]["status"];
     validationPendingCount: number;
     validationWarningCount: number;
@@ -163,6 +168,11 @@ export const createSupportBundle = ({
       sessionCleanRate: diagnostics.session.historySummary.cleanRate,
       sessionHistoryStability: diagnostics.session.historySummary.stability,
       lastSessionOutcome: diagnostics.session.lastSummary?.outcome ?? null,
+      lastSessionNativeRuntimeStatus: diagnostics.session.lastSummary?.nativeRuntime?.status ?? null,
+      lastSessionNativeRuntimePlatform: diagnostics.session.lastSummary?.nativeRuntime?.platform ?? null,
+      lastSessionNativeRuntimeCongested: diagnostics.session.lastSummary?.nativeRuntime?.congested ?? false,
+      lastSessionNativeRuntimeQueuedItems: diagnostics.session.lastSummary?.nativeRuntime?.queuedItems ?? 0,
+      lastSessionNativeRuntimeCacheSize: diagnostics.session.lastSummary?.nativeRuntime?.cacheSize ?? 0,
       validationStatus: diagnostics.validation.status,
       validationPendingCount: diagnostics.validation.pendingCount,
       validationWarningCount: diagnostics.validation.warningCount,
@@ -294,6 +304,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- History recommendation: ${bundle.diagnostics.session.historySummary.recommendation}`,
     `- Last outcome: ${bundle.summary.lastSessionOutcome ?? "-"}`,
     `- Last summary: ${bundle.diagnostics.session.lastSummary?.summary ?? "-"}`,
+    `- Last native runtime: ${bundle.summary.lastSessionNativeRuntimeStatus ?? "-"} / ${bundle.summary.lastSessionNativeRuntimePlatform ?? "-"} / congested ${bundle.summary.lastSessionNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.lastSessionNativeRuntimeQueuedItems}/${bundle.summary.lastSessionNativeRuntimeCacheSize}`,
     `- Last recommendation: ${bundle.diagnostics.session.lastSummary?.recommendation ?? "-"}`,
     `- Health history: ${bundle.diagnostics.history.summary}`,
     `- Quality incidents: ${bundle.diagnostics.qualityIncidents.summary}`,

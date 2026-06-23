@@ -15,6 +15,7 @@
 - Durable completed stream session summary persistence for Web localStorage and React Native native storage, with corrupt payload recovery and retention limiting.
 - Completed stream session history management in Web and React Native diagnostics, including local history clearing for privacy/support resets.
 - Completed stream session history trend analysis for clean-rate, stability, average duration, recovery totals, and next-stream recommendations across diagnostics, support bundles, Web, and React Native.
+- Completed stream session summaries retain safe native runtime evidence, including publisher state, compositor status, congestion, queue size, sent/dropped frame counts, and bytes, without storing raw native error messages.
 - Commercial pre-release validation checklist for configuration readiness, RTMPS transport, private ingest smoke tests, destination dashboard checks, physical-device evidence, retained session baselines, and support-bundle evidence across diagnostics, support bundles, Web, and React Native.
 - Physical validation evidence recording for iOS/Android private RTMP(S) runs, including retained pass/warn/fail run history, Web localStorage, mobile native storage, diagnostics integration, support bundle summaries, and Web/React Native recorder UI.
 - Release-candidate validation evidence gating for freshness, current destination/protocol matching, same-build iOS/Android coverage, stale evidence warnings, and support-bundle eligible/stale run counts.
@@ -59,6 +60,7 @@
   - Go Live, Stop, Reconnect mock controls
 - React Native mobile readiness panel, Go Live preflight banner, and invalid-profile blocking.
 - React Native mobile stream diagnostics panel using the shared diagnostics model, including health history, quality advisor, last-session summary, sanitized report sharing, and support bundle sharing.
+- Web and React Native diagnostics show last-session native runtime evidence for post-stream support triage.
 - React Native mobile active stream quality incident panel with operator recommendations.
 - React Native mobile stream session event timeline using the shared diagnostics model.
 - React Native mobile chat reader panel with test comments, platform adapter ingest, safety controls, and speech settings.
