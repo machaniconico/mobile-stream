@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createAvatarRuntimeStateFromScene, setExpression, tickAutoBlink, type AvatarExpression } from "../domain/avatar";
 import {
   clearChatReaderSession,
@@ -131,8 +131,9 @@ import {
   saveStreamSessionSummaries,
   saveStreamValidationRuns
 } from "../storage/localStore";
-import { StudioScreen } from "../screens/StudioScreen";
 import { WebChatSpeechEngine } from "./WebChatSpeechEngine";
+
+const StudioScreen = lazy(() => import("../screens/StudioScreen").then((module) => ({ default: module.StudioScreen })));
 
 const isAvatarSource = (source: SceneDocument["sources"][number]): source is PNGTuberSource | Live2DSource =>
   source.kind === "pngtuber" || source.kind === "live2d";
@@ -850,63 +851,65 @@ export const App = () => {
   };
 
   return (
-    <StudioScreen
-      scene={scene}
-      profile={profile}
-      selectedSourceId={selectedSourceId}
-      snapshot={snapshot}
-      streamSessionEvents={streamSessionEvents}
-      streamHealthSamples={streamHealthSamples}
-      streamSessionSummaries={streamSessionSummaries.summaries}
-      streamValidationRuns={streamValidationRuns}
-      qualityAutomationDecision={qualityAutomationDecision}
-      operationStatus={operationStatus}
-      readiness={readiness}
-      chatReader={chatReader}
-      platformChat={profile.platformChat}
-      platformChatAuth={platformChatAuth}
-      platformChatOAuth={platformChatOAuth}
-      platformChatOAuthCredentials={platformChatOAuthCredentials}
-      platformChatOAuthFlow={platformChatOAuthFlow}
-      twitchDeviceOAuthFlow={twitchDeviceOAuthFlow}
-      platformChatOAuthStatus={platformChatOAuthStatus}
-      platformStreamKeyStatus={platformStreamKeyStatus}
-      platformPublishingStatus={platformPublishingStatus}
-      platformApiOperationLabel={platformApiOperationLabel}
-      platformChatConnection={platformChatConnection.connection}
-      avatarRuntime={avatarRuntime}
-      faceTrackingRuntime={faceTrackingRuntime}
-      onSceneChange={setScene}
-      onProfileChange={setProfile}
-      onSelectSource={setSelectedSourceId}
-      onMicLevelChange={updateMicLevel}
-      onExpressionChange={updateExpression}
-      onFaceTrackingCalibrate={calibrateFaceTracking}
-      onStart={startStream}
-      onStop={stopStream}
-      onReconnect={reconnectStream}
-      onChatCommentSubmit={submitChatComment}
-      onChatReaderSettingsChange={updateChatSettings}
-      onChatCommentsClear={clearChatComments}
-      onPlatformChatSettingsChange={updatePlatformChatSettings}
-      onPlatformChatAuthChange={updatePlatformChatAuth}
-      onPlatformChatOAuthChange={updatePlatformChatOAuth}
-      onPlatformChatOAuthStart={startPlatformChatOAuth}
-      onTwitchDeviceOAuthStart={startTwitchDeviceOAuth}
-      onTwitchDeviceOAuthPoll={pollTwitchDeviceOAuth}
-      onPlatformChatOAuthCallbackApply={applyPlatformChatOAuthCallback}
-      onPlatformStreamKeyApply={applyPlatformStreamKey}
-      onPlatformPublishingApply={applyPlatformPublishingSetup}
-      onPlatformPublishingStatusRefresh={refreshPlatformPublishingStatus}
-      onYouTubeBroadcastTransition={transitionYouTubeBroadcastState}
-      onPlatformChatConnect={platformChatConnection.connect}
-      onPlatformChatDisconnect={platformChatConnection.disconnect}
-      onPlatformChatSampleIngest={ingestPlatformChatSample}
-      onClearStreamKey={clearSavedStreamKey}
-      onClearStreamSessionSummaries={clearCompletedStreamSessionSummaries}
-      onRecordStreamValidationRun={recordStreamValidationRun}
-      onClearStreamValidationRuns={clearRecordedStreamValidationRuns}
-    />
+    <Suspense fallback={<div className="studio-loading" role="status">Loading studio...</div>}>
+      <StudioScreen
+        scene={scene}
+        profile={profile}
+        selectedSourceId={selectedSourceId}
+        snapshot={snapshot}
+        streamSessionEvents={streamSessionEvents}
+        streamHealthSamples={streamHealthSamples}
+        streamSessionSummaries={streamSessionSummaries.summaries}
+        streamValidationRuns={streamValidationRuns}
+        qualityAutomationDecision={qualityAutomationDecision}
+        operationStatus={operationStatus}
+        readiness={readiness}
+        chatReader={chatReader}
+        platformChat={profile.platformChat}
+        platformChatAuth={platformChatAuth}
+        platformChatOAuth={platformChatOAuth}
+        platformChatOAuthCredentials={platformChatOAuthCredentials}
+        platformChatOAuthFlow={platformChatOAuthFlow}
+        twitchDeviceOAuthFlow={twitchDeviceOAuthFlow}
+        platformChatOAuthStatus={platformChatOAuthStatus}
+        platformStreamKeyStatus={platformStreamKeyStatus}
+        platformPublishingStatus={platformPublishingStatus}
+        platformApiOperationLabel={platformApiOperationLabel}
+        platformChatConnection={platformChatConnection.connection}
+        avatarRuntime={avatarRuntime}
+        faceTrackingRuntime={faceTrackingRuntime}
+        onSceneChange={setScene}
+        onProfileChange={setProfile}
+        onSelectSource={setSelectedSourceId}
+        onMicLevelChange={updateMicLevel}
+        onExpressionChange={updateExpression}
+        onFaceTrackingCalibrate={calibrateFaceTracking}
+        onStart={startStream}
+        onStop={stopStream}
+        onReconnect={reconnectStream}
+        onChatCommentSubmit={submitChatComment}
+        onChatReaderSettingsChange={updateChatSettings}
+        onChatCommentsClear={clearChatComments}
+        onPlatformChatSettingsChange={updatePlatformChatSettings}
+        onPlatformChatAuthChange={updatePlatformChatAuth}
+        onPlatformChatOAuthChange={updatePlatformChatOAuth}
+        onPlatformChatOAuthStart={startPlatformChatOAuth}
+        onTwitchDeviceOAuthStart={startTwitchDeviceOAuth}
+        onTwitchDeviceOAuthPoll={pollTwitchDeviceOAuth}
+        onPlatformChatOAuthCallbackApply={applyPlatformChatOAuthCallback}
+        onPlatformStreamKeyApply={applyPlatformStreamKey}
+        onPlatformPublishingApply={applyPlatformPublishingSetup}
+        onPlatformPublishingStatusRefresh={refreshPlatformPublishingStatus}
+        onYouTubeBroadcastTransition={transitionYouTubeBroadcastState}
+        onPlatformChatConnect={platformChatConnection.connect}
+        onPlatformChatDisconnect={platformChatConnection.disconnect}
+        onPlatformChatSampleIngest={ingestPlatformChatSample}
+        onClearStreamKey={clearSavedStreamKey}
+        onClearStreamSessionSummaries={clearCompletedStreamSessionSummaries}
+        onRecordStreamValidationRun={recordStreamValidationRun}
+        onClearStreamValidationRuns={clearRecordedStreamValidationRuns}
+      />
+    </Suspense>
   );
 };
 

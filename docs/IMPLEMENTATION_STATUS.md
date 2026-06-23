@@ -25,7 +25,8 @@
 - Physical validation run and evidence summaries include stable fingerprints and retained-run manifests across diagnostics reports and support bundles so release-candidate audit/support records can be correlated and accidental evidence mixups or out-of-scope retained runs are easier to spot.
 - Release-candidate validation evidence gating for freshness, current destination/protocol matching, same-build iOS/Android coverage, stable monitor-hold proof, native publisher/compositor proof, fresh YouTube/Twitch dashboard checked-at proof, stale evidence warnings, and support-bundle eligible/stale run counts.
 - Commercial release gate for saved support bundle JSON, with machine-readable pass/warn/fail checks for bundle freshness/schema, public launch lock state, runbook completion, same-build iOS/Android evidence, retained-run manifests, and feature proof before release approval.
-- Local release-candidate verification command that fails closed on uncommitted source changes, chains native release-config checks, unit tests, web/RN typechecks, web build, browser UI verification, React Native iOS/Android bundles, and the commercial support-bundle gate, with JSON audit evidence for git revision, dirty state, support-bundle SHA-256, gate outcomes, timings, and failure reasons.
+- Local release-candidate verification command that fails closed on uncommitted source changes, chains native release-config checks, unit tests, web/RN typechecks, web build, web bundle-size verification, browser UI verification, React Native iOS/Android bundles, and the commercial support-bundle gate, with JSON audit evidence for git revision, dirty state, support-bundle SHA-256, gate outcomes, timings, and failure reasons.
+- Browser studio code-splitting keeps the shell and main studio screen in separate JavaScript chunks, with CI bundle-size verification after the web build.
 - Physical validation runs retain safe native runtime evidence from the current native publisher/compositor or the latest completed session; validation only passes when iOS and Android retained evidence include sent video/audio frames, bytes written, clean compositor state, and fully loaded still-image assets.
 - Physical validation runs retain stable monitor-hold proof; validation only passes when each platform has at least 60 seconds and 3 samples of stable bitrate/FPS telemetry with zero drops and zero reconnects.
 - Physical validation runs retain mic FX/headphone monitor route, native self-monitor write/drop proof, and chat readout evidence; audio validation only passes when native monitor write/drop proof is present with written frames, written buffers, zero drops, and headphone route proof.
@@ -144,7 +145,7 @@
 - Standard `ios/` and `android/` projects for the MobileLiveCaster host app.
 - React Native mobile Studio UI that reuses `src/domain` and the mock stream engine.
 - React Native mobile source controls can pick or prepare PNGTuber/image still-image assets for native compositor storage before streaming.
-- GitHub Actions `test` status check for PRs and `main` pushes, covering native release-configuration audit, unit tests, web/RN typecheck, web build, and iOS/Android React Native JavaScript bundling.
+- GitHub Actions `test` status check for PRs and `main` pushes, covering native release-configuration audit, unit tests, web/RN typecheck, web build, web bundle-size verification, and iOS/Android React Native JavaScript bundling.
 - Metro bundle verification for both iOS and Android.
 - Homebrew React Native environment installed: JDK 17, Watchman, CocoaPods, Android command line tools.
 - Android SDK packages installed: `platforms;android-36`, `build-tools;36.0.0`, `ndk;27.1.12297006`, `platform-tools`.

@@ -61,6 +61,16 @@ select:focus-visible {
   padding: 16px;
 }
 
+.studio-loading {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
 .top-bar {
   display: flex;
   align-items: center;

@@ -41,5 +41,8 @@ jobs:
       - name: Build web prototype
         run: npm run build
 
+      - name: Verify web bundle size
+        run: npm run verify:web-bundle-size
+
       - name: Bundle React Native JavaScript
         run: npm run verify:rn

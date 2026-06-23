@@ -13,6 +13,7 @@ const sourceGates = [
   ["Run unit tests", ["test"]],
   ["Typecheck web and React Native", ["run", "typecheck"]],
   ["Build web prototype", ["run", "build"]],
+  ["Verify web bundle size", ["run", "verify:web-bundle-size"]],
   ["Bundle React Native JavaScript", ["run", "verify:rn"]]
 ];
 
