@@ -190,9 +190,24 @@ describe("stream validation evidence", () => {
     expect(run.deviceName).toContain("[redacted]");
     expect(run.networkProfile).toContain("[redacted]");
     expect(JSON.stringify(run)).not.toContain(streamKey);
+    expect(run.fingerprint).toMatch(/^svr1-[0-9a-f]{8}-[0-9a-z]+$/);
     expect(run.targetPlatform).toBe("YouTube Live");
     expect(run.checklistStatus).toBe("needs-test");
     expect(run.recommendation).toContain("Enable a mic effect preset");
+
+    const repeatedRun = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      deviceName: `iPhone ${streamKey}`,
+      osVersion: "iOS 18.5",
+      appBuild: "rc-1",
+      networkProfile: `studio wifi ${streamKey}`,
+      result: "warn",
+      now: new Date("2026-06-23T00:00:00.000Z"),
+      secrets: [streamKey]
+    });
+    expect(repeatedRun.fingerprint).toBe(run.fingerprint);
+    expect(normalizeStreamValidationRuns([{ ...run, fingerprint: "tampered" }])[0]?.fingerprint).toBe(run.fingerprint);
   });
 
   it("stores audio and chat readout evidence and downgrades unvalidated passing runs", () => {
@@ -229,6 +244,7 @@ describe("stream validation evidence", () => {
     });
     expect(run.recommendation).toContain("Enable a mic effect preset");
     expect(summary.audioRunCount).toBe(1);
+    expect(summary.fingerprint).toMatch(/^sve1-[0-9a-f]{8}-[0-9a-z]+$/);
     expect(summary.audioWarningCount).toBe(1);
     expect(summary.chatReadoutRunCount).toBe(1);
     expect(summary.chatReadoutWarningCount).toBe(1);

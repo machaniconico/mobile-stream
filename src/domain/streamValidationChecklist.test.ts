@@ -351,6 +351,7 @@ const readyFaceTracking = () => ({
 });
 
 const readyEvidence = (overrides: Partial<StreamValidationEvidenceSummary> = {}): StreamValidationEvidenceSummary => ({
+  fingerprint: "sve1-ready",
   totalRuns: 2,
   eligibleRunCount: 2,
   staleRunCount: 0,

@@ -1546,6 +1546,7 @@ const StreamValidationRecorder = ({
           {diagnostics.validationEvidence.platformPublishingIosPass ? "pass" : "missing"} / Android{" "}
           {diagnostics.validationEvidence.platformPublishingAndroidPass ? "pass" : "missing"}
         </Text>
+        <Text style={styles.diagnosticIncidentRecommendation}>evidence fingerprint {diagnostics.validationEvidence.fingerprint}</Text>
       </View>
       {latestDashboardFreshness ? (
         <View style={[styles.diagnosticIncident, diagnosticPlatformPublishingFreshnessStyle(latestDashboardFreshness.status)]}>
@@ -1564,6 +1565,7 @@ const StreamValidationRecorder = ({
               ? ""
               : ` / ${diagnostics.validationEvidence.latestRunAgeDays}d old`}
           </Text>
+          <Text style={styles.diagnosticIncidentRecommendation}>run fingerprint {latestRun.fingerprint}</Text>
           {validationRunNativeRuntimeLabel(latestRun) ? (
             <Text style={styles.diagnosticIncidentRecommendation}>{validationRunNativeRuntimeLabel(latestRun)}</Text>
           ) : null}

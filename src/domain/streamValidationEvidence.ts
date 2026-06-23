@@ -113,6 +113,7 @@ export interface StreamValidationMonitorHoldSummary {
 
 export interface StreamValidationRun {
   id: string;
+  fingerprint: string;
   createdAt: string;
   devicePlatform: StreamValidationDevicePlatform;
   deviceName: string;
@@ -162,6 +163,7 @@ export interface StreamValidationAudioMonitorTuningInput {
 }
 
 export interface StreamValidationEvidenceSummary {
+  fingerprint: string;
   totalRuns: number;
   eligibleRunCount: number;
   staleRunCount: number;
@@ -313,7 +315,7 @@ export const createStreamValidationRun = ({
     result: effectiveResult
   };
 
-  return {
+  const runWithoutFingerprint: Omit<StreamValidationRun, "fingerprint"> = {
     id: createValidationRunId(runBase),
     createdAt,
     devicePlatform,
@@ -367,6 +369,11 @@ export const createStreamValidationRun = ({
       platformPublishing,
       platformPublishingFreshness
     )
+  };
+
+  return {
+    ...runWithoutFingerprint,
+    fingerprint: createStreamValidationRunFingerprint(runWithoutFingerprint)
   };
 };
 
@@ -446,6 +453,12 @@ export const summarizeStreamValidationEvidence = (
     ageDays: ageInDays(run.createdAt, now),
     isFresh: ageInDays(run.createdAt, now) <= maxAgeDays
   }));
+  const fingerprint = createStreamValidationEvidenceFingerprint(normalized, scopedRuns, {
+    maxAgeDays,
+    requiredAppBuild,
+    requiredTargetPlatform,
+    requiredTransport
+  });
   const eligibleRuns = evaluatedRuns.filter((item) => item.isFresh).map((item) => item.run);
   const totalRuns = normalized.length;
   const eligibleRunCount = eligibleRuns.length;
@@ -586,6 +599,7 @@ export const summarizeStreamValidationEvidence = (
   });
 
   return {
+    fingerprint,
     totalRuns,
     eligibleRunCount,
     staleRunCount,
@@ -738,7 +752,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
     targetPlatform,
     createdAt
   );
-  const normalized: StreamValidationRun = {
+  const normalizedWithoutFingerprint: Omit<StreamValidationRun, "fingerprint"> = {
     id: normalizeText(value.id, createValidationRunId({
       createdAt,
       devicePlatform,
@@ -804,7 +818,10 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
     )
   };
 
-  return normalized;
+  return {
+    ...normalizedWithoutFingerprint,
+    fingerprint: createStreamValidationRunFingerprint(normalizedWithoutFingerprint)
+  };
 };
 
 const createEvidenceStatus = ({
@@ -1781,6 +1798,79 @@ const createValidationRunId = ({
   slug(transport),
   result
 ].join("-");
+
+const createStreamValidationRunFingerprint = (run: Omit<StreamValidationRun, "fingerprint">): string =>
+  createStableFingerprint("svr1", toRunFingerprintPayload(run));
+
+const createStreamValidationEvidenceFingerprint = (
+  retainedRuns: StreamValidationRun[],
+  scopedRuns: StreamValidationRun[],
+  options: {
+    maxAgeDays: number;
+    requiredAppBuild: string;
+    requiredTargetPlatform: string;
+    requiredTransport: string;
+  }
+): string =>
+  createStableFingerprint("sve1", {
+    options,
+    retainedRuns: retainedRuns.map(toEvidenceFingerprintRunRef),
+    scopedRuns: scopedRuns.map(toEvidenceFingerprintRunRef)
+  });
+
+const toEvidenceFingerprintRunRef = (run: StreamValidationRun) => ({
+  appBuild: run.appBuild,
+  createdAt: run.createdAt,
+  devicePlatform: run.devicePlatform,
+  fingerprint: run.fingerprint,
+  id: run.id,
+  result: run.result,
+  targetPlatform: run.targetPlatform,
+  transport: run.transport
+});
+
+const toRunFingerprintPayload = ({
+  recommendation: _recommendation,
+  summary: _summary,
+  ...payload
+}: Omit<StreamValidationRun, "fingerprint">) => payload;
+
+const createStableFingerprint = (prefix: string, value: unknown): string => {
+  const canonical = JSON.stringify(canonicalize(value));
+  return `${prefix}-${hashString(canonical)}-${canonical.length.toString(36)}`;
+};
+
+type CanonicalJson = null | boolean | number | string | CanonicalJson[] | { [key: string]: CanonicalJson };
+
+const canonicalize = (value: unknown): CanonicalJson => {
+  if (value === null || typeof value === "string" || typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (Array.isArray(value)) {
+    return value.map(canonicalize);
+  }
+  if (isRecord(value)) {
+    return Object.keys(value)
+      .sort()
+      .reduce<{ [key: string]: CanonicalJson }>((canonical, key) => {
+        canonical[key] = canonicalize(value[key]);
+        return canonical;
+      }, {});
+  }
+  return null;
+};
+
+const hashString = (value: string): string => {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+};
 
 const defaultDeviceName = (platform: StreamValidationDevicePlatform): string =>
   platform === "ios" ? "iOS device" : "Android device";

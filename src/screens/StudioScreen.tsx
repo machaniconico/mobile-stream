@@ -1299,6 +1299,7 @@ const StreamValidationRecorder = ({
           {diagnostics.validationEvidence.platformPublishingIosPass ? "pass" : "missing"} / Android{" "}
           {diagnostics.validationEvidence.platformPublishingAndroidPass ? "pass" : "missing"}
         </em>
+        <em>evidence fingerprint {diagnostics.validationEvidence.fingerprint}</em>
       </div>
       {latestDashboardFreshness ? (
         <div className={`diagnostic-incident ${platformPublishingFreshnessTone(latestDashboardFreshness.status)}`}>
@@ -1317,6 +1318,7 @@ const StreamValidationRecorder = ({
               ? ""
               : ` / ${diagnostics.validationEvidence.latestRunAgeDays}d old`}
           </em>
+          <em>run fingerprint {latestRun.fingerprint}</em>
           {validationRunNativeRuntimeLabel(latestRun) ? <em>{validationRunNativeRuntimeLabel(latestRun)}</em> : null}
           {validationRunMonitorHoldLabel(latestRun) ? <em>{validationRunMonitorHoldLabel(latestRun)}</em> : null}
           {validationRunFaceTrackingLabel(latestRun) ? <em>{validationRunFaceTrackingLabel(latestRun)}</em> : null}

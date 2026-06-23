@@ -27,7 +27,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 11;
+    bundleVersion: 12;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -96,6 +96,8 @@ export interface SupportBundle {
     validationRunbookFailCount: number;
     validationRunbookNextAction: string;
     validationEvidenceStatus: StreamDiagnostics["validationEvidence"]["status"];
+    validationEvidenceFingerprint: string;
+    validationEvidenceLatestRunFingerprint: string | null;
     validationEvidenceRunCount: number;
     validationEvidenceEligibleRunCount: number;
     validationEvidenceStaleRunCount: number;
@@ -333,7 +335,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 11
+      bundleVersion: 12
     },
     summary: {
       status: diagnostics.status,
@@ -402,6 +404,8 @@ export const createSupportBundle = ({
       validationRunbookFailCount: diagnostics.validationRunbook.failCount,
       validationRunbookNextAction: diagnostics.validationRunbook.nextAction,
       validationEvidenceStatus: diagnostics.validationEvidence.status,
+      validationEvidenceFingerprint: diagnostics.validationEvidence.fingerprint,
+      validationEvidenceLatestRunFingerprint: diagnostics.validationEvidence.latestRun?.fingerprint ?? null,
       validationEvidenceRunCount: diagnostics.validationEvidence.totalRuns,
       validationEvidenceEligibleRunCount: diagnostics.validationEvidence.eligibleRunCount,
       validationEvidenceStaleRunCount: diagnostics.validationEvidence.staleRunCount,
@@ -691,6 +695,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Summary: ${bundle.diagnostics.validation.summary}`,
     `- Next step: ${bundle.diagnostics.validation.recommendedNextStep}`,
     `- Evidence: ${bundle.summary.validationEvidenceStatus} / ${bundle.summary.validationEvidenceRunCount} retained / ${bundle.summary.validationEvidenceEligibleRunCount} eligible / ${bundle.summary.validationEvidenceStaleRunCount} stale`,
+    `- Evidence fingerprint: ${bundle.summary.validationEvidenceFingerprint} / latest ${bundle.summary.validationEvidenceLatestRunFingerprint ?? "-"}`,
     `- Evidence outcomes: ${bundle.summary.validationEvidencePassCount} pass / ${bundle.summary.validationEvidenceFailureCount} fail`,
     `- Evidence monitor hold: ${bundle.summary.validationEvidenceMonitorHoldRunCount} retained / ${bundle.summary.validationEvidenceMonitorHoldReadyCount} ready / ${bundle.summary.validationEvidenceMonitorHoldWarningCount} warn / ${bundle.summary.validationEvidenceMonitorHoldFailureCount} fail / iOS ${bundle.summary.validationEvidenceMonitorHoldIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceMonitorHoldAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestMonitorHoldStatus ?? "-"} ${bundle.summary.validationEvidenceLatestMonitorHoldDurationSeconds}s ${bundle.summary.validationEvidenceLatestMonitorHoldSampleCount} samples / ${bundle.summary.validationEvidenceLatestMonitorHoldStability ?? "-"} / avg ${bundle.summary.validationEvidenceLatestMonitorHoldAverageBitrateKbps} kbps ${bundle.summary.validationEvidenceLatestMonitorHoldAverageFps} fps / min ${bundle.summary.validationEvidenceLatestMonitorHoldMinimumBitrateKbps} kbps ${bundle.summary.validationEvidenceLatestMonitorHoldMinimumFps} fps / drops ${bundle.summary.validationEvidenceLatestMonitorHoldDroppedFrameIncrease} / reconnects ${bundle.summary.validationEvidenceLatestMonitorHoldObservedReconnectAttempts}`,
     `- Evidence native runtime: ${bundle.summary.validationEvidenceNativeRuntimeRunCount} retained / ${bundle.summary.validationEvidenceNativeRuntimeReadyCount} ready / ${bundle.summary.validationEvidenceNativeRuntimeWarningCount} warn / ${bundle.summary.validationEvidenceNativeRuntimeFailureCount} fail / iOS ${bundle.summary.validationEvidenceNativeRuntimeIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceNativeRuntimeAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestNativeRuntimeStatus ?? "-"} ${bundle.summary.validationEvidenceLatestNativeRuntimePlatform ?? "-"} / sent ${bundle.summary.validationEvidenceLatestNativeRuntimeSentVideoFrames} video ${bundle.summary.validationEvidenceLatestNativeRuntimeSentAudioFrames} audio / bytes ${bundle.summary.validationEvidenceLatestNativeRuntimeBytesWritten} / assets ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount} missing / congested ${bundle.summary.validationEvidenceLatestNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.validationEvidenceLatestNativeRuntimeQueuedItems}/${bundle.summary.validationEvidenceLatestNativeRuntimeCacheSize}`,
