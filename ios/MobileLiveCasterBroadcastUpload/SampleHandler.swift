@@ -851,6 +851,7 @@ final class BroadcastRTMPPublisher {
     }
 
     private let target: RTMPPublishTarget
+    private let publishURL: String
     private let queue = DispatchQueue(label: "MobileLiveCaster.broadcast.rtmp.publisher")
     private let callbackQueue = DispatchQueue(label: "MobileLiveCaster.broadcast.rtmp.network")
     private let statsLock = NSLock()
@@ -876,6 +877,7 @@ final class BroadcastRTMPPublisher {
 
     init(configuration: BroadcastUploadConfiguration) throws {
         target = try RTMPPublishTarget(url: configuration.publishURL)
+        publishURL = configuration.publishURL.absoluteString
     }
 
     func start() {
@@ -955,8 +957,9 @@ final class BroadcastRTMPPublisher {
             return
         }
         guard reconnectAttempts < ReconnectPolicy.maxAttempts else {
+            let message = sanitizeError("Connection lost after \(ReconnectPolicy.maxAttempts) reconnect attempts: \(error.localizedDescription)")
             statsLock.performLocked {
-                self.currentStats.fail("Connection lost after \(ReconnectPolicy.maxAttempts) reconnect attempts: \(error.localizedDescription)")
+                self.currentStats.fail(message)
             }
             return
         }
@@ -966,8 +969,9 @@ final class BroadcastRTMPPublisher {
             ReconnectPolicy.maxDelayMilliseconds,
             ReconnectPolicy.initialDelayMilliseconds * (1 << max(0, reconnectAttempts - 1))
         )
+        let reconnectReason = sanitizeError(error.localizedDescription)
         statsLock.performLocked {
-            self.currentStats.recordReconnectAttempt(reconnectAttempts, delayMs: delayMs, reason: error.localizedDescription)
+            self.currentStats.recordReconnectAttempt(reconnectAttempts, delayMs: delayMs, reason: reconnectReason)
         }
 
         let workItem = DispatchWorkItem { [weak self] in
@@ -976,6 +980,24 @@ final class BroadcastRTMPPublisher {
         reconnectWorkItem?.cancel()
         reconnectWorkItem = workItem
         queue.asyncAfter(deadline: .now() + .milliseconds(delayMs), execute: workItem)
+    }
+
+    private func sanitizeError(_ message: String) -> String {
+        let secrets = [publishURL, target.streamName].filter { $0.count >= 4 }
+        var redacted = secrets.reduce(message) { nextValue, secret in
+            nextValue.replacingOccurrences(of: secret, with: "[redacted]")
+        }
+        redacted = redacted.replacingOccurrences(
+            of: #"\b(Authorization\s*:\s*)(Bearer|OAuth)\s+[^\s,;]+"#,
+            with: "$1$2 [redacted]",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        redacted = redacted.replacingOccurrences(
+            of: #"\b(Bearer|OAuth)\s+[A-Za-z0-9._~+/=-]{12,}"#,
+            with: "$1 [redacted]",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        return redacted
     }
 
     private func resetConnectionState() {
@@ -2969,6 +2991,7 @@ final class BroadcastUploadPipeline {
             saveRuntimeState()
             return .success(())
         } catch {
+            let message = sanitizeError(error.localizedDescription)
             publisher?.stop()
             publisher = nil
             audioEncoder?.finish()
@@ -2977,8 +3000,8 @@ final class BroadcastUploadPipeline {
             videoEncoder = nil
             sceneCompositor = nil
             configuration = nil
-            state = .failed(error.localizedDescription)
-            logger.error("Broadcast upload failed to start: \(error.localizedDescription, privacy: .public)")
+            state = .failed(message)
+            logger.error("Broadcast upload failed to start: \(message, privacy: .public)")
             saveRuntimeState()
             return .failure(error)
         }
@@ -3079,6 +3102,34 @@ final class BroadcastUploadPipeline {
             publisherStats: publisher?.stats,
             sceneCompositionSummary: sceneCompositor?.summary
         )
+    }
+
+    private func sanitizeError(_ message: String) -> String {
+        Self.redactSensitiveText(message, configuration: configuration)
+    }
+
+    private static func redactSensitiveText(_ value: String, configuration: BroadcastUploadConfiguration?) -> String {
+        guard !value.isEmpty else {
+            return value
+        }
+
+        let streamName = configuration?.publishURL.path.split(separator: "/").last.map(String.init) ?? ""
+        let publishURL = configuration?.publishURL.absoluteString ?? ""
+        let secrets = [publishURL, streamName].filter { $0.count >= 4 }
+        var redacted = secrets.reduce(value) { nextValue, secret in
+            nextValue.replacingOccurrences(of: secret, with: "[redacted]")
+        }
+        redacted = redacted.replacingOccurrences(
+            of: #"\b(Authorization\s*:\s*)(Bearer|OAuth)\s+[^\s,;]+"#,
+            with: "$1$2 [redacted]",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        redacted = redacted.replacingOccurrences(
+            of: #"\b(Bearer|OAuth)\s+[A-Za-z0-9._~+/=-]{12,}"#,
+            with: "$1 [redacted]",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        return redacted
     }
 
     private func encodeAudio(_ sampleBuffer: CMSampleBuffer, source: BroadcastAudioSource) {

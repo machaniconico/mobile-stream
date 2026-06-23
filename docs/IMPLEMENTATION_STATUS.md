@@ -31,6 +31,7 @@
 - Shared stream session event log for status transitions, manual operations, automatic recovery actions, support diagnostics, and redacted report export.
 - Stream key redaction and no-secret browser persistence.
 - Sensitive OAuth/API error message redaction before user-facing status display.
+- Native Android/iOS status and publisher-runtime message redaction for publish URLs, stream keys, and bearer tokens before app display.
 - In-app stream key clear/replacement controls for browser and mobile setup screens.
 - Mic effect profile model with presets, gain, noise gate, compression, and headphone monitor settings.
 - Chat/comment read-aloud domain model with queueing, muted words, duplicate suppression, queue limits, URL redaction, and speech text shaping.

@@ -120,6 +120,7 @@ enum class LiveCasterStatus(val jsValue: String) {
 
 data class LiveCasterProfile(
     val endpoint: String,
+    val streamKey: String,
     val width: Int,
     val height: Int,
     val fps: Int,
@@ -140,7 +141,11 @@ data class MicEffectsProfile(
 )
 
 object LiveCasterSession {
+    private data class EndpointParts(val endpoint: String, val streamKey: String)
+
     private val streamKeyPlaceholder = Regex("\\{stream_key\\}", RegexOption.IGNORE_CASE)
+    private val bearerTokenPattern = Regex("\\b(Bearer|OAuth)\\s+[A-Za-z0-9._~+/=-]{12,}", RegexOption.IGNORE_CASE)
+    private val authorizationHeaderPattern = Regex("\\b(Authorization\\s*:\\s*)(Bearer|OAuth)\\s+[^\\s,;]+", RegexOption.IGNORE_CASE)
     private val listeners = mutableSetOf<(WritableMap) -> Unit>()
 
     var status: LiveCasterStatus = LiveCasterStatus.Idle
@@ -219,8 +224,9 @@ object LiveCasterSession {
     }
 
     fun fail(message: String) {
+        val safeMessage = redactSensitiveText(message)
         status = LiveCasterStatus.Failed
-        health = health.copy(message = message)
+        health = health.copy(message = safeMessage)
         startedAtMillis = null
         nativeRuntime = nativeRuntime?.let { current ->
             NativeRuntimeTelemetry(
@@ -232,10 +238,10 @@ object LiveCasterSession {
                 publisher = current.publisher.copy(
                     state = "failed",
                     reconnectAttempts = health.reconnectAttempts,
-                    lastError = message
+                    lastError = safeMessage
                 ),
                 composition = current.composition,
-                message = message
+                message = safeMessage
             )
         }
         emit()
@@ -273,7 +279,7 @@ object LiveCasterSession {
             cacheSize = cacheSize ?: publisher.cacheSize,
             itemsInCache = itemsInCache ?: publisher.itemsInCache,
             congested = congested ?: publisher.congested,
-            lastError = lastError ?: publisher.lastError
+            lastError = redactSensitiveText(lastError ?: publisher.lastError)
         )
         nativeRuntime = NativeRuntimeTelemetry(
             runtimeStatus = status.jsValue,
@@ -283,7 +289,7 @@ object LiveCasterSession {
             droppedFrames = droppedVideoFrames ?: current?.droppedFrames ?: health.droppedFrames.toLong(),
             publisher = nextPublisher,
             composition = composition,
-            message = message
+            message = redactSensitiveText(message)
         )
         emit()
     }
@@ -302,7 +308,7 @@ object LiveCasterSession {
             fps = fps,
             elapsedSeconds = elapsed,
             reconnectAttempts = reconnectAttempts,
-            message = message
+            message = redactSensitiveText(message)
         )
         emit()
     }
@@ -332,7 +338,7 @@ object LiveCasterSession {
 
     private fun setStatus(nextStatus: LiveCasterStatus, message: String) {
         status = nextStatus
-        health = health.copy(message = message)
+        health = health.copy(message = redactSensitiveText(message))
         emit()
     }
 
@@ -346,17 +352,18 @@ object LiveCasterSession {
         val destination = root.getJSONObject("destination")
         val quality = root.getJSONObject("quality")
         val micEffects = parseMicEffects(root.optJSONObject("micEffects"))
-        val endpoint = buildEndpoint(
+        val endpointParts = buildEndpointParts(
             destination.getString("serverUrl"),
             destination.optString("streamKey", "")
         )
 
-        require(endpoint.startsWith("rtmp://") || endpoint.startsWith("rtmps://")) {
+        require(endpointParts.endpoint.startsWith("rtmp://") || endpointParts.endpoint.startsWith("rtmps://")) {
             "Only RTMP and RTMPS endpoints are supported"
         }
 
         return LiveCasterProfile(
-            endpoint = endpoint,
+            endpoint = endpointParts.endpoint,
+            streamKey = endpointParts.streamKey,
             width = quality.getInt("width"),
             height = quality.getInt("height"),
             fps = quality.getInt("fps"),
@@ -384,12 +391,16 @@ object LiveCasterSession {
     }
 
     private fun buildEndpoint(serverUrl: String, streamKey: String): String {
+        return buildEndpointParts(serverUrl, streamKey).endpoint
+    }
+
+    private fun buildEndpointParts(serverUrl: String, streamKey: String): EndpointParts {
         var normalizedServerUrl = serverUrl.trim().trimEnd('/')
         var normalizedStreamKey = normalizeStreamKeyForServer(normalizedServerUrl, streamKey)
 
         splitPublishUrl(normalizedStreamKey)?.let { parts ->
-            normalizedServerUrl = parts.first
-            normalizedStreamKey = parts.second
+            normalizedServerUrl = parts.endpoint
+            normalizedStreamKey = parts.streamKey
         }
 
         require(normalizedStreamKey.isNotEmpty()) {
@@ -397,17 +408,17 @@ object LiveCasterSession {
         }
 
         if (normalizedServerUrl.endsWith("/$normalizedStreamKey")) {
-            return normalizedServerUrl
+            return EndpointParts(normalizedServerUrl, normalizedStreamKey)
         }
 
         if (streamKeyPlaceholder.containsMatchIn(normalizedServerUrl)) {
-            return streamKeyPlaceholder.replace(normalizedServerUrl) { normalizedStreamKey }
+            return EndpointParts(streamKeyPlaceholder.replace(normalizedServerUrl) { normalizedStreamKey }, normalizedStreamKey)
         }
 
-        return "$normalizedServerUrl/$normalizedStreamKey"
+        return EndpointParts("$normalizedServerUrl/$normalizedStreamKey", normalizedStreamKey)
     }
 
-    private fun splitPublishUrl(value: String): Pair<String, String>? {
+    private fun splitPublishUrl(value: String): EndpointParts? {
         val normalized = value.trim()
         if (!normalized.startsWith("rtmp://", ignoreCase = true) && !normalized.startsWith("rtmps://", ignoreCase = true)) {
             return null
@@ -435,10 +446,27 @@ object LiveCasterSession {
             val query = uri.rawQuery?.takeIf { it.isNotBlank() }?.let { "?$it" } ?: ""
             val endpoint = "$scheme://$host$port/$endpointPath"
             val extractedStreamKey = "${segments.last()}$query"
-            endpoint to extractedStreamKey
+            EndpointParts(endpoint, extractedStreamKey)
         } catch (_: Exception) {
             null
         }
+    }
+
+    private fun redactSensitiveText(value: String): String {
+        if (value.isBlank()) {
+            return value
+        }
+
+        val currentProfile = profile
+        val secretCandidates = listOfNotNull(
+            currentProfile?.endpoint,
+            currentProfile?.streamKey
+        ).filter { it.length >= 4 }
+
+        return secretCandidates
+            .fold(value) { message, secret -> message.replace(secret, "[redacted]") }
+            .replace(authorizationHeaderPattern) { "${it.groupValues[1]}${it.groupValues[2]} [redacted]" }
+            .replace(bearerTokenPattern) { "${it.groupValues[1]} [redacted]" }
     }
 
     private fun normalizeStreamKeyForServer(serverUrl: String, streamKey: String): String {

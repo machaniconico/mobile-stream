@@ -371,8 +371,9 @@ final class LiveCasterNative: RCTEventEmitter {
                 self.emitSnapshot(snapshot)
                 resolve(snapshot)
             } catch {
-                self.failLocked(error.localizedDescription)
-                reject((error as? LiveCasterNativeError)?.code ?? "prepare_failed", error.localizedDescription, error)
+                let message = self.redactSensitiveTextLocked(error.localizedDescription)
+                self.failLocked(message)
+                reject((error as? LiveCasterNativeError)?.code ?? "prepare_failed", message, error)
             }
         }
     }
@@ -419,8 +420,9 @@ final class LiveCasterNative: RCTEventEmitter {
                     }
                 } catch {
                     self.stateQueue.async {
-                        self.failLocked(error.localizedDescription)
-                        reject((error as? LiveCasterNativeError)?.code ?? "start_failed", error.localizedDescription, error)
+                        let message = self.redactSensitiveTextLocked(error.localizedDescription)
+                        self.failLocked(message)
+                        reject((error as? LiveCasterNativeError)?.code ?? "start_failed", message, error)
                     }
                 }
             }
@@ -486,8 +488,9 @@ final class LiveCasterNative: RCTEventEmitter {
                     }
                 } catch {
                     self.stateQueue.async {
-                        self.failLocked(error.localizedDescription)
-                        reject((error as? LiveCasterNativeError)?.code ?? "reconnect_failed", error.localizedDescription, error)
+                        let message = self.redactSensitiveTextLocked(error.localizedDescription)
+                        self.failLocked(message)
+                        reject((error as? LiveCasterNativeError)?.code ?? "reconnect_failed", message, error)
                     }
                 }
             }
@@ -548,7 +551,7 @@ final class LiveCasterNative: RCTEventEmitter {
     private func failLocked(_ message: String) {
         stopRuntimePollingLocked()
         status = .failed
-        health.message = message
+        health.message = redactSensitiveTextLocked(message)
         startedAt = nil
         let snapshot = snapshotLocked()
         emitSnapshot(snapshot)
@@ -588,7 +591,9 @@ final class LiveCasterNative: RCTEventEmitter {
                 runtimeState,
                 status: status,
                 stale: true,
-                message: health.message
+                message: health.message,
+                streamKey: preparedConfiguration?.streamKey ?? "",
+                publishURL: preparedConfiguration?.publishURL ?? ""
             )
             emitSnapshot(snapshotLocked())
             return
@@ -641,9 +646,9 @@ final class LiveCasterNative: RCTEventEmitter {
         let configuredFps = runtimeState.intValue("fps", fallback: preparedConfiguration?.fps ?? health.fps)
         let measuredFps = elapsedSeconds > 0 && videoFrames > 0 ? max(1, Int((Double(videoFrames) / Double(elapsedSeconds)).rounded())) : configuredFps
         let bitrateKbps = elapsedSeconds > 0 && encodedBytes > 0 ? max(1, Int((Double(encodedBytes) * 8 / 1000 / Double(elapsedSeconds)).rounded())) : 0
-        let publisherState = publisher.stringValue("state")
-        let compositionMessage = sceneComposition.stringValue("message")
-        let errorMessage = runtimeState.stringValue("error", fallback: publisher.stringValue("lastError"))
+        let publisherState = redactSensitiveTextLocked(publisher.stringValue("state"))
+        let compositionMessage = redactSensitiveTextLocked(sceneComposition.stringValue("message"))
+        let errorMessage = redactSensitiveTextLocked(runtimeState.stringValue("error", fallback: publisher.stringValue("lastError")))
         let runtimeMessage = Self.runtimeHealthMessage(
             status: status,
             runtimeStatus: runtimeStatus,
@@ -665,7 +670,9 @@ final class LiveCasterNative: RCTEventEmitter {
             runtimeState,
             status: status,
             stale: false,
-            message: runtimeMessage
+            message: runtimeMessage,
+            streamKey: preparedConfiguration?.streamKey ?? "",
+            publishURL: preparedConfiguration?.publishURL ?? ""
         )
 
         if status == .failed {
@@ -704,14 +711,16 @@ final class LiveCasterNative: RCTEventEmitter {
         _ runtimeState: [String: Any],
         status: LiveCasterStatus,
         stale: Bool,
-        message: String
+        message: String,
+        streamKey: String,
+        publishURL: String
     ) -> [String: Any] {
         let stats = runtimeState.dictionaryValue("stats")
         let videoEncoder = runtimeState.dictionaryValue("videoEncoder")
         let publisher = runtimeState.dictionaryValue("publisher")
         let sceneComposition = runtimeState.dictionaryValue("sceneComposition")
-        let runtimeStatus = runtimeState.stringValue("status", fallback: status.rawValue)
-        let publisherState = publisher.stringValue("state")
+        let runtimeStatus = redactSensitiveText(runtimeState.stringValue("status", fallback: status.rawValue), streamKey: streamKey, publishURL: publishURL)
+        let publisherState = redactSensitiveText(publisher.stringValue("state"), streamKey: streamKey, publishURL: publishURL)
         let skippedCount = sceneComposition.intValue("skippedCount")
         let appliedCount = sceneComposition.intValue("appliedCount")
         let parseFailed = sceneComposition.boolValue("parseFailed")
@@ -748,17 +757,53 @@ final class LiveCasterNative: RCTEventEmitter {
                 "cacheSize": 0,
                 "itemsInCache": 0,
                 "congested": false,
-                "lastError": publisher.stringValue("lastError", fallback: runtimeState.stringValue("error"))
+                "lastError": redactSensitiveText(
+                    publisher.stringValue("lastError", fallback: runtimeState.stringValue("error")),
+                    streamKey: streamKey,
+                    publishURL: publishURL
+                )
             ],
             "composition": [
                 "status": compositionStatus,
                 "appliedCount": appliedCount,
                 "skippedCount": skippedCount,
-                "skippedKinds": sceneComposition.stringArrayValue("skippedKinds"),
-                "message": sceneComposition.stringValue("message")
+                "skippedKinds": sceneComposition.stringArrayValue("skippedKinds").map {
+                    redactSensitiveText($0, streamKey: streamKey, publishURL: publishURL)
+                },
+                "message": redactSensitiveText(sceneComposition.stringValue("message"), streamKey: streamKey, publishURL: publishURL)
             ],
-            "message": message
+            "message": redactSensitiveText(message, streamKey: streamKey, publishURL: publishURL)
         ]
+    }
+
+    private func redactSensitiveTextLocked(_ value: String) -> String {
+        Self.redactSensitiveText(
+            value,
+            streamKey: preparedConfiguration?.streamKey ?? "",
+            publishURL: preparedConfiguration?.publishURL ?? ""
+        )
+    }
+
+    private static func redactSensitiveText(_ value: String, streamKey: String, publishURL: String) -> String {
+        guard !value.isEmpty else {
+            return value
+        }
+
+        let secrets = [publishURL, streamKey].filter { $0.count >= 4 }
+        var redacted = secrets.reduce(value) { nextValue, secret in
+            nextValue.replacingOccurrences(of: secret, with: "[redacted]")
+        }
+        redacted = redacted.replacingOccurrences(
+            of: #"\b(Authorization\s*:\s*)(Bearer|OAuth)\s+[^\s,;]+"#,
+            with: "$1$2 [redacted]",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        redacted = redacted.replacingOccurrences(
+            of: #"\b(Bearer|OAuth)\s+[A-Za-z0-9._~+/=-]{12,}"#,
+            with: "$1 [redacted]",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        return redacted
     }
 
     private static func isRuntimeStateFresh(_ runtimeState: [String: Any]) -> Bool {
