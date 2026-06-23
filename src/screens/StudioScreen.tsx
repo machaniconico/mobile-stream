@@ -508,6 +508,23 @@ export const StudioScreen = ({
               <span>Name</span>
               <input value={selectedSource.name} disabled={setupLocked} onChange={(event) => updateSelectedName(event.target.value)} />
             </label>
+            {selectedSource.kind === "pngtuber" ? (
+              <label className="field">
+                <span>Still image URI</span>
+                <input
+                  value={selectedSource.imageUri}
+                  disabled={setupLocked}
+                  placeholder="content://, file://, or absolute path"
+                  onChange={(event) =>
+                    onSceneChange(
+                      updateSource(scene, selectedSource.id, (source) =>
+                        source.kind === "pngtuber" ? { ...source, imageUri: event.target.value } : source
+                      )
+                    )
+                  }
+                />
+              </label>
+            ) : null}
             <Slider label="X" value={selectedSource.transform.x} disabled={setupLocked} onChange={(value) => updateSelectedTransform("x", value)} />
             <Slider label="Y" value={selectedSource.transform.y} disabled={setupLocked} onChange={(value) => updateSelectedTransform("y", value)} />
             <Slider
@@ -1519,6 +1536,14 @@ const SourceVisual = ({ source }: { source: SceneSource }) => {
       `rotate(${motion.headRoll * 18}deg)`,
       `skew(${motion.headYaw * 7}deg, ${-motion.headPitch * 5}deg)`
     ].join(" ");
+
+    if (source.kind === "pngtuber" && source.imageUri.trim()) {
+      return (
+        <div className="avatar-visual still-image" style={{ transform: `${bodyTransform} ${headTransform}` }}>
+          <img src={source.imageUri} alt="" />
+        </div>
+      );
+    }
 
     return (
       <div className={`avatar-visual ${source.expression}`} style={{ transform: bodyTransform }}>

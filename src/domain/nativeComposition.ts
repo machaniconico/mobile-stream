@@ -115,7 +115,7 @@ const createPreviewOnlyIssue = (source: SceneSource): NativeCompositionIssue => 
 const nativeCompositionAction = (kind: SourceKind): string => {
   switch (kind) {
     case "pngtuber":
-      return "Add a native PNG avatar draw pass with expression, blink, lip-sync, and face-motion transforms.";
+      return "Android can render this as a native still-image PNGTuber with expression, blink, lip-sync, and face-motion transforms; add iOS compositor validation before claiming cross-platform release readiness.";
     case "live2d":
       return "Integrate a native Live2D Cubism renderer before relying on this source in production output.";
     case "image":

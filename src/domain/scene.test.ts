@@ -77,6 +77,7 @@ describe("scene document", () => {
 
     expect(avatarNode?.payload.trackingConfidence).toBe(0);
     expect(avatarNode?.payload.headYaw).toBe(0);
+    expect(avatarNode?.payload.imageUri).toBe("");
   });
 
   it("normalizes persisted scene data into safe renderable sources", () => {
@@ -98,19 +99,40 @@ describe("scene document", () => {
           fontSize: 999,
           transform: { x: 2, y: -1, width: 5, height: -5, rotation: 999, opacity: 4 }
         },
+        {
+          id: "avatar-with-image",
+          kind: "pngtuber",
+          name: "Avatar",
+          visible: true,
+          locked: false,
+          blendMode: "normal",
+          avatarId: "avatar-custom",
+          imageUri: "content://avatar/still.png",
+          expression: "happy",
+          mouthOpen: 0.2,
+          blink: 0,
+          motion: { headYaw: 3, confidence: 2 },
+          transform: { x: 0.2, y: 0.2, width: 0.3, height: 0.4, rotation: 0, opacity: 1 }
+        },
         { kind: "missing-required" }
       ]
     });
 
     expect(scene.id).toBe("saved");
     expect(scene.canvas).toEqual({ width: 7680, height: 1, fps: 120 });
-    expect(scene.sources).toHaveLength(1);
+    expect(scene.sources).toHaveLength(2);
     expect(scene.sources[0]).toMatchObject({
       id: "bad-transform",
       kind: "text",
       blendMode: "normal",
       fontSize: 180,
       transform: { x: 1, y: 0, width: 1, height: 0, rotation: 180, opacity: 1 }
+    });
+    expect(scene.sources[1]).toMatchObject({
+      id: "avatar-with-image",
+      kind: "pngtuber",
+      imageUri: "content://avatar/still.png",
+      motion: { headYaw: 1, confidence: 1 }
     });
   });
 

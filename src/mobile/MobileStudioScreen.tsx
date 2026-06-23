@@ -1,4 +1,4 @@
-import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { useEffect, useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
@@ -438,6 +438,25 @@ export const MobileStudioScreen = ({
             editable={!setupLocked}
             placeholderTextColor="#71717a"
           />
+          {selectedSource.kind === "pngtuber" ? (
+            <>
+              <Label text="Still image URI" />
+              <TextInput
+                value={selectedSource.imageUri}
+                onChangeText={(imageUri) =>
+                  onSceneChange(
+                    updateSource(scene, selectedSource.id, (source) =>
+                      source.kind === "pngtuber" ? { ...source, imageUri } : source
+                    )
+                  )
+                }
+                style={styles.input}
+                editable={!setupLocked}
+                placeholder="content://, file://, or absolute path"
+                placeholderTextColor="#71717a"
+              />
+            </>
+          ) : null}
           <Stepper
             label="X"
             value={selectedSource.transform.x}
@@ -1639,6 +1658,27 @@ const SourceVisual = ({ source }: { source: SceneSource }) => {
   if (source.kind === "pngtuber" || source.kind === "live2d") {
     const motion = source.motion ?? defaultAvatarMotion();
 
+    if (source.kind === "pngtuber" && source.imageUri.trim()) {
+      return (
+        <View
+          style={[
+            styles.avatarVisual,
+            {
+              transform: [
+                { translateX: motion.headX * 72 },
+                { translateY: (-motion.bodyBounce + motion.breathing + motion.headY) * 72 },
+                { rotate: `${motion.bodyLean * 10 + motion.headRoll * 18}deg` },
+                { scaleX: 1 - Math.abs(motion.headYaw) * 0.08 },
+                { scaleY: 1 - Math.abs(motion.headPitch) * 0.04 }
+              ]
+            }
+          ]}
+        >
+          <Image source={{ uri: source.imageUri }} style={styles.avatarStillImage} resizeMode="contain" />
+        </View>
+      );
+    }
+
     return (
       <View
         style={[
@@ -2332,6 +2372,10 @@ const styles = StyleSheet.create({
     height: "100%",
     alignItems: "center",
     justifyContent: "center"
+  },
+  avatarStillImage: {
+    width: "100%",
+    height: "100%"
   },
   avatarBody: {
     position: "absolute",

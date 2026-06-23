@@ -41,6 +41,7 @@ export interface ScreenSource extends BaseSource {
 export interface PNGTuberSource extends BaseSource {
   kind: "pngtuber";
   avatarId: string;
+  imageUri: string;
   expression: string;
   mouthOpen: number;
   blink: number;
@@ -178,6 +179,7 @@ export const createDefaultScene = (): SceneDocument => ({
       locked: false,
       blendMode: "normal",
       avatarId: "default-pngtuber",
+      imageUri: "",
       expression: "neutral",
       mouthOpen: 0.18,
       blink: 0,
@@ -218,6 +220,7 @@ export const createSource = (kind: SourceKind): SceneSource => {
         ...base,
         kind,
         avatarId: "default-pngtuber",
+        imageUri: "",
         expression: "neutral",
         mouthOpen: 0,
         blink: 0,
@@ -340,6 +343,7 @@ const sourcePayload = (source: SceneSource): Record<string, string | number | bo
       const pngMotion = source.motion ?? defaultAvatarMotion();
       return {
         avatarId: source.avatarId,
+        imageUri: source.imageUri,
         expression: source.expression,
         mouthOpen: source.mouthOpen,
         blink: source.blink,
@@ -466,6 +470,7 @@ const normalizeSceneSource = (value: unknown): SceneSource | null => {
         ...base,
         kind: "pngtuber",
         avatarId: stringValue(value.avatarId, sourceFallback.avatarId),
+        imageUri: typeof value.imageUri === "string" ? value.imageUri : sourceFallback.imageUri,
         expression: stringValue(value.expression, sourceFallback.expression),
         mouthOpen: clampedNumber(value.mouthOpen, sourceFallback.mouthOpen, 0, 1),
         blink: clampedNumber(value.blink, sourceFallback.blink, 0, 1),

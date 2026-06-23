@@ -76,7 +76,7 @@
 - Android foreground streaming service with `mediaProjection|microphone` service type.
 - Android RTMP/RTMPS publishing path through RootEncoder, using screen capture and microphone input.
 - Android publish endpoint assembly from the app's server URL and stream key fields.
-- Android native GL overlay compositor for text, image, and solid scene sources on top of MediaProjection capture, with applied/pending overlay status in stream health messages.
+- Android native GL overlay compositor for PNGTuber still-image, text, image, and solid scene sources on top of MediaProjection capture, with applied/pending overlay status in stream health messages.
 - Android microphone PCM effect path through RootEncoder `CustomAudioEffect`.
 - Android headphone-only mic monitor playback through `AudioTrack`.
 - Android microphone/notification runtime permission preflight before MediaProjection launch.
@@ -107,7 +107,7 @@
 - iOS Broadcast Upload Extension production signing/provisioning validation.
 - Android end-to-end physical device validation against a real RTMP/RTMPS endpoint.
 - Android physical-device tuning for mic monitor latency and Bluetooth route behavior.
-- Native compositor.
+- iOS native compositor and cross-platform avatar overlay parity.
 - First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
 - Live2D Cubism SDK integration.
 - Twitch stream key reset/rotation through API. Twitch currently exposes stream key retrieval through Helix, not a public reset endpoint.
@@ -125,6 +125,6 @@
 
 1. Run iOS and Android on physical devices against a private RTMPS endpoint and tune bitrate/fps/audio sync behavior.
 2. Validate YouTube Live and Twitch ingest with real stream keys on both platforms.
-3. Add native compositor and device-level latency tuning after physical endpoint validation.
+3. Add iOS native compositor parity and device-level latency tuning after physical endpoint validation.
 4. Validate YouTube broadcast status refresh and lifecycle transitions with a real account and active ingest stream.
 5. Tune app-level recovery thresholds against measured physical-device ingest behavior.
