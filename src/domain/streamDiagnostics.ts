@@ -71,6 +71,7 @@ export interface PlatformPublishingDiagnostics {
     streamStatus: string;
     healthStatus: string;
     healthIssueCount: number;
+    statusCheckedAt: string;
   } | null;
   twitch: {
     liveStatus: string;
@@ -79,6 +80,7 @@ export interface PlatformPublishingDiagnostics {
     hasCategoryId: boolean;
     language: string;
     startedAt: string;
+    statusCheckedAt: string;
   } | null;
 }
 
@@ -737,7 +739,7 @@ const createYouTubePublishingDiagnostics = (
     summary:
       status === "info"
         ? "No YouTube dashboard status has been captured yet."
-        : `YouTube dashboard: broadcast ${broadcastStatus || "unknown"}, stream ${streamStatus || "unknown"}, health ${healthStatus || "unknown"}, issues ${healthIssueCount}.`,
+        : `YouTube dashboard: broadcast ${broadcastStatus || "unknown"}, stream ${streamStatus || "unknown"}, health ${healthStatus || "unknown"}, issues ${healthIssueCount}, checked ${settings.youtubeStatusCheckedAt || "not recorded"}.`,
     recommendation:
       status === "pass"
         ? "Keep the YouTube dashboard health snapshot with this release-candidate validation run."
@@ -752,7 +754,8 @@ const createYouTubePublishingDiagnostics = (
       broadcastStatus,
       streamStatus,
       healthStatus,
-      healthIssueCount
+      healthIssueCount,
+      statusCheckedAt: settings.youtubeStatusCheckedAt
     },
     twitch: null
   };
@@ -771,7 +774,7 @@ const createTwitchPublishingDiagnostics = (
     summary:
       status === "info"
         ? "No Twitch live-status snapshot has been captured yet."
-        : `Twitch dashboard: ${liveStatus || "unknown"}, viewers ${settings.twitchViewerCount}, started ${settings.twitchStartedAt || "not reported"}.`,
+        : `Twitch dashboard: ${liveStatus || "unknown"}, viewers ${settings.twitchViewerCount}, started ${settings.twitchStartedAt || "not reported"}, checked ${settings.twitchStatusCheckedAt || "not recorded"}.`,
     recommendation:
       status === "pass"
         ? "Keep the Twitch live-status snapshot with this release-candidate validation run."
@@ -785,7 +788,8 @@ const createTwitchPublishingDiagnostics = (
       hasCategory: Boolean(settings.twitchCategory.trim()),
       hasCategoryId: Boolean(settings.twitchCategoryId.trim()),
       language: settings.twitchLanguage,
-      startedAt: settings.twitchStartedAt
+      startedAt: settings.twitchStartedAt,
+      statusCheckedAt: settings.twitchStatusCheckedAt
     }
   };
 };

@@ -60,7 +60,10 @@ export interface StreamStartPreflightInput {
   platformChatAuth?: PlatformChatAuthSession | null;
   platformChatConnection?: Pick<PlatformChatConnectionState, "phase" | "message"> | null;
   audioRoute?: AudioRouteState | null;
+  now?: Date;
 }
+
+export const platformPublishingStatusMaxAgeMinutes = 10;
 
 export const createStreamStartPreflightReport = ({
   readiness,
@@ -71,14 +74,15 @@ export const createStreamStartPreflightReport = ({
   chatReader = null,
   platformChatAuth = null,
   platformChatConnection = null,
-  audioRoute = null
+  audioRoute = null,
+  now = new Date()
 }: StreamStartPreflightInput): StreamStartPreflightReport => {
   const issues = [
     ...readiness.issues.map(toPreflightIssue),
     ...createAudioMonitorRouteIssues(profile, audioRoute),
     ...createChatReadoutIssues(profile, chatReader, platformChatAuth, platformChatConnection),
     ...createCommercialValidationIssues(profile, validation),
-    ...createPlatformPublishingIssues(profile, validation),
+    ...createPlatformPublishingIssues(profile, validation, now),
     ...createEngineStateIssues(streamStatus),
     ...createOperationIssues(operationStatus)
   ];
@@ -306,18 +310,19 @@ const createCommercialValidationIssues = (
 
 const createPlatformPublishingIssues = (
   profile: StreamStartPreflightInput["profile"],
-  validation: StreamStartPreflightInput["validation"]
+  validation: StreamStartPreflightInput["validation"],
+  now: Date
 ): StreamStartPreflightIssue[] => {
   if (!profile) {
     return [];
   }
 
   if (profile.destination.platform === "youtube-live") {
-    return createYouTubePublishingIssues(profile, validation);
+    return createYouTubePublishingIssues(profile, validation, now);
   }
 
   if (profile.destination.platform === "twitch") {
-    return createTwitchPublishingIssues(profile);
+    return createTwitchPublishingIssues(profile, now);
   }
 
   return [];
@@ -325,7 +330,8 @@ const createPlatformPublishingIssues = (
 
 const createYouTubePublishingIssues = (
   profile: NonNullable<StreamStartPreflightInput["profile"]>,
-  validation: StreamStartPreflightInput["validation"]
+  validation: StreamStartPreflightInput["validation"],
+  now: Date
 ): StreamStartPreflightIssue[] => {
   const settings = profile.platformPublishing;
   const visibilityRequiresManagedBroadcast = settings.privacyStatus !== "private" && validation?.status === "ready";
@@ -334,6 +340,10 @@ const createYouTubePublishingIssues = (
   }
 
   const issues: StreamStartPreflightIssue[] = [];
+  const freshnessIssue = createStatusFreshnessIssue("youtube", settings.youtubeStatusCheckedAt, now);
+  if (freshnessIssue) {
+    issues.push(freshnessIssue);
+  }
   if (!settings.youtubeBroadcastId.trim()) {
     issues.push({
       code: "publishing-youtube-broadcast-required",
@@ -379,12 +389,19 @@ const createYouTubePublishingIssues = (
   return issues;
 };
 
-const createTwitchPublishingIssues = (profile: NonNullable<StreamStartPreflightInput["profile"]>): StreamStartPreflightIssue[] => {
+const createTwitchPublishingIssues = (
+  profile: NonNullable<StreamStartPreflightInput["profile"]>,
+  now: Date
+): StreamStartPreflightIssue[] => {
+  const freshnessIssue = createStatusFreshnessIssue("twitch", profile.platformPublishing.twitchStatusCheckedAt, now);
+  const issues = freshnessIssue ? [freshnessIssue] : [];
+
   if (profile.platformPublishing.twitchLiveStatus.trim().toLowerCase() !== "live") {
-    return [];
+    return issues;
   }
 
   return [
+    ...issues,
     {
       code: "publishing-twitch-already-live",
       severity: "block",
@@ -394,6 +411,52 @@ const createTwitchPublishingIssues = (profile: NonNullable<StreamStartPreflightI
       recommendation: "Refresh Twitch status or stop the existing live stream before starting another encoder session."
     }
   ];
+};
+
+const createStatusFreshnessIssue = (
+  platform: "youtube" | "twitch",
+  checkedAt: string,
+  now: Date
+): StreamStartPreflightIssue | null => {
+  const label = platform === "youtube" ? "YouTube status" : "Twitch status";
+  const platformName = platform === "youtube" ? "YouTube" : "Twitch";
+  if (!checkedAt.trim()) {
+    return {
+      code: `publishing-${platform}-status-unchecked`,
+      severity: "warning",
+      area: "publishing",
+      label,
+      message: `${platformName} dashboard status has not been refreshed in this profile.`,
+      recommendation: `Refresh ${platformName} status before starting a production stream.`
+    };
+  }
+
+  const checkedTimestamp = Date.parse(checkedAt);
+  const nowTimestamp = now.getTime();
+  if (!Number.isFinite(checkedTimestamp) || !Number.isFinite(nowTimestamp)) {
+    return {
+      code: `publishing-${platform}-status-invalid`,
+      severity: "warning",
+      area: "publishing",
+      label,
+      message: `${platformName} dashboard status timestamp is invalid.`,
+      recommendation: `Refresh ${platformName} status before starting a production stream.`
+    };
+  }
+
+  const ageMinutes = Math.floor(Math.max(0, nowTimestamp - checkedTimestamp) / 60000);
+  if (ageMinutes <= platformPublishingStatusMaxAgeMinutes) {
+    return null;
+  }
+
+  return {
+    code: `publishing-${platform}-status-stale`,
+    severity: "warning",
+    area: "publishing",
+    label,
+    message: `${platformName} dashboard status is ${ageMinutes} minutes old.`,
+    recommendation: `Refresh ${platformName} status within ${platformPublishingStatusMaxAgeMinutes} minutes of starting a production stream.`
+  };
 };
 
 const createAudioMonitorRouteIssues = (

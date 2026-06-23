@@ -115,6 +115,7 @@ describe("platformPublishing", () => {
     );
     expect(result.profile.platformPublishing.youtubeBroadcastId).toBe("broadcast-1");
     expect(result.profile.platformPublishing.youtubeLiveChatId).toBe("chat-1");
+    expect(result.profile.platformPublishing.youtubeStatusCheckedAt).toBe("2026-01-01T00:00:00.000Z");
     expect(result.profile.platformChat.youtubeLiveChatId).toBe("chat-1");
   });
 
@@ -141,7 +142,13 @@ describe("platformPublishing", () => {
       })
     }));
 
-    const result = await transitionYouTubeBroadcast(profile, youtubeCredential(), "live", fetcher);
+    const result = await transitionYouTubeBroadcast(
+      profile,
+      youtubeCredential(),
+      "live",
+      fetcher,
+      Date.parse("2026-06-23T00:03:00.000Z")
+    );
 
     expect(fetcher).toHaveBeenCalledWith(
       "https://www.googleapis.com/youtube/v3/liveBroadcasts/transition?broadcastStatus=live&id=broadcast-1&part=snippet%2CcontentDetails%2Cstatus",
@@ -156,6 +163,7 @@ describe("platformPublishing", () => {
     expect(fetcher.mock.calls[0][0]).not.toContain("yt-access");
     expect(result.profile.platformPublishing.youtubeBroadcastStatus).toBe("live");
     expect(result.profile.platformPublishing.youtubeLiveChatId).toBe("chat-2");
+    expect(result.profile.platformPublishing.youtubeStatusCheckedAt).toBe("2026-06-23T00:03:00.000Z");
     expect(result.profile.platformChat.youtubeLiveChatId).toBe("chat-2");
   });
 
@@ -220,7 +228,7 @@ describe("platformPublishing", () => {
       };
     });
 
-    const result = await refreshYouTubeBroadcastStatus(profile, youtubeCredential(), fetcher);
+    const result = await refreshYouTubeBroadcastStatus(profile, youtubeCredential(), fetcher, Date.parse("2026-06-23T00:00:00.000Z"));
 
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(fetcher.mock.calls[0][0]).toBe(
@@ -232,6 +240,7 @@ describe("platformPublishing", () => {
     expect(result.profile.platformPublishing.youtubeStreamStatus).toBe("active");
     expect(result.profile.platformPublishing.youtubeStreamHealthStatus).toBe("ok");
     expect(result.profile.platformPublishing.youtubeStreamHealthIssues).toEqual(["warning: bitrateLow: Video output low"]);
+    expect(result.profile.platformPublishing.youtubeStatusCheckedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(result.profile.platformChat.youtubeLiveChatId).toBe("chat-1");
   });
 
@@ -347,7 +356,8 @@ describe("platformPublishing", () => {
         ...twitchCredential(),
         scopes: ["chat:read"]
       },
-      fetcher
+      fetcher,
+      Date.parse("2026-06-23T00:01:00.000Z")
     );
 
     expect(fetcher).toHaveBeenCalledTimes(2);
@@ -367,6 +377,7 @@ describe("platformPublishing", () => {
     expect(result.profile.platformPublishing.twitchLiveStatus).toBe("live");
     expect(result.profile.platformPublishing.twitchViewerCount).toBe(1234);
     expect(result.profile.platformPublishing.twitchStartedAt).toBe("2026-06-22T12:00:00Z");
+    expect(result.profile.platformPublishing.twitchStatusCheckedAt).toBe("2026-06-23T00:01:00.000Z");
   });
 
   it("marks Twitch status offline when no active stream is returned", async () => {
@@ -397,12 +408,13 @@ describe("platformPublishing", () => {
       };
     });
 
-    const result = await refreshTwitchChannelStatus(profile, twitchCredential(), fetcher);
+    const result = await refreshTwitchChannelStatus(profile, twitchCredential(), fetcher, Date.parse("2026-06-23T00:02:00.000Z"));
 
     expect(result.profile.platformPublishing.title).toBe("Offline setup");
     expect(result.profile.platformPublishing.twitchLiveStatus).toBe("offline");
     expect(result.profile.platformPublishing.twitchViewerCount).toBe(0);
     expect(result.profile.platformPublishing.twitchStartedAt).toBe("");
+    expect(result.profile.platformPublishing.twitchStatusCheckedAt).toBe("2026-06-23T00:02:00.000Z");
     expect(result.message).toBe("Twitch status refreshed: offline.");
   });
 

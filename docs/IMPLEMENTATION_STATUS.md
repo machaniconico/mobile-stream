@@ -9,7 +9,7 @@
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - RTMP/RTMPS destination normalization for pasted YouTube/Twitch full publish URLs across shared profile handling and native endpoint assembly.
 - Shared Go Live preflight model for launch blocking, warning surfacing, engine-state duplicate-start protection, and failed-start operation logging.
-- Go Live platform-state preflight for platform-visible YouTube streams, requiring a bound broadcast/stream before launch after commercial validation, blocking completed broadcasts, warning on already-live broadcasts, and blocking Twitch starts when the channel status is already live.
+- Go Live platform-state preflight for platform-visible YouTube streams, requiring a bound broadcast/stream before launch after commercial validation, blocking completed broadcasts, warning on already-live broadcasts, warning when YouTube/Twitch dashboard status is stale or unchecked, and blocking Twitch starts when the channel status is already live.
 - Stream diagnostics model for redacted publish URL, endpoint parsing, upload target estimate, readiness issues, live telemetry health checks, and sanitized diagnostic reports.
 - Face-tracking production diagnostics for prepared PNGTuber assets, simulated/native-camera input risk, tracking runtime state, active motion count, preflight warnings, support reports, and commercial validation checklist evidence.
 - Native composition readiness/diagnostics model that distinguishes native-supported avatar/image/solid/text overlays from underlay ordering, Live2D production gaps, and iOS Broadcast Upload Extension still-image asset access risks before device RTMP publishing.
@@ -46,6 +46,7 @@
 - YouTube/Twitch OAuth refresh-token rotation and hourly Twitch token validation scheduling for mobile chat authorization.
 - OAuth/API-backed platform stream key controls: YouTube reusable stream creation for key rotation and Twitch Helix current-key sync.
 - OAuth/API-backed platform publishing controls: YouTube scheduled Live Broadcast creation, stream binding, broadcast/ingest health refresh, and test/live/complete lifecycle transitions; Twitch channel title/category/language metadata update plus live/offline status refresh.
+- Platform publishing status refreshes retain YouTube/Twitch dashboard checked-at timestamps across profile storage, diagnostics, support bundles, and Web/React Native setup screens.
 - YouTube Live broadcast lifecycle transition preflight for Test/Live/Complete actions, including public-validation gating, local encoder state checks, active ingest checks, health checks, and local-stream-stop protection before completing a broadcast across Web and React Native.
 - OAuth-token chat connection layer for YouTube live chat polling and Twitch IRC WebSocket ingestion.
 - Platform API controls refresh expiring YouTube/Twitch OAuth credentials before stream-key, broadcast, and channel operations on Web and React Native.

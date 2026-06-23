@@ -189,7 +189,8 @@ export const createYouTubeBroadcastAndBindStream = async (
     youtubeBroadcastId: broadcastId,
     youtubeLiveChatId: liveChatId,
     youtubeBroadcastStatus: normalizeSingleLine(bound.status?.lifeCycleStatus || inserted.status?.lifeCycleStatus) || "created",
-    youtubeStreamId: normalizeSingleLine(bound.contentDetails?.boundStreamId) || settings.youtubeStreamId
+    youtubeStreamId: normalizeSingleLine(bound.contentDetails?.boundStreamId) || settings.youtubeStreamId,
+    youtubeStatusCheckedAt: new Date(now).toISOString()
   };
 
   return {
@@ -211,7 +212,8 @@ export const transitionYouTubeBroadcast = async (
   profile: StudioProfile,
   credential: PlatformChatOAuthCredential | null,
   broadcastStatus: YouTubeBroadcastTransitionStatus,
-  fetcher: PlatformChatFetch
+  fetcher: PlatformChatFetch,
+  now: number = Date.now()
 ): Promise<PlatformPublishingResult> => {
   const normalizedCredential = requirePlatformCredential(credential, "youtube");
   requireScope(normalizedCredential, YOUTUBE_LIVE_MANAGE_SCOPE, "YouTube broadcast transition requires OAuth scope youtube.force-ssl.");
@@ -250,7 +252,8 @@ export const transitionYouTubeBroadcast = async (
       platformPublishing: {
         ...settings,
         youtubeBroadcastStatus: nextStatus,
-        youtubeLiveChatId: liveChatId
+        youtubeLiveChatId: liveChatId,
+        youtubeStatusCheckedAt: new Date(now).toISOString()
       },
       platformChat: liveChatId
         ? {
@@ -266,7 +269,8 @@ export const transitionYouTubeBroadcast = async (
 export const refreshYouTubeBroadcastStatus = async (
   profile: StudioProfile,
   credential: PlatformChatOAuthCredential | null,
-  fetcher: PlatformChatFetch
+  fetcher: PlatformChatFetch,
+  now: number = Date.now()
 ): Promise<PlatformPublishingResult> => {
   const normalizedCredential = requirePlatformCredential(credential, "youtube");
   requireScope(normalizedCredential, YOUTUBE_LIVE_MANAGE_SCOPE, "YouTube broadcast status refresh requires OAuth scope youtube.force-ssl.");
@@ -308,7 +312,8 @@ export const refreshYouTubeBroadcastStatus = async (
     youtubeStreamId: streamId || settings.youtubeStreamId,
     youtubeStreamStatus: settings.youtubeStreamStatus,
     youtubeStreamHealthStatus: settings.youtubeStreamHealthStatus,
-    youtubeStreamHealthIssues: settings.youtubeStreamHealthIssues
+    youtubeStreamHealthIssues: settings.youtubeStreamHealthIssues,
+    youtubeStatusCheckedAt: new Date(now).toISOString()
   };
 
   if (streamId) {
@@ -364,7 +369,8 @@ export const refreshYouTubeBroadcastStatus = async (
 export const refreshTwitchChannelStatus = async (
   profile: StudioProfile,
   credential: PlatformChatOAuthCredential | null,
-  fetcher: PlatformChatFetch
+  fetcher: PlatformChatFetch,
+  now: number = Date.now()
 ): Promise<PlatformPublishingResult> => {
   const normalizedCredential = requirePlatformCredential(credential, "twitch");
   const settings = normalizePlatformPublishingSettings(profile.platformPublishing);
@@ -423,7 +429,8 @@ export const refreshTwitchChannelStatus = async (
     twitchLanguage: language || settings.twitchLanguage,
     twitchLiveStatus: liveStatus,
     twitchViewerCount: viewerCount,
-    twitchStartedAt: startedAt
+    twitchStartedAt: startedAt,
+    twitchStatusCheckedAt: new Date(now).toISOString()
   });
 
   const statusSummary =

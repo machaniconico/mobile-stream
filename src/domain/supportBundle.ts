@@ -207,10 +207,12 @@ export interface SupportBundle {
       youtubeStreamStatus: string;
       youtubeStreamHealthStatus: string;
       youtubeStreamHealthIssueCount: number;
+      youtubeStatusCheckedAt: string;
       twitchCategory: string;
       twitchLanguage: string;
       twitchLiveStatus: string;
       twitchViewerCount: number;
+      twitchStatusCheckedAt: string;
     };
   };
 }
@@ -429,10 +431,12 @@ export const createSupportBundle = ({
         youtubeStreamStatus: profile.platformPublishing.youtubeStreamStatus,
         youtubeStreamHealthStatus: profile.platformPublishing.youtubeStreamHealthStatus,
         youtubeStreamHealthIssueCount: profile.platformPublishing.youtubeStreamHealthIssues.length,
+        youtubeStatusCheckedAt: profile.platformPublishing.youtubeStatusCheckedAt,
         twitchCategory: profile.platformPublishing.twitchCategory,
         twitchLanguage: profile.platformPublishing.twitchLanguage,
         twitchLiveStatus: profile.platformPublishing.twitchLiveStatus,
-        twitchViewerCount: profile.platformPublishing.twitchViewerCount
+        twitchViewerCount: profile.platformPublishing.twitchViewerCount,
+        twitchStatusCheckedAt: profile.platformPublishing.twitchStatusCheckedAt
       }
     }
   };
@@ -526,7 +530,8 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Mic monitor: ${bundle.profile.micEffects.monitorEnabled ? "on" : "off"} / headphones-only ${bundle.profile.micEffects.monitorHeadphonesOnly ? "on" : "off"}`,
     `- Face tracking: ${bundle.profile.faceTracking.enabled ? bundle.profile.faceTracking.inputMode : "off"} / ${bundle.profile.faceTracking.rigMode}`,
     `- Platform chat: ${bundle.profile.platformChat.enabled ? bundle.profile.platformChat.platform : "off"}`,
-    `- Publishing: title ${bundle.profile.platformPublishing.titleLength} chars / description ${bundle.profile.platformPublishing.descriptionLength} chars`
+    `- Publishing: title ${bundle.profile.platformPublishing.titleLength} chars / description ${bundle.profile.platformPublishing.descriptionLength} chars`,
+    `- Publishing status checked: YouTube ${bundle.profile.platformPublishing.youtubeStatusCheckedAt || "-"} / Twitch ${bundle.profile.platformPublishing.twitchStatusCheckedAt || "-"}`
   ].join("\n");
 };
 

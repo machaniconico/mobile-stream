@@ -1051,6 +1051,9 @@ export const MobileStudioScreen = ({
                 <Text style={styles.statusCell} numberOfLines={1}>
                   Health {profile.platformPublishing.youtubeStreamHealthStatus || "unknown"}
                 </Text>
+                <Text style={styles.statusCell} numberOfLines={1}>
+                  Checked {formatStatusCheckedAt(profile.platformPublishing.youtubeStatusCheckedAt)}
+                </Text>
               </View>
               {profile.platformPublishing.youtubeStreamHealthIssues.map((issue) => (
                 <Text key={issue} style={styles.healthIssue} numberOfLines={2}>
@@ -1121,6 +1124,9 @@ export const MobileStudioScreen = ({
                 </Text>
                 <Text style={styles.statusCell} numberOfLines={1}>
                   Started {profile.platformPublishing.twitchStartedAt || "offline"}
+                </Text>
+                <Text style={styles.statusCell} numberOfLines={1}>
+                  Checked {formatStatusCheckedAt(profile.platformPublishing.twitchStatusCheckedAt)}
                 </Text>
               </View>
               <ActionButton label="Refresh Status" disabled={setupLocked} onPress={onPlatformPublishingStatusRefresh} />
@@ -1557,6 +1563,17 @@ const validationRunPlatformPublishingLabel = (run: StreamValidationRun): string 
   run.platformPublishing && run.platformPublishing.status !== "info"
     ? `dashboard ${run.platformPublishing.status} / ${run.platformPublishing.summary}`
     : null;
+
+const formatStatusCheckedAt = (value: string): string => {
+  if (!value) {
+    return "never";
+  }
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    return "invalid";
+  }
+  return new Date(timestamp).toLocaleString();
+};
 
 const DiagnosticMetric = ({ label, value }: { label: string; value: string }) => (
   <View style={styles.diagnosticMetric}>

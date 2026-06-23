@@ -249,6 +249,7 @@ export const LiveSetupScreen = ({
             <span>Broadcast {profile.platformPublishing.youtubeBroadcastStatus || "unknown"}</span>
             <span>Stream {profile.platformPublishing.youtubeStreamStatus || "unknown"}</span>
             <span>Health {profile.platformPublishing.youtubeStreamHealthStatus || "unknown"}</span>
+            <span>Checked {formatStatusCheckedAt(profile.platformPublishing.youtubeStatusCheckedAt)}</span>
           </div>
           {profile.platformPublishing.youtubeStreamHealthIssues.length > 0 ? (
             <div className="youtube-health-list">
@@ -322,6 +323,7 @@ export const LiveSetupScreen = ({
             <span>Status {profile.platformPublishing.twitchLiveStatus || "unknown"}</span>
             <span>Viewers {profile.platformPublishing.twitchViewerCount.toLocaleString()}</span>
             <span>Started {profile.platformPublishing.twitchStartedAt || "offline"}</span>
+            <span>Checked {formatStatusCheckedAt(profile.platformPublishing.twitchStatusCheckedAt)}</span>
           </div>
           <button
             className="secondary-action compact-action platform-wide-action"
@@ -408,3 +410,14 @@ const YouTubeTransitionPreflightList = ({
     ))}
   </div>
 );
+
+const formatStatusCheckedAt = (value: string): string => {
+  if (!value) {
+    return "never";
+  }
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    return "invalid";
+  }
+  return new Date(timestamp).toLocaleString();
+};

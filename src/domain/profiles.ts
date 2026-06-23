@@ -88,12 +88,14 @@ export interface PlatformPublishingSettings {
   youtubeStreamStatus: string;
   youtubeStreamHealthStatus: string;
   youtubeStreamHealthIssues: string[];
+  youtubeStatusCheckedAt: string;
   twitchCategory: string;
   twitchCategoryId: string;
   twitchLanguage: string;
   twitchLiveStatus: string;
   twitchViewerCount: number;
   twitchStartedAt: string;
+  twitchStatusCheckedAt: string;
 }
 
 export interface StudioProfile {
@@ -463,12 +465,14 @@ export const defaultPlatformPublishingSettings: PlatformPublishingSettings = {
   youtubeStreamStatus: "",
   youtubeStreamHealthStatus: "",
   youtubeStreamHealthIssues: [],
+  youtubeStatusCheckedAt: "",
   twitchCategory: "Just Chatting",
   twitchCategoryId: "",
   twitchLanguage: "ja",
   twitchLiveStatus: "",
   twitchViewerCount: 0,
-  twitchStartedAt: ""
+  twitchStartedAt: "",
+  twitchStatusCheckedAt: ""
 };
 
 export const getMicEffectPreset = (presetId: string | null | undefined): MicEffectPreset | undefined =>
@@ -574,12 +578,14 @@ export const normalizePlatformPublishingSettings = (
     youtubeStreamHealthIssues: Array.isArray(settings?.youtubeStreamHealthIssues)
       ? settings.youtubeStreamHealthIssues.map(normalizeSingleLine).filter(Boolean).slice(0, 12)
       : [],
+    youtubeStatusCheckedAt: normalizeDateString(settings?.youtubeStatusCheckedAt),
     twitchCategory: normalizeSingleLine(settings?.twitchCategory || fallback.twitchCategory).slice(0, 140),
     twitchCategoryId: normalizeSingleLine(settings?.twitchCategoryId).slice(0, 80),
     twitchLanguage: normalizeSingleLine(settings?.twitchLanguage || fallback.twitchLanguage).slice(0, 12).toLowerCase(),
     twitchLiveStatus: normalizeSingleLine(settings?.twitchLiveStatus).slice(0, 40),
     twitchViewerCount: Math.round(clampNumber(settings?.twitchViewerCount ?? fallback.twitchViewerCount, 0, 10_000_000)),
-    twitchStartedAt: normalizeSingleLine(settings?.twitchStartedAt).slice(0, 80)
+    twitchStartedAt: normalizeSingleLine(settings?.twitchStartedAt).slice(0, 80),
+    twitchStatusCheckedAt: normalizeDateString(settings?.twitchStatusCheckedAt)
   };
 };
 
@@ -610,6 +616,15 @@ const normalizeSingleLine = (value: unknown): string => (typeof value === "strin
 const normalizeDestinationValue = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 
 const normalizeMultiline = (value: unknown): string => (typeof value === "string" ? value.replace(/\r\n/g, "\n").trim() : "");
+
+const normalizeDateString = (value: unknown): string => {
+  const normalized = normalizeSingleLine(value);
+  if (!normalized) {
+    return "";
+  }
+  const timestamp = Date.parse(normalized);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : "";
+};
 
 export const stripSensitiveProfileData = (profile: StudioProfile): StudioProfile => ({
   ...profile,

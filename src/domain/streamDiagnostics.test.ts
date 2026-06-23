@@ -69,7 +69,8 @@ describe("stream diagnostics", () => {
         youtubeBroadcastStatus: "live",
         youtubeStreamStatus: "active",
         youtubeStreamHealthStatus: "ok",
-        youtubeStreamHealthIssues: []
+        youtubeStreamHealthIssues: [],
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
       }
     };
     const readiness = createReadinessReport(scene, profile);
@@ -82,8 +83,9 @@ describe("stream diagnostics", () => {
 
     expect(diagnostics.platformPublishing.status).toBe("pass");
     expect(diagnostics.platformPublishing.youtube?.healthStatus).toBe("ok");
+    expect(diagnostics.platformPublishing.youtube?.statusCheckedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(report).toContain("Platform Publishing");
-    expect(report).toContain("YouTube dashboard: broadcast live, stream active, health ok, issues 0.");
+    expect(report).toContain("YouTube dashboard: broadcast live, stream active, health ok, issues 0, checked 2026-06-23T00:00:00.000Z.");
   });
 
   it("reports blocking checks when the stream key is missing", () => {

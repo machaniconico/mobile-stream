@@ -54,12 +54,14 @@ describe("studio profiles", () => {
         youtubeStreamStatus: " active ",
         youtubeStreamHealthStatus: " good ",
         youtubeStreamHealthIssues: [" warning: bitrateLow ", "", " error: noAudioStream "],
+        youtubeStatusCheckedAt: "2026-06-23 12:34:56Z",
         twitchCategory: " Just Chatting ",
         twitchCategoryId: " 509658 ",
         twitchLanguage: " JA ",
         twitchLiveStatus: " live ",
         twitchViewerCount: 12.6,
-        twitchStartedAt: " 2026-06-22T12:00:00Z "
+        twitchStartedAt: " 2026-06-22T12:00:00Z ",
+        twitchStatusCheckedAt: "not a date"
       }
     });
 
@@ -71,11 +73,13 @@ describe("studio profiles", () => {
     expect(profile.platformPublishing.youtubeStreamStatus).toBe("active");
     expect(profile.platformPublishing.youtubeStreamHealthStatus).toBe("good");
     expect(profile.platformPublishing.youtubeStreamHealthIssues).toEqual(["warning: bitrateLow", "error: noAudioStream"]);
+    expect(profile.platformPublishing.youtubeStatusCheckedAt).toBe("2026-06-23T12:34:56.000Z");
     expect(profile.platformPublishing.twitchCategoryId).toBe("509658");
     expect(profile.platformPublishing.twitchLanguage).toBe("ja");
     expect(profile.platformPublishing.twitchLiveStatus).toBe("live");
     expect(profile.platformPublishing.twitchViewerCount).toBe(13);
     expect(profile.platformPublishing.twitchStartedAt).toBe("2026-06-22T12:00:00Z");
+    expect(profile.platformPublishing.twitchStatusCheckedAt).toBe("");
   });
 
   it("removes stream keys before persistence", () => {

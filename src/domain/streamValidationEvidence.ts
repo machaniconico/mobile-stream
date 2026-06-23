@@ -1171,7 +1171,8 @@ const normalizeYouTubePublishingDiagnostics = (
     broadcastStatus: normalizeText(value.broadcastStatus, ""),
     streamStatus: normalizeText(value.streamStatus, ""),
     healthStatus: normalizeText(value.healthStatus, ""),
-    healthIssueCount: normalizeCount(value.healthIssueCount)
+    healthIssueCount: normalizeCount(value.healthIssueCount),
+    statusCheckedAt: normalizeDateString(value.statusCheckedAt) ?? ""
   };
 };
 
@@ -1187,7 +1188,8 @@ const normalizeTwitchPublishingDiagnostics = (
     hasCategory: value.hasCategory === true,
     hasCategoryId: value.hasCategoryId === true,
     language: normalizeText(value.language, ""),
-    startedAt: normalizeText(value.startedAt, "")
+    startedAt: normalizeText(value.startedAt, ""),
+    statusCheckedAt: normalizeDateString(value.statusCheckedAt) ?? ""
   };
 };
 
