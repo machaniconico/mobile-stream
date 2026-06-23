@@ -22,6 +22,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Durable scene persistence on web, iOS, and Android with persisted-scene normalization.
 - Quality presets.
 - Voice lip-sync meter and expression buttons.
+- Still-image VTuber face tracking with native-camera input on mobile, simulated input on web, calibration, dead-zone filtering, jump limiting, and lost-face return tuning.
 - Mic effect presets with gain, noise gate, compression, and Android PCM processing.
 - Headphone-only mic monitor settings for hearing the processed mic signal locally.
 - Chat/comment read-aloud queue with test comments, muted words, duplicate suppression, queue limits, and speech controls.

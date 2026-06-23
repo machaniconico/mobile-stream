@@ -211,6 +211,9 @@ describe("studio profiles", () => {
         ...createDefaultStudioProfile().faceTracking,
         enabled: true,
         trackingStrength: 9,
+        deadZone: -2,
+        maxMotionStep: 3,
+        lostReturnSpeed: -1,
         mouthSensitivity: 0,
         neutralRoll: -8
       }
@@ -218,6 +221,9 @@ describe("studio profiles", () => {
 
     expect(profile.faceTracking.enabled).toBe(true);
     expect(profile.faceTracking.trackingStrength).toBe(1);
+    expect(profile.faceTracking.deadZone).toBe(0);
+    expect(profile.faceTracking.maxMotionStep).toBe(1);
+    expect(profile.faceTracking.lostReturnSpeed).toBe(0);
     expect(profile.faceTracking.mouthSensitivity).toBe(0.2);
     expect(profile.faceTracking.neutralRoll).toBe(-1);
   });

@@ -14,6 +14,7 @@ import {
   calibrateFaceTrackingProfile,
   clearFaceTrackingMotion,
   createFaceTrackingRuntimeState,
+  createLostFaceTrackingFrame,
   createSimulatedFaceTrackingFrame,
   updateFaceTrackingRuntime
 } from "../domain/faceTracking";
@@ -429,7 +430,10 @@ export const MobileApp = () => {
         faceTrackingInput.refresh(trackingProfile, now);
         const nativeFrame =
           trackingProfile.inputMode === "native-camera" ? faceTrackingInput.readFrame(now) : null;
-        const frame = nativeFrame ?? createSimulatedFaceTrackingFrame(now, trackingProfile);
+        const frame =
+          trackingProfile.inputMode === "native-camera"
+            ? nativeFrame ?? createLostFaceTrackingFrame(now)
+            : createSimulatedFaceTrackingFrame(now, trackingProfile);
         const nextTracking = trackingProfile.enabled
           ? updateFaceTrackingRuntime(
               currentTracking,

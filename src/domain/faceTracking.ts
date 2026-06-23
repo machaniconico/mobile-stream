@@ -10,6 +10,9 @@ export interface FaceTrackingProfile {
   rigMode: FaceTrackingRigMode;
   trackingStrength: number;
   smoothing: number;
+  deadZone: number;
+  maxMotionStep: number;
+  lostReturnSpeed: number;
   headRange: number;
   bodyRange: number;
   mouthSensitivity: number;
@@ -58,6 +61,9 @@ export const defaultFaceTrackingProfile: FaceTrackingProfile = {
   rigMode: "still-image-2d",
   trackingStrength: 0.78,
   smoothing: 0.62,
+  deadZone: 0.035,
+  maxMotionStep: 0.28,
+  lostReturnSpeed: 0.36,
   headRange: 0.72,
   bodyRange: 0.35,
   mouthSensitivity: 1.15,
@@ -91,6 +97,9 @@ export const normalizeFaceTrackingProfile = (
   rigMode: profile?.rigMode === "layered-2d" ? "layered-2d" : "still-image-2d",
   trackingStrength: clamp01(profile?.trackingStrength ?? defaultFaceTrackingProfile.trackingStrength),
   smoothing: clamp01(profile?.smoothing ?? defaultFaceTrackingProfile.smoothing),
+  deadZone: clamp(profile?.deadZone ?? defaultFaceTrackingProfile.deadZone, 0, 0.2),
+  maxMotionStep: clamp(profile?.maxMotionStep ?? defaultFaceTrackingProfile.maxMotionStep, 0.04, 1),
+  lostReturnSpeed: clamp01(profile?.lostReturnSpeed ?? defaultFaceTrackingProfile.lostReturnSpeed),
   headRange: clamp01(profile?.headRange ?? defaultFaceTrackingProfile.headRange),
   bodyRange: clamp01(profile?.bodyRange ?? defaultFaceTrackingProfile.bodyRange),
   mouthSensitivity: clamp(profile?.mouthSensitivity ?? defaultFaceTrackingProfile.mouthSensitivity, 0.2, 2),
@@ -119,6 +128,19 @@ export const createSimulatedFaceTrackingFrame = (now: number, profile: FaceTrack
   };
 };
 
+export const createLostFaceTrackingFrame = (now = Date.now()): FaceTrackingFrame => ({
+  yaw: 0,
+  pitch: 0,
+  roll: 0,
+  mouthOpen: 0,
+  leftBlink: 0,
+  rightBlink: 0,
+  smile: 0,
+  browRaise: 0,
+  confidence: 0,
+  timestamp: now
+});
+
 export const updateFaceTrackingRuntime = (
   current: FaceTrackingRuntimeState,
   frame: FaceTrackingFrame,
@@ -134,25 +156,28 @@ export const updateFaceTrackingRuntime = (
 
   const confidence = clamp01(frame.confidence);
   const status: FaceTrackingRuntimeState["status"] = confidence < 0.25 || now - frame.timestamp > 600 ? "lost" : "tracking";
-  const follow = clamp(1 - profile.smoothing, 0.08, 0.92) * (status === "tracking" ? 1 : 0.2);
-  const yaw = clamp((frame.yaw - profile.neutralYaw) * profile.trackingStrength, -1, 1);
-  const pitch = clamp((frame.pitch - profile.neutralPitch) * profile.trackingStrength, -1, 1);
-  const roll = clamp((frame.roll - profile.neutralRoll) * profile.trackingStrength, -1, 1);
+  const trackingFollow = clamp(1 - profile.smoothing, 0.08, 0.92);
+  const follow = trackingFollow * (status === "tracking" ? 1 : profile.lostReturnSpeed);
+  const yaw = applyDeadZone(clamp((frame.yaw - profile.neutralYaw) * profile.trackingStrength, -1, 1), profile.deadZone);
+  const pitch = applyDeadZone(clamp((frame.pitch - profile.neutralPitch) * profile.trackingStrength, -1, 1), profile.deadZone);
+  const roll = applyDeadZone(clamp((frame.roll - profile.neutralRoll) * profile.trackingStrength, -1, 1), profile.deadZone);
   const mouthOpen = clamp01(frame.mouthOpen * profile.mouthSensitivity);
   const blink = clamp01(((frame.leftBlink + frame.rightBlink) / 2) * profile.blinkSensitivity);
   const smile = clamp01(frame.smile);
   const browRaise = clamp01(frame.browRaise);
+  const poseStep = profile.maxMotionStep;
+  const expressionStep = Math.max(profile.maxMotionStep, 0.42);
 
   const next: FaceTrackingRuntimeState = {
     status,
-    yaw: lerp(current.yaw, yaw, follow),
-    pitch: lerp(current.pitch, pitch, follow),
-    roll: lerp(current.roll, roll, follow),
-    mouthOpen: lerp(current.mouthOpen, mouthOpen, follow),
-    blink: lerp(current.blink, blink, follow),
-    smile: lerp(current.smile, smile, follow),
-    browRaise: lerp(current.browRaise, browRaise, follow),
-    confidence: lerp(current.confidence, confidence, follow),
+    yaw: limitedLerp(current.yaw, yaw, follow, poseStep),
+    pitch: limitedLerp(current.pitch, pitch, follow, poseStep),
+    roll: limitedLerp(current.roll, roll, follow, poseStep),
+    mouthOpen: limitedLerp(current.mouthOpen, mouthOpen, follow, expressionStep),
+    blink: limitedLerp(current.blink, blink, follow, expressionStep),
+    smile: limitedLerp(current.smile, smile, follow, expressionStep),
+    browRaise: limitedLerp(current.browRaise, browRaise, follow, expressionStep),
+    confidence: limitedLerp(current.confidence, confidence, follow, expressionStep),
     expression: current.expression,
     lastFrameAt: now
   };
@@ -234,6 +259,20 @@ const inferExpression = (runtime: FaceTrackingRuntimeState, profile: FaceTrackin
     return "angry";
   }
   return "neutral";
+};
+
+const applyDeadZone = (value: number, deadZone: number): number => {
+  const abs = Math.abs(value);
+  if (abs <= deadZone) {
+    return 0;
+  }
+  const scaled = (abs - deadZone) / Math.max(1 - deadZone, 0.001);
+  return Math.sign(value) * clamp01(scaled);
+};
+
+const limitedLerp = (from: number, to: number, amount: number, maxStep: number): number => {
+  const next = lerp(from, to, amount);
+  return from + clamp(next - from, -maxStep, maxStep);
 };
 
 const blinkPulse = (t: number, offset: number): number => {

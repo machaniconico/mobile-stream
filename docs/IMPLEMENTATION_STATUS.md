@@ -41,6 +41,7 @@
 - OAuth-token chat connection layer for YouTube live chat polling and Twitch IRC WebSocket ingestion.
 - Mobile OAuth callback URL scheme registration and React Native callback capture for chat authorization.
 - Avatar runtime model for PNGTuber/Live2D expression, lip sync, and auto blink.
+- Still-image VTuber face tracking runtime with native-camera frames on mobile, simulated frames on web, neutral calibration, dead-zone filtering, jump limiting, and lost-face return tuning.
 - Stream state machine for idle, preparing, live, reconnecting, stopping, and failed states.
 - Mock live engine for UI development without native capture.
 - Browser-preview Studio UI:

@@ -728,6 +728,33 @@ export const StudioScreen = ({
                 onChange={(smoothing) => updateFaceTracking({ smoothing })}
               />
               <SpeechSlider
+                label="Dead zone"
+                value={profile.faceTracking.deadZone}
+                min={0}
+                max={0.2}
+                step={0.005}
+                disabled={setupLocked}
+                onChange={(deadZone) => updateFaceTracking({ deadZone })}
+              />
+              <SpeechSlider
+                label="Jump limit"
+                value={profile.faceTracking.maxMotionStep}
+                min={0.04}
+                max={1}
+                step={0.01}
+                disabled={setupLocked}
+                onChange={(maxMotionStep) => updateFaceTracking({ maxMotionStep })}
+              />
+              <SpeechSlider
+                label="Lost return"
+                value={profile.faceTracking.lostReturnSpeed}
+                min={0}
+                max={1}
+                step={0.01}
+                disabled={setupLocked}
+                onChange={(lostReturnSpeed) => updateFaceTracking({ lostReturnSpeed })}
+              />
+              <SpeechSlider
                 label="Head range"
                 value={profile.faceTracking.headRange}
                 min={0}
