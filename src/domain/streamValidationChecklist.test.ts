@@ -388,9 +388,14 @@ const readyEvidence = (overrides: Partial<StreamValidationEvidenceSummary> = {})
   qualityAutomationLiveUpdateCount: 0,
   qualityAutomationNextTargetCount: 0,
   qualityAutomationFailureCount: 0,
-  platformPublishingRunCount: 1,
+  platformPublishingRunCount: 2,
+  platformPublishingReadyCount: 2,
+  platformPublishingFreshCount: 2,
+  platformPublishingFreshnessWarningCount: 0,
   platformPublishingWarningCount: 0,
   platformPublishingFailureCount: 0,
+  platformPublishingIosPass: true,
+  platformPublishingAndroidPass: true,
   status: "ready",
   iosPass: true,
   androidPass: true,
@@ -407,11 +412,21 @@ const readyEvidence = (overrides: Partial<StreamValidationEvidenceSummary> = {})
   latestChatReadout: null,
   latestQualityAutomation: null,
   latestPlatformPublishing: readyPlatformPublishing(),
+  latestPlatformPublishingFreshness: readyPlatformPublishingFreshness(),
   latestRunAgeDays: null,
   maxAgeDays: 14,
   summary: "Fresh physical validation baseline retained for iOS and Android on build rc-1 across 2 eligible runs.",
   recommendation: "Keep iOS and Android validation runs updated for every release candidate.",
   ...overrides
+});
+
+const readyPlatformPublishingFreshness = (statusCheckedAt = "2026-06-23T00:04:00.000Z") => ({
+  status: "fresh" as const,
+  platformLabel: "YouTube",
+  checkedAt: statusCheckedAt,
+  ageMinutes: 1,
+  summary: "YouTube dashboard status was checked 1 minutes ago.",
+  recommendation: "Keep this fresh dashboard snapshot with the release-candidate validation run."
 });
 
 const readyPlatformPublishing = (statusCheckedAt = "2026-06-23T00:04:00.000Z") => ({

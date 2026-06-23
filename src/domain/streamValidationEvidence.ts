@@ -1,6 +1,13 @@
 import type { StreamDiagnostics } from "./streamDiagnostics";
 import type { AudioOutputRouteKind, AudioRouteMonitorStatus } from "./audioRoute";
 import {
+  assessPlatformPublishingFreshness,
+  isPlatformPublishingFreshEnoughForRelease,
+  resolvePlatformPublishingFreshnessPlatform,
+  type PlatformPublishingFreshness,
+  type PlatformPublishingFreshnessStatus
+} from "./platformPublishingFreshness";
+import {
   createNativeRuntimeSessionSummary,
   normalizeNativeRuntimeSessionSummary,
   type StreamSessionNativeRuntimeSummary
@@ -121,6 +128,7 @@ export interface StreamValidationRun {
   chatReadout: StreamValidationChatReadoutSummary | null;
   qualityAutomation: StreamValidationQualityAutomationSummary | null;
   platformPublishing: StreamDiagnostics["platformPublishing"] | null;
+  platformPublishingFreshness: PlatformPublishingFreshness | null;
   validationItemStatuses: Array<{
     id: string;
     status: StreamDiagnostics["validation"]["items"][number]["status"];
@@ -180,8 +188,13 @@ export interface StreamValidationEvidenceSummary {
   qualityAutomationNextTargetCount: number;
   qualityAutomationFailureCount: number;
   platformPublishingRunCount: number;
+  platformPublishingReadyCount: number;
+  platformPublishingFreshCount: number;
+  platformPublishingFreshnessWarningCount: number;
   platformPublishingWarningCount: number;
   platformPublishingFailureCount: number;
+  platformPublishingIosPass: boolean;
+  platformPublishingAndroidPass: boolean;
   status: "none" | "partial" | "failing" | "ready" | "stale";
   iosPass: boolean;
   androidPass: boolean;
@@ -198,6 +211,7 @@ export interface StreamValidationEvidenceSummary {
   latestChatReadout: StreamValidationChatReadoutSummary | null;
   latestQualityAutomation: StreamValidationQualityAutomationSummary | null;
   latestPlatformPublishing: StreamDiagnostics["platformPublishing"] | null;
+  latestPlatformPublishingFreshness: PlatformPublishingFreshness | null;
   latestRunAgeDays: number | null;
   maxAgeDays: number;
   summary: string;
@@ -256,6 +270,7 @@ export const createStreamValidationRun = ({
   const chatReadout = createChatReadoutValidationSummary(diagnostics, secrets);
   const qualityAutomation = createQualityAutomationValidationSummary(diagnostics, secrets);
   const platformPublishing = diagnostics.platformPublishing;
+  const platformPublishingFreshness = createPlatformPublishingValidationFreshness(diagnostics, now);
   const effectiveResult = createEffectiveValidationResult(
     result,
     devicePlatform,
@@ -264,7 +279,8 @@ export const createStreamValidationRun = ({
     faceTracking,
     audio,
     chatReadout,
-    platformPublishing
+    platformPublishing,
+    platformPublishingFreshness
   );
   const runBase = {
     createdAt,
@@ -298,6 +314,7 @@ export const createStreamValidationRun = ({
     chatReadout,
     qualityAutomation,
     platformPublishing,
+    platformPublishingFreshness,
     validationItemStatuses: diagnostics.validation.items.map((item) => ({
       id: item.id,
       status: item.status
@@ -313,7 +330,8 @@ export const createStreamValidationRun = ({
       audio,
       chatReadout,
       qualityAutomation,
-      platformPublishing
+      platformPublishing,
+      platformPublishingFreshness
     ),
     recommendation: createRunRecommendation(
       effectiveResult,
@@ -324,7 +342,8 @@ export const createStreamValidationRun = ({
       audio,
       chatReadout,
       qualityAutomation,
-      platformPublishing
+      platformPublishing,
+      platformPublishingFreshness
     )
   };
 };
@@ -452,6 +471,18 @@ export const summarizeStreamValidationEvidence = (
   );
   const platformPublishingRuns = scopedRuns.filter((run) => run.platformPublishing && run.platformPublishing.status !== "info");
   const platformPublishingRunCount = platformPublishingRuns.length;
+  const platformPublishingFreshnessRuns = scopedRuns.filter((run) =>
+    isPlatformPublishingFreshnessRequired(getRunPlatformPublishingFreshness(run))
+  );
+  const platformPublishingReadyCount = platformPublishingFreshnessRuns.filter((run) =>
+    isPlatformPublishingRunEvidencePass(run)
+  ).length;
+  const platformPublishingFreshCount = platformPublishingFreshnessRuns.filter((run) =>
+    isPlatformPublishingFreshEnoughForRelease(getRunPlatformPublishingFreshness(run))
+  ).length;
+  const platformPublishingFreshnessWarningCount = platformPublishingFreshnessRuns.filter(
+    (run) => !isPlatformPublishingFreshEnoughForRelease(getRunPlatformPublishingFreshness(run))
+  ).length;
   const platformPublishingWarningCount = platformPublishingRuns.filter((run) => run.platformPublishing?.status === "warn").length;
   const platformPublishingFailureCount = platformPublishingRuns.filter((run) => run.platformPublishing?.status === "fail").length;
   const latestRun = normalized[0] ?? null;
@@ -479,6 +510,8 @@ export const summarizeStreamValidationEvidence = (
     eligibleRuns.find((run) => run.platformPublishing && run.platformPublishing.status !== "info")?.platformPublishing ??
     scopedRuns.find((run) => run.platformPublishing && run.platformPublishing.status !== "info")?.platformPublishing ??
     null;
+  const latestPlatformPublishingFreshness =
+    getLatestPlatformPublishingFreshness(eligibleRuns) ?? getLatestPlatformPublishingFreshness(scopedRuns);
   const latestDeviceRuns = latestRunsByDevicePlatform(eligibleRuns);
   const iosLatestRun = latestDeviceRuns.find((run) => run.devicePlatform === "ios") ?? null;
   const androidLatestRun = latestDeviceRuns.find((run) => run.devicePlatform === "android") ?? null;
@@ -494,6 +527,8 @@ export const summarizeStreamValidationEvidence = (
   const audioAndroidPass = androidPass && isAudioEvidencePass(androidLatestRun?.audio);
   const chatReadoutIosPass = iosPass && isFeatureEvidencePass(iosLatestRun?.chatReadout);
   const chatReadoutAndroidPass = androidPass && isFeatureEvidencePass(androidLatestRun?.chatReadout);
+  const platformPublishingIosPass = iosPass && isPlatformPublishingRunEvidencePass(iosLatestRun);
+  const platformPublishingAndroidPass = androidPass && isPlatformPublishingRunEvidencePass(androidLatestRun);
   const appBuildMismatch = Boolean(
     iosPass &&
       androidPass &&
@@ -523,7 +558,9 @@ export const summarizeStreamValidationEvidence = (
     audioIosPass,
     audioAndroidPass,
     chatReadoutIosPass,
-    chatReadoutAndroidPass
+    chatReadoutAndroidPass,
+    platformPublishingIosPass,
+    platformPublishingAndroidPass
   });
 
   return {
@@ -565,8 +602,13 @@ export const summarizeStreamValidationEvidence = (
     qualityAutomationNextTargetCount,
     qualityAutomationFailureCount,
     platformPublishingRunCount,
+    platformPublishingReadyCount,
+    platformPublishingFreshCount,
+    platformPublishingFreshnessWarningCount,
     platformPublishingWarningCount,
     platformPublishingFailureCount,
+    platformPublishingIosPass,
+    platformPublishingAndroidPass,
     status,
     iosPass,
     androidPass,
@@ -583,6 +625,7 @@ export const summarizeStreamValidationEvidence = (
     latestChatReadout,
     latestQualityAutomation,
     latestPlatformPublishing,
+    latestPlatformPublishingFreshness,
     latestRunAgeDays: latestRun ? ageInDays(latestRun.createdAt, now) : null,
     maxAgeDays,
     summary: createEvidenceSummary(status, {
@@ -604,6 +647,8 @@ export const summarizeStreamValidationEvidence = (
       audioAndroidPass,
       chatReadoutIosPass,
       chatReadoutAndroidPass,
+      platformPublishingIosPass,
+      platformPublishingAndroidPass,
       appBuildMismatch,
       iosAppBuild: iosLatestRun?.appBuild ?? null,
       androidAppBuild: androidLatestRun?.appBuild ?? null,
@@ -624,7 +669,9 @@ export const summarizeStreamValidationEvidence = (
       audioIosPass,
       audioAndroidPass,
       chatReadoutIosPass,
-      chatReadoutAndroidPass
+      chatReadoutAndroidPass,
+      platformPublishingIosPass,
+      platformPublishingAndroidPass
     })
   };
 };
@@ -663,6 +710,12 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
   const chatReadout = normalizeChatReadoutValidationSummary(value.chatReadout);
   const qualityAutomation = normalizeQualityAutomationValidationSummary(value.qualityAutomation);
   const platformPublishing = normalizePlatformPublishingDiagnostics(value.platformPublishing);
+  const platformPublishingFreshness = normalizePlatformPublishingFreshness(
+    value.platformPublishingFreshness,
+    platformPublishing,
+    targetPlatform,
+    createdAt
+  );
   const normalized: StreamValidationRun = {
     id: normalizeText(value.id, createValidationRunId({
       createdAt,
@@ -693,6 +746,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
     chatReadout,
     qualityAutomation,
     platformPublishing,
+    platformPublishingFreshness,
     validationItemStatuses: normalizeValidationItemStatuses(value.validationItemStatuses),
     summary: normalizeText(
       value.summary,
@@ -707,7 +761,8 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
         audio,
         chatReadout,
         qualityAutomation,
-        platformPublishing
+        platformPublishing,
+        platformPublishingFreshness
       )
     ),
     recommendation: normalizeText(
@@ -721,7 +776,8 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
         audio,
         chatReadout,
         qualityAutomation,
-        platformPublishing
+        platformPublishing,
+        platformPublishingFreshness
       )
     )
   };
@@ -746,7 +802,9 @@ const createEvidenceStatus = ({
   audioIosPass,
   audioAndroidPass,
   chatReadoutIosPass,
-  chatReadoutAndroidPass
+  chatReadoutAndroidPass,
+  platformPublishingIosPass,
+  platformPublishingAndroidPass
 }: {
   totalRuns: number;
   eligibleRunCount: number;
@@ -765,6 +823,8 @@ const createEvidenceStatus = ({
   audioAndroidPass: boolean;
   chatReadoutIosPass: boolean;
   chatReadoutAndroidPass: boolean;
+  platformPublishingIosPass: boolean;
+  platformPublishingAndroidPass: boolean;
 }): StreamValidationEvidenceSummary["status"] => {
   if (totalRuns === 0) {
     return "none";
@@ -788,7 +848,9 @@ const createEvidenceStatus = ({
     audioIosPass &&
     audioAndroidPass &&
     chatReadoutIosPass &&
-    chatReadoutAndroidPass
+    chatReadoutAndroidPass &&
+    platformPublishingIosPass &&
+    platformPublishingAndroidPass
   ) {
     return "ready";
   }
@@ -862,6 +924,59 @@ const isAudioEvidencePass = (audio: StreamValidationAudioSummary | null | undefi
   audio.nativeMonitorDroppedBuffers === 0 &&
   (!audio.monitorHeadphonesOnly || audio.nativeMonitorHeadphonesConnected);
 
+const createPlatformPublishingValidationFreshness = (
+  diagnostics: StreamDiagnostics,
+  now: Date
+): PlatformPublishingFreshness =>
+  assessPlatformPublishingFreshness(
+    {
+      platform: resolvePlatformPublishingFreshnessPlatform(diagnostics.target.platform),
+      youtube: diagnostics.platformPublishing.youtube,
+      twitch: diagnostics.platformPublishing.twitch
+    },
+    now
+  );
+
+const getRunPlatformPublishingFreshness = (run: StreamValidationRun | null | undefined): PlatformPublishingFreshness =>
+  run?.platformPublishingFreshness ??
+  assessPlatformPublishingFreshness(
+    {
+      platform: resolvePlatformPublishingFreshnessPlatform(run?.targetPlatform),
+      youtube: run?.platformPublishing?.youtube ?? null,
+      twitch: run?.platformPublishing?.twitch ?? null
+    },
+    run?.createdAt ? new Date(run.createdAt) : new Date(0)
+  );
+
+const isPlatformPublishingFreshnessRequired = (freshness: PlatformPublishingFreshness): boolean =>
+  freshness.status !== "not-applicable";
+
+const isPlatformPublishingEvidencePass = (
+  platformPublishing: StreamDiagnostics["platformPublishing"] | null | undefined,
+  freshness: PlatformPublishingFreshness | null | undefined
+): boolean => {
+  if (!freshness) {
+    return false;
+  }
+  if (!isPlatformPublishingFreshnessRequired(freshness)) {
+    return true;
+  }
+  return platformPublishing?.status === "pass" && isPlatformPublishingFreshEnoughForRelease(freshness);
+};
+
+const isPlatformPublishingRunEvidencePass = (run: StreamValidationRun | null | undefined): boolean =>
+  run ? isPlatformPublishingEvidencePass(run.platformPublishing, getRunPlatformPublishingFreshness(run)) : false;
+
+const getLatestPlatformPublishingFreshness = (runs: StreamValidationRun[]): PlatformPublishingFreshness | null => {
+  for (const run of runs) {
+    const freshness = getRunPlatformPublishingFreshness(run);
+    if (isPlatformPublishingFreshnessRequired(freshness)) {
+      return freshness;
+    }
+  }
+  return null;
+};
+
 const createEvidenceSummary = (
   status: StreamValidationEvidenceSummary["status"],
   counts: {
@@ -883,6 +998,8 @@ const createEvidenceSummary = (
     audioAndroidPass: boolean;
     chatReadoutIosPass: boolean;
     chatReadoutAndroidPass: boolean;
+    platformPublishingIosPass: boolean;
+    platformPublishingAndroidPass: boolean;
     appBuildMismatch: boolean;
     iosAppBuild: string | null;
     androidAppBuild: string | null;
@@ -920,6 +1037,9 @@ const createEvidenceSummary = (
   if (counts.iosPass && counts.androidPass && (!counts.chatReadoutIosPass || !counts.chatReadoutAndroidPass)) {
     return `Physical validation is partial: iOS and Android passed, but retained chat readout evidence is incomplete: iOS ${counts.chatReadoutIosPass ? "pass" : "missing"} / Android ${counts.chatReadoutAndroidPass ? "pass" : "missing"}.`;
   }
+  if (counts.iosPass && counts.androidPass && (!counts.platformPublishingIosPass || !counts.platformPublishingAndroidPass)) {
+    return `Physical validation is partial: iOS and Android passed, but retained YouTube/Twitch dashboard evidence is incomplete: iOS ${counts.platformPublishingIosPass ? "pass" : "missing fresh dashboard proof"} / Android ${counts.platformPublishingAndroidPass ? "pass" : "missing fresh dashboard proof"}.`;
+  }
   const covered = [counts.iosPass ? "iOS" : null, counts.androidPass ? "Android" : null].filter(Boolean).join(" and ");
   return covered
     ? `Physical validation is partial: ${covered} passed, remaining platform still needs evidence.`
@@ -944,6 +1064,8 @@ const createEvidenceRecommendation = (
     audioAndroidPass: boolean;
     chatReadoutIosPass: boolean;
     chatReadoutAndroidPass: boolean;
+    platformPublishingIosPass: boolean;
+    platformPublishingAndroidPass: boolean;
   }
 ): string => {
   if (status === "ready") {
@@ -970,6 +1092,9 @@ const createEvidenceRecommendation = (
   if (context.iosPass && context.androidPass && (!context.chatReadoutIosPass || !context.chatReadoutAndroidPass)) {
     return "Record fresh iOS and Android validation runs with YouTube/Twitch chat connected and readout speaking a sample message.";
   }
+  if (context.iosPass && context.androidPass && (!context.platformPublishingIosPass || !context.platformPublishingAndroidPass)) {
+    return "Record fresh iOS and Android validation runs after refreshing YouTube Live or Twitch dashboard status within 10 minutes and retaining the live/active proof.";
+  }
   if (status === "stale") {
     return `Repeat private RTMPS validation on physical iOS and Android devices; retained evidence expires after ${context.maxAgeDays} days.`;
   }
@@ -987,7 +1112,8 @@ const createEffectiveValidationResult = (
   faceTracking: StreamValidationFaceTrackingSummary | null,
   audio: StreamValidationAudioSummary | null,
   chatReadout: StreamValidationChatReadoutSummary | null,
-  platformPublishing: StreamDiagnostics["platformPublishing"] | null
+  platformPublishing: StreamDiagnostics["platformPublishing"] | null,
+  platformPublishingFreshness: PlatformPublishingFreshness | null
 ): StreamValidationRunResult => {
   if (
     result === "fail" ||
@@ -1009,7 +1135,8 @@ const createEffectiveValidationResult = (
     faceTracking?.status === "warn" ||
     !isAudioEvidencePass(audio) ||
     !isFeatureEvidencePass(chatReadout) ||
-    platformPublishing?.status === "warn"
+    platformPublishing?.status === "warn" ||
+    !isPlatformPublishingEvidencePass(platformPublishing, platformPublishingFreshness)
   ) {
     return "warn";
   }
@@ -1027,10 +1154,11 @@ const createRunSummary = (
   audio: StreamValidationAudioSummary | null,
   chatReadout: StreamValidationChatReadoutSummary | null,
   qualityAutomation: StreamValidationQualityAutomationSummary | null,
-  platformPublishing: StreamDiagnostics["platformPublishing"] | null
+  platformPublishing: StreamDiagnostics["platformPublishing"] | null,
+  platformPublishingFreshness: PlatformPublishingFreshness | null
 ): string => {
   const prefix = result === "pass" ? "Passed" : result === "warn" ? "Needs review" : "Failed";
-  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}.${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${monitorHold ? ` ${monitorHold.summary}` : ""}${faceTracking && faceTracking.status !== "info" ? ` ${faceTracking.summary}` : ""}${audio ? ` ${audio.summary}` : ""}${chatReadout ? ` ${chatReadout.summary}` : ""}${qualityAutomation ? ` ${qualityAutomation.summary}` : ""}${platformPublishing && platformPublishing.status !== "info" ? ` ${platformPublishing.summary}` : ""}`;
+  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}.${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${monitorHold ? ` ${monitorHold.summary}` : ""}${faceTracking && faceTracking.status !== "info" ? ` ${faceTracking.summary}` : ""}${audio ? ` ${audio.summary}` : ""}${chatReadout ? ` ${chatReadout.summary}` : ""}${qualityAutomation ? ` ${qualityAutomation.summary}` : ""}${platformPublishing && platformPublishing.status !== "info" ? ` ${platformPublishing.summary}` : ""}${platformPublishingFreshness && platformPublishingFreshness.status !== "not-applicable" ? ` ${platformPublishingFreshness.summary}` : ""}`;
 };
 
 const createRunRecommendation = (
@@ -1042,7 +1170,8 @@ const createRunRecommendation = (
   audio: StreamValidationAudioSummary | null,
   chatReadout: StreamValidationChatReadoutSummary | null,
   qualityAutomation: StreamValidationQualityAutomationSummary | null,
-  platformPublishing: StreamDiagnostics["platformPublishing"] | null
+  platformPublishing: StreamDiagnostics["platformPublishing"] | null,
+  platformPublishingFreshness: PlatformPublishingFreshness | null
 ): string => {
   if (nativeRuntime?.status === "fail") {
     return nativeRuntime.recommendation;
@@ -1088,6 +1217,9 @@ const createRunRecommendation = (
   }
   if (platformPublishing?.status === "warn") {
     return platformPublishing.recommendation;
+  }
+  if (!isPlatformPublishingEvidencePass(platformPublishing, platformPublishingFreshness) && platformPublishingFreshness) {
+    return platformPublishingFreshness.recommendation;
   }
   if (nativeRuntime) {
     return "Record native publisher/compositor telemetry matching this validation device and showing sent video/audio frames, bytes written, clean compositor state, and all still-image assets loaded.";
@@ -1474,6 +1606,9 @@ const clampText = (value: string): string => value.slice(0, 96);
 const normalizeCount = (value: unknown): number =>
   typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
 
+const normalizeNullableCount = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : null;
+
 const normalizeFiniteNumber = (value: unknown, fallback: number, min: number, max: number): number =>
   typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
 
@@ -1686,6 +1821,42 @@ const normalizePlatformPublishingDiagnostics = (value: unknown): StreamDiagnosti
     twitch: normalizeTwitchPublishingDiagnostics(value.twitch)
   };
 };
+
+const normalizePlatformPublishingFreshness = (
+  value: unknown,
+  platformPublishing: StreamDiagnostics["platformPublishing"] | null,
+  targetPlatform: string,
+  createdAt: string
+): PlatformPublishingFreshness => {
+  if (isRecord(value)) {
+    const status = normalizePlatformPublishingFreshnessStatus(value.status);
+    return {
+      status,
+      platformLabel: normalizeText(value.platformLabel, platformPublishing?.platform === "twitch" ? "Twitch" : "YouTube"),
+      checkedAt: normalizeText(value.checkedAt, ""),
+      ageMinutes: normalizeNullableCount(value.ageMinutes),
+      summary: normalizeText(value.summary, "No platform dashboard freshness evidence retained."),
+      recommendation: normalizeText(
+        value.recommendation,
+        "Refresh platform dashboard status during private validation."
+      )
+    };
+  }
+
+  return assessPlatformPublishingFreshness(
+    {
+      platform: resolvePlatformPublishingFreshnessPlatform(targetPlatform),
+      youtube: platformPublishing?.youtube ?? null,
+      twitch: platformPublishing?.twitch ?? null
+    },
+    new Date(createdAt)
+  );
+};
+
+const normalizePlatformPublishingFreshnessStatus = (value: unknown): PlatformPublishingFreshnessStatus =>
+  value === "fresh" || value === "missing" || value === "invalid" || value === "stale" || value === "not-applicable"
+    ? value
+    : "missing";
 
 const normalizeYouTubePublishingDiagnostics = (
   value: unknown

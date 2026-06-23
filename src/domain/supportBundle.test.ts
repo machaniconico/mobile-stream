@@ -138,7 +138,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 8 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 9 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
@@ -242,7 +242,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Evidence audio: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence chat readout: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence quality automation: 0 retained / live 0 / next-start 0 / failed 0");
-    expect(formatSupportBundle(bundle)).toContain("Evidence platform dashboard: 0 retained / 0 warn / 0 fail");
+    expect(formatSupportBundle(bundle)).toContain("Evidence platform dashboard: 0 retained / 0 ready / 0 fresh / 0 freshness warn / 0 warn / 0 fail");
     expect(formatSupportBundle(bundle)).toContain("Evidence platform dashboard freshness: - / -");
     expect(formatSupportBundle(bundle)).toContain("Publishing status freshness: missing / YouTube dashboard status has no checked-at timestamp.");
   });
@@ -354,9 +354,9 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceQualityAutomationLiveUpdateCount).toBe(1);
     expect(bundle.summary.validationEvidenceQualityAutomationFailureCount).toBe(0);
     expect(bundle.summary.validationEvidenceLatestQualityAutomationStatus).toBe("pass");
-    expect(bundle.summary.validationEvidencePlatformPublishingFreshnessStatus).toBe("stale");
-    expect(bundle.summary.validationEvidencePlatformPublishingFreshnessAgeMinutes).toBe(20);
-    expect(bundle.summary.validationEvidencePlatformPublishingFreshnessSummary).toContain("20 minutes old");
+    expect(bundle.summary.validationEvidencePlatformPublishingFreshnessStatus).toBe("fresh");
+    expect(bundle.summary.validationEvidencePlatformPublishingFreshnessAgeMinutes).toBe(1);
+    expect(bundle.summary.validationEvidencePlatformPublishingFreshnessSummary).toContain("1 minutes ago");
     expect(bundle.summary.platformPublishingFreshnessStatus).toBe("stale");
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeSentVideoFrames).toBe(0);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeSentAudioFrames).toBe(0);
@@ -364,7 +364,7 @@ describe("support bundle", () => {
     expect(text).toContain("Evidence monitor hold: 1 retained / 0 ready / 1 warn / 0 fail / iOS missing / Android missing / latest warn 0s 0 samples");
     expect(text).toContain("Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / sent 0 video 0 audio / bytes 0");
     expect(text).toContain("Evidence quality automation: 1 retained / live 1 / next-start 0 / failed 0");
-    expect(text).toContain("Evidence platform dashboard freshness: stale / YouTube dashboard status is 20 minutes old.");
+    expect(text).toContain("Evidence platform dashboard freshness: fresh / YouTube dashboard status was checked 1 minutes ago.");
     expect(text).toContain("Publishing status freshness: stale / YouTube dashboard status is 20 minutes old.");
   });
 

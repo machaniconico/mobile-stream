@@ -56,6 +56,15 @@ const commercialProfileWithKey = (streamKey: string): StudioProfile => ({
     enabled: true,
     platform: "youtube",
     youtubeLiveChatId: "live-chat-1"
+  },
+  platformPublishing: {
+    ...createDefaultStudioProfile().platformPublishing,
+    youtubeBroadcastId: "broadcast-1",
+    youtubeStreamId: "stream-1",
+    youtubeBroadcastStatus: "live",
+    youtubeStreamStatus: "active",
+    youtubeStreamHealthStatus: "ok",
+    youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
   }
 });
 const headphoneAudioRoute = {
@@ -752,6 +761,79 @@ describe("stream validation evidence", () => {
     expect(summary.latestPlatformPublishing?.status).toBe("warn");
   });
 
+  it("requires fresh platform dashboard evidence before a validation run can pass", () => {
+    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...source,
+            imageUri: "file:///shared/avatar.png",
+            motion: defaultAvatarMotion({ confidence: 0.9, headYaw: 0.08 })
+          }
+        : source
+    );
+    const profile = {
+      ...commercialProfileWithKey("validation-key"),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const,
+        rigMode: "still-image-2d" as const
+      },
+      platformPublishing: createDefaultStudioProfile().platformPublishing
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "live" },
+        health: health({ bitrateKbps: 3500, fps: 30 }),
+        nativeRuntime: nativeMonitorRuntime("ios")
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      {
+        status: "tracking",
+        yaw: 0.1,
+        pitch: 0,
+        roll: 0,
+        mouthOpen: 0.4,
+        blink: 0,
+        smile: 0.2,
+        browRaise: 0.1,
+        confidence: 0.92,
+        expression: "neutral",
+        lastFrameAt: Date.parse("2026-06-23T00:00:00.000Z")
+      },
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.platformPublishing?.status).toBe("info");
+    expect(run.platformPublishingFreshness).toMatchObject({
+      status: "missing",
+      platformLabel: "YouTube"
+    });
+    expect(run.recommendation).toContain("Refresh YouTube status");
+    expect(summary.platformPublishingRunCount).toBe(0);
+    expect(summary.platformPublishingReadyCount).toBe(0);
+    expect(summary.platformPublishingFreshnessWarningCount).toBe(1);
+    expect(summary.platformPublishingIosPass).toBe(false);
+    expect(summary.latestPlatformPublishing).toBeNull();
+    expect(summary.latestPlatformPublishingFreshness?.status).toBe("missing");
+  });
+
   it("stores face tracking evidence and downgrades unready avatar validation", () => {
     const scene = createDefaultScene();
     const profile = {
@@ -869,6 +951,10 @@ describe("stream validation evidence", () => {
     expect(summary.audioAndroidPass).toBe(true);
     expect(summary.chatReadoutIosPass).toBe(true);
     expect(summary.chatReadoutAndroidPass).toBe(true);
+    expect(summary.platformPublishingReadyCount).toBe(2);
+    expect(summary.platformPublishingFreshCount).toBe(2);
+    expect(summary.platformPublishingIosPass).toBe(true);
+    expect(summary.platformPublishingAndroidPass).toBe(true);
     expect(summary.status).toBe("ready");
   });
 

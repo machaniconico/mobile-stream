@@ -27,7 +27,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 8;
+    bundleVersion: 9;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -182,8 +182,13 @@ export interface SupportBundle {
     validationEvidenceLatestQualityAutomationStatus: NonNullable<StreamDiagnostics["validationEvidence"]["latestQualityAutomation"]>["status"] | null;
     validationEvidenceLatestQualityAutomationSummary: string | null;
     validationEvidencePlatformPublishingRunCount: number;
+    validationEvidencePlatformPublishingReadyCount: number;
+    validationEvidencePlatformPublishingFreshCount: number;
+    validationEvidencePlatformPublishingFreshnessWarningCount: number;
     validationEvidencePlatformPublishingWarningCount: number;
     validationEvidencePlatformPublishingFailureCount: number;
+    validationEvidencePlatformPublishingIosPass: boolean;
+    validationEvidencePlatformPublishingAndroidPass: boolean;
     validationEvidenceLatestPlatformPublishingStatus: StreamDiagnostics["platformPublishing"]["status"] | null;
     validationEvidenceLatestPlatformPublishingSummary: string | null;
     validationEvidencePlatformPublishingFreshnessStatus: PlatformPublishingFreshnessStatus | null;
@@ -311,16 +316,18 @@ export const createSupportBundle = ({
     platformPublishingFreshness,
     profile
   });
-  const validationEvidencePlatformPublishingFreshness = diagnostics.validationEvidence.latestPlatformPublishing
-    ? assessPlatformPublishingFreshness(diagnostics.validationEvidence.latestPlatformPublishing, now)
-    : null;
+  const validationEvidencePlatformPublishingFreshness =
+    diagnostics.validationEvidence.latestPlatformPublishingFreshness ??
+    (diagnostics.validationEvidence.latestPlatformPublishing
+      ? assessPlatformPublishingFreshness(diagnostics.validationEvidence.latestPlatformPublishing, now)
+      : null);
 
   return {
     generatedAt: now.toISOString(),
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 8
+      bundleVersion: 9
     },
     summary: {
       status: diagnostics.status,
@@ -475,8 +482,13 @@ export const createSupportBundle = ({
       validationEvidenceLatestQualityAutomationStatus: diagnostics.validationEvidence.latestQualityAutomation?.status ?? null,
       validationEvidenceLatestQualityAutomationSummary: diagnostics.validationEvidence.latestQualityAutomation?.summary ?? null,
       validationEvidencePlatformPublishingRunCount: diagnostics.validationEvidence.platformPublishingRunCount,
+      validationEvidencePlatformPublishingReadyCount: diagnostics.validationEvidence.platformPublishingReadyCount,
+      validationEvidencePlatformPublishingFreshCount: diagnostics.validationEvidence.platformPublishingFreshCount,
+      validationEvidencePlatformPublishingFreshnessWarningCount: diagnostics.validationEvidence.platformPublishingFreshnessWarningCount,
       validationEvidencePlatformPublishingWarningCount: diagnostics.validationEvidence.platformPublishingWarningCount,
       validationEvidencePlatformPublishingFailureCount: diagnostics.validationEvidence.platformPublishingFailureCount,
+      validationEvidencePlatformPublishingIosPass: diagnostics.validationEvidence.platformPublishingIosPass,
+      validationEvidencePlatformPublishingAndroidPass: diagnostics.validationEvidence.platformPublishingAndroidPass,
       validationEvidenceLatestPlatformPublishingStatus: diagnostics.validationEvidence.latestPlatformPublishing?.status ?? null,
       validationEvidenceLatestPlatformPublishingSummary: diagnostics.validationEvidence.latestPlatformPublishing?.summary ?? null,
       validationEvidencePlatformPublishingFreshnessStatus: validationEvidencePlatformPublishingFreshness?.status ?? null,
@@ -674,7 +686,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Evidence audio: ${bundle.summary.validationEvidenceAudioRunCount} retained / ${bundle.summary.validationEvidenceAudioReadyCount} ready / ${bundle.summary.validationEvidenceAudioWarningCount} warn / iOS ${bundle.summary.validationEvidenceAudioIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAudioAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestAudioStatus ?? "-"} ${bundle.summary.validationEvidenceLatestAudioPresetId ?? "-"} / monitor ${bundle.summary.validationEvidenceLatestAudioMonitorEnabled ? "on" : "off"} / headphones-only ${bundle.summary.validationEvidenceLatestAudioMonitorHeadphonesOnly ? "yes" : "no"} / route ${bundle.summary.validationEvidenceLatestAudioMonitorRouteStatus ?? "-"} ${bundle.summary.validationEvidenceLatestAudioOutputName ?? "-"} / headphones ${bundle.summary.validationEvidenceLatestAudioHeadphonesConnected ? "yes" : "no"} / stale ${bundle.summary.validationEvidenceLatestAudioRouteStale ? "yes" : "no"} / native monitor ${bundle.summary.validationEvidenceLatestAudioNativeMonitorReported ? (bundle.summary.validationEvidenceLatestAudioNativeMonitorRunning ? "running" : "reported") : "missing"} ${bundle.summary.validationEvidenceLatestAudioNativeMonitorWrittenFrames}/${bundle.summary.validationEvidenceLatestAudioNativeMonitorDroppedFrames} frames ${bundle.summary.validationEvidenceLatestAudioNativeMonitorOutputName ?? "-"} / buffers ${bundle.summary.validationEvidenceLatestAudioNativeMonitorWrittenBuffers}/${bundle.summary.validationEvidenceLatestAudioNativeMonitorDroppedBuffers} / samples ${bundle.summary.validationEvidenceLatestAudioLevelSampleCount} / peak ${Math.round(bundle.summary.validationEvidenceLatestAudioPeakLevel * 100)}% / clipped ${bundle.summary.validationEvidenceLatestAudioClippedLevelCount}`,
     `- Evidence chat readout: ${bundle.summary.validationEvidenceChatReadoutRunCount} retained / ${bundle.summary.validationEvidenceChatReadoutReadyCount} ready / ${bundle.summary.validationEvidenceChatReadoutWarningCount} warn / iOS ${bundle.summary.validationEvidenceChatReadoutIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceChatReadoutAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestChatReadoutStatus ?? "-"} ${bundle.summary.validationEvidenceLatestChatReadoutConnectionPhase ?? "-"} / spoken ${bundle.summary.validationEvidenceLatestChatReadoutSpokenMessageCount} / failed ${bundle.summary.validationEvidenceLatestChatReadoutSpeechFailureCount}`,
     `- Evidence quality automation: ${bundle.summary.validationEvidenceQualityAutomationRunCount} retained / live ${bundle.summary.validationEvidenceQualityAutomationLiveUpdateCount} / next-start ${bundle.summary.validationEvidenceQualityAutomationNextTargetCount} / failed ${bundle.summary.validationEvidenceQualityAutomationFailureCount} / latest ${bundle.summary.validationEvidenceLatestQualityAutomationStatus ?? "-"} ${bundle.summary.validationEvidenceLatestQualityAutomationSummary ?? "-"}`,
-    `- Evidence platform dashboard: ${bundle.summary.validationEvidencePlatformPublishingRunCount} retained / ${bundle.summary.validationEvidencePlatformPublishingWarningCount} warn / ${bundle.summary.validationEvidencePlatformPublishingFailureCount} fail / latest ${bundle.summary.validationEvidenceLatestPlatformPublishingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestPlatformPublishingSummary ?? "-"}`,
+    `- Evidence platform dashboard: ${bundle.summary.validationEvidencePlatformPublishingRunCount} retained / ${bundle.summary.validationEvidencePlatformPublishingReadyCount} ready / ${bundle.summary.validationEvidencePlatformPublishingFreshCount} fresh / ${bundle.summary.validationEvidencePlatformPublishingFreshnessWarningCount} freshness warn / ${bundle.summary.validationEvidencePlatformPublishingWarningCount} warn / ${bundle.summary.validationEvidencePlatformPublishingFailureCount} fail / iOS ${bundle.summary.validationEvidencePlatformPublishingIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidencePlatformPublishingAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestPlatformPublishingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestPlatformPublishingSummary ?? "-"}`,
     `- Evidence platform dashboard freshness: ${bundle.summary.validationEvidencePlatformPublishingFreshnessStatus ?? "-"} / ${bundle.summary.validationEvidencePlatformPublishingFreshnessSummary ?? "-"}`,
     `- Physical coverage: iOS ${bundle.summary.validationEvidenceIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAndroidPass ? "pass" : "missing"}`,
     `- Validation build: ${bundle.summary.validationEvidenceConsistentAppBuild ?? (bundle.summary.validationEvidenceAppBuildMismatch ? "mismatch" : "-")}`,

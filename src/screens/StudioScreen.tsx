@@ -1220,9 +1220,11 @@ const StreamValidationRecorder = ({
   const [result, setResult] = useState<StreamValidationRunResult>(() => validationRunResultFromDiagnostics(diagnostics));
   const latestRun = diagnostics.validationEvidence.latestRun;
   const latestRunAudioLabel = latestRun ? formatStreamValidationRunAudioLabel(latestRun) : null;
-  const latestDashboardFreshness = diagnostics.validationEvidence.latestPlatformPublishing
-    ? assessPlatformPublishingFreshness(diagnostics.validationEvidence.latestPlatformPublishing)
-    : null;
+  const latestDashboardFreshness =
+    diagnostics.validationEvidence.latestPlatformPublishingFreshness ??
+    (diagnostics.validationEvidence.latestPlatformPublishing
+      ? assessPlatformPublishingFreshness(diagnostics.validationEvidence.latestPlatformPublishing)
+      : null);
 
   useEffect(() => {
     setResult(validationRunResultFromDiagnostics(diagnostics));
@@ -1281,7 +1283,9 @@ const StreamValidationRecorder = ({
           iOS {diagnostics.validationEvidence.faceTrackingIosPass ? "pass" : "missing"} / Android{" "}
           {diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"} / audio iOS{" "}
           {diagnostics.validationEvidence.audioIosPass ? "pass" : "missing"} / Android{" "}
-          {diagnostics.validationEvidence.audioAndroidPass ? "pass" : "missing"}
+          {diagnostics.validationEvidence.audioAndroidPass ? "pass" : "missing"} / dashboard iOS{" "}
+          {diagnostics.validationEvidence.platformPublishingIosPass ? "pass" : "missing"} / Android{" "}
+          {diagnostics.validationEvidence.platformPublishingAndroidPass ? "pass" : "missing"}
         </em>
       </div>
       {latestDashboardFreshness ? (
@@ -1425,8 +1429,14 @@ const validationRunQualityAutomationLabel = (run: StreamValidationRun): string |
 
 const validationRunPlatformPublishingLabel = (run: StreamValidationRun): string | null =>
   run.platformPublishing && run.platformPublishing.status !== "info"
-    ? `dashboard ${run.platformPublishing.status} / ${run.platformPublishing.summary}`
-    : null;
+    ? `dashboard ${run.platformPublishing.status} / ${run.platformPublishing.summary}${
+        run.platformPublishingFreshness && run.platformPublishingFreshness.status !== "not-applicable"
+          ? ` / freshness ${run.platformPublishingFreshness.status} ${run.platformPublishingFreshness.summary}`
+          : ""
+      }`
+    : run.platformPublishingFreshness && run.platformPublishingFreshness.status !== "not-applicable"
+      ? `dashboard freshness ${run.platformPublishingFreshness.status} / ${run.platformPublishingFreshness.summary}`
+      : null;
 
 const ChatReaderPanel = ({
   chatReader,

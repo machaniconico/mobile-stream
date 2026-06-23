@@ -722,12 +722,13 @@ const formatValidationQualityAutomation = (diagnostics: StreamDiagnostics): stri
 
 const formatValidationPlatformPublishing = (diagnostics: StreamDiagnostics, now: Date): string => {
   const latestPlatformPublishing = diagnostics.validationEvidence.latestPlatformPublishing;
-  if (!latestPlatformPublishing) {
+  const latestFreshness = diagnostics.validationEvidence.latestPlatformPublishingFreshness;
+  if (!latestPlatformPublishing && !latestFreshness) {
     return "-";
   }
 
-  const freshness = assessPlatformPublishingFreshness(latestPlatformPublishing, now);
-  return `${diagnostics.validationEvidence.platformPublishingRunCount} retained / ${diagnostics.validationEvidence.platformPublishingWarningCount} warn / ${diagnostics.validationEvidence.platformPublishingFailureCount} fail / latest ${latestPlatformPublishing.status} ${latestPlatformPublishing.summary} / freshness ${freshness.status} ${freshness.summary}`;
+  const freshness = latestFreshness ?? assessPlatformPublishingFreshness(latestPlatformPublishing, now);
+  return `${diagnostics.validationEvidence.platformPublishingRunCount} retained / ${diagnostics.validationEvidence.platformPublishingReadyCount} ready / ${diagnostics.validationEvidence.platformPublishingFreshCount} fresh / ${diagnostics.validationEvidence.platformPublishingFreshnessWarningCount} freshness warn / ${diagnostics.validationEvidence.platformPublishingWarningCount} warn / ${diagnostics.validationEvidence.platformPublishingFailureCount} fail / iOS ${diagnostics.validationEvidence.platformPublishingIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.platformPublishingAndroidPass ? "pass" : "missing"} / latest ${latestPlatformPublishing?.status ?? "-"} ${latestPlatformPublishing?.summary ?? "-"} / freshness ${freshness.status} ${freshness.summary}`;
 };
 
 const createPlatformPublishingDiagnostics = (
