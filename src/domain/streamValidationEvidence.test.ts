@@ -245,6 +245,19 @@ describe("stream validation evidence", () => {
     expect(run.recommendation).toContain("Enable a mic effect preset");
     expect(summary.audioRunCount).toBe(1);
     expect(summary.fingerprint).toMatch(/^sve1-[0-9a-f]{8}-[0-9a-z]+$/);
+    expect(summary.runManifest).toHaveLength(1);
+    expect(summary.runManifest[0]).toMatchObject({
+      id: run.id,
+      fingerprint: run.fingerprint,
+      devicePlatform: "ios",
+      result: "warn",
+      matchesScope: true,
+      fresh: true,
+      eligible: true,
+      ageDays: 0,
+      audioStatus: "warn",
+      chatReadoutStatus: "warn"
+    });
     expect(summary.audioWarningCount).toBe(1);
     expect(summary.chatReadoutRunCount).toBe(1);
     expect(summary.chatReadoutWarningCount).toBe(1);
@@ -1397,11 +1410,21 @@ describe("stream validation evidence", () => {
       maxAgeDays: 14
     });
     const mismatch = summarizeStreamValidationEvidence([androidRun, iosRun], { now: validationNow });
+    const scopedToRc1 = summarizeStreamValidationEvidence([androidRun, iosRun], {
+      now: validationNow,
+      requiredAppBuild: "rc-1"
+    });
     const ready = summarizeStreamValidationEvidence([matchingAndroidRun, iosRun], { now: validationNow });
 
     expect(mismatch.status).toBe("partial");
     expect(mismatch.appBuildMismatch).toBe(true);
     expect(mismatch.summary).toContain("app builds do not match");
+    expect(scopedToRc1.runManifest.find((item) => item.id === androidRun.id)).toMatchObject({
+      appBuild: "rc-2",
+      matchesScope: false,
+      fresh: true,
+      eligible: false
+    });
     expect(ready.status).toBe("partial");
     expect(ready.consistentAppBuild).toBe("rc-1");
     expect(ready.summary).toContain("avatar-motion evidence is incomplete");

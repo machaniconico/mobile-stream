@@ -138,7 +138,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 12 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 13 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
@@ -198,6 +198,7 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceStatus).toBe("none");
     expect(bundle.summary.validationEvidenceFingerprint).toMatch(/^sve1-[0-9a-f]{8}-[0-9a-z]+$/);
     expect(bundle.summary.validationEvidenceLatestRunFingerprint).toBeNull();
+    expect(bundle.summary.validationEvidenceRunManifest).toEqual([]);
     expect(bundle.summary.validationEvidenceRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceEligibleRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceStaleRunCount).toBe(0);
@@ -239,6 +240,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / assets 1/1 loaded / 0 missing / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
     expect(formatSupportBundle(bundle)).toContain("Evidence fingerprint: sve1-");
+    expect(formatSupportBundle(bundle)).toContain("Evidence run manifest: -");
     expect(formatSupportBundle(bundle)).toContain("Evidence monitor hold: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - 0s 0 samples");
     expect(formatSupportBundle(bundle)).toContain("Evidence native runtime: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - - / sent 0 video 0 audio / bytes 0");
     expect(formatSupportBundle(bundle)).toContain("Evidence face tracking: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
@@ -369,8 +371,21 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeBytesWritten).toBe(0);
     expect(bundle.summary.validationEvidenceLatestAudioMonitorLatencyStatus).toBe("warn");
     expect(bundle.summary.validationEvidenceLatestAudioMonitorLatencyMs).toBeNull();
+    expect(bundle.summary.validationEvidenceRunManifest).toHaveLength(1);
+    expect(bundle.summary.validationEvidenceRunManifest[0]).toMatchObject({
+      fingerprint: latestRunFingerprint,
+      devicePlatform: "ios",
+      result: "warn",
+      matchesScope: true,
+      eligible: true,
+      nativeRuntimeStatus: "pass",
+      audioStatus: "warn",
+      platformPublishingFreshnessStatus: "fresh"
+    });
     expect(text).toContain("Evidence monitor hold: 1 retained / 0 ready / 1 warn / 0 fail / iOS missing / Android missing / latest warn 0s 0 samples");
     expect(text).toContain(`Evidence fingerprint: ${bundle.summary.validationEvidenceFingerprint} / latest ${latestRunFingerprint ?? "-"}`);
+    expect(text).toContain("Evidence run manifest: ios warn eligible");
+    expect(text).toContain(latestRunFingerprint ?? "-");
     expect(text).toContain("Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / sent 0 video 0 audio / bytes 0");
     expect(text).toContain("latency missing warn / source - / budget 180ms");
     expect(text).toContain("Evidence quality automation: 1 retained / live 1 / next-start 0 / failed 0");

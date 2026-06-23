@@ -601,6 +601,8 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Evidence: ${diagnostics.validationEvidence.summary}`,
     `- Evidence recommendation: ${diagnostics.validationEvidence.recommendation}`,
     `- Evidence runs: ${diagnostics.validationEvidence.totalRuns} retained / ${diagnostics.validationEvidence.eligibleRunCount} eligible / ${diagnostics.validationEvidence.staleRunCount} stale`,
+    `- Evidence fingerprint: ${diagnostics.validationEvidence.fingerprint}`,
+    `- Evidence run manifest: ${formatValidationEvidenceRunManifest(diagnostics.validationEvidence.runManifest)}`,
     `- Evidence freshness: ${diagnostics.validationEvidence.latestRunAgeDays === null ? "-" : `${diagnostics.validationEvidence.latestRunAgeDays} days old`} / max ${diagnostics.validationEvidence.maxAgeDays} days`,
     `- Evidence build: ${diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")}`,
     `- Evidence monitor hold: ${formatValidationMonitorHold(diagnostics)}`,
@@ -691,6 +693,32 @@ const formatSessionNativeRuntime = (summary: StreamSessionSummary): string =>
   summary.nativeRuntime
     ? `${summary.nativeRuntime.status} / ${summary.nativeRuntime.platform} / ${summary.nativeRuntime.publisherState || "-"} / queue ${summary.nativeRuntime.queuedItems}/${summary.nativeRuntime.cacheSize} / assets ${summary.nativeRuntime.stillImageAssetLoadedCount}/${summary.nativeRuntime.stillImageAssetCount} loaded / ${summary.nativeRuntime.stillImageAssetMissingCount} missing / drops ${summary.nativeRuntime.droppedVideoFrames} video ${summary.nativeRuntime.droppedAudioFrames} audio`
     : "-";
+
+const formatValidationEvidenceRunManifest = (
+  manifest: StreamDiagnostics["validationEvidence"]["runManifest"]
+): string => {
+  if (manifest.length === 0) {
+    return "-";
+  }
+
+  return manifest
+    .map((run) => {
+      const scopeStatus = run.eligible ? "eligible" : run.matchesScope ? "stale" : "out-of-scope";
+      return [
+        `${run.devicePlatform} ${run.result} ${scopeStatus}`,
+        `build ${run.appBuild}`,
+        `${run.targetPlatform}/${run.transport}`,
+        `${run.ageDays}d`,
+        run.fingerprint,
+        `native ${run.nativeRuntimeStatus ?? "-"}`,
+        `hold ${run.monitorHoldStatus ?? "-"}`,
+        `audio ${run.audioStatus ?? "-"}`,
+        `chat ${run.chatReadoutStatus ?? "-"}`,
+        `dashboard ${run.platformPublishingStatus ?? "-"}/${run.platformPublishingFreshnessStatus ?? "-"}`
+      ].join(" ");
+    })
+    .join(" | ");
+};
 
 const formatValidationNativeRuntime = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestNativeRuntime

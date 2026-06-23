@@ -847,6 +847,7 @@ describe("stream diagnostics", () => {
     expect(text).toContain("Validate chat readout");
     expect(text).toContain("Evidence audio");
     expect(text).toContain("Evidence chat readout");
+    expect(text).toContain("Evidence run manifest: -");
     expect(text).toContain("Session Events");
     expect(json).toContain("backoffWindow");
     expect(json).toContain("qualityIncidents");
@@ -856,6 +857,7 @@ describe("stream diagnostics", () => {
     expect(json).toContain("lastSummary");
     expect(json).toContain("validation");
     expect(json).toContain("validationEvidence");
+    expect(json).toContain("runManifest");
     expect(report.diagnostics.session.lastSummary?.outcome).toBe("clean");
     expect(report.diagnostics.session.historySummary.totalSessions).toBe(1);
     expect(report.diagnostics.session.historySummary.cleanRate).toBe(100);

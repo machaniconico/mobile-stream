@@ -27,7 +27,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 12;
+    bundleVersion: 13;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -98,6 +98,7 @@ export interface SupportBundle {
     validationEvidenceStatus: StreamDiagnostics["validationEvidence"]["status"];
     validationEvidenceFingerprint: string;
     validationEvidenceLatestRunFingerprint: string | null;
+    validationEvidenceRunManifest: StreamDiagnostics["validationEvidence"]["runManifest"];
     validationEvidenceRunCount: number;
     validationEvidenceEligibleRunCount: number;
     validationEvidenceStaleRunCount: number;
@@ -335,7 +336,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 12
+      bundleVersion: 13
     },
     summary: {
       status: diagnostics.status,
@@ -406,6 +407,7 @@ export const createSupportBundle = ({
       validationEvidenceStatus: diagnostics.validationEvidence.status,
       validationEvidenceFingerprint: diagnostics.validationEvidence.fingerprint,
       validationEvidenceLatestRunFingerprint: diagnostics.validationEvidence.latestRun?.fingerprint ?? null,
+      validationEvidenceRunManifest: diagnostics.validationEvidence.runManifest,
       validationEvidenceRunCount: diagnostics.validationEvidence.totalRuns,
       validationEvidenceEligibleRunCount: diagnostics.validationEvidence.eligibleRunCount,
       validationEvidenceStaleRunCount: diagnostics.validationEvidence.staleRunCount,
@@ -696,6 +698,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Next step: ${bundle.diagnostics.validation.recommendedNextStep}`,
     `- Evidence: ${bundle.summary.validationEvidenceStatus} / ${bundle.summary.validationEvidenceRunCount} retained / ${bundle.summary.validationEvidenceEligibleRunCount} eligible / ${bundle.summary.validationEvidenceStaleRunCount} stale`,
     `- Evidence fingerprint: ${bundle.summary.validationEvidenceFingerprint} / latest ${bundle.summary.validationEvidenceLatestRunFingerprint ?? "-"}`,
+    `- Evidence run manifest: ${formatValidationEvidenceRunManifest(bundle.summary.validationEvidenceRunManifest)}`,
     `- Evidence outcomes: ${bundle.summary.validationEvidencePassCount} pass / ${bundle.summary.validationEvidenceFailureCount} fail`,
     `- Evidence monitor hold: ${bundle.summary.validationEvidenceMonitorHoldRunCount} retained / ${bundle.summary.validationEvidenceMonitorHoldReadyCount} ready / ${bundle.summary.validationEvidenceMonitorHoldWarningCount} warn / ${bundle.summary.validationEvidenceMonitorHoldFailureCount} fail / iOS ${bundle.summary.validationEvidenceMonitorHoldIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceMonitorHoldAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestMonitorHoldStatus ?? "-"} ${bundle.summary.validationEvidenceLatestMonitorHoldDurationSeconds}s ${bundle.summary.validationEvidenceLatestMonitorHoldSampleCount} samples / ${bundle.summary.validationEvidenceLatestMonitorHoldStability ?? "-"} / avg ${bundle.summary.validationEvidenceLatestMonitorHoldAverageBitrateKbps} kbps ${bundle.summary.validationEvidenceLatestMonitorHoldAverageFps} fps / min ${bundle.summary.validationEvidenceLatestMonitorHoldMinimumBitrateKbps} kbps ${bundle.summary.validationEvidenceLatestMonitorHoldMinimumFps} fps / drops ${bundle.summary.validationEvidenceLatestMonitorHoldDroppedFrameIncrease} / reconnects ${bundle.summary.validationEvidenceLatestMonitorHoldObservedReconnectAttempts}`,
     `- Evidence native runtime: ${bundle.summary.validationEvidenceNativeRuntimeRunCount} retained / ${bundle.summary.validationEvidenceNativeRuntimeReadyCount} ready / ${bundle.summary.validationEvidenceNativeRuntimeWarningCount} warn / ${bundle.summary.validationEvidenceNativeRuntimeFailureCount} fail / iOS ${bundle.summary.validationEvidenceNativeRuntimeIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceNativeRuntimeAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestNativeRuntimeStatus ?? "-"} ${bundle.summary.validationEvidenceLatestNativeRuntimePlatform ?? "-"} / sent ${bundle.summary.validationEvidenceLatestNativeRuntimeSentVideoFrames} video ${bundle.summary.validationEvidenceLatestNativeRuntimeSentAudioFrames} audio / bytes ${bundle.summary.validationEvidenceLatestNativeRuntimeBytesWritten} / assets ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount} missing / congested ${bundle.summary.validationEvidenceLatestNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.validationEvidenceLatestNativeRuntimeQueuedItems}/${bundle.summary.validationEvidenceLatestNativeRuntimeCacheSize}`,
@@ -723,6 +726,32 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Publishing status freshness: ${bundle.summary.platformPublishingFreshnessStatus} / ${bundle.summary.platformPublishingFreshnessSummary}`,
     `- Publishing freshness action: ${bundle.summary.platformPublishingFreshnessRecommendation}`
   ].join("\n");
+};
+
+const formatValidationEvidenceRunManifest = (
+  manifest: StreamDiagnostics["validationEvidence"]["runManifest"]
+): string => {
+  if (manifest.length === 0) {
+    return "-";
+  }
+
+  return manifest
+    .map((run) => {
+      const scopeStatus = run.eligible ? "eligible" : run.matchesScope ? "stale" : "out-of-scope";
+      return [
+        `${run.devicePlatform} ${run.result} ${scopeStatus}`,
+        `build ${run.appBuild}`,
+        `${run.targetPlatform}/${run.transport}`,
+        `${run.ageDays}d`,
+        run.fingerprint,
+        `native ${run.nativeRuntimeStatus ?? "-"}`,
+        `hold ${run.monitorHoldStatus ?? "-"}`,
+        `audio ${run.audioStatus ?? "-"}`,
+        `chat ${run.chatReadoutStatus ?? "-"}`,
+        `dashboard ${run.platformPublishingStatus ?? "-"}/${run.platformPublishingFreshnessStatus ?? "-"}`
+      ].join(" ");
+    })
+    .join(" | ");
 };
 
 const countSources = (sources: SceneSource[]): Record<SourceKind, number> => {

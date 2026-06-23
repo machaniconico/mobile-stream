@@ -162,8 +162,37 @@ export interface StreamValidationAudioMonitorTuningInput {
   note?: string;
 }
 
+export interface StreamValidationEvidenceRunManifestItem {
+  id: string;
+  fingerprint: string;
+  createdAt: string;
+  ageDays: number;
+  fresh: boolean;
+  matchesScope: boolean;
+  eligible: boolean;
+  devicePlatform: StreamValidationDevicePlatform;
+  deviceName: string;
+  osVersion: string;
+  appBuild: string;
+  networkProfile: string;
+  targetPlatform: string;
+  transport: string;
+  result: StreamValidationRunResult;
+  nativeRuntimeStatus: StreamSessionNativeRuntimeSummary["status"] | null;
+  monitorHoldStatus: StreamValidationMonitorHoldSummary["status"] | null;
+  faceTrackingStatus: StreamValidationFaceTrackingSummary["status"] | null;
+  audioStatus: StreamValidationAudioSummary["status"] | null;
+  chatReadoutStatus: StreamValidationChatReadoutSummary["status"] | null;
+  qualityAutomationStatus: StreamValidationQualityAutomationSummary["status"] | null;
+  platformPublishingStatus: StreamDiagnostics["platformPublishing"]["status"] | null;
+  platformPublishingFreshnessStatus: PlatformPublishingFreshnessStatus | null;
+  summary: string;
+  recommendation: string;
+}
+
 export interface StreamValidationEvidenceSummary {
   fingerprint: string;
+  runManifest: StreamValidationEvidenceRunManifestItem[];
   totalRuns: number;
   eligibleRunCount: number;
   staleRunCount: number;
@@ -453,6 +482,13 @@ export const summarizeStreamValidationEvidence = (
     ageDays: ageInDays(run.createdAt, now),
     isFresh: ageInDays(run.createdAt, now) <= maxAgeDays
   }));
+  const runManifest = normalized.map((run) =>
+    createEvidenceRunManifestItem(run, {
+      ageDays: ageInDays(run.createdAt, now),
+      fresh: ageInDays(run.createdAt, now) <= maxAgeDays,
+      matchesScope: scopedRuns.includes(run)
+    })
+  );
   const fingerprint = createStreamValidationEvidenceFingerprint(normalized, scopedRuns, {
     maxAgeDays,
     requiredAppBuild,
@@ -600,6 +636,7 @@ export const summarizeStreamValidationEvidence = (
 
   return {
     fingerprint,
+    runManifest,
     totalRuns,
     eligibleRunCount,
     staleRunCount,
@@ -1817,6 +1854,45 @@ const createStreamValidationEvidenceFingerprint = (
     retainedRuns: retainedRuns.map(toEvidenceFingerprintRunRef),
     scopedRuns: scopedRuns.map(toEvidenceFingerprintRunRef)
   });
+
+const createEvidenceRunManifestItem = (
+  run: StreamValidationRun,
+  {
+    ageDays,
+    fresh,
+    matchesScope
+  }: {
+    ageDays: number;
+    fresh: boolean;
+    matchesScope: boolean;
+  }
+): StreamValidationEvidenceRunManifestItem => ({
+  id: run.id,
+  fingerprint: run.fingerprint,
+  createdAt: run.createdAt,
+  ageDays,
+  fresh,
+  matchesScope,
+  eligible: matchesScope && fresh,
+  devicePlatform: run.devicePlatform,
+  deviceName: run.deviceName,
+  osVersion: run.osVersion,
+  appBuild: run.appBuild,
+  networkProfile: run.networkProfile,
+  targetPlatform: run.targetPlatform,
+  transport: run.transport,
+  result: run.result,
+  nativeRuntimeStatus: run.nativeRuntime?.status ?? null,
+  monitorHoldStatus: run.monitorHold?.status ?? null,
+  faceTrackingStatus: run.faceTracking?.status ?? null,
+  audioStatus: run.audio?.status ?? null,
+  chatReadoutStatus: run.chatReadout?.status ?? null,
+  qualityAutomationStatus: run.qualityAutomation?.status ?? null,
+  platformPublishingStatus: run.platformPublishing?.status ?? null,
+  platformPublishingFreshnessStatus: getRunPlatformPublishingFreshness(run)?.status ?? null,
+  summary: run.summary,
+  recommendation: run.recommendation
+});
 
 const toEvidenceFingerprintRunRef = (run: StreamValidationRun) => ({
   appBuild: run.appBuild,
