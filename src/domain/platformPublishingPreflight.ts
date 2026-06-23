@@ -29,15 +29,19 @@ export interface YouTubeBroadcastTransitionPreflightInput {
   transitionStatus: YouTubeBroadcastTransitionStatus;
   streamStatus: StreamStatus;
   validation?: Pick<StreamValidationChecklist, "status" | "recommendedNextStep"> | null;
+  now?: Date;
 }
+
+export const youtubeBroadcastTransitionStatusMaxAgeMinutes = 10;
 
 export const createYouTubeBroadcastTransitionPreflightReport = ({
   profile,
   transitionStatus,
   streamStatus,
-  validation = null
+  validation = null,
+  now = new Date()
 }: YouTubeBroadcastTransitionPreflightInput): PlatformPublishingPreflightReport => {
-  const issues = createYouTubeBroadcastTransitionIssues(profile, transitionStatus, streamStatus, validation);
+  const issues = createYouTubeBroadcastTransitionIssues(profile, transitionStatus, streamStatus, validation, now);
   const blocks = issues.filter((issue) => issue.severity === "block");
   const warnings = issues.filter((issue) => issue.severity === "warning");
   const status: PlatformPublishingPreflightStatus = blocks.length > 0 ? "blocked" : warnings.length > 0 ? "warning" : "ready";
@@ -68,7 +72,8 @@ const createYouTubeBroadcastTransitionIssues = (
   profile: YouTubeBroadcastTransitionPreflightInput["profile"],
   transitionStatus: YouTubeBroadcastTransitionStatus,
   streamStatus: StreamStatus,
-  validation: YouTubeBroadcastTransitionPreflightInput["validation"]
+  validation: YouTubeBroadcastTransitionPreflightInput["validation"],
+  now: Date
 ): PlatformPublishingPreflightIssue[] => {
   const settings = profile.platformPublishing;
   const broadcastStatus = settings.youtubeBroadcastStatus.trim().toLowerCase();
@@ -108,10 +113,12 @@ const createYouTubeBroadcastTransitionIssues = (
   }
 
   if (transitionStatus === "testing") {
+    issues.push(...createYouTubeStatusFreshnessIssues(settings.youtubeStatusCheckedAt, now, "warning"));
     issues.push(...createTestingTransitionIssues(broadcastStatus, streamHealthStatus, settings.youtubeStreamHealthIssues.length));
   }
 
   if (transitionStatus === "live") {
+    issues.push(...createYouTubeStatusFreshnessIssues(settings.youtubeStatusCheckedAt, now, "block"));
     issues.push(
       ...createLiveTransitionIssues(
         profile,
@@ -126,10 +133,58 @@ const createYouTubeBroadcastTransitionIssues = (
   }
 
   if (transitionStatus === "complete") {
+    issues.push(...createYouTubeStatusFreshnessIssues(settings.youtubeStatusCheckedAt, now, "warning"));
     issues.push(...createCompleteTransitionIssues(broadcastStatus, streamStatus));
   }
 
   return issues;
+};
+
+const createYouTubeStatusFreshnessIssues = (
+  checkedAt: string,
+  now: Date,
+  staleSeverity: PlatformPublishingPreflightSeverity
+): PlatformPublishingPreflightIssue[] => {
+  if (!checkedAt.trim()) {
+    return [
+      {
+        code: "youtube-transition-status-unchecked",
+        severity: staleSeverity,
+        label: "Status",
+        message: "YouTube broadcast and ingest status have not been refreshed in this profile.",
+        recommendation: "Refresh YouTube status before changing the broadcast lifecycle state."
+      }
+    ];
+  }
+
+  const checkedTimestamp = Date.parse(checkedAt);
+  const nowTimestamp = now.getTime();
+  if (!Number.isFinite(checkedTimestamp) || !Number.isFinite(nowTimestamp)) {
+    return [
+      {
+        code: "youtube-transition-status-invalid",
+        severity: staleSeverity,
+        label: "Status",
+        message: "YouTube status timestamp is invalid.",
+        recommendation: "Refresh YouTube status before changing the broadcast lifecycle state."
+      }
+    ];
+  }
+
+  const ageMinutes = Math.floor(Math.max(0, nowTimestamp - checkedTimestamp) / 60000);
+  if (ageMinutes <= youtubeBroadcastTransitionStatusMaxAgeMinutes) {
+    return [];
+  }
+
+  return [
+    {
+      code: "youtube-transition-status-stale",
+      severity: staleSeverity,
+      label: "Status",
+      message: `YouTube broadcast and ingest status are ${ageMinutes} minutes old.`,
+      recommendation: `Refresh YouTube status within ${youtubeBroadcastTransitionStatusMaxAgeMinutes} minutes of changing broadcast lifecycle state.`
+    }
+  ];
 };
 
 const createTestingTransitionIssues = (

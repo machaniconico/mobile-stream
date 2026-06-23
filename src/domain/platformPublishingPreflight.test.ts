@@ -5,6 +5,8 @@ import {
   formatPlatformPublishingPreflightBlockMessage
 } from "./platformPublishingPreflight";
 
+const transitionNow = new Date("2026-06-23T00:05:00.000Z");
+
 const youtubeProfile = (update: Partial<StudioProfile["platformPublishing"]> = {}): StudioProfile => ({
   ...createDefaultStudioProfile(),
   destination: {
@@ -19,6 +21,7 @@ const youtubeProfile = (update: Partial<StudioProfile["platformPublishing"]> = {
     youtubeStreamStatus: "active",
     youtubeStreamHealthStatus: "ok",
     youtubeStreamHealthIssues: [],
+    youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z",
     ...update
   }
 });
@@ -32,7 +35,8 @@ describe("platform publishing preflight", () => {
       validation: {
         status: "needs-test",
         recommendedNextStep: "Keep private validation controlled."
-      }
+      },
+      now: transitionNow
     });
 
     expect(report.canProceed).toBe(true);
@@ -48,7 +52,8 @@ describe("platform publishing preflight", () => {
       validation: {
         status: "needs-test",
         recommendedNextStep: "Record iOS and Android evidence."
-      }
+      },
+      now: transitionNow
     });
 
     expect(report.canProceed).toBe(false);
@@ -68,7 +73,8 @@ describe("platform publishing preflight", () => {
       validation: {
         status: "ready",
         recommendedNextStep: "Keep validation fresh."
-      }
+      },
+      now: transitionNow
     });
 
     expect(report.canProceed).toBe(false);
@@ -89,7 +95,8 @@ describe("platform publishing preflight", () => {
         youtubeStreamHealthStatus: ""
       }),
       transitionStatus: "testing",
-      streamStatus: "live"
+      streamStatus: "live",
+      now: transitionNow
     });
 
     expect(report.canProceed).toBe(true);
@@ -101,10 +108,45 @@ describe("platform publishing preflight", () => {
     const report = createYouTubeBroadcastTransitionPreflightReport({
       profile: youtubeProfile({ youtubeBroadcastStatus: "live" }),
       transitionStatus: "complete",
-      streamStatus: "live"
+      streamStatus: "live",
+      now: transitionNow
     });
 
     expect(report.canProceed).toBe(false);
     expect(report.blocks.map((issue) => issue.code)).toContain("youtube-transition-complete-local-active");
+  });
+
+  it("blocks live transition when the YouTube status snapshot is stale", () => {
+    const report = createYouTubeBroadcastTransitionPreflightReport({
+      profile: youtubeProfile({
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }),
+      transitionStatus: "live",
+      streamStatus: "live",
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation fresh."
+      },
+      now: new Date("2026-06-23T00:16:00.000Z")
+    });
+
+    expect(report.canProceed).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toContain("youtube-transition-status-stale");
+    expect(formatPlatformPublishingPreflightBlockMessage(report)).toContain("YouTube broadcast and ingest status are 16 minutes old");
+  });
+
+  it("warns but allows test transition when the YouTube status snapshot is missing", () => {
+    const report = createYouTubeBroadcastTransitionPreflightReport({
+      profile: youtubeProfile({
+        youtubeStatusCheckedAt: ""
+      }),
+      transitionStatus: "testing",
+      streamStatus: "idle",
+      now: transitionNow
+    });
+
+    expect(report.canProceed).toBe(true);
+    expect(report.status).toBe("warning");
+    expect(report.warnings.map((issue) => issue.code)).toContain("youtube-transition-status-unchecked");
   });
 });
