@@ -146,8 +146,8 @@ const sourceLabels: Record<SourceKind, string> = {
 const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "text", "image", "solid"];
 const expressions: AvatarExpression[] = ["neutral", "happy", "angry", "surprised"];
 
-const shareStreamDiagnosticReport = async (diagnostics: StreamDiagnostics) => {
-  const report = createStreamDiagnosticReport(diagnostics);
+const shareStreamDiagnosticReport = async (diagnostics: StreamDiagnostics, publicLaunchChecklist: PublicLaunchChecklist) => {
+  const report = createStreamDiagnosticReport(diagnostics, new Date(), publicLaunchChecklist);
   await Share.share({
     title: "MobileLiveCaster diagnostics",
     message: formatStreamDiagnosticReport(report)
@@ -1226,6 +1226,12 @@ const StreamDiagnosticsPanel = ({
   onClearStreamValidationRuns(): void | Promise<void>;
 }) => {
   const platformPublishingFreshness = assessPlatformPublishingFreshness(diagnostics.platformPublishing);
+  const publicLaunchChecklist = createPublicLaunchChecklist({
+    preflight,
+    diagnostics,
+    platformPublishingFreshness,
+    profile
+  });
 
   return (
   <Panel title="Diagnostics">
@@ -1233,7 +1239,7 @@ const StreamDiagnosticsPanel = ({
       <Text style={[styles.diagnosticSummaryText, diagnosticSummaryTextStyle(diagnostics.status)]}>{diagnostics.summary}</Text>
     </View>
     <View style={styles.diagnosticActions}>
-      <ActionButton label="Share Report" onPress={() => shareStreamDiagnosticReport(diagnostics)} />
+      <ActionButton label="Share Report" onPress={() => shareStreamDiagnosticReport(diagnostics, publicLaunchChecklist)} />
       <ActionButton label="Share Bundle" onPress={() => shareSupportBundle({ scene, profile, readiness, preflight, diagnostics })} />
       <ActionButton
         label="Clear History"

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { assessPlatformPublishingFreshness } from "./platformPublishingFreshness";
 import { createDefaultStudioProfile, redactStreamKey } from "./profiles";
+import { createPublicLaunchChecklist } from "./publicLaunchChecklist";
 import { createReadinessReport } from "./readiness";
 import { createDefaultScene, updateSource } from "./scene";
 import {
@@ -9,6 +11,7 @@ import {
   serializeStreamDiagnosticReport
 } from "./streamDiagnostics";
 import { createStreamSessionSummary } from "./streamSessionSummary";
+import { createStreamStartPreflightReport } from "./streamStartPreflight";
 import { initialStreamState, type StreamHealth } from "./streamState";
 
 const health = (update: Partial<StreamHealth> = {}): StreamHealth => ({
@@ -725,14 +728,29 @@ describe("stream diagnostics", () => {
       sessionSummary ? [sessionSummary] : []
     );
 
-    const report = createStreamDiagnosticReport(diagnostics, new Date("2026-06-22T00:00:00.000Z"));
+    const preflight = createStreamStartPreflightReport({
+      readiness,
+      streamStatus: "idle",
+      profile,
+      validation: diagnostics.validation
+    });
+    const publicLaunchChecklist = createPublicLaunchChecklist({
+      preflight,
+      diagnostics,
+      platformPublishingFreshness: assessPlatformPublishingFreshness(diagnostics.platformPublishing, new Date("2026-06-22T00:00:00.000Z")),
+      profile
+    });
+    const report = createStreamDiagnosticReport(diagnostics, new Date("2026-06-22T00:00:00.000Z"), publicLaunchChecklist);
     const json = serializeStreamDiagnosticReport(report);
     const text = formatStreamDiagnosticReport(report);
 
-    expect(report.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1 });
+    expect(report.app).toEqual({ name: "MobileLiveCaster", reportVersion: 2 });
     expect(report.generatedAt).toBe("2026-06-22T00:00:00.000Z");
+    expect(report.publicLaunchChecklist?.status).toBe(publicLaunchChecklist.status);
     expect(json).toContain("MobileLiveCaster");
     expect(text).toContain("MobileLiveCaster Diagnostics");
+    expect(text).toContain("Public Launch Checklist");
+    expect(text).toContain("Start lock: off / blocked no");
     expect(text).toContain("Recovery");
     expect(text).toContain("Active Quality Incidents");
     expect(text).toContain("Quality Advisor");

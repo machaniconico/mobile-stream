@@ -130,9 +130,13 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 6 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 7 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
+    expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
+    expect(bundle.summary.publicLaunchCanStart).toBe(bundle.publicLaunchChecklist.canStart);
+    expect(bundle.summary.publicLaunchStartLockBlocked).toBe(bundle.publicLaunchChecklist.startLock.blocked);
+    expect(bundle.publicLaunchChecklist.items.map((item) => item.id)).toContain("platform-dashboard");
     expect(bundle.scene.sourceCounts.pngtuber).toBe(1);
     expect(bundle.profile.destination.streamKeyPreview).toBe(redactStreamKey(streamKey));
     expect(bundle.profile.platformPublishing.titleLength).toBe(profile.platformPublishing.title.length);
@@ -197,6 +201,9 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidencePlatformPublishingFreshnessStatus).toBeNull();
     expect(bundle.summary.platformPublishingFreshnessStatus).toBe("missing");
     expect(formatSupportBundle(bundle)).toContain("Completed summaries: 1");
+    expect(formatSupportBundle(bundle)).toContain("Public Launch Checklist");
+    expect(formatSupportBundle(bundle)).toContain("Public launch:");
+    expect(formatSupportBundle(bundle)).toContain("Start lock:");
     expect(formatSupportBundle(bundle)).toContain("Clean rate: 0%");
     expect(formatSupportBundle(bundle)).toContain("Chat readout history: 1 events / 1 reconnects / 0 exhausted");
     expect(formatSupportBundle(bundle)).toContain("Last chat readout: 1 events / 1 reconnects / 0 exhausted");
@@ -318,8 +325,15 @@ describe("support bundle", () => {
     const text = formatSupportBundle(bundle);
 
     expect(bundle.summary.preflightStatus).toBe("blocked");
+    expect(bundle.summary.publicLaunchStatus).toBe("blocked");
+    expect(bundle.summary.publicLaunchStartLockApplies).toBe(true);
+    expect(bundle.summary.publicLaunchStartLockBlocked).toBe(true);
     expect(bundle.preflight.blocks.map((issue) => issue.code)).toContain("validation-youtube-public-not-ready");
+    expect(bundle.publicLaunchChecklist.items.find((item) => item.id === "commercial-evidence")).toMatchObject({
+      status: "fail"
+    });
     expect(text).toContain("Preflight: blocked");
+    expect(text).toContain("Public launch: blocked / can start no / lock on blocked yes");
     expect(text).toContain("YouTube Live is set to public");
   });
 

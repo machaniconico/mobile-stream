@@ -155,9 +155,9 @@ const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "text", "image", "solid
 
 const expressions: AvatarExpression[] = ["neutral", "happy", "angry", "surprised"];
 
-const downloadStreamDiagnosticReport = (diagnostics: StreamDiagnostics) => {
+const downloadStreamDiagnosticReport = (diagnostics: StreamDiagnostics, publicLaunchChecklist: PublicLaunchChecklist) => {
   const generatedAt = new Date();
-  const report = serializeStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics, generatedAt));
+  const report = serializeStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics, generatedAt, publicLaunchChecklist));
   const blob = new Blob([report], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -980,6 +980,12 @@ const StreamDiagnosticsPanel = ({
   onClearStreamValidationRuns(): void;
 }) => {
   const platformPublishingFreshness = assessPlatformPublishingFreshness(diagnostics.platformPublishing);
+  const publicLaunchChecklist = createPublicLaunchChecklist({
+    preflight,
+    diagnostics,
+    platformPublishingFreshness,
+    profile
+  });
 
   return (
     <section className="control-panel">
@@ -987,7 +993,7 @@ const StreamDiagnosticsPanel = ({
       <div className="diagnostic-summary-row">
         <div className={`diagnostic-summary ${diagnostics.status}`}>{diagnostics.summary}</div>
         <div className="diagnostic-actions">
-          <button className="secondary-action compact-action diagnostic-export" type="button" onClick={() => downloadStreamDiagnosticReport(diagnostics)}>
+          <button className="secondary-action compact-action diagnostic-export" type="button" onClick={() => downloadStreamDiagnosticReport(diagnostics, publicLaunchChecklist)}>
             <Download size={15} />
             Diagnostics
           </button>

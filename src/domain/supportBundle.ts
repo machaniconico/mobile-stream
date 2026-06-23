@@ -3,6 +3,10 @@ import {
   assessPlatformPublishingFreshness,
   type PlatformPublishingFreshnessStatus
 } from "./platformPublishingFreshness";
+import {
+  createPublicLaunchChecklist,
+  type PublicLaunchChecklist
+} from "./publicLaunchChecklist";
 import type { ReadinessReport } from "./readiness";
 import type { SceneDocument, SceneSource, SourceKind, Transform } from "./scene";
 import type { StreamDiagnostics } from "./streamDiagnostics";
@@ -23,11 +27,20 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 6;
+    bundleVersion: 7;
   };
   summary: {
     status: StreamDiagnostics["status"];
     preflightStatus: StreamStartPreflightReport["status"];
+    publicLaunchStatus: PublicLaunchChecklist["status"];
+    publicLaunchCanStart: boolean;
+    publicLaunchPassCount: number;
+    publicLaunchWarningCount: number;
+    publicLaunchFailCount: number;
+    publicLaunchStartLockApplies: boolean;
+    publicLaunchStartLockBlocked: boolean;
+    publicLaunchStartLockSummary: string;
+    publicLaunchStartLockAction: string;
     diagnosticStatus: StreamDiagnostics["status"];
     launchBlockCount: number;
     launchWarningCount: number;
@@ -174,6 +187,7 @@ export interface SupportBundle {
   target: StreamDiagnostics["target"];
   quality: StreamDiagnostics["quality"];
   preflight: StreamStartPreflightReport;
+  publicLaunchChecklist: PublicLaunchChecklist;
   diagnostics: StreamDiagnostics;
   scene: {
     id: string;
@@ -248,6 +262,12 @@ export const createSupportBundle = ({
   const visibleSourceCount = scene.sources.filter((source) => source.visible).length;
   const lockedSourceCount = scene.sources.filter((source) => source.locked).length;
   const platformPublishingFreshness = assessPlatformPublishingFreshness(diagnostics.platformPublishing, now);
+  const publicLaunchChecklist = createPublicLaunchChecklist({
+    preflight,
+    diagnostics,
+    platformPublishingFreshness,
+    profile
+  });
   const validationEvidencePlatformPublishingFreshness = diagnostics.validationEvidence.latestPlatformPublishing
     ? assessPlatformPublishingFreshness(diagnostics.validationEvidence.latestPlatformPublishing, now)
     : null;
@@ -257,11 +277,20 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 6
+      bundleVersion: 7
     },
     summary: {
       status: diagnostics.status,
       preflightStatus: preflight.status,
+      publicLaunchStatus: publicLaunchChecklist.status,
+      publicLaunchCanStart: publicLaunchChecklist.canStart,
+      publicLaunchPassCount: publicLaunchChecklist.passCount,
+      publicLaunchWarningCount: publicLaunchChecklist.warningCount,
+      publicLaunchFailCount: publicLaunchChecklist.failCount,
+      publicLaunchStartLockApplies: publicLaunchChecklist.startLock.applies,
+      publicLaunchStartLockBlocked: publicLaunchChecklist.startLock.blocked,
+      publicLaunchStartLockSummary: publicLaunchChecklist.startLock.summary,
+      publicLaunchStartLockAction: publicLaunchChecklist.startLock.action,
       diagnosticStatus: diagnostics.status,
       launchBlockCount: preflight.blocks.length,
       launchWarningCount: preflight.warnings.length,
@@ -410,6 +439,7 @@ export const createSupportBundle = ({
     target: diagnostics.target,
     quality: diagnostics.quality,
     preflight,
+    publicLaunchChecklist,
     diagnostics,
     scene: {
       id: scene.id,
@@ -474,6 +504,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `Generated: ${bundle.generatedAt}`,
     `Status: ${bundle.summary.status}`,
     `Preflight: ${bundle.summary.preflightStatus} (${bundle.summary.launchBlockCount} blocks, ${bundle.summary.launchWarningCount} warnings)`,
+    `Public launch: ${bundle.summary.publicLaunchStatus} / can start ${bundle.summary.publicLaunchCanStart ? "yes" : "no"} / lock ${bundle.summary.publicLaunchStartLockApplies ? "on" : "off"} blocked ${bundle.summary.publicLaunchStartLockBlocked ? "yes" : "no"}`,
     `Diagnostics: ${bundle.summary.diagnosticStatus} (${bundle.summary.diagnosticCheckCount} checks)`,
     "",
     "Target",
@@ -496,6 +527,19 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
       : bundle.preflight.issues.map(
           (issue) => `- [${issue.severity.toUpperCase()}] ${issue.label}: ${issue.message} Recommendation: ${issue.recommendation}`
         )),
+    "",
+    "Public Launch Checklist",
+    `- Status: ${bundle.publicLaunchChecklist.status}`,
+    `- Can start: ${bundle.publicLaunchChecklist.canStart ? "yes" : "no"}`,
+    `- Start lock: ${bundle.publicLaunchChecklist.startLock.applies ? "on" : "off"} / blocked ${bundle.publicLaunchChecklist.startLock.blocked ? "yes" : "no"}`,
+    `- Lock summary: ${bundle.publicLaunchChecklist.startLock.summary}`,
+    `- Lock action: ${bundle.publicLaunchChecklist.startLock.action}`,
+    `- Counts: ${bundle.publicLaunchChecklist.passCount} pass / ${bundle.publicLaunchChecklist.warningCount} warn / ${bundle.publicLaunchChecklist.failCount} fail`,
+    `- Summary: ${bundle.publicLaunchChecklist.summary}`,
+    `- Action: ${bundle.publicLaunchChecklist.primaryAction}`,
+    ...bundle.publicLaunchChecklist.items.map(
+      (item) => `- [${item.status.toUpperCase()}] ${item.label}: ${item.detail} Action: ${item.action}`
+    ),
     "",
     "Session",
     `- Events: ${bundle.summary.sessionEventCount}`,

@@ -13,6 +13,7 @@ import {
 } from "./faceTrackingDiagnostics";
 import { createNativeCompositionReport, type NativeCompositionReport } from "./nativeComposition";
 import { assessPlatformPublishingFreshness } from "./platformPublishingFreshness";
+import type { PublicLaunchChecklist } from "./publicLaunchChecklist";
 import type { NativeRuntimeTelemetry } from "./nativeRuntime";
 import type { ReadinessReport } from "./readiness";
 import type { SceneDocument } from "./scene";
@@ -168,8 +169,9 @@ export interface StreamDiagnosticReport {
   generatedAt: string;
   app: {
     name: "MobileLiveCaster";
-    reportVersion: 1;
+    reportVersion: 2;
   };
+  publicLaunchChecklist: PublicLaunchChecklist | null;
   diagnostics: StreamDiagnostics;
 }
 
@@ -413,13 +415,15 @@ export const createStreamDiagnostics = (
 
 export const createStreamDiagnosticReport = (
   diagnostics: StreamDiagnostics,
-  now: Date = new Date()
+  now: Date = new Date(),
+  publicLaunchChecklist: PublicLaunchChecklist | null = null
 ): StreamDiagnosticReport => ({
   generatedAt: now.toISOString(),
   app: {
     name: "MobileLiveCaster",
-    reportVersion: 1
+    reportVersion: 2
   },
+  publicLaunchChecklist,
   diagnostics
 });
 
@@ -434,6 +438,23 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `Generated: ${report.generatedAt}`,
     `Status: ${diagnostics.status}`,
     `Summary: ${diagnostics.summary}`,
+    ...(report.publicLaunchChecklist
+      ? [
+          "",
+          "Public Launch Checklist",
+          `- Status: ${report.publicLaunchChecklist.status}`,
+          `- Can start: ${report.publicLaunchChecklist.canStart ? "yes" : "no"}`,
+          `- Start lock: ${report.publicLaunchChecklist.startLock.applies ? "on" : "off"} / blocked ${report.publicLaunchChecklist.startLock.blocked ? "yes" : "no"}`,
+          `- Lock summary: ${report.publicLaunchChecklist.startLock.summary}`,
+          `- Lock action: ${report.publicLaunchChecklist.startLock.action}`,
+          `- Counts: ${report.publicLaunchChecklist.passCount} pass / ${report.publicLaunchChecklist.warningCount} warn / ${report.publicLaunchChecklist.failCount} fail`,
+          `- Summary: ${report.publicLaunchChecklist.summary}`,
+          `- Action: ${report.publicLaunchChecklist.primaryAction}`,
+          ...report.publicLaunchChecklist.items.map(
+            (item) => `- [${item.status.toUpperCase()}] ${item.label}: ${item.detail} Action: ${item.action}`
+          )
+        ]
+      : []),
     "",
     "Target",
     `- Platform: ${diagnostics.target.platform}`,
