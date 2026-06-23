@@ -3,6 +3,13 @@ import { createDefaultScene, setVisibility, type SceneDocument } from "./scene";
 import { applyDestinationPreset, createDefaultStudioProfile, type StudioProfile } from "./profiles";
 import { createReadinessReport } from "./readiness";
 import {
+  TWITCH_CHANNEL_MANAGE_SCOPE,
+  TWITCH_CHAT_SCOPE,
+  YOUTUBE_LIVE_CHAT_SCOPE,
+  YOUTUBE_LIVE_MANAGE_SCOPE,
+  type PlatformChatOAuthCredential
+} from "./platformChatOAuth";
+import {
   createStreamStartPreflightReport,
   formatStreamStartPreflightBlockMessage
 } from "./streamStartPreflight";
@@ -28,6 +35,32 @@ const monitorProfile = (): StudioProfile => ({
     monitorVolume: 0.5,
     monitorHeadphonesOnly: true
   }
+});
+
+const youtubeCredential = (scopes: string[] = [YOUTUBE_LIVE_CHAT_SCOPE, YOUTUBE_LIVE_MANAGE_SCOPE]): PlatformChatOAuthCredential => ({
+  platform: "youtube",
+  accessToken: "youtube-access",
+  refreshToken: "youtube-refresh",
+  expiresAt: Date.parse("2099-01-01T00:00:00.000Z"),
+  scopes,
+  twitchLogin: null,
+  twitchUserId: null,
+  validatedAt: Date.parse("2026-06-23T00:00:00.000Z"),
+  clientId: "youtube-client",
+  redirectUri: "com.mobilelivecaster.app:/oauth/youtube"
+});
+
+const twitchCredential = (scopes: string[] = [TWITCH_CHAT_SCOPE, TWITCH_CHANNEL_MANAGE_SCOPE]): PlatformChatOAuthCredential => ({
+  platform: "twitch",
+  accessToken: "twitch-access",
+  refreshToken: "twitch-refresh",
+  expiresAt: Date.parse("2099-01-01T00:00:00.000Z"),
+  scopes,
+  twitchLogin: "streamer",
+  twitchUserId: "123",
+  validatedAt: Date.parse("2026-06-23T00:00:00.000Z"),
+  clientId: "twitch-client",
+  redirectUri: "mobilelivecaster://oauth/twitch"
 });
 
 const createScreenOnlyScene = (): SceneDocument =>
@@ -118,6 +151,7 @@ describe("stream start preflight", () => {
         status: "ready",
         recommendedNextStep: "Keep validation evidence fresh."
       },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
       now: new Date("2026-06-23T00:05:00.000Z")
     });
 
@@ -146,6 +180,7 @@ describe("stream start preflight", () => {
         status: "ready",
         recommendedNextStep: "Keep validation evidence fresh."
       },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
       now: new Date("2026-06-23T00:16:00.000Z")
     });
 
@@ -171,7 +206,8 @@ describe("stream start preflight", () => {
       validation: {
         status: "ready",
         recommendedNextStep: "Keep validation evidence fresh."
-      }
+      },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE])
     });
 
     expect(report.canStart).toBe(false);
@@ -199,7 +235,8 @@ describe("stream start preflight", () => {
       validation: {
         status: "ready",
         recommendedNextStep: "Keep validation evidence fresh."
-      }
+      },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE])
     });
 
     expect(report.canStart).toBe(false);
@@ -251,6 +288,7 @@ describe("stream start preflight", () => {
         status: "ready",
         recommendedNextStep: "Keep validation evidence fresh."
       },
+      platformChatOAuthCredential: twitchCredential([TWITCH_CHANNEL_MANAGE_SCOPE]),
       now: new Date("2026-06-23T00:05:00.000Z")
     });
 
@@ -275,6 +313,7 @@ describe("stream start preflight", () => {
         status: "ready",
         recommendedNextStep: "Keep validation evidence fresh."
       },
+      platformChatOAuthCredential: twitchCredential([TWITCH_CHANNEL_MANAGE_SCOPE]),
       now: new Date("2026-06-23T00:05:00.000Z")
     });
 
@@ -429,6 +468,7 @@ describe("stream start preflight", () => {
         twitchOauthToken: "",
         twitchLogin: ""
       },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_CHAT_SCOPE]),
       platformChatConnection: {
         phase: "connected",
         message: "Connected."
@@ -438,6 +478,69 @@ describe("stream start preflight", () => {
     expect(report.canStart).toBe(true);
     expect(report.status).toBe("ready");
     expect(report.issues.map((issue) => issue.area)).not.toContain("chat");
+  });
+
+  it("blocks platform chat readout when retained OAuth scopes are incomplete", () => {
+    const profile = {
+      ...validProfile(),
+      platformChat: {
+        ...validProfile().platformChat,
+        enabled: true,
+        platform: "youtube" as const,
+        youtubeLiveChatId: "live-chat-id"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      chatReader: { enabled: true },
+      platformChatAuth: {
+        youtubeAccessToken: "oauth-placeholder",
+        twitchOauthToken: "",
+        twitchLogin: ""
+      },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
+      platformChatConnection: {
+        phase: "connected",
+        message: "Connected."
+      }
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toContain("chat-youtube-oauth-missing-scopes");
+  });
+
+  it("does not hard-block mixed-platform setups when the retained credential belongs to another platform", () => {
+    const profile = {
+      ...validProfile(),
+      platformChat: {
+        ...validProfile().platformChat,
+        enabled: true,
+        platform: "twitch" as const,
+        twitchChannel: "streamer"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      chatReader: { enabled: true },
+      platformChatAuth: {
+        youtubeAccessToken: "",
+        twitchOauthToken: "oauth-placeholder",
+        twitchLogin: "streamer"
+      },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
+      platformChatConnection: {
+        phase: "connected",
+        message: "Connected."
+      }
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.warnings.map((issue) => issue.code)).toContain("chat-twitch-oauth-missing-credential");
+    expect(report.blocks.map((issue) => issue.code)).not.toContain("chat-twitch-oauth-wrong-platform");
   });
 
   it("warns when platform chat is enabled but readout is disabled", () => {

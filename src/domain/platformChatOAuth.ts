@@ -41,6 +41,26 @@ export interface PlatformChatOAuthCredential {
   redirectUri: string | null;
 }
 
+export type PlatformChatOAuthCredentialHealthStatus =
+  | "ready"
+  | "missing-credential"
+  | "wrong-platform"
+  | "expired"
+  | "expires-soon"
+  | "unknown-scopes"
+  | "missing-scopes";
+
+export interface PlatformChatOAuthCredentialHealth {
+  status: PlatformChatOAuthCredentialHealthStatus;
+  severity: "pass" | "warn" | "fail";
+  platform: PlatformChatPlatform;
+  purposeLabel: string;
+  requiredScopes: string[];
+  missingScopes: string[];
+  message: string;
+  recommendation: string;
+}
+
 export interface PlatformChatOAuthResult {
   credential: PlatformChatOAuthCredential;
   auth: PlatformChatAuthSession;
@@ -567,6 +587,127 @@ export const normalizePlatformChatOAuthCredential = (
   };
 };
 
+export const assessPlatformChatOAuthCredentialHealth = (
+  credential: PlatformChatOAuthCredential | null | undefined,
+  {
+    platform,
+    requiredScopes,
+    purposeLabel,
+    now = Date.now(),
+    leewayMs = 120000,
+    missingCredentialSeverity = "fail",
+    unknownScopesSeverity = "warn"
+  }: {
+    platform: PlatformChatPlatform;
+    requiredScopes: string[];
+    purposeLabel: string;
+    now?: number;
+    leewayMs?: number;
+    missingCredentialSeverity?: "warn" | "fail";
+    unknownScopesSeverity?: "warn" | "fail";
+  }
+): PlatformChatOAuthCredentialHealth => {
+  const normalized = normalizePlatformChatOAuthCredential(credential);
+  const normalizedScopes = uniqueScopes(requiredScopes);
+  const label = normalizeSingleLine(purposeLabel) || `${platformLabel(platform)} OAuth`;
+
+  if (!normalized) {
+    return {
+      status: "missing-credential",
+      severity: missingCredentialSeverity,
+      platform,
+      purposeLabel: label,
+      requiredScopes: normalizedScopes,
+      missingScopes: normalizedScopes,
+      message: `${label} OAuth credential is not stored.`,
+      recommendation: `Reconnect ${platformLabel(platform)} OAuth before using ${label}.`
+    };
+  }
+
+  if (normalized.platform !== platform) {
+    return {
+      status: "wrong-platform",
+      severity: "fail",
+      platform,
+      purposeLabel: label,
+      requiredScopes: normalizedScopes,
+      missingScopes: normalizedScopes,
+      message: `${label} requires ${platformLabel(platform)} OAuth, but the stored credential is for ${platformLabel(normalized.platform)}.`,
+      recommendation: `Reconnect ${platformLabel(platform)} OAuth before using ${label}.`
+    };
+  }
+
+  if (normalizedScopes.length > 0 && normalized.scopes.length === 0) {
+    return {
+      status: "unknown-scopes",
+      severity: unknownScopesSeverity,
+      platform,
+      purposeLabel: label,
+      requiredScopes: normalizedScopes,
+      missingScopes: normalizedScopes,
+      message: `${label} OAuth scope evidence is not retained.`,
+      recommendation: `Reconnect ${platformLabel(platform)} OAuth so required scopes are retained: ${normalizedScopes.join(", ")}.`
+    };
+  }
+
+  const missingScopes = normalizedScopes.filter((scope) => !normalized.scopes.includes(scope));
+  if (missingScopes.length > 0) {
+    return {
+      status: "missing-scopes",
+      severity: "fail",
+      platform,
+      purposeLabel: label,
+      requiredScopes: normalizedScopes,
+      missingScopes,
+      message: `${label} OAuth credential is missing required scope${missingScopes.length === 1 ? "" : "s"}: ${missingScopes.join(", ")}.`,
+      recommendation: `Reconnect ${platformLabel(platform)} OAuth with the required scope${missingScopes.length === 1 ? "" : "s"} before using ${label}.`
+    };
+  }
+
+  if (normalized.expiresAt !== null && normalized.expiresAt <= now) {
+    const refreshable = Boolean(normalized.refreshToken);
+    return {
+      status: "expired",
+      severity: refreshable ? "warn" : "fail",
+      platform,
+      purposeLabel: label,
+      requiredScopes: normalizedScopes,
+      missingScopes: [],
+      message: `${label} OAuth credential has expired${refreshable ? " and needs refresh" : ""}.`,
+      recommendation: refreshable
+        ? `Refresh ${platformLabel(platform)} OAuth before using ${label}.`
+        : `Reconnect ${platformLabel(platform)} OAuth before using ${label}.`
+    };
+  }
+
+  if (normalized.expiresAt !== null && normalized.expiresAt - now <= leewayMs) {
+    const refreshable = Boolean(normalized.refreshToken);
+    return {
+      status: "expires-soon",
+      severity: refreshable ? "warn" : "fail",
+      platform,
+      purposeLabel: label,
+      requiredScopes: normalizedScopes,
+      missingScopes: [],
+      message: `${label} OAuth credential expires soon${refreshable ? " and should be refreshed" : ""}.`,
+      recommendation: refreshable
+        ? `Refresh ${platformLabel(platform)} OAuth before using ${label}.`
+        : `Reconnect ${platformLabel(platform)} OAuth before using ${label}.`
+    };
+  }
+
+  return {
+    status: "ready",
+    severity: "pass",
+    platform,
+    purposeLabel: label,
+    requiredScopes: normalizedScopes,
+    missingScopes: [],
+    message: `${label} OAuth credential has the required scope evidence.`,
+    recommendation: `Keep the stored ${platformLabel(platform)} OAuth credential available for ${label}.`
+  };
+};
+
 export const createPlatformChatAuthFromCredential = (
   credential: PlatformChatOAuthCredential | null
 ): PlatformChatAuthSession => {
@@ -734,6 +875,10 @@ const createQueryParams = (params: Record<string, string>): string => {
 const normalizeSingleLine = (value: unknown): string => (typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "");
 
 const normalizeScopes = (value: string): string[] => value.split(/[ +]/).map(normalizeSingleLine).filter(Boolean).slice(0, 24);
+
+const uniqueScopes = (scopes: string[]): string[] => [...new Set(scopes.map(normalizeSingleLine).filter(Boolean))].slice(0, 24);
+
+const platformLabel = (platform: PlatformChatPlatform): string => (platform === "youtube" ? "YouTube" : "Twitch");
 
 const secondsToExpiresAt = (seconds: number | null, receivedAt: number): number | null =>
   seconds && Number.isFinite(seconds) && seconds > 0 ? receivedAt + seconds * 1000 : null;

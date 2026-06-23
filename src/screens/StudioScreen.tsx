@@ -29,7 +29,12 @@ import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
 import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../domain/platformChat";
 import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
-import type { PlatformChatOAuthFlow, PlatformChatOAuthSettings, TwitchDeviceCodeOAuthFlow } from "../domain/platformChatOAuth";
+import type {
+  PlatformChatOAuthCredential,
+  PlatformChatOAuthFlow,
+  PlatformChatOAuthSettings,
+  TwitchDeviceCodeOAuthFlow
+} from "../domain/platformChatOAuth";
 import type { YouTubeBroadcastTransitionStatus } from "../domain/platformPublishing";
 import {
   assessPlatformPublishingFreshness,
@@ -104,6 +109,7 @@ interface StudioScreenProps {
   platformChat: PlatformChatSettings;
   platformChatAuth: PlatformChatAuthSession;
   platformChatOAuth: PlatformChatOAuthSettings;
+  platformChatOAuthCredential: PlatformChatOAuthCredential | null;
   platformChatOAuthFlow: PlatformChatOAuthFlow | null;
   twitchDeviceOAuthFlow: TwitchDeviceCodeOAuthFlow | null;
   platformChatOAuthStatus: string;
@@ -301,6 +307,7 @@ export const StudioScreen = ({
   platformChat,
   platformChatAuth,
   platformChatOAuth,
+  platformChatOAuthCredential,
   platformChatOAuthFlow,
   twitchDeviceOAuthFlow,
   platformChatOAuthStatus,
@@ -368,6 +375,7 @@ export const StudioScreen = ({
     validation: diagnostics.validation,
     chatReader: chatReader.settings,
     platformChatAuth,
+    platformChatOAuthCredential,
     platformChatConnection
   });
   const platformPublishingFreshness = assessPlatformPublishingFreshness(diagnostics.platformPublishing);
@@ -887,6 +895,7 @@ export const StudioScreen = ({
             streamStatus={snapshot.state.status}
             validation={diagnostics.validation}
             publicLaunchChecklist={publicLaunchChecklist}
+            platformChatOAuthCredential={platformChatOAuthCredential}
             locked={setupLocked}
             platformPublishingStatus={platformPublishingStatus}
             onProfileChange={onProfileChange}

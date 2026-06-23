@@ -12,6 +12,7 @@ import {
   type StreamProtocol
 } from "../domain/profiles";
 import type { YouTubeBroadcastTransitionStatus } from "../domain/platformPublishing";
+import type { PlatformChatOAuthCredential } from "../domain/platformChatOAuth";
 import {
   createYouTubeBroadcastTransitionPreflightReport,
   type PlatformPublishingPreflightReport
@@ -28,6 +29,7 @@ interface LiveSetupScreenProps {
   streamStatus: StreamStatus;
   validation: Pick<StreamValidationChecklist, "status" | "recommendedNextStep">;
   publicLaunchChecklist?: PublicLaunchChecklist | null;
+  platformChatOAuthCredential?: PlatformChatOAuthCredential | null;
   locked: boolean;
   platformPublishingStatus: string;
   onProfileChange(profile: StudioProfile): void;
@@ -43,6 +45,7 @@ export const LiveSetupScreen = ({
   streamStatus,
   validation,
   publicLaunchChecklist = null,
+  platformChatOAuthCredential = null,
   locked,
   platformPublishingStatus,
   onProfileChange,
@@ -59,7 +62,8 @@ export const LiveSetupScreen = ({
       transitionStatus,
       streamStatus,
       validation,
-      publicLaunchChecklist
+      publicLaunchChecklist,
+      platformChatOAuthCredential
     });
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {

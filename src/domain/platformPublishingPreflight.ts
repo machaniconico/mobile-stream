@@ -1,4 +1,9 @@
 import type { YouTubeBroadcastTransitionStatus } from "./platformPublishing";
+import {
+  assessPlatformChatOAuthCredentialHealth,
+  YOUTUBE_LIVE_MANAGE_SCOPE,
+  type PlatformChatOAuthCredential
+} from "./platformChatOAuth";
 import type { StudioProfile } from "./profiles";
 import type { PublicLaunchChecklist } from "./publicLaunchChecklist";
 import type { StreamStatus } from "./streamState";
@@ -31,6 +36,7 @@ export interface YouTubeBroadcastTransitionPreflightInput {
   streamStatus: StreamStatus;
   validation?: Pick<StreamValidationChecklist, "status" | "recommendedNextStep"> | null;
   publicLaunchChecklist?: PublicLaunchChecklist | null;
+  platformChatOAuthCredential?: PlatformChatOAuthCredential | null;
   now?: Date;
 }
 
@@ -42,9 +48,18 @@ export const createYouTubeBroadcastTransitionPreflightReport = ({
   streamStatus,
   validation = null,
   publicLaunchChecklist = null,
+  platformChatOAuthCredential = null,
   now = new Date()
 }: YouTubeBroadcastTransitionPreflightInput): PlatformPublishingPreflightReport => {
-  const issues = createYouTubeBroadcastTransitionIssues(profile, transitionStatus, streamStatus, validation, publicLaunchChecklist, now);
+  const issues = createYouTubeBroadcastTransitionIssues(
+    profile,
+    transitionStatus,
+    streamStatus,
+    validation,
+    publicLaunchChecklist,
+    platformChatOAuthCredential,
+    now
+  );
   const blocks = issues.filter((issue) => issue.severity === "block");
   const warnings = issues.filter((issue) => issue.severity === "warning");
   const status: PlatformPublishingPreflightStatus = blocks.length > 0 ? "blocked" : warnings.length > 0 ? "warning" : "ready";
@@ -77,6 +92,7 @@ const createYouTubeBroadcastTransitionIssues = (
   streamStatus: StreamStatus,
   validation: YouTubeBroadcastTransitionPreflightInput["validation"],
   publicLaunchChecklist: YouTubeBroadcastTransitionPreflightInput["publicLaunchChecklist"],
+  platformChatOAuthCredential: YouTubeBroadcastTransitionPreflightInput["platformChatOAuthCredential"],
   now: Date
 ): PlatformPublishingPreflightIssue[] => {
   const settings = profile.platformPublishing;
@@ -94,6 +110,11 @@ const createYouTubeBroadcastTransitionIssues = (
         recommendation: "Switch the destination to YouTube Live before changing broadcast lifecycle state."
       }
     ];
+  }
+
+  const oauthIssue = createYouTubeTransitionOAuthIssue(platformChatOAuthCredential, now);
+  if (oauthIssue) {
+    issues.push(oauthIssue);
   }
 
   if (!settings.youtubeBroadcastId.trim()) {
@@ -143,6 +164,31 @@ const createYouTubeBroadcastTransitionIssues = (
   }
 
   return issues;
+};
+
+const createYouTubeTransitionOAuthIssue = (
+  credential: YouTubeBroadcastTransitionPreflightInput["platformChatOAuthCredential"],
+  now: Date
+): PlatformPublishingPreflightIssue | null => {
+  const health = assessPlatformChatOAuthCredentialHealth(credential, {
+    platform: "youtube",
+    requiredScopes: [YOUTUBE_LIVE_MANAGE_SCOPE],
+    purposeLabel: "YouTube broadcast lifecycle control",
+    now: now.getTime(),
+    missingCredentialSeverity: "fail",
+    unknownScopesSeverity: "fail"
+  });
+  if (health.status === "ready") {
+    return null;
+  }
+
+  return {
+    code: `youtube-transition-oauth-${health.status}`,
+    severity: health.severity === "fail" ? "block" : "warning",
+    label: "YouTube OAuth",
+    message: health.message,
+    recommendation: health.recommendation
+  };
 };
 
 const createYouTubeStatusFreshnessIssues = (

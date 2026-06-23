@@ -6,7 +6,12 @@ import type { AudioRouteState } from "../domain/audioRoute";
 import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
 import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
-import type { PlatformChatOAuthFlow, PlatformChatOAuthSettings, TwitchDeviceCodeOAuthFlow } from "../domain/platformChatOAuth";
+import type {
+  PlatformChatOAuthCredential,
+  PlatformChatOAuthFlow,
+  PlatformChatOAuthSettings,
+  TwitchDeviceCodeOAuthFlow
+} from "../domain/platformChatOAuth";
 import type { YouTubeBroadcastTransitionStatus } from "../domain/platformPublishing";
 import {
   assessPlatformPublishingFreshness,
@@ -95,6 +100,7 @@ interface MobileStudioScreenProps {
   platformChat: PlatformChatSettings;
   platformChatAuth: PlatformChatAuthSession;
   platformChatOAuth: PlatformChatOAuthSettings;
+  platformChatOAuthCredential: PlatformChatOAuthCredential | null;
   platformChatOAuthFlow: PlatformChatOAuthFlow | null;
   twitchDeviceOAuthFlow: TwitchDeviceCodeOAuthFlow | null;
   platformChatOAuthStatus: string;
@@ -240,6 +246,7 @@ export const MobileStudioScreen = ({
   platformChat,
   platformChatAuth,
   platformChatOAuth,
+  platformChatOAuthCredential,
   platformChatOAuthFlow,
   twitchDeviceOAuthFlow,
   platformChatOAuthStatus,
@@ -313,6 +320,7 @@ export const MobileStudioScreen = ({
     validation: diagnostics.validation,
     chatReader: chatReader.settings,
     platformChatAuth,
+    platformChatOAuthCredential,
     platformChatConnection,
     audioRoute
   });
@@ -330,7 +338,8 @@ export const MobileStudioScreen = ({
       transitionStatus,
       streamStatus: snapshot.state.status,
       validation: diagnostics.validation,
-      publicLaunchChecklist
+      publicLaunchChecklist,
+      platformChatOAuthCredential
     });
 
   useEffect(() => {

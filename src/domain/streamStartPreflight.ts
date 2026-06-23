@@ -10,6 +10,14 @@ import {
   type PlatformChatAuthSession,
   type PlatformChatConnectionState
 } from "./platformChatConnection";
+import {
+  assessPlatformChatOAuthCredentialHealth,
+  TWITCH_CHANNEL_MANAGE_SCOPE,
+  TWITCH_CHAT_SCOPE,
+  YOUTUBE_LIVE_CHAT_SCOPE,
+  YOUTUBE_LIVE_MANAGE_SCOPE,
+  type PlatformChatOAuthCredential
+} from "./platformChatOAuth";
 import type { ReadinessIssue, ReadinessReport } from "./readiness";
 import type { StudioProfile } from "./profiles";
 import type { StreamOperationStatus } from "./streamOperation";
@@ -58,6 +66,7 @@ export interface StreamStartPreflightInput {
   validation?: Pick<StreamValidationChecklist, "status" | "recommendedNextStep"> | null;
   chatReader?: Pick<ChatReaderSettings, "enabled"> | null;
   platformChatAuth?: PlatformChatAuthSession | null;
+  platformChatOAuthCredential?: PlatformChatOAuthCredential | null;
   platformChatConnection?: Pick<PlatformChatConnectionState, "phase" | "message"> | null;
   audioRoute?: AudioRouteState | null;
   now?: Date;
@@ -73,6 +82,7 @@ export const createStreamStartPreflightReport = ({
   validation = null,
   chatReader = null,
   platformChatAuth = null,
+  platformChatOAuthCredential = null,
   platformChatConnection = null,
   audioRoute = null,
   now = new Date()
@@ -80,9 +90,9 @@ export const createStreamStartPreflightReport = ({
   const issues = [
     ...readiness.issues.map(toPreflightIssue),
     ...createAudioMonitorRouteIssues(profile, audioRoute),
-    ...createChatReadoutIssues(profile, chatReader, platformChatAuth, platformChatConnection),
+    ...createChatReadoutIssues(profile, chatReader, platformChatAuth, platformChatOAuthCredential, platformChatConnection, now),
     ...createCommercialValidationIssues(profile, validation),
-    ...createPlatformPublishingIssues(profile, validation, now),
+    ...createPlatformPublishingIssues(profile, validation, now, platformChatOAuthCredential),
     ...createEngineStateIssues(streamStatus),
     ...createOperationIssues(operationStatus)
   ];
@@ -311,18 +321,19 @@ const createCommercialValidationIssues = (
 const createPlatformPublishingIssues = (
   profile: StreamStartPreflightInput["profile"],
   validation: StreamStartPreflightInput["validation"],
-  now: Date
+  now: Date,
+  platformChatOAuthCredential: StreamStartPreflightInput["platformChatOAuthCredential"]
 ): StreamStartPreflightIssue[] => {
   if (!profile) {
     return [];
   }
 
   if (profile.destination.platform === "youtube-live") {
-    return createYouTubePublishingIssues(profile, validation, now);
+    return createYouTubePublishingIssues(profile, validation, now, platformChatOAuthCredential);
   }
 
   if (profile.destination.platform === "twitch") {
-    return createTwitchPublishingIssues(profile, now);
+    return createTwitchPublishingIssues(profile, now, platformChatOAuthCredential);
   }
 
   return [];
@@ -331,7 +342,8 @@ const createPlatformPublishingIssues = (
 const createYouTubePublishingIssues = (
   profile: NonNullable<StreamStartPreflightInput["profile"]>,
   validation: StreamStartPreflightInput["validation"],
-  now: Date
+  now: Date,
+  platformChatOAuthCredential: StreamStartPreflightInput["platformChatOAuthCredential"]
 ): StreamStartPreflightIssue[] => {
   const settings = profile.platformPublishing;
   const visibilityRequiresManagedBroadcast = settings.privacyStatus !== "private" && validation?.status === "ready";
@@ -340,6 +352,21 @@ const createYouTubePublishingIssues = (
   }
 
   const issues: StreamStartPreflightIssue[] = [];
+  const oauthIssue = createOAuthScopeIssue({
+    credential: platformChatOAuthCredential,
+    platform: "youtube",
+    requiredScopes: [YOUTUBE_LIVE_MANAGE_SCOPE],
+    purposeLabel: "YouTube broadcast management",
+    codePrefix: "publishing-youtube-oauth",
+    area: "publishing",
+    label: "YouTube OAuth",
+    missingCredentialSeverity: "warning",
+    unknownScopesSeverity: "warning",
+    now
+  });
+  if (oauthIssue) {
+    issues.push(oauthIssue);
+  }
   const freshnessIssue = createStatusFreshnessIssue("youtube", settings.youtubeStatusCheckedAt, now);
   if (freshnessIssue) {
     issues.push(freshnessIssue);
@@ -391,10 +418,29 @@ const createYouTubePublishingIssues = (
 
 const createTwitchPublishingIssues = (
   profile: NonNullable<StreamStartPreflightInput["profile"]>,
-  now: Date
+  now: Date,
+  platformChatOAuthCredential: StreamStartPreflightInput["platformChatOAuthCredential"]
 ): StreamStartPreflightIssue[] => {
   const freshnessIssue = createStatusFreshnessIssue("twitch", profile.platformPublishing.twitchStatusCheckedAt, now);
-  const issues = freshnessIssue ? [freshnessIssue] : [];
+  const issues: StreamStartPreflightIssue[] = [];
+  const oauthIssue = createOAuthScopeIssue({
+    credential: platformChatOAuthCredential,
+    platform: "twitch",
+    requiredScopes: [TWITCH_CHANNEL_MANAGE_SCOPE],
+    purposeLabel: "Twitch channel management",
+    codePrefix: "publishing-twitch-oauth",
+    area: "publishing",
+    label: "Twitch OAuth",
+    missingCredentialSeverity: "warning",
+    unknownScopesSeverity: "warning",
+    now
+  });
+  if (oauthIssue) {
+    issues.push(oauthIssue);
+  }
+  if (freshnessIssue) {
+    issues.push(freshnessIssue);
+  }
 
   if (profile.platformPublishing.twitchLiveStatus.trim().toLowerCase() !== "live") {
     return issues;
@@ -502,7 +548,9 @@ const createChatReadoutIssues = (
   profile: StreamStartPreflightInput["profile"],
   chatReader: StreamStartPreflightInput["chatReader"],
   platformChatAuth: StreamStartPreflightInput["platformChatAuth"],
-  platformChatConnection: StreamStartPreflightInput["platformChatConnection"]
+  platformChatOAuthCredential: StreamStartPreflightInput["platformChatOAuthCredential"],
+  platformChatConnection: StreamStartPreflightInput["platformChatConnection"],
+  now: Date
 ): StreamStartPreflightIssue[] => {
   if (!profile?.platformChat.enabled) {
     return [];
@@ -546,27 +594,88 @@ const createChatReadoutIssues = (
     ];
   }
 
-  const phase = platformChatConnection?.phase ?? "idle";
-  if (networkReadiness.status === "ready" && phase !== "connected") {
-    return [
-      {
-        code: phase === "failed" ? "chat-platform-connection-failed" : "chat-platform-not-connected",
-        severity: "warning",
-        area: "chat",
-        label: "Platform chat",
-        message:
-          phase === "failed"
-            ? platformChatConnection?.message || "Platform chat connection is failed."
-            : "Platform chat is configured but not connected.",
-        recommendation:
-          phase === "connecting"
-            ? "Wait for chat connection to finish before production validation."
-            : "Connect and test platform chat before production validation so comments can be read aloud."
-      }
-    ];
+  const issues: StreamStartPreflightIssue[] = [];
+  const oauthIssue = createOAuthScopeIssue({
+    credential: platformChatOAuthCredential,
+    platform: profile.platformChat.platform,
+    requiredScopes: profile.platformChat.platform === "youtube" ? [YOUTUBE_LIVE_CHAT_SCOPE] : [TWITCH_CHAT_SCOPE],
+    purposeLabel: `${profile.platformChat.platform === "youtube" ? "YouTube" : "Twitch"} chat readout`,
+    codePrefix: `chat-${profile.platformChat.platform}-oauth`,
+    area: "chat",
+    label: "Platform chat OAuth",
+    missingCredentialSeverity: "warning",
+    unknownScopesSeverity: "warning",
+    now
+  });
+  if (oauthIssue) {
+    issues.push(oauthIssue);
   }
 
-  return [];
+  const phase = platformChatConnection?.phase ?? "idle";
+  if (networkReadiness.status === "ready" && phase !== "connected") {
+    issues.push({
+      code: phase === "failed" ? "chat-platform-connection-failed" : "chat-platform-not-connected",
+      severity: "warning",
+      area: "chat",
+      label: "Platform chat",
+      message:
+        phase === "failed"
+          ? platformChatConnection?.message || "Platform chat connection is failed."
+          : "Platform chat is configured but not connected.",
+      recommendation:
+        phase === "connecting"
+          ? "Wait for chat connection to finish before production validation."
+          : "Connect and test platform chat before production validation so comments can be read aloud."
+    });
+  }
+
+  return issues;
+};
+
+const createOAuthScopeIssue = ({
+  credential,
+  platform,
+  requiredScopes,
+  purposeLabel,
+  codePrefix,
+  area,
+  label,
+  missingCredentialSeverity,
+  unknownScopesSeverity,
+  now
+}: {
+  credential: PlatformChatOAuthCredential | null | undefined;
+  platform: PlatformChatOAuthCredential["platform"];
+  requiredScopes: string[];
+  purposeLabel: string;
+  codePrefix: string;
+  area: StreamStartPreflightArea;
+  label: string;
+  missingCredentialSeverity: StreamStartPreflightSeverity;
+  unknownScopesSeverity: StreamStartPreflightSeverity;
+  now: Date;
+}): StreamStartPreflightIssue | null => {
+  const matchingCredential = credential?.platform === platform ? credential : null;
+  const health = assessPlatformChatOAuthCredentialHealth(matchingCredential, {
+    platform,
+    requiredScopes,
+    purposeLabel,
+    now: now.getTime(),
+    missingCredentialSeverity: missingCredentialSeverity === "block" ? "fail" : "warn",
+    unknownScopesSeverity: unknownScopesSeverity === "block" ? "fail" : "warn"
+  });
+  if (health.status === "ready") {
+    return null;
+  }
+
+  return {
+    code: `${codePrefix}-${health.status}`,
+    severity: health.severity === "fail" ? "block" : "warning",
+    area,
+    label,
+    message: health.message,
+    recommendation: health.recommendation
+  };
 };
 
 const createSummary = (status: StreamStartPreflightStatus, blockCount: number, warningCount: number): string => {

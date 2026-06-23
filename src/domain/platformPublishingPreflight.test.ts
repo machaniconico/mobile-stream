@@ -4,6 +4,10 @@ import {
   createYouTubeBroadcastTransitionPreflightReport,
   formatPlatformPublishingPreflightBlockMessage
 } from "./platformPublishingPreflight";
+import {
+  YOUTUBE_LIVE_MANAGE_SCOPE,
+  type PlatformChatOAuthCredential
+} from "./platformChatOAuth";
 import type { PublicLaunchChecklist } from "./publicLaunchChecklist";
 
 const transitionNow = new Date("2026-06-23T00:05:00.000Z");
@@ -26,6 +30,27 @@ const youtubeProfile = (update: Partial<StudioProfile["platformPublishing"]> = {
     ...update
   }
 });
+
+const youtubeCredential = (scopes: string[] = [YOUTUBE_LIVE_MANAGE_SCOPE]): PlatformChatOAuthCredential => ({
+  platform: "youtube",
+  accessToken: "youtube-access",
+  refreshToken: "youtube-refresh",
+  expiresAt: Date.parse("2099-01-01T00:00:00.000Z"),
+  scopes,
+  twitchLogin: null,
+  twitchUserId: null,
+  validatedAt: Date.parse("2026-06-23T00:00:00.000Z"),
+  clientId: "youtube-client",
+  redirectUri: "com.mobilelivecaster.app:/oauth/youtube"
+});
+
+const transitionReport = (
+  input: Parameters<typeof createYouTubeBroadcastTransitionPreflightReport>[0]
+) =>
+  createYouTubeBroadcastTransitionPreflightReport({
+    platformChatOAuthCredential: youtubeCredential(),
+    ...input
+  });
 
 const publicLaunchChecklist = (
   items: PublicLaunchChecklist["items"] = []
@@ -54,7 +79,7 @@ const publicLaunchChecklist = (
 
 describe("platform publishing preflight", () => {
   it("allows a private YouTube live transition when encoder and ingest are ready", () => {
-    const report = createYouTubeBroadcastTransitionPreflightReport({
+    const report = transitionReport({
       profile: youtubeProfile({ privacyStatus: "private" }),
       transitionStatus: "live",
       streamStatus: "live",
@@ -70,8 +95,26 @@ describe("platform publishing preflight", () => {
     expect(report.summary).toBe("Live transition is ready.");
   });
 
+  it("blocks YouTube lifecycle transitions when OAuth management credential is not retained", () => {
+    const report = transitionReport({
+      profile: youtubeProfile({ privacyStatus: "private" }),
+      transitionStatus: "live",
+      streamStatus: "live",
+      validation: {
+        status: "needs-test",
+        recommendedNextStep: "Keep private validation controlled."
+      },
+      platformChatOAuthCredential: null,
+      now: transitionNow
+    });
+
+    expect(report.canProceed).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toContain("youtube-transition-oauth-missing-credential");
+    expect(formatPlatformPublishingPreflightBlockMessage(report)).toContain("OAuth credential is not stored");
+  });
+
   it("blocks public live transition when the public launch checklist has visibility blockers", () => {
-    const report = createYouTubeBroadcastTransitionPreflightReport({
+    const report = transitionReport({
       profile: youtubeProfile({ privacyStatus: "public" }),
       transitionStatus: "live",
       streamStatus: "live",
@@ -97,7 +140,7 @@ describe("platform publishing preflight", () => {
   });
 
   it("allows public live transition when only the public checklist engine item is blocked by the already-live encoder", () => {
-    const report = createYouTubeBroadcastTransitionPreflightReport({
+    const report = transitionReport({
       profile: youtubeProfile({ privacyStatus: "public" }),
       transitionStatus: "live",
       streamStatus: "live",
@@ -122,7 +165,7 @@ describe("platform publishing preflight", () => {
   });
 
   it("blocks public YouTube live transition until validation is ready", () => {
-    const report = createYouTubeBroadcastTransitionPreflightReport({
+    const report = transitionReport({
       profile: youtubeProfile({ privacyStatus: "public" }),
       transitionStatus: "live",
       streamStatus: "live",
@@ -139,7 +182,7 @@ describe("platform publishing preflight", () => {
   });
 
   it("blocks live transition until the local encoder is streaming and YouTube ingest is active", () => {
-    const report = createYouTubeBroadcastTransitionPreflightReport({
+    const report = transitionReport({
       profile: youtubeProfile({
         youtubeBroadcastStatus: "ready",
         youtubeStreamStatus: "inactive",
@@ -166,7 +209,7 @@ describe("platform publishing preflight", () => {
   });
 
   it("warns on test transition when YouTube health has not been refreshed", () => {
-    const report = createYouTubeBroadcastTransitionPreflightReport({
+    const report = transitionReport({
       profile: youtubeProfile({
         youtubeBroadcastStatus: "ready",
         youtubeStreamHealthStatus: ""
@@ -182,7 +225,7 @@ describe("platform publishing preflight", () => {
   });
 
   it("blocks complete transition while the local encoder is still active", () => {
-    const report = createYouTubeBroadcastTransitionPreflightReport({
+    const report = transitionReport({
       profile: youtubeProfile({ youtubeBroadcastStatus: "live" }),
       transitionStatus: "complete",
       streamStatus: "live",
@@ -194,7 +237,7 @@ describe("platform publishing preflight", () => {
   });
 
   it("blocks live transition when the YouTube status snapshot is stale", () => {
-    const report = createYouTubeBroadcastTransitionPreflightReport({
+    const report = transitionReport({
       profile: youtubeProfile({
         youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
       }),
@@ -213,7 +256,7 @@ describe("platform publishing preflight", () => {
   });
 
   it("warns but allows test transition when the YouTube status snapshot is missing", () => {
-    const report = createYouTubeBroadcastTransitionPreflightReport({
+    const report = transitionReport({
       profile: youtubeProfile({
         youtubeStatusCheckedAt: ""
       }),

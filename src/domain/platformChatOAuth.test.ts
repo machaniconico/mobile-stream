@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   completePlatformChatOAuthCallback,
+  assessPlatformChatOAuthCredentialHealth,
   createDefaultPlatformChatOAuthSettings,
   createPlatformChatOAuthFlow,
   createPlatformChatAuthFromCredential,
@@ -40,6 +41,76 @@ describe("platformChatOAuth", () => {
     } finally {
       vi.stubGlobal("crypto", originalCrypto);
     }
+  });
+
+  it("assesses retained OAuth credential scope and expiry health without exposing tokens", () => {
+    expect(
+      assessPlatformChatOAuthCredentialHealth(
+        {
+          platform: "youtube",
+          accessToken: "secret-youtube-token",
+          refreshToken: "secret-refresh-token",
+          expiresAt: Date.parse("2099-01-01T00:00:00.000Z"),
+          scopes: ["https://www.googleapis.com/auth/youtube.readonly"],
+          twitchLogin: null,
+          twitchUserId: null,
+          validatedAt: 1000,
+          clientId: "youtube-client",
+          redirectUri: "com.mobilelivecaster.app:/oauth/youtube"
+        },
+        {
+          platform: "youtube",
+          requiredScopes: ["https://www.googleapis.com/auth/youtube.force-ssl"],
+          purposeLabel: "YouTube broadcast management",
+          now: 5000
+        }
+      )
+    ).toMatchObject({
+      status: "missing-scopes",
+      severity: "fail",
+      missingScopes: ["https://www.googleapis.com/auth/youtube.force-ssl"],
+      message: expect.not.stringContaining("secret-youtube-token")
+    });
+
+    expect(
+      assessPlatformChatOAuthCredentialHealth(null, {
+        platform: "twitch",
+        requiredScopes: ["chat:read"],
+        purposeLabel: "Twitch chat readout",
+        missingCredentialSeverity: "warn"
+      })
+    ).toMatchObject({
+      status: "missing-credential",
+      severity: "warn"
+    });
+  });
+
+  it("reports missing scopes before refreshable expiry warnings", () => {
+    expect(
+      assessPlatformChatOAuthCredentialHealth(
+        {
+          platform: "youtube",
+          accessToken: "yt-access",
+          refreshToken: "yt-refresh",
+          expiresAt: 1100,
+          scopes: ["https://www.googleapis.com/auth/youtube.readonly"],
+          twitchLogin: null,
+          twitchUserId: null,
+          validatedAt: 1,
+          clientId: "youtube-client",
+          redirectUri: "com.mobilelivecaster.app:/oauth/youtube"
+        },
+        {
+          platform: "youtube",
+          requiredScopes: ["https://www.googleapis.com/auth/youtube.force-ssl"],
+          purposeLabel: "YouTube broadcast management",
+          now: 1000
+        }
+      )
+    ).toMatchObject({
+      status: "missing-scopes",
+      severity: "fail"
+    });
   });
 
   it("builds YouTube OAuth authorization URLs with PKCE and live management scopes", () => {

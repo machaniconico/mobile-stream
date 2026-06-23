@@ -596,6 +596,7 @@ export const MobileApp = () => {
         validation: diagnostics.validation,
         chatReader: chatReader.settings,
         platformChatAuth,
+        platformChatOAuthCredential,
         platformChatConnection: platformChatConnection.connection,
         audioRoute
       });
@@ -711,6 +712,7 @@ export const MobileApp = () => {
       validation: diagnostics.validation,
       chatReader: chatReader.settings,
       platformChatAuth,
+      platformChatOAuthCredential,
       platformChatConnection: platformChatConnection.connection,
       audioRoute
     });
@@ -991,6 +993,7 @@ export const MobileApp = () => {
         validation: diagnostics.validation,
         chatReader: chatReader.settings,
         platformChatAuth,
+        platformChatOAuthCredential,
         platformChatConnection: platformChatConnection.connection,
         audioRoute
       });
@@ -1005,7 +1008,8 @@ export const MobileApp = () => {
         transitionStatus: broadcastStatus,
         streamStatus: engineSnapshot.state.status,
         validation: diagnostics.validation,
-        publicLaunchChecklist
+        publicLaunchChecklist,
+        platformChatOAuthCredential
       });
       if (!preflight.canProceed) {
         throw new Error(formatPlatformPublishingPreflightBlockMessage(preflight));
@@ -1093,6 +1097,7 @@ export const MobileApp = () => {
         platformChat={profile.platformChat}
         platformChatAuth={platformChatAuth}
         platformChatOAuth={platformChatOAuth}
+        platformChatOAuthCredential={platformChatOAuthCredential}
         platformChatOAuthFlow={platformChatOAuthFlow}
         twitchDeviceOAuthFlow={twitchDeviceOAuthFlow}
         platformChatOAuthStatus={platformChatOAuthStatus}
