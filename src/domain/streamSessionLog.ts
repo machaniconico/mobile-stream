@@ -22,6 +22,13 @@ export interface StreamSessionSnapshot {
   health: StreamHealth;
 }
 
+export type StreamChatEventPhase =
+  | "auto-connect-started"
+  | "auto-connect-skipped"
+  | "auto-disconnect-stopped"
+  | "auto-reconnect-scheduled"
+  | "auto-reconnect-exhausted";
+
 export const maxStreamSessionEvents = 50;
 
 export const appendStreamSessionEvent = (
@@ -87,7 +94,7 @@ export const createStreamRecoveryEvent = (
 };
 
 export const createStreamChatEvent = (
-  phase: "auto-connect-started" | "auto-connect-skipped" | "auto-reconnect-scheduled" | "auto-reconnect-exhausted",
+  phase: StreamChatEventPhase,
   message: string,
   severity: StreamSessionEventSeverity = "info",
   now: Date = new Date()
@@ -126,12 +133,14 @@ export const createStreamChatReconnectEvent = (
   return null;
 };
 
-const chatEventTitle = (phase: "auto-connect-started" | "auto-connect-skipped" | "auto-reconnect-scheduled" | "auto-reconnect-exhausted"): string => {
+const chatEventTitle = (phase: StreamChatEventPhase): string => {
   switch (phase) {
     case "auto-connect-started":
       return "Chat auto-connect started";
     case "auto-connect-skipped":
       return "Chat auto-connect skipped";
+    case "auto-disconnect-stopped":
+      return "Chat auto-disconnect stopped";
     case "auto-reconnect-scheduled":
       return "Chat reconnect scheduled";
     case "auto-reconnect-exhausted":

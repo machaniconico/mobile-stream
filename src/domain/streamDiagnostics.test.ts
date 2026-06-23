@@ -514,6 +514,42 @@ describe("stream diagnostics", () => {
     expect(text).not.toContain(demoStreamKey);
   });
 
+  it("keeps stream-stop chat disconnect events while redacting details", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health()
+    }, [
+      {
+        id: "chat-stop-1",
+        at: "2026-06-22T00:00:00.000Z",
+        kind: "chat",
+        severity: "info",
+        title: "Chat auto-disconnect stopped",
+        message: `Stopped chat with private moderator note and ${demoStreamKey}`
+      }
+    ]);
+    const report = createStreamDiagnosticReport(diagnostics, new Date("2026-06-22T00:00:00.000Z"));
+    const text = formatStreamDiagnosticReport(report);
+
+    expect(diagnostics.session.events[0]).toMatchObject({
+      title: "Chat auto-disconnect stopped",
+      message: "Chat readout disconnected when the stream stopped. Details redacted for viewer privacy."
+    });
+    expect(text).toContain("Chat auto-disconnect stopped");
+    expect(text).not.toContain("private moderator note");
+    expect(text).not.toContain(demoStreamKey);
+  });
+
   it("fails diagnostics when the engine snapshot is failed", () => {
     const scene = createDefaultScene();
     const profile = {

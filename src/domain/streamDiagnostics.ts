@@ -481,6 +481,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
 const allowedChatEventTitles = new Set([
   "Chat auto-connect started",
   "Chat auto-connect skipped",
+  "Chat auto-disconnect stopped",
   "Chat reconnect scheduled",
   "Chat reconnect exhausted"
 ]);
@@ -510,6 +511,8 @@ const chatEventPrivacyMessage = (title: string): string => {
       return "Chat readout auto-connect started. Details redacted for viewer privacy.";
     case "Chat auto-connect skipped":
       return "Chat readout auto-connect was skipped. Details redacted for viewer privacy.";
+    case "Chat auto-disconnect stopped":
+      return "Chat readout disconnected when the stream stopped. Details redacted for viewer privacy.";
     case "Chat reconnect scheduled":
       return "Chat readout reconnect was scheduled. Details redacted for viewer privacy.";
     case "Chat reconnect exhausted":

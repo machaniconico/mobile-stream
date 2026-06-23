@@ -82,12 +82,20 @@ describe("stream session log", () => {
       "warn",
       new Date("2026-06-23T00:00:01.000Z")
     );
+    const stopped = createStreamChatEvent(
+      "auto-disconnect-stopped",
+      "Stopping stream disconnected platform chat readout.",
+      "info",
+      new Date("2026-06-23T00:00:02.000Z")
+    );
 
     expect(started.kind).toBe("chat");
     expect(started.title).toBe("Chat auto-connect started");
     expect(started.severity).toBe("info");
     expect(skipped.title).toBe("Chat auto-connect skipped");
     expect(skipped.severity).toBe("warn");
+    expect(stopped.title).toBe("Chat auto-disconnect stopped");
+    expect(stopped.severity).toBe("info");
   });
 
   it("creates chat reconnect events from reconnect decisions", () => {

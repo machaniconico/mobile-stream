@@ -291,7 +291,23 @@ export const App = () => {
   };
 
   const stopStream = async () => {
-    await runStreamOperation("stop", () => engine.stop());
+    await runStreamOperation("stop", async () => {
+      const shouldDisconnectChat = shouldDisconnectPlatformChatOnStreamStop(platformChatConnection.connection.phase);
+      try {
+        await engine.stop();
+      } finally {
+        if (shouldDisconnectChat) {
+          platformChatConnection.disconnect();
+          recordStreamSessionEvent(
+            createStreamChatEvent(
+              "auto-disconnect-stopped",
+              "Stopping stream disconnected platform chat readout.",
+              "info"
+            )
+          );
+        }
+      }
+    });
   };
 
   const reconnectStream = async () => {
@@ -619,5 +635,8 @@ const mergeOAuthAuth = (
     twitchOauthToken: update.twitchOauthToken || current.twitchOauthToken,
     twitchLogin: update.twitchLogin || current.twitchLogin
   });
+
+const shouldDisconnectPlatformChatOnStreamStop = (phase: string): boolean =>
+  phase === "connecting" || phase === "connected" || phase === "failed";
 
 const toErrorMessage = (error: unknown): string => (error instanceof Error && error.message ? error.message : "OAuth operation failed.");
