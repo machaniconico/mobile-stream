@@ -17,6 +17,10 @@ RCT_EXTERN_METHOD(prepareStillImageAsset:(NSString *)sourceURI
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(pickStillImageAsset:(NSString *)filenameHint
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 RCT_EXTERN_METHOD(saveSessionSummaries:(NSString *)summariesJson
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)

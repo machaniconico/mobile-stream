@@ -1,14 +1,19 @@
 import Foundation
 import React
+import UIKit
+import UniformTypeIdentifiers
 
 private let liveCasterSceneAppGroup = "group.com.mobilelivecaster.app"
 
 @objc(LiveCasterSceneStore)
-final class LiveCasterSceneStore: NSObject {
+final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
     private let fileName = "mobile-live-caster-scene.json"
     private let sessionSummariesFileName = "mobile-live-caster-session-summaries.json"
     private let validationRunsFileName = "mobile-live-caster-validation-runs.json"
     private let sceneAssetsDirectoryName = "scene-assets"
+    private var stillImagePickerResolve: RCTPromiseResolveBlock?
+    private var stillImagePickerReject: RCTPromiseRejectBlock?
+    private var stillImagePickerFilenameHint = "still-image"
 
     @objc
     static func requiresMainQueueSetup() -> Bool {
@@ -93,35 +98,59 @@ final class LiveCasterSceneStore: NSObject {
             return
         }
 
-        guard let destinationDirectory = sceneAssetsURL() else {
-            reject("scene_asset_store_unavailable", "App Group scene asset storage is unavailable", nil)
-            return
+        do {
+            let destinationURL = try copyStillImageAsset(sourceURL: sourceURL, filenameHint: filenameHint)
+            resolve(destinationURL.absoluteString)
+        } catch {
+            reject("scene_asset_copy_failed", "Still-image asset copy failed", error)
         }
+    }
 
-        let accessGranted = sourceURL.startAccessingSecurityScopedResource()
-        defer {
-            if accessGranted {
-                sourceURL.stopAccessingSecurityScopedResource()
+    @objc(pickStillImageAsset:resolver:rejecter:)
+    func pickStillImageAsset(
+        _ filenameHint: String,
+        resolver resolve: @escaping RCTPromiseResolveBlock,
+        rejecter reject: @escaping RCTPromiseRejectBlock
+    ) {
+        DispatchQueue.main.async {
+            guard self.stillImagePickerResolve == nil else {
+                reject("scene_asset_picker_busy", "A still-image picker is already open", nil)
+                return
             }
-        }
 
-        guard FileManager.default.fileExists(atPath: sourceURL.path) else {
-            reject("scene_asset_source_missing", "Still-image asset file does not exist", nil)
+            guard let presenter = RCTPresentedViewController() else {
+                reject("scene_asset_picker_unavailable", "No view controller is available to present the image picker", nil)
+                return
+            }
+
+            self.stillImagePickerResolve = resolve
+            self.stillImagePickerReject = reject
+            self.stillImagePickerFilenameHint = filenameHint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "still-image" : filenameHint
+
+            let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.image], asCopy: false)
+            picker.allowsMultipleSelection = false
+            picker.delegate = self
+            presenter.present(picker, animated: true)
+        }
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        let pending = clearStillImagePicker()
+        pending.resolve?(nil)
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        let pending = clearStillImagePicker()
+        guard let sourceURL = urls.first else {
+            pending.resolve?(nil)
             return
         }
 
         do {
-            try FileManager.default.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
-            let destinationURL = destinationDirectory.appendingPathComponent(
-                stillImageDestinationFileName(sourceURL: sourceURL, filenameHint: filenameHint)
-            )
-            if FileManager.default.fileExists(atPath: destinationURL.path) {
-                try FileManager.default.removeItem(at: destinationURL)
-            }
-            try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
-            resolve(destinationURL.absoluteString)
+            let destinationURL = try copyStillImageAsset(sourceURL: sourceURL, filenameHint: pending.filenameHint)
+            pending.resolve?(destinationURL.absoluteString)
         } catch {
-            reject("scene_asset_copy_failed", "Still-image asset copy failed", error)
+            pending.reject?("scene_asset_copy_failed", "Still-image asset copy failed", error)
         }
     }
 
@@ -284,6 +313,33 @@ final class LiveCasterSceneStore: NSObject {
         return "\(safeBaseName)-\(UUID().uuidString).\(fileExtension.lowercased())"
     }
 
+    private func copyStillImageAsset(sourceURL: URL, filenameHint: String) throws -> URL {
+        guard let destinationDirectory = sceneAssetsURL() else {
+            throw LiveCasterSceneStoreError.appGroupUnavailable
+        }
+
+        let accessGranted = sourceURL.startAccessingSecurityScopedResource()
+        defer {
+            if accessGranted {
+                sourceURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+            throw LiveCasterSceneStoreError.sourceMissing
+        }
+
+        try FileManager.default.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
+        let destinationURL = destinationDirectory.appendingPathComponent(
+            stillImageDestinationFileName(sourceURL: sourceURL, filenameHint: filenameHint)
+        )
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            try FileManager.default.removeItem(at: destinationURL)
+        }
+        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+        return destinationURL
+    }
+
     private func sanitizedAssetFileComponent(_ value: String) -> String {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
         let sanitized = value.unicodeScalars
@@ -291,5 +347,31 @@ final class LiveCasterSceneStore: NSObject {
             .joined()
             .trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
         return sanitized.isEmpty ? "still-image" : String(sanitized.prefix(48))
+    }
+
+    private func clearStillImagePicker() -> (
+        resolve: RCTPromiseResolveBlock?,
+        reject: RCTPromiseRejectBlock?,
+        filenameHint: String
+    ) {
+        let pending = (stillImagePickerResolve, stillImagePickerReject, stillImagePickerFilenameHint)
+        stillImagePickerResolve = nil
+        stillImagePickerReject = nil
+        stillImagePickerFilenameHint = "still-image"
+        return pending
+    }
+}
+
+private enum LiveCasterSceneStoreError: LocalizedError {
+    case appGroupUnavailable
+    case sourceMissing
+
+    var errorDescription: String? {
+        switch self {
+        case .appGroupUnavailable:
+            return "App Group scene asset storage is unavailable"
+        case .sourceMissing:
+            return "Still-image asset file does not exist"
+        }
     }
 }

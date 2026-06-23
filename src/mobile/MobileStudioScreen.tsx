@@ -60,7 +60,7 @@ import {
   createSupportBundle,
   formatSupportBundle
 } from "../domain/supportBundle";
-import { prepareStillImageAsset } from "./sceneStore";
+import { pickStillImageAsset, prepareStillImageAsset } from "./sceneStore";
 
 interface MobileStudioScreenProps {
   scene: SceneDocument;
@@ -396,6 +396,37 @@ export const MobileStudioScreen = ({
     }
   };
 
+  const pickSelectedStillImageAsset = async () => {
+    if (setupLocked || (selectedSource.kind !== "pngtuber" && selectedSource.kind !== "image")) {
+      return;
+    }
+
+    setAssetPrepareStatus({ kind: "pending", message: "Opening image picker..." });
+    try {
+      const pickedUri = await pickStillImageAsset(`${selectedSource.name}-${selectedSource.kind}.png`);
+      if (!pickedUri) {
+        setAssetPrepareStatus(null);
+        return;
+      }
+      onSceneChange(
+        updateSource(scene, selectedSource.id, (source) => {
+          if (source.kind === "pngtuber") {
+            return { ...source, imageUri: pickedUri };
+          }
+          if (source.kind === "image") {
+            return { ...source, uri: pickedUri };
+          }
+          return source;
+        })
+      );
+      setAssetPrepareStatus({ kind: "success", message: "Image selected and ready for native compositor." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Still-image asset could not be picked.";
+      setAssetPrepareStatus({ kind: "error", message });
+      Alert.alert("Still image", message);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.shell}>
@@ -509,6 +540,11 @@ export const MobileStudioScreen = ({
                 placeholderTextColor="#71717a"
               />
               <View style={styles.grid2}>
+                <ActionButton
+                  label="Pick Image"
+                  disabled={setupLocked || assetPrepareStatus?.kind === "pending"}
+                  onPress={pickSelectedStillImageAsset}
+                />
                 <ActionButton
                   label="Prepare Asset"
                   disabled={setupLocked || assetPrepareStatus?.kind === "pending"}

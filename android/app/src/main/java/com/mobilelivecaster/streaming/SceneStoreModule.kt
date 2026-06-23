@@ -1,8 +1,12 @@
 package com.mobilelivecaster.streaming
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.webkit.MimeTypeMap
+import com.facebook.react.bridge.ActivityEventListener
+import com.facebook.react.bridge.BaseActivityEventListener
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -23,9 +27,58 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
         private const val SESSION_SUMMARIES_JSON = "session_summaries_json"
         private const val VALIDATION_RUNS_JSON = "validation_runs_json"
         private const val SCENE_ASSETS_DIR = "scene-assets"
+        private const val STILL_IMAGE_PICK_REQUEST_CODE = 42071
+    }
+
+    private var pendingPickPromise: Promise? = null
+    private var pendingPickFilenameHint = "still-image"
+    private val activityEventListener: ActivityEventListener = object : BaseActivityEventListener() {
+        override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
+            if (requestCode != STILL_IMAGE_PICK_REQUEST_CODE) {
+                return
+            }
+
+            val promise = pendingPickPromise ?: return
+            val filenameHint = pendingPickFilenameHint
+            pendingPickPromise = null
+            pendingPickFilenameHint = "still-image"
+
+            if (resultCode != Activity.RESULT_OK) {
+                promise.resolve(null)
+                return
+            }
+
+            val uri = data?.data
+            if (uri == null) {
+                promise.resolve(null)
+                return
+            }
+
+            runCatching {
+                reactContext.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+
+            try {
+                promise.resolve(copyStillImageAsset(uri, uri.toString(), filenameHint))
+            } catch (error: Throwable) {
+                promise.reject("scene_asset_copy_failed", error)
+            }
+        }
+    }
+
+    init {
+        reactContext.addActivityEventListener(activityEventListener)
     }
 
     override fun getName(): String = NAME
+
+    override fun invalidate() {
+        reactContext.removeActivityEventListener(activityEventListener)
+        super.invalidate()
+    }
 
     @ReactMethod
     fun saveScene(sceneJson: String, promise: Promise) {
@@ -62,20 +115,39 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
 
         try {
             val uri = Uri.parse(trimmedUri)
-            val extension = stillImageExtension(uri, filenameHint)
-            val baseName = safeAssetBaseName(assetBaseName(uri, filenameHint))
-            val destinationDir = File(reactContext.filesDir, SCENE_ASSETS_DIR)
-            destinationDir.mkdirs()
-            val destination = File(destinationDir, "$baseName-${UUID.randomUUID()}.$extension")
-
-            openStillImageInputStream(uri, trimmedUri).use { input ->
-                destination.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
-            promise.resolve(Uri.fromFile(destination).toString())
+            promise.resolve(copyStillImageAsset(uri, trimmedUri, filenameHint))
         } catch (error: Throwable) {
             promise.reject("scene_asset_copy_failed", error)
+        }
+    }
+
+    @ReactMethod
+    fun pickStillImageAsset(filenameHint: String, promise: Promise) {
+        val activity = reactContext.currentActivity
+        if (activity == null) {
+            promise.reject("scene_asset_picker_unavailable", "No Activity is available to present the image picker")
+            return
+        }
+        if (pendingPickPromise != null) {
+            promise.reject("scene_asset_picker_busy", "A still-image picker is already open")
+            return
+        }
+
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "image/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+
+        pendingPickPromise = promise
+        pendingPickFilenameHint = filenameHint.trim().ifBlank { "still-image" }
+        try {
+            activity.startActivityForResult(intent, STILL_IMAGE_PICK_REQUEST_CODE)
+        } catch (error: Throwable) {
+            pendingPickPromise = null
+            pendingPickFilenameHint = "still-image"
+            promise.reject("scene_asset_picker_failed", error)
         }
     }
 
@@ -130,6 +202,21 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
     }
 
     private fun prefs() = reactContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    private fun copyStillImageAsset(uri: Uri, rawUri: String, filenameHint: String): String {
+        val extension = stillImageExtension(uri, filenameHint)
+        val baseName = safeAssetBaseName(assetBaseName(uri, filenameHint))
+        val destinationDir = File(reactContext.filesDir, SCENE_ASSETS_DIR)
+        destinationDir.mkdirs()
+        val destination = File(destinationDir, "$baseName-${UUID.randomUUID()}.$extension")
+
+        openStillImageInputStream(uri, rawUri).use { input ->
+            destination.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+        return Uri.fromFile(destination).toString()
+    }
 
     private fun openStillImageInputStream(uri: Uri, rawUri: String) = when (uri.scheme?.lowercase()) {
         "content", "file" -> reactContext.contentResolver.openInputStream(uri)

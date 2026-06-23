@@ -79,7 +79,7 @@
 - iOS RTMP publisher reconnect backoff state with bounded retry attempts.
 - iOS ReplayKit Broadcast Upload Extension compositor for PNGTuber still-image/fallback, text, image, and solid overlays on encoded frames, with App Group runtime composition status.
 - iOS native-compositor preflight diagnostics warn when PNGTuber/image overlays use missing, host-sandbox file-backed, relative, content, http(s), data, or otherwise unsupported still-image asset URIs that the Broadcast Upload Extension cannot reliably load.
-- iOS mobile still-image asset preparation copies PNGTuber/image source files into the shared App Group container and stores a ReplayKit-extension-readable `file://` URI in the scene.
+- iOS mobile still-image asset picker/preparation copies selected PNGTuber/image source files into the shared App Group container and stores a ReplayKit-extension-readable `file://` URI in the scene.
 - Android MediaProjection service skeleton.
 - Android `LiveCasterNative` React Native module registered in the host app.
 - Android MediaProjection consent flow from React Native.
@@ -87,7 +87,7 @@
 - Android RTMP/RTMPS publishing path through RootEncoder, using screen capture and microphone input.
 - Android publish endpoint assembly from the app's server URL and stream key fields.
 - Android native GL overlay compositor for PNGTuber still-image, text, image, and solid scene sources on top of MediaProjection capture, with applied/pending overlay status in stream health messages.
-- Android mobile still-image asset preparation copies content/file/path PNGTuber/image source assets into app-internal storage and stores a stable `file://` URI for native GL overlay rendering.
+- Android mobile still-image asset picker/preparation copies selected content/file/path PNGTuber/image source assets into app-internal storage and stores a stable `file://` URI for native GL overlay rendering.
 - Android microphone PCM effect path through RootEncoder `CustomAudioEffect`.
 - Android headphone-only mic monitor playback through `AudioTrack`.
 - Android microphone/notification runtime permission preflight before MediaProjection launch.
@@ -103,7 +103,7 @@
 - React Native bare app scaffold generated from React Native 0.85.3.
 - Standard `ios/` and `android/` projects for the MobileLiveCaster host app.
 - React Native mobile Studio UI that reuses `src/domain` and the mock stream engine.
-- React Native mobile source controls can prepare PNGTuber/image still-image URIs for native compositor storage before streaming.
+- React Native mobile source controls can pick or prepare PNGTuber/image still-image assets for native compositor storage before streaming.
 - GitHub Actions `test` status check for PRs and `main` pushes, covering native release-configuration audit, unit tests, web/RN typecheck, web build, and iOS/Android React Native JavaScript bundling.
 - Metro bundle verification for both iOS and Android.
 - Homebrew React Native environment installed: JDK 17, Watchman, CocoaPods, Android command line tools.
