@@ -133,6 +133,9 @@ describe("support bundle", () => {
     expect(bundle.summary.qualityAdvisorAction).toBe("maintain");
     expect(bundle.summary.qualityAdvisorSeverity).toBe("pass");
     expect(bundle.summary.suggestedQualityTarget).toBeNull();
+    expect(bundle.summary.faceTrackingStatus).toBe("info");
+    expect(bundle.summary.faceTrackingRuntimeStatus).toBe("unavailable");
+    expect(bundle.summary.faceTrackingPreparedPngTuberCount).toBe(0);
     expect(bundle.summary.nativeCompositionStatus).toBe("warn");
     expect(bundle.summary.nativeCompositionCoverage).toBe("preview-only-overlays");
     expect(bundle.summary.nativeCompositionPreviewOnlySourceCount).toBeGreaterThan(0);
@@ -157,6 +160,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Completed summaries: 1");
     expect(formatSupportBundle(bundle)).toContain("Clean rate: 0%");
     expect(formatSupportBundle(bundle)).toContain("Quality advisor: maintain / pass");
+    expect(formatSupportBundle(bundle)).toContain("Face tracking: info / runtime unavailable");
     expect(formatSupportBundle(bundle)).toContain("Commercial Validation");
     expect(formatSupportBundle(bundle)).toContain("Native composition: warn / preview-only-overlays");
     expect(formatSupportBundle(bundle)).toContain("asset issues 1 / file-backed 0");

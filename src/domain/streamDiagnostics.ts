@@ -250,7 +250,8 @@ export const createStreamDiagnostics = (
       historySummary: sessionHistorySummary,
       lastOutcome: sessionSummaries[0]?.outcome ?? null
     },
-    evidence: validationEvidence
+    evidence: validationEvidence,
+    faceTracking
   });
 
   return {

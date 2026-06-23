@@ -70,6 +70,12 @@ export interface SupportBundle {
     qualityAdvisorAction: StreamDiagnostics["qualityAdvisor"]["action"];
     qualityAdvisorSeverity: StreamDiagnostics["qualityAdvisor"]["severity"];
     suggestedQualityTarget: string | null;
+    faceTrackingStatus: StreamDiagnostics["faceTracking"]["status"];
+    faceTrackingRuntimeStatus: StreamDiagnostics["faceTracking"]["runtimeStatus"];
+    faceTrackingPreparedPngTuberCount: number;
+    faceTrackingActiveMotionCount: number;
+    faceTrackingSummary: string;
+    faceTrackingRecommendation: string;
     nativeCompositionStatus: StreamDiagnostics["nativeComposition"]["status"];
     nativeCompositionCoverage: StreamDiagnostics["nativeComposition"]["coverage"];
     nativeCompositionPreviewOnlySourceCount: number;
@@ -220,6 +226,12 @@ export const createSupportBundle = ({
       suggestedQualityTarget: diagnostics.qualityAdvisor.suggestedTarget
         ? formatQualityAdvisorTarget(diagnostics.qualityAdvisor.suggestedTarget)
         : null,
+      faceTrackingStatus: diagnostics.faceTracking.status,
+      faceTrackingRuntimeStatus: diagnostics.faceTracking.runtimeStatus,
+      faceTrackingPreparedPngTuberCount: diagnostics.faceTracking.preparedPngTuberCount,
+      faceTrackingActiveMotionCount: diagnostics.faceTracking.activeMotionCount,
+      faceTrackingSummary: diagnostics.faceTracking.summary,
+      faceTrackingRecommendation: diagnostics.faceTracking.recommendation,
       nativeCompositionStatus: diagnostics.nativeComposition.status,
       nativeCompositionCoverage: diagnostics.nativeComposition.coverage,
       nativeCompositionPreviewOnlySourceCount: diagnostics.nativeComposition.previewOnlySourceCount,
@@ -340,6 +352,8 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Quality incidents: ${bundle.diagnostics.qualityIncidents.summary}`,
     `- Quality advisor: ${bundle.summary.qualityAdvisorAction} / ${bundle.summary.qualityAdvisorSeverity}`,
     `- Suggested quality: ${bundle.summary.suggestedQualityTarget ?? "-"}`,
+    `- Face tracking: ${bundle.summary.faceTrackingStatus} / runtime ${bundle.summary.faceTrackingRuntimeStatus} / prepared PNGTuber ${bundle.summary.faceTrackingPreparedPngTuberCount} / moving ${bundle.summary.faceTrackingActiveMotionCount}`,
+    `- Face tracking recommendation: ${bundle.summary.faceTrackingRecommendation}`,
     `- Recovery: ${bundle.diagnostics.recovery.mode} / ${bundle.diagnostics.recovery.recommendedAction}`,
     `- Native composition: ${bundle.summary.nativeCompositionStatus} / ${bundle.summary.nativeCompositionCoverage} / preview-only ${bundle.summary.nativeCompositionPreviewOnlySourceCount} / asset issues ${bundle.summary.nativeCompositionAssetIssueCount} / file-backed ${bundle.summary.nativeCompositionFileBackedAssetIssueCount}`,
     `- Native compositor required: ${bundle.summary.nativeCompositionRequiresCompositor ? "yes" : "no"}`,

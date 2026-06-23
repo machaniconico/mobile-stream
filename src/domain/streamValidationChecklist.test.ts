@@ -170,6 +170,32 @@ describe("stream validation checklist", () => {
     expect(checklist.passCount).toBe(checklist.items.length);
   });
 
+  it("includes VTuber avatar motion when face tracking diagnostics are provided", () => {
+    const checklist = createStreamValidationChecklist({
+      ...defaultInput(),
+      faceTracking: {
+        status: "warn",
+        enabled: true,
+        inputMode: "simulated",
+        rigMode: "still-image-2d",
+        runtimeStatus: "unavailable",
+        visibleAvatarCount: 1,
+        visiblePngTuberCount: 1,
+        visibleLive2DCount: 0,
+        preparedPngTuberCount: 0,
+        activeMotionCount: 0,
+        summary: "Face tracking is using simulated input.",
+        recommendation: "Switch to native camera input before validation."
+      }
+    });
+
+    const item = checklist.items.find((entry) => entry.id === "avatar-motion-needs-review");
+
+    expect(item?.area).toBe("avatar");
+    expect(item?.status).toBe("warn");
+    expect(item?.action).toContain("native camera");
+  });
+
   it("blocks when retained session history is unstable", () => {
     const failedSession: StreamSessionSummary = {
       ...cleanSession(1),

@@ -1,4 +1,5 @@
 import type { ReadinessIssue, ReadinessReport } from "./readiness";
+import type { FaceTrackingDiagnostics } from "./faceTrackingDiagnostics";
 import type { StreamHealthHistorySummary } from "./streamHealthHistory";
 import type {
   StreamSessionHistorySummary,
@@ -15,6 +16,7 @@ export type StreamValidationChecklistArea =
   | "ingest"
   | "platform"
   | "device"
+  | "avatar"
   | "session"
   | "evidence";
 
@@ -64,6 +66,7 @@ export interface StreamValidationChecklistInput {
     lastOutcome: StreamSessionOutcome | null;
   };
   evidence: StreamValidationEvidenceSummary;
+  faceTracking?: FaceTrackingDiagnostics;
 }
 
 export const createStreamValidationChecklist = ({
@@ -73,7 +76,8 @@ export const createStreamValidationChecklist = ({
   telemetry,
   health,
   session,
-  evidence
+  evidence,
+  faceTracking
 }: StreamValidationChecklistInput): StreamValidationChecklist => {
   const items = [
     createReadinessItem(readiness),
@@ -81,9 +85,10 @@ export const createStreamValidationChecklist = ({
     createIngestItem(diagnosticStatus, telemetry, health),
     createPlatformItem(target.platform, telemetry, health, evidence),
     createDeviceItem(session, evidence),
+    createAvatarMotionItem(faceTracking),
     createSessionBaselineItem(session),
     createEvidenceItem(readiness, health, session, evidence)
-  ];
+  ].filter((item): item is StreamValidationChecklistItem => item !== null);
   const passCount = countStatus(items, "pass");
   const warningCount = countStatus(items, "warn");
   const failCount = countStatus(items, "fail");
@@ -152,6 +157,8 @@ const readinessAction = (issue: ReadinessIssue | undefined): string => {
       return "Prefer RTMPS for production streams when the platform supports it.";
     case "micEffects":
       return "Lower risky monitor or gain settings before validation.";
+    case "faceTracking":
+      return "Confirm a prepared PNGTuber source and stable native camera tracking before validation.";
     default:
       return "Resolve configuration readiness issues before validation.";
   }
@@ -429,6 +436,45 @@ const createDeviceItem = (
     title: "Physical device audio/video pass",
     detail: "No completed physical-device stream session is retained yet.",
     action: "Complete private iOS and Android sessions with headphones, mic FX, and avatar motion enabled."
+  };
+};
+
+const createAvatarMotionItem = (
+  faceTracking: FaceTrackingDiagnostics | undefined
+): StreamValidationChecklistItem | null => {
+  if (!faceTracking) {
+    return null;
+  }
+
+  if (faceTracking.status === "pass") {
+    return {
+      id: "avatar-motion-ready",
+      area: "avatar",
+      status: "pass",
+      title: "VTuber avatar motion",
+      detail: `${faceTracking.preparedPngTuberCount} prepared PNGTuber source${faceTracking.preparedPngTuberCount === 1 ? "" : "s"} with ${faceTracking.runtimeStatus} tracking.`,
+      action: "Keep the prepared avatar asset and tracker state with the release-candidate validation run."
+    };
+  }
+
+  if (faceTracking.status === "warn") {
+    return {
+      id: "avatar-motion-needs-review",
+      area: "avatar",
+      status: "warn",
+      title: "VTuber avatar motion",
+      detail: faceTracking.summary,
+      action: faceTracking.recommendation
+    };
+  }
+
+  return {
+    id: "avatar-motion-not-validated",
+    area: "avatar",
+    status: "pending",
+    title: "VTuber avatar motion",
+    detail: "Face tracking is not enabled for this validation profile.",
+    action: "Enable face tracking and validate a prepared PNGTuber source when shipping VTuber mode."
   };
 };
 
