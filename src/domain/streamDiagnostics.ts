@@ -435,12 +435,14 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- History: ${diagnostics.session.historySummary.summary}`,
     `- Clean rate: ${diagnostics.session.historySummary.cleanRate}%`,
     `- Average duration: ${formatDelay(diagnostics.session.historySummary.averageDurationSeconds * 1000)}`,
+    `- Chat readout: ${diagnostics.session.historySummary.totalChatEvents} events / ${diagnostics.session.historySummary.totalChatReconnectEvents} reconnects / ${diagnostics.session.historySummary.totalChatReconnectFailures} exhausted`,
     `- History recommendation: ${diagnostics.session.historySummary.recommendation}`,
     ...(diagnostics.session.lastSummary
       ? [
           `- Last outcome: ${diagnostics.session.lastSummary.outcome}`,
           `- Last duration: ${formatDelay(diagnostics.session.lastSummary.durationSeconds * 1000)}`,
           `- Last summary: ${diagnostics.session.lastSummary.summary}`,
+          `- Last chat readout: ${diagnostics.session.lastSummary.chatEventCount} events / ${diagnostics.session.lastSummary.chatReconnectEventCount} reconnects / ${diagnostics.session.lastSummary.chatReconnectFailureCount} exhausted`,
           `- Last native runtime: ${formatSessionNativeRuntime(diagnostics.session.lastSummary)}`,
           `- Recommendation: ${diagnostics.session.lastSummary.recommendation}`,
           `- Stored summaries: ${diagnostics.session.summaries.length}`

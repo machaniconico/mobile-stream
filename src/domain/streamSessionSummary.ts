@@ -43,6 +43,9 @@ export interface StreamSessionSummary {
   failureCount: number;
   recoveryEventCount: number;
   operationFailureCount: number;
+  chatEventCount: number;
+  chatReconnectEventCount: number;
+  chatReconnectFailureCount: number;
   health: StreamHealthHistorySummary;
   nativeRuntime: StreamSessionNativeRuntimeSummary | null;
   summary: string;
@@ -73,6 +76,9 @@ export interface StreamSessionHistorySummary {
   totalWarningEvents: number;
   totalFailureEvents: number;
   totalRecoveryEvents: number;
+  totalChatEvents: number;
+  totalChatReconnectEvents: number;
+  totalChatReconnectFailures: number;
   stability: "unknown" | "baseline" | "watch" | "unstable";
   summary: string;
   recommendation: string;
@@ -153,6 +159,9 @@ export const createStreamSessionHistorySummary = (
       totalWarningEvents: 0,
       totalFailureEvents: 0,
       totalRecoveryEvents: 0,
+      totalChatEvents: 0,
+      totalChatReconnectEvents: 0,
+      totalChatReconnectFailures: 0,
       stability: "unknown",
       summary: "No completed stream history yet.",
       recommendation: "Complete a test stream to establish a local quality baseline."
@@ -165,6 +174,9 @@ export const createStreamSessionHistorySummary = (
   const totalWarningEvents = normalized.reduce((total, summary) => total + summary.warningCount, 0);
   const totalFailureEvents = normalized.reduce((total, summary) => total + summary.failureCount, 0);
   const totalRecoveryEvents = normalized.reduce((total, summary) => total + summary.recoveryEventCount, 0);
+  const totalChatEvents = normalized.reduce((total, summary) => total + summary.chatEventCount, 0);
+  const totalChatReconnectEvents = normalized.reduce((total, summary) => total + summary.chatReconnectEventCount, 0);
+  const totalChatReconnectFailures = normalized.reduce((total, summary) => total + summary.chatReconnectFailureCount, 0);
   const averageDurationSeconds = Math.round(
     normalized.reduce((total, summary) => total + summary.durationSeconds, 0) / totalSessions
   );
@@ -174,7 +186,8 @@ export const createStreamSessionHistorySummary = (
     cleanRate,
     failureCount,
     warningCount,
-    totalRecoveryEvents
+    totalRecoveryEvents,
+    totalChatReconnectFailures
   });
 
   return {
@@ -187,9 +200,19 @@ export const createStreamSessionHistorySummary = (
     totalWarningEvents,
     totalFailureEvents,
     totalRecoveryEvents,
+    totalChatEvents,
+    totalChatReconnectEvents,
+    totalChatReconnectFailures,
     stability,
     summary: createHistorySummaryText(stability, totalSessions, cleanRate, failureCount, warningCount),
-    recommendation: createHistoryRecommendation(stability, failureCount, warningCount, totalRecoveryEvents)
+    recommendation: createHistoryRecommendation(
+      stability,
+      failureCount,
+      warningCount,
+      totalRecoveryEvents,
+      totalChatReconnectEvents,
+      totalChatReconnectFailures
+    )
   };
 };
 
@@ -213,6 +236,9 @@ export const createStreamSessionSummary = ({
   const failureCount = sessionEvents.filter((event) => event.severity === "fail").length;
   const recoveryEventCount = sessionEvents.filter((event) => event.kind === "recovery").length;
   const operationFailureCount = sessionEvents.filter((event) => event.kind === "operation" && event.severity === "fail").length;
+  const chatEventCount = sessionEvents.filter((event) => event.kind === "chat").length;
+  const chatReconnectEventCount = sessionEvents.filter(isChatReconnectEvent).length;
+  const chatReconnectFailureCount = sessionEvents.filter(isChatReconnectFailureEvent).length;
   const nativeRuntime = createNativeRuntimeSessionSummary(nativeRuntimeTelemetry);
   const outcome = createOutcome(endReason, health, warningCount, failureCount, nativeRuntime);
 
@@ -228,10 +254,22 @@ export const createStreamSessionSummary = ({
     failureCount,
     recoveryEventCount,
     operationFailureCount,
+    chatEventCount,
+    chatReconnectEventCount,
+    chatReconnectFailureCount,
     health,
     nativeRuntime,
-    summary: createSummaryText(outcome, endReason, health, nativeRuntime),
-    recommendation: createRecommendation(outcome, endReason, health, failureCount, recoveryEventCount, nativeRuntime)
+    summary: createSummaryText(outcome, endReason, health, nativeRuntime, chatReconnectEventCount),
+    recommendation: createRecommendation(
+      outcome,
+      endReason,
+      health,
+      failureCount,
+      recoveryEventCount,
+      nativeRuntime,
+      chatReconnectEventCount,
+      chatReconnectFailureCount
+    )
   };
 };
 
@@ -257,11 +295,16 @@ const createSummaryText = (
   outcome: StreamSessionOutcome,
   endReason: StreamSessionEndReason,
   health: StreamHealthHistorySummary,
-  nativeRuntime: StreamSessionNativeRuntimeSummary | null
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null,
+  chatReconnectEventCount = 0
 ): string => {
   const prefix =
     outcome === "clean" ? "Clean session" : outcome === "warn" ? "Session needs review" : "Session ended with issues";
-  return `${prefix}. Ended ${endReason}. ${health.summary}${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}`;
+  const chatSummary =
+    chatReconnectEventCount > 0
+      ? ` Chat readout reconnect events: ${chatReconnectEventCount}.`
+      : "";
+  return `${prefix}. Ended ${endReason}. ${health.summary}${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${chatSummary}`;
 };
 
 const createRecommendation = (
@@ -270,10 +313,16 @@ const createRecommendation = (
   health: StreamHealthHistorySummary,
   failureCount: number,
   recoveryEventCount: number,
-  nativeRuntime: StreamSessionNativeRuntimeSummary | null
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null,
+  chatReconnectEventCount = 0,
+  chatReconnectFailureCount = 0
 ): string => {
   if (outcome === "clean") {
     return "Keep this profile as a known-good baseline for the destination.";
+  }
+
+  if (chatReconnectFailureCount > 0) {
+    return "Review platform chat credentials and network stability before relying on comment readout in public streams.";
   }
 
   if (nativeRuntime?.status === "fail") {
@@ -288,6 +337,10 @@ const createRecommendation = (
     return "Check network stability and lower bitrate if reconnects repeat.";
   }
 
+  if (chatReconnectEventCount > 0) {
+    return "Watch platform chat stability and keep a manual comment-monitoring fallback ready.";
+  }
+
   if (health.droppedFrameIncrease > 0 || health.stability === "watch") {
     return "Watch the next session and consider reducing bitrate/FPS if drops continue.";
   }
@@ -298,6 +351,12 @@ const createRecommendation = (
 
   return "Review warnings before the next long session.";
 };
+
+const isChatReconnectEvent = (event: StreamSessionEvent): boolean =>
+  event.kind === "chat" && (event.title === "Chat reconnect scheduled" || event.title === "Chat reconnect exhausted");
+
+const isChatReconnectFailureEvent = (event: StreamSessionEvent): boolean =>
+  event.kind === "chat" && event.title === "Chat reconnect exhausted";
 
 export const createNativeRuntimeSessionSummary = (
   runtime: NativeRuntimeTelemetry | null | undefined
@@ -363,15 +422,17 @@ const createHistoryStability = ({
   cleanRate,
   failureCount,
   warningCount,
-  totalRecoveryEvents
+  totalRecoveryEvents,
+  totalChatReconnectFailures
 }: {
   totalSessions: number;
   cleanRate: number;
   failureCount: number;
   warningCount: number;
   totalRecoveryEvents: number;
+  totalChatReconnectFailures: number;
 }): StreamSessionHistorySummary["stability"] => {
-  if (failureCount > 0 || (totalSessions >= 3 && cleanRate < 70)) {
+  if (failureCount > 0 || totalChatReconnectFailures > 0 || (totalSessions >= 3 && cleanRate < 70)) {
     return "unstable";
   }
 
@@ -404,10 +465,16 @@ const createHistoryRecommendation = (
   stability: StreamSessionHistorySummary["stability"],
   failureCount: number,
   warningCount: number,
-  totalRecoveryEvents: number
+  totalRecoveryEvents: number,
+  totalChatReconnectEvents: number,
+  totalChatReconnectFailures: number
 ): string => {
   if (stability === "baseline") {
     return "Keep this destination and quality profile as the reference baseline.";
+  }
+
+  if (totalChatReconnectFailures > 0) {
+    return "Review platform chat credentials and network stability before treating comment readout as production-ready.";
   }
 
   if (failureCount > 0) {
@@ -416,6 +483,10 @@ const createHistoryRecommendation = (
 
   if (totalRecoveryEvents > 0) {
     return "Watch network stability and lower bitrate if recovery events repeat.";
+  }
+
+  if (totalChatReconnectEvents > 0) {
+    return "Run another private stream and confirm platform chat stays connected without readout recovery.";
   }
 
   if (warningCount > 0) {
@@ -449,10 +520,34 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
     failureCount: normalizeNonNegativeInteger(value.failureCount),
     recoveryEventCount: normalizeNonNegativeInteger(value.recoveryEventCount),
     operationFailureCount: normalizeNonNegativeInteger(value.operationFailureCount),
+    chatEventCount: normalizeNonNegativeInteger(value.chatEventCount),
+    chatReconnectEventCount: normalizeNonNegativeInteger(value.chatReconnectEventCount),
+    chatReconnectFailureCount: normalizeNonNegativeInteger(value.chatReconnectFailureCount),
     health,
     nativeRuntime: normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
-    summary: typeof value.summary === "string" ? value.summary : createSummaryText(outcome, endReason, health, normalizeNativeRuntimeSessionSummary(value.nativeRuntime)),
-    recommendation: typeof value.recommendation === "string" ? value.recommendation : createRecommendation(outcome, endReason, health, 0, 0, normalizeNativeRuntimeSessionSummary(value.nativeRuntime))
+    summary:
+      typeof value.summary === "string"
+        ? value.summary
+        : createSummaryText(
+            outcome,
+            endReason,
+            health,
+            normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
+            normalizeNonNegativeInteger(value.chatReconnectEventCount)
+          ),
+    recommendation:
+      typeof value.recommendation === "string"
+        ? value.recommendation
+        : createRecommendation(
+            outcome,
+            endReason,
+            health,
+            0,
+            0,
+            normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
+            normalizeNonNegativeInteger(value.chatReconnectEventCount),
+            normalizeNonNegativeInteger(value.chatReconnectFailureCount)
+          )
   };
 };
 

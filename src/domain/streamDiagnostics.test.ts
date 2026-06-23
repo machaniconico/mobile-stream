@@ -558,6 +558,8 @@ describe("stream diagnostics", () => {
     expect(text).toContain("Quality Advisor");
     expect(text).toContain("Health History");
     expect(text).toContain("Completed Sessions");
+    expect(text).toContain("Chat readout: 0 events / 0 reconnects / 0 exhausted");
+    expect(text).toContain("Last chat readout: 0 events / 0 reconnects / 0 exhausted");
     expect(text).toContain("Commercial Validation");
     expect(text).toContain("Session Events");
     expect(json).toContain("backoffWindow");

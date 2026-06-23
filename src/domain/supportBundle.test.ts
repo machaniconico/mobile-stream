@@ -86,7 +86,16 @@ describe("support bundle", () => {
       }
     ];
     const sessionSummary = createStreamSessionSummary({
-      events: [],
+      events: [
+        {
+          id: "chat-reconnect-1",
+          at: "2026-06-23T00:00:03.000Z",
+          kind: "chat",
+          severity: "warn",
+          title: "Chat reconnect scheduled",
+          message: "YouTube chat request failed. Retrying chat in 1s (1/5)."
+        }
+      ],
       healthSamples,
       target: { bitrateKbps: 3500, fps: 30 },
       endReason: "stopped",
@@ -126,7 +135,13 @@ describe("support bundle", () => {
     expect(bundle.summary.completedSessionCount).toBe(1);
     expect(bundle.summary.sessionCleanRate).toBe(0);
     expect(bundle.summary.sessionHistoryStability).toBe("watch");
+    expect(bundle.summary.sessionChatEventCount).toBe(1);
+    expect(bundle.summary.sessionChatReconnectEventCount).toBe(1);
+    expect(bundle.summary.sessionChatReconnectFailureCount).toBe(0);
     expect(bundle.summary.lastSessionOutcome).toBe("warn");
+    expect(bundle.summary.lastSessionChatEventCount).toBe(1);
+    expect(bundle.summary.lastSessionChatReconnectEventCount).toBe(1);
+    expect(bundle.summary.lastSessionChatReconnectFailureCount).toBe(0);
     expect(bundle.summary.lastSessionNativeRuntimeStatus).toBe("warn");
     expect(bundle.summary.lastSessionNativeRuntimePlatform).toBe("android");
     expect(bundle.summary.lastSessionNativeRuntimeCongested).toBe(true);
@@ -162,6 +177,8 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceLatestPlatformPublishingStatus).toBeNull();
     expect(formatSupportBundle(bundle)).toContain("Completed summaries: 1");
     expect(formatSupportBundle(bundle)).toContain("Clean rate: 0%");
+    expect(formatSupportBundle(bundle)).toContain("Chat readout history: 1 events / 1 reconnects / 0 exhausted");
+    expect(formatSupportBundle(bundle)).toContain("Last chat readout: 1 events / 1 reconnects / 0 exhausted");
     expect(formatSupportBundle(bundle)).toContain("Quality advisor: maintain / pass");
     expect(formatSupportBundle(bundle)).toContain("Face tracking: info / runtime unavailable");
     expect(formatSupportBundle(bundle)).toContain("Commercial Validation");

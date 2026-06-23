@@ -34,7 +34,13 @@ export interface SupportBundle {
     completedSessionCount: number;
     sessionCleanRate: number;
     sessionHistoryStability: StreamDiagnostics["session"]["historySummary"]["stability"];
+    sessionChatEventCount: number;
+    sessionChatReconnectEventCount: number;
+    sessionChatReconnectFailureCount: number;
     lastSessionOutcome: NonNullable<StreamDiagnostics["session"]["lastSummary"]>["outcome"] | null;
+    lastSessionChatEventCount: number;
+    lastSessionChatReconnectEventCount: number;
+    lastSessionChatReconnectFailureCount: number;
     lastSessionNativeRuntimeStatus: NonNullable<NonNullable<StreamDiagnostics["session"]["lastSummary"]>["nativeRuntime"]>["status"] | null;
     lastSessionNativeRuntimePlatform: NonNullable<NonNullable<StreamDiagnostics["session"]["lastSummary"]>["nativeRuntime"]>["platform"] | null;
     lastSessionNativeRuntimeCongested: boolean;
@@ -197,7 +203,13 @@ export const createSupportBundle = ({
       completedSessionCount: diagnostics.session.summaries.length,
       sessionCleanRate: diagnostics.session.historySummary.cleanRate,
       sessionHistoryStability: diagnostics.session.historySummary.stability,
+      sessionChatEventCount: diagnostics.session.historySummary.totalChatEvents,
+      sessionChatReconnectEventCount: diagnostics.session.historySummary.totalChatReconnectEvents,
+      sessionChatReconnectFailureCount: diagnostics.session.historySummary.totalChatReconnectFailures,
       lastSessionOutcome: diagnostics.session.lastSummary?.outcome ?? null,
+      lastSessionChatEventCount: diagnostics.session.lastSummary?.chatEventCount ?? 0,
+      lastSessionChatReconnectEventCount: diagnostics.session.lastSummary?.chatReconnectEventCount ?? 0,
+      lastSessionChatReconnectFailureCount: diagnostics.session.lastSummary?.chatReconnectFailureCount ?? 0,
       lastSessionNativeRuntimeStatus: diagnostics.session.lastSummary?.nativeRuntime?.status ?? null,
       lastSessionNativeRuntimePlatform: diagnostics.session.lastSummary?.nativeRuntime?.platform ?? null,
       lastSessionNativeRuntimeCongested: diagnostics.session.lastSummary?.nativeRuntime?.congested ?? false,
@@ -360,9 +372,11 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Completed summaries: ${bundle.summary.completedSessionCount}`,
     `- History stability: ${bundle.summary.sessionHistoryStability}`,
     `- Clean rate: ${bundle.summary.sessionCleanRate}%`,
+    `- Chat readout history: ${bundle.summary.sessionChatEventCount} events / ${bundle.summary.sessionChatReconnectEventCount} reconnects / ${bundle.summary.sessionChatReconnectFailureCount} exhausted`,
     `- History summary: ${bundle.diagnostics.session.historySummary.summary}`,
     `- History recommendation: ${bundle.diagnostics.session.historySummary.recommendation}`,
     `- Last outcome: ${bundle.summary.lastSessionOutcome ?? "-"}`,
+    `- Last chat readout: ${bundle.summary.lastSessionChatEventCount} events / ${bundle.summary.lastSessionChatReconnectEventCount} reconnects / ${bundle.summary.lastSessionChatReconnectFailureCount} exhausted`,
     `- Last summary: ${bundle.diagnostics.session.lastSummary?.summary ?? "-"}`,
     `- Last native runtime: ${bundle.summary.lastSessionNativeRuntimeStatus ?? "-"} / ${bundle.summary.lastSessionNativeRuntimePlatform ?? "-"} / congested ${bundle.summary.lastSessionNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.lastSessionNativeRuntimeQueuedItems}/${bundle.summary.lastSessionNativeRuntimeCacheSize}`,
     `- Last recommendation: ${bundle.diagnostics.session.lastSummary?.recommendation ?? "-"}`,

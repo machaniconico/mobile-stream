@@ -79,6 +79,77 @@ describe("stream session summary", () => {
     expect(summary?.recommendation).toContain("failed operation");
   });
 
+  it("tracks platform chat readout reconnects in session and history summaries", () => {
+    const summary = createStreamSessionSummary({
+      events: [
+        event({
+          at: "2026-06-23T00:00:02.000Z",
+          kind: "chat",
+          severity: "warn",
+          title: "Chat reconnect scheduled",
+          message: "Twitch chat socket closed. Retrying chat in 2s (1/5)."
+        }),
+        event({
+          at: "2026-06-23T00:00:03.000Z",
+          kind: "chat",
+          severity: "info",
+          title: "Chat auto-connect started",
+          message: "Starting Twitch chat readout connection."
+        })
+      ],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+
+    const history = createStreamSessionHistorySummary([summary]);
+
+    expect(summary.outcome).toBe("warn");
+    expect(summary.chatEventCount).toBe(2);
+    expect(summary.chatReconnectEventCount).toBe(1);
+    expect(summary.chatReconnectFailureCount).toBe(0);
+    expect(summary.summary).toContain("Chat readout reconnect events: 1");
+    expect(summary.recommendation).toContain("platform chat stability");
+    expect(history.totalChatEvents).toBe(2);
+    expect(history.totalChatReconnectEvents).toBe(1);
+    expect(history.totalChatReconnectFailures).toBe(0);
+    expect(history.recommendation).toContain("platform chat stays connected");
+  });
+
+  it("marks exhausted platform chat readout reconnects as unstable history", () => {
+    const summary = createStreamSessionSummary({
+      events: [
+        event({
+          at: "2026-06-23T00:00:02.000Z",
+          kind: "chat",
+          severity: "fail",
+          title: "Chat reconnect exhausted",
+          message: "Platform chat reconnect stopped after 5 failed attempts."
+        })
+      ],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+
+    const history = createStreamSessionHistorySummary([summary]);
+
+    expect(summary.outcome).toBe("fail");
+    expect(summary.chatReconnectFailureCount).toBe(1);
+    expect(summary.recommendation).toContain("comment readout");
+    expect(history.stability).toBe("unstable");
+    expect(history.totalChatReconnectFailures).toBe(1);
+    expect(history.recommendation).toContain("comment readout");
+  });
+
   it("stores native runtime evidence and marks congested sessions for review", () => {
     const summary = createStreamSessionSummary({
       events: [],
