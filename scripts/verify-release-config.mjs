@@ -17,6 +17,16 @@ const files = {
   broadcastHandler: read("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift")
 };
 
+const iosReleaseConfig = {
+  hostBundleId: "com.mobilelivecaster.app",
+  hostEntitlementsPath: "MobileLiveCaster/MobileLiveCaster.entitlements",
+  hostInfoPlistPath: "MobileLiveCaster/Info.plist",
+  broadcastBundleId: "com.mobilelivecaster.app.BroadcastUpload",
+  broadcastEntitlementsPath: "MobileLiveCasterBroadcastUpload/MobileLiveCasterBroadcastUpload.entitlements",
+  broadcastInfoPlistPath: "MobileLiveCasterBroadcastUpload/Info.plist",
+  appGroupId: "group.com.mobilelivecaster.app"
+};
+
 const checks = [
   check("Android release signing uses production inputs", () => {
     expectIncludes(files.androidGradle, "MLC_RELEASE_STORE_FILE");
@@ -59,17 +69,32 @@ const checks = [
     expectNotIncludes(files.iosInfo, "com.example.mobilelivecaster");
   }),
   check("iOS commercial identifiers replace React Native defaults", () => {
-    expectIncludes(files.xcodeProject, "PRODUCT_BUNDLE_IDENTIFIER = com.mobilelivecaster.app;");
-    expectIncludes(files.xcodeProject, "PRODUCT_BUNDLE_IDENTIFIER = com.mobilelivecaster.app.BroadcastUpload;");
-    expectIncludes(files.xcodeProject, "CODE_SIGN_ENTITLEMENTS = MobileLiveCaster/MobileLiveCaster.entitlements;");
-    expectIncludes(files.xcodeProject, "CODE_SIGN_ENTITLEMENTS = MobileLiveCasterBroadcastUpload/MobileLiveCasterBroadcastUpload.entitlements;");
-    expectIncludes(files.iosEntitlements, "group.com.mobilelivecaster.app");
-    expectIncludes(files.broadcastEntitlements, "group.com.mobilelivecaster.app");
-    expectIncludes(files.liveCasterBridge, 'liveCasterAppGroup = "group.com.mobilelivecaster.app"');
-    expectIncludes(files.liveCasterBridge, 'liveCasterBroadcastExtensionId = "com.mobilelivecaster.app.BroadcastUpload"');
-    expectIncludes(files.broadcastHandler, 'broadcastAppGroup = "group.com.mobilelivecaster.app"');
+    expectIosTargetBuildSettings({
+      bundleId: iosReleaseConfig.hostBundleId,
+      entitlementsPath: iosReleaseConfig.hostEntitlementsPath,
+      infoPlistPath: iosReleaseConfig.hostInfoPlistPath
+    });
+    expectIosTargetBuildSettings({
+      bundleId: iosReleaseConfig.broadcastBundleId,
+      entitlementsPath: iosReleaseConfig.broadcastEntitlementsPath,
+      infoPlistPath: iosReleaseConfig.broadcastInfoPlistPath,
+      requiredSettings: {
+        APPLICATION_EXTENSION_API_ONLY: "YES",
+        PRODUCT_BUNDLE_PACKAGE_TYPE: "XPC!",
+        SKIP_INSTALL: "YES"
+      }
+    });
     expectNotIncludes(allNativeConfigText(), "org.reactjs.native.example");
     expectNotIncludes(allNativeConfigText(), "group.org.reactjs.native.example");
+  }),
+  check("iOS App Group entitlements are aligned for host and Broadcast Upload Extension", () => {
+    const hostGroups = plistArrayStrings(files.iosEntitlements, "com.apple.security.application-groups");
+    const broadcastGroups = plistArrayStrings(files.broadcastEntitlements, "com.apple.security.application-groups");
+    expectSameMembers(hostGroups, [iosReleaseConfig.appGroupId], "host app groups");
+    expectSameMembers(broadcastGroups, [iosReleaseConfig.appGroupId], "broadcast extension app groups");
+    expectIncludes(files.liveCasterBridge, `liveCasterAppGroup = "${iosReleaseConfig.appGroupId}"`);
+    expectIncludes(files.liveCasterBridge, `liveCasterBroadcastExtensionId = "${iosReleaseConfig.broadcastBundleId}"`);
+    expectIncludes(files.broadcastHandler, `broadcastAppGroup = "${iosReleaseConfig.appGroupId}"`);
   }),
   check("iOS privacy manifest is packaged and non-tracking", () => {
     expectIncludes(files.iosPrivacy, "NSPrivacyTracking");
@@ -120,6 +145,90 @@ function expectNotIncludes(value, needle) {
   if (value.includes(needle)) {
     throw new Error(`unexpected ${JSON.stringify(needle)}`);
   }
+}
+
+function expectEqual(actual, expected, label) {
+  if (actual !== expected) {
+    throw new Error(`${label} expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+  }
+}
+
+function expectSameMembers(actual, expected, label) {
+  const normalizedActual = [...actual].sort();
+  const normalizedExpected = [...expected].sort();
+  if (
+    normalizedActual.length !== normalizedExpected.length ||
+    normalizedActual.some((value, index) => value !== normalizedExpected[index])
+  ) {
+    throw new Error(`${label} expected ${JSON.stringify(normalizedExpected)}, got ${JSON.stringify(normalizedActual)}`);
+  }
+}
+
+function plistArrayStrings(plistText, key) {
+  const keyPattern = escapeRegExp(`<key>${key}</key>`);
+  const match = plistText.match(new RegExp(`${keyPattern}\\s*<array>([\\s\\S]*?)</array>`));
+  if (!match) {
+    throw new Error(`missing plist array ${JSON.stringify(key)}`);
+  }
+
+  return [...match[1].matchAll(/<string>(.*?)<\/string>/g)].map((result) => result[1]);
+}
+
+function expectIosTargetBuildSettings({ bundleId, entitlementsPath, infoPlistPath, requiredSettings = {} }) {
+  const configs = xcodeBuildConfigurations(files.xcodeProject).filter(
+    (config) => config.settings.PRODUCT_BUNDLE_IDENTIFIER === bundleId
+  );
+  const debugConfig = configs.find((config) => config.name === "Debug");
+  const releaseConfig = configs.find((config) => config.name === "Release");
+
+  if (!debugConfig || !releaseConfig) {
+    throw new Error(`missing Debug/Release build settings for ${bundleId}`);
+  }
+
+  for (const config of [debugConfig, releaseConfig]) {
+    expectEqual(config.settings.CODE_SIGN_ENTITLEMENTS, entitlementsPath, `${bundleId} ${config.name} entitlements`);
+    expectEqual(config.settings.INFOPLIST_FILE, infoPlistPath, `${bundleId} ${config.name} Info.plist`);
+    for (const [settingName, expectedValue] of Object.entries(requiredSettings)) {
+      expectEqual(config.settings[settingName], expectedValue, `${bundleId} ${config.name} ${settingName}`);
+    }
+  }
+}
+
+function xcodeBuildConfigurations(projectText) {
+  const sectionStart = projectText.indexOf("/* Begin XCBuildConfiguration section */");
+  const sectionEnd = projectText.indexOf("/* End XCBuildConfiguration section */");
+  if (sectionStart === -1 || sectionEnd === -1 || sectionEnd <= sectionStart) {
+    throw new Error("missing XCBuildConfiguration section");
+  }
+
+  const section = projectText.slice(sectionStart, sectionEnd);
+  const regex = /\t\t([A-F0-9]+) \/\* (Debug|Release) \*\/ = \{\n([\s\S]*?)\n\t\t\};/g;
+  return [...section.matchAll(regex)].map((match) => ({
+    id: match[1],
+    name: match[2],
+    settings: xcodeBuildSettings(match[3])
+  }));
+}
+
+function xcodeBuildSettings(configurationText) {
+  const settings = {};
+  const regex = /^\s*([A-Z0-9_]+) = (.+?);$/gm;
+  for (const match of configurationText.matchAll(regex)) {
+    settings[match[1]] = stripPbxScalar(match[2]);
+  }
+  return settings;
+}
+
+function stripPbxScalar(value) {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function releaseBlock(gradleText) {
