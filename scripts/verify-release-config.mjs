@@ -50,6 +50,10 @@ const checks = [
     expectIncludes(files.androidManifest, 'android:foregroundServiceType="mediaProjection|microphone"');
     expectIncludes(files.androidManifest, 'android:usesCleartextTraffic="${usesCleartextTraffic}"');
   }),
+  check("Android release disables cleartext traffic", () => {
+    expectIncludes(debugBlock(files.androidGradle), 'manifestPlaceholders = [usesCleartextTraffic: "true"]');
+    expectIncludes(releaseBlock(files.androidGradle), 'manifestPlaceholders = [usesCleartextTraffic: "false"]');
+  }),
   check("Android OAuth callback schemes are registered", () => {
     expectIncludes(files.androidManifest, 'android:scheme="mobilelivecaster" android:host="oauth"');
     expectIncludes(files.androidManifest, 'android:scheme="com.mobilelivecaster.app"');
@@ -232,10 +236,22 @@ function escapeRegExp(value) {
 }
 
 function releaseBlock(gradleText) {
-  const marker = "release {";
+  return buildTypeBlock(gradleText, "release");
+}
+
+function debugBlock(gradleText) {
+  return buildTypeBlock(gradleText, "debug");
+}
+
+function buildTypeBlock(gradleText, name) {
+  const buildTypes = extractGradleBlock(gradleText, "buildTypes {", "buildTypes");
+  return extractGradleBlock(buildTypes, `${name} {`, `${name} build type`);
+}
+
+function extractGradleBlock(gradleText, marker, label) {
   const start = gradleText.indexOf(marker);
   if (start === -1) {
-    throw new Error("missing release build type");
+    throw new Error(`missing ${label}`);
   }
 
   let depth = 0;
@@ -251,7 +267,7 @@ function releaseBlock(gradleText) {
     }
   }
 
-  throw new Error("unterminated release build type");
+  throw new Error(`unterminated ${label}`);
 }
 
 function allNativeConfigText() {

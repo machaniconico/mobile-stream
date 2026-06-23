@@ -20,6 +20,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Commercial release gate for saved support bundle JSON, checking freshness, public launch lock state, private validation runbook completion, iOS/Android same-build evidence coverage, retained-run manifests, and feature proof before release approval.
 - Commercial release support-bundle privacy gate that blocks release approval if OAuth tokens, stream keys, client secrets, device codes, or Authorization headers are still unredacted in exported evidence.
 - Release-candidate verification command that chains source gates, browser UI verification, React Native bundle generation, and the commercial support-bundle gate into one local approval step with a JSON audit report.
+- Android build-type network policy keeps cleartext traffic enabled only for debug development and disables it for release artifacts.
 - Web bundle code-splitting and bundle-size verification so the browser studio shell stays below the release chunk limit.
 - Repository automation safety checks and opt-in-only PR auto-merge through an explicit `automerge` label.
 - Physical validation audio evidence also records measured or native-estimated processed-mic monitor latency, the latency source, and Bluetooth route review notes, and prevents audio evidence from passing when latency is missing or above the route budget.
@@ -90,7 +91,7 @@ npm run ios:build:simulator
 
 `npm run verify:web-bundle-size` checks the built web assets in `dist/assets` and fails if the studio shell loses code-splitting or any JavaScript chunk exceeds the release limit. Run `npm run build` first.
 
-`npm run verify:release-config` audits native store-release configuration, including Android release signing fail-closed behavior, streaming permissions, OAuth callback schemes, iOS usage descriptions, the iOS privacy manifest, and the ReplayKit Broadcast Upload Extension bundle/entitlements/App Group setup.
+`npm run verify:release-config` audits native store-release configuration, including Android release signing fail-closed behavior, release cleartext-traffic blocking, streaming permissions, OAuth callback schemes, iOS usage descriptions, the iOS privacy manifest, and the ReplayKit Broadcast Upload Extension bundle/entitlements/App Group setup.
 
 `npm run verify:commercial-release-bundle -- /path/to/support-bundle.json` checks a saved support bundle before release approval. It fails unless the bundle is fresh, schema v13+, public-launch ready, runbook complete, free of unredacted sensitive evidence, and backed by passing same-build iOS/Android validation evidence. Use `--allow-warnings` only after explicitly approving remaining warnings.
 
