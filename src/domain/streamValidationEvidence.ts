@@ -38,6 +38,15 @@ export interface StreamValidationAudioSummary {
   headphonesConnected: boolean;
   routeCheckedAt: string | null;
   routeStale: boolean;
+  nativeMonitorReported: boolean;
+  nativeMonitorRunning: boolean;
+  nativeMonitorRoute: string;
+  nativeMonitorOutputName: string;
+  nativeMonitorHeadphonesConnected: boolean;
+  nativeMonitorWrittenFrames: number;
+  nativeMonitorDroppedFrames: number;
+  nativeMonitorWrittenBuffers: number;
+  nativeMonitorDroppedBuffers: number;
   levelSampleCount: number;
   averageLevel: number;
   peakLevel: number;
@@ -181,11 +190,14 @@ export const formatStreamValidationRunAudioLabel = (run: StreamValidationRun): s
   }
 
   const audio = run.audio;
+  const nativeMonitor = audio.nativeMonitorReported
+    ? ` / native monitor ${audio.nativeMonitorRunning ? "running" : "reported"} ${audio.nativeMonitorWrittenFrames}/${audio.nativeMonitorDroppedFrames} frames ${audio.nativeMonitorOutputName}`
+    : "";
   return `audio ${audio.status} / ${audio.presetId} / monitor ${audio.monitorEnabled ? "on" : "off"} / headphones-only ${
     audio.monitorHeadphonesOnly ? "yes" : "no"
   } / route ${audio.monitorRouteStatus} ${audio.outputName} / headphones ${audio.headphonesConnected ? "yes" : "no"} / stale ${
     audio.routeStale ? "yes" : "no"
-  } / samples ${audio.levelSampleCount} / peak ${Math.round(audio.peakLevel * 100)}%`;
+  }${nativeMonitor} / samples ${audio.levelSampleCount} / peak ${Math.round(audio.peakLevel * 100)}%`;
 };
 
 export const createStreamValidationRun = ({
@@ -941,6 +953,7 @@ const createAudioValidationSummary = (
 ): StreamValidationAudioSummary => {
   const item = findRunbookItem(diagnostics, "audio");
   const audioLevel = diagnostics.session.lastSummary?.audioLevel ?? null;
+  const nativeMonitor = createNativeMonitorEvidence(diagnostics);
   return {
     status: item?.status ?? "pending",
     micEffectsEnabled: diagnostics.audio.micEffectsEnabled,
@@ -956,6 +969,15 @@ const createAudioValidationSummary = (
     headphonesConnected: diagnostics.audio.monitorSafety.headphonesConnected,
     routeCheckedAt: diagnostics.audio.monitorSafety.checkedAt,
     routeStale: diagnostics.audio.monitorSafety.stale,
+    nativeMonitorReported: nativeMonitor.nativeMonitorReported,
+    nativeMonitorRunning: nativeMonitor.nativeMonitorRunning,
+    nativeMonitorRoute: nativeMonitor.nativeMonitorRoute,
+    nativeMonitorOutputName: nativeMonitor.nativeMonitorOutputName,
+    nativeMonitorHeadphonesConnected: nativeMonitor.nativeMonitorHeadphonesConnected,
+    nativeMonitorWrittenFrames: nativeMonitor.nativeMonitorWrittenFrames,
+    nativeMonitorDroppedFrames: nativeMonitor.nativeMonitorDroppedFrames,
+    nativeMonitorWrittenBuffers: nativeMonitor.nativeMonitorWrittenBuffers,
+    nativeMonitorDroppedBuffers: nativeMonitor.nativeMonitorDroppedBuffers,
     levelSampleCount: audioLevel?.sampleCount ?? 0,
     averageLevel: audioLevel?.averageLevel ?? 0,
     peakLevel: audioLevel?.peakLevel ?? 0,
@@ -964,10 +986,67 @@ const createAudioValidationSummary = (
     summary: sanitizeStoredText(
       `${audioLevel && audioLevel.sampleCount > 0 ? `${audioLevel.summary} ` : ""}${
         item?.detail ?? "No mic FX/headphone monitor validation retained."
-      }`,
+      }${nativeMonitor.nativeMonitorReported ? ` Native monitor wrote ${nativeMonitor.nativeMonitorWrittenFrames} frame${nativeMonitor.nativeMonitorWrittenFrames === 1 ? "" : "s"} across ${nativeMonitor.nativeMonitorWrittenBuffers} buffer${nativeMonitor.nativeMonitorWrittenBuffers === 1 ? "" : "s"} with ${nativeMonitor.nativeMonitorDroppedFrames} dropped frame${nativeMonitor.nativeMonitorDroppedFrames === 1 ? "" : "s"} on ${nativeMonitor.nativeMonitorOutputName}.` : ""}`,
       secrets
     ),
     recommendation: sanitizeStoredText(item?.action ?? "Repeat validation with mic effects and headphone monitoring checked.", secrets)
+  };
+};
+
+const createNativeMonitorEvidence = (
+  diagnostics: StreamDiagnostics
+): Pick<
+  StreamValidationAudioSummary,
+  | "nativeMonitorReported"
+  | "nativeMonitorRunning"
+  | "nativeMonitorRoute"
+  | "nativeMonitorOutputName"
+  | "nativeMonitorHeadphonesConnected"
+  | "nativeMonitorWrittenFrames"
+  | "nativeMonitorDroppedFrames"
+  | "nativeMonitorWrittenBuffers"
+  | "nativeMonitorDroppedBuffers"
+> => {
+  const current = diagnostics.nativeRuntime?.audioProcessing;
+  if (current) {
+    return {
+      nativeMonitorReported: true,
+      nativeMonitorRunning: current.monitorRunning,
+      nativeMonitorRoute: current.monitorRoute,
+      nativeMonitorOutputName: current.monitorOutputName,
+      nativeMonitorHeadphonesConnected: current.monitorHeadphonesConnected,
+      nativeMonitorWrittenFrames: normalizeCount(current.monitorWrittenFrames),
+      nativeMonitorDroppedFrames: normalizeCount(current.monitorDroppedFrames),
+      nativeMonitorWrittenBuffers: normalizeCount(current.monitorWrittenBuffers),
+      nativeMonitorDroppedBuffers: normalizeCount(current.monitorDroppedBuffers)
+    };
+  }
+
+  const retained = diagnostics.session.lastSummary?.nativeRuntime;
+  if (retained?.monitorEnabled || retained?.monitorWrittenFrames || retained?.monitorDroppedFrames) {
+    return {
+      nativeMonitorReported: true,
+      nativeMonitorRunning: retained.monitorRunning,
+      nativeMonitorRoute: retained.monitorRoute,
+      nativeMonitorOutputName: retained.monitorOutputName,
+      nativeMonitorHeadphonesConnected: retained.monitorHeadphonesConnected,
+      nativeMonitorWrittenFrames: retained.monitorWrittenFrames,
+      nativeMonitorDroppedFrames: retained.monitorDroppedFrames,
+      nativeMonitorWrittenBuffers: retained.monitorWrittenBuffers,
+      nativeMonitorDroppedBuffers: retained.monitorDroppedBuffers
+    };
+  }
+
+  return {
+    nativeMonitorReported: false,
+    nativeMonitorRunning: false,
+    nativeMonitorRoute: "unknown",
+    nativeMonitorOutputName: "Unknown",
+    nativeMonitorHeadphonesConnected: false,
+    nativeMonitorWrittenFrames: 0,
+    nativeMonitorDroppedFrames: 0,
+    nativeMonitorWrittenBuffers: 0,
+    nativeMonitorDroppedBuffers: 0
   };
 };
 
@@ -1194,6 +1273,15 @@ const normalizeAudioValidationSummary = (value: unknown): StreamValidationAudioS
     headphonesConnected: value.headphonesConnected === true,
     routeCheckedAt: normalizeDateString(value.routeCheckedAt),
     routeStale: value.routeStale === true,
+    nativeMonitorReported: value.nativeMonitorReported === true,
+    nativeMonitorRunning: value.nativeMonitorRunning === true,
+    nativeMonitorRoute: normalizeText(value.nativeMonitorRoute, "unknown"),
+    nativeMonitorOutputName: normalizeText(value.nativeMonitorOutputName, "Unknown"),
+    nativeMonitorHeadphonesConnected: value.nativeMonitorHeadphonesConnected === true,
+    nativeMonitorWrittenFrames: normalizeCount(value.nativeMonitorWrittenFrames),
+    nativeMonitorDroppedFrames: normalizeCount(value.nativeMonitorDroppedFrames),
+    nativeMonitorWrittenBuffers: normalizeCount(value.nativeMonitorWrittenBuffers),
+    nativeMonitorDroppedBuffers: normalizeCount(value.nativeMonitorDroppedBuffers),
     levelSampleCount: normalizeCount(value.levelSampleCount),
     averageLevel: normalizeFiniteNumber(value.averageLevel, 0, 0, 1),
     peakLevel: normalizeFiniteNumber(value.peakLevel, 0, 0, 1),

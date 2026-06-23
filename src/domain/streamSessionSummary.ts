@@ -48,6 +48,17 @@ export interface StreamSessionNativeRuntimeSummary {
   droppedAudioFrames: number;
   bytesWritten: number;
   encodedBytes: number;
+  micEffectsEnabled: boolean;
+  micEffectsPresetId: string;
+  monitorEnabled: boolean;
+  monitorRunning: boolean;
+  monitorRoute: string;
+  monitorOutputName: string;
+  monitorHeadphonesConnected: boolean;
+  monitorWrittenFrames: number;
+  monitorDroppedFrames: number;
+  monitorWrittenBuffers: number;
+  monitorDroppedBuffers: number;
   issueCount: number;
   summary: string;
   recommendation: string;
@@ -615,6 +626,17 @@ export const createNativeRuntimeSessionSummary = (
     droppedAudioFrames: normalizeNonNegativeInteger(runtime.publisher.droppedAudioFrames),
     bytesWritten: normalizeNonNegativeInteger(runtime.publisher.bytesWritten),
     encodedBytes: normalizeNonNegativeInteger(runtime.encodedBytes),
+    micEffectsEnabled: runtime.audioProcessing?.micEffectsEnabled ?? false,
+    micEffectsPresetId: runtime.audioProcessing?.micEffectsPresetId ?? "clean",
+    monitorEnabled: runtime.audioProcessing?.monitorEnabled ?? false,
+    monitorRunning: runtime.audioProcessing?.monitorRunning ?? false,
+    monitorRoute: runtime.audioProcessing?.monitorRoute ?? "unknown",
+    monitorOutputName: runtime.audioProcessing?.monitorOutputName ?? "Unknown",
+    monitorHeadphonesConnected: runtime.audioProcessing?.monitorHeadphonesConnected ?? false,
+    monitorWrittenFrames: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorWrittenFrames),
+    monitorDroppedFrames: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorDroppedFrames),
+    monitorWrittenBuffers: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorWrittenBuffers),
+    monitorDroppedBuffers: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorDroppedBuffers),
     issueCount,
     summary:
       status === "fail"
@@ -860,6 +882,17 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     droppedAudioFrames: normalizeNonNegativeInteger(value.droppedAudioFrames),
     bytesWritten: normalizeNonNegativeInteger(value.bytesWritten),
     encodedBytes: normalizeNonNegativeInteger(value.encodedBytes),
+    micEffectsEnabled: value.micEffectsEnabled === true,
+    micEffectsPresetId: typeof value.micEffectsPresetId === "string" ? value.micEffectsPresetId : "clean",
+    monitorEnabled: value.monitorEnabled === true,
+    monitorRunning: value.monitorRunning === true,
+    monitorRoute: typeof value.monitorRoute === "string" ? value.monitorRoute : "unknown",
+    monitorOutputName: typeof value.monitorOutputName === "string" ? value.monitorOutputName : "Unknown",
+    monitorHeadphonesConnected: value.monitorHeadphonesConnected === true,
+    monitorWrittenFrames: normalizeNonNegativeInteger(value.monitorWrittenFrames),
+    monitorDroppedFrames: normalizeNonNegativeInteger(value.monitorDroppedFrames),
+    monitorWrittenBuffers: normalizeNonNegativeInteger(value.monitorWrittenBuffers),
+    monitorDroppedBuffers: normalizeNonNegativeInteger(value.monitorDroppedBuffers),
     issueCount: normalizeNonNegativeInteger(value.issueCount),
     summary: typeof value.summary === "string" ? value.summary : `Native runtime ${status} on ${platform}.`,
     recommendation: typeof value.recommendation === "string" ? value.recommendation : "Review native runtime evidence before public launch."

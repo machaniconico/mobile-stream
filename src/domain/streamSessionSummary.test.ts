@@ -271,6 +271,26 @@ describe("stream session summary", () => {
           skippedKinds: [],
           message: "Native overlays applied"
         },
+        audioProcessing: {
+          micEffectsEnabled: true,
+          micEffectsPresetId: "broadcast",
+          micEffectsProcessedFrames: 24,
+          micEffectsProcessedSamples: 12_288,
+          micEffectsGatedSamples: 0,
+          micEffectsLimitedSamples: 1,
+          monitorEnabled: true,
+          monitorRunning: true,
+          monitorVolume: 0.5,
+          monitorHeadphonesOnly: true,
+          monitorRoute: "bluetooth-a2dp",
+          monitorOutputName: "Bluetooth headphones",
+          monitorHeadphonesConnected: true,
+          monitorWrittenFrames: 12_288,
+          monitorDroppedFrames: 0,
+          monitorWrittenBuffers: 24,
+          monitorDroppedBuffers: 0,
+          monitorLastError: ""
+        },
         message: "Live"
       }
     });
@@ -280,6 +300,11 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.platform).toBe("android");
     expect(summary?.nativeRuntime?.queuedItems).toBe(70);
     expect(summary?.nativeRuntime?.droppedVideoFrames).toBe(2);
+    expect(summary?.nativeRuntime?.monitorEnabled).toBe(true);
+    expect(summary?.nativeRuntime?.monitorRunning).toBe(true);
+    expect(summary?.nativeRuntime?.monitorOutputName).toBe("Bluetooth headphones");
+    expect(summary?.nativeRuntime?.monitorWrittenFrames).toBe(12288);
+    expect(summary?.nativeRuntime?.monitorDroppedFrames).toBe(0);
     expect(summary?.summary).toContain("Native runtime needs review");
     expect(summary?.recommendation).toContain("Lower bitrate");
   });

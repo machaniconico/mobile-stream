@@ -1275,7 +1275,9 @@ const StreamValidationRecorder = ({
           {diagnostics.validationEvidence.androidPass ? "pass" : "missing"} / build{" "}
           {diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")} / face{" "}
           iOS {diagnostics.validationEvidence.faceTrackingIosPass ? "pass" : "missing"} / Android{" "}
-          {diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"}
+          {diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"} / audio iOS{" "}
+          {diagnostics.validationEvidence.audioIosPass ? "pass" : "missing"} / Android{" "}
+          {diagnostics.validationEvidence.audioAndroidPass ? "pass" : "missing"}
         </em>
       </div>
       {latestDashboardFreshness ? (

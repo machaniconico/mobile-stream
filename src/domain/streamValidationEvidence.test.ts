@@ -181,7 +181,62 @@ describe("stream validation evidence", () => {
       readiness,
       {
         state: { status: "idle" },
-        health: health()
+        health: health(),
+        nativeRuntime: {
+          platform: "ios",
+          runtimeStatus: "live",
+          updatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+          stale: false,
+          elapsedSeconds: 4,
+          videoFrames: 120,
+          encodedBytes: 2_200_000,
+          droppedFrames: 0,
+          publisher: {
+            state: "published",
+            reconnectAttempts: 0,
+            sentVideoFrames: 120,
+            sentAudioFrames: 190,
+            droppedVideoFrames: 0,
+            droppedAudioFrames: 0,
+            bytesWritten: 2_200_000,
+            cacheSize: 120,
+            itemsInCache: 0,
+            congested: false,
+            lastError: ""
+          },
+          composition: {
+            status: "applied",
+            appliedCount: 1,
+            skippedCount: 0,
+            skippedKinds: [],
+            stillImageAssetCount: 1,
+            stillImageAssetLoadedCount: 1,
+            stillImageAssetMissingCount: 0,
+            stillImageAssetMissingKinds: [],
+            message: "Native overlays applied"
+          },
+          audioProcessing: {
+            micEffectsEnabled: true,
+            micEffectsPresetId: "broadcast",
+            micEffectsProcessedFrames: 48,
+            micEffectsProcessedSamples: 24_576,
+            micEffectsGatedSamples: 64,
+            micEffectsLimitedSamples: 2,
+            monitorEnabled: true,
+            monitorRunning: true,
+            monitorVolume: 0.45,
+            monitorHeadphonesOnly: true,
+            monitorRoute: "wired-headphones",
+            monitorOutputName: "Wired headphones",
+            monitorHeadphonesConnected: true,
+            monitorWrittenFrames: 24_576,
+            monitorDroppedFrames: 0,
+            monitorWrittenBuffers: 48,
+            monitorDroppedBuffers: 0,
+            monitorLastError: ""
+          },
+          message: "Live"
+        }
       },
       [],
       [],
@@ -203,12 +258,18 @@ describe("stream validation evidence", () => {
       monitorRouteStatus: "pass",
       outputRoute: "wired-headphones",
       headphonesConnected: true,
+      nativeMonitorReported: true,
+      nativeMonitorRunning: true,
+      nativeMonitorWrittenFrames: 24576,
+      nativeMonitorDroppedFrames: 0,
+      nativeMonitorWrittenBuffers: 48,
+      nativeMonitorDroppedBuffers: 0,
       levelSampleCount: 2,
       peakLevel: 0.8,
       activeLevelPercent: 100
     });
     expect(formatStreamValidationRunAudioLabel(run)).toBe(
-      "audio pass / broadcast / monitor on / headphones-only yes / route pass Wired headphones / headphones yes / stale no / samples 2 / peak 80%"
+      "audio pass / broadcast / monitor on / headphones-only yes / route pass Wired headphones / headphones yes / stale no / native monitor running 24576/0 frames Wired headphones / samples 2 / peak 80%"
     );
     expect(run.chatReadout).toMatchObject({
       spokenMessageCount: 1,
