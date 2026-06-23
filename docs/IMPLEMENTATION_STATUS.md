@@ -90,6 +90,7 @@
 - React Native bare app scaffold generated from React Native 0.85.3.
 - Standard `ios/` and `android/` projects for the MobileLiveCaster host app.
 - React Native mobile Studio UI that reuses `src/domain` and the mock stream engine.
+- GitHub Actions `test` status check for PRs and `main` pushes, covering native release-configuration audit, unit tests, web/RN typecheck, web build, and iOS/Android React Native JavaScript bundling.
 - Metro bundle verification for both iOS and Android.
 - Homebrew React Native environment installed: JDK 17, Watchman, CocoaPods, Android command line tools.
 - Android SDK packages installed: `platforms;android-36`, `build-tools;36.0.0`, `ndk;27.1.12297006`, `platform-tools`.
