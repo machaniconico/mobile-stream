@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "../domain/chatReader";
+import { errorToSafeMessage } from "../domain/sensitiveText";
 import {
   createPlatformChatAutoConnectPlan,
   createInitialPlatformChatReconnectState,
@@ -376,10 +377,7 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages, autoReco
 };
 
 const toSafeErrorMessage = (error: unknown): string => {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-  return "Platform chat connection failed.";
+  return errorToSafeMessage(error, "Platform chat connection failed.");
 };
 
 const isCurrentConnection = (

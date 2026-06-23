@@ -18,6 +18,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Native composition readiness and diagnostics for native-supported avatar/text/image/solid overlays, underlay ordering, Live2D gaps, and iOS Broadcast Upload Extension still-image asset access risks before device RTMP publishing.
 - Mobile PNGTuber/image still-image picking and preparation that copies local assets into native-readable storage before streaming.
 - Stream key redaction and no-secret browser persistence.
+- Sensitive OAuth/API error message redaction before user-facing status display.
 - Keychain/Android Keystore-backed mobile profile storage for stream keys.
 - In-app stream key clear and replacement controls.
 - Durable scene persistence on web, iOS, and Android with persisted-scene normalization.

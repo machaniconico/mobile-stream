@@ -29,6 +29,7 @@
 - Shared app-level automatic recovery scheduler for Web and React Native, including failed-engine reconnect, critical telemetry hold time, retry budget enforcement, and timer deduplication.
 - Shared stream session event log for status transitions, manual operations, automatic recovery actions, support diagnostics, and redacted report export.
 - Stream key redaction and no-secret browser persistence.
+- Sensitive OAuth/API error message redaction before user-facing status display.
 - In-app stream key clear/replacement controls for browser and mobile setup screens.
 - Mic effect profile model with presets, gain, noise gate, compression, and headphone monitor settings.
 - Chat/comment read-aloud domain model with queueing, muted words, duplicate suppression, queue limits, URL redaction, and speech text shaping.

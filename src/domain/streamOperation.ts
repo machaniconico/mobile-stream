@@ -1,3 +1,5 @@
+import { errorToSafeMessage } from "./sensitiveText";
+
 export type StreamControlAction = "start" | "stop" | "reconnect";
 
 export interface StreamOperationStatus {
@@ -34,11 +36,5 @@ export const createFailedStreamOperation = (
 });
 
 const errorMessage = (error: unknown): string => {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message.trim();
-  }
-  if (typeof error === "string" && error.trim()) {
-    return error.trim();
-  }
-  return "Unexpected streaming control error";
+  return errorToSafeMessage(error, "Unexpected streaming control error");
 };

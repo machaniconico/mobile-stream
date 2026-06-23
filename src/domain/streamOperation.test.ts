@@ -18,4 +18,14 @@ describe("stream operation status", () => {
       "Stop failed: Unexpected streaming control error"
     );
   });
+
+  it("redacts tokens from failed operation errors", () => {
+    const status = createFailedStreamOperation(
+      "start",
+      new Error("Native publisher failed with Authorization: Bearer abcdefghijklmnop")
+    );
+
+    expect(status.message).toContain("Authorization: Bearer [redacted]");
+    expect(status.message).not.toContain("abcdefghijklmnop");
+  });
 });

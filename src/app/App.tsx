@@ -68,6 +68,7 @@ import {
   formatStreamStartPreflightBlockMessage
 } from "../domain/streamStartPreflight";
 import { createStreamDiagnostics } from "../domain/streamDiagnostics";
+import { errorToSafeMessage } from "../domain/sensitiveText";
 import {
   createStreamChatEvent,
   createStreamChatReconnectEvent,
@@ -645,4 +646,4 @@ const mergeOAuthAuth = (
 const shouldDisconnectPlatformChatOnStreamStop = (phase: string): boolean =>
   phase === "connecting" || phase === "connected" || phase === "failed";
 
-const toErrorMessage = (error: unknown): string => (error instanceof Error && error.message ? error.message : "OAuth operation failed.");
+const toErrorMessage = (error: unknown): string => errorToSafeMessage(error, "OAuth operation failed.");
