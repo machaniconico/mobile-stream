@@ -7,6 +7,8 @@ import { argv, env, exit, platform, cwd } from "node:process";
 const defaultUiUrl = "http://127.0.0.1:5173/";
 const devServerTimeoutMs = 30_000;
 const defaultReportPath = ".artifacts/release-candidate-verification.json";
+const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
+const requiredUiViewportNames = ["desktop", "mobile"];
 
 const sourceGates = [
   ["Verify repository automation safety", ["run", "verify:repo-automation"]],
@@ -61,20 +63,26 @@ async function main() {
   console.log(`Report: ${options.reportJsonPath}`);
   console.log(
     `UI verification: ${
-      options.skipUi ? "skipped by operator flag" : options.uiUrl ? `enabled against ${options.uiUrl}` : "enabled"
+      options.skipUi
+        ? `skipped by operator flag with evidence ${options.uiEvidenceJsonPath}`
+        : options.uiUrl
+          ? `enabled against ${options.uiUrl}`
+          : "enabled"
     }`
   );
 
   try {
     runCleanWorktreeGate(report, options.allowDirty);
 
+    if (options.skipUi) {
+      runUiEvidenceGate(report, options);
+    }
+
     for (const [label, args] of sourceGates) {
       runTrackedGate(report, label, args);
     }
 
-    if (options.skipUi) {
-      recordSkippedGate(report, "Verify browser UI", "Skipped by operator flag after separate UI verification.");
-    } else {
+    if (!options.skipUi) {
       await runUiGate(report, options.uiUrl);
     }
 
@@ -157,6 +165,51 @@ function recordSkippedGate(report, label, reason) {
   });
 }
 
+function runUiEvidenceGate(report, options) {
+  const gate = {
+    label: "Verify browser UI evidence",
+    command: `read ${options.uiEvidenceJsonPath}`,
+    status: "running",
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    durationMs: null,
+    exitCode: null,
+    error: null,
+    evidence: null
+  };
+  const startedAt = Date.now();
+  report.gates.push(gate);
+
+  try {
+    const evidence = readJsonFile(options.uiEvidenceJsonPath, "UI verification evidence");
+    validateUiEvidence(evidence, {
+      currentCommit: report.git.commit,
+      allowDirty: options.allowDirty,
+      maxAgeHours: options.maxAgeHours
+    });
+    gate.status = "passed";
+    gate.exitCode = 0;
+    gate.evidence = {
+      path: options.uiEvidenceJsonPath,
+      sha256: fileSha256(options.uiEvidenceJsonPath),
+      target: evidence.target,
+      finishedAt: evidence.finishedAt,
+      viewports: evidence.viewports.map((viewport) => ({
+        name: viewport.name,
+        screenshot: viewport.screenshot
+      }))
+    };
+  } catch (error) {
+    gate.status = "failed";
+    gate.exitCode = error instanceof GateError ? error.exitCode : 1;
+    gate.error = error instanceof Error ? error.message : String(error);
+    throw error instanceof GateError ? error : new GateError(gate.error, gate.exitCode);
+  } finally {
+    gate.finishedAt = new Date().toISOString();
+    gate.durationMs = Date.now() - startedAt;
+  }
+}
+
 function runCleanWorktreeGate(report, allowDirty) {
   const now = new Date().toISOString();
   const gate = {
@@ -231,7 +284,7 @@ function runBrowserUiGate(report, uiEnv) {
   } catch (error) {
     if (error instanceof GateError) {
       throw new GateError(
-        `${error.message}\nIf this environment blocks nested browser launches, run \`npm run verify:ui\` separately and rerun release-candidate verification with \`--skip-ui\`.`,
+        `${error.message}\nIf this environment blocks nested browser launches, run \`npm run verify:ui\` separately and rerun release-candidate verification with \`--skip-ui --ui-evidence-json=.artifacts/ui-verification.json\`.`,
         error.exitCode
       );
     }
@@ -287,6 +340,7 @@ function parseArgs(args) {
     allowDirty: false,
     skipUi: false,
     uiUrl: "",
+    uiEvidenceJsonPath: "",
     reportJsonPath: defaultReportPath,
     help: false
   };
@@ -302,6 +356,8 @@ function parseArgs(args) {
       parsed.skipUi = true;
     } else if (arg.startsWith("--ui-url=")) {
       parsed.uiUrl = normalizeUiUrl(arg.slice("--ui-url=".length));
+    } else if (arg.startsWith("--ui-evidence-json=")) {
+      parsed.uiEvidenceJsonPath = arg.slice("--ui-evidence-json=".length);
     } else if (arg.startsWith("--report-json=")) {
       parsed.reportJsonPath = arg.slice("--report-json=".length);
     } else if (arg.startsWith("--max-age-hours=")) {
@@ -323,6 +379,10 @@ function parseArgs(args) {
   if (!parsed.reportJsonPath.trim()) {
     printUsage();
     throw new GateError("\n--report-json must not be empty.", 2);
+  }
+  if (parsed.skipUi && !parsed.uiEvidenceJsonPath.trim()) {
+    printUsage();
+    throw new GateError("\n--skip-ui requires --ui-evidence-json=<path> from a passing `npm run verify:ui` run.", 2);
   }
 
   return parsed;
@@ -363,6 +423,123 @@ function readSupportBundle(path) {
   }
 }
 
+function readJsonFile(path, label) {
+  try {
+    return JSON.parse(readFileSync(resolve(path), "utf8"));
+  } catch (error) {
+    throw new GateError(`Could not read ${label} at ${path}: ${error instanceof Error ? error.message : String(error)}`, 2);
+  }
+}
+
+function validateUiEvidence(evidence, { currentCommit, allowDirty, maxAgeHours }) {
+  if (evidence?.app !== "MobileLiveCaster" || evidence?.type !== "browser-ui-verification" || evidence?.reportVersion !== 1) {
+    throw new GateError("UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.", 1);
+  }
+  if (evidence.status !== "passed") {
+    throw new GateError(`UI evidence did not pass. Status: ${evidence.status || "-"}.`, 1);
+  }
+  const ageHours = ageInHours(evidence.finishedAt, new Date());
+  if (ageHours === null) {
+    throw new GateError("UI evidence finishedAt timestamp is missing or invalid.", 1);
+  }
+  if (ageHours > maxAgeHours) {
+    throw new GateError(`UI evidence is ${ageHours}h old, above the ${maxAgeHours}h release gate.`, 1);
+  }
+  if (currentCommit && evidence.git?.commit !== currentCommit) {
+    throw new GateError(
+      `UI evidence commit ${evidence.git?.commit || "-"} does not match release candidate commit ${currentCommit}.`,
+      1
+    );
+  }
+  if (!allowDirty && evidence.git?.dirty) {
+    throw new GateError("UI evidence was generated from a dirty worktree. Regenerate UI evidence after committing changes.", 1);
+  }
+  if (!isHttpUrl(evidence.target)) {
+    throw new GateError("UI evidence target must be an http(s) URL.", 1);
+  }
+
+  const viewports = Array.isArray(evidence.viewports) ? evidence.viewports : [];
+  for (const viewportName of requiredUiViewportNames) {
+    const viewport = viewports.find((candidate) => candidate?.name === viewportName);
+    if (!viewport) {
+      throw new GateError(`UI evidence is missing ${viewportName} viewport results.`, 1);
+    }
+    if (viewport.horizontalOverflow !== false) {
+      throw new GateError(`UI evidence reports horizontal overflow for ${viewportName}.`, 1);
+    }
+    validateUiTextChecks(viewport);
+    validateUiScreenshot(viewport);
+  }
+}
+
+function validateUiTextChecks(viewport) {
+  const checks = Array.isArray(viewport.requiredTextChecks) ? viewport.requiredTextChecks : [];
+  for (const text of requiredUiTextChecks) {
+    const check = checks.find((candidate) => candidate?.text === text);
+    if (!check || !Number.isFinite(check.count) || check.count <= 0) {
+      throw new GateError(`UI evidence for ${viewport.name} is missing text ${JSON.stringify(text)}.`, 1);
+    }
+  }
+}
+
+function validateUiScreenshot(viewport) {
+  const screenshot = viewport.screenshot;
+  if (!screenshot?.path || !screenshot.sha256 || !Number.isFinite(screenshot.bytes) || screenshot.bytes <= 0) {
+    throw new GateError(`UI evidence for ${viewport.name} is missing screenshot artifact metadata.`, 1);
+  }
+  const absolutePath = resolve(screenshot.path);
+  if (!existsSync(absolutePath)) {
+    throw new GateError(`UI evidence screenshot does not exist: ${screenshot.path}.`, 1);
+  }
+  const content = readFileSync(absolutePath);
+  const actualSha256 = createHash("sha256").update(content).digest("hex");
+  if (content.byteLength !== screenshot.bytes || actualSha256 !== screenshot.sha256) {
+    throw new GateError(`UI evidence screenshot hash mismatch for ${screenshot.path}.`, 1);
+  }
+  if (!isPng(content)) {
+    throw new GateError(`UI evidence screenshot is not a PNG file: ${screenshot.path}.`, 1);
+  }
+}
+
+function ageInHours(value, now) {
+  const timestamp = Date.parse(String(value));
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+  const ageMs = now.getTime() - timestamp;
+  if (ageMs < 0) {
+    return null;
+  }
+  return Math.floor(ageMs / 3_600_000);
+}
+
+function isHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function fileSha256(path) {
+  return createHash("sha256").update(readFileSync(resolve(path))).digest("hex");
+}
+
+function isPng(content) {
+  return (
+    content.length >= 8 &&
+    content[0] === 0x89 &&
+    content[1] === 0x50 &&
+    content[2] === 0x4e &&
+    content[3] === 0x47 &&
+    content[4] === 0x0d &&
+    content[5] === 0x0a &&
+    content[6] === 0x1a &&
+    content[7] === 0x0a
+  );
+}
+
 function createReport(options, supportBundle) {
   const startedAt = new Date().toISOString();
   return {
@@ -389,7 +566,8 @@ function createReport(options, supportBundle) {
       allowWarnings: options.allowWarnings,
       allowDirty: options.allowDirty,
       skipUi: options.skipUi,
-      uiUrl: options.uiUrl || null
+      uiUrl: options.uiUrl || null,
+      uiEvidenceJson: options.uiEvidenceJsonPath || null
     },
     supportBundle,
     artifacts: {
@@ -433,7 +611,12 @@ function collectReleaseArtifacts() {
   return [
     ...collectFiles("web", ["dist/index.html"]),
     ...collectDirectoryFiles("web", "dist/assets", (path) => path.endsWith(".js") || path.endsWith(".css")),
-    ...collectFiles("react-native", [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"])
+    ...collectFiles("react-native", [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"]),
+    ...collectFiles("ui", [
+      ".artifacts/ui-verification.json",
+      ".artifacts/mobile-live-caster-desktop.png",
+      ".artifacts/mobile-live-caster-mobile.png"
+    ])
   ].sort((left, right) => left.path.localeCompare(right.path));
 }
 
@@ -466,13 +649,13 @@ function printUsage() {
   console.log(
     [
       "Usage:",
-      "  npm run verify:release-candidate -- <support-bundle.json> [--max-age-hours=24] [--allow-warnings] [--allow-dirty] [--report-json=.artifacts/release-candidate-verification.json] [--ui-url=http://127.0.0.1:5173/] [--skip-ui]",
+      "  npm run verify:release-candidate -- <support-bundle.json> [--max-age-hours=24] [--allow-warnings] [--allow-dirty] [--report-json=.artifacts/release-candidate-verification.json] [--ui-url=http://127.0.0.1:5173/] [--skip-ui --ui-evidence-json=.artifacts/ui-verification.json]",
       "",
       "Runs source release gates, browser UI verification, React Native bundle verification, and the commercial support-bundle gate.",
       "Writes a JSON evidence report for release approval audit trails.",
       "Fails on uncommitted source changes unless --allow-dirty is provided for development-only evidence.",
       "Use --ui-url when a preview server is already running.",
-      "Use --skip-ui only when Chrome is unavailable and UI verification has been run separately."
+      "Use --skip-ui only when Chrome is unavailable and pass --ui-evidence-json from a separate passing `npm run verify:ui` run."
     ].join("\n")
   );
 }
