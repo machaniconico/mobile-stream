@@ -1521,7 +1521,9 @@ const StreamValidationRecorder = ({
           {diagnostics.validationEvidence.androidPass ? "pass" : "missing"} / build{" "}
           {diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")} / native iOS{" "}
           {diagnostics.validationEvidence.nativeRuntimeIosPass ? "pass" : "missing"} / Android{" "}
-          {diagnostics.validationEvidence.nativeRuntimeAndroidPass ? "pass" : "missing"} / face{" "}
+          {diagnostics.validationEvidence.nativeRuntimeAndroidPass ? "pass" : "missing"} / hold iOS{" "}
+          {diagnostics.validationEvidence.monitorHoldIosPass ? "pass" : "missing"} / Android{" "}
+          {diagnostics.validationEvidence.monitorHoldAndroidPass ? "pass" : "missing"} / face{" "}
           iOS {diagnostics.validationEvidence.faceTrackingIosPass ? "pass" : "missing"} / Android{" "}
           {diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"} / audio iOS{" "}
           {diagnostics.validationEvidence.audioIosPass ? "pass" : "missing"} / Android{" "}
@@ -1547,6 +1549,9 @@ const StreamValidationRecorder = ({
           </Text>
           {validationRunNativeRuntimeLabel(latestRun) ? (
             <Text style={styles.diagnosticIncidentRecommendation}>{validationRunNativeRuntimeLabel(latestRun)}</Text>
+          ) : null}
+          {validationRunMonitorHoldLabel(latestRun) ? (
+            <Text style={styles.diagnosticIncidentRecommendation}>{validationRunMonitorHoldLabel(latestRun)}</Text>
           ) : null}
           {validationRunFaceTrackingLabel(latestRun) ? (
             <Text style={styles.diagnosticIncidentRecommendation}>{validationRunFaceTrackingLabel(latestRun)}</Text>
@@ -1637,6 +1642,11 @@ const validationRunResultFromDiagnostics = (diagnostics: StreamDiagnostics): Str
 const validationRunNativeRuntimeLabel = (run: StreamValidationRun): string | null =>
   run.nativeRuntime
     ? `native ${run.nativeRuntime.status} / ${run.nativeRuntime.platform} / publisher ${run.nativeRuntime.publisherState || "-"} / queue ${run.nativeRuntime.queuedItems}/${run.nativeRuntime.cacheSize}`
+    : null;
+
+const validationRunMonitorHoldLabel = (run: StreamValidationRun): string | null =>
+  run.monitorHold
+    ? `hold ${run.monitorHold.status} / ${run.monitorHold.durationSeconds}s / ${run.monitorHold.sampleCount} samples / ${run.monitorHold.stability} / drops ${run.monitorHold.droppedFrameIncrease} / reconnects ${run.monitorHold.observedReconnectAttempts}`
     : null;
 
 const validationRunFaceTrackingLabel = (run: StreamValidationRun): string | null =>

@@ -15,6 +15,10 @@ import type {
 } from "./streamSessionSummary";
 import type { StreamStatus } from "./streamState";
 import type { StreamValidationEvidenceSummary } from "./streamValidationEvidence";
+import {
+  minimumValidationMonitorDurationSeconds,
+  minimumValidationMonitorSampleCount
+} from "./streamValidationThresholds";
 
 export type StreamValidationRunbookStatus = "blocked" | "setup" | "running" | "record" | "complete";
 export type StreamValidationRunbookItemStatus = "pass" | "warn" | "fail" | "pending";
@@ -105,9 +109,6 @@ export interface StreamValidationRunbookInput {
   evidence: StreamValidationEvidenceSummary;
   now?: Date;
 }
-
-const minimumMonitorDurationSeconds = 60;
-const minimumMonitorSampleCount = 3;
 
 export const createStreamValidationRunbook = (input: StreamValidationRunbookInput): StreamValidationRunbook => {
   const items = [
@@ -408,8 +409,8 @@ const createMonitorItem = ({ telemetry, health, session }: StreamValidationRunbo
   }
 
   if (telemetry.streamStatus === "live") {
-    const durationReady = health.durationSeconds >= minimumMonitorDurationSeconds;
-    const samplesReady = health.sampleCount >= minimumMonitorSampleCount;
+    const durationReady = health.durationSeconds >= minimumValidationMonitorDurationSeconds;
+    const samplesReady = health.sampleCount >= minimumValidationMonitorSampleCount;
     const telemetryClean =
       telemetry.droppedFrames === 0 &&
       telemetry.reconnectAttempts === 0 &&
@@ -431,7 +432,7 @@ const createMonitorItem = ({ telemetry, health, session }: StreamValidationRunbo
       phase: "monitor",
       status: "warn",
       title: "Hold stable telemetry",
-      detail: `${Math.round(health.durationSeconds)}s / ${health.sampleCount} samples captured; target is ${minimumMonitorDurationSeconds}s and ${minimumMonitorSampleCount} samples with no drops or reconnects.`,
+      detail: `${Math.round(health.durationSeconds)}s / ${health.sampleCount} samples captured; target is ${minimumValidationMonitorDurationSeconds}s and ${minimumValidationMonitorSampleCount} samples with no drops or reconnects.`,
       action: "Keep the stream private and stable until the monitor hold is clean."
     };
   }

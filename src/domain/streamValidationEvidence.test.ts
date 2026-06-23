@@ -28,6 +28,9 @@ const healthSample = (elapsedSeconds: number) => ({
   droppedFrames: 0,
   reconnectAttempts: 0
 });
+const stableMonitorSamples = () => [healthSample(0), healthSample(30), healthSample(65)];
+const shortMonitorSamples = () => [healthSample(0), healthSample(10), healthSample(20)];
+const nearMinimumMonitorSamples = () => [healthSample(0), healthSample(30), healthSample(59.5)];
 
 const profileWithKey = (streamKey: string): StudioProfile => ({
   ...createDefaultStudioProfile(),
@@ -293,7 +296,7 @@ describe("stream validation evidence", () => {
         health: health()
       },
       [],
-      [],
+      stableMonitorSamples(),
       [],
       [],
       null,
@@ -321,6 +324,135 @@ describe("stream validation evidence", () => {
     expect(summary.audioIosPass).toBe(false);
   });
 
+  it("requires a stable monitor hold before validation runs can pass", () => {
+    const scene = createDefaultScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: nativeMonitorRuntime("ios")
+      },
+      [],
+      [],
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.monitorHold).toMatchObject({
+      status: "warn",
+      sampleCount: 0,
+      durationSeconds: 0,
+      stability: "unknown"
+    });
+    expect(run.recommendation).toContain("60s and 3 samples");
+    expect(summary.monitorHoldRunCount).toBe(1);
+    expect(summary.monitorHoldReadyCount).toBe(0);
+    expect(summary.monitorHoldWarningCount).toBe(1);
+    expect(summary.monitorHoldIosPass).toBe(false);
+  });
+
+  it("does not round a short monitor hold up to the release threshold", () => {
+    const scene = createDefaultScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: nativeMonitorRuntime("ios")
+      },
+      [],
+      nearMinimumMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+
+    expect(run.result).toBe("warn");
+    expect(run.monitorHold).toMatchObject({
+      status: "warn",
+      sampleCount: 3,
+      durationSeconds: 59,
+      stability: "stable"
+    });
+    expect(run.recommendation).toContain("60s and 3 samples");
+  });
+
+  it("does not reuse an older completed stable hold when current validation history is short", () => {
+    const scene = createDefaultScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const retainedSession = createStreamSessionSummary({
+      events: [],
+      healthSamples: stableMonitorSamples(),
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:01:05.000Z"),
+      nativeRuntime: nativeMonitorRuntime("ios")
+    });
+    if (!retainedSession) {
+      throw new Error("Expected retained session.");
+    }
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: nativeMonitorRuntime("ios")
+      },
+      [],
+      shortMonitorSamples(),
+      [retainedSession],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:02:00.000Z")
+    });
+
+    expect(run.result).toBe("warn");
+    expect(run.monitorHold).toMatchObject({
+      status: "warn",
+      sampleCount: 3,
+      durationSeconds: 20
+    });
+    expect(run.summary).toContain("20s / 3 samples");
+  });
+
   it("requires native publisher and compositor proof for validation runs to pass", () => {
     const scene = createDefaultScene();
     const profile = commercialProfileWithKey("validation-key");
@@ -344,7 +476,7 @@ describe("stream validation evidence", () => {
         }
       },
       [],
-      [],
+      stableMonitorSamples(),
       [],
       [],
       null,
@@ -391,7 +523,7 @@ describe("stream validation evidence", () => {
         nativeRuntime: nativeMonitorRuntime("android")
       },
       [],
-      [],
+      stableMonitorSamples(),
       [],
       [],
       null,
@@ -706,7 +838,7 @@ describe("stream validation evidence", () => {
         nativeRuntime: nativeMonitorRuntime(platform)
       },
       [],
-      [],
+      stableMonitorSamples(),
       [],
       [],
       faceTrackingRuntime,
@@ -749,7 +881,7 @@ describe("stream validation evidence", () => {
         state: { status: "idle" },
         health: health(),
         nativeRuntime: nativeMonitorRuntime("ios")
-      }),
+      }, [], stableMonitorSamples()),
       devicePlatform: "ios",
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
@@ -759,7 +891,7 @@ describe("stream validation evidence", () => {
         state: { status: "idle" },
         health: health(),
         nativeRuntime: nativeMonitorRuntime("android")
-      }),
+      }, [], stableMonitorSamples()),
       devicePlatform: "android",
       result: "pass",
       now: new Date("2026-06-23T00:01:00.000Z")
@@ -892,7 +1024,7 @@ describe("stream validation evidence", () => {
         nativeRuntime: nativeMonitorRuntime(platform)
       },
       [],
-      [],
+      stableMonitorSamples(),
       [],
       [],
       null,
@@ -968,7 +1100,7 @@ describe("stream validation evidence", () => {
         nativeRuntime: nativeMonitorRuntime(platform)
       },
       [],
-      [],
+      stableMonitorSamples(),
       [],
       [],
       null,

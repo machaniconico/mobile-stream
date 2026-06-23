@@ -107,6 +107,22 @@ export interface SupportBundle {
     validationEvidenceNativeRuntimeFailureCount: number;
     validationEvidenceNativeRuntimeIosPass: boolean;
     validationEvidenceNativeRuntimeAndroidPass: boolean;
+    validationEvidenceMonitorHoldRunCount: number;
+    validationEvidenceMonitorHoldReadyCount: number;
+    validationEvidenceMonitorHoldWarningCount: number;
+    validationEvidenceMonitorHoldFailureCount: number;
+    validationEvidenceMonitorHoldIosPass: boolean;
+    validationEvidenceMonitorHoldAndroidPass: boolean;
+    validationEvidenceLatestMonitorHoldStatus: NonNullable<StreamDiagnostics["validationEvidence"]["latestMonitorHold"]>["status"] | null;
+    validationEvidenceLatestMonitorHoldSampleCount: number;
+    validationEvidenceLatestMonitorHoldDurationSeconds: number;
+    validationEvidenceLatestMonitorHoldStability: NonNullable<StreamDiagnostics["validationEvidence"]["latestMonitorHold"]>["stability"] | null;
+    validationEvidenceLatestMonitorHoldAverageBitrateKbps: number;
+    validationEvidenceLatestMonitorHoldMinimumBitrateKbps: number;
+    validationEvidenceLatestMonitorHoldAverageFps: number;
+    validationEvidenceLatestMonitorHoldMinimumFps: number;
+    validationEvidenceLatestMonitorHoldDroppedFrameIncrease: number;
+    validationEvidenceLatestMonitorHoldObservedReconnectAttempts: number;
     validationEvidenceLatestNativeRuntimeStatus: NonNullable<StreamDiagnostics["validationEvidence"]["latestNativeRuntime"]>["status"] | null;
     validationEvidenceLatestNativeRuntimePlatform: NonNullable<StreamDiagnostics["validationEvidence"]["latestNativeRuntime"]>["platform"] | null;
     validationEvidenceLatestNativeRuntimeCongested: boolean;
@@ -384,6 +400,22 @@ export const createSupportBundle = ({
       validationEvidenceNativeRuntimeFailureCount: diagnostics.validationEvidence.nativeRuntimeFailureCount,
       validationEvidenceNativeRuntimeIosPass: diagnostics.validationEvidence.nativeRuntimeIosPass,
       validationEvidenceNativeRuntimeAndroidPass: diagnostics.validationEvidence.nativeRuntimeAndroidPass,
+      validationEvidenceMonitorHoldRunCount: diagnostics.validationEvidence.monitorHoldRunCount,
+      validationEvidenceMonitorHoldReadyCount: diagnostics.validationEvidence.monitorHoldReadyCount,
+      validationEvidenceMonitorHoldWarningCount: diagnostics.validationEvidence.monitorHoldWarningCount,
+      validationEvidenceMonitorHoldFailureCount: diagnostics.validationEvidence.monitorHoldFailureCount,
+      validationEvidenceMonitorHoldIosPass: diagnostics.validationEvidence.monitorHoldIosPass,
+      validationEvidenceMonitorHoldAndroidPass: diagnostics.validationEvidence.monitorHoldAndroidPass,
+      validationEvidenceLatestMonitorHoldStatus: diagnostics.validationEvidence.latestMonitorHold?.status ?? null,
+      validationEvidenceLatestMonitorHoldSampleCount: diagnostics.validationEvidence.latestMonitorHold?.sampleCount ?? 0,
+      validationEvidenceLatestMonitorHoldDurationSeconds: diagnostics.validationEvidence.latestMonitorHold?.durationSeconds ?? 0,
+      validationEvidenceLatestMonitorHoldStability: diagnostics.validationEvidence.latestMonitorHold?.stability ?? null,
+      validationEvidenceLatestMonitorHoldAverageBitrateKbps: diagnostics.validationEvidence.latestMonitorHold?.averageBitrateKbps ?? 0,
+      validationEvidenceLatestMonitorHoldMinimumBitrateKbps: diagnostics.validationEvidence.latestMonitorHold?.minimumBitrateKbps ?? 0,
+      validationEvidenceLatestMonitorHoldAverageFps: diagnostics.validationEvidence.latestMonitorHold?.averageFps ?? 0,
+      validationEvidenceLatestMonitorHoldMinimumFps: diagnostics.validationEvidence.latestMonitorHold?.minimumFps ?? 0,
+      validationEvidenceLatestMonitorHoldDroppedFrameIncrease: diagnostics.validationEvidence.latestMonitorHold?.droppedFrameIncrease ?? 0,
+      validationEvidenceLatestMonitorHoldObservedReconnectAttempts: diagnostics.validationEvidence.latestMonitorHold?.observedReconnectAttempts ?? 0,
       validationEvidenceLatestNativeRuntimeStatus: diagnostics.validationEvidence.latestNativeRuntime?.status ?? null,
       validationEvidenceLatestNativeRuntimePlatform: diagnostics.validationEvidence.latestNativeRuntime?.platform ?? null,
       validationEvidenceLatestNativeRuntimeCongested: diagnostics.validationEvidence.latestNativeRuntime?.congested ?? false,
@@ -636,6 +668,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Next step: ${bundle.diagnostics.validation.recommendedNextStep}`,
     `- Evidence: ${bundle.summary.validationEvidenceStatus} / ${bundle.summary.validationEvidenceRunCount} retained / ${bundle.summary.validationEvidenceEligibleRunCount} eligible / ${bundle.summary.validationEvidenceStaleRunCount} stale`,
     `- Evidence outcomes: ${bundle.summary.validationEvidencePassCount} pass / ${bundle.summary.validationEvidenceFailureCount} fail`,
+    `- Evidence monitor hold: ${bundle.summary.validationEvidenceMonitorHoldRunCount} retained / ${bundle.summary.validationEvidenceMonitorHoldReadyCount} ready / ${bundle.summary.validationEvidenceMonitorHoldWarningCount} warn / ${bundle.summary.validationEvidenceMonitorHoldFailureCount} fail / iOS ${bundle.summary.validationEvidenceMonitorHoldIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceMonitorHoldAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestMonitorHoldStatus ?? "-"} ${bundle.summary.validationEvidenceLatestMonitorHoldDurationSeconds}s ${bundle.summary.validationEvidenceLatestMonitorHoldSampleCount} samples / ${bundle.summary.validationEvidenceLatestMonitorHoldStability ?? "-"} / avg ${bundle.summary.validationEvidenceLatestMonitorHoldAverageBitrateKbps} kbps ${bundle.summary.validationEvidenceLatestMonitorHoldAverageFps} fps / min ${bundle.summary.validationEvidenceLatestMonitorHoldMinimumBitrateKbps} kbps ${bundle.summary.validationEvidenceLatestMonitorHoldMinimumFps} fps / drops ${bundle.summary.validationEvidenceLatestMonitorHoldDroppedFrameIncrease} / reconnects ${bundle.summary.validationEvidenceLatestMonitorHoldObservedReconnectAttempts}`,
     `- Evidence native runtime: ${bundle.summary.validationEvidenceNativeRuntimeRunCount} retained / ${bundle.summary.validationEvidenceNativeRuntimeReadyCount} ready / ${bundle.summary.validationEvidenceNativeRuntimeWarningCount} warn / ${bundle.summary.validationEvidenceNativeRuntimeFailureCount} fail / iOS ${bundle.summary.validationEvidenceNativeRuntimeIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceNativeRuntimeAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestNativeRuntimeStatus ?? "-"} ${bundle.summary.validationEvidenceLatestNativeRuntimePlatform ?? "-"} / sent ${bundle.summary.validationEvidenceLatestNativeRuntimeSentVideoFrames} video ${bundle.summary.validationEvidenceLatestNativeRuntimeSentAudioFrames} audio / bytes ${bundle.summary.validationEvidenceLatestNativeRuntimeBytesWritten} / assets ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount} missing / congested ${bundle.summary.validationEvidenceLatestNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.validationEvidenceLatestNativeRuntimeQueuedItems}/${bundle.summary.validationEvidenceLatestNativeRuntimeCacheSize}`,
     `- Evidence face tracking: ${bundle.summary.validationEvidenceFaceTrackingRunCount} retained / ${bundle.summary.validationEvidenceFaceTrackingReadyCount} ready / ${bundle.summary.validationEvidenceFaceTrackingWarningCount} warn / iOS ${bundle.summary.validationEvidenceFaceTrackingIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceFaceTrackingAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestFaceTrackingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestFaceTrackingRuntimeStatus ?? "-"} / prepared ${bundle.summary.validationEvidenceLatestFaceTrackingPreparedPngTuberCount} / moving ${bundle.summary.validationEvidenceLatestFaceTrackingActiveMotionCount}`,
     `- Evidence audio: ${bundle.summary.validationEvidenceAudioRunCount} retained / ${bundle.summary.validationEvidenceAudioReadyCount} ready / ${bundle.summary.validationEvidenceAudioWarningCount} warn / iOS ${bundle.summary.validationEvidenceAudioIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAudioAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestAudioStatus ?? "-"} ${bundle.summary.validationEvidenceLatestAudioPresetId ?? "-"} / monitor ${bundle.summary.validationEvidenceLatestAudioMonitorEnabled ? "on" : "off"} / headphones-only ${bundle.summary.validationEvidenceLatestAudioMonitorHeadphonesOnly ? "yes" : "no"} / route ${bundle.summary.validationEvidenceLatestAudioMonitorRouteStatus ?? "-"} ${bundle.summary.validationEvidenceLatestAudioOutputName ?? "-"} / headphones ${bundle.summary.validationEvidenceLatestAudioHeadphonesConnected ? "yes" : "no"} / stale ${bundle.summary.validationEvidenceLatestAudioRouteStale ? "yes" : "no"} / native monitor ${bundle.summary.validationEvidenceLatestAudioNativeMonitorReported ? (bundle.summary.validationEvidenceLatestAudioNativeMonitorRunning ? "running" : "reported") : "missing"} ${bundle.summary.validationEvidenceLatestAudioNativeMonitorWrittenFrames}/${bundle.summary.validationEvidenceLatestAudioNativeMonitorDroppedFrames} frames ${bundle.summary.validationEvidenceLatestAudioNativeMonitorOutputName ?? "-"} / buffers ${bundle.summary.validationEvidenceLatestAudioNativeMonitorWrittenBuffers}/${bundle.summary.validationEvidenceLatestAudioNativeMonitorDroppedBuffers} / samples ${bundle.summary.validationEvidenceLatestAudioLevelSampleCount} / peak ${Math.round(bundle.summary.validationEvidenceLatestAudioPeakLevel * 100)}% / clipped ${bundle.summary.validationEvidenceLatestAudioClippedLevelCount}`,

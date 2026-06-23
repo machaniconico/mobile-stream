@@ -5,6 +5,11 @@ import {
   normalizeNativeRuntimeSessionSummary,
   type StreamSessionNativeRuntimeSummary
 } from "./streamSessionSummary";
+import type { StreamHealthHistoryStability, StreamHealthHistorySummary } from "./streamHealthHistory";
+import {
+  minimumValidationMonitorDurationSeconds,
+  minimumValidationMonitorSampleCount
+} from "./streamValidationThresholds";
 
 export type StreamValidationDevicePlatform = "ios" | "android";
 export type StreamValidationRunResult = "pass" | "warn" | "fail";
@@ -78,6 +83,21 @@ export interface StreamValidationQualityAutomationSummary {
   recommendation: string;
 }
 
+export interface StreamValidationMonitorHoldSummary {
+  status: StreamValidationFeatureStatus;
+  sampleCount: number;
+  durationSeconds: number;
+  stability: StreamHealthHistoryStability;
+  averageBitrateKbps: number;
+  minimumBitrateKbps: number;
+  averageFps: number;
+  minimumFps: number;
+  droppedFrameIncrease: number;
+  observedReconnectAttempts: number;
+  summary: string;
+  recommendation: string;
+}
+
 export interface StreamValidationRun {
   id: string;
   createdAt: string;
@@ -95,6 +115,7 @@ export interface StreamValidationRun {
   healthSampleCount: number;
   completedSessionCount: number;
   nativeRuntime: StreamSessionNativeRuntimeSummary | null;
+  monitorHold: StreamValidationMonitorHoldSummary | null;
   faceTracking: StreamValidationFaceTrackingSummary | null;
   audio: StreamValidationAudioSummary | null;
   chatReadout: StreamValidationChatReadoutSummary | null;
@@ -133,6 +154,12 @@ export interface StreamValidationEvidenceSummary {
   nativeRuntimeFailureCount: number;
   nativeRuntimeIosPass: boolean;
   nativeRuntimeAndroidPass: boolean;
+  monitorHoldRunCount: number;
+  monitorHoldReadyCount: number;
+  monitorHoldWarningCount: number;
+  monitorHoldFailureCount: number;
+  monitorHoldIosPass: boolean;
+  monitorHoldAndroidPass: boolean;
   faceTrackingRunCount: number;
   faceTrackingWarningCount: number;
   faceTrackingReadyCount: number;
@@ -165,6 +192,7 @@ export interface StreamValidationEvidenceSummary {
   latestEligibleRun: StreamValidationRun | null;
   latestPassingRun: StreamValidationRun | null;
   latestNativeRuntime: StreamSessionNativeRuntimeSummary | null;
+  latestMonitorHold: StreamValidationMonitorHoldSummary | null;
   latestFaceTracking: StreamValidationFaceTrackingSummary | null;
   latestAudio: StreamValidationAudioSummary | null;
   latestChatReadout: StreamValidationChatReadoutSummary | null;
@@ -222,6 +250,7 @@ export const createStreamValidationRun = ({
   const nativeRuntime =
     createNativeRuntimeSessionSummary(diagnostics.nativeRuntime) ??
     normalizeNativeRuntimeSessionSummary(diagnostics.session.lastSummary?.nativeRuntime);
+  const monitorHold = createMonitorHoldValidationSummary(diagnostics, secrets);
   const faceTracking = createFaceTrackingValidationSummary(diagnostics.faceTracking, secrets);
   const audio = createAudioValidationSummary(diagnostics, secrets);
   const chatReadout = createChatReadoutValidationSummary(diagnostics, secrets);
@@ -231,6 +260,7 @@ export const createStreamValidationRun = ({
     result,
     devicePlatform,
     nativeRuntime,
+    monitorHold,
     faceTracking,
     audio,
     chatReadout,
@@ -262,6 +292,7 @@ export const createStreamValidationRun = ({
     healthSampleCount: diagnostics.history.sampleCount,
     completedSessionCount: diagnostics.session.summaries.length,
     nativeRuntime,
+    monitorHold,
     faceTracking,
     audio,
     chatReadout,
@@ -277,6 +308,7 @@ export const createStreamValidationRun = ({
       diagnostics.target.platform,
       diagnostics.validation.status,
       nativeRuntime,
+      monitorHold,
       faceTracking,
       audio,
       chatReadout,
@@ -287,6 +319,7 @@ export const createStreamValidationRun = ({
       effectiveResult,
       diagnostics.validation.recommendedNextStep,
       nativeRuntime,
+      monitorHold,
       faceTracking,
       audio,
       chatReadout,
@@ -386,6 +419,11 @@ export const summarizeStreamValidationEvidence = (
   ).length;
   const nativeRuntimeWarningCount = nativeRuntimeRuns.filter((run) => run.nativeRuntime?.status === "warn").length;
   const nativeRuntimeFailureCount = nativeRuntimeRuns.filter((run) => run.nativeRuntime?.status === "fail").length;
+  const monitorHoldRuns = scopedRuns.filter((run) => run.monitorHold);
+  const monitorHoldRunCount = monitorHoldRuns.length;
+  const monitorHoldReadyCount = monitorHoldRuns.filter((run) => isMonitorHoldEvidencePass(run.monitorHold)).length;
+  const monitorHoldWarningCount = monitorHoldRuns.filter((run) => run.monitorHold?.status === "warn" || run.monitorHold?.status === "pending").length;
+  const monitorHoldFailureCount = monitorHoldRuns.filter((run) => run.monitorHold?.status === "fail").length;
   const faceTrackingRuns = scopedRuns.filter((run) => run.faceTracking && run.faceTracking.status !== "info");
   const faceTrackingRunCount = faceTrackingRuns.length;
   const faceTrackingWarningCount = faceTrackingRuns.filter((run) => run.faceTracking?.status === "warn").length;
@@ -421,6 +459,8 @@ export const summarizeStreamValidationEvidence = (
   const latestPassingRun = eligibleRuns.find((run) => run.result === "pass") ?? null;
   const latestNativeRuntime =
     eligibleRuns.find((run) => run.nativeRuntime)?.nativeRuntime ?? scopedRuns.find((run) => run.nativeRuntime)?.nativeRuntime ?? null;
+  const latestMonitorHold =
+    eligibleRuns.find((run) => run.monitorHold)?.monitorHold ?? scopedRuns.find((run) => run.monitorHold)?.monitorHold ?? null;
   const latestFaceTracking =
     eligibleRuns.find((run) => run.faceTracking && run.faceTracking.status !== "info")?.faceTracking ??
     scopedRuns.find((run) => run.faceTracking && run.faceTracking.status !== "info")?.faceTracking ??
@@ -446,6 +486,8 @@ export const summarizeStreamValidationEvidence = (
   const androidPass = androidLatestRun?.result === "pass";
   const nativeRuntimeIosPass = iosPass && isNativeRuntimeEvidencePass(iosLatestRun?.nativeRuntime, "ios");
   const nativeRuntimeAndroidPass = androidPass && isNativeRuntimeEvidencePass(androidLatestRun?.nativeRuntime, "android");
+  const monitorHoldIosPass = iosPass && isMonitorHoldEvidencePass(iosLatestRun?.monitorHold);
+  const monitorHoldAndroidPass = androidPass && isMonitorHoldEvidencePass(androidLatestRun?.monitorHold);
   const faceTrackingIosPass = iosPass && isAvatarMotionEvidencePass(iosLatestRun?.faceTracking);
   const faceTrackingAndroidPass = androidPass && isAvatarMotionEvidencePass(androidLatestRun?.faceTracking);
   const audioIosPass = iosPass && isAudioEvidencePass(iosLatestRun?.audio);
@@ -474,6 +516,8 @@ export const summarizeStreamValidationEvidence = (
     appBuildMismatch,
     nativeRuntimeIosPass,
     nativeRuntimeAndroidPass,
+    monitorHoldIosPass,
+    monitorHoldAndroidPass,
     faceTrackingIosPass,
     faceTrackingAndroidPass,
     audioIosPass,
@@ -495,6 +539,12 @@ export const summarizeStreamValidationEvidence = (
     nativeRuntimeFailureCount,
     nativeRuntimeIosPass,
     nativeRuntimeAndroidPass,
+    monitorHoldRunCount,
+    monitorHoldReadyCount,
+    monitorHoldWarningCount,
+    monitorHoldFailureCount,
+    monitorHoldIosPass,
+    monitorHoldAndroidPass,
     faceTrackingRunCount,
     faceTrackingWarningCount,
     faceTrackingReadyCount,
@@ -527,6 +577,7 @@ export const summarizeStreamValidationEvidence = (
     latestEligibleRun,
     latestPassingRun,
     latestNativeRuntime,
+    latestMonitorHold,
     latestFaceTracking,
     latestAudio,
     latestChatReadout,
@@ -545,6 +596,8 @@ export const summarizeStreamValidationEvidence = (
       androidPass,
       nativeRuntimeIosPass,
       nativeRuntimeAndroidPass,
+      monitorHoldIosPass,
+      monitorHoldAndroidPass,
       faceTrackingIosPass,
       faceTrackingAndroidPass,
       audioIosPass,
@@ -564,6 +617,8 @@ export const summarizeStreamValidationEvidence = (
       androidPass,
       nativeRuntimeIosPass,
       nativeRuntimeAndroidPass,
+      monitorHoldIosPass,
+      monitorHoldAndroidPass,
       faceTrackingIosPass,
       faceTrackingAndroidPass,
       audioIosPass,
@@ -602,6 +657,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
   const diagnosticStatus = normalizeDiagnosticStatus(value.diagnosticStatus);
   const sessionOutcome = normalizeSessionOutcome(value.sessionOutcome);
   const nativeRuntime = normalizeNativeRuntimeSessionSummary(value.nativeRuntime);
+  const monitorHold = normalizeMonitorHoldValidationSummary(value.monitorHold);
   const faceTracking = normalizeFaceTrackingValidationSummary(value.faceTracking);
   const audio = normalizeAudioValidationSummary(value.audio);
   const chatReadout = normalizeChatReadoutValidationSummary(value.chatReadout);
@@ -631,6 +687,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
     healthSampleCount: normalizeCount(value.healthSampleCount),
     completedSessionCount: normalizeCount(value.completedSessionCount),
     nativeRuntime,
+    monitorHold,
     faceTracking,
     audio,
     chatReadout,
@@ -645,6 +702,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
         targetPlatform,
         checklistStatus,
         nativeRuntime,
+        monitorHold,
         faceTracking,
         audio,
         chatReadout,
@@ -658,6 +716,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
         result,
         "Run another private validation pass.",
         nativeRuntime,
+        monitorHold,
         faceTracking,
         audio,
         chatReadout,
@@ -680,6 +739,8 @@ const createEvidenceStatus = ({
   appBuildMismatch,
   nativeRuntimeIosPass,
   nativeRuntimeAndroidPass,
+  monitorHoldIosPass,
+  monitorHoldAndroidPass,
   faceTrackingIosPass,
   faceTrackingAndroidPass,
   audioIosPass,
@@ -696,6 +757,8 @@ const createEvidenceStatus = ({
   appBuildMismatch: boolean;
   nativeRuntimeIosPass: boolean;
   nativeRuntimeAndroidPass: boolean;
+  monitorHoldIosPass: boolean;
+  monitorHoldAndroidPass: boolean;
   faceTrackingIosPass: boolean;
   faceTrackingAndroidPass: boolean;
   audioIosPass: boolean;
@@ -718,6 +781,8 @@ const createEvidenceStatus = ({
     !appBuildMismatch &&
     nativeRuntimeIosPass &&
     nativeRuntimeAndroidPass &&
+    monitorHoldIosPass &&
+    monitorHoldAndroidPass &&
     faceTrackingIosPass &&
     faceTrackingAndroidPass &&
     audioIosPass &&
@@ -776,6 +841,14 @@ const isNativeRuntimeEvidencePass = (
   nativeRuntime.stillImageAssetMissingCount === 0 &&
   nativeRuntime.stillImageAssetLoadedCount >= nativeRuntime.stillImageAssetCount;
 
+const isMonitorHoldEvidencePass = (monitorHold: StreamValidationMonitorHoldSummary | null | undefined): boolean =>
+  monitorHold?.status === "pass" &&
+  monitorHold.sampleCount >= minimumValidationMonitorSampleCount &&
+  monitorHold.durationSeconds >= minimumValidationMonitorDurationSeconds &&
+  monitorHold.stability === "stable" &&
+  monitorHold.droppedFrameIncrease === 0 &&
+  monitorHold.observedReconnectAttempts === 0;
+
 const isFeatureEvidencePass = (
   feature: { status: StreamValidationFeatureStatus } | null | undefined
 ): boolean => feature?.status === "pass";
@@ -802,6 +875,8 @@ const createEvidenceSummary = (
     androidPass: boolean;
     nativeRuntimeIosPass: boolean;
     nativeRuntimeAndroidPass: boolean;
+    monitorHoldIosPass: boolean;
+    monitorHoldAndroidPass: boolean;
     faceTrackingIosPass: boolean;
     faceTrackingAndroidPass: boolean;
     audioIosPass: boolean;
@@ -833,6 +908,9 @@ const createEvidenceSummary = (
   if (counts.iosPass && counts.androidPass && (!counts.nativeRuntimeIosPass || !counts.nativeRuntimeAndroidPass)) {
     return `Physical validation is partial: iOS and Android passed, but retained native publisher/compositor evidence is incomplete: iOS ${counts.nativeRuntimeIosPass ? "pass" : "missing native runtime proof"} / Android ${counts.nativeRuntimeAndroidPass ? "pass" : "missing native runtime proof"}.`;
   }
+  if (counts.iosPass && counts.androidPass && (!counts.monitorHoldIosPass || !counts.monitorHoldAndroidPass)) {
+    return `Physical validation is partial: iOS and Android passed, but retained stable monitor-hold evidence is incomplete: iOS ${counts.monitorHoldIosPass ? "pass" : "missing stable hold"} / Android ${counts.monitorHoldAndroidPass ? "pass" : "missing stable hold"}.`;
+  }
   if (counts.iosPass && counts.androidPass && (!counts.faceTrackingIosPass || !counts.faceTrackingAndroidPass)) {
     return `Physical validation is partial: iOS and Android passed, but retained VTuber avatar-motion evidence is incomplete: iOS ${counts.faceTrackingIosPass ? "pass" : "missing"} / Android ${counts.faceTrackingAndroidPass ? "pass" : "missing"}.`;
   }
@@ -858,6 +936,8 @@ const createEvidenceRecommendation = (
     androidPass: boolean;
     nativeRuntimeIosPass: boolean;
     nativeRuntimeAndroidPass: boolean;
+    monitorHoldIosPass: boolean;
+    monitorHoldAndroidPass: boolean;
     faceTrackingIosPass: boolean;
     faceTrackingAndroidPass: boolean;
     audioIosPass: boolean;
@@ -877,6 +957,9 @@ const createEvidenceRecommendation = (
   }
   if (context.iosPass && context.androidPass && (!context.nativeRuntimeIosPass || !context.nativeRuntimeAndroidPass)) {
     return "Record fresh iOS and Android validation runs with native publisher/compositor telemetry showing sent video/audio frames, bytes written, clean compositor state, and all still-image assets loaded.";
+  }
+  if (context.iosPass && context.androidPass && (!context.monitorHoldIosPass || !context.monitorHoldAndroidPass)) {
+    return `Record fresh iOS and Android validation runs with at least ${minimumValidationMonitorDurationSeconds}s / ${minimumValidationMonitorSampleCount} samples of stable bitrate/FPS telemetry and no drops or reconnects.`;
   }
   if (context.iosPass && context.androidPass && (!context.faceTrackingIosPass || !context.faceTrackingAndroidPass)) {
     return "Record fresh iOS and Android validation runs with native camera tracking active and visible PNGTuber motion applied.";
@@ -900,6 +983,7 @@ const createEffectiveValidationResult = (
   result: StreamValidationRunResult,
   devicePlatform: StreamValidationDevicePlatform,
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
+  monitorHold: StreamValidationMonitorHoldSummary | null,
   faceTracking: StreamValidationFaceTrackingSummary | null,
   audio: StreamValidationAudioSummary | null,
   chatReadout: StreamValidationChatReadoutSummary | null,
@@ -908,6 +992,7 @@ const createEffectiveValidationResult = (
   if (
     result === "fail" ||
     nativeRuntime?.status === "fail" ||
+    monitorHold?.status === "fail" ||
     audio?.status === "fail" ||
     chatReadout?.status === "fail" ||
     platformPublishing?.status === "fail"
@@ -917,7 +1002,10 @@ const createEffectiveValidationResult = (
   if (
     result === "warn" ||
     !isNativeRuntimeEvidencePass(nativeRuntime, devicePlatform) ||
+    !isMonitorHoldEvidencePass(monitorHold) ||
     nativeRuntime?.status === "warn" ||
+    monitorHold?.status === "warn" ||
+    monitorHold?.status === "pending" ||
     faceTracking?.status === "warn" ||
     !isAudioEvidencePass(audio) ||
     !isFeatureEvidencePass(chatReadout) ||
@@ -934,6 +1022,7 @@ const createRunSummary = (
   targetPlatform: string,
   checklistStatus: StreamDiagnostics["validation"]["status"],
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
+  monitorHold: StreamValidationMonitorHoldSummary | null,
   faceTracking: StreamValidationFaceTrackingSummary | null,
   audio: StreamValidationAudioSummary | null,
   chatReadout: StreamValidationChatReadoutSummary | null,
@@ -941,13 +1030,14 @@ const createRunSummary = (
   platformPublishing: StreamDiagnostics["platformPublishing"] | null
 ): string => {
   const prefix = result === "pass" ? "Passed" : result === "warn" ? "Needs review" : "Failed";
-  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}.${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${faceTracking && faceTracking.status !== "info" ? ` ${faceTracking.summary}` : ""}${audio ? ` ${audio.summary}` : ""}${chatReadout ? ` ${chatReadout.summary}` : ""}${qualityAutomation ? ` ${qualityAutomation.summary}` : ""}${platformPublishing && platformPublishing.status !== "info" ? ` ${platformPublishing.summary}` : ""}`;
+  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}.${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${monitorHold ? ` ${monitorHold.summary}` : ""}${faceTracking && faceTracking.status !== "info" ? ` ${faceTracking.summary}` : ""}${audio ? ` ${audio.summary}` : ""}${chatReadout ? ` ${chatReadout.summary}` : ""}${qualityAutomation ? ` ${qualityAutomation.summary}` : ""}${platformPublishing && platformPublishing.status !== "info" ? ` ${platformPublishing.summary}` : ""}`;
 };
 
 const createRunRecommendation = (
   result: StreamValidationRunResult,
   fallbackRecommendation: string,
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
+  monitorHold: StreamValidationMonitorHoldSummary | null,
   faceTracking: StreamValidationFaceTrackingSummary | null,
   audio: StreamValidationAudioSummary | null,
   chatReadout: StreamValidationChatReadoutSummary | null,
@@ -956,6 +1046,9 @@ const createRunRecommendation = (
 ): string => {
   if (nativeRuntime?.status === "fail") {
     return nativeRuntime.recommendation;
+  }
+  if (monitorHold?.status === "fail") {
+    return monitorHold.recommendation;
   }
   if (audio?.status === "fail") {
     return audio.recommendation;
@@ -987,6 +1080,9 @@ const createRunRecommendation = (
   if (chatReadout && chatReadout.status !== "pass") {
     return chatReadout.recommendation;
   }
+  if (monitorHold && monitorHold.status !== "pass") {
+    return monitorHold.recommendation;
+  }
   if (qualityAutomation?.status === "warn") {
     return qualityAutomation.recommendation;
   }
@@ -997,6 +1093,85 @@ const createRunRecommendation = (
     return "Record native publisher/compositor telemetry matching this validation device and showing sent video/audio frames, bytes written, clean compositor state, and all still-image assets loaded.";
   }
   return fallbackRecommendation;
+};
+
+const createMonitorHoldValidationSummary = (
+  diagnostics: StreamDiagnostics,
+  secrets: string[]
+): StreamValidationMonitorHoldSummary => {
+  const health = diagnostics.history.sampleCount > 0 ? diagnostics.history : diagnostics.session.lastSummary?.health ?? diagnostics.history;
+  const outcome = diagnostics.session.lastSummary?.outcome ?? null;
+  const status = createMonitorHoldStatus(health, outcome);
+  const summary = createMonitorHoldSummary(health, status);
+  const recommendation = createMonitorHoldRecommendation(health, status, outcome);
+
+  return {
+    status,
+    sampleCount: health.sampleCount,
+    durationSeconds: Math.floor(health.durationSeconds),
+    stability: health.stability,
+    averageBitrateKbps: health.averageBitrateKbps,
+    minimumBitrateKbps: health.minimumBitrateKbps,
+    averageFps: health.averageFps,
+    minimumFps: health.minimumFps,
+    droppedFrameIncrease: health.droppedFrameIncrease,
+    observedReconnectAttempts: health.observedReconnectAttempts,
+    summary: sanitizeStoredText(summary, secrets),
+    recommendation: sanitizeStoredText(recommendation, secrets)
+  };
+};
+
+const createMonitorHoldStatus = (
+  health: StreamHealthHistorySummary,
+  sessionOutcome: StreamValidationRun["sessionOutcome"]
+): StreamValidationFeatureStatus => {
+  if (sessionOutcome === "fail" || health.stability === "unstable" || health.observedReconnectAttempts > 0) {
+    return "fail";
+  }
+  return isMonitorHoldEvidencePass({
+    status: "pass",
+    sampleCount: health.sampleCount,
+    durationSeconds: Math.floor(health.durationSeconds),
+    stability: health.stability,
+    averageBitrateKbps: health.averageBitrateKbps,
+    minimumBitrateKbps: health.minimumBitrateKbps,
+    averageFps: health.averageFps,
+    minimumFps: health.minimumFps,
+    droppedFrameIncrease: health.droppedFrameIncrease,
+    observedReconnectAttempts: health.observedReconnectAttempts,
+    summary: "",
+    recommendation: ""
+  })
+    ? "pass"
+    : "warn";
+};
+
+const createMonitorHoldSummary = (
+  health: StreamHealthHistorySummary,
+  status: StreamValidationFeatureStatus
+): string => {
+  const base = `${Math.floor(health.durationSeconds)}s / ${health.sampleCount} samples / ${health.stability} / avg ${health.averageBitrateKbps} kbps / ${health.averageFps} fps / min ${health.minimumBitrateKbps} kbps / ${health.minimumFps} fps / +${health.droppedFrameIncrease} drops / ${health.observedReconnectAttempts} reconnects.`;
+  if (status === "pass") {
+    return `Stable monitor hold retained: ${base}`;
+  }
+  if (status === "fail") {
+    return `Monitor hold failed: ${base}`;
+  }
+  return `Monitor hold needs more evidence: ${base}`;
+};
+
+const createMonitorHoldRecommendation = (
+  health: StreamHealthHistorySummary,
+  status: StreamValidationFeatureStatus,
+  sessionOutcome: StreamValidationRun["sessionOutcome"]
+): string => {
+  if (status === "pass") {
+    return "Keep this stable monitor hold with the release-candidate validation run.";
+  }
+  if (sessionOutcome === "fail" || health.stability === "unstable" || health.observedReconnectAttempts > 0) {
+    return "Fix the stream instability or reconnect behavior, then repeat the private validation hold.";
+  }
+  return `Keep the private stream running until at least ${minimumValidationMonitorDurationSeconds}s and ${minimumValidationMonitorSampleCount} samples are retained with stable bitrate/FPS, zero drops, and zero reconnects.`;
 };
 
 const createFaceTrackingValidationSummary = (
@@ -1406,6 +1581,29 @@ const normalizeAudioValidationSummary = (value: unknown): StreamValidationAudioS
     recommendation: normalizeText(value.recommendation, "Repeat validation with mic effects and headphone monitoring checked.")
   };
 };
+
+const normalizeMonitorHoldValidationSummary = (value: unknown): StreamValidationMonitorHoldSummary | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+  return {
+    status: normalizeFeatureStatus(value.status),
+    sampleCount: normalizeCount(value.sampleCount),
+    durationSeconds: normalizeCount(value.durationSeconds),
+    stability: normalizeHealthStability(value.stability),
+    averageBitrateKbps: normalizeCount(value.averageBitrateKbps),
+    minimumBitrateKbps: normalizeCount(value.minimumBitrateKbps),
+    averageFps: normalizeFiniteNumber(value.averageFps, 0, 0, 240),
+    minimumFps: normalizeFiniteNumber(value.minimumFps, 0, 0, 240),
+    droppedFrameIncrease: normalizeCount(value.droppedFrameIncrease),
+    observedReconnectAttempts: normalizeCount(value.observedReconnectAttempts),
+    summary: normalizeText(value.summary, "No stable monitor-hold validation evidence retained."),
+    recommendation: normalizeText(value.recommendation, "Repeat validation with a stable private monitor hold.")
+  };
+};
+
+const normalizeHealthStability = (value: unknown): StreamHealthHistoryStability =>
+  value === "stable" || value === "watch" || value === "unstable" || value === "unknown" ? value : "unknown";
 
 const normalizeChatReadoutValidationSummary = (value: unknown): StreamValidationChatReadoutSummary | null => {
   if (!isRecord(value)) {

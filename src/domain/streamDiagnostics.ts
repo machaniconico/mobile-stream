@@ -603,6 +603,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Evidence runs: ${diagnostics.validationEvidence.totalRuns} retained / ${diagnostics.validationEvidence.eligibleRunCount} eligible / ${diagnostics.validationEvidence.staleRunCount} stale`,
     `- Evidence freshness: ${diagnostics.validationEvidence.latestRunAgeDays === null ? "-" : `${diagnostics.validationEvidence.latestRunAgeDays} days old`} / max ${diagnostics.validationEvidence.maxAgeDays} days`,
     `- Evidence build: ${diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")}`,
+    `- Evidence monitor hold: ${formatValidationMonitorHold(diagnostics)}`,
     `- Evidence native runtime: ${formatValidationNativeRuntime(diagnostics)}`,
     `- Evidence face tracking: ${formatValidationFaceTracking(diagnostics)}`,
     `- Evidence audio: ${formatValidationAudio(diagnostics)}`,
@@ -694,6 +695,11 @@ const formatSessionNativeRuntime = (summary: StreamSessionSummary): string =>
 const formatValidationNativeRuntime = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestNativeRuntime
     ? `${diagnostics.validationEvidence.nativeRuntimeRunCount} retained / ${diagnostics.validationEvidence.nativeRuntimeReadyCount} ready / ${diagnostics.validationEvidence.nativeRuntimeWarningCount} warn / ${diagnostics.validationEvidence.nativeRuntimeFailureCount} fail / iOS ${diagnostics.validationEvidence.nativeRuntimeIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.nativeRuntimeAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestNativeRuntime.status} ${diagnostics.validationEvidence.latestNativeRuntime.platform} / sent ${diagnostics.validationEvidence.latestNativeRuntime.sentVideoFrames} video ${diagnostics.validationEvidence.latestNativeRuntime.sentAudioFrames} audio / bytes ${diagnostics.validationEvidence.latestNativeRuntime.bytesWritten} / queue ${diagnostics.validationEvidence.latestNativeRuntime.queuedItems}/${diagnostics.validationEvidence.latestNativeRuntime.cacheSize} / assets ${diagnostics.validationEvidence.latestNativeRuntime.stillImageAssetLoadedCount}/${diagnostics.validationEvidence.latestNativeRuntime.stillImageAssetCount} loaded / ${diagnostics.validationEvidence.latestNativeRuntime.stillImageAssetMissingCount} missing`
+    : "-";
+
+const formatValidationMonitorHold = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.validationEvidence.latestMonitorHold
+    ? `${diagnostics.validationEvidence.monitorHoldRunCount} retained / ${diagnostics.validationEvidence.monitorHoldReadyCount} ready / ${diagnostics.validationEvidence.monitorHoldWarningCount} warn / ${diagnostics.validationEvidence.monitorHoldFailureCount} fail / iOS ${diagnostics.validationEvidence.monitorHoldIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.monitorHoldAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestMonitorHold.status} ${diagnostics.validationEvidence.latestMonitorHold.durationSeconds}s ${diagnostics.validationEvidence.latestMonitorHold.sampleCount} samples / ${diagnostics.validationEvidence.latestMonitorHold.stability} / avg ${diagnostics.validationEvidence.latestMonitorHold.averageBitrateKbps} kbps ${diagnostics.validationEvidence.latestMonitorHold.averageFps} fps / min ${diagnostics.validationEvidence.latestMonitorHold.minimumBitrateKbps} kbps ${diagnostics.validationEvidence.latestMonitorHold.minimumFps} fps / drops ${diagnostics.validationEvidence.latestMonitorHold.droppedFrameIncrease} / reconnects ${diagnostics.validationEvidence.latestMonitorHold.observedReconnectAttempts}`
     : "-";
 
 const formatValidationFaceTracking = (diagnostics: StreamDiagnostics): string =>

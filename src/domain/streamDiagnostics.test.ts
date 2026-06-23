@@ -167,6 +167,9 @@ describe("stream diagnostics", () => {
     expect(diagnostics.validationEvidence.nativeRuntimeRunCount).toBe(1);
     expect(diagnostics.validationEvidence.nativeRuntimeReadyCount).toBe(0);
     expect(report).toContain(
+      "Evidence monitor hold: 1 retained / 0 ready / 1 warn / 0 fail / iOS missing / Android missing / latest warn 0s 0 samples"
+    );
+    expect(report).toContain(
       "Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / sent 0 video 0 audio / bytes 0"
     );
   });

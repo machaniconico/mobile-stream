@@ -1275,7 +1275,9 @@ const StreamValidationRecorder = ({
           {diagnostics.validationEvidence.androidPass ? "pass" : "missing"} / build{" "}
           {diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")} / native iOS{" "}
           {diagnostics.validationEvidence.nativeRuntimeIosPass ? "pass" : "missing"} / Android{" "}
-          {diagnostics.validationEvidence.nativeRuntimeAndroidPass ? "pass" : "missing"} / face{" "}
+          {diagnostics.validationEvidence.nativeRuntimeAndroidPass ? "pass" : "missing"} / hold iOS{" "}
+          {diagnostics.validationEvidence.monitorHoldIosPass ? "pass" : "missing"} / Android{" "}
+          {diagnostics.validationEvidence.monitorHoldAndroidPass ? "pass" : "missing"} / face{" "}
           iOS {diagnostics.validationEvidence.faceTrackingIosPass ? "pass" : "missing"} / Android{" "}
           {diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"} / audio iOS{" "}
           {diagnostics.validationEvidence.audioIosPass ? "pass" : "missing"} / Android{" "}
@@ -1300,6 +1302,7 @@ const StreamValidationRecorder = ({
               : ` / ${diagnostics.validationEvidence.latestRunAgeDays}d old`}
           </em>
           {validationRunNativeRuntimeLabel(latestRun) ? <em>{validationRunNativeRuntimeLabel(latestRun)}</em> : null}
+          {validationRunMonitorHoldLabel(latestRun) ? <em>{validationRunMonitorHoldLabel(latestRun)}</em> : null}
           {validationRunFaceTrackingLabel(latestRun) ? <em>{validationRunFaceTrackingLabel(latestRun)}</em> : null}
           {latestRunAudioLabel ? <em>{latestRunAudioLabel}</em> : null}
           {validationRunChatReadoutLabel(latestRun) ? <em>{validationRunChatReadoutLabel(latestRun)}</em> : null}
@@ -1398,6 +1401,11 @@ const publicLaunchChecklistTone = (status: PublicLaunchChecklistItemStatus): "pa
 const validationRunNativeRuntimeLabel = (run: StreamValidationRun): string | null =>
   run.nativeRuntime
     ? `native ${run.nativeRuntime.status} / ${run.nativeRuntime.platform} / publisher ${run.nativeRuntime.publisherState || "-"} / queue ${run.nativeRuntime.queuedItems}/${run.nativeRuntime.cacheSize}`
+    : null;
+
+const validationRunMonitorHoldLabel = (run: StreamValidationRun): string | null =>
+  run.monitorHold
+    ? `hold ${run.monitorHold.status} / ${run.monitorHold.durationSeconds}s / ${run.monitorHold.sampleCount} samples / ${run.monitorHold.stability} / drops ${run.monitorHold.droppedFrameIncrease} / reconnects ${run.monitorHold.observedReconnectAttempts}`
     : null;
 
 const validationRunFaceTrackingLabel = (run: StreamValidationRun): string | null =>

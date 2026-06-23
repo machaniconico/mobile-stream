@@ -236,6 +236,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / assets 1/1 loaded / 0 missing / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
+    expect(formatSupportBundle(bundle)).toContain("Evidence monitor hold: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - 0s 0 samples");
     expect(formatSupportBundle(bundle)).toContain("Evidence native runtime: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - - / sent 0 video 0 audio / bytes 0");
     expect(formatSupportBundle(bundle)).toContain("Evidence face tracking: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence audio: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
@@ -360,6 +361,7 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeSentVideoFrames).toBe(0);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeSentAudioFrames).toBe(0);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeBytesWritten).toBe(0);
+    expect(text).toContain("Evidence monitor hold: 1 retained / 0 ready / 1 warn / 0 fail / iOS missing / Android missing / latest warn 0s 0 samples");
     expect(text).toContain("Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / sent 0 video 0 audio / bytes 0");
     expect(text).toContain("Evidence quality automation: 1 retained / live 1 / next-start 0 / failed 0");
     expect(text).toContain("Evidence platform dashboard freshness: stale / YouTube dashboard status is 20 minutes old.");
