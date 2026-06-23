@@ -7,6 +7,7 @@ import {
 
 export type StreamValidationDevicePlatform = "ios" | "android";
 export type StreamValidationRunResult = "pass" | "warn" | "fail";
+export type StreamValidationFeatureStatus = "pass" | "warn" | "fail" | "pending";
 
 export interface StreamValidationFaceTrackingSummary {
   status: StreamDiagnostics["faceTracking"]["status"];
@@ -17,6 +18,29 @@ export interface StreamValidationFaceTrackingSummary {
   visibleAvatarCount: number;
   preparedPngTuberCount: number;
   activeMotionCount: number;
+  summary: string;
+  recommendation: string;
+}
+
+export interface StreamValidationAudioSummary {
+  status: StreamValidationFeatureStatus;
+  micEffectsEnabled: boolean;
+  presetId: string;
+  inputGainDb: number;
+  compression: number;
+  monitorEnabled: boolean;
+  monitorVolume: number;
+  monitorHeadphonesOnly: boolean;
+  summary: string;
+  recommendation: string;
+}
+
+export interface StreamValidationChatReadoutSummary {
+  status: StreamValidationFeatureStatus;
+  platformChatEnabled: boolean;
+  readerEnabled: boolean;
+  connectionPhase: string;
+  connectionLabel: string;
   summary: string;
   recommendation: string;
 }
@@ -39,6 +63,8 @@ export interface StreamValidationRun {
   completedSessionCount: number;
   nativeRuntime: StreamSessionNativeRuntimeSummary | null;
   faceTracking: StreamValidationFaceTrackingSummary | null;
+  audio: StreamValidationAudioSummary | null;
+  chatReadout: StreamValidationChatReadoutSummary | null;
   platformPublishing: StreamDiagnostics["platformPublishing"] | null;
   validationItemStatuses: Array<{
     id: string;
@@ -75,6 +101,16 @@ export interface StreamValidationEvidenceSummary {
   faceTrackingReadyCount: number;
   faceTrackingIosPass: boolean;
   faceTrackingAndroidPass: boolean;
+  audioRunCount: number;
+  audioReadyCount: number;
+  audioWarningCount: number;
+  audioIosPass: boolean;
+  audioAndroidPass: boolean;
+  chatReadoutRunCount: number;
+  chatReadoutReadyCount: number;
+  chatReadoutWarningCount: number;
+  chatReadoutIosPass: boolean;
+  chatReadoutAndroidPass: boolean;
   platformPublishingRunCount: number;
   platformPublishingWarningCount: number;
   platformPublishingFailureCount: number;
@@ -89,6 +125,8 @@ export interface StreamValidationEvidenceSummary {
   latestPassingRun: StreamValidationRun | null;
   latestNativeRuntime: StreamSessionNativeRuntimeSummary | null;
   latestFaceTracking: StreamValidationFaceTrackingSummary | null;
+  latestAudio: StreamValidationAudioSummary | null;
+  latestChatReadout: StreamValidationChatReadoutSummary | null;
   latestPlatformPublishing: StreamDiagnostics["platformPublishing"] | null;
   latestRunAgeDays: number | null;
   maxAgeDays: number;
@@ -127,8 +165,10 @@ export const createStreamValidationRun = ({
     createNativeRuntimeSessionSummary(diagnostics.nativeRuntime) ??
     normalizeNativeRuntimeSessionSummary(diagnostics.session.lastSummary?.nativeRuntime);
   const faceTracking = createFaceTrackingValidationSummary(diagnostics.faceTracking, secrets);
+  const audio = createAudioValidationSummary(diagnostics, secrets);
+  const chatReadout = createChatReadoutValidationSummary(diagnostics, secrets);
   const platformPublishing = diagnostics.platformPublishing;
-  const effectiveResult = createEffectiveValidationResult(result, nativeRuntime, faceTracking, platformPublishing);
+  const effectiveResult = createEffectiveValidationResult(result, nativeRuntime, faceTracking, audio, chatReadout, platformPublishing);
   const runBase = {
     createdAt,
     devicePlatform,
@@ -156,6 +196,8 @@ export const createStreamValidationRun = ({
     completedSessionCount: diagnostics.session.summaries.length,
     nativeRuntime,
     faceTracking,
+    audio,
+    chatReadout,
     platformPublishing,
     validationItemStatuses: diagnostics.validation.items.map((item) => ({
       id: item.id,
@@ -168,6 +210,8 @@ export const createStreamValidationRun = ({
       diagnostics.validation.status,
       nativeRuntime,
       faceTracking,
+      audio,
+      chatReadout,
       platformPublishing
     ),
     recommendation: createRunRecommendation(
@@ -175,6 +219,8 @@ export const createStreamValidationRun = ({
       diagnostics.validation.recommendedNextStep,
       nativeRuntime,
       faceTracking,
+      audio,
+      chatReadout,
       platformPublishing
     )
   };
@@ -271,6 +317,14 @@ export const summarizeStreamValidationEvidence = (
   const faceTrackingRunCount = faceTrackingRuns.length;
   const faceTrackingWarningCount = faceTrackingRuns.filter((run) => run.faceTracking?.status === "warn").length;
   const faceTrackingReadyCount = faceTrackingRuns.filter((run) => run.faceTracking?.status === "pass").length;
+  const audioRuns = scopedRuns.filter((run) => run.audio);
+  const audioRunCount = audioRuns.length;
+  const audioReadyCount = audioRuns.filter((run) => run.audio?.status === "pass").length;
+  const audioWarningCount = audioRuns.filter((run) => run.audio?.status !== "pass").length;
+  const chatReadoutRuns = scopedRuns.filter((run) => run.chatReadout);
+  const chatReadoutRunCount = chatReadoutRuns.length;
+  const chatReadoutReadyCount = chatReadoutRuns.filter((run) => run.chatReadout?.status === "pass").length;
+  const chatReadoutWarningCount = chatReadoutRuns.filter((run) => run.chatReadout?.status !== "pass").length;
   const platformPublishingRuns = scopedRuns.filter((run) => run.platformPublishing && run.platformPublishing.status !== "info");
   const platformPublishingRunCount = platformPublishingRuns.length;
   const platformPublishingWarningCount = platformPublishingRuns.filter((run) => run.platformPublishing?.status === "warn").length;
@@ -284,6 +338,12 @@ export const summarizeStreamValidationEvidence = (
     eligibleRuns.find((run) => run.faceTracking && run.faceTracking.status !== "info")?.faceTracking ??
     scopedRuns.find((run) => run.faceTracking && run.faceTracking.status !== "info")?.faceTracking ??
     null;
+  const latestAudio =
+    eligibleRuns.find((run) => run.audio)?.audio ?? scopedRuns.find((run) => run.audio)?.audio ?? null;
+  const latestChatReadout =
+    eligibleRuns.find((run) => run.chatReadout)?.chatReadout ??
+    scopedRuns.find((run) => run.chatReadout)?.chatReadout ??
+    null;
   const latestPlatformPublishing =
     eligibleRuns.find((run) => run.platformPublishing && run.platformPublishing.status !== "info")?.platformPublishing ??
     scopedRuns.find((run) => run.platformPublishing && run.platformPublishing.status !== "info")?.platformPublishing ??
@@ -295,6 +355,10 @@ export const summarizeStreamValidationEvidence = (
   const androidPass = androidLatestRun?.result === "pass";
   const faceTrackingIosPass = iosPass && isAvatarMotionEvidencePass(iosLatestRun?.faceTracking);
   const faceTrackingAndroidPass = androidPass && isAvatarMotionEvidencePass(androidLatestRun?.faceTracking);
+  const audioIosPass = iosPass && isFeatureEvidencePass(iosLatestRun?.audio);
+  const audioAndroidPass = androidPass && isFeatureEvidencePass(androidLatestRun?.audio);
+  const chatReadoutIosPass = iosPass && isFeatureEvidencePass(iosLatestRun?.chatReadout);
+  const chatReadoutAndroidPass = androidPass && isFeatureEvidencePass(androidLatestRun?.chatReadout);
   const appBuildMismatch = Boolean(
     iosPass &&
       androidPass &&
@@ -316,7 +380,11 @@ export const summarizeStreamValidationEvidence = (
     androidPass,
     appBuildMismatch,
     faceTrackingIosPass,
-    faceTrackingAndroidPass
+    faceTrackingAndroidPass,
+    audioIosPass,
+    audioAndroidPass,
+    chatReadoutIosPass,
+    chatReadoutAndroidPass
   });
 
   return {
@@ -334,6 +402,16 @@ export const summarizeStreamValidationEvidence = (
     faceTrackingReadyCount,
     faceTrackingIosPass,
     faceTrackingAndroidPass,
+    audioRunCount,
+    audioReadyCount,
+    audioWarningCount,
+    audioIosPass,
+    audioAndroidPass,
+    chatReadoutRunCount,
+    chatReadoutReadyCount,
+    chatReadoutWarningCount,
+    chatReadoutIosPass,
+    chatReadoutAndroidPass,
     platformPublishingRunCount,
     platformPublishingWarningCount,
     platformPublishingFailureCount,
@@ -348,6 +426,8 @@ export const summarizeStreamValidationEvidence = (
     latestPassingRun,
     latestNativeRuntime,
     latestFaceTracking,
+    latestAudio,
+    latestChatReadout,
     latestPlatformPublishing,
     latestRunAgeDays: latestRun ? ageInDays(latestRun.createdAt, now) : null,
     maxAgeDays,
@@ -362,6 +442,10 @@ export const summarizeStreamValidationEvidence = (
       androidPass,
       faceTrackingIosPass,
       faceTrackingAndroidPass,
+      audioIosPass,
+      audioAndroidPass,
+      chatReadoutIosPass,
+      chatReadoutAndroidPass,
       appBuildMismatch,
       iosAppBuild: iosLatestRun?.appBuild ?? null,
       androidAppBuild: androidLatestRun?.appBuild ?? null,
@@ -374,7 +458,11 @@ export const summarizeStreamValidationEvidence = (
       iosPass,
       androidPass,
       faceTrackingIosPass,
-      faceTrackingAndroidPass
+      faceTrackingAndroidPass,
+      audioIosPass,
+      audioAndroidPass,
+      chatReadoutIosPass,
+      chatReadoutAndroidPass
     })
   };
 };
@@ -408,6 +496,8 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
   const sessionOutcome = normalizeSessionOutcome(value.sessionOutcome);
   const nativeRuntime = normalizeNativeRuntimeSessionSummary(value.nativeRuntime);
   const faceTracking = normalizeFaceTrackingValidationSummary(value.faceTracking);
+  const audio = normalizeAudioValidationSummary(value.audio);
+  const chatReadout = normalizeChatReadoutValidationSummary(value.chatReadout);
   const platformPublishing = normalizePlatformPublishingDiagnostics(value.platformPublishing);
   const normalized: StreamValidationRun = {
     id: normalizeText(value.id, createValidationRunId({
@@ -434,6 +524,8 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
     completedSessionCount: normalizeCount(value.completedSessionCount),
     nativeRuntime,
     faceTracking,
+    audio,
+    chatReadout,
     platformPublishing,
     validationItemStatuses: normalizeValidationItemStatuses(value.validationItemStatuses),
     summary: normalizeText(
@@ -445,6 +537,8 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
         checklistStatus,
         nativeRuntime,
         faceTracking,
+        audio,
+        chatReadout,
         platformPublishing
       )
     ),
@@ -455,6 +549,8 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
         "Run another private validation pass.",
         nativeRuntime,
         faceTracking,
+        audio,
+        chatReadout,
         platformPublishing
       )
     )
@@ -472,7 +568,11 @@ const createEvidenceStatus = ({
   androidPass,
   appBuildMismatch,
   faceTrackingIosPass,
-  faceTrackingAndroidPass
+  faceTrackingAndroidPass,
+  audioIosPass,
+  audioAndroidPass,
+  chatReadoutIosPass,
+  chatReadoutAndroidPass
 }: {
   totalRuns: number;
   eligibleRunCount: number;
@@ -483,6 +583,10 @@ const createEvidenceStatus = ({
   appBuildMismatch: boolean;
   faceTrackingIosPass: boolean;
   faceTrackingAndroidPass: boolean;
+  audioIosPass: boolean;
+  audioAndroidPass: boolean;
+  chatReadoutIosPass: boolean;
+  chatReadoutAndroidPass: boolean;
 }): StreamValidationEvidenceSummary["status"] => {
   if (totalRuns === 0) {
     return "none";
@@ -493,7 +597,17 @@ const createEvidenceStatus = ({
   if (latestEligibleRun?.result === "fail" || latestDeviceRuns.some((run) => run.result === "fail")) {
     return "failing";
   }
-  if (iosPass && androidPass && !appBuildMismatch && faceTrackingIosPass && faceTrackingAndroidPass) {
+  if (
+    iosPass &&
+    androidPass &&
+    !appBuildMismatch &&
+    faceTrackingIosPass &&
+    faceTrackingAndroidPass &&
+    audioIosPass &&
+    audioAndroidPass &&
+    chatReadoutIosPass &&
+    chatReadoutAndroidPass
+  ) {
     return "ready";
   }
   return "partial";
@@ -532,6 +646,10 @@ const latestRunsByTargetPlatform = (runs: StreamValidationRun[]): StreamValidati
 const isAvatarMotionEvidencePass = (faceTracking: StreamValidationFaceTrackingSummary | null | undefined): boolean =>
   faceTracking?.status === "pass" && faceTracking.activeMotionCount > 0;
 
+const isFeatureEvidencePass = (
+  feature: { status: StreamValidationFeatureStatus } | null | undefined
+): boolean => feature?.status === "pass";
+
 const createEvidenceSummary = (
   status: StreamValidationEvidenceSummary["status"],
   counts: {
@@ -545,6 +663,10 @@ const createEvidenceSummary = (
     androidPass: boolean;
     faceTrackingIosPass: boolean;
     faceTrackingAndroidPass: boolean;
+    audioIosPass: boolean;
+    audioAndroidPass: boolean;
+    chatReadoutIosPass: boolean;
+    chatReadoutAndroidPass: boolean;
     appBuildMismatch: boolean;
     iosAppBuild: string | null;
     androidAppBuild: string | null;
@@ -570,6 +692,12 @@ const createEvidenceSummary = (
   if (counts.iosPass && counts.androidPass && (!counts.faceTrackingIosPass || !counts.faceTrackingAndroidPass)) {
     return `Physical validation is partial: iOS and Android passed, but retained VTuber avatar-motion evidence is incomplete: iOS ${counts.faceTrackingIosPass ? "pass" : "missing"} / Android ${counts.faceTrackingAndroidPass ? "pass" : "missing"}.`;
   }
+  if (counts.iosPass && counts.androidPass && (!counts.audioIosPass || !counts.audioAndroidPass)) {
+    return `Physical validation is partial: iOS and Android passed, but retained mic FX/headphone monitor evidence is incomplete: iOS ${counts.audioIosPass ? "pass" : "missing"} / Android ${counts.audioAndroidPass ? "pass" : "missing"}.`;
+  }
+  if (counts.iosPass && counts.androidPass && (!counts.chatReadoutIosPass || !counts.chatReadoutAndroidPass)) {
+    return `Physical validation is partial: iOS and Android passed, but retained chat readout evidence is incomplete: iOS ${counts.chatReadoutIosPass ? "pass" : "missing"} / Android ${counts.chatReadoutAndroidPass ? "pass" : "missing"}.`;
+  }
   const covered = [counts.iosPass ? "iOS" : null, counts.androidPass ? "Android" : null].filter(Boolean).join(" and ");
   return covered
     ? `Physical validation is partial: ${covered} passed, remaining platform still needs evidence.`
@@ -586,6 +714,10 @@ const createEvidenceRecommendation = (
     androidPass: boolean;
     faceTrackingIosPass: boolean;
     faceTrackingAndroidPass: boolean;
+    audioIosPass: boolean;
+    audioAndroidPass: boolean;
+    chatReadoutIosPass: boolean;
+    chatReadoutAndroidPass: boolean;
   }
 ): string => {
   if (status === "ready") {
@@ -600,6 +732,12 @@ const createEvidenceRecommendation = (
   if (context.iosPass && context.androidPass && (!context.faceTrackingIosPass || !context.faceTrackingAndroidPass)) {
     return "Record fresh iOS and Android validation runs with native camera tracking active and visible PNGTuber motion applied.";
   }
+  if (context.iosPass && context.androidPass && (!context.audioIosPass || !context.audioAndroidPass)) {
+    return "Record fresh iOS and Android validation runs with mic effects enabled and headphones-only self-monitoring verified.";
+  }
+  if (context.iosPass && context.androidPass && (!context.chatReadoutIosPass || !context.chatReadoutAndroidPass)) {
+    return "Record fresh iOS and Android validation runs with YouTube/Twitch chat connected and readout speaking a sample message.";
+  }
   if (status === "stale") {
     return `Repeat private RTMPS validation on physical iOS and Android devices; retained evidence expires after ${context.maxAgeDays} days.`;
   }
@@ -613,15 +751,25 @@ const createEffectiveValidationResult = (
   result: StreamValidationRunResult,
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
   faceTracking: StreamValidationFaceTrackingSummary | null,
+  audio: StreamValidationAudioSummary | null,
+  chatReadout: StreamValidationChatReadoutSummary | null,
   platformPublishing: StreamDiagnostics["platformPublishing"] | null
 ): StreamValidationRunResult => {
-  if (result === "fail" || nativeRuntime?.status === "fail" || platformPublishing?.status === "fail") {
+  if (
+    result === "fail" ||
+    nativeRuntime?.status === "fail" ||
+    audio?.status === "fail" ||
+    chatReadout?.status === "fail" ||
+    platformPublishing?.status === "fail"
+  ) {
     return "fail";
   }
   if (
     result === "warn" ||
     nativeRuntime?.status === "warn" ||
     faceTracking?.status === "warn" ||
+    !isFeatureEvidencePass(audio) ||
+    !isFeatureEvidencePass(chatReadout) ||
     platformPublishing?.status === "warn"
   ) {
     return "warn";
@@ -636,10 +784,12 @@ const createRunSummary = (
   checklistStatus: StreamDiagnostics["validation"]["status"],
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
   faceTracking: StreamValidationFaceTrackingSummary | null,
+  audio: StreamValidationAudioSummary | null,
+  chatReadout: StreamValidationChatReadoutSummary | null,
   platformPublishing: StreamDiagnostics["platformPublishing"] | null
 ): string => {
   const prefix = result === "pass" ? "Passed" : result === "warn" ? "Needs review" : "Failed";
-  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}.${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${faceTracking && faceTracking.status !== "info" ? ` ${faceTracking.summary}` : ""}${platformPublishing && platformPublishing.status !== "info" ? ` ${platformPublishing.summary}` : ""}`;
+  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}.${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${faceTracking && faceTracking.status !== "info" ? ` ${faceTracking.summary}` : ""}${audio ? ` ${audio.summary}` : ""}${chatReadout ? ` ${chatReadout.summary}` : ""}${platformPublishing && platformPublishing.status !== "info" ? ` ${platformPublishing.summary}` : ""}`;
 };
 
 const createRunRecommendation = (
@@ -647,10 +797,18 @@ const createRunRecommendation = (
   fallbackRecommendation: string,
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
   faceTracking: StreamValidationFaceTrackingSummary | null,
+  audio: StreamValidationAudioSummary | null,
+  chatReadout: StreamValidationChatReadoutSummary | null,
   platformPublishing: StreamDiagnostics["platformPublishing"] | null
 ): string => {
   if (nativeRuntime?.status === "fail") {
     return nativeRuntime.recommendation;
+  }
+  if (audio?.status === "fail") {
+    return audio.recommendation;
+  }
+  if (chatReadout?.status === "fail") {
+    return chatReadout.recommendation;
   }
   if (platformPublishing?.status === "fail") {
     return platformPublishing.recommendation;
@@ -666,6 +824,12 @@ const createRunRecommendation = (
   }
   if (faceTracking?.status === "warn") {
     return faceTracking.recommendation;
+  }
+  if (audio && audio.status !== "pass") {
+    return audio.recommendation;
+  }
+  if (chatReadout && chatReadout.status !== "pass") {
+    return chatReadout.recommendation;
   }
   if (platformPublishing?.status === "warn") {
     return platformPublishing.recommendation;
@@ -688,6 +852,47 @@ const createFaceTrackingValidationSummary = (
   summary: sanitizeStoredText(faceTracking.summary, secrets),
   recommendation: sanitizeStoredText(faceTracking.recommendation, secrets)
 });
+
+const createAudioValidationSummary = (
+  diagnostics: StreamDiagnostics,
+  secrets: string[]
+): StreamValidationAudioSummary => {
+  const item = findRunbookItem(diagnostics, "audio");
+  return {
+    status: item?.status ?? "pending",
+    micEffectsEnabled: diagnostics.audio.micEffectsEnabled,
+    presetId: diagnostics.audio.presetId,
+    inputGainDb: diagnostics.audio.inputGainDb,
+    compression: diagnostics.audio.compression,
+    monitorEnabled: diagnostics.audio.monitorEnabled,
+    monitorVolume: diagnostics.audio.monitorVolume,
+    monitorHeadphonesOnly: diagnostics.audio.monitorHeadphonesOnly,
+    summary: sanitizeStoredText(item?.detail ?? "No mic FX/headphone monitor validation retained.", secrets),
+    recommendation: sanitizeStoredText(item?.action ?? "Repeat validation with mic effects and headphone monitoring checked.", secrets)
+  };
+};
+
+const createChatReadoutValidationSummary = (
+  diagnostics: StreamDiagnostics,
+  secrets: string[]
+): StreamValidationChatReadoutSummary => {
+  const item = findRunbookItem(diagnostics, "chat");
+  return {
+    status: item?.status ?? "pending",
+    platformChatEnabled: diagnostics.chatReadout.platformChatEnabled,
+    readerEnabled: diagnostics.chatReadout.readerEnabled,
+    connectionPhase: diagnostics.chatReadout.connectionPhase,
+    connectionLabel: diagnostics.chatReadout.connectionLabel,
+    summary: sanitizeStoredText(item?.detail ?? "No chat readout validation retained.", secrets),
+    recommendation: sanitizeStoredText(item?.action ?? "Repeat validation with YouTube/Twitch chat connected and spoken.", secrets)
+  };
+};
+
+const findRunbookItem = (
+  diagnostics: StreamDiagnostics,
+  phase: StreamDiagnostics["validationRunbook"]["items"][number]["phase"]
+): StreamDiagnostics["validationRunbook"]["items"][number] | null =>
+  diagnostics.validationRunbook.items.find((item) => item.phase === phase) ?? null;
 
 const createValidationRunId = ({
   createdAt,
@@ -742,6 +947,9 @@ const clampText = (value: string): string => value.slice(0, 96);
 
 const normalizeCount = (value: unknown): number =>
   typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+
+const normalizeFiniteNumber = (value: unknown, fallback: number, min: number, max: number): number =>
+  typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
 
 const normalizeDateString = (value: unknown): string | null => {
   if (typeof value !== "string") {
@@ -809,6 +1017,42 @@ const normalizeFaceTrackingDiagnosticStatus = (value: unknown): StreamValidation
 
 const normalizeFaceTrackingRuntimeStatus = (value: unknown): StreamValidationFaceTrackingSummary["runtimeStatus"] =>
   value === "disabled" || value === "tracking" || value === "lost" || value === "unavailable" ? value : "unavailable";
+
+const normalizeAudioValidationSummary = (value: unknown): StreamValidationAudioSummary | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+  return {
+    status: normalizeFeatureStatus(value.status),
+    micEffectsEnabled: value.micEffectsEnabled === true,
+    presetId: normalizeText(value.presetId, "unknown"),
+    inputGainDb: normalizeFiniteNumber(value.inputGainDb, 0, -12, 12),
+    compression: normalizeFiniteNumber(value.compression, 0, 0, 1),
+    monitorEnabled: value.monitorEnabled === true,
+    monitorVolume: normalizeFiniteNumber(value.monitorVolume, 0, 0, 1),
+    monitorHeadphonesOnly: value.monitorHeadphonesOnly === true,
+    summary: normalizeText(value.summary, "No mic FX/headphone monitor validation evidence retained."),
+    recommendation: normalizeText(value.recommendation, "Repeat validation with mic effects and headphone monitoring checked.")
+  };
+};
+
+const normalizeChatReadoutValidationSummary = (value: unknown): StreamValidationChatReadoutSummary | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+  return {
+    status: normalizeFeatureStatus(value.status),
+    platformChatEnabled: value.platformChatEnabled === true,
+    readerEnabled: value.readerEnabled === true,
+    connectionPhase: normalizeText(value.connectionPhase, "unknown"),
+    connectionLabel: normalizeText(value.connectionLabel, ""),
+    summary: normalizeText(value.summary, "No chat readout validation evidence retained."),
+    recommendation: normalizeText(value.recommendation, "Repeat validation with YouTube/Twitch chat connected and spoken.")
+  };
+};
+
+const normalizeFeatureStatus = (value: unknown): StreamValidationFeatureStatus =>
+  value === "pass" || value === "warn" || value === "fail" || value === "pending" ? value : "pending";
 
 const normalizePlatformPublishingDiagnostics = (value: unknown): StreamDiagnostics["platformPublishing"] | null => {
   if (!isRecord(value)) {

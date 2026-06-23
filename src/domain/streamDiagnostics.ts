@@ -122,6 +122,22 @@ export interface StreamDiagnostics {
   qualityAdvisor: StreamQualityAdvisorRecommendation;
   faceTracking: FaceTrackingDiagnostics;
   nativeComposition: NativeCompositionReport;
+  audio: {
+    micEffectsEnabled: boolean;
+    presetId: string;
+    inputGainDb: number;
+    compression: number;
+    monitorEnabled: boolean;
+    monitorVolume: number;
+    monitorHeadphonesOnly: boolean;
+  };
+  chatReadout: {
+    platformChatEnabled: boolean;
+    readerEnabled: boolean;
+    connectionPhase: string;
+    connectionLabel: string;
+    connectionMessage: string;
+  };
   platformPublishing: PlatformPublishingDiagnostics;
   history: StreamHealthHistorySummary;
   session: {
@@ -273,6 +289,22 @@ export const createStreamDiagnostics = (
     evidence: validationEvidence,
     faceTracking
   });
+  const audio = {
+    micEffectsEnabled: micEffects.enabled,
+    presetId: micEffects.presetId,
+    inputGainDb: micEffects.inputGainDb,
+    compression: micEffects.compression,
+    monitorEnabled: micEffects.monitorEnabled,
+    monitorVolume: micEffects.monitorVolume,
+    monitorHeadphonesOnly: micEffects.monitorHeadphonesOnly
+  };
+  const chatReadout = {
+    platformChatEnabled: platformChat.enabled,
+    readerEnabled: options.chatReader?.enabled ?? false,
+    connectionPhase: platformChatConnection?.phase ?? (platformChat.enabled ? "idle" : "disabled"),
+    connectionLabel: platformChatConnection?.label ?? "",
+    connectionMessage: platformChatConnection?.message ?? ""
+  };
   const validationRunbook = createStreamValidationRunbook({
     readiness,
     target: {
@@ -297,22 +329,8 @@ export const createStreamDiagnostics = (
     nativeRuntime,
     nativeComposition,
     faceTracking,
-    audio: {
-      micEffectsEnabled: micEffects.enabled,
-      presetId: micEffects.presetId,
-      inputGainDb: micEffects.inputGainDb,
-      compression: micEffects.compression,
-      monitorEnabled: micEffects.monitorEnabled,
-      monitorVolume: micEffects.monitorVolume,
-      monitorHeadphonesOnly: micEffects.monitorHeadphonesOnly
-    },
-    chatReadout: {
-      platformChatEnabled: platformChat.enabled,
-      readerEnabled: options.chatReader?.enabled ?? false,
-      connectionPhase: platformChatConnection?.phase ?? (platformChat.enabled ? "idle" : "disabled"),
-      connectionLabel: platformChatConnection?.label ?? "",
-      connectionMessage: platformChatConnection?.message ?? ""
-    },
+    audio,
+    chatReadout,
     platformPublishing,
     evidence: validationEvidence
   });
@@ -358,6 +376,8 @@ export const createStreamDiagnostics = (
     qualityAdvisor,
     faceTracking,
     nativeComposition,
+    audio,
+    chatReadout,
     platformPublishing,
     history,
     session: {
@@ -463,6 +483,15 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Avatars: ${diagnostics.faceTracking.visibleAvatarCount} visible / ${diagnostics.faceTracking.preparedPngTuberCount} prepared PNGTuber / ${diagnostics.faceTracking.activeMotionCount} moving`,
     `- Recommendation: ${diagnostics.faceTracking.recommendation}`,
     "",
+    "Audio Validation",
+    `- Mic effects: ${diagnostics.audio.micEffectsEnabled ? "on" : "off"} / preset ${diagnostics.audio.presetId} / gain ${diagnostics.audio.inputGainDb} dB / compression ${diagnostics.audio.compression}`,
+    `- Monitor: ${diagnostics.audio.monitorEnabled ? "on" : "off"} / volume ${Math.round(diagnostics.audio.monitorVolume * 100)}% / headphones-only ${diagnostics.audio.monitorHeadphonesOnly ? "yes" : "no"}`,
+    "",
+    "Chat Readout",
+    `- Platform chat: ${diagnostics.chatReadout.platformChatEnabled ? "on" : "off"}`,
+    `- Reader: ${diagnostics.chatReadout.readerEnabled ? "on" : "off"}`,
+    `- Connection: ${diagnostics.chatReadout.connectionPhase} / ${diagnostics.chatReadout.connectionLabel || "-"} / ${diagnostics.chatReadout.connectionMessage || "-"}`,
+    "",
     "Native Composition",
     `- Status: ${diagnostics.nativeComposition.status}`,
     `- Coverage: ${diagnostics.nativeComposition.coverage}`,
@@ -526,6 +555,8 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Evidence build: ${diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")}`,
     `- Evidence native runtime: ${formatValidationNativeRuntime(diagnostics)}`,
     `- Evidence face tracking: ${formatValidationFaceTracking(diagnostics)}`,
+    `- Evidence audio: ${formatValidationAudio(diagnostics)}`,
+    `- Evidence chat readout: ${formatValidationChatReadout(diagnostics)}`,
     `- Evidence platform dashboard: ${formatValidationPlatformPublishing(diagnostics)}`,
     `- Runbook: ${diagnostics.validationRunbook.status} / ${diagnostics.validationRunbook.summary}`,
     `- Runbook next: ${diagnostics.validationRunbook.nextAction}`,
@@ -604,6 +635,16 @@ const formatValidationNativeRuntime = (diagnostics: StreamDiagnostics): string =
 
 const formatValidationFaceTracking = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.validationEvidence.faceTrackingRunCount} retained / ${diagnostics.validationEvidence.faceTrackingReadyCount} ready / ${diagnostics.validationEvidence.faceTrackingWarningCount} warn / iOS ${diagnostics.validationEvidence.faceTrackingIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestFaceTracking?.status ?? "-"} ${diagnostics.validationEvidence.latestFaceTracking?.runtimeStatus ?? "-"} / prepared ${diagnostics.validationEvidence.latestFaceTracking?.preparedPngTuberCount ?? 0} / moving ${diagnostics.validationEvidence.latestFaceTracking?.activeMotionCount ?? 0}`;
+
+const formatValidationAudio = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.validationEvidence.latestAudio
+    ? `${diagnostics.validationEvidence.audioRunCount} retained / ${diagnostics.validationEvidence.audioReadyCount} ready / ${diagnostics.validationEvidence.audioWarningCount} warn / iOS ${diagnostics.validationEvidence.audioIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.audioAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestAudio.status} ${diagnostics.validationEvidence.latestAudio.presetId} / monitor ${diagnostics.validationEvidence.latestAudio.monitorEnabled ? "on" : "off"} / headphones-only ${diagnostics.validationEvidence.latestAudio.monitorHeadphonesOnly ? "yes" : "no"}`
+    : "-";
+
+const formatValidationChatReadout = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.validationEvidence.latestChatReadout
+    ? `${diagnostics.validationEvidence.chatReadoutRunCount} retained / ${diagnostics.validationEvidence.chatReadoutReadyCount} ready / ${diagnostics.validationEvidence.chatReadoutWarningCount} warn / iOS ${diagnostics.validationEvidence.chatReadoutIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.chatReadoutAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestChatReadout.status} ${diagnostics.validationEvidence.latestChatReadout.connectionPhase}`
+    : "-";
 
 const formatValidationPlatformPublishing = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestPlatformPublishing

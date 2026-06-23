@@ -24,6 +24,33 @@ const profileWithKey = (streamKey: string): StudioProfile => ({
     streamKey
   }
 });
+const commercialProfileWithKey = (streamKey: string): StudioProfile => ({
+  ...profileWithKey(streamKey),
+  micEffects: {
+    ...createDefaultStudioProfile().micEffects,
+    enabled: true,
+    presetId: "broadcast",
+    inputGainDb: 3,
+    compression: 0.62,
+    monitorEnabled: true,
+    monitorVolume: 0.45,
+    monitorHeadphonesOnly: true
+  },
+  platformChat: {
+    ...createDefaultStudioProfile().platformChat,
+    enabled: true,
+    platform: "youtube",
+    youtubeLiveChatId: "live-chat-1"
+  }
+});
+const connectedChatOptions = {
+  chatReader: { enabled: true },
+  platformChatConnection: {
+    phase: "connected",
+    label: "Connected",
+    message: "YouTube Live chat is connected."
+  }
+};
 const validationNow = new Date("2026-06-23T00:02:00.000Z");
 
 describe("stream validation evidence", () => {
@@ -55,7 +82,46 @@ describe("stream validation evidence", () => {
     expect(JSON.stringify(run)).not.toContain(streamKey);
     expect(run.targetPlatform).toBe("YouTube Live");
     expect(run.checklistStatus).toBe("needs-test");
-    expect(run.recommendation).toContain("Start a private");
+    expect(run.recommendation).toContain("Enable a mic effect preset");
+  });
+
+  it("stores audio and chat readout evidence and downgrades unvalidated passing runs", () => {
+    const scene = createDefaultScene();
+    const profile = profileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health()
+    });
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.audio).toMatchObject({
+      status: "warn",
+      micEffectsEnabled: false,
+      monitorEnabled: false,
+      monitorHeadphonesOnly: true
+    });
+    expect(run.chatReadout).toMatchObject({
+      status: "warn",
+      platformChatEnabled: false,
+      readerEnabled: false,
+      connectionPhase: "disabled"
+    });
+    expect(run.recommendation).toContain("Enable a mic effect preset");
+    expect(summary.audioRunCount).toBe(1);
+    expect(summary.audioWarningCount).toBe(1);
+    expect(summary.chatReadoutRunCount).toBe(1);
+    expect(summary.chatReadoutWarningCount).toBe(1);
+    expect(summary.latestAudio?.status).toBe("warn");
+    expect(summary.latestChatReadout?.status).toBe("warn");
   });
 
   it("stores safe native runtime evidence and downgrades passing runs that need review", () => {
@@ -152,7 +218,7 @@ describe("stream validation evidence", () => {
   it("stores platform dashboard evidence and downgrades unhealthy passing runs", () => {
     const scene = createDefaultScene();
     const profile = {
-      ...profileWithKey("validation-key"),
+      ...commercialProfileWithKey("validation-key"),
       platformPublishing: {
         ...createDefaultStudioProfile().platformPublishing,
         youtubeBroadcastId: "broadcast-1",
@@ -200,7 +266,7 @@ describe("stream validation evidence", () => {
   it("stores face tracking evidence and downgrades unready avatar validation", () => {
     const scene = createDefaultScene();
     const profile = {
-      ...profileWithKey("validation-key"),
+      ...commercialProfileWithKey("validation-key"),
       faceTracking: {
         ...createDefaultStudioProfile().faceTracking,
         enabled: true,
@@ -251,7 +317,7 @@ describe("stream validation evidence", () => {
         : source
     );
     const profile = {
-      ...profileWithKey("validation-key"),
+      ...commercialProfileWithKey("validation-key"),
       faceTracking: {
         ...createDefaultStudioProfile().faceTracking,
         enabled: true,
@@ -284,7 +350,8 @@ describe("stream validation evidence", () => {
         confidence: 0.92,
         expression: "neutral",
         lastFrameAt: Date.parse("2026-06-23T00:00:00.000Z")
-      }
+      },
+      connectedChatOptions
     );
     const iosRun = createStreamValidationRun({
       diagnostics,
@@ -307,6 +374,10 @@ describe("stream validation evidence", () => {
     expect(summary.faceTrackingAndroidPass).toBe(true);
     expect(summary.faceTrackingReadyCount).toBe(2);
     expect(summary.latestFaceTracking?.runtimeStatus).toBe("tracking");
+    expect(summary.audioIosPass).toBe(true);
+    expect(summary.audioAndroidPass).toBe(true);
+    expect(summary.chatReadoutIosPass).toBe(true);
+    expect(summary.chatReadoutAndroidPass).toBe(true);
     expect(summary.status).toBe("ready");
   });
 
@@ -430,17 +501,30 @@ describe("stream validation evidence", () => {
 
     expect(runs.map((run) => run.id)).toEqual([secondRun.id, firstRun.id]);
     expect(mergeStreamValidationRuns([secondRun], [secondRun, firstRun]).map((run) => run.id)).toEqual([secondRun.id, firstRun.id]);
-    expect(normalizeStreamValidationRuns([{ ...firstRun, devicePlatform: "windows" }, secondRun])).toEqual([secondRun]);
+    expect(normalizeStreamValidationRuns([{ ...firstRun, devicePlatform: "windows" }, secondRun]).map((run) => run.id)).toEqual([
+      secondRun.id
+    ]);
   });
 
   it("summarizes physical platform coverage for release-candidate evidence", () => {
     const scene = createDefaultScene();
-    const profile = profileWithKey("validation-key");
+    const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
-    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
-      state: { status: "idle" },
-      health: health()
-    });
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health()
+      },
+      [],
+      [],
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
     const iosRun = createStreamValidationRun({
       diagnostics,
       devicePlatform: "ios",
@@ -499,12 +583,23 @@ describe("stream validation evidence", () => {
 
   it("requires fresh evidence on the same app build before becoming ready", () => {
     const scene = createDefaultScene();
-    const profile = profileWithKey("validation-key");
+    const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
-    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
-      state: { status: "idle" },
-      health: health()
-    });
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health()
+      },
+      [],
+      [],
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
     const iosRun = createStreamValidationRun({
       diagnostics,
       devicePlatform: "ios",

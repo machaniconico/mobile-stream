@@ -129,7 +129,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 4 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 5 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.scene.sourceCounts.pngtuber).toBe(1);
@@ -185,6 +185,12 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceFaceTrackingRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceFaceTrackingIosPass).toBe(false);
     expect(bundle.summary.validationEvidenceFaceTrackingAndroidPass).toBe(false);
+    expect(bundle.summary.validationEvidenceAudioRunCount).toBe(0);
+    expect(bundle.summary.validationEvidenceAudioIosPass).toBe(false);
+    expect(bundle.summary.validationEvidenceAudioAndroidPass).toBe(false);
+    expect(bundle.summary.validationEvidenceChatReadoutRunCount).toBe(0);
+    expect(bundle.summary.validationEvidenceChatReadoutIosPass).toBe(false);
+    expect(bundle.summary.validationEvidenceChatReadoutAndroidPass).toBe(false);
     expect(bundle.summary.validationEvidencePlatformPublishingRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceLatestPlatformPublishingStatus).toBeNull();
     expect(formatSupportBundle(bundle)).toContain("Completed summaries: 1");
@@ -203,6 +209,8 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
     expect(formatSupportBundle(bundle)).toContain("Evidence native runtime: 0 retained / 0 warn / 0 fail");
     expect(formatSupportBundle(bundle)).toContain("Evidence face tracking: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
+    expect(formatSupportBundle(bundle)).toContain("Evidence audio: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
+    expect(formatSupportBundle(bundle)).toContain("Evidence chat readout: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence platform dashboard: 0 retained / 0 warn / 0 fail");
   });
 

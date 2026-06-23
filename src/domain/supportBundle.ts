@@ -19,7 +19,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 4;
+    bundleVersion: 5;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -84,6 +84,22 @@ export interface SupportBundle {
     validationEvidenceLatestFaceTrackingRuntimeStatus: NonNullable<StreamDiagnostics["validationEvidence"]["latestFaceTracking"]>["runtimeStatus"] | null;
     validationEvidenceLatestFaceTrackingPreparedPngTuberCount: number;
     validationEvidenceLatestFaceTrackingActiveMotionCount: number;
+    validationEvidenceAudioRunCount: number;
+    validationEvidenceAudioReadyCount: number;
+    validationEvidenceAudioWarningCount: number;
+    validationEvidenceAudioIosPass: boolean;
+    validationEvidenceAudioAndroidPass: boolean;
+    validationEvidenceLatestAudioStatus: NonNullable<StreamDiagnostics["validationEvidence"]["latestAudio"]>["status"] | null;
+    validationEvidenceLatestAudioPresetId: string | null;
+    validationEvidenceLatestAudioMonitorEnabled: boolean;
+    validationEvidenceLatestAudioMonitorHeadphonesOnly: boolean;
+    validationEvidenceChatReadoutRunCount: number;
+    validationEvidenceChatReadoutReadyCount: number;
+    validationEvidenceChatReadoutWarningCount: number;
+    validationEvidenceChatReadoutIosPass: boolean;
+    validationEvidenceChatReadoutAndroidPass: boolean;
+    validationEvidenceLatestChatReadoutStatus: NonNullable<StreamDiagnostics["validationEvidence"]["latestChatReadout"]>["status"] | null;
+    validationEvidenceLatestChatReadoutConnectionPhase: string | null;
     validationEvidencePlatformPublishingRunCount: number;
     validationEvidencePlatformPublishingWarningCount: number;
     validationEvidencePlatformPublishingFailureCount: number;
@@ -202,7 +218,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 4
+      bundleVersion: 5
     },
     summary: {
       status: diagnostics.status,
@@ -267,6 +283,22 @@ export const createSupportBundle = ({
       validationEvidenceLatestFaceTrackingRuntimeStatus: diagnostics.validationEvidence.latestFaceTracking?.runtimeStatus ?? null,
       validationEvidenceLatestFaceTrackingPreparedPngTuberCount: diagnostics.validationEvidence.latestFaceTracking?.preparedPngTuberCount ?? 0,
       validationEvidenceLatestFaceTrackingActiveMotionCount: diagnostics.validationEvidence.latestFaceTracking?.activeMotionCount ?? 0,
+      validationEvidenceAudioRunCount: diagnostics.validationEvidence.audioRunCount,
+      validationEvidenceAudioReadyCount: diagnostics.validationEvidence.audioReadyCount,
+      validationEvidenceAudioWarningCount: diagnostics.validationEvidence.audioWarningCount,
+      validationEvidenceAudioIosPass: diagnostics.validationEvidence.audioIosPass,
+      validationEvidenceAudioAndroidPass: diagnostics.validationEvidence.audioAndroidPass,
+      validationEvidenceLatestAudioStatus: diagnostics.validationEvidence.latestAudio?.status ?? null,
+      validationEvidenceLatestAudioPresetId: diagnostics.validationEvidence.latestAudio?.presetId ?? null,
+      validationEvidenceLatestAudioMonitorEnabled: diagnostics.validationEvidence.latestAudio?.monitorEnabled ?? false,
+      validationEvidenceLatestAudioMonitorHeadphonesOnly: diagnostics.validationEvidence.latestAudio?.monitorHeadphonesOnly ?? false,
+      validationEvidenceChatReadoutRunCount: diagnostics.validationEvidence.chatReadoutRunCount,
+      validationEvidenceChatReadoutReadyCount: diagnostics.validationEvidence.chatReadoutReadyCount,
+      validationEvidenceChatReadoutWarningCount: diagnostics.validationEvidence.chatReadoutWarningCount,
+      validationEvidenceChatReadoutIosPass: diagnostics.validationEvidence.chatReadoutIosPass,
+      validationEvidenceChatReadoutAndroidPass: diagnostics.validationEvidence.chatReadoutAndroidPass,
+      validationEvidenceLatestChatReadoutStatus: diagnostics.validationEvidence.latestChatReadout?.status ?? null,
+      validationEvidenceLatestChatReadoutConnectionPhase: diagnostics.validationEvidence.latestChatReadout?.connectionPhase ?? null,
       validationEvidencePlatformPublishingRunCount: diagnostics.validationEvidence.platformPublishingRunCount,
       validationEvidencePlatformPublishingWarningCount: diagnostics.validationEvidence.platformPublishingWarningCount,
       validationEvidencePlatformPublishingFailureCount: diagnostics.validationEvidence.platformPublishingFailureCount,
@@ -432,6 +464,8 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Evidence outcomes: ${bundle.summary.validationEvidencePassCount} pass / ${bundle.summary.validationEvidenceFailureCount} fail`,
     `- Evidence native runtime: ${bundle.summary.validationEvidenceNativeRuntimeRunCount} retained / ${bundle.summary.validationEvidenceNativeRuntimeWarningCount} warn / ${bundle.summary.validationEvidenceNativeRuntimeFailureCount} fail / latest ${bundle.summary.validationEvidenceLatestNativeRuntimeStatus ?? "-"} ${bundle.summary.validationEvidenceLatestNativeRuntimePlatform ?? "-"} / assets ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount} missing / congested ${bundle.summary.validationEvidenceLatestNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.validationEvidenceLatestNativeRuntimeQueuedItems}/${bundle.summary.validationEvidenceLatestNativeRuntimeCacheSize}`,
     `- Evidence face tracking: ${bundle.summary.validationEvidenceFaceTrackingRunCount} retained / ${bundle.summary.validationEvidenceFaceTrackingReadyCount} ready / ${bundle.summary.validationEvidenceFaceTrackingWarningCount} warn / iOS ${bundle.summary.validationEvidenceFaceTrackingIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceFaceTrackingAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestFaceTrackingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestFaceTrackingRuntimeStatus ?? "-"} / prepared ${bundle.summary.validationEvidenceLatestFaceTrackingPreparedPngTuberCount} / moving ${bundle.summary.validationEvidenceLatestFaceTrackingActiveMotionCount}`,
+    `- Evidence audio: ${bundle.summary.validationEvidenceAudioRunCount} retained / ${bundle.summary.validationEvidenceAudioReadyCount} ready / ${bundle.summary.validationEvidenceAudioWarningCount} warn / iOS ${bundle.summary.validationEvidenceAudioIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAudioAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestAudioStatus ?? "-"} ${bundle.summary.validationEvidenceLatestAudioPresetId ?? "-"} / monitor ${bundle.summary.validationEvidenceLatestAudioMonitorEnabled ? "on" : "off"} / headphones-only ${bundle.summary.validationEvidenceLatestAudioMonitorHeadphonesOnly ? "yes" : "no"}`,
+    `- Evidence chat readout: ${bundle.summary.validationEvidenceChatReadoutRunCount} retained / ${bundle.summary.validationEvidenceChatReadoutReadyCount} ready / ${bundle.summary.validationEvidenceChatReadoutWarningCount} warn / iOS ${bundle.summary.validationEvidenceChatReadoutIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceChatReadoutAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestChatReadoutStatus ?? "-"} ${bundle.summary.validationEvidenceLatestChatReadoutConnectionPhase ?? "-"}`,
     `- Evidence platform dashboard: ${bundle.summary.validationEvidencePlatformPublishingRunCount} retained / ${bundle.summary.validationEvidencePlatformPublishingWarningCount} warn / ${bundle.summary.validationEvidencePlatformPublishingFailureCount} fail / latest ${bundle.summary.validationEvidenceLatestPlatformPublishingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestPlatformPublishingSummary ?? "-"}`,
     `- Physical coverage: iOS ${bundle.summary.validationEvidenceIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAndroidPass ? "pass" : "missing"}`,
     `- Validation build: ${bundle.summary.validationEvidenceConsistentAppBuild ?? (bundle.summary.validationEvidenceAppBuildMismatch ? "mismatch" : "-")}`,

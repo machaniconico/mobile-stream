@@ -1405,6 +1405,12 @@ const StreamValidationRecorder = ({
           {validationRunFaceTrackingLabel(latestRun) ? (
             <Text style={styles.diagnosticIncidentRecommendation}>{validationRunFaceTrackingLabel(latestRun)}</Text>
           ) : null}
+          {validationRunAudioLabel(latestRun) ? (
+            <Text style={styles.diagnosticIncidentRecommendation}>{validationRunAudioLabel(latestRun)}</Text>
+          ) : null}
+          {validationRunChatReadoutLabel(latestRun) ? (
+            <Text style={styles.diagnosticIncidentRecommendation}>{validationRunChatReadoutLabel(latestRun)}</Text>
+          ) : null}
           {validationRunPlatformPublishingLabel(latestRun) ? (
             <Text style={styles.diagnosticIncidentRecommendation}>{validationRunPlatformPublishingLabel(latestRun)}</Text>
           ) : null}
@@ -1474,6 +1480,14 @@ const validationRunFaceTrackingLabel = (run: StreamValidationRun): string | null
   run.faceTracking && run.faceTracking.status !== "info"
     ? `face ${run.faceTracking.status} / ${run.faceTracking.inputMode} / ${run.faceTracking.runtimeStatus} / prepared ${run.faceTracking.preparedPngTuberCount} / moving ${run.faceTracking.activeMotionCount}`
     : null;
+
+const validationRunAudioLabel = (run: StreamValidationRun): string | null =>
+  run.audio
+    ? `audio ${run.audio.status} / ${run.audio.presetId} / monitor ${run.audio.monitorEnabled ? "on" : "off"} / headphones-only ${run.audio.monitorHeadphonesOnly ? "yes" : "no"}`
+    : null;
+
+const validationRunChatReadoutLabel = (run: StreamValidationRun): string | null =>
+  run.chatReadout ? `chat ${run.chatReadout.status} / ${run.chatReadout.connectionPhase}` : null;
 
 const validationRunPlatformPublishingLabel = (run: StreamValidationRun): string | null =>
   run.platformPublishing && run.platformPublishing.status !== "info"
