@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   appendStreamSessionEvent,
   createStreamChatEvent,
+  createStreamChatReconnectEvent,
   createStreamOperationEvent,
   createStreamRecoveryEvent,
   createStreamStatusEvent,
@@ -87,6 +88,57 @@ describe("stream session log", () => {
     expect(started.severity).toBe("info");
     expect(skipped.title).toBe("Chat auto-connect skipped");
     expect(skipped.severity).toBe("warn");
+  });
+
+  it("creates chat reconnect events from reconnect decisions", () => {
+    const scheduled = createStreamChatReconnectEvent(
+      {
+        command: "schedule-reconnect",
+        key: "chat-1",
+        delayMs: 2000,
+        reason: "Twitch chat socket closed.",
+        severity: "warn",
+        attemptsUsed: 2,
+        maxAttempts: 5,
+        state: {
+          attemptsUsed: 2,
+          lastFailureKey: "chat-1",
+          scheduledKey: "chat-1",
+          exhaustedKey: null
+        }
+      },
+      new Date("2026-06-23T00:00:02.000Z")
+    );
+    const exhausted = createStreamChatReconnectEvent(
+      {
+        command: "give-up",
+        key: "chat-1",
+        delayMs: null,
+        reason: "Platform chat reconnect stopped after 5 failed attempts.",
+        severity: "fail",
+        attemptsUsed: 5,
+        maxAttempts: 5,
+        state: {
+          attemptsUsed: 5,
+          lastFailureKey: "chat-1",
+          scheduledKey: null,
+          exhaustedKey: "chat-1"
+        }
+      },
+      new Date("2026-06-23T00:00:03.000Z")
+    );
+
+    expect(scheduled).toMatchObject({
+      kind: "chat",
+      severity: "warn",
+      title: "Chat reconnect scheduled"
+    });
+    expect(scheduled?.message).toContain("Retrying chat in 2s (2/5).");
+    expect(exhausted).toMatchObject({
+      kind: "chat",
+      severity: "fail",
+      title: "Chat reconnect exhausted"
+    });
   });
 
   it("creates recovery events for scheduled reconnect and exhausted retry budget", () => {

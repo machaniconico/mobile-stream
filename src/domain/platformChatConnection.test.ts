@@ -3,7 +3,9 @@ import { createDefaultPlatformChatSettings, type PlatformChatSettings } from "./
 import {
   buildYouTubeLiveChatRequest,
   createDefaultPlatformChatAuthSession,
+  createInitialPlatformChatReconnectState,
   createPlatformChatAutoConnectPlan,
+  createPlatformChatReconnectDecision,
   createTwitchIrcAuthenticationCommands,
   fetchYouTubeLiveChatPage,
   getPlatformChatNetworkReadiness,
@@ -75,6 +77,116 @@ describe("platformChatConnection", () => {
       reason: "connect",
       severity: "info"
     });
+  });
+
+  it("schedules chat reconnects with exponential backoff only while streaming", () => {
+    const auth = normalizePlatformChatAuthSession({ youtubeAccessToken: "yt-token" });
+    const first = createPlatformChatReconnectDecision({
+      settings: youtubeSettings(),
+      auth,
+      chatReaderEnabled: true,
+      streamActive: true,
+      connection: { phase: "failed", message: "Network timeout" },
+      state: createInitialPlatformChatReconnectState(),
+      policy: { baseDelayMs: 1000, maxDelayMs: 5000, maxAttempts: 3 }
+    });
+    const duplicate = createPlatformChatReconnectDecision({
+      settings: youtubeSettings(),
+      auth,
+      chatReaderEnabled: true,
+      streamActive: true,
+      connection: { phase: "failed", message: "Network timeout" },
+      state: first.state,
+      policy: { baseDelayMs: 1000, maxDelayMs: 5000, maxAttempts: 3 }
+    });
+    const second = createPlatformChatReconnectDecision({
+      settings: youtubeSettings(),
+      auth,
+      chatReaderEnabled: true,
+      streamActive: true,
+      connection: { phase: "failed", message: "Network timeout" },
+      state: { ...first.state, scheduledKey: null },
+      policy: { baseDelayMs: 1000, maxDelayMs: 5000, maxAttempts: 3 }
+    });
+    const stopped = createPlatformChatReconnectDecision({
+      settings: youtubeSettings(),
+      auth,
+      chatReaderEnabled: true,
+      streamActive: false,
+      connection: { phase: "failed", message: "Network timeout" },
+      state: second.state,
+      policy: { baseDelayMs: 1000, maxDelayMs: 5000, maxAttempts: 3 }
+    });
+    const reconnecting = createPlatformChatReconnectDecision({
+      settings: youtubeSettings(),
+      auth,
+      chatReaderEnabled: true,
+      streamActive: true,
+      connection: { phase: "connecting", message: "Connecting to YouTube chat." },
+      state: { ...first.state, scheduledKey: null },
+      policy: { baseDelayMs: 1000, maxDelayMs: 5000, maxAttempts: 3 }
+    });
+    const connected = createPlatformChatReconnectDecision({
+      settings: youtubeSettings(),
+      auth,
+      chatReaderEnabled: true,
+      streamActive: true,
+      connection: { phase: "connected", message: "Connected." },
+      state: { ...first.state, scheduledKey: null },
+      policy: { baseDelayMs: 1000, maxDelayMs: 5000, maxAttempts: 3 }
+    });
+
+    expect(first).toMatchObject({
+      command: "schedule-reconnect",
+      delayMs: 1000,
+      attemptsUsed: 1,
+      maxAttempts: 3
+    });
+    expect(duplicate.command).toBe("none");
+    expect(second).toMatchObject({
+      command: "schedule-reconnect",
+      delayMs: 2000,
+      attemptsUsed: 2
+    });
+    expect(stopped).toMatchObject({
+      command: "cancel",
+      attemptsUsed: 0
+    });
+    expect(reconnecting).toMatchObject({
+      command: "none",
+      attemptsUsed: 1
+    });
+    expect(connected).toMatchObject({
+      command: "cancel",
+      attemptsUsed: 0
+    });
+  });
+
+  it("gives up after the chat reconnect retry budget is exhausted", () => {
+    const auth = normalizePlatformChatAuthSession({ youtubeAccessToken: "yt-token" });
+    const state = {
+      attemptsUsed: 2,
+      lastFailureKey: "youtube\u001flive-chat-123\u001fnetwork timeout",
+      scheduledKey: null,
+      exhaustedKey: null
+    };
+    const decision = createPlatformChatReconnectDecision({
+      settings: youtubeSettings(),
+      auth,
+      chatReaderEnabled: true,
+      streamActive: true,
+      connection: { phase: "failed", message: "Network timeout" },
+      state,
+      policy: { baseDelayMs: 1000, maxAttempts: 2 }
+    });
+
+    expect(decision).toMatchObject({
+      command: "give-up",
+      severity: "fail",
+      attemptsUsed: 2,
+      maxAttempts: 2
+    });
+    expect(decision.state.exhaustedKey).toBe(decision.key);
   });
 
   it("builds sanitized YouTube live chat requests with bearer auth", () => {

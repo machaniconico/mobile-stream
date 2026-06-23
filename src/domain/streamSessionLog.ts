@@ -1,6 +1,7 @@
 import type { StreamRecoveryAutomationDecision } from "./streamRecovery";
 import type { StreamControlAction, StreamOperationStatus } from "./streamOperation";
 import type { StreamHealth, StreamStatus } from "./streamState";
+import type { PlatformChatReconnectDecision } from "./platformChatConnection";
 
 export type StreamSessionEventSeverity = "info" | "warn" | "fail";
 export type StreamSessionEventKind = "status" | "operation" | "recovery" | "chat";
@@ -86,18 +87,57 @@ export const createStreamRecoveryEvent = (
 };
 
 export const createStreamChatEvent = (
-  phase: "auto-connect-started" | "auto-connect-skipped",
+  phase: "auto-connect-started" | "auto-connect-skipped" | "auto-reconnect-scheduled" | "auto-reconnect-exhausted",
   message: string,
-  severity: Extract<StreamSessionEventSeverity, "info" | "warn"> = "info",
+  severity: StreamSessionEventSeverity = "info",
   now: Date = new Date()
 ): StreamSessionEvent => ({
   id: createEventId(now, "chat", phase),
   at: now.toISOString(),
   kind: "chat",
   severity,
-  title: phase === "auto-connect-started" ? "Chat auto-connect started" : "Chat auto-connect skipped",
+  title: chatEventTitle(phase),
   message
 });
+
+export const createStreamChatReconnectEvent = (
+  decision: PlatformChatReconnectDecision,
+  now: Date = new Date()
+): StreamSessionEvent | null => {
+  if (decision.command === "schedule-reconnect") {
+    const delaySeconds = decision.delayMs === null ? 0 : Math.round(decision.delayMs / 1000);
+    return createStreamChatEvent(
+      "auto-reconnect-scheduled",
+      `${decision.reason} Retrying chat in ${delaySeconds}s (${decision.attemptsUsed}/${decision.maxAttempts}).`,
+      "warn",
+      now
+    );
+  }
+
+  if (decision.command === "give-up") {
+    return createStreamChatEvent(
+      "auto-reconnect-exhausted",
+      decision.reason,
+      "fail",
+      now
+    );
+  }
+
+  return null;
+};
+
+const chatEventTitle = (phase: "auto-connect-started" | "auto-connect-skipped" | "auto-reconnect-scheduled" | "auto-reconnect-exhausted"): string => {
+  switch (phase) {
+    case "auto-connect-started":
+      return "Chat auto-connect started";
+    case "auto-connect-skipped":
+      return "Chat auto-connect skipped";
+    case "auto-reconnect-scheduled":
+      return "Chat reconnect scheduled";
+    case "auto-reconnect-exhausted":
+      return "Chat reconnect exhausted";
+  }
+};
 
 const statusSeverity = (status: StreamStatus): StreamSessionEventSeverity => {
   if (status === "failed") {

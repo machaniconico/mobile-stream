@@ -48,6 +48,33 @@ export interface PlatformChatAutoConnectPlan {
   message: string;
 }
 
+export interface PlatformChatReconnectPolicy {
+  enabled: boolean;
+  maxAttempts: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+}
+
+export interface PlatformChatReconnectState {
+  attemptsUsed: number;
+  lastFailureKey: string | null;
+  scheduledKey: string | null;
+  exhaustedKey: string | null;
+}
+
+export type PlatformChatReconnectCommand = "none" | "schedule-reconnect" | "cancel" | "give-up";
+
+export interface PlatformChatReconnectDecision {
+  command: PlatformChatReconnectCommand;
+  key: string | null;
+  delayMs: number | null;
+  reason: string;
+  severity: "info" | "warn" | "fail";
+  attemptsUsed: number;
+  maxAttempts: number;
+  state: PlatformChatReconnectState;
+}
+
 export interface PlatformChatFetchResponse {
   ok: boolean;
   status: number;
@@ -90,6 +117,12 @@ export class PlatformChatNetworkError extends Error {
 const YOUTUBE_LIVE_CHAT_MESSAGES_URL = "https://www.googleapis.com/youtube/v3/liveChat/messages";
 export const TWITCH_IRC_WEBSOCKET_URL = "wss://irc-ws.chat.twitch.tv:443";
 const DEFAULT_YOUTUBE_POLL_INTERVAL_MS = 5000;
+const defaultReconnectPolicy: PlatformChatReconnectPolicy = {
+  enabled: true,
+  maxAttempts: 5,
+  baseDelayMs: 1000,
+  maxDelayMs: 30000
+};
 
 export const createDefaultPlatformChatAuthSession = (): PlatformChatAuthSession => ({
   youtubeAccessToken: "",
@@ -114,6 +147,13 @@ export const createPlatformChatConnectionState = (
   message,
   lastReceivedAt: null,
   nextPollAt: null
+});
+
+export const createInitialPlatformChatReconnectState = (): PlatformChatReconnectState => ({
+  attemptsUsed: 0,
+  lastFailureKey: null,
+  scheduledKey: null,
+  exhaustedKey: null
 });
 
 export const getPlatformChatNetworkReadiness = (
@@ -221,6 +261,147 @@ export const createPlatformChatAutoConnectPlan = (
     reason: "connect",
     severity: "info",
     message: `Starting ${normalizedSettings.platform === "youtube" ? "YouTube" : "Twitch"} chat readout connection.`
+  };
+};
+
+export const createPlatformChatReconnectDecision = ({
+  settings,
+  auth,
+  chatReaderEnabled,
+  streamActive,
+  connection,
+  state,
+  policy = defaultReconnectPolicy
+}: {
+  settings: PlatformChatSettings;
+  auth: PlatformChatAuthSession;
+  chatReaderEnabled: boolean;
+  streamActive: boolean;
+  connection: Pick<PlatformChatConnectionState, "phase" | "message">;
+  state: PlatformChatReconnectState;
+  policy?: Partial<PlatformChatReconnectPolicy>;
+}): PlatformChatReconnectDecision => {
+  const normalizedPolicy = normalizeReconnectPolicy(policy);
+  const idleState = createInitialPlatformChatReconnectState();
+
+  if (!normalizedPolicy.enabled || !streamActive) {
+    return {
+      command: state.scheduledKey || state.attemptsUsed > 0 || state.exhaustedKey ? "cancel" : "none",
+      key: null,
+      delayMs: null,
+      reason: !streamActive ? "Chat reconnect recovery is idle because the stream is not active." : "Chat reconnect recovery is idle.",
+      severity: "info",
+      attemptsUsed: 0,
+      maxAttempts: normalizedPolicy.maxAttempts,
+      state: idleState
+    };
+  }
+
+  if (connection.phase === "connecting" && state.attemptsUsed > 0) {
+    return {
+      command: "none",
+      key: state.lastFailureKey,
+      delayMs: null,
+      reason: "Platform chat reconnect is in progress.",
+      severity: "info",
+      attemptsUsed: state.attemptsUsed,
+      maxAttempts: normalizedPolicy.maxAttempts,
+      state
+    };
+  }
+
+  if (connection.phase !== "failed") {
+    return {
+      command: state.scheduledKey || state.attemptsUsed > 0 || state.exhaustedKey ? "cancel" : "none",
+      key: null,
+      delayMs: null,
+      reason: "Chat reconnect recovery is idle.",
+      severity: "info",
+      attemptsUsed: 0,
+      maxAttempts: normalizedPolicy.maxAttempts,
+      state: idleState
+    };
+  }
+
+  const autoConnectPlan = createPlatformChatAutoConnectPlan(settings, auth, chatReaderEnabled, connection);
+  if (autoConnectPlan.action !== "connect") {
+    return {
+      command: state.scheduledKey || state.attemptsUsed > 0 || state.exhaustedKey ? "cancel" : "none",
+      key: null,
+      delayMs: null,
+      reason: autoConnectPlan.message,
+      severity: autoConnectPlan.severity,
+      attemptsUsed: 0,
+      maxAttempts: normalizedPolicy.maxAttempts,
+      state: idleState
+    };
+  }
+
+  const failureKey = createReconnectFailureKey(settings, connection.message);
+  if (state.scheduledKey === failureKey) {
+    return {
+      command: "none",
+      key: failureKey,
+      delayMs: null,
+      reason: "Platform chat reconnect is already scheduled.",
+      severity: "info",
+      attemptsUsed: state.attemptsUsed,
+      maxAttempts: normalizedPolicy.maxAttempts,
+      state
+    };
+  }
+
+  if (state.exhaustedKey === failureKey) {
+    return {
+      command: "none",
+      key: failureKey,
+      delayMs: null,
+      reason: "Platform chat reconnect retry budget is exhausted.",
+      severity: "fail",
+      attemptsUsed: state.attemptsUsed,
+      maxAttempts: normalizedPolicy.maxAttempts,
+      state
+    };
+  }
+
+  const attemptsUsed = state.lastFailureKey === failureKey ? state.attemptsUsed + 1 : 1;
+  if (attemptsUsed > normalizedPolicy.maxAttempts) {
+    return {
+      command: "give-up",
+      key: failureKey,
+      delayMs: null,
+      reason: `Platform chat reconnect stopped after ${normalizedPolicy.maxAttempts} failed attempt${normalizedPolicy.maxAttempts === 1 ? "" : "s"}.`,
+      severity: "fail",
+      attemptsUsed: normalizedPolicy.maxAttempts,
+      maxAttempts: normalizedPolicy.maxAttempts,
+      state: {
+        attemptsUsed: normalizedPolicy.maxAttempts,
+        lastFailureKey: failureKey,
+        scheduledKey: null,
+        exhaustedKey: failureKey
+      }
+    };
+  }
+
+  const delayMs = Math.min(
+    normalizedPolicy.maxDelayMs,
+    Math.round(normalizedPolicy.baseDelayMs * 2 ** Math.max(0, attemptsUsed - 1))
+  );
+
+  return {
+    command: "schedule-reconnect",
+    key: failureKey,
+    delayMs,
+    reason: connection.message || "Platform chat connection failed.",
+    severity: "warn",
+    attemptsUsed,
+    maxAttempts: normalizedPolicy.maxAttempts,
+    state: {
+      attemptsUsed,
+      lastFailureKey: failureKey,
+      scheduledKey: failureKey,
+      exhaustedKey: null
+    }
   };
 };
 
@@ -431,6 +612,19 @@ const normalizeToken = (value: unknown): string => (typeof value === "string" ? 
 
 const normalizeTwitchLogin = (value: unknown): string =>
   (typeof value === "string" ? value.trim().replace(/^@/, "").toLowerCase().replace(/[^a-z0-9_]/g, "") : "").slice(0, 25);
+
+const normalizeReconnectPolicy = (policy: Partial<PlatformChatReconnectPolicy>): PlatformChatReconnectPolicy => ({
+  enabled: policy.enabled !== false,
+  maxAttempts: Math.max(1, Math.round(policy.maxAttempts ?? defaultReconnectPolicy.maxAttempts)),
+  baseDelayMs: Math.max(250, Math.round(policy.baseDelayMs ?? defaultReconnectPolicy.baseDelayMs)),
+  maxDelayMs: Math.max(250, Math.round(policy.maxDelayMs ?? defaultReconnectPolicy.maxDelayMs))
+});
+
+const createReconnectFailureKey = (settings: PlatformChatSettings, message: string): string => {
+  const normalizedSettings = normalizePlatformChatSettings(settings);
+  const target = normalizedSettings.platform === "youtube" ? normalizedSettings.youtubeLiveChatId : normalizedSettings.twitchChannel;
+  return [normalizedSettings.platform, target, normalizeToken(message).toLowerCase()].join("\u001f");
+};
 
 const phaseLabel = (phase: PlatformChatConnectionPhase): string => {
   switch (phase) {

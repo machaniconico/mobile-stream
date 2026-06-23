@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "../domain/chatReader";
 import {
   createPlatformChatAutoConnectPlan,
+  createInitialPlatformChatReconnectState,
   createPlatformChatConnectionState,
+  createPlatformChatReconnectDecision,
   createTwitchIrcAuthenticationCommands,
   fetchYouTubeLiveChatPage,
   getPlatformChatNetworkReadiness,
@@ -11,7 +13,9 @@ import {
   TWITCH_IRC_WEBSOCKET_URL,
   type PlatformChatAuthSession,
   type PlatformChatAutoConnectPlan,
-  type PlatformChatConnectionState
+  type PlatformChatConnectionState,
+  type PlatformChatReconnectDecision,
+  type PlatformChatReconnectPolicy
 } from "../domain/platformChatConnection";
 import type { PlatformChatSettings } from "../domain/platformChat";
 
@@ -19,6 +23,13 @@ interface PlatformChatConnectionOptions {
   settings: PlatformChatSettings;
   auth: PlatformChatAuthSession;
   onMessages(messages: ChatMessage[]): void;
+  autoReconnect?: {
+    enabled: boolean;
+    streamActive: boolean;
+    chatReaderEnabled: boolean;
+    policy?: Partial<PlatformChatReconnectPolicy>;
+    onDecision?(decision: PlatformChatReconnectDecision): void;
+  };
 }
 
 interface PlatformChatSocket {
@@ -32,16 +43,21 @@ interface PlatformChatSocket {
 
 type PlatformChatSocketConstructor = new (url: string) => PlatformChatSocket;
 
-export const usePlatformChatConnection = ({ settings, auth, onMessages }: PlatformChatConnectionOptions) => {
+export const usePlatformChatConnection = ({ settings, auth, onMessages, autoReconnect }: PlatformChatConnectionOptions) => {
   const [connection, setConnection] = useState<PlatformChatConnectionState>(() => createPlatformChatConnectionState());
   const connectionRef = useRef(connection);
   const settingsRef = useRef(settings);
   const authRef = useRef(auth);
   const onMessagesRef = useRef(onMessages);
+  const autoReconnectRef = useRef(autoReconnect);
+  const reconnectDecisionRef = useRef(autoReconnect?.onDecision);
+  const reconnectStateRef = useRef(createInitialPlatformChatReconnectState());
   const activeRef = useRef(false);
   const connectionIdRef = useRef(0);
   const connectionKeyRef = useRef(platformConnectionKey(settings, auth));
   const youtubeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectTimerKeyRef = useRef<string | null>(null);
   const socketRef = useRef<PlatformChatSocket | null>(null);
 
   useEffect(() => {
@@ -60,6 +76,11 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages }: Platfo
     onMessagesRef.current = onMessages;
   }, [onMessages]);
 
+  useEffect(() => {
+    autoReconnectRef.current = autoReconnect;
+    reconnectDecisionRef.current = autoReconnect?.onDecision;
+  }, [autoReconnect]);
+
   const clearYoutubeTimer = useCallback(() => {
     if (youtubeTimerRef.current) {
       clearTimeout(youtubeTimerRef.current);
@@ -67,7 +88,15 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages }: Platfo
     }
   }, []);
 
-  const disconnect = useCallback(() => {
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    reconnectTimerKeyRef.current = null;
+  }, []);
+
+  const closeConnection = useCallback(() => {
     activeRef.current = false;
     connectionIdRef.current += 1;
     clearYoutubeTimer();
@@ -75,8 +104,13 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages }: Platfo
       socketRef.current.close();
       socketRef.current = null;
     }
-    setConnection(createPlatformChatConnectionState("idle", "Not connected."));
   }, [clearYoutubeTimer]);
+
+  const disconnect = useCallback(() => {
+    closeConnection();
+    clearReconnectTimer();
+    setConnection(createPlatformChatConnectionState("idle", "Not connected."));
+  }, [clearReconnectTimer, closeConnection]);
 
   const pollYouTube = useCallback(
     async (connectionId: number, cursor: string | null) => {
@@ -203,7 +237,12 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages }: Platfo
   }, []);
 
   const connect = useCallback(() => {
-    disconnect();
+    closeConnection();
+    clearReconnectTimer();
+    reconnectStateRef.current = {
+      ...reconnectStateRef.current,
+      scheduledKey: null
+    };
     const normalizedAuth = normalizePlatformChatAuthSession(authRef.current);
     const readiness = getPlatformChatNetworkReadiness(settingsRef.current, normalizedAuth);
 
@@ -221,7 +260,7 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages }: Platfo
     }
 
     connectTwitch(connectionId);
-  }, [connectTwitch, disconnect, pollYouTube]);
+  }, [clearReconnectTimer, closeConnection, connectTwitch, pollYouTube]);
 
   const ensureConnected = useCallback(
     (chatReaderEnabled = true): PlatformChatAutoConnectPlan => {
@@ -240,6 +279,74 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages }: Platfo
     },
     [connect]
   );
+
+  useEffect(() => {
+    const decision = createPlatformChatReconnectDecision({
+      settings,
+      auth,
+      chatReaderEnabled: autoReconnect?.chatReaderEnabled === true,
+      streamActive: autoReconnect?.enabled === true && autoReconnect.streamActive === true,
+      connection,
+      state: reconnectStateRef.current,
+      policy: autoReconnect?.policy
+    });
+    reconnectStateRef.current = decision.state;
+
+    if (decision.command === "cancel") {
+      clearReconnectTimer();
+      return;
+    }
+
+    if (decision.command === "give-up") {
+      clearReconnectTimer();
+      reconnectDecisionRef.current?.(decision);
+      return;
+    }
+
+    if (decision.command !== "schedule-reconnect" || !decision.key) {
+      return;
+    }
+
+    if (reconnectTimerKeyRef.current === decision.key) {
+      return;
+    }
+
+    clearReconnectTimer();
+    reconnectDecisionRef.current?.(decision);
+    reconnectTimerKeyRef.current = decision.key;
+    reconnectTimerRef.current = setTimeout(() => {
+      reconnectTimerRef.current = null;
+      reconnectTimerKeyRef.current = null;
+      reconnectStateRef.current = {
+        ...reconnectStateRef.current,
+        scheduledKey: null
+      };
+      const reconnectOptions = autoReconnectRef.current;
+      const reconnectPlan = createPlatformChatAutoConnectPlan(
+        settingsRef.current,
+        normalizePlatformChatAuthSession(authRef.current),
+        reconnectOptions?.chatReaderEnabled === true,
+        connectionRef.current
+      );
+
+      if (reconnectOptions?.enabled === true && reconnectOptions.streamActive === true && reconnectPlan.action === "connect") {
+        connect();
+      }
+    }, Math.max(0, decision.delayMs ?? 0));
+  }, [
+    auth,
+    autoReconnect?.chatReaderEnabled,
+    autoReconnect?.enabled,
+    autoReconnect?.policy?.baseDelayMs,
+    autoReconnect?.policy?.enabled,
+    autoReconnect?.policy?.maxAttempts,
+    autoReconnect?.policy?.maxDelayMs,
+    autoReconnect?.streamActive,
+    clearReconnectTimer,
+    connect,
+    connection,
+    settings
+  ]);
 
   useEffect(() => {
     const nextKey = platformConnectionKey(settings, auth);

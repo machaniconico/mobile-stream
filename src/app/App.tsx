@@ -67,7 +67,12 @@ import {
   formatStreamStartPreflightBlockMessage
 } from "../domain/streamStartPreflight";
 import { createStreamDiagnostics } from "../domain/streamDiagnostics";
-import { createStreamChatEvent, createStreamOperationEvent, createStreamRecoveryEvent } from "../domain/streamSessionLog";
+import {
+  createStreamChatEvent,
+  createStreamChatReconnectEvent,
+  createStreamOperationEvent,
+  createStreamRecoveryEvent
+} from "../domain/streamSessionLog";
 import {
   appendStreamValidationRun,
   normalizeStreamValidationRuns,
@@ -126,14 +131,26 @@ export const App = () => {
   const [streamValidationRuns, setStreamValidationRuns] = useState<StreamValidationRun[]>(() =>
     normalizeStreamValidationRuns(initialStreamValidationRuns)
   );
+  const { events: streamSessionEvents, recordEvent: recordStreamSessionEvent } = useStreamSessionLog(snapshot);
+  const recordPlatformChatReconnectDecision = useCallback(
+    (decision: Parameters<typeof createStreamChatReconnectEvent>[0]) => {
+      recordStreamSessionEvent(createStreamChatReconnectEvent(decision));
+    },
+    [recordStreamSessionEvent]
+  );
   const platformChatConnection = usePlatformChatConnection({
     settings: profile.platformChat,
     auth: platformChatAuth,
     onMessages: (messages) => {
       setChatReader((current) => messages.reduce(enqueueChatMessage, current));
+    },
+    autoReconnect: {
+      enabled: true,
+      streamActive: snapshot.state.status === "live" || snapshot.state.status === "reconnecting",
+      chatReaderEnabled: chatReader.settings.enabled,
+      onDecision: recordPlatformChatReconnectDecision
     }
   });
-  const { events: streamSessionEvents, recordEvent: recordStreamSessionEvent } = useStreamSessionLog(snapshot);
   const streamHealthSamples = useStreamHealthHistory(snapshot);
   const clearPersistedStreamSessionSummaries = useCallback(() => {
     clearStreamSessionSummaries();
