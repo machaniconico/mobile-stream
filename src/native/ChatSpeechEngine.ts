@@ -36,6 +36,14 @@ export const useChatSpeechQueue = (
   }, [engine, state.settings.enabled]);
 
   useEffect(() => {
+    if (!speakingRef.current || state.speakingMessageId || state.queue.length > 0) {
+      return;
+    }
+    speakingRef.current = false;
+    void engine.stop();
+  }, [engine, state.queue.length, state.speakingMessageId]);
+
+  useEffect(() => {
     if (speakingRef.current) {
       return;
     }

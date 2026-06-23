@@ -512,6 +512,11 @@ export const MobileApp = () => {
     }));
   };
 
+  const clearChatReadout = useCallback(() => {
+    void chatSpeechEngine.stop().catch(() => undefined);
+    setChatReader(clearChatReaderSession);
+  }, [chatSpeechEngine]);
+
   const startStream = async () => {
     await runStreamOperation("start", async () => {
       const engineSnapshot = engine.getSnapshot();
@@ -569,6 +574,7 @@ export const MobileApp = () => {
             )
           );
         }
+        clearChatReadout();
       }
     });
   };
@@ -623,7 +629,7 @@ export const MobileApp = () => {
   };
 
   const clearChatComments = () => {
-    setChatReader(clearChatReaderSession);
+    clearChatReadout();
   };
 
   const updatePlatformChatSettings = (settings: Partial<PlatformChatSettings>) => {
