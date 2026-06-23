@@ -941,6 +941,7 @@ final class LiveCasterNative: RCTEventEmitter {
         let videoEncoder = runtimeState.dictionaryValue("videoEncoder")
         let audioEncoder = runtimeState.dictionaryValue("audioEncoder")
         let micEffects = audioEncoder.dictionaryValue("micEffects")
+        let monitor = micEffects.dictionaryValue("monitor")
         let publisher = runtimeState.dictionaryValue("publisher")
         let sceneComposition = runtimeState.dictionaryValue("sceneComposition")
         let runtimeStatus = redactSensitiveText(runtimeState.stringValue("status", fallback: status.rawValue), streamKey: streamKey, publishURL: publishURL)
@@ -1009,7 +1010,23 @@ final class LiveCasterNative: RCTEventEmitter {
                 "micEffectsProcessedFrames": micEffects.intValue("processedFrames"),
                 "micEffectsProcessedSamples": micEffects.intValue("processedSamples"),
                 "micEffectsGatedSamples": micEffects.intValue("gatedSamples"),
-                "micEffectsLimitedSamples": micEffects.intValue("limitedSamples")
+                "micEffectsLimitedSamples": micEffects.intValue("limitedSamples"),
+                "monitorEnabled": monitor.boolValue("enabled"),
+                "monitorRunning": monitor.boolValue("running"),
+                "monitorVolume": monitor.doubleValue("volume"),
+                "monitorHeadphonesOnly": monitor.boolValue("headphonesOnly", fallback: true),
+                "monitorRoute": monitor.stringValue("route", fallback: "unknown"),
+                "monitorOutputName": monitor.stringValue("outputName", fallback: "Unknown"),
+                "monitorHeadphonesConnected": monitor.boolValue("headphonesConnected"),
+                "monitorWrittenFrames": monitor.intValue("writtenFrames"),
+                "monitorDroppedFrames": monitor.intValue("droppedFrames"),
+                "monitorWrittenBuffers": monitor.intValue("writtenBuffers"),
+                "monitorDroppedBuffers": monitor.intValue("droppedBuffers"),
+                "monitorLastError": redactSensitiveText(
+                    monitor.stringValue("lastError"),
+                    streamKey: streamKey,
+                    publishURL: publishURL
+                )
             ],
             "message": redactSensitiveText(message, streamKey: streamKey, publishURL: publishURL)
         ]
@@ -1096,7 +1113,20 @@ private extension Int {
 
 private extension Dictionary where Key == String, Value == Any {
     func dictionaryValue(_ key: String) -> [String: Any] {
-        self[key] as? [String: Any] ?? [:]
+        if let dictionary = self[key] as? [String: Any] {
+            return dictionary
+        }
+        if let dictionary = self[key] as? NSDictionary {
+            var output: [String: Any] = [:]
+            dictionary.forEach { key, value in
+                guard let stringKey = key as? String else {
+                    return
+                }
+                output[stringKey] = value
+            }
+            return output
+        }
+        return [:]
     }
 
     func stringValue(_ key: String, fallback: String = "") -> String {

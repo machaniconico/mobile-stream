@@ -867,7 +867,13 @@ const sanitizeNativeRuntime = (
           stillImageAssetMissingKinds: (runtime.composition.stillImageAssetMissingKinds ?? []).map((kind) =>
             redactStreamKeyOccurrences(kind, streamKey)
           )
-        }
+        },
+        audioProcessing: runtime.audioProcessing
+          ? {
+              ...runtime.audioProcessing,
+              monitorLastError: redactStreamKeyOccurrences(runtime.audioProcessing.monitorLastError, streamKey)
+            }
+          : undefined
       }
     : null;
 

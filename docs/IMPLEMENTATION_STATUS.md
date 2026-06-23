@@ -120,6 +120,7 @@
 - Android microphone PCM effect path through RootEncoder `CustomAudioEffect`.
 - Android headphone-only mic monitor playback through `AudioTrack`.
 - Android `LiveCasterNative.getAudioRoute()` reports current output route and headphone connection state for monitor-safety preflight.
+- iOS Broadcast Upload Extension headphone-gated self-monitor playback for processed ReplayKit microphone PCM with runtime route, write, and drop evidence.
 - Android microphone/notification runtime permission preflight before MediaProjection launch.
 - Android release signing fail-closed configuration using `MLC_RELEASE_*` keystore inputs instead of debug signing for release artifacts.
 - Native release-configuration audit script covering Android release signing, streaming permissions, OAuth callback schemes, iOS usage descriptions, iOS privacy manifest packaging, and ReplayKit Broadcast Upload Extension bundle identifiers, Debug/Release entitlements, extension-only settings, and matching App Group setup.
@@ -150,7 +151,7 @@
 - Apple Developer account-backed iOS production archive/export validation for Broadcast Upload Extension provisioning.
 - Android end-to-end physical device validation against a real RTMP/RTMPS endpoint.
 - Android physical-device tuning for mic monitor latency and Bluetooth route behavior.
-- iOS headphone self-monitor playback from ReplayKit microphone samples with measured latency and route behavior.
+- iOS physical-device tuning for mic monitor latency and Bluetooth route behavior.
 - iOS physical-device evidence that App Group-copied PNGTuber/image assets render correctly inside the Broadcast Upload Extension compositor.
 - First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
 - Live2D Cubism SDK integration.

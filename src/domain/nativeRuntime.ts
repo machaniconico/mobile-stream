@@ -33,6 +33,18 @@ export interface NativeRuntimeAudioProcessing {
   micEffectsProcessedSamples: number;
   micEffectsGatedSamples: number;
   micEffectsLimitedSamples: number;
+  monitorEnabled: boolean;
+  monitorRunning: boolean;
+  monitorVolume: number;
+  monitorHeadphonesOnly: boolean;
+  monitorRoute: string;
+  monitorOutputName: string;
+  monitorHeadphonesConnected: boolean;
+  monitorWrittenFrames: number;
+  monitorDroppedFrames: number;
+  monitorWrittenBuffers: number;
+  monitorDroppedBuffers: number;
+  monitorLastError: string;
 }
 
 export interface NativeRuntimeTelemetry {

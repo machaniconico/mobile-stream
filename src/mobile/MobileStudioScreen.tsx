@@ -220,9 +220,19 @@ const platformPublishingFreshnessMetricLabel = (
 const nativeCompositionMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.nativeComposition.coverage} / ${diagnostics.nativeComposition.previewOnlySourceCount} preview-only`;
 
+const nativeRuntimeMonitorMetricLabel = (diagnostics: StreamDiagnostics): string => {
+  const audioProcessing = diagnostics.nativeRuntime?.audioProcessing;
+  if (!audioProcessing?.monitorEnabled) {
+    return "";
+  }
+  const monitorStatus = audioProcessing.monitorRunning ? "on" : audioProcessing.monitorHeadphonesConnected ? "ready" : "blocked";
+  const route = audioProcessing.monitorOutputName || audioProcessing.monitorRoute || "Unknown";
+  return ` / monitor ${monitorStatus} ${audioProcessing.monitorWrittenFrames}/${audioProcessing.monitorDroppedFrames} ${route}`;
+};
+
 const nativeRuntimeMetricLabel = (diagnostics: StreamDiagnostics): string =>
   diagnostics.nativeRuntime
-    ? `${diagnostics.nativeRuntime.platform} / ${diagnostics.nativeRuntime.publisher.state || diagnostics.nativeRuntime.runtimeStatus} / ${diagnostics.nativeRuntime.composition.status} / assets ${diagnostics.nativeRuntime.composition.stillImageAssetLoadedCount ?? 0}/${diagnostics.nativeRuntime.composition.stillImageAssetCount ?? 0}${diagnostics.nativeRuntime.audioProcessing?.micEffectsEnabled ? ` / mic fx ${diagnostics.nativeRuntime.audioProcessing.micEffectsPresetId} ${diagnostics.nativeRuntime.audioProcessing.micEffectsProcessedFrames}` : ""}${diagnostics.nativeRuntime.stale ? " / stale" : ""}${diagnostics.nativeRuntime.publisher.congested ? " / congested" : ""}`
+    ? `${diagnostics.nativeRuntime.platform} / ${diagnostics.nativeRuntime.publisher.state || diagnostics.nativeRuntime.runtimeStatus} / ${diagnostics.nativeRuntime.composition.status} / assets ${diagnostics.nativeRuntime.composition.stillImageAssetLoadedCount ?? 0}/${diagnostics.nativeRuntime.composition.stillImageAssetCount ?? 0}${diagnostics.nativeRuntime.audioProcessing?.micEffectsEnabled ? ` / mic fx ${diagnostics.nativeRuntime.audioProcessing.micEffectsPresetId} ${diagnostics.nativeRuntime.audioProcessing.micEffectsProcessedFrames}` : ""}${nativeRuntimeMonitorMetricLabel(diagnostics)}${diagnostics.nativeRuntime.stale ? " / stale" : ""}${diagnostics.nativeRuntime.publisher.congested ? " / congested" : ""}`
     : "Not linked";
 
 const qualityAdvisorTargetLabel = (diagnostics: StreamDiagnostics): string =>

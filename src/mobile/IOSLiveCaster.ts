@@ -180,7 +180,19 @@ const normalizeNativeRuntime = (
           micEffectsProcessedFrames: runtime.audioProcessing?.micEffectsProcessedFrames ?? 0,
           micEffectsProcessedSamples: runtime.audioProcessing?.micEffectsProcessedSamples ?? 0,
           micEffectsGatedSamples: runtime.audioProcessing?.micEffectsGatedSamples ?? 0,
-          micEffectsLimitedSamples: runtime.audioProcessing?.micEffectsLimitedSamples ?? 0
+          micEffectsLimitedSamples: runtime.audioProcessing?.micEffectsLimitedSamples ?? 0,
+          monitorEnabled: runtime.audioProcessing?.monitorEnabled ?? false,
+          monitorRunning: runtime.audioProcessing?.monitorRunning ?? false,
+          monitorVolume: runtime.audioProcessing?.monitorVolume ?? 0,
+          monitorHeadphonesOnly: runtime.audioProcessing?.monitorHeadphonesOnly ?? true,
+          monitorRoute: runtime.audioProcessing?.monitorRoute ?? "unknown",
+          monitorOutputName: runtime.audioProcessing?.monitorOutputName ?? "Unknown",
+          monitorHeadphonesConnected: runtime.audioProcessing?.monitorHeadphonesConnected ?? false,
+          monitorWrittenFrames: runtime.audioProcessing?.monitorWrittenFrames ?? 0,
+          monitorDroppedFrames: runtime.audioProcessing?.monitorDroppedFrames ?? 0,
+          monitorWrittenBuffers: runtime.audioProcessing?.monitorWrittenBuffers ?? 0,
+          monitorDroppedBuffers: runtime.audioProcessing?.monitorDroppedBuffers ?? 0,
+          monitorLastError: runtime.audioProcessing?.monitorLastError ?? ""
         },
         message: runtime.message ?? ""
       }

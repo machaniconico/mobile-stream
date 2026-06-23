@@ -1,4 +1,5 @@
 import AudioToolbox
+import AVFoundation
 import CoreGraphics
 import CoreImage
 import CoreMedia
@@ -712,6 +713,21 @@ fileprivate struct BroadcastMicrophoneProcessingResult: Equatable {
     let limitedSamples: Int
 }
 
+fileprivate struct BroadcastMicrophoneMonitorSnapshot: Equatable {
+    let enabled: Bool
+    let running: Bool
+    let volume: Float
+    let headphonesOnly: Bool
+    let route: String
+    let outputName: String
+    let headphonesConnected: Bool
+    let writtenFrames: Int
+    let droppedFrames: Int
+    let writtenBuffers: Int
+    let droppedBuffers: Int
+    let lastError: String
+}
+
 struct BroadcastAudioEncoderStats: Equatable {
     private(set) var encodedFrames: Int = 0
     private(set) var appFrames: Int = 0
@@ -728,6 +744,18 @@ struct BroadcastAudioEncoderStats: Equatable {
     private(set) var micEffectsProcessedSamples = 0
     private(set) var micEffectsGatedSamples = 0
     private(set) var micEffectsLimitedSamples = 0
+    private(set) var monitorEnabled = false
+    private(set) var monitorRunning = false
+    private(set) var monitorVolume: Float = 0
+    private(set) var monitorHeadphonesOnly = true
+    private(set) var monitorRoute = "unknown"
+    private(set) var monitorOutputName = "Unknown"
+    private(set) var monitorHeadphonesConnected = false
+    private(set) var monitorWrittenFrames = 0
+    private(set) var monitorDroppedFrames = 0
+    private(set) var monitorWrittenBuffers = 0
+    private(set) var monitorDroppedBuffers = 0
+    private(set) var monitorLastError = ""
 
     mutating func configureMicEffects(_ configuration: BroadcastMicEffectsConfiguration) {
         micEffectsEnabled = configuration.enabled
@@ -736,6 +764,18 @@ struct BroadcastAudioEncoderStats: Equatable {
         micEffectsProcessedSamples = 0
         micEffectsGatedSamples = 0
         micEffectsLimitedSamples = 0
+        monitorEnabled = configuration.monitorEnabled
+        monitorRunning = false
+        monitorVolume = configuration.monitorVolume
+        monitorHeadphonesOnly = configuration.monitorHeadphonesOnly
+        monitorRoute = "unknown"
+        monitorOutputName = "Unknown"
+        monitorHeadphonesConnected = false
+        monitorWrittenFrames = 0
+        monitorDroppedFrames = 0
+        monitorWrittenBuffers = 0
+        monitorDroppedBuffers = 0
+        monitorLastError = ""
     }
 
     mutating func record(_ frame: BroadcastEncodedAudioFrame) {
@@ -765,6 +805,21 @@ struct BroadcastAudioEncoderStats: Equatable {
         micEffectsLimitedSamples += result.limitedSamples
     }
 
+    fileprivate mutating func recordMicrophoneMonitor(_ snapshot: BroadcastMicrophoneMonitorSnapshot) {
+        monitorEnabled = snapshot.enabled
+        monitorRunning = snapshot.running
+        monitorVolume = snapshot.volume
+        monitorHeadphonesOnly = snapshot.headphonesOnly
+        monitorRoute = snapshot.route
+        monitorOutputName = snapshot.outputName
+        monitorHeadphonesConnected = snapshot.headphonesConnected
+        monitorWrittenFrames = snapshot.writtenFrames
+        monitorDroppedFrames = snapshot.droppedFrames
+        monitorWrittenBuffers = snapshot.writtenBuffers
+        monitorDroppedBuffers = snapshot.droppedBuffers
+        monitorLastError = snapshot.lastError
+    }
+
     mutating func recordStatus(_ status: OSStatus) {
         lastStatus = status
     }
@@ -786,7 +841,21 @@ struct BroadcastAudioEncoderStats: Equatable {
                 "processedFrames": micEffectsProcessedFrames,
                 "processedSamples": micEffectsProcessedSamples,
                 "gatedSamples": micEffectsGatedSamples,
-                "limitedSamples": micEffectsLimitedSamples
+                "limitedSamples": micEffectsLimitedSamples,
+                "monitor": [
+                    "enabled": monitorEnabled,
+                    "running": monitorRunning,
+                    "volume": monitorVolume,
+                    "headphonesOnly": monitorHeadphonesOnly,
+                    "route": monitorRoute,
+                    "outputName": monitorOutputName,
+                    "headphonesConnected": monitorHeadphonesConnected,
+                    "writtenFrames": monitorWrittenFrames,
+                    "droppedFrames": monitorDroppedFrames,
+                    "writtenBuffers": monitorWrittenBuffers,
+                    "droppedBuffers": monitorDroppedBuffers,
+                    "lastError": monitorLastError
+                ]
             ]
         ]
     }
@@ -1883,6 +1952,249 @@ private final class BroadcastMicrophoneProcessor {
     }
 }
 
+private final class BroadcastMicrophoneMonitor {
+    private let configuration: BroadcastMicEffectsConfiguration
+    private var engine: AVAudioEngine?
+    private var player: AVAudioPlayerNode?
+    private var format: AVAudioFormat?
+    private var sampleRate: Double = 0
+    private var channelCount = 0
+    private var writtenFrames = 0
+    private var droppedFrames = 0
+    private var writtenBuffers = 0
+    private var droppedBuffers = 0
+    private var lastError = ""
+
+    init(configuration: BroadcastMicEffectsConfiguration) {
+        self.configuration = configuration
+    }
+
+    deinit {
+        finish()
+    }
+
+    func write(samples: [Float], channelCount: Int, sampleRate: Double) -> BroadcastMicrophoneMonitorSnapshot {
+        let route = Self.audioRoute()
+        let inputChannelCount = max(channelCount, 1)
+        let frameCount = max(0, samples.count / inputChannelCount)
+
+        guard configuration.monitorEnabled, configuration.monitorVolume > 0, !samples.isEmpty, frameCount > 0 else {
+            lastError = ""
+            finish()
+            return snapshot(route: route, running: false)
+        }
+
+        if configuration.monitorHeadphonesOnly && !route.headphonesConnected {
+            droppedFrames += frameCount
+            droppedBuffers += 1
+            lastError = "Headphones-only monitor blocked on \(route.outputName)."
+            finish()
+            return snapshot(route: route, running: false)
+        }
+
+        do {
+            try configureIfNeeded(sampleRate: sampleRate, channelCount: inputChannelCount)
+            guard let format, let player else {
+                throw BroadcastMicrophoneMonitorError.engineUnavailable
+            }
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frameCount)) else {
+                throw BroadcastMicrophoneMonitorError.bufferUnavailable
+            }
+            buffer.frameLength = AVAudioFrameCount(frameCount)
+            try fill(buffer: buffer, samples: samples, channelCount: inputChannelCount, frameCount: frameCount)
+            player.scheduleBuffer(buffer, completionHandler: nil)
+            if !player.isPlaying {
+                player.play()
+            }
+            writtenFrames += frameCount
+            writtenBuffers += 1
+            lastError = ""
+            return snapshot(route: route, running: true)
+        } catch {
+            droppedFrames += frameCount
+            droppedBuffers += 1
+            lastError = error.localizedDescription
+            finish()
+            return snapshot(route: route, running: false)
+        }
+    }
+
+    func finish() {
+        player?.stop()
+        engine?.stop()
+        if let player {
+            engine?.detach(player)
+        }
+        player = nil
+        engine = nil
+        format = nil
+        sampleRate = 0
+        channelCount = 0
+    }
+
+    private func configureIfNeeded(sampleRate nextSampleRate: Double, channelCount nextChannelCount: Int) throws {
+        let resolvedSampleRate = nextSampleRate > 0 ? nextSampleRate : 44100
+        let resolvedChannelCount = max(1, min(nextChannelCount, 2))
+        if engine != nil, player != nil, format != nil, sampleRate == resolvedSampleRate, channelCount == resolvedChannelCount {
+            return
+        }
+
+        finish()
+        guard let nextFormat = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: resolvedSampleRate,
+            channels: AVAudioChannelCount(resolvedChannelCount),
+            interleaved: false
+        ) else {
+            throw BroadcastMicrophoneMonitorError.formatUnavailable
+        }
+
+        try? AVAudioSession.sharedInstance().setActive(true)
+        let nextEngine = AVAudioEngine()
+        let nextPlayer = AVAudioPlayerNode()
+        nextEngine.attach(nextPlayer)
+        nextEngine.connect(nextPlayer, to: nextEngine.mainMixerNode, format: nextFormat)
+        try nextEngine.start()
+        nextPlayer.play()
+        engine = nextEngine
+        player = nextPlayer
+        format = nextFormat
+        sampleRate = resolvedSampleRate
+        channelCount = resolvedChannelCount
+    }
+
+    private func fill(buffer: AVAudioPCMBuffer, samples: [Float], channelCount: Int, frameCount: Int) throws {
+        guard let channelData = buffer.floatChannelData else {
+            throw BroadcastMicrophoneMonitorError.bufferUnavailable
+        }
+        let resolvedChannelCount = max(1, min(Int(buffer.format.channelCount), channelCount))
+        for frame in 0..<frameCount {
+            for channel in 0..<resolvedChannelCount {
+                let sourceIndex = frame * channelCount + channel
+                let sample = sourceIndex < samples.count ? samples[sourceIndex] : 0
+                channelData[channel][frame] = min(Float(1), max(Float(-1), sample * configuration.monitorVolume))
+            }
+        }
+        if resolvedChannelCount == 1, Int(buffer.format.channelCount) > 1 {
+            for frame in 0..<frameCount {
+                channelData[1][frame] = channelData[0][frame]
+            }
+        }
+    }
+
+    private func snapshot(route: BroadcastAudioRoute, running: Bool) -> BroadcastMicrophoneMonitorSnapshot {
+        BroadcastMicrophoneMonitorSnapshot(
+            enabled: configuration.monitorEnabled,
+            running: running,
+            volume: configuration.monitorVolume,
+            headphonesOnly: configuration.monitorHeadphonesOnly,
+            route: route.route,
+            outputName: route.outputName,
+            headphonesConnected: route.headphonesConnected,
+            writtenFrames: writtenFrames,
+            droppedFrames: droppedFrames,
+            writtenBuffers: writtenBuffers,
+            droppedBuffers: droppedBuffers,
+            lastError: lastError
+        )
+    }
+
+    private static func audioRoute() -> BroadcastAudioRoute {
+        let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
+        let headphonesConnected = outputs.contains { isHeadphonePort($0.portType) }
+        let output = outputs.first { isHeadphonePort($0.portType) }
+            ?? outputs.first { $0.portType == .builtInSpeaker }
+            ?? outputs.first { $0.portType == .builtInReceiver }
+            ?? outputs.first
+        let route = routeKind(output?.portType)
+        let outputName = output?.portName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? output?.portName ?? routeLabel(route)
+            : routeLabel(route)
+        return BroadcastAudioRoute(route: route, outputName: outputName, headphonesConnected: headphonesConnected)
+    }
+
+    private static func isHeadphonePort(_ port: AVAudioSession.Port) -> Bool {
+        switch port {
+        case .headphones, .bluetoothA2DP, .bluetoothHFP, .bluetoothLE, .usbAudio:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func routeKind(_ port: AVAudioSession.Port?) -> String {
+        guard let port else {
+            return "unknown"
+        }
+        switch port {
+        case .builtInSpeaker:
+            return "speaker"
+        case .builtInReceiver:
+            return "receiver"
+        case .headphones:
+            return "wired-headphones"
+        case .bluetoothA2DP:
+            return "bluetooth-a2dp"
+        case .bluetoothHFP, .bluetoothLE:
+            return "bluetooth-sco"
+        case .usbAudio:
+            return "usb-headset"
+        case .HDMI:
+            return "hdmi"
+        case .airPlay:
+            return "airplay"
+        default:
+            return "other"
+        }
+    }
+
+    private static func routeLabel(_ route: String) -> String {
+        switch route {
+        case "speaker":
+            return "Speaker"
+        case "receiver":
+            return "Receiver"
+        case "wired-headphones":
+            return "Wired headphones"
+        case "usb-headset":
+            return "USB headset"
+        case "bluetooth-a2dp", "bluetooth-sco":
+            return "Bluetooth headphones"
+        case "hdmi":
+            return "HDMI"
+        case "airplay":
+            return "AirPlay"
+        case "other":
+            return "Audio output"
+        default:
+            return "Unknown"
+        }
+    }
+}
+
+private struct BroadcastAudioRoute: Equatable {
+    let route: String
+    let outputName: String
+    let headphonesConnected: Bool
+}
+
+private enum BroadcastMicrophoneMonitorError: LocalizedError {
+    case formatUnavailable
+    case bufferUnavailable
+    case engineUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .formatUnavailable:
+            return "Microphone monitor output format is unavailable."
+        case .bufferUnavailable:
+            return "Microphone monitor PCM buffer is unavailable."
+        case .engineUnavailable:
+            return "Microphone monitor engine is unavailable."
+        }
+    }
+}
+
 final class BroadcastAudioEncoder {
     private let configuration: BroadcastUploadConfiguration
     private let onEncodedFrame: (BroadcastEncodedAudioFrame) -> Void
@@ -1900,6 +2212,7 @@ final class BroadcastAudioEncoder {
     private var mixerNextPresentationTimeSeconds: Double?
     private var currentStats = BroadcastAudioEncoderStats()
     private let microphoneProcessor: BroadcastMicrophoneProcessor
+    private let microphoneMonitor: BroadcastMicrophoneMonitor
     private let mixerChannelCount = 2
     private let mixerFramesPerAACPacket = 1024
     private let mixerSoloFlushFrameThreshold = 2048
@@ -1919,6 +2232,7 @@ final class BroadcastAudioEncoder {
         self.configuration = configuration
         self.onEncodedFrame = onEncodedFrame
         microphoneProcessor = BroadcastMicrophoneProcessor(configuration: configuration.micEffects)
+        microphoneMonitor = BroadcastMicrophoneMonitor(configuration: configuration.micEffects)
         currentStats.configureMicEffects(configuration.micEffects)
     }
 
@@ -1958,6 +2272,7 @@ final class BroadcastAudioEncoder {
         appPCMQueue.removeAll(keepingCapacity: false)
         microphonePCMQueue.removeAll(keepingCapacity: false)
         mixerNextPresentationTimeSeconds = nil
+        microphoneMonitor.finish()
     }
 
     private func encodeLocked(_ sampleBuffer: CMSampleBuffer, source: BroadcastAudioSource) throws {
@@ -2038,6 +2353,14 @@ final class BroadcastAudioEncoder {
             )
             statsLock.performLocked {
                 self.currentStats.recordMicrophoneProcessing(processedFrame)
+            }
+            let monitorSnapshot = microphoneMonitor.write(
+                samples: processedFrame.samples,
+                channelCount: frame.channelCount,
+                sampleRate: frame.sampleRate
+            )
+            statsLock.performLocked {
+                self.currentStats.recordMicrophoneMonitor(monitorSnapshot)
             }
             microphonePCMQueue.append(contentsOf: processedFrame.samples)
         case .mixed:
