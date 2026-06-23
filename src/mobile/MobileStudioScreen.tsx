@@ -182,6 +182,11 @@ const validationMetricLabel = (diagnostics: StreamDiagnostics): string =>
 const nativeCompositionMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.nativeComposition.coverage} / ${diagnostics.nativeComposition.previewOnlySourceCount} preview-only`;
 
+const nativeRuntimeMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.nativeRuntime
+    ? `${diagnostics.nativeRuntime.platform} / ${diagnostics.nativeRuntime.publisher.state || diagnostics.nativeRuntime.runtimeStatus} / ${diagnostics.nativeRuntime.composition.status}${diagnostics.nativeRuntime.stale ? " / stale" : ""}`
+    : "Not linked";
+
 const qualityAdvisorTargetLabel = (diagnostics: StreamDiagnostics): string =>
   diagnostics.qualityAdvisor.suggestedTarget
     ? `${diagnostics.qualityAdvisor.suggestedTarget.profileName} / ${diagnostics.qualityAdvisor.suggestedTarget.videoBitrateKbps} kbps / ${diagnostics.qualityAdvisor.suggestedTarget.fps}fps`
@@ -1046,6 +1051,7 @@ const StreamDiagnosticsPanel = ({
       <DiagnosticMetric label="Quality" value={`${diagnostics.quality.resolution} / ${diagnostics.quality.fps}fps`} />
       <DiagnosticMetric label="Upload target" value={`${diagnostics.quality.estimatedUploadKbps} kbps`} />
       <DiagnosticMetric label="Telemetry" value={`${diagnostics.telemetry.bitrateKbps} kbps / ${diagnostics.telemetry.fps} fps`} />
+      <DiagnosticMetric label="Native runtime" value={nativeRuntimeMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Recovery" value={recoveryMetricLabel(diagnostics)} />
       <DiagnosticMetric label="History" value={historyMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Completed sessions" value={`${diagnostics.session.summaries.length}`} />

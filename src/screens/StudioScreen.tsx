@@ -221,6 +221,11 @@ const validationMetricLabel = (diagnostics: StreamDiagnostics): string =>
 const nativeCompositionMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.nativeComposition.coverage} / ${diagnostics.nativeComposition.previewOnlySourceCount} preview-only`;
 
+const nativeRuntimeMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  diagnostics.nativeRuntime
+    ? `${diagnostics.nativeRuntime.platform} / ${diagnostics.nativeRuntime.publisher.state || diagnostics.nativeRuntime.runtimeStatus} / ${diagnostics.nativeRuntime.composition.status}${diagnostics.nativeRuntime.stale ? " / stale" : ""}`
+    : "Not linked";
+
 const qualityIncidentSummaryTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" => {
   if (diagnostics.qualityIncidents.incidents.some((incident) => incident.severity === "fail")) {
     return "fail";
@@ -919,6 +924,8 @@ const StreamDiagnosticsPanel = ({
       <strong>
         {diagnostics.telemetry.bitrateKbps} kbps / {diagnostics.telemetry.fps} fps
       </strong>
+      <span>Native runtime</span>
+      <strong>{nativeRuntimeMetricLabel(diagnostics)}</strong>
       <span>Recovery</span>
       <strong>{recoveryMetricLabel(diagnostics)}</strong>
       <span>History</span>

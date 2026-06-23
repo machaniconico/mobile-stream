@@ -1,11 +1,14 @@
 import type { SceneDocument } from "../domain/scene";
 import type { StudioProfile } from "../domain/profiles";
 import type { StreamHealth, StreamState } from "../domain/streamState";
+import type { NativeRuntimeTelemetry } from "../domain/nativeRuntime";
+export type { NativeRuntimeTelemetry } from "../domain/nativeRuntime";
 
 export interface NativeEngineSnapshot {
   state: StreamState;
   platform: "mock" | "ios" | "android";
   health: StreamHealth;
+  nativeRuntime?: NativeRuntimeTelemetry | null;
 }
 
 export interface LiveCasterNative {

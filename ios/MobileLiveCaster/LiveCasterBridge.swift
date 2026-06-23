@@ -264,6 +264,7 @@ final class LiveCasterNative: RCTEventEmitter {
     private var renderGraphJSON = "[]"
     private var runtimePoller: DispatchSourceTimer?
     private var lastRuntimeUpdatedAt: Double = 0
+    private var nativeRuntime: [String: Any]?
 
     deinit {
         runtimePoller?.cancel()
@@ -322,6 +323,7 @@ final class LiveCasterNative: RCTEventEmitter {
                 self.renderGraphJSON = nextRenderGraphJSON
                 self.startedAt = nil
                 self.lastRuntimeUpdatedAt = 0
+                self.nativeRuntime = nil
                 self.status = .preparing
                 self.health = LiveCasterHealth(
                     bitrateKbps: 0,
@@ -361,6 +363,7 @@ final class LiveCasterNative: RCTEventEmitter {
             self.health.message = "Opening iOS broadcast picker"
             self.sharedStore.clearRuntimeState()
             self.lastRuntimeUpdatedAt = 0
+            self.nativeRuntime = nil
             let pendingSnapshot = self.snapshotLocked()
             self.emitSnapshot(pendingSnapshot)
 
@@ -405,6 +408,7 @@ final class LiveCasterNative: RCTEventEmitter {
             self.status = .idle
             self.startedAt = nil
             self.lastRuntimeUpdatedAt = 0
+            self.nativeRuntime = nil
             self.health = LiveCasterHealth(message: "Stop requested; end iOS system broadcast if it is still active")
             let snapshot = self.snapshotLocked()
             self.emitSnapshot(snapshot)
@@ -427,6 +431,7 @@ final class LiveCasterNative: RCTEventEmitter {
             self.health.message = "Reopening iOS broadcast picker"
             self.sharedStore.clearRuntimeState()
             self.lastRuntimeUpdatedAt = 0
+            self.nativeRuntime = nil
             let snapshot = self.snapshotLocked()
             self.emitSnapshot(snapshot)
             DispatchQueue.main.async { [weak self] in
@@ -545,6 +550,12 @@ final class LiveCasterNative: RCTEventEmitter {
 
         if !Self.isRuntimeStateFresh(runtimeState), status == .live || status == .preparing || status == .reconnecting {
             health.message = "iOS broadcast extension telemetry is stale"
+            nativeRuntime = Self.nativeRuntimeMap(
+                runtimeState,
+                status: status,
+                stale: true,
+                message: health.message
+            )
             emitSnapshot(snapshotLocked())
             return
         }
@@ -599,6 +610,14 @@ final class LiveCasterNative: RCTEventEmitter {
         let publisherState = publisher.stringValue("state")
         let compositionMessage = sceneComposition.stringValue("message")
         let errorMessage = runtimeState.stringValue("error", fallback: publisher.stringValue("lastError"))
+        let runtimeMessage = Self.runtimeHealthMessage(
+            status: status,
+            runtimeStatus: runtimeStatus,
+            publisherState: publisherState,
+            compositionMessage: compositionMessage,
+            errorMessage: errorMessage,
+            refreshedCounters: shouldRefreshCounters
+        )
 
         health = LiveCasterHealth(
             bitrateKbps: bitrateKbps,
@@ -606,14 +625,13 @@ final class LiveCasterNative: RCTEventEmitter {
             fps: measuredFps,
             elapsedSeconds: elapsedSeconds,
             reconnectAttempts: reconnectAttempts,
-            message: Self.runtimeHealthMessage(
-                status: status,
-                runtimeStatus: runtimeStatus,
-                publisherState: publisherState,
-                compositionMessage: compositionMessage,
-                errorMessage: errorMessage,
-                refreshedCounters: shouldRefreshCounters
-            )
+            message: runtimeMessage
+        )
+        nativeRuntime = Self.nativeRuntimeMap(
+            runtimeState,
+            status: status,
+            stale: false,
+            message: runtimeMessage
         )
 
         if status == .failed {
@@ -648,6 +666,61 @@ final class LiveCasterNative: RCTEventEmitter {
         return "\(telemetryPrefix): \(publisherSummary)"
     }
 
+    private static func nativeRuntimeMap(
+        _ runtimeState: [String: Any],
+        status: LiveCasterStatus,
+        stale: Bool,
+        message: String
+    ) -> [String: Any] {
+        let stats = runtimeState.dictionaryValue("stats")
+        let videoEncoder = runtimeState.dictionaryValue("videoEncoder")
+        let publisher = runtimeState.dictionaryValue("publisher")
+        let sceneComposition = runtimeState.dictionaryValue("sceneComposition")
+        let runtimeStatus = runtimeState.stringValue("status", fallback: status.rawValue)
+        let publisherState = publisher.stringValue("state")
+        let skippedCount = sceneComposition.intValue("skippedCount")
+        let appliedCount = sceneComposition.intValue("appliedCount")
+        let parseFailed = sceneComposition.boolValue("parseFailed")
+        let compositionStatus: String
+        if parseFailed {
+            compositionStatus = "failed"
+        } else if skippedCount > 0 {
+            compositionStatus = "pending"
+        } else if appliedCount > 0 {
+            compositionStatus = "applied"
+        } else if !sceneComposition.isEmpty {
+            compositionStatus = "screen-only"
+        } else {
+            compositionStatus = "unknown"
+        }
+
+        return [
+            "platform": "ios",
+            "runtimeStatus": runtimeStatus,
+            "updatedAt": runtimeState.doubleValue("updatedAt"),
+            "stale": stale,
+            "elapsedSeconds": stats.intValue("elapsedSeconds"),
+            "videoFrames": stats.intValue("videoFrames"),
+            "encodedBytes": videoEncoder.intValue("encodedBytes", fallback: publisher.intValue("videoBytesSent")),
+            "droppedFrames": stats.intValue("droppedSamples") + publisher.intValue("droppedVideoFrames"),
+            "publisher": [
+                "state": publisherState,
+                "reconnectAttempts": publisher.intValue("reconnectAttempts"),
+                "droppedVideoFrames": publisher.intValue("droppedVideoFrames"),
+                "bytesWritten": publisher.intValue("bytesWritten", fallback: publisher.intValue("videoBytesSent")),
+                "lastError": publisher.stringValue("lastError", fallback: runtimeState.stringValue("error"))
+            ],
+            "composition": [
+                "status": compositionStatus,
+                "appliedCount": appliedCount,
+                "skippedCount": skippedCount,
+                "skippedKinds": sceneComposition.stringArrayValue("skippedKinds"),
+                "message": sceneComposition.stringValue("message")
+            ],
+            "message": message
+        ]
+    }
+
     private static func isRuntimeStateFresh(_ runtimeState: [String: Any]) -> Bool {
         let updatedAt = runtimeState.doubleValue("updatedAt")
         guard updatedAt > 0 else {
@@ -670,11 +743,15 @@ final class LiveCasterNative: RCTEventEmitter {
         if status == .failed {
             stateMap["error"] = health.message
         }
-        return [
+        var snapshot: [String: Any] = [
             "platform": "ios",
             "state": stateMap,
             "health": healthMap
         ]
+        if let nativeRuntime {
+            snapshot["nativeRuntime"] = nativeRuntime
+        }
+        return snapshot
     }
 
     private func emitSnapshot(_ snapshot: [String: Any]) {
@@ -716,6 +793,37 @@ private extension Dictionary where Key == String, Value == Any {
             return intValue
         }
         return fallback
+    }
+
+    func boolValue(_ key: String, fallback: Bool = false) -> Bool {
+        if let boolValue = self[key] as? Bool {
+            return boolValue
+        }
+        if let numberValue = self[key] as? NSNumber {
+            return numberValue.boolValue
+        }
+        if let stringValue = self[key] as? String {
+            return stringValue == "true" || stringValue == "1"
+        }
+        return fallback
+    }
+
+    func stringArrayValue(_ key: String) -> [String] {
+        if let stringArray = self[key] as? [String] {
+            return stringArray
+        }
+        if let array = self[key] as? [Any] {
+            return array.compactMap { item in
+                if let stringValue = item as? String {
+                    return stringValue
+                }
+                if let numberValue = item as? NSNumber {
+                    return numberValue.stringValue
+                }
+                return nil
+            }
+        }
+        return []
     }
 
     func doubleValue(_ key: String, fallback: Double = 0) -> Double {

@@ -2,6 +2,7 @@ package com.mobilelivecaster.streaming
 
 import android.content.Intent
 import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
 import org.json.JSONObject
 
@@ -13,6 +14,87 @@ data class LiveCasterHealth(
     val reconnectAttempts: Int = 0,
     val message: String = "Ready"
 )
+
+data class NativeRuntimeComposition(
+    val status: String = "unknown",
+    val appliedCount: Int = 0,
+    val skippedCount: Int = 0,
+    val skippedKinds: List<String> = emptyList(),
+    val message: String = ""
+) {
+    fun asWritableMap(): WritableMap = Arguments.createMap().apply {
+        putString("status", status)
+        putInt("appliedCount", appliedCount)
+        putInt("skippedCount", skippedCount)
+        putArray("skippedKinds", skippedKinds.toWritableArray())
+        putString("message", message)
+    }
+}
+
+private fun List<String>.toWritableArray(): WritableArray =
+    Arguments.createArray().also { array ->
+        forEach { item -> array.pushString(item) }
+    }
+
+private fun AndroidCompositionResult.toNativeRuntimeComposition(): NativeRuntimeComposition {
+    val status = when {
+        parseFailed -> "failed"
+        skippedCount > 0 -> "pending"
+        appliedCount > 0 -> "applied"
+        else -> "screen-only"
+    }
+    return NativeRuntimeComposition(
+        status = status,
+        appliedCount = appliedCount,
+        skippedCount = skippedCount,
+        skippedKinds = skippedKinds.toList().sorted(),
+        message = summary
+    )
+}
+
+data class NativeRuntimePublisher(
+    val state: String = "",
+    val reconnectAttempts: Int = 0,
+    val droppedVideoFrames: Int = 0,
+    val bytesWritten: Int = 0,
+    val lastError: String = ""
+) {
+    fun asWritableMap(): WritableMap = Arguments.createMap().apply {
+        putString("state", state)
+        putInt("reconnectAttempts", reconnectAttempts)
+        putInt("droppedVideoFrames", droppedVideoFrames)
+        putInt("bytesWritten", bytesWritten)
+        putString("lastError", lastError)
+    }
+}
+
+data class NativeRuntimeTelemetry(
+    val platform: String = "android",
+    val runtimeStatus: String,
+    val updatedAt: Long = System.currentTimeMillis(),
+    val stale: Boolean = false,
+    val elapsedSeconds: Int = 0,
+    val videoFrames: Int = 0,
+    val encodedBytes: Int = 0,
+    val droppedFrames: Int = 0,
+    val publisher: NativeRuntimePublisher = NativeRuntimePublisher(),
+    val composition: NativeRuntimeComposition = NativeRuntimeComposition(),
+    val message: String = ""
+) {
+    fun asWritableMap(): WritableMap = Arguments.createMap().apply {
+        putString("platform", platform)
+        putString("runtimeStatus", runtimeStatus)
+        putDouble("updatedAt", updatedAt.toDouble())
+        putBoolean("stale", stale)
+        putInt("elapsedSeconds", elapsedSeconds)
+        putInt("videoFrames", videoFrames)
+        putInt("encodedBytes", encodedBytes)
+        putInt("droppedFrames", droppedFrames)
+        putMap("publisher", publisher.asWritableMap())
+        putMap("composition", composition.asWritableMap())
+        putString("message", message)
+    }
+}
 
 enum class LiveCasterStatus(val jsValue: String) {
     Idle("idle"),
@@ -56,6 +138,8 @@ object LiveCasterSession {
         private set
     var renderGraphJson: String = "[]"
         private set
+    var nativeRuntime: NativeRuntimeTelemetry? = null
+        private set
     var captureResultCode: Int? = null
         private set
     var captureData: Intent? = null
@@ -78,6 +162,7 @@ object LiveCasterSession {
         captureResultCode = null
         captureData = null
         startedAtMillis = null
+        nativeRuntime = null
         setStatus(LiveCasterStatus.Preparing, "Waiting for screen capture permission")
     }
 
@@ -114,6 +199,7 @@ object LiveCasterSession {
         status = LiveCasterStatus.Idle
         health = LiveCasterHealth(message = "Ready")
         startedAtMillis = null
+        nativeRuntime = null
         captureResultCode = null
         captureData = null
         emit()
@@ -123,6 +209,55 @@ object LiveCasterSession {
         status = LiveCasterStatus.Failed
         health = health.copy(message = message)
         startedAtMillis = null
+        nativeRuntime = nativeRuntime?.let { current ->
+            NativeRuntimeTelemetry(
+                runtimeStatus = status.jsValue,
+                elapsedSeconds = health.elapsedSeconds,
+                videoFrames = current.videoFrames,
+                encodedBytes = current.encodedBytes,
+                droppedFrames = health.droppedFrames,
+                publisher = current.publisher.copy(
+                    state = "failed",
+                    reconnectAttempts = health.reconnectAttempts,
+                    lastError = message
+                ),
+                composition = current.composition,
+                message = message
+            )
+        }
+        emit()
+    }
+
+    fun updateNativeRuntime(
+        publisherState: String? = null,
+        compositionResult: AndroidCompositionResult? = null,
+        droppedVideoFrames: Int? = null,
+        bytesWritten: Int? = null,
+        lastError: String? = null,
+        message: String = health.message
+    ) {
+        val current = nativeRuntime
+        val composition = compositionResult?.toNativeRuntimeComposition()
+            ?: current?.composition
+            ?: NativeRuntimeComposition()
+        val publisher = current?.publisher ?: NativeRuntimePublisher()
+        val nextPublisher = publisher.copy(
+            state = publisherState ?: publisher.state,
+            reconnectAttempts = health.reconnectAttempts,
+            droppedVideoFrames = droppedVideoFrames ?: publisher.droppedVideoFrames,
+            bytesWritten = bytesWritten ?: publisher.bytesWritten,
+            lastError = lastError ?: publisher.lastError
+        )
+        nativeRuntime = NativeRuntimeTelemetry(
+            runtimeStatus = status.jsValue,
+            elapsedSeconds = health.elapsedSeconds,
+            videoFrames = current?.videoFrames ?: 0,
+            encodedBytes = current?.encodedBytes ?: 0,
+            droppedFrames = health.droppedFrames,
+            publisher = nextPublisher,
+            composition = composition,
+            message = message
+        )
         emit()
     }
 
@@ -164,6 +299,7 @@ object LiveCasterSession {
             putString("platform", "android")
             putMap("state", stateMap)
             putMap("health", healthMap)
+            nativeRuntime?.let { putMap("nativeRuntime", it.asWritableMap()) }
         }
     }
 

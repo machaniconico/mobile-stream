@@ -56,6 +56,11 @@ export interface SupportBundle {
     nativeCompositionCoverage: StreamDiagnostics["nativeComposition"]["coverage"];
     nativeCompositionPreviewOnlySourceCount: number;
     nativeCompositionRequiresCompositor: boolean;
+    nativeRuntimePlatform: string | null;
+    nativeRuntimeStatus: string | null;
+    nativeRuntimePublisherState: string | null;
+    nativeRuntimeCompositionStatus: string | null;
+    nativeRuntimeStale: boolean;
     sourceCount: number;
     visibleSourceCount: number;
   };
@@ -178,6 +183,11 @@ export const createSupportBundle = ({
       nativeCompositionCoverage: diagnostics.nativeComposition.coverage,
       nativeCompositionPreviewOnlySourceCount: diagnostics.nativeComposition.previewOnlySourceCount,
       nativeCompositionRequiresCompositor: diagnostics.nativeComposition.requiresNativeCompositor,
+      nativeRuntimePlatform: diagnostics.nativeRuntime?.platform ?? null,
+      nativeRuntimeStatus: diagnostics.nativeRuntime?.runtimeStatus ?? null,
+      nativeRuntimePublisherState: diagnostics.nativeRuntime?.publisher.state ?? null,
+      nativeRuntimeCompositionStatus: diagnostics.nativeRuntime?.composition.status ?? null,
+      nativeRuntimeStale: diagnostics.nativeRuntime?.stale ?? false,
       sourceCount: scene.sources.length,
       visibleSourceCount
     },
@@ -286,6 +296,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Recovery: ${bundle.diagnostics.recovery.mode} / ${bundle.diagnostics.recovery.recommendedAction}`,
     `- Native composition: ${bundle.summary.nativeCompositionStatus} / ${bundle.summary.nativeCompositionCoverage} / preview-only ${bundle.summary.nativeCompositionPreviewOnlySourceCount}`,
     `- Native compositor required: ${bundle.summary.nativeCompositionRequiresCompositor ? "yes" : "no"}`,
+    `- Native runtime: ${bundle.summary.nativeRuntimePlatform ?? "-"} / ${bundle.summary.nativeRuntimeStatus ?? "-"} / publisher ${bundle.summary.nativeRuntimePublisherState ?? "-"} / composition ${bundle.summary.nativeRuntimeCompositionStatus ?? "-"} / stale ${bundle.summary.nativeRuntimeStale ? "yes" : "no"}`,
     "",
     "Commercial Validation",
     `- Status: ${bundle.summary.validationStatus}`,

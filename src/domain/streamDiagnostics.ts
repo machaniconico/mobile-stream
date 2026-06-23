@@ -1,5 +1,6 @@
 import { buildPublishUrl, getDestinationPreset, redactStreamKey, type StudioProfile } from "./profiles";
 import { createNativeCompositionReport, type NativeCompositionReport } from "./nativeComposition";
+import type { NativeRuntimeTelemetry } from "./nativeRuntime";
 import type { ReadinessReport } from "./readiness";
 import type { SceneDocument } from "./scene";
 import {
@@ -78,6 +79,7 @@ export interface StreamDiagnostics {
     elapsedSeconds: number;
     message: string;
   };
+  nativeRuntime: NativeRuntimeTelemetry | null;
   recovery: StreamRecoveryStatus & {
     backoffWindow: string;
   };
@@ -113,6 +115,7 @@ interface SnapshotLike {
     status: StreamStatus;
   };
   health: StreamHealth;
+  nativeRuntime?: NativeRuntimeTelemetry | null;
 }
 
 const platformLabels: Record<StudioProfile["destination"]["platform"], string> = {
@@ -142,6 +145,7 @@ export const createStreamDiagnostics = (
   const targetAudioBitrateKbps = quality.audioBitrateKbps;
   const estimatedUploadKbps = Math.round((targetVideoBitrateKbps + targetAudioBitrateKbps) * 1.25);
   const sanitizedHealthMessage = redactStreamKeyOccurrences(snapshot.health.message, destination.streamKey);
+  const nativeRuntime = sanitizeNativeRuntime(snapshot.nativeRuntime ?? null, destination.streamKey);
   const sanitizedSessionEvents = sessionEvents.map((event) => sanitizeSessionEvent(event, destination.streamKey));
   const recoveryPolicy = createDefaultStreamRecoveryPolicy();
   const recoveryStatus = createStreamRecoveryStatus(snapshot, quality, recoveryPolicy);
@@ -173,6 +177,7 @@ export const createStreamDiagnostics = (
     createTelemetryFpsCheck(snapshot, quality.fps),
     createTelemetryDropsCheck(snapshot),
     createReconnectCheck(snapshot),
+    createNativeRuntimeCheck(nativeRuntime),
     createQualityIncidentCheck(qualityIncidents),
     createQualityAdvisorCheck(qualityAdvisor),
     createNativeCompositionCheck(nativeComposition),
@@ -243,6 +248,7 @@ export const createStreamDiagnostics = (
       elapsedSeconds: snapshot.health.elapsedSeconds,
       message: sanitizedHealthMessage
     },
+    nativeRuntime,
     recovery: {
       ...recoveryStatus,
       backoffWindow: formatRecoveryBackoff(recoveryPolicy)
@@ -309,6 +315,17 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Dropped frames: ${diagnostics.telemetry.droppedFrames}`,
     `- Reconnect attempts: ${diagnostics.telemetry.reconnectAttempts}`,
     `- Message: ${diagnostics.telemetry.message || "-"}`,
+    "",
+    "Native Runtime",
+    `- Platform: ${diagnostics.nativeRuntime?.platform ?? "-"}`,
+    `- Runtime status: ${diagnostics.nativeRuntime?.runtimeStatus ?? "-"}`,
+    `- Publisher: ${diagnostics.nativeRuntime?.publisher.state || "-"}`,
+    `- Composition: ${diagnostics.nativeRuntime?.composition.status ?? "-"} / ${diagnostics.nativeRuntime?.composition.message || "-"}`,
+    `- Native frames: ${diagnostics.nativeRuntime?.videoFrames ?? 0}`,
+    `- Native encoded bytes: ${diagnostics.nativeRuntime?.encodedBytes ?? 0}`,
+    `- Native drops: ${diagnostics.nativeRuntime?.droppedFrames ?? 0}`,
+    `- Stale: ${diagnostics.nativeRuntime?.stale ? "yes" : "no"}`,
+    `- Message: ${diagnostics.nativeRuntime?.message || "-"}`,
     "",
     "Recovery",
     `- Mode: ${diagnostics.recovery.mode}`,
@@ -422,6 +439,26 @@ const sanitizeNativeCompositionReport = (
     action: redactStreamKeyOccurrences(issue.action, streamKey)
   }))
 });
+
+const sanitizeNativeRuntime = (
+  runtime: NativeRuntimeTelemetry | null,
+  streamKey: string
+): NativeRuntimeTelemetry | null =>
+  runtime
+    ? {
+        ...runtime,
+        message: redactStreamKeyOccurrences(runtime.message, streamKey),
+        publisher: {
+          ...runtime.publisher,
+          lastError: redactStreamKeyOccurrences(runtime.publisher.lastError, streamKey)
+        },
+        composition: {
+          ...runtime.composition,
+          message: redactStreamKeyOccurrences(runtime.composition.message, streamKey),
+          skippedKinds: runtime.composition.skippedKinds.map((kind) => redactStreamKeyOccurrences(kind, streamKey))
+        }
+      }
+    : null;
 
 const formatAdvisorTarget = (target: StreamQualityAdvisorRecommendation["currentTarget"]): string =>
   `${target.profileName} (${target.width}x${target.height} / ${target.fps}fps / ${target.videoBitrateKbps} kbps, upload ${target.estimatedUploadKbps} kbps)`;
@@ -683,6 +720,47 @@ const createNativeCompositionCheck = (composition: NativeCompositionReport): Dia
   label: "Native composition",
   message: composition.summary
 });
+
+const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): DiagnosticCheck => {
+  if (!runtime) {
+    return {
+      code: "native-runtime-unavailable",
+      status: "info",
+      label: "Native runtime",
+      message: "Native runtime telemetry is not available yet."
+    };
+  }
+  if (runtime.publisher.lastError || runtime.publisher.state === "failed" || runtime.runtimeStatus === "failed") {
+    return {
+      code: "native-runtime-failed",
+      status: "fail",
+      label: "Native runtime",
+      message: runtime.publisher.lastError || runtime.message || "Native runtime reported a failure."
+    };
+  }
+  if (runtime.stale) {
+    return {
+      code: "native-runtime-stale",
+      status: "warn",
+      label: "Native runtime",
+      message: "Native runtime telemetry is stale."
+    };
+  }
+  if (runtime.composition.status === "pending" || runtime.composition.status === "failed") {
+    return {
+      code: `native-runtime-composition-${runtime.composition.status}`,
+      status: "warn",
+      label: "Native runtime",
+      message: runtime.composition.message || "Native compositor has pending or failed sources."
+    };
+  }
+  return {
+    code: `native-runtime-${runtime.platform}`,
+    status: "pass",
+    label: "Native runtime",
+    message: runtime.message || "Native runtime telemetry is current."
+  };
+};
 
 const createHistoryCheck = (history: StreamHealthHistorySummary): DiagnosticCheck => {
   if (history.stability === "unstable") {

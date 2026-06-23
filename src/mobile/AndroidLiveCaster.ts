@@ -2,7 +2,7 @@ import { NativeEventEmitter, NativeModules, Platform } from "react-native";
 import type { SceneDocument } from "../domain/scene";
 import { toRenderGraph } from "../domain/scene";
 import type { StudioProfile } from "../domain/profiles";
-import type { LiveCasterNative, NativeEngineSnapshot } from "../native/LiveCasterNative";
+import type { LiveCasterNative, NativeEngineSnapshot, NativeRuntimeTelemetry } from "../native/LiveCasterNative";
 import { initialStreamState, type StreamHealth } from "../domain/streamState";
 
 interface AndroidLiveCasterModule {
@@ -36,7 +36,8 @@ export class AndroidLiveCaster implements LiveCasterNative {
   private snapshot: NativeEngineSnapshot = {
     platform: "android",
     state: initialStreamState,
-    health: initialStreamState.health
+    health: initialStreamState.health,
+    nativeRuntime: null
   };
 
   getSnapshot(): NativeEngineSnapshot {
@@ -129,7 +130,8 @@ const normalizeSnapshot = (snapshot: NativeEngineSnapshot): NativeEngineSnapshot
     startedAt: snapshot.state.startedAt || null,
     health: normalizeHealth(snapshot.state.health)
   },
-  health: normalizeHealth(snapshot.health)
+  health: normalizeHealth(snapshot.health),
+  nativeRuntime: normalizeNativeRuntime(snapshot.nativeRuntime, "android")
 });
 
 const normalizeHealth = (health: Partial<StreamHealth> | undefined): StreamHealth => ({
@@ -137,3 +139,35 @@ const normalizeHealth = (health: Partial<StreamHealth> | undefined): StreamHealt
   ...health,
   reconnectAttempts: health?.reconnectAttempts ?? 0
 });
+
+const normalizeNativeRuntime = (
+  runtime: Partial<NativeRuntimeTelemetry> | null | undefined,
+  platform: "ios" | "android"
+): NativeRuntimeTelemetry | null =>
+  runtime
+    ? {
+        platform,
+        runtimeStatus: runtime.runtimeStatus ?? "unknown",
+        updatedAt: runtime.updatedAt ?? 0,
+        stale: runtime.stale ?? false,
+        elapsedSeconds: runtime.elapsedSeconds ?? 0,
+        videoFrames: runtime.videoFrames ?? 0,
+        encodedBytes: runtime.encodedBytes ?? 0,
+        droppedFrames: runtime.droppedFrames ?? 0,
+        publisher: {
+          state: runtime.publisher?.state ?? "",
+          reconnectAttempts: runtime.publisher?.reconnectAttempts ?? 0,
+          droppedVideoFrames: runtime.publisher?.droppedVideoFrames ?? 0,
+          bytesWritten: runtime.publisher?.bytesWritten ?? 0,
+          lastError: runtime.publisher?.lastError ?? ""
+        },
+        composition: {
+          status: runtime.composition?.status ?? "unknown",
+          appliedCount: runtime.composition?.appliedCount ?? 0,
+          skippedCount: runtime.composition?.skippedCount ?? 0,
+          skippedKinds: runtime.composition?.skippedKinds ?? [],
+          message: runtime.composition?.message ?? ""
+        },
+        message: runtime.message ?? ""
+      }
+    : null;

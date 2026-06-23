@@ -111,6 +111,112 @@ describe("stream diagnostics", () => {
     );
   });
 
+  it("surfaces native runtime telemetry without leaking stream keys", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({
+        bitrateKbps: 4500,
+        fps: 30,
+        elapsedSeconds: 20,
+        message: "Live"
+      }),
+      nativeRuntime: {
+        platform: "ios",
+        runtimeStatus: "live",
+        updatedAt: Date.now(),
+        stale: false,
+        elapsedSeconds: 20,
+        videoFrames: 600,
+        encodedBytes: 10_000_000,
+        droppedFrames: 0,
+        publisher: {
+          state: "published",
+          reconnectAttempts: 0,
+          droppedVideoFrames: 0,
+          bytesWritten: 10_000_000,
+          lastError: ""
+        },
+        composition: {
+          status: "applied",
+          appliedCount: 2,
+          skippedCount: 0,
+          skippedKinds: [],
+          message: `Native overlays applied for ${demoStreamKey}`
+        },
+        message: `iOS extension live for ${demoStreamKey}`
+      }
+    });
+
+    expect(diagnostics.nativeRuntime?.platform).toBe("ios");
+    expect(diagnostics.nativeRuntime?.message).toContain(redactStreamKey(demoStreamKey));
+    expect(diagnostics.nativeRuntime?.message).not.toContain(demoStreamKey);
+    expect(diagnostics.nativeRuntime?.composition.message).toContain(redactStreamKey(demoStreamKey));
+    expect(diagnostics.checks.find((check) => check.code === "native-runtime-ios")?.status).toBe("pass");
+    expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain("Native Runtime");
+  });
+
+  it("keeps native runtime failures blocking even when telemetry is stale", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "failed" },
+      health: health({
+        bitrateKbps: 0,
+        fps: 0,
+        message: "Failed"
+      }),
+      nativeRuntime: {
+        platform: "android",
+        runtimeStatus: "failed",
+        updatedAt: Date.now() - 30_000,
+        stale: true,
+        elapsedSeconds: 5,
+        videoFrames: 0,
+        encodedBytes: 0,
+        droppedFrames: 0,
+        publisher: {
+          state: "failed",
+          reconnectAttempts: 0,
+          droppedVideoFrames: 0,
+          bytesWritten: 0,
+          lastError: `RTMP auth failed for ${demoStreamKey}`
+        },
+        composition: {
+          status: "applied",
+          appliedCount: 1,
+          skippedCount: 0,
+          skippedKinds: [],
+          message: "Native screen capture ready"
+        },
+        message: "Android native runtime failed"
+      }
+    });
+
+    const nativeCheck = diagnostics.checks.find((check) => check.code === "native-runtime-failed");
+    expect(nativeCheck?.status).toBe("fail");
+    expect(nativeCheck?.message).toContain(redactStreamKey(demoStreamKey));
+    expect(nativeCheck?.message).not.toContain(demoStreamKey);
+    expect(diagnostics.checks.some((check) => check.code === "native-runtime-stale")).toBe(false);
+  });
+
   it("redacts stream keys that appear before the final publish URL segment", () => {
     const scene = createDefaultScene();
     const profile = {
