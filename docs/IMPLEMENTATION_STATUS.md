@@ -26,6 +26,7 @@
 - Physical validation runs retain safe native runtime evidence from the current native publisher/compositor or the latest completed session, and native warn/fail states automatically downgrade retained validation outcomes.
 - Physical validation runs retain mic FX/headphone monitor route and chat readout evidence, and unvalidated audio/chat states automatically downgrade retained validation outcomes.
 - Physical validation runs retain safe YouTube/Twitch dashboard evidence, including YouTube broadcast/stream/health status and Twitch live/offline status, and unhealthy dashboard states downgrade retained validation outcomes.
+- Release-candidate checklist and private validation runbook require fresh YouTube/Twitch dashboard checked-at evidence before treating destination dashboard validation as complete.
 - Live quality advisor model for maintaining, monitoring, lowering quality, reconnecting, or stopping based on active incidents, history, and recovery state, with safe suggested-quality application in Web and React Native.
 - Redacted support bundle export combining preflight, diagnostics, scene composition, native still-image asset load evidence, stream target, and safe profile summaries for support triage.
 - Stream quality incident model for active bitrate/FPS/drop/reconnect problems, recommendations, UI surfacing, and report export.

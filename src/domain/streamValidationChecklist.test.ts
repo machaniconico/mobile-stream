@@ -28,6 +28,7 @@ const stableHealth: StreamHealthHistorySummary = {
   stability: "stable",
   summary: "Stream health is stable."
 };
+const validationNow = new Date("2026-06-23T00:05:00.000Z");
 
 const cleanSession = (id: number): StreamSessionSummary => ({
   id: `session-${id}`,
@@ -95,7 +96,8 @@ const defaultInput = (streamKey = "validation-demo"): StreamValidationChecklistI
       historySummary: createStreamSessionHistorySummary([]),
       lastOutcome: null
     },
-    evidence: summarizeStreamValidationEvidence([])
+    evidence: summarizeStreamValidationEvidence([]),
+    now: validationNow
   };
 };
 
@@ -176,6 +178,39 @@ describe("stream validation checklist", () => {
     expect(checklist.warningCount).toBe(0);
     expect(checklist.pendingCount).toBe(0);
     expect(checklist.passCount).toBe(checklist.items.length);
+  });
+
+  it("keeps release validation in needs-test when platform dashboard evidence is stale", () => {
+    const checklist = createStreamValidationChecklist({
+      ...defaultInput(),
+      telemetry: {
+        streamStatus: "live",
+        bitrateKbps: 3500,
+        fps: 30,
+        droppedFrames: 0,
+        reconnectAttempts: 0
+      },
+      health: {
+        sampleCount: 5,
+        stability: "stable"
+      },
+      session: {
+        eventCount: 0,
+        summaryCount: 3,
+        historySummary: createStreamSessionHistorySummary([cleanSession(1), cleanSession(2), cleanSession(3)]),
+        lastOutcome: "clean"
+      },
+      evidence: readyEvidence({
+        latestPlatformPublishing: readyPlatformPublishing("2026-06-23T00:00:00.000Z")
+      }),
+      now: new Date("2026-06-23T00:20:00.000Z")
+    });
+
+    const item = checklist.items.find((entry) => entry.id === "platform-ingest-dashboard-stale");
+
+    expect(checklist.status).toBe("needs-test");
+    expect(item?.status).toBe("warn");
+    expect(item?.detail).toContain("20 minutes old");
   });
 
   it("includes VTuber avatar motion when face tracking diagnostics are provided", () => {
@@ -336,7 +371,7 @@ const readyEvidence = (overrides: Partial<StreamValidationEvidenceSummary> = {})
   chatReadoutWarningCount: 0,
   chatReadoutIosPass: true,
   chatReadoutAndroidPass: true,
-  platformPublishingRunCount: 0,
+  platformPublishingRunCount: 1,
   platformPublishingWarningCount: 0,
   platformPublishingFailureCount: 0,
   status: "ready",
@@ -352,10 +387,27 @@ const readyEvidence = (overrides: Partial<StreamValidationEvidenceSummary> = {})
   latestFaceTracking: null,
   latestAudio: null,
   latestChatReadout: null,
-  latestPlatformPublishing: null,
+  latestPlatformPublishing: readyPlatformPublishing(),
   latestRunAgeDays: null,
   maxAgeDays: 14,
   summary: "Fresh physical validation baseline retained for iOS and Android on build rc-1 across 2 eligible runs.",
   recommendation: "Keep iOS and Android validation runs updated for every release candidate.",
   ...overrides
+});
+
+const readyPlatformPublishing = (statusCheckedAt = "2026-06-23T00:04:00.000Z") => ({
+  platform: "youtube-live" as const,
+  status: "pass" as const,
+  summary: `YouTube dashboard: broadcast live, stream active, health ok, issues 0, checked ${statusCheckedAt}.`,
+  recommendation: "Keep the YouTube dashboard health snapshot with this release-candidate validation run.",
+  youtube: {
+    hasBroadcastId: true,
+    hasStreamId: true,
+    broadcastStatus: "live",
+    streamStatus: "active",
+    healthStatus: "ok",
+    healthIssueCount: 0,
+    statusCheckedAt
+  },
+  twitch: null
 });

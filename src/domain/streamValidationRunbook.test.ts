@@ -31,6 +31,7 @@ const stableHealth: StreamHealthHistorySummary = {
   stability: "stable",
   summary: "Stream health is stable."
 };
+const validationNow = new Date("2026-06-23T00:05:00.000Z");
 
 const nativeComposition: NativeCompositionReport = {
   status: "pass",
@@ -169,6 +170,7 @@ const input = (overrides: Partial<StreamValidationRunbookInput> = {}): StreamVal
     recommendation: "Refresh dashboard status while live."
   },
   evidence: evidence(),
+  now: validationNow,
   ...overrides
 });
 
@@ -309,11 +311,7 @@ describe("stream validation runbook", () => {
           lastOutcome: "clean"
         },
         nativeRuntime,
-        platformPublishing: {
-          status: "pass",
-          summary: "YouTube dashboard health is ok.",
-          recommendation: "Keep the dashboard evidence."
-        },
+        platformPublishing: readyPlatformPublishing(),
         evidence: evidence({
           status: "ready",
           totalRuns: 2,
@@ -333,4 +331,54 @@ describe("stream validation runbook", () => {
     expect(runbook.items.find((item) => item.id === "runbook-audio-ready")?.status).toBe("pass");
     expect(runbook.items.find((item) => item.id === "runbook-chat-connected")?.status).toBe("pass");
   });
+
+  it("keeps the runbook open when passing dashboard status is stale", () => {
+    const runbook = createStreamValidationRunbook(
+      input({
+        telemetry: {
+          streamStatus: "idle",
+          bitrateKbps: 0,
+          fps: 0,
+          droppedFrames: 0,
+          reconnectAttempts: 0,
+          elapsedSeconds: 0
+        },
+        health: stableHealth,
+        session: {
+          summaryCount: 2,
+          historySummary: createStreamSessionHistorySummary([]),
+          lastOutcome: "clean"
+        },
+        nativeRuntime,
+        platformPublishing: readyPlatformPublishing("2026-06-23T00:00:00.000Z"),
+        evidence: evidence({
+          status: "ready",
+          totalRuns: 2,
+          eligibleRunCount: 2,
+          iosPass: true,
+          androidPass: true,
+          summary: "Fresh physical validation baseline retained for iOS and Android.",
+          recommendation: "Keep evidence fresh."
+        }),
+        now: new Date("2026-06-23T00:20:00.000Z")
+      })
+    );
+
+    const item = runbook.items.find((entry) => entry.id === "runbook-dashboard-stale");
+
+    expect(runbook.status).toBe("record");
+    expect(item?.status).toBe("warn");
+    expect(item?.detail).toContain("20 minutes old");
+  });
+});
+
+const readyPlatformPublishing = (statusCheckedAt = "2026-06-23T00:04:00.000Z"): StreamValidationRunbookInput["platformPublishing"] => ({
+  platform: "youtube-live",
+  status: "pass",
+  summary: `YouTube dashboard: broadcast live, stream active, health ok, issues 0, checked ${statusCheckedAt}.`,
+  recommendation: "Keep the YouTube dashboard health snapshot with this release-candidate validation run.",
+  youtube: {
+    statusCheckedAt
+  },
+  twitch: null
 });

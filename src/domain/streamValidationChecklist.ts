@@ -5,6 +5,11 @@ import type {
   StreamSessionHistorySummary,
   StreamSessionOutcome
 } from "./streamSessionSummary";
+import {
+  assessPlatformPublishingFreshness,
+  isPlatformPublishingFreshEnoughForRelease,
+  resolvePlatformPublishingFreshnessPlatform
+} from "./platformPublishingFreshness";
 import type { StreamValidationEvidenceSummary } from "./streamValidationEvidence";
 import type { StreamStatus } from "./streamState";
 
@@ -67,6 +72,7 @@ export interface StreamValidationChecklistInput {
   };
   evidence: StreamValidationEvidenceSummary;
   faceTracking?: FaceTrackingDiagnostics;
+  now?: Date;
 }
 
 export const createStreamValidationChecklist = ({
@@ -77,13 +83,14 @@ export const createStreamValidationChecklist = ({
   health,
   session,
   evidence,
-  faceTracking
+  faceTracking,
+  now = new Date()
 }: StreamValidationChecklistInput): StreamValidationChecklist => {
   const items = [
     createReadinessItem(readiness),
     createTransportItem(target),
     createIngestItem(diagnosticStatus, telemetry, health),
-    createPlatformItem(target.platform, telemetry, health, evidence),
+    createPlatformItem(target.platform, telemetry, health, evidence, now),
     createDeviceItem(session, evidence),
     createAvatarMotionItem(faceTracking, evidence),
     createSessionBaselineItem(session),
@@ -268,17 +275,38 @@ const createPlatformItem = (
   platform: string,
   telemetry: StreamValidationChecklistInput["telemetry"],
   health: StreamValidationChecklistInput["health"],
-  evidence: StreamValidationEvidenceSummary
+  evidence: StreamValidationEvidenceSummary,
+  now: Date
 ): StreamValidationChecklistItem => {
   const platformLabel = platform || "Custom";
 
   if (evidence.passedTargetPlatforms.includes(platformLabel)) {
+    const freshness = assessPlatformPublishingFreshness(
+      {
+        ...evidence.latestPlatformPublishing,
+        platform:
+          evidence.latestPlatformPublishing?.platform ?? resolvePlatformPublishingFreshnessPlatform(platformLabel)
+      },
+      now
+    );
+
+    if (!isPlatformPublishingFreshEnoughForRelease(freshness)) {
+      return {
+        id: `platform-ingest-dashboard-${freshness.status}`,
+        area: "platform",
+        status: "warn",
+        title: "Destination ingest dashboard",
+        detail: `${platformLabel} has a retained passing physical validation run, but ${freshness.summary}`,
+        action: freshness.recommendation
+      };
+    }
+
     return {
       id: "platform-ingest-validated",
       area: "platform",
       status: "pass",
       title: "Destination ingest dashboard",
-      detail: `${platformLabel} has a retained passing physical validation run.`,
+      detail: `${platformLabel} has a retained passing physical validation run. ${freshness.summary}`,
       action: "Keep the destination dashboard evidence refreshed for each release candidate."
     };
   }

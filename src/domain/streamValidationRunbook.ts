@@ -2,6 +2,11 @@ import type { FaceTrackingDiagnostics } from "./faceTrackingDiagnostics";
 import type { AudioMonitorSafetyStatus } from "./audioRoute";
 import type { NativeCompositionReport } from "./nativeComposition";
 import type { NativeRuntimeTelemetry } from "./nativeRuntime";
+import {
+  assessPlatformPublishingFreshness,
+  isPlatformPublishingFreshEnoughForRelease,
+  resolvePlatformPublishingFreshnessPlatform
+} from "./platformPublishingFreshness";
 import type { ReadinessReport } from "./readiness";
 import type { StreamHealthHistorySummary } from "./streamHealthHistory";
 import type {
@@ -85,11 +90,19 @@ export interface StreamValidationRunbookInput {
     connectionMessage: string;
   };
   platformPublishing: {
+    platform?: "youtube-live" | "twitch" | "custom" | string;
     status: "pass" | "warn" | "fail" | "info";
     summary: string;
     recommendation: string;
+    youtube?: {
+      statusCheckedAt: string;
+    } | null;
+    twitch?: {
+      statusCheckedAt: string;
+    } | null;
   };
   evidence: StreamValidationEvidenceSummary;
+  now?: Date;
 }
 
 const minimumMonitorDurationSeconds = 60;
@@ -500,14 +513,37 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
   };
 };
 
-const createDashboardItem = ({ platformPublishing, target }: StreamValidationRunbookInput): StreamValidationRunbookItem => {
+const createDashboardItem = ({
+  platformPublishing,
+  target,
+  now = new Date()
+}: StreamValidationRunbookInput): StreamValidationRunbookItem => {
   if (platformPublishing.status === "pass") {
+    const freshness = assessPlatformPublishingFreshness(
+      {
+        ...platformPublishing,
+        platform: platformPublishing.platform ?? resolvePlatformPublishingFreshnessPlatform(target.platform)
+      },
+      now
+    );
+
+    if (!isPlatformPublishingFreshEnoughForRelease(freshness)) {
+      return {
+        id: `runbook-dashboard-${freshness.status}`,
+        phase: "dashboard",
+        status: "warn",
+        title: "Check destination dashboard",
+        detail: `${platformPublishing.summary} ${freshness.summary}`,
+        action: freshness.recommendation
+      };
+    }
+
     return {
       id: "runbook-dashboard-ready",
       phase: "dashboard",
       status: "pass",
       title: "Check destination dashboard",
-      detail: platformPublishing.summary,
+      detail: `${platformPublishing.summary} ${freshness.summary}`,
       action: "Keep this dashboard snapshot with the release-candidate validation run."
     };
   }
