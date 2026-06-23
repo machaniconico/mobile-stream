@@ -113,6 +113,38 @@ describe("platform publishing preflight", () => {
     expect(formatPlatformPublishingPreflightBlockMessage(report)).toContain("OAuth credential is not stored");
   });
 
+  it("uses the YouTube credential from a multi-platform OAuth store", () => {
+    const report = transitionReport({
+      profile: youtubeProfile({ privacyStatus: "private" }),
+      transitionStatus: "live",
+      streamStatus: "live",
+      validation: {
+        status: "needs-test",
+        recommendedNextStep: "Keep private validation controlled."
+      },
+      platformChatOAuthCredential: null,
+      platformChatOAuthCredentials: {
+        youtube: youtubeCredential(),
+        twitch: {
+          platform: "twitch",
+          accessToken: "tw-access",
+          refreshToken: "tw-refresh",
+          expiresAt: Date.parse("2099-01-01T00:00:00.000Z"),
+          scopes: ["chat:read"],
+          twitchLogin: "macha",
+          twitchUserId: "123",
+          validatedAt: Date.parse("2026-06-23T00:00:00.000Z"),
+          clientId: "twitch-client",
+          redirectUri: "mobilelivecaster://oauth/twitch"
+        }
+      },
+      now: transitionNow
+    });
+
+    expect(report.canProceed).toBe(true);
+    expect(report.blocks.map((issue) => issue.code)).not.toContain("youtube-transition-oauth-missing-credential");
+  });
+
   it("blocks public live transition when the public launch checklist has visibility blockers", () => {
     const report = transitionReport({
       profile: youtubeProfile({ privacyStatus: "public" }),

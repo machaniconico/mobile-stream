@@ -41,6 +41,11 @@ export interface PlatformChatOAuthCredential {
   redirectUri: string | null;
 }
 
+export interface PlatformChatOAuthCredentialStore {
+  youtube: PlatformChatOAuthCredential | null;
+  twitch: PlatformChatOAuthCredential | null;
+}
+
 export type PlatformChatOAuthCredentialHealthStatus =
   | "ready"
   | "missing-credential"
@@ -585,6 +590,68 @@ export const normalizePlatformChatOAuthCredential = (
     clientId: normalizeSingleLine(credential?.clientId) || null,
     redirectUri: normalizeSingleLine(credential?.redirectUri) || null
   };
+};
+
+export const createEmptyPlatformChatOAuthCredentialStore = (): PlatformChatOAuthCredentialStore => ({
+  youtube: null,
+  twitch: null
+});
+
+export const normalizePlatformChatOAuthCredentialStore = (
+  value: Partial<PlatformChatOAuthCredentialStore> | Partial<PlatformChatOAuthCredential> | null | undefined
+): PlatformChatOAuthCredentialStore => {
+  const singleCredential = normalizePlatformChatOAuthCredential(value as Partial<PlatformChatOAuthCredential>);
+  if (singleCredential) {
+    return {
+      ...createEmptyPlatformChatOAuthCredentialStore(),
+      [singleCredential.platform]: singleCredential
+    };
+  }
+
+  const maybeStore = value as Partial<PlatformChatOAuthCredentialStore> | null | undefined;
+  return {
+    youtube: normalizePlatformChatOAuthCredential(maybeStore?.youtube),
+    twitch: normalizePlatformChatOAuthCredential(maybeStore?.twitch)
+  };
+};
+
+export const upsertPlatformChatOAuthCredential = (
+  store: Partial<PlatformChatOAuthCredentialStore> | null | undefined,
+  credential: PlatformChatOAuthCredential | null | undefined
+): PlatformChatOAuthCredentialStore => {
+  const normalizedStore = normalizePlatformChatOAuthCredentialStore(store);
+  const normalizedCredential = normalizePlatformChatOAuthCredential(credential);
+  if (!normalizedCredential) {
+    return normalizedStore;
+  }
+  return {
+    ...normalizedStore,
+    [normalizedCredential.platform]: normalizedCredential
+  };
+};
+
+export const removePlatformChatOAuthCredential = (
+  store: Partial<PlatformChatOAuthCredentialStore> | null | undefined,
+  platform: PlatformChatPlatform
+): PlatformChatOAuthCredentialStore => ({
+  ...normalizePlatformChatOAuthCredentialStore(store),
+  [platform]: null
+});
+
+export const getPlatformChatOAuthCredential = (
+  store: Partial<PlatformChatOAuthCredentialStore> | null | undefined,
+  platform: PlatformChatPlatform
+): PlatformChatOAuthCredential | null => normalizePlatformChatOAuthCredentialStore(store)[platform];
+
+export const createPlatformChatAuthFromCredentialStore = (
+  store: Partial<PlatformChatOAuthCredentialStore> | null | undefined
+): PlatformChatAuthSession => {
+  const normalized = normalizePlatformChatOAuthCredentialStore(store);
+  return normalizePlatformChatAuthSession({
+    youtubeAccessToken: normalized.youtube?.accessToken ?? "",
+    twitchOauthToken: normalized.twitch?.accessToken ?? "",
+    twitchLogin: normalized.twitch?.twitchLogin ?? ""
+  });
 };
 
 export const assessPlatformChatOAuthCredentialHealth = (

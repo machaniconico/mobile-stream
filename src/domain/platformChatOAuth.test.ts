@@ -2,12 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import {
   completePlatformChatOAuthCallback,
   assessPlatformChatOAuthCredentialHealth,
+  createEmptyPlatformChatOAuthCredentialStore,
   createDefaultPlatformChatOAuthSettings,
   createPlatformChatOAuthFlow,
   createPlatformChatAuthFromCredential,
+  createPlatformChatAuthFromCredentialStore,
   createPkceS256Challenge,
   ensureFreshPlatformChatOAuthCredential,
   exchangeYouTubeOAuthCode,
+  getPlatformChatOAuthCredential,
+  normalizePlatformChatOAuthCredentialStore,
   parseOAuthCallback,
   pollTwitchDeviceCodeOAuthFlow,
   refreshTwitchOAuthCredential,
@@ -15,6 +19,7 @@ import {
   shouldRefreshPlatformChatOAuthCredential,
   shouldValidateTwitchOAuthCredential,
   startTwitchDeviceCodeOAuthFlow,
+  upsertPlatformChatOAuthCredential,
   validateTwitchOAuthToken
 } from "./platformChatOAuth";
 
@@ -569,6 +574,48 @@ describe("platformChatOAuth", () => {
     expect(result.refreshed).toBe(false);
     expect(result.credential?.refreshToken).toBe("tw-refresh");
     expect(result.message).toBe("Twitch OAuth token validated before platform API call.");
+  });
+
+  it("stores OAuth credentials per platform while accepting legacy single-credential payloads", () => {
+    const legacyYouTube = {
+      platform: "youtube" as const,
+      accessToken: "yt-token",
+      refreshToken: "yt-refresh",
+      expiresAt: 99999999,
+      scopes: ["https://www.googleapis.com/auth/youtube.force-ssl"],
+      twitchLogin: null,
+      twitchUserId: null,
+      validatedAt: 1,
+      clientId: "youtube-client",
+      redirectUri: "com.mobilelivecaster.app:/oauth/youtube"
+    };
+    const twitch = {
+      platform: "twitch" as const,
+      accessToken: "tw-token",
+      refreshToken: "tw-refresh",
+      expiresAt: 99999999,
+      scopes: ["chat:read", "channel:manage:broadcast"],
+      twitchLogin: "macha",
+      twitchUserId: "123",
+      validatedAt: 1,
+      clientId: "twitch-client",
+      redirectUri: "mobilelivecaster://oauth/twitch"
+    };
+
+    const migrated = normalizePlatformChatOAuthCredentialStore(legacyYouTube);
+    const combined = upsertPlatformChatOAuthCredential(migrated, twitch);
+
+    expect(getPlatformChatOAuthCredential(combined, "youtube")?.accessToken).toBe("yt-token");
+    expect(getPlatformChatOAuthCredential(combined, "twitch")?.accessToken).toBe("tw-token");
+    expect(createPlatformChatAuthFromCredentialStore(combined)).toMatchObject({
+      youtubeAccessToken: "yt-token",
+      twitchOauthToken: "tw-token",
+      twitchLogin: "macha"
+    });
+    expect(upsertPlatformChatOAuthCredential(createEmptyPlatformChatOAuthCredentialStore(), null)).toEqual({
+      youtube: null,
+      twitch: null
+    });
   });
 
   it("derives chat auth and refresh/validation scheduling from stored credentials", () => {

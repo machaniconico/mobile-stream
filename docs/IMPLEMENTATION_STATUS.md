@@ -51,6 +51,7 @@
 - OAuth chat authorization layer for YouTube PKCE authorization-code callbacks, Twitch implicit callbacks, and Twitch Device Code Flow, with tokens kept out of persisted profiles.
 - Secure mobile OAuth credential persistence through Keychain/Android Keystore-backed native storage.
 - YouTube/Twitch OAuth refresh-token rotation and hourly Twitch token validation scheduling for mobile chat authorization.
+- Platform-specific OAuth credential store for retaining YouTube and Twitch credentials at the same time, with legacy single-credential mobile storage migration.
 - OAuth credential health checks for retained platform, scope, and expiry evidence before chat readout, platform-visible Go Live checks, and YouTube broadcast Test/Live/Complete lifecycle controls.
 - OAuth/API-backed platform stream key controls: YouTube reusable stream creation for key rotation and Twitch Helix current-key sync.
 - OAuth/API-backed platform publishing controls: YouTube scheduled Live Broadcast creation, stream binding, broadcast/ingest health refresh, and test/live/complete lifecycle transitions; Twitch channel title/category/language metadata update plus live/offline status refresh.

@@ -1,8 +1,10 @@
 import type { YouTubeBroadcastTransitionStatus } from "./platformPublishing";
 import {
   assessPlatformChatOAuthCredentialHealth,
+  getPlatformChatOAuthCredential,
   YOUTUBE_LIVE_MANAGE_SCOPE,
-  type PlatformChatOAuthCredential
+  type PlatformChatOAuthCredential,
+  type PlatformChatOAuthCredentialStore
 } from "./platformChatOAuth";
 import type { StudioProfile } from "./profiles";
 import type { PublicLaunchChecklist } from "./publicLaunchChecklist";
@@ -36,6 +38,7 @@ export interface YouTubeBroadcastTransitionPreflightInput {
   streamStatus: StreamStatus;
   validation?: Pick<StreamValidationChecklist, "status" | "recommendedNextStep"> | null;
   publicLaunchChecklist?: PublicLaunchChecklist | null;
+  platformChatOAuthCredentials?: PlatformChatOAuthCredentialStore | null;
   platformChatOAuthCredential?: PlatformChatOAuthCredential | null;
   now?: Date;
 }
@@ -48,6 +51,7 @@ export const createYouTubeBroadcastTransitionPreflightReport = ({
   streamStatus,
   validation = null,
   publicLaunchChecklist = null,
+  platformChatOAuthCredentials = null,
   platformChatOAuthCredential = null,
   now = new Date()
 }: YouTubeBroadcastTransitionPreflightInput): PlatformPublishingPreflightReport => {
@@ -57,6 +61,7 @@ export const createYouTubeBroadcastTransitionPreflightReport = ({
     streamStatus,
     validation,
     publicLaunchChecklist,
+    platformChatOAuthCredentials,
     platformChatOAuthCredential,
     now
   );
@@ -92,6 +97,7 @@ const createYouTubeBroadcastTransitionIssues = (
   streamStatus: StreamStatus,
   validation: YouTubeBroadcastTransitionPreflightInput["validation"],
   publicLaunchChecklist: YouTubeBroadcastTransitionPreflightInput["publicLaunchChecklist"],
+  platformChatOAuthCredentials: YouTubeBroadcastTransitionPreflightInput["platformChatOAuthCredentials"],
   platformChatOAuthCredential: YouTubeBroadcastTransitionPreflightInput["platformChatOAuthCredential"],
   now: Date
 ): PlatformPublishingPreflightIssue[] => {
@@ -112,7 +118,10 @@ const createYouTubeBroadcastTransitionIssues = (
     ];
   }
 
-  const oauthIssue = createYouTubeTransitionOAuthIssue(platformChatOAuthCredential, now);
+  const oauthIssue = createYouTubeTransitionOAuthIssue(
+    resolveYouTubeTransitionCredential(platformChatOAuthCredentials, platformChatOAuthCredential),
+    now
+  );
   if (oauthIssue) {
     issues.push(oauthIssue);
   }
@@ -164,6 +173,17 @@ const createYouTubeBroadcastTransitionIssues = (
   }
 
   return issues;
+};
+
+const resolveYouTubeTransitionCredential = (
+  store: YouTubeBroadcastTransitionPreflightInput["platformChatOAuthCredentials"],
+  singleCredential: YouTubeBroadcastTransitionPreflightInput["platformChatOAuthCredential"]
+): PlatformChatOAuthCredential | null => {
+  const storedCredential = store ? getPlatformChatOAuthCredential(store, "youtube") : null;
+  if (storedCredential) {
+    return storedCredential;
+  }
+  return singleCredential?.platform === "youtube" ? singleCredential : null;
 };
 
 const createYouTubeTransitionOAuthIssue = (

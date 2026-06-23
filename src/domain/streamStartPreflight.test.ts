@@ -543,6 +543,56 @@ describe("stream start preflight", () => {
     expect(report.blocks.map((issue) => issue.code)).not.toContain("chat-twitch-oauth-wrong-platform");
   });
 
+  it("uses platform-specific OAuth credentials for mixed YouTube publishing and Twitch chat", () => {
+    const profile = {
+      ...validProfile(),
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "public" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "stream-id",
+        youtubeBroadcastStatus: "testing",
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      },
+      platformChat: {
+        ...validProfile().platformChat,
+        enabled: true,
+        platform: "twitch" as const,
+        twitchChannel: "streamer"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      chatReader: { enabled: true },
+      platformChatAuth: {
+        youtubeAccessToken: "",
+        twitchOauthToken: "oauth-placeholder",
+        twitchLogin: "streamer"
+      },
+      platformChatOAuthCredentials: {
+        youtube: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
+        twitch: twitchCredential([TWITCH_CHAT_SCOPE])
+      },
+      platformChatConnection: {
+        phase: "connected",
+        message: "Connected."
+      },
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("ready");
+    expect(report.issues.map((issue) => issue.code)).not.toEqual(
+      expect.arrayContaining(["publishing-youtube-oauth-missing-credential", "chat-twitch-oauth-missing-credential"])
+    );
+  });
+
   it("warns when platform chat is enabled but readout is disabled", () => {
     const profile = {
       ...validProfile(),

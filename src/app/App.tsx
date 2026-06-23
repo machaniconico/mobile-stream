@@ -28,14 +28,18 @@ import {
 } from "../domain/platformChatConnection";
 import {
   completePlatformChatOAuthCallback,
-  createPlatformChatAuthFromCredential,
+  createEmptyPlatformChatOAuthCredentialStore,
+  createPlatformChatAuthFromCredentialStore,
   createDefaultPlatformChatOAuthSettings,
   createPlatformChatOAuthFlow,
   ensureFreshPlatformChatOAuthCredential,
+  getPlatformChatOAuthCredential,
   normalizePlatformChatOAuthSettings,
   pollTwitchDeviceCodeOAuthFlow,
   startTwitchDeviceCodeOAuthFlow,
+  upsertPlatformChatOAuthCredential,
   type PlatformChatOAuthCredential,
+  type PlatformChatOAuthCredentialStore,
   type PlatformChatOAuthFlow,
   type PlatformChatOAuthSettings,
   type TwitchDeviceCodeOAuthFlow
@@ -143,7 +147,9 @@ export const App = () => {
   const [platformChatOAuthFlow, setPlatformChatOAuthFlow] = useState<PlatformChatOAuthFlow | null>(null);
   const [twitchDeviceOAuthFlow, setTwitchDeviceOAuthFlow] = useState<TwitchDeviceCodeOAuthFlow | null>(null);
   const [platformChatOAuthStatus, setPlatformChatOAuthStatus] = useState("OAuth not started.");
-  const [platformChatOAuthCredential, setPlatformChatOAuthCredential] = useState<PlatformChatOAuthCredential | null>(null);
+  const [platformChatOAuthCredentials, setPlatformChatOAuthCredentials] = useState<PlatformChatOAuthCredentialStore>(() =>
+    createEmptyPlatformChatOAuthCredentialStore()
+  );
   const [platformStreamKeyStatus, setPlatformStreamKeyStatus] = useState("Platform stream key sync idle.");
   const [platformPublishingStatus, setPlatformPublishingStatus] = useState("Platform publishing setup idle.");
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
@@ -331,7 +337,7 @@ export const App = () => {
         validation: diagnostics.validation,
         chatReader: chatReader.settings,
         platformChatAuth,
-        platformChatOAuthCredential,
+        platformChatOAuthCredentials,
         platformChatConnection: platformChatConnection.connection
       });
       if (!preflight.canStart) {
@@ -445,7 +451,7 @@ export const App = () => {
       validation: diagnostics.validation,
       chatReader: chatReader.settings,
       platformChatAuth,
-      platformChatOAuthCredential,
+      platformChatOAuthCredentials,
       platformChatConnection: platformChatConnection.connection
     });
     const publicLaunchChecklist = createPublicLaunchChecklist({
@@ -598,6 +604,12 @@ export const App = () => {
     );
   };
 
+  const rememberPlatformChatOAuthCredential = (credential: PlatformChatOAuthCredential) => {
+    const nextCredentials = upsertPlatformChatOAuthCredential(platformChatOAuthCredentials, credential);
+    setPlatformChatOAuthCredentials(nextCredentials);
+    setPlatformChatAuth((current) => mergeOAuthAuth(current, createPlatformChatAuthFromCredentialStore(nextCredentials)));
+  };
+
   const startPlatformChatOAuth = () => {
     try {
       const flow = createPlatformChatOAuthFlow(profile.platformChat.platform, platformChatOAuth);
@@ -630,7 +642,7 @@ export const App = () => {
       }
 
       setPlatformChatAuth((current) => mergeOAuthAuth(current, result.auth));
-      setPlatformChatOAuthCredential(result.credential);
+      rememberPlatformChatOAuthCredential(result.credential);
       setTwitchDeviceOAuthFlow(null);
       setPlatformChatOAuthStatus(result.message);
     } catch (error) {
@@ -642,7 +654,7 @@ export const App = () => {
     try {
       const result = await completePlatformChatOAuthCallback(platformChatOAuth.callbackUrl, platformChatOAuthFlow, platformChatOAuth, fetch);
       setPlatformChatAuth((current) => mergeOAuthAuth(current, result.auth));
-      setPlatformChatOAuthCredential(result.credential);
+      rememberPlatformChatOAuthCredential(result.credential);
       setPlatformChatOAuthFlow(null);
       setPlatformChatOAuth((current) => ({
         ...current,
@@ -654,11 +666,16 @@ export const App = () => {
     }
   };
 
-  const preparePlatformApiCredential = async (): Promise<PlatformChatOAuthCredential | null> => {
-    const result = await ensureFreshPlatformChatOAuthCredential(platformChatOAuthCredential, platformChatOAuth, fetch);
+  const preparePlatformApiCredential = async (
+    platform: PlatformChatOAuthCredential["platform"]
+  ): Promise<PlatformChatOAuthCredential | null> => {
+    const result = await ensureFreshPlatformChatOAuthCredential(
+      getPlatformChatOAuthCredential(platformChatOAuthCredentials, platform),
+      platformChatOAuth,
+      fetch
+    );
     if (result.credential && (result.refreshed || result.validated)) {
-      setPlatformChatOAuthCredential(result.credential);
-      setPlatformChatAuth((current) => mergeOAuthAuth(current, createPlatformChatAuthFromCredential(result.credential)));
+      rememberPlatformChatOAuthCredential(result.credential);
       if (result.message) {
         setPlatformChatOAuthStatus(result.message);
       }
@@ -668,9 +685,10 @@ export const App = () => {
 
   const applyPlatformStreamKey = async () => {
     try {
-      const credential = await preparePlatformApiCredential();
+      const platform = resolvePlatformApiCredentialPlatform(profile);
+      const credential = await preparePlatformApiCredential(platform);
       const result =
-        profile.platformChat.platform === "youtube"
+        platform === "youtube"
           ? await rotateYouTubeStreamKey(profile, credential, fetch)
           : await syncTwitchStreamKey(profile, credential, fetch);
       setProfile(result.profile);
@@ -685,7 +703,7 @@ export const App = () => {
       if (profile.destination.platform === "custom") {
         throw new Error("Platform publishing setup requires a YouTube Live or Twitch destination.");
       }
-      const credential = await preparePlatformApiCredential();
+      const credential = await preparePlatformApiCredential(profile.destination.platform === "youtube-live" ? "youtube" : "twitch");
       const result =
         profile.destination.platform === "youtube-live"
           ? await createYouTubeBroadcastAndBindStream(profile, credential, fetch)
@@ -722,7 +740,7 @@ export const App = () => {
         validation: diagnostics.validation,
         chatReader: chatReader.settings,
         platformChatAuth,
-        platformChatOAuthCredential,
+        platformChatOAuthCredentials,
         platformChatConnection: platformChatConnection.connection
       });
       const publicLaunchChecklist = createPublicLaunchChecklist({
@@ -737,12 +755,12 @@ export const App = () => {
         streamStatus: engineSnapshot.state.status,
         validation: diagnostics.validation,
         publicLaunchChecklist,
-        platformChatOAuthCredential
+        platformChatOAuthCredentials
       });
       if (!preflight.canProceed) {
         throw new Error(formatPlatformPublishingPreflightBlockMessage(preflight));
       }
-      const credential = await preparePlatformApiCredential();
+      const credential = await preparePlatformApiCredential("youtube");
       const result = await transitionYouTubeBroadcast(profile, credential, broadcastStatus, fetch);
       setProfile(result.profile);
       setPlatformPublishingStatus(result.message);
@@ -753,7 +771,7 @@ export const App = () => {
 
   const refreshPlatformPublishingStatus = async () => {
     try {
-      const credential = await preparePlatformApiCredential();
+      const credential = await preparePlatformApiCredential(profile.destination.platform === "youtube-live" ? "youtube" : "twitch");
       const result =
         profile.destination.platform === "youtube-live"
           ? await refreshYouTubeBroadcastStatus(profile, credential, fetch)
@@ -818,7 +836,7 @@ export const App = () => {
       platformChat={profile.platformChat}
       platformChatAuth={platformChatAuth}
       platformChatOAuth={platformChatOAuth}
-      platformChatOAuthCredential={platformChatOAuthCredential}
+      platformChatOAuthCredentials={platformChatOAuthCredentials}
       platformChatOAuthFlow={platformChatOAuthFlow}
       twitchDeviceOAuthFlow={twitchDeviceOAuthFlow}
       platformChatOAuthStatus={platformChatOAuthStatus}
@@ -903,6 +921,15 @@ const mergeOAuthAuth = (
     twitchOauthToken: update.twitchOauthToken || current.twitchOauthToken,
     twitchLogin: update.twitchLogin || current.twitchLogin
   });
+
+const resolvePlatformApiCredentialPlatform = (
+  profile: Pick<StudioProfile, "destination" | "platformChat">
+): PlatformChatOAuthCredential["platform"] =>
+  profile.destination.platform === "youtube-live"
+    ? "youtube"
+    : profile.destination.platform === "twitch"
+      ? "twitch"
+      : profile.platformChat.platform;
 
 const shouldDisconnectPlatformChatOnStreamStop = (phase: string): boolean =>
   phase === "connecting" || phase === "connected" || phase === "failed";

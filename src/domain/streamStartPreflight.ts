@@ -16,7 +16,9 @@ import {
   TWITCH_CHAT_SCOPE,
   YOUTUBE_LIVE_CHAT_SCOPE,
   YOUTUBE_LIVE_MANAGE_SCOPE,
-  type PlatformChatOAuthCredential
+  getPlatformChatOAuthCredential,
+  type PlatformChatOAuthCredential,
+  type PlatformChatOAuthCredentialStore
 } from "./platformChatOAuth";
 import type { ReadinessIssue, ReadinessReport } from "./readiness";
 import type { StudioProfile } from "./profiles";
@@ -66,6 +68,7 @@ export interface StreamStartPreflightInput {
   validation?: Pick<StreamValidationChecklist, "status" | "recommendedNextStep"> | null;
   chatReader?: Pick<ChatReaderSettings, "enabled"> | null;
   platformChatAuth?: PlatformChatAuthSession | null;
+  platformChatOAuthCredentials?: PlatformChatOAuthCredentialStore | null;
   platformChatOAuthCredential?: PlatformChatOAuthCredential | null;
   platformChatConnection?: Pick<PlatformChatConnectionState, "phase" | "message"> | null;
   audioRoute?: AudioRouteState | null;
@@ -82,6 +85,7 @@ export const createStreamStartPreflightReport = ({
   validation = null,
   chatReader = null,
   platformChatAuth = null,
+  platformChatOAuthCredentials = null,
   platformChatOAuthCredential = null,
   platformChatConnection = null,
   audioRoute = null,
@@ -90,9 +94,9 @@ export const createStreamStartPreflightReport = ({
   const issues = [
     ...readiness.issues.map(toPreflightIssue),
     ...createAudioMonitorRouteIssues(profile, audioRoute),
-    ...createChatReadoutIssues(profile, chatReader, platformChatAuth, platformChatOAuthCredential, platformChatConnection, now),
+    ...createChatReadoutIssues(profile, chatReader, platformChatAuth, platformChatOAuthCredentials, platformChatOAuthCredential, platformChatConnection, now),
     ...createCommercialValidationIssues(profile, validation),
-    ...createPlatformPublishingIssues(profile, validation, now, platformChatOAuthCredential),
+    ...createPlatformPublishingIssues(profile, validation, now, platformChatOAuthCredentials, platformChatOAuthCredential),
     ...createEngineStateIssues(streamStatus),
     ...createOperationIssues(operationStatus)
   ];
@@ -322,6 +326,7 @@ const createPlatformPublishingIssues = (
   profile: StreamStartPreflightInput["profile"],
   validation: StreamStartPreflightInput["validation"],
   now: Date,
+  platformChatOAuthCredentials: StreamStartPreflightInput["platformChatOAuthCredentials"],
   platformChatOAuthCredential: StreamStartPreflightInput["platformChatOAuthCredential"]
 ): StreamStartPreflightIssue[] => {
   if (!profile) {
@@ -329,11 +334,11 @@ const createPlatformPublishingIssues = (
   }
 
   if (profile.destination.platform === "youtube-live") {
-    return createYouTubePublishingIssues(profile, validation, now, platformChatOAuthCredential);
+    return createYouTubePublishingIssues(profile, validation, now, platformChatOAuthCredentials, platformChatOAuthCredential);
   }
 
   if (profile.destination.platform === "twitch") {
-    return createTwitchPublishingIssues(profile, now, platformChatOAuthCredential);
+    return createTwitchPublishingIssues(profile, now, platformChatOAuthCredentials, platformChatOAuthCredential);
   }
 
   return [];
@@ -343,6 +348,7 @@ const createYouTubePublishingIssues = (
   profile: NonNullable<StreamStartPreflightInput["profile"]>,
   validation: StreamStartPreflightInput["validation"],
   now: Date,
+  platformChatOAuthCredentials: StreamStartPreflightInput["platformChatOAuthCredentials"],
   platformChatOAuthCredential: StreamStartPreflightInput["platformChatOAuthCredential"]
 ): StreamStartPreflightIssue[] => {
   const settings = profile.platformPublishing;
@@ -353,7 +359,7 @@ const createYouTubePublishingIssues = (
 
   const issues: StreamStartPreflightIssue[] = [];
   const oauthIssue = createOAuthScopeIssue({
-    credential: platformChatOAuthCredential,
+    credential: resolvePreflightCredential(platformChatOAuthCredentials, platformChatOAuthCredential, "youtube"),
     platform: "youtube",
     requiredScopes: [YOUTUBE_LIVE_MANAGE_SCOPE],
     purposeLabel: "YouTube broadcast management",
@@ -419,12 +425,13 @@ const createYouTubePublishingIssues = (
 const createTwitchPublishingIssues = (
   profile: NonNullable<StreamStartPreflightInput["profile"]>,
   now: Date,
+  platformChatOAuthCredentials: StreamStartPreflightInput["platformChatOAuthCredentials"],
   platformChatOAuthCredential: StreamStartPreflightInput["platformChatOAuthCredential"]
 ): StreamStartPreflightIssue[] => {
   const freshnessIssue = createStatusFreshnessIssue("twitch", profile.platformPublishing.twitchStatusCheckedAt, now);
   const issues: StreamStartPreflightIssue[] = [];
   const oauthIssue = createOAuthScopeIssue({
-    credential: platformChatOAuthCredential,
+    credential: resolvePreflightCredential(platformChatOAuthCredentials, platformChatOAuthCredential, "twitch"),
     platform: "twitch",
     requiredScopes: [TWITCH_CHANNEL_MANAGE_SCOPE],
     purposeLabel: "Twitch channel management",
@@ -548,6 +555,7 @@ const createChatReadoutIssues = (
   profile: StreamStartPreflightInput["profile"],
   chatReader: StreamStartPreflightInput["chatReader"],
   platformChatAuth: StreamStartPreflightInput["platformChatAuth"],
+  platformChatOAuthCredentials: StreamStartPreflightInput["platformChatOAuthCredentials"],
   platformChatOAuthCredential: StreamStartPreflightInput["platformChatOAuthCredential"],
   platformChatConnection: StreamStartPreflightInput["platformChatConnection"],
   now: Date
@@ -596,7 +604,7 @@ const createChatReadoutIssues = (
 
   const issues: StreamStartPreflightIssue[] = [];
   const oauthIssue = createOAuthScopeIssue({
-    credential: platformChatOAuthCredential,
+    credential: resolvePreflightCredential(platformChatOAuthCredentials, platformChatOAuthCredential, profile.platformChat.platform),
     platform: profile.platformChat.platform,
     requiredScopes: profile.platformChat.platform === "youtube" ? [YOUTUBE_LIVE_CHAT_SCOPE] : [TWITCH_CHAT_SCOPE],
     purposeLabel: `${profile.platformChat.platform === "youtube" ? "YouTube" : "Twitch"} chat readout`,
@@ -630,6 +638,18 @@ const createChatReadoutIssues = (
   }
 
   return issues;
+};
+
+const resolvePreflightCredential = (
+  store: StreamStartPreflightInput["platformChatOAuthCredentials"],
+  singleCredential: StreamStartPreflightInput["platformChatOAuthCredential"],
+  platform: PlatformChatOAuthCredential["platform"]
+): PlatformChatOAuthCredential | null => {
+  const storedCredential = store ? getPlatformChatOAuthCredential(store, platform) : null;
+  if (storedCredential) {
+    return storedCredential;
+  }
+  return singleCredential?.platform === platform ? singleCredential : null;
 };
 
 const createOAuthScopeIssue = ({

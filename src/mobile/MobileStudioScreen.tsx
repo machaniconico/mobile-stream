@@ -7,7 +7,7 @@ import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
 import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
 import type {
-  PlatformChatOAuthCredential,
+  PlatformChatOAuthCredentialStore,
   PlatformChatOAuthFlow,
   PlatformChatOAuthSettings,
   TwitchDeviceCodeOAuthFlow
@@ -100,7 +100,7 @@ interface MobileStudioScreenProps {
   platformChat: PlatformChatSettings;
   platformChatAuth: PlatformChatAuthSession;
   platformChatOAuth: PlatformChatOAuthSettings;
-  platformChatOAuthCredential: PlatformChatOAuthCredential | null;
+  platformChatOAuthCredentials: PlatformChatOAuthCredentialStore;
   platformChatOAuthFlow: PlatformChatOAuthFlow | null;
   twitchDeviceOAuthFlow: TwitchDeviceCodeOAuthFlow | null;
   platformChatOAuthStatus: string;
@@ -246,7 +246,7 @@ export const MobileStudioScreen = ({
   platformChat,
   platformChatAuth,
   platformChatOAuth,
-  platformChatOAuthCredential,
+  platformChatOAuthCredentials,
   platformChatOAuthFlow,
   twitchDeviceOAuthFlow,
   platformChatOAuthStatus,
@@ -320,7 +320,7 @@ export const MobileStudioScreen = ({
     validation: diagnostics.validation,
     chatReader: chatReader.settings,
     platformChatAuth,
-    platformChatOAuthCredential,
+    platformChatOAuthCredentials,
     platformChatConnection,
     audioRoute
   });
@@ -339,7 +339,7 @@ export const MobileStudioScreen = ({
       streamStatus: snapshot.state.status,
       validation: diagnostics.validation,
       publicLaunchChecklist,
-      platformChatOAuthCredential
+      platformChatOAuthCredentials
     });
 
   useEffect(() => {

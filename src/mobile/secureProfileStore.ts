@@ -1,6 +1,11 @@
 import { NativeModules } from "react-native";
 import {
+  createEmptyPlatformChatOAuthCredentialStore,
+  getPlatformChatOAuthCredential,
   normalizePlatformChatOAuthCredential,
+  normalizePlatformChatOAuthCredentialStore,
+  upsertPlatformChatOAuthCredential,
+  type PlatformChatOAuthCredentialStore,
   type PlatformChatOAuthCredential
 } from "../domain/platformChatOAuth";
 import { normalizeStudioProfile, type StudioProfile } from "../domain/profiles";
@@ -50,40 +55,60 @@ export const clearSecureProfile = async (): Promise<void> => {
   await nativeStore.clearProfile();
 };
 
-export const loadSecureOAuthCredential = async (): Promise<PlatformChatOAuthCredential | null> => {
+export const loadSecureOAuthCredentials = async (): Promise<PlatformChatOAuthCredentialStore> => {
   if (!canUseSecureProfileStore() || !nativeStore) {
-    return null;
+    return createEmptyPlatformChatOAuthCredentialStore();
   }
 
   const credentialJson = await nativeStore.loadOAuthCredential();
   if (!credentialJson) {
-    return null;
+    return createEmptyPlatformChatOAuthCredentialStore();
   }
 
   try {
-    const credential = normalizePlatformChatOAuthCredential(JSON.parse(credentialJson) as Partial<PlatformChatOAuthCredential>);
-    if (!credential) {
+    const credentials = normalizePlatformChatOAuthCredentialStore(
+      JSON.parse(credentialJson) as Partial<PlatformChatOAuthCredentialStore> | Partial<PlatformChatOAuthCredential>
+    );
+    if (!credentials.youtube && !credentials.twitch) {
       await nativeStore.clearOAuthCredential();
-      return null;
+      return createEmptyPlatformChatOAuthCredentialStore();
     }
-    return credential;
+    return credentials;
   } catch {
     await nativeStore.clearOAuthCredential();
-    return null;
+    return createEmptyPlatformChatOAuthCredentialStore();
   }
 };
 
-export const saveSecureOAuthCredential = async (credential: PlatformChatOAuthCredential): Promise<void> => {
+export const saveSecureOAuthCredentials = async (credentials: PlatformChatOAuthCredentialStore): Promise<void> => {
   if (!canUseSecureProfileStore() || !nativeStore) {
     return;
   }
-  const normalized = normalizePlatformChatOAuthCredential(credential);
-  if (!normalized) {
+  const normalized = normalizePlatformChatOAuthCredentialStore(credentials);
+  if (!normalized.youtube && !normalized.twitch) {
     await nativeStore.clearOAuthCredential();
     return;
   }
   await nativeStore.saveOAuthCredential(JSON.stringify(normalized));
 };
+
+export const loadSecureOAuthCredential = async (): Promise<PlatformChatOAuthCredential | null> => {
+  const credentials = await loadSecureOAuthCredentials();
+  return credentials.youtube ?? credentials.twitch;
+};
+
+export const saveSecureOAuthCredential = async (credential: PlatformChatOAuthCredential): Promise<void> => {
+  const normalized = normalizePlatformChatOAuthCredential(credential);
+  if (!normalized) {
+    return clearSecureOAuthCredential();
+  }
+  const current = await loadSecureOAuthCredentials();
+  await saveSecureOAuthCredentials(upsertPlatformChatOAuthCredential(current, normalized));
+};
+
+export const getSecureOAuthCredential = async (
+  platform: PlatformChatOAuthCredential["platform"]
+): Promise<PlatformChatOAuthCredential | null> => getPlatformChatOAuthCredential(await loadSecureOAuthCredentials(), platform);
 
 export const clearSecureOAuthCredential = async (): Promise<void> => {
   if (!canUseSecureProfileStore() || !nativeStore) {
