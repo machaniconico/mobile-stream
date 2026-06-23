@@ -77,6 +77,8 @@
 - Android microphone PCM effect path through RootEncoder `CustomAudioEffect`.
 - Android headphone-only mic monitor playback through `AudioTrack`.
 - Android microphone/notification runtime permission preflight before MediaProjection launch.
+- Android release signing fail-closed configuration using `MLC_RELEASE_*` keystore inputs instead of debug signing for release artifacts.
+- Native release-configuration audit script covering Android release signing, streaming permissions, OAuth callback schemes, iOS usage descriptions, iOS privacy manifest packaging, and ReplayKit Broadcast Upload Extension setup.
 - Android Keystore-backed encrypted mobile profile storage for stream keys.
 - Mobile stream key clearing by overwriting the secure native profile with a cleared key.
 - Durable mobile-side scene persistence through Android SharedPreferences and iOS atomic Application Support JSON storage.

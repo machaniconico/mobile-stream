@@ -2,6 +2,35 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
+def releaseSigningValue = { name ->
+    def propertyValue = project.findProperty(name)
+    if (propertyValue != null && propertyValue.toString().trim()) {
+        return propertyValue.toString().trim()
+    }
+
+    def environmentValue = System.getenv(name)
+    return environmentValue != null ? environmentValue.trim() : ""
+}
+
+def releaseStoreFilePath = releaseSigningValue("MLC_RELEASE_STORE_FILE")
+def releaseStorePassword = releaseSigningValue("MLC_RELEASE_STORE_PASSWORD")
+def releaseKeyAlias = releaseSigningValue("MLC_RELEASE_KEY_ALIAS")
+def releaseKeyPassword = releaseSigningValue("MLC_RELEASE_KEY_PASSWORD")
+def releaseSigningConfigured = releaseStoreFilePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+def releaseTaskRequested = gradle.startParameter.taskNames.any { taskName -> taskName.toLowerCase().contains("release") }
+
+if (releaseTaskRequested && !releaseSigningConfigured) {
+    throw new GradleException(
+        "Android release signing is not configured. Set MLC_RELEASE_STORE_FILE, " +
+        "MLC_RELEASE_STORE_PASSWORD, MLC_RELEASE_KEY_ALIAS, and MLC_RELEASE_KEY_PASSWORD " +
+        "as Gradle properties or environment variables before building release artifacts."
+    )
+}
+
+if (releaseTaskRequested && releaseSigningConfigured && !file(releaseStoreFilePath).exists()) {
+    throw new GradleException("Android release keystore does not exist at MLC_RELEASE_STORE_FILE=${releaseStoreFilePath}.")
+}
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -92,15 +121,21 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            if (releaseSigningConfigured) {
+                storeFile file(releaseStoreFilePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }

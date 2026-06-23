@@ -51,12 +51,16 @@ npm test
 npm run typecheck
 npm run build
 npm run verify:rn
+npm run verify:release-config
 npm run android:assembleDebug
+npm run android:assembleRelease
 npm run ios:pods
 npm run ios:build:simulator
 ```
 
 `npm run verify:rn` builds Metro JS bundles for iOS and Android. It does not require a simulator, device, Android Studio, or CocoaPods.
+
+`npm run verify:release-config` audits native store-release configuration, including Android release signing fail-closed behavior, streaming permissions, OAuth callback schemes, iOS usage descriptions, the iOS privacy manifest, and the ReplayKit Broadcast Upload Extension setup.
 
 ## Native Direction
 
@@ -93,6 +97,17 @@ Android requires a JDK and Android SDK:
 ```bash
 npm run mobile:android
 ```
+
+Android release artifacts require a production keystore. Provide these as Gradle properties or environment variables before running release tasks:
+
+```bash
+MLC_RELEASE_STORE_FILE=/absolute/path/to/release.keystore
+MLC_RELEASE_STORE_PASSWORD=...
+MLC_RELEASE_KEY_ALIAS=...
+MLC_RELEASE_KEY_PASSWORD=...
+```
+
+Release builds fail closed when those values are missing, so debug keystores cannot be used accidentally for store artifacts.
 
 The local setup expects:
 

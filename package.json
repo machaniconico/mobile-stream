@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:ui": "node scripts/verify-ui.mjs",
+    "verify:release-config": "node scripts/verify-release-config.mjs",
     "mobile:start": "react-native start",
     "mobile:ios": "react-native run-ios",
     "mobile:android": "react-native run-android",
@@ -19,6 +20,7 @@
     "mobile:bundle:android": "react-native bundle --platform android --dev false --entry-file index.js --bundle-output .artifacts/rn/index.android.bundle --assets-dest .artifacts/rn/android-assets",
     "verify:rn": "npm run mobile:bundle:ios && npm run mobile:bundle:android",
     "android:assembleDebug": "bash -lc 'source scripts/rn-env.sh && cd android && ./gradlew assembleDebug'",
+    "android:assembleRelease": "bash -lc 'source scripts/rn-env.sh && cd android && ./gradlew assembleRelease'",
     "ios:pods": "bash -lc 'source scripts/rn-env.sh && cd ios && pod install'",
     "ios:build:simulator": "bash -lc 'source scripts/rn-env.sh && cd ios && xcodebuild -workspace MobileLiveCaster.xcworkspace -scheme MobileLiveCaster -configuration Debug -sdk iphonesimulator -destination \"generic/platform=iOS Simulator\" build'"
   },
