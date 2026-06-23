@@ -269,7 +269,11 @@ export const App = () => {
         streamHealthSamples,
         streamSessionSummaries.summaries,
         streamValidationRuns,
-        faceTrackingRuntime
+        faceTrackingRuntime,
+        {
+          chatReader: chatReader.settings,
+          platformChatConnection: platformChatConnection.connection
+        }
       );
       const preflight = createStreamStartPreflightReport({
         readiness,

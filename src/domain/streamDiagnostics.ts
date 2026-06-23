@@ -153,6 +153,17 @@ interface SnapshotLike {
   nativeRuntime?: NativeRuntimeTelemetry | null;
 }
 
+export interface StreamDiagnosticsOptions {
+  chatReader?: {
+    enabled: boolean;
+  } | null;
+  platformChatConnection?: {
+    phase: string;
+    label?: string;
+    message?: string;
+  } | null;
+}
+
 const platformLabels: Record<StudioProfile["destination"]["platform"], string> = {
   custom: "Custom",
   "youtube-live": "YouTube Live",
@@ -168,10 +179,14 @@ export const createStreamDiagnostics = (
   healthSamples: StreamHealthSample[] = [],
   sessionSummaries: StreamSessionSummary[] = [],
   validationRuns: StreamValidationRun[] = [],
-  faceTrackingRuntime: FaceTrackingRuntimeState | null = null
+  faceTrackingRuntime: FaceTrackingRuntimeState | null = null,
+  options: StreamDiagnosticsOptions = {}
 ): StreamDiagnostics => {
   const destination = readiness.sanitizedProfile.destination;
   const quality = readiness.sanitizedProfile.quality;
+  const micEffects = readiness.sanitizedProfile.micEffects;
+  const platformChat = readiness.sanitizedProfile.platformChat;
+  const platformChatConnection = options.platformChatConnection ?? null;
   const endpoint = parseEndpoint(destination.serverUrl);
   const redactedEndpoint = {
     host: endpoint.host,
@@ -282,6 +297,22 @@ export const createStreamDiagnostics = (
     nativeRuntime,
     nativeComposition,
     faceTracking,
+    audio: {
+      micEffectsEnabled: micEffects.enabled,
+      presetId: micEffects.presetId,
+      inputGainDb: micEffects.inputGainDb,
+      compression: micEffects.compression,
+      monitorEnabled: micEffects.monitorEnabled,
+      monitorVolume: micEffects.monitorVolume,
+      monitorHeadphonesOnly: micEffects.monitorHeadphonesOnly
+    },
+    chatReadout: {
+      platformChatEnabled: platformChat.enabled,
+      readerEnabled: options.chatReader?.enabled ?? false,
+      connectionPhase: platformChatConnection?.phase ?? (platformChat.enabled ? "idle" : "disabled"),
+      connectionLabel: platformChatConnection?.label ?? "",
+      connectionMessage: platformChatConnection?.message ?? ""
+    },
     platformPublishing,
     evidence: validationEvidence
   });

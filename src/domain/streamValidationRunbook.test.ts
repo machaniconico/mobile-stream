@@ -104,6 +104,24 @@ const evidence = (overrides: Partial<StreamValidationEvidenceSummary> = {}): Str
   ...overrides
 });
 
+const readyAudio: StreamValidationRunbookInput["audio"] = {
+  micEffectsEnabled: true,
+  presetId: "broadcast",
+  inputGainDb: 3,
+  compression: 0.62,
+  monitorEnabled: true,
+  monitorVolume: 0.45,
+  monitorHeadphonesOnly: true
+};
+
+const readyChatReadout: StreamValidationRunbookInput["chatReadout"] = {
+  platformChatEnabled: true,
+  readerEnabled: true,
+  connectionPhase: "connected",
+  connectionLabel: "Connected",
+  connectionMessage: "YouTube Live chat is connected."
+};
+
 const input = (overrides: Partial<StreamValidationRunbookInput> = {}): StreamValidationRunbookInput => ({
   readiness,
   target: {
@@ -133,6 +151,8 @@ const input = (overrides: Partial<StreamValidationRunbookInput> = {}): StreamVal
   nativeRuntime: null,
   nativeComposition,
   faceTracking,
+  audio: readyAudio,
+  chatReadout: readyChatReadout,
   platformPublishing: {
     status: "info",
     summary: "Dashboard status has not been refreshed.",
@@ -174,6 +194,36 @@ describe("stream validation runbook", () => {
     expect(runbook.status).toBe("running");
     expect(runbook.items.find((item) => item.id === "runbook-monitor-running")?.status).toBe("warn");
     expect(runbook.items.find((item) => item.id === "runbook-native-runtime-ready")?.status).toBe("pass");
+  });
+
+  it("warns when headphone self-monitoring can leak through speakers", () => {
+    const runbook = createStreamValidationRunbook(
+      input({
+        audio: {
+          ...readyAudio,
+          monitorHeadphonesOnly: false
+        }
+      })
+    );
+
+    expect(runbook.items.find((item) => item.id === "runbook-audio-monitor-open")?.status).toBe("warn");
+    expect(runbook.nextAction).toContain("headphones-only");
+  });
+
+  it("warns when platform chat readout is not connected", () => {
+    const runbook = createStreamValidationRunbook(
+      input({
+        chatReadout: {
+          ...readyChatReadout,
+          connectionPhase: "failed",
+          connectionLabel: "Failed",
+          connectionMessage: "Twitch chat auth expired."
+        }
+      })
+    );
+
+    expect(runbook.items.find((item) => item.id === "runbook-chat-needs-connection")?.status).toBe("warn");
+    expect(runbook.nextAction).toContain("Connect YouTube Live or Twitch chat");
   });
 
   it("blocks when native compositor still-image assets are missing", () => {
@@ -247,5 +297,7 @@ describe("stream validation runbook", () => {
     expect(runbook.failCount).toBe(0);
     expect(runbook.warningCount).toBe(0);
     expect(runbook.pendingCount).toBe(0);
+    expect(runbook.items.find((item) => item.id === "runbook-audio-ready")?.status).toBe("pass");
+    expect(runbook.items.find((item) => item.id === "runbook-chat-connected")?.status).toBe("pass");
   });
 });

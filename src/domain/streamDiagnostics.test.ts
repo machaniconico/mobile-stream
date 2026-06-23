@@ -738,6 +738,8 @@ describe("stream diagnostics", () => {
     expect(text).toContain("Chat readout: 0 events / 0 reconnects / 0 exhausted");
     expect(text).toContain("Last chat readout: 0 events / 0 reconnects / 0 exhausted");
     expect(text).toContain("Commercial Validation");
+    expect(text).toContain("Validate mic FX and monitor");
+    expect(text).toContain("Validate chat readout");
     expect(text).toContain("Session Events");
     expect(json).toContain("backoffWindow");
     expect(json).toContain("qualityIncidents");

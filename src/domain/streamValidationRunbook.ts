@@ -15,6 +15,8 @@ export type StreamValidationRunbookItemStatus = "pass" | "warn" | "fail" | "pend
 export type StreamValidationRunbookPhase =
   | "setup"
   | "start"
+  | "audio"
+  | "chat"
   | "monitor"
   | "dashboard"
   | "stop"
@@ -64,6 +66,22 @@ export interface StreamValidationRunbookInput {
   nativeRuntime: NativeRuntimeTelemetry | null;
   nativeComposition: NativeCompositionReport;
   faceTracking: FaceTrackingDiagnostics;
+  audio: {
+    micEffectsEnabled: boolean;
+    presetId: string;
+    inputGainDb: number;
+    compression: number;
+    monitorEnabled: boolean;
+    monitorVolume: number;
+    monitorHeadphonesOnly: boolean;
+  };
+  chatReadout: {
+    platformChatEnabled: boolean;
+    readerEnabled: boolean;
+    connectionPhase: string;
+    connectionLabel: string;
+    connectionMessage: string;
+  };
   platformPublishing: {
     status: "pass" | "warn" | "fail" | "info";
     summary: string;
@@ -79,6 +97,8 @@ export const createStreamValidationRunbook = (input: StreamValidationRunbookInpu
   const items = [
     createSetupItem(input),
     createStartItem(input),
+    createAudioItem(input),
+    createChatReadoutItem(input),
     createMonitorItem(input),
     createNativeRuntimeItem(input),
     createDashboardItem(input),
@@ -210,6 +230,118 @@ const createStartItem = ({ telemetry, session }: StreamValidationRunbookInput): 
     title: "Start private stream",
     detail: "No active native RTMP(S) publish session is running.",
     action: "Start the stream from a physical iOS or Android device against the private endpoint."
+  };
+};
+
+const createAudioItem = ({ audio }: StreamValidationRunbookInput): StreamValidationRunbookItem => {
+  if (!audio.micEffectsEnabled) {
+    return {
+      id: "runbook-audio-effects-disabled",
+      phase: "audio",
+      status: "warn",
+      title: "Validate mic FX and monitor",
+      detail: "Mic effects are disabled, so the validation run only covers dry microphone audio.",
+      action: "Enable a mic effect preset, record a short spoken sample, and keep the preset unchanged during the private run."
+    };
+  }
+
+  if (!audio.monitorEnabled) {
+    return {
+      id: "runbook-audio-monitor-disabled",
+      phase: "audio",
+      status: "warn",
+      title: "Validate mic FX and monitor",
+      detail: `${audio.presetId} mic effects are enabled, but headphone self-monitoring is off.`,
+      action: "Enable self-monitoring with headphones connected so the processed voice can be checked before going live."
+    };
+  }
+
+  if (audio.monitorVolume <= 0) {
+    return {
+      id: "runbook-audio-monitor-muted",
+      phase: "audio",
+      status: "warn",
+      title: "Validate mic FX and monitor",
+      detail: `${audio.presetId} mic effects and monitoring are enabled, but monitor volume is muted.`,
+      action: "Raise monitor volume to an audible level and verify the processed voice in headphones."
+    };
+  }
+
+  if (!audio.monitorHeadphonesOnly) {
+    return {
+      id: "runbook-audio-monitor-open",
+      phase: "audio",
+      status: "warn",
+      title: "Validate mic FX and monitor",
+      detail: "Self-monitoring is not limited to headphones, which can create feedback on device speakers.",
+      action: "Switch monitoring to headphones-only before recording commercial validation evidence."
+    };
+  }
+
+  return {
+    id: "runbook-audio-ready",
+    phase: "audio",
+    status: "pass",
+    title: "Validate mic FX and monitor",
+    detail: `${audio.presetId} mic effects are active with ${Math.round(audio.monitorVolume * 100)}% headphones-only monitoring.`,
+    action: "Keep input gain, compression, preset, and monitor routing unchanged for the private stream."
+  };
+};
+
+const createChatReadoutItem = ({ chatReadout }: StreamValidationRunbookInput): StreamValidationRunbookItem => {
+  if (!chatReadout.platformChatEnabled) {
+    return {
+      id: "runbook-chat-platform-disabled",
+      phase: "chat",
+      status: "warn",
+      title: "Validate chat readout",
+      detail: "Platform chat is disabled, so YouTube/Twitch message fetch and readout are not covered by this run.",
+      action: "Enable platform chat, connect the selected platform, and test one sample message before starting the private stream."
+    };
+  }
+
+  if (!chatReadout.readerEnabled) {
+    return {
+      id: "runbook-chat-reader-disabled",
+      phase: "chat",
+      status: "warn",
+      title: "Validate chat readout",
+      detail: "Platform chat is configured, but speech readout is disabled.",
+      action: "Turn chat readout on and confirm messages are queued and spoken at the intended volume."
+    };
+  }
+
+  if (chatReadout.connectionPhase === "connected") {
+    return {
+      id: "runbook-chat-connected",
+      phase: "chat",
+      status: "pass",
+      title: "Validate chat readout",
+      detail: chatReadout.connectionMessage || `${chatReadout.connectionLabel || "Platform chat"} is connected.`,
+      action: "Keep the chat connection active and retain chat session events with validation evidence."
+    };
+  }
+
+  if (chatReadout.connectionPhase === "connecting") {
+    return {
+      id: "runbook-chat-connecting",
+      phase: "chat",
+      status: "pending",
+      title: "Validate chat readout",
+      detail: chatReadout.connectionMessage || "Platform chat is connecting.",
+      action: "Wait for the chat connection to reach connected before recording a pass."
+    };
+  }
+
+  return {
+    id: "runbook-chat-needs-connection",
+    phase: "chat",
+    status: "warn",
+    title: "Validate chat readout",
+    detail:
+      chatReadout.connectionMessage ||
+      `Platform chat readout is not connected yet (${chatReadout.connectionPhase || "unknown"}).`,
+    action: "Connect YouTube Live or Twitch chat and ingest a sample message before retaining release evidence."
   };
 };
 

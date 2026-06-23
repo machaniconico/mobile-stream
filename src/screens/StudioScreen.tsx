@@ -331,7 +331,11 @@ export const StudioScreen = ({
     streamHealthSamples,
     streamSessionSummaries,
     streamValidationRuns,
-    faceTrackingRuntime
+    faceTrackingRuntime,
+    {
+      chatReader: chatReader.settings,
+      platformChatConnection
+    }
   );
   const startPreflight = createStreamStartPreflightReport({
     readiness,

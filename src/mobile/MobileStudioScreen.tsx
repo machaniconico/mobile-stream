@@ -271,7 +271,11 @@ export const MobileStudioScreen = ({
     streamHealthSamples,
     streamSessionSummaries,
     streamValidationRuns,
-    faceTrackingRuntime
+    faceTrackingRuntime,
+    {
+      chatReader: chatReader.settings,
+      platformChatConnection
+    }
   );
   const startPreflight = createStreamStartPreflightReport({
     readiness,
