@@ -706,8 +706,14 @@ final class LiveCasterNative: RCTEventEmitter {
             "publisher": [
                 "state": publisherState,
                 "reconnectAttempts": publisher.intValue("reconnectAttempts"),
+                "sentVideoFrames": publisher.intValue("videoMessagesSent"),
+                "sentAudioFrames": publisher.intValue("audioMessagesSent"),
                 "droppedVideoFrames": publisher.intValue("droppedVideoFrames"),
+                "droppedAudioFrames": publisher.intValue("droppedAudioFrames"),
                 "bytesWritten": publisher.intValue("bytesWritten", fallback: publisher.intValue("videoBytesSent")),
+                "cacheSize": 0,
+                "itemsInCache": 0,
+                "congested": false,
                 "lastError": publisher.stringValue("lastError", fallback: runtimeState.stringValue("error"))
             ],
             "composition": [

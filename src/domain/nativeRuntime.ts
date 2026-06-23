@@ -11,8 +11,14 @@ export interface NativeRuntimeComposition {
 export interface NativeRuntimePublisher {
   state: string;
   reconnectAttempts: number;
+  sentVideoFrames: number;
+  sentAudioFrames: number;
   droppedVideoFrames: number;
+  droppedAudioFrames: number;
   bytesWritten: number;
+  cacheSize: number;
+  itemsInCache: number;
+  congested: boolean;
   lastError: string;
 }
 

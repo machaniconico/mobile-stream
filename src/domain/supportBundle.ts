@@ -61,6 +61,9 @@ export interface SupportBundle {
     nativeRuntimePublisherState: string | null;
     nativeRuntimeCompositionStatus: string | null;
     nativeRuntimeStale: boolean;
+    nativeRuntimeCongested: boolean;
+    nativeRuntimeQueuedItems: number;
+    nativeRuntimeCacheSize: number;
     sourceCount: number;
     visibleSourceCount: number;
   };
@@ -188,6 +191,9 @@ export const createSupportBundle = ({
       nativeRuntimePublisherState: diagnostics.nativeRuntime?.publisher.state ?? null,
       nativeRuntimeCompositionStatus: diagnostics.nativeRuntime?.composition.status ?? null,
       nativeRuntimeStale: diagnostics.nativeRuntime?.stale ?? false,
+      nativeRuntimeCongested: diagnostics.nativeRuntime?.publisher.congested ?? false,
+      nativeRuntimeQueuedItems: diagnostics.nativeRuntime?.publisher.itemsInCache ?? 0,
+      nativeRuntimeCacheSize: diagnostics.nativeRuntime?.publisher.cacheSize ?? 0,
       sourceCount: scene.sources.length,
       visibleSourceCount
     },
@@ -296,7 +302,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Recovery: ${bundle.diagnostics.recovery.mode} / ${bundle.diagnostics.recovery.recommendedAction}`,
     `- Native composition: ${bundle.summary.nativeCompositionStatus} / ${bundle.summary.nativeCompositionCoverage} / preview-only ${bundle.summary.nativeCompositionPreviewOnlySourceCount}`,
     `- Native compositor required: ${bundle.summary.nativeCompositionRequiresCompositor ? "yes" : "no"}`,
-    `- Native runtime: ${bundle.summary.nativeRuntimePlatform ?? "-"} / ${bundle.summary.nativeRuntimeStatus ?? "-"} / publisher ${bundle.summary.nativeRuntimePublisherState ?? "-"} / composition ${bundle.summary.nativeRuntimeCompositionStatus ?? "-"} / stale ${bundle.summary.nativeRuntimeStale ? "yes" : "no"}`,
+    `- Native runtime: ${bundle.summary.nativeRuntimePlatform ?? "-"} / ${bundle.summary.nativeRuntimeStatus ?? "-"} / publisher ${bundle.summary.nativeRuntimePublisherState ?? "-"} / composition ${bundle.summary.nativeRuntimeCompositionStatus ?? "-"} / stale ${bundle.summary.nativeRuntimeStale ? "yes" : "no"} / congested ${bundle.summary.nativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.nativeRuntimeQueuedItems}/${bundle.summary.nativeRuntimeCacheSize}`,
     "",
     "Commercial Validation",
     `- Status: ${bundle.summary.validationStatus}`,

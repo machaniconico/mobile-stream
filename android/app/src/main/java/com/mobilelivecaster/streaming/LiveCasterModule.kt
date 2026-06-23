@@ -55,15 +55,27 @@ private fun AndroidCompositionResult.toNativeRuntimeComposition(): NativeRuntime
 data class NativeRuntimePublisher(
     val state: String = "",
     val reconnectAttempts: Int = 0,
-    val droppedVideoFrames: Int = 0,
-    val bytesWritten: Int = 0,
+    val sentVideoFrames: Long = 0,
+    val sentAudioFrames: Long = 0,
+    val droppedVideoFrames: Long = 0,
+    val droppedAudioFrames: Long = 0,
+    val bytesWritten: Long = 0,
+    val cacheSize: Int = 0,
+    val itemsInCache: Int = 0,
+    val congested: Boolean = false,
     val lastError: String = ""
 ) {
     fun asWritableMap(): WritableMap = Arguments.createMap().apply {
         putString("state", state)
         putInt("reconnectAttempts", reconnectAttempts)
-        putInt("droppedVideoFrames", droppedVideoFrames)
-        putInt("bytesWritten", bytesWritten)
+        putDouble("sentVideoFrames", sentVideoFrames.toDouble())
+        putDouble("sentAudioFrames", sentAudioFrames.toDouble())
+        putDouble("droppedVideoFrames", droppedVideoFrames.toDouble())
+        putDouble("droppedAudioFrames", droppedAudioFrames.toDouble())
+        putDouble("bytesWritten", bytesWritten.toDouble())
+        putInt("cacheSize", cacheSize)
+        putInt("itemsInCache", itemsInCache)
+        putBoolean("congested", congested)
         putString("lastError", lastError)
     }
 }
@@ -74,9 +86,9 @@ data class NativeRuntimeTelemetry(
     val updatedAt: Long = System.currentTimeMillis(),
     val stale: Boolean = false,
     val elapsedSeconds: Int = 0,
-    val videoFrames: Int = 0,
-    val encodedBytes: Int = 0,
-    val droppedFrames: Int = 0,
+    val videoFrames: Long = 0,
+    val encodedBytes: Long = 0,
+    val droppedFrames: Long = 0,
     val publisher: NativeRuntimePublisher = NativeRuntimePublisher(),
     val composition: NativeRuntimeComposition = NativeRuntimeComposition(),
     val message: String = ""
@@ -87,9 +99,9 @@ data class NativeRuntimeTelemetry(
         putDouble("updatedAt", updatedAt.toDouble())
         putBoolean("stale", stale)
         putInt("elapsedSeconds", elapsedSeconds)
-        putInt("videoFrames", videoFrames)
-        putInt("encodedBytes", encodedBytes)
-        putInt("droppedFrames", droppedFrames)
+        putDouble("videoFrames", videoFrames.toDouble())
+        putDouble("encodedBytes", encodedBytes.toDouble())
+        putDouble("droppedFrames", droppedFrames.toDouble())
         putMap("publisher", publisher.asWritableMap())
         putMap("composition", composition.asWritableMap())
         putString("message", message)
@@ -215,7 +227,7 @@ object LiveCasterSession {
                 elapsedSeconds = health.elapsedSeconds,
                 videoFrames = current.videoFrames,
                 encodedBytes = current.encodedBytes,
-                droppedFrames = health.droppedFrames,
+                droppedFrames = health.droppedFrames.toLong(),
                 publisher = current.publisher.copy(
                     state = "failed",
                     reconnectAttempts = health.reconnectAttempts,
@@ -231,8 +243,16 @@ object LiveCasterSession {
     fun updateNativeRuntime(
         publisherState: String? = null,
         compositionResult: AndroidCompositionResult? = null,
-        droppedVideoFrames: Int? = null,
-        bytesWritten: Int? = null,
+        videoFrames: Long? = null,
+        encodedBytes: Long? = null,
+        sentVideoFrames: Long? = null,
+        sentAudioFrames: Long? = null,
+        droppedVideoFrames: Long? = null,
+        droppedAudioFrames: Long? = null,
+        bytesWritten: Long? = null,
+        cacheSize: Int? = null,
+        itemsInCache: Int? = null,
+        congested: Boolean? = null,
         lastError: String? = null,
         message: String = health.message
     ) {
@@ -244,16 +264,22 @@ object LiveCasterSession {
         val nextPublisher = publisher.copy(
             state = publisherState ?: publisher.state,
             reconnectAttempts = health.reconnectAttempts,
+            sentVideoFrames = sentVideoFrames ?: publisher.sentVideoFrames,
+            sentAudioFrames = sentAudioFrames ?: publisher.sentAudioFrames,
             droppedVideoFrames = droppedVideoFrames ?: publisher.droppedVideoFrames,
+            droppedAudioFrames = droppedAudioFrames ?: publisher.droppedAudioFrames,
             bytesWritten = bytesWritten ?: publisher.bytesWritten,
+            cacheSize = cacheSize ?: publisher.cacheSize,
+            itemsInCache = itemsInCache ?: publisher.itemsInCache,
+            congested = congested ?: publisher.congested,
             lastError = lastError ?: publisher.lastError
         )
         nativeRuntime = NativeRuntimeTelemetry(
             runtimeStatus = status.jsValue,
             elapsedSeconds = health.elapsedSeconds,
-            videoFrames = current?.videoFrames ?: 0,
-            encodedBytes = current?.encodedBytes ?: 0,
-            droppedFrames = health.droppedFrames,
+            videoFrames = videoFrames ?: current?.videoFrames ?: 0,
+            encodedBytes = encodedBytes ?: current?.encodedBytes ?: 0,
+            droppedFrames = droppedVideoFrames ?: current?.droppedFrames ?: health.droppedFrames.toLong(),
             publisher = nextPublisher,
             composition = composition,
             message = message

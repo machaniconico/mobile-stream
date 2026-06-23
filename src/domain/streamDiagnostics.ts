@@ -319,11 +319,11 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     "Native Runtime",
     `- Platform: ${diagnostics.nativeRuntime?.platform ?? "-"}`,
     `- Runtime status: ${diagnostics.nativeRuntime?.runtimeStatus ?? "-"}`,
-    `- Publisher: ${diagnostics.nativeRuntime?.publisher.state || "-"}`,
+    `- Publisher: ${diagnostics.nativeRuntime?.publisher.state || "-"} / cache ${diagnostics.nativeRuntime?.publisher.itemsInCache ?? 0}/${diagnostics.nativeRuntime?.publisher.cacheSize ?? 0} / congested ${diagnostics.nativeRuntime?.publisher.congested ? "yes" : "no"}`,
     `- Composition: ${diagnostics.nativeRuntime?.composition.status ?? "-"} / ${diagnostics.nativeRuntime?.composition.message || "-"}`,
-    `- Native frames: ${diagnostics.nativeRuntime?.videoFrames ?? 0}`,
+    `- Native frames: ${diagnostics.nativeRuntime?.videoFrames ?? 0} video / ${diagnostics.nativeRuntime?.publisher.sentAudioFrames ?? 0} audio sent`,
     `- Native encoded bytes: ${diagnostics.nativeRuntime?.encodedBytes ?? 0}`,
-    `- Native drops: ${diagnostics.nativeRuntime?.droppedFrames ?? 0}`,
+    `- Native drops: ${diagnostics.nativeRuntime?.droppedFrames ?? 0} video / ${diagnostics.nativeRuntime?.publisher.droppedAudioFrames ?? 0} audio`,
     `- Stale: ${diagnostics.nativeRuntime?.stale ? "yes" : "no"}`,
     `- Message: ${diagnostics.nativeRuntime?.message || "-"}`,
     "",
@@ -744,6 +744,14 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
       status: "warn",
       label: "Native runtime",
       message: "Native runtime telemetry is stale."
+    };
+  }
+  if (runtime.publisher.congested) {
+    return {
+      code: "native-runtime-congested",
+      status: "warn",
+      label: "Native runtime",
+      message: `Native publisher is congested with ${runtime.publisher.itemsInCache}/${runtime.publisher.cacheSize} queued items.`
     };
   }
   if (runtime.composition.status === "pending" || runtime.composition.status === "failed") {

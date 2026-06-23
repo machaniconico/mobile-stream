@@ -142,8 +142,14 @@ describe("stream diagnostics", () => {
         publisher: {
           state: "published",
           reconnectAttempts: 0,
+          sentVideoFrames: 600,
+          sentAudioFrames: 940,
           droppedVideoFrames: 0,
+          droppedAudioFrames: 0,
           bytesWritten: 10_000_000,
+          cacheSize: 100,
+          itemsInCache: 0,
+          congested: false,
           lastError: ""
         },
         composition: {
@@ -195,8 +201,14 @@ describe("stream diagnostics", () => {
         publisher: {
           state: "failed",
           reconnectAttempts: 0,
+          sentVideoFrames: 0,
+          sentAudioFrames: 0,
           droppedVideoFrames: 0,
+          droppedAudioFrames: 0,
           bytesWritten: 0,
+          cacheSize: 100,
+          itemsInCache: 0,
+          congested: false,
           lastError: `RTMP auth failed for ${demoStreamKey}`
         },
         composition: {
@@ -215,6 +227,63 @@ describe("stream diagnostics", () => {
     expect(nativeCheck?.message).toContain(redactStreamKey(demoStreamKey));
     expect(nativeCheck?.message).not.toContain(demoStreamKey);
     expect(diagnostics.checks.some((check) => check.code === "native-runtime-stale")).toBe(false);
+  });
+
+  it("warns when the native publisher reports congestion", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({
+        bitrateKbps: 4500,
+        fps: 30,
+        elapsedSeconds: 20,
+        message: "Live"
+      }),
+      nativeRuntime: {
+        platform: "android",
+        runtimeStatus: "live",
+        updatedAt: Date.now(),
+        stale: false,
+        elapsedSeconds: 20,
+        videoFrames: 540,
+        encodedBytes: 9_200_000,
+        droppedFrames: 2,
+        publisher: {
+          state: "published",
+          reconnectAttempts: 0,
+          sentVideoFrames: 540,
+          sentAudioFrames: 910,
+          droppedVideoFrames: 2,
+          droppedAudioFrames: 1,
+          bytesWritten: 9_200_000,
+          cacheSize: 120,
+          itemsInCache: 80,
+          congested: true,
+          lastError: ""
+        },
+        composition: {
+          status: "applied",
+          appliedCount: 1,
+          skippedCount: 0,
+          skippedKinds: [],
+          message: "Native screen capture ready"
+        },
+        message: "Android native runtime live"
+      }
+    });
+
+    const nativeCheck = diagnostics.checks.find((check) => check.code === "native-runtime-congested");
+    expect(nativeCheck?.status).toBe("warn");
+    expect(nativeCheck?.message).toContain("80/120");
   });
 
   it("redacts stream keys that appear before the final publish URL segment", () => {

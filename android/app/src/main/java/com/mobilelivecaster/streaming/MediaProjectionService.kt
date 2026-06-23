@@ -41,6 +41,10 @@ class MediaProjectionService : Service(), ConnectChecker {
     private var reconnectAttempts = 0
     private var userRequestedStop = false
     private var terminalFailure = false
+    private var estimatedBytesWritten = 0L
+    private var lastBitrateSampleAtMs: Long? = null
+    private var lastKnownBitrate = 0L
+    private var lastNativeFps = 0
     private val mediaProjectionManager: MediaProjectionManager by lazy {
         applicationContext.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
     }
@@ -78,6 +82,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             terminalFailure = false
             if (resetReconnectAttempts) {
                 reconnectAttempts = 0
+                resetNativeRuntimeCounters()
             }
             startForegroundCompat()
             val projection = mediaProjectionManager.getMediaProjection(resultCode, captureData)
@@ -95,6 +100,11 @@ class MediaProjectionService : Service(), ConnectChecker {
 
             val stream = GenericStream(baseContext, this, NoVideoSource(), microphoneSource).apply {
                 getGlInterface().setForceRender(true, profile.fps)
+                setFpsListener { fps ->
+                    lastNativeFps = fps
+                    LiveCasterSession.updateHealth(fps = fps, message = LiveCasterSession.health.message)
+                    updateNativeRuntimeFromStream(message = LiveCasterSession.health.message)
+                }
             }
             genericStream?.release()
             genericStream = stream
@@ -122,7 +132,7 @@ class MediaProjectionService : Service(), ConnectChecker {
                 stream,
                 LiveCasterSession.renderGraphJson
             )
-            LiveCasterSession.updateNativeRuntime(
+            updateNativeRuntimeFromStream(
                 publisherState = "preparing",
                 compositionResult = nativeCompositionResult,
                 message = liveMessage("Preparing native stream")
@@ -171,6 +181,7 @@ class MediaProjectionService : Service(), ConnectChecker {
                 reconnectAttempts = reconnectAttempts,
                 message = "Reconnecting (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})"
             )
+            updateNativeRuntimeFromStream(publisherState = "reconnecting", message = LiveCasterSession.health.message)
         } catch (error: Throwable) {
             scheduleReconnect(error.message ?: "Reconnect failed")
         }
@@ -184,6 +195,69 @@ class MediaProjectionService : Service(), ConnectChecker {
         releaseStreamResources()
         LiveCasterSession.markStopped()
         stopSelf()
+    }
+
+    private fun resetNativeRuntimeCounters() {
+        estimatedBytesWritten = 0L
+        lastBitrateSampleAtMs = null
+        lastKnownBitrate = 0L
+        lastNativeFps = 0
+    }
+
+    private fun recordBitrateSample(bitrate: Long): Long {
+        val normalizedBitrate = bitrate.coerceAtLeast(0L)
+        val now = System.currentTimeMillis()
+        val previousAt = lastBitrateSampleAtMs
+        if (previousAt != null) {
+            val elapsedMs = (now - previousAt).coerceAtLeast(0L)
+            val effectiveBitrate = if (lastKnownBitrate > 0L) {
+                (lastKnownBitrate + normalizedBitrate) / 2L
+            } else {
+                normalizedBitrate
+            }
+            estimatedBytesWritten += ((effectiveBitrate * elapsedMs) / 8_000L).coerceAtLeast(0L)
+        }
+        lastKnownBitrate = normalizedBitrate
+        lastBitrateSampleAtMs = now
+        return estimatedBytesWritten
+    }
+
+    private fun currentDroppedVideoFrames(): Int {
+        val dropped = genericStream?.getStreamClient()?.getDroppedVideoFrames()
+            ?: LiveCasterSession.health.droppedFrames.toLong()
+        return dropped.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    }
+
+    private fun updateNativeRuntimeFromStream(
+        publisherState: String? = null,
+        compositionResult: AndroidCompositionResult? = null,
+        encodedBytes: Long? = null,
+        bytesWritten: Long? = null,
+        lastError: String? = null,
+        message: String = LiveCasterSession.health.message
+    ) {
+        val client = genericStream?.getStreamClient()
+        val sentVideoFrames = client?.getSentVideoFrames()
+        val sentAudioFrames = client?.getSentAudioFrames()
+        val droppedVideoFrames = client?.getDroppedVideoFrames()
+        val droppedAudioFrames = client?.getDroppedAudioFrames()
+        val estimatedBytes = estimatedBytesWritten.takeIf { it > 0L }
+        LiveCasterSession.updateNativeRuntime(
+            publisherState = publisherState,
+            compositionResult = compositionResult,
+            videoFrames = sentVideoFrames,
+            encodedBytes = encodedBytes ?: estimatedBytes,
+            sentVideoFrames = sentVideoFrames,
+            sentAudioFrames = sentAudioFrames,
+            droppedVideoFrames = droppedVideoFrames,
+            droppedAudioFrames = droppedAudioFrames,
+            bytesWritten = bytesWritten ?: estimatedBytes,
+            cacheSize = client?.getCacheSize(),
+            itemsInCache = client?.getItemsInCache(),
+            congested = client?.hasCongestion(),
+            lastError = lastError,
+            message = message
+        )
     }
 
     private fun stopStreamAfterFailure(message: String) {
@@ -225,7 +299,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             reconnectAttempts,
             "Reconnecting in ${delayMs / 1000}s (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}): ${reason.take(96)}"
         )
-        LiveCasterSession.updateNativeRuntime(
+        updateNativeRuntimeFromStream(
             publisherState = "reconnecting",
             lastError = reason.take(160),
             message = LiveCasterSession.health.message
@@ -265,13 +339,13 @@ class MediaProjectionService : Service(), ConnectChecker {
 
     override fun onConnectionStarted(url: String) {
         LiveCasterSession.updateHealth(message = liveMessage("Connecting"))
-        LiveCasterSession.updateNativeRuntime(publisherState = "connecting", message = LiveCasterSession.health.message)
+        updateNativeRuntimeFromStream(publisherState = "connecting", message = LiveCasterSession.health.message)
     }
 
     override fun onConnectionSuccess() {
         reconnectAttempts = 0
         LiveCasterSession.markLive(liveMessage("Live"))
-        LiveCasterSession.updateNativeRuntime(publisherState = "published", lastError = "", message = LiveCasterSession.health.message)
+        updateNativeRuntimeFromStream(publisherState = "published", lastError = "", message = LiveCasterSession.health.message)
     }
 
     override fun onConnectionFailed(reason: String) {
@@ -279,8 +353,20 @@ class MediaProjectionService : Service(), ConnectChecker {
     }
 
     override fun onNewBitrate(bitrate: Long) {
-        LiveCasterSession.updateHealth(bitrateKbps = (bitrate / 1000).toInt(), message = "Live")
-        LiveCasterSession.updateNativeRuntime(publisherState = "published", message = LiveCasterSession.health.message)
+        val bytesWritten = recordBitrateSample(bitrate)
+        val droppedVideoFrames = currentDroppedVideoFrames()
+        LiveCasterSession.updateHealth(
+            bitrateKbps = (bitrate / 1000).toInt(),
+            droppedFrames = droppedVideoFrames,
+            fps = if (lastNativeFps > 0) lastNativeFps else LiveCasterSession.health.fps,
+            message = "Live"
+        )
+        updateNativeRuntimeFromStream(
+            publisherState = "published",
+            encodedBytes = bytesWritten,
+            bytesWritten = bytesWritten,
+            message = LiveCasterSession.health.message
+        )
     }
 
     override fun onDisconnect() {
@@ -293,20 +379,20 @@ class MediaProjectionService : Service(), ConnectChecker {
         }
         if (LiveCasterSession.status == LiveCasterStatus.Reconnecting) {
             LiveCasterSession.updateHealth(message = "Reconnecting")
-            LiveCasterSession.updateNativeRuntime(publisherState = "reconnecting", message = LiveCasterSession.health.message)
+            updateNativeRuntimeFromStream(publisherState = "reconnecting", message = LiveCasterSession.health.message)
             return
         }
         scheduleReconnect("Connection disconnected")
     }
 
     override fun onAuthError() {
-        LiveCasterSession.updateNativeRuntime(publisherState = "failed", lastError = "RTMP authentication failed")
+        updateNativeRuntimeFromStream(publisherState = "failed", lastError = "RTMP authentication failed")
         stopStreamAfterFailure("RTMP authentication failed")
     }
 
     override fun onAuthSuccess() {
         LiveCasterSession.updateHealth(message = liveMessage("Authenticated"))
-        LiveCasterSession.updateNativeRuntime(publisherState = "authenticated", message = LiveCasterSession.health.message)
+        updateNativeRuntimeFromStream(publisherState = "authenticated", message = LiveCasterSession.health.message)
     }
 
     private fun liveMessage(prefix: String): String {

@@ -32,7 +32,38 @@ describe("support bundle", () => {
     const readiness = createReadinessReport(scene, profile);
     const snapshot = {
       state: { status: "live" as const },
-      health: health({ bitrateKbps: 3600, fps: 30, message: `Publishing ${streamKey}` })
+      health: health({ bitrateKbps: 3600, fps: 30, message: `Publishing ${streamKey}` }),
+      nativeRuntime: {
+        platform: "android" as const,
+        runtimeStatus: "live",
+        updatedAt: Date.parse("2026-06-23T00:00:05.000Z"),
+        stale: false,
+        elapsedSeconds: 5,
+        videoFrames: 144,
+        encodedBytes: 2_200_000,
+        droppedFrames: 1,
+        publisher: {
+          state: "published",
+          reconnectAttempts: 0,
+          sentVideoFrames: 144,
+          sentAudioFrames: 240,
+          droppedVideoFrames: 1,
+          droppedAudioFrames: 0,
+          bytesWritten: 2_200_000,
+          cacheSize: 120,
+          itemsInCache: 64,
+          congested: true,
+          lastError: ""
+        },
+        composition: {
+          status: "applied" as const,
+          appliedCount: 1,
+          skippedCount: 0,
+          skippedKinds: [],
+          message: "Native screen capture ready"
+        },
+        message: `Publishing ${streamKey}`
+      }
     };
     const healthSamples = [
       {
@@ -102,6 +133,10 @@ describe("support bundle", () => {
     expect(bundle.summary.nativeCompositionCoverage).toBe("preview-only-overlays");
     expect(bundle.summary.nativeCompositionPreviewOnlySourceCount).toBeGreaterThan(0);
     expect(bundle.summary.nativeCompositionRequiresCompositor).toBe(true);
+    expect(bundle.summary.nativeRuntimePlatform).toBe("android");
+    expect(bundle.summary.nativeRuntimeCongested).toBe(true);
+    expect(bundle.summary.nativeRuntimeQueuedItems).toBe(64);
+    expect(bundle.summary.nativeRuntimeCacheSize).toBe(120);
     expect(bundle.summary.validationStatus).toBe("needs-test");
     expect(bundle.summary.validationFailCount).toBe(0);
     expect(bundle.summary.validationWarningCount).toBeGreaterThan(0);
@@ -114,6 +149,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Quality advisor: maintain / pass");
     expect(formatSupportBundle(bundle)).toContain("Commercial Validation");
     expect(formatSupportBundle(bundle)).toContain("Native composition: warn / preview-only-overlays");
+    expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
   });
 

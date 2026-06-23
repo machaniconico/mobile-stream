@@ -223,7 +223,7 @@ const nativeCompositionMetricLabel = (diagnostics: StreamDiagnostics): string =>
 
 const nativeRuntimeMetricLabel = (diagnostics: StreamDiagnostics): string =>
   diagnostics.nativeRuntime
-    ? `${diagnostics.nativeRuntime.platform} / ${diagnostics.nativeRuntime.publisher.state || diagnostics.nativeRuntime.runtimeStatus} / ${diagnostics.nativeRuntime.composition.status}${diagnostics.nativeRuntime.stale ? " / stale" : ""}`
+    ? `${diagnostics.nativeRuntime.platform} / ${diagnostics.nativeRuntime.publisher.state || diagnostics.nativeRuntime.runtimeStatus} / ${diagnostics.nativeRuntime.composition.status}${diagnostics.nativeRuntime.stale ? " / stale" : ""}${diagnostics.nativeRuntime.publisher.congested ? " / congested" : ""}`
     : "Not linked";
 
 const qualityIncidentSummaryTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" => {

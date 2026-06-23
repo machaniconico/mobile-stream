@@ -157,8 +157,14 @@ const normalizeNativeRuntime = (
         publisher: {
           state: runtime.publisher?.state ?? "",
           reconnectAttempts: runtime.publisher?.reconnectAttempts ?? 0,
+          sentVideoFrames: runtime.publisher?.sentVideoFrames ?? 0,
+          sentAudioFrames: runtime.publisher?.sentAudioFrames ?? 0,
           droppedVideoFrames: runtime.publisher?.droppedVideoFrames ?? 0,
+          droppedAudioFrames: runtime.publisher?.droppedAudioFrames ?? 0,
           bytesWritten: runtime.publisher?.bytesWritten ?? 0,
+          cacheSize: runtime.publisher?.cacheSize ?? 0,
+          itemsInCache: runtime.publisher?.itemsInCache ?? 0,
+          congested: runtime.publisher?.congested ?? false,
           lastError: runtime.publisher?.lastError ?? ""
         },
         composition: {
