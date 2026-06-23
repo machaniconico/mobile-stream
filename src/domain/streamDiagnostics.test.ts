@@ -79,13 +79,14 @@ describe("stream diagnostics", () => {
       state: { status: "live" },
       health: health({ bitrateKbps: 3500, fps: 30 })
     });
-    const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics));
+    const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics, new Date("2026-06-23T00:05:00.000Z")));
 
     expect(diagnostics.platformPublishing.status).toBe("pass");
     expect(diagnostics.platformPublishing.youtube?.healthStatus).toBe("ok");
     expect(diagnostics.platformPublishing.youtube?.statusCheckedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(report).toContain("Platform Publishing");
     expect(report).toContain("YouTube dashboard: broadcast live, stream active, health ok, issues 0, checked 2026-06-23T00:00:00.000Z.");
+    expect(report).toContain("- Freshness: fresh / YouTube dashboard status was checked 5 minutes ago.");
   });
 
   it("reports blocking checks when the stream key is missing", () => {

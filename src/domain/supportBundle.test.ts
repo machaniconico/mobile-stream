@@ -5,6 +5,7 @@ import { createDefaultScene } from "./scene";
 import { createStreamDiagnostics } from "./streamDiagnostics";
 import { createStreamSessionSummary } from "./streamSessionSummary";
 import { createStreamStartPreflightReport } from "./streamStartPreflight";
+import { createStreamValidationRun } from "./streamValidationEvidence";
 import {
   createSupportBundle,
   formatSupportBundle,
@@ -129,7 +130,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 5 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 6 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.scene.sourceCounts.pngtuber).toBe(1);
@@ -193,6 +194,8 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceChatReadoutAndroidPass).toBe(false);
     expect(bundle.summary.validationEvidencePlatformPublishingRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceLatestPlatformPublishingStatus).toBeNull();
+    expect(bundle.summary.validationEvidencePlatformPublishingFreshnessStatus).toBeNull();
+    expect(bundle.summary.platformPublishingFreshnessStatus).toBe("missing");
     expect(formatSupportBundle(bundle)).toContain("Completed summaries: 1");
     expect(formatSupportBundle(bundle)).toContain("Clean rate: 0%");
     expect(formatSupportBundle(bundle)).toContain("Chat readout history: 1 events / 1 reconnects / 0 exhausted");
@@ -212,6 +215,75 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Evidence audio: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence chat readout: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence platform dashboard: 0 retained / 0 warn / 0 fail");
+    expect(formatSupportBundle(bundle)).toContain("Evidence platform dashboard freshness: - / -");
+    expect(formatSupportBundle(bundle)).toContain("Publishing status freshness: missing / YouTube dashboard status has no checked-at timestamp.");
+  });
+
+  it("keeps validation dashboard freshness in support bundle summaries", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey
+      },
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        youtubeBroadcastId: "broadcast-1",
+        youtubeStreamId: "stream-1",
+        youtubeBroadcastStatus: "live",
+        youtubeStreamStatus: "active",
+        youtubeStreamHealthStatus: "ok",
+        youtubeStreamHealthIssues: [],
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const baseDiagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30 })
+    });
+    const run = createStreamValidationRun({
+      diagnostics: baseDiagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:01:00.000Z")
+    });
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health()
+      },
+      [],
+      [],
+      [],
+      [run]
+    );
+    const preflight = createStreamStartPreflightReport({
+      readiness,
+      streamStatus: "idle"
+    });
+
+    const bundle = createSupportBundle({
+      scene,
+      profile,
+      readiness,
+      preflight,
+      diagnostics,
+      now: new Date("2026-06-23T00:20:00.000Z")
+    });
+    const text = formatSupportBundle(bundle);
+
+    expect(bundle.summary.validationEvidencePlatformPublishingRunCount).toBe(1);
+    expect(bundle.summary.validationEvidencePlatformPublishingFreshnessStatus).toBe("stale");
+    expect(bundle.summary.validationEvidencePlatformPublishingFreshnessAgeMinutes).toBe(20);
+    expect(bundle.summary.validationEvidencePlatformPublishingFreshnessSummary).toContain("20 minutes old");
+    expect(bundle.summary.platformPublishingFreshnessStatus).toBe("stale");
+    expect(text).toContain("Evidence platform dashboard freshness: stale / YouTube dashboard status is 20 minutes old.");
+    expect(text).toContain("Publishing status freshness: stale / YouTube dashboard status is 20 minutes old.");
   });
 
   it("keeps commercial validation preflight blocks in support bundles", () => {

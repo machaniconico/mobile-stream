@@ -12,6 +12,7 @@ import {
   type FaceTrackingDiagnostics
 } from "./faceTrackingDiagnostics";
 import { createNativeCompositionReport, type NativeCompositionReport } from "./nativeComposition";
+import { assessPlatformPublishingFreshness } from "./platformPublishingFreshness";
 import type { NativeRuntimeTelemetry } from "./nativeRuntime";
 import type { ReadinessReport } from "./readiness";
 import type { SceneDocument } from "./scene";
@@ -426,6 +427,8 @@ export const serializeStreamDiagnosticReport = (report: StreamDiagnosticReport):
 
 export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): string => {
   const diagnostics = report.diagnostics;
+  const generatedAt = new Date(report.generatedAt);
+  const platformPublishingFreshness = assessPlatformPublishingFreshness(diagnostics.platformPublishing, generatedAt);
   return [
     "MobileLiveCaster Diagnostics",
     `Generated: ${report.generatedAt}`,
@@ -532,6 +535,8 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Status: ${diagnostics.platformPublishing.status}`,
     `- Summary: ${diagnostics.platformPublishing.summary}`,
     `- Recommendation: ${diagnostics.platformPublishing.recommendation}`,
+    `- Freshness: ${platformPublishingFreshness.status} / ${platformPublishingFreshness.summary}`,
+    `- Freshness action: ${platformPublishingFreshness.recommendation}`,
     "",
     "Health History",
     `- Summary: ${diagnostics.history.summary}`,
@@ -579,7 +584,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Evidence face tracking: ${formatValidationFaceTracking(diagnostics)}`,
     `- Evidence audio: ${formatValidationAudio(diagnostics)}`,
     `- Evidence chat readout: ${formatValidationChatReadout(diagnostics)}`,
-    `- Evidence platform dashboard: ${formatValidationPlatformPublishing(diagnostics)}`,
+    `- Evidence platform dashboard: ${formatValidationPlatformPublishing(diagnostics, generatedAt)}`,
     `- Runbook: ${diagnostics.validationRunbook.status} / ${diagnostics.validationRunbook.summary}`,
     `- Runbook next: ${diagnostics.validationRunbook.nextAction}`,
     ...diagnostics.validationRunbook.items.map(
@@ -680,10 +685,15 @@ const formatValidationChatReadout = (diagnostics: StreamDiagnostics): string =>
     ? `${diagnostics.validationEvidence.chatReadoutRunCount} retained / ${diagnostics.validationEvidence.chatReadoutReadyCount} ready / ${diagnostics.validationEvidence.chatReadoutWarningCount} warn / iOS ${diagnostics.validationEvidence.chatReadoutIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.chatReadoutAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestChatReadout.status} ${diagnostics.validationEvidence.latestChatReadout.connectionPhase} / spoken ${diagnostics.validationEvidence.latestChatReadout.spokenMessageCount} / failed ${diagnostics.validationEvidence.latestChatReadout.speechFailureCount}`
     : "-";
 
-const formatValidationPlatformPublishing = (diagnostics: StreamDiagnostics): string =>
-  diagnostics.validationEvidence.latestPlatformPublishing
-    ? `${diagnostics.validationEvidence.platformPublishingRunCount} retained / ${diagnostics.validationEvidence.platformPublishingWarningCount} warn / ${diagnostics.validationEvidence.platformPublishingFailureCount} fail / latest ${diagnostics.validationEvidence.latestPlatformPublishing.status} ${diagnostics.validationEvidence.latestPlatformPublishing.summary}`
-    : "-";
+const formatValidationPlatformPublishing = (diagnostics: StreamDiagnostics, now: Date): string => {
+  const latestPlatformPublishing = diagnostics.validationEvidence.latestPlatformPublishing;
+  if (!latestPlatformPublishing) {
+    return "-";
+  }
+
+  const freshness = assessPlatformPublishingFreshness(latestPlatformPublishing, now);
+  return `${diagnostics.validationEvidence.platformPublishingRunCount} retained / ${diagnostics.validationEvidence.platformPublishingWarningCount} warn / ${diagnostics.validationEvidence.platformPublishingFailureCount} fail / latest ${latestPlatformPublishing.status} ${latestPlatformPublishing.summary} / freshness ${freshness.status} ${freshness.summary}`;
+};
 
 const createPlatformPublishingDiagnostics = (
   platform: StudioProfile["destination"]["platform"],
