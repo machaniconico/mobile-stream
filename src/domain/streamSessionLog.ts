@@ -27,7 +27,15 @@ export type StreamChatEventPhase =
   | "auto-connect-skipped"
   | "auto-disconnect-stopped"
   | "auto-reconnect-scheduled"
-  | "auto-reconnect-exhausted";
+  | "auto-reconnect-exhausted"
+  | "speech-started"
+  | "speech-spoken"
+  | "speech-failed";
+
+export interface StreamChatSpeechEventInput {
+  messageSource: "manual" | "youtube" | "twitch" | "mock";
+  textLength: number;
+}
 
 export const maxStreamSessionEvents = 50;
 
@@ -133,6 +141,27 @@ export const createStreamChatReconnectEvent = (
   return null;
 };
 
+export const createStreamChatSpeechEvent = (
+  phase: Extract<StreamChatEventPhase, "speech-started" | "speech-spoken" | "speech-failed">,
+  input: StreamChatSpeechEventInput,
+  now: Date = new Date()
+): StreamSessionEvent => {
+  const source = input.messageSource;
+  const textLength = Math.max(0, Math.floor(input.textLength));
+  const action =
+    phase === "speech-started"
+      ? "started"
+      : phase === "speech-spoken"
+        ? "finished"
+        : "failed";
+  return createStreamChatEvent(
+    phase,
+    `Chat readout ${action} speaking a ${source} message (${textLength} chars).`,
+    phase === "speech-failed" ? "warn" : "info",
+    now
+  );
+};
+
 const chatEventTitle = (phase: StreamChatEventPhase): string => {
   switch (phase) {
     case "auto-connect-started":
@@ -145,6 +174,12 @@ const chatEventTitle = (phase: StreamChatEventPhase): string => {
       return "Chat reconnect scheduled";
     case "auto-reconnect-exhausted":
       return "Chat reconnect exhausted";
+    case "speech-started":
+      return "Chat speech started";
+    case "speech-spoken":
+      return "Chat speech spoken";
+    case "speech-failed":
+      return "Chat speech failed";
   }
 };
 

@@ -31,6 +31,11 @@ export interface StreamValidationAudioSummary {
   monitorEnabled: boolean;
   monitorVolume: number;
   monitorHeadphonesOnly: boolean;
+  levelSampleCount: number;
+  averageLevel: number;
+  peakLevel: number;
+  activeLevelPercent: number;
+  clippedLevelCount: number;
   summary: string;
   recommendation: string;
 }
@@ -41,6 +46,8 @@ export interface StreamValidationChatReadoutSummary {
   readerEnabled: boolean;
   connectionPhase: string;
   connectionLabel: string;
+  spokenMessageCount: number;
+  speechFailureCount: number;
   summary: string;
   recommendation: string;
 }
@@ -858,6 +865,7 @@ const createAudioValidationSummary = (
   secrets: string[]
 ): StreamValidationAudioSummary => {
   const item = findRunbookItem(diagnostics, "audio");
+  const audioLevel = diagnostics.session.lastSummary?.audioLevel ?? null;
   return {
     status: item?.status ?? "pending",
     micEffectsEnabled: diagnostics.audio.micEffectsEnabled,
@@ -867,7 +875,17 @@ const createAudioValidationSummary = (
     monitorEnabled: diagnostics.audio.monitorEnabled,
     monitorVolume: diagnostics.audio.monitorVolume,
     monitorHeadphonesOnly: diagnostics.audio.monitorHeadphonesOnly,
-    summary: sanitizeStoredText(item?.detail ?? "No mic FX/headphone monitor validation retained.", secrets),
+    levelSampleCount: audioLevel?.sampleCount ?? 0,
+    averageLevel: audioLevel?.averageLevel ?? 0,
+    peakLevel: audioLevel?.peakLevel ?? 0,
+    activeLevelPercent: audioLevel?.activePercent ?? 0,
+    clippedLevelCount: audioLevel?.clippedSampleCount ?? 0,
+    summary: sanitizeStoredText(
+      `${item?.detail ?? "No mic FX/headphone monitor validation retained."}${
+        audioLevel && audioLevel.sampleCount > 0 ? ` ${audioLevel.summary}` : ""
+      }`,
+      secrets
+    ),
     recommendation: sanitizeStoredText(item?.action ?? "Repeat validation with mic effects and headphone monitoring checked.", secrets)
   };
 };
@@ -877,13 +895,21 @@ const createChatReadoutValidationSummary = (
   secrets: string[]
 ): StreamValidationChatReadoutSummary => {
   const item = findRunbookItem(diagnostics, "chat");
+  const lastSummary = diagnostics.session.lastSummary;
   return {
     status: item?.status ?? "pending",
     platformChatEnabled: diagnostics.chatReadout.platformChatEnabled,
     readerEnabled: diagnostics.chatReadout.readerEnabled,
     connectionPhase: diagnostics.chatReadout.connectionPhase,
     connectionLabel: diagnostics.chatReadout.connectionLabel,
-    summary: sanitizeStoredText(item?.detail ?? "No chat readout validation retained.", secrets),
+    spokenMessageCount: lastSummary?.chatSpeechSpokenCount ?? 0,
+    speechFailureCount: lastSummary?.chatSpeechFailureCount ?? 0,
+    summary: sanitizeStoredText(
+      `${item?.detail ?? "No chat readout validation retained."}${
+        lastSummary ? ` Chat speech retained ${lastSummary.chatSpeechSpokenCount} spoken / ${lastSummary.chatSpeechFailureCount} failed.` : ""
+      }`,
+      secrets
+    ),
     recommendation: sanitizeStoredText(item?.action ?? "Repeat validation with YouTube/Twitch chat connected and spoken.", secrets)
   };
 };
@@ -1031,6 +1057,11 @@ const normalizeAudioValidationSummary = (value: unknown): StreamValidationAudioS
     monitorEnabled: value.monitorEnabled === true,
     monitorVolume: normalizeFiniteNumber(value.monitorVolume, 0, 0, 1),
     monitorHeadphonesOnly: value.monitorHeadphonesOnly === true,
+    levelSampleCount: normalizeCount(value.levelSampleCount),
+    averageLevel: normalizeFiniteNumber(value.averageLevel, 0, 0, 1),
+    peakLevel: normalizeFiniteNumber(value.peakLevel, 0, 0, 1),
+    activeLevelPercent: Math.min(100, normalizeCount(value.activeLevelPercent)),
+    clippedLevelCount: normalizeCount(value.clippedLevelCount),
     summary: normalizeText(value.summary, "No mic FX/headphone monitor validation evidence retained."),
     recommendation: normalizeText(value.recommendation, "Repeat validation with mic effects and headphone monitoring checked.")
   };
@@ -1046,6 +1077,8 @@ const normalizeChatReadoutValidationSummary = (value: unknown): StreamValidation
     readerEnabled: value.readerEnabled === true,
     connectionPhase: normalizeText(value.connectionPhase, "unknown"),
     connectionLabel: normalizeText(value.connectionLabel, ""),
+    spokenMessageCount: normalizeCount(value.spokenMessageCount),
+    speechFailureCount: normalizeCount(value.speechFailureCount),
     summary: normalizeText(value.summary, "No chat readout validation evidence retained."),
     recommendation: normalizeText(value.recommendation, "Repeat validation with YouTube/Twitch chat connected and spoken.")
   };

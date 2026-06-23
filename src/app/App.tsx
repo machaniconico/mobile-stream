@@ -73,10 +73,17 @@ import { createStreamDiagnostics } from "../domain/streamDiagnostics";
 import { errorToSafeMessage } from "../domain/sensitiveText";
 import {
   createStreamChatEvent,
+  createStreamChatSpeechEvent,
   createStreamChatReconnectEvent,
   createStreamOperationEvent,
   createStreamRecoveryEvent
 } from "../domain/streamSessionLog";
+import {
+  appendStreamAudioLevelSample,
+  createStreamAudioLevelSample,
+  type StreamAudioLevelSource,
+  type StreamAudioLevelSample
+} from "../domain/streamSessionSummary";
 import {
   appendStreamValidationRun,
   normalizeStreamValidationRuns,
@@ -84,7 +91,7 @@ import {
 } from "../domain/streamValidationEvidence";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { MockLiveCaster } from "../native/MockLiveCaster";
-import { useChatSpeechQueue } from "../native/ChatSpeechEngine";
+import { useChatSpeechQueue, type ChatSpeechQueueEvent } from "../native/ChatSpeechEngine";
 import { usePlatformChatConnection } from "../native/usePlatformChatConnection";
 import { useStreamAutoRecovery } from "../native/useStreamAutoRecovery";
 import { useStreamHealthHistory } from "../native/useStreamHealthHistory";
@@ -128,6 +135,7 @@ export const App = () => {
   const [faceTrackingRuntime, setFaceTrackingRuntime] = useState(() => createFaceTrackingRuntimeState(Date.now()));
   const [operationStatus, setOperationStatus] = useState<StreamOperationStatus | null>(null);
   const operationInFlight = useRef(false);
+  const audioLevelSamplesRef = useRef<StreamAudioLevelSample[]>([]);
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
   const persistableSceneJson = useMemo(() => JSON.stringify(stripTransientSceneRuntime(scene)), [scene]);
   const initialStreamSessionSummaries = useMemo(() => loadStreamSessionSummaries(), []);
@@ -136,6 +144,27 @@ export const App = () => {
     normalizeStreamValidationRuns(initialStreamValidationRuns)
   );
   const { events: streamSessionEvents, recordEvent: recordStreamSessionEvent } = useStreamSessionLog(snapshot);
+  const recordAudioLevelSample = useCallback((level: number, source: StreamAudioLevelSource) => {
+    audioLevelSamplesRef.current = appendStreamAudioLevelSample(
+      audioLevelSamplesRef.current,
+      createStreamAudioLevelSample(level, source)
+    );
+  }, []);
+  const getAudioLevelSamples = useCallback(() => audioLevelSamplesRef.current, []);
+  const recordChatSpeechEvent = useCallback(
+    (event: ChatSpeechQueueEvent) => {
+      recordStreamSessionEvent(
+        createStreamChatSpeechEvent(
+          event.phase === "started" ? "speech-started" : event.phase === "spoken" ? "speech-spoken" : "speech-failed",
+          {
+            messageSource: event.message.source,
+            textLength: event.textLength
+          }
+        )
+      );
+    },
+    [recordStreamSessionEvent]
+  );
   const recordPlatformChatReconnectDecision = useCallback(
     (decision: Parameters<typeof createStreamChatReconnectEvent>[0]) => {
       recordStreamSessionEvent(createStreamChatReconnectEvent(decision));
@@ -166,11 +195,12 @@ export const App = () => {
     quality: readiness.sanitizedProfile.quality,
     initialSummaries: initialStreamSessionSummaries,
     onSummariesChange: saveStreamSessionSummaries,
-    onSummariesClear: clearPersistedStreamSessionSummaries
+    onSummariesClear: clearPersistedStreamSessionSummaries,
+    getAudioLevelSamples
   });
 
   useEffect(() => engine.subscribe(setSnapshot), [engine]);
-  useChatSpeechQueue(chatReader, setChatReader, chatSpeechEngine);
+  useChatSpeechQueue(chatReader, setChatReader, chatSpeechEngine, { onSpeechEvent: recordChatSpeechEvent });
 
   useEffect(() => {
     saveScene(JSON.parse(persistableSceneJson) as SceneDocument);
@@ -212,6 +242,7 @@ export const App = () => {
                 blink: nextTracking.blink
               }
             : blinkedAvatar;
+          recordAudioLevelSample(nextAvatar.mouthOpen, trackingProfile.enabled ? "face-tracking" : "manual");
 
           setScene((currentScene) => {
             const withAvatar = applyAvatarRuntime(currentScene, nextAvatar.expression, nextAvatar.mouthOpen, nextAvatar.blink);
@@ -227,9 +258,10 @@ export const App = () => {
       });
     }, 120);
     return () => window.clearInterval(timer);
-  }, [profile.faceTracking]);
+  }, [profile.faceTracking, recordAudioLevelSample]);
 
   const updateMicLevel = (level: number) => {
+    recordAudioLevelSample(level, "manual");
     setAvatarRuntime((current) => {
       const next = { ...current, mouthOpen: level };
       setScene((currentScene) => applyAvatarRuntime(currentScene, next.expression, next.mouthOpen, next.blink));

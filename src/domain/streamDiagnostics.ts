@@ -530,13 +530,16 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Clean rate: ${diagnostics.session.historySummary.cleanRate}%`,
     `- Average duration: ${formatDelay(diagnostics.session.historySummary.averageDurationSeconds * 1000)}`,
     `- Chat readout: ${diagnostics.session.historySummary.totalChatEvents} events / ${diagnostics.session.historySummary.totalChatReconnectEvents} reconnects / ${diagnostics.session.historySummary.totalChatReconnectFailures} exhausted`,
+    `- Chat speech: ${diagnostics.session.historySummary.totalChatSpeechSpoken} spoken / ${diagnostics.session.historySummary.totalChatSpeechFailures} failed`,
     `- History recommendation: ${diagnostics.session.historySummary.recommendation}`,
     ...(diagnostics.session.lastSummary
       ? [
           `- Last outcome: ${diagnostics.session.lastSummary.outcome}`,
           `- Last duration: ${formatDelay(diagnostics.session.lastSummary.durationSeconds * 1000)}`,
           `- Last summary: ${diagnostics.session.lastSummary.summary}`,
+          `- Last audio meter: ${formatSessionAudioLevel(diagnostics.session.lastSummary)}`,
           `- Last chat readout: ${diagnostics.session.lastSummary.chatEventCount} events / ${diagnostics.session.lastSummary.chatReconnectEventCount} reconnects / ${diagnostics.session.lastSummary.chatReconnectFailureCount} exhausted`,
+          `- Last chat speech: ${diagnostics.session.lastSummary.chatSpeechSpokenCount} spoken / ${diagnostics.session.lastSummary.chatSpeechFailureCount} failed`,
           `- Last native runtime: ${formatSessionNativeRuntime(diagnostics.session.lastSummary)}`,
           `- Recommendation: ${diagnostics.session.lastSummary.recommendation}`,
           `- Stored summaries: ${diagnostics.session.summaries.length}`
@@ -584,7 +587,10 @@ const allowedChatEventTitles = new Set([
   "Chat auto-connect skipped",
   "Chat auto-disconnect stopped",
   "Chat reconnect scheduled",
-  "Chat reconnect exhausted"
+  "Chat reconnect exhausted",
+  "Chat speech started",
+  "Chat speech spoken",
+  "Chat speech failed"
 ]);
 
 const sanitizeSessionEvent = (event: StreamSessionEvent, streamKey: string): StreamSessionEvent => {
@@ -618,10 +624,19 @@ const chatEventPrivacyMessage = (title: string): string => {
       return "Chat readout reconnect was scheduled. Details redacted for viewer privacy.";
     case "Chat reconnect exhausted":
       return "Chat readout reconnect retries were exhausted. Details redacted for viewer privacy.";
+    case "Chat speech started":
+      return "Chat readout speech started. Details redacted for viewer privacy.";
+    case "Chat speech spoken":
+      return "Chat readout speech completed. Details redacted for viewer privacy.";
+    case "Chat speech failed":
+      return "Chat readout speech failed. Details redacted for viewer privacy.";
     default:
       return "Chat readout event details redacted for viewer privacy.";
   }
 };
+
+const formatSessionAudioLevel = (summary: StreamSessionSummary): string =>
+  `${summary.audioLevel.sampleCount} samples / avg ${Math.round(summary.audioLevel.averageLevel * 100)}% / peak ${Math.round(summary.audioLevel.peakLevel * 100)}% / active ${summary.audioLevel.activePercent}% / clipped ${summary.audioLevel.clippedSampleCount}`;
 
 const formatSessionNativeRuntime = (summary: StreamSessionSummary): string =>
   summary.nativeRuntime
@@ -638,12 +653,12 @@ const formatValidationFaceTracking = (diagnostics: StreamDiagnostics): string =>
 
 const formatValidationAudio = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestAudio
-    ? `${diagnostics.validationEvidence.audioRunCount} retained / ${diagnostics.validationEvidence.audioReadyCount} ready / ${diagnostics.validationEvidence.audioWarningCount} warn / iOS ${diagnostics.validationEvidence.audioIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.audioAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestAudio.status} ${diagnostics.validationEvidence.latestAudio.presetId} / monitor ${diagnostics.validationEvidence.latestAudio.monitorEnabled ? "on" : "off"} / headphones-only ${diagnostics.validationEvidence.latestAudio.monitorHeadphonesOnly ? "yes" : "no"}`
+    ? `${diagnostics.validationEvidence.audioRunCount} retained / ${diagnostics.validationEvidence.audioReadyCount} ready / ${diagnostics.validationEvidence.audioWarningCount} warn / iOS ${diagnostics.validationEvidence.audioIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.audioAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestAudio.status} ${diagnostics.validationEvidence.latestAudio.presetId} / monitor ${diagnostics.validationEvidence.latestAudio.monitorEnabled ? "on" : "off"} / headphones-only ${diagnostics.validationEvidence.latestAudio.monitorHeadphonesOnly ? "yes" : "no"} / samples ${diagnostics.validationEvidence.latestAudio.levelSampleCount} / peak ${Math.round(diagnostics.validationEvidence.latestAudio.peakLevel * 100)}%`
     : "-";
 
 const formatValidationChatReadout = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestChatReadout
-    ? `${diagnostics.validationEvidence.chatReadoutRunCount} retained / ${diagnostics.validationEvidence.chatReadoutReadyCount} ready / ${diagnostics.validationEvidence.chatReadoutWarningCount} warn / iOS ${diagnostics.validationEvidence.chatReadoutIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.chatReadoutAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestChatReadout.status} ${diagnostics.validationEvidence.latestChatReadout.connectionPhase}`
+    ? `${diagnostics.validationEvidence.chatReadoutRunCount} retained / ${diagnostics.validationEvidence.chatReadoutReadyCount} ready / ${diagnostics.validationEvidence.chatReadoutWarningCount} warn / iOS ${diagnostics.validationEvidence.chatReadoutIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.chatReadoutAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestChatReadout.status} ${diagnostics.validationEvidence.latestChatReadout.connectionPhase} / spoken ${diagnostics.validationEvidence.latestChatReadout.spokenMessageCount} / failed ${diagnostics.validationEvidence.latestChatReadout.speechFailureCount}`
     : "-";
 
 const formatValidationPlatformPublishing = (diagnostics: StreamDiagnostics): string =>

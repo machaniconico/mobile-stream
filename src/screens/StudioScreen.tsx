@@ -1276,11 +1276,13 @@ const validationRunFaceTrackingLabel = (run: StreamValidationRun): string | null
 
 const validationRunAudioLabel = (run: StreamValidationRun): string | null =>
   run.audio
-    ? `audio ${run.audio.status} / ${run.audio.presetId} / monitor ${run.audio.monitorEnabled ? "on" : "off"} / headphones-only ${run.audio.monitorHeadphonesOnly ? "yes" : "no"}`
+    ? `audio ${run.audio.status} / ${run.audio.presetId} / monitor ${run.audio.monitorEnabled ? "on" : "off"} / headphones-only ${run.audio.monitorHeadphonesOnly ? "yes" : "no"} / samples ${run.audio.levelSampleCount} / peak ${Math.round(run.audio.peakLevel * 100)}%`
     : null;
 
 const validationRunChatReadoutLabel = (run: StreamValidationRun): string | null =>
-  run.chatReadout ? `chat ${run.chatReadout.status} / ${run.chatReadout.connectionPhase}` : null;
+  run.chatReadout
+    ? `chat ${run.chatReadout.status} / ${run.chatReadout.connectionPhase} / spoken ${run.chatReadout.spokenMessageCount} / failed ${run.chatReadout.speechFailureCount}`
+    : null;
 
 const validationRunPlatformPublishingLabel = (run: StreamValidationRun): string | null =>
   run.platformPublishing && run.platformPublishing.status !== "info"

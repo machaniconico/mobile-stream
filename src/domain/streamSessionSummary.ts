@@ -9,6 +9,24 @@ import type { StreamSessionEvent } from "./streamSessionLog";
 export type StreamSessionEndReason = "stopped" | "failed";
 export type StreamSessionOutcome = "clean" | "warn" | "fail";
 export type StreamSessionNativeRuntimeStatus = "pass" | "warn" | "fail";
+export type StreamAudioLevelSource = "manual" | "face-tracking";
+
+export interface StreamAudioLevelSample {
+  at: string;
+  level: number;
+  source: StreamAudioLevelSource;
+}
+
+export interface StreamSessionAudioLevelSummary {
+  sampleCount: number;
+  averageLevel: number;
+  peakLevel: number;
+  activeSampleCount: number;
+  activePercent: number;
+  clippedSampleCount: number;
+  summary: string;
+  recommendation: string;
+}
 
 export interface StreamSessionNativeRuntimeSummary {
   platform: NativeRuntimeTelemetry["platform"];
@@ -50,7 +68,11 @@ export interface StreamSessionSummary {
   chatEventCount: number;
   chatReconnectEventCount: number;
   chatReconnectFailureCount: number;
+  chatSpeechStartedCount: number;
+  chatSpeechSpokenCount: number;
+  chatSpeechFailureCount: number;
   health: StreamHealthHistorySummary;
+  audioLevel: StreamSessionAudioLevelSummary;
   nativeRuntime: StreamSessionNativeRuntimeSummary | null;
   summary: string;
   recommendation: string;
@@ -66,9 +88,70 @@ export interface StreamSessionSummaryInput {
   endReason: StreamSessionEndReason;
   endedAt?: Date;
   nativeRuntime?: NativeRuntimeTelemetry | null;
+  audioLevelSamples?: StreamAudioLevelSample[];
 }
 
 export const maxStreamSessionSummaries = 10;
+export const maxStreamAudioLevelSamples = 600;
+
+export const createStreamAudioLevelSample = (
+  level: number,
+  source: StreamAudioLevelSource,
+  now: Date = new Date()
+): StreamAudioLevelSample => ({
+  at: now.toISOString(),
+  level: clamp01(level),
+  source
+});
+
+export const appendStreamAudioLevelSample = (
+  samples: StreamAudioLevelSample[],
+  sample: StreamAudioLevelSample,
+  maxSamples = maxStreamAudioLevelSamples
+): StreamAudioLevelSample[] => [...samples, sample].slice(-Math.max(1, maxSamples));
+
+export const summarizeStreamAudioLevels = (
+  samples: StreamAudioLevelSample[]
+): StreamSessionAudioLevelSummary => {
+  const normalized = samples
+    .map(normalizeAudioLevelSample)
+    .filter((sample): sample is StreamAudioLevelSample => Boolean(sample));
+
+  if (normalized.length === 0) {
+    return {
+      sampleCount: 0,
+      averageLevel: 0,
+      peakLevel: 0,
+      activeSampleCount: 0,
+      activePercent: 0,
+      clippedSampleCount: 0,
+      summary: "No lip-sync audio level samples were retained.",
+      recommendation: "Capture a spoken private stream segment so mic FX and mouth-motion levels can be reviewed."
+    };
+  }
+
+  const sampleCount = normalized.length;
+  const totalLevel = normalized.reduce((total, sample) => total + sample.level, 0);
+  const averageLevel = roundLevel(totalLevel / sampleCount);
+  const peakLevel = roundLevel(Math.max(...normalized.map((sample) => sample.level)));
+  const activeSampleCount = normalized.filter((sample) => sample.level >= 0.05).length;
+  const activePercent = Math.round((activeSampleCount / sampleCount) * 100);
+  const clippedSampleCount = normalized.filter((sample) => sample.level >= 0.98).length;
+
+  return {
+    sampleCount,
+    averageLevel,
+    peakLevel,
+    activeSampleCount,
+    activePercent,
+    clippedSampleCount,
+    summary: `Audio meter retained ${sampleCount} sample${sampleCount === 1 ? "" : "s"}; average ${Math.round(averageLevel * 100)}%, peak ${Math.round(peakLevel * 100)}%, active ${activePercent}%.`,
+    recommendation:
+      clippedSampleCount > 0
+        ? "Lower mic gain or compression and repeat the private audio monitor check."
+        : "Keep this audio-level baseline with the release-candidate validation run."
+  };
+};
 
 export interface StreamSessionHistorySummary {
   totalSessions: number;
@@ -83,6 +166,9 @@ export interface StreamSessionHistorySummary {
   totalChatEvents: number;
   totalChatReconnectEvents: number;
   totalChatReconnectFailures: number;
+  totalChatSpeechStarted: number;
+  totalChatSpeechSpoken: number;
+  totalChatSpeechFailures: number;
   stability: "unknown" | "baseline" | "watch" | "unstable";
   summary: string;
   recommendation: string;
@@ -166,6 +252,9 @@ export const createStreamSessionHistorySummary = (
       totalChatEvents: 0,
       totalChatReconnectEvents: 0,
       totalChatReconnectFailures: 0,
+      totalChatSpeechStarted: 0,
+      totalChatSpeechSpoken: 0,
+      totalChatSpeechFailures: 0,
       stability: "unknown",
       summary: "No completed stream history yet.",
       recommendation: "Complete a test stream to establish a local quality baseline."
@@ -181,6 +270,9 @@ export const createStreamSessionHistorySummary = (
   const totalChatEvents = normalized.reduce((total, summary) => total + summary.chatEventCount, 0);
   const totalChatReconnectEvents = normalized.reduce((total, summary) => total + summary.chatReconnectEventCount, 0);
   const totalChatReconnectFailures = normalized.reduce((total, summary) => total + summary.chatReconnectFailureCount, 0);
+  const totalChatSpeechStarted = normalized.reduce((total, summary) => total + summary.chatSpeechStartedCount, 0);
+  const totalChatSpeechSpoken = normalized.reduce((total, summary) => total + summary.chatSpeechSpokenCount, 0);
+  const totalChatSpeechFailures = normalized.reduce((total, summary) => total + summary.chatSpeechFailureCount, 0);
   const averageDurationSeconds = Math.round(
     normalized.reduce((total, summary) => total + summary.durationSeconds, 0) / totalSessions
   );
@@ -207,6 +299,9 @@ export const createStreamSessionHistorySummary = (
     totalChatEvents,
     totalChatReconnectEvents,
     totalChatReconnectFailures,
+    totalChatSpeechStarted,
+    totalChatSpeechSpoken,
+    totalChatSpeechFailures,
     stability,
     summary: createHistorySummaryText(stability, totalSessions, cleanRate, failureCount, warningCount),
     recommendation: createHistoryRecommendation(
@@ -226,6 +321,7 @@ export const createStreamSessionSummary = ({
   target,
   endReason,
   nativeRuntime: nativeRuntimeTelemetry = null,
+  audioLevelSamples = [],
   endedAt = new Date()
 }: StreamSessionSummaryInput): StreamSessionSummary | null => {
   if (healthSamples.length === 0) {
@@ -243,8 +339,14 @@ export const createStreamSessionSummary = ({
   const chatEventCount = sessionEvents.filter((event) => event.kind === "chat").length;
   const chatReconnectEventCount = sessionEvents.filter(isChatReconnectEvent).length;
   const chatReconnectFailureCount = sessionEvents.filter(isChatReconnectFailureEvent).length;
+  const chatSpeechStartedCount = sessionEvents.filter(isChatSpeechStartedEvent).length;
+  const chatSpeechSpokenCount = sessionEvents.filter(isChatSpeechSpokenEvent).length;
+  const chatSpeechFailureCount = sessionEvents.filter(isChatSpeechFailureEvent).length;
+  const audioLevel = summarizeStreamAudioLevels(
+    audioLevelSamples.filter((sample) => sample.at >= startedAt && sample.at <= endedAtIso)
+  );
   const nativeRuntime = createNativeRuntimeSessionSummary(nativeRuntimeTelemetry);
-  const outcome = createOutcome(endReason, health, warningCount, failureCount, nativeRuntime);
+  const outcome = createOutcome(endReason, health, warningCount, failureCount, nativeRuntime, audioLevel, chatSpeechFailureCount);
 
   return {
     id: createSummaryId(startedAt, endedAtIso, endReason),
@@ -261,9 +363,13 @@ export const createStreamSessionSummary = ({
     chatEventCount,
     chatReconnectEventCount,
     chatReconnectFailureCount,
+    chatSpeechStartedCount,
+    chatSpeechSpokenCount,
+    chatSpeechFailureCount,
     health,
+    audioLevel,
     nativeRuntime,
-    summary: createSummaryText(outcome, endReason, health, nativeRuntime, chatReconnectEventCount),
+    summary: createSummaryText(outcome, endReason, health, nativeRuntime, audioLevel, chatReconnectEventCount, chatSpeechSpokenCount, chatSpeechFailureCount),
     recommendation: createRecommendation(
       outcome,
       endReason,
@@ -272,7 +378,9 @@ export const createStreamSessionSummary = ({
       recoveryEventCount,
       nativeRuntime,
       chatReconnectEventCount,
-      chatReconnectFailureCount
+      chatReconnectFailureCount,
+      audioLevel,
+      chatSpeechFailureCount
     )
   };
 };
@@ -282,13 +390,21 @@ const createOutcome = (
   health: StreamHealthHistorySummary,
   warningCount: number,
   failureCount: number,
-  nativeRuntime: StreamSessionNativeRuntimeSummary | null
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null,
+  audioLevel: StreamSessionAudioLevelSummary,
+  chatSpeechFailureCount: number
 ): StreamSessionOutcome => {
   if (endReason === "failed" || failureCount > 0 || health.stability === "unstable" || nativeRuntime?.status === "fail") {
     return "fail";
   }
 
-  if (warningCount > 0 || health.stability === "watch" || nativeRuntime?.status === "warn") {
+  if (
+    warningCount > 0 ||
+    health.stability === "watch" ||
+    nativeRuntime?.status === "warn" ||
+    audioLevel.clippedSampleCount > 0 ||
+    chatSpeechFailureCount > 0
+  ) {
     return "warn";
   }
 
@@ -300,7 +416,10 @@ const createSummaryText = (
   endReason: StreamSessionEndReason,
   health: StreamHealthHistorySummary,
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
-  chatReconnectEventCount = 0
+  audioLevel: StreamSessionAudioLevelSummary,
+  chatReconnectEventCount = 0,
+  chatSpeechSpokenCount = 0,
+  chatSpeechFailureCount = 0
 ): string => {
   const prefix =
     outcome === "clean" ? "Clean session" : outcome === "warn" ? "Session needs review" : "Session ended with issues";
@@ -308,7 +427,12 @@ const createSummaryText = (
     chatReconnectEventCount > 0
       ? ` Chat readout reconnect events: ${chatReconnectEventCount}.`
       : "";
-  return `${prefix}. Ended ${endReason}. ${health.summary}${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${chatSummary}`;
+  const speechSummary =
+    chatSpeechSpokenCount > 0 || chatSpeechFailureCount > 0
+      ? ` Chat speech: ${chatSpeechSpokenCount} spoken / ${chatSpeechFailureCount} failed.`
+      : "";
+  const audioSummary = audioLevel.sampleCount > 0 ? ` ${audioLevel.summary}` : "";
+  return `${prefix}. Ended ${endReason}. ${health.summary}${audioSummary}${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${chatSummary}${speechSummary}`;
 };
 
 const createRecommendation = (
@@ -319,7 +443,9 @@ const createRecommendation = (
   recoveryEventCount: number,
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
   chatReconnectEventCount = 0,
-  chatReconnectFailureCount = 0
+  chatReconnectFailureCount = 0,
+  audioLevel: StreamSessionAudioLevelSummary,
+  chatSpeechFailureCount = 0
 ): string => {
   if (outcome === "clean") {
     return "Keep this profile as a known-good baseline for the destination.";
@@ -327,6 +453,10 @@ const createRecommendation = (
 
   if (chatReconnectFailureCount > 0) {
     return "Review platform chat credentials and network stability before relying on comment readout in public streams.";
+  }
+
+  if (chatSpeechFailureCount > 0) {
+    return "Review device TTS output and chat reader settings before relying on spoken comments in public streams.";
   }
 
   if (nativeRuntime?.status === "fail") {
@@ -345,6 +475,10 @@ const createRecommendation = (
     return "Watch platform chat stability and keep a manual comment-monitoring fallback ready.";
   }
 
+  if (audioLevel.clippedSampleCount > 0) {
+    return audioLevel.recommendation;
+  }
+
   if (health.droppedFrameIncrease > 0 || health.stability === "watch") {
     return "Watch the next session and consider reducing bitrate/FPS if drops continue.";
   }
@@ -361,6 +495,15 @@ const isChatReconnectEvent = (event: StreamSessionEvent): boolean =>
 
 const isChatReconnectFailureEvent = (event: StreamSessionEvent): boolean =>
   event.kind === "chat" && event.title === "Chat reconnect exhausted";
+
+const isChatSpeechStartedEvent = (event: StreamSessionEvent): boolean =>
+  event.kind === "chat" && event.title === "Chat speech started";
+
+const isChatSpeechSpokenEvent = (event: StreamSessionEvent): boolean =>
+  event.kind === "chat" && event.title === "Chat speech spoken";
+
+const isChatSpeechFailureEvent = (event: StreamSessionEvent): boolean =>
+  event.kind === "chat" && event.title === "Chat speech failed";
 
 export const createNativeRuntimeSessionSummary = (
   runtime: NativeRuntimeTelemetry | null | undefined
@@ -535,7 +678,11 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
     chatEventCount: normalizeNonNegativeInteger(value.chatEventCount),
     chatReconnectEventCount: normalizeNonNegativeInteger(value.chatReconnectEventCount),
     chatReconnectFailureCount: normalizeNonNegativeInteger(value.chatReconnectFailureCount),
+    chatSpeechStartedCount: normalizeNonNegativeInteger(value.chatSpeechStartedCount),
+    chatSpeechSpokenCount: normalizeNonNegativeInteger(value.chatSpeechSpokenCount),
+    chatSpeechFailureCount: normalizeNonNegativeInteger(value.chatSpeechFailureCount),
     health,
+    audioLevel: normalizeAudioLevelSummary(value.audioLevel),
     nativeRuntime: normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
     summary:
       typeof value.summary === "string"
@@ -545,7 +692,10 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
             endReason,
             health,
             normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
-            normalizeNonNegativeInteger(value.chatReconnectEventCount)
+            normalizeAudioLevelSummary(value.audioLevel),
+            normalizeNonNegativeInteger(value.chatReconnectEventCount),
+            normalizeNonNegativeInteger(value.chatSpeechSpokenCount),
+            normalizeNonNegativeInteger(value.chatSpeechFailureCount)
           ),
     recommendation:
       typeof value.recommendation === "string"
@@ -558,8 +708,44 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
             0,
             normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
             normalizeNonNegativeInteger(value.chatReconnectEventCount),
-            normalizeNonNegativeInteger(value.chatReconnectFailureCount)
+            normalizeNonNegativeInteger(value.chatReconnectFailureCount),
+            normalizeAudioLevelSummary(value.audioLevel),
+            normalizeNonNegativeInteger(value.chatSpeechFailureCount)
           )
+  };
+};
+
+const normalizeAudioLevelSample = (value: unknown): StreamAudioLevelSample | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const at = normalizeDateString(value.at);
+  if (!at) {
+    return null;
+  }
+  return {
+    at,
+    level: clamp01(typeof value.level === "number" ? value.level : 0),
+    source: value.source === "face-tracking" ? "face-tracking" : "manual"
+  };
+};
+
+const normalizeAudioLevelSummary = (value: unknown): StreamSessionAudioLevelSummary => {
+  if (!isRecord(value)) {
+    return summarizeStreamAudioLevels([]);
+  }
+  return {
+    sampleCount: normalizeNonNegativeInteger(value.sampleCount),
+    averageLevel: clamp01(typeof value.averageLevel === "number" ? value.averageLevel : 0),
+    peakLevel: clamp01(typeof value.peakLevel === "number" ? value.peakLevel : 0),
+    activeSampleCount: normalizeNonNegativeInteger(value.activeSampleCount),
+    activePercent: Math.min(100, normalizeNonNegativeInteger(value.activePercent)),
+    clippedSampleCount: normalizeNonNegativeInteger(value.clippedSampleCount),
+    summary: typeof value.summary === "string" ? value.summary : "No lip-sync audio level samples were retained.",
+    recommendation:
+      typeof value.recommendation === "string"
+        ? value.recommendation
+        : "Capture a spoken private stream segment so mic FX and mouth-motion levels can be reviewed."
   };
 };
 
@@ -653,6 +839,18 @@ const normalizeNonNegativeInteger = (value: unknown): number =>
 
 const normalizeNonNegativeNumber = (value: unknown): number =>
   Math.max(0, typeof value === "number" && Number.isFinite(value) ? value : 0);
+
+const normalizeDateString = (value: unknown): string | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? new Date(time).toISOString() : null;
+};
+
+const clamp01 = (value: number): number => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+
+const roundLevel = (value: number): number => Math.round(clamp01(value) * 1000) / 1000;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;

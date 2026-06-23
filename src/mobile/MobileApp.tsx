@@ -81,11 +81,18 @@ import { createStreamDiagnostics } from "../domain/streamDiagnostics";
 import { errorToSafeMessage } from "../domain/sensitiveText";
 import {
   createStreamChatEvent,
+  createStreamChatSpeechEvent,
   createStreamChatReconnectEvent,
   createStreamOperationEvent,
   createStreamRecoveryEvent
 } from "../domain/streamSessionLog";
-import type { StreamSessionSummary } from "../domain/streamSessionSummary";
+import {
+  appendStreamAudioLevelSample,
+  createStreamAudioLevelSample,
+  type StreamAudioLevelSample,
+  type StreamAudioLevelSource,
+  type StreamSessionSummary
+} from "../domain/streamSessionSummary";
 import {
   appendStreamValidationRun,
   mergeStreamValidationRuns,
@@ -94,7 +101,7 @@ import {
 } from "../domain/streamValidationEvidence";
 import { MockLiveCaster } from "../native/MockLiveCaster";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
-import { useChatSpeechQueue } from "../native/ChatSpeechEngine";
+import { useChatSpeechQueue, type ChatSpeechQueueEvent } from "../native/ChatSpeechEngine";
 import { usePlatformChatConnection } from "../native/usePlatformChatConnection";
 import { useStreamAutoRecovery } from "../native/useStreamAutoRecovery";
 import { useStreamHealthHistory } from "../native/useStreamHealthHistory";
@@ -158,9 +165,31 @@ export const MobileApp = () => {
   const [operationStatus, setOperationStatus] = useState<StreamOperationStatus | null>(null);
   const operationInFlight = useRef(false);
   const platformChatOAuthSyncInFlight = useRef(false);
+  const audioLevelSamplesRef = useRef<StreamAudioLevelSample[]>([]);
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
   const persistableSceneJson = useMemo(() => JSON.stringify(stripTransientSceneRuntime(scene)), [scene]);
   const { events: streamSessionEvents, recordEvent: recordStreamSessionEvent } = useStreamSessionLog(snapshot);
+  const recordAudioLevelSample = useCallback((level: number, source: StreamAudioLevelSource) => {
+    audioLevelSamplesRef.current = appendStreamAudioLevelSample(
+      audioLevelSamplesRef.current,
+      createStreamAudioLevelSample(level, source)
+    );
+  }, []);
+  const getAudioLevelSamples = useCallback(() => audioLevelSamplesRef.current, []);
+  const recordChatSpeechEvent = useCallback(
+    (event: ChatSpeechQueueEvent) => {
+      recordStreamSessionEvent(
+        createStreamChatSpeechEvent(
+          event.phase === "started" ? "speech-started" : event.phase === "spoken" ? "speech-spoken" : "speech-failed",
+          {
+            messageSource: event.message.source,
+            textLength: event.textLength
+          }
+        )
+      );
+    },
+    [recordStreamSessionEvent]
+  );
   const recordPlatformChatReconnectDecision = useCallback(
     (decision: Parameters<typeof createStreamChatReconnectEvent>[0]) => {
       recordStreamSessionEvent(createStreamChatReconnectEvent(decision));
@@ -199,7 +228,8 @@ export const MobileApp = () => {
     initialSummaries: persistedStreamSessionSummaries,
     initialSummariesReady: streamSessionSummariesLoaded,
     onSummariesChange: streamSessionSummariesLoaded ? persistStreamSessionSummaries : undefined,
-    onSummariesClear: clearPersistedStreamSessionSummaries
+    onSummariesClear: clearPersistedStreamSessionSummaries,
+    getAudioLevelSamples
   });
   const captureOAuthCallbackUrl = useCallback((url: string | null) => {
     if (!url || !isPlatformChatOAuthCallbackUrl(url)) {
@@ -288,7 +318,7 @@ export const MobileApp = () => {
   );
 
   useEffect(() => engine.subscribe(setSnapshot), [engine]);
-  useChatSpeechQueue(chatReader, setChatReader, chatSpeechEngine);
+  useChatSpeechQueue(chatReader, setChatReader, chatSpeechEngine, { onSpeechEvent: recordChatSpeechEvent });
 
   useEffect(() => () => faceTrackingInput.stop(), [faceTrackingInput]);
 
@@ -474,6 +504,7 @@ export const MobileApp = () => {
                 blink: nextTracking.blink
               }
             : blinkedAvatar;
+          recordAudioLevelSample(nextAvatar.mouthOpen, trackingProfile.enabled ? "face-tracking" : "manual");
 
           setScene((currentScene) => {
             const withAvatar = applyAvatarRuntime(currentScene, nextAvatar.expression, nextAvatar.mouthOpen, nextAvatar.blink);
@@ -489,9 +520,10 @@ export const MobileApp = () => {
       });
     }, 140);
     return () => clearInterval(timer);
-  }, [faceTrackingInput, profile.faceTracking]);
+  }, [faceTrackingInput, profile.faceTracking, recordAudioLevelSample]);
 
   const updateMicLevel = (level: number) => {
+    recordAudioLevelSample(level, "manual");
     setAvatarRuntime((current) => {
       const next = { ...current, mouthOpen: level };
       setScene((currentScene) => applyAvatarRuntime(currentScene, next.expression, next.mouthOpen, next.blink));

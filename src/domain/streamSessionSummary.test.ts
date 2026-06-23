@@ -120,6 +120,51 @@ describe("stream session summary", () => {
     expect(history.recommendation).toContain("platform chat stays connected");
   });
 
+  it("stores audio meter samples and chat speech outcomes in session summaries", () => {
+    const summary = createStreamSessionSummary({
+      events: [
+        event({
+          at: "2026-06-23T00:00:02.000Z",
+          kind: "chat",
+          severity: "info",
+          title: "Chat speech started",
+          message: "Chat readout started speaking a youtube message."
+        }),
+        event({
+          at: "2026-06-23T00:00:03.000Z",
+          kind: "chat",
+          severity: "info",
+          title: "Chat speech spoken",
+          message: "Chat readout finished speaking a youtube message."
+        })
+      ],
+      healthSamples: [sample(1), sample(4)],
+      audioLevelSamples: [
+        { at: "2026-06-23T00:00:02.000Z", level: 0.1, source: "manual" },
+        { at: "2026-06-23T00:00:03.000Z", level: 0.75, source: "face-tracking" },
+        { at: "2026-06-23T00:00:06.000Z", level: 1, source: "manual" }
+      ],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+    const history = createStreamSessionHistorySummary([summary]);
+
+    expect(summary.audioLevel.sampleCount).toBe(2);
+    expect(summary.audioLevel.peakLevel).toBe(0.75);
+    expect(summary.audioLevel.activePercent).toBe(100);
+    expect(summary.chatSpeechStartedCount).toBe(1);
+    expect(summary.chatSpeechSpokenCount).toBe(1);
+    expect(summary.chatSpeechFailureCount).toBe(0);
+    expect(summary.summary).toContain("Audio meter retained 2 samples");
+    expect(summary.summary).toContain("Chat speech: 1 spoken / 0 failed");
+    expect(history.totalChatSpeechSpoken).toBe(1);
+    expect(history.totalChatSpeechFailures).toBe(0);
+  });
+
   it("marks exhausted platform chat readout reconnects as unstable history", () => {
     const summary = createStreamSessionSummary({
       events: [

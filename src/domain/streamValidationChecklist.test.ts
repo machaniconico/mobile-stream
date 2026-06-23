@@ -5,6 +5,7 @@ import { createDefaultScene, setVisibility, type SceneDocument } from "./scene";
 import type { StreamHealthHistorySummary } from "./streamHealthHistory";
 import {
   createStreamSessionHistorySummary,
+  summarizeStreamAudioLevels,
   type StreamSessionSummary
 } from "./streamSessionSummary";
 import {
@@ -43,7 +44,11 @@ const cleanSession = (id: number): StreamSessionSummary => ({
   chatEventCount: 0,
   chatReconnectEventCount: 0,
   chatReconnectFailureCount: 0,
+  chatSpeechStartedCount: 0,
+  chatSpeechSpokenCount: 0,
+  chatSpeechFailureCount: 0,
   health: stableHealth,
+  audioLevel: summarizeStreamAudioLevels([]),
   nativeRuntime: null,
   summary: "Clean session. Stream health is stable.",
   recommendation: "Keep this profile as a known-good baseline for the destination."

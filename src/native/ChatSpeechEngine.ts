@@ -4,6 +4,7 @@ import {
   markChatMessageSpeaking,
   markChatMessageSpoken,
   selectNextReadableMessage,
+  type ChatMessage,
   type ChatReaderState
 } from "../domain/chatReader";
 
@@ -20,12 +21,22 @@ export interface ChatSpeechEngine {
   stop(): Promise<void>;
 }
 
+export interface ChatSpeechQueueEvent {
+  phase: "started" | "spoken" | "failed";
+  message: ChatMessage;
+  textLength: number;
+}
+
 export const useChatSpeechQueue = (
   state: ChatReaderState,
   setState: Dispatch<SetStateAction<ChatReaderState>>,
-  engine: ChatSpeechEngine
+  engine: ChatSpeechEngine,
+  options: {
+    onSpeechEvent?(event: ChatSpeechQueueEvent): void;
+  } = {}
 ) => {
   const speakingRef = useRef(false);
+  const onSpeechEvent = options.onSpeechEvent;
 
   useEffect(() => {
     if (state.settings.enabled) {
@@ -61,7 +72,9 @@ export const useChatSpeechQueue = (
 
     speakingRef.current = true;
     setState((current) => markChatMessageSpeaking(current, message.id));
+    onSpeechEvent?.({ phase: "started", message, textLength: text.length });
 
+    let failed = false;
     void engine
       .speak({
         messageId: message.id,
@@ -71,11 +84,16 @@ export const useChatSpeechQueue = (
         volume: state.settings.volume
       })
       .catch((error) => {
+        failed = true;
+        onSpeechEvent?.({ phase: "failed", message, textLength: text.length });
         console.warn("Chat speech failed", error);
       })
       .finally(() => {
+        if (!failed) {
+          onSpeechEvent?.({ phase: "spoken", message, textLength: text.length });
+        }
         speakingRef.current = false;
         setState((current) => markChatMessageSpoken(current, message.id));
       });
-  }, [engine, setState, state]);
+  }, [engine, onSpeechEvent, setState, state]);
 };

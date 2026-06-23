@@ -3,6 +3,7 @@ import { createDefaultStudioProfile, type StudioProfile } from "./profiles";
 import { createReadinessReport } from "./readiness";
 import { createDefaultScene, defaultAvatarMotion, updateSource } from "./scene";
 import { createStreamDiagnostics } from "./streamDiagnostics";
+import { createStreamSessionSummary } from "./streamSessionSummary";
 import {
   appendStreamValidationRun,
   createStreamValidationRun,
@@ -15,6 +16,16 @@ import { initialStreamState, type StreamHealth } from "./streamState";
 const health = (update: Partial<StreamHealth> = {}): StreamHealth => ({
   ...initialStreamState.health,
   ...update
+});
+
+const healthSample = (elapsedSeconds: number) => ({
+  at: new Date(Date.UTC(2026, 5, 23, 0, 0, elapsedSeconds)).toISOString(),
+  status: "live" as const,
+  elapsedSeconds,
+  bitrateKbps: 3500,
+  fps: 30,
+  droppedFrames: 0,
+  reconnectAttempts: 0
 });
 
 const profileWithKey = (streamKey: string): StudioProfile => ({
@@ -122,6 +133,69 @@ describe("stream validation evidence", () => {
     expect(summary.chatReadoutWarningCount).toBe(1);
     expect(summary.latestAudio?.status).toBe("warn");
     expect(summary.latestChatReadout?.status).toBe("warn");
+  });
+
+  it("copies retained audio meter and spoken chat counts into validation evidence", () => {
+    const scene = createDefaultScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const sessionSummary = createStreamSessionSummary({
+      events: [
+        {
+          id: "chat-speech-spoken",
+          at: "2026-06-23T00:00:03.000Z",
+          kind: "chat",
+          severity: "info",
+          title: "Chat speech spoken",
+          message: "Chat readout finished speaking a youtube message."
+        }
+      ],
+      healthSamples: [healthSample(1), healthSample(4)],
+      audioLevelSamples: [
+        { at: "2026-06-23T00:00:02.000Z", level: 0.2, source: "manual" },
+        { at: "2026-06-23T00:00:03.000Z", level: 0.8, source: "face-tracking" }
+      ],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!sessionSummary) {
+      throw new Error("Expected session summary.");
+    }
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health()
+      },
+      [],
+      [],
+      [sessionSummary],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "warn",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+
+    expect(run.audio).toMatchObject({
+      levelSampleCount: 2,
+      peakLevel: 0.8,
+      activeLevelPercent: 100
+    });
+    expect(run.chatReadout).toMatchObject({
+      spokenMessageCount: 1,
+      speechFailureCount: 0
+    });
+    expect(run.audio?.summary).toContain("Audio meter retained 2 sam");
+    expect(run.chatReadout?.summary).toContain("Chat speech retained 1 spoken / 0 failed");
   });
 
   it("stores safe native runtime evidence and downgrades passing runs that need review", () => {

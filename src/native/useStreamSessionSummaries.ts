@@ -7,6 +7,7 @@ import {
   createStreamSessionSummary,
   mergeStreamSessionSummaries,
   normalizeStreamSessionSummaries,
+  type StreamAudioLevelSample,
   type StreamSessionEndReason,
   type StreamSessionSummary
 } from "../domain/streamSessionSummary";
@@ -26,6 +27,7 @@ export const useStreamSessionSummaries = ({
   quality,
   initialSummaries = [],
   initialSummariesReady = true,
+  getAudioLevelSamples,
   onSummariesChange,
   onSummariesClear
 }: {
@@ -35,6 +37,7 @@ export const useStreamSessionSummaries = ({
   quality: QualityProfile;
   initialSummaries?: StreamSessionSummary[];
   initialSummariesReady?: boolean;
+  getAudioLevelSamples?(): StreamAudioLevelSample[];
   onSummariesChange?(summaries: StreamSessionSummary[]): void;
   onSummariesClear?(): void;
 }): StreamSessionSummaries => {
@@ -97,7 +100,8 @@ export const useStreamSessionSummaries = ({
         fps: quality.fps
       },
       endReason: pendingEndReason,
-      nativeRuntime: snapshot.nativeRuntime
+      nativeRuntime: snapshot.nativeRuntime,
+      audioLevelSamples: getAudioLevelSamples?.() ?? []
     });
 
     setSummaries((current) => appendStreamSessionSummary(current, summary));
@@ -108,6 +112,7 @@ export const useStreamSessionSummaries = ({
     pendingEndReason,
     quality.fps,
     quality.videoBitrateKbps,
+    getAudioLevelSamples,
     snapshot.nativeRuntime
   ]);
 
