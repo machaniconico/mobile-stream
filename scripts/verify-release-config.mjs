@@ -1,10 +1,18 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { cwd, exit } from "node:process";
+import {
+  iosArchiveArgs,
+  iosExportArgs,
+  iosReleaseDefaults,
+  iosReleaseEnv,
+  renderIosExportOptionsPlist
+} from "./ios-release-config.mjs";
 
 const root = cwd();
 
 const files = {
+  packageJson: read("package.json"),
   androidGradle: read("android/app/build.gradle"),
   androidManifest: read("android/app/src/main/AndroidManifest.xml"),
   iosInfo: read("ios/MobileLiveCaster/Info.plist"),
@@ -13,15 +21,19 @@ const files = {
   broadcastInfo: read("ios/MobileLiveCasterBroadcastUpload/Info.plist"),
   broadcastEntitlements: read("ios/MobileLiveCasterBroadcastUpload/MobileLiveCasterBroadcastUpload.entitlements"),
   xcodeProject: read("ios/MobileLiveCaster.xcodeproj/project.pbxproj"),
+  iosReleaseConfigScript: read("scripts/ios-release-config.mjs"),
+  createIosExportOptionsScript: read("scripts/create-ios-export-options.mjs"),
+  archiveIosReleaseScript: read("scripts/archive-ios-release.mjs"),
+  exportIosReleaseScript: read("scripts/export-ios-release.mjs"),
   liveCasterBridge: read("ios/MobileLiveCaster/LiveCasterBridge.swift"),
   broadcastHandler: read("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift")
 };
 
 const iosReleaseConfig = {
-  hostBundleId: "com.mobilelivecaster.app",
+  hostBundleId: iosReleaseDefaults.hostBundleId,
   hostEntitlementsPath: "MobileLiveCaster/MobileLiveCaster.entitlements",
   hostInfoPlistPath: "MobileLiveCaster/Info.plist",
-  broadcastBundleId: "com.mobilelivecaster.app.BroadcastUpload",
+  broadcastBundleId: iosReleaseDefaults.broadcastBundleId,
   broadcastEntitlementsPath: "MobileLiveCasterBroadcastUpload/MobileLiveCasterBroadcastUpload.entitlements",
   broadcastInfoPlistPath: "MobileLiveCasterBroadcastUpload/Info.plist",
   appGroupId: "group.com.mobilelivecaster.app"
@@ -88,8 +100,38 @@ const checks = [
         SKIP_INSTALL: "YES"
       }
     });
+    expectIosReleaseSigningSettings(iosReleaseConfig.hostBundleId);
+    expectIosReleaseSigningSettings(iosReleaseConfig.broadcastBundleId);
     expectNotIncludes(allNativeConfigText(), "org.reactjs.native.example");
     expectNotIncludes(allNativeConfigText(), "group.org.reactjs.native.example");
+  }),
+  check("iOS production archive/export automation covers Broadcast Upload Extension provisioning", () => {
+    expectIncludes(files.packageJson, '"ios:export-options": "node scripts/create-ios-export-options.mjs"');
+    expectIncludes(files.packageJson, '"ios:archive:release": "bash -lc');
+    expectIncludes(files.packageJson, '"ios:export:release": "bash -lc');
+    expectIncludes(files.iosReleaseConfigScript, "app-store-connect");
+    expectIncludes(files.iosReleaseConfigScript, "provisioningProfiles");
+    expectIncludes(files.createIosExportOptionsScript, "renderIosExportOptionsPlist");
+    expectIncludes(files.archiveIosReleaseScript, "iosArchiveArgs");
+    expectIncludes(files.exportIosReleaseScript, "iosExportArgs");
+
+    const releaseEnv = {
+      [iosReleaseEnv.teamId]: "ABCDE12345",
+      [iosReleaseEnv.hostProfileName]: "MobileLiveCaster App Store Profile",
+      [iosReleaseEnv.broadcastProfileName]: "MobileLiveCaster Broadcast App Store Profile"
+    };
+    const exportOptions = renderIosExportOptionsPlist(releaseEnv);
+    expectIncludes(exportOptions, "<string>app-store-connect</string>");
+    expectIncludes(exportOptions, "<string>manual</string>");
+    expectIncludes(exportOptions, `<key>${iosReleaseConfig.hostBundleId}</key>`);
+    expectIncludes(exportOptions, `<key>${iosReleaseConfig.broadcastBundleId}</key>`);
+    expectIncludes(exportOptions, "<key>stripSwiftSymbols</key>");
+    expectIncludes(exportOptions, "<key>uploadSymbols</key>");
+    expectArrayIncludes(iosArchiveArgs(releaseEnv), "-allowProvisioningUpdates");
+    expectArrayIncludes(iosArchiveArgs(releaseEnv), "CODE_SIGN_STYLE=Automatic");
+    expectArrayIncludes(iosArchiveArgs(releaseEnv), "CODE_SIGN_IDENTITY=Apple Distribution");
+    expectArrayIncludes(iosExportArgs(releaseEnv), "-exportArchive");
+    expectArrayIncludes(iosExportArgs(releaseEnv), "-exportOptionsPlist");
   }),
   check("Native store version metadata is aligned", () => {
     const defaultConfig = androidDefaultConfigBlock(files.androidGradle);
@@ -179,6 +221,12 @@ function expectEqual(actual, expected, label) {
   }
 }
 
+function expectArrayIncludes(values, expected) {
+  if (!values.includes(expected)) {
+    throw new Error(`missing array value ${JSON.stringify(expected)}`);
+  }
+}
+
 function expectSameMembers(actual, expected, label) {
   const normalizedActual = [...actual].sort();
   const normalizedExpected = [...expected].sort();
@@ -210,6 +258,17 @@ function expectIosTargetBuildSettings({ bundleId, entitlementsPath, infoPlistPat
       expectEqual(config.settings[settingName], expectedValue, `${bundleId} ${config.name} ${settingName}`);
     }
   }
+}
+
+function expectIosReleaseSigningSettings(bundleId) {
+  const releaseConfig = iosTargetBuildConfigurations(bundleId).find((config) => config.name === "Release");
+  expectEqual(releaseConfig.settings.CODE_SIGN_STYLE, "Automatic", `${bundleId} Release code signing style`);
+  expectEqual(releaseConfig.settings.DEVELOPMENT_TEAM, "$(MLC_IOS_TEAM_ID)", `${bundleId} Release development team`);
+  expectEqual(
+    releaseConfig.settings["CODE_SIGN_IDENTITY[sdk=iphoneos*]"],
+    "Apple Distribution",
+    `${bundleId} Release signing identity`
+  );
 }
 
 function iosTargetBuildConfigurations(bundleId) {
@@ -244,9 +303,9 @@ function xcodeBuildConfigurations(projectText) {
 
 function xcodeBuildSettings(configurationText) {
   const settings = {};
-  const regex = /^\s*([A-Z0-9_]+) = (.+?);$/gm;
+  const regex = /^\s*("[^"]+"|[A-Z0-9_]+) = (.+?);$/gm;
   for (const match of configurationText.matchAll(regex)) {
-    settings[match[1]] = stripPbxScalar(match[2]);
+    settings[stripPbxScalar(match[1])] = stripPbxScalar(match[2]);
   }
   return settings;
 }

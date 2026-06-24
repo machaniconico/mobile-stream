@@ -161,12 +161,13 @@
 - Android `assembleDebug` build succeeds.
 - iOS `pod install` succeeds and generated `MobileLiveCaster.xcworkspace`.
 - iOS Simulator Debug build succeeds through `xcodebuild`.
+- iOS production archive/export helper scripts generate App Store Connect export options from environment variables, require explicit provisioning profiles for both the host app and ReplayKit Broadcast Upload Extension, archive with Apple Distribution signing, and are covered by native release-configuration audit checks.
 
 ## Not Implemented Yet
 
 - iOS end-to-end physical device validation against a real RTMP/RTMPS endpoint.
 - iOS YouTube Live/Twitch RTMP ingest validation with real stream keys.
-- Apple Developer account-backed iOS production archive/export validation for Broadcast Upload Extension provisioning.
+- Apple Developer account-backed iOS production archive/export execution with real provisioning profiles and App Store Connect credentials.
 - Android end-to-end physical device validation against a real RTMP/RTMPS endpoint.
 - Android physical-device tuning for mic monitor latency and Bluetooth route behavior using the retained in-app latency evidence.
 - iOS physical-device tuning for mic monitor latency and Bluetooth route behavior using the retained in-app latency evidence.

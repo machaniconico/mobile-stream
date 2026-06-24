@@ -28,7 +28,10 @@
     "android:assembleDebug": "bash -lc 'source scripts/rn-env.sh && cd android && ./gradlew assembleDebug'",
     "android:assembleRelease": "bash -lc 'source scripts/rn-env.sh && cd android && ./gradlew assembleRelease'",
     "ios:pods": "bash -lc 'source scripts/rn-env.sh && cd ios && pod install'",
-    "ios:build:simulator": "bash -lc 'source scripts/rn-env.sh && cd ios && xcodebuild -workspace MobileLiveCaster.xcworkspace -scheme MobileLiveCaster -configuration Debug -sdk iphonesimulator -destination \"generic/platform=iOS Simulator\" build'"
+    "ios:build:simulator": "bash -lc 'source scripts/rn-env.sh && cd ios && xcodebuild -workspace MobileLiveCaster.xcworkspace -scheme MobileLiveCaster -configuration Debug -sdk iphonesimulator -destination \"generic/platform=iOS Simulator\" build'",
+    "ios:export-options": "node scripts/create-ios-export-options.mjs",
+    "ios:archive:release": "bash -lc 'source scripts/rn-env.sh && node scripts/archive-ios-release.mjs'",
+    "ios:export:release": "bash -lc 'source scripts/rn-env.sh && node scripts/export-ios-release.mjs'"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",
