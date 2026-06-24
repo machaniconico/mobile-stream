@@ -9,6 +9,8 @@ export const dashboardEvidenceManifestPath = ".artifacts/platform-dashboard-evid
 export const dashboardEvidenceArtifactGroup = "dashboard";
 
 const dashboardPlatforms = new Set(["youtube", "twitch"]);
+const dashboardScreenshotMinimumShortEdge = 720;
+const dashboardScreenshotMinimumLongEdge = 1280;
 const evidenceKinds = {
   screenshot: Object.freeze({ extension: ".png" }),
   statusJson: Object.freeze({ extension: ".json" })
@@ -174,6 +176,10 @@ function createDashboardArtifactRecord({ platform, kind, path }) {
   if (content.byteLength <= 0) {
     throw new Error(`${platform} dashboard ${kind} evidence is empty: ${relativePath}`);
   }
+  const screenshotDimensions = kind === "screenshot" ? readPngDimensions(content) : null;
+  if (kind === "screenshot" && !screenshotDimensions) {
+    throw new Error(`${platform} dashboard screenshot evidence must be a readable PNG file: ${relativePath}`);
+  }
   if (kind === "statusJson") {
     JSON.parse(content.toString("utf8"));
   }
@@ -183,6 +189,7 @@ function createDashboardArtifactRecord({ platform, kind, path }) {
     kind,
     path: relativePath,
     basename: basename(relativePath),
+    ...(screenshotDimensions ? { width: screenshotDimensions.width, height: screenshotDimensions.height } : {}),
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
@@ -218,6 +225,17 @@ function validateDashboardArtifact(artifact, failures) {
   if (content.byteLength !== artifact.bytes || actualSha256 !== artifact.sha256) {
     failures.push(`Dashboard evidence artifact metadata mismatch for ${artifact.path}.`);
   }
+  if (artifact.kind === "screenshot") {
+    const dimensions = readPngDimensions(content);
+    if (!dimensions) {
+      failures.push(`Dashboard evidence screenshot is not a readable PNG file: ${artifact.path}.`);
+    } else {
+      if (artifact.width !== dimensions.width || artifact.height !== dimensions.height) {
+        failures.push(`Dashboard evidence screenshot dimensions mismatch for ${artifact.path}.`);
+      }
+      validateDashboardScreenshotDimensions(artifact, dimensions, failures);
+    }
+  }
   if (artifact.kind === "statusJson") {
     try {
       JSON.parse(content.toString("utf8"));
@@ -225,6 +243,42 @@ function validateDashboardArtifact(artifact, failures) {
       failures.push(`Dashboard evidence status JSON is unreadable: ${artifact.path}.`);
     }
   }
+}
+
+function validateDashboardScreenshotDimensions(artifact, dimensions, failures) {
+  const shortEdge = Math.min(dimensions.width, dimensions.height);
+  const longEdge = Math.max(dimensions.width, dimensions.height);
+  if (shortEdge < dashboardScreenshotMinimumShortEdge || longEdge < dashboardScreenshotMinimumLongEdge) {
+    failures.push(
+      `Dashboard evidence screenshot ${artifact.path} must be at least ${dashboardScreenshotMinimumShortEdge}px on the short edge and ${dashboardScreenshotMinimumLongEdge}px on the long edge.`
+    );
+  }
+}
+
+function readPngDimensions(content) {
+  if (!isPng(content) || content.length < 24 || content.toString("ascii", 12, 16) !== "IHDR") {
+    return null;
+  }
+  const width = content.readUInt32BE(16);
+  const height = content.readUInt32BE(20);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+  return { width, height };
+}
+
+function isPng(content) {
+  return (
+    content.length >= 8 &&
+    content[0] === 0x89 &&
+    content[1] === 0x50 &&
+    content[2] === 0x4e &&
+    content[3] === 0x47 &&
+    content[4] === 0x0d &&
+    content[5] === 0x0a &&
+    content[6] === 0x1a &&
+    content[7] === 0x0a
+  );
 }
 
 function createReleaseArtifactRecord(group, path) {

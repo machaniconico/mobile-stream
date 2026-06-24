@@ -13,6 +13,7 @@ const pngBytes = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
   "base64"
 );
+const dashboardPngBytes = pngWithDimensions(1440, 900);
 
 describe("platform dashboard evidence verifier", () => {
   afterEach(() => {
@@ -47,6 +48,7 @@ describe("platform dashboard evidence verifier", () => {
       "youtube:statusJson"
     ]);
     expect(manifest.artifacts[0].sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(manifest.artifacts[0]).toMatchObject({ width: 1440, height: 900 });
 
     const verifyResult = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
     expect(verifyResult.status).toBe(0);
@@ -64,6 +66,18 @@ describe("platform dashboard evidence verifier", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`Dashboard evidence artifact metadata mismatch for ${youtubeScreenshot}.`);
+  });
+
+  it("rejects placeholder-sized dashboard screenshots", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(youtubeScreenshot, pngBytes);
+
+    const result = runVerifier(["--write", "--allow-dirty", "--youtube-screenshot", youtubeScreenshot, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      `Dashboard evidence screenshot ${youtubeScreenshot} must be at least 720px on the short edge and 1280px on the long edge.`
+    );
   });
 
   it("rejects unreadable dashboard status JSON", () => {
@@ -109,8 +123,8 @@ describe("platform dashboard evidence verifier", () => {
 
 function writeEvidenceFiles() {
   mkdirSync(fixtureRoot, { recursive: true });
-  writeFileSync(youtubeScreenshot, pngBytes);
-  writeFileSync(twitchScreenshot, pngBytes);
+  writeFileSync(youtubeScreenshot, dashboardPngBytes);
+  writeFileSync(twitchScreenshot, dashboardPngBytes);
   writeFileSync(
     youtubeJson,
     JSON.stringify({
@@ -126,4 +140,11 @@ function runVerifier(args) {
   return spawnSync(process.execPath, ["scripts/verify-platform-dashboard-evidence.mjs", ...args], {
     encoding: "utf8"
   });
+}
+
+function pngWithDimensions(width, height) {
+  const bytes = Buffer.from(pngBytes);
+  bytes.writeUInt32BE(width, 16);
+  bytes.writeUInt32BE(height, 20);
+  return bytes;
 }

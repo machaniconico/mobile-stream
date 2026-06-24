@@ -86,6 +86,8 @@ const checks = [
     expectIncludes(files.dashboardEvidenceScript, "youtubeScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "twitchScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "platform-dashboard-evidence-manifest");
+    expectIncludes(files.dashboardEvidenceScript, "dashboardScreenshotMinimumShortEdge");
+    expectIncludes(files.dashboardEvidenceScript, "Dashboard evidence screenshot dimensions mismatch");
     expectIncludes(files.storeSubmissionScript, "store-submission-checklist-manifest");
     expectIncludes(files.storeSubmissionScript, "privacyPolicyUrl");
     expectIncludes(files.storeSubmissionScript, "dataSafetyNotes");

@@ -434,11 +434,14 @@ function storeSubmissionRecords() {
 
 function dashboardManifestRecord(platform, path) {
   const content = readFileSync(path);
+  const dimensions = pngDimensions(content);
   return {
     platform,
     kind: "screenshot",
     path,
     basename: path.split("/").at(-1),
+    width: dimensions.width,
+    height: dimensions.height,
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
