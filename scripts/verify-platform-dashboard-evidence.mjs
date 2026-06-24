@@ -11,6 +11,8 @@ export const dashboardEvidenceArtifactGroup = "dashboard";
 const dashboardPlatforms = new Set(["youtube", "twitch"]);
 const dashboardScreenshotMinimumShortEdge = 720;
 const dashboardScreenshotMinimumLongEdge = 1280;
+const badYoutubeBroadcastStatuses = new Set(["complete", "failed", "revoked"]);
+const badYoutubeStreamStatuses = new Set(["inactive", "error"]);
 const evidenceKinds = {
   screenshot: Object.freeze({ extension: ".png" }),
   statusJson: Object.freeze({ extension: ".json" })
@@ -180,8 +182,11 @@ function createDashboardArtifactRecord({ platform, kind, path }) {
   if (kind === "screenshot" && !screenshotDimensions) {
     throw new Error(`${platform} dashboard screenshot evidence must be a readable PNG file: ${relativePath}`);
   }
+  const statusJsonSummary = kind === "statusJson" ? createStatusJsonSummary({ platform, path: relativePath }, content) : null;
   if (kind === "statusJson") {
-    JSON.parse(content.toString("utf8"));
+    if (statusJsonSummary.failures.length > 0) {
+      throw new Error(statusJsonSummary.failures.join("\n"));
+    }
   }
 
   return {
@@ -190,6 +195,7 @@ function createDashboardArtifactRecord({ platform, kind, path }) {
     path: relativePath,
     basename: basename(relativePath),
     ...(screenshotDimensions ? { width: screenshotDimensions.width, height: screenshotDimensions.height } : {}),
+    ...(statusJsonSummary ? { checkedAt: statusJsonSummary.checkedAt, statusSummary: statusJsonSummary.statusSummary } : {}),
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
@@ -237,12 +243,71 @@ function validateDashboardArtifact(artifact, failures) {
     }
   }
   if (artifact.kind === "statusJson") {
-    try {
-      JSON.parse(content.toString("utf8"));
-    } catch {
-      failures.push(`Dashboard evidence status JSON is unreadable: ${artifact.path}.`);
+    const statusJsonSummary = createStatusJsonSummary(artifact, content);
+    failures.push(...statusJsonSummary.failures);
+    if (artifact.checkedAt !== statusJsonSummary.checkedAt) {
+      failures.push(`Dashboard evidence status JSON checkedAt mismatch for ${artifact.path}.`);
+    }
+    if (artifact.statusSummary !== statusJsonSummary.statusSummary) {
+      failures.push(`Dashboard evidence status JSON summary mismatch for ${artifact.path}.`);
     }
   }
+}
+
+function createStatusJsonSummary(artifact, content) {
+  const failures = [];
+  let parsed = null;
+  try {
+    parsed = JSON.parse(content.toString("utf8"));
+  } catch {
+    return { failures: [`Dashboard evidence status JSON is unreadable: ${artifact.path}.`], checkedAt: "", statusSummary: "" };
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { failures: [`Dashboard evidence status JSON must be an object: ${artifact.path}.`], checkedAt: "", statusSummary: "" };
+  }
+
+  const platform = stringValue(parsed.platform);
+  if (platform !== artifact.platform) {
+    failures.push(`Dashboard evidence status JSON ${artifact.path} platform must be ${artifact.platform}.`);
+  }
+  const checkedAt = stringValue(parsed.checkedAt);
+  if (!checkedAt) {
+    failures.push(`Dashboard evidence status JSON ${artifact.path} must include checkedAt.`);
+  } else if (!Number.isFinite(Date.parse(checkedAt))) {
+    failures.push(`Dashboard evidence status JSON ${artifact.path} has an invalid checkedAt timestamp.`);
+  }
+
+  if (artifact.platform === "youtube") {
+    const broadcastStatus = stringValue(parsed.broadcastStatus).toLowerCase();
+    const streamStatus = stringValue(parsed.streamStatus).toLowerCase();
+    if (!broadcastStatus) {
+      failures.push(`Dashboard evidence status JSON ${artifact.path} must include YouTube broadcastStatus.`);
+    } else if (badYoutubeBroadcastStatuses.has(broadcastStatus)) {
+      failures.push(`Dashboard evidence status JSON ${artifact.path} has non-release YouTube broadcastStatus ${broadcastStatus}.`);
+    }
+    if (!streamStatus) {
+      failures.push(`Dashboard evidence status JSON ${artifact.path} must include YouTube streamStatus.`);
+    } else if (badYoutubeStreamStatuses.has(streamStatus)) {
+      failures.push(`Dashboard evidence status JSON ${artifact.path} has non-release YouTube streamStatus ${streamStatus}.`);
+    }
+    return {
+      failures,
+      checkedAt,
+      statusSummary: `broadcast:${broadcastStatus || "-"} stream:${streamStatus || "-"}`
+    };
+  }
+
+  const liveStatus = stringValue(parsed.liveStatus).toLowerCase();
+  if (!liveStatus) {
+    failures.push(`Dashboard evidence status JSON ${artifact.path} must include Twitch liveStatus.`);
+  } else if (liveStatus !== "live") {
+    failures.push(`Dashboard evidence status JSON ${artifact.path} has non-release Twitch liveStatus ${liveStatus}.`);
+  }
+  return {
+    failures,
+    checkedAt,
+    statusSummary: `live:${liveStatus || "-"}`
+  };
 }
 
 function validateDashboardScreenshotDimensions(artifact, dimensions, failures) {
@@ -293,6 +358,10 @@ function createReleaseArtifactRecord(group, path) {
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
+}
+
+function stringValue(value) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function workspaceRelativePath(path) {

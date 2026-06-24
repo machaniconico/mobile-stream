@@ -26,6 +26,8 @@ const generatedFiles = [
   ".artifacts/platform-dashboard-evidence.json",
   ".artifacts/release-report-test/youtube-dashboard.png",
   ".artifacts/release-report-test/twitch-dashboard.png",
+  ".artifacts/release-report-test/youtube-dashboard.json",
+  ".artifacts/release-report-test/twitch-dashboard.json",
   ".artifacts/store-submission-checklist.json",
   ".artifacts/release-report-test/store-submission-metadata.json",
   ".artifacts/release-report-test/submission-review.md",
@@ -284,6 +286,23 @@ function writeDashboardEvidenceFixture() {
   writeFile(".artifacts/release-report-test/youtube-dashboard.png", pngBytes);
   writeFile(".artifacts/release-report-test/twitch-dashboard.png", pngBytes);
   writeFile(
+    ".artifacts/release-report-test/youtube-dashboard.json",
+    JSON.stringify({
+      platform: "youtube",
+      broadcastStatus: "live",
+      streamStatus: "active",
+      checkedAt: new Date().toISOString()
+    })
+  );
+  writeFile(
+    ".artifacts/release-report-test/twitch-dashboard.json",
+    JSON.stringify({
+      platform: "twitch",
+      liveStatus: "live",
+      checkedAt: new Date().toISOString()
+    })
+  );
+  writeFile(
     dashboardEvidenceManifestPath,
     JSON.stringify(
       {
@@ -299,7 +318,9 @@ function writeDashboardEvidenceFixture() {
         },
         artifacts: [
           dashboardManifestRecord("youtube", ".artifacts/release-report-test/youtube-dashboard.png"),
-          dashboardManifestRecord("twitch", ".artifacts/release-report-test/twitch-dashboard.png")
+          dashboardManifestRecord("twitch", ".artifacts/release-report-test/twitch-dashboard.png"),
+          dashboardStatusJsonRecord("youtube", ".artifacts/release-report-test/youtube-dashboard.json"),
+          dashboardStatusJsonRecord("twitch", ".artifacts/release-report-test/twitch-dashboard.json")
         ]
       },
       null,
@@ -424,7 +445,9 @@ function dashboardEvidenceRecords() {
   return [
     artifactRecord("dashboard", dashboardEvidenceManifestPath),
     artifactRecord("dashboard", ".artifacts/release-report-test/youtube-dashboard.png"),
-    artifactRecord("dashboard", ".artifacts/release-report-test/twitch-dashboard.png")
+    artifactRecord("dashboard", ".artifacts/release-report-test/twitch-dashboard.png"),
+    artifactRecord("dashboard", ".artifacts/release-report-test/youtube-dashboard.json"),
+    artifactRecord("dashboard", ".artifacts/release-report-test/twitch-dashboard.json")
   ];
 }
 
@@ -436,6 +459,20 @@ function storeSubmissionRecords() {
     artifactRecord("store-submission", ".artifacts/release-report-test/ios-store.png"),
     artifactRecord("store-submission", ".artifacts/release-report-test/android-store.png")
   ];
+}
+
+function dashboardStatusJsonRecord(platform, path) {
+  const content = readFileSync(path);
+  return {
+    platform,
+    kind: "statusJson",
+    path,
+    basename: path.split("/").at(-1),
+    checkedAt: JSON.parse(content.toString("utf8")).checkedAt,
+    statusSummary: platform === "youtube" ? "broadcast:live stream:active" : "live:live",
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
 }
 
 function dashboardManifestRecord(platform, path) {

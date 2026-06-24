@@ -7,6 +7,7 @@ const fixtureRoot = ".artifacts/verify-platform-dashboard-evidence-test";
 const youtubeScreenshot = `${fixtureRoot}/youtube-dashboard.png`;
 const twitchScreenshot = `${fixtureRoot}/twitch-dashboard.png`;
 const youtubeJson = `${fixtureRoot}/youtube-dashboard.json`;
+const twitchJson = `${fixtureRoot}/twitch-dashboard.json`;
 const manifestPath = `${fixtureRoot}/platform-dashboard-evidence.json`;
 
 const pngBytes = Buffer.from(
@@ -32,6 +33,8 @@ describe("platform dashboard evidence verifier", () => {
       twitchScreenshot,
       "--youtube-json",
       youtubeJson,
+      "--twitch-json",
+      twitchJson,
       "--manifest",
       manifestPath
     ]);
@@ -41,18 +44,27 @@ describe("platform dashboard evidence verifier", () => {
 
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     expect(manifest.type).toBe("platform-dashboard-evidence-manifest");
-    expect(manifest.artifacts).toHaveLength(3);
+    expect(manifest.artifacts).toHaveLength(4);
     expect(manifest.artifacts.map((artifact) => `${artifact.platform}:${artifact.kind}`)).toEqual([
       "youtube:screenshot",
       "twitch:screenshot",
-      "youtube:statusJson"
+      "youtube:statusJson",
+      "twitch:statusJson"
     ]);
     expect(manifest.artifacts[0].sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(manifest.artifacts[0]).toMatchObject({ width: 1440, height: 900 });
+    expect(manifest.artifacts[2]).toMatchObject({
+      checkedAt: expect.any(String),
+      statusSummary: "broadcast:live stream:active"
+    });
+    expect(manifest.artifacts[3]).toMatchObject({
+      checkedAt: expect.any(String),
+      statusSummary: "live:live"
+    });
 
     const verifyResult = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
     expect(verifyResult.status).toBe(0);
-    expect(verifyResult.stdout).toContain("Dashboard evidence verification passed (3 artifacts).");
+    expect(verifyResult.stdout).toContain("Dashboard evidence verification passed (4 artifacts).");
   });
 
   it("fails when dashboard screenshot evidence is modified after manifest creation", () => {
@@ -88,6 +100,78 @@ describe("platform dashboard evidence verifier", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("JSON");
+  });
+
+  it("rejects dashboard status JSON for the wrong platform", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(
+      youtubeJson,
+      JSON.stringify({
+        platform: "twitch",
+        broadcastStatus: "live",
+        streamStatus: "active",
+        checkedAt: new Date().toISOString()
+      })
+    );
+
+    const result = runVerifier(["--write", "--allow-dirty", "--youtube-json", youtubeJson, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence status JSON ${youtubeJson} platform must be youtube.`);
+  });
+
+  it("rejects YouTube dashboard status JSON without release-ready statuses", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(
+      youtubeJson,
+      JSON.stringify({
+        platform: "youtube",
+        broadcastStatus: "complete",
+        streamStatus: "inactive",
+        checkedAt: new Date().toISOString()
+      })
+    );
+
+    const result = runVerifier(["--write", "--allow-dirty", "--youtube-json", youtubeJson, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence status JSON ${youtubeJson} has non-release YouTube broadcastStatus complete.`);
+    expect(result.stderr).toContain(`Dashboard evidence status JSON ${youtubeJson} has non-release YouTube streamStatus inactive.`);
+  });
+
+  it("rejects Twitch dashboard status JSON unless it is live", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(
+      twitchJson,
+      JSON.stringify({
+        platform: "twitch",
+        liveStatus: "offline",
+        checkedAt: new Date().toISOString()
+      })
+    );
+
+    const result = runVerifier(["--write", "--allow-dirty", "--twitch-json", twitchJson, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence status JSON ${twitchJson} has non-release Twitch liveStatus offline.`);
+  });
+
+  it("rejects dashboard status JSON without a valid checkedAt timestamp", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(
+      youtubeJson,
+      JSON.stringify({
+        platform: "youtube",
+        broadcastStatus: "live",
+        streamStatus: "active",
+        checkedAt: "not-a-date"
+      })
+    );
+
+    const result = runVerifier(["--write", "--allow-dirty", "--youtube-json", youtubeJson, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence status JSON ${youtubeJson} has an invalid checkedAt timestamp.`);
   });
 
   it("rejects empty dashboard evidence during manifest verification", () => {
@@ -131,6 +215,14 @@ function writeEvidenceFiles() {
       platform: "youtube",
       broadcastStatus: "live",
       streamStatus: "active",
+      checkedAt: new Date().toISOString()
+    })
+  );
+  writeFileSync(
+    twitchJson,
+    JSON.stringify({
+      platform: "twitch",
+      liveStatus: "live",
       checkedAt: new Date().toISOString()
     })
   );
