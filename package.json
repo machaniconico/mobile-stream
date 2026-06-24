@@ -17,6 +17,7 @@
     "verify:release-config": "node scripts/verify-release-config.mjs",
     "verify:commercial-release-bundle": "node scripts/verify-commercial-release-bundle.mjs",
     "verify:release-candidate": "node scripts/verify-release-candidate.mjs",
+    "verify:release-report": "node scripts/verify-release-report.mjs",
     "mobile:start": "react-native start",
     "mobile:ios": "react-native run-ios",
     "mobile:android": "react-native run-android",

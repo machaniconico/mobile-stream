@@ -56,6 +56,7 @@ try {
     const checks = [];
 
     for (const text of requiredTextChecks) {
+      await waitForRequiredText(page, text, viewport.name);
       const count = await page.getByText(text, { exact: false }).count();
       if (count === 0) {
         throw new Error(`Missing text "${text}" at ${viewport.name}`);
@@ -112,6 +113,14 @@ function artifactRecord(path) {
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
+}
+
+async function waitForRequiredText(page, text, viewportName) {
+  try {
+    await page.waitForFunction((needle) => document.body.innerText.includes(needle), text, { timeout: 10_000 });
+  } catch {
+    throw new Error(`Missing text "${text}" at ${viewportName}`);
+  }
 }
 
 function writeReport(path, value) {

@@ -3,36 +3,13 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { argv, env, exit, platform, cwd } from "node:process";
+import { releaseConfigArtifactPaths } from "./release-artifact-policy.mjs";
 
 const defaultUiUrl = "http://127.0.0.1:5173/";
 const devServerTimeoutMs = 30_000;
 const defaultReportPath = ".artifacts/release-candidate-verification.json";
 const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
 const requiredUiViewportNames = ["desktop", "mobile"];
-const releaseConfigArtifactPaths = [
-  "package.json",
-  "package-lock.json",
-  "vite.config.ts",
-  ".github/workflows/ci.yml",
-  ".github/workflows/auto-merge.yml",
-  "scripts/verify-release-candidate.mjs",
-  "scripts/verify-release-config.mjs",
-  "scripts/verify-commercial-release-bundle.mjs",
-  "scripts/verify-repo-automation.mjs",
-  "scripts/verify-ui.mjs",
-  "scripts/verify-web-bundle-size.mjs",
-  "android/app/build.gradle",
-  "android/app/proguard-rules.pro",
-  "android/app/src/main/AndroidManifest.xml",
-  "ios/MobileLiveCaster.xcodeproj/project.pbxproj",
-  "ios/MobileLiveCaster.xcodeproj/xcshareddata/xcschemes/MobileLiveCaster.xcscheme",
-  "ios/MobileLiveCaster/Info.plist",
-  "ios/MobileLiveCaster/MobileLiveCaster.entitlements",
-  "ios/MobileLiveCaster/PrivacyInfo.xcprivacy",
-  "ios/MobileLiveCasterBroadcastUpload/Info.plist",
-  "ios/MobileLiveCasterBroadcastUpload/MobileLiveCasterBroadcastUpload.entitlements"
-];
-
 const sourceGates = [
   ["Verify repository automation safety", ["run", "verify:repo-automation"]],
   ["Verify native release configuration", ["run", "verify:release-config"]],

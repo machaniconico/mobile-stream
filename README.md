@@ -20,6 +20,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Commercial release gate for saved support bundle JSON, checking freshness, public launch lock state, private validation runbook completion, iOS/Android same-build evidence coverage, retained-run manifests, and feature proof before release approval.
 - Commercial release support-bundle privacy gate that blocks release approval if OAuth tokens, stream keys, client secrets, device codes, or Authorization headers are still unredacted in exported evidence.
 - Release-candidate verification command that chains source gates, browser UI verification, React Native bundle generation, and the commercial support-bundle gate into one local approval step with a JSON audit report that hashes generated artifacts and release-configuration inputs.
+- Saved release-candidate report audit that revalidates the archived report, support-bundle SHA-256, UI evidence, generated artifact hashes, release-configuration input hashes, clean git state, and required gate outcomes before using a report for commercial approval.
 - Browser UI verification writes JSON evidence with desktop/mobile screenshot hashes, and release-candidate UI skips require that evidence before approval.
 - Android build-type network policy keeps cleartext traffic enabled only for debug development and disables it for release artifacts.
 - Native store version audit keeps Android application metadata, iOS host app versioning, and the ReplayKit Broadcast Upload Extension versioning aligned before release approval.
@@ -81,6 +82,7 @@ npm run verify:rn
 npm run verify:release-config
 npm run verify:commercial-release-bundle -- /path/to/support-bundle.json
 npm run verify:release-candidate -- /path/to/support-bundle.json
+npm run verify:release-report -- /path/to/release-candidate-verification.json
 npm run android:assembleDebug
 npm run android:assembleRelease
 npm run ios:pods
@@ -98,6 +100,8 @@ npm run ios:build:simulator
 `npm run verify:commercial-release-bundle -- /path/to/support-bundle.json` checks a saved support bundle before release approval. It fails unless the bundle is fresh, schema v13+, public-launch ready, runbook complete, free of unredacted sensitive evidence, and backed by passing same-build iOS/Android validation evidence. Use `--allow-warnings` only after explicitly approving remaining warnings.
 
 `npm run verify:release-candidate -- /path/to/support-bundle.json` is the local commercial release-candidate approval command. It fails on uncommitted source changes, runs repository automation checks, native release-config checks, unit tests, web/RN typechecks, the web build, web bundle-size verification, iOS/Android Metro bundles, browser UI verification, and the commercial support-bundle gate, then writes `.artifacts/release-candidate-verification.json` with the support-bundle SHA-256, git commit, dirty-state, gate outcomes, timings, generated web/RN/UI artifact hashes, release-configuration input hashes, and failure reason if any. Use `--report-json=/path/to/report.json` to choose the evidence path, `--ui-url=http://127.0.0.1:5173/` when a preview server is already running, `--allow-dirty` only for development-only evidence before commit, and `--skip-ui --ui-evidence-json=/path/to/ui-verification.json` only when Chrome is unavailable inside the RC command and `npm run verify:ui` has already produced passing evidence for the same commit.
+
+`npm run verify:release-report -- /path/to/release-candidate-verification.json` audits a saved RC report before release approval. It fails unless the report is passed, fresh, clean, tied to the current commit, backed by passing required gates, and still matches the support bundle, UI evidence, generated web/RN/UI artifacts, and release-configuration inputs by SHA-256. Use `--allow-dirty` or `--allow-commit-mismatch` only for development-only report inspection.
 
 GitHub Actions runs the required `test` status check on pull requests and `main` pushes. The gate installs from `package-lock.json`, verifies repository automation safety, verifies native release configuration, runs unit tests, typechecks web and React Native code, builds the web prototype, verifies web bundle size, and bundles React Native JavaScript for iOS and Android.
 
