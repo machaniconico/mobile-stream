@@ -9,6 +9,29 @@ const devServerTimeoutMs = 30_000;
 const defaultReportPath = ".artifacts/release-candidate-verification.json";
 const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
 const requiredUiViewportNames = ["desktop", "mobile"];
+const releaseConfigArtifactPaths = [
+  "package.json",
+  "package-lock.json",
+  "vite.config.ts",
+  ".github/workflows/ci.yml",
+  ".github/workflows/auto-merge.yml",
+  "scripts/verify-release-candidate.mjs",
+  "scripts/verify-release-config.mjs",
+  "scripts/verify-commercial-release-bundle.mjs",
+  "scripts/verify-repo-automation.mjs",
+  "scripts/verify-ui.mjs",
+  "scripts/verify-web-bundle-size.mjs",
+  "android/app/build.gradle",
+  "android/app/proguard-rules.pro",
+  "android/app/src/main/AndroidManifest.xml",
+  "ios/MobileLiveCaster.xcodeproj/project.pbxproj",
+  "ios/MobileLiveCaster.xcodeproj/xcshareddata/xcschemes/MobileLiveCaster.xcscheme",
+  "ios/MobileLiveCaster/Info.plist",
+  "ios/MobileLiveCaster/MobileLiveCaster.entitlements",
+  "ios/MobileLiveCaster/PrivacyInfo.xcprivacy",
+  "ios/MobileLiveCasterBroadcastUpload/Info.plist",
+  "ios/MobileLiveCasterBroadcastUpload/MobileLiveCasterBroadcastUpload.entitlements"
+];
 
 const sourceGates = [
   ["Verify repository automation safety", ["run", "verify:repo-automation"]],
@@ -609,6 +632,7 @@ function commandOutput(command, args) {
 
 function collectReleaseArtifacts() {
   return [
+    ...collectFiles("release-config", releaseConfigArtifactPaths),
     ...collectFiles("web", ["dist/index.html"]),
     ...collectDirectoryFiles("web", "dist/assets", (path) => path.endsWith(".js") || path.endsWith(".css")),
     ...collectFiles("react-native", [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"]),
