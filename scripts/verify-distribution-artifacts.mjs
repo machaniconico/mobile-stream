@@ -13,6 +13,13 @@ const distributionArtifactTypes = {
   android: Object.freeze({ kind: "aab", extension: ".aab" }),
   ios: Object.freeze({ kind: "ipa", extension: ".ipa" })
 };
+const requiredZipEntries = {
+  android: [
+    { label: "BundleConfig.pb", test: (entry) => entry === "BundleConfig.pb" },
+    { label: "base/manifest/AndroidManifest.xml", test: (entry) => entry === "base/manifest/AndroidManifest.xml" }
+  ],
+  ios: [{ label: "Payload/*.app/Info.plist", test: (entry) => /^Payload\/[^/]+\.app\/Info\.plist$/.test(entry) }]
+};
 
 export function createDistributionManifest({ androidAab, iosIpa, manifestPath = distributionArtifactManifestPath } = {}) {
   const artifactInputs = [
@@ -164,9 +171,9 @@ function createDistributionArtifactRecord({ platform, kind, extension, path }) {
   if (content.byteLength <= 0) {
     throw new Error(`${platform} ${kind} artifact is empty: ${relativePath}`);
   }
-  const contentFailures = validateDistributionArtifactContent({ platform, kind, path: relativePath }, content);
-  if (contentFailures.length > 0) {
-    throw new Error(contentFailures.join("\n"));
+  const contentInspection = inspectDistributionArtifactContent({ platform, kind, path: relativePath }, content);
+  if (contentInspection.failures.length > 0) {
+    throw new Error(contentInspection.failures.join("\n"));
   }
 
   return {
@@ -174,6 +181,8 @@ function createDistributionArtifactRecord({ platform, kind, extension, path }) {
     kind,
     path: relativePath,
     basename: basename(relativePath),
+    zipEntryCount: contentInspection.zipEntryCount,
+    requiredZipEntries: contentInspection.requiredZipEntries,
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
@@ -206,11 +215,20 @@ function validateDistributionArtifact(artifact, failures) {
   if (content.byteLength !== artifact.bytes || actualSha256 !== artifact.sha256) {
     failures.push(`Distribution artifact metadata mismatch for ${artifact.path}.`);
   }
-  failures.push(...validateDistributionArtifactContent(artifact, content));
+  const contentInspection = inspectDistributionArtifactContent(artifact, content);
+  failures.push(...contentInspection.failures);
+  if (artifact.zipEntryCount !== contentInspection.zipEntryCount) {
+    failures.push(`Distribution artifact ZIP entry count mismatch for ${artifact.path}.`);
+  }
+  if (!sameStringMembers(artifact.requiredZipEntries, contentInspection.requiredZipEntries)) {
+    failures.push(`Distribution artifact required ZIP entries mismatch for ${artifact.path}.`);
+  }
 }
 
-function validateDistributionArtifactContent(artifact, content) {
+function inspectDistributionArtifactContent(artifact, content) {
   const failures = [];
+  let zipEntryCount = 0;
+  let requiredEntriesFound = [];
   if (content.byteLength < minimumDistributionArtifactBytes) {
     failures.push(
       `Distribution artifact ${artifact.path} must be at least ${minimumDistributionArtifactBytes} bytes to prevent placeholder release binaries.`
@@ -222,7 +240,23 @@ function validateDistributionArtifactContent(artifact, content) {
   if (!hasZipEndOfCentralDirectory(content)) {
     failures.push(`Distribution artifact ${artifact.path} is missing a ZIP end-of-central-directory record.`);
   }
-  return failures;
+  const entries = readZipEntryNames(content);
+  if (entries === null) {
+    failures.push(`Distribution artifact ${artifact.path} ZIP central directory could not be read.`);
+  } else {
+    zipEntryCount = entries.length;
+    if (zipEntryCount === 0) {
+      failures.push(`Distribution artifact ${artifact.path} ZIP central directory has no entries.`);
+    }
+    requiredEntriesFound = findRequiredZipEntries(artifact.platform, entries);
+    const foundLabels = new Set(requiredEntriesFound);
+    for (const requirement of requiredZipEntries[artifact.platform] || []) {
+      if (!foundLabels.has(requirement.label)) {
+        failures.push(`Distribution artifact ${artifact.path} is missing required ${artifact.platform} ZIP entry ${requirement.label}.`);
+      }
+    }
+  }
+  return { failures, zipEntryCount, requiredZipEntries: requiredEntriesFound };
 }
 
 function hasZipLocalFileHeader(content) {
@@ -230,17 +264,80 @@ function hasZipLocalFileHeader(content) {
 }
 
 function hasZipEndOfCentralDirectory(content) {
+  return findZipEndOfCentralDirectoryOffset(content) !== -1;
+}
+
+function findZipEndOfCentralDirectoryOffset(content) {
   const minimumEocdLength = 22;
   if (content.length < minimumEocdLength) {
-    return false;
+    return -1;
   }
   const earliestOffset = Math.max(0, content.length - 65_557);
   for (let offset = content.length - minimumEocdLength; offset >= earliestOffset; offset -= 1) {
     if (content[offset] === 0x50 && content[offset + 1] === 0x4b && content[offset + 2] === 0x05 && content[offset + 3] === 0x06) {
-      return true;
+      return offset;
     }
   }
-  return false;
+  return -1;
+}
+
+function readZipEntryNames(content) {
+  const eocdOffset = findZipEndOfCentralDirectoryOffset(content);
+  if (eocdOffset === -1 || eocdOffset + 22 > content.length) {
+    return null;
+  }
+  const totalEntries = content.readUInt16LE(eocdOffset + 10);
+  const centralDirectorySize = content.readUInt32LE(eocdOffset + 12);
+  const centralDirectoryOffset = content.readUInt32LE(eocdOffset + 16);
+  if (
+    totalEntries === 0xffff ||
+    centralDirectorySize === 0xffffffff ||
+    centralDirectoryOffset === 0xffffffff ||
+    centralDirectoryOffset < 0 ||
+    centralDirectorySize <= 0 ||
+    centralDirectoryOffset + centralDirectorySize > content.length
+  ) {
+    return null;
+  }
+
+  const names = [];
+  let offset = centralDirectoryOffset;
+  for (let index = 0; index < totalEntries; index += 1) {
+    if (offset + 46 > content.length || content.readUInt32LE(offset) !== 0x02014b50) {
+      return null;
+    }
+    const nameLength = content.readUInt16LE(offset + 28);
+    const extraLength = content.readUInt16LE(offset + 30);
+    const commentLength = content.readUInt16LE(offset + 32);
+    const nameStart = offset + 46;
+    const nameEnd = nameStart + nameLength;
+    const nextOffset = nameEnd + extraLength + commentLength;
+    if (nameEnd > content.length || nextOffset > content.length) {
+      return null;
+    }
+    names.push(content.toString("utf8", nameStart, nameEnd));
+    offset = nextOffset;
+  }
+  return names;
+}
+
+function findRequiredZipEntries(platform, entries) {
+  const found = [];
+  for (const requirement of requiredZipEntries[platform] || []) {
+    if (entries.some((entry) => requirement.test(entry))) {
+      found.push(requirement.label);
+    }
+  }
+  return found;
+}
+
+function sameStringMembers(actual, expected) {
+  if (!Array.isArray(actual) || !Array.isArray(expected)) {
+    return false;
+  }
+  const sortedActual = [...actual].sort();
+  const sortedExpected = [...expected].sort();
+  return sortedActual.length === sortedExpected.length && sortedActual.every((value, index) => value === sortedExpected[index]);
 }
 
 function createReleaseArtifactRecord(group, path) {

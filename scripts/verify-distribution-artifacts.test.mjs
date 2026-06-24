@@ -33,8 +33,20 @@ describe("distribution artifact verifier", () => {
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     expect(manifest.type).toBe("distribution-artifact-manifest");
     expect(manifest.artifacts).toHaveLength(2);
-    expect(manifest.artifacts[0]).toMatchObject({ platform: "android", kind: "aab", path: androidAab });
-    expect(manifest.artifacts[1]).toMatchObject({ platform: "ios", kind: "ipa", path: iosIpa });
+    expect(manifest.artifacts[0]).toMatchObject({
+      platform: "android",
+      kind: "aab",
+      path: androidAab,
+      zipEntryCount: 3,
+      requiredZipEntries: ["BundleConfig.pb", "base/manifest/AndroidManifest.xml"]
+    });
+    expect(manifest.artifacts[1]).toMatchObject({
+      platform: "ios",
+      kind: "ipa",
+      path: iosIpa,
+      zipEntryCount: 2,
+      requiredZipEntries: ["Payload/*.app/Info.plist"]
+    });
     expect(manifest.artifacts[0].sha256).toMatch(/^[a-f0-9]{64}$/);
 
     const verifyResult = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
@@ -48,7 +60,7 @@ describe("distribution artifact verifier", () => {
       runVerifier(["--write", "--allow-dirty", "--android-aab", androidAab, "--manifest", manifestPath]).status
     ).toBe(0);
 
-    writeFileSync(androidAab, zipLikeArtifactBytes({ marker: 0x41 }));
+    writeFileSync(androidAab, androidAabBytes({ marker: 0x41 }));
     const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
 
     expect(result.status).toBe(1);
@@ -57,7 +69,14 @@ describe("distribution artifact verifier", () => {
 
   it("rejects placeholder-sized distribution artifacts", () => {
     mkdirSync(fixtureRoot, { recursive: true });
-    writeFileSync(androidAab, zipLikeArtifactBytes({ size: 4096 }));
+    writeFileSync(
+      androidAab,
+      zipArtifactBytes([
+        { name: "BundleConfig.pb", data: Buffer.from("bundle config") },
+        { name: "base/manifest/AndroidManifest.xml", data: Buffer.from("<manifest />") },
+        { name: "base/dex/classes.dex", size: 4096 }
+      ])
+    );
 
     const result = runVerifier(["--write", "--allow-dirty", "--android-aab", androidAab, "--manifest", manifestPath]);
 
@@ -78,6 +97,29 @@ describe("distribution artifact verifier", () => {
     expect(result.stderr).toContain(`Distribution artifact ${androidAab} is missing a ZIP end-of-central-directory record.`);
   });
 
+  it("rejects Android AAB artifacts missing required bundle entries", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(androidAab, zipArtifactBytes([{ name: "base/dex/classes.dex", size: minimumDistributionArtifactBytes }]));
+
+    const result = runVerifier(["--write", "--allow-dirty", "--android-aab", androidAab, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Distribution artifact ${androidAab} is missing required android ZIP entry BundleConfig.pb.`);
+    expect(result.stderr).toContain(
+      `Distribution artifact ${androidAab} is missing required android ZIP entry base/manifest/AndroidManifest.xml.`
+    );
+  });
+
+  it("rejects iOS IPA artifacts missing the app Info.plist", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(iosIpa, zipArtifactBytes([{ name: "Payload/MobileLiveCaster.app/MobileLiveCaster", size: minimumDistributionArtifactBytes }]));
+
+    const result = runVerifier(["--write", "--allow-dirty", "--ios-ipa", iosIpa, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Distribution artifact ${iosIpa} is missing required ios ZIP entry Payload/*.app/Info.plist.`);
+  });
+
   it("rejects unsupported distribution artifact extensions", () => {
     mkdirSync(fixtureRoot, { recursive: true });
     const wrongPath = `${fixtureRoot}/app-release.zip`;
@@ -92,8 +134,8 @@ describe("distribution artifact verifier", () => {
 
 function writeDistributionFiles() {
   mkdirSync(fixtureRoot, { recursive: true });
-  writeFileSync(androidAab, zipLikeArtifactBytes());
-  writeFileSync(iosIpa, zipLikeArtifactBytes({ marker: 0x49 }));
+  writeFileSync(androidAab, androidAabBytes());
+  writeFileSync(iosIpa, iosIpaBytes());
 }
 
 function runVerifier(args) {
@@ -102,16 +144,70 @@ function runVerifier(args) {
   });
 }
 
-function zipLikeArtifactBytes({ size = minimumDistributionArtifactBytes, marker = 0x5a } = {}) {
-  const bytes = Buffer.alloc(size, marker);
-  bytes[0] = 0x50;
-  bytes[1] = 0x4b;
-  bytes[2] = 0x03;
-  bytes[3] = 0x04;
-  const eocdOffset = bytes.length - 22;
-  bytes[eocdOffset] = 0x50;
-  bytes[eocdOffset + 1] = 0x4b;
-  bytes[eocdOffset + 2] = 0x05;
-  bytes[eocdOffset + 3] = 0x06;
-  return bytes;
+function androidAabBytes({ marker = 0x5a } = {}) {
+  return zipArtifactBytes([
+    { name: "BundleConfig.pb", data: Buffer.from("bundle config") },
+    { name: "base/manifest/AndroidManifest.xml", data: Buffer.from("<manifest />") },
+    { name: "base/dex/classes.dex", size: minimumDistributionArtifactBytes, marker }
+  ]);
+}
+
+function iosIpaBytes({ marker = 0x49 } = {}) {
+  return zipArtifactBytes([
+    { name: "Payload/MobileLiveCaster.app/Info.plist", data: Buffer.from("<plist />") },
+    { name: "Payload/MobileLiveCaster.app/MobileLiveCaster", size: minimumDistributionArtifactBytes, marker }
+  ]);
+}
+
+function zipArtifactBytes(entries) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name);
+    const data = entry.data || Buffer.alloc(entry.size || 0, entry.marker || 0x5a);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt32LE(0, 10);
+    local.writeUInt32LE(0, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(0, 28);
+    localParts.push(local, name, data);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0, 8);
+    central.writeUInt16LE(0, 10);
+    central.writeUInt32LE(0, 12);
+    central.writeUInt32LE(0, 16);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt16LE(0, 30);
+    central.writeUInt16LE(0, 32);
+    central.writeUInt16LE(0, 34);
+    central.writeUInt16LE(0, 36);
+    central.writeUInt32LE(0, 38);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(central, name);
+    offset += local.length + name.length + data.length;
+  }
+  const centralDirectory = Buffer.concat(centralParts);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(0, 4);
+  eocd.writeUInt16LE(0, 6);
+  eocd.writeUInt16LE(entries.length, 8);
+  eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(centralDirectory.length, 12);
+  eocd.writeUInt32LE(offset, 16);
+  eocd.writeUInt16LE(0, 20);
+  return Buffer.concat([...localParts, centralDirectory, eocd]);
 }

@@ -192,6 +192,8 @@ const checks = [
     expectIncludes(files.distributionArtifactsScript, "distribution-artifact-manifest");
     expectIncludes(files.distributionArtifactsScript, "minimumDistributionArtifactBytes");
     expectIncludes(files.distributionArtifactsScript, "ZIP end-of-central-directory");
+    expectIncludes(files.distributionArtifactsScript, "requiredZipEntries");
+    expectIncludes(files.distributionArtifactsScript, "Payload/*.app/Info.plist");
     expectIncludes(files.storeReleaseBuildScript, "ios:verify-release-env");
     expectIncludes(files.storeReleaseBuildScript, "ios:archive:release");
     expectIncludes(files.storeReleaseBuildScript, "ios:export:release");

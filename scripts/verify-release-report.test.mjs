@@ -253,8 +253,8 @@ function restoreUiScreenshots() {
 }
 
 function writeDistributionFixture() {
-  writeFile(".artifacts/release-report-test/app-release.aab", zipLikeArtifactBytes());
-  writeFile(".artifacts/release-report-test/MobileLiveCaster.ipa", zipLikeArtifactBytes({ marker: 0x49 }));
+  writeFile(".artifacts/release-report-test/app-release.aab", androidAabBytes());
+  writeFile(".artifacts/release-report-test/MobileLiveCaster.ipa", iosIpaBytes());
   writeFile(
     distributionArtifactManifestPath,
     JSON.stringify(
@@ -405,11 +405,16 @@ function distributionArtifactRecords() {
 
 function distributionManifestRecord(platform, kind, path) {
   const content = readFileSync(path);
+  const zipEntryInfo =
+    platform === "android"
+      ? { zipEntryCount: 3, requiredZipEntries: ["BundleConfig.pb", "base/manifest/AndroidManifest.xml"] }
+      : { zipEntryCount: 2, requiredZipEntries: ["Payload/*.app/Info.plist"] };
   return {
     platform,
     kind,
     path,
     basename: path.split("/").at(-1),
+    ...zipEntryInfo,
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
@@ -581,16 +586,70 @@ function pngDimensions(content) {
   };
 }
 
-function zipLikeArtifactBytes({ size = minimumDistributionArtifactBytes, marker = 0x5a } = {}) {
-  const bytes = Buffer.alloc(size, marker);
-  bytes[0] = 0x50;
-  bytes[1] = 0x4b;
-  bytes[2] = 0x03;
-  bytes[3] = 0x04;
-  const eocdOffset = bytes.length - 22;
-  bytes[eocdOffset] = 0x50;
-  bytes[eocdOffset + 1] = 0x4b;
-  bytes[eocdOffset + 2] = 0x05;
-  bytes[eocdOffset + 3] = 0x06;
-  return bytes;
+function androidAabBytes({ marker = 0x5a } = {}) {
+  return zipArtifactBytes([
+    { name: "BundleConfig.pb", data: Buffer.from("bundle config") },
+    { name: "base/manifest/AndroidManifest.xml", data: Buffer.from("<manifest />") },
+    { name: "base/dex/classes.dex", size: minimumDistributionArtifactBytes, marker }
+  ]);
+}
+
+function iosIpaBytes({ marker = 0x49 } = {}) {
+  return zipArtifactBytes([
+    { name: "Payload/MobileLiveCaster.app/Info.plist", data: Buffer.from("<plist />") },
+    { name: "Payload/MobileLiveCaster.app/MobileLiveCaster", size: minimumDistributionArtifactBytes, marker }
+  ]);
+}
+
+function zipArtifactBytes(entries) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name);
+    const data = entry.data || Buffer.alloc(entry.size || 0, entry.marker || 0x5a);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt32LE(0, 10);
+    local.writeUInt32LE(0, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(0, 28);
+    localParts.push(local, name, data);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0, 8);
+    central.writeUInt16LE(0, 10);
+    central.writeUInt32LE(0, 12);
+    central.writeUInt32LE(0, 16);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt16LE(0, 30);
+    central.writeUInt16LE(0, 32);
+    central.writeUInt16LE(0, 34);
+    central.writeUInt16LE(0, 36);
+    central.writeUInt32LE(0, 38);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(central, name);
+    offset += local.length + name.length + data.length;
+  }
+  const centralDirectory = Buffer.concat(centralParts);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(0, 4);
+  eocd.writeUInt16LE(0, 6);
+  eocd.writeUInt16LE(entries.length, 8);
+  eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(centralDirectory.length, 12);
+  eocd.writeUInt32LE(offset, 16);
+  eocd.writeUInt16LE(0, 20);
+  return Buffer.concat([...localParts, centralDirectory, eocd]);
 }
