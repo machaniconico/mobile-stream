@@ -208,7 +208,7 @@ function createMetadata({
   };
 }
 
-function renderSubmissionReview(metadata, { metadataPath }) {
+export function renderSubmissionReview(metadata, { metadataPath }) {
   const screenshotRows = metadata.screenshots
     .map(
       (screenshot) =>

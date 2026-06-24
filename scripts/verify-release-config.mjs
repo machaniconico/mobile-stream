@@ -23,6 +23,7 @@ const files = {
   xcodeProject: read("ios/MobileLiveCaster.xcodeproj/project.pbxproj"),
   storeReleaseBuildScript: read("scripts/release-store-build.mjs"),
   storeSubmissionDraftScript: read("scripts/create-store-submission-draft.mjs"),
+  storeRealDeviceScreenshotsScript: read("scripts/import-store-real-device-screenshots.mjs"),
   releaseEvidencePackageScript: read("scripts/create-release-evidence-package.mjs"),
   iosReleaseConfigScript: read("scripts/ios-release-config.mjs"),
   createIosExportOptionsScript: read("scripts/create-ios-export-options.mjs"),
@@ -66,6 +67,7 @@ const checks = [
     expectIncludes(files.packageJson, '"release:distribution-manifest": "node scripts/verify-distribution-artifacts.mjs --write"');
     expectIncludes(files.packageJson, '"release:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --write"');
     expectIncludes(files.packageJson, '"release:store-submission-draft": "node scripts/create-store-submission-draft.mjs"');
+    expectIncludes(files.packageJson, '"release:store-real-device-screenshots": "node scripts/import-store-real-device-screenshots.mjs"');
     expectIncludes(files.packageJson, '"release:store-submission-checklist": "node scripts/verify-store-submission-checklist.mjs --write"');
     expectIncludes(files.packageJson, '"release:evidence-package": "node scripts/create-release-evidence-package.mjs --write"');
     expectIncludes(files.packageJson, '"release:store": "node scripts/release-store-build.mjs"');
@@ -94,6 +96,9 @@ const checks = [
     expectIncludes(files.storeSubmissionDraftScript, "uiEvidenceJson");
     expectIncludes(files.storeSubmissionDraftScript, "submission-metadata.json");
     expectIncludes(files.storeSubmissionDraftScript, "submission-review.md");
+    expectIncludes(files.storeRealDeviceScreenshotsScript, "importStoreRealDeviceScreenshots");
+    expectIncludes(files.storeRealDeviceScreenshotsScript, "requireRealDeviceScreenshots: true");
+    expectIncludes(files.storeRealDeviceScreenshotsScript, "source: \"realDevice\"");
     expectIncludes(files.storeSubmissionApprovalScript, "validateStoreSubmissionApproval");
     expectIncludes(files.storeSubmissionApprovalScript, "requireRealDeviceScreenshots");
     expectIncludes(files.storeSubmissionApprovalScript, "Release report is missing store submission artifact");
