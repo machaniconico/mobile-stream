@@ -79,6 +79,8 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "release-evidence-package-manifest");
     expectIncludes(files.releaseEvidencePackageScript, "validateReleaseEvidencePackage");
     expectIncludes(files.releaseEvidencePackageScript, "supportBundle");
+    expectIncludes(files.releaseEvidencePackageScript, "privacyScan");
+    expectIncludes(files.releaseEvidencePackageScript, "sensitiveJsonPattern");
   }),
   check("Android streaming permissions are declared", () => {
     [

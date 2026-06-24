@@ -115,6 +115,94 @@ describe("release evidence package creator", () => {
 
     expect(failures).toContain("Package source metadata mismatch for dist/index.html.");
   });
+
+  it("rejects unredacted sensitive text even when package metadata hashes match", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedUiEvidencePath = `${packageDir}/ui-evidence/ui-evidence.json`;
+    const packagedUiEvidence = JSON.parse(readFileSync(packagedUiEvidencePath, "utf8"));
+    packagedUiEvidence.debug = "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456";
+    writeFileSync(packagedUiEvidencePath, JSON.stringify(packagedUiEvidence, null, 2));
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const evidenceGate = packagedReport.gates.find((gate) => gate.label === "Verify browser UI evidence");
+    evidenceGate.evidence.sha256 = fileSha256(packagedUiEvidencePath);
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+    manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+    manifest.uiEvidence.bytes = readFileSync(packagedUiEvidencePath).byteLength;
+    manifest.uiEvidence.sha256 = fileSha256(packagedUiEvidencePath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain("Release evidence package contains");
+    expect(failures.join("\n")).toContain("unredacted sensitive text finding(s)");
+    expect(failures.join("\n")).toContain("ui-evidence/ui-evidence.json contains a bearer/OAuth token");
+  });
+
+  it("scans release text artifacts such as mjs files for oauth tokens and RTMP stream keys", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedScriptPath = `${packageDir}/artifacts/scripts/create-release-evidence-package.mjs`;
+    writeFileSync(
+      packagedScriptPath,
+      [
+        "const twitch = 'PASS oauth:abcdefghijklmnopqrstuvwxyz123456';",
+        "const publishUrl = 'rtmps://a.rtmps.youtube.com/live2/abcd-efgh-ijkl-mnop-qrst';"
+      ].join("\n")
+    );
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const reportArtifact = packagedReport.artifacts.files.find(
+      (artifact) => artifact.path === "scripts/create-release-evidence-package.mjs"
+    );
+    reportArtifact.bytes = readFileSync(packagedScriptPath).byteLength;
+    reportArtifact.sha256 = fileSha256(packagedScriptPath);
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+    manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+    const packageArtifact = manifest.artifacts.find(
+      (artifact) => artifact.sourcePath === "scripts/create-release-evidence-package.mjs"
+    );
+    packageArtifact.bytes = readFileSync(packagedScriptPath).byteLength;
+    packageArtifact.sha256 = fileSha256(packagedScriptPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain("artifacts/scripts/create-release-evidence-package.mjs contains a Twitch IRC oauth token");
+    expect(failures.join("\n")).toContain("artifacts/scripts/create-release-evidence-package.mjs contains a stream key in an RTMP URL");
+  });
+
+  it("does not read package-escaped paths during the privacy scan", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    writeFile(`${fixtureRoot}/outside.json`, JSON.stringify({ debug: "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456" }));
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.uiEvidence.packagedPath = "../outside.json";
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Package entry path must be package-relative: ../outside.json.");
+    expect(failures.join("\n")).not.toContain("unredacted sensitive text finding");
+  });
 });
 
 function writeFixtureFiles() {

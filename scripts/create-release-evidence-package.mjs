@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync, copyFileSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import { validateReport } from "./verify-release-report.mjs";
@@ -106,7 +106,11 @@ export function createReleaseEvidencePackage({
     sourceReport: sourceReportEntry,
     supportBundle: supportBundleEntry,
     ...(uiEvidenceEntry ? { uiEvidence: uiEvidenceEntry } : {}),
-    artifacts: artifactEntries
+    artifacts: artifactEntries,
+    privacyScan: {
+      status: "passed",
+      scannedTextEntries: countTextEvidenceEntries([sourceReportEntry, supportBundleEntry, uiEvidenceEntry, ...artifactEntries].filter(Boolean))
+    }
   };
 
   const manifestPath = join(resolve(packageDir), releaseEvidencePackageManifestName);
@@ -174,6 +178,7 @@ export function validateReleaseEvidencePackage({ packageDir, verifySources = fal
   }
 
   validatePackagedReport(manifest, resolvedPackageDir, failures);
+  validatePackagePrivacy(manifest, resolvedPackageDir, failures);
   return failures;
 }
 
@@ -229,6 +234,38 @@ function validatePackagedReport(manifest, packageDir, failures) {
   }
 }
 
+function validatePackagePrivacy(manifest, packageDir, failures) {
+  const entries = [
+    manifest.sourceReport,
+    manifest.supportBundle,
+    ...(manifest.uiEvidence ? [manifest.uiEvidence] : []),
+    ...(Array.isArray(manifest.artifacts) ? manifest.artifacts : [])
+  ].filter(Boolean);
+  const findings = [];
+  for (const entry of entries) {
+    if (findings.length >= 10 || !isTextEvidencePath(entry.packagedPath)) {
+      continue;
+    }
+    const path = resolve(packageDir, entry.packagedPath);
+    if (!safeRelativePath(entry.packagedPath) || !isInsideDirectory(path, packageDir)) {
+      continue;
+    }
+    if (!existsSync(path) || !statSync(path).isFile()) {
+      continue;
+    }
+    const content = readFileSync(path, "utf8");
+    findings.push(...findSensitiveTextFindings(content, entry.packagedPath).slice(0, 10 - findings.length));
+  }
+  if (findings.length > 0) {
+    failures.push(
+      `Release evidence package contains ${findings.length} unredacted sensitive text finding(s): ${findings
+        .slice(0, 3)
+        .map((finding) => `${finding.path} ${finding.reason}`)
+        .join("; ")}.`
+    );
+  }
+}
+
 function validateReportSourcePathsForPackaging(report) {
   const failures = [];
   const supportBundleSourcePath = report?.supportBundle?.absolutePath || report?.supportBundle?.path;
@@ -247,6 +284,86 @@ function validateReportSourcePathsForPackaging(report) {
     }
   }
   return failures;
+}
+
+const redactedMarker = "[redacted]";
+const textEvidenceExtensions = new Set([
+  ".bundle",
+  ".cjs",
+  ".css",
+  ".entitlements",
+  ".gradle",
+  ".html",
+  ".js",
+  ".jsbundle",
+  ".json",
+  ".md",
+  ".mjs",
+  ".pbxproj",
+  ".plist",
+  ".properties",
+  ".ts",
+  ".tsx",
+  ".txt",
+  ".xcprivacy",
+  ".xml",
+  ".yaml",
+  ".yml"
+]);
+const sensitiveAssignmentPattern =
+  /\b([A-Za-z0-9_.-]*(?:access_token|refresh_token|id_token|code_verifier|device_code|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|clientSecret|streamKey|oauthToken|authToken|bearerToken|apiKey|secret))=([^&#\s"']+)/gi;
+const sensitiveJsonPattern =
+  /["']([A-Za-z0-9_.-]*(?:access_token|refresh_token|id_token|code_verifier|device_code|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|clientSecret|streamKey|oauthToken|authToken|bearerToken|apiKey|authorization|secret))["']\s*:\s*["']([^"']+)["']/gi;
+const oauthCallbackCodePattern = /[?&#]code=([^&#\s"']+)/gi;
+const authorizationHeaderPattern = /\bAuthorization\s*:\s*(Bearer|OAuth)\s+([^\s,;]+)/gi;
+const bearerTokenPattern = /\b(Bearer|OAuth)\s+([A-Za-z0-9._~+/=-]{12,})/g;
+const twitchIrcOauthPattern = /\boauth:([A-Za-z0-9._~+/=-]{12,})/gi;
+const rtmpPublishUrlPattern = /\brtmps?:\/\/[^\s"'<>]+\/(?:app|live|live2)\/([A-Za-z0-9._~+/=-]{12,}(?:[/?#][^\s"'<>]*)?)/gi;
+
+function countTextEvidenceEntries(entries) {
+  return entries.filter((entry) => entry?.packagedPath && isTextEvidencePath(entry.packagedPath)).length;
+}
+
+function isTextEvidencePath(path) {
+  return textEvidenceExtensions.has(extname(path).toLowerCase());
+}
+
+function findSensitiveTextFindings(value, path) {
+  const findings = [];
+  for (const { pattern, reason, requireTokenShape } of [
+    { pattern: sensitiveAssignmentPattern, reason: "contains a sensitive assignment", requireTokenShape: true },
+    { pattern: sensitiveJsonPattern, reason: "contains a sensitive JSON value", requireTokenShape: true },
+    { pattern: oauthCallbackCodePattern, reason: "contains an OAuth authorization code", requireTokenShape: true },
+    { pattern: authorizationHeaderPattern, reason: "contains an Authorization header", requireTokenShape: true },
+    { pattern: bearerTokenPattern, reason: "contains a bearer/OAuth token", requireTokenShape: true },
+    { pattern: twitchIrcOauthPattern, reason: "contains a Twitch IRC oauth token", requireTokenShape: true },
+    { pattern: rtmpPublishUrlPattern, reason: "contains a stream key in an RTMP URL", requireTokenShape: true }
+  ]) {
+    pattern.lastIndex = 0;
+    for (const match of value.matchAll(pattern)) {
+      const candidate = match[2] ?? match[1] ?? "";
+      if (!isSafeSensitiveValue(candidate) && (!requireTokenShape || looksLikeTokenValue(candidate))) {
+        findings.push({ path, reason });
+        break;
+      }
+    }
+  }
+  return findings;
+}
+
+function isSafeSensitiveValue(value) {
+  const trimmed = String(value || "").trim();
+  return !trimmed || trimmed.includes(redactedMarker);
+}
+
+function looksLikeTokenValue(value) {
+  const trimmed = String(value || "").trim();
+  return (
+    trimmed.length >= 12 &&
+    /^[A-Za-z0-9._~+/?&=-]+$/.test(trimmed) &&
+    /[0-9_~+/\-]/.test(trimmed) &&
+    !/=[^=]/.test(trimmed)
+  );
 }
 
 function uiEvidenceReportGate(report) {
