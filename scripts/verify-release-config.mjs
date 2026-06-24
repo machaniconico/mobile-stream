@@ -28,6 +28,7 @@ const files = {
   exportIosReleaseScript: read("scripts/export-ios-release.mjs"),
   storeReleaseEnvScript: read("scripts/verify-store-release-env.mjs"),
   distributionArtifactsScript: read("scripts/verify-distribution-artifacts.mjs"),
+  dashboardEvidenceScript: read("scripts/verify-platform-dashboard-evidence.mjs"),
   liveCasterBridge: read("ios/MobileLiveCaster/LiveCasterBridge.swift"),
   broadcastHandler: read("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift")
 };
@@ -53,7 +54,9 @@ const checks = [
     expectNotIncludes(releaseBlock(files.androidGradle), "signingConfigs.debug");
     expectIncludes(files.packageJson, '"verify:store-release-env": "node scripts/verify-store-release-env.mjs"');
     expectIncludes(files.packageJson, '"verify:distribution-artifacts": "node scripts/verify-distribution-artifacts.mjs --verify"');
+    expectIncludes(files.packageJson, '"verify:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --verify"');
     expectIncludes(files.packageJson, '"release:distribution-manifest": "node scripts/verify-distribution-artifacts.mjs --write"');
+    expectIncludes(files.packageJson, '"release:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --write"');
     expectIncludes(files.packageJson, '"release:store": "node scripts/release-store-build.mjs"');
     expectIncludes(files.packageJson, '"android:bundleRelease": "bash -lc');
     expectIncludes(files.packageJson, '"android:verify-release-env": "node scripts/verify-store-release-env.mjs --android-only"');
@@ -67,6 +70,9 @@ const checks = [
     expectIncludes(files.storeReleaseBuildScript, "android:verify-release-env");
     expectIncludes(files.storeReleaseBuildScript, "android:bundleRelease");
     expectIncludes(files.storeReleaseBuildScript, "createDistributionManifest");
+    expectIncludes(files.dashboardEvidenceScript, "youtubeScreenshot");
+    expectIncludes(files.dashboardEvidenceScript, "twitchScreenshot");
+    expectIncludes(files.dashboardEvidenceScript, "platform-dashboard-evidence-manifest");
   }),
   check("Android streaming permissions are declared", () => {
     [

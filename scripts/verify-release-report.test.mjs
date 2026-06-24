@@ -8,6 +8,7 @@ import {
   requiredReleaseGateLabels
 } from "./release-artifact-policy.mjs";
 import { distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
+import { dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
 import { validateReport } from "./verify-release-report.mjs";
 
 const generatedFiles = [
@@ -21,6 +22,9 @@ const generatedFiles = [
   ".artifacts/distribution-artifacts.json",
   ".artifacts/release-report-test/app-release.aab",
   ".artifacts/release-report-test/MobileLiveCaster.ipa",
+  ".artifacts/platform-dashboard-evidence.json",
+  ".artifacts/release-report-test/youtube-dashboard.png",
+  ".artifacts/release-report-test/twitch-dashboard.png",
   ".artifacts/release-report-test/support-bundle.json",
   ".artifacts/release-report-test/ui-evidence.json"
 ];
@@ -85,6 +89,25 @@ describe("release report verifier", () => {
 
     expect(failures).toContain("Report is missing distribution artifact .artifacts/release-report-test/MobileLiveCaster.ipa.");
   });
+
+  it("accepts release reports with matching platform dashboard evidence artifacts", () => {
+    restoreUiScreenshots();
+    const failures = validateReport(createReport({ includeDashboardEvidence: true }), reportOptions());
+
+    expect(failures).toEqual([]);
+  });
+
+  it("rejects release reports missing dashboard evidence referenced by the manifest", () => {
+    restoreUiScreenshots();
+    const report = createReport({ includeDashboardEvidence: true });
+    report.artifacts.files = report.artifacts.files.filter(
+      (artifact) => artifact.path !== ".artifacts/release-report-test/twitch-dashboard.png"
+    );
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain("Report is missing dashboard evidence artifact .artifacts/release-report-test/twitch-dashboard.png.");
+  });
 });
 
 function reportOptions() {
@@ -95,10 +118,13 @@ function reportOptions() {
   };
 }
 
-function createReport({ includeDistribution = false } = {}) {
+function createReport({ includeDistribution = false, includeDashboardEvidence = false } = {}) {
   writeUiEvidenceFile();
   if (includeDistribution) {
     writeDistributionFixture();
+  }
+  if (includeDashboardEvidence) {
+    writeDashboardEvidenceFixture();
   }
   const supportBundlePath = ".artifacts/release-report-test/support-bundle.json";
   const artifactFiles = [
@@ -110,7 +136,8 @@ function createReport({ includeDistribution = false } = {}) {
     artifactRecord("react-native", ".artifacts/rn/index.android.bundle"),
     artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
     artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
-    ...(includeDistribution ? distributionArtifactRecords() : [])
+    ...(includeDistribution ? distributionArtifactRecords() : []),
+    ...(includeDashboardEvidence ? dashboardEvidenceRecords() : [])
   ];
 
   return {
@@ -219,6 +246,34 @@ function writeDistributionFixture() {
   );
 }
 
+function writeDashboardEvidenceFixture() {
+  writeFile(".artifacts/release-report-test/youtube-dashboard.png", pngBytes);
+  writeFile(".artifacts/release-report-test/twitch-dashboard.png", pngBytes);
+  writeFile(
+    dashboardEvidenceManifestPath,
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: "platform-dashboard-evidence-manifest",
+        generatedAt: new Date().toISOString(),
+        git: {
+          commit: currentCommit(),
+          branch: "main",
+          dirty: true,
+          statusShort: " M scripts/verify-release-report.test.mjs"
+        },
+        artifacts: [
+          dashboardManifestRecord("youtube", ".artifacts/release-report-test/youtube-dashboard.png"),
+          dashboardManifestRecord("twitch", ".artifacts/release-report-test/twitch-dashboard.png")
+        ]
+      },
+      null,
+      2
+    )
+  );
+}
+
 function distributionArtifactRecords() {
   return [
     artifactRecord("distribution", distributionArtifactManifestPath),
@@ -232,6 +287,26 @@ function distributionManifestRecord(platform, kind, path) {
   return {
     platform,
     kind,
+    path,
+    basename: path.split("/").at(-1),
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function dashboardEvidenceRecords() {
+  return [
+    artifactRecord("dashboard", dashboardEvidenceManifestPath),
+    artifactRecord("dashboard", ".artifacts/release-report-test/youtube-dashboard.png"),
+    artifactRecord("dashboard", ".artifacts/release-report-test/twitch-dashboard.png")
+  ];
+}
+
+function dashboardManifestRecord(platform, path) {
+  const content = readFileSync(path);
+  return {
+    platform,
+    kind: "screenshot",
     path,
     basename: path.split("/").at(-1),
     bytes: content.byteLength,
@@ -312,6 +387,7 @@ function restoreFiles() {
   }
   rmSync(".artifacts/release-report-test", { recursive: true, force: true });
   rmSync(".artifacts/distribution-artifacts.json", { force: true });
+  rmSync(".artifacts/platform-dashboard-evidence.json", { force: true });
   rmSync("dist/assets/release-report-test.js", { force: true });
   rmSync("dist/assets/release-report-test.css", { force: true });
 }

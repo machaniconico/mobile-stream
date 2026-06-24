@@ -5,6 +5,7 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { argv, env, exit, platform, cwd } from "node:process";
 import { releaseConfigArtifactPaths } from "./release-artifact-policy.mjs";
 import { collectDistributionArtifactRecords } from "./verify-distribution-artifacts.mjs";
+import { collectDashboardEvidenceArtifactRecords } from "./verify-platform-dashboard-evidence.mjs";
 
 const defaultUiUrl = "http://127.0.0.1:5173/";
 const devServerTimeoutMs = 30_000;
@@ -616,6 +617,7 @@ function collectReleaseArtifacts() {
     ...collectDirectoryFiles("web", "dist/assets", (path) => path.endsWith(".js") || path.endsWith(".css")),
     ...collectFiles("react-native", [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"]),
     ...collectDistributionArtifactRecords(),
+    ...collectDashboardEvidenceArtifactRecords(),
     ...collectFiles("ui", [
       ".artifacts/ui-verification.json",
       ".artifacts/mobile-live-caster-desktop.png",

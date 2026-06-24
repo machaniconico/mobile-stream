@@ -85,6 +85,7 @@ npm run verify:rn
 npm run verify:release-config
 npm run verify:store-release-env
 npm run verify:distribution-artifacts
+npm run verify:dashboard-evidence
 npm run verify:commercial-release-bundle -- /path/to/support-bundle.json
 npm run verify:release-candidate -- /path/to/support-bundle.json
 npm run verify:release-report -- /path/to/release-candidate-verification.json
@@ -100,6 +101,7 @@ npm run ios:archive:release
 npm run ios:export:release
 npm run release:store -- --dry-run
 npm run release:distribution-manifest -- --android-aab android/app/build/outputs/bundle/release/app-release.aab --ios-ipa .artifacts/ios/export/MobileLiveCaster.ipa
+npm run release:dashboard-evidence -- --youtube-screenshot .artifacts/dashboard/youtube.png --twitch-screenshot .artifacts/dashboard/twitch.png
 ```
 
 `npm run verify:rn` builds Metro JS bundles for iOS and Android. It does not require a simulator, device, Android Studio, or CocoaPods.
@@ -119,6 +121,8 @@ npm run release:distribution-manifest -- --android-aab android/app/build/outputs
 `npm run android:bundleRelease` creates the signed Android App Bundle for store distribution after `MLC_RELEASE_STORE_FILE`, `MLC_RELEASE_STORE_PASSWORD`, `MLC_RELEASE_KEY_ALIAS`, and `MLC_RELEASE_KEY_PASSWORD` pass `npm run android:verify-release-env`.
 
 `npm run release:distribution-manifest -- --android-aab <path> --ios-ipa <path>` writes `.artifacts/distribution-artifacts.json` with workspace-relative `.aab` / `.ipa` paths, byte counts, and SHA-256 hashes. `npm run verify:distribution-artifacts` verifies that manifest before release approval. When the manifest exists, `npm run verify:release-candidate` includes it and the referenced binaries in the saved release report.
+
+`npm run release:dashboard-evidence -- --youtube-screenshot <png> --twitch-screenshot <png>` writes `.artifacts/platform-dashboard-evidence.json` with hashes for YouTube/Twitch dashboard screenshots and optional status JSON files. `npm run verify:dashboard-evidence` verifies those files, and release-candidate reports include them whenever the manifest exists.
 
 `npm run release:store` orchestrates the store-distribution path: platform release environment checks, Android App Bundle generation, iOS archive/export, and distribution manifest creation. Use `--dry-run` to inspect the exact steps, or `--android-only` / `--ios-only` for platform-specific releases.
 
