@@ -140,6 +140,7 @@
 - Android microphone/notification runtime permission preflight before MediaProjection launch.
 - Android release signing fail-closed configuration using `MLC_RELEASE_*` keystore inputs instead of debug signing for release artifacts.
 - Store-release environment verifier for iOS and Android that checks required Apple team/profile/App Store Connect API-key and Android release keystore inputs before production archive/export/bundle tasks, without logging secret values and while rejecting signing material stored inside the repository.
+- Distribution artifact manifest tooling for generated Android `.aab` and iOS `.ipa` files, including byte/SHA-256 recording, verification, and optional release-candidate/report artifact capture when the manifest exists.
 - Android build-type network policy keeps cleartext traffic enabled only for debug development and disables it for release artifacts.
 - Native store version audit keeps Android application metadata, iOS host app versioning, and ReplayKit Broadcast Upload Extension versioning aligned before release approval.
 - Native release-configuration audit script covering Android release signing, release cleartext-traffic blocking, Android/iOS store version alignment, streaming permissions, OAuth callback schemes, iOS usage descriptions, iOS privacy manifest packaging, and ReplayKit Broadcast Upload Extension bundle identifiers, Debug/Release entitlements, extension-only settings, and matching App Group setup.

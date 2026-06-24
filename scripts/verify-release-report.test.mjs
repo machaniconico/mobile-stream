@@ -7,6 +7,7 @@ import {
   releaseConfigArtifactPaths,
   requiredReleaseGateLabels
 } from "./release-artifact-policy.mjs";
+import { distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
 import { validateReport } from "./verify-release-report.mjs";
 
 const generatedFiles = [
@@ -17,6 +18,9 @@ const generatedFiles = [
   ".artifacts/rn/index.android.bundle",
   ".artifacts/mobile-live-caster-desktop.png",
   ".artifacts/mobile-live-caster-mobile.png",
+  ".artifacts/distribution-artifacts.json",
+  ".artifacts/release-report-test/app-release.aab",
+  ".artifacts/release-report-test/MobileLiveCaster.ipa",
   ".artifacts/release-report-test/support-bundle.json",
   ".artifacts/release-report-test/ui-evidence.json"
 ];
@@ -62,6 +66,25 @@ describe("release report verifier", () => {
       "Browser UI evidence screenshot is not a PNG file: .artifacts/mobile-live-caster-mobile.png."
     );
   });
+
+  it("accepts release reports with a matching distribution artifact manifest", () => {
+    restoreUiScreenshots();
+    const failures = validateReport(createReport({ includeDistribution: true }), reportOptions());
+
+    expect(failures).toEqual([]);
+  });
+
+  it("rejects release reports missing an artifact referenced by the distribution manifest", () => {
+    restoreUiScreenshots();
+    const report = createReport({ includeDistribution: true });
+    report.artifacts.files = report.artifacts.files.filter(
+      (artifact) => artifact.path !== ".artifacts/release-report-test/MobileLiveCaster.ipa"
+    );
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain("Report is missing distribution artifact .artifacts/release-report-test/MobileLiveCaster.ipa.");
+  });
 });
 
 function reportOptions() {
@@ -72,8 +95,11 @@ function reportOptions() {
   };
 }
 
-function createReport() {
+function createReport({ includeDistribution = false } = {}) {
   writeUiEvidenceFile();
+  if (includeDistribution) {
+    writeDistributionFixture();
+  }
   const supportBundlePath = ".artifacts/release-report-test/support-bundle.json";
   const artifactFiles = [
     ...releaseConfigArtifactPaths.map((path) => artifactRecord("release-config", path)),
@@ -83,7 +109,8 @@ function createReport() {
     artifactRecord("react-native", ".artifacts/rn/main.ios.jsbundle"),
     artifactRecord("react-native", ".artifacts/rn/index.android.bundle"),
     artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
-    artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png")
+    artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
+    ...(includeDistribution ? distributionArtifactRecords() : [])
   ];
 
   return {
@@ -158,6 +185,60 @@ function writeFixtureFiles() {
   writeUiEvidenceFile();
 }
 
+function restoreUiScreenshots() {
+  writeFile(".artifacts/mobile-live-caster-desktop.png", pngBytes);
+  writeFile(".artifacts/mobile-live-caster-mobile.png", pngBytes);
+  writeUiEvidenceFile();
+}
+
+function writeDistributionFixture() {
+  writeFile(".artifacts/release-report-test/app-release.aab", "fake-android-aab");
+  writeFile(".artifacts/release-report-test/MobileLiveCaster.ipa", "fake-ios-ipa");
+  writeFile(
+    distributionArtifactManifestPath,
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: "distribution-artifact-manifest",
+        generatedAt: new Date().toISOString(),
+        git: {
+          commit: currentCommit(),
+          branch: "main",
+          dirty: true,
+          statusShort: " M scripts/verify-release-report.test.mjs"
+        },
+        artifacts: [
+          distributionManifestRecord("android", "aab", ".artifacts/release-report-test/app-release.aab"),
+          distributionManifestRecord("ios", "ipa", ".artifacts/release-report-test/MobileLiveCaster.ipa")
+        ]
+      },
+      null,
+      2
+    )
+  );
+}
+
+function distributionArtifactRecords() {
+  return [
+    artifactRecord("distribution", distributionArtifactManifestPath),
+    artifactRecord("distribution", ".artifacts/release-report-test/app-release.aab"),
+    artifactRecord("distribution", ".artifacts/release-report-test/MobileLiveCaster.ipa")
+  ];
+}
+
+function distributionManifestRecord(platform, kind, path) {
+  const content = readFileSync(path);
+  return {
+    platform,
+    kind,
+    path,
+    basename: path.split("/").at(-1),
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
 function writeUiEvidenceFile() {
   writeFile(
     ".artifacts/release-report-test/ui-evidence.json",
@@ -230,6 +311,7 @@ function restoreFiles() {
     }
   }
   rmSync(".artifacts/release-report-test", { recursive: true, force: true });
+  rmSync(".artifacts/distribution-artifacts.json", { force: true });
   rmSync("dist/assets/release-report-test.js", { force: true });
   rmSync("dist/assets/release-report-test.css", { force: true });
 }

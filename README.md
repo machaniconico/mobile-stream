@@ -84,6 +84,7 @@ npm run verify:web-bundle-size
 npm run verify:rn
 npm run verify:release-config
 npm run verify:store-release-env
+npm run verify:distribution-artifacts
 npm run verify:commercial-release-bundle -- /path/to/support-bundle.json
 npm run verify:release-candidate -- /path/to/support-bundle.json
 npm run verify:release-report -- /path/to/release-candidate-verification.json
@@ -97,6 +98,7 @@ npm run android:verify-release-env
 npm run ios:export-options
 npm run ios:archive:release
 npm run ios:export:release
+npm run release:distribution-manifest -- --android-aab android/app/build/outputs/bundle/release/app-release.aab --ios-ipa .artifacts/ios/export/MobileLiveCaster.ipa
 ```
 
 `npm run verify:rn` builds Metro JS bundles for iOS and Android. It does not require a simulator, device, Android Studio, or CocoaPods.
@@ -114,6 +116,8 @@ npm run ios:export:release
 `npm run ios:archive:release` creates the Release device archive with Apple Distribution signing and provisioning updates enabled. `npm run ios:export:release` regenerates export options and exports the archive using explicit provisioning profiles for both the host app and Broadcast Upload Extension.
 
 `npm run android:bundleRelease` creates the signed Android App Bundle for store distribution after `MLC_RELEASE_STORE_FILE`, `MLC_RELEASE_STORE_PASSWORD`, `MLC_RELEASE_KEY_ALIAS`, and `MLC_RELEASE_KEY_PASSWORD` pass `npm run android:verify-release-env`.
+
+`npm run release:distribution-manifest -- --android-aab <path> --ios-ipa <path>` writes `.artifacts/distribution-artifacts.json` with workspace-relative `.aab` / `.ipa` paths, byte counts, and SHA-256 hashes. `npm run verify:distribution-artifacts` verifies that manifest before release approval. When the manifest exists, `npm run verify:release-candidate` includes it and the referenced binaries in the saved release report.
 
 `npm run verify:release-config` audits native store-release configuration, including Android release signing fail-closed behavior, Android App Bundle release automation, release cleartext-traffic blocking, Android/iOS store version alignment, streaming permissions, OAuth callback schemes, iOS usage descriptions, the iOS privacy manifest, iOS production archive/export automation, and the ReplayKit Broadcast Upload Extension bundle/entitlements/App Group/provisioning setup.
 

@@ -9,6 +9,7 @@ import {
   requiredReleaseArtifactGroups,
   requiredReleaseGateLabels
 } from "./release-artifact-policy.mjs";
+import { validateDistributionArtifactsInReport } from "./verify-distribution-artifacts.mjs";
 
 const requiredUiViewportNames = ["desktop", "mobile"];
 const requiredReactNativeArtifacts = [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"];
@@ -240,6 +241,7 @@ function validateArtifacts(report, fail) {
   for (const artifact of artifacts) {
     validateArtifactRecord(artifact, fail);
   }
+  validateDistributionArtifactsInReport(artifacts, fail);
 }
 
 function validateArtifactRecord(artifact, fail) {

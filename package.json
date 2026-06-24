@@ -17,6 +17,7 @@
     "verify:web-bundle-size": "node scripts/verify-web-bundle-size.mjs",
     "verify:release-config": "node scripts/verify-release-config.mjs",
     "verify:store-release-env": "node scripts/verify-store-release-env.mjs",
+    "verify:distribution-artifacts": "node scripts/verify-distribution-artifacts.mjs --verify",
     "verify:commercial-release-bundle": "node scripts/verify-commercial-release-bundle.mjs",
     "verify:release-candidate": "node scripts/verify-release-candidate.mjs",
     "verify:release-report": "node scripts/verify-release-report.mjs",
@@ -35,7 +36,8 @@
     "android:verify-release-env": "node scripts/verify-store-release-env.mjs --android-only",
     "ios:export-options": "node scripts/create-ios-export-options.mjs",
     "ios:archive:release": "bash -lc 'source scripts/rn-env.sh && node scripts/archive-ios-release.mjs'",
-    "ios:export:release": "bash -lc 'source scripts/rn-env.sh && node scripts/export-ios-release.mjs'"
+    "ios:export:release": "bash -lc 'source scripts/rn-env.sh && node scripts/export-ios-release.mjs'",
+    "release:distribution-manifest": "node scripts/verify-distribution-artifacts.mjs --write"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",
