@@ -32,6 +32,7 @@ const files = {
   distributionArtifactsScript: read("scripts/verify-distribution-artifacts.mjs"),
   dashboardEvidenceScript: read("scripts/verify-platform-dashboard-evidence.mjs"),
   storeSubmissionScript: read("scripts/verify-store-submission-checklist.mjs"),
+  storeSubmissionApprovalScript: read("scripts/verify-store-submission-approval.mjs"),
   liveCasterBridge: read("ios/MobileLiveCaster/LiveCasterBridge.swift"),
   broadcastHandler: read("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift")
 };
@@ -60,6 +61,7 @@ const checks = [
     expectIncludes(files.packageJson, '"verify:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --verify"');
     expectIncludes(files.packageJson, '"verify:store-submission": "node scripts/verify-store-submission-checklist.mjs --verify"');
     expectIncludes(files.packageJson, '"verify:store-submission-final": "node scripts/verify-store-submission-checklist.mjs --verify --require-real-device-screenshots"');
+    expectIncludes(files.packageJson, '"verify:store-submission-approval": "node scripts/verify-store-submission-approval.mjs"');
     expectIncludes(files.packageJson, '"verify:evidence-package": "node scripts/create-release-evidence-package.mjs --verify"');
     expectIncludes(files.packageJson, '"release:distribution-manifest": "node scripts/verify-distribution-artifacts.mjs --write"');
     expectIncludes(files.packageJson, '"release:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --write"');
@@ -92,6 +94,9 @@ const checks = [
     expectIncludes(files.storeSubmissionDraftScript, "uiEvidenceJson");
     expectIncludes(files.storeSubmissionDraftScript, "submission-metadata.json");
     expectIncludes(files.storeSubmissionDraftScript, "submission-review.md");
+    expectIncludes(files.storeSubmissionApprovalScript, "validateStoreSubmissionApproval");
+    expectIncludes(files.storeSubmissionApprovalScript, "requireRealDeviceScreenshots");
+    expectIncludes(files.storeSubmissionApprovalScript, "Release report is missing store submission artifact");
     expectIncludes(files.releaseEvidencePackageScript, "release-evidence-package-manifest");
     expectIncludes(files.releaseEvidencePackageScript, "validateReleaseEvidencePackage");
     expectIncludes(files.releaseEvidencePackageScript, "supportBundle");

@@ -19,6 +19,7 @@ export const releaseConfigArtifactPaths = [
   "scripts/verify-distribution-artifacts.mjs",
   "scripts/verify-platform-dashboard-evidence.mjs",
   "scripts/verify-store-submission-checklist.mjs",
+  "scripts/verify-store-submission-approval.mjs",
   "scripts/verify-release-report.mjs",
   "scripts/verify-repo-automation.mjs",
   "scripts/verify-scripts.mjs",

@@ -557,10 +557,4 @@ function restoreFiles() {
       writeFile(path, content);
     }
   }
-  rmSync(".artifacts/release-report-test", { recursive: true, force: true });
-  rmSync(".artifacts/distribution-artifacts.json", { force: true });
-  rmSync(".artifacts/platform-dashboard-evidence.json", { force: true });
-  rmSync(".artifacts/store-submission-checklist.json", { force: true });
-  rmSync("dist/assets/release-report-test.js", { force: true });
-  rmSync("dist/assets/release-report-test.css", { force: true });
 }
