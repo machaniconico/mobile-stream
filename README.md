@@ -21,6 +21,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Commercial release support-bundle privacy gate that blocks release approval if OAuth tokens, stream keys, client secrets, device codes, or Authorization headers are still unredacted in exported evidence.
 - Release-candidate verification command that chains source gates, browser UI verification, React Native bundle generation, and the commercial support-bundle gate into one local approval step with a JSON audit report that hashes generated artifacts and release-configuration inputs.
 - Saved release-candidate report audit that revalidates the archived report, support-bundle SHA-256, UI evidence, generated artifact hashes, release-configuration input hashes, clean git state, and required gate outcomes before using a report for commercial approval.
+- Release automation script syntax verification is part of CI and the local release-candidate gate, so broken `.mjs` release tooling is caught before commercial approval.
 - Browser UI verification writes JSON evidence with desktop/mobile screenshot hashes, and release-candidate UI skips require that evidence before approval.
 - Android build-type network policy keeps cleartext traffic enabled only for debug development and disables it for release artifacts.
 - Native store version audit keeps Android application metadata, iOS host app versioning, and the ReplayKit Broadcast Upload Extension versioning aligned before release approval.
@@ -76,6 +77,7 @@ npm run mobile:start
 npm test
 npm run typecheck
 npm run build
+npm run verify:scripts
 npm run verify:repo-automation
 npm run verify:web-bundle-size
 npm run verify:rn
@@ -91,7 +93,9 @@ npm run ios:build:simulator
 
 `npm run verify:rn` builds Metro JS bundles for iOS and Android. It does not require a simulator, device, Android Studio, or CocoaPods.
 
-`npm run verify:repo-automation` audits GitHub Actions release gates and checks that PR auto-merge remains explicit opt-in through the `automerge` label.
+`npm run verify:scripts` syntax-checks the release automation `.mjs` scripts that CI and the release-candidate gate depend on.
+
+`npm run verify:repo-automation` audits GitHub Actions release gates and checks that CI keeps release automation script verification, native release checks, tests, build, bundle-size, RN bundle coverage, and PR auto-merge remains explicit opt-in through the `automerge` label.
 
 `npm run verify:web-bundle-size` checks the built web assets in `dist/assets` and fails if the studio shell loses code-splitting or any JavaScript chunk exceeds the release limit. Run `npm run build` first.
 
@@ -99,7 +103,7 @@ npm run ios:build:simulator
 
 `npm run verify:commercial-release-bundle -- /path/to/support-bundle.json` checks a saved support bundle before release approval. It fails unless the bundle is fresh, schema v13+, public-launch ready, runbook complete, free of unredacted sensitive evidence, and backed by passing same-build iOS/Android validation evidence. Use `--allow-warnings` only after explicitly approving remaining warnings.
 
-`npm run verify:release-candidate -- /path/to/support-bundle.json` is the local commercial release-candidate approval command. It fails on uncommitted source changes, runs repository automation checks, native release-config checks, unit tests, web/RN typechecks, the web build, web bundle-size verification, iOS/Android Metro bundles, browser UI verification, and the commercial support-bundle gate, then writes `.artifacts/release-candidate-verification.json` with the support-bundle SHA-256, git commit, dirty-state, gate outcomes, timings, generated web/RN/UI artifact hashes, release-configuration input hashes, and failure reason if any. Use `--report-json=/path/to/report.json` to choose the evidence path, `--ui-url=http://127.0.0.1:5173/` when a preview server is already running, `--allow-dirty` only for development-only evidence before commit, and `--skip-ui --ui-evidence-json=/path/to/ui-verification.json` only when Chrome is unavailable inside the RC command and `npm run verify:ui` has already produced passing evidence for the same commit.
+`npm run verify:release-candidate -- /path/to/support-bundle.json` is the local commercial release-candidate approval command. It fails on uncommitted source changes, runs release automation script verification, repository automation checks, native release-config checks, unit tests, web/RN typechecks, the web build, web bundle-size verification, iOS/Android Metro bundles, browser UI verification, and the commercial support-bundle gate, then writes `.artifacts/release-candidate-verification.json` with the support-bundle SHA-256, git commit, dirty-state, gate outcomes, timings, generated web/RN/UI artifact hashes, release-configuration input hashes, and failure reason if any. Use `--report-json=/path/to/report.json` to choose the evidence path, `--ui-url=http://127.0.0.1:5173/` when a preview server is already running, `--allow-dirty` only for development-only evidence before commit, and `--skip-ui --ui-evidence-json=/path/to/ui-verification.json` only when Chrome is unavailable inside the RC command and `npm run verify:ui` has already produced passing evidence for the same commit.
 
 `npm run verify:release-report -- /path/to/release-candidate-verification.json` audits a saved RC report before release approval. It fails unless the report is passed, fresh, clean, tied to the current commit, backed by passing required gates, and still matches the support bundle, UI evidence, generated web/RN/UI artifacts, and release-configuration inputs by SHA-256. Use `--allow-dirty` or `--allow-commit-mismatch` only for development-only report inspection.
 

@@ -16,6 +16,9 @@ const checks = [
   check("CI runs repository automation safety audit", () => {
     expectIncludes(files.ci, "npm run verify:repo-automation");
   }),
+  check("CI verifies release automation scripts", () => {
+    expectIncludes(files.ci, "npm run verify:scripts");
+  }),
   check("CI runs native release configuration audit", () => {
     expectIncludes(files.ci, "npm run verify:release-config");
   }),

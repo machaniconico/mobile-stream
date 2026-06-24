@@ -10,6 +10,7 @@ export const releaseConfigArtifactPaths = [
   "scripts/verify-commercial-release-bundle.mjs",
   "scripts/verify-release-report.mjs",
   "scripts/verify-repo-automation.mjs",
+  "scripts/verify-scripts.mjs",
   "scripts/verify-ui.mjs",
   "scripts/verify-web-bundle-size.mjs",
   "android/app/build.gradle",
@@ -26,6 +27,7 @@ export const releaseConfigArtifactPaths = [
 
 export const requiredReleaseGateLabels = [
   "Verify clean git worktree",
+  "Verify release automation scripts",
   "Verify repository automation safety",
   "Verify native release configuration",
   "Run unit tests",

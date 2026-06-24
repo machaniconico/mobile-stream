@@ -11,6 +11,7 @@ const defaultReportPath = ".artifacts/release-candidate-verification.json";
 const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
 const requiredUiViewportNames = ["desktop", "mobile"];
 const sourceGates = [
+  ["Verify release automation scripts", ["run", "verify:scripts"]],
   ["Verify repository automation safety", ["run", "verify:repo-automation"]],
   ["Verify native release configuration", ["run", "verify:release-config"]],
   ["Run unit tests", ["test"]],

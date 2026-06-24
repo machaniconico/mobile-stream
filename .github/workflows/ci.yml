@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify release automation scripts
+        run: npm run verify:scripts
+
       - name: Verify repository automation safety
         run: npm run verify:repo-automation
 
