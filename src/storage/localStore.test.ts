@@ -107,7 +107,9 @@ describe("local stream session summary store", () => {
       ...run,
       deviceName: `Pixel ${profile.destination.streamKey}`,
       summary: `Summary ${profile.destination.streamKey}`,
-      recommendation: `Retest ${profile.destination.streamKey}`
+      recommendation: `Retest ${profile.destination.streamKey}`,
+      networkProfile:
+        "Authorization: Bearer validation-oauth-token mobilelivecaster://oauth/youtube?code=validation-code"
     };
 
     saveStreamValidationRuns([unsafeRun], [profile.destination.streamKey]);
@@ -115,6 +117,8 @@ describe("local stream session summary store", () => {
     expect(loadStreamValidationRuns()).toHaveLength(1);
     expect(storage.getItem(validationRunsStorageKey)).toContain(run.id);
     expect(storage.getItem(validationRunsStorageKey)).not.toContain(profile.destination.streamKey);
+    expect(storage.getItem(validationRunsStorageKey)).not.toContain("validation-oauth-token");
+    expect(storage.getItem(validationRunsStorageKey)).not.toContain("validation-code");
     expect(storage.getItem(validationRunsStorageKey)).toContain("[redacted]");
 
     clearStreamValidationRuns();

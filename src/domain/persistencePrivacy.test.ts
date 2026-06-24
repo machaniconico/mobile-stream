@@ -25,4 +25,24 @@ describe("persistence privacy", () => {
   it("leaves text untouched when no useful secret candidates are supplied", () => {
     expect(redactSecretsFromText("ordinary validation note", ["", "   "])).toBe("ordinary validation note");
   });
+
+  it("redacts common OAuth and Authorization secrets even without supplied stream keys", () => {
+    const value = {
+      note: "Authorization: Bearer youtube-access-token-secret",
+      callback: "mobilelivecaster://oauth/youtube?code=oauth-code-secret&device_code=device-secret",
+      payload: {
+        clientSecret: '{"client_secret":"client-secret-value","refresh_token":"refresh-secret"}'
+      }
+    };
+
+    const redacted = redactSecretsFromPersistedValue(value);
+    const json = JSON.stringify(redacted);
+
+    expect(json).not.toContain("youtube-access-token-secret");
+    expect(json).not.toContain("oauth-code-secret");
+    expect(json).not.toContain("device-secret");
+    expect(json).not.toContain("client-secret-value");
+    expect(json).not.toContain("refresh-secret");
+    expect(json).toContain("[redacted]");
+  });
 });

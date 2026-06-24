@@ -34,7 +34,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Native composition readiness and diagnostics for native-supported avatar/text/image/solid overlays, underlay ordering, Live2D gaps, iOS Broadcast Upload Extension still-image asset access risks before device RTMP publishing, and runtime loaded/missing asset evidence.
 - Mobile PNGTuber/image still-image picking and preparation that copies local assets into native-readable storage before streaming.
 - Stream key redaction and no-secret browser persistence.
-- Physical validation run persistence redacts supplied stream-key candidates before writing Web localStorage or mobile native storage.
+- Physical validation run persistence redacts supplied stream-key candidates plus OAuth/API tokens, device codes, client secrets, and Authorization headers before writing Web localStorage or mobile native storage.
 - Sensitive OAuth/API error message redaction before user-facing status display.
 - OAuth, stream-key, publishing, and YouTube chat API calls convert empty or non-JSON upstream responses into sanitized HTTP/unreadable-JSON errors with retryability and `Retry-After` metadata that is surfaced as safe retry guidance in app status messages.
 - Native Android/iOS status and publisher-runtime messages redact publish URLs, stream keys, and bearer tokens before app display.

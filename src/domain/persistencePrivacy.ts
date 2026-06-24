@@ -1,16 +1,12 @@
+import { redactSensitiveText } from "./sensitiveText";
+
 export const redactSecretsFromPersistedValue = <T>(value: T, secrets: string[] = []): T => {
   const candidates = secretCandidates(secrets);
-  if (candidates.length === 0) {
-    return value;
-  }
   return redactValue(value, candidates) as T;
 };
 
 export const redactSecretsFromText = (value: string, secrets: string[] = []): string => {
   const candidates = secretCandidates(secrets);
-  if (candidates.length === 0) {
-    return value;
-  }
   return redactText(value, candidates);
 };
 
@@ -30,7 +26,7 @@ const redactValue = (value: unknown, candidates: string[]): unknown => {
 };
 
 const redactText = (value: string, candidates: string[]): string =>
-  candidates.reduce((current, candidate) => current.split(candidate).join("[redacted]"), value);
+  candidates.reduce((current, candidate) => current.split(candidate).join("[redacted]"), redactSensitiveText(value));
 
 const secretCandidates = (secrets: string[]): string[] => {
   const candidates = secrets.flatMap((secret) => {
