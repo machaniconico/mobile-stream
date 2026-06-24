@@ -32,7 +32,7 @@ const pngBytes = Buffer.from(
   "base64"
 );
 const capturedAt = "2026-06-25T00:00:00.000Z";
-const appBuild = "1.0.0 (15)";
+const appBuild = "rc-1";
 
 describe("store submission approval verifier", () => {
   beforeAll(() => {
@@ -70,6 +70,21 @@ describe("store submission approval verifier", () => {
     );
     expect(failures).toContain(
       "Store submission screenshot .artifacts/store-approval-test/android-store.png must be captured from a real device for final store submission."
+    );
+
+    writeStoreSubmissionFixture();
+  });
+
+  it("rejects approval when store screenshots were captured from a different app build", () => {
+    writeStoreSubmissionFixture({ appBuild: "rc-2" });
+
+    const failures = validateStoreSubmissionApproval(createReport(), readStoreManifest(), approvalOptions());
+
+    expect(failures).toContain(
+      "Store submission screenshot .artifacts/store-approval-test/ios-store.png app build rc-2 does not match validation evidence build rc-1."
+    );
+    expect(failures).toContain(
+      "Store submission screenshot .artifacts/store-approval-test/android-store.png app build rc-2 does not match validation evidence build rc-1."
     );
 
     writeStoreSubmissionFixture();
@@ -170,12 +185,21 @@ function writeFixtureFiles() {
   writeFile(".artifacts/rn/index.android.bundle", "android bundle");
   writeFile(".artifacts/mobile-live-caster-desktop.png", pngBytes);
   writeFile(".artifacts/mobile-live-caster-mobile.png", pngBytes);
-  writeFile(".artifacts/store-approval-test/support-bundle.json", JSON.stringify({ app: "MobileLiveCaster" }));
+  writeFile(
+    ".artifacts/store-approval-test/support-bundle.json",
+    JSON.stringify({
+      app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 15 },
+      summary: {
+        validationEvidenceAppBuildMismatch: false,
+        validationEvidenceConsistentAppBuild: appBuild
+      }
+    })
+  );
   writeStoreSubmissionFixture();
   writeUiEvidenceFile();
 }
 
-function writeStoreSubmissionFixture({ screenshotSource = "realDevice" } = {}) {
+function writeStoreSubmissionFixture({ screenshotSource = "realDevice", appBuild: screenshotAppBuild = appBuild } = {}) {
   writeFile(".artifacts/store-approval-test/ios-store.png", pngBytes);
   writeFile(".artifacts/store-approval-test/android-store.png", pngBytes);
   writeFile(".artifacts/store-approval-test/submission-review.md", "# Store Submission Review\n\n- [ ] Listing reviewed.\n");
@@ -217,7 +241,7 @@ function writeStoreSubmissionFixture({ screenshotSource = "realDevice" } = {}) {
             path: ".artifacts/store-approval-test/ios-store.png",
             source: screenshotSource,
             ...(screenshotSource === "realDevice"
-              ? { osVersion: "iOS 18.5", appBuild, capturedAt }
+              ? { osVersion: "iOS 18.5", appBuild: screenshotAppBuild, capturedAt }
               : {})
           },
           {
@@ -226,7 +250,7 @@ function writeStoreSubmissionFixture({ screenshotSource = "realDevice" } = {}) {
             path: ".artifacts/store-approval-test/android-store.png",
             source: screenshotSource,
             ...(screenshotSource === "realDevice"
-              ? { osVersion: "Android 15", appBuild, capturedAt }
+              ? { osVersion: "Android 15", appBuild: screenshotAppBuild, capturedAt }
               : {})
           }
         ],
@@ -254,8 +278,8 @@ function writeStoreSubmissionFixture({ screenshotSource = "realDevice" } = {}) {
         },
         metadata: metadataRecord(),
         screenshots: [
-          screenshotRecord("ios", "iPhone 15 Pro Max", ".artifacts/store-approval-test/ios-store.png", screenshotSource),
-          screenshotRecord("android", "Pixel 8 Pro", ".artifacts/store-approval-test/android-store.png", screenshotSource)
+          screenshotRecord("ios", "iPhone 15 Pro Max", ".artifacts/store-approval-test/ios-store.png", screenshotSource, screenshotAppBuild),
+          screenshotRecord("android", "Pixel 8 Pro", ".artifacts/store-approval-test/android-store.png", screenshotSource, screenshotAppBuild)
         ],
         reviewDocuments: [reviewDocumentRecord()]
       },
@@ -313,7 +337,7 @@ function reviewDocumentRecord() {
   return record("submissionReview", ".artifacts/store-approval-test/submission-review.md");
 }
 
-function screenshotRecord(platform, device, path, source) {
+function screenshotRecord(platform, device, path, source, screenshotAppBuild = appBuild) {
   const content = readFileSync(path);
   return {
     platform,
@@ -325,7 +349,7 @@ function screenshotRecord(platform, device, path, source) {
     ...(source === "realDevice"
       ? {
           osVersion: platform === "ios" ? "iOS 18.5" : "Android 15",
-          appBuild,
+          appBuild: screenshotAppBuild,
           capturedAt
         }
       : {}),

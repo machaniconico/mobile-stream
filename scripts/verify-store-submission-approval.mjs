@@ -76,8 +76,52 @@ export function validateStoreSubmissionApproval(report, manifest, options) {
     fail(`Store submission checklist commit ${manifestCommit} does not match release report commit ${reportCommit}.`);
   }
   validateStoreArtifactsCaptured(report, manifest, options, fail);
+  validateScreenshotBuildMatchesSupportBundle(report, manifest, fail);
 
   return failures;
+}
+
+function validateScreenshotBuildMatchesSupportBundle(report, manifest, fail) {
+  const supportBundle = readSupportBundleForReport(report, fail);
+  if (!supportBundle) {
+    return;
+  }
+
+  const expectedBuild = stringValue(supportBundle?.summary?.validationEvidenceConsistentAppBuild);
+  if (supportBundle?.summary?.validationEvidenceAppBuildMismatch === true) {
+    fail("Support bundle validation evidence has an app build mismatch; store screenshots cannot be approved.");
+    return;
+  }
+  if (!expectedBuild) {
+    fail("Support bundle validation evidence consistent app build is missing for store submission approval.");
+    return;
+  }
+
+  for (const screenshot of Array.isArray(manifest?.screenshots) ? manifest.screenshots : []) {
+    if (screenshot?.source !== "realDevice") {
+      continue;
+    }
+    const actualBuild = stringValue(screenshot.appBuild);
+    if (normalizeBuildLabel(actualBuild) !== normalizeBuildLabel(expectedBuild)) {
+      fail(
+        `Store submission screenshot ${screenshot.path} app build ${actualBuild || "-"} does not match validation evidence build ${expectedBuild}.`
+      );
+    }
+  }
+}
+
+function readSupportBundleForReport(report, fail) {
+  const bundlePath = report?.supportBundle?.absolutePath || report?.supportBundle?.path;
+  if (!bundlePath) {
+    fail("Release report support bundle path is missing for store submission approval.");
+    return null;
+  }
+  try {
+    return JSON.parse(readFileSync(resolve(bundlePath), "utf8"));
+  } catch (error) {
+    fail(`Could not read support bundle for store submission approval: ${error instanceof Error ? error.message : String(error)}.`);
+    return null;
+  }
 }
 
 function validateStoreArtifactsCaptured(report, manifest, options, fail) {
@@ -161,6 +205,10 @@ function stringValue(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizeBuildLabel(value) {
+  return stringValue(value).replace(/\s+/g, " ").toLowerCase();
+}
+
 function printUsage() {
   console.log(
     [
@@ -168,7 +216,7 @@ function printUsage() {
       "  npm run verify:store-submission-approval -- <release-candidate-report.json>",
       "",
       "Verifies a passed RC report, final store-submission checklist, real-device store screenshots,",
-      "and that all store-submission artifacts are captured in the RC report."
+      "matching validation build evidence, and that all store-submission artifacts are captured in the RC report."
     ].join("\n")
   );
 }

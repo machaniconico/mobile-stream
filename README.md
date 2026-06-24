@@ -142,7 +142,7 @@ npm run release:evidence-package -- /path/to/release-candidate-verification.json
 
 `npm run verify:store-submission-final` runs the same store-submission checks and also requires every screenshot to be marked `realDevice`, so UI-evidence draft screenshots cannot accidentally pass final App Store / Play Console submission approval.
 
-`npm run verify:store-submission-approval -- <release-candidate-report.json>` is the final local store-submission approval gate. It verifies the saved RC report, the final store-submission checklist, real-device screenshot source labels, and that every store-submission metadata/review/screenshot artifact is captured in the RC report.
+`npm run verify:store-submission-approval -- <release-candidate-report.json>` is the final local store-submission approval gate. It verifies the saved RC report, the final store-submission checklist, real-device screenshot source labels, screenshot app-build alignment with the support bundle's physical validation build, and that every store-submission metadata/review/screenshot artifact is captured in the RC report.
 
 `npm run release:store` orchestrates the store-distribution path: platform release environment checks, Android App Bundle generation, iOS archive/export, and distribution manifest creation. Use `--dry-run` to inspect the exact steps, or `--android-only` / `--ios-only` for platform-specific releases.
 

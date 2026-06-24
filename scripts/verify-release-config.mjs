@@ -106,6 +106,8 @@ const checks = [
     expectIncludes(files.storeSubmissionApprovalScript, "validateStoreSubmissionApproval");
     expectIncludes(files.storeSubmissionApprovalScript, "requireRealDeviceScreenshots");
     expectIncludes(files.storeSubmissionApprovalScript, "Release report is missing store submission artifact");
+    expectIncludes(files.storeSubmissionApprovalScript, "validationEvidenceConsistentAppBuild");
+    expectIncludes(files.storeSubmissionApprovalScript, "does not match validation evidence build");
     expectIncludes(files.releaseEvidencePackageScript, "release-evidence-package-manifest");
     expectIncludes(files.releaseEvidencePackageScript, "validateReleaseEvidencePackage");
     expectIncludes(files.releaseEvidencePackageScript, "supportBundle");
