@@ -9,6 +9,7 @@ import {
 } from "./release-artifact-policy.mjs";
 import { distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
 import { dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
+import { storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import { validateReport } from "./verify-release-report.mjs";
 
 const generatedFiles = [
@@ -25,6 +26,10 @@ const generatedFiles = [
   ".artifacts/platform-dashboard-evidence.json",
   ".artifacts/release-report-test/youtube-dashboard.png",
   ".artifacts/release-report-test/twitch-dashboard.png",
+  ".artifacts/store-submission-checklist.json",
+  ".artifacts/release-report-test/store-submission-metadata.json",
+  ".artifacts/release-report-test/ios-store.png",
+  ".artifacts/release-report-test/android-store.png",
   ".artifacts/release-report-test/support-bundle.json",
   ".artifacts/release-report-test/ui-evidence.json"
 ];
@@ -111,6 +116,25 @@ describe("release report verifier", () => {
 
     expect(failures).toContain("Report is missing dashboard evidence artifact .artifacts/release-report-test/twitch-dashboard.png.");
   });
+
+  it("accepts release reports with matching store submission checklist artifacts", () => {
+    restoreUiScreenshots();
+    const failures = validateReport(createReport({ includeStoreSubmission: true }), reportOptions());
+
+    expect(failures).toEqual([]);
+  });
+
+  it("rejects release reports missing store submission artifacts referenced by the checklist", () => {
+    restoreUiScreenshots();
+    const report = createReport({ includeStoreSubmission: true });
+    report.artifacts.files = report.artifacts.files.filter(
+      (artifact) => artifact.path !== ".artifacts/release-report-test/android-store.png"
+    );
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain("Report is missing store submission artifact .artifacts/release-report-test/android-store.png.");
+  });
 });
 
 function reportOptions() {
@@ -121,13 +145,16 @@ function reportOptions() {
   };
 }
 
-function createReport({ includeDistribution = false, includeDashboardEvidence = false } = {}) {
+function createReport({ includeDistribution = false, includeDashboardEvidence = false, includeStoreSubmission = false } = {}) {
   writeUiEvidenceFile();
   if (includeDistribution) {
     writeDistributionFixture();
   }
   if (includeDashboardEvidence) {
     writeDashboardEvidenceFixture();
+  }
+  if (includeStoreSubmission) {
+    writeStoreSubmissionFixture();
   }
   const supportBundlePath = ".artifacts/release-report-test/support-bundle.json";
   const artifactFiles = [
@@ -140,7 +167,8 @@ function createReport({ includeDistribution = false, includeDashboardEvidence = 
     artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
     artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
     ...(includeDistribution ? distributionArtifactRecords() : []),
-    ...(includeDashboardEvidence ? dashboardEvidenceRecords() : [])
+    ...(includeDashboardEvidence ? dashboardEvidenceRecords() : []),
+    ...(includeStoreSubmission ? storeSubmissionRecords() : [])
   ];
 
   return {
@@ -277,6 +305,75 @@ function writeDashboardEvidenceFixture() {
   );
 }
 
+function writeStoreSubmissionFixture() {
+  writeFile(".artifacts/release-report-test/ios-store.png", pngBytes);
+  writeFile(".artifacts/release-report-test/android-store.png", pngBytes);
+  writeFile(
+    ".artifacts/release-report-test/store-submission-metadata.json",
+    JSON.stringify(
+      {
+        app: "MobileLiveCaster",
+        appStore: {
+          name: "MobileLiveCaster",
+          subtitle: "VTuber Live Studio",
+          description:
+            "MobileLiveCaster lets creators compose a mobile VTuber scene, prepare RTMPS output, monitor audio, and validate stream readiness before going live.",
+          keywords: "VTuber,live,streaming,RTMP,avatar",
+          supportUrl: "https://example.com/mobilelivecaster/support",
+          privacyPolicyUrl: "https://example.com/mobilelivecaster/privacy",
+          category: "Photo & Video",
+          releaseNotes: "Initial public release candidate with mobile VTuber streaming tools.",
+          reviewContactEmail: "support@example.com",
+          ageRatingNotes: "No gambling, no mature content included.",
+          appPrivacyNotes: "Collects only user-provided stream settings and local validation evidence."
+        },
+        playStore: {
+          name: "MobileLiveCaster",
+          shortDescription: "Mobile VTuber streaming studio",
+          fullDescription:
+            "MobileLiveCaster helps creators prepare mobile RTMPS streams with PNGTuber controls, mic processing, chat readout checks, and release validation evidence.",
+          privacyPolicyUrl: "https://example.com/mobilelivecaster/privacy",
+          supportEmail: "support@example.com",
+          category: "Video Players & Editors",
+          releaseNotes: "Initial public release candidate with mobile VTuber streaming tools.",
+          dataSafetyNotes: "Stream keys stay in secure device storage and release evidence redacts sensitive values.",
+          contentRatingNotes: "No gambling, no monetized loot, no mature content included."
+        },
+        screenshots: [
+          { platform: "ios", device: "iPhone 15 Pro Max", path: ".artifacts/release-report-test/ios-store.png" },
+          { platform: "android", device: "Pixel 8 Pro", path: ".artifacts/release-report-test/android-store.png" }
+        ]
+      },
+      null,
+      2
+    )
+  );
+  writeFile(
+    storeSubmissionChecklistPath,
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: "store-submission-checklist-manifest",
+        generatedAt: new Date().toISOString(),
+        git: {
+          commit: currentCommit(),
+          branch: "main",
+          dirty: true,
+          statusShort: " M scripts/verify-release-report.test.mjs"
+        },
+        metadata: storeSubmissionMetadataRecord(),
+        screenshots: [
+          storeScreenshotRecord("ios", "iPhone 15 Pro Max", ".artifacts/release-report-test/ios-store.png"),
+          storeScreenshotRecord("android", "Pixel 8 Pro", ".artifacts/release-report-test/android-store.png")
+        ]
+      },
+      null,
+      2
+    )
+  );
+}
+
 function distributionArtifactRecords() {
   return [
     artifactRecord("distribution", distributionArtifactManifestPath),
@@ -305,11 +402,47 @@ function dashboardEvidenceRecords() {
   ];
 }
 
+function storeSubmissionRecords() {
+  return [
+    artifactRecord("store-submission", storeSubmissionChecklistPath),
+    artifactRecord("store-submission", ".artifacts/release-report-test/store-submission-metadata.json"),
+    artifactRecord("store-submission", ".artifacts/release-report-test/ios-store.png"),
+    artifactRecord("store-submission", ".artifacts/release-report-test/android-store.png")
+  ];
+}
+
 function dashboardManifestRecord(platform, path) {
   const content = readFileSync(path);
   return {
     platform,
     kind: "screenshot",
+    path,
+    basename: path.split("/").at(-1),
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function storeSubmissionMetadataRecord() {
+  const path = ".artifacts/release-report-test/store-submission-metadata.json";
+  const content = readFileSync(path);
+  return {
+    kind: "store-submission-metadata",
+    path,
+    basename: path.split("/").at(-1),
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function storeScreenshotRecord(platform, device, path) {
+  const content = readFileSync(path);
+  return {
+    platform,
+    kind: "screenshot",
+    device,
+    locale: "ja-JP",
+    role: "store",
     path,
     basename: path.split("/").at(-1),
     bytes: content.byteLength,
@@ -394,6 +527,7 @@ function restoreFiles() {
   rmSync(".artifacts/release-report-test", { recursive: true, force: true });
   rmSync(".artifacts/distribution-artifacts.json", { force: true });
   rmSync(".artifacts/platform-dashboard-evidence.json", { force: true });
+  rmSync(".artifacts/store-submission-checklist.json", { force: true });
   rmSync("dist/assets/release-report-test.js", { force: true });
   rmSync("dist/assets/release-report-test.css", { force: true });
 }

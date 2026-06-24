@@ -1,0 +1,614 @@
+import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, extname, isAbsolute, relative, resolve } from "node:path";
+import { argv, cwd, exit } from "node:process";
+import { pathToFileURL } from "node:url";
+
+export const storeSubmissionChecklistPath = ".artifacts/store-submission-checklist.json";
+export const storeSubmissionArtifactGroup = "store-submission";
+
+const storePlatforms = new Set(["ios", "android"]);
+const metadataType = "store-submission-metadata";
+const requiredMetadataFields = {
+  appStore: {
+    name: { min: 2, max: 30 },
+    subtitle: { min: 2, max: 30 },
+    description: { min: 80, max: 4_000 },
+    keywords: { min: 2, max: 100 },
+    supportUrl: { url: true },
+    privacyPolicyUrl: { url: true },
+    category: { min: 2, max: 80 },
+    releaseNotes: { min: 10, max: 4_000 },
+    reviewContactEmail: { email: true },
+    ageRatingNotes: { min: 10, max: 2_000 },
+    appPrivacyNotes: { min: 20, max: 4_000 }
+  },
+  playStore: {
+    name: { min: 2, max: 30 },
+    shortDescription: { min: 10, max: 80 },
+    fullDescription: { min: 80, max: 4_000 },
+    privacyPolicyUrl: { url: true },
+    supportEmail: { email: true },
+    category: { min: 2, max: 80 },
+    releaseNotes: { min: 10, max: 500 },
+    dataSafetyNotes: { min: 20, max: 4_000 },
+    contentRatingNotes: { min: 10, max: 2_000 }
+  }
+};
+const sensitivePatterns = [
+  {
+    label: "Authorization/Bearer token",
+    pattern: /\b(?:authorization|bearer)\b\s*[:=]?\s*(?:bearer\s+)?[A-Za-z0-9._~+/=-]{16,}/i
+  },
+  {
+    label: "OAuth/access/refresh/client secret",
+    pattern: /\b(?:access_token|refresh_token|id_token|oauth_token|client_secret|api_key|private_key|device_code|stream_key|password)\b\s*[:=]\s*["']?[A-Za-z0-9._~+/=:-]{8,}/i
+  },
+  {
+    label: "Twitch IRC oauth token",
+    pattern: /\boauth:[A-Za-z0-9._~+/=-]{12,}/i
+  },
+  {
+    label: "RTMP URL with stream key",
+    pattern: /\brtmps?:\/\/[^\s"'<>]+\/[^\s"'<>]+\/[A-Za-z0-9_-]{8,}/i
+  }
+];
+
+export function createStoreSubmissionChecklist({
+  metadataPath,
+  manifestPath = storeSubmissionChecklistPath
+} = {}) {
+  if (!metadataPath) {
+    throw new Error("Provide store submission metadata with --metadata <submission.json>.");
+  }
+
+  const metadataRecord = createMetadataRecord(metadataPath);
+  const metadata = readJsonFile(metadataRecord.path, "store submission metadata");
+  const screenshotInputs = storeScreenshots(metadata);
+  const screenshots = screenshotInputs.map(createScreenshotRecord);
+  const manifest = {
+    reportVersion: 1,
+    app: "MobileLiveCaster",
+    type: "store-submission-checklist-manifest",
+    generatedAt: new Date().toISOString(),
+    git: {
+      commit: commandOutput("git", ["rev-parse", "HEAD"]) || null,
+      branch: commandOutput("git", ["branch", "--show-current"]) || null,
+      dirty: Boolean(commandOutput("git", ["status", "--short"])),
+      statusShort: commandOutput("git", ["status", "--short"]) || ""
+    },
+    metadata: metadataRecord,
+    screenshots
+  };
+
+  const failures = validateStoreSubmissionChecklist(manifest, { manifestPath });
+  if (failures.length > 0) {
+    throw new Error(failures.join("\n"));
+  }
+
+  const absoluteManifestPath = resolve(manifestPath);
+  mkdirSync(dirname(absoluteManifestPath), { recursive: true });
+  writeFileSync(absoluteManifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  return { manifest, manifestPath: relative(cwd(), absoluteManifestPath) };
+}
+
+export function readStoreSubmissionChecklist(manifestPath = storeSubmissionChecklistPath) {
+  return JSON.parse(readFileSync(resolve(manifestPath), "utf8"));
+}
+
+export function validateStoreSubmissionChecklist(
+  manifest,
+  { manifestPath = storeSubmissionChecklistPath, allowDirty = true, allowCommitMismatch = true } = {}
+) {
+  const failures = [];
+  if (
+    manifest?.app !== "MobileLiveCaster" ||
+    manifest?.type !== "store-submission-checklist-manifest" ||
+    manifest?.reportVersion !== 1
+  ) {
+    failures.push("Store submission checklist is not a MobileLiveCaster store-submission-checklist-manifest reportVersion 1 file.");
+    return failures;
+  }
+  if (!allowDirty && manifest.git?.dirty) {
+    failures.push("Store submission checklist was generated from a dirty worktree.");
+  }
+
+  const currentCommit = commandOutput("git", ["rev-parse", "HEAD"]);
+  if (!allowCommitMismatch && currentCommit && manifest.git?.commit && currentCommit !== manifest.git.commit) {
+    failures.push(`Store submission checklist commit ${manifest.git.commit} does not match current commit ${currentCommit}.`);
+  }
+  if (!workspaceRelativePath(manifestPath)) {
+    failures.push("Store submission checklist path must be inside the workspace.");
+  }
+
+  const metadata = validateMetadataRecord(manifest.metadata, failures);
+  if (metadata) {
+    validateMetadataSchema(metadata, failures);
+    validateManifestScreenshotsMatchMetadata(manifest, metadata, failures);
+  }
+
+  const screenshots = Array.isArray(manifest.screenshots) ? manifest.screenshots : [];
+  if (screenshots.length === 0) {
+    failures.push("Store submission checklist has no screenshots.");
+  }
+  validateScreenshotCoverage(screenshots, failures);
+  const seen = new Set();
+  for (const screenshot of screenshots) {
+    validateScreenshotRecord(screenshot, failures);
+    const key = `${screenshot?.platform}:${screenshot?.path}`;
+    if (seen.has(key)) {
+      failures.push(`Store submission checklist contains duplicate screenshot ${key}.`);
+    }
+    seen.add(key);
+  }
+
+  return failures;
+}
+
+export function collectStoreSubmissionArtifactRecords({ manifestPath = storeSubmissionChecklistPath } = {}) {
+  if (!existsSync(resolve(manifestPath))) {
+    return [];
+  }
+
+  const manifest = readStoreSubmissionChecklist(manifestPath);
+  const records = [createReleaseArtifactRecord(storeSubmissionArtifactGroup, manifestPath)];
+  if (manifest.metadata?.path && existsSync(resolve(manifest.metadata.path))) {
+    records.push(createReleaseArtifactRecord(storeSubmissionArtifactGroup, manifest.metadata.path));
+  }
+  for (const screenshot of Array.isArray(manifest.screenshots) ? manifest.screenshots : []) {
+    if (screenshot?.path && existsSync(resolve(screenshot.path))) {
+      records.push(createReleaseArtifactRecord(storeSubmissionArtifactGroup, screenshot.path));
+    }
+  }
+  return records;
+}
+
+export function validateStoreSubmissionInReport(artifacts, fail) {
+  const manifestArtifact = artifacts.find(
+    (artifact) => artifact?.group === storeSubmissionArtifactGroup && artifact?.path === storeSubmissionChecklistPath
+  );
+  if (!manifestArtifact) {
+    return;
+  }
+
+  let manifest;
+  try {
+    manifest = readStoreSubmissionChecklist(storeSubmissionChecklistPath);
+  } catch (error) {
+    fail(`Store submission checklist cannot be read: ${error instanceof Error ? error.message : String(error)}.`);
+    return;
+  }
+
+  for (const failure of validateStoreSubmissionChecklist(manifest, { allowDirty: true, allowCommitMismatch: true })) {
+    fail(failure);
+  }
+
+  const reportArtifactsByPath = new Map(artifacts.map((artifact) => [artifact.path, artifact]));
+  for (const checklistRecord of [manifest.metadata, ...(manifest.screenshots || [])].filter(Boolean)) {
+    const reportRecord = reportArtifactsByPath.get(checklistRecord.path);
+    if (!reportRecord) {
+      fail(`Report is missing store submission artifact ${checklistRecord.path}.`);
+      continue;
+    }
+    if (reportRecord.group !== storeSubmissionArtifactGroup) {
+      fail(`Store submission artifact ${checklistRecord.path} is recorded under group ${JSON.stringify(reportRecord.group)}.`);
+    }
+    if (reportRecord.bytes !== checklistRecord.bytes || reportRecord.sha256 !== checklistRecord.sha256) {
+      fail(`Store submission artifact metadata mismatch for ${checklistRecord.path}.`);
+    }
+  }
+}
+
+function createMetadataRecord(path) {
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    throw new Error(`Store submission metadata must be inside the workspace: ${path}`);
+  }
+  if (extname(relativePath) !== ".json") {
+    throw new Error(`Store submission metadata must be a JSON file: ${relativePath}`);
+  }
+  if (!existsSync(resolve(relativePath))) {
+    throw new Error(`Store submission metadata does not exist: ${relativePath}`);
+  }
+  if (!statSync(resolve(relativePath)).isFile()) {
+    throw new Error(`Store submission metadata must point to a file: ${relativePath}`);
+  }
+
+  const content = readFileSync(resolve(relativePath));
+  if (content.byteLength <= 0) {
+    throw new Error(`Store submission metadata is empty: ${relativePath}`);
+  }
+  JSON.parse(content.toString("utf8"));
+
+  return {
+    kind: metadataType,
+    path: relativePath,
+    basename: basename(relativePath),
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function createScreenshotRecord({ platform, path, device = "", locale = "ja-JP", role = "store" }) {
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    throw new Error(`${platform || "unknown"} store screenshot must be inside the workspace: ${path}`);
+  }
+  if (!storePlatforms.has(platform)) {
+    throw new Error(`Unsupported store screenshot platform: ${platform}`);
+  }
+  if (extname(relativePath) !== ".png") {
+    throw new Error(`${platform} store screenshot must be a PNG file: ${relativePath}`);
+  }
+  if (!existsSync(resolve(relativePath))) {
+    throw new Error(`${platform} store screenshot does not exist: ${relativePath}`);
+  }
+  if (!statSync(resolve(relativePath)).isFile()) {
+    throw new Error(`${platform} store screenshot must point to a file: ${relativePath}`);
+  }
+
+  const content = readFileSync(resolve(relativePath));
+  if (content.byteLength <= 0) {
+    throw new Error(`${platform} store screenshot is empty: ${relativePath}`);
+  }
+  if (!isPng(content)) {
+    throw new Error(`${platform} store screenshot is not a PNG file: ${relativePath}`);
+  }
+
+  return {
+    platform,
+    kind: "screenshot",
+    device: stringValue(device),
+    locale: stringValue(locale) || "ja-JP",
+    role: stringValue(role) || "store",
+    path: relativePath,
+    basename: basename(relativePath),
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function validateMetadataRecord(record, failures) {
+  if (record?.kind !== metadataType) {
+    failures.push("Store submission checklist metadata record is missing or has an unsupported kind.");
+    return null;
+  }
+  if (!record.path || record.path.startsWith("/") || record.path.startsWith("..")) {
+    failures.push(`Store submission metadata path must be workspace-relative: ${record.path || "-"}.`);
+    return null;
+  }
+  if (extname(record.path) !== ".json") {
+    failures.push(`Store submission metadata must be a JSON file: ${record.path}.`);
+    return null;
+  }
+  if (!existsSync(resolve(record.path))) {
+    failures.push(`Store submission metadata file does not exist: ${record.path}.`);
+    return null;
+  }
+  if (!statSync(resolve(record.path)).isFile()) {
+    failures.push(`Store submission metadata must point to a file: ${record.path}.`);
+    return null;
+  }
+
+  const content = readFileSync(resolve(record.path));
+  const actualSha256 = createHash("sha256").update(content).digest("hex");
+  if (content.byteLength <= 0) {
+    failures.push(`Store submission metadata is empty: ${record.path}.`);
+    return null;
+  }
+  if (content.byteLength !== record.bytes || actualSha256 !== record.sha256) {
+    failures.push(`Store submission metadata metadata mismatch for ${record.path}.`);
+    return null;
+  }
+
+  try {
+    return JSON.parse(content.toString("utf8"));
+  } catch {
+    failures.push(`Store submission metadata JSON is unreadable: ${record.path}.`);
+    return null;
+  }
+}
+
+function validateMetadataSchema(metadata, failures) {
+  if (metadata?.app !== "MobileLiveCaster") {
+    failures.push("Store submission metadata app must be MobileLiveCaster.");
+  }
+  for (const [sectionName, fields] of Object.entries(requiredMetadataFields)) {
+    const section = metadata?.[sectionName];
+    if (!section || typeof section !== "object" || Array.isArray(section)) {
+      failures.push(`Store submission metadata is missing ${sectionName}.`);
+      continue;
+    }
+    for (const [fieldName, constraints] of Object.entries(fields)) {
+      validateMetadataField(sectionName, fieldName, section[fieldName], constraints, failures);
+    }
+  }
+  validateNoSensitiveText(metadata, failures);
+  validateScreenshotCoverage(storeScreenshots(metadata), failures);
+}
+
+function validateMetadataField(sectionName, fieldName, value, constraints, failures) {
+  const text = stringValue(value);
+  if (!text) {
+    failures.push(`Store submission metadata ${sectionName}.${fieldName} is required.`);
+    return;
+  }
+  if (constraints.url && !isHttpsUrl(text)) {
+    failures.push(`Store submission metadata ${sectionName}.${fieldName} must be an https URL.`);
+    return;
+  }
+  if (constraints.email && !isEmail(text)) {
+    failures.push(`Store submission metadata ${sectionName}.${fieldName} must be an email address.`);
+    return;
+  }
+  if (Number.isFinite(constraints.min) && text.length < constraints.min) {
+    failures.push(`Store submission metadata ${sectionName}.${fieldName} must be at least ${constraints.min} characters.`);
+  }
+  if (Number.isFinite(constraints.max) && text.length > constraints.max) {
+    failures.push(`Store submission metadata ${sectionName}.${fieldName} must be ${constraints.max} characters or less.`);
+  }
+}
+
+function validateNoSensitiveText(value, failures, path = "metadata") {
+  if (typeof value === "string") {
+    for (const { label, pattern } of sensitivePatterns) {
+      if (pattern.test(value)) {
+        failures.push(`Store submission metadata contains possible ${label} at ${path}.`);
+      }
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => validateNoSensitiveText(entry, failures, `${path}[${index}]`));
+    return;
+  }
+  if (value && typeof value === "object") {
+    for (const [key, child] of Object.entries(value)) {
+      validateNoSensitiveText(child, failures, `${path}.${key}`);
+    }
+  }
+}
+
+function validateManifestScreenshotsMatchMetadata(manifest, metadata, failures) {
+  const declaredPaths = storeScreenshots(metadata).map((screenshot) => workspaceRelativePath(screenshot.path)).filter(Boolean).sort();
+  const manifestPaths = (Array.isArray(manifest.screenshots) ? manifest.screenshots : [])
+    .map((screenshot) => screenshot?.path)
+    .filter(Boolean)
+    .sort();
+  if (declaredPaths.length !== manifestPaths.length || declaredPaths.some((path, index) => path !== manifestPaths[index])) {
+    failures.push("Store submission checklist screenshots do not match the metadata screenshots list.");
+  }
+}
+
+function validateScreenshotCoverage(screenshots, failures) {
+  const values = Array.isArray(screenshots) ? screenshots : [];
+  for (const platform of storePlatforms) {
+    if (!values.some((screenshot) => screenshot?.platform === platform)) {
+      failures.push(`Store submission checklist is missing a ${platform} screenshot.`);
+    }
+  }
+}
+
+function validateScreenshotRecord(screenshot, failures) {
+  if (!storePlatforms.has(screenshot?.platform) || screenshot?.kind !== "screenshot") {
+    failures.push(`Store submission screenshot has unsupported platform/kind: ${JSON.stringify(screenshot?.platform)}/${JSON.stringify(screenshot?.kind)}.`);
+    return;
+  }
+  if (!screenshot.path || screenshot.path.startsWith("/") || screenshot.path.startsWith("..")) {
+    failures.push(`Store submission screenshot path must be workspace-relative: ${screenshot.path || "-"}.`);
+    return;
+  }
+  if (extname(screenshot.path) !== ".png") {
+    failures.push(`Store submission screenshot must be a PNG file: ${screenshot.path}.`);
+  }
+  if (!stringValue(screenshot.device)) {
+    failures.push(`Store submission screenshot ${screenshot.path} must include a device label.`);
+  }
+  if (!existsSync(resolve(screenshot.path))) {
+    failures.push(`Store submission screenshot file does not exist: ${screenshot.path}.`);
+    return;
+  }
+  if (!statSync(resolve(screenshot.path)).isFile()) {
+    failures.push(`Store submission screenshot must point to a file: ${screenshot.path}.`);
+    return;
+  }
+
+  const content = readFileSync(resolve(screenshot.path));
+  const actualSha256 = createHash("sha256").update(content).digest("hex");
+  if (content.byteLength <= 0) {
+    failures.push(`Store submission screenshot is empty: ${screenshot.path}.`);
+  }
+  if (content.byteLength !== screenshot.bytes || actualSha256 !== screenshot.sha256) {
+    failures.push(`Store submission screenshot metadata mismatch for ${screenshot.path}.`);
+  }
+  if (!isPng(content)) {
+    failures.push(`Store submission screenshot is not a PNG file: ${screenshot.path}.`);
+  }
+}
+
+function storeScreenshots(metadata) {
+  return Array.isArray(metadata?.screenshots) ? metadata.screenshots : [];
+}
+
+function readJsonFile(path, label) {
+  try {
+    return JSON.parse(readFileSync(resolve(path), "utf8"));
+  } catch (error) {
+    throw new Error(`Could not read ${label} at ${path}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function createReleaseArtifactRecord(group, path) {
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    throw new Error(`Artifact path must be inside the workspace: ${path}`);
+  }
+  const content = readFileSync(resolve(relativePath));
+  return {
+    group,
+    path: relativePath,
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function workspaceRelativePath(path) {
+  const absolutePath = resolve(path);
+  const relativePath = relative(cwd(), absolutePath);
+  if (!relativePath || relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    return "";
+  }
+  return relativePath;
+}
+
+function commandOutput(command, args) {
+  const result = spawnSync(command, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"]
+  });
+  if (result.status !== 0 || result.error) {
+    return "";
+  }
+  return result.stdout.trim();
+}
+
+function stringValue(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isHttpsUrl(value) {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isPng(content) {
+  return (
+    content.length >= 8 &&
+    content[0] === 0x89 &&
+    content[1] === 0x50 &&
+    content[2] === 0x4e &&
+    content[3] === 0x47 &&
+    content[4] === 0x0d &&
+    content[5] === 0x0a &&
+    content[6] === 0x1a &&
+    content[7] === 0x0a
+  );
+}
+
+function parseArgs(args) {
+  const options = {
+    write: false,
+    verify: false,
+    metadataPath: "",
+    manifestPath: storeSubmissionChecklistPath,
+    allowDirty: false,
+    allowCommitMismatch: false,
+    help: false
+  };
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--write") {
+      options.write = true;
+    } else if (arg === "--verify") {
+      options.verify = true;
+    } else if (arg === "--allow-dirty") {
+      options.allowDirty = true;
+    } else if (arg === "--allow-commit-mismatch") {
+      options.allowCommitMismatch = true;
+    } else if (arg === "--metadata") {
+      options.metadataPath = args[index + 1] || "";
+      index += 1;
+    } else if (arg.startsWith("--metadata=")) {
+      options.metadataPath = arg.slice("--metadata=".length);
+    } else if (arg === "--manifest") {
+      options.manifestPath = args[index + 1] || "";
+      index += 1;
+    } else if (arg.startsWith("--manifest=")) {
+      options.manifestPath = arg.slice("--manifest=".length);
+    } else if (arg === "--help" || arg === "-h") {
+      options.help = true;
+    } else {
+      throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
+
+  if (options.write && options.verify) {
+    throw new Error("Use either --write or --verify, not both.");
+  }
+  if (!options.write && !options.verify && !options.help) {
+    options.verify = true;
+  }
+  return options;
+}
+
+function printUsage() {
+  console.log(
+    [
+      "Usage:",
+      "  npm run release:store-submission-checklist -- --metadata <store-submission-metadata.json>",
+      "  npm run verify:store-submission -- [--manifest=.artifacts/store-submission-checklist.json] [--allow-dirty] [--allow-commit-mismatch]",
+      "",
+      "Writes or verifies a hash manifest for App Store / Play Console submission metadata and screenshots."
+    ].join("\n")
+  );
+}
+
+function run() {
+  try {
+    const options = parseArgs(argv.slice(2));
+    if (options.help) {
+      printUsage();
+      return 0;
+    }
+
+    if (options.write) {
+      const result = createStoreSubmissionChecklist({
+        metadataPath: options.metadataPath,
+        manifestPath: options.manifestPath
+      });
+      if (!options.allowDirty && result.manifest.git.dirty) {
+        throw new Error("Store submission checklist was generated from a dirty worktree. Commit or stash source changes first, or rerun with --allow-dirty for development-only evidence.");
+      }
+      console.log(`Wrote store submission checklist: ${result.manifestPath}`);
+      console.log(`Metadata: ${result.manifest.metadata.path}`);
+      console.log(`Screenshots: ${result.manifest.screenshots.map((screenshot) => screenshot.path).join(", ")}`);
+      return 0;
+    }
+
+    if (!existsSync(resolve(options.manifestPath))) {
+      throw new Error(`Store submission checklist does not exist: ${options.manifestPath}`);
+    }
+    const manifest = readStoreSubmissionChecklist(options.manifestPath);
+    const failures = validateStoreSubmissionChecklist(manifest, {
+      manifestPath: options.manifestPath,
+      allowDirty: options.allowDirty,
+      allowCommitMismatch: options.allowCommitMismatch
+    });
+    if (failures.length > 0) {
+      console.error("Store submission checklist verification failed:");
+      for (const failure of failures) {
+        console.error(`- ${failure}`);
+      }
+      return 1;
+    }
+
+    console.log(`Store submission checklist verification passed (${manifest.screenshots.length} screenshots).`);
+    return 0;
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
+}
+
+if (argv[1] && import.meta.url === pathToFileURL(argv[1]).href) {
+  exit(run());
+}

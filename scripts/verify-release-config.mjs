@@ -30,6 +30,7 @@ const files = {
   storeReleaseEnvScript: read("scripts/verify-store-release-env.mjs"),
   distributionArtifactsScript: read("scripts/verify-distribution-artifacts.mjs"),
   dashboardEvidenceScript: read("scripts/verify-platform-dashboard-evidence.mjs"),
+  storeSubmissionScript: read("scripts/verify-store-submission-checklist.mjs"),
   liveCasterBridge: read("ios/MobileLiveCaster/LiveCasterBridge.swift"),
   broadcastHandler: read("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift")
 };
@@ -56,9 +57,11 @@ const checks = [
     expectIncludes(files.packageJson, '"verify:store-release-env": "node scripts/verify-store-release-env.mjs"');
     expectIncludes(files.packageJson, '"verify:distribution-artifacts": "node scripts/verify-distribution-artifacts.mjs --verify"');
     expectIncludes(files.packageJson, '"verify:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --verify"');
+    expectIncludes(files.packageJson, '"verify:store-submission": "node scripts/verify-store-submission-checklist.mjs --verify"');
     expectIncludes(files.packageJson, '"verify:evidence-package": "node scripts/create-release-evidence-package.mjs --verify"');
     expectIncludes(files.packageJson, '"release:distribution-manifest": "node scripts/verify-distribution-artifacts.mjs --write"');
     expectIncludes(files.packageJson, '"release:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --write"');
+    expectIncludes(files.packageJson, '"release:store-submission-checklist": "node scripts/verify-store-submission-checklist.mjs --write"');
     expectIncludes(files.packageJson, '"release:evidence-package": "node scripts/create-release-evidence-package.mjs --write"');
     expectIncludes(files.packageJson, '"release:store": "node scripts/release-store-build.mjs"');
     expectIncludes(files.packageJson, '"android:bundleRelease": "bash -lc');
@@ -76,6 +79,10 @@ const checks = [
     expectIncludes(files.dashboardEvidenceScript, "youtubeScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "twitchScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "platform-dashboard-evidence-manifest");
+    expectIncludes(files.storeSubmissionScript, "store-submission-checklist-manifest");
+    expectIncludes(files.storeSubmissionScript, "privacyPolicyUrl");
+    expectIncludes(files.storeSubmissionScript, "dataSafetyNotes");
+    expectIncludes(files.storeSubmissionScript, "sha256");
     expectIncludes(files.releaseEvidencePackageScript, "release-evidence-package-manifest");
     expectIncludes(files.releaseEvidencePackageScript, "validateReleaseEvidencePackage");
     expectIncludes(files.releaseEvidencePackageScript, "supportBundle");

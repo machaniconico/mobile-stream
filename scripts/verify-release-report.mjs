@@ -11,6 +11,7 @@ import {
 } from "./release-artifact-policy.mjs";
 import { validateDistributionArtifactsInReport } from "./verify-distribution-artifacts.mjs";
 import { validateDashboardEvidenceInReport } from "./verify-platform-dashboard-evidence.mjs";
+import { validateStoreSubmissionInReport } from "./verify-store-submission-checklist.mjs";
 
 const requiredUiViewportNames = ["desktop", "mobile"];
 const requiredReactNativeArtifacts = [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"];
@@ -244,6 +245,7 @@ function validateArtifacts(report, fail) {
   }
   validateDistributionArtifactsInReport(artifacts, fail);
   validateDashboardEvidenceInReport(artifacts, fail);
+  validateStoreSubmissionInReport(artifacts, fail);
 }
 
 function validateArtifactRecord(artifact, fail) {
