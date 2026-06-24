@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { argv, exit } from "node:process";
 
-const minimumSupportBundleVersion = 13;
+const minimumSupportBundleVersion = 15;
 const defaultMaxBundleAgeHours = 24;
 const redactedMarker = "[redacted]";
 const sensitivePropertyNames = new Set([
@@ -280,6 +280,8 @@ function validationCoverageIssue(bundle) {
   if (
     summary.validationEvidenceIosPass !== true ||
     summary.validationEvidenceAndroidPass !== true ||
+    summary.validationEvidencePhysicalDeviceIosPass !== true ||
+    summary.validationEvidencePhysicalDeviceAndroidPass !== true ||
     summary.validationEvidenceAppBuildMismatch === true ||
     !text(summary.validationEvidenceConsistentAppBuild)
   ) {
@@ -288,8 +290,10 @@ function validationCoverageIssue(bundle) {
       "Physical validation coverage",
       `Coverage iOS ${summary.validationEvidenceIosPass ? "pass" : "missing"} / Android ${
         summary.validationEvidenceAndroidPass ? "pass" : "missing"
+      } / physical iOS ${summary.validationEvidencePhysicalDeviceIosPass ? "pass" : "missing"} / Android ${
+        summary.validationEvidencePhysicalDeviceAndroidPass ? "pass" : "missing"
       } / build ${text(summary.validationEvidenceConsistentAppBuild) || (summary.validationEvidenceAppBuildMismatch ? "mismatch" : "-")}.`,
-      "Record fresh passing iOS and Android validation runs on the same release-candidate app build."
+      "Record fresh passing physical-device iOS and Android validation runs on the same release-candidate app build."
     );
   }
   return null;
@@ -303,18 +307,26 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v13 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v15 or newer after retaining release-candidate validation runs."
     );
   }
   const eligiblePlatforms = new Set(
-    manifest.filter((run) => run?.eligible === true && run?.result === "pass").map((run) => run.devicePlatform)
+    manifest
+      .filter(
+        (run) =>
+          run?.eligible === true &&
+          run?.result === "pass" &&
+          run?.physicalDevice === true &&
+          run?.physicalDeviceStatus === "pass"
+      )
+      .map((run) => run.devicePlatform)
   );
   if (!eligiblePlatforms.has("ios") || !eligiblePlatforms.has("android")) {
     return fail(
       "validation-evidence-manifest-incomplete",
       "Validation evidence manifest",
-      "The manifest does not include eligible passing iOS and Android runs.",
-      "Record and retain passing validation runs for both iOS and Android on the current build."
+      "The manifest does not include eligible passing physical-device iOS and Android runs.",
+      "Record and retain passing physical-device validation runs for both iOS and Android on the current build."
     );
   }
   if (manifest.length !== number(summary.validationEvidenceRunCount)) {
@@ -331,6 +343,9 @@ function validationManifestIssue(bundle) {
 function validationFeatureIssue(bundle) {
   const summary = bundle?.summary ?? {};
   const missing = [
+    summary.validationEvidencePhysicalDeviceIosPass !== true || summary.validationEvidencePhysicalDeviceAndroidPass !== true
+      ? "physical device identity"
+      : "",
     summary.validationEvidenceNativeRuntimeIosPass !== true || summary.validationEvidenceNativeRuntimeAndroidPass !== true
       ? "native publisher/compositor"
       : "",

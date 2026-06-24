@@ -27,7 +27,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 14;
+    bundleVersion: 15;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -108,6 +108,12 @@ export interface SupportBundle {
     validationEvidenceStaleRunCount: number;
     validationEvidencePassCount: number;
     validationEvidenceFailureCount: number;
+    validationEvidencePhysicalDeviceRunCount: number;
+    validationEvidencePhysicalDeviceReadyCount: number;
+    validationEvidencePhysicalDeviceWarningCount: number;
+    validationEvidencePhysicalDeviceFailureCount: number;
+    validationEvidencePhysicalDeviceIosPass: boolean;
+    validationEvidencePhysicalDeviceAndroidPass: boolean;
     validationEvidenceNativeRuntimeRunCount: number;
     validationEvidenceNativeRuntimeReadyCount: number;
     validationEvidenceNativeRuntimeWarningCount: number;
@@ -340,7 +346,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 14
+      bundleVersion: 15
     },
     summary: {
       status: diagnostics.status,
@@ -421,6 +427,12 @@ export const createSupportBundle = ({
       validationEvidenceStaleRunCount: diagnostics.validationEvidence.staleRunCount,
       validationEvidencePassCount: diagnostics.validationEvidence.passCount,
       validationEvidenceFailureCount: diagnostics.validationEvidence.failureCount,
+      validationEvidencePhysicalDeviceRunCount: diagnostics.validationEvidence.physicalDeviceRunCount,
+      validationEvidencePhysicalDeviceReadyCount: diagnostics.validationEvidence.physicalDeviceReadyCount,
+      validationEvidencePhysicalDeviceWarningCount: diagnostics.validationEvidence.physicalDeviceWarningCount,
+      validationEvidencePhysicalDeviceFailureCount: diagnostics.validationEvidence.physicalDeviceFailureCount,
+      validationEvidencePhysicalDeviceIosPass: diagnostics.validationEvidence.physicalDeviceIosPass,
+      validationEvidencePhysicalDeviceAndroidPass: diagnostics.validationEvidence.physicalDeviceAndroidPass,
       validationEvidenceNativeRuntimeRunCount: diagnostics.validationEvidence.nativeRuntimeRunCount,
       validationEvidenceNativeRuntimeReadyCount: diagnostics.validationEvidence.nativeRuntimeReadyCount,
       validationEvidenceNativeRuntimeWarningCount: diagnostics.validationEvidence.nativeRuntimeWarningCount,
@@ -710,6 +722,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Evidence fingerprint: ${bundle.summary.validationEvidenceFingerprint} / latest ${bundle.summary.validationEvidenceLatestRunFingerprint ?? "-"}`,
     `- Evidence run manifest: ${formatValidationEvidenceRunManifest(bundle.summary.validationEvidenceRunManifest)}`,
     `- Evidence outcomes: ${bundle.summary.validationEvidencePassCount} pass / ${bundle.summary.validationEvidenceFailureCount} fail`,
+    `- Evidence physical devices: ${bundle.summary.validationEvidencePhysicalDeviceRunCount} retained / ${bundle.summary.validationEvidencePhysicalDeviceReadyCount} ready / ${bundle.summary.validationEvidencePhysicalDeviceWarningCount} warn / ${bundle.summary.validationEvidencePhysicalDeviceFailureCount} fail / iOS ${bundle.summary.validationEvidencePhysicalDeviceIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidencePhysicalDeviceAndroidPass ? "pass" : "missing"}`,
     `- Evidence monitor hold: ${bundle.summary.validationEvidenceMonitorHoldRunCount} retained / ${bundle.summary.validationEvidenceMonitorHoldReadyCount} ready / ${bundle.summary.validationEvidenceMonitorHoldWarningCount} warn / ${bundle.summary.validationEvidenceMonitorHoldFailureCount} fail / iOS ${bundle.summary.validationEvidenceMonitorHoldIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceMonitorHoldAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestMonitorHoldStatus ?? "-"} ${bundle.summary.validationEvidenceLatestMonitorHoldDurationSeconds}s ${bundle.summary.validationEvidenceLatestMonitorHoldSampleCount} samples / ${bundle.summary.validationEvidenceLatestMonitorHoldStability ?? "-"} / avg ${bundle.summary.validationEvidenceLatestMonitorHoldAverageBitrateKbps} kbps ${bundle.summary.validationEvidenceLatestMonitorHoldAverageFps} fps / min ${bundle.summary.validationEvidenceLatestMonitorHoldMinimumBitrateKbps} kbps ${bundle.summary.validationEvidenceLatestMonitorHoldMinimumFps} fps / drops ${bundle.summary.validationEvidenceLatestMonitorHoldDroppedFrameIncrease} / reconnects ${bundle.summary.validationEvidenceLatestMonitorHoldObservedReconnectAttempts}`,
     `- Evidence native runtime: ${bundle.summary.validationEvidenceNativeRuntimeRunCount} retained / ${bundle.summary.validationEvidenceNativeRuntimeReadyCount} ready / ${bundle.summary.validationEvidenceNativeRuntimeWarningCount} warn / ${bundle.summary.validationEvidenceNativeRuntimeFailureCount} fail / iOS ${bundle.summary.validationEvidenceNativeRuntimeIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceNativeRuntimeAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestNativeRuntimeStatus ?? "-"} ${bundle.summary.validationEvidenceLatestNativeRuntimePlatform ?? "-"} / sent ${bundle.summary.validationEvidenceLatestNativeRuntimeSentVideoFrames} video ${bundle.summary.validationEvidenceLatestNativeRuntimeSentAudioFrames} audio / bytes ${bundle.summary.validationEvidenceLatestNativeRuntimeBytesWritten} / assets ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount} missing / congested ${bundle.summary.validationEvidenceLatestNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.validationEvidenceLatestNativeRuntimeQueuedItems}/${bundle.summary.validationEvidenceLatestNativeRuntimeCacheSize}`,
     `- Evidence face tracking: ${bundle.summary.validationEvidenceFaceTrackingRunCount} retained / ${bundle.summary.validationEvidenceFaceTrackingReadyCount} ready / ${bundle.summary.validationEvidenceFaceTrackingWarningCount} warn / iOS ${bundle.summary.validationEvidenceFaceTrackingIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceFaceTrackingAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestFaceTrackingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestFaceTrackingRuntimeStatus ?? "-"} / prepared ${bundle.summary.validationEvidenceLatestFaceTrackingPreparedPngTuberCount} / moving ${bundle.summary.validationEvidenceLatestFaceTrackingActiveMotionCount}`,
@@ -750,6 +763,7 @@ const formatValidationEvidenceRunManifest = (
       const scopeStatus = run.eligible ? "eligible" : run.matchesScope ? "stale" : "out-of-scope";
       return [
         `${run.devicePlatform} ${run.result} ${scopeStatus}`,
+        `device ${run.physicalDevice ? "physical" : run.physicalDeviceStatus}`,
         `build ${run.appBuild}`,
         `${run.targetPlatform}/${run.transport}`,
         `${run.ageDays}d`,

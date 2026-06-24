@@ -44,6 +44,27 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Support bundle privacy");
     expect(result.stdout).toContain("unredacted sensitive value");
   });
+
+  it("blocks retained validation runs without physical-device proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidencePhysicalDeviceAndroidPass: false,
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios"),
+          manifestRun("android", "svr1-android-emulator", {
+            physicalDevice: false,
+            physicalDeviceStatus: "fail"
+          })
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Physical validation coverage");
+    expect(result.stdout).toContain("physical device identity");
+  });
 });
 
 const runVerifier = () =>
@@ -56,14 +77,8 @@ const writeBundle = (patch = {}) => {
   writeFileSync(fixturePath, JSON.stringify(createBundle(patch), null, 2));
 };
 
-const createBundle = (patch = {}) => ({
-  app: {
-    name: "MobileLiveCaster",
-    reportVersion: 1,
-    bundleVersion: 14
-  },
-  generatedAt: new Date().toISOString(),
-  summary: {
+const createBundle = (patch = {}) => {
+  const summary = {
     preflightStatus: "ready",
     publicLaunchStatus: "ready",
     publicLaunchCanStart: true,
@@ -88,6 +103,8 @@ const createBundle = (patch = {}) => ({
     validationEvidenceStaleRunCount: 0,
     validationEvidenceIosPass: true,
     validationEvidenceAndroidPass: true,
+    validationEvidencePhysicalDeviceIosPass: true,
+    validationEvidencePhysicalDeviceAndroidPass: true,
     validationEvidenceAppBuildMismatch: false,
     validationEvidenceConsistentAppBuild: "rc-1",
     validationEvidenceNativeRuntimeIosPass: true,
@@ -106,11 +123,24 @@ const createBundle = (patch = {}) => ({
       manifestRun("ios", "svr1-ios"),
       manifestRun("android", "svr1-android")
     ]
-  },
-  ...patch
-});
+  };
 
-const manifestRun = (devicePlatform, fingerprint) => ({
+  return {
+    app: {
+      name: "MobileLiveCaster",
+      reportVersion: 1,
+      bundleVersion: 15
+    },
+    generatedAt: new Date().toISOString(),
+    ...patch,
+    summary: {
+      ...summary,
+      ...(patch.summary ?? {})
+    }
+  };
+};
+
+const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   id: `validation-${devicePlatform}`,
   fingerprint,
   createdAt: new Date().toISOString(),
@@ -119,8 +149,10 @@ const manifestRun = (devicePlatform, fingerprint) => ({
   matchesScope: true,
   eligible: true,
   devicePlatform,
-  deviceName: `${devicePlatform} device`,
-  osVersion: "test",
+  deviceName: devicePlatform === "ios" ? "iPhone 15 Pro" : "Pixel 8 Pro",
+  osVersion: devicePlatform === "ios" ? "iOS 18.5" : "Android 15",
+  physicalDevice: true,
+  physicalDeviceStatus: "pass",
   appBuild: "rc-1",
   networkProfile: "private test",
   targetPlatform: "YouTube Live",
@@ -135,5 +167,6 @@ const manifestRun = (devicePlatform, fingerprint) => ({
   platformPublishingStatus: "pass",
   platformPublishingFreshnessStatus: "fresh",
   summary: "Validation run retained.",
-  recommendation: "Keep this run with release evidence."
+  recommendation: "Keep this run with release evidence.",
+  ...patch
 });

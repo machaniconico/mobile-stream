@@ -93,6 +93,36 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks bundles whose retained runs are not physical-device evidence", () => {
+    const bundle = supportBundle({
+      summary: {
+        validationEvidencePhysicalDeviceAndroidPass: false,
+        validationEvidenceRunManifest: [
+          manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
+          manifestRun({
+            devicePlatform: "android",
+            fingerprint: "svr1-android-emulator",
+            physicalDevice: false,
+            physicalDeviceStatus: "fail"
+          })
+        ]
+      }
+    });
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining([
+        "validation-evidence-coverage",
+        "validation-evidence-manifest-incomplete",
+        "validation-evidence-feature-gap"
+      ])
+    );
+    expect(formatCommercialReleaseGate(gate)).toContain("physical device identity");
+  });
+
   it("blocks support bundles that contain unredacted sensitive data", () => {
     const bundle = supportBundle();
     const mutableBundle = bundle as unknown as {
@@ -159,7 +189,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 14 as const
+    bundleVersion: 15 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   summary = {}
@@ -200,6 +230,8 @@ const supportBundle = ({
       validationEvidenceStaleRunCount: 0,
       validationEvidenceIosPass: true,
       validationEvidenceAndroidPass: true,
+      validationEvidencePhysicalDeviceIosPass: true,
+      validationEvidencePhysicalDeviceAndroidPass: true,
       validationEvidenceAppBuildMismatch: false,
       validationEvidenceConsistentAppBuild: "rc-1",
       validationEvidenceNativeRuntimeIosPass: true,
@@ -226,12 +258,16 @@ const manifestRun = ({
   devicePlatform,
   fingerprint,
   eligible = true,
-  result = "pass"
+  result = "pass",
+  physicalDevice = true,
+  physicalDeviceStatus = "pass"
 }: {
   devicePlatform: "ios" | "android";
   fingerprint: string;
   eligible?: boolean;
   result?: "pass" | "warn" | "fail";
+  physicalDevice?: boolean;
+  physicalDeviceStatus?: "pass" | "warn" | "fail" | "pending";
 }): SupportBundle["summary"]["validationEvidenceRunManifest"][number] => ({
   id: `validation-${devicePlatform}`,
   fingerprint,
@@ -241,8 +277,10 @@ const manifestRun = ({
   matchesScope: true,
   eligible,
   devicePlatform,
-  deviceName: `${devicePlatform} device`,
-  osVersion: "test",
+  deviceName: devicePlatform === "ios" ? "iPhone 15 Pro" : "Pixel 8 Pro",
+  osVersion: devicePlatform === "ios" ? "iOS 18.5" : "Android 15",
+  physicalDevice,
+  physicalDeviceStatus,
   appBuild: "rc-1",
   networkProfile: "private test",
   targetPlatform: "YouTube Live",

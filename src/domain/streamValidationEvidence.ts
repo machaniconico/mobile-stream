@@ -118,6 +118,10 @@ export interface StreamValidationRun {
   devicePlatform: StreamValidationDevicePlatform;
   deviceName: string;
   osVersion: string;
+  physicalDevice: boolean;
+  physicalDeviceStatus: StreamValidationFeatureStatus;
+  physicalDeviceSummary: string;
+  physicalDeviceRecommendation: string;
   appBuild: string;
   networkProfile: string;
   targetPlatform: string;
@@ -173,6 +177,8 @@ export interface StreamValidationEvidenceRunManifestItem {
   devicePlatform: StreamValidationDevicePlatform;
   deviceName: string;
   osVersion: string;
+  physicalDevice: boolean;
+  physicalDeviceStatus: StreamValidationFeatureStatus;
   appBuild: string;
   networkProfile: string;
   targetPlatform: string;
@@ -199,6 +205,12 @@ export interface StreamValidationEvidenceSummary {
   passCount: number;
   warningCount: number;
   failureCount: number;
+  physicalDeviceRunCount: number;
+  physicalDeviceReadyCount: number;
+  physicalDeviceWarningCount: number;
+  physicalDeviceFailureCount: number;
+  physicalDeviceIosPass: boolean;
+  physicalDeviceAndroidPass: boolean;
   nativeRuntimeRunCount: number;
   nativeRuntimeReadyCount: number;
   nativeRuntimeWarningCount: number;
@@ -314,6 +326,7 @@ export const createStreamValidationRun = ({
   const sanitizedOsVersion = sanitizeStoredText(osVersion, secrets) || "-";
   const sanitizedAppBuild = sanitizeStoredText(appBuild, secrets) || "-";
   const sanitizedNetworkProfile = sanitizeStoredText(networkProfile, secrets) || "private test";
+  const physicalDevice = createPhysicalDeviceEvidence(devicePlatform, sanitizedDeviceName, sanitizedOsVersion, secrets);
   const nativeRuntime =
     createNativeRuntimeSessionSummary(diagnostics.nativeRuntime) ??
     normalizeNativeRuntimeSessionSummary(diagnostics.session.lastSummary?.nativeRuntime);
@@ -327,6 +340,7 @@ export const createStreamValidationRun = ({
   const effectiveResult = createEffectiveValidationResult(
     result,
     devicePlatform,
+    physicalDevice.physicalDeviceStatus,
     nativeRuntime,
     monitorHold,
     faceTracking,
@@ -339,6 +353,8 @@ export const createStreamValidationRun = ({
     createdAt,
     devicePlatform,
     deviceName: sanitizedDeviceName,
+    physicalDevice: physicalDevice.physicalDevice,
+    physicalDeviceStatus: physicalDevice.physicalDeviceStatus,
     targetPlatform: diagnostics.target.platform,
     transport: diagnostics.target.protocol,
     result: effectiveResult
@@ -350,6 +366,10 @@ export const createStreamValidationRun = ({
     devicePlatform,
     deviceName: sanitizedDeviceName,
     osVersion: sanitizedOsVersion,
+    physicalDevice: physicalDevice.physicalDevice,
+    physicalDeviceStatus: physicalDevice.physicalDeviceStatus,
+    physicalDeviceSummary: physicalDevice.physicalDeviceSummary,
+    physicalDeviceRecommendation: physicalDevice.physicalDeviceRecommendation,
     appBuild: sanitizedAppBuild,
     networkProfile: sanitizedNetworkProfile,
     targetPlatform: diagnostics.target.platform,
@@ -377,6 +397,7 @@ export const createStreamValidationRun = ({
       sanitizedDeviceName,
       diagnostics.target.platform,
       diagnostics.validation.status,
+      physicalDevice,
       nativeRuntime,
       monitorHold,
       faceTracking,
@@ -389,6 +410,7 @@ export const createStreamValidationRun = ({
     recommendation: createRunRecommendation(
       effectiveResult,
       diagnostics.validation.recommendedNextStep,
+      physicalDevice,
       nativeRuntime,
       monitorHold,
       faceTracking,
@@ -502,6 +524,11 @@ export const summarizeStreamValidationEvidence = (
   const passCount = normalized.filter((run) => run.result === "pass").length;
   const warningCount = normalized.filter((run) => run.result === "warn").length;
   const failureCount = normalized.filter((run) => run.result === "fail").length;
+  const physicalDeviceRuns = scopedRuns.filter((run) => run.physicalDeviceStatus);
+  const physicalDeviceRunCount = physicalDeviceRuns.length;
+  const physicalDeviceReadyCount = physicalDeviceRuns.filter((run) => isPhysicalDeviceEvidencePass(run)).length;
+  const physicalDeviceWarningCount = physicalDeviceRuns.filter((run) => run.physicalDeviceStatus === "warn").length;
+  const physicalDeviceFailureCount = physicalDeviceRuns.filter((run) => run.physicalDeviceStatus === "fail").length;
   const nativeRuntimeRuns = scopedRuns.filter((run) => run.nativeRuntime);
   const nativeRuntimeRunCount = nativeRuntimeRuns.length;
   const nativeRuntimeReadyCount = nativeRuntimeRuns.filter((run) =>
@@ -588,6 +615,8 @@ export const summarizeStreamValidationEvidence = (
   const androidLatestRun = latestDeviceRuns.find((run) => run.devicePlatform === "android") ?? null;
   const iosPass = iosLatestRun?.result === "pass";
   const androidPass = androidLatestRun?.result === "pass";
+  const physicalDeviceIosPass = iosPass && isPhysicalDeviceEvidencePass(iosLatestRun);
+  const physicalDeviceAndroidPass = androidPass && isPhysicalDeviceEvidencePass(androidLatestRun);
   const nativeRuntimeIosPass = iosPass && isNativeRuntimeEvidencePass(iosLatestRun?.nativeRuntime, "ios");
   const nativeRuntimeAndroidPass = androidPass && isNativeRuntimeEvidencePass(androidLatestRun?.nativeRuntime, "android");
   const monitorHoldIosPass = iosPass && isMonitorHoldEvidencePass(iosLatestRun?.monitorHold);
@@ -620,6 +649,8 @@ export const summarizeStreamValidationEvidence = (
     iosPass,
     androidPass,
     appBuildMismatch,
+    physicalDeviceIosPass,
+    physicalDeviceAndroidPass,
     nativeRuntimeIosPass,
     nativeRuntimeAndroidPass,
     monitorHoldIosPass,
@@ -643,6 +674,12 @@ export const summarizeStreamValidationEvidence = (
     passCount,
     warningCount,
     failureCount,
+    physicalDeviceRunCount,
+    physicalDeviceReadyCount,
+    physicalDeviceWarningCount,
+    physicalDeviceFailureCount,
+    physicalDeviceIosPass,
+    physicalDeviceAndroidPass,
     nativeRuntimeRunCount,
     nativeRuntimeReadyCount,
     nativeRuntimeWarningCount,
@@ -710,6 +747,8 @@ export const summarizeStreamValidationEvidence = (
       failureCount,
       iosPass,
       androidPass,
+      physicalDeviceIosPass,
+      physicalDeviceAndroidPass,
       nativeRuntimeIosPass,
       nativeRuntimeAndroidPass,
       monitorHoldIosPass,
@@ -733,6 +772,8 @@ export const summarizeStreamValidationEvidence = (
       maxAgeDays,
       iosPass,
       androidPass,
+      physicalDeviceIosPass,
+      physicalDeviceAndroidPass,
       nativeRuntimeIosPass,
       nativeRuntimeAndroidPass,
       monitorHoldIosPass,
@@ -773,6 +814,9 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
 
   const targetPlatform = normalizeText(value.targetPlatform, "Unknown target");
   const transport = normalizeText(value.transport, "RTMP");
+  const deviceName = normalizeText(value.deviceName, defaultDeviceName(devicePlatform));
+  const osVersion = normalizeText(value.osVersion, "-");
+  const physicalDevice = normalizePhysicalDeviceEvidence(value, devicePlatform, deviceName, osVersion);
   const checklistStatus = normalizeChecklistStatus(value.checklistStatus);
   const diagnosticStatus = normalizeDiagnosticStatus(value.diagnosticStatus);
   const sessionOutcome = normalizeSessionOutcome(value.sessionOutcome);
@@ -793,15 +837,19 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
     id: normalizeText(value.id, createValidationRunId({
       createdAt,
       devicePlatform,
-      deviceName: normalizeText(value.deviceName, defaultDeviceName(devicePlatform)),
+      deviceName,
       targetPlatform,
       transport,
       result
     })),
     createdAt,
     devicePlatform,
-    deviceName: normalizeText(value.deviceName, defaultDeviceName(devicePlatform)),
-    osVersion: normalizeText(value.osVersion, "-"),
+    deviceName,
+    osVersion,
+    physicalDevice: physicalDevice.physicalDevice,
+    physicalDeviceStatus: physicalDevice.physicalDeviceStatus,
+    physicalDeviceSummary: physicalDevice.physicalDeviceSummary,
+    physicalDeviceRecommendation: physicalDevice.physicalDeviceRecommendation,
     appBuild: normalizeText(value.appBuild, "-"),
     networkProfile: normalizeText(value.networkProfile, "private test"),
     targetPlatform,
@@ -825,9 +873,10 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
       value.summary,
       createRunSummary(
         result,
-        normalizeText(value.deviceName, defaultDeviceName(devicePlatform)),
+        deviceName,
         targetPlatform,
         checklistStatus,
+        physicalDevice,
         nativeRuntime,
         monitorHold,
         faceTracking,
@@ -843,6 +892,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
       createRunRecommendation(
         result,
         "Run another private validation pass.",
+        physicalDevice,
         nativeRuntime,
         monitorHold,
         faceTracking,
@@ -869,6 +919,8 @@ const createEvidenceStatus = ({
   iosPass,
   androidPass,
   appBuildMismatch,
+  physicalDeviceIosPass,
+  physicalDeviceAndroidPass,
   nativeRuntimeIosPass,
   nativeRuntimeAndroidPass,
   monitorHoldIosPass,
@@ -889,6 +941,8 @@ const createEvidenceStatus = ({
   iosPass: boolean;
   androidPass: boolean;
   appBuildMismatch: boolean;
+  physicalDeviceIosPass: boolean;
+  physicalDeviceAndroidPass: boolean;
   nativeRuntimeIosPass: boolean;
   nativeRuntimeAndroidPass: boolean;
   monitorHoldIosPass: boolean;
@@ -915,6 +969,8 @@ const createEvidenceStatus = ({
     iosPass &&
     androidPass &&
     !appBuildMismatch &&
+    physicalDeviceIosPass &&
+    physicalDeviceAndroidPass &&
     nativeRuntimeIosPass &&
     nativeRuntimeAndroidPass &&
     monitorHoldIosPass &&
@@ -962,6 +1018,9 @@ const latestRunsByTargetPlatform = (runs: StreamValidationRun[]): StreamValidati
 
   return latestRuns;
 };
+
+const isPhysicalDeviceEvidencePass = (run: StreamValidationRun | null | undefined): boolean =>
+  run?.physicalDeviceStatus === "pass" && run.physicalDevice;
 
 const isAvatarMotionEvidencePass = (faceTracking: StreamValidationFaceTrackingSummary | null | undefined): boolean =>
   faceTracking?.status === "pass" && faceTracking.activeMotionCount > 0;
@@ -1066,6 +1125,8 @@ const createEvidenceSummary = (
     failureCount: number;
     iosPass: boolean;
     androidPass: boolean;
+    physicalDeviceIosPass: boolean;
+    physicalDeviceAndroidPass: boolean;
     nativeRuntimeIosPass: boolean;
     nativeRuntimeAndroidPass: boolean;
     monitorHoldIosPass: boolean;
@@ -1100,6 +1161,9 @@ const createEvidenceSummary = (
   if (counts.appBuildMismatch) {
     return `Physical validation app builds do not match: iOS ${counts.iosAppBuild ?? "-"} / Android ${counts.androidAppBuild ?? "-"}.`;
   }
+  if (counts.iosPass && counts.androidPass && (!counts.physicalDeviceIosPass || !counts.physicalDeviceAndroidPass)) {
+    return `Physical validation is partial: iOS and Android passed, but retained device identity is incomplete: iOS ${counts.physicalDeviceIosPass ? "pass" : "missing physical-device proof"} / Android ${counts.physicalDeviceAndroidPass ? "pass" : "missing physical-device proof"}.`;
+  }
   if (counts.iosPass && counts.androidPass && (!counts.nativeRuntimeIosPass || !counts.nativeRuntimeAndroidPass)) {
     return `Physical validation is partial: iOS and Android passed, but retained native publisher/compositor evidence is incomplete: iOS ${counts.nativeRuntimeIosPass ? "pass" : "missing native runtime proof"} / Android ${counts.nativeRuntimeAndroidPass ? "pass" : "missing native runtime proof"}.`;
   }
@@ -1132,6 +1196,8 @@ const createEvidenceRecommendation = (
     maxAgeDays: number;
     iosPass: boolean;
     androidPass: boolean;
+    physicalDeviceIosPass: boolean;
+    physicalDeviceAndroidPass: boolean;
     nativeRuntimeIosPass: boolean;
     nativeRuntimeAndroidPass: boolean;
     monitorHoldIosPass: boolean;
@@ -1154,6 +1220,9 @@ const createEvidenceRecommendation = (
   }
   if (context.appBuildMismatch) {
     return "Record fresh iOS and Android validation passes on the same release-candidate build.";
+  }
+  if (context.iosPass && context.androidPass && (!context.physicalDeviceIosPass || !context.physicalDeviceAndroidPass)) {
+    return "Record fresh iOS and Android validation runs with explicit real device model/name and OS version, not Simulator, Emulator, browser, or generic test-device labels.";
   }
   if (context.iosPass && context.androidPass && (!context.nativeRuntimeIosPass || !context.nativeRuntimeAndroidPass)) {
     return "Record fresh iOS and Android validation runs with native publisher/compositor telemetry showing sent video/audio frames, bytes written, clean compositor state, and all still-image assets loaded.";
@@ -1185,6 +1254,7 @@ const createEvidenceRecommendation = (
 const createEffectiveValidationResult = (
   result: StreamValidationRunResult,
   devicePlatform: StreamValidationDevicePlatform,
+  physicalDeviceStatus: StreamValidationFeatureStatus,
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
   monitorHold: StreamValidationMonitorHoldSummary | null,
   faceTracking: StreamValidationFaceTrackingSummary | null,
@@ -1195,6 +1265,7 @@ const createEffectiveValidationResult = (
 ): StreamValidationRunResult => {
   if (
     result === "fail" ||
+    physicalDeviceStatus === "fail" ||
     nativeRuntime?.status === "fail" ||
     monitorHold?.status === "fail" ||
     audio?.status === "fail" ||
@@ -1205,6 +1276,7 @@ const createEffectiveValidationResult = (
   }
   if (
     result === "warn" ||
+    physicalDeviceStatus !== "pass" ||
     !isNativeRuntimeEvidencePass(nativeRuntime, devicePlatform) ||
     !isMonitorHoldEvidencePass(monitorHold) ||
     nativeRuntime?.status === "warn" ||
@@ -1226,6 +1298,7 @@ const createRunSummary = (
   deviceName: string,
   targetPlatform: string,
   checklistStatus: StreamDiagnostics["validation"]["status"],
+  physicalDevice: Pick<StreamValidationRun, "physicalDeviceSummary">,
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
   monitorHold: StreamValidationMonitorHoldSummary | null,
   faceTracking: StreamValidationFaceTrackingSummary | null,
@@ -1236,12 +1309,13 @@ const createRunSummary = (
   platformPublishingFreshness: PlatformPublishingFreshness | null
 ): string => {
   const prefix = result === "pass" ? "Passed" : result === "warn" ? "Needs review" : "Failed";
-  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}.${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${monitorHold ? ` ${monitorHold.summary}` : ""}${faceTracking && faceTracking.status !== "info" ? ` ${faceTracking.summary}` : ""}${audio ? ` ${audio.summary}` : ""}${chatReadout ? ` ${chatReadout.summary}` : ""}${qualityAutomation ? ` ${qualityAutomation.summary}` : ""}${platformPublishing && platformPublishing.status !== "info" ? ` ${platformPublishing.summary}` : ""}${platformPublishingFreshness && platformPublishingFreshness.status !== "not-applicable" ? ` ${platformPublishingFreshness.summary}` : ""}`;
+  return `${prefix} physical validation on ${deviceName} for ${targetPlatform}; checklist was ${checklistStatus}. ${physicalDevice.physicalDeviceSummary}${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${monitorHold ? ` ${monitorHold.summary}` : ""}${faceTracking && faceTracking.status !== "info" ? ` ${faceTracking.summary}` : ""}${audio ? ` ${audio.summary}` : ""}${chatReadout ? ` ${chatReadout.summary}` : ""}${qualityAutomation ? ` ${qualityAutomation.summary}` : ""}${platformPublishing && platformPublishing.status !== "info" ? ` ${platformPublishing.summary}` : ""}${platformPublishingFreshness && platformPublishingFreshness.status !== "not-applicable" ? ` ${platformPublishingFreshness.summary}` : ""}`;
 };
 
 const createRunRecommendation = (
   result: StreamValidationRunResult,
   fallbackRecommendation: string,
+  physicalDevice: Pick<StreamValidationRun, "physicalDeviceStatus" | "physicalDeviceRecommendation">,
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
   monitorHold: StreamValidationMonitorHoldSummary | null,
   faceTracking: StreamValidationFaceTrackingSummary | null,
@@ -1251,6 +1325,9 @@ const createRunRecommendation = (
   platformPublishing: StreamDiagnostics["platformPublishing"] | null,
   platformPublishingFreshness: PlatformPublishingFreshness | null
 ): string => {
+  if (physicalDevice.physicalDeviceStatus === "fail") {
+    return physicalDevice.physicalDeviceRecommendation;
+  }
   if (nativeRuntime?.status === "fail") {
     return nativeRuntime.recommendation;
   }
@@ -1298,6 +1375,9 @@ const createRunRecommendation = (
   }
   if (!isPlatformPublishingEvidencePass(platformPublishing, platformPublishingFreshness) && platformPublishingFreshness) {
     return platformPublishingFreshness.recommendation;
+  }
+  if (physicalDevice.physicalDeviceStatus !== "pass") {
+    return physicalDevice.physicalDeviceRecommendation;
   }
   if (audio && audio.status !== "pass") {
     return audio.recommendation;
@@ -1877,6 +1957,8 @@ const createEvidenceRunManifestItem = (
   devicePlatform: run.devicePlatform,
   deviceName: run.deviceName,
   osVersion: run.osVersion,
+  physicalDevice: run.physicalDevice,
+  physicalDeviceStatus: run.physicalDeviceStatus,
   appBuild: run.appBuild,
   networkProfile: run.networkProfile,
   targetPlatform: run.targetPlatform,
@@ -1900,6 +1982,8 @@ const toEvidenceFingerprintRunRef = (run: StreamValidationRun) => ({
   devicePlatform: run.devicePlatform,
   fingerprint: run.fingerprint,
   id: run.id,
+  physicalDevice: run.physicalDevice,
+  physicalDeviceStatus: run.physicalDeviceStatus,
   result: run.result,
   targetPlatform: run.targetPlatform,
   transport: run.transport
@@ -1950,6 +2034,109 @@ const hashString = (value: string): string => {
 
 const defaultDeviceName = (platform: StreamValidationDevicePlatform): string =>
   platform === "ios" ? "iOS device" : "Android device";
+
+const createPhysicalDeviceEvidence = (
+  platform: StreamValidationDevicePlatform,
+  deviceName: string,
+  osVersion: string,
+  secrets: string[]
+): Pick<
+  StreamValidationRun,
+  "physicalDevice" | "physicalDeviceStatus" | "physicalDeviceSummary" | "physicalDeviceRecommendation"
+> => {
+  const evidence = classifyPhysicalDeviceEvidence(platform, deviceName, osVersion);
+  return {
+    physicalDevice: evidence.physicalDevice,
+    physicalDeviceStatus: evidence.status,
+    physicalDeviceSummary: sanitizeStoredText(evidence.summary, secrets),
+    physicalDeviceRecommendation: sanitizeStoredText(evidence.recommendation, secrets)
+  };
+};
+
+const normalizePhysicalDeviceEvidence = (
+  value: Record<string, unknown>,
+  platform: StreamValidationDevicePlatform,
+  deviceName: string,
+  osVersion: string
+): Pick<
+  StreamValidationRun,
+  "physicalDevice" | "physicalDeviceStatus" | "physicalDeviceSummary" | "physicalDeviceRecommendation"
+> => {
+  const fallback = classifyPhysicalDeviceEvidence(platform, deviceName, osVersion);
+  const explicitStatus = normalizeOptionalFeatureStatus(value.physicalDeviceStatus);
+  const physicalDevice =
+    typeof value.physicalDevice === "boolean" ? value.physicalDevice : fallback.physicalDevice;
+  const physicalDeviceStatus =
+    explicitStatus ?? (physicalDevice ? "pass" : fallback.status);
+  return {
+    physicalDevice,
+    physicalDeviceStatus,
+    physicalDeviceSummary: normalizeText(value.physicalDeviceSummary, fallback.summary),
+    physicalDeviceRecommendation: normalizeText(value.physicalDeviceRecommendation, fallback.recommendation)
+  };
+};
+
+const classifyPhysicalDeviceEvidence = (
+  platform: StreamValidationDevicePlatform,
+  deviceName: string,
+  osVersion: string
+): {
+  physicalDevice: boolean;
+  status: StreamValidationFeatureStatus;
+  summary: string;
+  recommendation: string;
+} => {
+  const label = `${deviceName} ${osVersion}`.toLowerCase();
+  if (virtualDevicePattern.test(label)) {
+    return {
+      physicalDevice: false,
+      status: "fail",
+      summary: `Validation device is virtual or non-release hardware: ${deviceName} / ${osVersion}.`,
+      recommendation: "Repeat validation on a real iPhone/iPad or Android handset before commercial approval."
+    };
+  }
+
+  if (!hasSpecificDeviceLabel(platform, deviceName, osVersion)) {
+    return {
+      physicalDevice: false,
+      status: "warn",
+      summary: `Physical device proof is incomplete: ${deviceName} / ${osVersion}.`,
+      recommendation: "Enter the real device model/name and OS version from the physical validation device."
+    };
+  }
+
+  return {
+    physicalDevice: true,
+    status: "pass",
+    summary: `Physical device proof retained: ${deviceName} / ${osVersion}.`,
+    recommendation: "Keep this physical-device identity with the retained release-candidate evidence."
+  };
+};
+
+const virtualDevicePattern =
+  /\b(simulator|emulator|android sdk|sdk_gphone|sdk phone|sdk_phone|aosp|generic|xcode|preview|browser|chrome|mock|test device|unknown)\b/i;
+
+const hasSpecificDeviceLabel = (
+  platform: StreamValidationDevicePlatform,
+  deviceName: string,
+  osVersion: string
+): boolean => {
+  const normalizedName = deviceName.trim().toLowerCase();
+  const normalizedOs = osVersion.trim().toLowerCase();
+  if (!normalizedName || !normalizedOs || normalizedName === defaultDeviceName(platform).toLowerCase()) {
+    return false;
+  }
+
+  if (platform === "ios") {
+    return /\b(iphone|ipad|ipod)\b/.test(normalizedName) && /\bios|ipados\b/.test(normalizedOs);
+  }
+
+  return (
+    /\bandroid\b/.test(normalizedOs) &&
+    !/^android\s*(device)?$/.test(normalizedName) &&
+    normalizedName.length >= 4
+  );
+};
 
 const sanitizeStoredText = (value: string, secrets: string[]): string =>
   secrets.reduce((current, secret) => redactSecret(current, secret), clampText(value.trim()));
@@ -2167,6 +2354,9 @@ const normalizeQualityAutomationValidationSummary = (value: unknown): StreamVali
 
 const normalizeFeatureStatus = (value: unknown): StreamValidationFeatureStatus =>
   value === "pass" || value === "warn" || value === "fail" || value === "pending" ? value : "pending";
+
+const normalizeOptionalFeatureStatus = (value: unknown): StreamValidationFeatureStatus | null =>
+  value === "pass" || value === "warn" || value === "fail" || value === "pending" ? value : null;
 
 const normalizeAudioRouteStatus = (value: unknown): AudioRouteMonitorStatus =>
   value === "pass" || value === "warn" || value === "fail" || value === "info" ? value : "info";

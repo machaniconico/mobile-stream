@@ -608,6 +608,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Evidence run manifest: ${formatValidationEvidenceRunManifest(diagnostics.validationEvidence.runManifest)}`,
     `- Evidence freshness: ${diagnostics.validationEvidence.latestRunAgeDays === null ? "-" : `${diagnostics.validationEvidence.latestRunAgeDays} days old`} / max ${diagnostics.validationEvidence.maxAgeDays} days`,
     `- Evidence build: ${diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")}`,
+    `- Evidence physical devices: ${diagnostics.validationEvidence.physicalDeviceRunCount} retained / ${diagnostics.validationEvidence.physicalDeviceReadyCount} ready / ${diagnostics.validationEvidence.physicalDeviceWarningCount} warn / ${diagnostics.validationEvidence.physicalDeviceFailureCount} fail / iOS ${diagnostics.validationEvidence.physicalDeviceIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.physicalDeviceAndroidPass ? "pass" : "missing"}`,
     `- Evidence monitor hold: ${formatValidationMonitorHold(diagnostics)}`,
     `- Evidence native runtime: ${formatValidationNativeRuntime(diagnostics)}`,
     `- Evidence face tracking: ${formatValidationFaceTracking(diagnostics)}`,
@@ -709,6 +710,7 @@ const formatValidationEvidenceRunManifest = (
       const scopeStatus = run.eligible ? "eligible" : run.matchesScope ? "stale" : "out-of-scope";
       return [
         `${run.devicePlatform} ${run.result} ${scopeStatus}`,
+        `device ${run.physicalDevice ? "physical" : run.physicalDeviceStatus}`,
         `build ${run.appBuild}`,
         `${run.targetPlatform}/${run.transport}`,
         `${run.ageDays}d`,

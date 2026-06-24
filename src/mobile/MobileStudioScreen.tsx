@@ -1538,7 +1538,9 @@ const StreamValidationRecorder = ({
           {diagnostics.validationEvidence.eligibleRunCount}/{diagnostics.validationEvidence.totalRuns} eligible /{" "}
           {diagnostics.validationEvidence.staleRunCount} stale / iOS {diagnostics.validationEvidence.iosPass ? "pass" : "missing"} / Android{" "}
           {diagnostics.validationEvidence.androidPass ? "pass" : "missing"} / build{" "}
-          {diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")} / native iOS{" "}
+          {diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")} / physical iOS{" "}
+          {diagnostics.validationEvidence.physicalDeviceIosPass ? "pass" : "missing"} / Android{" "}
+          {diagnostics.validationEvidence.physicalDeviceAndroidPass ? "pass" : "missing"} / native iOS{" "}
           {diagnostics.validationEvidence.nativeRuntimeIosPass ? "pass" : "missing"} / Android{" "}
           {diagnostics.validationEvidence.nativeRuntimeAndroidPass ? "pass" : "missing"} / hold iOS{" "}
           {diagnostics.validationEvidence.monitorHoldIosPass ? "pass" : "missing"} / Android{" "}
@@ -1568,6 +1570,8 @@ const StreamValidationRecorder = ({
             {diagnostics.validationEvidence.latestRunAgeDays === null
               ? ""
               : ` / ${diagnostics.validationEvidence.latestRunAgeDays}d old`}
+            {" / "}
+            {latestRun.physicalDevice ? "physical device" : `device ${latestRun.physicalDeviceStatus}`}
           </Text>
           <Text style={styles.diagnosticIncidentRecommendation}>run fingerprint {latestRun.fingerprint}</Text>
           {validationRunNativeRuntimeLabel(latestRun) ? (

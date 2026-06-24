@@ -163,6 +163,17 @@ const nativeMonitorRuntimeWithLatency = (
   };
 };
 
+const physicalDeviceMeta = (platform: "ios" | "android") =>
+  platform === "ios"
+    ? {
+        deviceName: "iPhone 15 Pro",
+        osVersion: "iOS 18.5"
+      }
+    : {
+        deviceName: "Pixel 8 Pro",
+        osVersion: "Android 15"
+      };
+
 describe("stream validation evidence", () => {
   it("creates a redacted validation run from diagnostics", () => {
     const scene = createDefaultScene();
@@ -428,6 +439,54 @@ describe("stream validation evidence", () => {
     expect(formatStreamValidationRunAudioLabel(run)).toContain("104ms pass/180ms android-audiotrack-buffer");
   });
 
+  it("rejects simulator or emulator validation identities as physical-device proof", () => {
+    const scene = createDefaultScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: nativeMonitorRuntime("ios")
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const physicalRun = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      deviceName: "iPhone 15 Pro",
+      osVersion: "iOS 18.5",
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const simulatorRun = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      deviceName: "iPhone 15 Simulator",
+      osVersion: "iOS 18.5 Simulator",
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:01:00.000Z")
+    });
+
+    expect(physicalRun.physicalDevice).toBe(true);
+    expect(physicalRun.physicalDeviceStatus).toBe("pass");
+    expect(simulatorRun.result).toBe("fail");
+    expect(simulatorRun.physicalDevice).toBe(false);
+    expect(simulatorRun.physicalDeviceStatus).toBe("fail");
+    expect(simulatorRun.physicalDeviceRecommendation).toContain("real iPhone/iPad or Android handset");
+  });
+
   it("fails audio evidence when measured monitor latency is above the release limit", () => {
     const scene = createDefaultScene();
     const profile = commercialProfileWithKey("validation-key");
@@ -495,6 +554,7 @@ describe("stream validation evidence", () => {
     const run = createStreamValidationRun({
       diagnostics,
       devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
       audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
@@ -538,6 +598,7 @@ describe("stream validation evidence", () => {
     const run = createStreamValidationRun({
       diagnostics,
       devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
       audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
@@ -582,6 +643,7 @@ describe("stream validation evidence", () => {
     const run = createStreamValidationRun({
       diagnostics,
       devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
       audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
@@ -678,6 +740,7 @@ describe("stream validation evidence", () => {
     const run = createStreamValidationRun({
       diagnostics,
       devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
       audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
@@ -726,6 +789,7 @@ describe("stream validation evidence", () => {
     const run = createStreamValidationRun({
       diagnostics,
       devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
       audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
@@ -1114,6 +1178,7 @@ describe("stream validation evidence", () => {
     const iosRun = createStreamValidationRun({
       diagnostics: diagnosticsFor("ios"),
       devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
       audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
@@ -1121,6 +1186,7 @@ describe("stream validation evidence", () => {
     const androidRun = createStreamValidationRun({
       diagnostics: diagnosticsFor("android"),
       devicePlatform: "android",
+      ...physicalDeviceMeta("android"),
       audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:01:00.000Z")
@@ -1156,6 +1222,7 @@ describe("stream validation evidence", () => {
         nativeRuntime: nativeMonitorRuntime("ios")
       }, [], stableMonitorSamples()),
       devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
     });
@@ -1166,6 +1233,7 @@ describe("stream validation evidence", () => {
         nativeRuntime: nativeMonitorRuntime("android")
       }, [], stableMonitorSamples()),
       devicePlatform: "android",
+      ...physicalDeviceMeta("android"),
       result: "pass",
       now: new Date("2026-06-23T00:01:00.000Z")
     });
@@ -1306,6 +1374,7 @@ describe("stream validation evidence", () => {
     const iosRun = createStreamValidationRun({
       diagnostics: diagnosticsFor("ios"),
       devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
       audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:00:00.000Z")
@@ -1313,6 +1382,7 @@ describe("stream validation evidence", () => {
     const androidRun = createStreamValidationRun({
       diagnostics: diagnosticsFor("android"),
       devicePlatform: "android",
+      ...physicalDeviceMeta("android"),
       audioMonitorTuning: tunedMonitor,
       result: "pass",
       now: new Date("2026-06-23T00:01:00.000Z")
@@ -1384,6 +1454,7 @@ describe("stream validation evidence", () => {
     const iosRun = createStreamValidationRun({
       diagnostics: diagnosticsFor("ios"),
       devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
       appBuild: "rc-1",
       audioMonitorTuning: tunedMonitor,
       result: "pass",
@@ -1392,6 +1463,7 @@ describe("stream validation evidence", () => {
     const androidRun = createStreamValidationRun({
       diagnostics: diagnosticsFor("android"),
       devicePlatform: "android",
+      ...physicalDeviceMeta("android"),
       appBuild: "rc-2",
       audioMonitorTuning: tunedMonitor,
       result: "pass",
@@ -1400,6 +1472,7 @@ describe("stream validation evidence", () => {
     const matchingAndroidRun = createStreamValidationRun({
       diagnostics: diagnosticsFor("android"),
       devicePlatform: "android",
+      ...physicalDeviceMeta("android"),
       appBuild: "rc-1",
       audioMonitorTuning: tunedMonitor,
       result: "pass",
