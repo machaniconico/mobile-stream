@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { argv, exit } from "node:process";
+import { pathToFileURL } from "node:url";
 import {
   releaseConfigArtifactPaths,
   requiredReleaseArtifactGroups,
@@ -13,10 +14,12 @@ const requiredUiViewportNames = ["desktop", "mobile"];
 const requiredReactNativeArtifacts = [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"];
 const requiredUiArtifacts = [".artifacts/mobile-live-caster-desktop.png", ".artifacts/mobile-live-caster-mobile.png"];
 
-await main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  exit(1);
-});
+if (isDirectRun()) {
+  await main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    exit(1);
+  });
+}
 
 async function main() {
   const options = parseArgs(argv.slice(2));
@@ -89,7 +92,7 @@ function parseArgs(args) {
   return parsed;
 }
 
-function validateReport(report, options) {
+export function validateReport(report, options) {
   const failures = [];
   const fail = (message) => failures.push(message);
 
@@ -329,6 +332,9 @@ function validateEvidenceScreenshot(viewport, fail) {
   if (content.byteLength !== screenshot.bytes || actualSha256 !== screenshot.sha256) {
     fail(`Browser UI evidence screenshot metadata mismatch for ${screenshot.path}.`);
   }
+  if (!isPng(content)) {
+    fail(`Browser UI evidence screenshot is not a PNG file: ${screenshot.path}.`);
+  }
 }
 
 function readJsonFile(path, label) {
@@ -370,6 +376,20 @@ function isSha256(value) {
   return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 }
 
+function isPng(content) {
+  return (
+    content.length >= 8 &&
+    content[0] === 0x89 &&
+    content[1] === 0x50 &&
+    content[2] === 0x4e &&
+    content[3] === 0x47 &&
+    content[4] === 0x0d &&
+    content[5] === 0x0a &&
+    content[6] === 0x1a &&
+    content[7] === 0x0a
+  );
+}
+
 function stringValue(value) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -384,4 +404,8 @@ function printUsage() {
       "Use --allow-dirty or --allow-commit-mismatch only for development-only report inspection."
     ].join("\n")
   );
+}
+
+function isDirectRun() {
+  return argv[1] ? pathToFileURL(resolve(argv[1])).href === import.meta.url : false;
 }
