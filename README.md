@@ -98,6 +98,7 @@ npm run android:verify-release-env
 npm run ios:export-options
 npm run ios:archive:release
 npm run ios:export:release
+npm run release:store -- --dry-run
 npm run release:distribution-manifest -- --android-aab android/app/build/outputs/bundle/release/app-release.aab --ios-ipa .artifacts/ios/export/MobileLiveCaster.ipa
 ```
 
@@ -118,6 +119,8 @@ npm run release:distribution-manifest -- --android-aab android/app/build/outputs
 `npm run android:bundleRelease` creates the signed Android App Bundle for store distribution after `MLC_RELEASE_STORE_FILE`, `MLC_RELEASE_STORE_PASSWORD`, `MLC_RELEASE_KEY_ALIAS`, and `MLC_RELEASE_KEY_PASSWORD` pass `npm run android:verify-release-env`.
 
 `npm run release:distribution-manifest -- --android-aab <path> --ios-ipa <path>` writes `.artifacts/distribution-artifacts.json` with workspace-relative `.aab` / `.ipa` paths, byte counts, and SHA-256 hashes. `npm run verify:distribution-artifacts` verifies that manifest before release approval. When the manifest exists, `npm run verify:release-candidate` includes it and the referenced binaries in the saved release report.
+
+`npm run release:store` orchestrates the store-distribution path: platform release environment checks, Android App Bundle generation, iOS archive/export, and distribution manifest creation. Use `--dry-run` to inspect the exact steps, or `--android-only` / `--ios-only` for platform-specific releases.
 
 `npm run verify:release-config` audits native store-release configuration, including Android release signing fail-closed behavior, Android App Bundle release automation, release cleartext-traffic blocking, Android/iOS store version alignment, streaming permissions, OAuth callback schemes, iOS usage descriptions, the iOS privacy manifest, iOS production archive/export automation, and the ReplayKit Broadcast Upload Extension bundle/entitlements/App Group/provisioning setup.
 

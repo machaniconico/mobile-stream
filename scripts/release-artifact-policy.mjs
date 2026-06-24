@@ -5,6 +5,7 @@ export const releaseConfigArtifactPaths = [
   ".github/workflows/ci.yml",
   ".github/workflows/auto-merge.yml",
   "scripts/release-artifact-policy.mjs",
+  "scripts/release-store-build.mjs",
   "scripts/archive-ios-release.mjs",
   "scripts/create-ios-export-options.mjs",
   "scripts/export-ios-release.mjs",

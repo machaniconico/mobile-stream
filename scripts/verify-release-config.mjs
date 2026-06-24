@@ -21,6 +21,7 @@ const files = {
   broadcastInfo: read("ios/MobileLiveCasterBroadcastUpload/Info.plist"),
   broadcastEntitlements: read("ios/MobileLiveCasterBroadcastUpload/MobileLiveCasterBroadcastUpload.entitlements"),
   xcodeProject: read("ios/MobileLiveCaster.xcodeproj/project.pbxproj"),
+  storeReleaseBuildScript: read("scripts/release-store-build.mjs"),
   iosReleaseConfigScript: read("scripts/ios-release-config.mjs"),
   createIosExportOptionsScript: read("scripts/create-ios-export-options.mjs"),
   archiveIosReleaseScript: read("scripts/archive-ios-release.mjs"),
@@ -53,6 +54,7 @@ const checks = [
     expectIncludes(files.packageJson, '"verify:store-release-env": "node scripts/verify-store-release-env.mjs"');
     expectIncludes(files.packageJson, '"verify:distribution-artifacts": "node scripts/verify-distribution-artifacts.mjs --verify"');
     expectIncludes(files.packageJson, '"release:distribution-manifest": "node scripts/verify-distribution-artifacts.mjs --write"');
+    expectIncludes(files.packageJson, '"release:store": "node scripts/release-store-build.mjs"');
     expectIncludes(files.packageJson, '"android:bundleRelease": "bash -lc');
     expectIncludes(files.packageJson, '"android:verify-release-env": "node scripts/verify-store-release-env.mjs --android-only"');
     expectIncludes(files.storeReleaseEnvScript, "MLC_RELEASE_STORE_FILE");
@@ -62,6 +64,9 @@ const checks = [
     expectIncludes(files.distributionArtifactsScript, "androidAab");
     expectIncludes(files.distributionArtifactsScript, ".aab");
     expectIncludes(files.distributionArtifactsScript, "sha256");
+    expectIncludes(files.storeReleaseBuildScript, "android:verify-release-env");
+    expectIncludes(files.storeReleaseBuildScript, "android:bundleRelease");
+    expectIncludes(files.storeReleaseBuildScript, "createDistributionManifest");
   }),
   check("Android streaming permissions are declared", () => {
     [
@@ -135,6 +140,9 @@ const checks = [
     expectIncludes(files.distributionArtifactsScript, "iosIpa");
     expectIncludes(files.distributionArtifactsScript, ".ipa");
     expectIncludes(files.distributionArtifactsScript, "distribution-artifact-manifest");
+    expectIncludes(files.storeReleaseBuildScript, "ios:verify-release-env");
+    expectIncludes(files.storeReleaseBuildScript, "ios:archive:release");
+    expectIncludes(files.storeReleaseBuildScript, "ios:export:release");
 
     const releaseEnv = {
       [iosReleaseEnv.teamId]: "ABCDE12345",
