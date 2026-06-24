@@ -5,7 +5,7 @@ import type { StreamHealth, StreamStatus } from "./streamState";
 import type { PlatformChatReconnectDecision } from "./platformChatConnection";
 
 export type StreamSessionEventSeverity = "info" | "warn" | "fail";
-export type StreamSessionEventKind = "status" | "operation" | "recovery" | "quality" | "chat";
+export type StreamSessionEventKind = "status" | "operation" | "recovery" | "quality" | "chat" | "platform-api";
 
 export interface StreamSessionEvent {
   id: string;
@@ -36,6 +36,15 @@ export type StreamChatEventPhase =
 export interface StreamChatSpeechEventInput {
   messageSource: "manual" | "youtube" | "twitch" | "mock";
   textLength: number;
+}
+
+export type StreamPlatformApiOperationPhase = "started" | "succeeded" | "failed" | "skipped";
+
+export interface StreamPlatformApiOperationEventInput {
+  label: string;
+  phase: StreamPlatformApiOperationPhase;
+  message?: string;
+  retryDelayLabel?: string | null;
 }
 
 export const maxStreamSessionEvents = 50;
@@ -181,6 +190,26 @@ export const createStreamChatSpeechEvent = (
   );
 };
 
+export const createStreamPlatformApiOperationEvent = (
+  input: StreamPlatformApiOperationEventInput,
+  now: Date = new Date()
+): StreamSessionEvent => {
+  const label = sanitizeSingleLine(input.label) || "Platform API operation";
+  const message = sanitizeSingleLine(input.message ?? "");
+  const retryDelay = sanitizeSingleLine(input.retryDelayLabel ?? "");
+  return {
+    id: createEventId(now, "platform-api", input.phase, label),
+    at: now.toISOString(),
+    kind: "platform-api",
+    severity: platformApiOperationSeverity(input.phase),
+    title: `${label} ${input.phase}`,
+    message: [
+      message || defaultPlatformApiOperationMessage(label, input.phase),
+      input.phase === "failed" && retryDelay ? `Retry guidance: wait ${retryDelay}.` : ""
+    ].filter(Boolean).join(" ")
+  };
+};
+
 const chatEventTitle = (phase: StreamChatEventPhase): string => {
   switch (phase) {
     case "auto-connect-started":
@@ -199,6 +228,29 @@ const chatEventTitle = (phase: StreamChatEventPhase): string => {
       return "Chat speech spoken";
     case "speech-failed":
       return "Chat speech failed";
+  }
+};
+
+const platformApiOperationSeverity = (phase: StreamPlatformApiOperationPhase): StreamSessionEventSeverity => {
+  if (phase === "failed") {
+    return "fail";
+  }
+  if (phase === "skipped") {
+    return "warn";
+  }
+  return "info";
+};
+
+const defaultPlatformApiOperationMessage = (label: string, phase: StreamPlatformApiOperationPhase): string => {
+  switch (phase) {
+    case "started":
+      return `${label} started.`;
+    case "succeeded":
+      return `${label} completed.`;
+    case "failed":
+      return `${label} failed.`;
+    case "skipped":
+      return `${label} skipped.`;
   }
 };
 
@@ -248,3 +300,5 @@ const recoveryMessage = (decision: StreamRecoveryAutomationDecision): string => 
 
 const createEventId = (now: Date, ...parts: Array<string | number>): string =>
   [now.toISOString(), ...parts].join(":");
+
+const sanitizeSingleLine = (value: string): string => value.replace(/\s+/g, " ").trim();

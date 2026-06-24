@@ -93,13 +93,14 @@ import {
 } from "../domain/streamStartPreflight";
 import { createStreamDiagnostics } from "../domain/streamDiagnostics";
 import { createPlatformApiRetrySchedule } from "../domain/platformApiRetry";
-import { createPlatformApiOperationGate } from "../domain/platformApiOperationGate";
+import { createPlatformApiOperationGate, PlatformApiOperationInFlightError } from "../domain/platformApiOperationGate";
 import { errorToSafeMessage } from "../domain/sensitiveText";
 import {
   createStreamChatEvent,
   createStreamChatSpeechEvent,
   createStreamChatReconnectEvent,
   createStreamOperationEvent,
+  createStreamPlatformApiOperationEvent,
   createStreamQualityAutomationEvent,
   createStreamRecoveryEvent
 } from "../domain/streamSessionLog";
@@ -325,16 +326,48 @@ export const MobileApp = () => {
   const runPlatformApiOperation = useCallback(async <T,>(label: string, operation: () => Promise<T>): Promise<T> => {
     const currentLabel = platformApiOperationGate.getCurrentLabel();
     if (currentLabel) {
-      throw new Error(`${label} skipped because ${currentLabel} is already running.`);
+      const skipped = new PlatformApiOperationInFlightError(label, currentLabel);
+      recordStreamSessionEvent(
+        createStreamPlatformApiOperationEvent({
+          label,
+          phase: "skipped",
+          message: errorToSafeMessage(skipped, skipped.message)
+        })
+      );
+      throw skipped;
     }
 
     setPlatformApiOperationLabel(label);
+    recordStreamSessionEvent(
+      createStreamPlatformApiOperationEvent({
+        label,
+        phase: "started"
+      })
+    );
     try {
-      return await platformApiOperationGate.run(label, operation);
+      const result = await platformApiOperationGate.run(label, operation);
+      recordStreamSessionEvent(
+        createStreamPlatformApiOperationEvent({
+          label,
+          phase: "succeeded"
+        })
+      );
+      return result;
+    } catch (error) {
+      const retrySchedule = createPlatformApiRetrySchedule(error, { fallbackDelayMs: null });
+      recordStreamSessionEvent(
+        createStreamPlatformApiOperationEvent({
+          label,
+          phase: "failed",
+          message: errorToSafeMessage(error, `${label} failed.`),
+          retryDelayLabel: retrySchedule.retryable ? retrySchedule.label : null
+        })
+      );
+      throw error;
     } finally {
       setPlatformApiOperationLabel(null);
     }
-  }, [platformApiOperationGate]);
+  }, [platformApiOperationGate, recordStreamSessionEvent]);
 
   const syncStoredPlatformChatOAuthCredential = useCallback(
     async (credentialOverride?: PlatformChatOAuthCredential | null) => {

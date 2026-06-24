@@ -4,6 +4,7 @@ import {
   createStreamChatEvent,
   createStreamChatReconnectEvent,
   createStreamOperationEvent,
+  createStreamPlatformApiOperationEvent,
   createStreamQualityAutomationEvent,
   createStreamRecoveryEvent,
   createStreamStatusEvent,
@@ -68,6 +69,49 @@ describe("stream session log", () => {
     expect(started.severity).toBe("info");
     expect(failed.title).toBe("Reconnect failed");
     expect(failed.severity).toBe("fail");
+  });
+
+  it("creates platform API operation audit events", () => {
+    const started = createStreamPlatformApiOperationEvent(
+      {
+        label: "Platform stream key sync",
+        phase: "started"
+      },
+      new Date("2026-06-23T00:00:00.000Z")
+    );
+    const failed = createStreamPlatformApiOperationEvent(
+      {
+        label: "YouTube broadcast live",
+        phase: "failed",
+        message: "YouTube broadcast transition failed with HTTP 503.",
+        retryDelayLabel: "30s"
+      },
+      new Date("2026-06-23T00:00:01.000Z")
+    );
+    const skipped = createStreamPlatformApiOperationEvent(
+      {
+        label: "OAuth callback exchange",
+        phase: "skipped",
+        message: "OAuth callback exchange skipped because Twitch device OAuth polling is already running."
+      },
+      new Date("2026-06-23T00:00:02.000Z")
+    );
+
+    expect(started).toMatchObject({
+      kind: "platform-api",
+      severity: "info",
+      title: "Platform stream key sync started",
+      message: "Platform stream key sync started."
+    });
+    expect(failed).toMatchObject({
+      severity: "fail",
+      title: "YouTube broadcast live failed"
+    });
+    expect(failed.message).toContain("Retry guidance: wait 30s.");
+    expect(skipped).toMatchObject({
+      severity: "warn",
+      title: "OAuth callback exchange skipped"
+    });
   });
 
   it("creates chat auto-connect events", () => {

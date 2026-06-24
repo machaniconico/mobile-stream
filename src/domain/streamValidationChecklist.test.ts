@@ -42,6 +42,8 @@ const cleanSession = (id: number): StreamSessionSummary => ({
   failureCount: 0,
   recoveryEventCount: 0,
   operationFailureCount: 0,
+  platformApiEventCount: 0,
+  platformApiFailureCount: 0,
   qualityEventCount: 0,
   qualityLiveUpdateCount: 0,
   qualityNextTargetCount: 0,

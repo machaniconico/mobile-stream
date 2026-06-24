@@ -49,7 +49,7 @@
 - Shared stream recovery policy model for retry budget, bounded exponential backoff, degraded telemetry detection, failed-engine recovery advice, and sanitized report export.
 - Shared app-level automatic recovery scheduler for Web and React Native, including failed-engine reconnect, critical telemetry hold time, retry budget enforcement, and timer deduplication.
 - Web and React Native automatic recovery respects the public launch checklist for unstarted failed-stream recovery while still allowing active live/reconnecting sessions to recover without being blocked by transient dashboard/chat/audio evidence changes.
-- Shared stream session event log for status transitions, manual operations, automatic recovery actions, support diagnostics, and redacted report export.
+- Shared stream session event log for status transitions, manual operations, platform API started/succeeded/failed/skipped audit events, automatic recovery actions, support diagnostics, and redacted report export.
 - Stream key redaction and no-secret browser persistence.
 - Physical validation run persistence redacts supplied stream-key candidates plus OAuth/API tokens, device codes, client secrets, and Authorization headers before writing Web localStorage or mobile native storage.
 - Sensitive OAuth/API error message redaction before user-facing status display.
@@ -64,7 +64,7 @@
 - OAuth chat authorization layer for YouTube PKCE authorization-code callbacks, Twitch implicit callbacks, and Twitch Device Code Flow, with tokens kept out of persisted profiles.
 - Secure mobile OAuth credential persistence through Keychain/Android Keystore-backed native storage.
 - YouTube/Twitch OAuth refresh-token rotation and hourly Twitch token validation scheduling for mobile chat authorization, with bounded background retry scheduling for retryable secure-storage sync failures and `Retry-After`.
-- Web and React Native platform API operations use a visible shared single-flight guard to reject and UI-lock overlapping stream-key, publishing, broadcast lifecycle, OAuth exchange, and mobile secure-storage maintenance requests while showing the active operation label.
+- Web and React Native platform API operations use a visible shared single-flight guard to reject and UI-lock overlapping stream-key, publishing, broadcast lifecycle, OAuth exchange, and mobile secure-storage maintenance requests while showing the active operation label and retaining session audit events with safe retry guidance.
 - Platform-specific OAuth credential store for retaining YouTube and Twitch credentials at the same time, with legacy single-credential mobile storage migration.
 - OAuth credential health checks for retained platform, scope, and expiry evidence before chat readout, platform-visible Go Live checks, and YouTube broadcast Test/Live/Complete lifecycle controls.
 - OAuth/API-backed platform stream key controls: YouTube reusable stream creation for key rotation and Twitch Helix current-key sync.

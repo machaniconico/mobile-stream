@@ -79,6 +79,44 @@ describe("stream session summary", () => {
     expect(summary?.recommendation).toContain("failed operation");
   });
 
+  it("tracks platform API audit events in session and history summaries", () => {
+    const summary = createStreamSessionSummary({
+      events: [
+        event({
+          at: "2026-06-23T00:00:02.000Z",
+          kind: "platform-api",
+          severity: "info",
+          title: "Platform publishing setup started",
+          message: "Platform publishing setup started."
+        }),
+        event({
+          at: "2026-06-23T00:00:03.000Z",
+          kind: "platform-api",
+          severity: "fail",
+          title: "YouTube broadcast live failed",
+          message: "YouTube broadcast transition failed with HTTP 503. Retry guidance: wait 30s."
+        })
+      ],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+
+    const history = createStreamSessionHistorySummary([summary]);
+
+    expect(summary.outcome).toBe("fail");
+    expect(summary.platformApiEventCount).toBe(2);
+    expect(summary.platformApiFailureCount).toBe(1);
+    expect(summary.summary).toContain("Platform API: 2 events / 1 failed.");
+    expect(summary.recommendation).toContain("OAuth scopes");
+    expect(history.totalPlatformApiEvents).toBe(2);
+    expect(history.totalPlatformApiFailures).toBe(1);
+  });
+
   it("tracks platform chat readout reconnects in session and history summaries", () => {
     const summary = createStreamSessionSummary({
       events: [

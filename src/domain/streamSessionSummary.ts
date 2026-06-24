@@ -78,6 +78,8 @@ export interface StreamSessionSummary {
   failureCount: number;
   recoveryEventCount: number;
   operationFailureCount: number;
+  platformApiEventCount: number;
+  platformApiFailureCount: number;
   qualityEventCount: number;
   qualityLiveUpdateCount: number;
   qualityNextTargetCount: number;
@@ -180,6 +182,8 @@ export interface StreamSessionHistorySummary {
   totalWarningEvents: number;
   totalFailureEvents: number;
   totalRecoveryEvents: number;
+  totalPlatformApiEvents: number;
+  totalPlatformApiFailures: number;
   totalQualityEvents: number;
   totalQualityLiveUpdates: number;
   totalQualityNextTargets: number;
@@ -270,6 +274,8 @@ export const createStreamSessionHistorySummary = (
       totalWarningEvents: 0,
       totalFailureEvents: 0,
       totalRecoveryEvents: 0,
+      totalPlatformApiEvents: 0,
+      totalPlatformApiFailures: 0,
       totalQualityEvents: 0,
       totalQualityLiveUpdates: 0,
       totalQualityNextTargets: 0,
@@ -292,6 +298,8 @@ export const createStreamSessionHistorySummary = (
   const totalWarningEvents = normalized.reduce((total, summary) => total + summary.warningCount, 0);
   const totalFailureEvents = normalized.reduce((total, summary) => total + summary.failureCount, 0);
   const totalRecoveryEvents = normalized.reduce((total, summary) => total + summary.recoveryEventCount, 0);
+  const totalPlatformApiEvents = normalized.reduce((total, summary) => total + summary.platformApiEventCount, 0);
+  const totalPlatformApiFailures = normalized.reduce((total, summary) => total + summary.platformApiFailureCount, 0);
   const totalQualityEvents = normalized.reduce((total, summary) => total + summary.qualityEventCount, 0);
   const totalQualityLiveUpdates = normalized.reduce((total, summary) => total + summary.qualityLiveUpdateCount, 0);
   const totalQualityNextTargets = normalized.reduce((total, summary) => total + summary.qualityNextTargetCount, 0);
@@ -325,6 +333,8 @@ export const createStreamSessionHistorySummary = (
     totalWarningEvents,
     totalFailureEvents,
     totalRecoveryEvents,
+    totalPlatformApiEvents,
+    totalPlatformApiFailures,
     totalQualityEvents,
     totalQualityLiveUpdates,
     totalQualityNextTargets,
@@ -369,6 +379,8 @@ export const createStreamSessionSummary = ({
   const failureCount = sessionEvents.filter((event) => event.severity === "fail").length;
   const recoveryEventCount = sessionEvents.filter((event) => event.kind === "recovery").length;
   const operationFailureCount = sessionEvents.filter((event) => event.kind === "operation" && event.severity === "fail").length;
+  const platformApiEventCount = sessionEvents.filter((event) => event.kind === "platform-api").length;
+  const platformApiFailureCount = sessionEvents.filter((event) => event.kind === "platform-api" && event.severity === "fail").length;
   const qualityEventCount = sessionEvents.filter((event) => event.kind === "quality").length;
   const qualityLiveUpdateCount = sessionEvents.filter(isQualityLiveUpdateEvent).length;
   const qualityNextTargetCount = sessionEvents.filter(isQualityNextTargetEvent).length;
@@ -397,6 +409,8 @@ export const createStreamSessionSummary = ({
     failureCount,
     recoveryEventCount,
     operationFailureCount,
+    platformApiEventCount,
+    platformApiFailureCount,
     qualityEventCount,
     qualityLiveUpdateCount,
     qualityNextTargetCount,
@@ -421,7 +435,9 @@ export const createStreamSessionSummary = ({
       chatSpeechFailureCount,
       qualityLiveUpdateCount,
       qualityNextTargetCount,
-      qualityUpdateFailureCount
+      qualityUpdateFailureCount,
+      platformApiEventCount,
+      platformApiFailureCount
     ),
     recommendation: createRecommendation(
       outcome,
@@ -435,7 +451,8 @@ export const createStreamSessionSummary = ({
       audioLevel,
       chatSpeechFailureCount,
       qualityLiveUpdateCount,
-      qualityUpdateFailureCount
+      qualityUpdateFailureCount,
+      platformApiFailureCount
     )
   };
 };
@@ -477,7 +494,9 @@ const createSummaryText = (
   chatSpeechFailureCount = 0,
   qualityLiveUpdateCount = 0,
   qualityNextTargetCount = 0,
-  qualityUpdateFailureCount = 0
+  qualityUpdateFailureCount = 0,
+  platformApiEventCount = 0,
+  platformApiFailureCount = 0
 ): string => {
   const prefix =
     outcome === "clean" ? "Clean session" : outcome === "warn" ? "Session needs review" : "Session ended with issues";
@@ -493,8 +512,12 @@ const createSummaryText = (
     qualityLiveUpdateCount > 0 || qualityNextTargetCount > 0 || qualityUpdateFailureCount > 0
       ? ` Quality automation: ${qualityLiveUpdateCount} live update${qualityLiveUpdateCount === 1 ? "" : "s"} / ${qualityNextTargetCount} next-start target${qualityNextTargetCount === 1 ? "" : "s"} / ${qualityUpdateFailureCount} failed.`
       : "";
+  const platformApiSummary =
+    platformApiEventCount > 0
+      ? ` Platform API: ${platformApiEventCount} event${platformApiEventCount === 1 ? "" : "s"} / ${platformApiFailureCount} failed.`
+      : "";
   const audioSummary = audioLevel.sampleCount > 0 ? ` ${audioLevel.summary}` : "";
-  return `${prefix}. Ended ${endReason}. ${health.summary}${audioSummary}${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${chatSummary}${speechSummary}${qualitySummary}`;
+  return `${prefix}. Ended ${endReason}. ${health.summary}${audioSummary}${nativeRuntime ? ` ${nativeRuntime.summary}` : ""}${chatSummary}${speechSummary}${qualitySummary}${platformApiSummary}`;
 };
 
 const createRecommendation = (
@@ -509,7 +532,8 @@ const createRecommendation = (
   audioLevel: StreamSessionAudioLevelSummary,
   chatSpeechFailureCount = 0,
   qualityLiveUpdateCount = 0,
-  qualityUpdateFailureCount = 0
+  qualityUpdateFailureCount = 0,
+  platformApiFailureCount = 0
 ): string => {
   if (outcome === "clean") {
     return "Keep this profile as a known-good baseline for the destination.";
@@ -525,6 +549,10 @@ const createRecommendation = (
 
   if (qualityUpdateFailureCount > 0) {
     return "Review native live quality-update support before relying on automatic bitrate/FPS relief in public streams.";
+  }
+
+  if (platformApiFailureCount > 0) {
+    return "Review OAuth scopes, token freshness, and platform dashboard state before changing stream keys or broadcast lifecycle again.";
   }
 
   if (nativeRuntime?.status === "fail") {
@@ -769,6 +797,8 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
     failureCount: normalizeNonNegativeInteger(value.failureCount),
     recoveryEventCount: normalizeNonNegativeInteger(value.recoveryEventCount),
     operationFailureCount: normalizeNonNegativeInteger(value.operationFailureCount),
+    platformApiEventCount: normalizeNonNegativeInteger(value.platformApiEventCount),
+    platformApiFailureCount: normalizeNonNegativeInteger(value.platformApiFailureCount),
     qualityEventCount: normalizeNonNegativeInteger(value.qualityEventCount),
     qualityLiveUpdateCount: normalizeNonNegativeInteger(value.qualityLiveUpdateCount),
     qualityNextTargetCount: normalizeNonNegativeInteger(value.qualityNextTargetCount),
@@ -796,7 +826,9 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
             normalizeNonNegativeInteger(value.chatSpeechFailureCount),
             normalizeNonNegativeInteger(value.qualityLiveUpdateCount),
             normalizeNonNegativeInteger(value.qualityNextTargetCount),
-            normalizeNonNegativeInteger(value.qualityUpdateFailureCount)
+            normalizeNonNegativeInteger(value.qualityUpdateFailureCount),
+            normalizeNonNegativeInteger(value.platformApiEventCount),
+            normalizeNonNegativeInteger(value.platformApiFailureCount)
           ),
     recommendation:
       typeof value.recommendation === "string"
@@ -813,7 +845,8 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
             normalizeAudioLevelSummary(value.audioLevel),
             normalizeNonNegativeInteger(value.chatSpeechFailureCount),
             normalizeNonNegativeInteger(value.qualityLiveUpdateCount),
-            normalizeNonNegativeInteger(value.qualityUpdateFailureCount)
+            normalizeNonNegativeInteger(value.qualityUpdateFailureCount),
+            normalizeNonNegativeInteger(value.platformApiFailureCount)
           )
   };
 };
