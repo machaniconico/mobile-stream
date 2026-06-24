@@ -212,7 +212,7 @@ export function renderSubmissionReview(metadata, { metadataPath }) {
   const screenshotRows = metadata.screenshots
     .map(
       (screenshot) =>
-        `| ${screenshot.platform} | ${screenshot.device} | ${screenshot.locale} | ${screenshot.source} | ${screenshot.path} |`
+        `| ${screenshot.platform} | ${screenshot.device} | ${screenshot.locale} | ${screenshot.source} | ${screenshot.osVersion || "-"} | ${screenshot.appBuild || "-"} | ${screenshot.capturedAt || "-"} | ${screenshot.path} |`
     )
     .join("\n");
   return `${[
@@ -246,8 +246,8 @@ export function renderSubmissionReview(metadata, { metadataPath }) {
     "",
     "## Screenshots",
     "",
-    "| Platform | Device | Locale | Source | Path |",
-    "| --- | --- | --- | --- | --- |",
+    "| Platform | Device | Locale | Source | OS Version | App Build | Captured At | Path |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
     screenshotRows,
     "",
     "## Approval Checklist",

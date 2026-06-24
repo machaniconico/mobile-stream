@@ -99,6 +99,10 @@ const checks = [
     expectIncludes(files.storeRealDeviceScreenshotsScript, "importStoreRealDeviceScreenshots");
     expectIncludes(files.storeRealDeviceScreenshotsScript, "requireRealDeviceScreenshots: true");
     expectIncludes(files.storeRealDeviceScreenshotsScript, "source: \"realDevice\"");
+    expectIncludes(files.storeRealDeviceScreenshotsScript, "iosOsVersion");
+    expectIncludes(files.storeRealDeviceScreenshotsScript, "appBuild");
+    expectIncludes(files.storeSubmissionScript, "must include the real device OS version");
+    expectIncludes(files.storeSubmissionScript, "must include the app build/version used for capture");
     expectIncludes(files.storeSubmissionApprovalScript, "validateStoreSubmissionApproval");
     expectIncludes(files.storeSubmissionApprovalScript, "requireRealDeviceScreenshots");
     expectIncludes(files.storeSubmissionApprovalScript, "Release report is missing store submission artifact");

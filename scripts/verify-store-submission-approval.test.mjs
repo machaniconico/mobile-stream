@@ -31,6 +31,8 @@ const pngBytes = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
   "base64"
 );
+const capturedAt = "2026-06-25T00:00:00.000Z";
+const appBuild = "1.0.0 (15)";
 
 describe("store submission approval verifier", () => {
   beforeAll(() => {
@@ -213,13 +215,19 @@ function writeStoreSubmissionFixture({ screenshotSource = "realDevice" } = {}) {
             platform: "ios",
             device: "iPhone 15 Pro Max",
             path: ".artifacts/store-approval-test/ios-store.png",
-            source: screenshotSource
+            source: screenshotSource,
+            ...(screenshotSource === "realDevice"
+              ? { osVersion: "iOS 18.5", appBuild, capturedAt }
+              : {})
           },
           {
             platform: "android",
             device: "Pixel 8 Pro",
             path: ".artifacts/store-approval-test/android-store.png",
-            source: screenshotSource
+            source: screenshotSource,
+            ...(screenshotSource === "realDevice"
+              ? { osVersion: "Android 15", appBuild, capturedAt }
+              : {})
           }
         ],
         reviewDocuments: [
@@ -314,6 +322,13 @@ function screenshotRecord(platform, device, path, source) {
     locale: "ja-JP",
     role: "store",
     source,
+    ...(source === "realDevice"
+      ? {
+          osVersion: platform === "ios" ? "iOS 18.5" : "Android 15",
+          appBuild,
+          capturedAt
+        }
+      : {}),
     path,
     basename: path.split("/").at(-1),
     bytes: content.byteLength,

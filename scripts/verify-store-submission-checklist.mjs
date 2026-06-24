@@ -284,7 +284,17 @@ function createMetadataRecord(path) {
   };
 }
 
-function createScreenshotRecord({ platform, path, device = "", locale = "ja-JP", role = "store", source = "" }) {
+function createScreenshotRecord({
+  platform,
+  path,
+  device = "",
+  locale = "ja-JP",
+  role = "store",
+  source = "",
+  capturedAt = "",
+  osVersion = "",
+  appBuild = ""
+}) {
   const relativePath = workspaceRelativePath(path);
   if (!relativePath) {
     throw new Error(`${platform || "unknown"} store screenshot must be inside the workspace: ${path}`);
@@ -317,6 +327,9 @@ function createScreenshotRecord({ platform, path, device = "", locale = "ja-JP",
     locale: stringValue(locale) || "ja-JP",
     role: stringValue(role) || "store",
     source: stringValue(source),
+    capturedAt: stringValue(capturedAt),
+    osVersion: stringValue(osVersion),
+    appBuild: stringValue(appBuild),
     path: relativePath,
     basename: basename(relativePath),
     bytes: content.byteLength,
@@ -479,6 +492,9 @@ function validateScreenshotRecord(screenshot, failures, { requireRealDeviceScree
   } else if (requireRealDeviceScreenshots && screenshot.source !== "realDevice") {
     failures.push(`Store submission screenshot ${screenshot.path} must be captured from a real device for final store submission.`);
   }
+  if (requireRealDeviceScreenshots && screenshot.source === "realDevice") {
+    validateRealDeviceCaptureMetadata(screenshot, failures);
+  }
   if (!existsSync(resolve(screenshot.path))) {
     failures.push(`Store submission screenshot file does not exist: ${screenshot.path}.`);
     return;
@@ -498,6 +514,20 @@ function validateScreenshotRecord(screenshot, failures, { requireRealDeviceScree
   }
   if (!isPng(content)) {
     failures.push(`Store submission screenshot is not a PNG file: ${screenshot.path}.`);
+  }
+}
+
+function validateRealDeviceCaptureMetadata(screenshot, failures) {
+  if (!stringValue(screenshot.osVersion)) {
+    failures.push(`Store submission screenshot ${screenshot.path} must include the real device OS version for final store submission.`);
+  }
+  if (!stringValue(screenshot.appBuild)) {
+    failures.push(`Store submission screenshot ${screenshot.path} must include the app build/version used for capture.`);
+  }
+  if (!stringValue(screenshot.capturedAt)) {
+    failures.push(`Store submission screenshot ${screenshot.path} must include a capturedAt timestamp.`);
+  } else if (!Number.isFinite(Date.parse(screenshot.capturedAt))) {
+    failures.push(`Store submission screenshot ${screenshot.path} has an invalid capturedAt timestamp.`);
   }
 }
 

@@ -25,6 +25,10 @@ export function importStoreRealDeviceScreenshots({
   androidScreenshot = "",
   iosDevice = "",
   androidDevice = "",
+  iosOsVersion = "",
+  androidOsVersion = "",
+  appBuild = "",
+  capturedAt = "",
   locale = ""
 } = {}) {
   if (!iosScreenshot) {
@@ -51,6 +55,14 @@ export function importStoreRealDeviceScreenshots({
   const screenshotDir = join(metadataDir, "screenshots");
   const iosExisting = screenshotForPlatform(metadata, "ios");
   const androidExisting = screenshotForPlatform(metadata, "android");
+  const capture = resolveCaptureMetadata({
+    iosExisting,
+    androidExisting,
+    iosOsVersion,
+    androidOsVersion,
+    appBuild,
+    capturedAt
+  });
   const imported = {
     ios: copyScreenshot({
       sourcePath: iosScreenshot,
@@ -71,14 +83,20 @@ export function importStoreRealDeviceScreenshots({
       platform: "ios",
       device: iosDevice || iosExisting?.device || defaultDevices.ios,
       path: imported.ios,
-      locale: effectiveLocale
+      locale: effectiveLocale,
+      osVersion: capture.iosOsVersion,
+      appBuild: capture.appBuild,
+      capturedAt: capture.capturedAt
     }),
     screenshotRecord({
       existing: androidExisting,
       platform: "android",
       device: androidDevice || androidExisting?.device || defaultDevices.android,
       path: imported.android,
-      locale: effectiveLocale
+      locale: effectiveLocale,
+      osVersion: capture.androidOsVersion,
+      appBuild: capture.appBuild,
+      capturedAt: capture.capturedAt
     })
   ];
 
@@ -116,7 +134,31 @@ export function importStoreRealDeviceScreenshots({
   };
 }
 
-function screenshotRecord({ existing, platform, device, path, locale }) {
+function resolveCaptureMetadata({ iosExisting, androidExisting, iosOsVersion, androidOsVersion, appBuild, capturedAt }) {
+  const resolved = {
+    iosOsVersion: stringValue(iosOsVersion) || stringValue(iosExisting?.osVersion),
+    androidOsVersion: stringValue(androidOsVersion) || stringValue(androidExisting?.osVersion),
+    appBuild: stringValue(appBuild) || stringValue(iosExisting?.appBuild) || stringValue(androidExisting?.appBuild),
+    capturedAt: stringValue(capturedAt) || stringValue(iosExisting?.capturedAt) || stringValue(androidExisting?.capturedAt) || new Date().toISOString()
+  };
+
+  if (!resolved.iosOsVersion) {
+    throw new Error("Provide --ios-os-version <version> for final iOS store screenshot evidence.");
+  }
+  if (!resolved.androidOsVersion) {
+    throw new Error("Provide --android-os-version <version> for final Android store screenshot evidence.");
+  }
+  if (!resolved.appBuild) {
+    throw new Error("Provide --app-build <version/build> for final store screenshot evidence.");
+  }
+  if (!isValidDateTime(resolved.capturedAt)) {
+    throw new Error(`Store screenshot captured-at timestamp must be a valid date-time: ${resolved.capturedAt}`);
+  }
+
+  return resolved;
+}
+
+function screenshotRecord({ existing, platform, device, path, locale, osVersion, appBuild, capturedAt }) {
   return {
     ...(existing || {}),
     platform,
@@ -124,6 +166,9 @@ function screenshotRecord({ existing, platform, device, path, locale }) {
     path,
     locale,
     role: existing?.role || "main",
+    osVersion,
+    appBuild,
+    capturedAt,
     source: "realDevice"
   };
 }
@@ -207,6 +252,14 @@ function isPng(content) {
   );
 }
 
+function stringValue(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isValidDateTime(value) {
+  return Boolean(value && Number.isFinite(Date.parse(value)));
+}
+
 function parseArgs(args) {
   const options = {
     metadataPath: defaultMetadataPath,
@@ -216,6 +269,10 @@ function parseArgs(args) {
     androidScreenshot: "",
     iosDevice: "",
     androidDevice: "",
+    iosOsVersion: "",
+    androidOsVersion: "",
+    appBuild: "",
+    capturedAt: "",
     locale: "",
     help: false
   };
@@ -257,6 +314,26 @@ function parseArgs(args) {
       index += 1;
     } else if (arg.startsWith("--android-device=")) {
       options.androidDevice = arg.slice("--android-device=".length);
+    } else if (arg === "--ios-os-version") {
+      options.iosOsVersion = args[index + 1] || "";
+      index += 1;
+    } else if (arg.startsWith("--ios-os-version=")) {
+      options.iosOsVersion = arg.slice("--ios-os-version=".length);
+    } else if (arg === "--android-os-version") {
+      options.androidOsVersion = args[index + 1] || "";
+      index += 1;
+    } else if (arg.startsWith("--android-os-version=")) {
+      options.androidOsVersion = arg.slice("--android-os-version=".length);
+    } else if (arg === "--app-build") {
+      options.appBuild = args[index + 1] || "";
+      index += 1;
+    } else if (arg.startsWith("--app-build=")) {
+      options.appBuild = arg.slice("--app-build=".length);
+    } else if (arg === "--captured-at") {
+      options.capturedAt = args[index + 1] || "";
+      index += 1;
+    } else if (arg.startsWith("--captured-at=")) {
+      options.capturedAt = arg.slice("--captured-at=".length);
     } else if (arg === "--locale") {
       options.locale = args[index + 1] || "";
       index += 1;
@@ -276,10 +353,10 @@ function printUsage() {
   console.log(
     [
       "Usage:",
-      "  npm run release:store-real-device-screenshots -- --ios-screenshot <png> --android-screenshot <png>",
+      "  npm run release:store-real-device-screenshots -- --ios-screenshot <png> --android-screenshot <png> --ios-os-version <version> --android-os-version <version> --app-build <version/build>",
       "",
       "Imports final real-device App Store / Play Console screenshots into existing store-submission metadata,",
-      "rewrites the review document, and regenerates .artifacts/store-submission-checklist.json."
+      "records device OS/build capture metadata, rewrites the review document, and regenerates .artifacts/store-submission-checklist.json."
     ].join("\n")
   );
 }

@@ -11,6 +11,8 @@ const iosRealSource = `${sourceRoot}/ios-real.png`;
 const androidRealSource = `${sourceRoot}/android-real.png`;
 const metadataPath = `${outputDir}/submission-metadata.json`;
 const reviewPath = `${outputDir}/submission-review.md`;
+const capturedAt = "2026-06-25T00:00:00.000Z";
+const appBuild = "1.0.0 (15)";
 
 const pngBytes = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
@@ -51,6 +53,14 @@ describe("store real-device screenshot importer", () => {
       "iPhone 15 Pro",
       "--android-device",
       "Pixel 8 Pro",
+      "--ios-os-version",
+      "iOS 18.5",
+      "--android-os-version",
+      "Android 15",
+      "--app-build",
+      appBuild,
+      "--captured-at",
+      capturedAt,
       "--locale",
       "ja-JP"
     ]);
@@ -64,11 +74,16 @@ describe("store real-device screenshot importer", () => {
     const metadata = JSON.parse(readFileSync(metadataPath, "utf8"));
     expect(metadata.screenshots.map((screenshot) => screenshot.source)).toEqual(["realDevice", "realDevice"]);
     expect(metadata.screenshots.map((screenshot) => screenshot.device)).toEqual(["iPhone 15 Pro", "Pixel 8 Pro"]);
+    expect(metadata.screenshots.map((screenshot) => screenshot.osVersion)).toEqual(["iOS 18.5", "Android 15"]);
+    expect(metadata.screenshots.map((screenshot) => screenshot.appBuild)).toEqual([appBuild, appBuild]);
+    expect(metadata.screenshots.map((screenshot) => screenshot.capturedAt)).toEqual([capturedAt, capturedAt]);
     expect(metadata.reviewDocuments).toEqual([{ kind: "submissionReview", path: reviewPath }]);
-    expect(readFileSync(reviewPath, "utf8")).toContain("| ios | iPhone 15 Pro | ja-JP | realDevice |");
+    expect(readFileSync(reviewPath, "utf8")).toContain(`| ios | iPhone 15 Pro | ja-JP | realDevice | iOS 18.5 | ${appBuild} | ${capturedAt} |`);
 
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     expect(manifest.screenshots.map((screenshot) => screenshot.source)).toEqual(["realDevice", "realDevice"]);
+    expect(manifest.screenshots.map((screenshot) => screenshot.osVersion)).toEqual(["iOS 18.5", "Android 15"]);
+    expect(manifest.screenshots.map((screenshot) => screenshot.appBuild)).toEqual([appBuild, appBuild]);
     expect(manifest.screenshots.map((screenshot) => screenshot.sha256)).toHaveLength(2);
 
     const final = runChecklist(["--verify", "--manifest", manifestPath, "--require-real-device-screenshots", "--allow-dirty"]);
@@ -90,7 +105,13 @@ describe("store real-device screenshot importer", () => {
       "--ios-screenshot",
       iosRealSource,
       "--android-screenshot",
-      androidRealSource
+      androidRealSource,
+      "--ios-os-version",
+      "iOS 18.5",
+      "--android-os-version",
+      "Android 15",
+      "--app-build",
+      appBuild
     ]);
 
     expect(result.status).toBe(0);
@@ -111,7 +132,13 @@ describe("store real-device screenshot importer", () => {
       "--ios-screenshot",
       iosRealSource,
       "--android-screenshot",
-      androidRealSource
+      androidRealSource,
+      "--ios-os-version",
+      "iOS 18.5",
+      "--android-os-version",
+      "Android 15",
+      "--app-build",
+      appBuild
     ]);
 
     expect(result.status).toBe(1);
@@ -132,11 +159,38 @@ describe("store real-device screenshot importer", () => {
       "--ios-screenshot",
       `${sourceRoot}/bad-ios.txt`,
       "--android-screenshot",
-      androidRealSource
+      androidRealSource,
+      "--ios-os-version",
+      "iOS 18.5",
+      "--android-os-version",
+      "Android 15",
+      "--app-build",
+      appBuild
     ]);
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("iOS real-device screenshot source must be a PNG file");
+  });
+
+  it("requires OS and app build metadata before importing final screenshots", () => {
+    writeSourceScreenshots();
+    writeMetadata();
+
+    const result = runImporter([
+      "--metadata",
+      metadataPath,
+      "--manifest",
+      manifestPath,
+      "--ios-screenshot",
+      iosRealSource,
+      "--android-screenshot",
+      androidRealSource,
+      "--ios-os-version",
+      "iOS 18.5"
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Provide --android-os-version <version> for final Android store screenshot evidence.");
   });
 });
 
