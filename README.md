@@ -89,6 +89,7 @@ npm run verify:store-release-env
 npm run verify:distribution-artifacts
 npm run verify:dashboard-evidence
 npm run verify:store-submission
+npm run verify:store-submission-final
 npm run verify:evidence-package -- /path/to/release-evidence-package
 npm run verify:commercial-release-bundle -- /path/to/support-bundle.json
 npm run verify:release-candidate -- /path/to/support-bundle.json
@@ -131,9 +132,11 @@ npm run release:evidence-package -- /path/to/release-candidate-verification.json
 
 `npm run release:dashboard-evidence -- --youtube-screenshot <png> --twitch-screenshot <png>` writes `.artifacts/platform-dashboard-evidence.json` with hashes for YouTube/Twitch dashboard screenshots and optional status JSON files. `npm run verify:dashboard-evidence` verifies those files, and release-candidate reports include them whenever the manifest exists.
 
-`npm run release:store-submission-draft -- --ios-screenshot <png> --android-screenshot <png>` writes `.artifacts/store/submission-metadata.json`, `.artifacts/store/submission-review.md`, copies the store screenshots into `.artifacts/store/screenshots/`, and writes `.artifacts/store-submission-checklist.json`. Use real-device screenshots for final store evidence. For draft checks, `--ui-evidence-json <json>` can seed both platform screenshots from a passing `npm run verify:ui` report.
+`npm run release:store-submission-draft -- --ios-screenshot <png> --android-screenshot <png>` writes `.artifacts/store/submission-metadata.json`, `.artifacts/store/submission-review.md`, copies the store screenshots into `.artifacts/store/screenshots/`, and writes `.artifacts/store-submission-checklist.json`. Explicit screenshot inputs are marked as `realDevice`. For draft checks, `--ui-evidence-json <json>` can seed both platform screenshots from a passing `npm run verify:ui` report and marks them as `uiEvidenceDraft`.
 
 `npm run release:store-submission-checklist -- --metadata <json>` writes `.artifacts/store-submission-checklist.json` with hashes for App Store / Play Console metadata and iOS/Android PNG store screenshots declared in that metadata. `npm run verify:store-submission` verifies required listing/privacy/data-safety fields, screenshot integrity, and secret-like text before release approval. When the checklist exists, `npm run verify:release-candidate` includes it and referenced metadata/screenshots in the saved release report.
+
+`npm run verify:store-submission-final` runs the same store-submission checks and also requires every screenshot to be marked `realDevice`, so UI-evidence draft screenshots cannot accidentally pass final App Store / Play Console submission approval.
 
 `npm run release:store` orchestrates the store-distribution path: platform release environment checks, Android App Bundle generation, iOS archive/export, and distribution manifest creation. Use `--dry-run` to inspect the exact steps, or `--android-only` / `--ios-only` for platform-specific releases.
 

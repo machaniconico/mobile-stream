@@ -41,6 +41,7 @@ describe("store submission checklist verifier", () => {
       "ios:iPhone 15 Pro Max",
       "android:Pixel 8 Pro"
     ]);
+    expect(manifest.screenshots.map((screenshot) => screenshot.source)).toEqual(["realDevice", "realDevice"]);
     expect(manifest.screenshots[0].sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(manifest.reviewDocuments).toHaveLength(1);
     expect(manifest.reviewDocuments[0].path).toBe(reviewDocument);
@@ -49,6 +50,15 @@ describe("store submission checklist verifier", () => {
     const verifyResult = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
     expect(verifyResult.status).toBe(0);
     expect(verifyResult.stdout).toContain("Store submission checklist verification passed (2 screenshots).");
+
+    const finalVerifyResult = runVerifier([
+      "--verify",
+      "--allow-dirty",
+      "--manifest",
+      manifestPath,
+      "--require-real-device-screenshots"
+    ]);
+    expect(finalVerifyResult.status).toBe(0);
   });
 
   it("rejects metadata when a platform screenshot is missing", () => {
@@ -108,6 +118,27 @@ describe("store submission checklist verifier", () => {
     expect(result.stderr).toContain(`Store submission review document metadata mismatch for ${reviewDocument}.`);
     expect(result.stderr).toContain("Store submission metadata contains possible OAuth/access/refresh/client secret");
   });
+
+  it("rejects UI evidence draft screenshots in final store-submission mode", () => {
+    writeStoreSubmissionFiles({
+      screenshots: [
+        { platform: "ios", device: "iPhone 15 Pro Max", path: iosScreenshot, locale: "ja-JP", role: "main", source: "uiEvidenceDraft" },
+        { platform: "android", device: "Pixel 8 Pro", path: androidScreenshot, locale: "ja-JP", role: "main", source: "uiEvidenceDraft" }
+      ]
+    });
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    const result = runVerifier([
+      "--verify",
+      "--allow-dirty",
+      "--manifest",
+      manifestPath,
+      "--require-real-device-screenshots"
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("must be captured from a real device for final store submission");
+  });
 });
 
 function writeStoreSubmissionFiles(overrides = {}) {
@@ -148,8 +179,8 @@ function createMetadata(overrides = {}) {
       contentRatingNotes: "No gambling, no monetized loot, no mature content included."
     },
     screenshots: [
-      { platform: "ios", device: "iPhone 15 Pro Max", path: iosScreenshot, locale: "ja-JP", role: "main" },
-      { platform: "android", device: "Pixel 8 Pro", path: androidScreenshot, locale: "ja-JP", role: "main" }
+      { platform: "ios", device: "iPhone 15 Pro Max", path: iosScreenshot, locale: "ja-JP", role: "main", source: "realDevice" },
+      { platform: "android", device: "Pixel 8 Pro", path: androidScreenshot, locale: "ja-JP", role: "main", source: "realDevice" }
     ],
     reviewDocuments: [
       { kind: "submissionReview", path: reviewDocument }

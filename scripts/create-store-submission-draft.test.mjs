@@ -53,12 +53,14 @@ describe("store submission draft creator", () => {
       `${outputDir}/screenshots/ios-store.png`,
       `${outputDir}/screenshots/android-store.png`
     ]);
+    expect(metadata.screenshots.map((screenshot) => screenshot.source)).toEqual(["realDevice", "realDevice"]);
     expect(metadata.reviewDocuments).toEqual([{ kind: "submissionReview", path: `${outputDir}/submission-review.md` }]);
     expect(readFileSync(`${outputDir}/submission-review.md`, "utf8")).toContain("## Approval Checklist");
 
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     expect(manifest.type).toBe("store-submission-checklist-manifest");
     expect(manifest.screenshots).toHaveLength(2);
+    expect(manifest.screenshots.map((screenshot) => screenshot.source)).toEqual(["realDevice", "realDevice"]);
     expect(manifest.reviewDocuments).toHaveLength(1);
     expect(manifest.reviewDocuments[0].sha256).toMatch(/^[a-f0-9]{64}$/);
   });
@@ -72,6 +74,7 @@ describe("store submission draft creator", () => {
     expect(result.status).toBe(0);
     const metadata = JSON.parse(readFileSync(`${outputDir}/submission-metadata.json`, "utf8"));
     expect(metadata.screenshots.map((screenshot) => screenshot.platform)).toEqual(["ios", "android"]);
+    expect(metadata.screenshots.map((screenshot) => screenshot.source)).toEqual(["uiEvidenceDraft", "uiEvidenceDraft"]);
     expect(metadata.reviewDocuments[0].path).toBe(`${outputDir}/submission-review.md`);
     expect(readFileSync(`${outputDir}/screenshots/ios-store.png`).equals(pngBytes)).toBe(true);
     expect(readFileSync(`${outputDir}/screenshots/android-store.png`).equals(pngBytes)).toBe(true);

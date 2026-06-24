@@ -345,8 +345,18 @@ function writeStoreSubmissionFixture() {
           contentRatingNotes: "No gambling, no monetized loot, no mature content included."
         },
         screenshots: [
-          { platform: "ios", device: "iPhone 15 Pro Max", path: ".artifacts/release-report-test/ios-store.png" },
-          { platform: "android", device: "Pixel 8 Pro", path: ".artifacts/release-report-test/android-store.png" }
+          {
+            platform: "ios",
+            device: "iPhone 15 Pro Max",
+            path: ".artifacts/release-report-test/ios-store.png",
+            source: "realDevice"
+          },
+          {
+            platform: "android",
+            device: "Pixel 8 Pro",
+            path: ".artifacts/release-report-test/android-store.png",
+            source: "realDevice"
+          }
         ],
         reviewDocuments: [
           { kind: "submissionReview", path: ".artifacts/release-report-test/submission-review.md" }
@@ -372,8 +382,8 @@ function writeStoreSubmissionFixture() {
         },
         metadata: storeSubmissionMetadataRecord(),
         screenshots: [
-          storeScreenshotRecord("ios", "iPhone 15 Pro Max", ".artifacts/release-report-test/ios-store.png"),
-          storeScreenshotRecord("android", "Pixel 8 Pro", ".artifacts/release-report-test/android-store.png")
+          storeScreenshotRecord("ios", "iPhone 15 Pro Max", ".artifacts/release-report-test/ios-store.png", "realDevice"),
+          storeScreenshotRecord("android", "Pixel 8 Pro", ".artifacts/release-report-test/android-store.png", "realDevice")
         ],
         reviewDocuments: [storeReviewDocumentRecord()]
       },
@@ -445,7 +455,7 @@ function storeSubmissionMetadataRecord() {
   };
 }
 
-function storeScreenshotRecord(platform, device, path) {
+function storeScreenshotRecord(platform, device, path, source) {
   const content = readFileSync(path);
   return {
     platform,
@@ -453,6 +463,7 @@ function storeScreenshotRecord(platform, device, path) {
     device,
     locale: "ja-JP",
     role: "store",
+    source,
     path,
     basename: path.split("/").at(-1),
     bytes: content.byteLength,

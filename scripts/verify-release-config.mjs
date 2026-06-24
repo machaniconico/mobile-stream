@@ -59,6 +59,7 @@ const checks = [
     expectIncludes(files.packageJson, '"verify:distribution-artifacts": "node scripts/verify-distribution-artifacts.mjs --verify"');
     expectIncludes(files.packageJson, '"verify:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --verify"');
     expectIncludes(files.packageJson, '"verify:store-submission": "node scripts/verify-store-submission-checklist.mjs --verify"');
+    expectIncludes(files.packageJson, '"verify:store-submission-final": "node scripts/verify-store-submission-checklist.mjs --verify --require-real-device-screenshots"');
     expectIncludes(files.packageJson, '"verify:evidence-package": "node scripts/create-release-evidence-package.mjs --verify"');
     expectIncludes(files.packageJson, '"release:distribution-manifest": "node scripts/verify-distribution-artifacts.mjs --write"');
     expectIncludes(files.packageJson, '"release:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --write"');
@@ -85,6 +86,7 @@ const checks = [
     expectIncludes(files.storeSubmissionScript, "privacyPolicyUrl");
     expectIncludes(files.storeSubmissionScript, "dataSafetyNotes");
     expectIncludes(files.storeSubmissionScript, "reviewDocuments");
+    expectIncludes(files.storeSubmissionScript, "requireRealDeviceScreenshots");
     expectIncludes(files.storeSubmissionScript, "sha256");
     expectIncludes(files.storeSubmissionDraftScript, "createStoreSubmissionChecklist");
     expectIncludes(files.storeSubmissionDraftScript, "uiEvidenceJson");

@@ -20,6 +20,7 @@
     "verify:distribution-artifacts": "node scripts/verify-distribution-artifacts.mjs --verify",
     "verify:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --verify",
     "verify:store-submission": "node scripts/verify-store-submission-checklist.mjs --verify",
+    "verify:store-submission-final": "node scripts/verify-store-submission-checklist.mjs --verify --require-real-device-screenshots",
     "verify:evidence-package": "node scripts/create-release-evidence-package.mjs --verify",
     "verify:commercial-release-bundle": "node scripts/verify-commercial-release-bundle.mjs",
     "verify:release-candidate": "node scripts/verify-release-candidate.mjs",

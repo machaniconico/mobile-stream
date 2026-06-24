@@ -32,12 +32,12 @@ export function createStoreSubmissionDraft({
   mkdirSync(resolve(screenshotsDir), { recursive: true });
 
   const iosScreenshotPath = copyScreenshot({
-    sourcePath: screenshotSources.ios,
+    sourcePath: screenshotSources.ios.path,
     outputPath: join(screenshotsDir, "ios-store.png"),
     label: "iOS"
   });
   const androidScreenshotPath = copyScreenshot({
-    sourcePath: screenshotSources.android,
+    sourcePath: screenshotSources.android.path,
     outputPath: join(screenshotsDir, "android-store.png"),
     label: "Android"
   });
@@ -54,6 +54,8 @@ export function createStoreSubmissionDraft({
   const metadata = createMetadata({
     iosScreenshotPath,
     androidScreenshotPath,
+    iosScreenshotSource: screenshotSources.ios.source,
+    androidScreenshotSource: screenshotSources.android.source,
     reviewPath: relativeReviewPath,
     supportUrl,
     privacyPolicyUrl,
@@ -82,9 +84,11 @@ export function createStoreSubmissionDraft({
 }
 
 function resolveScreenshotSources({ iosScreenshot, androidScreenshot, uiEvidenceJson }) {
-  const uiEvidenceScreenshot = uiEvidenceJson ? mobileScreenshotFromUiEvidence(uiEvidenceJson) : "";
-  const ios = iosScreenshot || uiEvidenceScreenshot;
-  const android = androidScreenshot || uiEvidenceScreenshot;
+  const uiEvidenceScreenshot = uiEvidenceJson
+    ? { path: mobileScreenshotFromUiEvidence(uiEvidenceJson), source: "uiEvidenceDraft" }
+    : null;
+  const ios = iosScreenshot ? { path: iosScreenshot, source: "realDevice" } : uiEvidenceScreenshot;
+  const android = androidScreenshot ? { path: androidScreenshot, source: "realDevice" } : uiEvidenceScreenshot;
   if (!ios) {
     throw new Error("Provide --ios-screenshot <png> or --ui-evidence-json <json>.");
   }
@@ -141,6 +145,8 @@ function copyScreenshot({ sourcePath, outputPath, label }) {
 function createMetadata({
   iosScreenshotPath,
   androidScreenshotPath,
+  iosScreenshotSource,
+  androidScreenshotSource,
   reviewPath,
   supportUrl,
   privacyPolicyUrl,
@@ -179,8 +185,22 @@ function createMetadata({
       contentRatingNotes: "No gambling, no monetized loot, and no mature content is bundled."
     },
     screenshots: [
-      { platform: "ios", device: "iPhone 15 Pro Max", path: iosScreenshotPath, locale, role: "main" },
-      { platform: "android", device: "Pixel 8 Pro", path: androidScreenshotPath, locale, role: "main" }
+      {
+        platform: "ios",
+        device: "iPhone 15 Pro Max",
+        path: iosScreenshotPath,
+        locale,
+        role: "main",
+        source: iosScreenshotSource
+      },
+      {
+        platform: "android",
+        device: "Pixel 8 Pro",
+        path: androidScreenshotPath,
+        locale,
+        role: "main",
+        source: androidScreenshotSource
+      }
     ],
     reviewDocuments: [
       { kind: "submissionReview", path: reviewPath }
@@ -190,7 +210,10 @@ function createMetadata({
 
 function renderSubmissionReview(metadata, { metadataPath }) {
   const screenshotRows = metadata.screenshots
-    .map((screenshot) => `| ${screenshot.platform} | ${screenshot.device} | ${screenshot.locale} | ${screenshot.path} |`)
+    .map(
+      (screenshot) =>
+        `| ${screenshot.platform} | ${screenshot.device} | ${screenshot.locale} | ${screenshot.source} | ${screenshot.path} |`
+    )
     .join("\n");
   return `${[
     "# MobileLiveCaster Store Submission Review",
@@ -223,8 +246,8 @@ function renderSubmissionReview(metadata, { metadataPath }) {
     "",
     "## Screenshots",
     "",
-    "| Platform | Device | Locale | Path |",
-    "| --- | --- | --- | --- |",
+    "| Platform | Device | Locale | Source | Path |",
+    "| --- | --- | --- | --- | --- |",
     screenshotRows,
     "",
     "## Approval Checklist",

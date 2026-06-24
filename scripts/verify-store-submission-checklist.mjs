@@ -9,6 +9,7 @@ export const storeSubmissionChecklistPath = ".artifacts/store-submission-checkli
 export const storeSubmissionArtifactGroup = "store-submission";
 
 const storePlatforms = new Set(["ios", "android"]);
+const screenshotSources = new Set(["realDevice", "uiEvidenceDraft"]);
 const metadataType = "store-submission-metadata";
 const reviewDocumentTypes = {
   submissionReview: Object.freeze({ extension: ".md" })
@@ -104,7 +105,12 @@ export function readStoreSubmissionChecklist(manifestPath = storeSubmissionCheck
 
 export function validateStoreSubmissionChecklist(
   manifest,
-  { manifestPath = storeSubmissionChecklistPath, allowDirty = true, allowCommitMismatch = true } = {}
+  {
+    manifestPath = storeSubmissionChecklistPath,
+    allowDirty = true,
+    allowCommitMismatch = true,
+    requireRealDeviceScreenshots = false
+  } = {}
 ) {
   const failures = [];
   if (
@@ -140,7 +146,7 @@ export function validateStoreSubmissionChecklist(
   validateScreenshotCoverage(screenshots, failures);
   const seen = new Set();
   for (const screenshot of screenshots) {
-    validateScreenshotRecord(screenshot, failures);
+    validateScreenshotRecord(screenshot, failures, { requireRealDeviceScreenshots });
     const key = `${screenshot?.platform}:${screenshot?.path}`;
     if (seen.has(key)) {
       failures.push(`Store submission checklist contains duplicate screenshot ${key}.`);
@@ -278,7 +284,7 @@ function createMetadataRecord(path) {
   };
 }
 
-function createScreenshotRecord({ platform, path, device = "", locale = "ja-JP", role = "store" }) {
+function createScreenshotRecord({ platform, path, device = "", locale = "ja-JP", role = "store", source = "" }) {
   const relativePath = workspaceRelativePath(path);
   if (!relativePath) {
     throw new Error(`${platform || "unknown"} store screenshot must be inside the workspace: ${path}`);
@@ -310,6 +316,7 @@ function createScreenshotRecord({ platform, path, device = "", locale = "ja-JP",
     device: stringValue(device),
     locale: stringValue(locale) || "ja-JP",
     role: stringValue(role) || "store",
+    source: stringValue(source),
     path: relativePath,
     basename: basename(relativePath),
     bytes: content.byteLength,
@@ -452,7 +459,7 @@ function validateScreenshotCoverage(screenshots, failures) {
   }
 }
 
-function validateScreenshotRecord(screenshot, failures) {
+function validateScreenshotRecord(screenshot, failures, { requireRealDeviceScreenshots = false } = {}) {
   if (!storePlatforms.has(screenshot?.platform) || screenshot?.kind !== "screenshot") {
     failures.push(`Store submission screenshot has unsupported platform/kind: ${JSON.stringify(screenshot?.platform)}/${JSON.stringify(screenshot?.kind)}.`);
     return;
@@ -466,6 +473,11 @@ function validateScreenshotRecord(screenshot, failures) {
   }
   if (!stringValue(screenshot.device)) {
     failures.push(`Store submission screenshot ${screenshot.path} must include a device label.`);
+  }
+  if (!screenshotSources.has(screenshot.source)) {
+    failures.push(`Store submission screenshot ${screenshot.path} has unsupported source ${JSON.stringify(screenshot.source)}.`);
+  } else if (requireRealDeviceScreenshots && screenshot.source !== "realDevice") {
+    failures.push(`Store submission screenshot ${screenshot.path} must be captured from a real device for final store submission.`);
   }
   if (!existsSync(resolve(screenshot.path))) {
     failures.push(`Store submission screenshot file does not exist: ${screenshot.path}.`);
@@ -610,6 +622,7 @@ function parseArgs(args) {
     manifestPath: storeSubmissionChecklistPath,
     allowDirty: false,
     allowCommitMismatch: false,
+    requireRealDeviceScreenshots: false,
     help: false
   };
 
@@ -623,6 +636,8 @@ function parseArgs(args) {
       options.allowDirty = true;
     } else if (arg === "--allow-commit-mismatch") {
       options.allowCommitMismatch = true;
+    } else if (arg === "--require-real-device-screenshots") {
+      options.requireRealDeviceScreenshots = true;
     } else if (arg === "--metadata") {
       options.metadataPath = args[index + 1] || "";
       index += 1;
@@ -655,8 +670,10 @@ function printUsage() {
       "Usage:",
       "  npm run release:store-submission-checklist -- --metadata <store-submission-metadata.json>",
       "  npm run verify:store-submission -- [--manifest=.artifacts/store-submission-checklist.json] [--allow-dirty] [--allow-commit-mismatch]",
+      "  npm run verify:store-submission-final -- [--manifest=.artifacts/store-submission-checklist.json]",
       "",
-      "Writes or verifies a hash manifest for App Store / Play Console submission metadata and screenshots."
+      "Writes or verifies a hash manifest for App Store / Play Console submission metadata and screenshots.",
+      "Use --require-real-device-screenshots for final store submission evidence."
     ].join("\n")
   );
 }
@@ -690,7 +707,8 @@ function run() {
     const failures = validateStoreSubmissionChecklist(manifest, {
       manifestPath: options.manifestPath,
       allowDirty: options.allowDirty,
-      allowCommitMismatch: options.allowCommitMismatch
+      allowCommitMismatch: options.allowCommitMismatch,
+      requireRealDeviceScreenshots: options.requireRealDeviceScreenshots
     });
     if (failures.length > 0) {
       console.error("Store submission checklist verification failed:");
