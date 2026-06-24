@@ -19,6 +19,7 @@
     "verify:store-release-env": "node scripts/verify-store-release-env.mjs",
     "verify:distribution-artifacts": "node scripts/verify-distribution-artifacts.mjs --verify",
     "verify:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --verify",
+    "verify:evidence-package": "node scripts/create-release-evidence-package.mjs --verify",
     "verify:commercial-release-bundle": "node scripts/verify-commercial-release-bundle.mjs",
     "verify:release-candidate": "node scripts/verify-release-candidate.mjs",
     "verify:release-report": "node scripts/verify-release-report.mjs",
@@ -40,7 +41,8 @@
     "ios:export:release": "bash -lc 'source scripts/rn-env.sh && node scripts/export-ios-release.mjs'",
     "release:store": "node scripts/release-store-build.mjs",
     "release:distribution-manifest": "node scripts/verify-distribution-artifacts.mjs --write",
-    "release:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --write"
+    "release:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --write",
+    "release:evidence-package": "node scripts/create-release-evidence-package.mjs --write"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",

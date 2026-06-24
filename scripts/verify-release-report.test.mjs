@@ -60,14 +60,17 @@ describe("release report verifier", () => {
   });
 
   it("rejects UI evidence screenshots that are not PNG files", () => {
-    writeFileSync(".artifacts/mobile-live-caster-mobile.png", "not a png");
-    writeUiEvidenceFile();
     const report = createReport();
+    const badScreenshotPath = ".artifacts/release-report-test/bad-mobile.png";
+    writeFile(badScreenshotPath, "not a png");
+    writeUiEvidenceFile({ mobilePath: badScreenshotPath });
+    const evidenceGate = report.gates.find((gate) => gate.label === "Verify browser UI evidence");
+    evidenceGate.evidence.sha256 = fileSha256(evidenceGate.evidence.path);
 
     const failures = validateReport(report, reportOptions());
 
     expect(failures).toContain(
-      "Browser UI evidence screenshot is not a PNG file: .artifacts/mobile-live-caster-mobile.png."
+      "Browser UI evidence screenshot is not a PNG file: .artifacts/release-report-test/bad-mobile.png."
     );
   });
 
@@ -314,7 +317,10 @@ function dashboardManifestRecord(platform, path) {
   };
 }
 
-function writeUiEvidenceFile() {
+function writeUiEvidenceFile({
+  desktopPath = ".artifacts/mobile-live-caster-desktop.png",
+  mobilePath = ".artifacts/mobile-live-caster-mobile.png"
+} = {}) {
   writeFile(
     ".artifacts/release-report-test/ui-evidence.json",
     JSON.stringify(
@@ -330,8 +336,8 @@ function writeUiEvidenceFile() {
           dirty: true
         },
         viewports: [
-          viewportEvidence("desktop", ".artifacts/mobile-live-caster-desktop.png"),
-          viewportEvidence("mobile", ".artifacts/mobile-live-caster-mobile.png")
+          viewportEvidence("desktop", desktopPath),
+          viewportEvidence("mobile", mobilePath)
         ]
       },
       null,

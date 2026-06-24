@@ -142,6 +142,7 @@
 - Store-release environment verifier for iOS and Android that checks required Apple team/profile/App Store Connect API-key and Android release keystore inputs before production archive/export/bundle tasks, without logging secret values and while rejecting signing material stored inside the repository.
 - Distribution artifact manifest tooling for generated Android `.aab` and iOS `.ipa` files, including byte/SHA-256 recording, verification, and optional release-candidate/report artifact capture when the manifest exists.
 - Platform dashboard evidence manifest tooling for YouTube/Twitch dashboard screenshots and status JSON files, including byte/SHA-256 recording, verification, and optional release-candidate/report artifact capture when the manifest exists.
+- Release evidence package tooling that copies a passed RC report, support bundle, generated artifacts, distribution manifests, and platform dashboard evidence into a standalone hash-verified archive directory for commercial handoff and store-submission audit.
 - Store release orchestration command that chains platform release-environment checks, Android App Bundle generation, iOS archive/export, and distribution artifact manifest creation, with dry-run and platform-scoped modes.
 - Android build-type network policy keeps cleartext traffic enabled only for debug development and disables it for release artifacts.
 - Native store version audit keeps Android application metadata, iOS host app versioning, and ReplayKit Broadcast Upload Extension versioning aligned before release approval.
