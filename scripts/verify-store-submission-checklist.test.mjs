@@ -6,6 +6,7 @@ const fixtureRoot = ".artifacts/verify-store-submission-checklist-test";
 const metadataPath = `${fixtureRoot}/submission-metadata.json`;
 const iosScreenshot = `${fixtureRoot}/ios-store.png`;
 const androidScreenshot = `${fixtureRoot}/android-store.png`;
+const reviewDocument = `${fixtureRoot}/submission-review.md`;
 const manifestPath = `${fixtureRoot}/store-submission-checklist.json`;
 
 const pngBytes = Buffer.from(
@@ -41,6 +42,9 @@ describe("store submission checklist verifier", () => {
       "android:Pixel 8 Pro"
     ]);
     expect(manifest.screenshots[0].sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(manifest.reviewDocuments).toHaveLength(1);
+    expect(manifest.reviewDocuments[0].path).toBe(reviewDocument);
+    expect(manifest.reviewDocuments[0].sha256).toMatch(/^[a-f0-9]{64}$/);
 
     const verifyResult = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
     expect(verifyResult.status).toBe(0);
@@ -92,12 +96,25 @@ describe("store submission checklist verifier", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`Store submission screenshot metadata mismatch for ${androidScreenshot}.`);
   });
+
+  it("fails when a review document is modified after manifest creation", () => {
+    writeStoreSubmissionFiles();
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    writeFileSync(reviewDocument, "Updated review with client_secret=supersecretvalue12345");
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission review document metadata mismatch for ${reviewDocument}.`);
+    expect(result.stderr).toContain("Store submission metadata contains possible OAuth/access/refresh/client secret");
+  });
 });
 
 function writeStoreSubmissionFiles(overrides = {}) {
   mkdirSync(fixtureRoot, { recursive: true });
   writeFileSync(iosScreenshot, pngBytes);
   writeFileSync(androidScreenshot, pngBytes);
+  writeFileSync(reviewDocument, "# Store Submission Review\n\n- [ ] Public listing reviewed.\n");
   writeFileSync(metadataPath, JSON.stringify(createMetadata(overrides), null, 2));
 }
 
@@ -133,6 +150,9 @@ function createMetadata(overrides = {}) {
     screenshots: [
       { platform: "ios", device: "iPhone 15 Pro Max", path: iosScreenshot, locale: "ja-JP", role: "main" },
       { platform: "android", device: "Pixel 8 Pro", path: androidScreenshot, locale: "ja-JP", role: "main" }
+    ],
+    reviewDocuments: [
+      { kind: "submissionReview", path: reviewDocument }
     ]
   };
 
@@ -141,7 +161,8 @@ function createMetadata(overrides = {}) {
     ...overrides,
     appStore: { ...base.appStore, ...(overrides.appStore || {}) },
     playStore: { ...base.playStore, ...(overrides.playStore || {}) },
-    screenshots: overrides.screenshots || base.screenshots
+    screenshots: overrides.screenshots || base.screenshots,
+    reviewDocuments: overrides.reviewDocuments || base.reviewDocuments
   };
 }
 

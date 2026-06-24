@@ -84,10 +84,12 @@ const checks = [
     expectIncludes(files.storeSubmissionScript, "store-submission-checklist-manifest");
     expectIncludes(files.storeSubmissionScript, "privacyPolicyUrl");
     expectIncludes(files.storeSubmissionScript, "dataSafetyNotes");
+    expectIncludes(files.storeSubmissionScript, "reviewDocuments");
     expectIncludes(files.storeSubmissionScript, "sha256");
     expectIncludes(files.storeSubmissionDraftScript, "createStoreSubmissionChecklist");
     expectIncludes(files.storeSubmissionDraftScript, "uiEvidenceJson");
     expectIncludes(files.storeSubmissionDraftScript, "submission-metadata.json");
+    expectIncludes(files.storeSubmissionDraftScript, "submission-review.md");
     expectIncludes(files.releaseEvidencePackageScript, "release-evidence-package-manifest");
     expectIncludes(files.releaseEvidencePackageScript, "validateReleaseEvidencePackage");
     expectIncludes(files.releaseEvidencePackageScript, "supportBundle");

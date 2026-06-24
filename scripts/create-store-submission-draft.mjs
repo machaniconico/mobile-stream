@@ -6,10 +6,12 @@ import { createStoreSubmissionChecklist, storeSubmissionChecklistPath } from "./
 
 const defaultOutputDir = ".artifacts/store";
 const defaultMetadataFilename = "submission-metadata.json";
+const defaultReviewFilename = "submission-review.md";
 
 export function createStoreSubmissionDraft({
   outputDir = defaultOutputDir,
   metadataPath = "",
+  reviewPath = "",
   manifestPath = storeSubmissionChecklistPath,
   iosScreenshot = "",
   androidScreenshot = "",
@@ -44,10 +46,15 @@ export function createStoreSubmissionDraft({
   if (!relativeMetadataPath) {
     throw new Error(`Store submission metadata path must be inside the workspace: ${metadataPath}`);
   }
+  const relativeReviewPath = workspaceRelativePath(reviewPath || join(relativeOutputDir, defaultReviewFilename));
+  if (!relativeReviewPath) {
+    throw new Error(`Store submission review path must be inside the workspace: ${reviewPath}`);
+  }
 
   const metadata = createMetadata({
     iosScreenshotPath,
     androidScreenshotPath,
+    reviewPath: relativeReviewPath,
     supportUrl,
     privacyPolicyUrl,
     supportEmail,
@@ -57,6 +64,8 @@ export function createStoreSubmissionDraft({
 
   mkdirSync(dirname(resolve(relativeMetadataPath)), { recursive: true });
   writeFileSync(resolve(relativeMetadataPath), `${JSON.stringify(metadata, null, 2)}\n`);
+  mkdirSync(dirname(resolve(relativeReviewPath)), { recursive: true });
+  writeFileSync(resolve(relativeReviewPath), renderSubmissionReview(metadata, { metadataPath: relativeMetadataPath }));
 
   const checklist = createStoreSubmissionChecklist({
     metadataPath: relativeMetadataPath,
@@ -65,6 +74,7 @@ export function createStoreSubmissionDraft({
 
   return {
     metadataPath: relativeMetadataPath,
+    reviewPath: relativeReviewPath,
     manifestPath: checklist.manifestPath,
     screenshots: [iosScreenshotPath, androidScreenshotPath],
     checklist: checklist.manifest
@@ -131,6 +141,7 @@ function copyScreenshot({ sourcePath, outputPath, label }) {
 function createMetadata({
   iosScreenshotPath,
   androidScreenshotPath,
+  reviewPath,
   supportUrl,
   privacyPolicyUrl,
   supportEmail,
@@ -170,8 +181,62 @@ function createMetadata({
     screenshots: [
       { platform: "ios", device: "iPhone 15 Pro Max", path: iosScreenshotPath, locale, role: "main" },
       { platform: "android", device: "Pixel 8 Pro", path: androidScreenshotPath, locale, role: "main" }
+    ],
+    reviewDocuments: [
+      { kind: "submissionReview", path: reviewPath }
     ]
   };
+}
+
+function renderSubmissionReview(metadata, { metadataPath }) {
+  const screenshotRows = metadata.screenshots
+    .map((screenshot) => `| ${screenshot.platform} | ${screenshot.device} | ${screenshot.locale} | ${screenshot.path} |`)
+    .join("\n");
+  return `${[
+    "# MobileLiveCaster Store Submission Review",
+    "",
+    `Metadata: \`${metadataPath}\``,
+    "",
+    "## App Store",
+    "",
+    `- Name: ${metadata.appStore.name}`,
+    `- Subtitle: ${metadata.appStore.subtitle}`,
+    `- Category: ${metadata.appStore.category}`,
+    `- Keywords: ${metadata.appStore.keywords}`,
+    `- Support URL: ${metadata.appStore.supportUrl}`,
+    `- Privacy Policy URL: ${metadata.appStore.privacyPolicyUrl}`,
+    `- Review Contact: ${metadata.appStore.reviewContactEmail}`,
+    `- Release Notes: ${metadata.appStore.releaseNotes}`,
+    `- Age Rating Notes: ${metadata.appStore.ageRatingNotes}`,
+    `- App Privacy Notes: ${metadata.appStore.appPrivacyNotes}`,
+    "",
+    "## Play Console",
+    "",
+    `- Name: ${metadata.playStore.name}`,
+    `- Short Description: ${metadata.playStore.shortDescription}`,
+    `- Category: ${metadata.playStore.category}`,
+    `- Support Email: ${metadata.playStore.supportEmail}`,
+    `- Privacy Policy URL: ${metadata.playStore.privacyPolicyUrl}`,
+    `- Release Notes: ${metadata.playStore.releaseNotes}`,
+    `- Data Safety Notes: ${metadata.playStore.dataSafetyNotes}`,
+    `- Content Rating Notes: ${metadata.playStore.contentRatingNotes}`,
+    "",
+    "## Screenshots",
+    "",
+    "| Platform | Device | Locale | Path |",
+    "| --- | --- | --- | --- |",
+    screenshotRows,
+    "",
+    "## Approval Checklist",
+    "",
+    "- [ ] Listing copy reviewed for public launch accuracy.",
+    "- [ ] Privacy policy URL is live and matches the app data behavior.",
+    "- [ ] Data safety notes match secure storage, OAuth redaction, and support-bundle behavior.",
+    "- [ ] Store screenshots are real-device captures for final submission.",
+    "- [ ] Support contact inbox is monitored before release.",
+    "- [ ] Release notes match the build being submitted.",
+    ""
+  ].join("\n")}\n`;
 }
 
 function workspaceRelativePath(path) {
@@ -204,6 +269,7 @@ function parseArgs(args) {
   const options = {
     outputDir: defaultOutputDir,
     metadataPath: "",
+    reviewPath: "",
     manifestPath: storeSubmissionChecklistPath,
     iosScreenshot: "",
     androidScreenshot: "",
@@ -228,6 +294,11 @@ function parseArgs(args) {
       index += 1;
     } else if (arg.startsWith("--metadata-out=")) {
       options.metadataPath = arg.slice("--metadata-out=".length);
+    } else if (arg === "--review-out") {
+      options.reviewPath = args[index + 1] || "";
+      index += 1;
+    } else if (arg.startsWith("--review-out=")) {
+      options.reviewPath = arg.slice("--review-out=".length);
     } else if (arg === "--manifest") {
       options.manifestPath = args[index + 1] || "";
       index += 1;
@@ -290,7 +361,7 @@ function printUsage() {
       "  npm run release:store-submission-draft -- --ios-screenshot <png> --android-screenshot <png>",
       "  npm run release:store-submission-draft -- --ui-evidence-json .artifacts/ui-verification.json",
       "",
-      "Writes .artifacts/store/submission-metadata.json and .artifacts/store-submission-checklist.json for release audit.",
+      "Writes .artifacts/store/submission-metadata.json, .artifacts/store/submission-review.md, and .artifacts/store-submission-checklist.json for release audit.",
       "Use explicit real-device screenshots for final store submission evidence; UI evidence fallback is useful for draft checks."
     ].join("\n")
   );
@@ -306,6 +377,7 @@ function run() {
 
     const result = createStoreSubmissionDraft(options);
     console.log(`Wrote store submission metadata: ${result.metadataPath}`);
+    console.log(`Wrote store submission review: ${result.reviewPath}`);
     console.log(`Wrote store submission checklist: ${result.manifestPath}`);
     console.log(`Screenshots: ${result.screenshots.map((path) => basename(path)).join(", ")}`);
     return 0;

@@ -10,6 +10,9 @@ export const storeSubmissionArtifactGroup = "store-submission";
 
 const storePlatforms = new Set(["ios", "android"]);
 const metadataType = "store-submission-metadata";
+const reviewDocumentTypes = {
+  submissionReview: Object.freeze({ extension: ".md" })
+};
 const requiredMetadataFields = {
   appStore: {
     name: { min: 2, max: 30 },
@@ -67,6 +70,7 @@ export function createStoreSubmissionChecklist({
   const metadata = readJsonFile(metadataRecord.path, "store submission metadata");
   const screenshotInputs = storeScreenshots(metadata);
   const screenshots = screenshotInputs.map(createScreenshotRecord);
+  const reviewDocuments = storeReviewDocuments(metadata).map(createReviewDocumentRecord);
   const manifest = {
     reportVersion: 1,
     app: "MobileLiveCaster",
@@ -79,7 +83,8 @@ export function createStoreSubmissionChecklist({
       statusShort: commandOutput("git", ["status", "--short"]) || ""
     },
     metadata: metadataRecord,
-    screenshots
+    screenshots,
+    reviewDocuments
   };
 
   const failures = validateStoreSubmissionChecklist(manifest, { manifestPath });
@@ -142,6 +147,11 @@ export function validateStoreSubmissionChecklist(
     }
     seen.add(key);
   }
+  const reviewDocuments = Array.isArray(manifest.reviewDocuments) ? manifest.reviewDocuments : [];
+  validateManifestReviewDocumentsMatchMetadata(manifest, metadata, failures);
+  for (const reviewDocument of reviewDocuments) {
+    validateReviewDocumentRecord(reviewDocument, failures);
+  }
 
   return failures;
 }
@@ -159,6 +169,11 @@ export function collectStoreSubmissionArtifactRecords({ manifestPath = storeSubm
   for (const screenshot of Array.isArray(manifest.screenshots) ? manifest.screenshots : []) {
     if (screenshot?.path && existsSync(resolve(screenshot.path))) {
       records.push(createReleaseArtifactRecord(storeSubmissionArtifactGroup, screenshot.path));
+    }
+  }
+  for (const reviewDocument of Array.isArray(manifest.reviewDocuments) ? manifest.reviewDocuments : []) {
+    if (reviewDocument?.path && existsSync(resolve(reviewDocument.path))) {
+      records.push(createReleaseArtifactRecord(storeSubmissionArtifactGroup, reviewDocument.path));
     }
   }
   return records;
@@ -185,7 +200,7 @@ export function validateStoreSubmissionInReport(artifacts, fail) {
   }
 
   const reportArtifactsByPath = new Map(artifacts.map((artifact) => [artifact.path, artifact]));
-  for (const checklistRecord of [manifest.metadata, ...(manifest.screenshots || [])].filter(Boolean)) {
+  for (const checklistRecord of [manifest.metadata, ...(manifest.screenshots || []), ...(manifest.reviewDocuments || [])].filter(Boolean)) {
     const reportRecord = reportArtifactsByPath.get(checklistRecord.path);
     if (!reportRecord) {
       fail(`Report is missing store submission artifact ${checklistRecord.path}.`);
@@ -198,6 +213,39 @@ export function validateStoreSubmissionInReport(artifacts, fail) {
       fail(`Store submission artifact metadata mismatch for ${checklistRecord.path}.`);
     }
   }
+}
+
+function createReviewDocumentRecord({ kind = "submissionReview", path }) {
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    throw new Error(`${kind} review document must be inside the workspace: ${path}`);
+  }
+  const expected = reviewDocumentTypes[kind];
+  if (!expected) {
+    throw new Error(`Unsupported store submission review document kind: ${kind}`);
+  }
+  if (extname(relativePath) !== expected.extension) {
+    throw new Error(`${kind} review document must end with ${expected.extension}: ${relativePath}`);
+  }
+  if (!existsSync(resolve(relativePath))) {
+    throw new Error(`${kind} review document does not exist: ${relativePath}`);
+  }
+  if (!statSync(resolve(relativePath)).isFile()) {
+    throw new Error(`${kind} review document must point to a file: ${relativePath}`);
+  }
+
+  const content = readFileSync(resolve(relativePath));
+  if (content.byteLength <= 0) {
+    throw new Error(`${kind} review document is empty: ${relativePath}`);
+  }
+
+  return {
+    kind,
+    path: relativePath,
+    basename: basename(relativePath),
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
 }
 
 function createMetadataRecord(path) {
@@ -381,6 +429,20 @@ function validateManifestScreenshotsMatchMetadata(manifest, metadata, failures) 
   }
 }
 
+function validateManifestReviewDocumentsMatchMetadata(manifest, metadata, failures) {
+  if (!metadata) {
+    return;
+  }
+  const declaredPaths = storeReviewDocuments(metadata).map((document) => workspaceRelativePath(document.path)).filter(Boolean).sort();
+  const manifestPaths = (Array.isArray(manifest.reviewDocuments) ? manifest.reviewDocuments : [])
+    .map((document) => document?.path)
+    .filter(Boolean)
+    .sort();
+  if (declaredPaths.length !== manifestPaths.length || declaredPaths.some((path, index) => path !== manifestPaths[index])) {
+    failures.push("Store submission checklist review documents do not match the metadata reviewDocuments list.");
+  }
+}
+
 function validateScreenshotCoverage(screenshots, failures) {
   const values = Array.isArray(screenshots) ? screenshots : [];
   for (const platform of storePlatforms) {
@@ -427,8 +489,45 @@ function validateScreenshotRecord(screenshot, failures) {
   }
 }
 
+function validateReviewDocumentRecord(reviewDocument, failures) {
+  const expected = reviewDocumentTypes[reviewDocument?.kind];
+  if (!expected) {
+    failures.push(`Store submission review document has unsupported kind: ${JSON.stringify(reviewDocument?.kind)}.`);
+    return;
+  }
+  if (!reviewDocument.path || reviewDocument.path.startsWith("/") || reviewDocument.path.startsWith("..")) {
+    failures.push(`Store submission review document path must be workspace-relative: ${reviewDocument.path || "-"}.`);
+    return;
+  }
+  if (extname(reviewDocument.path) !== expected.extension) {
+    failures.push(`Store submission review document ${reviewDocument.path} must end with ${expected.extension}.`);
+  }
+  if (!existsSync(resolve(reviewDocument.path))) {
+    failures.push(`Store submission review document file does not exist: ${reviewDocument.path}.`);
+    return;
+  }
+  if (!statSync(resolve(reviewDocument.path)).isFile()) {
+    failures.push(`Store submission review document must point to a file: ${reviewDocument.path}.`);
+    return;
+  }
+
+  const content = readFileSync(resolve(reviewDocument.path));
+  const actualSha256 = createHash("sha256").update(content).digest("hex");
+  if (content.byteLength <= 0) {
+    failures.push(`Store submission review document is empty: ${reviewDocument.path}.`);
+  }
+  if (content.byteLength !== reviewDocument.bytes || actualSha256 !== reviewDocument.sha256) {
+    failures.push(`Store submission review document metadata mismatch for ${reviewDocument.path}.`);
+  }
+  validateNoSensitiveText(content.toString("utf8"), failures, `review document ${reviewDocument.path}`);
+}
+
 function storeScreenshots(metadata) {
   return Array.isArray(metadata?.screenshots) ? metadata.screenshots : [];
+}
+
+function storeReviewDocuments(metadata) {
+  return Array.isArray(metadata?.reviewDocuments) ? metadata.reviewDocuments : [];
 }
 
 function readJsonFile(path, label) {

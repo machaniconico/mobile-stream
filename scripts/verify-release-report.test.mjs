@@ -28,6 +28,7 @@ const generatedFiles = [
   ".artifacts/release-report-test/twitch-dashboard.png",
   ".artifacts/store-submission-checklist.json",
   ".artifacts/release-report-test/store-submission-metadata.json",
+  ".artifacts/release-report-test/submission-review.md",
   ".artifacts/release-report-test/ios-store.png",
   ".artifacts/release-report-test/android-store.png",
   ".artifacts/release-report-test/support-bundle.json",
@@ -309,6 +310,10 @@ function writeStoreSubmissionFixture() {
   writeFile(".artifacts/release-report-test/ios-store.png", pngBytes);
   writeFile(".artifacts/release-report-test/android-store.png", pngBytes);
   writeFile(
+    ".artifacts/release-report-test/submission-review.md",
+    "# MobileLiveCaster Store Submission Review\n\n- [ ] Listing copy reviewed.\n"
+  );
+  writeFile(
     ".artifacts/release-report-test/store-submission-metadata.json",
     JSON.stringify(
       {
@@ -342,6 +347,9 @@ function writeStoreSubmissionFixture() {
         screenshots: [
           { platform: "ios", device: "iPhone 15 Pro Max", path: ".artifacts/release-report-test/ios-store.png" },
           { platform: "android", device: "Pixel 8 Pro", path: ".artifacts/release-report-test/android-store.png" }
+        ],
+        reviewDocuments: [
+          { kind: "submissionReview", path: ".artifacts/release-report-test/submission-review.md" }
         ]
       },
       null,
@@ -366,7 +374,8 @@ function writeStoreSubmissionFixture() {
         screenshots: [
           storeScreenshotRecord("ios", "iPhone 15 Pro Max", ".artifacts/release-report-test/ios-store.png"),
           storeScreenshotRecord("android", "Pixel 8 Pro", ".artifacts/release-report-test/android-store.png")
-        ]
+        ],
+        reviewDocuments: [storeReviewDocumentRecord()]
       },
       null,
       2
@@ -406,6 +415,7 @@ function storeSubmissionRecords() {
   return [
     artifactRecord("store-submission", storeSubmissionChecklistPath),
     artifactRecord("store-submission", ".artifacts/release-report-test/store-submission-metadata.json"),
+    artifactRecord("store-submission", ".artifacts/release-report-test/submission-review.md"),
     artifactRecord("store-submission", ".artifacts/release-report-test/ios-store.png"),
     artifactRecord("store-submission", ".artifacts/release-report-test/android-store.png")
   ];
@@ -443,6 +453,18 @@ function storeScreenshotRecord(platform, device, path) {
     device,
     locale: "ja-JP",
     role: "store",
+    path,
+    basename: path.split("/").at(-1),
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function storeReviewDocumentRecord() {
+  const path = ".artifacts/release-report-test/submission-review.md";
+  const content = readFileSync(path);
+  return {
+    kind: "submissionReview",
     path,
     basename: path.split("/").at(-1),
     bytes: content.byteLength,
