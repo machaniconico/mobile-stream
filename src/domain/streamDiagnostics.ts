@@ -17,6 +17,7 @@ import type { PublicLaunchChecklist } from "./publicLaunchChecklist";
 import type { NativeRuntimeTelemetry } from "./nativeRuntime";
 import type { ReadinessReport } from "./readiness";
 import type { SceneDocument } from "./scene";
+import { redactSensitiveText } from "./sensitiveText";
 import {
   createDefaultStreamRecoveryPolicy,
   createStreamRecoveryStatus,
@@ -938,14 +939,11 @@ const redactPublishUrl = (publishUrl: string, streamKey: string): string => {
 
 const redactStreamKeyOccurrences = (value: string, streamKey: string): string => {
   const candidates = streamKeyCandidates(streamKey);
-  if (candidates.length === 0) {
-    return value;
-  }
-
-  return candidates.reduce(
+  const redactedStreamKeys = candidates.reduce(
     (current, candidate) => replaceAll(current, candidate, redactStreamKey(candidate)),
     value
   );
+  return redactSensitiveText(redactedStreamKeys);
 };
 
 const streamKeyCandidates = (streamKey: string): string[] => {

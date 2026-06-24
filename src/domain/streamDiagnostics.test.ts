@@ -760,6 +760,54 @@ describe("stream diagnostics", () => {
     );
   });
 
+  it("redacts OAuth and API secrets from diagnostics messages and session events", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "failed" },
+        health: health({
+          message:
+            `Authorization: Bearer engine-access-token-secret ${demoStreamKey} mobilelivecaster://oauth/youtube?code=engine-code-secret`
+        })
+      },
+      [
+        {
+          id: "platform-api-secret",
+          at: "2026-06-22T00:00:02.000Z",
+          kind: "platform-api",
+          severity: "fail",
+          title: "OAuth callback exchange failed",
+          message:
+            "Authorization: Bearer session-access-token-secret refresh_token=session-refresh-secret client_secret=session-client-secret"
+        }
+      ]
+    );
+    const json = JSON.stringify(diagnostics);
+
+    expect(json).not.toContain("engine-access-token-secret");
+    expect(json).not.toContain("engine-code-secret");
+    expect(json).not.toContain("session-access-token-secret");
+    expect(json).not.toContain("session-refresh-secret");
+    expect(json).not.toContain("session-client-secret");
+    expect(json).not.toContain(demoStreamKey);
+    expect(diagnostics.telemetry.message).toContain("Authorization: Bearer [redacted]");
+    expect(diagnostics.telemetry.message).toContain("code=[redacted]");
+    expect(diagnostics.session.events[0]?.message).toContain("refresh_token=[redacted]");
+    expect(diagnostics.session.events[0]?.message).toContain("client_secret=[redacted]");
+  });
+
   it("serializes a shareable diagnostic report without raw stream keys", () => {
     const scene = createDefaultScene();
     const profile = {
