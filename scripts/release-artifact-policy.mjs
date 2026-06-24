@@ -7,6 +7,7 @@ export const releaseConfigArtifactPaths = [
   "scripts/release-artifact-policy.mjs",
   "scripts/release-store-build.mjs",
   "scripts/archive-ios-release.mjs",
+  "scripts/create-store-submission-draft.mjs",
   "scripts/create-release-evidence-package.mjs",
   "scripts/create-ios-export-options.mjs",
   "scripts/export-ios-release.mjs",

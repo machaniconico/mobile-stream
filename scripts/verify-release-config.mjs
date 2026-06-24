@@ -22,6 +22,7 @@ const files = {
   broadcastEntitlements: read("ios/MobileLiveCasterBroadcastUpload/MobileLiveCasterBroadcastUpload.entitlements"),
   xcodeProject: read("ios/MobileLiveCaster.xcodeproj/project.pbxproj"),
   storeReleaseBuildScript: read("scripts/release-store-build.mjs"),
+  storeSubmissionDraftScript: read("scripts/create-store-submission-draft.mjs"),
   releaseEvidencePackageScript: read("scripts/create-release-evidence-package.mjs"),
   iosReleaseConfigScript: read("scripts/ios-release-config.mjs"),
   createIosExportOptionsScript: read("scripts/create-ios-export-options.mjs"),
@@ -61,6 +62,7 @@ const checks = [
     expectIncludes(files.packageJson, '"verify:evidence-package": "node scripts/create-release-evidence-package.mjs --verify"');
     expectIncludes(files.packageJson, '"release:distribution-manifest": "node scripts/verify-distribution-artifacts.mjs --write"');
     expectIncludes(files.packageJson, '"release:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --write"');
+    expectIncludes(files.packageJson, '"release:store-submission-draft": "node scripts/create-store-submission-draft.mjs"');
     expectIncludes(files.packageJson, '"release:store-submission-checklist": "node scripts/verify-store-submission-checklist.mjs --write"');
     expectIncludes(files.packageJson, '"release:evidence-package": "node scripts/create-release-evidence-package.mjs --write"');
     expectIncludes(files.packageJson, '"release:store": "node scripts/release-store-build.mjs"');
@@ -83,6 +85,9 @@ const checks = [
     expectIncludes(files.storeSubmissionScript, "privacyPolicyUrl");
     expectIncludes(files.storeSubmissionScript, "dataSafetyNotes");
     expectIncludes(files.storeSubmissionScript, "sha256");
+    expectIncludes(files.storeSubmissionDraftScript, "createStoreSubmissionChecklist");
+    expectIncludes(files.storeSubmissionDraftScript, "uiEvidenceJson");
+    expectIncludes(files.storeSubmissionDraftScript, "submission-metadata.json");
     expectIncludes(files.releaseEvidencePackageScript, "release-evidence-package-manifest");
     expectIncludes(files.releaseEvidencePackageScript, "validateReleaseEvidencePackage");
     expectIncludes(files.releaseEvidencePackageScript, "supportBundle");

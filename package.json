@@ -43,6 +43,7 @@
     "release:store": "node scripts/release-store-build.mjs",
     "release:distribution-manifest": "node scripts/verify-distribution-artifacts.mjs --write",
     "release:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --write",
+    "release:store-submission-draft": "node scripts/create-store-submission-draft.mjs",
     "release:store-submission-checklist": "node scripts/verify-store-submission-checklist.mjs --write",
     "release:evidence-package": "node scripts/create-release-evidence-package.mjs --write"
   },
