@@ -27,7 +27,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 13;
+    bundleVersion: 14;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -51,6 +51,8 @@ export interface SupportBundle {
     completedSessionCount: number;
     sessionCleanRate: number;
     sessionHistoryStability: StreamDiagnostics["session"]["historySummary"]["stability"];
+    sessionPlatformApiEventCount: number;
+    sessionPlatformApiFailureCount: number;
     sessionChatEventCount: number;
     sessionChatReconnectEventCount: number;
     sessionChatReconnectFailureCount: number;
@@ -61,6 +63,8 @@ export interface SupportBundle {
     sessionQualityNextTargetCount: number;
     sessionQualityUpdateFailureCount: number;
     lastSessionOutcome: NonNullable<StreamDiagnostics["session"]["lastSummary"]>["outcome"] | null;
+    lastSessionPlatformApiEventCount: number;
+    lastSessionPlatformApiFailureCount: number;
     lastSessionChatEventCount: number;
     lastSessionChatReconnectEventCount: number;
     lastSessionChatReconnectFailureCount: number;
@@ -336,7 +340,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 13
+      bundleVersion: 14
     },
     summary: {
       status: diagnostics.status,
@@ -360,6 +364,8 @@ export const createSupportBundle = ({
       completedSessionCount: diagnostics.session.summaries.length,
       sessionCleanRate: diagnostics.session.historySummary.cleanRate,
       sessionHistoryStability: diagnostics.session.historySummary.stability,
+      sessionPlatformApiEventCount: diagnostics.session.historySummary.totalPlatformApiEvents,
+      sessionPlatformApiFailureCount: diagnostics.session.historySummary.totalPlatformApiFailures,
       sessionChatEventCount: diagnostics.session.historySummary.totalChatEvents,
       sessionChatReconnectEventCount: diagnostics.session.historySummary.totalChatReconnectEvents,
       sessionChatReconnectFailureCount: diagnostics.session.historySummary.totalChatReconnectFailures,
@@ -370,6 +376,8 @@ export const createSupportBundle = ({
       sessionQualityNextTargetCount: diagnostics.session.historySummary.totalQualityNextTargets,
       sessionQualityUpdateFailureCount: diagnostics.session.historySummary.totalQualityUpdateFailures,
       lastSessionOutcome: diagnostics.session.lastSummary?.outcome ?? null,
+      lastSessionPlatformApiEventCount: diagnostics.session.lastSummary?.platformApiEventCount ?? 0,
+      lastSessionPlatformApiFailureCount: diagnostics.session.lastSummary?.platformApiFailureCount ?? 0,
       lastSessionChatEventCount: diagnostics.session.lastSummary?.chatEventCount ?? 0,
       lastSessionChatReconnectEventCount: diagnostics.session.lastSummary?.chatReconnectEventCount ?? 0,
       lastSessionChatReconnectFailureCount: diagnostics.session.lastSummary?.chatReconnectFailureCount ?? 0,
@@ -662,12 +670,14 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Completed summaries: ${bundle.summary.completedSessionCount}`,
     `- History stability: ${bundle.summary.sessionHistoryStability}`,
     `- Clean rate: ${bundle.summary.sessionCleanRate}%`,
+    `- Platform API history: ${bundle.summary.sessionPlatformApiEventCount} events / ${bundle.summary.sessionPlatformApiFailureCount} failed`,
     `- Chat readout history: ${bundle.summary.sessionChatEventCount} events / ${bundle.summary.sessionChatReconnectEventCount} reconnects / ${bundle.summary.sessionChatReconnectFailureCount} exhausted`,
     `- Chat speech history: ${bundle.summary.sessionChatSpeechSpokenCount} spoken / ${bundle.summary.sessionChatSpeechFailureCount} failed`,
     `- Quality automation history: ${bundle.summary.sessionQualityEventCount} events / ${bundle.summary.sessionQualityLiveUpdateCount} live updates / ${bundle.summary.sessionQualityNextTargetCount} next-start targets / ${bundle.summary.sessionQualityUpdateFailureCount} failed`,
     `- History summary: ${bundle.diagnostics.session.historySummary.summary}`,
     `- History recommendation: ${bundle.diagnostics.session.historySummary.recommendation}`,
     `- Last outcome: ${bundle.summary.lastSessionOutcome ?? "-"}`,
+    `- Last platform API: ${bundle.summary.lastSessionPlatformApiEventCount} events / ${bundle.summary.lastSessionPlatformApiFailureCount} failed`,
     `- Last chat readout: ${bundle.summary.lastSessionChatEventCount} events / ${bundle.summary.lastSessionChatReconnectEventCount} reconnects / ${bundle.summary.lastSessionChatReconnectFailureCount} exhausted`,
     `- Last chat speech: ${bundle.summary.lastSessionChatSpeechSpokenCount} spoken / ${bundle.summary.lastSessionChatSpeechFailureCount} failed`,
     `- Last quality automation: ${bundle.summary.lastSessionQualityEventCount} events / ${bundle.summary.lastSessionQualityLiveUpdateCount} live updates / ${bundle.summary.lastSessionQualityNextTargetCount} next-start targets / ${bundle.summary.lastSessionQualityUpdateFailureCount} failed`,

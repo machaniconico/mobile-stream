@@ -791,7 +791,24 @@ describe("stream diagnostics", () => {
       }
     ];
     const sessionSummary = createStreamSessionSummary({
-      events: [],
+      events: [
+        {
+          id: "platform-api-started",
+          at: "2026-06-22T00:00:02.000Z",
+          kind: "platform-api",
+          severity: "info",
+          title: "Platform publishing status refresh started",
+          message: "Platform publishing status refresh started."
+        },
+        {
+          id: "platform-api-succeeded",
+          at: "2026-06-22T00:00:03.000Z",
+          kind: "platform-api",
+          severity: "info",
+          title: "Platform publishing status refresh succeeded",
+          message: "Platform publishing status refresh completed."
+        }
+      ],
       healthSamples,
       target: { bitrateKbps: 3500, fps: 30 },
       endReason: "stopped",
@@ -840,7 +857,9 @@ describe("stream diagnostics", () => {
     expect(text).toContain("Audio Validation");
     expect(text).toContain("Chat Readout");
     expect(text).toContain("Completed Sessions");
+    expect(text).toContain("Platform API: 2 events / 0 failed");
     expect(text).toContain("Chat readout: 0 events / 0 reconnects / 0 exhausted");
+    expect(text).toContain("Last platform API: 2 events / 0 failed");
     expect(text).toContain("Last chat readout: 0 events / 0 reconnects / 0 exhausted");
     expect(text).toContain("Commercial Validation");
     expect(text).toContain("Validate mic FX and monitor");

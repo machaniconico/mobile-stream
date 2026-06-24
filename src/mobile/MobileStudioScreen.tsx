@@ -1395,6 +1395,10 @@ const StreamDiagnosticsPanel = ({
             Warnings {diagnostics.session.lastSummary.warningCount} / failures {diagnostics.session.lastSummary.failureCount} /
             recoveries {diagnostics.session.lastSummary.recoveryEventCount}
           </Text>
+          <Text style={styles.diagnosticIncidentRecommendation}>
+            Platform API {diagnostics.session.lastSummary.platformApiEventCount} events /{" "}
+            {diagnostics.session.lastSummary.platformApiFailureCount} failed
+          </Text>
           <Text style={styles.diagnosticIncidentRecommendation}>{sessionNativeRuntimeLabel(diagnostics.session.lastSummary)}</Text>
         </View>
       </View>

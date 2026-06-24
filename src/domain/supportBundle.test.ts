@@ -93,6 +93,14 @@ describe("support bundle", () => {
     const sessionSummary = createStreamSessionSummary({
       events: [
         {
+          id: "platform-api-1",
+          at: "2026-06-23T00:00:02.000Z",
+          kind: "platform-api",
+          severity: "info",
+          title: "Platform publishing setup succeeded",
+          message: "Platform publishing setup completed."
+        },
+        {
           id: "chat-reconnect-1",
           at: "2026-06-23T00:00:03.000Z",
           kind: "chat",
@@ -138,7 +146,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 13 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 14 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
@@ -148,6 +156,10 @@ describe("support bundle", () => {
     expect(bundle.scene.sourceCounts.pngtuber).toBe(1);
     expect(bundle.profile.destination.streamKeyPreview).toBe(redactStreamKey(streamKey));
     expect(bundle.profile.platformPublishing.titleLength).toBe(profile.platformPublishing.title.length);
+    expect(bundle.summary.sessionPlatformApiEventCount).toBe(1);
+    expect(bundle.summary.sessionPlatformApiFailureCount).toBe(0);
+    expect(bundle.summary.lastSessionPlatformApiEventCount).toBe(1);
+    expect(bundle.summary.lastSessionPlatformApiFailureCount).toBe(0);
     expect(bundle.diagnostics.telemetry.message).toContain(redactStreamKey(streamKey));
     expect(bundle.summary.completedSessionCount).toBe(1);
     expect(bundle.summary.sessionCleanRate).toBe(0);
@@ -225,6 +237,8 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Public launch:");
     expect(formatSupportBundle(bundle)).toContain("Start lock:");
     expect(formatSupportBundle(bundle)).toContain("Clean rate: 0%");
+    expect(formatSupportBundle(bundle)).toContain("Platform API history: 1 events / 0 failed");
+    expect(formatSupportBundle(bundle)).toContain("Last platform API: 1 events / 0 failed");
     expect(formatSupportBundle(bundle)).toContain("Chat readout history: 1 events / 1 reconnects / 0 exhausted");
     expect(formatSupportBundle(bundle)).toContain("Last chat readout: 1 events / 1 reconnects / 0 exhausted");
     expect(formatSupportBundle(bundle)).toContain("Quality automation history: 1 events / 1 live updates / 0 next-start targets / 0 failed");
