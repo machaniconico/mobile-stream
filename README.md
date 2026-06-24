@@ -83,13 +83,17 @@ npm run verify:repo-automation
 npm run verify:web-bundle-size
 npm run verify:rn
 npm run verify:release-config
+npm run verify:store-release-env
 npm run verify:commercial-release-bundle -- /path/to/support-bundle.json
 npm run verify:release-candidate -- /path/to/support-bundle.json
 npm run verify:release-report -- /path/to/release-candidate-verification.json
 npm run android:assembleDebug
 npm run android:assembleRelease
+npm run android:bundleRelease
 npm run ios:pods
 npm run ios:build:simulator
+npm run ios:verify-release-env
+npm run android:verify-release-env
 npm run ios:export-options
 npm run ios:archive:release
 npm run ios:export:release
@@ -103,11 +107,15 @@ npm run ios:export:release
 
 `npm run verify:web-bundle-size` checks the built web assets in `dist/assets` and fails if the studio shell loses code-splitting or any JavaScript chunk exceeds the release limit. Run `npm run build` first.
 
+`npm run verify:store-release-env` checks the local store-distribution environment without building or printing secret values. It validates iOS team/profile/App Store Connect API-key inputs, Android release keystore inputs, absolute signing-file paths, and keeps signing material outside the repository. Use `npm run ios:verify-release-env` or `npm run android:verify-release-env` for platform-specific checks.
+
 `npm run ios:export-options` writes an App Store Connect export-options plist for the host app and ReplayKit Broadcast Upload Extension. Set `MLC_IOS_TEAM_ID`, `MLC_IOS_APP_PROFILE_NAME`, and `MLC_IOS_BROADCAST_PROFILE_NAME` first; optionally set `MLC_APP_STORE_CONNECT_KEY_PATH`, `MLC_APP_STORE_CONNECT_KEY_ID`, and `MLC_APP_STORE_CONNECT_ISSUER_ID` when `xcodebuild` should authenticate with App Store Connect outside Xcode Accounts.
 
 `npm run ios:archive:release` creates the Release device archive with Apple Distribution signing and provisioning updates enabled. `npm run ios:export:release` regenerates export options and exports the archive using explicit provisioning profiles for both the host app and Broadcast Upload Extension.
 
-`npm run verify:release-config` audits native store-release configuration, including Android release signing fail-closed behavior, release cleartext-traffic blocking, Android/iOS store version alignment, streaming permissions, OAuth callback schemes, iOS usage descriptions, the iOS privacy manifest, iOS production archive/export automation, and the ReplayKit Broadcast Upload Extension bundle/entitlements/App Group/provisioning setup.
+`npm run android:bundleRelease` creates the signed Android App Bundle for store distribution after `MLC_RELEASE_STORE_FILE`, `MLC_RELEASE_STORE_PASSWORD`, `MLC_RELEASE_KEY_ALIAS`, and `MLC_RELEASE_KEY_PASSWORD` pass `npm run android:verify-release-env`.
+
+`npm run verify:release-config` audits native store-release configuration, including Android release signing fail-closed behavior, Android App Bundle release automation, release cleartext-traffic blocking, Android/iOS store version alignment, streaming permissions, OAuth callback schemes, iOS usage descriptions, the iOS privacy manifest, iOS production archive/export automation, and the ReplayKit Broadcast Upload Extension bundle/entitlements/App Group/provisioning setup.
 
 `npm run verify:commercial-release-bundle -- /path/to/support-bundle.json` checks a saved support bundle before release approval. It fails unless the bundle is fresh, schema v13+, public-launch ready, runbook complete, free of unredacted sensitive evidence, and backed by passing same-build iOS/Android validation evidence. Use `--allow-warnings` only after explicitly approving remaining warnings.
 
@@ -153,7 +161,7 @@ Android requires a JDK and Android SDK:
 npm run mobile:android
 ```
 
-Android release artifacts require a production keystore. Provide these as Gradle properties or environment variables before running release tasks:
+Android release artifacts require a production keystore stored outside the repository. Provide these as Gradle properties or environment variables before running release tasks:
 
 ```bash
 MLC_RELEASE_STORE_FILE=/absolute/path/to/release.keystore

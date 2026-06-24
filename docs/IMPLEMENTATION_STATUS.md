@@ -139,6 +139,7 @@
 - iOS Broadcast Upload Extension headphone-gated self-monitor playback for processed ReplayKit microphone PCM with runtime route, write/drop, and AVAudioSession latency evidence.
 - Android microphone/notification runtime permission preflight before MediaProjection launch.
 - Android release signing fail-closed configuration using `MLC_RELEASE_*` keystore inputs instead of debug signing for release artifacts.
+- Store-release environment verifier for iOS and Android that checks required Apple team/profile/App Store Connect API-key and Android release keystore inputs before production archive/export/bundle tasks, without logging secret values and while rejecting signing material stored inside the repository.
 - Android build-type network policy keeps cleartext traffic enabled only for debug development and disables it for release artifacts.
 - Native store version audit keeps Android application metadata, iOS host app versioning, and ReplayKit Broadcast Upload Extension versioning aligned before release approval.
 - Native release-configuration audit script covering Android release signing, release cleartext-traffic blocking, Android/iOS store version alignment, streaming permissions, OAuth callback schemes, iOS usage descriptions, iOS privacy manifest packaging, and ReplayKit Broadcast Upload Extension bundle identifiers, Debug/Release entitlements, extension-only settings, and matching App Group setup.
@@ -159,6 +160,7 @@
 - Homebrew React Native environment installed: JDK 17, Watchman, CocoaPods, Android command line tools.
 - Android SDK packages installed: `platforms;android-36`, `build-tools;36.0.0`, `ndk;27.1.12297006`, `platform-tools`.
 - Android `assembleDebug` build succeeds.
+- Android App Bundle release task is exposed through `npm run android:bundleRelease` and guarded by the store-release environment verifier.
 - iOS `pod install` succeeds and generated `MobileLiveCaster.xcworkspace`.
 - iOS Simulator Debug build succeeds through `xcodebuild`.
 - iOS production archive/export helper scripts generate App Store Connect export options from environment variables, require explicit provisioning profiles for both the host app and ReplayKit Broadcast Upload Extension, archive with Apple Distribution signing, and are covered by native release-configuration audit checks.
