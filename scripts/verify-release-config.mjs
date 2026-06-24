@@ -90,7 +90,9 @@ const checks = [
     expectIncludes(files.dashboardEvidenceScript, "Dashboard evidence screenshot dimensions mismatch");
     expectIncludes(files.dashboardEvidenceScript, "statusSummary");
     expectIncludes(files.dashboardEvidenceScript, "must include YouTube broadcastStatus");
+    expectIncludes(files.dashboardEvidenceScript, "YouTube broadcastId");
     expectIncludes(files.dashboardEvidenceScript, "must include Twitch liveStatus");
+    expectIncludes(files.dashboardEvidenceScript, "Twitch broadcasterId");
     expectIncludes(files.storeSubmissionScript, "store-submission-checklist-manifest");
     expectIncludes(files.storeSubmissionScript, "privacyPolicyUrl");
     expectIncludes(files.storeSubmissionScript, "dataSafetyNotes");

@@ -289,6 +289,9 @@ function writeDashboardEvidenceFixture() {
     ".artifacts/release-report-test/youtube-dashboard.json",
     JSON.stringify({
       platform: "youtube",
+      broadcastId: "ytBroadcast9xYz",
+      streamId: "ytStream8aBc",
+      channelId: "UCMobileLiveCaster",
       broadcastStatus: "live",
       streamStatus: "active",
       checkedAt: new Date().toISOString()
@@ -298,6 +301,9 @@ function writeDashboardEvidenceFixture() {
     ".artifacts/release-report-test/twitch-dashboard.json",
     JSON.stringify({
       platform: "twitch",
+      broadcasterId: "123456789",
+      broadcasterLogin: "mobilelivecaster",
+      streamId: "987654321",
       liveStatus: "live",
       checkedAt: new Date().toISOString()
     })
@@ -469,7 +475,10 @@ function dashboardStatusJsonRecord(platform, path) {
     path,
     basename: path.split("/").at(-1),
     checkedAt: JSON.parse(content.toString("utf8")).checkedAt,
-    statusSummary: platform === "youtube" ? "broadcast:live stream:active" : "live:live",
+    statusSummary:
+      platform === "youtube"
+        ? "broadcast:live:ytBroadcast9xYz stream:active:ytStream8aBc channel:UCMobileLiveCaster"
+        : "live:live channel:123456789/mobilelivecaster stream:987654321",
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };

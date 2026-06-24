@@ -13,6 +13,7 @@ const dashboardScreenshotMinimumShortEdge = 720;
 const dashboardScreenshotMinimumLongEdge = 1280;
 const badYoutubeBroadcastStatuses = new Set(["complete", "failed", "revoked"]);
 const badYoutubeStreamStatuses = new Set(["inactive", "error"]);
+const badIdentityMarkers = new Set(["-", "mock", "n/a", "na", "none", "null", "placeholder", "test", "unknown"]);
 const evidenceKinds = {
   screenshot: Object.freeze({ extension: ".png" }),
   statusJson: Object.freeze({ extension: ".json" })
@@ -280,6 +281,9 @@ function createStatusJsonSummary(artifact, content) {
   if (artifact.platform === "youtube") {
     const broadcastStatus = stringValue(parsed.broadcastStatus).toLowerCase();
     const streamStatus = stringValue(parsed.streamStatus).toLowerCase();
+    const broadcastId = requiredIdentityValue(parsed.broadcastId, "YouTube broadcastId", artifact.path, failures);
+    const streamId = requiredIdentityValue(parsed.streamId, "YouTube streamId", artifact.path, failures);
+    const channelId = requiredIdentityValue(parsed.channelId, "YouTube channelId", artifact.path, failures);
     if (!broadcastStatus) {
       failures.push(`Dashboard evidence status JSON ${artifact.path} must include YouTube broadcastStatus.`);
     } else if (badYoutubeBroadcastStatuses.has(broadcastStatus)) {
@@ -293,11 +297,14 @@ function createStatusJsonSummary(artifact, content) {
     return {
       failures,
       checkedAt,
-      statusSummary: `broadcast:${broadcastStatus || "-"} stream:${streamStatus || "-"}`
+      statusSummary: `broadcast:${broadcastStatus || "-"}:${broadcastId || "-"} stream:${streamStatus || "-"}:${streamId || "-"} channel:${channelId || "-"}`
     };
   }
 
   const liveStatus = stringValue(parsed.liveStatus).toLowerCase();
+  const broadcasterId = requiredIdentityValue(parsed.broadcasterId, "Twitch broadcasterId", artifact.path, failures);
+  const broadcasterLogin = requiredIdentityValue(parsed.broadcasterLogin, "Twitch broadcasterLogin", artifact.path, failures);
+  const streamId = requiredIdentityValue(parsed.streamId, "Twitch streamId", artifact.path, failures);
   if (!liveStatus) {
     failures.push(`Dashboard evidence status JSON ${artifact.path} must include Twitch liveStatus.`);
   } else if (liveStatus !== "live") {
@@ -306,7 +313,7 @@ function createStatusJsonSummary(artifact, content) {
   return {
     failures,
     checkedAt,
-    statusSummary: `live:${liveStatus || "-"}`
+    statusSummary: `live:${liveStatus || "-"} channel:${broadcasterId || "-"}/${broadcasterLogin || "-"} stream:${streamId || "-"}`
   };
 }
 
@@ -362,6 +369,22 @@ function createReleaseArtifactRecord(group, path) {
 
 function stringValue(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function requiredIdentityValue(value, label, path, failures) {
+  const identity = stringValue(value);
+  if (!identity) {
+    failures.push(`Dashboard evidence status JSON ${path} must include ${label}.`);
+    return "";
+  }
+  const lowerIdentity = identity.toLowerCase();
+  if (badIdentityMarkers.has(lowerIdentity)) {
+    failures.push(`Dashboard evidence status JSON ${path} has placeholder ${label} ${identity}.`);
+  }
+  if (identity.length > 128 || /[\s\u0000-\u001f\u007f]/.test(identity)) {
+    failures.push(`Dashboard evidence status JSON ${path} has invalid ${label} ${identity}.`);
+  }
+  return identity;
 }
 
 function workspaceRelativePath(path) {
@@ -456,7 +479,9 @@ function printUsage() {
       "  npm run release:dashboard-evidence -- --youtube-screenshot <png> --twitch-screenshot <png> [--youtube-json <json>] [--twitch-json <json>]",
       "  npm run verify:dashboard-evidence -- [--manifest=.artifacts/platform-dashboard-evidence.json] [--allow-dirty] [--allow-commit-mismatch]",
       "",
-      "Writes or verifies a hash manifest for YouTube/Twitch dashboard evidence artifacts."
+      "Writes or verifies a hash manifest for YouTube/Twitch dashboard evidence artifacts.",
+      "YouTube status JSON requires platform, checkedAt, broadcastId, streamId, channelId, broadcastStatus, and streamStatus.",
+      "Twitch status JSON requires platform, checkedAt, broadcasterId, broadcasterLogin, streamId, and liveStatus."
     ].join("\n")
   );
 }

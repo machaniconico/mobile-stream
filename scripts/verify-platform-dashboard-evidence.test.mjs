@@ -9,6 +9,8 @@ const twitchScreenshot = `${fixtureRoot}/twitch-dashboard.png`;
 const youtubeJson = `${fixtureRoot}/youtube-dashboard.json`;
 const twitchJson = `${fixtureRoot}/twitch-dashboard.json`;
 const manifestPath = `${fixtureRoot}/platform-dashboard-evidence.json`;
+const expectedYoutubeStatusSummary = "broadcast:live:ytBroadcast9xYz stream:active:ytStream8aBc channel:UCMobileLiveCaster";
+const expectedTwitchStatusSummary = "live:live channel:123456789/mobilelivecaster stream:987654321";
 
 const pngBytes = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
@@ -55,11 +57,11 @@ describe("platform dashboard evidence verifier", () => {
     expect(manifest.artifacts[0]).toMatchObject({ width: 1440, height: 900 });
     expect(manifest.artifacts[2]).toMatchObject({
       checkedAt: expect.any(String),
-      statusSummary: "broadcast:live stream:active"
+      statusSummary: expectedYoutubeStatusSummary
     });
     expect(manifest.artifacts[3]).toMatchObject({
       checkedAt: expect.any(String),
-      statusSummary: "live:live"
+      statusSummary: expectedTwitchStatusSummary
     });
 
     const verifyResult = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
@@ -126,6 +128,9 @@ describe("platform dashboard evidence verifier", () => {
       youtubeJson,
       JSON.stringify({
         platform: "youtube",
+        broadcastId: "ytBroadcast9xYz",
+        streamId: "ytStream8aBc",
+        channelId: "UCMobileLiveCaster",
         broadcastStatus: "complete",
         streamStatus: "inactive",
         checkedAt: new Date().toISOString()
@@ -145,6 +150,9 @@ describe("platform dashboard evidence verifier", () => {
       twitchJson,
       JSON.stringify({
         platform: "twitch",
+        broadcasterId: "123456789",
+        broadcasterLogin: "mobilelivecaster",
+        streamId: "987654321",
         liveStatus: "offline",
         checkedAt: new Date().toISOString()
       })
@@ -156,12 +164,82 @@ describe("platform dashboard evidence verifier", () => {
     expect(result.stderr).toContain(`Dashboard evidence status JSON ${twitchJson} has non-release Twitch liveStatus offline.`);
   });
 
+  it("rejects dashboard status JSON without platform identity proof", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(
+      youtubeJson,
+      JSON.stringify({
+        platform: "youtube",
+        broadcastId: "placeholder",
+        streamId: "ytStream8aBc",
+        broadcastStatus: "live",
+        streamStatus: "active",
+        checkedAt: new Date().toISOString()
+      })
+    );
+
+    const result = runVerifier(["--write", "--allow-dirty", "--youtube-json", youtubeJson, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence status JSON ${youtubeJson} has placeholder YouTube broadcastId placeholder.`);
+    expect(result.stderr).toContain(`Dashboard evidence status JSON ${youtubeJson} must include YouTube channelId.`);
+  });
+
+  it("rejects Twitch dashboard status JSON without broadcaster and stream identity proof", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(
+      twitchJson,
+      JSON.stringify({
+        platform: "twitch",
+        broadcasterId: "123456789",
+        broadcasterLogin: "unknown",
+        liveStatus: "live",
+        checkedAt: new Date().toISOString()
+      })
+    );
+
+    const result = runVerifier(["--write", "--allow-dirty", "--twitch-json", twitchJson, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence status JSON ${twitchJson} has placeholder Twitch broadcasterLogin unknown.`);
+    expect(result.stderr).toContain(`Dashboard evidence status JSON ${twitchJson} must include Twitch streamId.`);
+  });
+
+  it("rejects status JSON summary changes in the dashboard manifest", () => {
+    writeEvidenceFiles();
+    expect(
+      runVerifier([
+        "--write",
+        "--allow-dirty",
+        "--youtube-screenshot",
+        youtubeScreenshot,
+        "--youtube-json",
+        youtubeJson,
+        "--manifest",
+        manifestPath
+      ]).status
+    ).toBe(0);
+
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    const statusRecord = manifest.artifacts.find((artifact) => artifact.kind === "statusJson");
+    statusRecord.statusSummary = "broadcast:live:otherBroadcast stream:active:ytStream8aBc channel:UCMobileLiveCaster";
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence status JSON summary mismatch for ${youtubeJson}.`);
+  });
+
   it("rejects dashboard status JSON without a valid checkedAt timestamp", () => {
     mkdirSync(fixtureRoot, { recursive: true });
     writeFileSync(
       youtubeJson,
       JSON.stringify({
         platform: "youtube",
+        broadcastId: "ytBroadcast9xYz",
+        streamId: "ytStream8aBc",
+        channelId: "UCMobileLiveCaster",
         broadcastStatus: "live",
         streamStatus: "active",
         checkedAt: "not-a-date"
@@ -213,6 +291,9 @@ function writeEvidenceFiles() {
     youtubeJson,
     JSON.stringify({
       platform: "youtube",
+      broadcastId: "ytBroadcast9xYz",
+      streamId: "ytStream8aBc",
+      channelId: "UCMobileLiveCaster",
       broadcastStatus: "live",
       streamStatus: "active",
       checkedAt: new Date().toISOString()
@@ -222,6 +303,9 @@ function writeEvidenceFiles() {
     twitchJson,
     JSON.stringify({
       platform: "twitch",
+      broadcasterId: "123456789",
+      broadcasterLogin: "mobilelivecaster",
+      streamId: "987654321",
       liveStatus: "live",
       checkedAt: new Date().toISOString()
     })
