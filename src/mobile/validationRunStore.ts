@@ -3,6 +3,7 @@ import {
   normalizeStreamValidationRuns,
   type StreamValidationRun
 } from "../domain/streamValidationEvidence";
+import { redactSecretsFromPersistedValue } from "../domain/persistencePrivacy";
 
 interface MobileValidationRunStoreModule {
   saveValidationRuns?(runsJson: string): Promise<boolean>;
@@ -33,11 +34,13 @@ export const loadMobileStreamValidationRuns = async (): Promise<StreamValidation
   }
 };
 
-export const saveMobileStreamValidationRuns = async (runs: StreamValidationRun[]): Promise<void> => {
+export const saveMobileStreamValidationRuns = async (runs: StreamValidationRun[], secrets: string[] = []): Promise<void> => {
   if (!canUseMobileValidationRunStore() || !nativeStore?.saveValidationRuns) {
     return;
   }
-  await nativeStore.saveValidationRuns(JSON.stringify(normalizeStreamValidationRuns(runs)));
+  await nativeStore.saveValidationRuns(
+    JSON.stringify(redactSecretsFromPersistedValue(normalizeStreamValidationRuns(runs), secrets))
+  );
 };
 
 export const clearMobileStreamValidationRuns = async (): Promise<void> => {

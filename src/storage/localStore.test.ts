@@ -10,12 +10,15 @@ import { initialStreamState } from "../domain/streamState";
 import {
   clearStreamSessionSummaries,
   clearStreamValidationRuns,
+  loadProfile,
   loadStreamSessionSummaries,
   loadStreamValidationRuns,
+  saveProfile,
   saveStreamSessionSummaries,
   saveStreamValidationRuns
 } from "./localStore";
 
+const profileStorageKey = "mobile-live-caster.profile";
 const sessionSummaryStorageKey = "mobile-live-caster.stream-session-summaries";
 const validationRunsStorageKey = "mobile-live-caster.stream-validation-runs";
 
@@ -100,14 +103,40 @@ describe("local stream session summary store", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    saveStreamValidationRuns([run]);
+    const unsafeRun = {
+      ...run,
+      deviceName: `Pixel ${profile.destination.streamKey}`,
+      summary: `Summary ${profile.destination.streamKey}`,
+      recommendation: `Retest ${profile.destination.streamKey}`
+    };
+
+    saveStreamValidationRuns([unsafeRun], [profile.destination.streamKey]);
 
     expect(loadStreamValidationRuns()).toHaveLength(1);
     expect(storage.getItem(validationRunsStorageKey)).toContain(run.id);
+    expect(storage.getItem(validationRunsStorageKey)).not.toContain(profile.destination.streamKey);
+    expect(storage.getItem(validationRunsStorageKey)).toContain("[redacted]");
 
     clearStreamValidationRuns();
 
     expect(loadStreamValidationRuns()).toEqual([]);
     expect(storage.getItem(validationRunsStorageKey)).toBeNull();
+  });
+
+  it("strips stream keys from saved browser profiles", () => {
+    const storage = createMemoryStorage();
+    vi.stubGlobal("localStorage", storage);
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: "browser-profile-secret"
+      }
+    };
+
+    saveProfile(profile);
+
+    expect(storage.getItem(profileStorageKey)).not.toContain("browser-profile-secret");
+    expect(loadProfile()?.destination.streamKey).toBe("");
   });
 });

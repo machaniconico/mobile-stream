@@ -538,8 +538,8 @@ export const MobileApp = () => {
     if (!streamValidationRunsLoaded) {
       return;
     }
-    void saveMobileStreamValidationRuns(streamValidationRuns).catch(() => undefined);
-  }, [streamValidationRuns, streamValidationRunsLoaded]);
+    void saveMobileStreamValidationRuns(streamValidationRuns, [profile.destination.streamKey]).catch(() => undefined);
+  }, [profile.destination.streamKey, streamValidationRuns, streamValidationRunsLoaded]);
 
   useEffect(() => {
     let cancelled = false;

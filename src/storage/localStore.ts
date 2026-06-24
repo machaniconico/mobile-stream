@@ -8,6 +8,7 @@ import {
   normalizeStreamValidationRuns,
   type StreamValidationRun
 } from "../domain/streamValidationEvidence";
+import { redactSecretsFromPersistedValue } from "../domain/persistencePrivacy";
 
 const SCENE_KEY = "mobile-live-caster.scene";
 const PROFILE_KEY = "mobile-live-caster.profile";
@@ -85,11 +86,14 @@ export const loadStreamValidationRuns = (): StreamValidationRun[] => {
   return normalizeStreamValidationRuns(safeParse<unknown>(localStorage.getItem(STREAM_VALIDATION_RUNS_KEY)));
 };
 
-export const saveStreamValidationRuns = (runs: StreamValidationRun[]): void => {
+export const saveStreamValidationRuns = (runs: StreamValidationRun[], secrets: string[] = []): void => {
   if (!hasLocalStorage()) {
     return;
   }
-  localStorage.setItem(STREAM_VALIDATION_RUNS_KEY, JSON.stringify(normalizeStreamValidationRuns(runs)));
+  localStorage.setItem(
+    STREAM_VALIDATION_RUNS_KEY,
+    JSON.stringify(redactSecretsFromPersistedValue(normalizeStreamValidationRuns(runs), secrets))
+  );
 };
 
 export const clearStreamValidationRuns = (): void => {

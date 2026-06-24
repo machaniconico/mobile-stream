@@ -840,7 +840,7 @@ export const App = () => {
   const recordStreamValidationRun = (run: StreamValidationRun) => {
     setStreamValidationRuns((current) => {
       const next = appendStreamValidationRun(current, run);
-      saveStreamValidationRuns(next);
+      saveStreamValidationRuns(next, [profile.destination.streamKey]);
       return next;
     });
   };
