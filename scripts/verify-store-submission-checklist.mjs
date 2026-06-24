@@ -10,6 +10,8 @@ export const storeSubmissionArtifactGroup = "store-submission";
 
 const storePlatforms = new Set(["ios", "android"]);
 const screenshotSources = new Set(["realDevice", "uiEvidenceDraft"]);
+const finalScreenshotMinimumShortEdge = 1080;
+const finalScreenshotMinimumLongEdge = 1920;
 const metadataType = "store-submission-metadata";
 const reviewDocumentTypes = {
   submissionReview: Object.freeze({ extension: ".md" })
@@ -319,6 +321,10 @@ function createScreenshotRecord({
   if (!isPng(content)) {
     throw new Error(`${platform} store screenshot is not a PNG file: ${relativePath}`);
   }
+  const dimensions = readPngDimensions(content);
+  if (!dimensions) {
+    throw new Error(`${platform} store screenshot PNG dimensions could not be read: ${relativePath}`);
+  }
 
   return {
     platform,
@@ -332,6 +338,8 @@ function createScreenshotRecord({
     appBuild: stringValue(appBuild),
     path: relativePath,
     basename: basename(relativePath),
+    width: dimensions.width,
+    height: dimensions.height,
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
@@ -515,6 +523,17 @@ function validateScreenshotRecord(screenshot, failures, { requireRealDeviceScree
   if (!isPng(content)) {
     failures.push(`Store submission screenshot is not a PNG file: ${screenshot.path}.`);
   }
+  const dimensions = readPngDimensions(content);
+  if (!dimensions) {
+    failures.push(`Store submission screenshot PNG dimensions could not be read: ${screenshot.path}.`);
+  } else {
+    if (screenshot.width !== dimensions.width || screenshot.height !== dimensions.height) {
+      failures.push(`Store submission screenshot dimensions mismatch for ${screenshot.path}.`);
+    }
+    if (requireRealDeviceScreenshots) {
+      validateFinalScreenshotDimensions(screenshot, dimensions, failures);
+    }
+  }
 }
 
 function validateRealDeviceCaptureMetadata(screenshot, failures) {
@@ -529,6 +548,28 @@ function validateRealDeviceCaptureMetadata(screenshot, failures) {
   } else if (!Number.isFinite(Date.parse(screenshot.capturedAt))) {
     failures.push(`Store submission screenshot ${screenshot.path} has an invalid capturedAt timestamp.`);
   }
+}
+
+function validateFinalScreenshotDimensions(screenshot, dimensions, failures) {
+  const shortEdge = Math.min(dimensions.width, dimensions.height);
+  const longEdge = Math.max(dimensions.width, dimensions.height);
+  if (shortEdge < finalScreenshotMinimumShortEdge || longEdge < finalScreenshotMinimumLongEdge) {
+    failures.push(
+      `Store submission screenshot ${screenshot.path} must be at least ${finalScreenshotMinimumShortEdge}px on the short edge and ${finalScreenshotMinimumLongEdge}px on the long edge for final store submission.`
+    );
+  }
+}
+
+function readPngDimensions(content) {
+  if (!isPng(content) || content.length < 24 || content.toString("ascii", 12, 16) !== "IHDR") {
+    return null;
+  }
+  const width = content.readUInt32BE(16);
+  const height = content.readUInt32BE(20);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+  return { width, height };
 }
 
 function validateReviewDocumentRecord(reviewDocument, failures) {

@@ -14,14 +14,12 @@ const reviewPath = `${outputDir}/submission-review.md`;
 const capturedAt = "2026-06-25T00:00:00.000Z";
 const appBuild = "1.0.0 (15)";
 
-const pngBytes = Buffer.from(
+const tinyPngBytes = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
   "base64"
 );
-const otherPngBytes = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAQAAABWes8LAAAADElEQVR42mP8z8AARQAExgH+RtwAAAABJRU5ErkJggg==",
-  "base64"
-);
+const pngBytes = pngWithDimensions(390, 844);
+const otherPngBytes = pngWithDimensions(1179, 2556);
 
 describe("store real-device screenshot importer", () => {
   afterEach(() => {
@@ -84,6 +82,10 @@ describe("store real-device screenshot importer", () => {
     expect(manifest.screenshots.map((screenshot) => screenshot.source)).toEqual(["realDevice", "realDevice"]);
     expect(manifest.screenshots.map((screenshot) => screenshot.osVersion)).toEqual(["iOS 18.5", "Android 15"]);
     expect(manifest.screenshots.map((screenshot) => screenshot.appBuild)).toEqual([appBuild, appBuild]);
+    expect(manifest.screenshots.map((screenshot) => `${screenshot.width}x${screenshot.height}`)).toEqual([
+      "1179x2556",
+      "1179x2556"
+    ]);
     expect(manifest.screenshots.map((screenshot) => screenshot.sha256)).toHaveLength(2);
 
     const final = runChecklist(["--verify", "--manifest", manifestPath, "--require-real-device-screenshots", "--allow-dirty"]);
@@ -303,4 +305,11 @@ function runChecklist(args) {
   return spawnSync(process.execPath, ["scripts/verify-store-submission-checklist.mjs", ...args], {
     encoding: "utf8"
   });
+}
+
+function pngWithDimensions(width, height) {
+  const bytes = Buffer.from(tinyPngBytes);
+  bytes.writeUInt32BE(width, 16);
+  bytes.writeUInt32BE(height, 20);
+  return bytes;
 }

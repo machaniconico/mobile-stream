@@ -27,10 +27,11 @@ const generatedFiles = [
   ".artifacts/store-approval-test/ui-evidence.json"
 ];
 const fileBackups = new Map();
-const pngBytes = Buffer.from(
+const tinyPngBytes = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
   "base64"
 );
+const pngBytes = pngWithDimensions(1179, 2556);
 const capturedAt = "2026-06-25T00:00:00.000Z";
 const appBuild = "rc-1";
 
@@ -339,6 +340,7 @@ function reviewDocumentRecord() {
 
 function screenshotRecord(platform, device, path, source, screenshotAppBuild = appBuild) {
   const content = readFileSync(path);
+  const dimensions = pngDimensions(content);
   return {
     platform,
     kind: "screenshot",
@@ -355,6 +357,8 @@ function screenshotRecord(platform, device, path, source, screenshotAppBuild = a
       : {}),
     path,
     basename: path.split("/").at(-1),
+    width: dimensions.width,
+    height: dimensions.height,
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
@@ -368,6 +372,20 @@ function record(kind, path) {
     basename: path.split("/").at(-1),
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function pngWithDimensions(width, height) {
+  const bytes = Buffer.from(tinyPngBytes);
+  bytes.writeUInt32BE(width, 16);
+  bytes.writeUInt32BE(height, 20);
+  return bytes;
+}
+
+function pngDimensions(content) {
+  return {
+    width: content.readUInt32BE(16),
+    height: content.readUInt32BE(20)
   };
 }
 

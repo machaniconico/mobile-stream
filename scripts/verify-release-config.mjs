@@ -103,6 +103,8 @@ const checks = [
     expectIncludes(files.storeRealDeviceScreenshotsScript, "appBuild");
     expectIncludes(files.storeSubmissionScript, "must include the real device OS version");
     expectIncludes(files.storeSubmissionScript, "must include the app build/version used for capture");
+    expectIncludes(files.storeSubmissionScript, "finalScreenshotMinimumShortEdge");
+    expectIncludes(files.storeSubmissionScript, "Store submission screenshot dimensions mismatch");
     expectIncludes(files.storeSubmissionApprovalScript, "validateStoreSubmissionApproval");
     expectIncludes(files.storeSubmissionApprovalScript, "requireRealDeviceScreenshots");
     expectIncludes(files.storeSubmissionApprovalScript, "Release report is missing store submission artifact");

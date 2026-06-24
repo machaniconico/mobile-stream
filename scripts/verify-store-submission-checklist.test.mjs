@@ -11,10 +11,11 @@ const manifestPath = `${fixtureRoot}/store-submission-checklist.json`;
 const capturedAt = "2026-06-25T00:00:00.000Z";
 const appBuild = "1.0.0 (15)";
 
-const pngBytes = Buffer.from(
+const tinyPngBytes = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
   "base64"
 );
+const pngBytes = pngWithDimensions(1179, 2556);
 
 describe("store submission checklist verifier", () => {
   afterEach(() => {
@@ -46,6 +47,10 @@ describe("store submission checklist verifier", () => {
     expect(manifest.screenshots.map((screenshot) => screenshot.source)).toEqual(["realDevice", "realDevice"]);
     expect(manifest.screenshots.map((screenshot) => screenshot.osVersion)).toEqual(["iOS 18.5", "Android 15"]);
     expect(manifest.screenshots.map((screenshot) => screenshot.appBuild)).toEqual([appBuild, appBuild]);
+    expect(manifest.screenshots.map((screenshot) => `${screenshot.width}x${screenshot.height}`)).toEqual([
+      "1179x2556",
+      "1179x2556"
+    ]);
     expect(manifest.screenshots[0].sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(manifest.reviewDocuments).toHaveLength(1);
     expect(manifest.reviewDocuments[0].path).toBe(reviewDocument);
@@ -165,6 +170,24 @@ describe("store submission checklist verifier", () => {
     expect(result.stderr).toContain(`Store submission screenshot ${iosScreenshot} must include the real device OS version`);
     expect(result.stderr).toContain(`Store submission screenshot ${androidScreenshot} must include the app build/version used for capture.`);
   });
+
+  it("rejects placeholder-sized screenshots in final store-submission mode", () => {
+    writeStoreSubmissionFiles();
+    writeFileSync(iosScreenshot, tinyPngBytes);
+    writeFileSync(androidScreenshot, tinyPngBytes);
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    const result = runVerifier([
+      "--verify",
+      "--allow-dirty",
+      "--manifest",
+      manifestPath,
+      "--require-real-device-screenshots"
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("must be at least 1080px on the short edge and 1920px on the long edge");
+  });
 });
 
 function writeStoreSubmissionFiles(overrides = {}) {
@@ -247,4 +270,11 @@ function runVerifier(args) {
   return spawnSync(process.execPath, ["scripts/verify-store-submission-checklist.mjs", ...args], {
     encoding: "utf8"
   });
+}
+
+function pngWithDimensions(width, height) {
+  const bytes = Buffer.from(tinyPngBytes);
+  bytes.writeUInt32BE(width, 16);
+  bytes.writeUInt32BE(height, 20);
+  return bytes;
 }

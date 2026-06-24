@@ -35,10 +35,11 @@ const generatedFiles = [
   ".artifacts/release-report-test/ui-evidence.json"
 ];
 const fileBackups = new Map();
-const pngBytes = Buffer.from(
+const tinyPngBytes = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
   "base64"
 );
+const pngBytes = pngWithDimensions(1179, 2556);
 
 describe("release report verifier", () => {
   beforeAll(() => {
@@ -457,6 +458,7 @@ function storeSubmissionMetadataRecord() {
 
 function storeScreenshotRecord(platform, device, path, source) {
   const content = readFileSync(path);
+  const dimensions = pngDimensions(content);
   return {
     platform,
     kind: "screenshot",
@@ -466,6 +468,8 @@ function storeScreenshotRecord(platform, device, path, source) {
     source,
     path,
     basename: path.split("/").at(-1),
+    width: dimensions.width,
+    height: dimensions.height,
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
@@ -557,4 +561,18 @@ function restoreFiles() {
       writeFile(path, content);
     }
   }
+}
+
+function pngWithDimensions(width, height) {
+  const bytes = Buffer.from(tinyPngBytes);
+  bytes.writeUInt32BE(width, 16);
+  bytes.writeUInt32BE(height, 20);
+  return bytes;
+}
+
+function pngDimensions(content) {
+  return {
+    width: content.readUInt32BE(16),
+    height: content.readUInt32BE(20)
+  };
 }
