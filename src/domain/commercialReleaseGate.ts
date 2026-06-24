@@ -425,12 +425,31 @@ const sensitivePropertyNames = new Set([
   "devicecode",
   "clientsecret",
   "streamkey",
-  "authorization"
+  "authorization",
+  "oauthtoken",
+  "authtoken",
+  "bearertoken",
+  "apikey"
 ]);
+const sensitivePropertySuffixes = [
+  "accesstoken",
+  "refreshtoken",
+  "idtoken",
+  "codeverifier",
+  "devicecode",
+  "clientsecret",
+  "streamkey",
+  "authorization",
+  "oauthtoken",
+  "authtoken",
+  "bearertoken",
+  "apikey",
+  "secret"
+];
 const sensitiveAssignmentPattern =
-  /\b(access_token|refresh_token|id_token|code|code_verifier|device_code|client_secret|stream_key)=([^&#\s"']+)/gi;
+  /\b([A-Za-z0-9_.-]*(?:access_token|refresh_token|id_token|code|code_verifier|device_code|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|clientSecret|streamKey|oauthToken|authToken|bearerToken|apiKey|secret))=([^&#\s"']+)/gi;
 const sensitiveJsonPattern =
-  /["'](access_token|refresh_token|id_token|code_verifier|device_code|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|clientSecret|streamKey)["']\s*:\s*["']([^"']+)["']/g;
+  /["']([A-Za-z0-9_.-]*(?:access_token|refresh_token|id_token|code_verifier|device_code|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|clientSecret|streamKey|oauthToken|authToken|bearerToken|apiKey|authorization|secret))["']\s*:\s*["']([^"']+)["']/gi;
 const authorizationHeaderPattern = /\bAuthorization\s*:\s*(Bearer|OAuth)\s+([^\s,;]+)/gi;
 const bearerTokenPattern = /\b(Bearer|OAuth)\s+([A-Za-z0-9._~+/=-]{12,})/g;
 
@@ -444,7 +463,7 @@ const findSensitiveBundleFindings = (value: unknown): SensitiveBundleFinding[] =
     }
 
     if (typeof entry === "string") {
-      if (key && sensitivePropertyNames.has(normalizePropertyName(key)) && !isSafeSensitiveValue(entry)) {
+      if (key && isSensitivePropertyName(key) && !isSafeSensitiveValue(entry)) {
         findings.push({ path, reason: `stores ${key}` });
       }
       findings.push(...findSensitiveStringFindings(entry, path).slice(0, 10 - findings.length));
@@ -452,7 +471,7 @@ const findSensitiveBundleFindings = (value: unknown): SensitiveBundleFinding[] =
     }
 
     if (entry === null || typeof entry !== "object") {
-      if (key && sensitivePropertyNames.has(normalizePropertyName(key)) && entry !== null && entry !== undefined) {
+      if (key && isSensitivePropertyName(key) && entry !== null && entry !== undefined) {
         findings.push({ path, reason: `stores non-redacted ${key}` });
       }
       return;
@@ -507,3 +526,8 @@ const isSafeSensitiveValue = (value: string): boolean => {
 };
 
 const normalizePropertyName = (value: string): string => value.replace(/[^a-z0-9]/gi, "").toLowerCase();
+
+const isSensitivePropertyName = (value: string): boolean => {
+  const normalized = normalizePropertyName(value);
+  return sensitivePropertyNames.has(normalized) || sensitivePropertySuffixes.some((suffix) => normalized.endsWith(suffix));
+};

@@ -100,13 +100,19 @@ describe("commercial release gate", () => {
         api: {
           lastError: string;
           streamKey: string;
+          youtubeAccessToken: string;
+          twitchOauthToken: string;
+          serialized: string;
         };
       };
     };
     mutableBundle.diagnostics = {
       api: {
         lastError: "Authorization: Bearer youtube-access-token-secret failed after code=oauth-code-secret",
-        streamKey: "rtmp-live-secret-key"
+        streamKey: "rtmp-live-secret-key",
+        youtubeAccessToken: "youtube-access-token-secret",
+        twitchOauthToken: "twitch-oauth-token-secret",
+        serialized: '{"apiKey":"platform-api-key-secret","nestedClientSecret":"client-secret-value"} customOauthToken=custom-oauth-token-secret'
       }
     };
 
@@ -125,13 +131,19 @@ describe("commercial release gate", () => {
         api: {
           lastError: string;
           streamKey: string;
+          youtubeAccessToken: string;
+          twitchOauthToken: string;
+          serialized: string;
         };
       };
     };
     mutableBundle.diagnostics = {
       api: {
         lastError: "Authorization: Bearer [redacted] failed after code=[redacted]",
-        streamKey: "[redacted]"
+        streamKey: "[redacted]",
+        youtubeAccessToken: "[redacted]",
+        twitchOauthToken: "[redacted]",
+        serialized: '{"apiKey":"[redacted]","nestedClientSecret":"[redacted]"} customOauthToken=[redacted]'
       }
     };
 
