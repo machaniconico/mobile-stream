@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url";
 export const distributionArtifactManifestPath = ".artifacts/distribution-artifacts.json";
 export const distributionArtifactGroup = "distribution";
 
+const minimumDistributionArtifactBytes = 1_048_576;
 const distributionArtifactTypes = {
   android: Object.freeze({ kind: "aab", extension: ".aab" }),
   ios: Object.freeze({ kind: "ipa", extension: ".ipa" })
@@ -163,6 +164,10 @@ function createDistributionArtifactRecord({ platform, kind, extension, path }) {
   if (content.byteLength <= 0) {
     throw new Error(`${platform} ${kind} artifact is empty: ${relativePath}`);
   }
+  const contentFailures = validateDistributionArtifactContent({ platform, kind, path: relativePath }, content);
+  if (contentFailures.length > 0) {
+    throw new Error(contentFailures.join("\n"));
+  }
 
   return {
     platform,
@@ -201,6 +206,41 @@ function validateDistributionArtifact(artifact, failures) {
   if (content.byteLength !== artifact.bytes || actualSha256 !== artifact.sha256) {
     failures.push(`Distribution artifact metadata mismatch for ${artifact.path}.`);
   }
+  failures.push(...validateDistributionArtifactContent(artifact, content));
+}
+
+function validateDistributionArtifactContent(artifact, content) {
+  const failures = [];
+  if (content.byteLength < minimumDistributionArtifactBytes) {
+    failures.push(
+      `Distribution artifact ${artifact.path} must be at least ${minimumDistributionArtifactBytes} bytes to prevent placeholder release binaries.`
+    );
+  }
+  if (!hasZipLocalFileHeader(content)) {
+    failures.push(`Distribution artifact ${artifact.path} must start with a ZIP local-file header.`);
+  }
+  if (!hasZipEndOfCentralDirectory(content)) {
+    failures.push(`Distribution artifact ${artifact.path} is missing a ZIP end-of-central-directory record.`);
+  }
+  return failures;
+}
+
+function hasZipLocalFileHeader(content) {
+  return content.length >= 4 && content[0] === 0x50 && content[1] === 0x4b && content[2] === 0x03 && content[3] === 0x04;
+}
+
+function hasZipEndOfCentralDirectory(content) {
+  const minimumEocdLength = 22;
+  if (content.length < minimumEocdLength) {
+    return false;
+  }
+  const earliestOffset = Math.max(0, content.length - 65_557);
+  for (let offset = content.length - minimumEocdLength; offset >= earliestOffset; offset -= 1) {
+    if (content[offset] === 0x50 && content[offset + 1] === 0x4b && content[offset + 2] === 0x05 && content[offset + 3] === 0x06) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function createReleaseArtifactRecord(group, path) {

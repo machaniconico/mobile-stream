@@ -190,6 +190,8 @@ const checks = [
     expectIncludes(files.distributionArtifactsScript, "iosIpa");
     expectIncludes(files.distributionArtifactsScript, ".ipa");
     expectIncludes(files.distributionArtifactsScript, "distribution-artifact-manifest");
+    expectIncludes(files.distributionArtifactsScript, "minimumDistributionArtifactBytes");
+    expectIncludes(files.distributionArtifactsScript, "ZIP end-of-central-directory");
     expectIncludes(files.storeReleaseBuildScript, "ios:verify-release-env");
     expectIncludes(files.storeReleaseBuildScript, "ios:archive:release");
     expectIncludes(files.storeReleaseBuildScript, "ios:export:release");

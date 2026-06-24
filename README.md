@@ -130,7 +130,7 @@ npm run release:evidence-package -- /path/to/release-candidate-verification.json
 
 `npm run android:bundleRelease` creates the signed Android App Bundle for store distribution after `MLC_RELEASE_STORE_FILE`, `MLC_RELEASE_STORE_PASSWORD`, `MLC_RELEASE_KEY_ALIAS`, and `MLC_RELEASE_KEY_PASSWORD` pass `npm run android:verify-release-env`.
 
-`npm run release:distribution-manifest -- --android-aab <path> --ios-ipa <path>` writes `.artifacts/distribution-artifacts.json` with workspace-relative `.aab` / `.ipa` paths, byte counts, and SHA-256 hashes. `npm run verify:distribution-artifacts` verifies that manifest before release approval. When the manifest exists, `npm run verify:release-candidate` includes it and the referenced binaries in the saved release report.
+`npm run release:distribution-manifest -- --android-aab <path> --ios-ipa <path>` writes `.artifacts/distribution-artifacts.json` with workspace-relative `.aab` / `.ipa` paths, byte counts, and SHA-256 hashes. `npm run verify:distribution-artifacts` verifies hashes, minimum artifact size, and ZIP container signatures before release approval. When the manifest exists, `npm run verify:release-candidate` includes it and the referenced binaries in the saved release report.
 
 `npm run release:dashboard-evidence -- --youtube-screenshot <png> --twitch-screenshot <png>` writes `.artifacts/platform-dashboard-evidence.json` with hashes and PNG dimensions for YouTube/Twitch dashboard screenshots and optional status JSON files. `npm run verify:dashboard-evidence` verifies those files, dimension metadata, and non-placeholder screenshot size before release-candidate reports include them.
 

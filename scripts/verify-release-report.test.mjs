@@ -39,6 +39,7 @@ const tinyPngBytes = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
   "base64"
 );
+const minimumDistributionArtifactBytes = 1_048_576;
 const pngBytes = pngWithDimensions(1179, 2556);
 
 describe("release report verifier", () => {
@@ -252,8 +253,8 @@ function restoreUiScreenshots() {
 }
 
 function writeDistributionFixture() {
-  writeFile(".artifacts/release-report-test/app-release.aab", "fake-android-aab");
-  writeFile(".artifacts/release-report-test/MobileLiveCaster.ipa", "fake-ios-ipa");
+  writeFile(".artifacts/release-report-test/app-release.aab", zipLikeArtifactBytes());
+  writeFile(".artifacts/release-report-test/MobileLiveCaster.ipa", zipLikeArtifactBytes({ marker: 0x49 }));
   writeFile(
     distributionArtifactManifestPath,
     JSON.stringify(
@@ -578,4 +579,18 @@ function pngDimensions(content) {
     width: content.readUInt32BE(16),
     height: content.readUInt32BE(20)
   };
+}
+
+function zipLikeArtifactBytes({ size = minimumDistributionArtifactBytes, marker = 0x5a } = {}) {
+  const bytes = Buffer.alloc(size, marker);
+  bytes[0] = 0x50;
+  bytes[1] = 0x4b;
+  bytes[2] = 0x03;
+  bytes[3] = 0x04;
+  const eocdOffset = bytes.length - 22;
+  bytes[eocdOffset] = 0x50;
+  bytes[eocdOffset + 1] = 0x4b;
+  bytes[eocdOffset + 2] = 0x05;
+  bytes[eocdOffset + 3] = 0x06;
+  return bytes;
 }

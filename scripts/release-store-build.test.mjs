@@ -6,6 +6,7 @@ const fixtureRoot = ".artifacts/release-store-build-test";
 const androidAab = `${fixtureRoot}/app-release.aab`;
 const iosIpa = `${fixtureRoot}/MobileLiveCaster.ipa`;
 const manifestPath = `${fixtureRoot}/distribution-artifacts.json`;
+const minimumDistributionArtifactBytes = 1_048_576;
 
 describe("store release orchestration", () => {
   afterEach(() => {
@@ -50,7 +51,7 @@ describe("store release orchestration", () => {
 
   it("fails when a requested release artifact is missing", () => {
     mkdirSync(fixtureRoot, { recursive: true });
-    writeFileSync(androidAab, "fake-aab");
+    writeFileSync(androidAab, zipLikeArtifactBytes());
 
     const result = runStoreRelease([
       "--skip-build",
@@ -91,12 +92,26 @@ describe("store release orchestration", () => {
 
 function writeDistributionFiles() {
   mkdirSync(fixtureRoot, { recursive: true });
-  writeFileSync(androidAab, "fake-aab");
-  writeFileSync(iosIpa, "fake-ipa");
+  writeFileSync(androidAab, zipLikeArtifactBytes());
+  writeFileSync(iosIpa, zipLikeArtifactBytes({ marker: 0x49 }));
 }
 
 function runStoreRelease(args) {
   return spawnSync(process.execPath, ["scripts/release-store-build.mjs", ...args], {
     encoding: "utf8"
   });
+}
+
+function zipLikeArtifactBytes({ size = minimumDistributionArtifactBytes, marker = 0x5a } = {}) {
+  const bytes = Buffer.alloc(size, marker);
+  bytes[0] = 0x50;
+  bytes[1] = 0x4b;
+  bytes[2] = 0x03;
+  bytes[3] = 0x04;
+  const eocdOffset = bytes.length - 22;
+  bytes[eocdOffset] = 0x50;
+  bytes[eocdOffset + 1] = 0x4b;
+  bytes[eocdOffset + 2] = 0x05;
+  bytes[eocdOffset + 3] = 0x06;
+  return bytes;
 }
