@@ -224,6 +224,7 @@ function validatePackagedReport(manifest, packageDir, failures) {
     (manifest.artifacts || []).map((artifact) => [`${artifact.group}:${artifact.sourcePath}`, artifact])
   );
   validateRequiredCommercialPackageArtifacts(report, manifest, reportArtifacts, packagedArtifacts, failures);
+  validatePackagedCommercialManifests(packageDir, packagedArtifacts, failures);
   for (const packagedArtifact of manifest.artifacts || []) {
     const key = `${packagedArtifact.group}:${packagedArtifact.sourcePath}`;
     if (!reportArtifacts.has(key)) {
@@ -264,6 +265,191 @@ function validateRequiredCommercialPackageArtifacts(report, manifest, reportArti
       failures.push(`Package is missing ${requirement.label} ${requirement.path}.`);
     }
   }
+}
+
+function validatePackagedCommercialManifests(packageDir, packagedArtifacts, failures) {
+  const distributionManifest = readPackagedJsonArtifact({
+    packagedArtifacts,
+    group: distributionArtifactGroup,
+    sourcePath: distributionArtifactManifestPath,
+    packageDir,
+    label: "distribution manifest",
+    failures
+  });
+  if (distributionManifest) {
+    validatePackagedDistributionManifest(distributionManifest, packagedArtifacts, failures);
+  }
+
+  const dashboardManifest = readPackagedJsonArtifact({
+    packagedArtifacts,
+    group: dashboardEvidenceArtifactGroup,
+    sourcePath: dashboardEvidenceManifestPath,
+    packageDir,
+    label: "dashboard evidence manifest",
+    failures
+  });
+  if (dashboardManifest) {
+    validatePackagedDashboardEvidenceManifest(dashboardManifest, packagedArtifacts, failures);
+  }
+
+  const storeSubmissionChecklist = readPackagedJsonArtifact({
+    packagedArtifacts,
+    group: storeSubmissionArtifactGroup,
+    sourcePath: storeSubmissionChecklistPath,
+    packageDir,
+    label: "store submission checklist",
+    failures
+  });
+  if (storeSubmissionChecklist) {
+    validatePackagedStoreSubmissionChecklist(storeSubmissionChecklist, packagedArtifacts, failures);
+  }
+}
+
+function readPackagedJsonArtifact({ packagedArtifacts, group, sourcePath, packageDir, label, failures }) {
+  const artifact = packagedArtifactFor(packagedArtifacts, group, sourcePath);
+  if (!artifact) {
+    return null;
+  }
+  if (!safeRelativePath(artifact.packagedPath)) {
+    return null;
+  }
+  const path = resolve(packageDir, artifact.packagedPath);
+  if (!isInsideDirectory(path, packageDir) || !existsSync(path) || !statSync(path).isFile()) {
+    return null;
+  }
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    failures.push(`Package ${label} cannot be read: ${error instanceof Error ? error.message : String(error)}.`);
+    return null;
+  }
+}
+
+function validatePackagedDistributionManifest(distributionManifest, packagedArtifacts, failures) {
+  if (
+    distributionManifest?.app !== "MobileLiveCaster" ||
+    distributionManifest?.type !== "distribution-artifact-manifest" ||
+    distributionManifest?.reportVersion !== 1
+  ) {
+    failures.push("Package distribution manifest is not a MobileLiveCaster distribution-artifact-manifest reportVersion 1 file.");
+    return;
+  }
+
+  const records = Array.isArray(distributionManifest.artifacts) ? distributionManifest.artifacts : [];
+  if (records.length === 0) {
+    failures.push("Package distribution manifest has no artifacts.");
+    return;
+  }
+  validateRequiredRecordKinds(
+    records,
+    [
+      { label: "android aab", test: (record) => record?.platform === "android" && record?.kind === "aab" },
+      { label: "ios ipa", test: (record) => record?.platform === "ios" && record?.kind === "ipa" }
+    ],
+    "distribution manifest",
+    failures
+  );
+  for (const record of records) {
+    validatePackagedManifestRecord(packagedArtifacts, distributionArtifactGroup, record, "distribution manifest", failures);
+  }
+}
+
+function validatePackagedDashboardEvidenceManifest(dashboardManifest, packagedArtifacts, failures) {
+  if (
+    dashboardManifest?.app !== "MobileLiveCaster" ||
+    dashboardManifest?.type !== "platform-dashboard-evidence-manifest" ||
+    dashboardManifest?.reportVersion !== 1
+  ) {
+    failures.push(
+      "Package dashboard evidence manifest is not a MobileLiveCaster platform-dashboard-evidence-manifest reportVersion 1 file."
+    );
+    return;
+  }
+
+  const records = Array.isArray(dashboardManifest.artifacts) ? dashboardManifest.artifacts : [];
+  if (records.length === 0) {
+    failures.push("Package dashboard evidence manifest has no artifacts.");
+    return;
+  }
+  validateRequiredRecordKinds(
+    records,
+    [
+      { label: "youtube screenshot", test: (record) => record?.platform === "youtube" && record?.kind === "screenshot" },
+      { label: "youtube statusJson", test: (record) => record?.platform === "youtube" && record?.kind === "statusJson" },
+      { label: "twitch screenshot", test: (record) => record?.platform === "twitch" && record?.kind === "screenshot" },
+      { label: "twitch statusJson", test: (record) => record?.platform === "twitch" && record?.kind === "statusJson" }
+    ],
+    "dashboard evidence manifest",
+    failures
+  );
+  for (const record of records) {
+    validatePackagedManifestRecord(packagedArtifacts, dashboardEvidenceArtifactGroup, record, "dashboard evidence manifest", failures);
+  }
+}
+
+function validatePackagedStoreSubmissionChecklist(storeSubmissionChecklist, packagedArtifacts, failures) {
+  if (
+    storeSubmissionChecklist?.app !== "MobileLiveCaster" ||
+    storeSubmissionChecklist?.type !== "store-submission-checklist-manifest" ||
+    storeSubmissionChecklist?.reportVersion !== 1
+  ) {
+    failures.push("Package store submission checklist is not a MobileLiveCaster store-submission-checklist-manifest reportVersion 1 file.");
+    return;
+  }
+
+  const records = [
+    storeSubmissionChecklist.metadata,
+    ...(Array.isArray(storeSubmissionChecklist.screenshots) ? storeSubmissionChecklist.screenshots : []),
+    ...(Array.isArray(storeSubmissionChecklist.reviewDocuments) ? storeSubmissionChecklist.reviewDocuments : [])
+  ].filter(Boolean);
+  if (!storeSubmissionChecklist.metadata) {
+    failures.push("Package store submission checklist is missing metadata.");
+  }
+  if (!Array.isArray(storeSubmissionChecklist.screenshots) || storeSubmissionChecklist.screenshots.length === 0) {
+    failures.push("Package store submission checklist has no screenshots.");
+  }
+  if (!Array.isArray(storeSubmissionChecklist.reviewDocuments) || storeSubmissionChecklist.reviewDocuments.length === 0) {
+    failures.push("Package store submission checklist has no review documents.");
+  }
+  validateRequiredRecordKinds(
+    records,
+    [
+      { label: "ios screenshot", test: (record) => record?.platform === "ios" && record?.kind === "screenshot" },
+      { label: "android screenshot", test: (record) => record?.platform === "android" && record?.kind === "screenshot" }
+    ],
+    "store submission checklist",
+    failures
+  );
+  for (const record of records) {
+    validatePackagedManifestRecord(packagedArtifacts, storeSubmissionArtifactGroup, record, "store submission checklist", failures);
+  }
+}
+
+function validateRequiredRecordKinds(records, requirements, label, failures) {
+  for (const requirement of requirements) {
+    if (!records.some(requirement.test)) {
+      failures.push(`Package ${label} is missing ${requirement.label} artifact.`);
+    }
+  }
+}
+
+function validatePackagedManifestRecord(packagedArtifacts, group, record, label, failures) {
+  if (!record?.path) {
+    failures.push(`Package ${label} contains artifact without path.`);
+    return;
+  }
+  const packagedArtifact = packagedArtifactFor(packagedArtifacts, group, record.path);
+  if (!packagedArtifact) {
+    failures.push(`Package ${label} references artifact not present in package: ${record.path}.`);
+    return;
+  }
+  if (packagedArtifact.bytes !== record.bytes || packagedArtifact.sha256 !== record.sha256) {
+    failures.push(`Package ${label} metadata mismatch for ${record.path}.`);
+  }
+}
+
+function packagedArtifactFor(packagedArtifacts, group, sourcePath) {
+  return packagedArtifacts.get(`${group}:${sourcePath}`);
 }
 
 function validatePackagePrivacy(manifest, packageDir, failures) {

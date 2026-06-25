@@ -132,6 +132,47 @@ describe("release evidence package creator", () => {
     expect(failures).toContain("Packaged release report is missing dashboard evidence manifest .artifacts/platform-dashboard-evidence.json.");
   });
 
+  it("rejects packages missing artifacts referenced by a packaged commercial manifest", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.artifacts = manifest.artifacts.filter(
+      (artifact) => artifact.sourcePath !== ".artifacts/release-evidence-package-test/twitch-dashboard.json"
+    );
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package dashboard evidence manifest references artifact not present in package: .artifacts/release-evidence-package-test/twitch-dashboard.json."
+    );
+  });
+
+  it("rejects stale metadata inside packaged commercial manifests", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedChecklistPath = `${packageDir}/artifacts/${storeSubmissionChecklistPath}`;
+    const checklist = JSON.parse(readFileSync(packagedChecklistPath, "utf8"));
+    checklist.metadata.sha256 = "0".repeat(64);
+    writeFileSync(packagedChecklistPath, JSON.stringify(checklist, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    refreshPackageArtifactEntry(manifest, storeSubmissionChecklistPath, packagedChecklistPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package store submission checklist metadata mismatch for .artifacts/release-evidence-package-test/submission-metadata.json."
+    );
+  });
+
   it("rejects traversal-style artifact paths before report validation reads sources", () => {
     writeReportFixture();
     const report = JSON.parse(readFileSync(reportPath, "utf8"));
@@ -725,6 +766,13 @@ function artifactRecord(group, path) {
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
+}
+
+function refreshPackageArtifactEntry(manifest, sourcePath, packagedPath) {
+  const entry = manifest.artifacts.find((artifact) => artifact.sourcePath === sourcePath);
+  const content = readFileSync(packagedPath);
+  entry.bytes = content.byteLength;
+  entry.sha256 = createHash("sha256").update(content).digest("hex");
 }
 
 function writeUiEvidenceFile() {
