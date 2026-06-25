@@ -3,10 +3,18 @@ import { existsSync, copyFileSync, mkdirSync, readFileSync, readdirSync, statSyn
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
+import { distributionArtifactGroup, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
+import { dashboardEvidenceArtifactGroup, dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
 import { validateReport } from "./verify-release-report.mjs";
+import { storeSubmissionArtifactGroup, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 
 export const releaseEvidencePackageManifestName = "release-evidence-package.json";
 export const releaseEvidencePackageType = "release-evidence-package-manifest";
+const requiredCommercialPackageArtifacts = [
+  { group: distributionArtifactGroup, path: distributionArtifactManifestPath, label: "distribution artifact manifest" },
+  { group: dashboardEvidenceArtifactGroup, path: dashboardEvidenceManifestPath, label: "dashboard evidence manifest" },
+  { group: storeSubmissionArtifactGroup, path: storeSubmissionChecklistPath, label: "store submission checklist" }
+];
 
 export function createReleaseEvidencePackage({
   reportPath,
@@ -215,6 +223,7 @@ function validatePackagedReport(manifest, packageDir, failures) {
   const packagedArtifacts = new Map(
     (manifest.artifacts || []).map((artifact) => [`${artifact.group}:${artifact.sourcePath}`, artifact])
   );
+  validateRequiredCommercialPackageArtifacts(report, manifest, reportArtifacts, packagedArtifacts, failures);
   for (const packagedArtifact of manifest.artifacts || []) {
     const key = `${packagedArtifact.group}:${packagedArtifact.sourcePath}`;
     if (!reportArtifacts.has(key)) {
@@ -230,6 +239,29 @@ function validatePackagedReport(manifest, packageDir, failures) {
     }
     if (packagedArtifact.bytes !== reportArtifact.bytes || packagedArtifact.sha256 !== reportArtifact.sha256) {
       failures.push(`Packaged artifact metadata mismatch for ${reportArtifact.path}.`);
+    }
+  }
+}
+
+function validateRequiredCommercialPackageArtifacts(report, manifest, reportArtifacts, packagedArtifacts, failures) {
+  const reportGroups = new Set((report.artifacts?.files || []).map((artifact) => artifact.group));
+  const packageGroups = new Set((manifest.artifacts || []).map((artifact) => artifact.group));
+  for (const group of [distributionArtifactGroup, dashboardEvidenceArtifactGroup, storeSubmissionArtifactGroup]) {
+    if (!reportGroups.has(group)) {
+      failures.push(`Packaged release report is missing required commercial artifact group ${group}.`);
+    }
+    if (!packageGroups.has(group)) {
+      failures.push(`Package manifest is missing required commercial artifact group ${group}.`);
+    }
+  }
+
+  for (const requirement of requiredCommercialPackageArtifacts) {
+    const key = `${requirement.group}:${requirement.path}`;
+    if (!reportArtifacts.has(key)) {
+      failures.push(`Packaged release report is missing ${requirement.label} ${requirement.path}.`);
+    }
+    if (!packagedArtifacts.has(key)) {
+      failures.push(`Package is missing ${requirement.label} ${requirement.path}.`);
     }
   }
 }

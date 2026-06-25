@@ -125,6 +125,11 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "validateReleaseEvidencePackage");
     expectIncludes(files.releaseEvidencePackageScript, "supportBundle");
     expectIncludes(files.releaseEvidencePackageScript, "privacyScan");
+    expectIncludes(files.releaseEvidencePackageScript, "requiredCommercialPackageArtifacts");
+    expectIncludes(files.releaseEvidencePackageScript, "distributionArtifactManifestPath");
+    expectIncludes(files.releaseEvidencePackageScript, "dashboardEvidenceManifestPath");
+    expectIncludes(files.releaseEvidencePackageScript, "storeSubmissionChecklistPath");
+    expectIncludes(files.releaseEvidencePackageScript, "Packaged release report is missing required commercial artifact group");
     expectIncludes(files.releaseEvidencePackageScript, "sensitiveJsonPattern");
   }),
   check("Android streaming permissions are declared", () => {

@@ -4,6 +4,9 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { releaseConfigArtifactPaths, requiredReleaseGateLabels } from "./release-artifact-policy.mjs";
+import { distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
+import { dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
+import { storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import {
   createReleaseEvidencePackage,
   releaseEvidencePackageManifestName,
@@ -22,13 +25,30 @@ const generatedFiles = [
   ".artifacts/rn/main.ios.jsbundle",
   ".artifacts/rn/index.android.bundle",
   ".artifacts/mobile-live-caster-desktop.png",
-  ".artifacts/mobile-live-caster-mobile.png"
+  ".artifacts/mobile-live-caster-mobile.png",
+  ".artifacts/distribution-artifacts.json",
+  ".artifacts/release-evidence-package-test/app-release.aab",
+  ".artifacts/release-evidence-package-test/MobileLiveCaster.ipa",
+  ".artifacts/platform-dashboard-evidence.json",
+  ".artifacts/release-evidence-package-test/youtube-dashboard.png",
+  ".artifacts/release-evidence-package-test/twitch-dashboard.png",
+  ".artifacts/release-evidence-package-test/youtube-dashboard.json",
+  ".artifacts/release-evidence-package-test/twitch-dashboard.json",
+  ".artifacts/store-submission-checklist.json",
+  ".artifacts/release-evidence-package-test/submission-metadata.json",
+  ".artifacts/release-evidence-package-test/submission-review.md",
+  ".artifacts/release-evidence-package-test/ios-store.png",
+  ".artifacts/release-evidence-package-test/android-store.png"
 ];
 const fileBackups = new Map();
 const pngBytes = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
   "base64"
 );
+const storePngBytes = pngWithDimensions(1179, 2556);
+const dashboardPngBytes = pngWithDimensions(1440, 900);
+const minimumDistributionArtifactBytes = 1_048_576;
+const capturedAt = "2026-06-25T00:00:00.000Z";
 
 describe("release evidence package creator", () => {
   beforeAll(() => {
@@ -88,6 +108,28 @@ describe("release evidence package creator", () => {
     const failures = validateReleaseEvidencePackage({ packageDir });
 
     expect(failures).toContain("Package manifest contains artifact not present in the release report: web:dist/index.html.");
+  });
+
+  it("rejects packages whose report omits final handoff evidence groups", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    packagedReport.artifacts.files = packagedReport.artifacts.files.filter((artifact) => artifact.group !== "dashboard");
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+    manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Packaged release report is missing required commercial artifact group dashboard.");
+    expect(failures).toContain("Packaged release report is missing dashboard evidence manifest .artifacts/platform-dashboard-evidence.json.");
   });
 
   it("rejects traversal-style artifact paths before report validation reads sources", () => {
@@ -215,6 +257,9 @@ function writeFixtureFiles() {
   writeFile(".artifacts/mobile-live-caster-desktop.png", pngBytes);
   writeFile(".artifacts/mobile-live-caster-mobile.png", pngBytes);
   writeFile(supportBundlePath, JSON.stringify({ app: "MobileLiveCaster", fixture: true }));
+  writeDistributionFixture();
+  writeDashboardEvidenceFixture();
+  writeStoreSubmissionFixture();
   writeUiEvidenceFile();
 }
 
@@ -228,7 +273,10 @@ function writeReportFixture() {
     artifactRecord("react-native", ".artifacts/rn/main.ios.jsbundle"),
     artifactRecord("react-native", ".artifacts/rn/index.android.bundle"),
     artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
-    artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png")
+    artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
+    ...distributionArtifactRecords(),
+    ...dashboardEvidenceRecords(),
+    ...storeSubmissionRecords()
   ];
 
   writeFile(
@@ -296,6 +344,377 @@ function writeReportFixture() {
       2
     )
   );
+}
+
+function writeDistributionFixture() {
+  writeFile(".artifacts/release-evidence-package-test/app-release.aab", androidAabBytes());
+  writeFile(".artifacts/release-evidence-package-test/MobileLiveCaster.ipa", iosIpaBytes());
+  writeFile(
+    distributionArtifactManifestPath,
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: "distribution-artifact-manifest",
+        generatedAt: new Date().toISOString(),
+        git: {
+          commit: currentCommit(),
+          branch: "main",
+          dirty: true,
+          statusShort: " M scripts/create-release-evidence-package.test.mjs"
+        },
+        artifacts: [
+          distributionManifestRecord("android", "aab", ".artifacts/release-evidence-package-test/app-release.aab"),
+          distributionManifestRecord("ios", "ipa", ".artifacts/release-evidence-package-test/MobileLiveCaster.ipa")
+        ]
+      },
+      null,
+      2
+    )
+  );
+}
+
+function writeDashboardEvidenceFixture() {
+  writeFile(".artifacts/release-evidence-package-test/youtube-dashboard.png", dashboardPngBytes);
+  writeFile(".artifacts/release-evidence-package-test/twitch-dashboard.png", dashboardPngBytes);
+  writeFile(
+    ".artifacts/release-evidence-package-test/youtube-dashboard.json",
+    JSON.stringify({
+      platform: "youtube",
+      broadcastId: "ytBroadcast9xYz",
+      streamId: "ytStream8aBc",
+      channelId: "UCMobileLiveCaster",
+      broadcastStatus: "live",
+      streamStatus: "active",
+      checkedAt: new Date().toISOString()
+    })
+  );
+  writeFile(
+    ".artifacts/release-evidence-package-test/twitch-dashboard.json",
+    JSON.stringify({
+      platform: "twitch",
+      broadcasterId: "123456789",
+      broadcasterLogin: "mobilelivecaster",
+      streamId: "987654321",
+      liveStatus: "live",
+      checkedAt: new Date().toISOString()
+    })
+  );
+  writeFile(
+    dashboardEvidenceManifestPath,
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: "platform-dashboard-evidence-manifest",
+        generatedAt: new Date().toISOString(),
+        git: {
+          commit: currentCommit(),
+          branch: "main",
+          dirty: true,
+          statusShort: " M scripts/create-release-evidence-package.test.mjs"
+        },
+        artifacts: [
+          dashboardScreenshotRecord("youtube", ".artifacts/release-evidence-package-test/youtube-dashboard.png"),
+          dashboardScreenshotRecord("twitch", ".artifacts/release-evidence-package-test/twitch-dashboard.png"),
+          dashboardStatusJsonRecord("youtube", ".artifacts/release-evidence-package-test/youtube-dashboard.json"),
+          dashboardStatusJsonRecord("twitch", ".artifacts/release-evidence-package-test/twitch-dashboard.json")
+        ]
+      },
+      null,
+      2
+    )
+  );
+}
+
+function writeStoreSubmissionFixture() {
+  writeFile(".artifacts/release-evidence-package-test/ios-store.png", storePngBytes);
+  writeFile(".artifacts/release-evidence-package-test/android-store.png", storePngBytes);
+  writeFile(".artifacts/release-evidence-package-test/submission-review.md", "# Store Submission Review\n\n- [ ] Listing reviewed.\n");
+  writeFile(
+    ".artifacts/release-evidence-package-test/submission-metadata.json",
+    JSON.stringify(
+      {
+        app: "MobileLiveCaster",
+        appStore: {
+          name: "MobileLiveCaster",
+          subtitle: "VTuber Live Studio",
+          description:
+            "MobileLiveCaster lets creators compose a mobile VTuber scene, prepare RTMPS output, monitor audio, and validate stream readiness before going live.",
+          keywords: "VTuber,live,streaming,RTMP,avatar",
+          supportUrl: "https://example.com/mobilelivecaster/support",
+          privacyPolicyUrl: "https://example.com/mobilelivecaster/privacy",
+          category: "Photo & Video",
+          releaseNotes: "Initial public release candidate with mobile VTuber streaming tools.",
+          reviewContactEmail: "support@example.com",
+          ageRatingNotes: "No gambling, no mature content included.",
+          appPrivacyNotes: "Collects only user-provided stream settings and local validation evidence."
+        },
+        playStore: {
+          name: "MobileLiveCaster",
+          shortDescription: "Mobile VTuber streaming studio",
+          fullDescription:
+            "MobileLiveCaster helps creators prepare mobile RTMPS streams with PNGTuber controls, mic processing, chat readout checks, and release validation evidence.",
+          privacyPolicyUrl: "https://example.com/mobilelivecaster/privacy",
+          supportEmail: "support@example.com",
+          category: "Video Players & Editors",
+          releaseNotes: "Initial public release candidate with mobile VTuber streaming tools.",
+          dataSafetyNotes: "Stream keys stay in secure device storage and release evidence redacts sensitive values.",
+          contentRatingNotes: "No gambling, no monetized loot, no mature content included."
+        },
+        screenshots: [
+          {
+            platform: "ios",
+            device: "iPhone 15 Pro Max",
+            path: ".artifacts/release-evidence-package-test/ios-store.png",
+            source: "realDevice",
+            osVersion: "iOS 18.5",
+            appBuild: "rc-1",
+            capturedAt
+          },
+          {
+            platform: "android",
+            device: "Pixel 8 Pro",
+            path: ".artifacts/release-evidence-package-test/android-store.png",
+            source: "realDevice",
+            osVersion: "Android 15",
+            appBuild: "rc-1",
+            capturedAt
+          }
+        ],
+        reviewDocuments: [
+          { kind: "submissionReview", path: ".artifacts/release-evidence-package-test/submission-review.md" }
+        ]
+      },
+      null,
+      2
+    )
+  );
+  writeFile(
+    storeSubmissionChecklistPath,
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: "store-submission-checklist-manifest",
+        generatedAt: new Date().toISOString(),
+        git: {
+          commit: currentCommit(),
+          branch: "main",
+          dirty: true,
+          statusShort: " M scripts/create-release-evidence-package.test.mjs"
+        },
+        metadata: storeMetadataRecord(),
+        screenshots: [
+          storeScreenshotRecord("ios", "iPhone 15 Pro Max", ".artifacts/release-evidence-package-test/ios-store.png"),
+          storeScreenshotRecord("android", "Pixel 8 Pro", ".artifacts/release-evidence-package-test/android-store.png")
+        ],
+        reviewDocuments: [storeReviewDocumentRecord()]
+      },
+      null,
+      2
+    )
+  );
+}
+
+function distributionArtifactRecords() {
+  return [
+    artifactRecord("distribution", distributionArtifactManifestPath),
+    artifactRecord("distribution", ".artifacts/release-evidence-package-test/app-release.aab"),
+    artifactRecord("distribution", ".artifacts/release-evidence-package-test/MobileLiveCaster.ipa")
+  ];
+}
+
+function dashboardEvidenceRecords() {
+  return [
+    artifactRecord("dashboard", dashboardEvidenceManifestPath),
+    artifactRecord("dashboard", ".artifacts/release-evidence-package-test/youtube-dashboard.png"),
+    artifactRecord("dashboard", ".artifacts/release-evidence-package-test/twitch-dashboard.png"),
+    artifactRecord("dashboard", ".artifacts/release-evidence-package-test/youtube-dashboard.json"),
+    artifactRecord("dashboard", ".artifacts/release-evidence-package-test/twitch-dashboard.json")
+  ];
+}
+
+function storeSubmissionRecords() {
+  return [
+    artifactRecord("store-submission", storeSubmissionChecklistPath),
+    artifactRecord("store-submission", ".artifacts/release-evidence-package-test/submission-metadata.json"),
+    artifactRecord("store-submission", ".artifacts/release-evidence-package-test/submission-review.md"),
+    artifactRecord("store-submission", ".artifacts/release-evidence-package-test/ios-store.png"),
+    artifactRecord("store-submission", ".artifacts/release-evidence-package-test/android-store.png")
+  ];
+}
+
+function distributionManifestRecord(platform, kind, path) {
+  const content = readFileSync(path);
+  const zipEntryInfo =
+    platform === "android"
+      ? { zipEntryCount: 3, requiredZipEntries: ["BundleConfig.pb", "base/manifest/AndroidManifest.xml"] }
+      : { zipEntryCount: 2, requiredZipEntries: ["Payload/*.app/Info.plist"] };
+  return {
+    platform,
+    kind,
+    path,
+    basename: path.split("/").at(-1),
+    ...zipEntryInfo,
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function dashboardScreenshotRecord(platform, path) {
+  const content = readFileSync(path);
+  const dimensions = pngDimensions(content);
+  return {
+    platform,
+    kind: "screenshot",
+    path,
+    basename: path.split("/").at(-1),
+    width: dimensions.width,
+    height: dimensions.height,
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function dashboardStatusJsonRecord(platform, path) {
+  const content = readFileSync(path);
+  return {
+    platform,
+    kind: "statusJson",
+    path,
+    basename: path.split("/").at(-1),
+    checkedAt: JSON.parse(content.toString("utf8")).checkedAt,
+    statusSummary:
+      platform === "youtube"
+        ? "broadcast:live:ytBroadcast9xYz stream:active:ytStream8aBc channel:UCMobileLiveCaster"
+        : "live:live channel:123456789/mobilelivecaster stream:987654321",
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function storeMetadataRecord() {
+  return storeRecord("store-submission-metadata", ".artifacts/release-evidence-package-test/submission-metadata.json");
+}
+
+function storeReviewDocumentRecord() {
+  return storeRecord("submissionReview", ".artifacts/release-evidence-package-test/submission-review.md");
+}
+
+function storeScreenshotRecord(platform, device, path) {
+  const content = readFileSync(path);
+  const dimensions = pngDimensions(content);
+  return {
+    platform,
+    kind: "screenshot",
+    device,
+    locale: "ja-JP",
+    role: "store",
+    source: "realDevice",
+    osVersion: platform === "ios" ? "iOS 18.5" : "Android 15",
+    appBuild: "rc-1",
+    capturedAt,
+    path,
+    basename: path.split("/").at(-1),
+    width: dimensions.width,
+    height: dimensions.height,
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function storeRecord(kind, path) {
+  const content = readFileSync(path);
+  return {
+    kind,
+    path,
+    basename: path.split("/").at(-1),
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function pngWithDimensions(width, height) {
+  const bytes = Buffer.from(pngBytes);
+  bytes.writeUInt32BE(width, 16);
+  bytes.writeUInt32BE(height, 20);
+  return bytes;
+}
+
+function pngDimensions(content) {
+  return {
+    width: content.readUInt32BE(16),
+    height: content.readUInt32BE(20)
+  };
+}
+
+function androidAabBytes({ marker = 0x5a } = {}) {
+  return zipArtifactBytes([
+    { name: "BundleConfig.pb", data: Buffer.from("bundle config") },
+    { name: "base/manifest/AndroidManifest.xml", data: Buffer.from("<manifest />") },
+    { name: "base/dex/classes.dex", size: minimumDistributionArtifactBytes, marker }
+  ]);
+}
+
+function iosIpaBytes({ marker = 0x49 } = {}) {
+  return zipArtifactBytes([
+    { name: "Payload/MobileLiveCaster.app/Info.plist", data: Buffer.from("<plist />") },
+    { name: "Payload/MobileLiveCaster.app/MobileLiveCaster", size: minimumDistributionArtifactBytes, marker }
+  ]);
+}
+
+function zipArtifactBytes(entries) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name);
+    const data = entry.data || Buffer.alloc(entry.size || 0, entry.marker || 0x5a);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt32LE(0, 10);
+    local.writeUInt32LE(0, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(0, 28);
+    localParts.push(local, name, data);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0, 8);
+    central.writeUInt16LE(0, 10);
+    central.writeUInt32LE(0, 12);
+    central.writeUInt32LE(0, 16);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt16LE(0, 30);
+    central.writeUInt16LE(0, 32);
+    central.writeUInt16LE(0, 34);
+    central.writeUInt16LE(0, 36);
+    central.writeUInt32LE(0, 38);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(central, name);
+    offset += local.length + name.length + data.length;
+  }
+  const centralDirectory = Buffer.concat(centralParts);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(0, 4);
+  eocd.writeUInt16LE(0, 6);
+  eocd.writeUInt16LE(entries.length, 8);
+  eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(centralDirectory.length, 12);
+  eocd.writeUInt32LE(offset, 16);
+  eocd.writeUInt16LE(0, 20);
+  return Buffer.concat([...localParts, centralDirectory, eocd]);
 }
 
 function artifactRecord(group, path) {
