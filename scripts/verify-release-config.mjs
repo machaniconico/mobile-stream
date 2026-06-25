@@ -83,6 +83,10 @@ const checks = [
     expectIncludes(files.storeReleaseBuildScript, "android:verify-release-env");
     expectIncludes(files.storeReleaseBuildScript, "android:bundleRelease");
     expectIncludes(files.storeReleaseBuildScript, "createDistributionManifest");
+    expectIncludes(files.storeReleaseBuildScript, "store-release-orchestration");
+    expectIncludes(files.storeReleaseBuildScript, "--report-json");
+    expectIncludes(files.storeReleaseBuildScript, "Store release report written to");
+    expectIncludes(files.storeReleaseBuildScript, "distributionManifestSummary");
     expectIncludes(files.dashboardEvidenceScript, "youtubeScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "twitchScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "platform-dashboard-evidence-manifest");

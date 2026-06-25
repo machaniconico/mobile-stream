@@ -6,6 +6,7 @@ const fixtureRoot = ".artifacts/release-store-build-test";
 const androidAab = `${fixtureRoot}/app-release.aab`;
 const iosIpa = `${fixtureRoot}/MobileLiveCaster.ipa`;
 const manifestPath = `${fixtureRoot}/distribution-artifacts.json`;
+const reportPath = `${fixtureRoot}/store-release-report.json`;
 const minimumDistributionArtifactBytes = 1_048_576;
 
 describe("store release orchestration", () => {
@@ -25,6 +26,25 @@ describe("store release orchestration", () => {
     expect(result.stdout).toContain("npm run ios:export:release");
     expect(result.stdout).toContain(`write distribution manifest: ${manifestPath}`);
     expect(existsSync(manifestPath)).toBe(false);
+  });
+
+  it("writes a planned store release report in dry-run mode when requested", () => {
+    const result = runStoreRelease(["--dry-run", "--manifest", manifestPath, "--report-json", reportPath]);
+
+    expect(result.status).toBe(0);
+    expect(existsSync(manifestPath)).toBe(false);
+    expect(existsSync(reportPath)).toBe(true);
+
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    expect(report).toMatchObject({
+      reportVersion: 1,
+      app: "MobileLiveCaster",
+      type: "store-release-orchestration",
+      status: "planned",
+      mode: "dry-run",
+      platforms: ["android", "ios"]
+    });
+    expect(report.steps.every((step) => step.status === "planned")).toBe(true);
   });
 
   it("writes a distribution manifest from existing artifacts when build and env checks are skipped", () => {
@@ -49,6 +69,49 @@ describe("store release orchestration", () => {
     expect(manifest.artifacts.map((artifact) => artifact.path)).toEqual([androidAab, iosIpa]);
   });
 
+  it("writes a passed store release report with distribution manifest evidence", () => {
+    writeDistributionFiles();
+
+    const result = runStoreRelease([
+      "--skip-build",
+      "--skip-env",
+      "--allow-dirty",
+      "--manifest",
+      manifestPath,
+      "--report-json",
+      reportPath,
+      "--android-aab",
+      androidAab,
+      "--ios-ipa",
+      iosIpa
+    ]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(`Store release report written to ${reportPath}`);
+
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    expect(report).toMatchObject({
+      reportVersion: 1,
+      app: "MobileLiveCaster",
+      type: "store-release-orchestration",
+      status: "passed",
+      mode: "execute",
+      platforms: ["android", "ios"]
+    });
+    expect(report.steps).toHaveLength(1);
+    expect(report.steps[0]).toMatchObject({
+      type: "manifest",
+      status: "passed",
+      exitCode: 0
+    });
+    expect(report.artifacts.distributionManifest).toMatchObject({
+      path: manifestPath,
+      artifactCount: 2
+    });
+    expect(report.artifacts.distributionManifest.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(report.artifacts.distributionManifest.artifacts.map((artifact) => artifact.path)).toEqual([androidAab, iosIpa]);
+  });
+
   it("fails when a requested release artifact is missing", () => {
     mkdirSync(fixtureRoot, { recursive: true });
     writeFileSync(androidAab, androidAabBytes());
@@ -67,6 +130,38 @@ describe("store release orchestration", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`ios ipa artifact does not exist: ${iosIpa}`);
+  });
+
+  it("writes a failed store release report when distribution manifest creation fails", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(androidAab, androidAabBytes());
+
+    const result = runStoreRelease([
+      "--skip-build",
+      "--skip-env",
+      "--allow-dirty",
+      "--manifest",
+      manifestPath,
+      "--report-json",
+      reportPath,
+      "--android-aab",
+      androidAab,
+      "--ios-ipa",
+      iosIpa
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(existsSync(reportPath)).toBe(true);
+
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    expect(report.status).toBe("failed");
+    expect(report.error).toBe(`ios ipa artifact does not exist: ${iosIpa}`);
+    expect(report.steps[0]).toMatchObject({
+      type: "manifest",
+      status: "failed",
+      exitCode: 1,
+      error: `ios ipa artifact does not exist: ${iosIpa}`
+    });
   });
 
   it("can scope orchestration to Android-only releases", () => {
