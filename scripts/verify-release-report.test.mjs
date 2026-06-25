@@ -10,6 +10,7 @@ import {
 import { distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
 import { dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
 import { storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
+import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
 import { validateReport } from "./verify-release-report.mjs";
 
 const generatedFiles = [
@@ -29,6 +30,7 @@ const generatedFiles = [
   ".artifacts/release-report-test/youtube-dashboard.json",
   ".artifacts/release-report-test/twitch-dashboard.json",
   ".artifacts/store-submission-checklist.json",
+  ".artifacts/release-report-test/store-release-report.json",
   ".artifacts/release-report-test/store-submission-metadata.json",
   ".artifacts/release-report-test/submission-review.md",
   ".artifacts/release-report-test/ios-store.png",
@@ -140,6 +142,22 @@ describe("release report verifier", () => {
 
     expect(failures).toContain("Report is missing store submission artifact .artifacts/release-report-test/android-store.png.");
   });
+
+  it("accepts release reports with matching store release orchestration evidence", () => {
+    restoreUiScreenshots();
+    const failures = validateReport(createReport({ includeStoreRelease: true }), reportOptions());
+
+    expect(failures).toEqual([]);
+  });
+
+  it("rejects failed store release orchestration evidence in a release report", () => {
+    restoreUiScreenshots();
+    const report = createReport({ includeStoreRelease: true, storeReleaseStatus: "failed" });
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain('Store release report status must be passed, got "failed".');
+  });
 });
 
 function reportOptions() {
@@ -150,9 +168,16 @@ function reportOptions() {
   };
 }
 
-function createReport({ includeDistribution = false, includeDashboardEvidence = false, includeStoreSubmission = false } = {}) {
+function createReport({
+  includeDistribution = false,
+  includeDashboardEvidence = false,
+  includeStoreSubmission = false,
+  includeStoreRelease = false,
+  storeReleaseStatus = "passed"
+} = {}) {
   writeUiEvidenceFile();
-  if (includeDistribution) {
+  const shouldIncludeDistribution = includeDistribution || includeStoreRelease;
+  if (shouldIncludeDistribution) {
     writeDistributionFixture();
   }
   if (includeDashboardEvidence) {
@@ -160,6 +185,9 @@ function createReport({ includeDistribution = false, includeDashboardEvidence = 
   }
   if (includeStoreSubmission) {
     writeStoreSubmissionFixture();
+  }
+  if (includeStoreRelease) {
+    writeStoreReleaseFixture({ status: storeReleaseStatus });
   }
   const supportBundlePath = ".artifacts/release-report-test/support-bundle.json";
   const artifactFiles = [
@@ -171,9 +199,10 @@ function createReport({ includeDistribution = false, includeDashboardEvidence = 
     artifactRecord("react-native", ".artifacts/rn/index.android.bundle"),
     artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
     artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
-    ...(includeDistribution ? distributionArtifactRecords() : []),
+    ...(shouldIncludeDistribution ? distributionArtifactRecords() : []),
     ...(includeDashboardEvidence ? dashboardEvidenceRecords() : []),
-    ...(includeStoreSubmission ? storeSubmissionRecords() : [])
+    ...(includeStoreSubmission ? storeSubmissionRecords() : []),
+    ...(includeStoreRelease ? storeReleaseArtifactRecords() : [])
   ];
 
   return {
@@ -422,12 +451,115 @@ function writeStoreSubmissionFixture() {
   );
 }
 
+function writeStoreReleaseFixture({ status = "passed" } = {}) {
+  writeFile(
+    ".artifacts/release-report-test/store-release-report.json",
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: storeReleaseReportType,
+        status,
+        startedAt: new Date(Date.now() - 1_000).toISOString(),
+        finishedAt: new Date().toISOString(),
+        durationMs: 1,
+        git: {
+          commit: currentCommit(),
+          branch: "main",
+          dirty: true,
+          statusShort: " M scripts/verify-release-report.test.mjs"
+        },
+        mode: "execute",
+        platforms: ["android", "ios"],
+        options: {
+          skipEnv: true,
+          skipBuild: true,
+          allowDirty: true,
+          manifestPath: distributionArtifactManifestPath,
+          androidAab: ".artifacts/release-report-test/app-release.aab",
+          iosIpa: ".artifacts/release-report-test/MobileLiveCaster.ipa"
+        },
+        checks: [
+          {
+            label: "Verify clean git worktree",
+            command: "git status --short",
+            status: "skipped",
+            startedAt: new Date(Date.now() - 1_000).toISOString(),
+            finishedAt: new Date().toISOString(),
+            durationMs: 0,
+            exitCode: 0,
+            error: "Allowed by --allow-dirty.",
+            statusShort: " M scripts/verify-release-report.test.mjs"
+          }
+        ],
+        steps: [
+          {
+            type: "manifest",
+            label: "Write distribution artifact manifest",
+            command: `write ${distributionArtifactManifestPath}`,
+            status,
+            startedAt: new Date(Date.now() - 1_000).toISOString(),
+            finishedAt: new Date().toISOString(),
+            durationMs: 1,
+            exitCode: status === "passed" ? 0 : 1,
+            error: status === "passed" ? null : "fixture failure",
+            inputs: {
+              androidAab: ".artifacts/release-report-test/app-release.aab",
+              iosIpa: ".artifacts/release-report-test/MobileLiveCaster.ipa",
+              manifestPath: distributionArtifactManifestPath
+            },
+            result: distributionManifestSummary(distributionManifestArtifactRecord())
+          }
+        ],
+        artifacts: {
+          distributionManifest: distributionManifestSummary(distributionManifestArtifactRecord())
+        },
+        error: status === "passed" ? null : "fixture failure"
+      },
+      null,
+      2
+    )
+  );
+}
+
 function distributionArtifactRecords() {
   return [
     artifactRecord("distribution", distributionArtifactManifestPath),
     artifactRecord("distribution", ".artifacts/release-report-test/app-release.aab"),
     artifactRecord("distribution", ".artifacts/release-report-test/MobileLiveCaster.ipa")
   ];
+}
+
+function storeReleaseArtifactRecords() {
+  return [artifactRecord(storeReleaseReportArtifactGroup, ".artifacts/release-report-test/store-release-report.json")];
+}
+
+function distributionManifestArtifactRecord() {
+  const content = readFileSync(distributionArtifactManifestPath);
+  const manifest = JSON.parse(content.toString("utf8"));
+  return {
+    path: distributionArtifactManifestPath,
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex"),
+    artifactCount: Array.isArray(manifest.artifacts) ? manifest.artifacts.length : 0,
+    artifacts: (manifest.artifacts || []).map((artifact) => ({
+      platform: artifact.platform,
+      kind: artifact.kind,
+      path: artifact.path,
+      bytes: artifact.bytes,
+      sha256: artifact.sha256
+    }))
+  };
+}
+
+function distributionManifestSummary(record) {
+  return {
+    path: record.path,
+    bytes: record.bytes,
+    sha256: record.sha256,
+    artifactCount: record.artifactCount,
+    artifacts: record.artifacts
+  };
 }
 
 function distributionManifestRecord(platform, kind, path) {

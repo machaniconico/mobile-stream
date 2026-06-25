@@ -7,6 +7,9 @@ import { pathToFileURL } from "node:url";
 import { iosReleasePaths } from "./ios-release-config.mjs";
 import { createDistributionManifest, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
 
+export const storeReleaseReportArtifactGroup = "store-release";
+export const storeReleaseReportDefaultPath = ".artifacts/store-release-orchestration.json";
+export const storeReleaseReportType = "store-release-orchestration";
 const defaultAndroidAabPath = "android/app/build/outputs/bundle/release/app-release.aab";
 
 const platformPlan = {
@@ -184,7 +187,7 @@ function createStoreReleaseReport({ plan, options }) {
   return {
     reportVersion: 1,
     app: "MobileLiveCaster",
-    type: "store-release-orchestration",
+    type: storeReleaseReportType,
     status: "running",
     startedAt,
     finishedAt: null,
@@ -336,6 +339,177 @@ function distributionManifestSummary(manifestPath, manifest) {
   };
 }
 
+export function readStoreReleaseReport(reportPath = storeReleaseReportDefaultPath) {
+  return JSON.parse(readFileSync(resolve(reportPath), "utf8"));
+}
+
+export function validateStoreReleaseReport(
+  report,
+  {
+    reportPath = storeReleaseReportDefaultPath,
+    currentCommit = commandOutput("git", ["rev-parse", "HEAD"]),
+    allowDirty = true,
+    allowCommitMismatch = true,
+    requirePassed = true
+  } = {}
+) {
+  const failures = [];
+  if (report?.app !== "MobileLiveCaster" || report?.type !== storeReleaseReportType || report?.reportVersion !== 1) {
+    failures.push("Store release report is not a MobileLiveCaster store-release-orchestration reportVersion 1 file.");
+    return failures;
+  }
+  if (requirePassed && report.status !== "passed") {
+    failures.push(`Store release report status must be passed, got ${JSON.stringify(report.status)}.`);
+  }
+  if (requirePassed && report.mode !== "execute") {
+    failures.push(`Store release report mode must be execute, got ${JSON.stringify(report.mode)}.`);
+  }
+  if (!Number.isFinite(Date.parse(report.finishedAt || ""))) {
+    failures.push("Store release report finishedAt timestamp is missing or invalid.");
+  }
+  if (!Number.isFinite(report.durationMs) || report.durationMs < 0) {
+    failures.push("Store release report durationMs is missing or invalid.");
+  }
+
+  const reportCommit = String(report.git?.commit || "");
+  if (!reportCommit) {
+    failures.push("Store release report git commit is missing.");
+  }
+  if (currentCommit && reportCommit && currentCommit !== reportCommit && !allowCommitMismatch) {
+    failures.push(`Store release report commit ${reportCommit} does not match expected commit ${currentCommit}.`);
+  }
+  if (report.git?.dirty && !allowDirty) {
+    failures.push("Store release report was generated from a dirty worktree.");
+  }
+  if (report.options?.allowDirty && !allowDirty) {
+    failures.push("Store release report was generated with --allow-dirty.");
+  }
+
+  const platforms = Array.isArray(report.platforms) ? report.platforms : [];
+  if (platforms.length === 0) {
+    failures.push("Store release report has no platforms.");
+  }
+
+  const steps = Array.isArray(report.steps) ? report.steps : [];
+  if (steps.length === 0) {
+    failures.push("Store release report has no steps.");
+  }
+  for (const step of steps) {
+    if (!step?.type || !step?.command) {
+      failures.push("Store release report step is missing type or command.");
+      continue;
+    }
+    if (requirePassed && step.status !== "passed") {
+      failures.push(`Store release report step ${JSON.stringify(step.command)} must be passed, got ${JSON.stringify(step.status)}.`);
+    }
+    if (step.status === "passed" && step.exitCode !== 0) {
+      failures.push(`Store release report step ${JSON.stringify(step.command)} has a non-zero exitCode.`);
+    }
+    if (step.status !== "pending" && step.status !== "planned" && (!Number.isFinite(step.durationMs) || step.durationMs < 0)) {
+      failures.push(`Store release report step ${JSON.stringify(step.command)} is missing a valid durationMs.`);
+    }
+  }
+
+  validateStoreReleaseDistributionManifest(report, reportPath, failures);
+  return failures;
+}
+
+export function collectStoreReleaseArtifactRecords({ reportPath = storeReleaseReportDefaultPath } = {}) {
+  if (!reportPath || !existsSync(resolve(reportPath))) {
+    return [];
+  }
+  return [createReleaseArtifactRecord(storeReleaseReportArtifactGroup, reportPath)];
+}
+
+export function validateStoreReleaseReportInReleaseReport(artifacts, fail, { expectedCommit = "", allowDirty = true, allowCommitMismatch = true } = {}) {
+  const reportArtifact = artifacts.find((artifact) => artifact?.group === storeReleaseReportArtifactGroup);
+  if (!reportArtifact) {
+    return;
+  }
+
+  let report;
+  try {
+    report = readStoreReleaseReport(reportArtifact.path);
+  } catch (error) {
+    fail(`Store release report cannot be read: ${error instanceof Error ? error.message : String(error)}.`);
+    return;
+  }
+
+  for (const failure of validateStoreReleaseReport(report, {
+    reportPath: reportArtifact.path,
+    currentCommit: expectedCommit,
+    allowDirty,
+    allowCommitMismatch,
+    requirePassed: true
+  })) {
+    fail(failure);
+  }
+
+  const manifestPath = report.artifacts?.distributionManifest?.path;
+  if (!manifestPath) {
+    fail("Store release report is missing distribution manifest evidence.");
+    return;
+  }
+  const manifestArtifact = artifacts.find((artifact) => artifact?.group === "distribution" && artifact?.path === manifestPath);
+  if (!manifestArtifact) {
+    fail(`Release report is missing store release distribution manifest artifact ${manifestPath}.`);
+    return;
+  }
+  if (
+    manifestArtifact.bytes !== report.artifacts.distributionManifest.bytes ||
+    manifestArtifact.sha256 !== report.artifacts.distributionManifest.sha256
+  ) {
+    fail(`Store release report distribution manifest metadata mismatch for ${manifestPath}.`);
+  }
+}
+
+function validateStoreReleaseDistributionManifest(report, reportPath, failures) {
+  const summary = report.artifacts?.distributionManifest;
+  if (report.status === "planned" && !summary) {
+    return;
+  }
+  if (!summary?.path || !Number.isFinite(summary.bytes) || summary.bytes <= 0 || !isSha256(summary.sha256)) {
+    failures.push("Store release report distribution manifest evidence is missing or invalid.");
+    return;
+  }
+  if (!existsSync(resolve(summary.path))) {
+    failures.push(`Store release report distribution manifest does not exist: ${summary.path}.`);
+    return;
+  }
+  const content = readFileSync(resolve(summary.path));
+  const actualSha256 = createHash("sha256").update(content).digest("hex");
+  if (content.byteLength !== summary.bytes || actualSha256 !== summary.sha256) {
+    failures.push(`Store release report distribution manifest metadata mismatch for ${summary.path}.`);
+    return;
+  }
+
+  let manifest;
+  try {
+    manifest = JSON.parse(content.toString("utf8"));
+  } catch (error) {
+    failures.push(`Store release report distribution manifest cannot be read: ${error instanceof Error ? error.message : String(error)}.`);
+    return;
+  }
+  const manifestArtifacts = Array.isArray(manifest.artifacts) ? manifest.artifacts : [];
+  if (summary.artifactCount !== manifestArtifacts.length) {
+    failures.push(`Store release report distribution manifest artifact count mismatch for ${summary.path}.`);
+  }
+  const summaryArtifacts = Array.isArray(summary.artifacts) ? summary.artifacts : [];
+  for (const manifestArtifact of manifestArtifacts) {
+    const summaryArtifact = summaryArtifacts.find((artifact) => artifact?.path === manifestArtifact.path);
+    if (!summaryArtifact) {
+      failures.push(`Store release report is missing distribution artifact summary ${manifestArtifact.path}.`);
+      continue;
+    }
+    if (summaryArtifact.bytes !== manifestArtifact.bytes || summaryArtifact.sha256 !== manifestArtifact.sha256) {
+      failures.push(`Store release report distribution artifact metadata mismatch for ${manifestArtifact.path}.`);
+    }
+  }
+  if (reportPath && !existsSync(resolve(reportPath))) {
+    failures.push(`Store release report file does not exist: ${reportPath}.`);
+  }
+}
+
 function gitSnapshot() {
   return {
     commit: commandOutput("git", ["rev-parse", "HEAD"]) || null,
@@ -355,6 +529,20 @@ function commandOutput(command, args) {
 
 function fileSha256(path) {
   return createHash("sha256").update(readFileSync(resolve(path))).digest("hex");
+}
+
+function createReleaseArtifactRecord(group, path) {
+  const content = readFileSync(resolve(path));
+  return {
+    group,
+    path: relativeToWorkspace(path),
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function isSha256(value) {
+  return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value);
 }
 
 function relativeToWorkspace(path) {

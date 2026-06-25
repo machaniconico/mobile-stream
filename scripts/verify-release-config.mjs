@@ -24,6 +24,7 @@ const files = {
   storeReleaseBuildScript: read("scripts/release-store-build.mjs"),
   storeSubmissionDraftScript: read("scripts/create-store-submission-draft.mjs"),
   storeRealDeviceScreenshotsScript: read("scripts/import-store-real-device-screenshots.mjs"),
+  releaseCandidateScript: read("scripts/verify-release-candidate.mjs"),
   releaseEvidencePackageScript: read("scripts/create-release-evidence-package.mjs"),
   iosReleaseConfigScript: read("scripts/ios-release-config.mjs"),
   createIosExportOptionsScript: read("scripts/create-ios-export-options.mjs"),
@@ -87,6 +88,10 @@ const checks = [
     expectIncludes(files.storeReleaseBuildScript, "--report-json");
     expectIncludes(files.storeReleaseBuildScript, "Store release report written to");
     expectIncludes(files.storeReleaseBuildScript, "distributionManifestSummary");
+    expectIncludes(files.storeReleaseBuildScript, "validateStoreReleaseReport");
+    expectIncludes(files.storeReleaseBuildScript, "collectStoreReleaseArtifactRecords");
+    expectIncludes(files.releaseCandidateScript, "--store-release-report-json");
+    expectIncludes(files.releaseCandidateScript, "Verify store release orchestration report");
     expectIncludes(files.dashboardEvidenceScript, "youtubeScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "twitchScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "platform-dashboard-evidence-manifest");

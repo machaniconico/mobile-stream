@@ -7,6 +7,7 @@ import { releaseConfigArtifactPaths } from "./release-artifact-policy.mjs";
 import { collectDistributionArtifactRecords } from "./verify-distribution-artifacts.mjs";
 import { collectDashboardEvidenceArtifactRecords } from "./verify-platform-dashboard-evidence.mjs";
 import { collectStoreSubmissionArtifactRecords } from "./verify-store-submission-checklist.mjs";
+import { collectStoreReleaseArtifactRecords, validateStoreReleaseReport } from "./release-store-build.mjs";
 
 const defaultUiUrl = "http://127.0.0.1:5173/";
 const devServerTimeoutMs = 30_000;
@@ -65,6 +66,7 @@ async function main() {
   console.log(`Warnings accepted: ${options.allowWarnings ? "yes" : "no"}`);
   console.log(`Dirty worktree accepted: ${options.allowDirty ? "yes" : "no"}`);
   console.log(`Report: ${options.reportJsonPath}`);
+  console.log(`Store release report: ${options.storeReleaseReportJsonPath || "not supplied"}`);
   console.log(
     `UI verification: ${
       options.skipUi
@@ -80,6 +82,9 @@ async function main() {
 
     if (options.skipUi) {
       runUiEvidenceGate(report, options);
+    }
+    if (options.storeReleaseReportJsonPath) {
+      runStoreReleaseReportGate(report, options);
     }
 
     for (const [label, args] of sourceGates) {
@@ -202,6 +207,54 @@ function runUiEvidenceGate(report, options) {
         name: viewport.name,
         screenshot: viewport.screenshot
       }))
+    };
+  } catch (error) {
+    gate.status = "failed";
+    gate.exitCode = error instanceof GateError ? error.exitCode : 1;
+    gate.error = error instanceof Error ? error.message : String(error);
+    throw error instanceof GateError ? error : new GateError(gate.error, gate.exitCode);
+  } finally {
+    gate.finishedAt = new Date().toISOString();
+    gate.durationMs = Date.now() - startedAt;
+  }
+}
+
+function runStoreReleaseReportGate(report, options) {
+  const gate = {
+    label: "Verify store release orchestration report",
+    command: `read ${options.storeReleaseReportJsonPath}`,
+    status: "running",
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    durationMs: null,
+    exitCode: null,
+    error: null,
+    evidence: null
+  };
+  const startedAt = Date.now();
+  report.gates.push(gate);
+
+  try {
+    const storeReleaseReport = readJsonFile(options.storeReleaseReportJsonPath, "store release orchestration report");
+    const failures = validateStoreReleaseReport(storeReleaseReport, {
+      reportPath: options.storeReleaseReportJsonPath,
+      currentCommit: report.git.commit,
+      allowDirty: options.allowDirty,
+      allowCommitMismatch: false,
+      requirePassed: true
+    });
+    if (failures.length > 0) {
+      throw new GateError(failures.join("\n"), 1);
+    }
+    gate.status = "passed";
+    gate.exitCode = 0;
+    gate.evidence = {
+      path: options.storeReleaseReportJsonPath,
+      sha256: fileSha256(options.storeReleaseReportJsonPath),
+      status: storeReleaseReport.status,
+      mode: storeReleaseReport.mode,
+      platforms: storeReleaseReport.platforms || [],
+      distributionManifest: storeReleaseReport.artifacts?.distributionManifest || null
     };
   } catch (error) {
     gate.status = "failed";
@@ -345,6 +398,7 @@ function parseArgs(args) {
     skipUi: false,
     uiUrl: "",
     uiEvidenceJsonPath: "",
+    storeReleaseReportJsonPath: "",
     reportJsonPath: defaultReportPath,
     help: false
   };
@@ -362,6 +416,12 @@ function parseArgs(args) {
       parsed.uiUrl = normalizeUiUrl(arg.slice("--ui-url=".length));
     } else if (arg.startsWith("--ui-evidence-json=")) {
       parsed.uiEvidenceJsonPath = arg.slice("--ui-evidence-json=".length);
+    } else if (arg.startsWith("--store-release-report-json=")) {
+      parsed.storeReleaseReportJsonPath = arg.slice("--store-release-report-json=".length);
+      if (!parsed.storeReleaseReportJsonPath.trim()) {
+        printUsage();
+        throw new GateError("\n--store-release-report-json must not be empty.", 2);
+      }
     } else if (arg.startsWith("--report-json=")) {
       parsed.reportJsonPath = arg.slice("--report-json=".length);
     } else if (arg.startsWith("--max-age-hours=")) {
@@ -387,6 +447,10 @@ function parseArgs(args) {
   if (parsed.skipUi && !parsed.uiEvidenceJsonPath.trim()) {
     printUsage();
     throw new GateError("\n--skip-ui requires --ui-evidence-json=<path> from a passing `npm run verify:ui` run.", 2);
+  }
+  if (parsed.storeReleaseReportJsonPath && !parsed.storeReleaseReportJsonPath.trim()) {
+    printUsage();
+    throw new GateError("\n--store-release-report-json must not be empty.", 2);
   }
 
   return parsed;
@@ -571,7 +635,8 @@ function createReport(options, supportBundle) {
       allowDirty: options.allowDirty,
       skipUi: options.skipUi,
       uiUrl: options.uiUrl || null,
-      uiEvidenceJson: options.uiEvidenceJsonPath || null
+      uiEvidenceJson: options.uiEvidenceJsonPath || null,
+      storeReleaseReportJson: options.storeReleaseReportJsonPath || null
     },
     supportBundle,
     artifacts: {
@@ -589,7 +654,9 @@ function finishReport(report, status, error = null) {
   report.durationMs = Date.parse(report.finishedAt) - Date.parse(report.startedAt);
   report.artifacts = {
     generatedAt: report.finishedAt,
-    files: collectReleaseArtifacts()
+    files: collectReleaseArtifacts({
+      storeReleaseReportJsonPath: report.options.storeReleaseReportJson || ""
+    })
   };
   report.error = error ? (error instanceof Error ? error.message : String(error)) : null;
 }
@@ -611,7 +678,7 @@ function commandOutput(command, args) {
   return result.stdout.trim();
 }
 
-function collectReleaseArtifacts() {
+function collectReleaseArtifacts({ storeReleaseReportJsonPath = "" } = {}) {
   return [
     ...collectFiles("release-config", releaseConfigArtifactPaths),
     ...collectFiles("web", ["dist/index.html"]),
@@ -620,6 +687,7 @@ function collectReleaseArtifacts() {
     ...collectDistributionArtifactRecords(),
     ...collectDashboardEvidenceArtifactRecords(),
     ...collectStoreSubmissionArtifactRecords(),
+    ...collectStoreReleaseArtifactRecords({ reportPath: storeReleaseReportJsonPath }),
     ...collectFiles("ui", [
       ".artifacts/ui-verification.json",
       ".artifacts/mobile-live-caster-desktop.png",
@@ -657,7 +725,7 @@ function printUsage() {
   console.log(
     [
       "Usage:",
-      "  npm run verify:release-candidate -- <support-bundle.json> [--max-age-hours=24] [--allow-warnings] [--allow-dirty] [--report-json=.artifacts/release-candidate-verification.json] [--ui-url=http://127.0.0.1:5173/] [--skip-ui --ui-evidence-json=.artifacts/ui-verification.json]",
+      "  npm run verify:release-candidate -- <support-bundle.json> [--max-age-hours=24] [--allow-warnings] [--allow-dirty] [--report-json=.artifacts/release-candidate-verification.json] [--ui-url=http://127.0.0.1:5173/] [--skip-ui --ui-evidence-json=.artifacts/ui-verification.json] [--store-release-report-json=.artifacts/store-release-orchestration.json]",
       "",
       "Runs source release gates, browser UI verification, React Native bundle verification, and the commercial support-bundle gate.",
       "Writes a JSON evidence report for release approval audit trails.",

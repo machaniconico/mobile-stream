@@ -12,6 +12,7 @@ import {
 import { validateDistributionArtifactsInReport } from "./verify-distribution-artifacts.mjs";
 import { validateDashboardEvidenceInReport } from "./verify-platform-dashboard-evidence.mjs";
 import { validateStoreSubmissionInReport } from "./verify-store-submission-checklist.mjs";
+import { validateStoreReleaseReportInReleaseReport } from "./release-store-build.mjs";
 
 const requiredUiViewportNames = ["desktop", "mobile"];
 const requiredReactNativeArtifacts = [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"];
@@ -110,7 +111,7 @@ export function validateReport(report, options) {
   validateGitState(report, options, fail);
   validateGates(report, options, fail);
   validateSupportBundle(report, fail);
-  validateArtifacts(report, fail);
+  validateArtifacts(report, options, fail);
   validateUiEvidence(report, options, fail);
 
   return failures;
@@ -201,7 +202,7 @@ function validateSupportBundle(report, fail) {
   }
 }
 
-function validateArtifacts(report, fail) {
+function validateArtifacts(report, options, fail) {
   const artifacts = Array.isArray(report?.artifacts?.files) ? report.artifacts.files : [];
   if (artifacts.length === 0) {
     fail("Report has no artifact records.");
@@ -246,6 +247,11 @@ function validateArtifacts(report, fail) {
   validateDistributionArtifactsInReport(artifacts, fail);
   validateDashboardEvidenceInReport(artifacts, fail);
   validateStoreSubmissionInReport(artifacts, fail);
+  validateStoreReleaseReportInReleaseReport(artifacts, fail, {
+    expectedCommit: report.git?.commit || "",
+    allowDirty: options.allowDirty,
+    allowCommitMismatch: options.allowCommitMismatch
+  });
 }
 
 function validateArtifactRecord(artifact, fail) {
