@@ -92,6 +92,10 @@ const checks = [
     expectIncludes(files.storeReleaseBuildScript, "collectStoreReleaseArtifactRecords");
     expectIncludes(files.releaseCandidateScript, "--store-release-report-json");
     expectIncludes(files.releaseCandidateScript, "Verify store release orchestration report");
+    expectIncludes(files.releaseEvidencePackageScript, "storeReleaseReportArtifactGroup");
+    expectIncludes(files.releaseEvidencePackageScript, "storeReleaseReportType");
+    expectIncludes(files.releaseEvidencePackageScript, "Verify store release orchestration report");
+    expectIncludes(files.releaseEvidencePackageScript, "Package store release report");
     expectIncludes(files.dashboardEvidenceScript, "youtubeScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "twitchScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "platform-dashboard-evidence-manifest");

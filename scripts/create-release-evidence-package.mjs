@@ -6,10 +6,12 @@ import { pathToFileURL } from "node:url";
 import { distributionArtifactGroup, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
 import { dashboardEvidenceArtifactGroup, dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
 import { validateReport } from "./verify-release-report.mjs";
+import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
 import { storeSubmissionArtifactGroup, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 
 export const releaseEvidencePackageManifestName = "release-evidence-package.json";
 export const releaseEvidencePackageType = "release-evidence-package-manifest";
+const storeReleaseReportGateLabel = "Verify store release orchestration report";
 const requiredCommercialPackageArtifacts = [
   { group: distributionArtifactGroup, path: distributionArtifactManifestPath, label: "distribution artifact manifest" },
   { group: dashboardEvidenceArtifactGroup, path: dashboardEvidenceManifestPath, label: "dashboard evidence manifest" },
@@ -225,6 +227,7 @@ function validatePackagedReport(manifest, packageDir, failures) {
   );
   validateRequiredCommercialPackageArtifacts(report, manifest, reportArtifacts, packagedArtifacts, failures);
   validatePackagedCommercialManifests(packageDir, packagedArtifacts, failures);
+  validatePackagedStoreReleaseReport({ report, packageDir, packagedArtifacts, failures });
   for (const packagedArtifact of manifest.artifacts || []) {
     const key = `${packagedArtifact.group}:${packagedArtifact.sourcePath}`;
     if (!reportArtifacts.has(key)) {
@@ -422,6 +425,169 @@ function validatePackagedStoreSubmissionChecklist(storeSubmissionChecklist, pack
   );
   for (const record of records) {
     validatePackagedManifestRecord(packagedArtifacts, storeSubmissionArtifactGroup, record, "store submission checklist", failures);
+  }
+}
+
+function validatePackagedStoreReleaseReport({ report, packageDir, packagedArtifacts, failures }) {
+  const gate = storeReleaseReportGate(report);
+  const reportPath = gate?.evidence?.path || firstStoreReleaseReportArtifactPath(report, packagedArtifacts);
+  if (!gate && !reportPath) {
+    return;
+  }
+  if (!reportPath) {
+    failures.push("Packaged release report store-release gate is missing evidence path.");
+    return;
+  }
+
+  const packagedStoreReleaseReport = packagedArtifactFor(packagedArtifacts, storeReleaseReportArtifactGroup, reportPath);
+  if (!packagedStoreReleaseReport) {
+    failures.push(`Package is missing store release orchestration report ${reportPath}.`);
+    return;
+  }
+  if (gate?.evidence?.sha256 && packagedStoreReleaseReport.sha256 !== gate.evidence.sha256) {
+    failures.push("Packaged store release report SHA-256 does not match the release report store-release evidence SHA-256.");
+  }
+
+  const storeReport = readPackagedJsonArtifact({
+    packagedArtifacts,
+    group: storeReleaseReportArtifactGroup,
+    sourcePath: reportPath,
+    packageDir,
+    label: "store release report",
+    failures
+  });
+  if (!storeReport) {
+    return;
+  }
+
+  validatePackagedStoreReleaseReportContent(storeReport, report, packagedArtifacts, packageDir, failures);
+}
+
+function firstStoreReleaseReportArtifactPath(report, packagedArtifacts) {
+  const reportArtifact = (report.artifacts?.files || []).find(
+    (artifact) => artifact?.group === storeReleaseReportArtifactGroup && artifact?.path
+  );
+  if (reportArtifact?.path) {
+    return reportArtifact.path;
+  }
+  return Array.from(packagedArtifacts.values()).find((artifact) => artifact?.group === storeReleaseReportArtifactGroup)?.sourcePath || "";
+}
+
+function storeReleaseReportGate(report) {
+  return (Array.isArray(report?.gates) ? report.gates : []).find((gate) => gate?.label === storeReleaseReportGateLabel);
+}
+
+function validatePackagedStoreReleaseReportContent(storeReport, releaseReport, packagedArtifacts, packageDir, failures) {
+  if (storeReport?.app !== "MobileLiveCaster" || storeReport?.type !== storeReleaseReportType || storeReport?.reportVersion !== 1) {
+    failures.push("Package store release report is not a MobileLiveCaster store-release-orchestration reportVersion 1 file.");
+    return;
+  }
+  if (storeReport.status !== "passed") {
+    failures.push(`Package store release report status must be passed, got ${JSON.stringify(storeReport.status)}.`);
+  }
+  if (storeReport.mode !== "execute") {
+    failures.push(`Package store release report mode must be execute, got ${JSON.stringify(storeReport.mode)}.`);
+  }
+  if (!Number.isFinite(Date.parse(storeReport.finishedAt || ""))) {
+    failures.push("Package store release report finishedAt timestamp is missing or invalid.");
+  }
+  if (!Number.isFinite(storeReport.durationMs) || storeReport.durationMs < 0) {
+    failures.push("Package store release report durationMs is missing or invalid.");
+  }
+
+  const reportCommit = String(storeReport.git?.commit || "");
+  const expectedCommit = String(releaseReport.git?.commit || "");
+  const allowDirty = Boolean(releaseReport.options?.allowDirty);
+  const allowCommitMismatch = Boolean(releaseReport.options?.allowCommitMismatch);
+  if (!reportCommit) {
+    failures.push("Package store release report git commit is missing.");
+  }
+  if (expectedCommit && reportCommit && expectedCommit !== reportCommit && !allowCommitMismatch) {
+    failures.push(`Package store release report commit ${reportCommit} does not match release report commit ${expectedCommit}.`);
+  }
+  if (storeReport.git?.dirty && !allowDirty) {
+    failures.push("Package store release report was generated from a dirty worktree.");
+  }
+  if (storeReport.options?.allowDirty && !allowDirty) {
+    failures.push("Package store release report was generated with --allow-dirty.");
+  }
+
+  if (!Array.isArray(storeReport.platforms) || storeReport.platforms.length === 0) {
+    failures.push("Package store release report has no platforms.");
+  }
+  const steps = Array.isArray(storeReport.steps) ? storeReport.steps : [];
+  if (steps.length === 0) {
+    failures.push("Package store release report has no steps.");
+  }
+  for (const step of steps) {
+    if (!step?.type || !step?.command) {
+      failures.push("Package store release report step is missing type or command.");
+      continue;
+    }
+    if (step.status !== "passed") {
+      failures.push(`Package store release report step ${JSON.stringify(step.command)} must be passed, got ${JSON.stringify(step.status)}.`);
+    }
+    if (step.status === "passed" && step.exitCode !== 0) {
+      failures.push(`Package store release report step ${JSON.stringify(step.command)} has a non-zero exitCode.`);
+    }
+    if (!Number.isFinite(step.durationMs) || step.durationMs < 0) {
+      failures.push(`Package store release report step ${JSON.stringify(step.command)} is missing a valid durationMs.`);
+    }
+  }
+
+  validatePackagedStoreReleaseDistributionManifest(storeReport, packagedArtifacts, packageDir, failures);
+}
+
+function validatePackagedStoreReleaseDistributionManifest(storeReport, packagedArtifacts, packageDir, failures) {
+  const summary = storeReport.artifacts?.distributionManifest;
+  if (!summary?.path || !Number.isFinite(summary.bytes) || summary.bytes <= 0 || !isSha256(summary.sha256)) {
+    failures.push("Package store release report distribution manifest evidence is missing or invalid.");
+    return;
+  }
+  const packagedDistributionManifest = packagedArtifactFor(packagedArtifacts, distributionArtifactGroup, summary.path);
+  if (!packagedDistributionManifest) {
+    failures.push(`Package store release report references distribution manifest not present in package: ${summary.path}.`);
+    return;
+  }
+  if (packagedDistributionManifest.bytes !== summary.bytes || packagedDistributionManifest.sha256 !== summary.sha256) {
+    failures.push(`Package store release report distribution manifest metadata mismatch for ${summary.path}.`);
+    return;
+  }
+
+  const distributionManifest = readPackagedJsonArtifact({
+    packagedArtifacts,
+    group: distributionArtifactGroup,
+    sourcePath: summary.path,
+    packageDir,
+    label: "store release report distribution manifest",
+    failures
+  });
+  if (!distributionManifest) {
+    return;
+  }
+
+  const manifestArtifacts = Array.isArray(distributionManifest.artifacts) ? distributionManifest.artifacts : [];
+  if (summary.artifactCount !== manifestArtifacts.length) {
+    failures.push(`Package store release report distribution manifest artifact count mismatch for ${summary.path}.`);
+  }
+  const summaryArtifacts = Array.isArray(summary.artifacts) ? summary.artifacts : [];
+  for (const manifestArtifact of manifestArtifacts) {
+    const summaryArtifact = summaryArtifacts.find((artifact) => artifact?.path === manifestArtifact.path);
+    if (!summaryArtifact) {
+      failures.push(`Package store release report is missing distribution artifact summary ${manifestArtifact.path}.`);
+    } else if (summaryArtifact.bytes !== manifestArtifact.bytes || summaryArtifact.sha256 !== manifestArtifact.sha256) {
+      failures.push(`Package store release report distribution artifact metadata mismatch for ${manifestArtifact.path}.`);
+    }
+
+    const packagedDistributionArtifact = packagedArtifactFor(packagedArtifacts, distributionArtifactGroup, manifestArtifact.path);
+    if (!packagedDistributionArtifact) {
+      failures.push(`Package store release report references distribution artifact not present in package: ${manifestArtifact.path}.`);
+    } else if (
+      packagedDistributionArtifact.bytes !== manifestArtifact.bytes ||
+      packagedDistributionArtifact.sha256 !== manifestArtifact.sha256
+    ) {
+      failures.push(`Package store release report distribution artifact package metadata mismatch for ${manifestArtifact.path}.`);
+    }
   }
 }
 
@@ -746,6 +912,10 @@ function safeRelativePath(path) {
     return false;
   }
   return true;
+}
+
+function isSha256(value) {
+  return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value);
 }
 
 function isInsideDirectory(path, directory) {

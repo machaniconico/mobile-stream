@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { releaseConfigArtifactPaths, requiredReleaseGateLabels } from "./release-artifact-policy.mjs";
 import { distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
 import { dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
+import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
 import { storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import {
   createReleaseEvidencePackage,
@@ -18,6 +19,7 @@ const fixtureRoot = ".artifacts/release-evidence-package-test";
 const packageDir = `${fixtureRoot}/package`;
 const reportPath = `${fixtureRoot}/release-report.json`;
 const supportBundlePath = `${fixtureRoot}/support-bundle.json`;
+const storeReleaseReportPath = `${fixtureRoot}/store-release-report.json`;
 const generatedFiles = [
   "dist/index.html",
   "dist/assets/release-evidence-package-test.js",
@@ -34,6 +36,7 @@ const generatedFiles = [
   ".artifacts/release-evidence-package-test/twitch-dashboard.png",
   ".artifacts/release-evidence-package-test/youtube-dashboard.json",
   ".artifacts/release-evidence-package-test/twitch-dashboard.json",
+  ".artifacts/release-evidence-package-test/store-release-report.json",
   ".artifacts/store-submission-checklist.json",
   ".artifacts/release-evidence-package-test/submission-metadata.json",
   ".artifacts/release-evidence-package-test/submission-review.md",
@@ -173,6 +176,43 @@ describe("release evidence package creator", () => {
     );
   });
 
+  it("rejects packages whose store release report artifact is missing from the package", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.artifacts = manifest.artifacts.filter((artifact) => artifact.sourcePath !== storeReleaseReportPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(`Package is missing store release orchestration report ${storeReleaseReportPath}.`);
+  });
+
+  it("rejects stale distribution manifest metadata inside the packaged store release report", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedStoreReleaseReportPath = `${packageDir}/artifacts/${storeReleaseReportPath}`;
+    const storeReleaseReport = JSON.parse(readFileSync(packagedStoreReleaseReportPath, "utf8"));
+    storeReleaseReport.artifacts.distributionManifest.sha256 = "0".repeat(64);
+    writeFileSync(packagedStoreReleaseReportPath, JSON.stringify(storeReleaseReport, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    refreshPackageArtifactEntry(manifest, storeReleaseReportPath, packagedStoreReleaseReportPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      `Package store release report distribution manifest metadata mismatch for ${distributionArtifactManifestPath}.`
+    );
+  });
+
   it("rejects traversal-style artifact paths before report validation reads sources", () => {
     writeReportFixture();
     const report = JSON.parse(readFileSync(reportPath, "utf8"));
@@ -299,6 +339,7 @@ function writeFixtureFiles() {
   writeFile(".artifacts/mobile-live-caster-mobile.png", pngBytes);
   writeFile(supportBundlePath, JSON.stringify({ app: "MobileLiveCaster", fixture: true }));
   writeDistributionFixture();
+  writeStoreReleaseFixture();
   writeDashboardEvidenceFixture();
   writeStoreSubmissionFixture();
   writeUiEvidenceFile();
@@ -316,6 +357,7 @@ function writeReportFixture() {
     artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
     artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
     ...distributionArtifactRecords(),
+    ...storeReleaseRecords(),
     ...dashboardEvidenceRecords(),
     ...storeSubmissionRecords()
   ];
@@ -377,6 +419,24 @@ function writeReportFixture() {
               finishedAt: new Date().toISOString(),
               viewports: []
             }
+          },
+          {
+            label: "Verify store release orchestration report",
+            command: `read ${storeReleaseReportPath}`,
+            status: "passed",
+            startedAt: new Date(Date.now() - 1_000).toISOString(),
+            finishedAt: new Date().toISOString(),
+            durationMs: 1,
+            exitCode: 0,
+            error: null,
+            evidence: {
+              path: storeReleaseReportPath,
+              sha256: fileSha256(storeReleaseReportPath),
+              status: "passed",
+              mode: "execute",
+              platforms: ["android", "ios"],
+              distributionManifest: distributionManifestSummary(distributionArtifactManifestPath)
+            }
           }
         ],
         error: null
@@ -408,6 +468,51 @@ function writeDistributionFixture() {
           distributionManifestRecord("android", "aab", ".artifacts/release-evidence-package-test/app-release.aab"),
           distributionManifestRecord("ios", "ipa", ".artifacts/release-evidence-package-test/MobileLiveCaster.ipa")
         ]
+      },
+      null,
+      2
+    )
+  );
+}
+
+function writeStoreReleaseFixture({ status = "passed" } = {}) {
+  const startedAt = new Date(Date.now() - 2_000).toISOString();
+  const finishedAt = new Date().toISOString();
+  writeFile(
+    storeReleaseReportPath,
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: storeReleaseReportType,
+        status,
+        mode: "execute",
+        startedAt,
+        finishedAt,
+        durationMs: Date.parse(finishedAt) - Date.parse(startedAt),
+        platforms: ["android", "ios"],
+        git: {
+          commit: currentCommit(),
+          branch: "main",
+          dirty: true,
+          statusShort: " M scripts/create-release-evidence-package.test.mjs"
+        },
+        options: {
+          allowDirty: true,
+          allowCommitMismatch: false,
+          skipEnv: true,
+          skipBuild: true
+        },
+        artifacts: {
+          distributionManifest: distributionManifestSummary(distributionArtifactManifestPath)
+        },
+        steps: [
+          storeReleaseStep("verify-env", "npm run verify:store-release-env"),
+          storeReleaseStep("android", "npm run android:bundleRelease"),
+          storeReleaseStep("ios", "npm run ios:archive:release"),
+          storeReleaseStep("distribution", "npm run release:distribution-manifest")
+        ],
+        error: null
       },
       null,
       2
@@ -566,6 +671,10 @@ function distributionArtifactRecords() {
   ];
 }
 
+function storeReleaseRecords() {
+  return [artifactRecord(storeReleaseReportArtifactGroup, storeReleaseReportPath)];
+}
+
 function dashboardEvidenceRecords() {
   return [
     artifactRecord("dashboard", dashboardEvidenceManifestPath),
@@ -600,6 +709,37 @@ function distributionManifestRecord(platform, kind, path) {
     ...zipEntryInfo,
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function distributionManifestSummary(path) {
+  const content = readFileSync(path);
+  const manifest = JSON.parse(content.toString("utf8"));
+  return {
+    path,
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex"),
+    artifactCount: Array.isArray(manifest.artifacts) ? manifest.artifacts.length : 0,
+    artifacts: (manifest.artifacts || []).map((artifact) => ({
+      platform: artifact.platform,
+      kind: artifact.kind,
+      path: artifact.path,
+      bytes: artifact.bytes,
+      sha256: artifact.sha256
+    }))
+  };
+}
+
+function storeReleaseStep(type, command) {
+  return {
+    type,
+    command,
+    status: "passed",
+    startedAt: new Date(Date.now() - 1_000).toISOString(),
+    finishedAt: new Date().toISOString(),
+    durationMs: 1,
+    exitCode: 0,
+    error: null
   };
 }
 
