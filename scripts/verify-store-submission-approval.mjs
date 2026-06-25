@@ -4,6 +4,18 @@ import { argv, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import { validateReport } from "./verify-release-report.mjs";
 import {
+  distributionArtifactGroup,
+  distributionArtifactManifestPath,
+  readDistributionManifest,
+  validateDistributionManifest
+} from "./verify-distribution-artifacts.mjs";
+import {
+  dashboardEvidenceArtifactGroup,
+  dashboardEvidenceManifestPath,
+  readDashboardEvidenceManifest,
+  validateDashboardEvidenceManifest
+} from "./verify-platform-dashboard-evidence.mjs";
+import {
   readStoreSubmissionChecklist,
   storeSubmissionArtifactGroup,
   storeSubmissionChecklistPath,
@@ -75,10 +87,126 @@ export function validateStoreSubmissionApproval(report, manifest, options) {
   if (reportCommit && manifestCommit && reportCommit !== manifestCommit && !options.allowCommitMismatch) {
     fail(`Store submission checklist commit ${manifestCommit} does not match release report commit ${reportCommit}.`);
   }
+  validateFinalReleaseArtifactsCaptured(report, options, fail);
   validateStoreArtifactsCaptured(report, manifest, options, fail);
   validateScreenshotBuildMatchesSupportBundle(report, manifest, fail);
 
   return failures;
+}
+
+function validateFinalReleaseArtifactsCaptured(report, options, fail) {
+  const artifacts = Array.isArray(report?.artifacts?.files) ? report.artifacts.files : [];
+  const artifactByPath = new Map(artifacts.map((artifact) => [artifact.path, artifact]));
+
+  validateDistributionArtifactsCaptured(artifactByPath, options, fail);
+  validateDashboardArtifactsCaptured(artifactByPath, options, fail);
+}
+
+function validateDistributionArtifactsCaptured(artifactByPath, options, fail) {
+  const manifestArtifact = requireReportArtifact(
+    artifactByPath,
+    distributionArtifactGroup,
+    distributionArtifactManifestPath,
+    "distribution manifest",
+    fail
+  );
+  if (!manifestArtifact) {
+    return;
+  }
+
+  let manifest = null;
+  try {
+    manifest = readDistributionManifest(distributionArtifactManifestPath);
+  } catch (error) {
+    fail(`Distribution manifest cannot be read for store submission approval: ${error instanceof Error ? error.message : String(error)}.`);
+    return;
+  }
+
+  for (const failure of validateDistributionManifest(manifest, {
+    manifestPath: distributionArtifactManifestPath,
+    allowDirty: options.allowDirty,
+    allowCommitMismatch: options.allowCommitMismatch
+  })) {
+    fail(failure);
+  }
+
+  for (const platform of ["android", "ios"]) {
+    if (!manifest.artifacts?.some((artifact) => artifact?.platform === platform)) {
+      fail(`Store submission approval requires ${platform} distribution artifact evidence.`);
+    }
+  }
+
+  validateManifestRecordsCaptured(artifactByPath, distributionArtifactGroup, manifest.artifacts || [], "distribution artifact", fail);
+}
+
+function validateDashboardArtifactsCaptured(artifactByPath, options, fail) {
+  const manifestArtifact = requireReportArtifact(
+    artifactByPath,
+    dashboardEvidenceArtifactGroup,
+    dashboardEvidenceManifestPath,
+    "dashboard evidence manifest",
+    fail
+  );
+  if (!manifestArtifact) {
+    return;
+  }
+
+  let manifest = null;
+  try {
+    manifest = readDashboardEvidenceManifest(dashboardEvidenceManifestPath);
+  } catch (error) {
+    fail(`Dashboard evidence manifest cannot be read for store submission approval: ${error instanceof Error ? error.message : String(error)}.`);
+    return;
+  }
+
+  for (const failure of validateDashboardEvidenceManifest(manifest, {
+    manifestPath: dashboardEvidenceManifestPath,
+    allowDirty: options.allowDirty,
+    allowCommitMismatch: options.allowCommitMismatch
+  })) {
+    fail(failure);
+  }
+
+  for (const requirement of [
+    { platform: "youtube", kind: "screenshot", label: "YouTube dashboard screenshot" },
+    { platform: "youtube", kind: "statusJson", label: "YouTube dashboard status JSON" },
+    { platform: "twitch", kind: "screenshot", label: "Twitch dashboard screenshot" },
+    { platform: "twitch", kind: "statusJson", label: "Twitch dashboard status JSON" }
+  ]) {
+    if (!manifest.artifacts?.some((artifact) => artifact?.platform === requirement.platform && artifact?.kind === requirement.kind)) {
+      fail(`Store submission approval requires ${requirement.label} evidence.`);
+    }
+  }
+
+  validateManifestRecordsCaptured(artifactByPath, dashboardEvidenceArtifactGroup, manifest.artifacts || [], "dashboard evidence artifact", fail);
+}
+
+function requireReportArtifact(artifactByPath, expectedGroup, path, label, fail) {
+  const artifact = artifactByPath.get(path);
+  if (!artifact) {
+    fail(`Store submission approval requires ${label} ${path} in the RC report.`);
+    return null;
+  }
+  if (artifact.group !== expectedGroup) {
+    fail(`${label} ${path} is recorded under group ${JSON.stringify(artifact.group)}.`);
+  }
+  return artifact;
+}
+
+function validateManifestRecordsCaptured(artifactByPath, expectedGroup, records, label, fail) {
+  for (const record of records) {
+    const artifact = artifactByPath.get(record.path);
+    if (!artifact) {
+      fail(`Release report is missing ${label} ${record.path}.`);
+      continue;
+    }
+    if (artifact.group !== expectedGroup) {
+      fail(`${label} ${record.path} is recorded under group ${JSON.stringify(artifact.group)}.`);
+    }
+    if (artifact.bytes !== record.bytes || artifact.sha256 !== record.sha256) {
+      fail(`Release report ${label} metadata mismatch for ${record.path}.`);
+    }
+  }
 }
 
 function validateScreenshotBuildMatchesSupportBundle(report, manifest, fail) {

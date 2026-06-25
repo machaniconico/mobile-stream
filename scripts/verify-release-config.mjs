@@ -114,6 +114,10 @@ const checks = [
     expectIncludes(files.storeSubmissionScript, "Store submission screenshot dimensions mismatch");
     expectIncludes(files.storeSubmissionApprovalScript, "validateStoreSubmissionApproval");
     expectIncludes(files.storeSubmissionApprovalScript, "requireRealDeviceScreenshots");
+    expectIncludes(files.storeSubmissionApprovalScript, "distributionArtifactManifestPath");
+    expectIncludes(files.storeSubmissionApprovalScript, "dashboardEvidenceManifestPath");
+    expectIncludes(files.storeSubmissionApprovalScript, "distribution artifact evidence");
+    expectIncludes(files.storeSubmissionApprovalScript, "YouTube dashboard status JSON");
     expectIncludes(files.storeSubmissionApprovalScript, "Release report is missing store submission artifact");
     expectIncludes(files.storeSubmissionApprovalScript, "validationEvidenceConsistentAppBuild");
     expectIncludes(files.storeSubmissionApprovalScript, "does not match validation evidence build");

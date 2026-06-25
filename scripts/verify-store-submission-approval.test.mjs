@@ -7,6 +7,8 @@ import {
   releaseConfigArtifactPaths,
   requiredReleaseGateLabels
 } from "./release-artifact-policy.mjs";
+import { distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
+import { dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
 import { storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import { validateStoreSubmissionApproval } from "./verify-store-submission-approval.mjs";
 
@@ -18,6 +20,14 @@ const generatedFiles = [
   ".artifacts/rn/index.android.bundle",
   ".artifacts/mobile-live-caster-desktop.png",
   ".artifacts/mobile-live-caster-mobile.png",
+  ".artifacts/distribution-artifacts.json",
+  ".artifacts/store-approval-test/app-release.aab",
+  ".artifacts/store-approval-test/MobileLiveCaster.ipa",
+  ".artifacts/platform-dashboard-evidence.json",
+  ".artifacts/store-approval-test/youtube-dashboard.png",
+  ".artifacts/store-approval-test/twitch-dashboard.png",
+  ".artifacts/store-approval-test/youtube-dashboard.json",
+  ".artifacts/store-approval-test/twitch-dashboard.json",
   ".artifacts/store-submission-checklist.json",
   ".artifacts/store-approval-test/submission-metadata.json",
   ".artifacts/store-approval-test/submission-review.md",
@@ -32,6 +42,8 @@ const tinyPngBytes = Buffer.from(
   "base64"
 );
 const pngBytes = pngWithDimensions(1179, 2556);
+const dashboardPngBytes = pngWithDimensions(1440, 900);
+const minimumDistributionArtifactBytes = 1_048_576;
 const capturedAt = "2026-06-25T00:00:00.000Z";
 const appBuild = "rc-1";
 
@@ -60,6 +72,39 @@ describe("store submission approval verifier", () => {
     const failures = validateStoreSubmissionApproval(report, readStoreManifest(), approvalOptions());
 
     expect(failures).toContain("Release report is missing store submission artifact .artifacts/store-approval-test/submission-review.md.");
+  });
+
+  it("rejects approval when distribution artifact evidence is missing from the RC report", () => {
+    const report = createReport();
+    report.artifacts.files = report.artifacts.files.filter((artifact) => artifact.path !== distributionArtifactManifestPath);
+
+    const failures = validateStoreSubmissionApproval(report, readStoreManifest(), approvalOptions());
+
+    expect(failures).toContain(
+      "Store submission approval requires distribution manifest .artifacts/distribution-artifacts.json in the RC report."
+    );
+  });
+
+  it("rejects approval when a referenced distribution payload is missing from the RC report", () => {
+    const report = createReport();
+    report.artifacts.files = report.artifacts.files.filter(
+      (artifact) => artifact.path !== ".artifacts/store-approval-test/app-release.aab"
+    );
+
+    const failures = validateStoreSubmissionApproval(report, readStoreManifest(), approvalOptions());
+
+    expect(failures).toContain("Release report is missing distribution artifact .artifacts/store-approval-test/app-release.aab.");
+  });
+
+  it("rejects approval when dashboard status JSON evidence is missing from the RC report", () => {
+    const report = createReport();
+    report.artifacts.files = report.artifacts.files.filter(
+      (artifact) => artifact.path !== ".artifacts/store-approval-test/twitch-dashboard.json"
+    );
+
+    const failures = validateStoreSubmissionApproval(report, readStoreManifest(), approvalOptions());
+
+    expect(failures).toContain("Release report is missing dashboard evidence artifact .artifacts/store-approval-test/twitch-dashboard.json.");
   });
 
   it("rejects UI-evidence draft screenshots for final store submission approval", () => {
@@ -138,6 +183,8 @@ function createReport() {
         artifactRecord("react-native", ".artifacts/rn/index.android.bundle"),
         artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
         artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
+        ...distributionArtifactRecords(),
+        ...dashboardEvidenceRecords(),
         artifactRecord("store-submission", storeSubmissionChecklistPath),
         artifactRecord("store-submission", ".artifacts/store-approval-test/submission-metadata.json"),
         artifactRecord("store-submission", ".artifacts/store-approval-test/submission-review.md"),
@@ -186,6 +233,8 @@ function writeFixtureFiles() {
   writeFile(".artifacts/rn/index.android.bundle", "android bundle");
   writeFile(".artifacts/mobile-live-caster-desktop.png", pngBytes);
   writeFile(".artifacts/mobile-live-caster-mobile.png", pngBytes);
+  writeDistributionFixture();
+  writeDashboardEvidenceFixture();
   writeFile(
     ".artifacts/store-approval-test/support-bundle.json",
     JSON.stringify({
@@ -290,6 +339,87 @@ function writeStoreSubmissionFixture({ screenshotSource = "realDevice", appBuild
   );
 }
 
+function writeDistributionFixture() {
+  writeFile(".artifacts/store-approval-test/app-release.aab", androidAabBytes());
+  writeFile(".artifacts/store-approval-test/MobileLiveCaster.ipa", iosIpaBytes());
+  writeFile(
+    distributionArtifactManifestPath,
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: "distribution-artifact-manifest",
+        generatedAt: new Date().toISOString(),
+        git: {
+          commit: currentCommit(),
+          branch: "main",
+          dirty: true,
+          statusShort: " M scripts/verify-store-submission-approval.test.mjs"
+        },
+        artifacts: [
+          distributionManifestRecord("android", "aab", ".artifacts/store-approval-test/app-release.aab"),
+          distributionManifestRecord("ios", "ipa", ".artifacts/store-approval-test/MobileLiveCaster.ipa")
+        ]
+      },
+      null,
+      2
+    )
+  );
+}
+
+function writeDashboardEvidenceFixture() {
+  writeFile(".artifacts/store-approval-test/youtube-dashboard.png", dashboardPngBytes);
+  writeFile(".artifacts/store-approval-test/twitch-dashboard.png", dashboardPngBytes);
+  writeFile(
+    ".artifacts/store-approval-test/youtube-dashboard.json",
+    JSON.stringify({
+      platform: "youtube",
+      broadcastId: "ytBroadcast9xYz",
+      streamId: "ytStream8aBc",
+      channelId: "UCMobileLiveCaster",
+      broadcastStatus: "live",
+      streamStatus: "active",
+      checkedAt: new Date().toISOString()
+    })
+  );
+  writeFile(
+    ".artifacts/store-approval-test/twitch-dashboard.json",
+    JSON.stringify({
+      platform: "twitch",
+      broadcasterId: "123456789",
+      broadcasterLogin: "mobilelivecaster",
+      streamId: "987654321",
+      liveStatus: "live",
+      checkedAt: new Date().toISOString()
+    })
+  );
+  writeFile(
+    dashboardEvidenceManifestPath,
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: "platform-dashboard-evidence-manifest",
+        generatedAt: new Date().toISOString(),
+        git: {
+          commit: currentCommit(),
+          branch: "main",
+          dirty: true,
+          statusShort: " M scripts/verify-store-submission-approval.test.mjs"
+        },
+        artifacts: [
+          dashboardScreenshotRecord("youtube", ".artifacts/store-approval-test/youtube-dashboard.png"),
+          dashboardScreenshotRecord("twitch", ".artifacts/store-approval-test/twitch-dashboard.png"),
+          dashboardStatusJsonRecord("youtube", ".artifacts/store-approval-test/youtube-dashboard.json"),
+          dashboardStatusJsonRecord("twitch", ".artifacts/store-approval-test/twitch-dashboard.json")
+        ]
+      },
+      null,
+      2
+    )
+  );
+}
+
 function writeUiEvidenceFile() {
   writeFile(
     ".artifacts/store-approval-test/ui-evidence.json",
@@ -328,6 +458,73 @@ function writeUiEvidenceFile() {
 
 function readStoreManifest() {
   return JSON.parse(readFileSync(storeSubmissionChecklistPath, "utf8"));
+}
+
+function distributionArtifactRecords() {
+  return [
+    artifactRecord("distribution", distributionArtifactManifestPath),
+    artifactRecord("distribution", ".artifacts/store-approval-test/app-release.aab"),
+    artifactRecord("distribution", ".artifacts/store-approval-test/MobileLiveCaster.ipa")
+  ];
+}
+
+function dashboardEvidenceRecords() {
+  return [
+    artifactRecord("dashboard", dashboardEvidenceManifestPath),
+    artifactRecord("dashboard", ".artifacts/store-approval-test/youtube-dashboard.png"),
+    artifactRecord("dashboard", ".artifacts/store-approval-test/twitch-dashboard.png"),
+    artifactRecord("dashboard", ".artifacts/store-approval-test/youtube-dashboard.json"),
+    artifactRecord("dashboard", ".artifacts/store-approval-test/twitch-dashboard.json")
+  ];
+}
+
+function distributionManifestRecord(platform, kind, path) {
+  const content = readFileSync(path);
+  const zipEntryInfo =
+    platform === "android"
+      ? { zipEntryCount: 3, requiredZipEntries: ["BundleConfig.pb", "base/manifest/AndroidManifest.xml"] }
+      : { zipEntryCount: 2, requiredZipEntries: ["Payload/*.app/Info.plist"] };
+  return {
+    platform,
+    kind,
+    path,
+    basename: path.split("/").at(-1),
+    ...zipEntryInfo,
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function dashboardScreenshotRecord(platform, path) {
+  const content = readFileSync(path);
+  const dimensions = pngDimensions(content);
+  return {
+    platform,
+    kind: "screenshot",
+    path,
+    basename: path.split("/").at(-1),
+    width: dimensions.width,
+    height: dimensions.height,
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function dashboardStatusJsonRecord(platform, path) {
+  const content = readFileSync(path);
+  return {
+    platform,
+    kind: "statusJson",
+    path,
+    basename: path.split("/").at(-1),
+    checkedAt: JSON.parse(content.toString("utf8")).checkedAt,
+    statusSummary:
+      platform === "youtube"
+        ? "broadcast:live:ytBroadcast9xYz stream:active:ytStream8aBc channel:UCMobileLiveCaster"
+        : "live:live channel:123456789/mobilelivecaster stream:987654321",
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
 }
 
 function metadataRecord() {
@@ -387,6 +584,74 @@ function pngDimensions(content) {
     width: content.readUInt32BE(16),
     height: content.readUInt32BE(20)
   };
+}
+
+function androidAabBytes({ marker = 0x5a } = {}) {
+  return zipArtifactBytes([
+    { name: "BundleConfig.pb", data: Buffer.from("bundle config") },
+    { name: "base/manifest/AndroidManifest.xml", data: Buffer.from("<manifest />") },
+    { name: "base/dex/classes.dex", size: minimumDistributionArtifactBytes, marker }
+  ]);
+}
+
+function iosIpaBytes({ marker = 0x49 } = {}) {
+  return zipArtifactBytes([
+    { name: "Payload/MobileLiveCaster.app/Info.plist", data: Buffer.from("<plist />") },
+    { name: "Payload/MobileLiveCaster.app/MobileLiveCaster", size: minimumDistributionArtifactBytes, marker }
+  ]);
+}
+
+function zipArtifactBytes(entries) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name);
+    const data = entry.data || Buffer.alloc(entry.size || 0, entry.marker || 0x5a);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt32LE(0, 10);
+    local.writeUInt32LE(0, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(0, 28);
+    localParts.push(local, name, data);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0, 8);
+    central.writeUInt16LE(0, 10);
+    central.writeUInt32LE(0, 12);
+    central.writeUInt32LE(0, 16);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt16LE(0, 30);
+    central.writeUInt16LE(0, 32);
+    central.writeUInt16LE(0, 34);
+    central.writeUInt16LE(0, 36);
+    central.writeUInt32LE(0, 38);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(central, name);
+    offset += local.length + name.length + data.length;
+  }
+  const centralDirectory = Buffer.concat(centralParts);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(0, 4);
+  eocd.writeUInt16LE(0, 6);
+  eocd.writeUInt16LE(entries.length, 8);
+  eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(centralDirectory.length, 12);
+  eocd.writeUInt32LE(offset, 16);
+  eocd.writeUInt16LE(0, 20);
+  return Buffer.concat([...localParts, centralDirectory, eocd]);
 }
 
 function artifactRecord(group, path) {
