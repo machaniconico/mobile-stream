@@ -50,6 +50,34 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks release when current platform publishing status is stale even if retained evidence is complete", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          platformPublishingFreshnessStatus: "stale",
+          platformPublishingFreshnessAgeMinutes: 30,
+          platformPublishingFreshnessSummary: "YouTube dashboard status is 30 minutes old.",
+          platformPublishingFreshnessRecommendation: "Refresh YouTube status within 10 minutes of release approval."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "platform-publishing-freshness",
+          severity: "fail",
+          label: "Platform publishing freshness",
+          detail: "YouTube dashboard status is 30 minutes old."
+        })
+      ])
+    );
+    expect(formatCommercialReleaseGate(gate)).toContain("Refresh YouTube status within 10 minutes");
+  });
+
   it("requires explicit approval before releasing with warnings", () => {
     const bundle = supportBundle({
       summary: {
@@ -246,6 +274,10 @@ const supportBundle = ({
       validationEvidenceChatReadoutAndroidPass: true,
       validationEvidencePlatformPublishingIosPass: true,
       validationEvidencePlatformPublishingAndroidPass: true,
+      platformPublishingFreshnessStatus: "fresh",
+      platformPublishingFreshnessAgeMinutes: 1,
+      platformPublishingFreshnessSummary: "YouTube dashboard status was checked 1 minutes ago.",
+      platformPublishingFreshnessRecommendation: "Keep this fresh dashboard snapshot with the release-candidate validation run.",
       validationEvidenceRunManifest: [
         manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
         manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })

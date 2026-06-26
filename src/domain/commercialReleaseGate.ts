@@ -50,6 +50,7 @@ export const createCommercialReleaseGate = (
     createBundleAgeIssue(bundle, now, maxBundleAgeHours),
     createPreflightIssue(bundle),
     createPublicLaunchIssue(bundle),
+    createPlatformPublishingFreshnessIssue(bundle),
     createValidationIssue(bundle),
     createValidationRunbookIssue(bundle),
     createValidationEvidenceIssue(bundle),
@@ -200,6 +201,21 @@ const createPublicLaunchIssue = (bundle: SupportBundle): CommercialReleaseGateIs
     );
   }
   return null;
+};
+
+const createPlatformPublishingFreshnessIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+  const status = bundle.summary.platformPublishingFreshnessStatus;
+  if (status === "fresh" || status === "not-applicable") {
+    return null;
+  }
+
+  return failIssue(
+    "platform-publishing-freshness",
+    "Platform publishing freshness",
+    bundle.summary.platformPublishingFreshnessSummary || `Platform publishing freshness is ${status || "missing"}.`,
+    bundle.summary.platformPublishingFreshnessRecommendation ||
+      "Refresh YouTube Live or Twitch publishing status immediately before commercial release approval."
+  );
 };
 
 const createValidationIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
