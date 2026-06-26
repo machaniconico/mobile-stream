@@ -6,7 +6,7 @@ import { argv, env, exit, platform, cwd } from "node:process";
 import { releaseConfigArtifactPaths } from "./release-artifact-policy.mjs";
 import { collectDistributionArtifactRecords } from "./verify-distribution-artifacts.mjs";
 import { collectDashboardEvidenceArtifactRecords } from "./verify-platform-dashboard-evidence.mjs";
-import { collectStoreSubmissionArtifactRecords } from "./verify-store-submission-checklist.mjs";
+import { collectStoreSubmissionArtifactRecords, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import { collectStoreReleaseArtifactRecords, validateStoreReleaseReport } from "./release-store-build.mjs";
 
 const defaultUiUrl = "http://127.0.0.1:5173/";
@@ -79,6 +79,7 @@ async function main() {
 
   try {
     runCleanWorktreeGate(report, options.allowDirty);
+    runStoreReleaseReportRequirementGate(report, options);
 
     if (options.skipUi) {
       runUiEvidenceGate(report, options);
@@ -265,6 +266,37 @@ function runStoreReleaseReportGate(report, options) {
     gate.finishedAt = new Date().toISOString();
     gate.durationMs = Date.now() - startedAt;
   }
+}
+
+function runStoreReleaseReportRequirementGate(report, options) {
+  const now = new Date().toISOString();
+  const checklistExists = existsSync(storeSubmissionChecklistPath);
+  const gate = {
+    label: "Verify store release orchestration requirement",
+    command: `test -f ${storeSubmissionChecklistPath}`,
+    status: "passed",
+    startedAt: now,
+    finishedAt: now,
+    durationMs: 0,
+    exitCode: 0,
+    error: null,
+    evidence: {
+      storeSubmissionChecklistPath,
+      storeSubmissionChecklistPresent: checklistExists,
+      storeReleaseReportRequired: checklistExists,
+      storeReleaseReportSupplied: Boolean(options.storeReleaseReportJsonPath)
+    }
+  };
+  report.gates.push(gate);
+
+  if (!checklistExists || options.storeReleaseReportJsonPath) {
+    return;
+  }
+
+  gate.status = "failed";
+  gate.exitCode = 1;
+  gate.error = `Store release orchestration report is required when ${storeSubmissionChecklistPath} exists. Run \`npm run release:store -- --report-json <path>\` and pass --store-release-report-json=<path>.`;
+  throw new GateError(gate.error, 1);
 }
 
 function runCleanWorktreeGate(report, allowDirty) {

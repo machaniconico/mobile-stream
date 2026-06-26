@@ -92,6 +92,9 @@ const checks = [
     expectIncludes(files.storeReleaseBuildScript, "collectStoreReleaseArtifactRecords");
     expectIncludes(files.releaseCandidateScript, "--store-release-report-json");
     expectIncludes(files.releaseCandidateScript, "Verify store release orchestration report");
+    expectIncludes(files.releaseCandidateScript, "Verify store release orchestration requirement");
+    expectIncludes(files.releaseCandidateScript, "storeSubmissionChecklistPath");
+    expectIncludes(files.releaseCandidateScript, "Store release orchestration report is required");
     expectIncludes(files.releaseEvidencePackageScript, "storeReleaseReportArtifactGroup");
     expectIncludes(files.releaseEvidencePackageScript, "storeReleaseReportType");
     expectIncludes(files.releaseEvidencePackageScript, "Verify store release orchestration report");
