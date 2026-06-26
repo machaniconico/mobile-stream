@@ -21,6 +21,12 @@ import {
   storeSubmissionChecklistPath,
   validateStoreSubmissionChecklist
 } from "./verify-store-submission-checklist.mjs";
+import {
+  storeReleaseReportArtifactGroup,
+  validateStoreReleaseReportInReleaseReport
+} from "./release-store-build.mjs";
+
+const storeReleaseReportGateLabel = "Verify store release orchestration report";
 
 if (isDirectRun()) {
   await main().catch((error) => {
@@ -100,6 +106,7 @@ function validateFinalReleaseArtifactsCaptured(report, options, fail) {
 
   validateDistributionArtifactsCaptured(artifactByPath, options, fail);
   validateDashboardArtifactsCaptured(artifactByPath, options, fail);
+  validateStoreReleaseArtifactsCaptured(report, artifacts, artifactByPath, options, fail);
 }
 
 function validateDistributionArtifactsCaptured(artifactByPath, options, fail) {
@@ -179,6 +186,41 @@ function validateDashboardArtifactsCaptured(artifactByPath, options, fail) {
   }
 
   validateManifestRecordsCaptured(artifactByPath, dashboardEvidenceArtifactGroup, manifest.artifacts || [], "dashboard evidence artifact", fail);
+}
+
+function validateStoreReleaseArtifactsCaptured(report, artifacts, artifactByPath, options, fail) {
+  const reportArtifact = artifacts.find((artifact) => artifact?.group === storeReleaseReportArtifactGroup);
+  if (!reportArtifact) {
+    fail("Store submission approval requires store-release orchestration report in the RC report.");
+    return;
+  }
+
+  const gate = (Array.isArray(report?.gates) ? report.gates : []).find((entry) => entry?.label === storeReleaseReportGateLabel);
+  if (!gate) {
+    fail("Store submission approval requires store-release orchestration gate in the RC report.");
+  } else {
+    if (!gate.evidence?.path) {
+      fail("Store release orchestration gate evidence path is missing.");
+    } else if (gate.evidence.path !== reportArtifact.path) {
+      fail(
+        `Store release orchestration gate evidence path ${gate.evidence.path} does not match artifact ${reportArtifact.path}.`
+      );
+    }
+    if (!gate.evidence?.sha256) {
+      fail("Store release orchestration gate evidence SHA-256 is missing.");
+    } else if (gate.evidence.sha256 !== reportArtifact.sha256) {
+      fail("Store release orchestration gate evidence SHA-256 does not match the RC report store-release artifact.");
+    }
+  }
+
+  if (artifactByPath.get(reportArtifact.path)?.group !== storeReleaseReportArtifactGroup) {
+    fail(`Store release orchestration report ${reportArtifact.path} is not recorded under group ${storeReleaseReportArtifactGroup}.`);
+  }
+  validateStoreReleaseReportInReleaseReport(artifacts, fail, {
+    expectedCommit: report.git?.commit || "",
+    allowDirty: options.allowDirty,
+    allowCommitMismatch: options.allowCommitMismatch
+  });
 }
 
 function requireReportArtifact(artifactByPath, expectedGroup, path, label, fail) {
@@ -344,7 +386,8 @@ function printUsage() {
       "  npm run verify:store-submission-approval -- <release-candidate-report.json>",
       "",
       "Verifies a passed RC report, final store-submission checklist, real-device store screenshots,",
-      "matching validation build evidence, and that all store-submission artifacts are captured in the RC report."
+      "matching validation build evidence, store-release orchestration evidence, and that all store-submission artifacts",
+      "are captured in the RC report."
     ].join("\n")
   );
 }

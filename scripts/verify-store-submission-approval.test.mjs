@@ -9,6 +9,7 @@ import {
 } from "./release-artifact-policy.mjs";
 import { distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
 import { dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
+import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
 import { storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import { validateStoreSubmissionApproval } from "./verify-store-submission-approval.mjs";
 
@@ -28,6 +29,7 @@ const generatedFiles = [
   ".artifacts/store-approval-test/twitch-dashboard.png",
   ".artifacts/store-approval-test/youtube-dashboard.json",
   ".artifacts/store-approval-test/twitch-dashboard.json",
+  ".artifacts/store-approval-test/store-release-report.json",
   ".artifacts/store-submission-checklist.json",
   ".artifacts/store-approval-test/submission-metadata.json",
   ".artifacts/store-approval-test/submission-review.md",
@@ -46,6 +48,7 @@ const dashboardPngBytes = pngWithDimensions(1440, 900);
 const minimumDistributionArtifactBytes = 1_048_576;
 const capturedAt = "2026-06-25T00:00:00.000Z";
 const appBuild = "rc-1";
+const storeReleaseReportPath = ".artifacts/store-approval-test/store-release-report.json";
 
 describe("store submission approval verifier", () => {
   beforeAll(() => {
@@ -105,6 +108,25 @@ describe("store submission approval verifier", () => {
     const failures = validateStoreSubmissionApproval(report, readStoreManifest(), approvalOptions());
 
     expect(failures).toContain("Release report is missing dashboard evidence artifact .artifacts/store-approval-test/twitch-dashboard.json.");
+  });
+
+  it("rejects approval when store-release orchestration evidence is missing from the RC report", () => {
+    const report = createReport();
+    report.artifacts.files = report.artifacts.files.filter((artifact) => artifact.group !== storeReleaseReportArtifactGroup);
+
+    const failures = validateStoreSubmissionApproval(report, readStoreManifest(), approvalOptions());
+
+    expect(failures).toContain("Store submission approval requires store-release orchestration report in the RC report.");
+  });
+
+  it("rejects approval when the store-release gate evidence does not match the artifact", () => {
+    const report = createReport();
+    const gate = report.gates.find((entry) => entry.label === "Verify store release orchestration report");
+    gate.evidence.sha256 = "0".repeat(64);
+
+    const failures = validateStoreSubmissionApproval(report, readStoreManifest(), approvalOptions());
+
+    expect(failures).toContain("Store release orchestration gate evidence SHA-256 does not match the RC report store-release artifact.");
   });
 
   it("rejects UI-evidence draft screenshots for final store submission approval", () => {
@@ -184,6 +206,7 @@ function createReport() {
         artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
         artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
         ...distributionArtifactRecords(),
+        artifactRecord(storeReleaseReportArtifactGroup, storeReleaseReportPath),
         ...dashboardEvidenceRecords(),
         artifactRecord("store-submission", storeSubmissionChecklistPath),
         artifactRecord("store-submission", ".artifacts/store-approval-test/submission-metadata.json"),
@@ -219,6 +242,24 @@ function createReport() {
           finishedAt: new Date().toISOString(),
           viewports: []
         }
+      },
+      {
+        label: "Verify store release orchestration report",
+        command: `read ${storeReleaseReportPath}`,
+        status: "passed",
+        startedAt: new Date(Date.now() - 1_000).toISOString(),
+        finishedAt: new Date().toISOString(),
+        durationMs: 1,
+        exitCode: 0,
+        error: null,
+        evidence: {
+          path: storeReleaseReportPath,
+          sha256: fileSha256(storeReleaseReportPath),
+          status: "passed",
+          mode: "execute",
+          platforms: ["android", "ios"],
+          distributionManifest: distributionManifestSummary(distributionArtifactManifestPath)
+        }
       }
     ],
     error: null
@@ -234,6 +275,7 @@ function writeFixtureFiles() {
   writeFile(".artifacts/mobile-live-caster-desktop.png", pngBytes);
   writeFile(".artifacts/mobile-live-caster-mobile.png", pngBytes);
   writeDistributionFixture();
+  writeStoreReleaseFixture();
   writeDashboardEvidenceFixture();
   writeFile(
     ".artifacts/store-approval-test/support-bundle.json",
@@ -367,6 +409,51 @@ function writeDistributionFixture() {
   );
 }
 
+function writeStoreReleaseFixture() {
+  const startedAt = new Date(Date.now() - 2_000).toISOString();
+  const finishedAt = new Date().toISOString();
+  writeFile(
+    storeReleaseReportPath,
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: storeReleaseReportType,
+        status: "passed",
+        mode: "execute",
+        startedAt,
+        finishedAt,
+        durationMs: Date.parse(finishedAt) - Date.parse(startedAt),
+        platforms: ["android", "ios"],
+        git: {
+          commit: currentCommit(),
+          branch: "main",
+          dirty: true,
+          statusShort: " M scripts/verify-store-submission-approval.test.mjs"
+        },
+        options: {
+          allowDirty: true,
+          allowCommitMismatch: false,
+          skipEnv: true,
+          skipBuild: true
+        },
+        artifacts: {
+          distributionManifest: distributionManifestSummary(distributionArtifactManifestPath)
+        },
+        steps: [
+          storeReleaseStep("verify-env", "npm run verify:store-release-env"),
+          storeReleaseStep("android", "npm run android:bundleRelease"),
+          storeReleaseStep("ios", "npm run ios:archive:release"),
+          storeReleaseStep("distribution", "npm run release:distribution-manifest")
+        ],
+        error: null
+      },
+      null,
+      2
+    )
+  );
+}
+
 function writeDashboardEvidenceFixture() {
   writeFile(".artifacts/store-approval-test/youtube-dashboard.png", dashboardPngBytes);
   writeFile(".artifacts/store-approval-test/twitch-dashboard.png", dashboardPngBytes);
@@ -492,6 +579,37 @@ function distributionManifestRecord(platform, kind, path) {
     ...zipEntryInfo,
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function distributionManifestSummary(path) {
+  const content = readFileSync(path);
+  const manifest = JSON.parse(content.toString("utf8"));
+  return {
+    path,
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex"),
+    artifactCount: Array.isArray(manifest.artifacts) ? manifest.artifacts.length : 0,
+    artifacts: (manifest.artifacts || []).map((artifact) => ({
+      platform: artifact.platform,
+      kind: artifact.kind,
+      path: artifact.path,
+      bytes: artifact.bytes,
+      sha256: artifact.sha256
+    }))
+  };
+}
+
+function storeReleaseStep(type, command) {
+  return {
+    type,
+    command,
+    status: "passed",
+    startedAt: new Date(Date.now() - 1_000).toISOString(),
+    finishedAt: new Date().toISOString(),
+    durationMs: 1,
+    exitCode: 0,
+    error: null
   };
 }
 

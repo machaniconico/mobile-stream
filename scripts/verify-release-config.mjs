@@ -129,6 +129,9 @@ const checks = [
     expectIncludes(files.storeSubmissionApprovalScript, "requireRealDeviceScreenshots");
     expectIncludes(files.storeSubmissionApprovalScript, "distributionArtifactManifestPath");
     expectIncludes(files.storeSubmissionApprovalScript, "dashboardEvidenceManifestPath");
+    expectIncludes(files.storeSubmissionApprovalScript, "storeReleaseReportArtifactGroup");
+    expectIncludes(files.storeSubmissionApprovalScript, "validateStoreReleaseReportInReleaseReport");
+    expectIncludes(files.storeSubmissionApprovalScript, "Store submission approval requires store-release orchestration report");
     expectIncludes(files.storeSubmissionApprovalScript, "distribution artifact evidence");
     expectIncludes(files.storeSubmissionApprovalScript, "YouTube dashboard status JSON");
     expectIncludes(files.storeSubmissionApprovalScript, "Release report is missing store submission artifact");
