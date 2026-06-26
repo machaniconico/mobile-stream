@@ -93,11 +93,14 @@ const checks = [
     expectIncludes(files.releaseCandidateScript, "--store-release-report-json");
     expectIncludes(files.releaseCandidateScript, "Verify store release orchestration report");
     expectIncludes(files.releaseCandidateScript, "Verify store submission evidence requirements");
+    expectIncludes(files.releaseCandidateScript, "Verify store submission handoff evidence integrity");
     expectIncludes(files.releaseCandidateScript, "storeSubmissionChecklistPath");
     expectIncludes(files.releaseCandidateScript, "distributionArtifactManifestPath");
     expectIncludes(files.releaseCandidateScript, "dashboardEvidenceManifestPath");
     expectIncludes(files.releaseCandidateScript, "Distribution artifact manifest is required");
     expectIncludes(files.releaseCandidateScript, "Dashboard evidence manifest is required");
+    expectIncludes(files.releaseCandidateScript, "Dashboard evidence status JSON");
+    expectIncludes(files.releaseCandidateScript, "requireRealDeviceScreenshots: true");
     expectIncludes(files.releaseCandidateScript, "Store release orchestration report is required");
     expectIncludes(files.releaseEvidencePackageScript, "storeReleaseReportArtifactGroup");
     expectIncludes(files.releaseEvidencePackageScript, "storeReleaseReportType");

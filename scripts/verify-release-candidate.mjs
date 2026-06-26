@@ -4,9 +4,24 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { argv, env, exit, platform, cwd } from "node:process";
 import { releaseConfigArtifactPaths } from "./release-artifact-policy.mjs";
-import { collectDistributionArtifactRecords, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
-import { collectDashboardEvidenceArtifactRecords, dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
-import { collectStoreSubmissionArtifactRecords, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
+import {
+  collectDistributionArtifactRecords,
+  distributionArtifactManifestPath,
+  readDistributionManifest,
+  validateDistributionManifest
+} from "./verify-distribution-artifacts.mjs";
+import {
+  collectDashboardEvidenceArtifactRecords,
+  dashboardEvidenceManifestPath,
+  readDashboardEvidenceManifest,
+  validateDashboardEvidenceManifest
+} from "./verify-platform-dashboard-evidence.mjs";
+import {
+  collectStoreSubmissionArtifactRecords,
+  readStoreSubmissionChecklist,
+  storeSubmissionChecklistPath,
+  validateStoreSubmissionChecklist
+} from "./verify-store-submission-checklist.mjs";
 import { collectStoreReleaseArtifactRecords, validateStoreReleaseReport } from "./release-store-build.mjs";
 
 const defaultUiUrl = "http://127.0.0.1:5173/";
@@ -80,6 +95,7 @@ async function main() {
   try {
     runCleanWorktreeGate(report, options.allowDirty);
     runStoreSubmissionEvidenceRequirementGate(report, options);
+    runStoreSubmissionHandoffIntegrityGate(report, options);
 
     if (options.skipUi) {
       runUiEvidenceGate(report, options);
@@ -324,6 +340,146 @@ function runStoreSubmissionEvidenceRequirementGate(report, options) {
   gate.exitCode = 1;
   gate.error = failures.join("\n");
   throw new GateError(gate.error, 1);
+}
+
+function runStoreSubmissionHandoffIntegrityGate(report, options) {
+  if (!existsSync(storeSubmissionChecklistPath)) {
+    return;
+  }
+
+  const gate = {
+    label: "Verify store submission handoff evidence integrity",
+    command: `read ${distributionArtifactManifestPath} && read ${dashboardEvidenceManifestPath} && read ${storeSubmissionChecklistPath}`,
+    status: "running",
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    durationMs: null,
+    exitCode: null,
+    error: null,
+    evidence: null
+  };
+  const startedAt = Date.now();
+  report.gates.push(gate);
+
+  try {
+    const failures = [];
+    const distributionManifest = readDistributionManifest(distributionArtifactManifestPath);
+    const dashboardManifest = readDashboardEvidenceManifest(dashboardEvidenceManifestPath);
+    const storeSubmissionChecklist = readStoreSubmissionChecklist(storeSubmissionChecklistPath);
+
+    failures.push(
+      ...validateDistributionManifest(distributionManifest, {
+        manifestPath: distributionArtifactManifestPath,
+        allowDirty: options.allowDirty,
+        allowCommitMismatch: false
+      })
+    );
+    failures.push(...validateDistributionHandoffCoverage(distributionManifest));
+    failures.push(
+      ...validateDashboardEvidenceManifest(dashboardManifest, {
+        manifestPath: dashboardEvidenceManifestPath,
+        allowDirty: options.allowDirty,
+        allowCommitMismatch: false
+      })
+    );
+    failures.push(...validateDashboardHandoffCoverage(dashboardManifest));
+    failures.push(...validateDashboardFreshness(dashboardManifest, options.maxAgeHours));
+    failures.push(
+      ...validateStoreSubmissionChecklist(storeSubmissionChecklist, {
+        manifestPath: storeSubmissionChecklistPath,
+        allowDirty: options.allowDirty,
+        allowCommitMismatch: false,
+        requireRealDeviceScreenshots: true
+      })
+    );
+
+    if (failures.length > 0) {
+      throw new GateError(failures.join("\n"), 1);
+    }
+
+    gate.status = "passed";
+    gate.exitCode = 0;
+    gate.evidence = {
+      distributionManifest: manifestEvidence(distributionArtifactManifestPath, distributionManifest),
+      dashboardEvidenceManifest: manifestEvidence(dashboardEvidenceManifestPath, dashboardManifest),
+      storeSubmissionChecklist: manifestEvidence(storeSubmissionChecklistPath, storeSubmissionChecklist),
+      dashboardStatusJson: (dashboardManifest.artifacts || [])
+        .filter((artifact) => artifact?.kind === "statusJson")
+        .map((artifact) => ({
+          platform: artifact.platform,
+          path: artifact.path,
+          checkedAt: artifact.checkedAt
+        }))
+    };
+  } catch (error) {
+    gate.status = "failed";
+    gate.exitCode = error instanceof GateError ? error.exitCode : 1;
+    gate.error = error instanceof Error ? error.message : String(error);
+    throw error instanceof GateError ? error : new GateError(gate.error, gate.exitCode);
+  } finally {
+    gate.finishedAt = new Date().toISOString();
+    gate.durationMs = Date.now() - startedAt;
+  }
+}
+
+function validateDistributionHandoffCoverage(manifest) {
+  const failures = [];
+  const artifacts = Array.isArray(manifest?.artifacts) ? manifest.artifacts : [];
+  for (const platformName of ["android", "ios"]) {
+    if (!artifacts.some((artifact) => artifact?.platform === platformName)) {
+      failures.push(`Store submission handoff requires ${platformName} distribution artifact evidence.`);
+    }
+  }
+  return failures;
+}
+
+function validateDashboardHandoffCoverage(manifest) {
+  const failures = [];
+  const artifacts = Array.isArray(manifest?.artifacts) ? manifest.artifacts : [];
+  for (const requirement of [
+    { platform: "youtube", kind: "screenshot", label: "YouTube dashboard screenshot" },
+    { platform: "youtube", kind: "statusJson", label: "YouTube dashboard status JSON" },
+    { platform: "twitch", kind: "screenshot", label: "Twitch dashboard screenshot" },
+    { platform: "twitch", kind: "statusJson", label: "Twitch dashboard status JSON" }
+  ]) {
+    if (!artifacts.some((artifact) => artifact?.platform === requirement.platform && artifact?.kind === requirement.kind)) {
+      failures.push(`Store submission handoff requires ${requirement.label} evidence.`);
+    }
+  }
+  return failures;
+}
+
+function validateDashboardFreshness(manifest, maxAgeHours) {
+  const failures = [];
+  for (const artifact of Array.isArray(manifest?.artifacts) ? manifest.artifacts : []) {
+    if (artifact?.kind !== "statusJson") {
+      continue;
+    }
+    const ageHours = ageInHours(artifact.checkedAt, new Date());
+    if (ageHours === null) {
+      failures.push(`Dashboard evidence status JSON ${artifact.path} checkedAt timestamp is missing or invalid.`);
+    } else if (ageHours > maxAgeHours) {
+      failures.push(`Dashboard evidence status JSON ${artifact.path} is ${ageHours}h old, above the ${maxAgeHours}h release gate.`);
+    }
+  }
+  return failures;
+}
+
+function manifestEvidence(path, manifest) {
+  const content = readFileSync(resolve(path));
+  return {
+    path,
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex"),
+    generatedAt: manifest.generatedAt || null,
+    commit: manifest.git?.commit || null,
+    dirty: Boolean(manifest.git?.dirty),
+    artifactCount: Array.isArray(manifest.artifacts)
+      ? manifest.artifacts.length
+      : Array.isArray(manifest.screenshots)
+        ? manifest.screenshots.length + (Array.isArray(manifest.reviewDocuments) ? manifest.reviewDocuments.length : 0) + 1
+        : 0
+  };
 }
 
 function runCleanWorktreeGate(report, allowDirty) {
