@@ -4,8 +4,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { argv, env, exit, platform, cwd } from "node:process";
 import { releaseConfigArtifactPaths } from "./release-artifact-policy.mjs";
-import { collectDistributionArtifactRecords } from "./verify-distribution-artifacts.mjs";
-import { collectDashboardEvidenceArtifactRecords } from "./verify-platform-dashboard-evidence.mjs";
+import { collectDistributionArtifactRecords, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
+import { collectDashboardEvidenceArtifactRecords, dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
 import { collectStoreSubmissionArtifactRecords, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import { collectStoreReleaseArtifactRecords, validateStoreReleaseReport } from "./release-store-build.mjs";
 
@@ -79,7 +79,7 @@ async function main() {
 
   try {
     runCleanWorktreeGate(report, options.allowDirty);
-    runStoreReleaseReportRequirementGate(report, options);
+    runStoreSubmissionEvidenceRequirementGate(report, options);
 
     if (options.skipUi) {
       runUiEvidenceGate(report, options);
@@ -268,11 +268,13 @@ function runStoreReleaseReportGate(report, options) {
   }
 }
 
-function runStoreReleaseReportRequirementGate(report, options) {
+function runStoreSubmissionEvidenceRequirementGate(report, options) {
   const now = new Date().toISOString();
   const checklistExists = existsSync(storeSubmissionChecklistPath);
+  const distributionManifestExists = existsSync(distributionArtifactManifestPath);
+  const dashboardManifestExists = existsSync(dashboardEvidenceManifestPath);
   const gate = {
-    label: "Verify store release orchestration requirement",
+    label: "Verify store submission evidence requirements",
     command: `test -f ${storeSubmissionChecklistPath}`,
     status: "passed",
     startedAt: now,
@@ -283,19 +285,44 @@ function runStoreReleaseReportRequirementGate(report, options) {
     evidence: {
       storeSubmissionChecklistPath,
       storeSubmissionChecklistPresent: checklistExists,
+      distributionArtifactManifestPath,
+      distributionArtifactManifestPresent: distributionManifestExists,
+      dashboardEvidenceManifestPath,
+      dashboardEvidenceManifestPresent: dashboardManifestExists,
       storeReleaseReportRequired: checklistExists,
       storeReleaseReportSupplied: Boolean(options.storeReleaseReportJsonPath)
     }
   };
   report.gates.push(gate);
 
-  if (!checklistExists || options.storeReleaseReportJsonPath) {
+  if (!checklistExists) {
+    return;
+  }
+
+  const failures = [];
+  if (!distributionManifestExists) {
+    failures.push(
+      `Distribution artifact manifest is required when ${storeSubmissionChecklistPath} exists. Run \`npm run release:store -- --report-json <path>\` or \`npm run release:distribution-manifest -- --android-aab <path> --ios-ipa <path>\` before release-candidate verification.`
+    );
+  }
+  if (!dashboardManifestExists) {
+    failures.push(
+      `Dashboard evidence manifest is required when ${storeSubmissionChecklistPath} exists. Run \`npm run release:dashboard-evidence -- --youtube-screenshot <path> --twitch-screenshot <path> --youtube-json <path> --twitch-json <path>\` before release-candidate verification.`
+    );
+  }
+  if (!options.storeReleaseReportJsonPath) {
+    failures.push(
+      `Store release orchestration report is required when ${storeSubmissionChecklistPath} exists. Run \`npm run release:store -- --report-json <path>\` and pass --store-release-report-json=<path>.`
+    );
+  }
+
+  if (failures.length === 0) {
     return;
   }
 
   gate.status = "failed";
   gate.exitCode = 1;
-  gate.error = `Store release orchestration report is required when ${storeSubmissionChecklistPath} exists. Run \`npm run release:store -- --report-json <path>\` and pass --store-release-report-json=<path>.`;
+  gate.error = failures.join("\n");
   throw new GateError(gate.error, 1);
 }
 
