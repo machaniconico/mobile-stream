@@ -103,6 +103,12 @@ const checks = [
     expectIncludes(files.releaseCandidateScript, "Dashboard evidence status JSON");
     expectIncludes(files.releaseCandidateScript, "requireRealDeviceScreenshots: true");
     expectIncludes(files.releaseCandidateScript, "Store release orchestration report is required");
+    expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
+    expectBefore(
+      files.releaseCandidateScript,
+      "runCommercialSupportBundleGate(report, options);",
+      "for (const [label, args] of sourceGates)"
+    );
     expectIncludes(files.releaseEvidencePackageScript, "storeReleaseReportArtifactGroup");
     expectIncludes(files.releaseEvidencePackageScript, "storeReleaseReportType");
     expectIncludes(files.releaseEvidencePackageScript, "Verify store release orchestration report");
@@ -355,6 +361,20 @@ function expectIncludes(value, needle) {
 function expectNotIncludes(value, needle) {
   if (value.includes(needle)) {
     throw new Error(`unexpected ${JSON.stringify(needle)}`);
+  }
+}
+
+function expectBefore(value, firstNeedle, secondNeedle) {
+  const firstIndex = value.indexOf(firstNeedle);
+  const secondIndex = value.indexOf(secondNeedle);
+  if (firstIndex === -1) {
+    throw new Error(`missing ${JSON.stringify(firstNeedle)}`);
+  }
+  if (secondIndex === -1) {
+    throw new Error(`missing ${JSON.stringify(secondNeedle)}`);
+  }
+  if (firstIndex >= secondIndex) {
+    throw new Error(`${JSON.stringify(firstNeedle)} must appear before ${JSON.stringify(secondNeedle)}`);
   }
 }
 

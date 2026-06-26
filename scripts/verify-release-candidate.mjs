@@ -104,6 +104,8 @@ async function main() {
       runStoreReleaseReportGate(report, options);
     }
 
+    runCommercialSupportBundleGate(report, options);
+
     for (const [label, args] of sourceGates) {
       runTrackedGate(report, label, args);
     }
@@ -111,15 +113,6 @@ async function main() {
     if (!options.skipUi) {
       await runUiGate(report, options.uiUrl);
     }
-
-    runTrackedGate(report, "Verify commercial release support bundle", [
-      "run",
-      "verify:commercial-release-bundle",
-      "--",
-      options.supportBundlePath,
-      `--max-age-hours=${options.maxAgeHours}`,
-      ...(options.allowWarnings ? ["--allow-warnings"] : [])
-    ]);
 
     finishReport(report, "passed");
     writeReport(report, options.reportJsonPath);
@@ -131,6 +124,17 @@ async function main() {
     console.error(`Release candidate report written to ${options.reportJsonPath}.`);
     throw error;
   }
+}
+
+function runCommercialSupportBundleGate(report, options) {
+  runTrackedGate(report, "Verify commercial release support bundle", [
+    "run",
+    "verify:commercial-release-bundle",
+    "--",
+    options.supportBundlePath,
+    `--max-age-hours=${options.maxAgeHours}`,
+    ...(options.allowWarnings ? ["--allow-warnings"] : [])
+  ]);
 }
 
 function runGate(label, args, extraOptions = {}) {

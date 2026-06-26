@@ -31,6 +31,7 @@ const tinyPngBytes = Buffer.from(
 );
 const minimumDistributionArtifactBytes = 1_048_576;
 const pngBytes = pngWithDimensions(1179, 2556);
+const appBuild = "1.0.0 (1)";
 
 describe("release candidate verifier", () => {
   beforeEach(() => {
@@ -41,7 +42,7 @@ describe("release candidate verifier", () => {
       rmSync(path, { force: true });
     }
     rmSync(fixtureRoot, { recursive: true, force: true });
-    writeFile(supportBundlePath, JSON.stringify({ app: { name: "MobileLiveCaster" } }));
+    writeSupportBundleFixture();
   });
 
   afterEach(() => {
@@ -197,6 +198,25 @@ describe("release candidate verifier", () => {
       exitCode: 2
     });
   });
+
+  it("fails invalid support bundles before expensive source gates", () => {
+    writeSupportBundleFixture({ summary: { validationEvidenceStatus: "blocked" } });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("==> Verify commercial release support bundle");
+    expect(result.stdout).not.toContain("==> Run unit tests");
+    expect(result.stdout).toContain("Physical validation evidence");
+
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    const supportBundleGate = report.gates.find((entry) => entry.label === "Verify commercial release support bundle");
+    expect(supportBundleGate).toMatchObject({
+      status: "failed",
+      exitCode: 1
+    });
+    expect(report.gates.some((entry) => entry.label === "Run unit tests")).toBe(false);
+  });
 });
 
 function runVerifier(extraArgs = []) {
@@ -226,6 +246,102 @@ function writeStoreSubmissionChecklist() {
       type: "store-submission-checklist-manifest"
     })
   );
+}
+
+function writeSupportBundleFixture(patch = {}) {
+  writeFile(supportBundlePath, JSON.stringify(commercialSupportBundleFixture(patch), null, 2));
+}
+
+function commercialSupportBundleFixture(patch = {}) {
+  const summary = {
+    preflightStatus: "ready",
+    publicLaunchStatus: "ready",
+    publicLaunchCanStart: true,
+    publicLaunchWarningCount: 0,
+    publicLaunchFailCount: 0,
+    publicLaunchStartLockBlocked: false,
+    publicLaunchStartLockSummary: "Public start lock is clear.",
+    publicLaunchStartLockAction: "Go Live while dashboard freshness remains current.",
+    launchBlockCount: 0,
+    launchWarningCount: 0,
+    validationStatus: "ready",
+    validationWarningCount: 0,
+    validationFailCount: 0,
+    validationPendingCount: 0,
+    validationRunbookStatus: "complete",
+    validationRunbookNextAction: "Archive this support bundle.",
+    validationEvidenceStatus: "ready",
+    validationEvidenceFingerprint: "sve1-ready",
+    validationEvidenceLatestRunFingerprint: "svr1-android",
+    validationEvidenceRunCount: 2,
+    validationEvidenceEligibleRunCount: 2,
+    validationEvidenceStaleRunCount: 0,
+    validationEvidenceIosPass: true,
+    validationEvidenceAndroidPass: true,
+    validationEvidencePhysicalDeviceIosPass: true,
+    validationEvidencePhysicalDeviceAndroidPass: true,
+    validationEvidenceAppBuildMismatch: false,
+    validationEvidenceConsistentAppBuild: appBuild,
+    validationEvidenceNativeRuntimeIosPass: true,
+    validationEvidenceNativeRuntimeAndroidPass: true,
+    validationEvidenceMonitorHoldIosPass: true,
+    validationEvidenceMonitorHoldAndroidPass: true,
+    validationEvidenceFaceTrackingIosPass: true,
+    validationEvidenceFaceTrackingAndroidPass: true,
+    validationEvidenceAudioIosPass: true,
+    validationEvidenceAudioAndroidPass: true,
+    validationEvidenceChatReadoutIosPass: true,
+    validationEvidenceChatReadoutAndroidPass: true,
+    validationEvidencePlatformPublishingIosPass: true,
+    validationEvidencePlatformPublishingAndroidPass: true,
+    validationEvidenceRunManifest: [
+      supportBundleManifestRun("ios", "svr1-ios"),
+      supportBundleManifestRun("android", "svr1-android")
+    ]
+  };
+
+  return {
+    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 15 },
+    generatedAt: new Date().toISOString(),
+    fixture: true,
+    ...patch,
+    summary: {
+      ...summary,
+      ...(patch.summary ?? {})
+    }
+  };
+}
+
+function supportBundleManifestRun(devicePlatform, fingerprint) {
+  return {
+    id: `validation-${devicePlatform}`,
+    fingerprint,
+    createdAt: new Date().toISOString(),
+    ageDays: 0,
+    fresh: true,
+    matchesScope: true,
+    eligible: true,
+    devicePlatform,
+    deviceName: devicePlatform === "ios" ? "iPhone 15 Pro" : "Pixel 8 Pro",
+    osVersion: devicePlatform === "ios" ? "iOS 18.5" : "Android 15",
+    physicalDevice: true,
+    physicalDeviceStatus: "pass",
+    appBuild,
+    networkProfile: "private test",
+    targetPlatform: "YouTube Live",
+    transport: "rtmps",
+    result: "pass",
+    nativeRuntimeStatus: "pass",
+    monitorHoldStatus: "pass",
+    faceTrackingStatus: "pass",
+    audioStatus: "pass",
+    chatReadoutStatus: "pass",
+    qualityAutomationStatus: "pass",
+    platformPublishingStatus: "pass",
+    platformPublishingFreshnessStatus: "fresh",
+    summary: "Validation run retained.",
+    recommendation: "Keep this run with release evidence."
+  };
 }
 
 function writeValidHandoffEvidence({ dashboardCheckedAt = new Date().toISOString() } = {}) {
@@ -311,7 +427,7 @@ function writeValidHandoffEvidence({ dashboardCheckedAt = new Date().toISOString
             path: `${fixtureRoot}/ios-store.png`,
             source: "realDevice",
             osVersion: "iOS 18.5",
-            appBuild: "1.0.0 (1)",
+            appBuild,
             capturedAt: new Date().toISOString()
           },
           {
@@ -320,7 +436,7 @@ function writeValidHandoffEvidence({ dashboardCheckedAt = new Date().toISOString
             path: `${fixtureRoot}/android-store.png`,
             source: "realDevice",
             osVersion: "Android 15",
-            appBuild: "1.0.0 (1)",
+            appBuild,
             capturedAt: new Date().toISOString()
           }
         ],
