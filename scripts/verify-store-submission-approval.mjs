@@ -173,6 +173,9 @@ function validateDashboardArtifactsCaptured(artifactByPath, options, fail) {
   })) {
     fail(failure);
   }
+  for (const failure of validateDashboardStatusFreshness(manifest, options.maxAgeHours)) {
+    fail(failure);
+  }
 
   for (const requirement of [
     { platform: "youtube", kind: "screenshot", label: "YouTube dashboard screenshot" },
@@ -219,8 +222,28 @@ function validateStoreReleaseArtifactsCaptured(report, artifacts, artifactByPath
   validateStoreReleaseReportInReleaseReport(artifacts, fail, {
     expectedCommit: report.git?.commit || "",
     allowDirty: options.allowDirty,
-    allowCommitMismatch: options.allowCommitMismatch
+    allowCommitMismatch: options.allowCommitMismatch,
+    maxAgeHours: options.maxAgeHours
   });
+}
+
+function validateDashboardStatusFreshness(manifest, maxAgeHours) {
+  const failures = [];
+  const now = new Date();
+  for (const artifact of Array.isArray(manifest?.artifacts) ? manifest.artifacts : []) {
+    if (artifact?.kind !== "statusJson") {
+      continue;
+    }
+    const ageHours = ageInHours(artifact.checkedAt, now);
+    if (ageHours === null) {
+      failures.push(`Dashboard evidence status JSON ${artifact.path} checkedAt is in the future or invalid.`);
+    } else if (ageHours > maxAgeHours) {
+      failures.push(
+        `Dashboard evidence status JSON ${artifact.path} is ${ageHours}h old, above the ${maxAgeHours}h store-submission approval gate.`
+      );
+    }
+  }
+  return failures;
 }
 
 function requireReportArtifact(artifactByPath, expectedGroup, path, label, fail) {
@@ -377,6 +400,18 @@ function stringValue(value) {
 
 function normalizeBuildLabel(value) {
   return stringValue(value).replace(/\s+/g, " ").toLowerCase();
+}
+
+function ageInHours(value, now) {
+  const timestamp = Date.parse(String(value));
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+  const ageMs = now.getTime() - timestamp;
+  if (ageMs < 0) {
+    return null;
+  }
+  return Math.floor(ageMs / 3_600_000);
 }
 
 function printUsage() {

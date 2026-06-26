@@ -46,7 +46,7 @@ const tinyPngBytes = Buffer.from(
 const pngBytes = pngWithDimensions(1179, 2556);
 const dashboardPngBytes = pngWithDimensions(1440, 900);
 const minimumDistributionArtifactBytes = 1_048_576;
-const capturedAt = "2026-06-25T00:00:00.000Z";
+const capturedAt = new Date().toISOString();
 const appBuild = "rc-1";
 const storeReleaseReportPath = ".artifacts/store-approval-test/store-release-report.json";
 
@@ -108,6 +108,21 @@ describe("store submission approval verifier", () => {
     const failures = validateStoreSubmissionApproval(report, readStoreManifest(), approvalOptions());
 
     expect(failures).toContain("Release report is missing dashboard evidence artifact .artifacts/store-approval-test/twitch-dashboard.json.");
+  });
+
+  it("rejects approval when dashboard status JSON evidence is stale", () => {
+    writeDashboardEvidenceFixture({ checkedAt: new Date(Date.now() - 48 * 3_600_000).toISOString() });
+
+    const failures = validateStoreSubmissionApproval(createReport(), readStoreManifest(), approvalOptions());
+
+    expect(failures).toContain(
+      "Dashboard evidence status JSON .artifacts/store-approval-test/youtube-dashboard.json is 48h old, above the 24h store-submission approval gate."
+    );
+    expect(failures).toContain(
+      "Dashboard evidence status JSON .artifacts/store-approval-test/twitch-dashboard.json is 48h old, above the 24h store-submission approval gate."
+    );
+
+    writeDashboardEvidenceFixture();
   });
 
   it("rejects approval when store-release orchestration evidence is missing from the RC report", () => {
@@ -456,7 +471,7 @@ function writeStoreReleaseFixture() {
   );
 }
 
-function writeDashboardEvidenceFixture() {
+function writeDashboardEvidenceFixture({ checkedAt = capturedAt } = {}) {
   writeFile(".artifacts/store-approval-test/youtube-dashboard.png", dashboardPngBytes);
   writeFile(".artifacts/store-approval-test/twitch-dashboard.png", dashboardPngBytes);
   writeFile(
@@ -468,7 +483,7 @@ function writeDashboardEvidenceFixture() {
       channelId: "UCMobileLiveCaster",
       broadcastStatus: "live",
       streamStatus: "active",
-      checkedAt: capturedAt
+      checkedAt
     })
   );
   writeFile(
@@ -479,7 +494,7 @@ function writeDashboardEvidenceFixture() {
       broadcasterLogin: "mobilelivecaster",
       streamId: "987654321",
       liveStatus: "live",
-      checkedAt: capturedAt
+      checkedAt
     })
   );
   writeFile(

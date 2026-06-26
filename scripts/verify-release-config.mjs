@@ -143,6 +143,8 @@ const checks = [
     expectIncludes(files.storeSubmissionApprovalScript, "dashboardEvidenceManifestPath");
     expectIncludes(files.storeSubmissionApprovalScript, "storeReleaseReportArtifactGroup");
     expectIncludes(files.storeSubmissionApprovalScript, "validateStoreReleaseReportInReleaseReport");
+    expectIncludes(files.storeSubmissionApprovalScript, "validateDashboardStatusFreshness");
+    expectIncludes(files.storeSubmissionApprovalScript, "maxAgeHours: options.maxAgeHours");
     expectIncludes(files.storeSubmissionApprovalScript, "Store submission approval requires store-release orchestration report");
     expectIncludes(files.storeSubmissionApprovalScript, "distribution artifact evidence");
     expectIncludes(files.storeSubmissionApprovalScript, "YouTube dashboard status JSON");
