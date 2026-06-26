@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { releaseConfigArtifactPaths, requiredReleaseGateLabels } from "./release-artifact-policy.mjs";
 import { distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
-import { dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
+import { dashboardEvidenceArtifactGroup, dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
 import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
 import { storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import {
@@ -51,7 +51,7 @@ const pngBytes = Buffer.from(
 const storePngBytes = pngWithDimensions(1179, 2556);
 const dashboardPngBytes = pngWithDimensions(1440, 900);
 const minimumDistributionArtifactBytes = 1_048_576;
-const capturedAt = "2026-06-25T00:00:00.000Z";
+const capturedAt = new Date().toISOString();
 
 describe("release evidence package creator", () => {
   beforeAll(() => {
@@ -221,6 +221,52 @@ describe("release evidence package creator", () => {
 
     expect(failures).toContain(
       "Package dashboard evidence twitch screenshot capturedAt must be within 10 minutes of status JSON checkedAt."
+    );
+  });
+
+  it("rejects packaged dashboard evidence older than the packaged release report", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedDashboardManifestPath = `${packageDir}/artifacts/${dashboardEvidenceManifestPath}`;
+    const releaseReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const dashboardManifest = JSON.parse(readFileSync(packagedDashboardManifestPath, "utf8"));
+    const staleCapturedAt = new Date(Date.parse(releaseReport.finishedAt) - 48 * 3_600_000).toISOString();
+    for (const artifact of dashboardManifest.artifacts) {
+      if (artifact.kind === "screenshot") {
+        artifact.capturedAt = staleCapturedAt;
+      }
+      if (artifact.kind === "statusJson") {
+        artifact.checkedAt = staleCapturedAt;
+      }
+    }
+    writeFileSync(packagedDashboardManifestPath, JSON.stringify(dashboardManifest, null, 2));
+
+    const dashboardManifestContent = readFileSync(packagedDashboardManifestPath);
+    const dashboardManifestSha256 = createHash("sha256").update(dashboardManifestContent).digest("hex");
+    const reportArtifact = releaseReport.artifacts.files.find(
+      (artifact) => artifact.group === dashboardEvidenceArtifactGroup && artifact.path === dashboardEvidenceManifestPath
+    );
+    reportArtifact.bytes = dashboardManifestContent.byteLength;
+    reportArtifact.sha256 = dashboardManifestSha256;
+    writeFileSync(packagedReportPath, JSON.stringify(releaseReport, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+    manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+    refreshPackageArtifactEntry(manifest, dashboardEvidenceManifestPath, packagedDashboardManifestPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package dashboard evidence screenshot .artifacts/release-evidence-package-test/youtube-dashboard.png is 48h older than the release report, above the 24h commercial release gate."
+    );
+    expect(failures).toContain(
+      "Package dashboard evidence statusJson .artifacts/release-evidence-package-test/twitch-dashboard.json is 48h older than the release report, above the 24h commercial release gate."
     );
   });
 

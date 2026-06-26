@@ -230,7 +230,7 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
     (manifest.artifacts || []).map((artifact) => [`${artifact.group}:${artifact.sourcePath}`, artifact])
   );
   validateRequiredCommercialPackageArtifacts(report, manifest, reportArtifacts, packagedArtifacts, failures);
-  validatePackagedCommercialManifests(packageDir, packagedArtifacts, failures);
+  validatePackagedCommercialManifests(packageDir, packagedArtifacts, failures, { releaseReport: report, maxAgeHours });
   validatePackagedStoreReleaseReport({ report, packageDir, packagedArtifacts, failures, maxAgeHours });
   for (const packagedArtifact of manifest.artifacts || []) {
     const key = `${packagedArtifact.group}:${packagedArtifact.sourcePath}`;
@@ -274,7 +274,7 @@ function validateRequiredCommercialPackageArtifacts(report, manifest, reportArti
   }
 }
 
-function validatePackagedCommercialManifests(packageDir, packagedArtifacts, failures) {
+function validatePackagedCommercialManifests(packageDir, packagedArtifacts, failures, { releaseReport, maxAgeHours }) {
   const distributionManifest = readPackagedJsonArtifact({
     packagedArtifacts,
     group: distributionArtifactGroup,
@@ -296,7 +296,7 @@ function validatePackagedCommercialManifests(packageDir, packagedArtifacts, fail
     failures
   });
   if (dashboardManifest) {
-    validatePackagedDashboardEvidenceManifest(dashboardManifest, packagedArtifacts, failures);
+    validatePackagedDashboardEvidenceManifest(dashboardManifest, packagedArtifacts, failures, { releaseReport, maxAgeHours });
   }
 
   const storeSubmissionChecklist = readPackagedJsonArtifact({
@@ -361,7 +361,7 @@ function validatePackagedDistributionManifest(distributionManifest, packagedArti
   }
 }
 
-function validatePackagedDashboardEvidenceManifest(dashboardManifest, packagedArtifacts, failures) {
+function validatePackagedDashboardEvidenceManifest(dashboardManifest, packagedArtifacts, failures, { releaseReport, maxAgeHours }) {
   if (
     dashboardManifest?.app !== "MobileLiveCaster" ||
     dashboardManifest?.type !== "platform-dashboard-evidence-manifest" ||
@@ -393,6 +393,7 @@ function validatePackagedDashboardEvidenceManifest(dashboardManifest, packagedAr
     validatePackagedManifestRecord(packagedArtifacts, dashboardEvidenceArtifactGroup, record, "dashboard evidence manifest", failures);
   }
   validatePackagedDashboardEvidenceTiming(records, failures);
+  validatePackagedDashboardEvidenceFreshness(records, releaseReport, maxAgeHours, failures);
 }
 
 function validatePackagedDashboardEvidenceTiming(records, failures) {
@@ -424,6 +425,31 @@ function validatePackagedDashboardEvidenceTiming(records, failures) {
           );
         }
       }
+    }
+  }
+}
+
+function validatePackagedDashboardEvidenceFreshness(records, releaseReport, maxAgeHours, failures) {
+  const releaseFinishedAt = Date.parse(String(releaseReport?.finishedAt || ""));
+  if (!Number.isFinite(releaseFinishedAt)) {
+    failures.push("Packaged release report finishedAt timestamp is missing or invalid.");
+    return;
+  }
+  for (const record of records) {
+    const timestamp = record?.kind === "screenshot" ? record.capturedAt : record?.kind === "statusJson" ? record.checkedAt : "";
+    if (!validTimestamp(timestamp)) {
+      continue;
+    }
+    const capturedAt = Date.parse(timestamp);
+    if (capturedAt > releaseFinishedAt) {
+      failures.push(`Package dashboard evidence ${record.kind} ${record.path} timestamp is after the packaged release report finishedAt.`);
+      continue;
+    }
+    const ageHours = Math.floor((releaseFinishedAt - capturedAt) / 3_600_000);
+    if (ageHours > maxAgeHours) {
+      failures.push(
+        `Package dashboard evidence ${record.kind} ${record.path} is ${ageHours}h older than the release report, above the ${maxAgeHours}h commercial release gate.`
+      );
     }
   }
 }

@@ -162,6 +162,7 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "Packaged release report is missing required commercial artifact group");
     expectIncludes(files.releaseEvidencePackageScript, "validatePackagedCommercialManifests");
     expectIncludes(files.releaseEvidencePackageScript, "Package dashboard evidence screenshot");
+    expectIncludes(files.releaseEvidencePackageScript, "validatePackagedDashboardEvidenceFreshness");
     expectIncludes(files.releaseEvidencePackageScript, "dashboardScreenshotStatusMaxSkewMinutes");
     expectIncludes(files.releaseEvidencePackageScript, "Package ${label} references artifact not present in package");
     expectIncludes(files.releaseEvidencePackageScript, "Package ${label} metadata mismatch");
