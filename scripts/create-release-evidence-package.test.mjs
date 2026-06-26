@@ -287,6 +287,46 @@ describe("release evidence package creator", () => {
     );
   });
 
+  it("rejects packaged store release reports older than the packaged release report", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedStoreReleaseReportPath = `${packageDir}/artifacts/${storeReleaseReportPath}`;
+    const releaseReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const storeReleaseReport = JSON.parse(readFileSync(packagedStoreReleaseReportPath, "utf8"));
+    const staleFinishedAt = new Date(Date.parse(releaseReport.finishedAt) - 48 * 3_600_000).toISOString();
+    storeReleaseReport.startedAt = new Date(Date.parse(staleFinishedAt) - 1_000).toISOString();
+    storeReleaseReport.finishedAt = staleFinishedAt;
+    storeReleaseReport.durationMs = 1_000;
+    writeFileSync(packagedStoreReleaseReportPath, JSON.stringify(storeReleaseReport, null, 2));
+
+    const storeReportContent = readFileSync(packagedStoreReleaseReportPath);
+    const storeReportSha256 = createHash("sha256").update(storeReportContent).digest("hex");
+    const storeReportArtifact = releaseReport.artifacts.files.find(
+      (artifact) => artifact.group === storeReleaseReportArtifactGroup && artifact.path === storeReleaseReportPath
+    );
+    storeReportArtifact.bytes = storeReportContent.byteLength;
+    storeReportArtifact.sha256 = storeReportSha256;
+    const storeReleaseGate = releaseReport.gates.find((gate) => gate.label === "Verify store release orchestration report");
+    storeReleaseGate.evidence.sha256 = storeReportSha256;
+    writeFileSync(packagedReportPath, JSON.stringify(releaseReport, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+    manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+    refreshPackageArtifactEntry(manifest, storeReleaseReportPath, packagedStoreReleaseReportPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package store release report is 48h older than the release report, above the 24h commercial release gate."
+    );
+  });
+
   it("rejects traversal-style artifact paths before report validation reads sources", () => {
     writeReportFixture();
     const report = JSON.parse(readFileSync(reportPath, "utf8"));

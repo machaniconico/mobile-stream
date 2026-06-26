@@ -190,6 +190,49 @@ describe("store release orchestration", () => {
     );
   });
 
+  it("rejects stale store release reports as commercial evidence", () => {
+    writeDistributionFiles();
+
+    const result = runStoreRelease([
+      "--skip-build",
+      "--skip-env",
+      "--allow-dirty",
+      "--manifest",
+      manifestPath,
+      "--report-json",
+      reportPath,
+      "--android-aab",
+      androidAab,
+      "--ios-ipa",
+      iosIpa
+    ]);
+
+    expect(result.status).toBe(0);
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    report.options.skipEnv = false;
+    report.options.skipBuild = false;
+    report.finishedAt = new Date(Date.now() - 48 * 3_600_000).toISOString();
+    report.steps = [
+      storeReleaseStep("verify-env", "npm run android:verify-release-env"),
+      storeReleaseStep("android", "npm run android:bundleRelease"),
+      storeReleaseStep("verify-env", "npm run ios:verify-release-env"),
+      storeReleaseStep("ios", "npm run ios:archive:release"),
+      storeReleaseStep("ios", "npm run ios:export:release"),
+      report.steps[0]
+    ];
+
+    const failures = validateStoreReleaseReport(report, {
+      reportPath,
+      currentCommit: report.git.commit,
+      allowDirty: true,
+      allowCommitMismatch: true,
+      requirePassed: true,
+      maxAgeHours: 24
+    });
+
+    expect(failures).toContain("Store release report is 48h old, above the 24h commercial release gate.");
+  });
+
   it("fails when a requested release artifact is missing", () => {
     mkdirSync(fixtureRoot, { recursive: true });
     writeFileSync(androidAab, androidAabBytes());

@@ -350,7 +350,9 @@ export function validateStoreReleaseReport(
     currentCommit = commandOutput("git", ["rev-parse", "HEAD"]),
     allowDirty = true,
     allowCommitMismatch = true,
-    requirePassed = true
+    requirePassed = true,
+    maxAgeHours = 24,
+    now = new Date()
   } = {}
 ) {
   const failures = [];
@@ -364,8 +366,16 @@ export function validateStoreReleaseReport(
   if (requirePassed && report.mode !== "execute") {
     failures.push(`Store release report mode must be execute, got ${JSON.stringify(report.mode)}.`);
   }
-  if (!Number.isFinite(Date.parse(report.finishedAt || ""))) {
+  const finishedAtTimestamp = Date.parse(String(report.finishedAt || ""));
+  if (!Number.isFinite(finishedAtTimestamp)) {
     failures.push("Store release report finishedAt timestamp is missing or invalid.");
+  } else if (requirePassed) {
+    const ageHours = ageInHours(report.finishedAt, now);
+    if (ageHours === null) {
+      failures.push("Store release report finishedAt timestamp is in the future.");
+    } else if (ageHours > maxAgeHours) {
+      failures.push(`Store release report is ${ageHours}h old, above the ${maxAgeHours}h commercial release gate.`);
+    }
   }
   if (!Number.isFinite(report.durationMs) || report.durationMs < 0) {
     failures.push("Store release report durationMs is missing or invalid.");
@@ -463,7 +473,11 @@ export function collectStoreReleaseArtifactRecords({ reportPath = storeReleaseRe
   return [createReleaseArtifactRecord(storeReleaseReportArtifactGroup, reportPath)];
 }
 
-export function validateStoreReleaseReportInReleaseReport(artifacts, fail, { expectedCommit = "", allowDirty = true, allowCommitMismatch = true } = {}) {
+export function validateStoreReleaseReportInReleaseReport(
+  artifacts,
+  fail,
+  { expectedCommit = "", allowDirty = true, allowCommitMismatch = true, maxAgeHours = 24 } = {}
+) {
   const reportArtifact = artifacts.find((artifact) => artifact?.group === storeReleaseReportArtifactGroup);
   if (!reportArtifact) {
     return;
@@ -482,7 +496,8 @@ export function validateStoreReleaseReportInReleaseReport(artifacts, fail, { exp
     currentCommit: expectedCommit,
     allowDirty,
     allowCommitMismatch,
-    requirePassed: true
+    requirePassed: true,
+    maxAgeHours
   })) {
     fail(failure);
   }
@@ -585,6 +600,18 @@ function createReleaseArtifactRecord(group, path) {
 
 function isSha256(value) {
   return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value);
+}
+
+function ageInHours(value, now) {
+  const timestamp = Date.parse(String(value));
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+  const ageMs = now.getTime() - timestamp;
+  if (ageMs < 0) {
+    return null;
+  }
+  return Math.floor(ageMs / 3_600_000);
 }
 
 function relativeToWorkspace(path) {

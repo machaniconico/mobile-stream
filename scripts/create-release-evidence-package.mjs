@@ -130,7 +130,7 @@ export function createReleaseEvidencePackage({
   const manifestPath = join(resolve(packageDir), releaseEvidencePackageManifestName);
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
-  const packageFailures = validateReleaseEvidencePackage({ packageDir });
+  const packageFailures = validateReleaseEvidencePackage({ packageDir, maxAgeHours });
   if (packageFailures.length > 0) {
     throw new Error(["Created release evidence package failed verification:", ...packageFailures.map((failure) => `- ${failure}`)].join("\n"));
   }
@@ -138,7 +138,7 @@ export function createReleaseEvidencePackage({
   return { manifest, packageDir: resolve(packageDir), manifestPath };
 }
 
-export function validateReleaseEvidencePackage({ packageDir, verifySources = false } = {}) {
+export function validateReleaseEvidencePackage({ packageDir, verifySources = false, maxAgeHours = 24 } = {}) {
   const failures = [];
   const resolvedPackageDir = resolve(packageDir || "");
   const manifestPath = join(resolvedPackageDir, releaseEvidencePackageManifestName);
@@ -191,12 +191,12 @@ export function validateReleaseEvidencePackage({ packageDir, verifySources = fal
     }
   }
 
-  validatePackagedReport(manifest, resolvedPackageDir, failures);
+  validatePackagedReport(manifest, resolvedPackageDir, failures, { maxAgeHours });
   validatePackagePrivacy(manifest, resolvedPackageDir, failures);
   return failures;
 }
 
-function validatePackagedReport(manifest, packageDir, failures) {
+function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours }) {
   const reportPath = join(packageDir, manifest.sourceReport.packagedPath);
   let report;
   try {
@@ -231,7 +231,7 @@ function validatePackagedReport(manifest, packageDir, failures) {
   );
   validateRequiredCommercialPackageArtifacts(report, manifest, reportArtifacts, packagedArtifacts, failures);
   validatePackagedCommercialManifests(packageDir, packagedArtifacts, failures);
-  validatePackagedStoreReleaseReport({ report, packageDir, packagedArtifacts, failures });
+  validatePackagedStoreReleaseReport({ report, packageDir, packagedArtifacts, failures, maxAgeHours });
   for (const packagedArtifact of manifest.artifacts || []) {
     const key = `${packagedArtifact.group}:${packagedArtifact.sourcePath}`;
     if (!reportArtifacts.has(key)) {
@@ -466,7 +466,7 @@ function validatePackagedStoreSubmissionChecklist(storeSubmissionChecklist, pack
   }
 }
 
-function validatePackagedStoreReleaseReport({ report, packageDir, packagedArtifacts, failures }) {
+function validatePackagedStoreReleaseReport({ report, packageDir, packagedArtifacts, failures, maxAgeHours }) {
   const gate = storeReleaseReportGate(report);
   const reportPath = gate?.evidence?.path || firstStoreReleaseReportArtifactPath(report, packagedArtifacts);
   if (!gate && !reportPath) {
@@ -498,7 +498,7 @@ function validatePackagedStoreReleaseReport({ report, packageDir, packagedArtifa
     return;
   }
 
-  validatePackagedStoreReleaseReportContent(storeReport, report, packagedArtifacts, packageDir, failures);
+  validatePackagedStoreReleaseReportContent(storeReport, report, packagedArtifacts, packageDir, failures, { maxAgeHours });
 }
 
 function firstStoreReleaseReportArtifactPath(report, packagedArtifacts) {
@@ -515,7 +515,7 @@ function storeReleaseReportGate(report) {
   return (Array.isArray(report?.gates) ? report.gates : []).find((gate) => gate?.label === storeReleaseReportGateLabel);
 }
 
-function validatePackagedStoreReleaseReportContent(storeReport, releaseReport, packagedArtifacts, packageDir, failures) {
+function validatePackagedStoreReleaseReportContent(storeReport, releaseReport, packagedArtifacts, packageDir, failures, { maxAgeHours }) {
   if (storeReport?.app !== "MobileLiveCaster" || storeReport?.type !== storeReleaseReportType || storeReport?.reportVersion !== 1) {
     failures.push("Package store release report is not a MobileLiveCaster store-release-orchestration reportVersion 1 file.");
     return;
@@ -529,6 +529,7 @@ function validatePackagedStoreReleaseReportContent(storeReport, releaseReport, p
   if (!Number.isFinite(Date.parse(storeReport.finishedAt || ""))) {
     failures.push("Package store release report finishedAt timestamp is missing or invalid.");
   }
+  validatePackagedStoreReleaseReportFreshness(storeReport, releaseReport, maxAgeHours, failures);
   if (!Number.isFinite(storeReport.durationMs) || storeReport.durationMs < 0) {
     failures.push("Package store release report durationMs is missing or invalid.");
   }
@@ -581,6 +582,28 @@ function validatePackagedStoreReleaseReportContent(storeReport, releaseReport, p
   validatePackagedRequiredStoreReleaseSteps(storeReport, steps, failures);
 
   validatePackagedStoreReleaseDistributionManifest(storeReport, packagedArtifacts, packageDir, failures);
+}
+
+function validatePackagedStoreReleaseReportFreshness(storeReport, releaseReport, maxAgeHours, failures) {
+  const storeFinishedAt = Date.parse(String(storeReport?.finishedAt || ""));
+  const releaseFinishedAt = Date.parse(String(releaseReport?.finishedAt || ""));
+  if (!Number.isFinite(storeFinishedAt)) {
+    return;
+  }
+  if (!Number.isFinite(releaseFinishedAt)) {
+    failures.push("Packaged release report finishedAt timestamp is missing or invalid.");
+    return;
+  }
+  if (storeFinishedAt > releaseFinishedAt) {
+    failures.push("Package store release report finishedAt is after the packaged release report finishedAt.");
+    return;
+  }
+  const ageHours = Math.floor((releaseFinishedAt - storeFinishedAt) / 3_600_000);
+  if (ageHours > maxAgeHours) {
+    failures.push(
+      `Package store release report is ${ageHours}h older than the release report, above the ${maxAgeHours}h commercial release gate.`
+    );
+  }
 }
 
 function validatePackagedRequiredStoreReleaseSteps(storeReport, steps, failures) {
@@ -1108,7 +1131,8 @@ function run() {
 
     const failures = validateReleaseEvidencePackage({
       packageDir: options.packageDir,
-      verifySources: options.verifySources
+      verifySources: options.verifySources,
+      maxAgeHours: options.maxAgeHours
     });
     if (failures.length > 0) {
       console.error("Release evidence package verification failed:");

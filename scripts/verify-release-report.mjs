@@ -250,7 +250,8 @@ function validateArtifacts(report, options, fail) {
   validateStoreReleaseReportInReleaseReport(artifacts, fail, {
     expectedCommit: report.git?.commit || "",
     allowDirty: options.allowDirty,
-    allowCommitMismatch: options.allowCommitMismatch
+    allowCommitMismatch: options.allowCommitMismatch,
+    maxAgeHours: options.maxAgeHours
   });
 }
 

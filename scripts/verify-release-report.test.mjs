@@ -159,6 +159,18 @@ describe("release report verifier", () => {
 
     expect(failures).toContain('Store release report status must be passed, got "failed".');
   });
+
+  it("rejects stale store release orchestration evidence in a release report", () => {
+    restoreUiScreenshots();
+    const report = createReport({
+      includeStoreRelease: true,
+      storeReleaseFinishedAt: new Date(Date.now() - 48 * 3_600_000).toISOString()
+    });
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain("Store release report is 48h old, above the 24h commercial release gate.");
+  });
 });
 
 function reportOptions() {
@@ -174,7 +186,8 @@ function createReport({
   includeDashboardEvidence = false,
   includeStoreSubmission = false,
   includeStoreRelease = false,
-  storeReleaseStatus = "passed"
+  storeReleaseStatus = "passed",
+  storeReleaseFinishedAt
 } = {}) {
   writeUiEvidenceFile();
   const shouldIncludeDistribution = includeDistribution || includeStoreRelease;
@@ -188,7 +201,7 @@ function createReport({
     writeStoreSubmissionFixture();
   }
   if (includeStoreRelease) {
-    writeStoreReleaseFixture({ status: storeReleaseStatus });
+    writeStoreReleaseFixture({ status: storeReleaseStatus, finishedAt: storeReleaseFinishedAt });
   }
   const supportBundlePath = ".artifacts/release-report-test/support-bundle.json";
   const artifactFiles = [
@@ -452,7 +465,8 @@ function writeStoreSubmissionFixture() {
   );
 }
 
-function writeStoreReleaseFixture({ status = "passed" } = {}) {
+function writeStoreReleaseFixture({ status = "passed", finishedAt = new Date().toISOString() } = {}) {
+  const startedAt = new Date(Date.parse(finishedAt) - 1_000).toISOString();
   writeFile(
     ".artifacts/release-report-test/store-release-report.json",
     JSON.stringify(
@@ -461,8 +475,8 @@ function writeStoreReleaseFixture({ status = "passed" } = {}) {
         app: "MobileLiveCaster",
         type: storeReleaseReportType,
         status,
-        startedAt: new Date(Date.now() - 1_000).toISOString(),
-        finishedAt: new Date().toISOString(),
+        startedAt,
+        finishedAt,
         durationMs: 1,
         git: {
           commit: currentCommit(),

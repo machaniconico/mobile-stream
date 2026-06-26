@@ -258,7 +258,8 @@ function runStoreReleaseReportGate(report, options) {
       currentCommit: report.git.commit,
       allowDirty: options.allowDirty,
       allowCommitMismatch: false,
-      requirePassed: true
+      requirePassed: true,
+      maxAgeHours: options.maxAgeHours
     });
     if (failures.length > 0) {
       throw new GateError(failures.join("\n"), 1);
