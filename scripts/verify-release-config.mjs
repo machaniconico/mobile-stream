@@ -166,6 +166,9 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "validatePackagedDashboardEvidenceFreshness");
     expectIncludes(files.releaseEvidencePackageScript, "validatePackagedStoreSubmissionScreenshots");
     expectIncludes(files.releaseEvidencePackageScript, "validationEvidenceConsistentAppBuild");
+    expectIncludes(files.releaseEvidencePackageScript, "createCommercialReleaseGate");
+    expectIncludes(files.releaseEvidencePackageScript, "releaseReport?.options?.allowWarnings");
+    expectIncludes(files.releaseEvidencePackageScript, "Package support bundle commercial release gate");
     expectIncludes(files.releaseEvidencePackageScript, "dashboardScreenshotStatusMaxSkewMinutes");
     expectIncludes(files.releaseEvidencePackageScript, "Package ${label} references artifact not present in package");
     expectIncludes(files.releaseEvidencePackageScript, "Package ${label} metadata mismatch");

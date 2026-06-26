@@ -12,6 +12,7 @@ import {
 import { validateReport } from "./verify-release-report.mjs";
 import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
 import { storeSubmissionArtifactGroup, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
+import { createCommercialReleaseGate } from "./verify-commercial-release-bundle.mjs";
 
 export const releaseEvidencePackageManifestName = "release-evidence-package.json";
 export const releaseEvidencePackageType = "release-evidence-package-manifest";
@@ -218,6 +219,7 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
     failures.push("Packaged support bundle SHA-256 does not match the release report support bundle SHA-256.");
   }
   const supportBundle = readPackagedSupportBundle(manifest, packageDir, failures);
+  validatePackagedSupportBundleGate(supportBundle, report, maxAgeHours, failures);
 
   const evidenceGate = uiEvidenceReportGate(report);
   if (evidenceGate?.evidence?.sha256) {
@@ -269,6 +271,32 @@ function readPackagedSupportBundle(manifest, packageDir, failures) {
   } catch (error) {
     failures.push(`Package support bundle cannot be read: ${error instanceof Error ? error.message : String(error)}.`);
     return null;
+  }
+}
+
+function validatePackagedSupportBundleGate(supportBundle, releaseReport, maxAgeHours, failures) {
+  if (!supportBundle) {
+    return;
+  }
+  const releaseFinishedAt = Date.parse(String(releaseReport?.finishedAt || ""));
+  if (!Number.isFinite(releaseFinishedAt)) {
+    failures.push("Packaged release report finishedAt timestamp is missing or invalid.");
+    return;
+  }
+
+  const gate = createCommercialReleaseGate(supportBundle, {
+    now: new Date(releaseFinishedAt),
+    maxBundleAgeHours: maxAgeHours,
+    allowWarnings: Boolean(releaseReport?.options?.allowWarnings)
+  });
+  if (gate.canRelease) {
+    return;
+  }
+
+  failures.push(`Package support bundle commercial release gate must be ready, got ${gate.status}: ${gate.summary}`);
+  const blockingIssues = gate.issues.filter((issue) => issue.severity === "fail");
+  for (const issue of (blockingIssues.length > 0 ? blockingIssues : gate.issues).slice(0, 5)) {
+    failures.push(`Package support bundle ${issue.code}: ${issue.detail}`);
   }
 }
 

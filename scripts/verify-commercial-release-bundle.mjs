@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { argv, exit } from "node:process";
+import { pathToFileURL } from "node:url";
 
 const minimumSupportBundleVersion = 15;
 const defaultMaxBundleAgeHours = 24;
@@ -41,51 +42,55 @@ const sensitiveJsonPattern =
 const authorizationHeaderPattern = /\bAuthorization\s*:\s*(Bearer|OAuth)\s+([^\s,;]+)/gi;
 const bearerTokenPattern = /\b(Bearer|OAuth)\s+([A-Za-z0-9._~+/=-]{12,})/g;
 
-const args = argv.slice(2);
-const filePath = args.find((arg) => !arg.startsWith("--"));
-const allowWarnings = args.includes("--allow-warnings");
-const maxAgeArg = args.find((arg) => arg.startsWith("--max-age-hours="));
-const maxBundleAgeHours = maxAgeArg ? Number(maxAgeArg.split("=")[1]) : defaultMaxBundleAgeHours;
-
-if (!filePath || !Number.isFinite(maxBundleAgeHours) || maxBundleAgeHours < 1) {
-  console.error(
-    "Usage: npm run verify:commercial-release-bundle -- <support-bundle.json> [--max-age-hours=24] [--allow-warnings]"
-  );
-  exit(2);
+if (isDirectRun()) {
+  exit(run());
 }
 
-let bundle;
-try {
-  bundle = JSON.parse(readFileSync(filePath, "utf8"));
-} catch (error) {
-  console.error(`Commercial release bundle verification failed: could not read ${filePath}`);
-  console.error(error instanceof Error ? error.message : String(error));
-  exit(2);
+function run() {
+  const args = argv.slice(2);
+  const filePath = args.find((arg) => !arg.startsWith("--"));
+  const allowWarnings = args.includes("--allow-warnings");
+  const maxAgeArg = args.find((arg) => arg.startsWith("--max-age-hours="));
+  const maxBundleAgeHours = maxAgeArg ? Number(maxAgeArg.split("=")[1]) : defaultMaxBundleAgeHours;
+
+  if (!filePath || !Number.isFinite(maxBundleAgeHours) || maxBundleAgeHours < 1) {
+    console.error(
+      "Usage: npm run verify:commercial-release-bundle -- <support-bundle.json> [--max-age-hours=24] [--allow-warnings]"
+    );
+    return 2;
+  }
+
+  let bundle;
+  try {
+    bundle = JSON.parse(readFileSync(filePath, "utf8"));
+  } catch (error) {
+    console.error(`Commercial release bundle verification failed: could not read ${filePath}`);
+    console.error(error instanceof Error ? error.message : String(error));
+    return 2;
+  }
+
+  const gate = createCommercialReleaseGate(bundle, {
+    now: new Date(),
+    maxBundleAgeHours,
+    allowWarnings
+  });
+
+  console.log(`MobileLiveCaster Commercial Release Gate (${basename(filePath)})`);
+  console.log(`Status: ${gate.status}`);
+  console.log(`Can release: ${gate.canRelease ? "yes" : "no"}`);
+  console.log(`Bundle age: ${gate.bundleAgeHours === null ? "-" : `${gate.bundleAgeHours}h`}`);
+  console.log(`Evidence fingerprint: ${text(bundle?.summary?.validationEvidenceFingerprint) || "-"}`);
+  console.log(`Latest run fingerprint: ${text(bundle?.summary?.validationEvidenceLatestRunFingerprint) || "-"}`);
+  console.log(`Summary: ${gate.summary}`);
+  console.log(`Primary action: ${gate.primaryAction}`);
+  for (const issue of gate.issues) {
+    console.log(`- [${issue.severity.toUpperCase()}] ${issue.label}: ${issue.detail} Action: ${issue.action}`);
+  }
+
+  return gate.canRelease ? 0 : 1;
 }
 
-const gate = createGate(bundle, {
-  now: new Date(),
-  maxBundleAgeHours,
-  allowWarnings
-});
-
-console.log(`MobileLiveCaster Commercial Release Gate (${basename(filePath)})`);
-console.log(`Status: ${gate.status}`);
-console.log(`Can release: ${gate.canRelease ? "yes" : "no"}`);
-console.log(`Bundle age: ${gate.bundleAgeHours === null ? "-" : `${gate.bundleAgeHours}h`}`);
-console.log(`Evidence fingerprint: ${text(bundle?.summary?.validationEvidenceFingerprint) || "-"}`);
-console.log(`Latest run fingerprint: ${text(bundle?.summary?.validationEvidenceLatestRunFingerprint) || "-"}`);
-console.log(`Summary: ${gate.summary}`);
-console.log(`Primary action: ${gate.primaryAction}`);
-for (const issue of gate.issues) {
-  console.log(`- [${issue.severity.toUpperCase()}] ${issue.label}: ${issue.detail} Action: ${issue.action}`);
-}
-
-if (!gate.canRelease) {
-  exit(1);
-}
-
-function createGate(bundle, { now, maxBundleAgeHours, allowWarnings }) {
+export function createCommercialReleaseGate(bundle, { now, maxBundleAgeHours = defaultMaxBundleAgeHours, allowWarnings = false }) {
   const issues = [
     bundleIdentityIssue(bundle),
     supportBundleRedactionIssue(bundle),
@@ -118,6 +123,10 @@ function createGate(bundle, { now, maxBundleAgeHours, allowWarnings }) {
           issues[0]?.action ??
           "Review release warnings before publishing."
   };
+}
+
+function isDirectRun() {
+  return Boolean(argv[1] && import.meta.url === pathToFileURL(argv[1]).href);
 }
 
 function bundleIdentityIssue(bundle) {

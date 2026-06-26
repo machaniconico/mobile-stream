@@ -81,6 +81,60 @@ describe("release evidence package creator", () => {
     expect(validateReleaseEvidencePackage({ packageDir })).toEqual([]);
   });
 
+  it("rejects packaged support bundles that fail the commercial release gate", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedSupportBundlePath = `${packageDir}/support-bundle/support-bundle.json`;
+    const supportBundle = JSON.parse(readFileSync(packagedSupportBundlePath, "utf8"));
+    supportBundle.summary.validationEvidenceStatus = "blocked";
+    writeFileSync(packagedSupportBundlePath, JSON.stringify(supportBundle, null, 2));
+    refreshPackagedSupportBundleEvidence(packagedSupportBundlePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain("Package support bundle commercial release gate must be ready, got blocked:");
+    expect(failures.join("\n")).toContain("Package support bundle validation-evidence-not-ready");
+  });
+
+  it("rejects packaged support bundle warnings unless the RC report accepted warnings", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedSupportBundlePath = `${packageDir}/support-bundle/support-bundle.json`;
+    const supportBundle = JSON.parse(readFileSync(packagedSupportBundlePath, "utf8"));
+    supportBundle.summary.validationEvidenceStaleRunCount = 1;
+    writeFileSync(packagedSupportBundlePath, JSON.stringify(supportBundle, null, 2));
+    refreshPackagedSupportBundleEvidence(packagedSupportBundlePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain("Package support bundle commercial release gate must be ready, got warning:");
+    expect(failures.join("\n")).toContain("Package support bundle validation-evidence-stale-retained-runs");
+  });
+
+  it("allows packaged support bundle warnings when the RC report accepted warnings", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedSupportBundlePath = `${packageDir}/support-bundle/support-bundle.json`;
+    const supportBundle = JSON.parse(readFileSync(packagedSupportBundlePath, "utf8"));
+    supportBundle.summary.validationEvidenceStaleRunCount = 1;
+    writeFileSync(packagedSupportBundlePath, JSON.stringify(supportBundle, null, 2));
+    refreshPackagedSupportBundleEvidence(packagedSupportBundlePath);
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const releaseReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    releaseReport.options.allowWarnings = true;
+    writeFileSync(packagedReportPath, JSON.stringify(releaseReport, null, 2));
+    refreshPackagedSourceReportEvidence();
+
+    expect(validateReleaseEvidencePackage({ packageDir })).toEqual([]);
+  });
+
   it("rejects tampered packaged artifact files", () => {
     resetPackageDir();
     writeReportFixture();
@@ -584,20 +638,103 @@ function writeFixtureFiles() {
   writeFile(".artifacts/mobile-live-caster-mobile.png", pngBytes);
   writeFile(
     supportBundlePath,
-    JSON.stringify({
-      app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 15 },
-      summary: {
-        validationEvidenceAppBuildMismatch: false,
-        validationEvidenceConsistentAppBuild: "rc-1"
-      },
-      fixture: true
-    })
+    JSON.stringify(commercialSupportBundleFixture(), null, 2)
   );
   writeDistributionFixture();
   writeStoreReleaseFixture();
   writeDashboardEvidenceFixture();
   writeStoreSubmissionFixture();
   writeUiEvidenceFile();
+}
+
+function commercialSupportBundleFixture() {
+  return {
+    app: {
+      name: "MobileLiveCaster",
+      reportVersion: 1,
+      bundleVersion: 15
+    },
+    generatedAt: capturedAt,
+    fixture: true,
+    summary: {
+      preflightStatus: "ready",
+      publicLaunchStatus: "ready",
+      publicLaunchCanStart: true,
+      publicLaunchWarningCount: 0,
+      publicLaunchFailCount: 0,
+      publicLaunchStartLockBlocked: false,
+      publicLaunchStartLockSummary: "Public start lock is clear.",
+      publicLaunchStartLockAction: "Go Live while dashboard freshness remains current.",
+      launchBlockCount: 0,
+      launchWarningCount: 0,
+      validationStatus: "ready",
+      validationWarningCount: 0,
+      validationFailCount: 0,
+      validationPendingCount: 0,
+      validationRunbookStatus: "complete",
+      validationRunbookNextAction: "Archive this support bundle.",
+      validationEvidenceStatus: "ready",
+      validationEvidenceFingerprint: "sve1-ready",
+      validationEvidenceLatestRunFingerprint: "svr1-android",
+      validationEvidenceRunCount: 2,
+      validationEvidenceEligibleRunCount: 2,
+      validationEvidenceStaleRunCount: 0,
+      validationEvidenceIosPass: true,
+      validationEvidenceAndroidPass: true,
+      validationEvidencePhysicalDeviceIosPass: true,
+      validationEvidencePhysicalDeviceAndroidPass: true,
+      validationEvidenceAppBuildMismatch: false,
+      validationEvidenceConsistentAppBuild: "rc-1",
+      validationEvidenceNativeRuntimeIosPass: true,
+      validationEvidenceNativeRuntimeAndroidPass: true,
+      validationEvidenceMonitorHoldIosPass: true,
+      validationEvidenceMonitorHoldAndroidPass: true,
+      validationEvidenceFaceTrackingIosPass: true,
+      validationEvidenceFaceTrackingAndroidPass: true,
+      validationEvidenceAudioIosPass: true,
+      validationEvidenceAudioAndroidPass: true,
+      validationEvidenceChatReadoutIosPass: true,
+      validationEvidenceChatReadoutAndroidPass: true,
+      validationEvidencePlatformPublishingIosPass: true,
+      validationEvidencePlatformPublishingAndroidPass: true,
+      validationEvidenceRunManifest: [
+        supportBundleManifestRun("ios", "svr1-ios"),
+        supportBundleManifestRun("android", "svr1-android")
+      ]
+    }
+  };
+}
+
+function supportBundleManifestRun(devicePlatform, fingerprint) {
+  return {
+    id: `validation-${devicePlatform}`,
+    fingerprint,
+    createdAt: capturedAt,
+    ageDays: 0,
+    fresh: true,
+    matchesScope: true,
+    eligible: true,
+    devicePlatform,
+    deviceName: devicePlatform === "ios" ? "iPhone 15 Pro" : "Pixel 8 Pro",
+    osVersion: devicePlatform === "ios" ? "iOS 18.5" : "Android 15",
+    physicalDevice: true,
+    physicalDeviceStatus: "pass",
+    appBuild: "rc-1",
+    networkProfile: "private test",
+    targetPlatform: "YouTube Live",
+    transport: "rtmps",
+    result: "pass",
+    nativeRuntimeStatus: "pass",
+    monitorHoldStatus: "pass",
+    faceTrackingStatus: "pass",
+    audioStatus: "pass",
+    chatReadoutStatus: "pass",
+    qualityAutomationStatus: "pass",
+    platformPublishingStatus: "pass",
+    platformPublishingFreshnessStatus: "fresh",
+    summary: "Validation run retained.",
+    recommendation: "Keep this run with release evidence."
+  };
 }
 
 function writeReportFixture() {
@@ -1171,6 +1308,33 @@ function refreshPackageArtifactEntry(manifest, sourcePath, packagedPath) {
   const content = readFileSync(packagedPath);
   entry.bytes = content.byteLength;
   entry.sha256 = createHash("sha256").update(content).digest("hex");
+}
+
+function refreshPackagedSupportBundleEvidence(packagedSupportBundlePath) {
+  const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+  const supportBundleContent = readFileSync(packagedSupportBundlePath);
+  const supportBundleSha256 = createHash("sha256").update(supportBundleContent).digest("hex");
+
+  const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+  packagedReport.supportBundle.sha256 = supportBundleSha256;
+  writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+  refreshPackagedSourceReportEvidence();
+
+  const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.supportBundle.bytes = supportBundleContent.byteLength;
+  manifest.supportBundle.sha256 = supportBundleSha256;
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+}
+
+function refreshPackagedSourceReportEvidence() {
+  const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+  const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+  manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 }
 
 function refreshPackagedChecklistEvidence(packagedChecklistPath) {
