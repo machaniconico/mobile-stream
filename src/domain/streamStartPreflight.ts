@@ -145,11 +145,17 @@ const readinessSeverity = (
   if (issue.severity === "error") {
     return "block";
   }
-  if (issue.code === "scene-live2d-preview" && isPlatformVisibleProductionTarget(profile)) {
+  if (isReleaseCriticalSceneReadinessIssue(issue) && isPlatformVisibleProductionTarget(profile)) {
     return "block";
   }
   return "warning";
 };
+
+const isReleaseCriticalSceneReadinessIssue = (issue: ReadinessIssue): boolean =>
+  issue.code === "scene-live2d-preview" ||
+  issue.code === "scene-native-composition-preview-only-overlays" ||
+  issue.code === "scene-native-composition-native-overlays" ||
+  issue.code === "scene-native-composition-no-screen-capture";
 
 const isPlatformVisibleProductionTarget = (profile: StreamStartPreflightInput["profile"]): boolean => {
   if (!profile) {
@@ -193,6 +199,15 @@ const readinessLabel = (issue: ReadinessIssue): string => {
 const readinessRecommendation = (issue: ReadinessIssue): string => {
   if (issue.code === "scene-live2d-preview") {
     return "Use a prepared PNGTuber source for platform-visible production streams until native Live2D Cubism rendering is integrated and validated.";
+  }
+  if (issue.code === "scene-native-composition-native-overlays") {
+    return "Prepare PNGTuber and image assets with the mobile asset picker so iOS ReplayKit can load App Group file URLs before public or Twitch launch.";
+  }
+  if (issue.code === "scene-native-composition-preview-only-overlays") {
+    return "Keep release-critical output to supported overlays above the screen source, and remove preview-only underlays or unsupported sources before public or Twitch launch.";
+  }
+  if (issue.code === "scene-native-composition-no-screen-capture") {
+    return "Enable a screen source and confirm the native compositor output before public or Twitch launch.";
   }
   switch (issue.field) {
     case "serverUrl":

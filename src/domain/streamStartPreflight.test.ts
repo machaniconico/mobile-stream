@@ -84,6 +84,19 @@ const createLive2DScene = (): SceneDocument =>
         : source
   );
 
+const createHostSandboxAvatarScene = (): SceneDocument =>
+  updateSource(
+    setVisibility(createDefaultScene(), "source-background", false),
+    "source-avatar",
+    (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...source,
+            imageUri: "file:///var/mobile/Containers/Data/Application/APP/Documents/avatar.png"
+          }
+        : source
+  );
+
 describe("stream start preflight", () => {
   it("blocks start when readiness has errors", () => {
     const report = createStreamStartPreflightReport({
@@ -256,6 +269,88 @@ describe("stream start preflight", () => {
     expect(report.canStart).toBe(false);
     expect(report.status).toBe("blocked");
     expect(report.blocks.map((issue) => issue.code)).toContain("readiness-scene-live2d-preview");
+  });
+
+  it("blocks public YouTube launches when native still-image assets are not iOS extension-readable", () => {
+    const profile = {
+      ...validProfile(),
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "public" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "stream-id",
+        youtubeBroadcastStatus: "testing",
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createHostSandboxAvatarScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.status).toBe("blocked");
+    expect(report.blocks).toContainEqual(
+      expect.objectContaining({
+        code: "readiness-scene-native-composition-native-overlays",
+        area: "scene",
+        recommendation: expect.stringContaining("App Group")
+      })
+    );
+  });
+
+  it("keeps private native still-image asset checks as warnings", () => {
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createHostSandboxAvatarScene(), validProfile()),
+      streamStatus: "idle",
+      profile: validProfile(),
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      }
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("warning");
+    expect(report.warnings.map((issue) => issue.code)).toContain("readiness-scene-native-composition-native-overlays");
+  });
+
+  it("blocks Twitch launches when native still-image assets are not iOS extension-readable", () => {
+    const baseProfile = applyDestinationPreset(validProfile(), "twitch-auto");
+    const profile = {
+      ...baseProfile,
+      destination: {
+        ...baseProfile.destination,
+        streamKey: "placeholder-twitch-key"
+      },
+      platformPublishing: {
+        ...baseProfile.platformPublishing,
+        twitchLiveStatus: "offline",
+        twitchStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createHostSandboxAvatarScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: twitchCredential([TWITCH_CHANNEL_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.status).toBe("blocked");
+    expect(report.blocks.map((issue) => issue.code)).toContain("readiness-scene-native-composition-native-overlays");
   });
 
   it("warns when platform-visible YouTube status has not been refreshed before launch", () => {
