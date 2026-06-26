@@ -13,6 +13,7 @@ import { validateDistributionArtifactsInReport } from "./verify-distribution-art
 import { validateDashboardEvidenceInReport } from "./verify-platform-dashboard-evidence.mjs";
 import { validateStoreSubmissionInReport } from "./verify-store-submission-checklist.mjs";
 import { validateStoreReleaseReportInReleaseReport } from "./release-store-build.mjs";
+import { createCommercialReleaseGate } from "./verify-commercial-release-bundle.mjs";
 
 const requiredUiViewportNames = ["desktop", "mobile"];
 const requiredReactNativeArtifacts = [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"];
@@ -110,7 +111,7 @@ export function validateReport(report, options) {
   validateReportAge(report, options, fail);
   validateGitState(report, options, fail);
   validateGates(report, options, fail);
-  validateSupportBundle(report, fail);
+  validateSupportBundle(report, options, fail);
   validateArtifacts(report, options, fail);
   validateUiEvidence(report, options, fail);
 
@@ -180,7 +181,7 @@ function validateGates(report, options, fail) {
   }
 }
 
-function validateSupportBundle(report, fail) {
+function validateSupportBundle(report, options, fail) {
   const bundle = report?.supportBundle;
   if (!bundle?.sha256 || !isSha256(bundle.sha256)) {
     fail("Support bundle SHA-256 is missing or invalid.");
@@ -199,6 +200,34 @@ function validateSupportBundle(report, fail) {
   const actual = fileSha256(bundlePath);
   if (actual !== bundle.sha256) {
     fail(`Support bundle SHA-256 mismatch for ${bundlePath}.`);
+    return;
+  }
+
+  let supportBundle;
+  try {
+    supportBundle = readJsonFile(bundlePath, "support bundle");
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+    return;
+  }
+
+  const releaseFinishedAt = Date.parse(String(report?.finishedAt || ""));
+  if (!Number.isFinite(releaseFinishedAt)) {
+    return;
+  }
+  const gate = createCommercialReleaseGate(supportBundle, {
+    now: new Date(releaseFinishedAt),
+    maxBundleAgeHours: options.maxAgeHours,
+    allowWarnings: Boolean(report?.options?.allowWarnings)
+  });
+  if (gate.canRelease) {
+    return;
+  }
+
+  fail(`Release report support bundle commercial release gate must be ready, got ${gate.status}: ${gate.summary}`);
+  const blockingIssues = gate.issues.filter((issue) => issue.severity === "fail");
+  for (const issue of (blockingIssues.length > 0 ? blockingIssues : gate.issues).slice(0, 5)) {
+    fail(`Release report support bundle ${issue.code}: ${issue.detail}`);
   }
 }
 

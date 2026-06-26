@@ -25,6 +25,7 @@ const files = {
   storeSubmissionDraftScript: read("scripts/create-store-submission-draft.mjs"),
   storeRealDeviceScreenshotsScript: read("scripts/import-store-real-device-screenshots.mjs"),
   releaseCandidateScript: read("scripts/verify-release-candidate.mjs"),
+  releaseReportScript: read("scripts/verify-release-report.mjs"),
   releaseEvidencePackageScript: read("scripts/create-release-evidence-package.mjs"),
   iosReleaseConfigScript: read("scripts/ios-release-config.mjs"),
   createIosExportOptionsScript: read("scripts/create-ios-export-options.mjs"),
@@ -169,6 +170,9 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "createCommercialReleaseGate");
     expectIncludes(files.releaseEvidencePackageScript, "releaseReport?.options?.allowWarnings");
     expectIncludes(files.releaseEvidencePackageScript, "Package support bundle commercial release gate");
+    expectIncludes(files.releaseReportScript, "createCommercialReleaseGate");
+    expectIncludes(files.releaseReportScript, "report?.options?.allowWarnings");
+    expectIncludes(files.releaseReportScript, "Release report support bundle commercial release gate");
     expectIncludes(files.releaseEvidencePackageScript, "dashboardScreenshotStatusMaxSkewMinutes");
     expectIncludes(files.releaseEvidencePackageScript, "Package ${label} references artifact not present in package");
     expectIncludes(files.releaseEvidencePackageScript, "Package ${label} metadata mismatch");

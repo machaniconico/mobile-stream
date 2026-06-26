@@ -199,6 +199,7 @@ function approvalOptions() {
 }
 
 function createReport() {
+  writeSupportBundleFixture();
   writeUiEvidenceFile();
   const supportBundlePath = ".artifacts/store-approval-test/support-bundle.json";
   return {
@@ -307,18 +308,101 @@ function writeFixtureFiles() {
   writeDistributionFixture();
   writeStoreReleaseFixture();
   writeDashboardEvidenceFixture();
-  writeFile(
-    ".artifacts/store-approval-test/support-bundle.json",
-    JSON.stringify({
-      app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 15 },
-      summary: {
-        validationEvidenceAppBuildMismatch: false,
-        validationEvidenceConsistentAppBuild: appBuild
-      }
-    })
-  );
+  writeSupportBundleFixture();
   writeStoreSubmissionFixture();
   writeUiEvidenceFile();
+}
+
+function writeSupportBundleFixture() {
+  writeFile(
+    ".artifacts/store-approval-test/support-bundle.json",
+    JSON.stringify(
+      {
+        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 15 },
+        generatedAt: new Date().toISOString(),
+        summary: {
+          preflightStatus: "ready",
+          publicLaunchStatus: "ready",
+          publicLaunchCanStart: true,
+          publicLaunchWarningCount: 0,
+          publicLaunchFailCount: 0,
+          publicLaunchStartLockBlocked: false,
+          publicLaunchStartLockSummary: "Public start lock is clear.",
+          publicLaunchStartLockAction: "Go Live while dashboard freshness remains current.",
+          launchBlockCount: 0,
+          launchWarningCount: 0,
+          validationStatus: "ready",
+          validationWarningCount: 0,
+          validationFailCount: 0,
+          validationPendingCount: 0,
+          validationRunbookStatus: "complete",
+          validationRunbookNextAction: "Archive this support bundle.",
+          validationEvidenceStatus: "ready",
+          validationEvidenceFingerprint: "sve1-ready",
+          validationEvidenceLatestRunFingerprint: "svr1-android",
+          validationEvidenceRunCount: 2,
+          validationEvidenceEligibleRunCount: 2,
+          validationEvidenceStaleRunCount: 0,
+          validationEvidenceIosPass: true,
+          validationEvidenceAndroidPass: true,
+          validationEvidencePhysicalDeviceIosPass: true,
+          validationEvidencePhysicalDeviceAndroidPass: true,
+          validationEvidenceAppBuildMismatch: false,
+          validationEvidenceConsistentAppBuild: appBuild,
+          validationEvidenceNativeRuntimeIosPass: true,
+          validationEvidenceNativeRuntimeAndroidPass: true,
+          validationEvidenceMonitorHoldIosPass: true,
+          validationEvidenceMonitorHoldAndroidPass: true,
+          validationEvidenceFaceTrackingIosPass: true,
+          validationEvidenceFaceTrackingAndroidPass: true,
+          validationEvidenceAudioIosPass: true,
+          validationEvidenceAudioAndroidPass: true,
+          validationEvidenceChatReadoutIosPass: true,
+          validationEvidenceChatReadoutAndroidPass: true,
+          validationEvidencePlatformPublishingIosPass: true,
+          validationEvidencePlatformPublishingAndroidPass: true,
+          validationEvidenceRunManifest: [
+            supportBundleManifestRun("ios", "svr1-ios"),
+            supportBundleManifestRun("android", "svr1-android")
+          ]
+        }
+      },
+      null,
+      2
+    )
+  );
+}
+
+function supportBundleManifestRun(devicePlatform, fingerprint) {
+  return {
+    id: `validation-${devicePlatform}`,
+    fingerprint,
+    createdAt: new Date().toISOString(),
+    ageDays: 0,
+    fresh: true,
+    matchesScope: true,
+    eligible: true,
+    devicePlatform,
+    deviceName: devicePlatform === "ios" ? "iPhone 15 Pro" : "Pixel 8 Pro",
+    osVersion: devicePlatform === "ios" ? "iOS 18.5" : "Android 15",
+    physicalDevice: true,
+    physicalDeviceStatus: "pass",
+    appBuild,
+    networkProfile: "private test",
+    targetPlatform: "YouTube Live",
+    transport: "rtmps",
+    result: "pass",
+    nativeRuntimeStatus: "pass",
+    monitorHoldStatus: "pass",
+    faceTrackingStatus: "pass",
+    audioStatus: "pass",
+    chatReadoutStatus: "pass",
+    qualityAutomationStatus: "pass",
+    platformPublishingStatus: "pass",
+    platformPublishingFreshnessStatus: "fresh",
+    summary: "Validation run retained.",
+    recommendation: "Keep this run with release evidence."
+  };
 }
 
 function writeStoreSubmissionFixture({

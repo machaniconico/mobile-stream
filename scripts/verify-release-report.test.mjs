@@ -63,6 +63,52 @@ describe("release report verifier", () => {
     expect(failures).toEqual([]);
   });
 
+  it("rejects release reports whose support bundle fails the commercial release gate", () => {
+    const report = createReport({
+      supportBundlePatch: {
+        summary: {
+          validationEvidenceStatus: "blocked"
+        }
+      }
+    });
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures.join("\n")).toContain("Release report support bundle commercial release gate must be ready, got blocked:");
+    expect(failures.join("\n")).toContain("Release report support bundle validation-evidence-not-ready");
+  });
+
+  it("rejects support bundle warnings unless the RC report accepted warnings", () => {
+    const report = createReport({
+      supportBundlePatch: {
+        summary: {
+          validationEvidenceStaleRunCount: 1
+        }
+      }
+    });
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures.join("\n")).toContain("Release report support bundle commercial release gate must be ready, got warning:");
+    expect(failures.join("\n")).toContain("Release report support bundle validation-evidence-stale-retained-runs");
+  });
+
+  it("allows support bundle warnings when the RC report accepted warnings", () => {
+    const failures = validateReport(
+      createReport({
+        allowWarnings: true,
+        supportBundlePatch: {
+          summary: {
+            validationEvidenceStaleRunCount: 1
+          }
+        }
+      }),
+      reportOptions()
+    );
+
+    expect(failures).toEqual([]);
+  });
+
   it("rejects release reports when an artifact hash no longer matches the workspace file", () => {
     const report = createReport();
     report.artifacts.files[0].sha256 = "0".repeat(64);
@@ -187,8 +233,11 @@ function createReport({
   includeStoreSubmission = false,
   includeStoreRelease = false,
   storeReleaseStatus = "passed",
-  storeReleaseFinishedAt
+  storeReleaseFinishedAt,
+  allowWarnings = false,
+  supportBundlePatch = {}
 } = {}) {
+  writeSupportBundleFixture(supportBundlePatch);
   writeUiEvidenceFile();
   const shouldIncludeDistribution = includeDistribution || includeStoreRelease;
   if (shouldIncludeDistribution) {
@@ -234,6 +283,7 @@ function createReport({
     },
     options: {
       allowDirty: true,
+      allowWarnings,
       skipUi: true
     },
     supportBundle: {
@@ -287,8 +337,111 @@ function writeFixtureFiles() {
   writeFile(".artifacts/rn/index.android.bundle", "android bundle");
   writeFile(".artifacts/mobile-live-caster-desktop.png", pngBytes);
   writeFile(".artifacts/mobile-live-caster-mobile.png", pngBytes);
-  writeFile(".artifacts/release-report-test/support-bundle.json", JSON.stringify({ app: "MobileLiveCaster" }));
+  writeSupportBundleFixture();
   writeUiEvidenceFile();
+}
+
+function writeSupportBundleFixture(patch = {}) {
+  writeFile(
+    ".artifacts/release-report-test/support-bundle.json",
+    JSON.stringify(commercialSupportBundleFixture(patch), null, 2)
+  );
+}
+
+function commercialSupportBundleFixture(patch = {}) {
+  const summary = {
+    preflightStatus: "ready",
+    publicLaunchStatus: "ready",
+    publicLaunchCanStart: true,
+    publicLaunchWarningCount: 0,
+    publicLaunchFailCount: 0,
+    publicLaunchStartLockBlocked: false,
+    publicLaunchStartLockSummary: "Public start lock is clear.",
+    publicLaunchStartLockAction: "Go Live while dashboard freshness remains current.",
+    launchBlockCount: 0,
+    launchWarningCount: 0,
+    validationStatus: "ready",
+    validationWarningCount: 0,
+    validationFailCount: 0,
+    validationPendingCount: 0,
+    validationRunbookStatus: "complete",
+    validationRunbookNextAction: "Archive this support bundle.",
+    validationEvidenceStatus: "ready",
+    validationEvidenceFingerprint: "sve1-ready",
+    validationEvidenceLatestRunFingerprint: "svr1-android",
+    validationEvidenceRunCount: 2,
+    validationEvidenceEligibleRunCount: 2,
+    validationEvidenceStaleRunCount: 0,
+    validationEvidenceIosPass: true,
+    validationEvidenceAndroidPass: true,
+    validationEvidencePhysicalDeviceIosPass: true,
+    validationEvidencePhysicalDeviceAndroidPass: true,
+    validationEvidenceAppBuildMismatch: false,
+    validationEvidenceConsistentAppBuild: "rc-1",
+    validationEvidenceNativeRuntimeIosPass: true,
+    validationEvidenceNativeRuntimeAndroidPass: true,
+    validationEvidenceMonitorHoldIosPass: true,
+    validationEvidenceMonitorHoldAndroidPass: true,
+    validationEvidenceFaceTrackingIosPass: true,
+    validationEvidenceFaceTrackingAndroidPass: true,
+    validationEvidenceAudioIosPass: true,
+    validationEvidenceAudioAndroidPass: true,
+    validationEvidenceChatReadoutIosPass: true,
+    validationEvidenceChatReadoutAndroidPass: true,
+    validationEvidencePlatformPublishingIosPass: true,
+    validationEvidencePlatformPublishingAndroidPass: true,
+    validationEvidenceRunManifest: [
+      supportBundleManifestRun("ios", "svr1-ios"),
+      supportBundleManifestRun("android", "svr1-android")
+    ]
+  };
+
+  return {
+    app: {
+      name: "MobileLiveCaster",
+      reportVersion: 1,
+      bundleVersion: 15
+    },
+    generatedAt: new Date().toISOString(),
+    fixture: true,
+    ...patch,
+    summary: {
+      ...summary,
+      ...(patch.summary ?? {})
+    }
+  };
+}
+
+function supportBundleManifestRun(devicePlatform, fingerprint) {
+  return {
+    id: `validation-${devicePlatform}`,
+    fingerprint,
+    createdAt: new Date().toISOString(),
+    ageDays: 0,
+    fresh: true,
+    matchesScope: true,
+    eligible: true,
+    devicePlatform,
+    deviceName: devicePlatform === "ios" ? "iPhone 15 Pro" : "Pixel 8 Pro",
+    osVersion: devicePlatform === "ios" ? "iOS 18.5" : "Android 15",
+    physicalDevice: true,
+    physicalDeviceStatus: "pass",
+    appBuild: "rc-1",
+    networkProfile: "private test",
+    targetPlatform: "YouTube Live",
+    transport: "rtmps",
+    result: "pass",
+    nativeRuntimeStatus: "pass",
+    monitorHoldStatus: "pass",
+    faceTrackingStatus: "pass",
+    audioStatus: "pass",
+    chatReadoutStatus: "pass",
+    qualityAutomationStatus: "pass",
+    platformPublishingStatus: "pass",
+    platformPublishingFreshnessStatus: "fresh",
+    summary: "Validation run retained.",
+    recommendation: "Keep this run with release evidence."
+  };
 }
 
 function restoreUiScreenshots() {
