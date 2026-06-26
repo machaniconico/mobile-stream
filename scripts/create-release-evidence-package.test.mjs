@@ -238,6 +238,29 @@ describe("release evidence package creator", () => {
     );
   });
 
+  it("rejects packaged store submission screenshots from a different validation build", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedChecklistPath = `${packageDir}/artifacts/${storeSubmissionChecklistPath}`;
+    const checklist = JSON.parse(readFileSync(packagedChecklistPath, "utf8"));
+    for (const screenshot of checklist.screenshots) {
+      screenshot.appBuild = "rc-2";
+    }
+    writeFileSync(packagedChecklistPath, JSON.stringify(checklist, null, 2));
+    refreshPackagedChecklistEvidence(packagedChecklistPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package store submission screenshot .artifacts/release-evidence-package-test/ios-store.png app build rc-2 does not match validation evidence build rc-1."
+    );
+    expect(failures).toContain(
+      "Package store submission screenshot .artifacts/release-evidence-package-test/android-store.png app build rc-2 does not match validation evidence build rc-1."
+    );
+  });
+
   it("rejects packaged dashboard evidence manifests without screenshot capture timestamps", () => {
     resetPackageDir();
     writeReportFixture();
@@ -559,7 +582,17 @@ function writeFixtureFiles() {
   writeFile(".artifacts/rn/index.android.bundle", "android bundle");
   writeFile(".artifacts/mobile-live-caster-desktop.png", pngBytes);
   writeFile(".artifacts/mobile-live-caster-mobile.png", pngBytes);
-  writeFile(supportBundlePath, JSON.stringify({ app: "MobileLiveCaster", fixture: true }));
+  writeFile(
+    supportBundlePath,
+    JSON.stringify({
+      app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 15 },
+      summary: {
+        validationEvidenceAppBuildMismatch: false,
+        validationEvidenceConsistentAppBuild: "rc-1"
+      },
+      fixture: true
+    })
+  );
   writeDistributionFixture();
   writeStoreReleaseFixture();
   writeDashboardEvidenceFixture();

@@ -217,6 +217,7 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
   if (report?.supportBundle?.sha256 && report.supportBundle.sha256 !== manifest.supportBundle.sha256) {
     failures.push("Packaged support bundle SHA-256 does not match the release report support bundle SHA-256.");
   }
+  const supportBundle = readPackagedSupportBundle(manifest, packageDir, failures);
 
   const evidenceGate = uiEvidenceReportGate(report);
   if (evidenceGate?.evidence?.sha256) {
@@ -232,7 +233,7 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
     (manifest.artifacts || []).map((artifact) => [`${artifact.group}:${artifact.sourcePath}`, artifact])
   );
   validateRequiredCommercialPackageArtifacts(report, manifest, reportArtifacts, packagedArtifacts, failures);
-  validatePackagedCommercialManifests(packageDir, packagedArtifacts, failures, { releaseReport: report, maxAgeHours });
+  validatePackagedCommercialManifests(packageDir, packagedArtifacts, failures, { releaseReport: report, maxAgeHours, supportBundle });
   validatePackagedStoreReleaseReport({ report, packageDir, packagedArtifacts, failures, maxAgeHours });
   for (const packagedArtifact of manifest.artifacts || []) {
     const key = `${packagedArtifact.group}:${packagedArtifact.sourcePath}`;
@@ -250,6 +251,24 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
     if (packagedArtifact.bytes !== reportArtifact.bytes || packagedArtifact.sha256 !== reportArtifact.sha256) {
       failures.push(`Packaged artifact metadata mismatch for ${reportArtifact.path}.`);
     }
+  }
+}
+
+function readPackagedSupportBundle(manifest, packageDir, failures) {
+  if (!manifest.supportBundle?.packagedPath || !safeRelativePath(manifest.supportBundle.packagedPath)) {
+    failures.push("Package support bundle path is missing or unsafe.");
+    return null;
+  }
+  const path = resolve(packageDir, manifest.supportBundle.packagedPath);
+  if (!isInsideDirectory(path, packageDir) || !existsSync(path) || !statSync(path).isFile()) {
+    failures.push(`Package support bundle file does not exist: ${manifest.supportBundle.packagedPath}.`);
+    return null;
+  }
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    failures.push(`Package support bundle cannot be read: ${error instanceof Error ? error.message : String(error)}.`);
+    return null;
   }
 }
 
@@ -276,7 +295,7 @@ function validateRequiredCommercialPackageArtifacts(report, manifest, reportArti
   }
 }
 
-function validatePackagedCommercialManifests(packageDir, packagedArtifacts, failures, { releaseReport, maxAgeHours }) {
+function validatePackagedCommercialManifests(packageDir, packagedArtifacts, failures, { releaseReport, maxAgeHours, supportBundle }) {
   const distributionManifest = readPackagedJsonArtifact({
     packagedArtifacts,
     group: distributionArtifactGroup,
@@ -310,7 +329,11 @@ function validatePackagedCommercialManifests(packageDir, packagedArtifacts, fail
     failures
   });
   if (storeSubmissionChecklist) {
-    validatePackagedStoreSubmissionChecklist(storeSubmissionChecklist, packagedArtifacts, failures, { releaseReport, maxAgeHours });
+    validatePackagedStoreSubmissionChecklist(storeSubmissionChecklist, packagedArtifacts, failures, {
+      releaseReport,
+      maxAgeHours,
+      supportBundle
+    });
   }
 }
 
@@ -456,7 +479,12 @@ function validatePackagedDashboardEvidenceFreshness(records, releaseReport, maxA
   }
 }
 
-function validatePackagedStoreSubmissionChecklist(storeSubmissionChecklist, packagedArtifacts, failures, { releaseReport, maxAgeHours }) {
+function validatePackagedStoreSubmissionChecklist(
+  storeSubmissionChecklist,
+  packagedArtifacts,
+  failures,
+  { releaseReport, maxAgeHours, supportBundle }
+) {
   if (
     storeSubmissionChecklist?.app !== "MobileLiveCaster" ||
     storeSubmissionChecklist?.type !== "store-submission-checklist-manifest" ||
@@ -492,14 +520,20 @@ function validatePackagedStoreSubmissionChecklist(storeSubmissionChecklist, pack
   for (const record of records) {
     validatePackagedManifestRecord(packagedArtifacts, storeSubmissionArtifactGroup, record, "store submission checklist", failures);
   }
-  validatePackagedStoreSubmissionScreenshots(storeSubmissionChecklist.screenshots || [], releaseReport, maxAgeHours, failures);
+  validatePackagedStoreSubmissionScreenshots(storeSubmissionChecklist.screenshots || [], releaseReport, maxAgeHours, supportBundle, failures);
 }
 
-function validatePackagedStoreSubmissionScreenshots(screenshots, releaseReport, maxAgeHours, failures) {
+function validatePackagedStoreSubmissionScreenshots(screenshots, releaseReport, maxAgeHours, supportBundle, failures) {
   const releaseFinishedAt = Date.parse(String(releaseReport?.finishedAt || ""));
   if (!Number.isFinite(releaseFinishedAt)) {
     failures.push("Packaged release report finishedAt timestamp is missing or invalid.");
     return;
+  }
+  const expectedBuild = stringValue(supportBundle?.summary?.validationEvidenceConsistentAppBuild);
+  if (supportBundle?.summary?.validationEvidenceAppBuildMismatch === true) {
+    failures.push("Package support bundle validation evidence has an app build mismatch; packaged store screenshots cannot be approved.");
+  } else if (!expectedBuild) {
+    failures.push("Package support bundle validation evidence consistent app build is missing for packaged store screenshot approval.");
   }
   for (const screenshot of screenshots) {
     if (screenshot?.kind !== "screenshot") {
@@ -513,6 +547,10 @@ function validatePackagedStoreSubmissionScreenshots(screenshots, releaseReport, 
     }
     if (!stringValue(screenshot.appBuild)) {
       failures.push(`Package store submission screenshot ${screenshot.path || "-"} must include an app build/version.`);
+    } else if (expectedBuild && normalizeBuildLabel(screenshot.appBuild) !== normalizeBuildLabel(expectedBuild)) {
+      failures.push(
+        `Package store submission screenshot ${screenshot.path || "-"} app build ${stringValue(screenshot.appBuild)} does not match validation evidence build ${expectedBuild}.`
+      );
     }
     if (!validTimestamp(screenshot.capturedAt)) {
       failures.push(`Package store submission screenshot ${screenshot.path || "-"} must include a valid capturedAt timestamp.`);
@@ -1107,6 +1145,10 @@ function validTimestamp(value) {
 
 function stringValue(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeBuildLabel(value) {
+  return stringValue(value).replace(/\s+/g, " ").toLowerCase();
 }
 
 function isInsideDirectory(path, directory) {
