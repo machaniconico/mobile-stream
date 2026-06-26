@@ -327,9 +327,7 @@ export const createStreamValidationRun = ({
   const sanitizedAppBuild = sanitizeStoredText(appBuild, secrets) || "-";
   const sanitizedNetworkProfile = sanitizeStoredText(networkProfile, secrets) || "private test";
   const physicalDevice = createPhysicalDeviceEvidence(devicePlatform, sanitizedDeviceName, sanitizedOsVersion, secrets);
-  const nativeRuntime =
-    createNativeRuntimeSessionSummary(diagnostics.nativeRuntime) ??
-    normalizeNativeRuntimeSessionSummary(diagnostics.session.lastSummary?.nativeRuntime);
+  const nativeRuntime = createValidationNativeRuntimeSummary(diagnostics);
   const monitorHold = createMonitorHoldValidationSummary(diagnostics, secrets);
   const faceTracking = createFaceTrackingValidationSummary(diagnostics.faceTracking, secrets);
   const audio = createAudioValidationSummary(diagnostics, audioMonitorTuning, secrets);
@@ -1037,6 +1035,87 @@ const isNativeRuntimeEvidencePass = (
   (nativeRuntime.compositionStatus === "applied" || nativeRuntime.compositionStatus === "screen-only") &&
   nativeRuntime.stillImageAssetMissingCount === 0 &&
   nativeRuntime.stillImageAssetLoadedCount >= nativeRuntime.stillImageAssetCount;
+
+const createValidationNativeRuntimeSummary = (
+  diagnostics: StreamDiagnostics
+): StreamSessionNativeRuntimeSummary | null => {
+  const nativeRuntime =
+    createNativeRuntimeSessionSummary(diagnostics.nativeRuntime) ??
+    normalizeNativeRuntimeSessionSummary(diagnostics.session.lastSummary?.nativeRuntime);
+  if (!nativeRuntime) {
+    return null;
+  }
+  return alignNativeRuntimeWithComposition(nativeRuntime, diagnostics.nativeComposition);
+};
+
+const alignNativeRuntimeWithComposition = (
+  nativeRuntime: StreamSessionNativeRuntimeSummary,
+  nativeComposition: StreamDiagnostics["nativeComposition"]
+): StreamSessionNativeRuntimeSummary => {
+  if (nativeComposition.status === "fail") {
+    return addNativeRuntimeCompositionReview(
+      nativeRuntime,
+      "fail",
+      `Native composition preflight failed: ${nativeComposition.summary}`,
+      nativeComposition.recommendedNextStep
+    );
+  }
+
+  if (nativeComposition.status === "warn") {
+    return addNativeRuntimeCompositionReview(
+      nativeRuntime,
+      "warn",
+      `Native composition preflight needs review: ${nativeComposition.summary}`,
+      nativeComposition.recommendedNextStep
+    );
+  }
+
+  if (nativeComposition.coverage !== "native-overlays") {
+    return nativeRuntime;
+  }
+
+  const expectedStillImageCount = nativeComposition.stillImageOverlayCount;
+  const overlayApplied = nativeRuntime.compositionStatus === "applied";
+  const runtimeDeclaredEnoughAssets = nativeRuntime.stillImageAssetCount >= expectedStillImageCount;
+  const runtimeLoadedEnoughAssets = nativeRuntime.stillImageAssetLoadedCount >= expectedStillImageCount;
+
+  if (overlayApplied && runtimeDeclaredEnoughAssets && runtimeLoadedEnoughAssets) {
+    return nativeRuntime;
+  }
+
+  return addNativeRuntimeCompositionReview(
+    nativeRuntime,
+    "warn",
+    `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded.`,
+    "Repeat physical validation with the current scene and retain native compositor telemetry showing overlays applied and all required still-image assets loaded."
+  );
+};
+
+const addNativeRuntimeCompositionReview = (
+  nativeRuntime: StreamSessionNativeRuntimeSummary,
+  status: StreamSessionNativeRuntimeSummary["status"],
+  summary: string,
+  recommendation: string
+): StreamSessionNativeRuntimeSummary => ({
+  ...nativeRuntime,
+  status: strongestNativeRuntimeStatus(nativeRuntime.status, status),
+  issueCount: nativeRuntime.issueCount + 1,
+  summary: `${nativeRuntime.summary} ${summary}`,
+  recommendation: nativeRuntime.status === "fail" ? nativeRuntime.recommendation : recommendation
+});
+
+const strongestNativeRuntimeStatus = (
+  current: StreamSessionNativeRuntimeSummary["status"],
+  next: StreamSessionNativeRuntimeSummary["status"]
+): StreamSessionNativeRuntimeSummary["status"] => {
+  if (current === "fail" || next === "fail") {
+    return "fail";
+  }
+  if (current === "warn" || next === "warn") {
+    return "warn";
+  }
+  return "pass";
+};
 
 const isMonitorHoldEvidencePass = (monitorHold: StreamValidationMonitorHoldSummary | null | undefined): boolean =>
   monitorHold?.status === "pass" &&

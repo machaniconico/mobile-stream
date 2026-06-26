@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultStudioProfile, type StudioProfile } from "./profiles";
 import { createReadinessReport } from "./readiness";
-import { createDefaultScene, defaultAvatarMotion, updateSource } from "./scene";
+import { createDefaultScene, defaultAvatarMotion, setVisibility, updateSource } from "./scene";
 import { createStreamDiagnostics } from "./streamDiagnostics";
 import { createStreamSessionSummary } from "./streamSessionSummary";
 import {
@@ -162,6 +162,16 @@ const nativeMonitorRuntimeWithLatency = (
     }
   };
 };
+const nativeReadyAvatarUri = "file:///private/var/mobile/Containers/Shared/AppGroup/ABCDEF/avatar.png";
+const nativeReadyScene = () =>
+  updateSource(setVisibility(createDefaultScene(), "source-background", false), "source-avatar", (source) =>
+    source.kind === "pngtuber"
+      ? {
+          ...source,
+          imageUri: nativeReadyAvatarUri
+        }
+      : source
+  );
 
 const physicalDeviceMeta = (platform: "ios" | "android") =>
   platform === "ios"
@@ -176,7 +186,7 @@ const physicalDeviceMeta = (platform: "ios" | "android") =>
 
 describe("stream validation evidence", () => {
   it("creates a redacted validation run from diagnostics", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const streamKey = "super-secret-key";
     const profile = profileWithKey(streamKey);
     const readiness = createReadinessReport(scene, profile);
@@ -222,7 +232,7 @@ describe("stream validation evidence", () => {
   });
 
   it("stores audio and chat readout evidence and downgrades unvalidated passing runs", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = profileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
@@ -277,7 +287,7 @@ describe("stream validation evidence", () => {
   });
 
   it("copies retained audio meter and spoken chat counts into validation evidence", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const sessionSummary = createStreamSessionSummary({
@@ -360,7 +370,7 @@ describe("stream validation evidence", () => {
   });
 
   it("requires measured monitor latency before audio evidence can pass", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const diagnostics = createStreamDiagnostics(
@@ -402,7 +412,7 @@ describe("stream validation evidence", () => {
   });
 
   it("uses native monitor latency evidence when manual tuning is not entered", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const diagnostics = createStreamDiagnostics(
@@ -440,7 +450,7 @@ describe("stream validation evidence", () => {
   });
 
   it("rejects simulator or emulator validation identities as physical-device proof", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const diagnostics = createStreamDiagnostics(
@@ -488,7 +498,7 @@ describe("stream validation evidence", () => {
   });
 
   it("fails audio evidence when measured monitor latency is above the release limit", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const diagnostics = createStreamDiagnostics(
@@ -532,7 +542,7 @@ describe("stream validation evidence", () => {
   });
 
   it("requires native self-monitor write and drop proof for audio evidence to pass", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const diagnostics = createStreamDiagnostics(
@@ -575,7 +585,7 @@ describe("stream validation evidence", () => {
   });
 
   it("requires a stable monitor hold before validation runs can pass", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const diagnostics = createStreamDiagnostics(
@@ -620,7 +630,7 @@ describe("stream validation evidence", () => {
   });
 
   it("does not round a short monitor hold up to the release threshold", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const diagnostics = createStreamDiagnostics(
@@ -660,7 +670,7 @@ describe("stream validation evidence", () => {
   });
 
   it("does not reuse an older completed stable hold when current validation history is short", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const retainedSession = createStreamSessionSummary({
@@ -708,7 +718,7 @@ describe("stream validation evidence", () => {
   });
 
   it("requires native publisher and compositor proof for validation runs to pass", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const runtime = nativeMonitorRuntime("ios");
@@ -766,7 +776,7 @@ describe("stream validation evidence", () => {
   });
 
   it("requires native runtime proof to match the validation device platform", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const diagnostics = createStreamDiagnostics(
@@ -810,8 +820,63 @@ describe("stream validation evidence", () => {
     expect(summary.nativeRuntimeIosPass).toBe(false);
   });
 
+  it("requires native runtime proof to match the current scene overlay requirements", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntime("ios");
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: {
+          ...runtime,
+          composition: {
+            ...runtime.composition,
+            status: "screen-only" as const,
+            appliedCount: 0,
+            stillImageAssetCount: 0,
+            stillImageAssetLoadedCount: 0,
+            message: "Screen-only native output"
+          }
+        }
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.nativeRuntime).toMatchObject({
+      status: "warn",
+      compositionStatus: "screen-only",
+      stillImageAssetCount: 0,
+      stillImageAssetLoadedCount: 0
+    });
+    expect(run.nativeRuntime?.summary).toContain("current scene overlays");
+    expect(run.recommendation).toContain("current scene");
+    expect(summary.nativeRuntimeReadyCount).toBe(0);
+    expect(summary.nativeRuntimeIosPass).toBe(false);
+  });
+
   it("copies retained quality automation outcomes into validation evidence", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const sessionSummary = createStreamSessionSummary({
@@ -872,7 +937,7 @@ describe("stream validation evidence", () => {
   });
 
   it("stores safe native runtime evidence and downgrades passing runs that need review", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const streamKey = "validation-key";
     const profile = profileWithKey(streamKey);
     const readiness = createReadinessReport(scene, profile);
@@ -939,7 +1004,7 @@ describe("stream validation evidence", () => {
   });
 
   it("does not count disabled face tracking snapshots as retained avatar motion evidence", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = profileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
@@ -963,7 +1028,7 @@ describe("stream validation evidence", () => {
   });
 
   it("stores platform dashboard evidence and downgrades unhealthy passing runs", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = {
       ...commercialProfileWithKey("validation-key"),
       platformPublishing: {
@@ -1011,11 +1076,11 @@ describe("stream validation evidence", () => {
   });
 
   it("requires fresh platform dashboard evidence before a validation run can pass", () => {
-    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+    const scene = updateSource(nativeReadyScene(), "source-avatar", (source) =>
       source.kind === "pngtuber"
         ? {
             ...source,
-            imageUri: "file:///shared/avatar.png",
+            imageUri: nativeReadyAvatarUri,
             motion: defaultAvatarMotion({ confidence: 0.9, headYaw: 0.08 })
           }
         : source
@@ -1084,7 +1149,7 @@ describe("stream validation evidence", () => {
   });
 
   it("stores face tracking evidence and downgrades unready avatar validation", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = {
       ...commercialProfileWithKey("validation-key"),
       faceTracking: {
@@ -1116,10 +1181,10 @@ describe("stream validation evidence", () => {
       rigMode: "still-image-2d",
       runtimeStatus: "unavailable",
       visibleAvatarCount: 1,
-      preparedPngTuberCount: 0
+      preparedPngTuberCount: 1
     });
-    expect(run.summary).toContain("Face tracking is enabled");
-    expect(run.recommendation).toContain("Pick and prepare");
+    expect(run.summary).toContain("Native face tracking has not reported runtime status yet");
+    expect(run.recommendation).toContain("Open this scene");
     expect(summary.faceTrackingRunCount).toBe(1);
     expect(summary.faceTrackingWarningCount).toBe(1);
     expect(summary.faceTrackingReadyCount).toBe(0);
@@ -1127,11 +1192,11 @@ describe("stream validation evidence", () => {
   });
 
   it("tracks iOS and Android face tracking coverage from retained passing runs", () => {
-    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+    const scene = updateSource(nativeReadyScene(), "source-avatar", (source) =>
       source.kind === "pngtuber"
         ? {
             ...source,
-            imageUri: "file:///shared/avatar.png",
+            imageUri: nativeReadyAvatarUri,
             motion: defaultAvatarMotion({ confidence: 0.9, headYaw: 0.12 })
           }
         : source
@@ -1212,7 +1277,7 @@ describe("stream validation evidence", () => {
   });
 
   it("does not treat retained face tracking pass as avatar evidence when motion count is zero", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = profileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const iosBaseRun = createStreamValidationRun({
@@ -1269,7 +1334,7 @@ describe("stream validation evidence", () => {
   });
 
   it("fails validation runs when the native publisher reports a failure", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = profileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
@@ -1322,7 +1387,7 @@ describe("stream validation evidence", () => {
   });
 
   it("normalizes, deduplicates, and retains newest validation runs first", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = profileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
@@ -1352,7 +1417,7 @@ describe("stream validation evidence", () => {
   });
 
   it("summarizes physical platform coverage for release-candidate evidence", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const diagnosticsFor = (platform: "ios" | "android") => createStreamDiagnostics(
@@ -1404,7 +1469,7 @@ describe("stream validation evidence", () => {
   });
 
   it("does not keep target platform passing after a newer failed run", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = profileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
@@ -1432,7 +1497,7 @@ describe("stream validation evidence", () => {
   });
 
   it("requires fresh evidence on the same app build before becoming ready", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const diagnosticsFor = (platform: "ios" | "android") => createStreamDiagnostics(

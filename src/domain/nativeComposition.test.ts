@@ -13,6 +13,7 @@ describe("native composition report", () => {
     expect(report.requiresNativeCompositor).toBe(true);
     expect(report.screenSourceCount).toBe(1);
     expect(report.avatarSourceCount).toBe(1);
+    expect(report.stillImageOverlayCount).toBe(1);
     expect(report.previewOnlySourceCount).toBe(1);
     expect(report.unsupportedSourceKinds).toEqual(["solid"]);
     expect(report.issues.map((issue) => issue.code)).toEqual(
@@ -32,6 +33,7 @@ describe("native composition report", () => {
     expect(report.status).toBe("pass");
     expect(report.coverage).toBe("native-overlays");
     expect(report.requiresNativeCompositor).toBe(false);
+    expect(report.stillImageOverlayCount).toBe(1);
     expect(report.previewOnlySourceCount).toBe(0);
     expect(report.assetIssueCount).toBe(0);
     expect(report.fileBackedAssetIssueCount).toBe(0);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultStudioProfile, redactStreamKey } from "./profiles";
 import { createReadinessReport } from "./readiness";
-import { createDefaultScene } from "./scene";
+import { createDefaultScene, setVisibility, updateSource } from "./scene";
 import { createStreamDiagnostics } from "./streamDiagnostics";
 import { createStreamSessionSummary } from "./streamSessionSummary";
 import { createStreamStartPreflightReport } from "./streamStartPreflight";
@@ -19,6 +19,16 @@ const health = (update: Partial<StreamHealth> = {}): StreamHealth => ({
 });
 
 const streamKey = "support-demo";
+const nativeReadyAvatarUri = "file:///private/var/mobile/Containers/Shared/AppGroup/ABCDEF/avatar.png";
+const nativeReadyScene = () =>
+  updateSource(setVisibility(createDefaultScene(), "source-background", false), "source-avatar", (source) =>
+    source.kind === "pngtuber"
+      ? {
+          ...source,
+          imageUri: nativeReadyAvatarUri
+        }
+      : source
+  );
 
 describe("support bundle", () => {
   it("combines preflight, diagnostics, scene, and redacted profile summaries", () => {
@@ -267,7 +277,7 @@ describe("support bundle", () => {
   });
 
   it("keeps validation dashboard freshness in support bundle summaries", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = {
       ...createDefaultStudioProfile(),
       destination: {

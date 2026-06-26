@@ -3,7 +3,7 @@ import { assessPlatformPublishingFreshness } from "./platformPublishingFreshness
 import { createDefaultStudioProfile, redactStreamKey } from "./profiles";
 import { createPublicLaunchChecklist } from "./publicLaunchChecklist";
 import { createReadinessReport } from "./readiness";
-import { createDefaultScene, updateSource } from "./scene";
+import { createDefaultScene, setVisibility, updateSource } from "./scene";
 import {
   createStreamDiagnosticReport,
   createStreamDiagnostics,
@@ -20,6 +20,16 @@ const health = (update: Partial<StreamHealth> = {}): StreamHealth => ({
   ...update
 });
 const demoStreamKey = "stream-demo";
+const nativeReadyAvatarUri = "file:///private/var/mobile/Containers/Shared/AppGroup/ABCDEF/avatar.png";
+const nativeReadyScene = () =>
+  updateSource(setVisibility(createDefaultScene(), "source-background", false), "source-avatar", (source) =>
+    source.kind === "pngtuber"
+      ? {
+          ...source,
+          imageUri: nativeReadyAvatarUri
+        }
+      : source
+  );
 
 describe("stream diagnostics", () => {
   it("combines readiness, target, and redacted publish URL details", () => {
@@ -94,7 +104,7 @@ describe("stream diagnostics", () => {
   });
 
   it("exports retained native runtime proof frame and byte counts in validation evidence", () => {
-    const scene = createDefaultScene();
+    const scene = nativeReadyScene();
     const profile = {
       ...createDefaultStudioProfile(),
       destination: {
