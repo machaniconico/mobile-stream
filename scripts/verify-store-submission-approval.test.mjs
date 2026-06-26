@@ -172,6 +172,21 @@ describe("store submission approval verifier", () => {
 
     writeStoreSubmissionFixture();
   });
+
+  it("rejects approval when store screenshots are stale against the release report", () => {
+    writeStoreSubmissionFixture({ capturedAt: new Date(Date.now() - 48 * 3_600_000).toISOString() });
+
+    const failures = validateStoreSubmissionApproval(createReport(), readStoreManifest(), approvalOptions());
+
+    expect(failures).toContain(
+      "Store submission screenshot .artifacts/store-approval-test/ios-store.png is 48h older than the release report, above the 24h store-submission approval gate."
+    );
+    expect(failures).toContain(
+      "Store submission screenshot .artifacts/store-approval-test/android-store.png is 48h older than the release report, above the 24h store-submission approval gate."
+    );
+
+    writeStoreSubmissionFixture();
+  });
 });
 
 function approvalOptions() {
@@ -306,7 +321,11 @@ function writeFixtureFiles() {
   writeUiEvidenceFile();
 }
 
-function writeStoreSubmissionFixture({ screenshotSource = "realDevice", appBuild: screenshotAppBuild = appBuild } = {}) {
+function writeStoreSubmissionFixture({
+  screenshotSource = "realDevice",
+  appBuild: screenshotAppBuild = appBuild,
+  capturedAt: screenshotCapturedAt = capturedAt
+} = {}) {
   writeFile(".artifacts/store-approval-test/ios-store.png", pngBytes);
   writeFile(".artifacts/store-approval-test/android-store.png", pngBytes);
   writeFile(".artifacts/store-approval-test/submission-review.md", "# Store Submission Review\n\n- [ ] Listing reviewed.\n");
@@ -348,7 +367,7 @@ function writeStoreSubmissionFixture({ screenshotSource = "realDevice", appBuild
             path: ".artifacts/store-approval-test/ios-store.png",
             source: screenshotSource,
             ...(screenshotSource === "realDevice"
-              ? { osVersion: "iOS 18.5", appBuild: screenshotAppBuild, capturedAt }
+              ? { osVersion: "iOS 18.5", appBuild: screenshotAppBuild, capturedAt: screenshotCapturedAt }
               : {})
           },
           {
@@ -357,7 +376,7 @@ function writeStoreSubmissionFixture({ screenshotSource = "realDevice", appBuild
             path: ".artifacts/store-approval-test/android-store.png",
             source: screenshotSource,
             ...(screenshotSource === "realDevice"
-              ? { osVersion: "Android 15", appBuild: screenshotAppBuild, capturedAt }
+              ? { osVersion: "Android 15", appBuild: screenshotAppBuild, capturedAt: screenshotCapturedAt }
               : {})
           }
         ],
@@ -385,8 +404,22 @@ function writeStoreSubmissionFixture({ screenshotSource = "realDevice", appBuild
         },
         metadata: metadataRecord(),
         screenshots: [
-          screenshotRecord("ios", "iPhone 15 Pro Max", ".artifacts/store-approval-test/ios-store.png", screenshotSource, screenshotAppBuild),
-          screenshotRecord("android", "Pixel 8 Pro", ".artifacts/store-approval-test/android-store.png", screenshotSource, screenshotAppBuild)
+          screenshotRecord(
+            "ios",
+            "iPhone 15 Pro Max",
+            ".artifacts/store-approval-test/ios-store.png",
+            screenshotSource,
+            screenshotAppBuild,
+            screenshotCapturedAt
+          ),
+          screenshotRecord(
+            "android",
+            "Pixel 8 Pro",
+            ".artifacts/store-approval-test/android-store.png",
+            screenshotSource,
+            screenshotAppBuild,
+            screenshotCapturedAt
+          )
         ],
         reviewDocuments: [reviewDocumentRecord()]
       },
@@ -671,7 +704,7 @@ function reviewDocumentRecord() {
   return record("submissionReview", ".artifacts/store-approval-test/submission-review.md");
 }
 
-function screenshotRecord(platform, device, path, source, screenshotAppBuild = appBuild) {
+function screenshotRecord(platform, device, path, source, screenshotAppBuild = appBuild, screenshotCapturedAt = capturedAt) {
   const content = readFileSync(path);
   const dimensions = pngDimensions(content);
   return {
@@ -685,7 +718,7 @@ function screenshotRecord(platform, device, path, source, screenshotAppBuild = a
       ? {
           osVersion: platform === "ios" ? "iOS 18.5" : "Android 15",
           appBuild: screenshotAppBuild,
-          capturedAt
+          capturedAt: screenshotCapturedAt
         }
       : {}),
     path,

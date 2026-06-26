@@ -96,6 +96,7 @@ export function validateStoreSubmissionApproval(report, manifest, options) {
   validateFinalReleaseArtifactsCaptured(report, options, fail);
   validateStoreArtifactsCaptured(report, manifest, options, fail);
   validateScreenshotBuildMatchesSupportBundle(report, manifest, fail);
+  validateStoreScreenshotFreshness(report, manifest, options, fail);
 
   return failures;
 }
@@ -298,6 +299,33 @@ function validateScreenshotBuildMatchesSupportBundle(report, manifest, fail) {
     if (normalizeBuildLabel(actualBuild) !== normalizeBuildLabel(expectedBuild)) {
       fail(
         `Store submission screenshot ${screenshot.path} app build ${actualBuild || "-"} does not match validation evidence build ${expectedBuild}.`
+      );
+    }
+  }
+}
+
+function validateStoreScreenshotFreshness(report, manifest, options, fail) {
+  const releaseFinishedAt = Date.parse(String(report?.finishedAt || ""));
+  if (!Number.isFinite(releaseFinishedAt)) {
+    fail("Release report finishedAt timestamp is missing or invalid for store screenshot freshness approval.");
+    return;
+  }
+  for (const screenshot of Array.isArray(manifest?.screenshots) ? manifest.screenshots : []) {
+    if (screenshot?.source !== "realDevice") {
+      continue;
+    }
+    const screenshotCapturedAt = Date.parse(String(screenshot.capturedAt || ""));
+    if (!Number.isFinite(screenshotCapturedAt)) {
+      continue;
+    }
+    if (screenshotCapturedAt > releaseFinishedAt) {
+      fail(`Store submission screenshot ${screenshot.path} capturedAt is after release report finishedAt.`);
+      continue;
+    }
+    const ageHours = Math.floor((releaseFinishedAt - screenshotCapturedAt) / 3_600_000);
+    if (ageHours > options.maxAgeHours) {
+      fail(
+        `Store submission screenshot ${screenshot.path} is ${ageHours}h older than the release report, above the ${options.maxAgeHours}h store-submission approval gate.`
       );
     }
   }
