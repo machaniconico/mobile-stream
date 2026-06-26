@@ -176,6 +176,54 @@ describe("release evidence package creator", () => {
     );
   });
 
+  it("rejects packaged dashboard evidence manifests without screenshot capture timestamps", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedDashboardManifestPath = `${packageDir}/artifacts/${dashboardEvidenceManifestPath}`;
+    const dashboardManifest = JSON.parse(readFileSync(packagedDashboardManifestPath, "utf8"));
+    delete dashboardManifest.artifacts.find(
+      (artifact) => artifact.platform === "youtube" && artifact.kind === "screenshot"
+    ).capturedAt;
+    writeFileSync(packagedDashboardManifestPath, JSON.stringify(dashboardManifest, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    refreshPackageArtifactEntry(manifest, dashboardEvidenceManifestPath, packagedDashboardManifestPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package dashboard evidence screenshot .artifacts/release-evidence-package-test/youtube-dashboard.png must include a valid capturedAt timestamp."
+    );
+  });
+
+  it("rejects packaged dashboard evidence manifests with stale screenshot/status timing", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedDashboardManifestPath = `${packageDir}/artifacts/${dashboardEvidenceManifestPath}`;
+    const dashboardManifest = JSON.parse(readFileSync(packagedDashboardManifestPath, "utf8"));
+    dashboardManifest.artifacts.find(
+      (artifact) => artifact.platform === "twitch" && artifact.kind === "statusJson"
+    ).checkedAt = "2026-06-25T00:30:01.000Z";
+    writeFileSync(packagedDashboardManifestPath, JSON.stringify(dashboardManifest, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    refreshPackageArtifactEntry(manifest, dashboardEvidenceManifestPath, packagedDashboardManifestPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package dashboard evidence twitch screenshot capturedAt must be within 10 minutes of status JSON checkedAt."
+    );
+  });
+
   it("rejects packages whose store release report artifact is missing from the package", () => {
     resetPackageDir();
     writeReportFixture();

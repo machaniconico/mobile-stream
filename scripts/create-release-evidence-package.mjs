@@ -4,7 +4,11 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import { distributionArtifactGroup, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
-import { dashboardEvidenceArtifactGroup, dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
+import {
+  dashboardEvidenceArtifactGroup,
+  dashboardEvidenceManifestPath,
+  dashboardScreenshotStatusMaxSkewMinutes
+} from "./verify-platform-dashboard-evidence.mjs";
 import { validateReport } from "./verify-release-report.mjs";
 import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
 import { storeSubmissionArtifactGroup, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
@@ -387,6 +391,40 @@ function validatePackagedDashboardEvidenceManifest(dashboardManifest, packagedAr
   );
   for (const record of records) {
     validatePackagedManifestRecord(packagedArtifacts, dashboardEvidenceArtifactGroup, record, "dashboard evidence manifest", failures);
+  }
+  validatePackagedDashboardEvidenceTiming(records, failures);
+}
+
+function validatePackagedDashboardEvidenceTiming(records, failures) {
+  const platforms = new Set(records.map((record) => record?.platform).filter(Boolean));
+  for (const record of records) {
+    if (record?.kind === "screenshot" && !validTimestamp(record.capturedAt)) {
+      failures.push(`Package dashboard evidence screenshot ${record.path || "-"} must include a valid capturedAt timestamp.`);
+    }
+    if (record?.kind === "statusJson" && !validTimestamp(record.checkedAt)) {
+      failures.push(`Package dashboard evidence status JSON ${record.path || "-"} must include a valid checkedAt timestamp.`);
+    }
+  }
+
+  for (const platform of platforms) {
+    const screenshots = records.filter((record) => record?.platform === platform && record?.kind === "screenshot");
+    const statusJsons = records.filter((record) => record?.platform === platform && record?.kind === "statusJson");
+    for (const screenshot of screenshots) {
+      if (!validTimestamp(screenshot.capturedAt)) {
+        continue;
+      }
+      for (const statusJson of statusJsons) {
+        if (!validTimestamp(statusJson.checkedAt)) {
+          continue;
+        }
+        const skewMinutes = Math.abs(Date.parse(screenshot.capturedAt) - Date.parse(statusJson.checkedAt)) / 60_000;
+        if (skewMinutes > dashboardScreenshotStatusMaxSkewMinutes) {
+          failures.push(
+            `Package dashboard evidence ${platform} screenshot capturedAt must be within ${dashboardScreenshotStatusMaxSkewMinutes} minutes of status JSON checkedAt.`
+          );
+        }
+      }
+    }
   }
 }
 
@@ -916,6 +954,10 @@ function safeRelativePath(path) {
 
 function isSha256(value) {
   return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value);
+}
+
+function validTimestamp(value) {
+  return typeof value === "string" && value.trim() && Number.isFinite(Date.parse(value));
 }
 
 function isInsideDirectory(path, directory) {
