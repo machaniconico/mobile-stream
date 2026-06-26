@@ -7,7 +7,7 @@ import { releaseConfigArtifactPaths, requiredReleaseGateLabels } from "./release
 import { distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
 import { dashboardEvidenceArtifactGroup, dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
 import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
-import { storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
+import { storeSubmissionArtifactGroup, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import {
   createReleaseEvidencePackage,
   releaseEvidencePackageManifestName,
@@ -173,6 +173,68 @@ describe("release evidence package creator", () => {
 
     expect(failures).toContain(
       "Package store submission checklist metadata mismatch for .artifacts/release-evidence-package-test/submission-metadata.json."
+    );
+  });
+
+  it("rejects packaged store submission screenshots that are not final real-device evidence", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedChecklistPath = `${packageDir}/artifacts/${storeSubmissionChecklistPath}`;
+    const checklist = JSON.parse(readFileSync(packagedChecklistPath, "utf8"));
+    const iosScreenshot = checklist.screenshots.find((screenshot) => screenshot.platform === "ios");
+    iosScreenshot.source = "uiEvidenceDraft";
+    iosScreenshot.osVersion = "";
+    iosScreenshot.appBuild = "";
+    delete iosScreenshot.capturedAt;
+    iosScreenshot.width = 320;
+    iosScreenshot.height = 640;
+    writeFileSync(packagedChecklistPath, JSON.stringify(checklist, null, 2));
+    refreshPackagedChecklistEvidence(packagedChecklistPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package store submission screenshot .artifacts/release-evidence-package-test/ios-store.png must be marked realDevice."
+    );
+    expect(failures).toContain(
+      "Package store submission screenshot .artifacts/release-evidence-package-test/ios-store.png must include a real device OS version."
+    );
+    expect(failures).toContain(
+      "Package store submission screenshot .artifacts/release-evidence-package-test/ios-store.png must include an app build/version."
+    );
+    expect(failures).toContain(
+      "Package store submission screenshot .artifacts/release-evidence-package-test/ios-store.png must include a valid capturedAt timestamp."
+    );
+    expect(failures).toContain(
+      "Package store submission screenshot .artifacts/release-evidence-package-test/ios-store.png must be at least 1080px on the short edge and 1920px on the long edge."
+    );
+  });
+
+  it("rejects packaged store submission screenshots older than the packaged release report", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedChecklistPath = `${packageDir}/artifacts/${storeSubmissionChecklistPath}`;
+    const releaseReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const checklist = JSON.parse(readFileSync(packagedChecklistPath, "utf8"));
+    const staleCapturedAt = new Date(Date.parse(releaseReport.finishedAt) - 48 * 3_600_000).toISOString();
+    for (const screenshot of checklist.screenshots) {
+      screenshot.capturedAt = staleCapturedAt;
+    }
+    writeFileSync(packagedChecklistPath, JSON.stringify(checklist, null, 2));
+    refreshPackagedChecklistEvidence(packagedChecklistPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package store submission screenshot .artifacts/release-evidence-package-test/ios-store.png is 48h older than the release report, above the 24h commercial release gate."
+    );
+    expect(failures).toContain(
+      "Package store submission screenshot .artifacts/release-evidence-package-test/android-store.png is 48h older than the release report, above the 24h commercial release gate."
     );
   });
 
@@ -1076,6 +1138,26 @@ function refreshPackageArtifactEntry(manifest, sourcePath, packagedPath) {
   const content = readFileSync(packagedPath);
   entry.bytes = content.byteLength;
   entry.sha256 = createHash("sha256").update(content).digest("hex");
+}
+
+function refreshPackagedChecklistEvidence(packagedChecklistPath) {
+  const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+  const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+  const checklistContent = readFileSync(packagedChecklistPath);
+  const checklistSha256 = createHash("sha256").update(checklistContent).digest("hex");
+  const reportArtifact = packagedReport.artifacts.files.find(
+    (artifact) => artifact.group === storeSubmissionArtifactGroup && artifact.path === storeSubmissionChecklistPath
+  );
+  reportArtifact.bytes = checklistContent.byteLength;
+  reportArtifact.sha256 = checklistSha256;
+  writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+  const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+  manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+  refreshPackageArtifactEntry(manifest, storeSubmissionChecklistPath, packagedChecklistPath);
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 }
 
 function writeUiEvidenceFile() {

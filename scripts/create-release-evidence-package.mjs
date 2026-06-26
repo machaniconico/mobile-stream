@@ -16,6 +16,8 @@ import { storeSubmissionArtifactGroup, storeSubmissionChecklistPath } from "./ve
 export const releaseEvidencePackageManifestName = "release-evidence-package.json";
 export const releaseEvidencePackageType = "release-evidence-package-manifest";
 const storeReleaseReportGateLabel = "Verify store release orchestration report";
+const finalStoreScreenshotMinimumShortEdge = 1080;
+const finalStoreScreenshotMinimumLongEdge = 1920;
 const requiredCommercialPackageArtifacts = [
   { group: distributionArtifactGroup, path: distributionArtifactManifestPath, label: "distribution artifact manifest" },
   { group: dashboardEvidenceArtifactGroup, path: dashboardEvidenceManifestPath, label: "dashboard evidence manifest" },
@@ -308,7 +310,7 @@ function validatePackagedCommercialManifests(packageDir, packagedArtifacts, fail
     failures
   });
   if (storeSubmissionChecklist) {
-    validatePackagedStoreSubmissionChecklist(storeSubmissionChecklist, packagedArtifacts, failures);
+    validatePackagedStoreSubmissionChecklist(storeSubmissionChecklist, packagedArtifacts, failures, { releaseReport, maxAgeHours });
   }
 }
 
@@ -454,7 +456,7 @@ function validatePackagedDashboardEvidenceFreshness(records, releaseReport, maxA
   }
 }
 
-function validatePackagedStoreSubmissionChecklist(storeSubmissionChecklist, packagedArtifacts, failures) {
+function validatePackagedStoreSubmissionChecklist(storeSubmissionChecklist, packagedArtifacts, failures, { releaseReport, maxAgeHours }) {
   if (
     storeSubmissionChecklist?.app !== "MobileLiveCaster" ||
     storeSubmissionChecklist?.type !== "store-submission-checklist-manifest" ||
@@ -489,6 +491,56 @@ function validatePackagedStoreSubmissionChecklist(storeSubmissionChecklist, pack
   );
   for (const record of records) {
     validatePackagedManifestRecord(packagedArtifacts, storeSubmissionArtifactGroup, record, "store submission checklist", failures);
+  }
+  validatePackagedStoreSubmissionScreenshots(storeSubmissionChecklist.screenshots || [], releaseReport, maxAgeHours, failures);
+}
+
+function validatePackagedStoreSubmissionScreenshots(screenshots, releaseReport, maxAgeHours, failures) {
+  const releaseFinishedAt = Date.parse(String(releaseReport?.finishedAt || ""));
+  if (!Number.isFinite(releaseFinishedAt)) {
+    failures.push("Packaged release report finishedAt timestamp is missing or invalid.");
+    return;
+  }
+  for (const screenshot of screenshots) {
+    if (screenshot?.kind !== "screenshot") {
+      continue;
+    }
+    if (screenshot.source !== "realDevice") {
+      failures.push(`Package store submission screenshot ${screenshot.path || "-"} must be marked realDevice.`);
+    }
+    if (!stringValue(screenshot.osVersion)) {
+      failures.push(`Package store submission screenshot ${screenshot.path || "-"} must include a real device OS version.`);
+    }
+    if (!stringValue(screenshot.appBuild)) {
+      failures.push(`Package store submission screenshot ${screenshot.path || "-"} must include an app build/version.`);
+    }
+    if (!validTimestamp(screenshot.capturedAt)) {
+      failures.push(`Package store submission screenshot ${screenshot.path || "-"} must include a valid capturedAt timestamp.`);
+    } else {
+      const capturedAt = Date.parse(screenshot.capturedAt);
+      if (capturedAt > releaseFinishedAt) {
+        failures.push(`Package store submission screenshot ${screenshot.path} capturedAt is after the packaged release report finishedAt.`);
+      } else {
+        const ageHours = Math.floor((releaseFinishedAt - capturedAt) / 3_600_000);
+        if (ageHours > maxAgeHours) {
+          failures.push(
+            `Package store submission screenshot ${screenshot.path} is ${ageHours}h older than the release report, above the ${maxAgeHours}h commercial release gate.`
+          );
+        }
+      }
+    }
+    const shortEdge = Math.min(Number(screenshot.width), Number(screenshot.height));
+    const longEdge = Math.max(Number(screenshot.width), Number(screenshot.height));
+    if (
+      !Number.isFinite(shortEdge) ||
+      !Number.isFinite(longEdge) ||
+      shortEdge < finalStoreScreenshotMinimumShortEdge ||
+      longEdge < finalStoreScreenshotMinimumLongEdge
+    ) {
+      failures.push(
+        `Package store submission screenshot ${screenshot.path || "-"} must be at least ${finalStoreScreenshotMinimumShortEdge}px on the short edge and ${finalStoreScreenshotMinimumLongEdge}px on the long edge.`
+      );
+    }
   }
 }
 
@@ -1051,6 +1103,10 @@ function isSha256(value) {
 
 function validTimestamp(value) {
   return typeof value === "string" && value.trim() && Number.isFinite(Date.parse(value));
+}
+
+function stringValue(value) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function isInsideDirectory(path, directory) {
