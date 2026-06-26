@@ -106,6 +106,8 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "storeReleaseReportType");
     expectIncludes(files.releaseEvidencePackageScript, "Verify store release orchestration report");
     expectIncludes(files.releaseEvidencePackageScript, "Package store release report");
+    expectIncludes(files.storeReleaseBuildScript, "cannot be used as commercial release evidence");
+    expectIncludes(files.releaseEvidencePackageScript, "cannot be used as commercial release evidence");
     expectIncludes(files.dashboardEvidenceScript, "youtubeScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "twitchScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "platform-dashboard-evidence-manifest");

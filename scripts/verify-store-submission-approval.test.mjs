@@ -434,16 +434,18 @@ function writeStoreReleaseFixture() {
         options: {
           allowDirty: true,
           allowCommitMismatch: false,
-          skipEnv: true,
-          skipBuild: true
+          skipEnv: false,
+          skipBuild: false
         },
         artifacts: {
           distributionManifest: distributionManifestSummary(distributionArtifactManifestPath)
         },
         steps: [
-          storeReleaseStep("verify-env", "npm run verify:store-release-env"),
+          storeReleaseStep("verify-env", "npm run android:verify-release-env"),
           storeReleaseStep("android", "npm run android:bundleRelease"),
+          storeReleaseStep("verify-env", "npm run ios:verify-release-env"),
           storeReleaseStep("ios", "npm run ios:archive:release"),
+          storeReleaseStep("ios", "npm run ios:export:release"),
           storeReleaseStep("distribution", "npm run release:distribution-manifest")
         ],
         error: null

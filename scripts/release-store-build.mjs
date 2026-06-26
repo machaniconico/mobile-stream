@@ -384,6 +384,12 @@ export function validateStoreReleaseReport(
   if (report.options?.allowDirty && !allowDirty) {
     failures.push("Store release report was generated with --allow-dirty.");
   }
+  if (requirePassed && report.options?.skipEnv) {
+    failures.push("Store release report was generated with --skip-env and cannot be used as commercial release evidence.");
+  }
+  if (requirePassed && report.options?.skipBuild) {
+    failures.push("Store release report was generated with --skip-build and cannot be used as commercial release evidence.");
+  }
 
   const platforms = Array.isArray(report.platforms) ? report.platforms : [];
   if (platforms.length === 0) {
@@ -409,9 +415,45 @@ export function validateStoreReleaseReport(
       failures.push(`Store release report step ${JSON.stringify(step.command)} is missing a valid durationMs.`);
     }
   }
+  validateRequiredStoreReleaseSteps(report, platforms, steps, failures, { requirePassed });
 
   validateStoreReleaseDistributionManifest(report, reportPath, failures);
   return failures;
+}
+
+function validateRequiredStoreReleaseSteps(report, platforms, steps, failures, { requirePassed }) {
+  if (!requirePassed) {
+    return;
+  }
+  const commands = new Set(steps.map((step) => step?.command).filter(Boolean));
+  const requiredCommands = [];
+  for (const target of platforms) {
+    const plan = platformPlan[target];
+    if (!plan) {
+      continue;
+    }
+    if (!report.options?.skipEnv) {
+      requiredCommands.push(`npm run ${plan.verifyEnvScript}`);
+    }
+    if (!report.options?.skipBuild) {
+      requiredCommands.push(...plan.buildScripts.map((script) => `npm run ${script}`));
+    }
+  }
+  requiredCommands.push("write distribution artifact manifest");
+  for (const command of requiredCommands) {
+    const matched =
+      command === "write distribution artifact manifest"
+        ? steps.some(
+            (step) =>
+              step?.type === "manifest" ||
+              String(step?.command || "").startsWith("write ") ||
+              step?.command === "npm run release:distribution-manifest"
+          )
+        : commands.has(command);
+    if (!matched) {
+      failures.push(`Store release report is missing required commercial release step ${JSON.stringify(command)}.`);
+    }
+  }
 }
 
 export function collectStoreReleaseArtifactRecords({ reportPath = storeReleaseReportDefaultPath } = {}) {

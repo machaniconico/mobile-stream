@@ -549,6 +549,12 @@ function validatePackagedStoreReleaseReportContent(storeReport, releaseReport, p
   if (storeReport.options?.allowDirty && !allowDirty) {
     failures.push("Package store release report was generated with --allow-dirty.");
   }
+  if (storeReport.options?.skipEnv) {
+    failures.push("Package store release report was generated with --skip-env and cannot be used as commercial release evidence.");
+  }
+  if (storeReport.options?.skipBuild) {
+    failures.push("Package store release report was generated with --skip-build and cannot be used as commercial release evidence.");
+  }
 
   if (!Array.isArray(storeReport.platforms) || storeReport.platforms.length === 0) {
     failures.push("Package store release report has no platforms.");
@@ -572,8 +578,46 @@ function validatePackagedStoreReleaseReportContent(storeReport, releaseReport, p
       failures.push(`Package store release report step ${JSON.stringify(step.command)} is missing a valid durationMs.`);
     }
   }
+  validatePackagedRequiredStoreReleaseSteps(storeReport, steps, failures);
 
   validatePackagedStoreReleaseDistributionManifest(storeReport, packagedArtifacts, packageDir, failures);
+}
+
+function validatePackagedRequiredStoreReleaseSteps(storeReport, steps, failures) {
+  const platforms = Array.isArray(storeReport.platforms) ? storeReport.platforms : [];
+  const commands = new Set(steps.map((step) => step?.command).filter(Boolean));
+  const requiredCommands = [];
+  if (!storeReport.options?.skipEnv) {
+    if (platforms.includes("android")) {
+      requiredCommands.push("npm run android:verify-release-env");
+    }
+    if (platforms.includes("ios")) {
+      requiredCommands.push("npm run ios:verify-release-env");
+    }
+  }
+  if (!storeReport.options?.skipBuild) {
+    if (platforms.includes("android")) {
+      requiredCommands.push("npm run android:bundleRelease");
+    }
+    if (platforms.includes("ios")) {
+      requiredCommands.push("npm run ios:archive:release", "npm run ios:export:release");
+    }
+  }
+  requiredCommands.push("write distribution artifact manifest");
+  for (const command of requiredCommands) {
+    const matched =
+      command === "write distribution artifact manifest"
+        ? steps.some(
+            (step) =>
+              step?.type === "manifest" ||
+              String(step?.command || "").startsWith("write ") ||
+              step?.command === "npm run release:distribution-manifest"
+          )
+        : commands.has(command);
+    if (!matched) {
+      failures.push(`Package store release report is missing required commercial release step ${JSON.stringify(command)}.`);
+    }
+  }
 }
 
 function validatePackagedStoreReleaseDistributionManifest(storeReport, packagedArtifacts, packageDir, failures) {

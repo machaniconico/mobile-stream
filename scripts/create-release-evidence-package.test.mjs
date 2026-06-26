@@ -261,6 +261,32 @@ describe("release evidence package creator", () => {
     );
   });
 
+  it("rejects packaged store release reports generated with skipped env or build steps", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedStoreReleaseReportPath = `${packageDir}/artifacts/${storeReleaseReportPath}`;
+    const storeReleaseReport = JSON.parse(readFileSync(packagedStoreReleaseReportPath, "utf8"));
+    storeReleaseReport.options.skipEnv = true;
+    storeReleaseReport.options.skipBuild = true;
+    writeFileSync(packagedStoreReleaseReportPath, JSON.stringify(storeReleaseReport, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    refreshPackageArtifactEntry(manifest, storeReleaseReportPath, packagedStoreReleaseReportPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package store release report was generated with --skip-env and cannot be used as commercial release evidence."
+    );
+    expect(failures).toContain(
+      "Package store release report was generated with --skip-build and cannot be used as commercial release evidence."
+    );
+  });
+
   it("rejects traversal-style artifact paths before report validation reads sources", () => {
     writeReportFixture();
     const report = JSON.parse(readFileSync(reportPath, "utf8"));
@@ -548,16 +574,18 @@ function writeStoreReleaseFixture({ status = "passed" } = {}) {
         options: {
           allowDirty: true,
           allowCommitMismatch: false,
-          skipEnv: true,
-          skipBuild: true
+          skipEnv: false,
+          skipBuild: false
         },
         artifacts: {
           distributionManifest: distributionManifestSummary(distributionArtifactManifestPath)
         },
         steps: [
-          storeReleaseStep("verify-env", "npm run verify:store-release-env"),
+          storeReleaseStep("verify-env", "npm run android:verify-release-env"),
           storeReleaseStep("android", "npm run android:bundleRelease"),
+          storeReleaseStep("verify-env", "npm run ios:verify-release-env"),
           storeReleaseStep("ios", "npm run ios:archive:release"),
+          storeReleaseStep("ios", "npm run ios:export:release"),
           storeReleaseStep("distribution", "npm run release:distribution-manifest")
         ],
         error: null

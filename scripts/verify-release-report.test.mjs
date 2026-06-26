@@ -473,8 +473,8 @@ function writeStoreReleaseFixture({ status = "passed" } = {}) {
         mode: "execute",
         platforms: ["android", "ios"],
         options: {
-          skipEnv: true,
-          skipBuild: true,
+          skipEnv: false,
+          skipBuild: false,
           allowDirty: true,
           manifestPath: distributionArtifactManifestPath,
           androidAab: ".artifacts/release-report-test/app-release.aab",
@@ -494,6 +494,11 @@ function writeStoreReleaseFixture({ status = "passed" } = {}) {
           }
         ],
         steps: [
+          storeReleaseStep("verify-env", "npm run android:verify-release-env"),
+          storeReleaseStep("android", "npm run android:bundleRelease"),
+          storeReleaseStep("verify-env", "npm run ios:verify-release-env"),
+          storeReleaseStep("ios", "npm run ios:archive:release"),
+          storeReleaseStep("ios", "npm run ios:export:release"),
           {
             type: "manifest",
             label: "Write distribution artifact manifest",
@@ -521,6 +526,20 @@ function writeStoreReleaseFixture({ status = "passed" } = {}) {
       2
     )
   );
+}
+
+function storeReleaseStep(type, command) {
+  return {
+    type,
+    label: command,
+    command,
+    status: "passed",
+    startedAt: new Date(Date.now() - 1_000).toISOString(),
+    finishedAt: new Date().toISOString(),
+    durationMs: 1,
+    exitCode: 0,
+    error: null
+  };
 }
 
 function distributionArtifactRecords() {

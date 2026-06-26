@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
+import { validateStoreReleaseReport } from "./release-store-build.mjs";
 
 const fixtureRoot = ".artifacts/release-store-build-test";
 const androidAab = `${fixtureRoot}/app-release.aab`;
@@ -112,6 +113,83 @@ describe("store release orchestration", () => {
     expect(report.artifacts.distributionManifest.artifacts.map((artifact) => artifact.path)).toEqual([androidAab, iosIpa]);
   });
 
+  it("rejects skipped env/build store release reports as commercial evidence", () => {
+    writeDistributionFiles();
+
+    const result = runStoreRelease([
+      "--skip-build",
+      "--skip-env",
+      "--allow-dirty",
+      "--manifest",
+      manifestPath,
+      "--report-json",
+      reportPath,
+      "--android-aab",
+      androidAab,
+      "--ios-ipa",
+      iosIpa
+    ]);
+
+    expect(result.status).toBe(0);
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    const failures = validateStoreReleaseReport(report, {
+      reportPath,
+      currentCommit: report.git.commit,
+      allowDirty: true,
+      allowCommitMismatch: true,
+      requirePassed: true
+    });
+
+    expect(failures).toContain(
+      "Store release report was generated with --skip-env and cannot be used as commercial release evidence."
+    );
+    expect(failures).toContain(
+      "Store release report was generated with --skip-build and cannot be used as commercial release evidence."
+    );
+  });
+
+  it("rejects commercial store release reports missing required platform steps", () => {
+    writeDistributionFiles();
+
+    const result = runStoreRelease([
+      "--skip-build",
+      "--skip-env",
+      "--allow-dirty",
+      "--manifest",
+      manifestPath,
+      "--report-json",
+      reportPath,
+      "--android-aab",
+      androidAab,
+      "--ios-ipa",
+      iosIpa
+    ]);
+
+    expect(result.status).toBe(0);
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    report.options.skipEnv = false;
+    report.options.skipBuild = false;
+    report.steps = [
+      storeReleaseStep("verify-env", "npm run android:verify-release-env"),
+      storeReleaseStep("android", "npm run android:bundleRelease"),
+      storeReleaseStep("verify-env", "npm run ios:verify-release-env"),
+      storeReleaseStep("ios", "npm run ios:archive:release"),
+      report.steps[0]
+    ];
+
+    const failures = validateStoreReleaseReport(report, {
+      reportPath,
+      currentCommit: report.git.commit,
+      allowDirty: true,
+      allowCommitMismatch: true,
+      requirePassed: true
+    });
+
+    expect(failures).toContain(
+      'Store release report is missing required commercial release step "npm run ios:export:release".'
+    );
+  });
+
   it("fails when a requested release artifact is missing", () => {
     mkdirSync(fixtureRoot, { recursive: true });
     writeFileSync(androidAab, androidAabBytes());
@@ -195,6 +273,20 @@ function runStoreRelease(args) {
   return spawnSync(process.execPath, ["scripts/release-store-build.mjs", ...args], {
     encoding: "utf8"
   });
+}
+
+function storeReleaseStep(type, command) {
+  return {
+    type,
+    label: command,
+    command,
+    status: "passed",
+    startedAt: new Date(Date.now() - 1_000).toISOString(),
+    finishedAt: new Date().toISOString(),
+    durationMs: 1,
+    exitCode: 0,
+    error: null
+  };
 }
 
 function androidAabBytes({ marker = 0x5a } = {}) {
