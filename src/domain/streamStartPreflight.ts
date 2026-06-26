@@ -92,7 +92,7 @@ export const createStreamStartPreflightReport = ({
   now = new Date()
 }: StreamStartPreflightInput): StreamStartPreflightReport => {
   const issues = [
-    ...readiness.issues.map(toPreflightIssue),
+    ...readiness.issues.map((issue) => toPreflightIssue(issue, profile)),
     ...createAudioMonitorRouteIssues(profile, audioRoute),
     ...createChatReadoutIssues(profile, chatReader, platformChatAuth, platformChatOAuthCredentials, platformChatOAuthCredential, platformChatConnection, now),
     ...createCommercialValidationIssues(profile, validation),
@@ -126,14 +126,40 @@ export const formatStreamStartPreflightBlockMessage = (report: StreamStartPrefli
   return `Launch preflight blocked: ${visibleBlocks.join("; ")}${suffix}`;
 };
 
-const toPreflightIssue = (issue: ReadinessIssue): StreamStartPreflightIssue => ({
+const toPreflightIssue = (
+  issue: ReadinessIssue,
+  profile: StreamStartPreflightInput["profile"]
+): StreamStartPreflightIssue => ({
   code: `readiness-${issue.code}`,
-  severity: issue.severity === "error" ? "block" : "warning",
+  severity: readinessSeverity(issue, profile),
   area: readinessArea(issue),
   label: readinessLabel(issue),
   message: issue.message,
   recommendation: readinessRecommendation(issue)
 });
+
+const readinessSeverity = (
+  issue: ReadinessIssue,
+  profile: StreamStartPreflightInput["profile"]
+): StreamStartPreflightSeverity => {
+  if (issue.severity === "error") {
+    return "block";
+  }
+  if (issue.code === "scene-live2d-preview" && isPlatformVisibleProductionTarget(profile)) {
+    return "block";
+  }
+  return "warning";
+};
+
+const isPlatformVisibleProductionTarget = (profile: StreamStartPreflightInput["profile"]): boolean => {
+  if (!profile) {
+    return false;
+  }
+  if (profile.destination.platform === "twitch") {
+    return true;
+  }
+  return profile.destination.platform === "youtube-live" && profile.platformPublishing.privacyStatus === "public";
+};
 
 const readinessArea = (issue: ReadinessIssue): StreamStartPreflightArea => {
   if (issue.field === "serverUrl" || issue.field === "streamKey") {
@@ -165,6 +191,9 @@ const readinessLabel = (issue: ReadinessIssue): string => {
 };
 
 const readinessRecommendation = (issue: ReadinessIssue): string => {
+  if (issue.code === "scene-live2d-preview") {
+    return "Use a prepared PNGTuber source for platform-visible production streams until native Live2D Cubism rendering is integrated and validated.";
+  }
   switch (issue.field) {
     case "serverUrl":
       return "Set a valid YouTube Live, Twitch, or custom RTMP(S) ingest endpoint.";

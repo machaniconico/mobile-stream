@@ -10,6 +10,7 @@
 - RTMP/RTMPS destination normalization for pasted YouTube/Twitch full publish URLs across shared profile handling and native endpoint assembly.
 - Shared Go Live preflight model for launch blocking, warning surfacing, engine-state duplicate-start protection, and failed-start operation logging.
 - Go Live platform-state preflight for platform-visible YouTube streams, requiring a bound broadcast/stream before launch after commercial validation, blocking completed broadcasts, warning on already-live broadcasts, warning when YouTube/Twitch dashboard status is stale or unchecked, and blocking Twitch starts when the channel status is already live.
+- Platform-visible Go Live preflight blocks visible Live2D preview-only scenes until native Live2D Cubism rendering is integrated and validated, while still allowing controlled private validation starts with warnings.
 - Stream diagnostics model for redacted publish URL, endpoint parsing, upload target estimate, readiness issues, live telemetry health checks, and sanitized diagnostic reports.
 - Face-tracking production diagnostics for prepared PNGTuber assets, simulated/native-camera input risk, tracking runtime state, active motion count, preflight warnings, support reports, and commercial validation checklist evidence.
 - Native composition readiness/diagnostics model that distinguishes native-supported avatar/image/solid/text overlays from underlay ordering, Live2D production gaps, and iOS Broadcast Upload Extension still-image asset access risks before device RTMP publishing.

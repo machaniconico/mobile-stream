@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultScene, setVisibility, type SceneDocument } from "./scene";
+import { createDefaultScene, createSource, setVisibility, updateSource, type SceneDocument } from "./scene";
 import { applyDestinationPreset, createDefaultStudioProfile, type StudioProfile } from "./profiles";
 import { createReadinessReport } from "./readiness";
 import {
@@ -67,6 +67,22 @@ const createScreenOnlyScene = (): SceneDocument =>
   createDefaultScene().sources
     .filter((source) => source.kind !== "screen")
     .reduce((scene, source) => setVisibility(scene, source.id, false), createDefaultScene());
+
+const createLive2DScene = (): SceneDocument =>
+  updateSource(
+    setVisibility(createDefaultScene(), "source-background", false),
+    "source-avatar",
+    (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...createSource("live2d"),
+            id: source.id,
+            name: "Production Live2D",
+            visible: true,
+            transform: source.transform
+          }
+        : source
+  );
 
 describe("stream start preflight", () => {
   it("blocks start when readiness has errors", () => {
@@ -158,6 +174,88 @@ describe("stream start preflight", () => {
     expect(report.canStart).toBe(true);
     expect(report.status).toBe("ready");
     expect(report.issues.map((issue) => issue.code)).not.toContain("validation-youtube-public-not-ready");
+  });
+
+  it("blocks public YouTube launches while visible Live2D is preview-only", () => {
+    const profile = {
+      ...validProfile(),
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "public" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "stream-id",
+        youtubeBroadcastStatus: "testing",
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createLive2DScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.status).toBe("blocked");
+    expect(report.blocks).toContainEqual(
+      expect.objectContaining({
+        code: "readiness-scene-live2d-preview",
+        area: "scene",
+        recommendation: expect.stringContaining("prepared PNGTuber")
+      })
+    );
+  });
+
+  it("keeps private Live2D validation starts as warnings", () => {
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createLive2DScene(), validProfile()),
+      streamStatus: "idle",
+      profile: validProfile(),
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      }
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("warning");
+    expect(report.warnings.map((issue) => issue.code)).toContain("readiness-scene-live2d-preview");
+  });
+
+  it("blocks Twitch launches while visible Live2D is preview-only", () => {
+    const baseProfile = applyDestinationPreset(validProfile(), "twitch-auto");
+    const profile = {
+      ...baseProfile,
+      destination: {
+        ...baseProfile.destination,
+        streamKey: "placeholder-twitch-key"
+      },
+      platformPublishing: {
+        ...baseProfile.platformPublishing,
+        twitchLiveStatus: "offline",
+        twitchStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createLive2DScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: twitchCredential([TWITCH_CHANNEL_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.status).toBe("blocked");
+    expect(report.blocks.map((issue) => issue.code)).toContain("readiness-scene-live2d-preview");
   });
 
   it("warns when platform-visible YouTube status has not been refreshed before launch", () => {
