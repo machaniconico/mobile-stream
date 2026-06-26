@@ -263,7 +263,9 @@ function writeValidHandoffEvidence({ dashboardCheckedAt = new Date().toISOString
   );
   createDashboardEvidenceManifest({
     youtubeScreenshot: `${fixtureRoot}/youtube-dashboard.png`,
+    youtubeScreenshotCapturedAt: dashboardCheckedAt,
     twitchScreenshot: `${fixtureRoot}/twitch-dashboard.png`,
+    twitchScreenshotCapturedAt: dashboardCheckedAt,
     youtubeJson: `${fixtureRoot}/youtube-dashboard.json`,
     twitchJson: `${fixtureRoot}/twitch-dashboard.json`
   });

@@ -11,6 +11,7 @@ export const dashboardEvidenceArtifactGroup = "dashboard";
 const dashboardPlatforms = new Set(["youtube", "twitch"]);
 const dashboardScreenshotMinimumShortEdge = 720;
 const dashboardScreenshotMinimumLongEdge = 1280;
+const dashboardScreenshotStatusMaxSkewMinutes = 10;
 const badYoutubeBroadcastStatuses = new Set(["complete", "failed", "revoked"]);
 const badYoutubeStreamStatuses = new Set(["inactive", "error"]);
 const badIdentityMarkers = new Set(["-", "mock", "n/a", "na", "none", "null", "placeholder", "test", "unknown"]);
@@ -21,14 +22,16 @@ const evidenceKinds = {
 
 export function createDashboardEvidenceManifest({
   youtubeScreenshot,
+  youtubeScreenshotCapturedAt,
   twitchScreenshot,
+  twitchScreenshotCapturedAt,
   youtubeJson,
   twitchJson,
   manifestPath = dashboardEvidenceManifestPath
 } = {}) {
   const artifactInputs = [
-    youtubeScreenshot ? { platform: "youtube", kind: "screenshot", path: youtubeScreenshot } : null,
-    twitchScreenshot ? { platform: "twitch", kind: "screenshot", path: twitchScreenshot } : null,
+    youtubeScreenshot ? { platform: "youtube", kind: "screenshot", path: youtubeScreenshot, capturedAt: youtubeScreenshotCapturedAt } : null,
+    twitchScreenshot ? { platform: "twitch", kind: "screenshot", path: twitchScreenshot, capturedAt: twitchScreenshotCapturedAt } : null,
     youtubeJson ? { platform: "youtube", kind: "statusJson", path: youtubeJson } : null,
     twitchJson ? { platform: "twitch", kind: "statusJson", path: twitchJson } : null
   ].filter(Boolean);
@@ -97,6 +100,7 @@ export function validateDashboardEvidenceManifest(
     }
     seen.add(key);
   }
+  validateDashboardArtifactTiming(manifest.artifacts, failures);
 
   if (!workspaceRelativePath(manifestPath)) {
     failures.push("Dashboard evidence manifest path must be inside the workspace.");
@@ -156,7 +160,7 @@ export function validateDashboardEvidenceInReport(artifacts, fail) {
   }
 }
 
-function createDashboardArtifactRecord({ platform, kind, path }) {
+function createDashboardArtifactRecord({ platform, kind, path, capturedAt }) {
   const relativePath = workspaceRelativePath(path);
   if (!relativePath) {
     throw new Error(`${platform} dashboard ${kind} evidence must be inside the workspace: ${path}`);
@@ -183,6 +187,10 @@ function createDashboardArtifactRecord({ platform, kind, path }) {
   if (kind === "screenshot" && !screenshotDimensions) {
     throw new Error(`${platform} dashboard screenshot evidence must be a readable PNG file: ${relativePath}`);
   }
+  const screenshotCapturedAt = kind === "screenshot" ? normalizeDashboardTimestamp(capturedAt) : "";
+  if (kind === "screenshot" && !screenshotCapturedAt) {
+    throw new Error(`${platform} dashboard screenshot evidence must include a capturedAt timestamp: ${relativePath}`);
+  }
   const statusJsonSummary = kind === "statusJson" ? createStatusJsonSummary({ platform, path: relativePath }, content) : null;
   if (kind === "statusJson") {
     if (statusJsonSummary.failures.length > 0) {
@@ -195,7 +203,9 @@ function createDashboardArtifactRecord({ platform, kind, path }) {
     kind,
     path: relativePath,
     basename: basename(relativePath),
-    ...(screenshotDimensions ? { width: screenshotDimensions.width, height: screenshotDimensions.height } : {}),
+    ...(screenshotDimensions
+      ? { width: screenshotDimensions.width, height: screenshotDimensions.height, capturedAt: screenshotCapturedAt }
+      : {}),
     ...(statusJsonSummary ? { checkedAt: statusJsonSummary.checkedAt, statusSummary: statusJsonSummary.statusSummary } : {}),
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
@@ -242,6 +252,9 @@ function validateDashboardArtifact(artifact, failures) {
       }
       validateDashboardScreenshotDimensions(artifact, dimensions, failures);
     }
+    if (!normalizeDashboardTimestamp(artifact.capturedAt)) {
+      failures.push(`Dashboard evidence screenshot ${artifact.path} must include a valid capturedAt timestamp.`);
+    }
   }
   if (artifact.kind === "statusJson") {
     const statusJsonSummary = createStatusJsonSummary(artifact, content);
@@ -251,6 +264,31 @@ function validateDashboardArtifact(artifact, failures) {
     }
     if (artifact.statusSummary !== statusJsonSummary.statusSummary) {
       failures.push(`Dashboard evidence status JSON summary mismatch for ${artifact.path}.`);
+    }
+  }
+}
+
+function validateDashboardArtifactTiming(artifacts, failures) {
+  for (const platform of dashboardPlatforms) {
+    const statusArtifacts = artifacts.filter((artifact) => artifact?.platform === platform && artifact?.kind === "statusJson");
+    const screenshotArtifacts = artifacts.filter((artifact) => artifact?.platform === platform && artifact?.kind === "screenshot");
+    for (const screenshotArtifact of screenshotArtifacts) {
+      const screenshotCapturedAt = normalizeDashboardTimestamp(screenshotArtifact.capturedAt);
+      if (!screenshotCapturedAt) {
+        continue;
+      }
+      for (const statusArtifact of statusArtifacts) {
+        const statusCheckedAt = normalizeDashboardTimestamp(statusArtifact.checkedAt);
+        if (!statusCheckedAt) {
+          continue;
+        }
+        const skewMinutes = Math.abs(Date.parse(screenshotCapturedAt) - Date.parse(statusCheckedAt)) / 60_000;
+        if (skewMinutes > dashboardScreenshotStatusMaxSkewMinutes) {
+          failures.push(
+            `Dashboard evidence ${platform} screenshot capturedAt must be within ${dashboardScreenshotStatusMaxSkewMinutes} minutes of status JSON checkedAt.`
+          );
+        }
+      }
     }
   }
 }
@@ -371,6 +409,11 @@ function stringValue(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizeDashboardTimestamp(value) {
+  const timestamp = stringValue(value);
+  return timestamp && Number.isFinite(Date.parse(timestamp)) ? timestamp : "";
+}
+
 function requiredIdentityValue(value, label, path, failures) {
   const identity = stringValue(value);
   if (!identity) {
@@ -412,7 +455,9 @@ function parseArgs(args) {
     write: false,
     verify: false,
     youtubeScreenshot: "",
+    youtubeScreenshotCapturedAt: "",
     twitchScreenshot: "",
+    twitchScreenshotCapturedAt: "",
     youtubeJson: "",
     twitchJson: "",
     manifestPath: dashboardEvidenceManifestPath,
@@ -436,11 +481,21 @@ function parseArgs(args) {
       index += 1;
     } else if (arg.startsWith("--youtube-screenshot=")) {
       options.youtubeScreenshot = arg.slice("--youtube-screenshot=".length);
+    } else if (arg === "--youtube-screenshot-captured-at") {
+      options.youtubeScreenshotCapturedAt = args[index + 1] || "";
+      index += 1;
+    } else if (arg.startsWith("--youtube-screenshot-captured-at=")) {
+      options.youtubeScreenshotCapturedAt = arg.slice("--youtube-screenshot-captured-at=".length);
     } else if (arg === "--twitch-screenshot") {
       options.twitchScreenshot = args[index + 1] || "";
       index += 1;
     } else if (arg.startsWith("--twitch-screenshot=")) {
       options.twitchScreenshot = arg.slice("--twitch-screenshot=".length);
+    } else if (arg === "--twitch-screenshot-captured-at") {
+      options.twitchScreenshotCapturedAt = args[index + 1] || "";
+      index += 1;
+    } else if (arg.startsWith("--twitch-screenshot-captured-at=")) {
+      options.twitchScreenshotCapturedAt = arg.slice("--twitch-screenshot-captured-at=".length);
     } else if (arg === "--youtube-json") {
       options.youtubeJson = args[index + 1] || "";
       index += 1;
@@ -476,10 +531,11 @@ function printUsage() {
   console.log(
     [
       "Usage:",
-      "  npm run release:dashboard-evidence -- --youtube-screenshot <png> --twitch-screenshot <png> [--youtube-json <json>] [--twitch-json <json>]",
+      "  npm run release:dashboard-evidence -- --youtube-screenshot <png> --youtube-screenshot-captured-at <iso> --twitch-screenshot <png> --twitch-screenshot-captured-at <iso> [--youtube-json <json>] [--twitch-json <json>]",
       "  npm run verify:dashboard-evidence -- [--manifest=.artifacts/platform-dashboard-evidence.json] [--allow-dirty] [--allow-commit-mismatch]",
       "",
       "Writes or verifies a hash manifest for YouTube/Twitch dashboard evidence artifacts.",
+      `Dashboard screenshots require capturedAt timestamps, and matching status JSON checkedAt values must be within ${dashboardScreenshotStatusMaxSkewMinutes} minutes.`,
       "YouTube status JSON requires platform, checkedAt, broadcastId, streamId, channelId, broadcastStatus, and streamStatus.",
       "Twitch status JSON requires platform, checkedAt, broadcasterId, broadcasterLogin, streamId, and liveStatus."
     ].join("\n")

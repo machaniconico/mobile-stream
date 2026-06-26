@@ -323,7 +323,7 @@ function runStoreSubmissionEvidenceRequirementGate(report, options) {
   }
   if (!dashboardManifestExists) {
     failures.push(
-      `Dashboard evidence manifest is required when ${storeSubmissionChecklistPath} exists. Run \`npm run release:dashboard-evidence -- --youtube-screenshot <path> --twitch-screenshot <path> --youtube-json <path> --twitch-json <path>\` before release-candidate verification.`
+      `Dashboard evidence manifest is required when ${storeSubmissionChecklistPath} exists. Run \`npm run release:dashboard-evidence -- --youtube-screenshot <path> --youtube-screenshot-captured-at <iso> --twitch-screenshot <path> --twitch-screenshot-captured-at <iso> --youtube-json <path> --twitch-json <path>\` before release-candidate verification.`
     );
   }
   if (!options.storeReleaseReportJsonPath) {

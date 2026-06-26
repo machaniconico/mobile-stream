@@ -11,6 +11,7 @@ const twitchJson = `${fixtureRoot}/twitch-dashboard.json`;
 const manifestPath = `${fixtureRoot}/platform-dashboard-evidence.json`;
 const expectedYoutubeStatusSummary = "broadcast:live:ytBroadcast9xYz stream:active:ytStream8aBc channel:UCMobileLiveCaster";
 const expectedTwitchStatusSummary = "live:live channel:123456789/mobilelivecaster stream:987654321";
+const dashboardCapturedAt = "2026-06-23T00:00:00.000Z";
 
 const pngBytes = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
@@ -31,8 +32,12 @@ describe("platform dashboard evidence verifier", () => {
       "--allow-dirty",
       "--youtube-screenshot",
       youtubeScreenshot,
+      "--youtube-screenshot-captured-at",
+      dashboardCapturedAt,
       "--twitch-screenshot",
       twitchScreenshot,
+      "--twitch-screenshot-captured-at",
+      dashboardCapturedAt,
       "--youtube-json",
       youtubeJson,
       "--twitch-json",
@@ -54,13 +59,13 @@ describe("platform dashboard evidence verifier", () => {
       "twitch:statusJson"
     ]);
     expect(manifest.artifacts[0].sha256).toMatch(/^[a-f0-9]{64}$/);
-    expect(manifest.artifacts[0]).toMatchObject({ width: 1440, height: 900 });
+    expect(manifest.artifacts[0]).toMatchObject({ width: 1440, height: 900, capturedAt: dashboardCapturedAt });
     expect(manifest.artifacts[2]).toMatchObject({
-      checkedAt: expect.any(String),
+      checkedAt: dashboardCapturedAt,
       statusSummary: expectedYoutubeStatusSummary
     });
     expect(manifest.artifacts[3]).toMatchObject({
-      checkedAt: expect.any(String),
+      checkedAt: dashboardCapturedAt,
       statusSummary: expectedTwitchStatusSummary
     });
 
@@ -72,7 +77,16 @@ describe("platform dashboard evidence verifier", () => {
   it("fails when dashboard screenshot evidence is modified after manifest creation", () => {
     writeEvidenceFiles();
     expect(
-      runVerifier(["--write", "--allow-dirty", "--youtube-screenshot", youtubeScreenshot, "--manifest", manifestPath]).status
+      runVerifier([
+        "--write",
+        "--allow-dirty",
+        "--youtube-screenshot",
+        youtubeScreenshot,
+        "--youtube-screenshot-captured-at",
+        dashboardCapturedAt,
+        "--manifest",
+        manifestPath
+      ]).status
     ).toBe(0);
 
     writeFileSync(youtubeScreenshot, pngBytes.subarray(0, 12));
@@ -86,12 +100,70 @@ describe("platform dashboard evidence verifier", () => {
     mkdirSync(fixtureRoot, { recursive: true });
     writeFileSync(youtubeScreenshot, pngBytes);
 
-    const result = runVerifier(["--write", "--allow-dirty", "--youtube-screenshot", youtubeScreenshot, "--manifest", manifestPath]);
+    const result = runVerifier([
+      "--write",
+      "--allow-dirty",
+      "--youtube-screenshot",
+      youtubeScreenshot,
+      "--youtube-screenshot-captured-at",
+      dashboardCapturedAt,
+      "--manifest",
+      manifestPath
+    ]);
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(
       `Dashboard evidence screenshot ${youtubeScreenshot} must be at least 720px on the short edge and 1280px on the long edge.`
     );
+  });
+
+  it("rejects dashboard screenshots without capturedAt evidence", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(youtubeScreenshot, dashboardPngBytes);
+
+    const result = runVerifier(["--write", "--allow-dirty", "--youtube-screenshot", youtubeScreenshot, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`youtube dashboard screenshot evidence must include a capturedAt timestamp: ${youtubeScreenshot}`);
+  });
+
+  it("rejects dashboard screenshots with invalid capturedAt evidence", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(youtubeScreenshot, dashboardPngBytes);
+
+    const result = runVerifier([
+      "--write",
+      "--allow-dirty",
+      "--youtube-screenshot",
+      youtubeScreenshot,
+      "--youtube-screenshot-captured-at",
+      "not-a-date",
+      "--manifest",
+      manifestPath
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`youtube dashboard screenshot evidence must include a capturedAt timestamp: ${youtubeScreenshot}`);
+  });
+
+  it("rejects dashboard screenshots that are not fresh against status JSON", () => {
+    writeEvidenceFiles();
+
+    const result = runVerifier([
+      "--write",
+      "--allow-dirty",
+      "--youtube-screenshot",
+      youtubeScreenshot,
+      "--youtube-screenshot-captured-at",
+      "2026-06-23T00:30:01.000Z",
+      "--youtube-json",
+      youtubeJson,
+      "--manifest",
+      manifestPath
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Dashboard evidence youtube screenshot capturedAt must be within 10 minutes of status JSON checkedAt.");
   });
 
   it("rejects unreadable dashboard status JSON", () => {
@@ -213,6 +285,8 @@ describe("platform dashboard evidence verifier", () => {
         "--allow-dirty",
         "--youtube-screenshot",
         youtubeScreenshot,
+        "--youtube-screenshot-captured-at",
+        dashboardCapturedAt,
         "--youtube-json",
         youtubeJson,
         "--manifest",
@@ -269,6 +343,7 @@ describe("platform dashboard evidence verifier", () => {
             kind: "screenshot",
             path: youtubeScreenshot,
             basename: "youtube-dashboard.png",
+            capturedAt: dashboardCapturedAt,
             bytes: 0,
             sha256: createHash("sha256").update("").digest("hex")
           }
@@ -283,7 +358,7 @@ describe("platform dashboard evidence verifier", () => {
   });
 });
 
-function writeEvidenceFiles() {
+function writeEvidenceFiles({ checkedAt = dashboardCapturedAt } = {}) {
   mkdirSync(fixtureRoot, { recursive: true });
   writeFileSync(youtubeScreenshot, dashboardPngBytes);
   writeFileSync(twitchScreenshot, dashboardPngBytes);
@@ -296,7 +371,7 @@ function writeEvidenceFiles() {
       channelId: "UCMobileLiveCaster",
       broadcastStatus: "live",
       streamStatus: "active",
-      checkedAt: new Date().toISOString()
+      checkedAt
     })
   );
   writeFileSync(
@@ -307,7 +382,7 @@ function writeEvidenceFiles() {
       broadcasterLogin: "mobilelivecaster",
       streamId: "987654321",
       liveStatus: "live",
-      checkedAt: new Date().toISOString()
+      checkedAt
     })
   );
 }

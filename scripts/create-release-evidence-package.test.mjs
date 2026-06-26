@@ -532,7 +532,7 @@ function writeDashboardEvidenceFixture() {
       channelId: "UCMobileLiveCaster",
       broadcastStatus: "live",
       streamStatus: "active",
-      checkedAt: new Date().toISOString()
+      checkedAt: capturedAt
     })
   );
   writeFile(
@@ -543,7 +543,7 @@ function writeDashboardEvidenceFixture() {
       broadcasterLogin: "mobilelivecaster",
       streamId: "987654321",
       liveStatus: "live",
-      checkedAt: new Date().toISOString()
+      checkedAt: capturedAt
     })
   );
   writeFile(
@@ -753,6 +753,7 @@ function dashboardScreenshotRecord(platform, path) {
     basename: path.split("/").at(-1),
     width: dimensions.width,
     height: dimensions.height,
+    capturedAt,
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
