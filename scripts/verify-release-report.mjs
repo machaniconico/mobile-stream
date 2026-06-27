@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { basename, resolve } from "node:path";
-import { argv, exit } from "node:process";
+import { basename, isAbsolute, relative, resolve, sep } from "node:path";
+import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import {
   releaseConfigArtifactPaths,
@@ -289,23 +289,24 @@ function validateArtifactRecord(artifact, fail) {
     fail("Artifact record is missing group or path.");
     return;
   }
-  if (artifact.path.startsWith("/") || artifact.path.startsWith("..")) {
+  const artifactPath = workspaceRecordPath(artifact.path);
+  if (!artifactPath) {
     fail(`Artifact path must be workspace-relative: ${artifact.path}.`);
     return;
   }
   if (!Number.isFinite(artifact.bytes) || artifact.bytes <= 0 || !isSha256(artifact.sha256)) {
-    fail(`Artifact ${artifact.path} is missing valid bytes or sha256 metadata.`);
+    fail(`Artifact ${artifactPath} is missing valid bytes or sha256 metadata.`);
     return;
   }
-  if (!existsSync(resolve(artifact.path))) {
-    fail(`Artifact file does not exist: ${artifact.path}.`);
+  if (!existsSync(resolve(artifactPath))) {
+    fail(`Artifact file does not exist: ${artifactPath}.`);
     return;
   }
 
-  const content = readFileSync(resolve(artifact.path));
+  const content = readFileSync(resolve(artifactPath));
   const actualSha256 = createHash("sha256").update(content).digest("hex");
   if (content.byteLength !== artifact.bytes || actualSha256 !== artifact.sha256) {
-    fail(`Artifact metadata mismatch for ${artifact.path}.`);
+    fail(`Artifact metadata mismatch for ${artifactPath}.`);
   }
 }
 
@@ -332,15 +333,20 @@ function validateUiEvidence(report, options, fail) {
     );
     return;
   }
-  if (!existsSync(resolve(evidencePath))) {
-    fail(`Browser UI evidence file does not exist: ${evidencePath}.`);
+  const relativeEvidencePath = workspaceRecordPath(evidencePath);
+  if (!relativeEvidencePath) {
+    fail(`Browser UI evidence path must be workspace-relative: ${evidencePath}.`);
     return;
   }
-  if (!isSha256(evidenceSource.sha256) || fileSha256(evidencePath) !== evidenceSource.sha256) {
-    fail(`Browser UI evidence SHA-256 mismatch for ${evidencePath}.`);
+  if (!existsSync(resolve(relativeEvidencePath))) {
+    fail(`Browser UI evidence file does not exist: ${relativeEvidencePath}.`);
+    return;
+  }
+  if (!isSha256(evidenceSource.sha256) || fileSha256(relativeEvidencePath) !== evidenceSource.sha256) {
+    fail(`Browser UI evidence SHA-256 mismatch for ${relativeEvidencePath}.`);
   }
 
-  const evidence = readJsonFile(evidencePath, "browser UI evidence");
+  const evidence = readJsonFile(relativeEvidencePath, "browser UI evidence");
   if (evidence?.app !== "MobileLiveCaster" || evidence?.type !== "browser-ui-verification" || evidence?.reportVersion !== 1) {
     fail("Browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");
   }
@@ -403,18 +409,23 @@ function validateEvidenceScreenshot(viewport, fail) {
     fail(`Browser UI evidence for ${viewport.name} is missing valid screenshot metadata.`);
     return;
   }
-  if (!existsSync(resolve(screenshot.path))) {
-    fail(`Browser UI evidence screenshot does not exist: ${screenshot.path}.`);
+  const screenshotPath = workspaceRecordPath(screenshot.path);
+  if (!screenshotPath) {
+    fail(`Browser UI evidence screenshot path must be workspace-relative: ${screenshot.path}.`);
     return;
   }
-  const content = readFileSync(resolve(screenshot.path));
+  if (!existsSync(resolve(screenshotPath))) {
+    fail(`Browser UI evidence screenshot does not exist: ${screenshotPath}.`);
+    return;
+  }
+  const content = readFileSync(resolve(screenshotPath));
   const actualSha256 = createHash("sha256").update(content).digest("hex");
   if (content.byteLength !== screenshot.bytes || actualSha256 !== screenshot.sha256) {
-    fail(`Browser UI evidence screenshot metadata mismatch for ${screenshot.path}.`);
+    fail(`Browser UI evidence screenshot metadata mismatch for ${screenshotPath}.`);
   }
   const pngEvidence = readPngEvidence(content);
   if (!pngEvidence.valid) {
-    fail(`Browser UI evidence screenshot is not a structurally valid PNG file: ${screenshot.path} (${pngEvidence.reason}).`);
+    fail(`Browser UI evidence screenshot is not a structurally valid PNG file: ${screenshotPath} (${pngEvidence.reason}).`);
   }
 }
 
@@ -436,6 +447,23 @@ function failuresFrom(fail) {
 
 function fileSha256(path) {
   return createHash("sha256").update(readFileSync(resolve(path))).digest("hex");
+}
+
+function workspaceRelativePath(path) {
+  const absolutePath = resolve(path);
+  const relativePath = relative(cwd(), absolutePath);
+  if (!relativePath || relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
+    return "";
+  }
+  return relativePath;
+}
+
+function workspaceRecordPath(path) {
+  if (typeof path !== "string") {
+    return "";
+  }
+  const relativePath = workspaceRelativePath(path);
+  return relativePath === path ? relativePath : "";
 }
 
 function commandOutput(command, args) {

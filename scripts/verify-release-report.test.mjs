@@ -127,6 +127,62 @@ describe("release report verifier", () => {
     expect(failures).toContain("Report git dirty state is missing.");
   });
 
+  it("rejects non-canonical artifact paths before reading release evidence", () => {
+    const report = createReport();
+    const artifact = report.artifacts.files.find((candidate) => candidate.path === "dist/index.html");
+    artifact.path = "dist/../dist/index.html";
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain("Artifact path must be workspace-relative: dist/../dist/index.html.");
+  });
+
+  it("rejects dot-prefixed artifact paths before reading release evidence", () => {
+    const report = createReport();
+    const artifact = report.artifacts.files.find((candidate) => candidate.path === "dist/index.html");
+    artifact.path = "./dist/index.html";
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain("Artifact path must be workspace-relative: ./dist/index.html.");
+  });
+
+  it("rejects non-canonical browser UI evidence paths before reading evidence JSON", () => {
+    const report = createReport();
+    const evidenceGate = report.gates.find((gate) => gate.label === "Verify browser UI evidence");
+    evidenceGate.evidence.path = ".artifacts/release-report-test/nested/../ui-evidence.json";
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain(
+      "Browser UI evidence path must be workspace-relative: .artifacts/release-report-test/nested/../ui-evidence.json."
+    );
+  });
+
+  it("rejects absolute browser UI evidence paths before reading evidence JSON", () => {
+    const report = createReport();
+    const evidenceGate = report.gates.find((gate) => gate.label === "Verify browser UI evidence");
+    evidenceGate.evidence.path = resolve(evidenceGate.evidence.path);
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain(`Browser UI evidence path must be workspace-relative: ${evidenceGate.evidence.path}.`);
+  });
+
+  it("rejects non-canonical browser UI screenshot evidence paths", () => {
+    const report = createReport();
+    rewriteUiEvidence(report, (evidence) => {
+      const desktop = evidence.viewports.find((viewport) => viewport.name === "desktop");
+      desktop.screenshot.path = ".artifacts/nested/../mobile-live-caster-desktop.png";
+    });
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain(
+      "Browser UI evidence screenshot path must be workspace-relative: .artifacts/nested/../mobile-live-caster-desktop.png."
+    );
+  });
+
   it("rejects UI evidence screenshots that are not PNG files", () => {
     const report = createReport();
     const badScreenshotPath = ".artifacts/release-report-test/bad-mobile.png";
