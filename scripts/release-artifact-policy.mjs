@@ -1,5 +1,5 @@
-import { existsSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { lstatSync, readdirSync } from "node:fs";
+import { join, relative, resolve, sep } from "node:path";
 import { cwd } from "node:process";
 
 const staticReleaseConfigArtifactPaths = [
@@ -44,9 +44,9 @@ const staticReleaseConfigArtifactPaths = [
 ];
 
 export const productionNativeSourcePaths = [
-  ...collectSourceFiles("android/app/src/main/java", [".kt", ".java"]),
-  ...collectSourceFiles("ios/MobileLiveCaster", [".swift", ".m", ".mm"]),
-  ...collectSourceFiles("ios/MobileLiveCasterBroadcastUpload", [".swift", ".m", ".mm"])
+  ...collectReleaseSourceFiles("android/app/src/main/java", [".kt", ".java"]),
+  ...collectReleaseSourceFiles("ios/MobileLiveCaster", [".swift", ".m", ".mm"]),
+  ...collectReleaseSourceFiles("ios/MobileLiveCasterBroadcastUpload", [".swift", ".m", ".mm"])
 ].sort((left, right) => left.localeCompare(right));
 
 export const releaseConfigArtifactPaths = [...new Set([...staticReleaseConfigArtifactPaths, ...productionNativeSourcePaths])].sort(
@@ -68,19 +68,77 @@ export const requiredReleaseGateLabels = [
 
 export const requiredReleaseArtifactGroups = ["release-config", "web", "react-native", "ui"];
 
-function collectSourceFiles(relativePath, extensions) {
+export function collectReleaseSourceFiles(relativePath, extensions) {
   const absoluteDirectory = join(cwd(), relativePath);
-  if (!existsSync(absoluteDirectory) || !statSync(absoluteDirectory).isDirectory()) {
+  const directoryStat = lstatExisting(absoluteDirectory);
+  if (!directoryStat) {
     return [];
+  }
+  assertNoSymlinkedParentDirectories(relativePath, "Release source directory");
+  if (directoryStat.isSymbolicLink()) {
+    throw new Error(`Release source directory must not be a symbolic link: ${relativePath}`);
+  }
+  if (!directoryStat.isDirectory()) {
+    throw new Error(`Release source directory must point to a directory: ${relativePath}`);
   }
   return readdirSync(absoluteDirectory, { withFileTypes: true }).flatMap((dirent) => {
     const childPath = `${relativePath}/${dirent.name}`;
-    if (dirent.isDirectory()) {
-      return collectSourceFiles(childPath, extensions);
+    const childStat = lstatSync(join(cwd(), childPath));
+    if (childStat.isSymbolicLink()) {
+      throw new Error(`Release source path must not be a symbolic link: ${childPath}`);
     }
-    if (!dirent.isFile() || !extensions.some((extension) => childPath.endsWith(extension))) {
+    if (childStat.isDirectory()) {
+      return collectReleaseSourceFiles(childPath, extensions);
+    }
+    if (!childStat.isFile() || !extensions.some((extension) => childPath.endsWith(extension))) {
       return [];
     }
     return [childPath];
   });
+}
+
+function assertNoSymlinkedParentDirectories(path, label) {
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    return;
+  }
+  const parts = relativePath.split(sep).filter(Boolean);
+  let currentPath = cwd();
+  for (const part of parts.slice(0, -1)) {
+    currentPath = join(currentPath, part);
+    const stat = lstatExisting(currentPath);
+    if (!stat) {
+      return;
+    }
+    const displayPath = relative(cwd(), currentPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`${label} path parent must not be a symbolic link: ${displayPath}`);
+    }
+    if (!stat.isDirectory()) {
+      throw new Error(`${label} path parent must point to a directory: ${displayPath}`);
+    }
+  }
+}
+
+function workspaceRelativePath(path) {
+  const absolutePath = resolve(path);
+  const relativePath = relative(cwd(), absolutePath);
+  if (relativePath === "") {
+    return ".";
+  }
+  if (relativePath.startsWith("..") || relativePath === ".." || relativePath.includes(`..${sep}`)) {
+    return null;
+  }
+  return relativePath;
+}
+
+function lstatExisting(path) {
+  try {
+    return lstatSync(resolve(path));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
 }
