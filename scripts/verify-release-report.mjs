@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { basename, isAbsolute, relative, resolve, sep } from "node:path";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import {
@@ -197,6 +197,9 @@ function validateSupportBundle(report, options, fail) {
     fail(`Support bundle file does not exist: ${bundlePath}.`);
     return;
   }
+  if (!validateRegularSourceFile(bundlePath, "Support bundle", fail)) {
+    return;
+  }
   const actual = fileSha256(bundlePath);
   if (actual !== bundle.sha256) {
     fail(`Support bundle SHA-256 mismatch for ${bundlePath}.`);
@@ -302,6 +305,9 @@ function validateArtifactRecord(artifact, fail) {
     fail(`Artifact file does not exist: ${artifactPath}.`);
     return;
   }
+  if (!validateRegularSourceFile(artifactPath, "Artifact", fail)) {
+    return;
+  }
 
   const content = readFileSync(resolve(artifactPath));
   const actualSha256 = createHash("sha256").update(content).digest("hex");
@@ -340,6 +346,9 @@ function validateUiEvidence(report, options, fail) {
   }
   if (!existsSync(resolve(relativeEvidencePath))) {
     fail(`Browser UI evidence file does not exist: ${relativeEvidencePath}.`);
+    return;
+  }
+  if (!validateRegularSourceFile(relativeEvidencePath, "Browser UI evidence", fail)) {
     return;
   }
   if (!isSha256(evidenceSource.sha256) || fileSha256(relativeEvidencePath) !== evidenceSource.sha256) {
@@ -418,6 +427,9 @@ function validateEvidenceScreenshot(viewport, fail) {
     fail(`Browser UI evidence screenshot does not exist: ${screenshotPath}.`);
     return;
   }
+  if (!validateRegularSourceFile(screenshotPath, "Browser UI evidence screenshot", fail)) {
+    return;
+  }
   const content = readFileSync(resolve(screenshotPath));
   const actualSha256 = createHash("sha256").update(content).digest("hex");
   if (content.byteLength !== screenshot.bytes || actualSha256 !== screenshot.sha256) {
@@ -431,6 +443,7 @@ function validateEvidenceScreenshot(viewport, fail) {
 
 function readJsonFile(path, label) {
   try {
+    assertRegularSourceFile(path, label);
     return JSON.parse(readFileSync(resolve(path), "utf8"));
   } catch (error) {
     throw new Error(`Could not read ${label} at ${path}: ${error instanceof Error ? error.message : String(error)}`);
@@ -446,10 +459,72 @@ function failuresFrom(fail) {
 }
 
 function fileSha256(path) {
+  assertRegularSourceFile(path, "File");
   return createHash("sha256").update(readFileSync(resolve(path))).digest("hex");
 }
 
+function validateRegularSourceFile(path, label, fail) {
+  try {
+    assertRegularSourceFile(path, label);
+    return true;
+  } catch (error) {
+    fail(`${error instanceof Error ? error.message : String(error)}.`);
+    return false;
+  }
+}
+
+function assertRegularSourceFile(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatExisting(path);
+  if (!stat) {
+    throw new Error(`${label} does not exist: ${path}`);
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} must point to a file: ${path}`);
+  }
+}
+
+function assertNoSymlinkedParentDirectories(path, label) {
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    return;
+  }
+  const parts = relativePath.split(sep).filter(Boolean);
+  let currentPath = cwd();
+  for (const part of parts.slice(0, -1)) {
+    currentPath = join(currentPath, part);
+    const stat = lstatExisting(currentPath);
+    if (!stat) {
+      return;
+    }
+    const displayPath = relative(cwd(), currentPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`${label} path parent must not be a symbolic link: ${displayPath}`);
+    }
+    if (!stat.isDirectory()) {
+      throw new Error(`${label} path parent must point to a directory: ${displayPath}`);
+    }
+  }
+}
+
+function lstatExisting(path) {
+  try {
+    return lstatSync(resolve(path));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
 function workspaceRelativePath(path) {
+  if (!path) {
+    return "";
+  }
   const absolutePath = resolve(path);
   const relativePath = relative(cwd(), absolutePath);
   if (!relativePath || relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {

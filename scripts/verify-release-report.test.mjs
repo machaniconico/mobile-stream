@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -63,6 +63,24 @@ describe("release report verifier", () => {
     expect(failures).toEqual([]);
   });
 
+  it("rejects symlinked release report input paths before reading linked reports", () => {
+    const sourceReportPath = ".artifacts/release-report-test/release-candidate-report.json";
+    const reportSymlink = ".artifacts/release-report-test/release-candidate-report-link.json";
+    writeFile(sourceReportPath, JSON.stringify(createReport(), null, 2));
+    rmSync(reportSymlink, { force: true });
+    symlinkSync(resolve(sourceReportPath), reportSymlink);
+
+    try {
+      const result = runVerifier([reportSymlink, "--allow-dirty", "--allow-commit-mismatch"]);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(`release-candidate report must not be a symbolic link: ${reportSymlink}`);
+    } finally {
+      rmSync(reportSymlink, { force: true });
+      rmSync(sourceReportPath, { force: true });
+    }
+  });
+
   it("rejects release reports whose support bundle fails the commercial release gate", () => {
     const report = createReport({
       supportBundlePatch: {
@@ -76,6 +94,25 @@ describe("release report verifier", () => {
 
     expect(failures.join("\n")).toContain("Release report support bundle commercial release gate must be ready, got blocked:");
     expect(failures.join("\n")).toContain("Release report support bundle validation-evidence-not-ready");
+  });
+
+  it("rejects symlinked support bundles before reading linked targets", () => {
+    const report = createReport();
+    const supportBundlePath = ".artifacts/release-report-test/support-bundle.json";
+    const outsideSupportBundle = ".artifacts/release-report-test/outside-support-bundle.json";
+    writeFile(outsideSupportBundle, readFileSync(supportBundlePath));
+    rmSync(supportBundlePath, { force: true });
+    symlinkSync(resolve(outsideSupportBundle), supportBundlePath);
+
+    try {
+      const failures = validateReport(report, reportOptions());
+
+      expect(failures).toContain(`Support bundle must not be a symbolic link: ${report.supportBundle.absolutePath}.`);
+    } finally {
+      rmSync(supportBundlePath, { force: true });
+      rmSync(outsideSupportBundle, { force: true });
+      writeSupportBundleFixture();
+    }
   });
 
   it("rejects support bundle warnings unless the RC report accepted warnings", () => {
@@ -147,6 +184,46 @@ describe("release report verifier", () => {
     expect(failures).toContain("Artifact path must be workspace-relative: ./dist/index.html.");
   });
 
+  it("rejects symlinked artifact paths before reading linked release evidence", () => {
+    const report = createReport();
+    const artifact = report.artifacts.files.find((candidate) => candidate.path === "dist/index.html");
+    const originalDistIndex = readFileSync("dist/index.html");
+    const outsideArtifact = ".artifacts/release-report-test/outside-index.html";
+    writeFile(outsideArtifact, "<!doctype html><title>Outside</title>");
+    rmSync("dist/index.html", { force: true });
+    symlinkSync(resolve(outsideArtifact), "dist/index.html");
+
+    try {
+      const failures = validateReport(report, reportOptions());
+
+      expect(failures).toContain(`Artifact must not be a symbolic link: ${artifact.path}.`);
+    } finally {
+      rmSync("dist/index.html", { force: true });
+      writeFile("dist/index.html", originalDistIndex);
+      rmSync(outsideArtifact, { force: true });
+    }
+  });
+
+  it("rejects artifact paths with symlinked parents before reading linked release evidence", () => {
+    const report = createReport();
+    const outsideArtifactDir = ".artifacts/release-report-test/outside-artifacts";
+    const artifactLinkDir = ".artifacts/release-report-test/artifact-link";
+    writeFile(`${outsideArtifactDir}/index.html`, "<!doctype html><title>Outside</title>");
+    rmSync(artifactLinkDir, { recursive: true, force: true });
+    symlinkSync(resolve(outsideArtifactDir), artifactLinkDir);
+    const artifact = report.artifacts.files.find((candidate) => candidate.path === "dist/index.html");
+    artifact.path = `${artifactLinkDir}/index.html`;
+
+    try {
+      const failures = validateReport(report, reportOptions());
+
+      expect(failures).toContain(`Artifact path parent must not be a symbolic link: ${artifactLinkDir}.`);
+    } finally {
+      rmSync(artifactLinkDir, { force: true });
+      rmSync(outsideArtifactDir, { recursive: true, force: true });
+    }
+  });
+
   it("rejects non-canonical browser UI evidence paths before reading evidence JSON", () => {
     const report = createReport();
     const evidenceGate = report.gates.find((gate) => gate.label === "Verify browser UI evidence");
@@ -167,6 +244,46 @@ describe("release report verifier", () => {
     const failures = validateReport(report, reportOptions());
 
     expect(failures).toContain(`Browser UI evidence path must be workspace-relative: ${evidenceGate.evidence.path}.`);
+  });
+
+  it("rejects symlinked browser UI evidence before reading linked JSON", () => {
+    const report = createReport();
+    const evidenceGate = report.gates.find((gate) => gate.label === "Verify browser UI evidence");
+    const evidencePath = evidenceGate.evidence.path;
+    const outsideEvidence = ".artifacts/release-report-test/outside-ui-evidence.json";
+    writeFile(outsideEvidence, readFileSync(evidencePath));
+    rmSync(evidencePath, { force: true });
+    symlinkSync(resolve(outsideEvidence), evidencePath);
+
+    try {
+      const failures = validateReport(report, reportOptions());
+
+      expect(failures).toContain(`Browser UI evidence must not be a symbolic link: ${evidencePath}.`);
+    } finally {
+      rmSync(evidencePath, { force: true });
+      rmSync(outsideEvidence, { force: true });
+      writeUiEvidenceFile();
+    }
+  });
+
+  it("rejects browser UI evidence paths with symlinked parents before reading linked JSON", () => {
+    const report = createReport();
+    const outsideEvidenceDir = ".artifacts/release-report-test/outside-evidence";
+    const evidenceLinkDir = ".artifacts/release-report-test/evidence-link";
+    writeFile(`${outsideEvidenceDir}/ui-evidence.json`, readFileSync(uiEvidencePathForReport(report)));
+    rmSync(evidenceLinkDir, { recursive: true, force: true });
+    symlinkSync(resolve(outsideEvidenceDir), evidenceLinkDir);
+    const evidenceGate = report.gates.find((gate) => gate.label === "Verify browser UI evidence");
+    evidenceGate.evidence.path = `${evidenceLinkDir}/ui-evidence.json`;
+
+    try {
+      const failures = validateReport(report, reportOptions());
+
+      expect(failures).toContain(`Browser UI evidence path parent must not be a symbolic link: ${evidenceLinkDir}.`);
+    } finally {
+      rmSync(evidenceLinkDir, { force: true });
+      rmSync(outsideEvidenceDir, { recursive: true, force: true });
+    }
   });
 
   it("rejects non-canonical browser UI screenshot evidence paths", () => {
@@ -358,6 +475,12 @@ function reportOptions() {
     allowDirty: true,
     allowCommitMismatch: false
   };
+}
+
+function runVerifier(args) {
+  return spawnSync(process.execPath, ["scripts/verify-release-report.mjs", ...args], {
+    encoding: "utf8"
+  });
 }
 
 function createReport({
