@@ -103,13 +103,15 @@ function resolveScreenshotSources({ iosScreenshot, androidScreenshot, uiEvidence
 }
 
 function mobileScreenshotFromUiEvidence(path) {
-  const relativePath = workspaceRelativePath(path);
-  const readPath = relativePath || path;
-  if (!existsSync(resolve(readPath))) {
+  const evidencePath = workspaceRecordPath(path);
+  if (!evidencePath) {
+    throw new Error(`UI evidence JSON path must be workspace-relative: ${path}`);
+  }
+  if (!existsSync(resolve(evidencePath))) {
     throw new Error(`UI evidence JSON does not exist: ${path}`);
   }
-  assertRegularSourceFile(readPath, "UI evidence JSON");
-  const evidence = JSON.parse(readFileSync(resolve(readPath), "utf8"));
+  assertRegularSourceFile(evidencePath, "UI evidence JSON");
+  const evidence = JSON.parse(readFileSync(resolve(evidencePath), "utf8"));
   if (evidence?.app !== "MobileLiveCaster" || evidence?.type !== "browser-ui-verification" || evidence?.status !== "passed") {
     throw new Error("UI evidence JSON must be a passing MobileLiveCaster browser-ui-verification report.");
   }
@@ -118,7 +120,11 @@ function mobileScreenshotFromUiEvidence(path) {
   if (!screenshotPath) {
     throw new Error("UI evidence JSON does not contain a mobile screenshot path.");
   }
-  return screenshotPath;
+  const relativeScreenshotPath = workspaceRecordPath(screenshotPath);
+  if (!relativeScreenshotPath) {
+    throw new Error(`UI evidence mobile screenshot path must be workspace-relative: ${screenshotPath}`);
+  }
+  return relativeScreenshotPath;
 }
 
 function copyScreenshot({ sourcePath, outputPath, label }) {
@@ -350,6 +356,14 @@ function workspaceRelativePath(path) {
     return "";
   }
   return relativePath;
+}
+
+function workspaceRecordPath(path) {
+  if (typeof path !== "string") {
+    return "";
+  }
+  const relativePath = workspaceRelativePath(path);
+  return relativePath === path ? relativePath : "";
 }
 
 function parseArgs(args) {

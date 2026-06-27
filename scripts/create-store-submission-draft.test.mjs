@@ -89,6 +89,35 @@ describe("store submission draft creator", () => {
     expect(result.stderr).toContain("UI evidence JSON must be a passing MobileLiveCaster browser-ui-verification report.");
   });
 
+  it("rejects non-canonical UI evidence JSON paths before reading draft evidence", () => {
+    writeSourceScreenshots();
+    writeUiEvidence({ screenshotPath: iosSource });
+    const nonCanonicalEvidencePath = `${fixtureRoot}/nested/../ui-evidence.json`;
+
+    const result = runDraft([
+      "--output-dir",
+      outputDir,
+      "--manifest",
+      manifestPath,
+      "--ui-evidence-json",
+      nonCanonicalEvidencePath
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`UI evidence JSON path must be workspace-relative: ${nonCanonicalEvidencePath}`);
+  });
+
+  it("rejects non-canonical UI evidence screenshot paths before copying draft screenshots", () => {
+    writeSourceScreenshots();
+    const nonCanonicalScreenshotPath = `${sourceRoot}/nested/../ios-source.png`;
+    writeUiEvidence({ screenshotPath: nonCanonicalScreenshotPath });
+
+    const result = runDraft(["--output-dir", outputDir, "--manifest", manifestPath, "--ui-evidence-json", uiEvidencePath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`UI evidence mobile screenshot path must be workspace-relative: ${nonCanonicalScreenshotPath}`);
+  });
+
   it("rejects non-PNG screenshot sources before writing the checklist", () => {
     mkdirSync(sourceRoot, { recursive: true });
     writeFileSync(`${sourceRoot}/ios.txt`, "not a png");
