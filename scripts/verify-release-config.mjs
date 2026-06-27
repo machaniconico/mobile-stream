@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { cwd, exit } from "node:process";
 import {
@@ -42,6 +42,12 @@ const files = {
   liveCasterBridge: read("ios/MobileLiveCaster/LiveCasterBridge.swift"),
   broadcastHandler: read("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift")
 };
+
+const productionNativeSourceFiles = [
+  ...readSourceFiles("android/app/src/main/java", [".kt", ".java"]),
+  ...readSourceFiles("ios/MobileLiveCaster", [".swift", ".m", ".mm"]),
+  ...readSourceFiles("ios/MobileLiveCasterBroadcastUpload", [".swift", ".m", ".mm"])
+];
 
 const iosReleaseConfig = {
   hostBundleId: iosReleaseDefaults.hostBundleId,
@@ -374,6 +380,18 @@ const checks = [
     expectIncludes(files.broadcastInfo, "com.apple.broadcast-services-upload");
     expectIncludes(files.broadcastInfo, "RPBroadcastProcessModeSampleBuffer");
     expectIncludes(files.broadcastInfo, "NSMicrophoneUsageDescription");
+  }),
+  check("Production native sources do not contain unresolved implementation markers", () => {
+    if (productionNativeSourceFiles.length === 0) {
+      throw new Error("missing production native source files");
+    }
+    const unresolvedImplementationPattern = /\b(?:TODO|FIXME)\b|Not implemented|not implemented/g;
+    for (const sourceFile of productionNativeSourceFiles) {
+      const matches = [...sourceFile.content.matchAll(unresolvedImplementationPattern)];
+      if (matches.length > 0) {
+        throw new Error(`${sourceFile.path} contains unresolved implementation marker ${JSON.stringify(matches[0][0])}`);
+      }
+    }
   })
 ];
 
@@ -391,6 +409,20 @@ console.log(`Release configuration verification passed (${checks.length} checks)
 
 function read(relativePath) {
   return readFileSync(join(root, relativePath), "utf8");
+}
+
+function readSourceFiles(relativePath, extensions) {
+  const directory = join(root, relativePath);
+  return readdirSync(directory, { withFileTypes: true }).flatMap((dirent) => {
+    const childPath = `${relativePath}/${dirent.name}`;
+    if (dirent.isDirectory()) {
+      return readSourceFiles(childPath, extensions);
+    }
+    if (!dirent.isFile() || !extensions.some((extension) => childPath.endsWith(extension))) {
+      return [];
+    }
+    return [{ path: childPath, content: read(childPath) }];
+  });
 }
 
 function check(name, assertion) {
