@@ -1,4 +1,5 @@
 import type { ChatReaderSettings } from "./chatReader";
+import type { FaceTrackingDiagnostics } from "./faceTrackingDiagnostics";
 import {
   createAudioMonitorSafetyStatus,
   createDefaultAudioRouteState,
@@ -72,6 +73,7 @@ export interface StreamStartPreflightInput {
   platformChatOAuthCredential?: PlatformChatOAuthCredential | null;
   platformChatConnection?: Pick<PlatformChatConnectionState, "phase" | "message"> | null;
   audioRoute?: AudioRouteState | null;
+  faceTracking?: FaceTrackingDiagnostics | null;
   now?: Date;
 }
 
@@ -89,10 +91,14 @@ export const createStreamStartPreflightReport = ({
   platformChatOAuthCredential = null,
   platformChatConnection = null,
   audioRoute = null,
+  faceTracking = null,
   now = new Date()
 }: StreamStartPreflightInput): StreamStartPreflightReport => {
   const issues = [
-    ...readiness.issues.map((issue) => toPreflightIssue(issue, profile)),
+    ...readiness.issues
+      .filter((issue) => !shouldReplaceReadinessFaceTrackingIssue(issue, faceTracking))
+      .map((issue) => toPreflightIssue(issue, profile)),
+    ...createFaceTrackingIssues(faceTracking),
     ...createAudioMonitorRouteIssues(profile, audioRoute),
     ...createChatReadoutIssues(profile, chatReader, platformChatAuth, platformChatOAuthCredentials, platformChatOAuthCredential, platformChatConnection, now),
     ...createCommercialValidationIssues(profile, validation),
@@ -137,6 +143,47 @@ const toPreflightIssue = (
   message: issue.message,
   recommendation: readinessRecommendation(issue)
 });
+
+const shouldReplaceReadinessFaceTrackingIssue = (
+  issue: ReadinessIssue,
+  faceTracking: FaceTrackingDiagnostics | null
+): boolean => issue.field === "faceTracking" && faceTracking !== null;
+
+const createFaceTrackingIssues = (
+  faceTracking: FaceTrackingDiagnostics | null
+): StreamStartPreflightIssue[] => {
+  if (!faceTracking || faceTracking.status === "pass") {
+    return [];
+  }
+
+  if (faceTracking.status === "warn") {
+    return [
+      {
+        code: "avatar-face-tracking-not-production-ready",
+        severity: "warning",
+        area: "avatar",
+        label: "Avatar tracking",
+        message: faceTracking.summary,
+        recommendation: faceTracking.recommendation
+      }
+    ];
+  }
+
+  if (!faceTracking.enabled && faceTracking.visibleAvatarCount > 0) {
+    return [
+      {
+        code: "avatar-face-tracking-disabled",
+        severity: "warning",
+        area: "avatar",
+        label: "Avatar tracking",
+        message: "A visible avatar source is in the scene, but face tracking is disabled.",
+        recommendation: faceTracking.recommendation
+      }
+    ];
+  }
+
+  return [];
+};
 
 const readinessSeverity = (
   issue: ReadinessIssue,

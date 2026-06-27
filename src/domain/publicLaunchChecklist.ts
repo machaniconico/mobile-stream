@@ -11,6 +11,7 @@ export type PublicLaunchChecklistStatus = "ready" | "warning" | "blocked";
 export type PublicLaunchChecklistItemStatus = "pass" | "warn" | "fail";
 export type PublicLaunchChecklistItemId =
   | "destination"
+  | "avatar-tracking"
   | "platform-dashboard"
   | "chat-readout"
   | "mic-monitor"
@@ -49,6 +50,7 @@ export interface PublicLaunchChecklistInput {
     | "target"
     | "telemetry"
     | "audio"
+    | "faceTracking"
     | "chatReadout"
     | "platformPublishing"
     | "validation"
@@ -66,6 +68,7 @@ export const createPublicLaunchChecklist = ({
 }: PublicLaunchChecklistInput): PublicLaunchChecklist => {
   const items = [
     createDestinationItem(preflight, diagnostics),
+    createAvatarTrackingItem(preflight, diagnostics),
     createPlatformDashboardItem(preflight, diagnostics, platformPublishingFreshness),
     createChatReadoutItem(preflight, diagnostics),
     createMicMonitorItem(preflight, diagnostics),
@@ -177,6 +180,55 @@ const createPlatformDashboardItem = (
     label: "Platform dashboard",
     detail: `${diagnostics.platformPublishing.summary} ${freshness.summary}`,
     action: "Keep the latest platform dashboard snapshot with the launch evidence."
+  };
+};
+
+const createAvatarTrackingItem = (
+  preflight: StreamStartPreflightReport,
+  diagnostics: PublicLaunchChecklistInput["diagnostics"]
+): PublicLaunchChecklistItem => {
+  const issue = findMostSevereIssue(preflight, ["avatar"]);
+  if (issue) {
+    return issueItem("avatar-tracking", "Avatar tracking", issue);
+  }
+
+  const tracking = diagnostics.faceTracking;
+  if (tracking.status === "pass") {
+    return {
+      id: "avatar-tracking",
+      status: "pass",
+      label: "Avatar tracking",
+      detail: `${tracking.preparedPngTuberCount} prepared PNGTuber source${tracking.preparedPngTuberCount === 1 ? "" : "s"} with ${tracking.runtimeStatus} tracking and ${tracking.activeMotionCount} moving avatar source${tracking.activeMotionCount === 1 ? "" : "s"}.`,
+      action: "Keep native camera tracking, calibration, and prepared still-image assets unchanged for launch."
+    };
+  }
+
+  if (tracking.status === "warn") {
+    return {
+      id: "avatar-tracking",
+      status: "warn",
+      label: "Avatar tracking",
+      detail: tracking.summary,
+      action: tracking.recommendation
+    };
+  }
+
+  if (!tracking.enabled && tracking.visibleAvatarCount > 0) {
+    return {
+      id: "avatar-tracking",
+      status: "warn",
+      label: "Avatar tracking",
+      detail: "A visible avatar source is in the scene, but face tracking is disabled.",
+      action: tracking.recommendation
+    };
+  }
+
+  return {
+    id: "avatar-tracking",
+    status: "pass",
+    label: "Avatar tracking",
+    detail: "No visible avatar source is active in this scene.",
+    action: "Add a prepared PNGTuber source and enable native camera tracking before shipping VTuber mode."
   };
 };
 

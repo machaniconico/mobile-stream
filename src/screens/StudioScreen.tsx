@@ -400,7 +400,8 @@ export const StudioScreen = ({
     chatReader: chatReader.settings,
     platformChatAuth,
     platformChatOAuthCredentials,
-    platformChatConnection
+    platformChatConnection,
+    faceTracking: diagnostics.faceTracking
   });
   const platformPublishingFreshness = assessPlatformPublishingFreshness(diagnostics.platformPublishing);
   const publicLaunchChecklist = createPublicLaunchChecklist({

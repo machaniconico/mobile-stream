@@ -67,6 +67,20 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
       recommendation: "Keep headphones connected while monitoring."
     }
   },
+  faceTracking: {
+    status: "pass",
+    enabled: true,
+    inputMode: "native-camera",
+    rigMode: "still-image-2d",
+    runtimeStatus: "tracking",
+    visibleAvatarCount: 1,
+    visiblePngTuberCount: 1,
+    visibleLive2DCount: 0,
+    preparedPngTuberCount: 1,
+    activeMotionCount: 1,
+    summary: "Face tracking is ready with 1 prepared PNGTuber source.",
+    recommendation: "Keep this tracker state with the next private iOS/Android validation run."
+  },
   chatReadout: {
     platformChatEnabled: true,
     readerEnabled: true,
@@ -148,7 +162,7 @@ describe("public launch checklist", () => {
     expect(checklist.status).toBe("ready");
     expect(checklist.canStart).toBe(true);
     expect(checklist.startLock).toMatchObject({ applies: true, blocked: false });
-    expect(checklist.passCount).toBe(6);
+    expect(checklist.passCount).toBe(7);
     expect(checklist.summary).toBe("Public launch checklist is ready.");
   });
 
@@ -231,6 +245,37 @@ describe("public launch checklist", () => {
     expect(checklist.items.find((item) => item.id === "chat-readout")).toMatchObject({
       status: "warn",
       detail: "Chat readout URL redaction is turned off."
+    });
+  });
+
+  it("blocks public launch when avatar tracking warnings remain", () => {
+    const avatarWarning: StreamStartPreflightReport["warnings"][number] = {
+      code: "avatar-face-tracking-not-production-ready",
+      severity: "warning",
+      area: "avatar",
+      label: "Avatar tracking",
+      message: "Face tracking is using simulated input.",
+      recommendation: "Switch to native camera input before public launch."
+    };
+    const checklist = createPublicLaunchChecklist({
+      preflight: {
+        ...readyPreflight,
+        status: "warning",
+        warnings: [avatarWarning],
+        issues: [avatarWarning]
+      },
+      diagnostics: readyDiagnostics(),
+      platformPublishingFreshness: freshDashboard,
+      profile: youtubePublicProfile()
+    });
+
+    expect(checklist.status).toBe("warning");
+    expect(checklist.canStart).toBe(false);
+    expect(checklist.startLock).toMatchObject({ applies: true, blocked: true });
+    expect(checklist.items.find((item) => item.id === "avatar-tracking")).toMatchObject({
+      status: "warn",
+      detail: "Face tracking is using simulated input.",
+      action: "Switch to native camera input before public launch."
     });
   });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultScene, createSource, setVisibility, updateSource, type SceneDocument } from "./scene";
 import { applyDestinationPreset, createDefaultStudioProfile, type StudioProfile } from "./profiles";
+import { createFaceTrackingDiagnostics } from "./faceTrackingDiagnostics";
 import { createReadinessReport } from "./readiness";
 import {
   TWITCH_CHANNEL_MANAGE_SCOPE,
@@ -97,6 +98,20 @@ const createHostSandboxAvatarScene = (): SceneDocument =>
         : source
   );
 
+const createPreparedTrackedAvatarScene = (): SceneDocument =>
+  updateSource(
+    setVisibility(createScreenOnlyScene(), "source-avatar", true),
+    "source-avatar",
+    (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...source,
+            imageUri: "file:///private/var/mobile/Containers/Shared/AppGroup/ABCDEF/avatar.png",
+            motion: { ...source.motion, headYaw: 0.22, mouthDeform: 0.31, confidence: 0.91 }
+          }
+        : source
+  );
+
 describe("stream start preflight", () => {
   it("blocks start when readiness has errors", () => {
     const report = createStreamStartPreflightReport({
@@ -118,6 +133,67 @@ describe("stream start preflight", () => {
     expect(report.canStart).toBe(true);
     expect(report.status).toBe("ready");
     expect(report.summary).toBe("Launch preflight is ready.");
+  });
+
+  it("uses current face tracking diagnostics instead of stale readiness warnings", () => {
+    const profile = {
+      ...validProfile(),
+      faceTracking: {
+        ...validProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const
+      }
+    };
+    const scene = createPreparedTrackedAvatarScene();
+    const readiness = createReadinessReport(scene, profile);
+    const faceTracking = createFaceTrackingDiagnostics(scene, profile, {
+      status: "tracking",
+      yaw: 0.2,
+      pitch: 0.1,
+      roll: 0,
+      mouthOpen: 0.4,
+      blink: 0,
+      smile: 0.4,
+      browRaise: 0.2,
+      confidence: 0.91,
+      expression: "neutral",
+      lastFrameAt: 1_000
+    });
+
+    expect(readiness.issues.map((issue) => issue.code)).toContain("face-tracking-not-production-ready");
+
+    const report = createStreamStartPreflightReport({
+      readiness,
+      streamStatus: "idle",
+      profile,
+      faceTracking
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("ready");
+    expect(report.issues.map((issue) => issue.code)).not.toContain("readiness-face-tracking-not-production-ready");
+    expect(report.issues.map((issue) => issue.area)).not.toContain("avatar");
+  });
+
+  it("warns when a visible avatar has face tracking disabled", () => {
+    const scene = createPreparedTrackedAvatarScene();
+    const profile = validProfile();
+    const faceTracking = createFaceTrackingDiagnostics(scene, profile);
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(scene, profile),
+      streamStatus: "idle",
+      profile,
+      faceTracking
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("warning");
+    expect(report.warnings).toContainEqual(
+      expect.objectContaining({
+        code: "avatar-face-tracking-disabled",
+        area: "avatar"
+      })
+    );
   });
 
   it("allows private YouTube validation streams before commercial validation is ready", () => {

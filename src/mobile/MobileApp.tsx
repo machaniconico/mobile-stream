@@ -741,7 +741,8 @@ export const MobileApp = () => {
         platformChatAuth,
         platformChatOAuthCredentials,
         platformChatConnection: platformChatConnection.connection,
-        audioRoute
+        audioRoute,
+        faceTracking: diagnostics.faceTracking
       });
       if (!preflight.canStart) {
         throw new Error(formatStreamStartPreflightBlockMessage(preflight));
@@ -857,7 +858,8 @@ export const MobileApp = () => {
       platformChatAuth,
       platformChatOAuthCredentials,
       platformChatConnection: platformChatConnection.connection,
-      audioRoute
+      audioRoute,
+      faceTracking: diagnostics.faceTracking
     });
     const publicLaunchChecklist = createPublicLaunchChecklist({
       preflight,
@@ -1156,7 +1158,8 @@ export const MobileApp = () => {
           platformChatAuth,
           platformChatOAuthCredentials,
           platformChatConnection: platformChatConnection.connection,
-          audioRoute
+          audioRoute,
+          faceTracking: diagnostics.faceTracking
         });
         const publicLaunchChecklist = createPublicLaunchChecklist({
           preflight: startPreflight,

@@ -349,7 +349,8 @@ export const App = () => {
         chatReader: chatReader.settings,
         platformChatAuth,
         platformChatOAuthCredentials,
-        platformChatConnection: platformChatConnection.connection
+        platformChatConnection: platformChatConnection.connection,
+        faceTracking: diagnostics.faceTracking
       });
       if (!preflight.canStart) {
         throw new Error(formatStreamStartPreflightBlockMessage(preflight));
@@ -508,7 +509,8 @@ export const App = () => {
       chatReader: chatReader.settings,
       platformChatAuth,
       platformChatOAuthCredentials,
-      platformChatConnection: platformChatConnection.connection
+      platformChatConnection: platformChatConnection.connection,
+      faceTracking: diagnostics.faceTracking
     });
     const publicLaunchChecklist = createPublicLaunchChecklist({
       preflight,
@@ -808,7 +810,8 @@ export const App = () => {
           chatReader: chatReader.settings,
           platformChatAuth,
           platformChatOAuthCredentials,
-          platformChatConnection: platformChatConnection.connection
+          platformChatConnection: platformChatConnection.connection,
+          faceTracking: diagnostics.faceTracking
         });
         const publicLaunchChecklist = createPublicLaunchChecklist({
           preflight: startPreflight,

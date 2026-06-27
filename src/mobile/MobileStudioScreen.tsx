@@ -361,7 +361,8 @@ export const MobileStudioScreen = ({
     platformChatAuth,
     platformChatOAuthCredentials,
     platformChatConnection,
-    audioRoute
+    audioRoute,
+    faceTracking: diagnostics.faceTracking
   });
   const platformPublishingFreshness = assessPlatformPublishingFreshness(diagnostics.platformPublishing);
   const publicLaunchChecklist = createPublicLaunchChecklist({
