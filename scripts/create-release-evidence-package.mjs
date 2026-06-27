@@ -11,7 +11,12 @@ import {
 } from "./verify-platform-dashboard-evidence.mjs";
 import { validateReport } from "./verify-release-report.mjs";
 import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
-import { storeSubmissionArtifactGroup, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
+import {
+  storeSubmissionArtifactGroup,
+  storeSubmissionChecklistPath,
+  validateStoreSubmissionMetadataContent,
+  validateStoreSubmissionMetadataReferences
+} from "./verify-store-submission-checklist.mjs";
 import { createCommercialReleaseGate } from "./verify-commercial-release-bundle.mjs";
 import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
 import { readPngEvidence } from "./png-evidence.mjs";
@@ -913,6 +918,8 @@ function validatePackagedStoreSubmissionChecklist(
   for (const record of records) {
     validatePackagedManifestRecord(packagedArtifacts, storeSubmissionArtifactGroup, record, "store submission checklist", failures);
   }
+  validatePackagedStoreSubmissionMetadata(storeSubmissionChecklist, packagedArtifacts, packageDir, failures);
+  validatePackagedStoreSubmissionReviewDocuments(storeSubmissionChecklist.reviewDocuments || [], packagedArtifacts, packageDir, failures);
   validatePackagedStoreSubmissionScreenshots(
     storeSubmissionChecklist.screenshots || [],
     packagedArtifacts,
@@ -922,6 +929,55 @@ function validatePackagedStoreSubmissionChecklist(
     supportBundle,
     failures
   );
+}
+
+function validatePackagedStoreSubmissionMetadata(storeSubmissionChecklist, packagedArtifacts, packageDir, failures) {
+  const metadataPath = workspaceRecordPath(storeSubmissionChecklist?.metadata?.path || "");
+  if (!metadataPath) {
+    return;
+  }
+  const metadata = readPackagedJsonArtifact({
+    packagedArtifacts,
+    group: storeSubmissionArtifactGroup,
+    sourcePath: metadataPath,
+    packageDir,
+    label: "store submission metadata",
+    failures
+  });
+  if (!metadata) {
+    return;
+  }
+  validateStoreSubmissionMetadataContent(metadata, failures);
+  validateStoreSubmissionMetadataReferences(storeSubmissionChecklist, metadata, failures);
+}
+
+function validatePackagedStoreSubmissionReviewDocuments(reviewDocuments, packagedArtifacts, packageDir, failures) {
+  for (const reviewDocument of reviewDocuments) {
+    const reviewPath = workspaceRecordPath(reviewDocument?.path || "");
+    if (!reviewPath) {
+      continue;
+    }
+    if (reviewDocument.kind !== "submissionReview") {
+      failures.push(`Package store submission review document has unsupported kind: ${JSON.stringify(reviewDocument.kind)}.`);
+      continue;
+    }
+    const packagedArtifact = packagedArtifactFor(packagedArtifacts, storeSubmissionArtifactGroup, reviewPath);
+    if (!packagedArtifact?.packagedPath || !safeRelativePath(packagedArtifact.packagedPath)) {
+      continue;
+    }
+    if (extname(reviewPath) !== ".md") {
+      failures.push(`Package store submission review document ${reviewPath} must end with .md.`);
+      continue;
+    }
+    const packagedPath = resolve(packageDir, packagedArtifact.packagedPath);
+    if (!isInsideDirectory(packagedPath, packageDir) || !existsSync(packagedPath) || !lstatSync(packagedPath).isFile()) {
+      continue;
+    }
+    const content = readFileSync(packagedPath, "utf8");
+    if (!content.trim()) {
+      failures.push(`Package store submission review document is empty: ${reviewPath}.`);
+    }
+  }
 }
 
 function validatePackagedStoreSubmissionScreenshots(

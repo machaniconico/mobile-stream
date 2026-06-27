@@ -456,6 +456,63 @@ describe("release evidence package creator", () => {
     );
   });
 
+  it("rejects packaged store submission metadata content even when package hashes are refreshed", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const sourceMetadataPath = ".artifacts/release-evidence-package-test/submission-metadata.json";
+    const packagedMetadataPath = `${packageDir}/artifacts/${sourceMetadataPath}`;
+    const packagedChecklistPath = `${packageDir}/artifacts/${storeSubmissionChecklistPath}`;
+    const metadata = JSON.parse(readFileSync(packagedMetadataPath, "utf8"));
+    metadata.appStore.privacyPolicyUrl = "http://example.com/privacy";
+    metadata.screenshots = [];
+    writeFileSync(packagedMetadataPath, JSON.stringify(metadata, null, 2));
+
+    const checklist = JSON.parse(readFileSync(packagedChecklistPath, "utf8"));
+    const metadataContent = readFileSync(packagedMetadataPath);
+    checklist.metadata.bytes = metadataContent.byteLength;
+    checklist.metadata.sha256 = createHash("sha256").update(metadataContent).digest("hex");
+    writeFileSync(packagedChecklistPath, JSON.stringify(checklist, null, 2));
+
+    refreshPackagedChecklistEvidence(packagedChecklistPath);
+    refreshPackagedStoreSubmissionArtifactEvidence(sourceMetadataPath, packagedMetadataPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Store submission metadata appStore.privacyPolicyUrl must be an https URL.");
+    expect(failures).toContain("Store submission checklist is missing a ios screenshot.");
+    expect(failures).toContain("Store submission checklist is missing a android screenshot.");
+    expect(failures).toContain("Store submission checklist screenshots do not match the metadata screenshots list.");
+  });
+
+  it("rejects empty packaged store submission review documents even when package hashes are refreshed", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const sourceReviewPath = ".artifacts/release-evidence-package-test/submission-review.md";
+    const packagedReviewPath = `${packageDir}/artifacts/${sourceReviewPath}`;
+    const packagedChecklistPath = `${packageDir}/artifacts/${storeSubmissionChecklistPath}`;
+    writeFileSync(packagedReviewPath, "   \n");
+
+    const checklist = JSON.parse(readFileSync(packagedChecklistPath, "utf8"));
+    const reviewDocument = checklist.reviewDocuments.find((document) => document.path === sourceReviewPath);
+    const reviewContent = readFileSync(packagedReviewPath);
+    reviewDocument.bytes = reviewContent.byteLength;
+    reviewDocument.sha256 = createHash("sha256").update(reviewContent).digest("hex");
+    writeFileSync(packagedChecklistPath, JSON.stringify(checklist, null, 2));
+
+    refreshPackagedChecklistEvidence(packagedChecklistPath);
+    refreshPackagedStoreSubmissionArtifactEvidence(sourceReviewPath, packagedReviewPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package store submission review document is empty: .artifacts/release-evidence-package-test/submission-review.md."
+    );
+  });
+
   it("rejects packaged store submission screenshots that are not final real-device evidence", () => {
     resetPackageDir();
     writeReportFixture();
@@ -1961,6 +2018,26 @@ function refreshPackagedChecklistEvidence(packagedChecklistPath) {
   manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
   manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
   refreshPackageArtifactEntry(manifest, storeSubmissionChecklistPath, packagedChecklistPath);
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+}
+
+function refreshPackagedStoreSubmissionArtifactEvidence(sourcePath, packagedPath) {
+  const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+  const content = readFileSync(packagedPath);
+  const sha256 = createHash("sha256").update(content).digest("hex");
+  const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+  const reportArtifact = packagedReport.artifacts.files.find(
+    (artifact) => artifact.group === storeSubmissionArtifactGroup && artifact.path === sourcePath
+  );
+  reportArtifact.bytes = content.byteLength;
+  reportArtifact.sha256 = sha256;
+  writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+  const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+  manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+  refreshPackageArtifactEntry(manifest, sourcePath, packagedPath);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 }
 

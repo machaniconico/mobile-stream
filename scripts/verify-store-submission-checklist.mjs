@@ -235,6 +235,15 @@ export function validateStoreSubmissionInReport(artifacts, fail) {
   }
 }
 
+export function validateStoreSubmissionMetadataContent(metadata, failures) {
+  validateMetadataSchema(metadata, failures);
+}
+
+export function validateStoreSubmissionMetadataReferences(manifest, metadata, failures) {
+  validateManifestScreenshotsMatchMetadata(manifest, metadata, failures);
+  validateManifestReviewDocumentsMatchMetadata(manifest, metadata, failures);
+}
+
 function createReviewDocumentRecord({ kind = "submissionReview", path }) {
   const relativePath = workspaceRelativePath(path);
   if (!relativePath) {
