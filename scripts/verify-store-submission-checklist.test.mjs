@@ -232,6 +232,48 @@ describe("store submission checklist verifier", () => {
     expect(readFileSync(outsideManifest, "utf8")).toBe("unchanged");
   });
 
+  it("rejects symlinked checklist manifest input paths before reading linked reports", () => {
+    writeStoreSubmissionFiles();
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    const manifestSymlink = `${fixtureRoot}/manifest-link.json`;
+    symlinkSync(resolve(manifestPath), manifestSymlink);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestSymlink]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission checklist must not be a symbolic link: ${manifestSymlink}`);
+  });
+
+  it("rejects dangling checklist manifest input symlinks before creating linked targets", () => {
+    writeStoreSubmissionFiles();
+    const missingManifestTarget = `${fixtureRoot}/missing-manifest-target.json`;
+    const manifestSymlink = `${fixtureRoot}/manifest-link.json`;
+    symlinkSync(resolve(missingManifestTarget), manifestSymlink);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestSymlink]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission checklist must not be a symbolic link: ${manifestSymlink}`);
+    expect(existsSync(missingManifestTarget)).toBe(false);
+  });
+
+  it("rejects checklist manifest input paths with symlinked parents before reading linked reports", () => {
+    writeStoreSubmissionFiles();
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    const outsideManifestDir = `${fixtureRoot}/outside-manifests`;
+    const manifestLinkDir = `${fixtureRoot}/manifest-link-dir`;
+    mkdirSync(outsideManifestDir, { recursive: true });
+    writeFileSync(`${outsideManifestDir}/store-submission-checklist.json`, readFileSync(manifestPath));
+    symlinkSync(resolve(outsideManifestDir), manifestLinkDir);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", `${manifestLinkDir}/store-submission-checklist.json`]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission checklist path parent must not be a symbolic link: ${manifestLinkDir}`);
+  });
+
   it("rejects dangling checklist manifest output symlinks before creating linked targets", () => {
     writeStoreSubmissionFiles();
     const missingManifestTarget = `${fixtureRoot}/missing-manifest-target.json`;

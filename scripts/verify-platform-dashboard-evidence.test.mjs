@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
@@ -252,6 +252,200 @@ describe("platform dashboard evidence verifier", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`Dashboard evidence artifact must not be a symbolic link: ${youtubeJson}.`);
+  });
+
+  it("rejects dashboard evidence paths with symlinked parents before reading linked files", () => {
+    writeEvidenceFiles();
+    const outsideEvidenceDir = `${fixtureRoot}/outside-evidence`;
+    const evidenceLinkDir = `${fixtureRoot}/evidence-link`;
+    mkdirSync(outsideEvidenceDir, { recursive: true });
+    writeFileSync(
+      `${outsideEvidenceDir}/youtube-dashboard.json`,
+      JSON.stringify({
+        platform: "youtube",
+        broadcastId: "ytBroadcast9xYz",
+        streamId: "ytStream8aBc",
+        channelId: "UCMobileLiveCaster",
+        broadcastStatus: "live",
+        streamStatus: "active",
+        checkedAt: dashboardCapturedAt
+      })
+    );
+    symlinkSync(resolve(outsideEvidenceDir), evidenceLinkDir);
+
+    const result = runVerifier([
+      "--write",
+      "--allow-dirty",
+      "--youtube-json",
+      `${evidenceLinkDir}/youtube-dashboard.json`,
+      "--manifest",
+      manifestPath
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`youtube dashboard statusJson evidence path parent must not be a symbolic link: ${evidenceLinkDir}`);
+  });
+
+  it("rejects manifest evidence paths with symlinked parents before reading linked files", () => {
+    writeEvidenceFiles();
+    expect(
+      runVerifier([
+        "--write",
+        "--allow-dirty",
+        "--youtube-json",
+        youtubeJson,
+        "--manifest",
+        manifestPath
+      ]).status
+    ).toBe(0);
+
+    const outsideEvidenceDir = `${fixtureRoot}/outside-evidence`;
+    const evidenceLinkDir = `${fixtureRoot}/evidence-link`;
+    mkdirSync(outsideEvidenceDir, { recursive: true });
+    writeFileSync(
+      `${outsideEvidenceDir}/youtube-dashboard.json`,
+      JSON.stringify({
+        platform: "youtube",
+        broadcastId: "ytBroadcast9xYz",
+        streamId: "ytStream8aBc",
+        channelId: "UCMobileLiveCaster",
+        broadcastStatus: "live",
+        streamStatus: "active",
+        checkedAt: dashboardCapturedAt
+      })
+    );
+    symlinkSync(resolve(outsideEvidenceDir), evidenceLinkDir);
+
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.artifacts[0].path = `${evidenceLinkDir}/youtube-dashboard.json`;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence artifact path parent must not be a symbolic link: ${evidenceLinkDir}.`);
+  });
+
+  it("rejects symlinked dashboard evidence manifest output paths before writing linked targets", () => {
+    writeEvidenceFiles();
+    const outsideManifest = `${fixtureRoot}/outside-manifest.json`;
+    const manifestSymlink = `${fixtureRoot}/manifest-link.json`;
+    writeFileSync(outsideManifest, "unchanged");
+    symlinkSync(resolve(outsideManifest), manifestSymlink);
+
+    const result = runVerifier([
+      "--write",
+      "--allow-dirty",
+      "--youtube-json",
+      youtubeJson,
+      "--manifest",
+      manifestSymlink
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence manifest output must not be a symbolic link: ${manifestSymlink}`);
+    expect(readFileSync(outsideManifest, "utf8")).toBe("unchanged");
+  });
+
+  it("rejects symlinked dashboard evidence manifest input paths before reading linked reports", () => {
+    writeEvidenceFiles();
+    expect(
+      runVerifier([
+        "--write",
+        "--allow-dirty",
+        "--youtube-json",
+        youtubeJson,
+        "--manifest",
+        manifestPath
+      ]).status
+    ).toBe(0);
+
+    const manifestSymlink = `${fixtureRoot}/manifest-link.json`;
+    symlinkSync(resolve(manifestPath), manifestSymlink);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestSymlink]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence manifest must not be a symbolic link: ${manifestSymlink}`);
+  });
+
+  it("rejects dangling dashboard evidence manifest input symlinks before creating linked targets", () => {
+    writeEvidenceFiles();
+    const missingManifestTarget = `${fixtureRoot}/missing-manifest-target.json`;
+    const manifestSymlink = `${fixtureRoot}/manifest-link.json`;
+    symlinkSync(resolve(missingManifestTarget), manifestSymlink);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestSymlink]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence manifest must not be a symbolic link: ${manifestSymlink}`);
+    expect(existsSync(missingManifestTarget)).toBe(false);
+  });
+
+  it("rejects dashboard evidence manifest input paths with symlinked parents before reading linked reports", () => {
+    writeEvidenceFiles();
+    expect(
+      runVerifier([
+        "--write",
+        "--allow-dirty",
+        "--youtube-json",
+        youtubeJson,
+        "--manifest",
+        manifestPath
+      ]).status
+    ).toBe(0);
+
+    const outsideManifestDir = `${fixtureRoot}/outside-manifests`;
+    const manifestLinkDir = `${fixtureRoot}/manifest-link-dir`;
+    mkdirSync(outsideManifestDir, { recursive: true });
+    writeFileSync(`${outsideManifestDir}/platform-dashboard-evidence.json`, readFileSync(manifestPath));
+    symlinkSync(resolve(outsideManifestDir), manifestLinkDir);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", `${manifestLinkDir}/platform-dashboard-evidence.json`]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence manifest path parent must not be a symbolic link: ${manifestLinkDir}`);
+  });
+
+  it("rejects dangling dashboard evidence manifest output symlinks before creating linked targets", () => {
+    writeEvidenceFiles();
+    const missingManifestTarget = `${fixtureRoot}/missing-manifest-target.json`;
+    const manifestSymlink = `${fixtureRoot}/manifest-link.json`;
+    symlinkSync(resolve(missingManifestTarget), manifestSymlink);
+
+    const result = runVerifier([
+      "--write",
+      "--allow-dirty",
+      "--youtube-json",
+      youtubeJson,
+      "--manifest",
+      manifestSymlink
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence manifest output must not be a symbolic link: ${manifestSymlink}`);
+    expect(existsSync(missingManifestTarget)).toBe(false);
+  });
+
+  it("rejects dashboard evidence manifest output paths with symlinked parents before writing linked targets", () => {
+    writeEvidenceFiles();
+    const outsideManifestDir = `${fixtureRoot}/outside-manifests`;
+    const manifestLinkDir = `${fixtureRoot}/manifest-link-dir`;
+    mkdirSync(outsideManifestDir, { recursive: true });
+    symlinkSync(resolve(outsideManifestDir), manifestLinkDir);
+
+    const result = runVerifier([
+      "--write",
+      "--allow-dirty",
+      "--youtube-json",
+      youtubeJson,
+      "--manifest",
+      `${manifestLinkDir}/platform-dashboard-evidence.json`
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence manifest path parent must not be a symbolic link: ${manifestLinkDir}`);
+    expect(existsSync(`${outsideManifestDir}/platform-dashboard-evidence.json`)).toBe(false);
   });
 
   it("rejects dashboard status JSON for the wrong platform", () => {

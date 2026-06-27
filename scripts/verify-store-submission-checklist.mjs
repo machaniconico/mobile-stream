@@ -106,7 +106,12 @@ export function createStoreSubmissionChecklist({
 }
 
 export function readStoreSubmissionChecklist(manifestPath = storeSubmissionChecklistPath) {
-  return JSON.parse(readFileSync(resolve(manifestPath), "utf8"));
+  const relativeManifestPath = workspaceRelativePath(manifestPath);
+  if (!relativeManifestPath) {
+    throw new Error(`Store submission checklist must be inside the workspace: ${manifestPath}`);
+  }
+  assertRegularSourceFile(relativeManifestPath, "Store submission checklist");
+  return JSON.parse(readFileSync(resolve(relativeManifestPath), "utf8"));
 }
 
 export function validateStoreSubmissionChecklist(
@@ -660,6 +665,20 @@ function createReleaseArtifactRecord(group, path) {
   };
 }
 
+function assertRegularSourceFile(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatExisting(path);
+  if (!stat) {
+    throw new Error(`${label} does not exist: ${path}`);
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} must point to a file: ${path}`);
+  }
+}
+
 function assertWritableRegularPath(path, label) {
   assertNoSymlinkedParentDirectories(path, label);
   const stat = lstatExisting(path);
@@ -838,9 +857,6 @@ function run() {
       return 0;
     }
 
-    if (!existsSync(resolve(options.manifestPath))) {
-      throw new Error(`Store submission checklist does not exist: ${options.manifestPath}`);
-    }
     const manifest = readStoreSubmissionChecklist(options.manifestPath);
     const failures = validateStoreSubmissionChecklist(manifest, {
       manifestPath: options.manifestPath,

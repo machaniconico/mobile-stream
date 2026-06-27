@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
@@ -52,14 +52,21 @@ export function createDistributionManifest({ androidAab, iosIpa, manifestPath = 
     throw new Error(failures.join("\n"));
   }
 
-  const absoluteManifestPath = resolve(manifestPath);
+  const relativeManifestPath = workspaceRelativePath(manifestPath);
+  assertWritableRegularPath(relativeManifestPath, "Distribution manifest");
+  const absoluteManifestPath = resolve(relativeManifestPath);
   mkdirSync(dirname(absoluteManifestPath), { recursive: true });
   writeFileSync(absoluteManifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   return { manifest, manifestPath: relative(cwd(), absoluteManifestPath) };
 }
 
 export function readDistributionManifest(manifestPath = distributionArtifactManifestPath) {
-  return JSON.parse(readFileSync(resolve(manifestPath), "utf8"));
+  const relativeManifestPath = workspaceRelativePath(manifestPath);
+  if (!relativeManifestPath) {
+    throw new Error(`Distribution artifact manifest must be inside the workspace: ${manifestPath}`);
+  }
+  assertRegularSourceFile(relativeManifestPath, "Distribution artifact manifest");
+  return JSON.parse(readFileSync(resolve(relativeManifestPath), "utf8"));
 }
 
 export function validateDistributionManifest(
@@ -160,6 +167,7 @@ function createDistributionArtifactRecord({ platform, kind, extension, path }) {
   if (extname(relativePath) !== extension) {
     throw new Error(`${platform} ${kind} artifact must end with ${extension}: ${relativePath}`);
   }
+  assertNoSymlinkedParentDirectories(relativePath, `${platform} ${kind} artifact`);
   if (!existsSync(resolve(relativePath))) {
     throw new Error(`${platform} ${kind} artifact does not exist: ${relativePath}`);
   }
@@ -206,6 +214,9 @@ function validateDistributionArtifact(artifact, failures) {
   const absolutePath = resolve(relativePath);
   if (extname(relativePath) !== expected.extension) {
     failures.push(`Distribution artifact ${relativePath} must end with ${expected.extension}.`);
+  }
+  if (!validateNoSymlinkedParentDirectories(relativePath, "Distribution artifact", failures)) {
+    return;
   }
   if (!existsSync(absolutePath)) {
     failures.push(`Distribution artifact file does not exist: ${relativePath}.`);
@@ -356,6 +367,7 @@ function createReleaseArtifactRecord(group, path) {
   if (!relativePath) {
     throw new Error(`Artifact path must be inside the workspace: ${path}`);
   }
+  assertNoSymlinkedParentDirectories(relativePath, "Artifact");
   const artifactStat = lstatSync(resolve(relativePath));
   if (artifactStat.isSymbolicLink() || !artifactStat.isFile()) {
     throw new Error(`Artifact path must point to a regular file: ${relativePath}`);
@@ -367,6 +379,78 @@ function createReleaseArtifactRecord(group, path) {
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
+}
+
+function assertRegularSourceFile(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatExisting(path);
+  if (!stat) {
+    throw new Error(`${label} does not exist: ${path}`);
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} must point to a file: ${path}`);
+  }
+}
+
+function assertWritableRegularPath(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatExisting(path);
+  if (!stat) {
+    return;
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} output must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} output must point to a file: ${path}`);
+  }
+}
+
+function validateNoSymlinkedParentDirectories(path, label, failures) {
+  try {
+    assertNoSymlinkedParentDirectories(path, label);
+    return true;
+  } catch (error) {
+    failures.push(`${error instanceof Error ? error.message : String(error)}.`);
+    return false;
+  }
+}
+
+function assertNoSymlinkedParentDirectories(path, label) {
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    return;
+  }
+  const parts = relativePath.split(sep).filter(Boolean);
+  let currentPath = cwd();
+  for (const part of parts.slice(0, -1)) {
+    currentPath = join(currentPath, part);
+    const stat = lstatExisting(currentPath);
+    if (!stat) {
+      return;
+    }
+    const displayPath = relative(cwd(), currentPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`${label} path parent must not be a symbolic link: ${displayPath}`);
+    }
+    if (!stat.isDirectory()) {
+      throw new Error(`${label} path parent must point to a directory: ${displayPath}`);
+    }
+  }
+}
+
+function lstatExisting(path) {
+  try {
+    return lstatSync(resolve(path));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function workspaceRelativePath(path) {
@@ -484,9 +568,6 @@ function run() {
       return 0;
     }
 
-    if (!existsSync(resolve(options.manifestPath))) {
-      throw new Error(`Distribution artifact manifest does not exist: ${options.manifestPath}`);
-    }
     const manifest = readDistributionManifest(options.manifestPath);
     const failures = validateDistributionManifest(manifest, {
       manifestPath: options.manifestPath,

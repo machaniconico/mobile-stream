@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -148,6 +148,143 @@ describe("distribution artifact verifier", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`Distribution artifact must not be a symbolic link: ${androidAab}.`);
+  });
+
+  it("rejects distribution artifact paths with symlinked parents before reading binaries", () => {
+    writeDistributionFiles();
+    const outsideArtifactDir = `${fixtureRoot}/outside-artifacts`;
+    const artifactLinkDir = `${fixtureRoot}/artifact-link`;
+    mkdirSync(outsideArtifactDir, { recursive: true });
+    writeFileSync(`${outsideArtifactDir}/app-release.aab`, androidAabBytes());
+    symlinkSync(resolve(outsideArtifactDir), artifactLinkDir);
+
+    const result = runVerifier([
+      "--write",
+      "--allow-dirty",
+      "--android-aab",
+      `${artifactLinkDir}/app-release.aab`,
+      "--manifest",
+      manifestPath
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`android aab artifact path parent must not be a symbolic link: ${artifactLinkDir}`);
+  });
+
+  it("rejects manifest artifact paths with symlinked parents before reading linked binaries", () => {
+    writeDistributionFiles();
+    expect(
+      runVerifier(["--write", "--allow-dirty", "--android-aab", androidAab, "--manifest", manifestPath]).status
+    ).toBe(0);
+
+    const outsideArtifactDir = `${fixtureRoot}/outside-artifacts`;
+    const artifactLinkDir = `${fixtureRoot}/artifact-link`;
+    mkdirSync(outsideArtifactDir, { recursive: true });
+    writeFileSync(`${outsideArtifactDir}/app-release.aab`, androidAabBytes());
+    symlinkSync(resolve(outsideArtifactDir), artifactLinkDir);
+
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.artifacts[0].path = `${artifactLinkDir}/app-release.aab`;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Distribution artifact path parent must not be a symbolic link: ${artifactLinkDir}.`);
+  });
+
+  it("rejects symlinked distribution manifest output paths before writing linked targets", () => {
+    writeDistributionFiles();
+    const outsideManifest = `${fixtureRoot}/outside-manifest.json`;
+    const manifestSymlink = `${fixtureRoot}/manifest-link.json`;
+    writeFileSync(outsideManifest, "unchanged");
+    symlinkSync(resolve(outsideManifest), manifestSymlink);
+
+    const result = runVerifier(["--write", "--allow-dirty", "--android-aab", androidAab, "--manifest", manifestSymlink]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Distribution manifest output must not be a symbolic link: ${manifestSymlink}`);
+    expect(readFileSync(outsideManifest, "utf8")).toBe("unchanged");
+  });
+
+  it("rejects symlinked distribution manifest input paths before reading linked reports", () => {
+    writeDistributionFiles();
+    expect(
+      runVerifier(["--write", "--allow-dirty", "--android-aab", androidAab, "--manifest", manifestPath]).status
+    ).toBe(0);
+
+    const manifestSymlink = `${fixtureRoot}/manifest-link.json`;
+    symlinkSync(resolve(manifestPath), manifestSymlink);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestSymlink]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Distribution artifact manifest must not be a symbolic link: ${manifestSymlink}`);
+  });
+
+  it("rejects dangling distribution manifest input symlinks before creating linked targets", () => {
+    writeDistributionFiles();
+    const missingManifestTarget = `${fixtureRoot}/missing-manifest-target.json`;
+    const manifestSymlink = `${fixtureRoot}/manifest-link.json`;
+    symlinkSync(resolve(missingManifestTarget), manifestSymlink);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestSymlink]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Distribution artifact manifest must not be a symbolic link: ${manifestSymlink}`);
+    expect(existsSync(missingManifestTarget)).toBe(false);
+  });
+
+  it("rejects distribution manifest input paths with symlinked parents before reading linked reports", () => {
+    writeDistributionFiles();
+    expect(
+      runVerifier(["--write", "--allow-dirty", "--android-aab", androidAab, "--manifest", manifestPath]).status
+    ).toBe(0);
+
+    const outsideManifestDir = `${fixtureRoot}/outside-manifests`;
+    const manifestLinkDir = `${fixtureRoot}/manifest-link-dir`;
+    mkdirSync(outsideManifestDir, { recursive: true });
+    writeFileSync(`${outsideManifestDir}/distribution-artifacts.json`, readFileSync(manifestPath));
+    symlinkSync(resolve(outsideManifestDir), manifestLinkDir);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", `${manifestLinkDir}/distribution-artifacts.json`]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Distribution artifact manifest path parent must not be a symbolic link: ${manifestLinkDir}`);
+  });
+
+  it("rejects dangling distribution manifest output symlinks before creating linked targets", () => {
+    writeDistributionFiles();
+    const missingManifestTarget = `${fixtureRoot}/missing-manifest-target.json`;
+    const manifestSymlink = `${fixtureRoot}/manifest-link.json`;
+    symlinkSync(resolve(missingManifestTarget), manifestSymlink);
+
+    const result = runVerifier(["--write", "--allow-dirty", "--android-aab", androidAab, "--manifest", manifestSymlink]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Distribution manifest output must not be a symbolic link: ${manifestSymlink}`);
+    expect(existsSync(missingManifestTarget)).toBe(false);
+  });
+
+  it("rejects distribution manifest output paths with symlinked parents before writing linked targets", () => {
+    writeDistributionFiles();
+    const outsideManifestDir = `${fixtureRoot}/outside-manifests`;
+    const manifestLinkDir = `${fixtureRoot}/manifest-link-dir`;
+    mkdirSync(outsideManifestDir, { recursive: true });
+    symlinkSync(resolve(outsideManifestDir), manifestLinkDir);
+
+    const result = runVerifier([
+      "--write",
+      "--allow-dirty",
+      "--android-aab",
+      androidAab,
+      "--manifest",
+      `${manifestLinkDir}/distribution-artifacts.json`
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Distribution manifest path parent must not be a symbolic link: ${manifestLinkDir}`);
+    expect(existsSync(`${outsideManifestDir}/distribution-artifacts.json`)).toBe(false);
   });
 
   it("rejects placeholder-sized distribution artifacts", () => {

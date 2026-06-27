@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import { readPngEvidence } from "./png-evidence.mjs";
@@ -61,14 +61,21 @@ export function createDashboardEvidenceManifest({
     throw new Error(failures.join("\n"));
   }
 
-  const absoluteManifestPath = resolve(manifestPath);
+  const relativeManifestPath = workspaceRelativePath(manifestPath);
+  assertWritableRegularPath(relativeManifestPath, "Dashboard evidence manifest");
+  const absoluteManifestPath = resolve(relativeManifestPath);
   mkdirSync(dirname(absoluteManifestPath), { recursive: true });
   writeFileSync(absoluteManifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   return { manifest, manifestPath: relative(cwd(), absoluteManifestPath) };
 }
 
 export function readDashboardEvidenceManifest(manifestPath = dashboardEvidenceManifestPath) {
-  return JSON.parse(readFileSync(resolve(manifestPath), "utf8"));
+  const relativeManifestPath = workspaceRelativePath(manifestPath);
+  if (!relativeManifestPath) {
+    throw new Error(`Dashboard evidence manifest must be inside the workspace: ${manifestPath}`);
+  }
+  assertRegularSourceFile(relativeManifestPath, "Dashboard evidence manifest");
+  return JSON.parse(readFileSync(resolve(relativeManifestPath), "utf8"));
 }
 
 export function validateDashboardEvidenceManifest(
@@ -173,6 +180,7 @@ function createDashboardArtifactRecord({ platform, kind, path, capturedAt }) {
   if (extname(relativePath) !== expected.extension) {
     throw new Error(`${platform} dashboard ${kind} evidence must end with ${expected.extension}: ${relativePath}`);
   }
+  assertNoSymlinkedParentDirectories(relativePath, `${platform} dashboard ${kind} evidence`);
   if (!existsSync(resolve(relativePath))) {
     throw new Error(`${platform} dashboard ${kind} evidence does not exist: ${relativePath}`);
   }
@@ -234,6 +242,9 @@ function validateDashboardArtifact(artifact, failures) {
   const normalizedArtifact = { ...artifact, path: relativePath };
   if (extname(relativePath) !== expected.extension) {
     failures.push(`Dashboard evidence artifact ${relativePath} must end with ${expected.extension}.`);
+  }
+  if (!validateNoSymlinkedParentDirectories(relativePath, "Dashboard evidence artifact", failures)) {
+    return;
   }
   if (!existsSync(absolutePath)) {
     failures.push(`Dashboard evidence artifact file does not exist: ${relativePath}.`);
@@ -385,6 +396,7 @@ function createReleaseArtifactRecord(group, path) {
   if (!relativePath) {
     throw new Error(`Artifact path must be inside the workspace: ${path}`);
   }
+  assertNoSymlinkedParentDirectories(relativePath, "Artifact");
   const artifactStat = lstatSync(resolve(relativePath));
   if (artifactStat.isSymbolicLink() || !artifactStat.isFile()) {
     throw new Error(`Artifact path must point to a regular file: ${relativePath}`);
@@ -396,6 +408,78 @@ function createReleaseArtifactRecord(group, path) {
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
+}
+
+function assertRegularSourceFile(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatExisting(path);
+  if (!stat) {
+    throw new Error(`${label} does not exist: ${path}`);
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} must point to a file: ${path}`);
+  }
+}
+
+function assertWritableRegularPath(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatExisting(path);
+  if (!stat) {
+    return;
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} output must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} output must point to a file: ${path}`);
+  }
+}
+
+function validateNoSymlinkedParentDirectories(path, label, failures) {
+  try {
+    assertNoSymlinkedParentDirectories(path, label);
+    return true;
+  } catch (error) {
+    failures.push(`${error instanceof Error ? error.message : String(error)}.`);
+    return false;
+  }
+}
+
+function assertNoSymlinkedParentDirectories(path, label) {
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    return;
+  }
+  const parts = relativePath.split(sep).filter(Boolean);
+  let currentPath = cwd();
+  for (const part of parts.slice(0, -1)) {
+    currentPath = join(currentPath, part);
+    const stat = lstatExisting(currentPath);
+    if (!stat) {
+      return;
+    }
+    const displayPath = relative(cwd(), currentPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`${label} path parent must not be a symbolic link: ${displayPath}`);
+    }
+    if (!stat.isDirectory()) {
+      throw new Error(`${label} path parent must point to a directory: ${displayPath}`);
+    }
+  }
+}
+
+function lstatExisting(path) {
+  try {
+    return lstatSync(resolve(path));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function stringValue(value) {
@@ -561,9 +645,6 @@ function run() {
       return 0;
     }
 
-    if (!existsSync(resolve(options.manifestPath))) {
-      throw new Error(`Dashboard evidence manifest does not exist: ${options.manifestPath}`);
-    }
     const manifest = readDashboardEvidenceManifest(options.manifestPath);
     const failures = validateDashboardEvidenceManifest(manifest, {
       manifestPath: options.manifestPath,
