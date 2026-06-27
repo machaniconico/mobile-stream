@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { releaseConfigArtifactPaths, requiredReleaseGateLabels } from "./release-artifact-policy.mjs";
@@ -109,6 +109,24 @@ describe("release evidence package creator", () => {
     const failures = validateReleaseEvidencePackage({ packageDir });
 
     expect(failures).toContain("Release evidence package contains unmanifested file artifacts/unmanifested-note.txt.");
+  });
+
+  it("rejects packaged symlink entries without reading linked targets", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const manifest = JSON.parse(readFileSync(`${packageDir}/${releaseEvidencePackageManifestName}`, "utf8"));
+    const outsideSecretPath = `${fixtureRoot}/outside-secret.json`;
+    const packagedUiEvidencePath = `${packageDir}/${manifest.uiEvidence.packagedPath}`;
+    writeFileSync(outsideSecretPath, JSON.stringify({ debug: "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456" }));
+    rmSync(packagedUiEvidencePath, { force: true });
+    symlinkSync(resolve(outsideSecretPath), packagedUiEvidencePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(`Package entry must not be a symbolic link: ${manifest.uiEvidence.packagedPath}.`);
+    expect(failures.join("\n")).not.toContain("unredacted sensitive text finding");
   });
 
   it("rejects release reports generated with development-only dirty-worktree approval", () => {

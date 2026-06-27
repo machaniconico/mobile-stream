@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, copyFileSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, copyFileSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
@@ -349,7 +349,7 @@ function readPackagedSupportBundle(manifest, packageDir, failures) {
     return null;
   }
   const path = resolve(packageDir, manifest.supportBundle.packagedPath);
-  if (!isInsideDirectory(path, packageDir) || !existsSync(path) || !statSync(path).isFile()) {
+  if (!isInsideDirectory(path, packageDir) || !existsSync(path) || !lstatSync(path).isFile()) {
     failures.push(`Package support bundle file does not exist: ${manifest.supportBundle.packagedPath}.`);
     return null;
   }
@@ -461,7 +461,7 @@ function readPackagedJsonArtifact({ packagedArtifacts, group, sourcePath, packag
     return null;
   }
   const path = resolve(packageDir, artifact.packagedPath);
-  if (!isInsideDirectory(path, packageDir) || !existsSync(path) || !statSync(path).isFile()) {
+  if (!isInsideDirectory(path, packageDir) || !existsSync(path) || !lstatSync(path).isFile()) {
     return null;
   }
   try {
@@ -477,7 +477,7 @@ function readPackagedJsonEntry(entry, packageDir, label, failures) {
     return null;
   }
   const path = resolve(packageDir, entry.packagedPath);
-  if (!isInsideDirectory(path, packageDir) || !existsSync(path) || !statSync(path).isFile()) {
+  if (!isInsideDirectory(path, packageDir) || !existsSync(path) || !lstatSync(path).isFile()) {
     return null;
   }
   try {
@@ -591,7 +591,7 @@ function validatePackagedUiEvidenceScreenshot(viewport, packagedArtifacts, packa
     return;
   }
   const screenshotPath = resolve(packageDir, packagedArtifact.packagedPath);
-  if (!isInsideDirectory(screenshotPath, packageDir) || !existsSync(screenshotPath) || !statSync(screenshotPath).isFile()) {
+  if (!isInsideDirectory(screenshotPath, packageDir) || !existsSync(screenshotPath) || !lstatSync(screenshotPath).isFile()) {
     failures.push(`Package browser UI evidence screenshot file does not exist: ${packagedArtifact.packagedPath}.`);
     return;
   }
@@ -1118,7 +1118,7 @@ function validatePackagePrivacy(manifest, packageDir, failures) {
     if (!safeRelativePath(entry.packagedPath) || !isInsideDirectory(path, packageDir)) {
       continue;
     }
-    if (!existsSync(path) || !statSync(path).isFile()) {
+    if (!existsSync(path) || !lstatSync(path).isFile()) {
       continue;
     }
     const content = readFileSync(path, "utf8");
@@ -1337,11 +1337,16 @@ function validatePackageEntry(entry, packageDir, failures) {
     failures.push(`Package entry file does not exist: ${entry.packagedPath}.`);
     return;
   }
-  if (!statSync(resolvedPath).isFile()) {
+  const packagedFileStat = lstatSync(resolvedPath);
+  if (packagedFileStat.isSymbolicLink()) {
+    failures.push(`Package entry must not be a symbolic link: ${entry.packagedPath}.`);
+    return;
+  }
+  if (!packagedFileStat.isFile()) {
     failures.push(`Package entry must point to a file: ${entry.packagedPath}.`);
     return;
   }
-  const bytes = statSync(resolvedPath).size;
+  const bytes = packagedFileStat.size;
   const sha256 = fileSha256(resolvedPath);
   if (bytes <= 0 || bytes !== entry.bytes || sha256 !== entry.sha256) {
     failures.push(`Release evidence package file metadata mismatch for ${entry.packagedPath}.`);
