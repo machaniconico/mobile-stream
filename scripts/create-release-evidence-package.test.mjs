@@ -838,6 +838,26 @@ describe("release evidence package creator", () => {
     expect(failures).toContain("Package source must point to a file: dist.");
   });
 
+  it("rejects symlinked package source paths before reading linked targets", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const outsideSecretPath = `${fixtureRoot}/outside-source-secret.txt`;
+    const symlinkSourcePath = `${fixtureRoot}/source-link.txt`;
+    writeFileSync(outsideSecretPath, "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456");
+    symlinkSync(resolve(outsideSecretPath), symlinkSourcePath);
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.artifacts.find((artifact) => artifact.sourcePath === "dist/index.html").sourcePath = symlinkSourcePath;
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir, verifySources: true });
+
+    expect(failures).toContain(`Package source must not be a symbolic link: ${symlinkSourcePath}.`);
+    expect(failures.join("\n")).not.toContain("Authorization");
+  });
+
   it("rejects packaged browser UI evidence with an invalid schema even when metadata hashes match", () => {
     resetPackageDir();
     writeReportFixture();

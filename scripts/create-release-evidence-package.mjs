@@ -1363,7 +1363,11 @@ function validateSourceEntry(entry, failures) {
     failures.push(`Package source file does not exist: ${sourcePath}.`);
     return;
   }
-  const sourceStat = statSync(resolve(sourcePath));
+  const sourceStat = lstatSync(resolve(sourcePath));
+  if (sourceStat.isSymbolicLink()) {
+    failures.push(`Package source must not be a symbolic link: ${sourcePath}.`);
+    return;
+  }
   if (!sourceStat.isFile()) {
     failures.push(`Package source must point to a file: ${sourcePath}.`);
     return;
