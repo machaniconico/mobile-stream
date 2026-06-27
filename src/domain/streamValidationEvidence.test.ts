@@ -1268,7 +1268,8 @@ describe("stream validation evidence", () => {
     expect(summary.runManifest.find((run) => run.devicePlatform === "ios")).toMatchObject({
       faceTrackingStatus: "pass",
       faceTrackingRuntimeFresh: true,
-      faceTrackingActiveMotionCount: 1
+      faceTrackingActiveMotionCount: 1,
+      faceTrackingRigIssueCount: 0
     });
     expect(summary.audioIosPass).toBe(true);
     expect(summary.audioAndroidPass).toBe(true);
@@ -1321,6 +1322,8 @@ describe("stream validation evidence", () => {
         visibleAvatarCount: 1,
         preparedPngTuberCount: 1,
         activeMotionCount: 0,
+        rigIssueCount: 0,
+        rigIssueSummary: "No still-image rig issues.",
         summary: "Legacy pass retained without motion count.",
         recommendation: "Repeat validation."
       }
@@ -1338,6 +1341,58 @@ describe("stream validation evidence", () => {
     expect(summary.faceTrackingAndroidPass).toBe(false);
     expect(summary.status).toBe("partial");
     expect(summary.summary).toContain("avatar-motion evidence is incomplete");
+  });
+
+  it("does not count retained avatar-motion evidence as ready when still-image rig issues remain", () => {
+    const scene = nativeReadyScene();
+    const profile = {
+      ...commercialProfileWithKey("validation-key"),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const,
+        rigMode: "still-image-2d" as const
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const baseRun = createStreamValidationRun({
+      diagnostics: createStreamDiagnostics(scene, profile, readiness, {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: nativeMonitorRuntime("ios")
+      }, [], stableMonitorSamples()),
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const run = {
+      ...baseRun,
+      result: "pass" as const,
+      faceTracking: {
+        status: "pass" as const,
+        enabled: true,
+        inputMode: "native-camera" as const,
+        rigMode: "still-image-2d" as const,
+        runtimeStatus: "tracking" as const,
+        runtimeAgeMs: 120,
+        runtimeFresh: true,
+        visibleAvatarCount: 1,
+        preparedPngTuberCount: 1,
+        activeMotionCount: 1,
+        rigIssueCount: 1,
+        rigIssueSummary: "1 still-image rig issue: rig lines must be ordered hair < eyes < mouth < shoulders",
+        summary: "Avatar motion was retained with a rig issue.",
+        recommendation: "Run Auto rig."
+      }
+    };
+
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(summary.faceTrackingReadyCount).toBe(0);
+    expect(summary.faceTrackingIosPass).toBe(false);
+    expect(summary.runManifest[0]?.faceTrackingRigIssueCount).toBe(1);
+    expect(summary.status).toBe("partial");
   });
 
   it("fails validation runs when the native publisher reports a failure", () => {

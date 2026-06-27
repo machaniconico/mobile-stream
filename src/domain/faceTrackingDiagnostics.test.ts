@@ -69,6 +69,54 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.runtimeAgeMs).toBeNull();
     expect(diagnostics.runtimeFresh).toBe(true);
     expect(diagnostics.activeMotionCount).toBe(1);
+    expect(diagnostics.rigIssueCount).toBe(0);
+  });
+
+  it("warns when prepared PNGTuber rig lines are not production-safe", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const
+      }
+    };
+    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...source,
+            imageUri: "file:///shared/avatar.png",
+            illustrationRig: {
+              ...source.illustrationRig,
+              hairLineY: 0.42,
+              eyeLineY: 0.34,
+              mouthLineY: 0.38,
+              shoulderLineY: 0.39,
+              sliceCount: 12
+            },
+            motion: { ...source.motion, headYaw: 0.2, confidence: 0.92 }
+          }
+        : source
+    );
+
+    const diagnostics = createFaceTrackingDiagnostics(scene, profile, {
+      status: "tracking",
+      yaw: 0.2,
+      pitch: 0.1,
+      roll: 0,
+      mouthOpen: 0.4,
+      blink: 0,
+      smile: 0.4,
+      browRaise: 0.2,
+      confidence: 0.92,
+      expression: "neutral",
+      lastFrameAt: 1_000
+    });
+
+    expect(diagnostics.status).toBe("warn");
+    expect(diagnostics.rigIssueCount).toBeGreaterThan(0);
+    expect(diagnostics.summary).toContain("Still-image avatar rig needs review");
+    expect(diagnostics.rigIssueSummary).toContain("rig lines");
   });
 
   it("warns when the native camera runtime stops reporting fresh frames", () => {

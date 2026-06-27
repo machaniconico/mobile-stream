@@ -63,6 +63,8 @@ const faceTracking: FaceTrackingDiagnostics = {
   visibleLive2DCount: 0,
   preparedPngTuberCount: 1,
   activeMotionCount: 1,
+  rigIssueCount: 0,
+  rigIssueSummary: "No still-image rig issues.",
   summary: "Face tracking is ready.",
   recommendation: "Keep this tracker state with validation evidence."
 };

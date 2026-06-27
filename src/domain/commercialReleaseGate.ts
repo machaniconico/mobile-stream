@@ -569,7 +569,8 @@ const isManifestFeaturePass = (status: string | null | undefined): boolean => st
 const isManifestAvatarMotionPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.faceTrackingStatus) &&
   run?.faceTrackingRuntimeFresh === true &&
-  Number(run.faceTrackingActiveMotionCount) > 0;
+  Number(run.faceTrackingActiveMotionCount) > 0 &&
+  Number(run.faceTrackingRigIssueCount ?? 0) === 0;
 
 const isManifestPlatformPublishingPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.platformPublishingStatus) &&

@@ -1,6 +1,6 @@
 import type { FaceTrackingRuntimeState } from "./faceTracking";
 import type { StudioProfile } from "./profiles";
-import type { SceneDocument, SceneSource } from "./scene";
+import type { AvatarIllustrationRig, SceneDocument, SceneSource } from "./scene";
 
 export type FaceTrackingDiagnosticStatus = "pass" | "warn" | "info";
 
@@ -17,6 +17,8 @@ export interface FaceTrackingDiagnostics {
   visibleLive2DCount: number;
   preparedPngTuberCount: number;
   activeMotionCount: number;
+  rigIssueCount: number;
+  rigIssueSummary: string;
   summary: string;
   recommendation: string;
 }
@@ -40,6 +42,11 @@ export const createFaceTrackingDiagnostics = (
   const visibleLive2D = visibleAvatars.filter((source) => source.kind === "live2d");
   const preparedPngTubers = visiblePngTubers.filter((source) => source.imageUri.trim());
   const activeMotionCount = visibleAvatars.filter(hasActiveMotion).length;
+  const rigIssues = visiblePngTubers.flatMap(createPngTuberRigIssues);
+  const rigIssueSummary =
+    rigIssues.length === 0
+      ? "No still-image rig issues."
+      : `${rigIssues.length} still-image rig issue${rigIssues.length === 1 ? "" : "s"}: ${rigIssues[0]}`;
   const runtimeStatus = runtime?.status ?? "unavailable";
   const maxRuntimeAgeMs = Math.max(0, options.maxRuntimeAgeMs ?? faceTrackingRuntimeMaxAgeMs);
   const runtimeAgeMs = runtime ? runtimeAge(runtime, options.now) : null;
@@ -59,6 +66,8 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2DCount: visibleLive2D.length,
       preparedPngTuberCount: preparedPngTubers.length,
       activeMotionCount,
+      rigIssueCount: rigIssues.length,
+      rigIssueSummary,
       summary: "Face tracking is disabled.",
       recommendation: "Enable face tracking when validating VTuber avatar motion for production streams."
     };
@@ -73,6 +82,8 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2D.length,
       preparedPngTubers.length,
       activeMotionCount,
+      rigIssues.length,
+      rigIssueSummary,
       runtimeAgeMs,
       runtimeFresh,
       "Face tracking is enabled, but no visible avatar source is in the scene.",
@@ -89,6 +100,8 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2D.length,
       preparedPngTubers.length,
       activeMotionCount,
+      rigIssues.length,
+      rigIssueSummary,
       runtimeAgeMs,
       runtimeFresh,
       "Face tracking is targeting Live2D only, but native Live2D rendering is not production-ready yet.",
@@ -105,10 +118,30 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2D.length,
       preparedPngTubers.length,
       activeMotionCount,
+      rigIssues.length,
+      rigIssueSummary,
       runtimeAgeMs,
       runtimeFresh,
       "Face tracking is enabled, but visible PNGTuber sources do not have prepared still-image assets.",
       "Pick and prepare a PNGTuber still image so native iOS/Android compositors can render avatar motion."
+    );
+  }
+
+  if (rigIssues.length > 0) {
+    return createWarning(
+      faceTracking,
+      runtimeStatus,
+      visibleAvatars.length,
+      visiblePngTubers.length,
+      visibleLive2D.length,
+      preparedPngTubers.length,
+      activeMotionCount,
+      rigIssues.length,
+      rigIssueSummary,
+      runtimeAgeMs,
+      runtimeFresh,
+      `Still-image avatar rig needs review: ${rigIssues[0]}`,
+      "Run Auto rig on the PNGTuber source, then manually tune the face, eye, mouth, and shoulder lines before physical validation."
     );
   }
 
@@ -121,6 +154,8 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2D.length,
       preparedPngTubers.length,
       activeMotionCount,
+      rigIssues.length,
+      rigIssueSummary,
       runtimeAgeMs,
       runtimeFresh,
       "Face tracking is using simulated input.",
@@ -137,6 +172,8 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2D.length,
       preparedPngTubers.length,
       activeMotionCount,
+      rigIssues.length,
+      rigIssueSummary,
       runtimeAgeMs,
       runtimeFresh,
       "Native face tracking is enabled, but the latest face state is lost.",
@@ -153,6 +190,8 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2D.length,
       preparedPngTubers.length,
       activeMotionCount,
+      rigIssues.length,
+      rigIssueSummary,
       runtimeAgeMs,
       runtimeFresh,
       "Native face tracking has not reported runtime status yet.",
@@ -169,6 +208,8 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2D.length,
       preparedPngTubers.length,
       activeMotionCount,
+      rigIssues.length,
+      rigIssueSummary,
       runtimeAgeMs,
       runtimeFresh,
       `Native face tracking runtime is stale by ${runtimeAgeMs ?? 0} ms.`,
@@ -185,6 +226,8 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2D.length,
       preparedPngTubers.length,
       activeMotionCount,
+      rigIssues.length,
+      rigIssueSummary,
       runtimeAgeMs,
       runtimeFresh,
       "Native face tracking is reading, but no visible avatar source has applied motion yet.",
@@ -205,6 +248,8 @@ export const createFaceTrackingDiagnostics = (
     visibleLive2DCount: visibleLive2D.length,
     preparedPngTuberCount: preparedPngTubers.length,
     activeMotionCount,
+    rigIssueCount: rigIssues.length,
+    rigIssueSummary,
     summary: `Face tracking is ready with ${preparedPngTubers.length} prepared PNGTuber source${preparedPngTubers.length === 1 ? "" : "s"}.`,
     recommendation: "Keep this tracker state with the next private iOS/Android validation run."
   };
@@ -218,6 +263,8 @@ const createWarning = (
   visibleLive2DCount: number,
   preparedPngTuberCount: number,
   activeMotionCount: number,
+  rigIssueCount: number,
+  rigIssueSummary: string,
   runtimeAgeMs: number | null,
   runtimeFresh: boolean,
   summary: string,
@@ -235,6 +282,8 @@ const createWarning = (
   visibleLive2DCount,
   preparedPngTuberCount,
   activeMotionCount,
+  rigIssueCount,
+  rigIssueSummary,
   summary,
   recommendation
 });
@@ -269,3 +318,26 @@ const hasActiveMotion = (source: Extract<SceneSource, { kind: "pngtuber" | "live
     Math.abs(motion.breathing) > 0.002
   );
 };
+
+const createPngTuberRigIssues = (source: Extract<SceneSource, { kind: "pngtuber" }>): string[] => {
+  const rig = source.illustrationRig;
+  const issues: string[] = [];
+  const tolerance = 0.01;
+  if (!isRigLineOrderValid(rig, tolerance)) {
+    issues.push("rig lines must be ordered hair < eyes < mouth < shoulders");
+  }
+  const faceTop = rig.faceCenterY - rig.faceRange / 2;
+  const faceBottom = rig.faceCenterY + rig.faceRange / 2;
+  if (rig.eyeLineY < faceTop - tolerance || rig.mouthLineY > faceBottom + tolerance) {
+    issues.push("face range must cover both eye and mouth lines");
+  }
+  if (rig.sliceCount < 18) {
+    issues.push("rig should use at least 18 slices for production pseudo mesh deformation");
+  }
+  return issues;
+};
+
+const isRigLineOrderValid = (rig: AvatarIllustrationRig, tolerance: number): boolean =>
+  rig.hairLineY + tolerance < rig.eyeLineY &&
+  rig.eyeLineY + tolerance < rig.mouthLineY &&
+  rig.mouthLineY + tolerance < rig.shoulderLineY;

@@ -531,6 +531,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Runtime age: ${diagnostics.faceTracking.runtimeAgeMs === null ? "-" : `${diagnostics.faceTracking.runtimeAgeMs} ms`} / fresh ${diagnostics.faceTracking.runtimeFresh ? "yes" : "no"}`,
     `- Rig: ${diagnostics.faceTracking.rigMode}`,
     `- Avatars: ${diagnostics.faceTracking.visibleAvatarCount} visible / ${diagnostics.faceTracking.preparedPngTuberCount} prepared PNGTuber / ${diagnostics.faceTracking.activeMotionCount} moving`,
+    `- Rig issues: ${diagnostics.faceTracking.rigIssueCount} / ${diagnostics.faceTracking.rigIssueSummary}`,
     `- Recommendation: ${diagnostics.faceTracking.recommendation}`,
     "",
     "Audio Validation",

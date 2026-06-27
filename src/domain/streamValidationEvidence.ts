@@ -33,6 +33,8 @@ export interface StreamValidationFaceTrackingSummary {
   visibleAvatarCount: number;
   preparedPngTuberCount: number;
   activeMotionCount: number;
+  rigIssueCount: number;
+  rigIssueSummary: string;
   summary: string;
   recommendation: string;
 }
@@ -192,6 +194,7 @@ export interface StreamValidationEvidenceRunManifestItem {
   faceTrackingRuntimeFresh: boolean | null;
   faceTrackingRuntimeAgeMs: number | null;
   faceTrackingActiveMotionCount: number;
+  faceTrackingRigIssueCount: number;
   audioStatus: StreamValidationAudioSummary["status"] | null;
   chatReadoutStatus: StreamValidationChatReadoutSummary["status"] | null;
   qualityAutomationStatus: StreamValidationQualityAutomationSummary["status"] | null;
@@ -1026,7 +1029,10 @@ const isPhysicalDeviceEvidencePass = (run: StreamValidationRun | null | undefine
   run?.physicalDeviceStatus === "pass" && run.physicalDevice;
 
 const isAvatarMotionEvidencePass = (faceTracking: StreamValidationFaceTrackingSummary | null | undefined): boolean =>
-  faceTracking?.status === "pass" && faceTracking.runtimeFresh && faceTracking.activeMotionCount > 0;
+  faceTracking?.status === "pass" &&
+  faceTracking.runtimeFresh &&
+  faceTracking.activeMotionCount > 0 &&
+  faceTracking.rigIssueCount === 0;
 
 const isNativeRuntimeEvidencePass = (
   nativeRuntime: StreamSessionNativeRuntimeSummary | null | undefined,
@@ -1573,6 +1579,8 @@ const createFaceTrackingValidationSummary = (
   visibleAvatarCount: faceTracking.visibleAvatarCount,
   preparedPngTuberCount: faceTracking.preparedPngTuberCount,
   activeMotionCount: faceTracking.activeMotionCount,
+  rigIssueCount: faceTracking.rigIssueCount,
+  rigIssueSummary: sanitizeStoredText(faceTracking.rigIssueSummary, secrets),
   summary: sanitizeStoredText(faceTracking.summary, secrets),
   recommendation: sanitizeStoredText(faceTracking.recommendation, secrets)
 });
@@ -2056,6 +2064,7 @@ const createEvidenceRunManifestItem = (
   faceTrackingRuntimeFresh: run.faceTracking?.runtimeFresh ?? null,
   faceTrackingRuntimeAgeMs: run.faceTracking?.runtimeAgeMs ?? null,
   faceTrackingActiveMotionCount: run.faceTracking?.activeMotionCount ?? 0,
+  faceTrackingRigIssueCount: run.faceTracking?.rigIssueCount ?? 0,
   audioStatus: run.audio?.status ?? null,
   chatReadoutStatus: run.chatReadout?.status ?? null,
   qualityAutomationStatus: run.qualityAutomation?.status ?? null,
@@ -2321,6 +2330,8 @@ const normalizeFaceTrackingValidationSummary = (value: unknown): StreamValidatio
     visibleAvatarCount: normalizeCount(value.visibleAvatarCount),
     preparedPngTuberCount: normalizeCount(value.preparedPngTuberCount),
     activeMotionCount: normalizeCount(value.activeMotionCount),
+    rigIssueCount: normalizeCount(value.rigIssueCount),
+    rigIssueSummary: normalizeText(value.rigIssueSummary, "No still-image rig issues."),
     summary: normalizeText(value.summary, "No face tracking validation evidence retained."),
     recommendation: normalizeText(value.recommendation, "Repeat face tracking validation on a physical mobile device.")
   };

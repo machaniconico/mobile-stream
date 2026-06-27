@@ -235,6 +235,8 @@ describe("stream validation checklist", () => {
         visibleLive2DCount: 0,
         preparedPngTuberCount: 0,
         activeMotionCount: 0,
+        rigIssueCount: 0,
+        rigIssueSummary: "No still-image rig issues.",
         summary: "Face tracking is using simulated input.",
         recommendation: "Switch to native camera input before validation."
       }
@@ -352,6 +354,8 @@ const readyFaceTracking = () => ({
   visibleLive2DCount: 0,
   preparedPngTuberCount: 1,
   activeMotionCount: 1,
+  rigIssueCount: 0,
+  rigIssueSummary: "No still-image rig issues.",
   summary: "Face tracking is ready with 1 prepared PNGTuber source.",
   recommendation: "Keep this tracker state with the next private iOS/Android validation run."
 });

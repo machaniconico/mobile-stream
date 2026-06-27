@@ -94,7 +94,23 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("fresh tracking runtime and active motion");
+    expect(result.stdout).toContain("fresh tracking runtime, active motion");
+  });
+
+  it("blocks avatar-motion claims when retained manifests keep still-image rig issues", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { faceTrackingRigIssueCount: 1 }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("zero still-image rig issues");
   });
 
   it("rejects symlinked support bundles before reading linked targets", () => {
@@ -243,6 +259,7 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   faceTrackingRuntimeFresh: true,
   faceTrackingRuntimeAgeMs: 120,
   faceTrackingActiveMotionCount: 1,
+  faceTrackingRigIssueCount: 0,
   audioStatus: "pass",
   chatReadoutStatus: "pass",
   qualityAutomationStatus: "pass",

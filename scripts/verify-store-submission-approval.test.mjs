@@ -467,6 +467,7 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     faceTrackingRuntimeFresh: true,
     faceTrackingRuntimeAgeMs: 120,
     faceTrackingActiveMotionCount: 1,
+    faceTrackingRigIssueCount: 0,
     audioStatus: "pass",
     chatReadoutStatus: "pass",
     qualityAutomationStatus: "pass",

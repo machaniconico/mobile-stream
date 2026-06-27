@@ -201,6 +201,8 @@ describe("support bundle", () => {
     expect(bundle.summary.faceTrackingStatus).toBe("info");
     expect(bundle.summary.faceTrackingRuntimeStatus).toBe("unavailable");
     expect(bundle.summary.faceTrackingPreparedPngTuberCount).toBe(0);
+    expect(bundle.summary.faceTrackingRigIssueCount).toBe(0);
+    expect(bundle.summary.faceTrackingRigIssueSummary).toBe("No still-image rig issues.");
     expect(bundle.summary.nativeCompositionStatus).toBe("warn");
     expect(bundle.summary.nativeCompositionCoverage).toBe("preview-only-overlays");
     expect(bundle.summary.nativeCompositionPreviewOnlySourceCount).toBeGreaterThan(0);

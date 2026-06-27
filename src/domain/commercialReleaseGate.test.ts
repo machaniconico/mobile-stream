@@ -165,6 +165,28 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks avatar-motion summary claims when the manifest retains still-image rig issues", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", faceTrackingRigIssueCount: 1 }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS avatar-motion proof")
+      })
+    );
+  });
+
   it("blocks bundles whose retained runs are not physical-device evidence", () => {
     const bundle = supportBundle({
       summary: {
@@ -430,6 +452,7 @@ const manifestRun = ({
   faceTrackingRuntimeFresh = true,
   faceTrackingRuntimeAgeMs = 120,
   faceTrackingActiveMotionCount = 1,
+  faceTrackingRigIssueCount = 0,
   audioStatus = "pass",
   chatReadoutStatus = "pass",
   qualityAutomationStatus = "pass",
@@ -451,6 +474,7 @@ const manifestRun = ({
   faceTrackingRuntimeFresh?: ValidationManifestRun["faceTrackingRuntimeFresh"];
   faceTrackingRuntimeAgeMs?: ValidationManifestRun["faceTrackingRuntimeAgeMs"];
   faceTrackingActiveMotionCount?: ValidationManifestRun["faceTrackingActiveMotionCount"];
+  faceTrackingRigIssueCount?: ValidationManifestRun["faceTrackingRigIssueCount"];
   audioStatus?: ValidationManifestRun["audioStatus"];
   chatReadoutStatus?: ValidationManifestRun["chatReadoutStatus"];
   qualityAutomationStatus?: ValidationManifestRun["qualityAutomationStatus"];
@@ -480,6 +504,7 @@ const manifestRun = ({
   faceTrackingRuntimeFresh,
   faceTrackingRuntimeAgeMs,
   faceTrackingActiveMotionCount,
+  faceTrackingRigIssueCount,
   audioStatus,
   chatReadoutStatus,
   qualityAutomationStatus,

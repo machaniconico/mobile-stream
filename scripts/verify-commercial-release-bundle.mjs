@@ -412,7 +412,8 @@ function validationManifestIssue(bundle) {
           run?.result === "pass" &&
           run?.faceTrackingStatus === "pass" &&
           run?.faceTrackingRuntimeFresh === true &&
-          number(run?.faceTrackingActiveMotionCount) > 0
+          number(run?.faceTrackingActiveMotionCount) > 0 &&
+          number(run?.faceTrackingRigIssueCount) === 0
       )
       .map((run) => run.devicePlatform)
   );
@@ -423,8 +424,8 @@ function validationManifestIssue(bundle) {
     return fail(
       "validation-evidence-manifest-avatar-motion",
       "Validation evidence manifest",
-      "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime and active motion.",
-      "Export a support bundle v16 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion."
+      "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, active motion, and zero still-image rig issues.",
+      "Export a support bundle v16 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and reviewed PNGTuber rig lines."
     );
   }
   return null;
