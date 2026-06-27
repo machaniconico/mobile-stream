@@ -144,9 +144,13 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 18");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 18");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 18");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 19");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 19");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 19");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeSentVideoFrames");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetLoadedCount");
+    expectIncludes(files.commercialReleaseGateDomain, "isManifestNativeRuntimePass");
+    expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-native-runtime");
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpokenMessageCount");
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpeechFailureCount");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestChatReadoutPass");

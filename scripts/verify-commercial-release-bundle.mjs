@@ -3,7 +3,7 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
-const minimumSupportBundleVersion = 18;
+const minimumSupportBundleVersion = 19;
 const defaultMaxBundleAgeHours = 24;
 const redactedMarker = "[redacted]";
 const sensitivePropertyNames = new Set([
@@ -374,7 +374,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v18 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v19 or newer after retaining release-candidate validation runs."
     );
   }
   const eligiblePlatforms = new Set(
@@ -404,6 +404,34 @@ function validationManifestIssue(bundle) {
       "Export a fresh support bundle so retained run counts and manifest rows match."
     );
   }
+  const eligibleNativeRuntimePlatforms = new Set(
+    manifest
+      .filter(
+        (run) =>
+          run?.eligible === true &&
+          run?.result === "pass" &&
+          run?.nativeRuntimeStatus === "pass" &&
+          run?.nativeRuntimePlatform === run?.devicePlatform &&
+          isPositiveNumber(run?.nativeRuntimeSentVideoFrames) &&
+          isPositiveNumber(run?.nativeRuntimeSentAudioFrames) &&
+          isPositiveNumber(run?.nativeRuntimeBytesWritten) &&
+          (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
+          isZeroNumber(run?.nativeRuntimeStillImageAssetMissingCount) &&
+          hasLoadedAllNativeRuntimeAssets(run)
+      )
+      .map((run) => run.devicePlatform)
+  );
+  if (
+    (summary.validationEvidenceNativeRuntimeIosPass === true && !eligibleNativeRuntimePlatforms.has("ios")) ||
+    (summary.validationEvidenceNativeRuntimeAndroidPass === true && !eligibleNativeRuntimePlatforms.has("android"))
+  ) {
+    return fail(
+      "validation-evidence-manifest-native-runtime",
+      "Validation evidence manifest",
+      "The manifest does not back claimed native runtime evidence with platform-matched video/audio frames, bytes written, compositor status, and loaded still-image assets.",
+      "Export a support bundle v19 or newer after retaining iOS and Android validation runs with native publisher/compositor telemetry from the current scene."
+    );
+  }
   const eligibleAvatarPlatforms = new Set(
     manifest
       .filter(
@@ -425,7 +453,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-avatar-motion",
       "Validation evidence manifest",
       "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, active motion, and zero still-image rig issues.",
-      "Export a support bundle v18 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and reviewed PNGTuber rig lines."
+      "Export a support bundle v19 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and reviewed PNGTuber rig lines."
     );
   }
   const eligibleChatReadoutPlatforms = new Set(
@@ -448,7 +476,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-chat-readout",
       "Validation evidence manifest",
       "The manifest does not back claimed chat readout evidence with spoken-message success and zero speech failures.",
-      "Export a support bundle v18 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
+      "Export a support bundle v19 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
     );
   }
   return null;
@@ -556,8 +584,22 @@ function number(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function isPositiveNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
 function isZeroNumber(value) {
   return typeof value === "number" && Number.isFinite(value) && value === 0;
+}
+
+function hasLoadedAllNativeRuntimeAssets(run) {
+  return (
+    typeof run?.nativeRuntimeStillImageAssetLoadedCount === "number" &&
+    typeof run.nativeRuntimeStillImageAssetCount === "number" &&
+    Number.isFinite(run.nativeRuntimeStillImageAssetLoadedCount) &&
+    Number.isFinite(run.nativeRuntimeStillImageAssetCount) &&
+    run.nativeRuntimeStillImageAssetLoadedCount >= run.nativeRuntimeStillImageAssetCount
+  );
 }
 
 function text(value) {

@@ -33,7 +33,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 18;
+const minimumSupportBundleVersion = 19;
 const defaultMaxBundleAgeHours = 24;
 
 export const createCommercialReleaseGate = (
@@ -301,7 +301,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v18 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v19 or newer after retaining release-candidate validation runs."
     );
   }
   const latestRuns = latestEligibleManifestRunsByPlatform(manifest);
@@ -374,11 +374,11 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): 
     [summary.validationEvidenceAndroidPass, "Android validation pass", isManifestRunPass(androidRun)],
     [summary.validationEvidencePhysicalDeviceIosPass, "iOS physical-device proof", isManifestPhysicalRunPass(iosRun)],
     [summary.validationEvidencePhysicalDeviceAndroidPass, "Android physical-device proof", isManifestPhysicalRunPass(androidRun)],
-    [summary.validationEvidenceNativeRuntimeIosPass, "iOS native runtime proof", isManifestFeaturePass(iosRun?.nativeRuntimeStatus)],
+    [summary.validationEvidenceNativeRuntimeIosPass, "iOS native runtime proof", isManifestNativeRuntimePass(iosRun)],
     [
       summary.validationEvidenceNativeRuntimeAndroidPass,
       "Android native runtime proof",
-      isManifestFeaturePass(androidRun?.nativeRuntimeStatus)
+      isManifestNativeRuntimePass(androidRun)
     ],
     [summary.validationEvidenceMonitorHoldIosPass, "iOS stable monitor-hold proof", isManifestFeaturePass(iosRun?.monitorHoldStatus)],
     [
@@ -569,6 +569,31 @@ const isManifestPhysicalRunPass = (run: ValidationEvidenceManifestRun | undefine
   isManifestRunPass(run) && run?.physicalDevice === true && run.physicalDeviceStatus === "pass";
 
 const isManifestFeaturePass = (status: string | null | undefined): boolean => status === "pass";
+
+const isManifestNativeRuntimePass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  isManifestFeaturePass(run?.nativeRuntimeStatus) &&
+  run?.nativeRuntimePlatform === run?.devicePlatform &&
+  isPositiveFiniteNumber(run?.nativeRuntimeSentVideoFrames) &&
+  isPositiveFiniteNumber(run?.nativeRuntimeSentAudioFrames) &&
+  isPositiveFiniteNumber(run?.nativeRuntimeBytesWritten) &&
+  (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
+  hasZeroManifestNativeRuntimeMissingAssets(run) &&
+  hasLoadedAllManifestNativeRuntimeAssets(run);
+
+const isPositiveFiniteNumber = (value: unknown): boolean =>
+  typeof value === "number" && Number.isFinite(value) && value > 0;
+
+const hasZeroManifestNativeRuntimeMissingAssets = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  typeof run?.nativeRuntimeStillImageAssetMissingCount === "number" &&
+  Number.isFinite(run.nativeRuntimeStillImageAssetMissingCount) &&
+  run.nativeRuntimeStillImageAssetMissingCount === 0;
+
+const hasLoadedAllManifestNativeRuntimeAssets = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  typeof run?.nativeRuntimeStillImageAssetLoadedCount === "number" &&
+  typeof run.nativeRuntimeStillImageAssetCount === "number" &&
+  Number.isFinite(run.nativeRuntimeStillImageAssetLoadedCount) &&
+  Number.isFinite(run.nativeRuntimeStillImageAssetCount) &&
+  run.nativeRuntimeStillImageAssetLoadedCount >= run.nativeRuntimeStillImageAssetCount;
 
 const isManifestAvatarMotionPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.faceTrackingStatus) &&

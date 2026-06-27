@@ -1288,6 +1288,15 @@ describe("stream validation evidence", () => {
     expect(summary.faceTrackingReadyCount).toBe(2);
     expect(summary.latestFaceTracking?.runtimeStatus).toBe("tracking");
     expect(summary.runManifest.find((run) => run.devicePlatform === "ios")).toMatchObject({
+      nativeRuntimePlatform: "ios",
+      nativeRuntimeStatus: "pass",
+      nativeRuntimeCompositionStatus: "applied",
+      nativeRuntimeSentVideoFrames: 120,
+      nativeRuntimeSentAudioFrames: 190,
+      nativeRuntimeBytesWritten: 2_200_000,
+      nativeRuntimeStillImageAssetCount: 1,
+      nativeRuntimeStillImageAssetLoadedCount: 1,
+      nativeRuntimeStillImageAssetMissingCount: 0,
       faceTrackingStatus: "pass",
       faceTrackingRuntimeFresh: true,
       faceTrackingActiveMotionCount: 1,

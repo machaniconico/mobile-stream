@@ -127,13 +127,13 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v17 support bundles that do not carry spoken chat readout manifest proof", () => {
+  it("blocks v18 support bundles that do not carry native runtime manifest proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         app: {
           name: "MobileLiveCaster",
           reportVersion: 1,
-          bundleVersion: 17
+          bundleVersion: 18
         }
       }),
       { now }
@@ -161,6 +161,55 @@ describe("commercial release gate", () => {
       expect.objectContaining({
         code: "validation-evidence-manifest-integrity",
         detail: expect.stringContaining("iOS avatar-motion proof")
+      })
+    );
+  });
+
+  it("blocks native-runtime summary claims when the manifest lacks native frame proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", nativeRuntimeSentVideoFrames: 0 }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS native runtime proof")
+      })
+    );
+  });
+
+  it("blocks native-runtime summary claims when the manifest has missing compositor assets", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeStillImageAssetLoadedCount: 0,
+              nativeRuntimeStillImageAssetMissingCount: 1
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS native runtime proof")
       })
     );
   });
@@ -431,7 +480,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 18 as const
+    bundleVersion: 19 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   summary = {}
@@ -519,7 +568,15 @@ const manifestRun = ({
   fresh = true,
   matchesScope = true,
   appBuild = "rc-1",
+  nativeRuntimePlatform,
   nativeRuntimeStatus = "pass",
+  nativeRuntimeCompositionStatus = "applied",
+  nativeRuntimeSentVideoFrames = 120,
+  nativeRuntimeSentAudioFrames = 190,
+  nativeRuntimeBytesWritten = 2_200_000,
+  nativeRuntimeStillImageAssetCount = 1,
+  nativeRuntimeStillImageAssetLoadedCount = 1,
+  nativeRuntimeStillImageAssetMissingCount = 0,
   monitorHoldStatus = "pass",
   faceTrackingStatus = "pass",
   faceTrackingRuntimeFresh = true,
@@ -543,7 +600,15 @@ const manifestRun = ({
   fresh?: ValidationManifestRun["fresh"];
   matchesScope?: ValidationManifestRun["matchesScope"];
   appBuild?: ValidationManifestRun["appBuild"];
+  nativeRuntimePlatform?: ValidationManifestRun["nativeRuntimePlatform"];
   nativeRuntimeStatus?: ValidationManifestRun["nativeRuntimeStatus"];
+  nativeRuntimeCompositionStatus?: ValidationManifestRun["nativeRuntimeCompositionStatus"];
+  nativeRuntimeSentVideoFrames?: ValidationManifestRun["nativeRuntimeSentVideoFrames"];
+  nativeRuntimeSentAudioFrames?: ValidationManifestRun["nativeRuntimeSentAudioFrames"];
+  nativeRuntimeBytesWritten?: ValidationManifestRun["nativeRuntimeBytesWritten"];
+  nativeRuntimeStillImageAssetCount?: ValidationManifestRun["nativeRuntimeStillImageAssetCount"];
+  nativeRuntimeStillImageAssetLoadedCount?: ValidationManifestRun["nativeRuntimeStillImageAssetLoadedCount"];
+  nativeRuntimeStillImageAssetMissingCount?: ValidationManifestRun["nativeRuntimeStillImageAssetMissingCount"];
   monitorHoldStatus?: ValidationManifestRun["monitorHoldStatus"];
   faceTrackingStatus?: ValidationManifestRun["faceTrackingStatus"];
   faceTrackingRuntimeFresh?: ValidationManifestRun["faceTrackingRuntimeFresh"];
@@ -575,7 +640,15 @@ const manifestRun = ({
   targetPlatform: "YouTube Live",
   transport: "rtmps",
   result,
+  nativeRuntimePlatform: nativeRuntimePlatform ?? devicePlatform,
   nativeRuntimeStatus,
+  nativeRuntimeCompositionStatus,
+  nativeRuntimeSentVideoFrames,
+  nativeRuntimeSentAudioFrames,
+  nativeRuntimeBytesWritten,
+  nativeRuntimeStillImageAssetCount,
+  nativeRuntimeStillImageAssetLoadedCount,
+  nativeRuntimeStillImageAssetMissingCount,
   monitorHoldStatus,
   faceTrackingStatus,
   faceTrackingRuntimeFresh,

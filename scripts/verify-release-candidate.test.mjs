@@ -470,7 +470,7 @@ function commercialSupportBundleFixture(patch = {}) {
   };
 
   return {
-    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 18 },
+    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 19 },
     generatedAt: new Date().toISOString(),
     fixture: true,
     ...patch,
@@ -500,7 +500,15 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     targetPlatform: "YouTube Live",
     transport: "rtmps",
     result: "pass",
+    nativeRuntimePlatform: devicePlatform,
     nativeRuntimeStatus: "pass",
+    nativeRuntimeCompositionStatus: "applied",
+    nativeRuntimeSentVideoFrames: 120,
+    nativeRuntimeSentAudioFrames: 190,
+    nativeRuntimeBytesWritten: 2_200_000,
+    nativeRuntimeStillImageAssetCount: 1,
+    nativeRuntimeStillImageAssetLoadedCount: 1,
+    nativeRuntimeStillImageAssetMissingCount: 0,
     monitorHoldStatus: "pass",
     faceTrackingStatus: "pass",
     faceTrackingRuntimeFresh: true,

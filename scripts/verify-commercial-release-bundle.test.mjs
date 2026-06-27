@@ -27,19 +27,19 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Can release: yes");
   });
 
-  it("blocks v17 support bundles without spoken chat readout manifest proof", () => {
+  it("blocks v18 support bundles without native runtime manifest proof", () => {
     writeBundle({
       app: {
         name: "MobileLiveCaster",
         reportVersion: 1,
-        bundleVersion: 17
+        bundleVersion: 18
       }
     });
 
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v17 is older than the required v18.");
+    expect(result.stdout).toContain("Support bundle v18 is older than the required v19.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -95,6 +95,41 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("fresh tracking runtime, active motion");
+  });
+
+  it("blocks native runtime claims when retained manifests lack native frame proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { nativeRuntimeSentVideoFrames: 0 }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("platform-matched video/audio frames");
+  });
+
+  it("blocks native runtime claims when retained manifests have missing compositor assets", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeStillImageAssetLoadedCount: 0,
+            nativeRuntimeStillImageAssetMissingCount: 1
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("loaded still-image assets");
   });
 
   it("blocks avatar-motion claims when retained manifests keep still-image rig issues", () => {
@@ -272,7 +307,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 18
+      bundleVersion: 19
     },
     generatedAt: new Date().toISOString(),
     ...patch,
@@ -301,7 +336,15 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   targetPlatform: "YouTube Live",
   transport: "rtmps",
   result: "pass",
+  nativeRuntimePlatform: devicePlatform,
   nativeRuntimeStatus: "pass",
+  nativeRuntimeCompositionStatus: "applied",
+  nativeRuntimeSentVideoFrames: 120,
+  nativeRuntimeSentAudioFrames: 190,
+  nativeRuntimeBytesWritten: 2_200_000,
+  nativeRuntimeStillImageAssetCount: 1,
+  nativeRuntimeStillImageAssetLoadedCount: 1,
+  nativeRuntimeStillImageAssetMissingCount: 0,
   monitorHoldStatus: "pass",
   faceTrackingStatus: "pass",
   faceTrackingRuntimeFresh: true,

@@ -188,7 +188,15 @@ export interface StreamValidationEvidenceRunManifestItem {
   targetPlatform: string;
   transport: string;
   result: StreamValidationRunResult;
+  nativeRuntimePlatform: StreamSessionNativeRuntimeSummary["platform"] | null;
   nativeRuntimeStatus: StreamSessionNativeRuntimeSummary["status"] | null;
+  nativeRuntimeCompositionStatus: StreamSessionNativeRuntimeSummary["compositionStatus"] | null;
+  nativeRuntimeSentVideoFrames: number;
+  nativeRuntimeSentAudioFrames: number;
+  nativeRuntimeBytesWritten: number;
+  nativeRuntimeStillImageAssetCount: number;
+  nativeRuntimeStillImageAssetLoadedCount: number;
+  nativeRuntimeStillImageAssetMissingCount: number;
   monitorHoldStatus: StreamValidationMonitorHoldSummary["status"] | null;
   faceTrackingStatus: StreamValidationFaceTrackingSummary["status"] | null;
   faceTrackingRuntimeFresh: boolean | null;
@@ -2065,7 +2073,15 @@ const createEvidenceRunManifestItem = (
   targetPlatform: run.targetPlatform,
   transport: run.transport,
   result: run.result,
+  nativeRuntimePlatform: run.nativeRuntime?.platform ?? null,
   nativeRuntimeStatus: run.nativeRuntime?.status ?? null,
+  nativeRuntimeCompositionStatus: run.nativeRuntime?.compositionStatus ?? null,
+  nativeRuntimeSentVideoFrames: run.nativeRuntime?.sentVideoFrames ?? 0,
+  nativeRuntimeSentAudioFrames: run.nativeRuntime?.sentAudioFrames ?? 0,
+  nativeRuntimeBytesWritten: run.nativeRuntime?.bytesWritten ?? 0,
+  nativeRuntimeStillImageAssetCount: run.nativeRuntime?.stillImageAssetCount ?? 0,
+  nativeRuntimeStillImageAssetLoadedCount: run.nativeRuntime?.stillImageAssetLoadedCount ?? 0,
+  nativeRuntimeStillImageAssetMissingCount: run.nativeRuntime?.stillImageAssetMissingCount ?? 0,
   monitorHoldStatus: run.monitorHold?.status ?? null,
   faceTrackingStatus: run.faceTracking?.status ?? null,
   faceTrackingRuntimeFresh: run.faceTracking?.runtimeFresh ?? null,
