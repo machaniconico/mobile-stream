@@ -66,7 +66,7 @@ export interface StreamStartPreflightInput {
   operationStatus?: StreamOperationStatus | null;
   profile?: Pick<StudioProfile, "destination" | "platformPublishing" | "platformChat" | "micEffects">;
   validation?: Pick<StreamValidationChecklist, "status" | "recommendedNextStep"> | null;
-  chatReader?: Pick<ChatReaderSettings, "enabled"> | null;
+  chatReader?: (Pick<ChatReaderSettings, "enabled"> & Partial<Pick<ChatReaderSettings, "redactUrls" | "skipCommandMessages">>) | null;
   platformChatAuth?: PlatformChatAuthSession | null;
   platformChatOAuthCredentials?: PlatformChatOAuthCredentialStore | null;
   platformChatOAuthCredential?: PlatformChatOAuthCredential | null;
@@ -621,6 +621,28 @@ const createChatReadoutIssues = (
     ];
   }
 
+  const issues: StreamStartPreflightIssue[] = [];
+  if (chatReader.redactUrls === false) {
+    issues.push({
+      code: "chat-reader-url-redaction-disabled",
+      severity: "warning",
+      area: "chat",
+      label: "Chat safety",
+      message: "Chat readout URL redaction is turned off.",
+      recommendation: "Turn URL redaction on before public streams so spoken comments do not read unsafe or private links aloud."
+    });
+  }
+  if (chatReader.skipCommandMessages === false) {
+    issues.push({
+      code: "chat-reader-command-skip-disabled",
+      severity: "warning",
+      area: "chat",
+      label: "Chat safety",
+      message: "Chat command skipping is turned off.",
+      recommendation: "Turn command skipping on before public streams so bot commands and giveaway entries are not spoken aloud."
+    });
+  }
+
   const networkReadiness = getPlatformChatNetworkReadiness(
     profile.platformChat,
     platformChatAuth ?? {
@@ -632,6 +654,7 @@ const createChatReadoutIssues = (
 
   if (networkReadiness.status === "needs-configuration" || networkReadiness.status === "needs-auth") {
     return [
+      ...issues,
       {
         code: `chat-platform-${networkReadiness.status}`,
         severity: "block",
@@ -646,7 +669,6 @@ const createChatReadoutIssues = (
     ];
   }
 
-  const issues: StreamStartPreflightIssue[] = [];
   const oauthIssue = createOAuthScopeIssue({
     credential: resolvePreflightCredential(platformChatOAuthCredentials, platformChatOAuthCredential, profile.platformChat.platform),
     platform: profile.platformChat.platform,

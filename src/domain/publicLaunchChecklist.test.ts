@@ -204,6 +204,36 @@ describe("public launch checklist", () => {
     });
   });
 
+  it("blocks public launch when chat safety warnings remain", () => {
+    const chatSafetyWarning: StreamStartPreflightReport["warnings"][number] = {
+      code: "chat-reader-url-redaction-disabled",
+      severity: "warning",
+      area: "chat",
+      label: "Chat safety",
+      message: "Chat readout URL redaction is turned off.",
+      recommendation: "Turn URL redaction on before public streams."
+    };
+    const checklist = createPublicLaunchChecklist({
+      preflight: {
+        ...readyPreflight,
+        status: "warning",
+        warnings: [chatSafetyWarning],
+        issues: [chatSafetyWarning]
+      },
+      diagnostics: readyDiagnostics(),
+      platformPublishingFreshness: freshDashboard,
+      profile: twitchProfile()
+    });
+
+    expect(checklist.status).toBe("warning");
+    expect(checklist.canStart).toBe(false);
+    expect(checklist.startLock).toMatchObject({ applies: true, blocked: true });
+    expect(checklist.items.find((item) => item.id === "chat-readout")).toMatchObject({
+      status: "warn",
+      detail: "Chat readout URL redaction is turned off."
+    });
+  });
+
   it("blocks public launch when the platform dashboard timestamp is invalid", () => {
     const checklist = createPublicLaunchChecklist({
       preflight: readyPreflight,

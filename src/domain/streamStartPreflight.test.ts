@@ -673,6 +673,40 @@ describe("stream start preflight", () => {
     expect(report.issues.map((issue) => issue.area)).not.toContain("chat");
   });
 
+  it("warns when chat safety controls are disabled before platform chat start", () => {
+    const profile = {
+      ...validProfile(),
+      platformChat: {
+        ...validProfile().platformChat,
+        enabled: true,
+        platform: "twitch" as const,
+        twitchChannel: "streamer"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      chatReader: { enabled: true, redactUrls: false, skipCommandMessages: false },
+      platformChatAuth: {
+        youtubeAccessToken: "",
+        twitchOauthToken: "oauth-placeholder",
+        twitchLogin: "streamer"
+      },
+      platformChatOAuthCredential: twitchCredential([TWITCH_CHAT_SCOPE]),
+      platformChatConnection: {
+        phase: "connected",
+        message: "Connected."
+      }
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("warning");
+    expect(report.warnings.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining(["chat-reader-url-redaction-disabled", "chat-reader-command-skip-disabled"])
+    );
+  });
+
   it("blocks platform chat readout when retained OAuth scopes are incomplete", () => {
     const profile = {
       ...validProfile(),

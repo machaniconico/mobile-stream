@@ -12,7 +12,7 @@
 - Go Live platform-state preflight for platform-visible YouTube streams, requiring a bound broadcast/stream before launch after commercial validation, blocking completed broadcasts, warning on already-live broadcasts, warning when YouTube/Twitch dashboard status is stale or unchecked, and blocking Twitch starts when the channel status is already live.
 - Platform-visible Go Live preflight blocks visible Live2D preview-only scenes until native Live2D Cubism rendering is integrated and validated, while still allowing controlled private validation starts with warnings.
 - Platform-visible Go Live preflight blocks native compositor drift risks, including preview-only source ordering, missing screen capture, and PNGTuber/image assets that the iOS ReplayKit Broadcast Upload Extension cannot load from App Group storage.
-- Public YouTube and Twitch start locks block checklist warnings as well as failures, including stale dashboard evidence, disabled chat readout, unsafe/muted mic monitoring, incomplete commercial evidence, and mock-engine fallback.
+- Public YouTube and Twitch start locks block checklist warnings as well as failures, including stale dashboard evidence, disabled or unsafe chat readout, unsafe/muted mic monitoring, incomplete commercial evidence, and mock-engine fallback.
 - Stream diagnostics model for redacted publish URL, endpoint parsing, upload target estimate, readiness issues, live telemetry health checks, and sanitized diagnostic reports.
 - Face-tracking production diagnostics for prepared PNGTuber assets, simulated/native-camera input risk, tracking runtime state, active motion count, preflight warnings, support reports, and commercial validation checklist evidence.
 - Native composition readiness/diagnostics model that distinguishes native-supported avatar/image/solid/text/chat overlays from underlay ordering, Live2D production gaps, and iOS Broadcast Upload Extension still-image asset access risks before device RTMP publishing.
@@ -67,7 +67,7 @@
 - In-app stream key clear/replacement controls for browser and mobile setup screens.
 - Mic effect profile model with presets, gain, noise gate, compression, and headphone monitor settings.
 - Shared audio-route safety model for speaker/receiver/wired/USB/Bluetooth/AirPlay/HDMI output state, monitor-route diagnostics, and Go Live preflight blocking when headphones-only monitoring is routed to speakers.
-- Chat/comment read-aloud domain model with queueing, muted words, command-message skipping, duplicate suppression, queue limits, URL redaction, and speech text shaping.
+- Chat/comment read-aloud domain model with queueing, muted words, command-message skipping, duplicate suppression, queue limits, URL redaction, speech text shaping, and launch preflight warnings when public-stream safety controls are disabled.
 - Transparent chat/comment overlay scene source with runtime-only recent message payloads, author toggle, line limits, per-source message length limits, URL redaction, text color, optional semi-transparent backdrop, and native/web compositor support without persisting comment text into scene storage.
 - Platform chat adapter model for YouTube LiveChatMessages responses and Twitch EventSub chat notifications.
 - Platform chat adapter settings persisted with the shared studio profile on web and mobile.
