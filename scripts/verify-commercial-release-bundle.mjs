@@ -3,9 +3,10 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
-const minimumSupportBundleVersion = 21;
+const minimumSupportBundleVersion = 22;
 const minimumValidationMonitorDurationSeconds = 60;
 const minimumValidationMonitorSampleCount = 3;
+const platformPublishingDashboardMaxAgeMinutes = 10;
 const defaultMaxBundleAgeHours = 24;
 const redactedMarker = "[redacted]";
 const sensitivePropertyNames = new Set([
@@ -376,7 +377,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v21 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v22 or newer after retaining release-candidate validation runs."
     );
   }
   const latestEligibleRuns = [...latestEligibleManifestRunsByPlatform(manifest).values()];
@@ -424,7 +425,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-native-runtime",
       "Validation evidence manifest",
       "The manifest does not back claimed native runtime evidence with platform-matched video/audio frames, bytes written, compositor status, and loaded still-image assets.",
-      "Export a support bundle v21 or newer after retaining iOS and Android validation runs with native publisher/compositor telemetry from the current scene."
+      "Export a support bundle v22 or newer after retaining iOS and Android validation runs with native publisher/compositor telemetry from the current scene."
     );
   }
   const eligibleMonitorHoldPlatforms = new Set(
@@ -450,7 +451,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-monitor-hold",
       "Validation evidence manifest",
       "The manifest does not back claimed monitor-hold evidence with stable duration, sample count, zero dropped frames, and zero reconnects.",
-      "Export a support bundle v21 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry."
+      "Export a support bundle v22 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry."
     );
   }
   const eligibleAudioPlatforms = new Set(
@@ -479,7 +480,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-audio-monitor",
       "Validation evidence manifest",
       "The manifest does not back claimed mic/headphone evidence with native monitor write/drop proof, headphone route proof, and measured monitor latency.",
-      "Export a support bundle v21 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones."
+      "Export a support bundle v22 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones."
     );
   }
   const eligibleAvatarPlatforms = new Set(
@@ -503,7 +504,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-avatar-motion",
       "Validation evidence manifest",
       "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, active motion, and zero still-image rig issues.",
-      "Export a support bundle v21 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and reviewed PNGTuber rig lines."
+      "Export a support bundle v22 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and reviewed PNGTuber rig lines."
     );
   }
   const eligibleChatReadoutPlatforms = new Set(
@@ -526,7 +527,28 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-chat-readout",
       "Validation evidence manifest",
       "The manifest does not back claimed chat readout evidence with spoken-message success and zero speech failures.",
-      "Export a support bundle v21 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
+      "Export a support bundle v22 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
+    );
+  }
+  const eligiblePlatformDashboardPlatforms = new Set(
+    latestEligibleRuns
+      .filter(
+        (run) =>
+          run?.eligible === true &&
+          run?.result === "pass" &&
+          isManifestPlatformPublishingPass(run)
+      )
+      .map((run) => run.devicePlatform)
+  );
+  if (
+    (summary.validationEvidencePlatformPublishingIosPass === true && !eligiblePlatformDashboardPlatforms.has("ios")) ||
+    (summary.validationEvidencePlatformPublishingAndroidPass === true && !eligiblePlatformDashboardPlatforms.has("android"))
+  ) {
+    return fail(
+      "validation-evidence-manifest-platform-dashboard",
+      "Validation evidence manifest",
+      "The manifest does not back claimed platform dashboard evidence with fresh checked-at proof and YouTube/Twitch identity/state proof.",
+      "Export a support bundle v22 or newer after retaining iOS and Android validation runs with fresh YouTube/Twitch dashboard status from the destination receiving the stream."
     );
   }
   if (manifest.length !== number(summary.validationEvidenceRunCount)) {
@@ -650,6 +672,10 @@ function isAtLeastNumber(value, minimum) {
   return typeof value === "number" && Number.isFinite(value) && value >= minimum;
 }
 
+function isAtMostNumber(value, maximum) {
+  return typeof value === "number" && Number.isFinite(value) && value <= maximum;
+}
+
 function isZeroNumber(value) {
   return typeof value === "number" && Number.isFinite(value) && value === 0;
 }
@@ -667,6 +693,48 @@ function latestEligibleManifestRunsByPlatform(manifest) {
     }
   }
   return runsByPlatform;
+}
+
+function isManifestPlatformPublishingPass(run) {
+  if (run?.platformPublishingFreshnessStatus === "not-applicable") {
+    return true;
+  }
+  return (
+    run?.platformPublishingStatus === "pass" &&
+    run?.platformPublishingFreshnessStatus === "fresh" &&
+    isNonEmptyIsoDate(run?.platformPublishingCheckedAt) &&
+    isAtMostNumber(run?.platformPublishingFreshnessAgeMinutes, platformPublishingDashboardMaxAgeMinutes) &&
+    isManifestPlatformIdentityPass(run)
+  );
+}
+
+function isManifestPlatformIdentityPass(run) {
+  if (run?.platformPublishingPlatform === "youtube-live") {
+    return (
+      run.platformPublishingYoutubeHasBroadcastId === true &&
+      run.platformPublishingYoutubeHasStreamId === true &&
+      ["live", "testing"].includes(statusLabel(run.platformPublishingYoutubeBroadcastStatus)) &&
+      statusLabel(run.platformPublishingYoutubeStreamStatus) === "active" &&
+      ["ok", "good"].includes(statusLabel(run.platformPublishingYoutubeHealthStatus)) &&
+      isZeroNumber(run.platformPublishingYoutubeHealthIssueCount)
+    );
+  }
+  if (run?.platformPublishingPlatform === "twitch") {
+    return (
+      statusLabel(run.platformPublishingTwitchLiveStatus) === "live" &&
+      isNonEmptyIsoDate(run.platformPublishingTwitchStartedAt) &&
+      run.platformPublishingTwitchHasCategoryId === true
+    );
+  }
+  return false;
+}
+
+function isNonEmptyIsoDate(value) {
+  return typeof value === "string" && value.trim() !== "" && Number.isFinite(Date.parse(value));
+}
+
+function statusLabel(value) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
 function isManifestRunFreshInScope(run) {

@@ -400,6 +400,84 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks platform dashboard summary claims when the manifest lacks destination identity proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              platformPublishingYoutubeHasBroadcastId: false
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS platform dashboard proof")
+      })
+    );
+  });
+
+  it("blocks platform dashboard summary claims when the manifest keeps unhealthy destination state", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              platformPublishingYoutubeHealthIssueCount: 1
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS platform dashboard proof")
+      })
+    );
+  });
+
+  it("blocks platform dashboard summary claims when the manifest freshness age exceeds the release window", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              platformPublishingFreshnessAgeMinutes: 11
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS platform dashboard proof")
+      })
+    );
+  });
+
   it("blocks bundles whose retained runs are not physical-device evidence", () => {
     const bundle = supportBundle({
       summary: {
@@ -578,7 +656,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 21 as const
+    bundleVersion: 22 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   summary = {}
@@ -703,8 +781,21 @@ const manifestRun = ({
   chatReadoutSpokenMessageCount = 1,
   chatReadoutSpeechFailureCount = 0,
   qualityAutomationStatus = "pass",
+  platformPublishingPlatform = "youtube-live",
   platformPublishingStatus = "pass",
-  platformPublishingFreshnessStatus = "fresh"
+  platformPublishingFreshnessStatus = "fresh",
+  platformPublishingCheckedAt = "2026-06-23T10:59:00.000Z",
+  platformPublishingFreshnessAgeMinutes = 1,
+  platformPublishingYoutubeHasBroadcastId = true,
+  platformPublishingYoutubeHasStreamId = true,
+  platformPublishingYoutubeBroadcastStatus = "live",
+  platformPublishingYoutubeStreamStatus = "active",
+  platformPublishingYoutubeHealthStatus = "ok",
+  platformPublishingYoutubeHealthIssueCount = 0,
+  platformPublishingTwitchLiveStatus = "",
+  platformPublishingTwitchStartedAt = "",
+  platformPublishingTwitchHasCategoryId = false,
+  platformPublishingTwitchViewerCount = 0
 }: {
   devicePlatform: "ios" | "android";
   fingerprint: string;
@@ -752,8 +843,21 @@ const manifestRun = ({
   chatReadoutSpokenMessageCount?: ValidationManifestRun["chatReadoutSpokenMessageCount"];
   chatReadoutSpeechFailureCount?: ValidationManifestRun["chatReadoutSpeechFailureCount"];
   qualityAutomationStatus?: ValidationManifestRun["qualityAutomationStatus"];
+  platformPublishingPlatform?: ValidationManifestRun["platformPublishingPlatform"];
   platformPublishingStatus?: ValidationManifestRun["platformPublishingStatus"];
   platformPublishingFreshnessStatus?: ValidationManifestRun["platformPublishingFreshnessStatus"];
+  platformPublishingCheckedAt?: ValidationManifestRun["platformPublishingCheckedAt"];
+  platformPublishingFreshnessAgeMinutes?: ValidationManifestRun["platformPublishingFreshnessAgeMinutes"];
+  platformPublishingYoutubeHasBroadcastId?: ValidationManifestRun["platformPublishingYoutubeHasBroadcastId"];
+  platformPublishingYoutubeHasStreamId?: ValidationManifestRun["platformPublishingYoutubeHasStreamId"];
+  platformPublishingYoutubeBroadcastStatus?: ValidationManifestRun["platformPublishingYoutubeBroadcastStatus"];
+  platformPublishingYoutubeStreamStatus?: ValidationManifestRun["platformPublishingYoutubeStreamStatus"];
+  platformPublishingYoutubeHealthStatus?: ValidationManifestRun["platformPublishingYoutubeHealthStatus"];
+  platformPublishingYoutubeHealthIssueCount?: ValidationManifestRun["platformPublishingYoutubeHealthIssueCount"];
+  platformPublishingTwitchLiveStatus?: ValidationManifestRun["platformPublishingTwitchLiveStatus"];
+  platformPublishingTwitchStartedAt?: ValidationManifestRun["platformPublishingTwitchStartedAt"];
+  platformPublishingTwitchHasCategoryId?: ValidationManifestRun["platformPublishingTwitchHasCategoryId"];
+  platformPublishingTwitchViewerCount?: ValidationManifestRun["platformPublishingTwitchViewerCount"];
 }): ValidationManifestRun => ({
   id: `validation-${devicePlatform}`,
   fingerprint,
@@ -809,8 +913,21 @@ const manifestRun = ({
   chatReadoutSpokenMessageCount,
   chatReadoutSpeechFailureCount,
   qualityAutomationStatus,
+  platformPublishingPlatform,
   platformPublishingStatus,
   platformPublishingFreshnessStatus,
+  platformPublishingCheckedAt,
+  platformPublishingFreshnessAgeMinutes,
+  platformPublishingYoutubeHasBroadcastId,
+  platformPublishingYoutubeHasStreamId,
+  platformPublishingYoutubeBroadcastStatus,
+  platformPublishingYoutubeStreamStatus,
+  platformPublishingYoutubeHealthStatus,
+  platformPublishingYoutubeHealthIssueCount,
+  platformPublishingTwitchLiveStatus,
+  platformPublishingTwitchStartedAt,
+  platformPublishingTwitchHasCategoryId,
+  platformPublishingTwitchViewerCount,
   summary: "Validation run retained.",
   recommendation: "Keep this run with release evidence."
 });

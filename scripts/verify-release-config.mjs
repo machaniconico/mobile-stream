@@ -144,9 +144,9 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 21");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 21");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 21");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 22");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 22");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 22");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeSentVideoFrames");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetLoadedCount");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestNativeRuntimePass");
@@ -163,6 +163,10 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpeechFailureCount");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestChatReadoutPass");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-chat-readout");
+    expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingCheckedAt");
+    expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingYoutubeHasBroadcastId");
+    expectIncludes(files.commercialReleaseGateDomain, "isManifestPlatformIdentityPass");
+    expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-platform-dashboard");
     expectBefore(
       files.releaseCandidateScript,
       "runCommercialSupportBundleGate(report, options);",

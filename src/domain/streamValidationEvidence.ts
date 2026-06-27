@@ -225,8 +225,21 @@ export interface StreamValidationEvidenceRunManifestItem {
   chatReadoutSpokenMessageCount: number;
   chatReadoutSpeechFailureCount: number;
   qualityAutomationStatus: StreamValidationQualityAutomationSummary["status"] | null;
+  platformPublishingPlatform: StreamDiagnostics["platformPublishing"]["platform"] | null;
   platformPublishingStatus: StreamDiagnostics["platformPublishing"]["status"] | null;
   platformPublishingFreshnessStatus: PlatformPublishingFreshnessStatus | null;
+  platformPublishingCheckedAt: string;
+  platformPublishingFreshnessAgeMinutes: number | null;
+  platformPublishingYoutubeHasBroadcastId: boolean;
+  platformPublishingYoutubeHasStreamId: boolean;
+  platformPublishingYoutubeBroadcastStatus: string;
+  platformPublishingYoutubeStreamStatus: string;
+  platformPublishingYoutubeHealthStatus: string;
+  platformPublishingYoutubeHealthIssueCount: number;
+  platformPublishingTwitchLiveStatus: string;
+  platformPublishingTwitchStartedAt: string;
+  platformPublishingTwitchHasCategoryId: boolean;
+  platformPublishingTwitchViewerCount: number;
   summary: string;
   recommendation: string;
 }
@@ -2072,66 +2085,82 @@ const createEvidenceRunManifestItem = (
     fresh: boolean;
     matchesScope: boolean;
   }
-): StreamValidationEvidenceRunManifestItem => ({
-  id: run.id,
-  fingerprint: run.fingerprint,
-  createdAt: run.createdAt,
-  ageDays,
-  fresh,
-  matchesScope,
-  eligible: matchesScope && fresh,
-  devicePlatform: run.devicePlatform,
-  deviceName: run.deviceName,
-  osVersion: run.osVersion,
-  physicalDevice: run.physicalDevice,
-  physicalDeviceStatus: run.physicalDeviceStatus,
-  appBuild: run.appBuild,
-  networkProfile: run.networkProfile,
-  targetPlatform: run.targetPlatform,
-  transport: run.transport,
-  result: run.result,
-  nativeRuntimePlatform: run.nativeRuntime?.platform ?? null,
-  nativeRuntimeStatus: run.nativeRuntime?.status ?? null,
-  nativeRuntimeCompositionStatus: run.nativeRuntime?.compositionStatus ?? null,
-  nativeRuntimeSentVideoFrames: run.nativeRuntime?.sentVideoFrames ?? 0,
-  nativeRuntimeSentAudioFrames: run.nativeRuntime?.sentAudioFrames ?? 0,
-  nativeRuntimeBytesWritten: run.nativeRuntime?.bytesWritten ?? 0,
-  nativeRuntimeStillImageAssetCount: run.nativeRuntime?.stillImageAssetCount ?? 0,
-  nativeRuntimeStillImageAssetLoadedCount: run.nativeRuntime?.stillImageAssetLoadedCount ?? 0,
-  nativeRuntimeStillImageAssetMissingCount: run.nativeRuntime?.stillImageAssetMissingCount ?? 0,
-  monitorHoldStatus: run.monitorHold?.status ?? null,
-  monitorHoldSampleCount: run.monitorHold?.sampleCount ?? 0,
-  monitorHoldDurationSeconds: run.monitorHold?.durationSeconds ?? 0,
-  monitorHoldStability: run.monitorHold?.stability ?? null,
-  monitorHoldAverageBitrateKbps: run.monitorHold?.averageBitrateKbps ?? 0,
-  monitorHoldMinimumBitrateKbps: run.monitorHold?.minimumBitrateKbps ?? 0,
-  monitorHoldAverageFps: run.monitorHold?.averageFps ?? 0,
-  monitorHoldMinimumFps: run.monitorHold?.minimumFps ?? 0,
-  monitorHoldDroppedFrameIncrease: run.monitorHold?.droppedFrameIncrease ?? 0,
-  monitorHoldObservedReconnectAttempts: run.monitorHold?.observedReconnectAttempts ?? 0,
-  faceTrackingStatus: run.faceTracking?.status ?? null,
-  faceTrackingRuntimeFresh: run.faceTracking?.runtimeFresh ?? null,
-  faceTrackingRuntimeAgeMs: run.faceTracking?.runtimeAgeMs ?? null,
-  faceTrackingActiveMotionCount: run.faceTracking?.activeMotionCount ?? 0,
-  faceTrackingRigIssueCount: run.faceTracking?.rigIssueCount ?? 0,
-  audioStatus: run.audio?.status ?? null,
-  audioMonitorHeadphonesOnly: run.audio?.monitorHeadphonesOnly ?? false,
-  audioNativeMonitorHeadphonesConnected: run.audio?.nativeMonitorHeadphonesConnected ?? false,
-  audioNativeMonitorWrittenFrames: run.audio?.nativeMonitorWrittenFrames ?? 0,
-  audioNativeMonitorDroppedFrames: run.audio?.nativeMonitorDroppedFrames ?? 0,
-  audioNativeMonitorWrittenBuffers: run.audio?.nativeMonitorWrittenBuffers ?? 0,
-  audioNativeMonitorDroppedBuffers: run.audio?.nativeMonitorDroppedBuffers ?? 0,
-  audioMonitorLatencyStatus: run.audio?.monitorLatencyStatus ?? null,
-  audioMonitorLatencyMs: run.audio?.monitorLatencyMs ?? null,
-  chatReadoutStatus: run.chatReadout?.status ?? null,
-  chatReadoutSpokenMessageCount: run.chatReadout?.spokenMessageCount ?? 0,
-  chatReadoutSpeechFailureCount: run.chatReadout?.speechFailureCount ?? 0,
-  qualityAutomationStatus: run.qualityAutomation?.status ?? null,
-  platformPublishingStatus: run.platformPublishing?.status ?? null,
-  platformPublishingFreshnessStatus: getRunPlatformPublishingFreshness(run)?.status ?? null,
-  summary: run.summary,
-  recommendation: run.recommendation
-});
+): StreamValidationEvidenceRunManifestItem => {
+  const platformPublishingFreshness = getRunPlatformPublishingFreshness(run);
+  return {
+    id: run.id,
+    fingerprint: run.fingerprint,
+    createdAt: run.createdAt,
+    ageDays,
+    fresh,
+    matchesScope,
+    eligible: matchesScope && fresh,
+    devicePlatform: run.devicePlatform,
+    deviceName: run.deviceName,
+    osVersion: run.osVersion,
+    physicalDevice: run.physicalDevice,
+    physicalDeviceStatus: run.physicalDeviceStatus,
+    appBuild: run.appBuild,
+    networkProfile: run.networkProfile,
+    targetPlatform: run.targetPlatform,
+    transport: run.transport,
+    result: run.result,
+    nativeRuntimePlatform: run.nativeRuntime?.platform ?? null,
+    nativeRuntimeStatus: run.nativeRuntime?.status ?? null,
+    nativeRuntimeCompositionStatus: run.nativeRuntime?.compositionStatus ?? null,
+    nativeRuntimeSentVideoFrames: run.nativeRuntime?.sentVideoFrames ?? 0,
+    nativeRuntimeSentAudioFrames: run.nativeRuntime?.sentAudioFrames ?? 0,
+    nativeRuntimeBytesWritten: run.nativeRuntime?.bytesWritten ?? 0,
+    nativeRuntimeStillImageAssetCount: run.nativeRuntime?.stillImageAssetCount ?? 0,
+    nativeRuntimeStillImageAssetLoadedCount: run.nativeRuntime?.stillImageAssetLoadedCount ?? 0,
+    nativeRuntimeStillImageAssetMissingCount: run.nativeRuntime?.stillImageAssetMissingCount ?? 0,
+    monitorHoldStatus: run.monitorHold?.status ?? null,
+    monitorHoldSampleCount: run.monitorHold?.sampleCount ?? 0,
+    monitorHoldDurationSeconds: run.monitorHold?.durationSeconds ?? 0,
+    monitorHoldStability: run.monitorHold?.stability ?? null,
+    monitorHoldAverageBitrateKbps: run.monitorHold?.averageBitrateKbps ?? 0,
+    monitorHoldMinimumBitrateKbps: run.monitorHold?.minimumBitrateKbps ?? 0,
+    monitorHoldAverageFps: run.monitorHold?.averageFps ?? 0,
+    monitorHoldMinimumFps: run.monitorHold?.minimumFps ?? 0,
+    monitorHoldDroppedFrameIncrease: run.monitorHold?.droppedFrameIncrease ?? 0,
+    monitorHoldObservedReconnectAttempts: run.monitorHold?.observedReconnectAttempts ?? 0,
+    faceTrackingStatus: run.faceTracking?.status ?? null,
+    faceTrackingRuntimeFresh: run.faceTracking?.runtimeFresh ?? null,
+    faceTrackingRuntimeAgeMs: run.faceTracking?.runtimeAgeMs ?? null,
+    faceTrackingActiveMotionCount: run.faceTracking?.activeMotionCount ?? 0,
+    faceTrackingRigIssueCount: run.faceTracking?.rigIssueCount ?? 0,
+    audioStatus: run.audio?.status ?? null,
+    audioMonitorHeadphonesOnly: run.audio?.monitorHeadphonesOnly ?? false,
+    audioNativeMonitorHeadphonesConnected: run.audio?.nativeMonitorHeadphonesConnected ?? false,
+    audioNativeMonitorWrittenFrames: run.audio?.nativeMonitorWrittenFrames ?? 0,
+    audioNativeMonitorDroppedFrames: run.audio?.nativeMonitorDroppedFrames ?? 0,
+    audioNativeMonitorWrittenBuffers: run.audio?.nativeMonitorWrittenBuffers ?? 0,
+    audioNativeMonitorDroppedBuffers: run.audio?.nativeMonitorDroppedBuffers ?? 0,
+    audioMonitorLatencyStatus: run.audio?.monitorLatencyStatus ?? null,
+    audioMonitorLatencyMs: run.audio?.monitorLatencyMs ?? null,
+    chatReadoutStatus: run.chatReadout?.status ?? null,
+    chatReadoutSpokenMessageCount: run.chatReadout?.spokenMessageCount ?? 0,
+    chatReadoutSpeechFailureCount: run.chatReadout?.speechFailureCount ?? 0,
+    qualityAutomationStatus: run.qualityAutomation?.status ?? null,
+    platformPublishingPlatform: run.platformPublishing?.platform ?? null,
+    platformPublishingStatus: run.platformPublishing?.status ?? null,
+    platformPublishingFreshnessStatus: platformPublishingFreshness.status,
+    platformPublishingCheckedAt: platformPublishingFreshness.checkedAt,
+    platformPublishingFreshnessAgeMinutes: platformPublishingFreshness.ageMinutes,
+    platformPublishingYoutubeHasBroadcastId: run.platformPublishing?.youtube?.hasBroadcastId ?? false,
+    platformPublishingYoutubeHasStreamId: run.platformPublishing?.youtube?.hasStreamId ?? false,
+    platformPublishingYoutubeBroadcastStatus: run.platformPublishing?.youtube?.broadcastStatus ?? "",
+    platformPublishingYoutubeStreamStatus: run.platformPublishing?.youtube?.streamStatus ?? "",
+    platformPublishingYoutubeHealthStatus: run.platformPublishing?.youtube?.healthStatus ?? "",
+    platformPublishingYoutubeHealthIssueCount: run.platformPublishing?.youtube?.healthIssueCount ?? 0,
+    platformPublishingTwitchLiveStatus: run.platformPublishing?.twitch?.liveStatus ?? "",
+    platformPublishingTwitchStartedAt: run.platformPublishing?.twitch?.startedAt ?? "",
+    platformPublishingTwitchHasCategoryId: run.platformPublishing?.twitch?.hasCategoryId ?? false,
+    platformPublishingTwitchViewerCount: run.platformPublishing?.twitch?.viewerCount ?? 0,
+    summary: run.summary,
+    recommendation: run.recommendation
+  };
+};
 
 const toEvidenceFingerprintRunRef = (run: StreamValidationRun) => ({
   appBuild: run.appBuild,

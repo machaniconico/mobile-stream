@@ -27,19 +27,19 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Can release: yes");
   });
 
-  it("blocks v20 support bundles without monitor-hold manifest proof", () => {
+  it("blocks v21 support bundles without platform dashboard manifest proof", () => {
     writeBundle({
       app: {
         name: "MobileLiveCaster",
         reportVersion: 1,
-        bundleVersion: 20
+        bundleVersion: 21
       }
     });
 
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v20 is older than the required v21.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v22.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -312,6 +312,54 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("spoken-message success and zero speech failures");
   });
 
+  it("blocks platform dashboard claims when retained manifests lack destination identity proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { platformPublishingYoutubeHasBroadcastId: false }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("YouTube/Twitch identity/state proof");
+  });
+
+  it("blocks platform dashboard claims when retained manifests keep unhealthy destination state", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { platformPublishingYoutubeHealthIssueCount: 1 }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("fresh checked-at proof");
+  });
+
+  it("blocks platform dashboard claims when retained manifests keep stale freshness age", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { platformPublishingFreshnessAgeMinutes: 11 }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("fresh checked-at proof");
+  });
+
   it("rejects symlinked support bundles before reading linked targets", () => {
     const outsideBundlePath = ".artifacts/verify-commercial-release-bundle-test/outside-support-bundle.json";
     mkdirSync(dirname(fixturePath), { recursive: true });
@@ -428,7 +476,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 21
+      bundleVersion: 22
     },
     generatedAt: new Date().toISOString(),
     ...patch,
@@ -494,8 +542,21 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   chatReadoutSpokenMessageCount: 1,
   chatReadoutSpeechFailureCount: 0,
   qualityAutomationStatus: "pass",
+  platformPublishingPlatform: "youtube-live",
   platformPublishingStatus: "pass",
   platformPublishingFreshnessStatus: "fresh",
+  platformPublishingCheckedAt: "2026-06-23T10:59:00.000Z",
+  platformPublishingFreshnessAgeMinutes: 1,
+  platformPublishingYoutubeHasBroadcastId: true,
+  platformPublishingYoutubeHasStreamId: true,
+  platformPublishingYoutubeBroadcastStatus: "live",
+  platformPublishingYoutubeStreamStatus: "active",
+  platformPublishingYoutubeHealthStatus: "ok",
+  platformPublishingYoutubeHealthIssueCount: 0,
+  platformPublishingTwitchLiveStatus: "",
+  platformPublishingTwitchStartedAt: "",
+  platformPublishingTwitchHasCategoryId: false,
+  platformPublishingTwitchViewerCount: 0,
   summary: "Validation run retained.",
   recommendation: "Keep this run with release evidence.",
   ...patch

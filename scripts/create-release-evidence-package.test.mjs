@@ -1323,7 +1323,7 @@ function commercialSupportBundleFixture() {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 21
+      bundleVersion: 22
     },
     generatedAt: capturedAt,
     fixture: true,
@@ -1432,8 +1432,21 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     chatReadoutSpokenMessageCount: 1,
     chatReadoutSpeechFailureCount: 0,
     qualityAutomationStatus: "pass",
+    platformPublishingPlatform: "youtube-live",
     platformPublishingStatus: "pass",
     platformPublishingFreshnessStatus: "fresh",
+    platformPublishingCheckedAt: capturedAt,
+    platformPublishingFreshnessAgeMinutes: 0,
+    platformPublishingYoutubeHasBroadcastId: true,
+    platformPublishingYoutubeHasStreamId: true,
+    platformPublishingYoutubeBroadcastStatus: "live",
+    platformPublishingYoutubeStreamStatus: "active",
+    platformPublishingYoutubeHealthStatus: "ok",
+    platformPublishingYoutubeHealthIssueCount: 0,
+    platformPublishingTwitchLiveStatus: "",
+    platformPublishingTwitchStartedAt: "",
+    platformPublishingTwitchHasCategoryId: false,
+    platformPublishingTwitchViewerCount: 0,
     summary: "Validation run retained.",
     recommendation: "Keep this run with release evidence."
   };

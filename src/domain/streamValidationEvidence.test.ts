@@ -1332,6 +1332,19 @@ describe("stream validation evidence", () => {
     expect(summary.platformPublishingFreshCount).toBe(2);
     expect(summary.platformPublishingIosPass).toBe(true);
     expect(summary.platformPublishingAndroidPass).toBe(true);
+    expect(summary.runManifest.find((run) => run.devicePlatform === "ios")).toMatchObject({
+      platformPublishingPlatform: "youtube-live",
+      platformPublishingStatus: "pass",
+      platformPublishingFreshnessStatus: "fresh",
+      platformPublishingCheckedAt: "2026-06-23T00:00:00.000Z",
+      platformPublishingFreshnessAgeMinutes: 0,
+      platformPublishingYoutubeHasBroadcastId: true,
+      platformPublishingYoutubeHasStreamId: true,
+      platformPublishingYoutubeBroadcastStatus: "live",
+      platformPublishingYoutubeStreamStatus: "active",
+      platformPublishingYoutubeHealthStatus: "ok",
+      platformPublishingYoutubeHealthIssueCount: 0
+    });
     expect(summary.status).toBe("ready");
   });
 

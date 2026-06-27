@@ -3,6 +3,7 @@ import {
   minimumValidationMonitorDurationSeconds,
   minimumValidationMonitorSampleCount
 } from "./streamValidationThresholds";
+import { platformPublishingDashboardMaxAgeMinutes } from "./platformPublishingFreshness";
 
 export type CommercialReleaseGateStatus = "ready" | "warning" | "blocked";
 export type CommercialReleaseGateIssueSeverity = "warn" | "fail";
@@ -37,7 +38,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 21;
+const minimumSupportBundleVersion = 22;
 const defaultMaxBundleAgeHours = 24;
 
 export const createCommercialReleaseGate = (
@@ -305,7 +306,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v21 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v22 or newer after retaining release-candidate validation runs."
     );
   }
   const latestRuns = latestEligibleManifestRunsByPlatform(manifest);
@@ -600,6 +601,9 @@ const isPositiveFiniteNumber = (value: unknown): boolean =>
 const isAtLeastFiniteNumber = (value: unknown, minimum: number): boolean =>
   typeof value === "number" && Number.isFinite(value) && value >= minimum;
 
+const isAtMostFiniteNumber = (value: unknown, maximum: number): boolean =>
+  typeof value === "number" && Number.isFinite(value) && value <= maximum;
+
 const isZeroFiniteNumber = (value: unknown): boolean => typeof value === "number" && Number.isFinite(value) && value === 0;
 
 const hasZeroManifestNativeRuntimeMissingAssets = (run: ValidationEvidenceManifestRun | undefined): boolean =>
@@ -654,8 +658,37 @@ const hasZeroManifestChatSpeechFailures = (run: ValidationEvidenceManifestRun | 
   run.chatReadoutSpeechFailureCount === 0;
 
 const isManifestPlatformPublishingPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
-  isManifestFeaturePass(run?.platformPublishingStatus) &&
-  (run?.platformPublishingFreshnessStatus === "fresh" || run?.platformPublishingFreshnessStatus === "not-applicable");
+  run?.platformPublishingFreshnessStatus === "not-applicable" ||
+  (isManifestFeaturePass(run?.platformPublishingStatus) &&
+    run?.platformPublishingFreshnessStatus === "fresh" &&
+    isNonEmptyIsoDate(run.platformPublishingCheckedAt) &&
+    isAtMostFiniteNumber(run.platformPublishingFreshnessAgeMinutes, platformPublishingDashboardMaxAgeMinutes) &&
+    isManifestPlatformIdentityPass(run));
+
+const isManifestPlatformIdentityPass = (run: ValidationEvidenceManifestRun): boolean => {
+  if (run.platformPublishingPlatform === "youtube-live") {
+    return (
+      run.platformPublishingYoutubeHasBroadcastId === true &&
+      run.platformPublishingYoutubeHasStreamId === true &&
+      ["live", "testing"].includes(normalizeStatusLabel(run.platformPublishingYoutubeBroadcastStatus)) &&
+      normalizeStatusLabel(run.platformPublishingYoutubeStreamStatus) === "active" &&
+      ["ok", "good"].includes(normalizeStatusLabel(run.platformPublishingYoutubeHealthStatus)) &&
+      isZeroFiniteNumber(run.platformPublishingYoutubeHealthIssueCount)
+    );
+  }
+  if (run.platformPublishingPlatform === "twitch") {
+    return (
+      normalizeStatusLabel(run.platformPublishingTwitchLiveStatus) === "live" &&
+      isNonEmptyIsoDate(run.platformPublishingTwitchStartedAt) &&
+      run.platformPublishingTwitchHasCategoryId === true
+    );
+  }
+  return false;
+};
+
+const isNonEmptyIsoDate = (value: unknown): boolean => typeof value === "string" && value.trim() !== "" && Number.isFinite(Date.parse(value));
+
+const normalizeStatusLabel = (value: unknown): string => (typeof value === "string" ? value.trim().toLowerCase() : "");
 
 const normalizeBuildLabel = (value: string): string => value.trim().toLowerCase();
 
