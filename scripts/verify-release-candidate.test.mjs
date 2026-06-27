@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDistributionManifest, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
@@ -24,7 +24,8 @@ const managedArtifactPaths = [
   `${fixtureRoot}/ios-store.png`,
   `${fixtureRoot}/android-store.png`,
   `${fixtureRoot}/submission-metadata.json`,
-  `${fixtureRoot}/submission-review.md`
+  `${fixtureRoot}/submission-review.md`,
+  ".artifacts/ui-verification.json"
 ];
 let artifactBackups = new Map();
 const tinyPngBytes = createRgbaPngFixture(1, 1);
@@ -89,6 +90,90 @@ describe("release candidate verifier", () => {
     expect(result.stdout).not.toContain("==> Run unit tests");
   });
 
+  it("rejects symlinked support bundles before creating release candidate reports", () => {
+    const outsideSupportBundle = `${fixtureRoot}/outside-support-bundle.json`;
+    writeFile(outsideSupportBundle, readFileSync(supportBundlePath));
+    rmSync(supportBundlePath, { force: true });
+    symlinkSync(resolve(outsideSupportBundle), supportBundlePath);
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain(`Support bundle must not be a symbolic link: ${supportBundlePath}`);
+    expect(existsSync(reportPath)).toBe(false);
+  });
+
+  it("rejects symlinked release candidate report output paths before writing linked targets", () => {
+    writeSupportBundleFixture({ summary: { validationEvidenceStatus: "blocked" } });
+    const outsideReport = `${fixtureRoot}/outside-release-candidate-report.json`;
+    writeFile(outsideReport, "unchanged");
+    symlinkSync(resolve(outsideReport), reportPath);
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Release candidate report output must not be a symbolic link: ${reportPath}`);
+    expect(readFileSync(outsideReport, "utf8")).toBe("unchanged");
+  });
+
+  it("rejects release candidate report output paths with symlinked parents before writing linked targets", () => {
+    writeSupportBundleFixture({ summary: { validationEvidenceStatus: "blocked" } });
+    const outsideReportDir = `${fixtureRoot}/outside-reports`;
+    const reportLinkDir = `${fixtureRoot}/report-link-dir`;
+    mkdirSync(outsideReportDir, { recursive: true });
+    symlinkSync(resolve(outsideReportDir), reportLinkDir);
+
+    const result = runVerifier([`--report-json=${reportLinkDir}/release-candidate-report.json`]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Release candidate report path parent must not be a symbolic link: ${reportLinkDir}`);
+    expect(existsSync(`${outsideReportDir}/release-candidate-report.json`)).toBe(false);
+  });
+
+  it("rejects symlinked release artifact files before hashing linked targets", () => {
+    writeSupportBundleFixture({ summary: { validationEvidenceStatus: "blocked" } });
+    const artifactPath = ".artifacts/ui-verification.json";
+    const outsideArtifact = `${fixtureRoot}/outside-ui-verification.json`;
+    writeFile(outsideArtifact, "unchanged");
+    rmSync(artifactPath, { force: true });
+    symlinkSync(resolve(outsideArtifact), artifactPath);
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Release artifact must not be a symbolic link: ${artifactPath}`);
+    expect(readFileSync(outsideArtifact, "utf8")).toBe("unchanged");
+  });
+
+  it("rejects symlinked release artifact directories before collecting linked assets", () => {
+    writeSupportBundleFixture({ summary: { validationEvidenceStatus: "blocked" } });
+    const distAssets = "dist/assets";
+    const distAssetsBackup = `${fixtureRoot}/dist-assets-backup`;
+    const outsideAssets = `${fixtureRoot}/outside-dist-assets`;
+    const hadDistAssets = existsSync(distAssets);
+    rmSync(distAssetsBackup, { recursive: true, force: true });
+    if (hadDistAssets) {
+      renameSync(distAssets, distAssetsBackup);
+    }
+
+    try {
+      writeFile(`${outsideAssets}/linked.css`, "body{}");
+      mkdirSync(dirname(resolve(distAssets)), { recursive: true });
+      symlinkSync(resolve(outsideAssets), distAssets, "dir");
+
+      const result = runVerifier();
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(`Release artifact directory must not be a symbolic link: ${distAssets}`);
+    } finally {
+      rmSync(distAssets, { recursive: true, force: true });
+      if (hadDistAssets) {
+        mkdirSync(dirname(resolve(distAssets)), { recursive: true });
+        renameSync(distAssetsBackup, distAssets);
+      }
+    }
+  });
+
   it("rejects skipped UI evidence captured from a non-loopback target before source gates", () => {
     writeUiEvidenceFixture({ target: "https://example.com/" });
 
@@ -104,6 +189,51 @@ describe("release candidate verifier", () => {
       status: "failed",
       exitCode: 1
     });
+  });
+
+  it("rejects symlinked skipped UI evidence before reading linked JSON", () => {
+    writeUiEvidenceFixture();
+    const evidencePath = `${fixtureRoot}/ui-evidence.json`;
+    const outsideEvidence = `${fixtureRoot}/outside-ui-evidence.json`;
+    writeFile(outsideEvidence, readFileSync(evidencePath));
+    rmSync(evidencePath, { force: true });
+    symlinkSync(resolve(outsideEvidence), evidencePath);
+
+    const result = runVerifier(["--skip-ui", `--ui-evidence-json=${evidencePath}`]);
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain(`UI verification evidence must not be a symbolic link: ${evidencePath}`);
+    expect(result.stdout).not.toContain("==> Verify commercial release support bundle");
+  });
+
+  it("rejects skipped UI evidence paths with symlinked parents before reading linked JSON", () => {
+    writeUiEvidenceFixture();
+    const outsideEvidenceDir = `${fixtureRoot}/outside-evidence`;
+    const evidenceLinkDir = `${fixtureRoot}/evidence-link`;
+    mkdirSync(outsideEvidenceDir, { recursive: true });
+    writeFile(`${outsideEvidenceDir}/ui-evidence.json`, readFileSync(`${fixtureRoot}/ui-evidence.json`));
+    symlinkSync(resolve(outsideEvidenceDir), evidenceLinkDir);
+
+    const result = runVerifier(["--skip-ui", `--ui-evidence-json=${evidenceLinkDir}/ui-evidence.json`]);
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain(`UI verification evidence path parent must not be a symbolic link: ${evidenceLinkDir}`);
+    expect(result.stdout).not.toContain("==> Verify commercial release support bundle");
+  });
+
+  it("rejects skipped UI screenshot symlinks before reading linked images", () => {
+    writeUiEvidenceFixture();
+    const desktopPath = `${fixtureRoot}/ui-desktop.png`;
+    const outsideScreenshot = `${fixtureRoot}/outside-ui-desktop.png`;
+    writeFile(outsideScreenshot, readFileSync(desktopPath));
+    rmSync(desktopPath, { force: true });
+    symlinkSync(resolve(outsideScreenshot), desktopPath);
+
+    const result = runVerifier(["--skip-ui", `--ui-evidence-json=${fixtureRoot}/ui-evidence.json`]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`UI evidence screenshot must not be a symbolic link: ${desktopPath}`);
+    expect(result.stdout).not.toContain("==> Verify commercial release support bundle");
   });
 
   it("rejects skipped UI evidence when git dirty-state provenance is missing", () => {
@@ -544,8 +674,9 @@ function currentCommit() {
 
 function restoreManagedArtifacts() {
   for (const [path, content] of artifactBackups.entries()) {
+    rmSync(path, { force: true });
     if (content === null) {
-      rmSync(path, { force: true });
+      continue;
     } else {
       writeFile(path, content);
     }

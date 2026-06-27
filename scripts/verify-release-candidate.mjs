@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, env, exit, platform, cwd } from "node:process";
 import { releaseConfigArtifactPaths } from "./release-artifact-policy.mjs";
 import {
@@ -474,6 +474,7 @@ function validateDashboardFreshness(manifest, maxAgeHours) {
 }
 
 function manifestEvidence(path, manifest) {
+  assertRegularSourceFile(path, "Release handoff manifest");
   const content = readFileSync(resolve(path));
   return {
     path,
@@ -698,6 +699,7 @@ function npmExecutable() {
 
 function readSupportBundle(path) {
   try {
+    assertRegularSourceFile(path, "Support bundle");
     const absolutePath = resolve(path);
     const content = readFileSync(absolutePath);
     return {
@@ -716,6 +718,7 @@ function readSupportBundle(path) {
 
 function readJsonFile(path, label) {
   try {
+    assertRegularSourceFile(path, label);
     return JSON.parse(readFileSync(resolve(path), "utf8"));
   } catch (error) {
     throw new GateError(`Could not read ${label} at ${path}: ${error instanceof Error ? error.message : String(error)}`, 2);
@@ -782,6 +785,7 @@ function validateUiScreenshot(viewport) {
   if (!existsSync(absolutePath)) {
     throw new GateError(`UI evidence screenshot does not exist: ${screenshot.path}.`, 1);
   }
+  assertRegularSourceFile(screenshot.path, "UI evidence screenshot");
   const content = readFileSync(absolutePath);
   const actualSha256 = createHash("sha256").update(content).digest("hex");
   if (content.byteLength !== screenshot.bytes || actualSha256 !== screenshot.sha256) {
@@ -806,6 +810,7 @@ function ageInHours(value, now) {
 }
 
 function fileSha256(path) {
+  assertRegularSourceFile(path, "File");
   return createHash("sha256").update(readFileSync(resolve(path))).digest("hex");
 }
 
@@ -863,6 +868,7 @@ function finishReport(report, status, error = null) {
 }
 
 function writeReport(report, path) {
+  assertWritableRegularPath(path, "Release candidate report");
   const absolutePath = resolve(path);
   mkdirSync(dirname(absolutePath), { recursive: true });
   writeFileSync(absolutePath, `${JSON.stringify(report, null, 2)}\n`);
@@ -898,20 +904,30 @@ function collectReleaseArtifacts({ storeReleaseReportJsonPath = "" } = {}) {
 }
 
 function collectFiles(group, paths) {
-  return paths.flatMap((path) => (existsSync(path) ? [createArtifactRecord(group, path)] : []));
+  return paths.flatMap((path) => (lstatExisting(path) ? [createArtifactRecord(group, path)] : []));
 }
 
 function collectDirectoryFiles(group, directory, include) {
-  if (!existsSync(directory)) {
+  const directoryStat = lstatExisting(directory);
+  if (!directoryStat) {
     return [];
   }
-  return readdirSync(directory)
-    .map((entry) => join(directory, entry))
-    .filter((path) => statSync(path).isFile() && include(path))
+  assertNoSymlinkedParentDirectories(directory, "Release artifact directory");
+  if (directoryStat.isSymbolicLink()) {
+    throw new GateError(`Release artifact directory must not be a symbolic link: ${directory}`, 1);
+  }
+  if (!directoryStat.isDirectory()) {
+    return [];
+  }
+  return readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => join(directory, entry.name))
+    .filter((path) => include(path))
     .map((path) => createArtifactRecord(group, path));
 }
 
 function createArtifactRecord(group, path) {
+  assertRegularSourceFile(path, "Release artifact");
   const absolutePath = resolve(path);
   const content = readFileSync(absolutePath);
   return {
@@ -920,6 +936,80 @@ function createArtifactRecord(group, path) {
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
+}
+
+function assertRegularSourceFile(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatExisting(path);
+  if (!stat) {
+    throw new Error(`${label} does not exist: ${path}`);
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} must point to a file: ${path}`);
+  }
+}
+
+function assertWritableRegularPath(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatExisting(path);
+  if (!stat) {
+    return;
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} output must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} output must point to a file: ${path}`);
+  }
+}
+
+function assertNoSymlinkedParentDirectories(path, label) {
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    return;
+  }
+  const parts = relativePath.split(sep).filter(Boolean);
+  let currentPath = cwd();
+  for (const part of parts.slice(0, -1)) {
+    currentPath = join(currentPath, part);
+    const stat = lstatExisting(currentPath);
+    if (!stat) {
+      return;
+    }
+    const displayPath = relative(cwd(), currentPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`${label} path parent must not be a symbolic link: ${displayPath}`);
+    }
+    if (!stat.isDirectory()) {
+      throw new Error(`${label} path parent must point to a directory: ${displayPath}`);
+    }
+  }
+}
+
+function lstatExisting(path) {
+  try {
+    return lstatSync(resolve(path));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function workspaceRelativePath(path) {
+  if (!path) {
+    return "";
+  }
+  const absolutePath = resolve(path);
+  const relativePath = relative(cwd(), absolutePath);
+  if (!relativePath || relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
+    return "";
+  }
+  return relativePath;
 }
 
 function printUsage() {
