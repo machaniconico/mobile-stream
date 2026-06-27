@@ -1,6 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
-import { basename, resolve } from "node:path";
-import { argv, exit } from "node:process";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import { validateReport } from "./verify-release-report.mjs";
 import {
@@ -363,6 +363,7 @@ function readSupportBundleForReport(report, fail) {
     return null;
   }
   try {
+    assertRegularSourceFile(bundlePath, "Support bundle");
     return JSON.parse(readFileSync(resolve(bundlePath), "utf8"));
   } catch (error) {
     fail(`Could not read support bundle for store submission approval: ${error instanceof Error ? error.message : String(error)}.`);
@@ -441,6 +442,7 @@ function parseArgs(args) {
 
 function readJsonFile(path, label) {
   try {
+    assertRegularSourceFile(path, label);
     return JSON.parse(readFileSync(resolve(path), "utf8"));
   } catch (error) {
     throw new Error(`Could not read ${label} at ${path}: ${error instanceof Error ? error.message : String(error)}`);
@@ -465,6 +467,66 @@ function ageInHours(value, now) {
     return null;
   }
   return Math.floor(ageMs / 3_600_000);
+}
+
+function assertRegularSourceFile(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatExisting(path);
+  if (!stat) {
+    throw new Error(`${label} does not exist: ${path}`);
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} must point to a file: ${path}`);
+  }
+}
+
+function assertNoSymlinkedParentDirectories(path, label) {
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    return;
+  }
+  const parts = relativePath.split(sep).filter(Boolean);
+  let currentPath = cwd();
+  for (const part of parts.slice(0, -1)) {
+    currentPath = join(currentPath, part);
+    const stat = lstatExisting(currentPath);
+    if (!stat) {
+      return;
+    }
+    const displayPath = relative(cwd(), currentPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`${label} path parent must not be a symbolic link: ${displayPath}`);
+    }
+    if (!stat.isDirectory()) {
+      throw new Error(`${label} path parent must point to a directory: ${displayPath}`);
+    }
+  }
+}
+
+function lstatExisting(path) {
+  try {
+    return lstatSync(resolve(path));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function workspaceRelativePath(path) {
+  if (!path) {
+    return "";
+  }
+  const absolutePath = resolve(path);
+  const relativePath = relative(cwd(), absolutePath);
+  if (!relativePath || relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
+    return "";
+  }
+  return relativePath;
 }
 
 function printUsage() {

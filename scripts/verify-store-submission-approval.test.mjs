@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -37,7 +37,8 @@ const generatedFiles = [
   ".artifacts/store-approval-test/ios-store.png",
   ".artifacts/store-approval-test/android-store.png",
   ".artifacts/store-approval-test/support-bundle.json",
-  ".artifacts/store-approval-test/ui-evidence.json"
+  ".artifacts/store-approval-test/ui-evidence.json",
+  ".artifacts/store-approval-test/release-report.json"
 ];
 const fileBackups = new Map();
 const tinyPngBytes = createRgbaPngFixture(1, 1);
@@ -47,6 +48,7 @@ const minimumDistributionArtifactBytes = 1_048_576;
 const capturedAt = new Date().toISOString();
 const appBuild = "rc-1";
 const storeReleaseReportPath = ".artifacts/store-approval-test/store-release-report.json";
+const approvalReportPath = ".artifacts/store-approval-test/release-report.json";
 
 describe("store submission approval verifier", () => {
   beforeAll(() => {
@@ -62,6 +64,44 @@ describe("store submission approval verifier", () => {
     const failures = validateStoreSubmissionApproval(createReport(), readStoreManifest(), approvalOptions());
 
     expect(failures).toEqual([]);
+  });
+
+  it("rejects symlinked release report inputs before reading linked reports", () => {
+    const outsideReport = ".artifacts/store-approval-test/outside-release-report.json";
+    const reportLink = ".artifacts/store-approval-test/release-report-link.json";
+    writeFile(outsideReport, JSON.stringify({ secret: "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456" }));
+    symlinkSync(resolve(outsideReport), reportLink);
+
+    try {
+      const result = runApproval([reportLink]);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(`release-candidate report must not be a symbolic link: ${reportLink}`);
+      expect(result.stderr).not.toContain("Authorization");
+    } finally {
+      rmSync(reportLink, { force: true });
+      rmSync(outsideReport, { force: true });
+    }
+  });
+
+  it("rejects symlinked support bundles before reading linked bundle evidence", () => {
+    writeReport(approvalReportPath, createReport());
+    const supportBundlePath = ".artifacts/store-approval-test/support-bundle.json";
+    const outsideSupportBundle = ".artifacts/store-approval-test/outside-support-bundle.json";
+    writeFile(outsideSupportBundle, readFileSync(supportBundlePath));
+    rmSync(supportBundlePath, { force: true });
+    symlinkSync(resolve(outsideSupportBundle), supportBundlePath);
+
+    try {
+      const result = runApproval([approvalReportPath, "--allow-dirty"]);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(`Support bundle must not be a symbolic link: ${resolve(supportBundlePath)}`);
+    } finally {
+      rmSync(supportBundlePath, { force: true });
+      rmSync(outsideSupportBundle, { force: true });
+      writeSupportBundleFixture();
+    }
   });
 
   it("rejects development-only RC reports for final store submission approval", () => {
@@ -957,6 +997,14 @@ function currentCommit() {
   return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 }
 
+function runApproval(args) {
+  return spawnSync(process.execPath, ["scripts/verify-store-submission-approval.mjs", ...args], { encoding: "utf8" });
+}
+
+function writeReport(path, report) {
+  writeFile(path, JSON.stringify(report, null, 2));
+}
+
 function writeFile(path, content) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content);
@@ -970,8 +1018,9 @@ function snapshotFiles(paths) {
 
 function restoreFiles() {
   for (const [path, content] of fileBackups.entries()) {
+    rmSync(path, { force: true });
     if (content === null) {
-      rmSync(path, { force: true });
+      continue;
     } else {
       writeFile(path, content);
     }
