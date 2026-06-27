@@ -122,6 +122,39 @@ describe("store real-device screenshot importer", () => {
     expect(metadata.screenshots.map((screenshot) => screenshot.source)).toEqual(["realDevice", "realDevice"]);
   });
 
+  it("normalizes dot-prefixed operator paths while writing canonical store evidence records", () => {
+    writeSourceScreenshots();
+    writeMetadata();
+
+    const result = runImporter([
+      "--metadata",
+      `./${metadataPath}`,
+      "--manifest",
+      `./${manifestPath}`,
+      "--review-out",
+      `./${reviewPath}`,
+      "--ios-screenshot",
+      iosRealSource,
+      "--android-screenshot",
+      androidRealSource,
+      "--ios-os-version",
+      "iOS 18.5",
+      "--android-os-version",
+      "Android 15",
+      "--app-build",
+      appBuild
+    ]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(`Updated store submission metadata: ${metadataPath}`);
+    expect(result.stdout).toContain(`Updated store submission review: ${reviewPath}`);
+    const metadata = JSON.parse(readFileSync(metadataPath, "utf8"));
+    expect(metadata.reviewDocuments).toEqual([{ kind: "submissionReview", path: reviewPath }]);
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    expect(manifest.metadata.path).toBe(metadataPath);
+    expect(manifest.reviewDocuments[0].path).toBe(reviewPath);
+  });
+
   it("rejects a missing metadata file before copying screenshots", () => {
     writeSourceScreenshots();
 
@@ -145,6 +178,70 @@ describe("store real-device screenshot importer", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`Store submission metadata does not exist: ${metadataPath}`);
     expect(existsSync(`${outputDir}/screenshots/ios-store.png`)).toBe(false);
+  });
+
+  it("rejects non-canonical metadata paths before reading final screenshot evidence", () => {
+    writeSourceScreenshots();
+    writeMetadata();
+    const nonCanonicalMetadataPath = `${outputDir}/nested/../submission-metadata.json`;
+
+    const result = runImporter([
+      "--metadata",
+      nonCanonicalMetadataPath,
+      "--manifest",
+      manifestPath,
+      "--ios-screenshot",
+      iosRealSource,
+      "--android-screenshot",
+      androidRealSource,
+      "--ios-os-version",
+      "iOS 18.5",
+      "--android-os-version",
+      "Android 15",
+      "--app-build",
+      appBuild
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      `Store submission metadata path must be inside the workspace without parent traversal: ${nonCanonicalMetadataPath}`
+    );
+    expect(readFileSync(`${outputDir}/screenshots/ios-store.png`).equals(pngBytes)).toBe(true);
+    expect(readFileSync(`${outputDir}/screenshots/android-store.png`).equals(pngBytes)).toBe(true);
+  });
+
+  it("rejects symlinked manifest output paths before copying final screenshots", () => {
+    writeSourceScreenshots();
+    writeMetadata();
+    const originalMetadata = readFileSync(metadataPath, "utf8");
+    const outsideManifest = `${fixtureRoot}/outside-manifest.json`;
+    const manifestSymlink = `${fixtureRoot}/manifest-link.json`;
+    writeFileSync(outsideManifest, "unchanged");
+    symlinkSync(resolve(outsideManifest), manifestSymlink);
+
+    const result = runImporter([
+      "--metadata",
+      metadataPath,
+      "--manifest",
+      manifestSymlink,
+      "--ios-screenshot",
+      iosRealSource,
+      "--android-screenshot",
+      androidRealSource,
+      "--ios-os-version",
+      "iOS 18.5",
+      "--android-os-version",
+      "Android 15",
+      "--app-build",
+      appBuild
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission checklist output must not be a symbolic link: ${manifestSymlink}`);
+    expect(readFileSync(outsideManifest, "utf8")).toBe("unchanged");
+    expect(readFileSync(metadataPath, "utf8")).toBe(originalMetadata);
+    expect(readFileSync(`${outputDir}/screenshots/ios-store.png`).equals(pngBytes)).toBe(true);
+    expect(readFileSync(`${outputDir}/screenshots/android-store.png`).equals(pngBytes)).toBe(true);
   });
 
   it("rejects non-PNG real-device sources", () => {
@@ -227,6 +324,37 @@ describe("store real-device screenshot importer", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`iOS real-device screenshot source must not be a symbolic link: ${iosSymlink}`);
+  });
+
+  it("rejects non-canonical metadata screenshot output paths before copying final screenshots", () => {
+    writeSourceScreenshots();
+    writeMetadata();
+    const nonCanonicalScreenshotPath = `${outputDir}/screenshots/nested/../ios-store.png`;
+    const metadata = JSON.parse(readFileSync(metadataPath, "utf8"));
+    metadata.screenshots[0].path = nonCanonicalScreenshotPath;
+    writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
+
+    const result = runImporter([
+      "--metadata",
+      metadataPath,
+      "--manifest",
+      manifestPath,
+      "--ios-screenshot",
+      iosRealSource,
+      "--android-screenshot",
+      androidRealSource,
+      "--ios-os-version",
+      "iOS 18.5",
+      "--android-os-version",
+      "Android 15",
+      "--app-build",
+      appBuild
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`iOS store screenshot path must be canonical workspace-relative: ${nonCanonicalScreenshotPath}`);
+    expect(readFileSync(`${outputDir}/screenshots/ios-store.png`).equals(pngBytes)).toBe(true);
+    expect(readFileSync(`${outputDir}/screenshots/android-store.png`).equals(pngBytes)).toBe(true);
   });
 
   it("rejects real-device screenshot paths with symlinked parents before copying linked sources", () => {
@@ -347,6 +475,38 @@ describe("store real-device screenshot importer", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`iOS store screenshot path parent must not be a symbolic link: ${outputDir}/screenshots`);
     expect(readFileSync(`${outsideScreenshots}/ios-store.png`).equals(tinyPngBytes)).toBe(true);
+  });
+
+  it("rejects non-canonical review output paths before copying final screenshots", () => {
+    writeSourceScreenshots();
+    writeMetadata();
+    const nonCanonicalReviewPath = `${outputDir}/nested/../submission-review.md`;
+
+    const result = runImporter([
+      "--metadata",
+      metadataPath,
+      "--manifest",
+      manifestPath,
+      "--review-out",
+      nonCanonicalReviewPath,
+      "--ios-screenshot",
+      iosRealSource,
+      "--android-screenshot",
+      androidRealSource,
+      "--ios-os-version",
+      "iOS 18.5",
+      "--android-os-version",
+      "Android 15",
+      "--app-build",
+      appBuild
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      `Store submission review path must be inside the workspace without parent traversal: ${nonCanonicalReviewPath}`
+    );
+    expect(readFileSync(`${outputDir}/screenshots/ios-store.png`).equals(pngBytes)).toBe(true);
+    expect(readFileSync(`${outputDir}/screenshots/android-store.png`).equals(pngBytes)).toBe(true);
   });
 
   it("requires OS and app build metadata before importing final screenshots", () => {

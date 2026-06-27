@@ -39,9 +39,9 @@ export function importStoreRealDeviceScreenshots({
     throw new Error("Provide --android-screenshot <png> captured from a real Android device.");
   }
 
-  const relativeMetadataPath = workspaceRelativePath(metadataPath);
+  const relativeMetadataPath = workspaceOperatorPath(metadataPath);
   if (!relativeMetadataPath) {
-    throw new Error(`Store submission metadata path must be inside the workspace: ${metadataPath}`);
+    throw new Error(`Store submission metadata path must be inside the workspace without parent traversal: ${metadataPath}`);
   }
   if (!existsSync(resolve(relativeMetadataPath))) {
     throw new Error(`Store submission metadata does not exist: ${relativeMetadataPath}`);
@@ -53,10 +53,20 @@ export function importStoreRealDeviceScreenshots({
     throw new Error("Store submission metadata must be for MobileLiveCaster.");
   }
 
+  const relativeManifestPath = writableOperatorPath(manifestPath, "Store submission checklist");
   const metadataDir = dirname(relativeMetadataPath);
   const screenshotDir = join(metadataDir, "screenshots");
   const iosExisting = screenshotForPlatform(metadata, "ios");
   const androidExisting = screenshotForPlatform(metadata, "android");
+  const iosOutputPath = writableRecordPath(iosExisting?.path || join(screenshotDir, "ios-store.png"), "iOS store screenshot");
+  const androidOutputPath = writableRecordPath(
+    androidExisting?.path || join(screenshotDir, "android-store.png"),
+    "Android store screenshot"
+  );
+  const reviewCandidate = reviewPath || submissionReviewPath(metadata) || defaultReviewPathForMetadata(relativeMetadataPath);
+  const relativeReviewPath = reviewPath
+    ? writableOperatorPath(reviewCandidate, "Store submission review")
+    : writableRecordPath(reviewCandidate, "Store submission review");
   const capture = resolveCaptureMetadata({
     iosExisting,
     androidExisting,
@@ -68,12 +78,12 @@ export function importStoreRealDeviceScreenshots({
   const imported = {
     ios: copyScreenshot({
       sourcePath: iosScreenshot,
-      outputPath: iosExisting?.path || join(screenshotDir, "ios-store.png"),
+      outputPath: iosOutputPath,
       label: "iOS"
     }),
     android: copyScreenshot({
       sourcePath: androidScreenshot,
-      outputPath: androidExisting?.path || join(screenshotDir, "android-store.png"),
+      outputPath: androidOutputPath,
       label: "Android"
     })
   };
@@ -102,12 +112,6 @@ export function importStoreRealDeviceScreenshots({
     })
   ];
 
-  const relativeReviewPath = workspaceRelativePath(
-    reviewPath || submissionReviewPath(metadata) || defaultReviewPathForMetadata(relativeMetadataPath)
-  );
-  if (!relativeReviewPath) {
-    throw new Error(`Store submission review path must be inside the workspace: ${reviewPath}`);
-  }
   assertWritableRegularPath(relativeReviewPath, "Store submission review");
   metadata.reviewDocuments = [{ kind: "submissionReview", path: relativeReviewPath }];
 
@@ -118,7 +122,7 @@ export function importStoreRealDeviceScreenshots({
 
   const checklist = createStoreSubmissionChecklist({
     metadataPath: relativeMetadataPath,
-    manifestPath
+    manifestPath: relativeManifestPath
   });
   const failures = validateStoreSubmissionChecklist(checklist.manifest, {
     manifestPath: checklist.manifestPath,
@@ -209,9 +213,9 @@ function copyScreenshot({ sourcePath, outputPath, label }) {
     throw new Error(`${label} real-device screenshot source is not a structurally valid PNG file: ${sourcePath} (${pngEvidence.reason})`);
   }
 
-  const relativeOutputPath = workspaceRelativePath(outputPath);
+  const relativeOutputPath = workspaceRecordPath(outputPath);
   if (!relativeOutputPath) {
-    throw new Error(`${label} store screenshot output must be inside the workspace: ${outputPath}`);
+    throw new Error(`${label} store screenshot output must be canonical workspace-relative: ${outputPath}`);
   }
   assertWritableRegularPath(relativeOutputPath, `${label} store screenshot`);
   mkdirSync(dirname(resolve(relativeOutputPath)), { recursive: true });
@@ -298,6 +302,43 @@ function workspaceRelativePath(path) {
     return "";
   }
   return relativePath;
+}
+
+function workspaceRecordPath(path) {
+  if (typeof path !== "string") {
+    return "";
+  }
+  const relativePath = workspaceRelativePath(path);
+  return relativePath === path ? relativePath : "";
+}
+
+function workspaceOperatorPath(path) {
+  if (typeof path !== "string" || !path.trim() || hasParentTraversal(path)) {
+    return "";
+  }
+  return workspaceRelativePath(path);
+}
+
+function writableRecordPath(path, label) {
+  const relativePath = workspaceRecordPath(path);
+  if (!relativePath) {
+    throw new Error(`${label} path must be canonical workspace-relative: ${path || "-"}`);
+  }
+  assertWritableRegularPath(relativePath, label);
+  return relativePath;
+}
+
+function writableOperatorPath(path, label) {
+  const relativePath = workspaceOperatorPath(path);
+  if (!relativePath) {
+    throw new Error(`${label} path must be inside the workspace without parent traversal: ${path || "-"}`);
+  }
+  assertWritableRegularPath(relativePath, label);
+  return relativePath;
+}
+
+function hasParentTraversal(path) {
+  return path.split(/[\\/]+/).includes("..");
 }
 
 function stringValue(value) {
