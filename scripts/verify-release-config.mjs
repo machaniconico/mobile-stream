@@ -87,6 +87,7 @@ const checks = [
     expectIncludes(files.distributionArtifactsScript, "sha256");
     expectIncludes(files.distributionArtifactsScript, "validateManifestGitProvenance");
     expectIncludes(files.releaseGitProvenanceScript, "git commit is missing");
+    expectIncludes(files.releaseGitProvenanceScript, "full 40- or 64-character hexadecimal object id");
     expectIncludes(files.releaseGitProvenanceScript, "git dirty state is missing");
     expectIncludes(files.releaseGitProvenanceScript, "does not match current commit");
     expectIncludes(files.storeReleaseBuildScript, "android:verify-release-env");

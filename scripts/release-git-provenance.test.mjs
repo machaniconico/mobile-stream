@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 
+const commitA = "a".repeat(40);
+const commitB = "b".repeat(40);
+
 describe("release git provenance validation", () => {
   it("requires manifest commit and dirty-state provenance even when development mismatch flags are enabled", () => {
     const failures = [];
@@ -23,10 +26,10 @@ describe("release git provenance validation", () => {
     const failures = [];
 
     validateManifestGitProvenance(
-      { commit: "abc123", dirty: true },
+      { commit: commitA, dirty: true },
       {
         label: "Release manifest",
-        currentCommit: "abc123",
+        currentCommit: commitA,
         allowDirty: false,
         allowCommitMismatch: false
       },
@@ -41,27 +44,44 @@ describe("release git provenance validation", () => {
     const allowedFailures = [];
 
     validateManifestGitProvenance(
-      { commit: "abc123", dirty: false },
+      { commit: commitA, dirty: false },
       {
         label: "Release manifest",
-        currentCommit: "def456",
+        currentCommit: commitB,
         allowDirty: false,
         allowCommitMismatch: false
       },
       strictFailures
     );
     validateManifestGitProvenance(
-      { commit: "abc123", dirty: false },
+      { commit: commitA, dirty: false },
       {
         label: "Release manifest",
-        currentCommit: "def456",
+        currentCommit: commitB,
         allowDirty: false,
         allowCommitMismatch: true
       },
       allowedFailures
     );
 
-    expect(strictFailures).toEqual(["Release manifest commit abc123 does not match current commit def456."]);
+    expect(strictFailures).toEqual([`Release manifest commit ${commitA} does not match current commit ${commitB}.`]);
     expect(allowedFailures).toEqual([]);
+  });
+
+  it("rejects abbreviated or placeholder commit ids", () => {
+    const failures = [];
+
+    validateManifestGitProvenance(
+      { commit: "abc123", dirty: false },
+      {
+        label: "Release manifest",
+        currentCommit: "",
+        allowDirty: true,
+        allowCommitMismatch: true
+      },
+      failures
+    );
+
+    expect(failures).toEqual(["Release manifest git commit must be a full 40- or 64-character hexadecimal object id."]);
   });
 });
