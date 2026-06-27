@@ -81,6 +81,22 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("physical device identity");
   });
 
+  it("blocks avatar-motion claims when retained manifests lack fresh tracking runtime proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { faceTrackingRuntimeFresh: false }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("fresh tracking runtime and active motion");
+  });
+
   it("rejects symlinked support bundles before reading linked targets", () => {
     const outsideBundlePath = ".artifacts/verify-commercial-release-bundle-test/outside-support-bundle.json";
     mkdirSync(dirname(fixturePath), { recursive: true });
@@ -224,6 +240,9 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeStatus: "pass",
   monitorHoldStatus: "pass",
   faceTrackingStatus: "pass",
+  faceTrackingRuntimeFresh: true,
+  faceTrackingRuntimeAgeMs: 120,
+  faceTrackingActiveMotionCount: 1,
   audioStatus: "pass",
   chatReadoutStatus: "pass",
   qualityAutomationStatus: "pass",

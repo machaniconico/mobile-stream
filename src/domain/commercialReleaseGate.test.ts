@@ -143,6 +143,28 @@ describe("commercial release gate", () => {
     expect(gate.issues.map((issue) => issue.code)).toContain("bundle-version");
   });
 
+  it("blocks avatar-motion summary claims when the manifest lacks fresh tracking runtime proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", faceTrackingRuntimeFresh: false }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS avatar-motion proof")
+      })
+    );
+  });
+
   it("blocks bundles whose retained runs are not physical-device evidence", () => {
     const bundle = supportBundle({
       summary: {
@@ -405,6 +427,9 @@ const manifestRun = ({
   nativeRuntimeStatus = "pass",
   monitorHoldStatus = "pass",
   faceTrackingStatus = "pass",
+  faceTrackingRuntimeFresh = true,
+  faceTrackingRuntimeAgeMs = 120,
+  faceTrackingActiveMotionCount = 1,
   audioStatus = "pass",
   chatReadoutStatus = "pass",
   qualityAutomationStatus = "pass",
@@ -423,6 +448,9 @@ const manifestRun = ({
   nativeRuntimeStatus?: ValidationManifestRun["nativeRuntimeStatus"];
   monitorHoldStatus?: ValidationManifestRun["monitorHoldStatus"];
   faceTrackingStatus?: ValidationManifestRun["faceTrackingStatus"];
+  faceTrackingRuntimeFresh?: ValidationManifestRun["faceTrackingRuntimeFresh"];
+  faceTrackingRuntimeAgeMs?: ValidationManifestRun["faceTrackingRuntimeAgeMs"];
+  faceTrackingActiveMotionCount?: ValidationManifestRun["faceTrackingActiveMotionCount"];
   audioStatus?: ValidationManifestRun["audioStatus"];
   chatReadoutStatus?: ValidationManifestRun["chatReadoutStatus"];
   qualityAutomationStatus?: ValidationManifestRun["qualityAutomationStatus"];
@@ -449,6 +477,9 @@ const manifestRun = ({
   nativeRuntimeStatus,
   monitorHoldStatus,
   faceTrackingStatus,
+  faceTrackingRuntimeFresh,
+  faceTrackingRuntimeAgeMs,
+  faceTrackingActiveMotionCount,
   audioStatus,
   chatReadoutStatus,
   qualityAutomationStatus,

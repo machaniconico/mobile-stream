@@ -189,6 +189,9 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeStatus: StreamSessionNativeRuntimeSummary["status"] | null;
   monitorHoldStatus: StreamValidationMonitorHoldSummary["status"] | null;
   faceTrackingStatus: StreamValidationFaceTrackingSummary["status"] | null;
+  faceTrackingRuntimeFresh: boolean | null;
+  faceTrackingRuntimeAgeMs: number | null;
+  faceTrackingActiveMotionCount: number;
   audioStatus: StreamValidationAudioSummary["status"] | null;
   chatReadoutStatus: StreamValidationChatReadoutSummary["status"] | null;
   qualityAutomationStatus: StreamValidationQualityAutomationSummary["status"] | null;
@@ -2050,6 +2053,9 @@ const createEvidenceRunManifestItem = (
   nativeRuntimeStatus: run.nativeRuntime?.status ?? null,
   monitorHoldStatus: run.monitorHold?.status ?? null,
   faceTrackingStatus: run.faceTracking?.status ?? null,
+  faceTrackingRuntimeFresh: run.faceTracking?.runtimeFresh ?? null,
+  faceTrackingRuntimeAgeMs: run.faceTracking?.runtimeAgeMs ?? null,
+  faceTrackingActiveMotionCount: run.faceTracking?.activeMotionCount ?? 0,
   audioStatus: run.audio?.status ?? null,
   chatReadoutStatus: run.chatReadout?.status ?? null,
   qualityAutomationStatus: run.qualityAutomation?.status ?? null,

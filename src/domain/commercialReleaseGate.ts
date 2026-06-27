@@ -386,11 +386,11 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): 
       "Android stable monitor-hold proof",
       isManifestFeaturePass(androidRun?.monitorHoldStatus)
     ],
-    [summary.validationEvidenceFaceTrackingIosPass, "iOS avatar-motion proof", isManifestFeaturePass(iosRun?.faceTrackingStatus)],
+    [summary.validationEvidenceFaceTrackingIosPass, "iOS avatar-motion proof", isManifestAvatarMotionPass(iosRun)],
     [
       summary.validationEvidenceFaceTrackingAndroidPass,
       "Android avatar-motion proof",
-      isManifestFeaturePass(androidRun?.faceTrackingStatus)
+      isManifestAvatarMotionPass(androidRun)
     ],
     [summary.validationEvidenceAudioIosPass, "iOS mic/headphone proof", isManifestFeaturePass(iosRun?.audioStatus)],
     [summary.validationEvidenceAudioAndroidPass, "Android mic/headphone proof", isManifestFeaturePass(androidRun?.audioStatus)],
@@ -565,6 +565,11 @@ const isManifestPhysicalRunPass = (run: ValidationEvidenceManifestRun | undefine
   isManifestRunPass(run) && run?.physicalDevice === true && run.physicalDeviceStatus === "pass";
 
 const isManifestFeaturePass = (status: string | null | undefined): boolean => status === "pass";
+
+const isManifestAvatarMotionPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  isManifestFeaturePass(run?.faceTrackingStatus) &&
+  run?.faceTrackingRuntimeFresh === true &&
+  Number(run.faceTrackingActiveMotionCount) > 0;
 
 const isManifestPlatformPublishingPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.platformPublishingStatus) &&

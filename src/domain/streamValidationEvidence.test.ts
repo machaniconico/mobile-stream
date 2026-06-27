@@ -1265,6 +1265,11 @@ describe("stream validation evidence", () => {
     expect(summary.faceTrackingAndroidPass).toBe(true);
     expect(summary.faceTrackingReadyCount).toBe(2);
     expect(summary.latestFaceTracking?.runtimeStatus).toBe("tracking");
+    expect(summary.runManifest.find((run) => run.devicePlatform === "ios")).toMatchObject({
+      faceTrackingStatus: "pass",
+      faceTrackingRuntimeFresh: true,
+      faceTrackingActiveMotionCount: 1
+    });
     expect(summary.audioIosPass).toBe(true);
     expect(summary.audioAndroidPass).toBe(true);
     expect(summary.chatReadoutIosPass).toBe(true);

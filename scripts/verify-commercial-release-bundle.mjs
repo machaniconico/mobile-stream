@@ -404,6 +404,29 @@ function validationManifestIssue(bundle) {
       "Export a fresh support bundle so retained run counts and manifest rows match."
     );
   }
+  const eligibleAvatarPlatforms = new Set(
+    manifest
+      .filter(
+        (run) =>
+          run?.eligible === true &&
+          run?.result === "pass" &&
+          run?.faceTrackingStatus === "pass" &&
+          run?.faceTrackingRuntimeFresh === true &&
+          number(run?.faceTrackingActiveMotionCount) > 0
+      )
+      .map((run) => run.devicePlatform)
+  );
+  if (
+    (summary.validationEvidenceFaceTrackingIosPass === true && !eligibleAvatarPlatforms.has("ios")) ||
+    (summary.validationEvidenceFaceTrackingAndroidPass === true && !eligibleAvatarPlatforms.has("android"))
+  ) {
+    return fail(
+      "validation-evidence-manifest-avatar-motion",
+      "Validation evidence manifest",
+      "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime and active motion.",
+      "Export a support bundle v16 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion."
+    );
+  }
   return null;
 }
 
