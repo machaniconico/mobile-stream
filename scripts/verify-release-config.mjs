@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { cwd, exit } from "node:process";
 import { productionNativeSourcePaths, releaseConfigArtifactPaths } from "./release-artifact-policy.mjs";
@@ -47,6 +47,7 @@ const files = {
 const productionNativeSourceFiles = [
   ...productionNativeSourcePaths.map((path) => ({ path, content: read(path) }))
 ];
+const staleNativeScaffoldSourcePaths = collectOptionalSourceFiles("native", [".kt", ".java", ".swift", ".m", ".mm"]);
 
 const iosReleaseConfig = {
   hostBundleId: iosReleaseDefaults.hostBundleId,
@@ -400,6 +401,11 @@ const checks = [
         throw new Error(`${sourceFile.path} contains unresolved implementation marker ${JSON.stringify(matches[0][0])}`);
       }
     }
+  }),
+  check("Legacy native scaffold sources are not present", () => {
+    if (staleNativeScaffoldSourcePaths.length > 0) {
+      throw new Error(`remove duplicate native scaffold source ${staleNativeScaffoldSourcePaths[0]}`);
+    }
   })
 ];
 
@@ -417,6 +423,23 @@ console.log(`Release configuration verification passed (${checks.length} checks)
 
 function read(relativePath) {
   return readFileSync(join(root, relativePath), "utf8");
+}
+
+function collectOptionalSourceFiles(relativePath, extensions) {
+  const directory = join(root, relativePath);
+  if (!existsSync(directory)) {
+    return [];
+  }
+  return readdirSync(directory, { withFileTypes: true }).flatMap((dirent) => {
+    const childPath = `${relativePath}/${dirent.name}`;
+    if (dirent.isDirectory()) {
+      return collectOptionalSourceFiles(childPath, extensions);
+    }
+    if (!dirent.isFile() || !extensions.some((extension) => childPath.endsWith(extension))) {
+      return [];
+    }
+    return [childPath];
+  });
 }
 
 function check(name, assertion) {
