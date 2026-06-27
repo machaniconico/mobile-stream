@@ -116,6 +116,24 @@ describe("scene document", () => {
     });
   });
 
+  it("uses still-image aspect ratio when auto-rigging a selected PNGTuber source", () => {
+    const scene = createDefaultScene();
+    const avatar = scene.sources.find((source) => source.kind === "pngtuber");
+    expect(avatar).toBeDefined();
+
+    const closeUpByFrame = updateTransform(scene, avatar!.id, { width: 0.58, height: 0.32 });
+    const tallImageRigged = applyInferredAvatarIllustrationRig(closeUpByFrame, avatar!.id, {}, { imageAspectRatio: 0.52 });
+    const riggedAvatar = tallImageRigged.sources.find((source) => source.kind === "pngtuber");
+
+    expect(riggedAvatar?.kind).toBe("pngtuber");
+    expect(riggedAvatar?.illustrationRig).toMatchObject({
+      faceCenterY: 0.32,
+      faceRange: 0.24,
+      shoulderLineY: 0.54,
+      sliceCount: 32
+    });
+  });
+
   it("builds transparent chat overlay payloads from runtime comments without persisting message text", () => {
     const scene = createDefaultScene();
     const graph = toRenderGraph(scene, {

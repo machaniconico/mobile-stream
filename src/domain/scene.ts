@@ -458,13 +458,14 @@ export const updateTransform = (
 export const applyInferredAvatarIllustrationRig = (
   scene: SceneDocument,
   sourceId: string,
-  overrides: Partial<AvatarIllustrationRig> = {}
+  overrides: Partial<AvatarIllustrationRig> = {},
+  input: Pick<AvatarIllustrationRigInferenceInput, "imageAspectRatio"> = {}
 ): SceneDocument =>
   updateSource(scene, sourceId, (source) =>
     source.kind === "pngtuber"
       ? {
           ...source,
-          illustrationRig: inferAvatarIllustrationRig({ canvas: scene.canvas, transform: source.transform }, overrides)
+          illustrationRig: inferAvatarIllustrationRig({ canvas: scene.canvas, transform: source.transform, ...input }, overrides)
         }
       : source
   );

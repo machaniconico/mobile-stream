@@ -477,11 +477,19 @@ export const StudioScreen = ({
     );
   };
 
-  const autoRigSelectedAvatar = () => {
+  const autoRigSelectedAvatar = async () => {
     if (setupLocked || selectedSource.kind !== "pngtuber") {
       return;
     }
-    onSceneChange(applyInferredAvatarIllustrationRig(scene, selectedSource.id));
+    const imageAspectRatio = await resolveBrowserImageAspectRatio(selectedSource.imageUri);
+    onSceneChange(
+      applyInferredAvatarIllustrationRig(
+        scene,
+        selectedSource.id,
+        {},
+        imageAspectRatio === null ? {} : { imageAspectRatio }
+      )
+    );
   };
 
   return (
@@ -2052,6 +2060,22 @@ const ChatReaderPanel = ({
       </div>
     </section>
   );
+};
+
+const resolveBrowserImageAspectRatio = (uri: string): Promise<number | null> => {
+  const trimmedUri = uri.trim();
+  if (!trimmedUri || typeof window === "undefined" || typeof window.Image !== "function") {
+    return Promise.resolve(null);
+  }
+
+  return new Promise((resolve) => {
+    const image = new window.Image();
+    image.onload = () => {
+      resolve(image.naturalWidth > 0 && image.naturalHeight > 0 ? image.naturalWidth / image.naturalHeight : null);
+    };
+    image.onerror = () => resolve(null);
+    image.src = trimmedUri;
+  });
 };
 
 interface ProgramPreviewProps {

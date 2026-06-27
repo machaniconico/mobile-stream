@@ -335,11 +335,19 @@ export const MobileStudioScreen = ({
       )
     );
   };
-  const autoRigSelectedAvatar = () => {
+  const autoRigSelectedAvatar = async () => {
     if (setupLocked || selectedSource.kind !== "pngtuber") {
       return;
     }
-    onSceneChange(applyInferredAvatarIllustrationRig(scene, selectedSource.id));
+    const imageAspectRatio = await resolveNativeImageAspectRatio(selectedSource.imageUri);
+    onSceneChange(
+      applyInferredAvatarIllustrationRig(
+        scene,
+        selectedSource.id,
+        {},
+        imageAspectRatio === null ? {} : { imageAspectRatio }
+      )
+    );
   };
   const chatOverlayMessages = selectChatOverlayMessages(chatReader);
   const diagnostics = createStreamDiagnostics(
@@ -2323,6 +2331,21 @@ const ChatReaderPanel = ({
       </View>
     </Panel>
   );
+};
+
+const resolveNativeImageAspectRatio = (uri: string): Promise<number | null> => {
+  const trimmedUri = uri.trim();
+  if (!trimmedUri) {
+    return Promise.resolve(null);
+  }
+
+  return new Promise((resolve) => {
+    Image.getSize(
+      trimmedUri,
+      (width, height) => resolve(width > 0 && height > 0 ? width / height : null),
+      () => resolve(null)
+    );
+  });
 };
 
 const ProgramPreview = ({
