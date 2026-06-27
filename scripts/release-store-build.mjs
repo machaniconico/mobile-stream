@@ -6,6 +6,7 @@ import { argv, cwd, env, exit, platform } from "node:process";
 import { pathToFileURL } from "node:url";
 import { iosReleasePaths } from "./ios-release-config.mjs";
 import { createDistributionManifest, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
+import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 
 export const storeReleaseReportArtifactGroup = "store-release";
 export const storeReleaseReportDefaultPath = ".artifacts/store-release-orchestration.json";
@@ -381,16 +382,11 @@ export function validateStoreReleaseReport(
     failures.push("Store release report durationMs is missing or invalid.");
   }
 
-  const reportCommit = String(report.git?.commit || "");
-  if (!reportCommit) {
-    failures.push("Store release report git commit is missing.");
-  }
-  if (currentCommit && reportCommit && currentCommit !== reportCommit && !allowCommitMismatch) {
-    failures.push(`Store release report commit ${reportCommit} does not match expected commit ${currentCommit}.`);
-  }
-  if (report.git?.dirty && !allowDirty) {
-    failures.push("Store release report was generated from a dirty worktree.");
-  }
+  validateManifestGitProvenance(
+    report?.git,
+    { label: "Store release report", currentCommit, allowDirty, allowCommitMismatch },
+    failures
+  );
   if (report.options?.allowDirty && !allowDirty) {
     failures.push("Store release report was generated with --allow-dirty.");
   }

@@ -856,14 +856,13 @@ function validatePackagedStoreReleaseReportContent(storeReport, releaseReport, p
   const expectedCommit = String(releaseReport.git?.commit || "");
   const allowDirty = Boolean(releaseReport.options?.allowDirty);
   const allowCommitMismatch = Boolean(releaseReport.options?.allowCommitMismatch);
-  if (!reportCommit) {
-    failures.push("Package store release report git commit is missing.");
-  }
+  validateManifestGitProvenance(
+    storeReport?.git,
+    { label: "Package store release report", currentCommit: "", allowDirty, allowCommitMismatch: true },
+    failures
+  );
   if (expectedCommit && reportCommit && expectedCommit !== reportCommit && !allowCommitMismatch) {
     failures.push(`Package store release report commit ${reportCommit} does not match release report commit ${expectedCommit}.`);
-  }
-  if (storeReport.git?.dirty && !allowDirty) {
-    failures.push("Package store release report was generated from a dirty worktree.");
   }
   if (storeReport.options?.allowDirty && !allowDirty) {
     failures.push("Package store release report was generated with --allow-dirty.");

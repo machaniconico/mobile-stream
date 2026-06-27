@@ -148,6 +148,38 @@ describe("store release orchestration", () => {
     );
   });
 
+  it("rejects store release reports when git dirty-state provenance is missing", () => {
+    writeDistributionFiles();
+
+    const result = runStoreRelease([
+      "--skip-build",
+      "--skip-env",
+      "--allow-dirty",
+      "--manifest",
+      manifestPath,
+      "--report-json",
+      reportPath,
+      "--android-aab",
+      androidAab,
+      "--ios-ipa",
+      iosIpa
+    ]);
+
+    expect(result.status).toBe(0);
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    delete report.git.dirty;
+
+    const failures = validateStoreReleaseReport(report, {
+      reportPath,
+      currentCommit: report.git.commit,
+      allowDirty: true,
+      allowCommitMismatch: true,
+      requirePassed: false
+    });
+
+    expect(failures).toContain("Store release report git dirty state is missing.");
+  });
+
   it("rejects commercial store release reports missing required platform steps", () => {
     writeDistributionFiles();
 

@@ -572,6 +572,26 @@ describe("release evidence package creator", () => {
     );
   });
 
+  it("rejects packaged store release reports whose git dirty-state provenance is missing", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedStoreReleaseReportPath = `${packageDir}/artifacts/${storeReleaseReportPath}`;
+    const storeReleaseReport = JSON.parse(readFileSync(packagedStoreReleaseReportPath, "utf8"));
+    delete storeReleaseReport.git.dirty;
+    writeFileSync(packagedStoreReleaseReportPath, JSON.stringify(storeReleaseReport, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    refreshPackageArtifactEntry(manifest, storeReleaseReportPath, packagedStoreReleaseReportPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Package store release report git dirty state is missing.");
+  });
+
   it("rejects packaged store release reports older than the packaged release report", () => {
     resetPackageDir();
     writeReportFixture();

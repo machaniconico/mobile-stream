@@ -95,6 +95,7 @@ const checks = [
     expectIncludes(files.storeReleaseBuildScript, "store-release-orchestration");
     expectIncludes(files.storeReleaseBuildScript, "--report-json");
     expectIncludes(files.storeReleaseBuildScript, "Store release report written to");
+    expectIncludes(files.storeReleaseBuildScript, "validateManifestGitProvenance");
     expectIncludes(files.storeReleaseBuildScript, "distributionManifestSummary");
     expectIncludes(files.storeReleaseBuildScript, "validateStoreReleaseReport");
     expectIncludes(files.storeReleaseBuildScript, "collectStoreReleaseArtifactRecords");
