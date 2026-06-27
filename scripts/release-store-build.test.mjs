@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
@@ -336,6 +337,47 @@ describe("store release orchestration", () => {
     );
   });
 
+  it("revalidates distribution manifest artifact paths referenced by store release reports", () => {
+    writeDistributionFiles();
+    expect(
+      runStoreRelease([
+        "--skip-build",
+        "--skip-env",
+        "--allow-dirty",
+        "--manifest",
+        manifestPath,
+        "--report-json",
+        reportPath,
+        "--android-aab",
+        androidAab,
+        "--ios-ipa",
+        iosIpa
+      ]).status
+    ).toBe(0);
+
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    const nonCanonicalArtifactPath = `${fixtureRoot}/nested/../app-release.aab`;
+    manifest.artifacts[0].path = nonCanonicalArtifactPath;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    report.artifacts.distributionManifest.bytes = readFileSync(manifestPath).byteLength;
+    report.artifacts.distributionManifest.sha256 = sha256(manifestPath);
+    report.artifacts.distributionManifest.artifacts[0].path = nonCanonicalArtifactPath;
+
+    const failures = validateStoreReleaseReport(report, {
+      reportPath,
+      currentCommit: report.git.commit,
+      allowDirty: true,
+      allowCommitMismatch: true,
+      requirePassed: false
+    });
+
+    expect(failures).toContain(
+      `Store release report distribution manifest invalid: Distribution artifact path must be workspace-relative: ${nonCanonicalArtifactPath}.`
+    );
+  });
+
   it("rejects commercial store release reports missing required platform steps", () => {
     writeDistributionFiles();
 
@@ -504,6 +546,10 @@ function runStoreRelease(args) {
   return spawnSync(process.execPath, ["scripts/release-store-build.mjs", ...args], {
     encoding: "utf8"
   });
+}
+
+function sha256(path) {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
 function storeReleaseStep(type, command) {

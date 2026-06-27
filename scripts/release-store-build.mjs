@@ -5,7 +5,11 @@ import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node
 import { argv, cwd, env, exit, platform } from "node:process";
 import { pathToFileURL } from "node:url";
 import { iosReleasePaths } from "./ios-release-config.mjs";
-import { createDistributionManifest, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
+import {
+  createDistributionManifest,
+  distributionArtifactManifestPath,
+  validateDistributionManifest
+} from "./verify-distribution-artifacts.mjs";
 import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 
 export const storeReleaseReportArtifactGroup = "store-release";
@@ -576,6 +580,13 @@ function validateStoreReleaseDistributionManifest(report, reportPath, failures) 
   } catch (error) {
     failures.push(`Store release report distribution manifest cannot be read: ${error instanceof Error ? error.message : String(error)}.`);
     return;
+  }
+  for (const failure of validateDistributionManifest(manifest, {
+    manifestPath: relativeSummaryPath,
+    allowDirty: true,
+    allowCommitMismatch: true
+  })) {
+    failures.push(`Store release report distribution manifest invalid: ${failure}`);
   }
   const manifestArtifacts = Array.isArray(manifest.artifacts) ? manifest.artifacts : [];
   if (summary.artifactCount !== manifestArtifacts.length) {
