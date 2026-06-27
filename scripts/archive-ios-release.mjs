@@ -2,12 +2,14 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { env, exit } from "node:process";
+import { assertWritableDirectoryPath } from "./ios-release-path-safety.mjs";
 import { iosArchiveArgs, iosReleasePaths } from "./ios-release-config.mjs";
 
 function run() {
   try {
     const paths = iosReleasePaths(env);
-    mkdirSync(dirname(paths.archivePath), { recursive: true });
+    const archivePath = assertWritableDirectoryPath(paths.archivePath, "iOS archive");
+    mkdirSync(dirname(archivePath), { recursive: true });
     const args = iosArchiveArgs(env);
     const result = spawnSync("xcodebuild", args, { stdio: "inherit" });
     if (result.error) {
