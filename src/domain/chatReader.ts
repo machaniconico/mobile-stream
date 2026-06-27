@@ -34,6 +34,12 @@ export interface ChatMessageInput {
   receivedAt?: number;
 }
 
+export interface ChatOverlayDisplayMessage {
+  author: string;
+  body: string;
+  source: ChatMessage["source"];
+}
+
 const MAX_QUEUE_LENGTH = 24;
 const MAX_HISTORY_LENGTH = 16;
 
@@ -150,6 +156,16 @@ export const clearChatReaderSession = (state: ChatReaderState): ChatReaderState 
   speakingMessageId: null,
   skippedCount: 0
 });
+
+export const selectChatOverlayMessages = (state: ChatReaderState, limit = 4): ChatOverlayDisplayMessage[] =>
+  state.history
+    .filter((message) => !isMutedMessage(message, state.settings))
+    .slice(0, Math.round(clamp(limit, 1, 8)))
+    .map((message) => ({
+      author: message.author,
+      body: message.body,
+      source: message.source
+    }));
 
 export const createSpeechText = (message: ChatMessage, settings: ChatReaderSettings): string | null => {
   if (isMutedMessage(message, settings)) {

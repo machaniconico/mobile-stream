@@ -1,4 +1,4 @@
-import type { SceneDocument } from "../domain/scene";
+import type { RenderGraphRuntime, SceneDocument } from "../domain/scene";
 import type { StudioProfile } from "../domain/profiles";
 import type { StreamHealth, StreamState } from "../domain/streamState";
 import type { NativeRuntimeTelemetry } from "../domain/nativeRuntime";
@@ -14,11 +14,11 @@ export interface NativeEngineSnapshot {
 export interface LiveCasterNative {
   getSnapshot(): NativeEngineSnapshot;
   subscribe(listener: (snapshot: NativeEngineSnapshot) => void): () => void;
-  prepare(scene: SceneDocument, profile: StudioProfile): Promise<void>;
+  prepare(scene: SceneDocument, profile: StudioProfile, runtime?: RenderGraphRuntime): Promise<void>;
   start(): Promise<void>;
   stop(): Promise<void>;
   reconnect(): Promise<void>;
-  updateScene(scene: SceneDocument): Promise<void>;
+  updateScene(scene: SceneDocument, runtime?: RenderGraphRuntime): Promise<void>;
   updateQuality(profile: StudioProfile): Promise<void>;
 }
 

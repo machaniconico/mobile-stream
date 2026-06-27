@@ -1,4 +1,4 @@
-export type SourceKind = "screen" | "pngtuber" | "live2d" | "image" | "solid" | "text";
+export type SourceKind = "screen" | "pngtuber" | "live2d" | "image" | "solid" | "text" | "chat";
 
 export type BlendMode = "normal" | "multiply" | "screen";
 
@@ -74,13 +74,34 @@ export interface TextSource extends BaseSource {
   fontSize: number;
 }
 
+export interface ChatOverlaySource extends BaseSource {
+  kind: "chat";
+  maxMessages: number;
+  showAuthor: boolean;
+  color: string;
+  fontSize: number;
+  backgroundColor: string;
+  backgroundOpacity: number;
+}
+
 export type SceneSource =
   | ScreenSource
   | PNGTuberSource
   | Live2DSource
   | ImageSource
   | SolidSource
-  | TextSource;
+  | TextSource
+  | ChatOverlaySource;
+
+export interface ChatOverlayMessage {
+  author: string;
+  body: string;
+  source?: string;
+}
+
+export interface RenderGraphRuntime {
+  chatMessages?: ChatOverlayMessage[];
+}
 
 export interface SceneDocument {
   version: 1;
@@ -103,7 +124,7 @@ export interface RenderNode {
 }
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
-const sourceKinds: readonly SourceKind[] = ["screen", "pngtuber", "live2d", "image", "solid", "text"];
+const sourceKinds: readonly SourceKind[] = ["screen", "pngtuber", "live2d", "image", "solid", "text", "chat"];
 const blendModes: readonly BlendMode[] = ["normal", "multiply", "screen"];
 
 const clampTransform = (transform: Transform): Transform => ({
@@ -197,6 +218,21 @@ export const createDefaultScene = (): SceneDocument => ({
       color: "#f8fafc",
       fontSize: 44,
       transform: defaultTransform({ x: 0.04, y: 0.05, width: 0.55, height: 0.14 })
+    },
+    {
+      id: "source-chat",
+      kind: "chat",
+      name: "Chat Overlay",
+      visible: true,
+      locked: false,
+      blendMode: "normal",
+      maxMessages: 4,
+      showAuthor: true,
+      color: "#f8fafc",
+      fontSize: 34,
+      backgroundColor: "#000000",
+      backgroundOpacity: 0,
+      transform: defaultTransform({ x: 0.04, y: 0.64, width: 0.48, height: 0.28 })
     }
   ]
 });
@@ -205,7 +241,8 @@ export const createSource = (kind: SourceKind): SceneSource => {
   const base: BaseSource = {
     id: makeId(`source-${kind}`),
     kind,
-    name: kind === "pngtuber" ? "PNGTuber" : kind === "live2d" ? "Live2D" : `${kind} source`,
+    name:
+      kind === "pngtuber" ? "PNGTuber" : kind === "live2d" ? "Live2D" : kind === "chat" ? "Chat Overlay" : `${kind} source`,
     visible: true,
     locked: false,
     blendMode: "normal",
@@ -242,6 +279,18 @@ export const createSource = (kind: SourceKind): SceneSource => {
       return { ...base, kind, color: "#27272a" };
     case "text":
       return { ...base, kind, text: "Text", color: "#f8fafc", fontSize: 36 };
+    case "chat":
+      return {
+        ...base,
+        kind,
+        maxMessages: 4,
+        showAuthor: true,
+        color: "#f8fafc",
+        fontSize: 34,
+        backgroundColor: "#000000",
+        backgroundOpacity: 0,
+        transform: defaultTransform({ x: 0.04, y: 0.64, width: 0.48, height: 0.28 })
+      };
   }
 };
 
@@ -324,7 +373,7 @@ export const reorderSource = (scene: SceneDocument, sourceId: string, direction:
   return { ...scene, sources };
 };
 
-export const toRenderGraph = (scene: SceneDocument): RenderNode[] =>
+export const toRenderGraph = (scene: SceneDocument, runtime: RenderGraphRuntime = {}): RenderNode[] =>
   scene.sources
     .filter((source) => source.visible)
     .map((source, order) => ({
@@ -332,10 +381,10 @@ export const toRenderGraph = (scene: SceneDocument): RenderNode[] =>
       kind: source.kind,
       order,
       transform: source.transform,
-      payload: sourcePayload(source)
+      payload: sourcePayload(source, runtime)
     }));
 
-const sourcePayload = (source: SceneSource): Record<string, string | number | boolean> => {
+const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record<string, string | number | boolean> => {
   switch (source.kind) {
     case "screen":
       return { captureMode: source.captureMode };
@@ -382,6 +431,19 @@ const sourcePayload = (source: SceneSource): Record<string, string | number | bo
       return { color: source.color };
     case "text":
       return { text: source.text, color: source.color, fontSize: source.fontSize };
+    case "chat": {
+      const messages = serializeChatOverlayMessages(runtime.chatMessages ?? [], source);
+      return {
+        text: messages.map((message) => formatChatOverlayLine(message, source.showAuthor)).join("\n"),
+        messagesJson: JSON.stringify(messages),
+        maxMessages: source.maxMessages,
+        showAuthor: source.showAuthor,
+        color: source.color,
+        fontSize: source.fontSize,
+        backgroundColor: source.backgroundColor,
+        backgroundOpacity: source.backgroundOpacity
+      };
+    }
   }
 };
 
@@ -507,6 +569,19 @@ const normalizeSceneSource = (value: unknown): SceneSource | null => {
         fontSize: clampedNumber(value.fontSize, sourceFallback.fontSize, 8, 180)
       };
     }
+    case "chat": {
+      const sourceFallback = createSource("chat") as ChatOverlaySource;
+      return {
+        ...base,
+        kind: "chat",
+        maxMessages: Math.round(clampedNumber(value.maxMessages, sourceFallback.maxMessages, 1, 8)),
+        showAuthor: booleanValue(value.showAuthor, sourceFallback.showAuthor),
+        color: stringValue(value.color, sourceFallback.color),
+        fontSize: clampedNumber(value.fontSize, sourceFallback.fontSize, 10, 120),
+        backgroundColor: typeof value.backgroundColor === "string" ? value.backgroundColor : sourceFallback.backgroundColor,
+        backgroundOpacity: clampedNumber(value.backgroundOpacity, sourceFallback.backgroundOpacity, 0, 1)
+      };
+    }
   }
 };
 
@@ -518,3 +593,18 @@ const isBlendMode = (value: unknown): value is BlendMode =>
 
 const isAvatarSource = (source: SceneSource): source is PNGTuberSource | Live2DSource =>
   source.kind === "pngtuber" || source.kind === "live2d";
+
+const serializeChatOverlayMessages = (messages: ChatOverlayMessage[], source: ChatOverlaySource): ChatOverlayMessage[] =>
+  messages
+    .map((message) => ({
+      author: normalizeOverlayText(message.author).slice(0, 48) || "viewer",
+      body: normalizeOverlayText(message.body).slice(0, 160),
+      source: normalizeOverlayText(message.source ?? "").slice(0, 24)
+    }))
+    .filter((message) => message.body.length > 0)
+    .slice(0, source.maxMessages);
+
+const formatChatOverlayLine = (message: ChatOverlayMessage, showAuthor: boolean): string =>
+  showAuthor ? `${message.author}: ${message.body}` : message.body;
+
+const normalizeOverlayText = (value: string): string => value.replace(/\s+/g, " ").trim();

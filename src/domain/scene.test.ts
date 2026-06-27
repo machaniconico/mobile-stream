@@ -17,8 +17,8 @@ describe("scene document", () => {
     const scene = createDefaultScene();
     const graph = toRenderGraph(scene);
 
-    expect(scene.sources).toHaveLength(4);
-    expect(graph.map((node) => node.kind)).toEqual(["solid", "screen", "pngtuber", "text"]);
+    expect(scene.sources).toHaveLength(5);
+    expect(graph.map((node) => node.kind)).toEqual(["solid", "screen", "pngtuber", "text", "chat"]);
   });
 
   it("adds, hides, locks, and reorders sources", () => {
@@ -80,6 +80,28 @@ describe("scene document", () => {
     expect(avatarNode?.payload.imageUri).toBe("");
   });
 
+  it("builds transparent chat overlay payloads from runtime comments without persisting message text", () => {
+    const scene = createDefaultScene();
+    const graph = toRenderGraph(scene, {
+      chatMessages: [
+        { author: "macha", body: "  first   comment  ", source: "youtube" },
+        { author: "viewer", body: "second comment", source: "twitch" }
+      ]
+    });
+
+    const chatNode = graph.find((node) => node.kind === "chat");
+    const persisted = stripTransientSceneRuntime(scene);
+    const persistedChat = persisted.sources.find((source) => source.kind === "chat");
+
+    expect(chatNode?.payload).toMatchObject({
+      text: "macha: first comment\nviewer: second comment",
+      backgroundOpacity: 0,
+      showAuthor: true
+    });
+    expect(String(chatNode?.payload.messagesJson)).toContain("first comment");
+    expect(JSON.stringify(persistedChat)).not.toContain("first comment");
+  });
+
   it("normalizes persisted scene data into safe renderable sources", () => {
     const scene = normalizeSceneDocument({
       version: 1,
@@ -114,13 +136,28 @@ describe("scene document", () => {
           motion: { headYaw: 3, confidence: 2 },
           transform: { x: 0.2, y: 0.2, width: 0.3, height: 0.4, rotation: 0, opacity: 1 }
         },
+        {
+          id: "chat-overlay",
+          kind: "chat",
+          name: "Comments",
+          visible: true,
+          locked: false,
+          blendMode: "normal",
+          maxMessages: 99,
+          showAuthor: false,
+          color: "#fff",
+          fontSize: 999,
+          backgroundColor: "#000000",
+          backgroundOpacity: 2,
+          transform: { x: 0.1, y: 0.6, width: 0.5, height: 0.2, rotation: 0, opacity: 1 }
+        },
         { kind: "missing-required" }
       ]
     });
 
     expect(scene.id).toBe("saved");
     expect(scene.canvas).toEqual({ width: 7680, height: 1, fps: 120 });
-    expect(scene.sources).toHaveLength(2);
+    expect(scene.sources).toHaveLength(3);
     expect(scene.sources[0]).toMatchObject({
       id: "bad-transform",
       kind: "text",
@@ -133,6 +170,14 @@ describe("scene document", () => {
       kind: "pngtuber",
       imageUri: "content://avatar/still.png",
       motion: { headYaw: 1, confidence: 1 }
+    });
+    expect(scene.sources[2]).toMatchObject({
+      id: "chat-overlay",
+      kind: "chat",
+      maxMessages: 8,
+      showAuthor: false,
+      fontSize: 120,
+      backgroundOpacity: 1
     });
   });
 

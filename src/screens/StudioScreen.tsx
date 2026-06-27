@@ -25,7 +25,12 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
-import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
+import {
+  normalizeMutedWordsInput,
+  selectChatOverlayMessages,
+  type ChatReaderSettings,
+  type ChatReaderState
+} from "../domain/chatReader";
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
 import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../domain/platformChat";
 import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
@@ -59,6 +64,7 @@ import {
   updateSource,
   updateTransform,
   type SceneDocument,
+  type RenderNode,
   type SceneSource,
   type SourceKind
 } from "../domain/scene";
@@ -157,10 +163,11 @@ const sourceLabels: Record<SourceKind, string> = {
   live2d: "Live2D",
   image: "Image",
   solid: "Solid",
-  text: "Text"
+  text: "Text",
+  chat: "Chat"
 };
 
-const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "text", "image", "solid"];
+const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "chat", "text", "image", "solid"];
 
 const expressions: AvatarExpression[] = ["neutral", "happy", "angry", "surprised"];
 
@@ -366,6 +373,7 @@ export const StudioScreen = ({
   const operationBusy = operationStatus?.kind === "pending";
   const platformApiBusy = Boolean(platformApiOperationLabel);
   const setupLocked = isLive || isBusy || operationBusy || platformApiBusy;
+  const chatOverlayMessages = selectChatOverlayMessages(chatReader);
   const diagnostics = createStreamDiagnostics(
     scene,
     profile,
@@ -542,7 +550,12 @@ export const StudioScreen = ({
         </aside>
 
         <section className="program-column" aria-label="program preview">
-          <ProgramPreview scene={scene} selectedSourceId={selectedSource.id} onSelectSource={onSelectSource} />
+          <ProgramPreview
+            scene={scene}
+            selectedSourceId={selectedSource.id}
+            chatMessages={chatOverlayMessages}
+            onSelectSource={onSelectSource}
+          />
           <div className="transport-bar">
             <button
               className="primary-action"
@@ -603,6 +616,71 @@ export const StudioScreen = ({
                   }
                 />
               </label>
+            ) : null}
+            {selectedSource.kind === "chat" ? (
+              <>
+                <SpeechSlider
+                  label="Messages"
+                  value={selectedSource.maxMessages}
+                  min={1}
+                  max={8}
+                  step={1}
+                  disabled={setupLocked}
+                  onChange={(maxMessages) =>
+                    onSceneChange(
+                      updateSource(scene, selectedSource.id, (source) =>
+                        source.kind === "chat" ? { ...source, maxMessages: Math.round(maxMessages) } : source
+                      )
+                    )
+                  }
+                />
+                <label className="field">
+                  <span>Text color</span>
+                  <input
+                    value={selectedSource.color}
+                    disabled={setupLocked}
+                    onChange={(event) =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "chat" ? { ...source, color: event.target.value } : source
+                        )
+                      )
+                    }
+                  />
+                </label>
+                <div className="monitor-row">
+                  <button
+                    className={`segmented-button ${selectedSource.showAuthor ? "active" : ""}`}
+                    type="button"
+                    disabled={setupLocked}
+                    onClick={() =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "chat" ? { ...source, showAuthor: !source.showAuthor } : source
+                        )
+                      )
+                    }
+                  >
+                    Author
+                  </button>
+                  <button
+                    className={`segmented-button ${selectedSource.backgroundOpacity > 0 ? "active" : ""}`}
+                    type="button"
+                    disabled={setupLocked}
+                    onClick={() =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "chat"
+                            ? { ...source, backgroundOpacity: source.backgroundOpacity > 0 ? 0 : 0.42 }
+                            : source
+                        )
+                      )
+                    }
+                  >
+                    Backdrop
+                  </button>
+                </div>
+              </>
             ) : null}
             <Slider label="X" value={selectedSource.transform.x} disabled={setupLocked} onChange={(value) => updateSelectedTransform("x", value)} />
             <Slider label="Y" value={selectedSource.transform.y} disabled={setupLocked} onChange={(value) => updateSelectedTransform("y", value)} />
@@ -1799,11 +1877,12 @@ const ChatReaderPanel = ({
 interface ProgramPreviewProps {
   scene: SceneDocument;
   selectedSourceId: string;
+  chatMessages: ReturnType<typeof selectChatOverlayMessages>;
   onSelectSource(sourceId: string): void;
 }
 
-const ProgramPreview = ({ scene, selectedSourceId, onSelectSource }: ProgramPreviewProps) => {
-  const graph = toRenderGraph(scene);
+const ProgramPreview = ({ scene, selectedSourceId, chatMessages, onSelectSource }: ProgramPreviewProps) => {
+  const graph = toRenderGraph(scene, { chatMessages });
   return (
     <div className="program-preview">
       <div className="preview-toolbar">
@@ -1834,7 +1913,7 @@ const ProgramPreview = ({ scene, selectedSourceId, onSelectSource }: ProgramPrev
               type="button"
               onClick={() => onSelectSource(source.id)}
             >
-              <SourceVisual source={source} />
+              <SourceVisual source={source} node={node} />
             </button>
           );
         })}
@@ -1843,7 +1922,7 @@ const ProgramPreview = ({ scene, selectedSourceId, onSelectSource }: ProgramPrev
   );
 };
 
-const SourceVisual = ({ source }: { source: SceneSource }) => {
+const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode }) => {
   if (source.kind === "screen") {
     return (
       <div className="screen-visual">
@@ -1888,6 +1967,25 @@ const SourceVisual = ({ source }: { source: SceneSource }) => {
       <span className="text-visual" style={{ color: source.color, fontSize: `${fontSizeForTextSource(source)}px` }}>
         {source.text}
       </span>
+    );
+  }
+
+  if (source.kind === "chat") {
+    const text = typeof node?.payload.text === "string" ? node.payload.text : "";
+    const lines = text ? text.split("\n") : ["Chat overlay"];
+    return (
+      <div
+        className={`chat-overlay-visual ${text ? "" : "empty"}`}
+        style={{
+          color: source.color,
+          fontSize: `${fontSizeForChatSource(source)}px`,
+          backgroundColor: rgbaFromHex(source.backgroundColor, source.backgroundOpacity)
+        }}
+      >
+        {lines.slice(0, source.maxMessages).map((line, index) => (
+          <span key={`${line}-${index}`}>{line}</span>
+        ))}
+      </div>
     );
   }
 
@@ -1989,4 +2087,19 @@ const fontSizeForTextSource = (source: Extract<SceneSource, { kind: "text" }>): 
   const sourceWidthBudget = source.transform.width * 42;
   const sourceHeightBudget = source.transform.height * 150;
   return Math.max(10, Math.min(source.fontSize / 2, sourceWidthBudget, sourceHeightBudget));
+};
+
+const fontSizeForChatSource = (source: Extract<SceneSource, { kind: "chat" }>): number => {
+  const lineBudget = source.transform.height * 132;
+  const widthBudget = source.transform.width * 52;
+  return Math.max(10, Math.min(source.fontSize / 2, lineBudget, widthBudget));
+};
+
+const rgbaFromHex = (hex: string, alpha: number): string => {
+  const normalized = hex.trim().replace(/^#/, "");
+  const color = /^[0-9a-fA-F]{6}$/.test(normalized) ? normalized : "000000";
+  const red = Number.parseInt(color.slice(0, 2), 16);
+  const green = Number.parseInt(color.slice(2, 4), 16);
+  const blue = Number.parseInt(color.slice(4, 6), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${Math.max(0, Math.min(1, alpha))})`;
 };

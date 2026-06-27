@@ -1,4 +1,4 @@
-import type { SceneDocument } from "../domain/scene";
+import type { RenderGraphRuntime, SceneDocument } from "../domain/scene";
 import type { StudioProfile } from "../domain/profiles";
 import type { LiveCasterNative, NativeEngineSnapshot } from "./LiveCasterNative";
 import { initialStreamState, streamReducer, type StreamState } from "../domain/streamState";
@@ -27,7 +27,7 @@ export class MockLiveCaster implements LiveCasterNative {
     return () => this.listeners.delete(listener);
   }
 
-  async prepare(scene: SceneDocument, profile: StudioProfile): Promise<void> {
+  async prepare(scene: SceneDocument, profile: StudioProfile, _runtime: RenderGraphRuntime = {}): Promise<void> {
     const readiness = createReadinessReport(scene, profile);
     if (!readiness.canStart) {
       this.preparedScene = null;
@@ -71,7 +71,7 @@ export class MockLiveCaster implements LiveCasterNative {
     }, 900);
   }
 
-  async updateScene(scene: SceneDocument): Promise<void> {
+  async updateScene(scene: SceneDocument, _runtime: RenderGraphRuntime = {}): Promise<void> {
     this.preparedScene = scene;
   }
 

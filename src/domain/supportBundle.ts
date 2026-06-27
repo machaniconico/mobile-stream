@@ -785,7 +785,8 @@ const countSources = (sources: SceneSource[]): Record<SourceKind, number> => {
     live2d: 0,
     image: 0,
     solid: 0,
-    text: 0
+    text: 0,
+    chat: 0
   };
 
   for (const source of sources) {
@@ -822,6 +823,14 @@ const sourcePayloadSummary = (source: SceneSource): Record<string, string | numb
       return { color: source.color };
     case "text":
       return { textLength: source.text.length, color: source.color, fontSize: source.fontSize };
+    case "chat":
+      return {
+        maxMessages: source.maxMessages,
+        showAuthor: source.showAuthor,
+        color: source.color,
+        fontSize: source.fontSize,
+        backgroundOpacity: source.backgroundOpacity
+      };
   }
 };
 

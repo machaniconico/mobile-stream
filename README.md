@@ -41,7 +41,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - RTMP/RTMPS publish URL normalization that can split pasted YouTube/Twitch full publish URLs into endpoint and stream key before start.
 - Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, platform API audit counts, mic FX/headphone monitor route validation, chat readout validation, native runtime validation evidence, native compositor still-image asset load evidence, platform dashboard validation evidence, and sanitized report export/share.
 - Face-tracking production diagnostics for prepared PNGTuber assets, native-camera readiness, tracking runtime state, active avatar motion, support bundles, and commercial validation checks.
-- Native composition readiness and diagnostics for native-supported avatar/text/image/solid overlays, underlay ordering, Live2D gaps, iOS Broadcast Upload Extension still-image asset access risks before device RTMP publishing, and runtime loaded/missing asset evidence.
+- Native composition readiness and diagnostics for native-supported avatar/text/chat/image/solid overlays, underlay ordering, Live2D gaps, iOS Broadcast Upload Extension still-image asset access risks before device RTMP publishing, and runtime loaded/missing asset evidence.
 - Mobile PNGTuber/image still-image picking and preparation that copies local assets into native-readable storage before streaming.
 - Stream key redaction and no-secret browser persistence.
 - Physical validation run persistence redacts supplied stream-key candidates plus OAuth/API tokens, device codes, client secrets, and Authorization headers before writing Web localStorage or mobile native storage.
@@ -54,9 +54,11 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Quality presets.
 - Voice lip-sync meter and expression buttons.
 - Still-image VTuber face tracking with native-camera input on mobile, simulated input on web, calibration, dead-zone filtering, jump limiting, lost-face return tuning, and native 2.5D motion scaling in the iOS/Android compositor.
+- IRIAM-style single-illustration animation is currently covered by the still-image 2.5D tracker foundation; automatic illustration part inference, mesh-like deformation, hair/body follow-through, and higher-fidelity pseudo eye/mouth deformation are tracked as commercial-grade continuous improvements.
 - Mic effect presets with gain, noise gate, compression, and Android PCM processing.
 - Headphone-only mic monitor settings for hearing the processed mic signal locally, with native iOS/Android output-route detection and Go Live blocking when monitoring would route to speakers.
 - Chat/comment read-aloud queue with test comments, muted words, duplicate suppression, queue limits, speech controls, queued/recent comment privacy reset, and stream-stop chat auto-disconnect/readout silence.
+- Transparent-background chat/comment overlay source for web preview and native iOS/Android compositors, fed from recent YouTube/Twitch/manual chat history without persisting comment text in the scene.
 - YouTube LiveChatMessages and Twitch EventSub chat payload adapters feeding the shared read-aloud queue.
 - Durable platform chat adapter settings through the shared profile store.
 - OAuth chat authorization controls for YouTube PKCE authorization-code callbacks, Twitch implicit callbacks, and Twitch Device Code Flow, feeding YouTube live chat polling and Twitch IRC WebSocket ingestion.
@@ -72,8 +74,8 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - React Native mobile Studio screen using the shared domain model and mock engine.
 - Android native bridge for MediaProjection consent, foreground service streaming, H.264/AAC encoding, and RTMP/RTMPS publishing through RootEncoder.
 - Android publish URLs are assembled from the selected server URL plus the stored stream key at start time.
-- Android native GL overlay compositor for visible PNGTuber still-image, text, image, and solid scene sources on top of MediaProjection capture.
-- iOS ReplayKit Broadcast Upload Extension compositor for visible PNGTuber still-image, text, image, and solid overlays on top of captured frames, with runtime still-image asset load/miss evidence.
+- Android native GL overlay compositor for visible PNGTuber still-image, text, chat, image, and solid scene sources on top of MediaProjection capture.
+- iOS ReplayKit Broadcast Upload Extension compositor for visible PNGTuber still-image, text, chat, image, and solid overlays on top of captured frames, with runtime still-image asset load/miss evidence.
 - Android microphone effects are applied before AAC encoding, with optional headphone monitor playback and native monitor-buffer latency estimates.
 - Android start-time microphone/notification runtime permission preflight.
 - Native chat speech output through Android TextToSpeech and iOS AVSpeechSynthesizer.

@@ -15,7 +15,7 @@
 - Public YouTube and Twitch start locks block checklist warnings as well as failures, including stale dashboard evidence, disabled chat readout, unsafe/muted mic monitoring, incomplete commercial evidence, and mock-engine fallback.
 - Stream diagnostics model for redacted publish URL, endpoint parsing, upload target estimate, readiness issues, live telemetry health checks, and sanitized diagnostic reports.
 - Face-tracking production diagnostics for prepared PNGTuber assets, simulated/native-camera input risk, tracking runtime state, active motion count, preflight warnings, support reports, and commercial validation checklist evidence.
-- Native composition readiness/diagnostics model that distinguishes native-supported avatar/image/solid/text overlays from underlay ordering, Live2D production gaps, and iOS Broadcast Upload Extension still-image asset access risks before device RTMP publishing.
+- Native composition readiness/diagnostics model that distinguishes native-supported avatar/image/solid/text/chat overlays from underlay ordering, Live2D production gaps, and iOS Broadcast Upload Extension still-image asset access risks before device RTMP publishing.
 - Stream health history model for average/min bitrate and FPS, dropped-frame/reconnect trend summaries, diagnostics checks, and report export.
 - Post-stream session summary model for completed session outcome, warning/failure/recovery counts, health summary, lip-sync/audio-meter sample summary, spoken-chat success/failure counts, and next-stream recommendations.
 - Durable completed stream session summary persistence for Web localStorage and React Native native storage, with corrupt payload recovery and retention limiting.
@@ -68,6 +68,7 @@
 - Mic effect profile model with presets, gain, noise gate, compression, and headphone monitor settings.
 - Shared audio-route safety model for speaker/receiver/wired/USB/Bluetooth/AirPlay/HDMI output state, monitor-route diagnostics, and Go Live preflight blocking when headphones-only monitoring is routed to speakers.
 - Chat/comment read-aloud domain model with queueing, muted words, duplicate suppression, queue limits, URL redaction, and speech text shaping.
+- Transparent chat/comment overlay scene source with runtime-only recent message payloads, author toggle, line limits, text color, optional semi-transparent backdrop, and native/web compositor support without persisting comment text into scene storage.
 - Platform chat adapter model for YouTube LiveChatMessages responses and Twitch EventSub chat notifications.
 - Platform chat adapter settings persisted with the shared studio profile on web and mobile.
 - OAuth chat authorization layer for YouTube PKCE authorization-code callbacks, Twitch implicit callbacks, and Twitch Device Code Flow, with tokens kept out of persisted profiles.
@@ -120,6 +121,7 @@
 - React Native mobile active stream quality incident panel with operator recommendations.
 - React Native mobile stream session event timeline using the shared diagnostics model.
 - React Native mobile chat reader panel with test comments, platform adapter ingest, safety controls, and speech settings.
+- React Native and web studio previews can position a transparent chat overlay above game/screen capture, and native iOS/Android render graphs receive the same runtime chat payload for RTMP/RTMPS output.
 - iOS ReplayKit Broadcast Upload Extension target registered in the Xcode project.
 - iOS app-side Broadcast Picker startup bridge with App Group configuration handoff.
 - iOS commercial bundle identifiers and App Group alignment for the host app and ReplayKit Broadcast Upload Extension.
@@ -130,7 +132,7 @@
 - iOS Broadcast Upload Extension microphone DSP applies the shared mic effects profile to ReplayKit microphone PCM before AAC mixing, including input gain, noise gate, compression, bright/robot presets, soft limiting, and runtime processing evidence.
 - iOS Broadcast Upload Extension RTMP/RTMPS publisher foundation with H.264/AAC packetization.
 - iOS RTMP publisher reconnect backoff state with bounded retry attempts.
-- iOS ReplayKit Broadcast Upload Extension compositor for PNGTuber still-image/fallback, text, image, and solid overlays on encoded frames, with App Group runtime composition status and still-image asset load/miss evidence.
+- iOS ReplayKit Broadcast Upload Extension compositor for PNGTuber still-image/fallback, text, chat, image, and solid overlays on encoded frames, with App Group runtime composition status and still-image asset load/miss evidence.
 - iOS native-compositor preflight diagnostics warn when PNGTuber/image overlays use missing, host-sandbox file-backed, relative, content, http(s), data, or otherwise unsupported still-image asset URIs that the Broadcast Upload Extension cannot reliably load.
 - iOS mobile still-image asset picker/preparation copies selected PNGTuber/image source files into the shared App Group container and stores a ReplayKit-extension-readable `file://` URI in the scene.
 - Android MediaProjection service skeleton.
@@ -139,7 +141,7 @@
 - Android foreground streaming service with `mediaProjection|microphone` service type.
 - Android RTMP/RTMPS publishing path through RootEncoder, using screen capture and microphone input.
 - Android publish endpoint assembly from the app's server URL and stream key fields.
-- Android native GL overlay compositor for PNGTuber still-image, text, image, and solid scene sources on top of MediaProjection capture, with applied/pending overlay status in stream health messages.
+- Android native GL overlay compositor for PNGTuber still-image, text, chat, image, and solid scene sources on top of MediaProjection capture, with applied/pending overlay status in stream health messages.
 - Android mobile still-image asset picker/preparation copies selected content/file/path PNGTuber/image source assets into app-internal storage and stores a stable `file://` URI for native GL overlay rendering.
 - Android microphone PCM effect path through RootEncoder `CustomAudioEffect`.
 - Android headphone-only mic monitor playback through `AudioTrack`, with monitor write/drop counters and AudioTrack-buffer latency estimates surfaced in native runtime telemetry.
@@ -193,6 +195,7 @@
 - iOS physical-device evidence that App Group-copied PNGTuber/image assets render correctly inside the Broadcast Upload Extension compositor.
 - First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
 - Live2D Cubism SDK integration.
+- IRIAM-style high-fidelity single-illustration auto-rigging beyond the current still-image 2.5D foundation, including automatic face/body part inference, pseudo mesh deformation, hair/body follow-through, eye/mouth deformation, and physical-device tuning against native-camera tracking.
 - Twitch stream key reset/rotation through API. Twitch currently exposes stream key retrieval through Helix, not a public reset endpoint.
 
 ## Local Environment Notes

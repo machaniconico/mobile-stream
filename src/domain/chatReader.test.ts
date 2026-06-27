@@ -9,6 +9,7 @@ import {
   markChatMessageSpeaking,
   markChatMessageSpoken,
   normalizeMutedWordsInput,
+  selectChatOverlayMessages,
   selectNextReadableMessage,
   updateChatReaderSettings
 } from "./chatReader";
@@ -45,6 +46,34 @@ describe("chatReader", () => {
     expect(next.queue).toHaveLength(0);
     expect(next.history).toHaveLength(1);
     expect(next.skippedCount).toBe(1);
+  });
+
+  it("selects recent overlay comments without muted history", () => {
+    const state = updateChatReaderSettings(createDefaultChatReaderState(), {
+      mutedWords: ["spoiler"]
+    });
+    const first = createChatMessage({
+      source: "youtube",
+      author: "viewer",
+      body: "first comment",
+      receivedAt: 1
+    });
+    const muted = createChatMessage({
+      source: "twitch",
+      author: "viewer",
+      body: "spoiler comment",
+      receivedAt: 2
+    });
+    const next = enqueueChatMessage(enqueueChatMessage(state, first), muted);
+
+    expect(next.history).toHaveLength(2);
+    expect(selectChatOverlayMessages(next)).toEqual([
+      {
+        author: "viewer",
+        body: "first comment",
+        source: "youtube"
+      }
+    ]);
   });
 
   it("uses external message ids for stable queue dedupe", () => {

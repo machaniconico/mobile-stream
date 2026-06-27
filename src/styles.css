@@ -460,6 +460,32 @@ select:focus-visible {
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
 }
 
+.chat-overlay-visual {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding: 8px 10px;
+  overflow: hidden;
+  font-weight: 900;
+  line-height: 1.08;
+  text-align: left;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.82);
+}
+
+.chat-overlay-visual span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-overlay-visual.empty {
+  color: var(--muted);
+}
+
 .solid-visual {
   width: 100%;
   height: 100%;

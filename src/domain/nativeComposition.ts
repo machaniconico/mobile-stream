@@ -36,7 +36,7 @@ export interface NativeCompositionReport {
 }
 
 const avatarKinds = new Set<SourceKind>(["pngtuber", "live2d"]);
-const nativeOverlayKinds = new Set<SourceKind>(["pngtuber", "image", "solid", "text"]);
+const nativeOverlayKinds = new Set<SourceKind>(["pngtuber", "image", "solid", "text", "chat"]);
 const nativeStillImageKinds = new Set<SourceKind>(["pngtuber", "image"]);
 const iosBroadcastAppGroup = "group.com.mobilelivecaster.app";
 
@@ -339,7 +339,7 @@ const createPreviewOnlyIssue = (source: SceneSource, reason: NativeCompositionIs
     return {
       ...base,
       message: `${source.name} (${source.kind}) is visible without a screen source, so preview and native screen capture can diverge.`,
-      action: "Enable a screen source, then place supported avatar/image/text/solid sources above it."
+      action: "Enable a screen source, then place supported avatar/image/text/chat/solid sources above it."
     };
   }
 
@@ -362,6 +362,8 @@ const nativeCompositionAction = (kind: SourceKind): string => {
       return "iOS and Android can render this through native overlay filters when it is above the screen source.";
     case "text":
       return "iOS and Android can render this through native overlay filters when it is above the screen source.";
+    case "chat":
+      return "iOS and Android can render transparent-background chat comments through native overlay filters when it is above the screen source.";
     case "screen":
       return "Screen capture is already handled by the native capture source.";
   }

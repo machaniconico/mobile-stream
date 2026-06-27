@@ -77,6 +77,7 @@ object AndroidSceneCompositor {
         return when (node.kind) {
             "pngtuber" -> createPngTuberFilter(context, node)
             "text" -> createTextFilter(node)
+            "chat" -> createChatFilter(node)
             "solid" -> createSolidFilter(node)
             "image" -> createImageFilter(context, node)
             else -> null
@@ -106,6 +107,46 @@ object AndroidSceneCompositor {
         val fontSize = node.payload.optDouble("fontSize", 36.0).toFloat().coerceIn(8f, 220f)
         return TextObjectFilterRender().apply {
             setText(text.take(240), fontSize, color)
+        }
+    }
+
+    private fun createChatFilter(node: RenderGraphNode): ImageObjectFilterRender? {
+        val text = node.payload.optString("text").trim()
+        if (text.isEmpty()) {
+            return null
+        }
+
+        val bitmap = Bitmap.createBitmap(960, 360, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val backgroundOpacity = node.payload.optDouble("backgroundOpacity", 0.0).toFloat().coerceIn(0f, 1f)
+        if (backgroundOpacity > 0f) {
+            val backgroundColor = parseColor(node.payload.optString("backgroundColor"), Color.BLACK)
+            paint.color = Color.argb(
+                (backgroundOpacity * 255f).roundToInt(),
+                Color.red(backgroundColor),
+                Color.green(backgroundColor),
+                Color.blue(backgroundColor)
+            )
+            canvas.drawRoundRect(RectF(0f, 0f, 960f, 360f), 28f, 28f, paint)
+        }
+
+        paint.color = parseColor(node.payload.optString("color"), Color.WHITE)
+        paint.textSize = node.payload.optDouble("fontSize", 34.0).toFloat().coerceIn(10f, 120f)
+        paint.isFakeBoldText = true
+        paint.setShadowLayer(8f, 0f, 4f, Color.argb(220, 0, 0, 0))
+
+        val maxMessages = node.payload.optInt("maxMessages", 4).coerceIn(1, 8)
+        val lines = text.split("\n").map { line -> line.trim() }.filter { line -> line.isNotEmpty() }.take(maxMessages)
+        val lineHeight = paint.textSize * 1.22f
+        var baseline = 360f - 22f - lineHeight * (lines.size - 1)
+        lines.forEach { line ->
+            canvas.drawText(ellipsize(line, paint, 908f), 26f, baseline, paint)
+            baseline += lineHeight
+        }
+
+        return ImageObjectFilterRender().apply {
+            setImage(bitmap)
         }
     }
 
@@ -265,6 +306,17 @@ object AndroidSceneCompositor {
         } catch (_: Throwable) {
             fallback
         }
+    }
+
+    private fun ellipsize(value: String, paint: Paint, maxWidth: Float): String {
+        if (paint.measureText(value) <= maxWidth) {
+            return value
+        }
+        var candidate = value
+        while (candidate.isNotEmpty() && paint.measureText("$candidate...") > maxWidth) {
+            candidate = candidate.dropLast(1)
+        }
+        return if (candidate.isEmpty()) "..." else "$candidate..."
     }
 }
 

@@ -5,6 +5,7 @@ import {
   createChatMessage,
   createDefaultChatReaderState,
   enqueueChatMessage,
+  selectChatOverlayMessages,
   updateChatReaderSettings,
   type ChatReaderSettings
 } from "../domain/chatReader";
@@ -167,6 +168,10 @@ export const App = () => {
   const audioLevelSamplesRef = useRef<StreamAudioLevelSample[]>([]);
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
   const persistableSceneJson = useMemo(() => JSON.stringify(stripTransientSceneRuntime(scene)), [scene]);
+  const chatOverlayMessages = useMemo(
+    () => selectChatOverlayMessages(chatReader),
+    [chatReader.history, chatReader.settings]
+  );
   const initialStreamSessionSummaries = useMemo(() => loadStreamSessionSummaries(), []);
   const initialStreamValidationRuns = useMemo(() => loadStreamValidationRuns(), []);
   const [streamValidationRuns, setStreamValidationRuns] = useState<StreamValidationRun[]>(() =>
@@ -239,8 +244,8 @@ export const App = () => {
     if (!shouldPushSceneToEngine(snapshot.state.status)) {
       return;
     }
-    void engine.updateScene(scene);
-  }, [engine, scene, snapshot.state.status]);
+    void engine.updateScene(scene, { chatMessages: chatOverlayMessages });
+  }, [chatOverlayMessages, engine, scene, snapshot.state.status]);
 
   useEffect(() => {
     saveProfile(profile);
@@ -358,7 +363,7 @@ export const App = () => {
       if (!publicLaunchChecklist.canStart) {
         throw new Error(formatPublicLaunchChecklistBlockMessage(publicLaunchChecklist));
       }
-      await engine.prepare(scene, readiness.sanitizedProfile);
+      await engine.prepare(scene, readiness.sanitizedProfile, { chatMessages: chatOverlayMessages });
       await engine.start();
       const chatPlan = platformChatConnection.ensureConnected(chatReader.settings.enabled);
       if (chatPlan.reason !== "platform-chat-disabled") {

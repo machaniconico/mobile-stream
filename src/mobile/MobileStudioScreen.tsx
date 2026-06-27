@@ -3,7 +3,12 @@ import { useEffect, useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
 import type { AudioRouteState } from "../domain/audioRoute";
-import { normalizeMutedWordsInput, type ChatReaderSettings, type ChatReaderState } from "../domain/chatReader";
+import {
+  normalizeMutedWordsInput,
+  selectChatOverlayMessages,
+  type ChatReaderSettings,
+  type ChatReaderState
+} from "../domain/chatReader";
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
 import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
 import type {
@@ -51,6 +56,7 @@ import {
   updateSource,
   updateTransform,
   type SceneDocument,
+  type RenderNode,
   type SceneSource,
   type SourceKind
 } from "../domain/scene";
@@ -149,10 +155,11 @@ const sourceLabels: Record<SourceKind, string> = {
   live2d: "Live2D",
   image: "Image",
   solid: "Solid",
-  text: "Text"
+  text: "Text",
+  chat: "Chat"
 };
 
-const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "text", "image", "solid"];
+const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "chat", "text", "image", "solid"];
 const expressions: AvatarExpression[] = ["neutral", "happy", "angry", "surprised"];
 
 const shareStreamDiagnosticReport = async (diagnostics: StreamDiagnostics, publicLaunchChecklist: PublicLaunchChecklist) => {
@@ -310,6 +317,7 @@ export const MobileStudioScreen = ({
   const operationBusy = operationStatus?.kind === "pending";
   const platformApiBusy = Boolean(platformApiOperationLabel);
   const setupLocked = isLive || isBusy || operationBusy || platformApiBusy;
+  const chatOverlayMessages = selectChatOverlayMessages(chatReader);
   const diagnostics = createStreamDiagnostics(
     scene,
     profile,
@@ -566,7 +574,12 @@ export const MobileStudioScreen = ({
         </Panel>
 
         <Panel title="Program">
-          <ProgramPreview scene={scene} selectedSourceId={selectedSource.id} onSelectSource={onSelectSource} />
+          <ProgramPreview
+            scene={scene}
+            selectedSourceId={selectedSource.id}
+            chatMessages={chatOverlayMessages}
+            onSelectSource={onSelectSource}
+          />
         </Panel>
 
         <View style={styles.transport}>
@@ -642,6 +655,66 @@ export const MobileStudioScreen = ({
                   {assetPrepareStatus.message}
                 </Text>
               ) : null}
+            </>
+          ) : null}
+          {selectedSource.kind === "chat" ? (
+            <>
+              <NumberStepper
+                label="Messages"
+                value={selectedSource.maxMessages}
+                min={1}
+                max={8}
+                step={1}
+                disabled={setupLocked}
+                onChange={(maxMessages) =>
+                  onSceneChange(
+                    updateSource(scene, selectedSource.id, (source) =>
+                      source.kind === "chat" ? { ...source, maxMessages: Math.round(maxMessages) } : source
+                    )
+                  )
+                }
+              />
+              <Label text="Text color" />
+              <TextInput
+                value={selectedSource.color}
+                onChangeText={(color) =>
+                  onSceneChange(
+                    updateSource(scene, selectedSource.id, (source) => (source.kind === "chat" ? { ...source, color } : source))
+                  )
+                }
+                style={styles.input}
+                editable={!setupLocked}
+                placeholder="#f8fafc"
+                placeholderTextColor="#71717a"
+              />
+              <View style={styles.grid2}>
+                <ActionButton
+                  label={selectedSource.showAuthor ? "Author On" : "Author Off"}
+                  variant={selectedSource.showAuthor ? "active" : "default"}
+                  disabled={setupLocked}
+                  onPress={() =>
+                    onSceneChange(
+                      updateSource(scene, selectedSource.id, (source) =>
+                        source.kind === "chat" ? { ...source, showAuthor: !source.showAuthor } : source
+                      )
+                    )
+                  }
+                />
+                <ActionButton
+                  label={selectedSource.backgroundOpacity > 0 ? "Backdrop On" : "Backdrop Off"}
+                  variant={selectedSource.backgroundOpacity > 0 ? "active" : "default"}
+                  disabled={setupLocked}
+                  onPress={() =>
+                    onSceneChange(
+                      updateSource(scene, selectedSource.id, (source) =>
+                        source.kind === "chat"
+                          ? { ...source, backgroundOpacity: source.backgroundOpacity > 0 ? 0 : 0.42 }
+                          : source
+                      )
+                    )
+                  }
+                />
+              </View>
             </>
           ) : null}
           <Stepper
@@ -2087,14 +2160,16 @@ const ChatReaderPanel = ({
 const ProgramPreview = ({
   scene,
   selectedSourceId,
+  chatMessages,
   onSelectSource
 }: {
   scene: SceneDocument;
   selectedSourceId: string;
+  chatMessages: ReturnType<typeof selectChatOverlayMessages>;
   onSelectSource(sourceId: string): void;
 }) => (
   <View style={styles.previewStage}>
-    {toRenderGraph(scene).map((node) => {
+    {toRenderGraph(scene, { chatMessages }).map((node) => {
       const source = scene.sources.find((item) => item.id === node.id);
       if (!source) {
         return null;
@@ -2117,14 +2192,14 @@ const ProgramPreview = ({
           ]}
           onPress={() => onSelectSource(source.id)}
         >
-          <SourceVisual source={source} />
+          <SourceVisual source={source} node={node} />
         </Pressable>
       );
     })}
   </View>
 );
 
-const SourceVisual = ({ source }: { source: SceneSource }) => {
+const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode }) => {
   if (source.kind === "screen") {
     return (
       <View style={styles.screenVisual}>
@@ -2199,6 +2274,28 @@ const SourceVisual = ({ source }: { source: SceneSource }) => {
       <Text style={[styles.textSource, { color: source.color, fontSize: fontSizeForTextSource(source) }]} numberOfLines={1}>
         {source.text}
       </Text>
+    );
+  }
+
+  if (source.kind === "chat") {
+    const text = typeof node?.payload.text === "string" ? node.payload.text : "";
+    const lines = text ? text.split("\n") : ["Chat overlay"];
+    return (
+      <View style={[styles.chatOverlaySource, { backgroundColor: rgbaFromHex(source.backgroundColor, source.backgroundOpacity) }]}>
+        {lines.slice(0, source.maxMessages).map((line, index) => (
+          <Text
+            key={`${line}-${index}`}
+            style={[
+              styles.chatOverlayLine,
+              !text && styles.chatOverlayEmpty,
+              { color: source.color, fontSize: fontSizeForChatSource(source) }
+            ]}
+            numberOfLines={1}
+          >
+            {line}
+          </Text>
+        ))}
+      </View>
     );
   }
 
@@ -2772,6 +2869,18 @@ const expressionStyle = (expression: string) => {
 const fontSizeForTextSource = (source: Extract<SceneSource, { kind: "text" }>) =>
   Math.max(9, Math.min(source.fontSize / 2, source.transform.width * 42, source.transform.height * 150));
 
+const fontSizeForChatSource = (source: Extract<SceneSource, { kind: "chat" }>) =>
+  Math.max(9, Math.min(source.fontSize / 2, source.transform.width * 52, source.transform.height * 132));
+
+const rgbaFromHex = (hex: string, alpha: number): string => {
+  const normalized = hex.trim().replace(/^#/, "");
+  const color = /^[0-9a-fA-F]{6}$/.test(normalized) ? normalized : "000000";
+  const red = Number.parseInt(color.slice(0, 2), 16);
+  const green = Number.parseInt(color.slice(2, 4), 16);
+  const blue = Number.parseInt(color.slice(4, 6), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${Math.max(0, Math.min(1, alpha))})`;
+};
+
 const formatElapsed = (seconds: number): string => {
   const minutes = Math.floor(seconds / 60);
   const rest = seconds % 60;
@@ -3078,6 +3187,25 @@ const styles = StyleSheet.create({
     color: "#f8fafc",
     fontWeight: "900",
     textAlign: "center"
+  },
+  chatOverlaySource: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "flex-end",
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 6
+  },
+  chatOverlayLine: {
+    width: "100%",
+    color: "#f8fafc",
+    fontWeight: "900",
+    textShadowColor: "rgba(0, 0, 0, 0.82)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4
+  },
+  chatOverlayEmpty: {
+    color: "#a1a1aa"
   },
   solidSource: {
     width: "100%",

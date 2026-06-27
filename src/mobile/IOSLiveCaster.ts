@@ -1,5 +1,5 @@
 import { NativeEventEmitter, NativeModules, Platform } from "react-native";
-import type { SceneDocument } from "../domain/scene";
+import type { RenderGraphRuntime, SceneDocument } from "../domain/scene";
 import { toRenderGraph } from "../domain/scene";
 import type { StudioProfile } from "../domain/profiles";
 import { initialStreamState, type StreamHealth } from "../domain/streamState";
@@ -52,9 +52,9 @@ export class IOSLiveCaster implements LiveCasterNative {
     };
   }
 
-  async prepare(scene: SceneDocument, profile: StudioProfile): Promise<void> {
+  async prepare(scene: SceneDocument, profile: StudioProfile, runtime?: RenderGraphRuntime): Promise<void> {
     const module = requireNativeModule();
-    this.snapshot = normalizeSnapshot(await module.prepare(JSON.stringify(toRenderGraph(scene)), JSON.stringify(profile)));
+    this.snapshot = normalizeSnapshot(await module.prepare(JSON.stringify(toRenderGraph(scene, runtime)), JSON.stringify(profile)));
     this.emit();
   }
 
@@ -76,9 +76,9 @@ export class IOSLiveCaster implements LiveCasterNative {
     this.emit();
   }
 
-  async updateScene(scene: SceneDocument): Promise<void> {
+  async updateScene(scene: SceneDocument, runtime?: RenderGraphRuntime): Promise<void> {
     const module = requireNativeModule();
-    this.snapshot = normalizeSnapshot(await module.updateScene(JSON.stringify(toRenderGraph(scene))));
+    this.snapshot = normalizeSnapshot(await module.updateScene(JSON.stringify(toRenderGraph(scene, runtime))));
     this.emit();
   }
 

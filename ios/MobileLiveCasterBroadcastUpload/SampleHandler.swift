@@ -3190,7 +3190,7 @@ final class BroadcastSceneCompositor {
                 node.kind != "screen" && (primaryScreenOrder == nil || node.order > primaryScreenOrder!)
             }
             .sorted { $0.order < $1.order }
-        let supportedKinds: Set<String> = ["pngtuber", "text", "solid", "image"]
+        let supportedKinds: Set<String> = ["pngtuber", "text", "chat", "solid", "image"]
         let supportedOverlays = overlays.filter { supportedKinds.contains($0.kind) }
         let skippedNodes = underlays + overlays.filter { !supportedKinds.contains($0.kind) }
 
@@ -3274,6 +3274,8 @@ final class BroadcastSceneCompositor {
             drawPngTuber(node, in: context, rect: localRect)
         case "text":
             drawText(node, in: context, rect: localRect)
+        case "chat":
+            drawChat(node, in: context, rect: localRect)
         case "solid":
             drawSolid(node, in: context, rect: localRect)
         case "image":
@@ -3409,6 +3411,52 @@ final class BroadcastSceneCompositor {
                 .paragraphStyle: paragraphStyle
             ]
         )
+        UIGraphicsPopContext()
+    }
+
+    private func drawChat(_ node: BroadcastRenderNode, in context: CGContext, rect: CGRect) {
+        let text = node.payload.stringValue("text").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            return
+        }
+
+        let backgroundOpacity = min(max(node.payload.cgFloatValue("backgroundOpacity"), 0), 1)
+        if backgroundOpacity > 0 {
+            context.setFillColor(Self.color(node.payload.stringValue("backgroundColor"), fallback: .black).withAlphaComponent(backgroundOpacity).cgColor)
+            context.addPath(CGPath(roundedRect: rect, cornerWidth: min(rect.width, rect.height) * 0.08, cornerHeight: min(rect.width, rect.height) * 0.08, transform: nil))
+            context.fillPath()
+        }
+
+        UIGraphicsPushContext(context)
+        let maxMessages = max(1, min(Int(node.payload.cgFloatValue("maxMessages", fallback: 4)), 8))
+        let lines = text
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .prefix(maxMessages)
+        let fontSize = min(max(node.payload.cgFloatValue("fontSize", fallback: 34), 10), 120)
+        let lineHeight = fontSize * 1.22
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .left
+        paragraphStyle.lineBreakMode = .byTruncatingTail
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: fontSize, weight: .bold),
+            .foregroundColor: Self.color(node.payload.stringValue("color"), fallback: .white),
+            .paragraphStyle: paragraphStyle,
+            .shadow: Self.chatTextShadow()
+        ]
+        let startY = rect.maxY - CGFloat(lines.count) * lineHeight - max(8, fontSize * 0.2)
+        for (index, line) in lines.enumerated() {
+            NSString(string: String(line.prefix(180))).draw(
+                in: CGRect(
+                    x: rect.minX + max(8, fontSize * 0.25),
+                    y: startY + CGFloat(index) * lineHeight,
+                    width: max(1, rect.width - max(16, fontSize * 0.5)),
+                    height: lineHeight
+                ),
+                withAttributes: attributes
+            )
+        }
         UIGraphicsPopContext()
     }
 
@@ -3574,6 +3622,14 @@ final class BroadcastSceneCompositor {
         let green = CGFloat((intValue >> 8) & 0xff) / 255
         let blue = CGFloat(intValue & 0xff) / 255
         return UIColor(red: red, green: green, blue: blue, alpha: 1)
+    }
+
+    private static func chatTextShadow() -> NSShadow {
+        let shadow = NSShadow()
+        shadow.shadowColor = UIColor(white: 0, alpha: 0.82)
+        shadow.shadowOffset = CGSize(width: 0, height: 2)
+        shadow.shadowBlurRadius = 6
+        return shadow
     }
 }
 
