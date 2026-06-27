@@ -27,7 +27,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 15;
+    bundleVersion: 16;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -223,6 +223,8 @@ export interface SupportBundle {
     suggestedQualityTarget: string | null;
     faceTrackingStatus: StreamDiagnostics["faceTracking"]["status"];
     faceTrackingRuntimeStatus: StreamDiagnostics["faceTracking"]["runtimeStatus"];
+    faceTrackingRuntimeAgeMs: number | null;
+    faceTrackingRuntimeFresh: boolean;
     faceTrackingPreparedPngTuberCount: number;
     faceTrackingActiveMotionCount: number;
     faceTrackingSummary: string;
@@ -346,7 +348,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 15
+      bundleVersion: 16
     },
     summary: {
       status: diagnostics.status,
@@ -544,6 +546,8 @@ export const createSupportBundle = ({
         : null,
       faceTrackingStatus: diagnostics.faceTracking.status,
       faceTrackingRuntimeStatus: diagnostics.faceTracking.runtimeStatus,
+      faceTrackingRuntimeAgeMs: diagnostics.faceTracking.runtimeAgeMs,
+      faceTrackingRuntimeFresh: diagnostics.faceTracking.runtimeFresh,
       faceTrackingPreparedPngTuberCount: diagnostics.faceTracking.preparedPngTuberCount,
       faceTrackingActiveMotionCount: diagnostics.faceTracking.activeMotionCount,
       faceTrackingSummary: diagnostics.faceTracking.summary,
@@ -701,7 +705,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Quality incidents: ${bundle.diagnostics.qualityIncidents.summary}`,
     `- Quality advisor: ${bundle.summary.qualityAdvisorAction} / ${bundle.summary.qualityAdvisorSeverity}`,
     `- Suggested quality: ${bundle.summary.suggestedQualityTarget ?? "-"}`,
-    `- Face tracking: ${bundle.summary.faceTrackingStatus} / runtime ${bundle.summary.faceTrackingRuntimeStatus} / prepared PNGTuber ${bundle.summary.faceTrackingPreparedPngTuberCount} / moving ${bundle.summary.faceTrackingActiveMotionCount}`,
+    `- Face tracking: ${bundle.summary.faceTrackingStatus} / runtime ${bundle.summary.faceTrackingRuntimeStatus} / age ${bundle.summary.faceTrackingRuntimeAgeMs === null ? "-" : `${bundle.summary.faceTrackingRuntimeAgeMs} ms`} / fresh ${bundle.summary.faceTrackingRuntimeFresh ? "yes" : "no"} / prepared PNGTuber ${bundle.summary.faceTrackingPreparedPngTuberCount} / moving ${bundle.summary.faceTrackingActiveMotionCount}`,
     `- Face tracking recommendation: ${bundle.summary.faceTrackingRecommendation}`,
     `- Recovery: ${bundle.diagnostics.recovery.mode} / ${bundle.diagnostics.recovery.recommendedAction}`,
     `- Native composition: ${bundle.summary.nativeCompositionStatus} / ${bundle.summary.nativeCompositionCoverage} / preview-only ${bundle.summary.nativeCompositionPreviewOnlySourceCount} / asset issues ${bundle.summary.nativeCompositionAssetIssueCount} / file-backed ${bundle.summary.nativeCompositionFileBackedAssetIssueCount}`,

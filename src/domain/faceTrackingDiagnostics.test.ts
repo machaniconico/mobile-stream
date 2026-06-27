@@ -66,7 +66,53 @@ describe("face tracking diagnostics", () => {
 
     expect(diagnostics.status).toBe("pass");
     expect(diagnostics.runtimeStatus).toBe("tracking");
+    expect(diagnostics.runtimeAgeMs).toBeNull();
+    expect(diagnostics.runtimeFresh).toBe(true);
     expect(diagnostics.activeMotionCount).toBe(1);
+  });
+
+  it("warns when the native camera runtime stops reporting fresh frames", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const
+      }
+    };
+    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...source,
+            imageUri: "file:///shared/avatar.png",
+            motion: { ...source.motion, headYaw: 0.2, confidence: 0.92 }
+          }
+        : source
+    );
+
+    const diagnostics = createFaceTrackingDiagnostics(
+      scene,
+      profile,
+      {
+        status: "tracking",
+        yaw: 0.2,
+        pitch: 0.1,
+        roll: 0,
+        mouthOpen: 0.4,
+        blink: 0,
+        smile: 0.4,
+        browRaise: 0.2,
+        confidence: 0.92,
+        expression: "neutral",
+        lastFrameAt: 1_000
+      },
+      { now: 2_700 }
+    );
+
+    expect(diagnostics.status).toBe("warn");
+    expect(diagnostics.runtimeAgeMs).toBe(1700);
+    expect(diagnostics.runtimeFresh).toBe(false);
+    expect(diagnostics.summary).toContain("runtime is stale");
   });
 
   it("warns when native tracking is active but no avatar motion is applied", () => {

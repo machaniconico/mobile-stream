@@ -187,6 +187,7 @@ interface SnapshotLike {
 }
 
 export interface StreamDiagnosticsOptions {
+  now?: number | Date;
   chatReader?: {
     enabled: boolean;
   } | null;
@@ -245,7 +246,9 @@ export const createStreamDiagnostics = (
     history,
     recovery: recoveryStatus
   });
-  const faceTracking = createFaceTrackingDiagnostics(scene, profile, faceTrackingRuntime);
+  const faceTracking = createFaceTrackingDiagnostics(scene, profile, faceTrackingRuntime, {
+    now: options.now ?? Date.now()
+  });
   const nativeComposition = sanitizeNativeCompositionReport(createNativeCompositionReport(scene), destination.streamKey);
   const platformPublishing = createPlatformPublishingDiagnostics(destination.platform, profile.platformPublishing);
   const audioRoute = normalizeAudioRouteState(options.audioRoute ?? createDefaultAudioRouteState());
@@ -525,6 +528,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Summary: ${diagnostics.faceTracking.summary}`,
     `- Input: ${diagnostics.faceTracking.inputMode}`,
     `- Runtime: ${diagnostics.faceTracking.runtimeStatus}`,
+    `- Runtime age: ${diagnostics.faceTracking.runtimeAgeMs === null ? "-" : `${diagnostics.faceTracking.runtimeAgeMs} ms`} / fresh ${diagnostics.faceTracking.runtimeFresh ? "yes" : "no"}`,
     `- Rig: ${diagnostics.faceTracking.rigMode}`,
     `- Avatars: ${diagnostics.faceTracking.visibleAvatarCount} visible / ${diagnostics.faceTracking.preparedPngTuberCount} prepared PNGTuber / ${diagnostics.faceTracking.activeMotionCount} moving`,
     `- Recommendation: ${diagnostics.faceTracking.recommendation}`,

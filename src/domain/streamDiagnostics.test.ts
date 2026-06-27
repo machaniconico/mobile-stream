@@ -262,7 +262,8 @@ describe("stream diagnostics", () => {
         confidence: 0.9,
         expression: "neutral",
         lastFrameAt: 2_000
-      }
+      },
+      { now: 2_200 }
     );
     const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics));
 
@@ -271,6 +272,7 @@ describe("stream diagnostics", () => {
     expect(diagnostics.checks.find((check) => check.code === "face-tracking-ready")?.status).toBe("pass");
     expect(report).toContain("Face Tracking");
     expect(report).toContain("- Runtime: tracking");
+    expect(report).toContain("- Runtime age: 200 ms / fresh yes");
   });
 
   it("flags weak live telemetry against the configured quality target", () => {

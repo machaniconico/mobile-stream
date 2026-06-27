@@ -56,6 +56,8 @@ const faceTracking: FaceTrackingDiagnostics = {
   inputMode: "native-camera",
   rigMode: "still-image-2d",
   runtimeStatus: "tracking",
+  runtimeAgeMs: 120,
+  runtimeFresh: true,
   visibleAvatarCount: 1,
   visiblePngTuberCount: 1,
   visibleLive2DCount: 0,

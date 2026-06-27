@@ -10,6 +10,8 @@ export interface FaceTrackingDiagnostics {
   inputMode: StudioProfile["faceTracking"]["inputMode"];
   rigMode: StudioProfile["faceTracking"]["rigMode"];
   runtimeStatus: FaceTrackingRuntimeState["status"] | "unavailable";
+  runtimeAgeMs: number | null;
+  runtimeFresh: boolean;
   visibleAvatarCount: number;
   visiblePngTuberCount: number;
   visibleLive2DCount: number;
@@ -19,10 +21,18 @@ export interface FaceTrackingDiagnostics {
   recommendation: string;
 }
 
+export interface FaceTrackingDiagnosticsOptions {
+  now?: number | Date;
+  maxRuntimeAgeMs?: number;
+}
+
+export const faceTrackingRuntimeMaxAgeMs = 1500;
+
 export const createFaceTrackingDiagnostics = (
   scene: SceneDocument,
   profile: StudioProfile,
-  runtime: FaceTrackingRuntimeState | null = null
+  runtime: FaceTrackingRuntimeState | null = null,
+  options: FaceTrackingDiagnosticsOptions = {}
 ): FaceTrackingDiagnostics => {
   const faceTracking = profile.faceTracking;
   const visibleAvatars = scene.sources.filter(isVisibleAvatarSource);
@@ -31,6 +41,9 @@ export const createFaceTrackingDiagnostics = (
   const preparedPngTubers = visiblePngTubers.filter((source) => source.imageUri.trim());
   const activeMotionCount = visibleAvatars.filter(hasActiveMotion).length;
   const runtimeStatus = runtime?.status ?? "unavailable";
+  const maxRuntimeAgeMs = Math.max(0, options.maxRuntimeAgeMs ?? faceTrackingRuntimeMaxAgeMs);
+  const runtimeAgeMs = runtime ? runtimeAge(runtime, options.now) : null;
+  const runtimeFresh = runtimeAgeMs === null || runtimeAgeMs <= maxRuntimeAgeMs;
 
   if (!faceTracking.enabled) {
     return {
@@ -39,6 +52,8 @@ export const createFaceTrackingDiagnostics = (
       inputMode: faceTracking.inputMode,
       rigMode: faceTracking.rigMode,
       runtimeStatus,
+      runtimeAgeMs,
+      runtimeFresh,
       visibleAvatarCount: visibleAvatars.length,
       visiblePngTuberCount: visiblePngTubers.length,
       visibleLive2DCount: visibleLive2D.length,
@@ -58,6 +73,8 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2D.length,
       preparedPngTubers.length,
       activeMotionCount,
+      runtimeAgeMs,
+      runtimeFresh,
       "Face tracking is enabled, but no visible avatar source is in the scene.",
       "Add or enable a PNGTuber source above the screen capture layer before production validation."
     );
@@ -72,6 +89,8 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2D.length,
       preparedPngTubers.length,
       activeMotionCount,
+      runtimeAgeMs,
+      runtimeFresh,
       "Face tracking is targeting Live2D only, but native Live2D rendering is not production-ready yet.",
       "Use a prepared PNGTuber still image for production validation until Cubism SDK integration lands."
     );
@@ -86,6 +105,8 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2D.length,
       preparedPngTubers.length,
       activeMotionCount,
+      runtimeAgeMs,
+      runtimeFresh,
       "Face tracking is enabled, but visible PNGTuber sources do not have prepared still-image assets.",
       "Pick and prepare a PNGTuber still image so native iOS/Android compositors can render avatar motion."
     );
@@ -100,6 +121,8 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2D.length,
       preparedPngTubers.length,
       activeMotionCount,
+      runtimeAgeMs,
+      runtimeFresh,
       "Face tracking is using simulated input.",
       "Switch to native camera input and verify tracking on a physical mobile device before release validation."
     );
@@ -114,6 +137,8 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2D.length,
       preparedPngTubers.length,
       activeMotionCount,
+      runtimeAgeMs,
+      runtimeFresh,
       "Native face tracking is enabled, but the latest face state is lost.",
       "Reposition the camera/lighting and confirm tracking stays stable before starting a production stream."
     );
@@ -128,8 +153,26 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2D.length,
       preparedPngTubers.length,
       activeMotionCount,
+      runtimeAgeMs,
+      runtimeFresh,
       "Native face tracking has not reported runtime status yet.",
       "Open this scene on iOS/Android and confirm the tracker reads tracking before production validation."
+    );
+  }
+
+  if (!runtimeFresh) {
+    return createWarning(
+      faceTracking,
+      runtimeStatus,
+      visibleAvatars.length,
+      visiblePngTubers.length,
+      visibleLive2D.length,
+      preparedPngTubers.length,
+      activeMotionCount,
+      runtimeAgeMs,
+      runtimeFresh,
+      `Native face tracking runtime is stale by ${runtimeAgeMs ?? 0} ms.`,
+      "Confirm the camera tracker is still publishing fresh frames before starting a production stream."
     );
   }
 
@@ -142,6 +185,8 @@ export const createFaceTrackingDiagnostics = (
       visibleLive2D.length,
       preparedPngTubers.length,
       activeMotionCount,
+      runtimeAgeMs,
+      runtimeFresh,
       "Native face tracking is reading, but no visible avatar source has applied motion yet.",
       "Confirm the prepared PNGTuber moves with head, blink, and mouth input during physical validation."
     );
@@ -153,6 +198,8 @@ export const createFaceTrackingDiagnostics = (
     inputMode: faceTracking.inputMode,
     rigMode: faceTracking.rigMode,
     runtimeStatus,
+    runtimeAgeMs,
+    runtimeFresh,
     visibleAvatarCount: visibleAvatars.length,
     visiblePngTuberCount: visiblePngTubers.length,
     visibleLive2DCount: visibleLive2D.length,
@@ -171,6 +218,8 @@ const createWarning = (
   visibleLive2DCount: number,
   preparedPngTuberCount: number,
   activeMotionCount: number,
+  runtimeAgeMs: number | null,
+  runtimeFresh: boolean,
   summary: string,
   recommendation: string
 ): FaceTrackingDiagnostics => ({
@@ -179,6 +228,8 @@ const createWarning = (
   inputMode: faceTracking.inputMode,
   rigMode: faceTracking.rigMode,
   runtimeStatus,
+  runtimeAgeMs,
+  runtimeFresh,
   visibleAvatarCount,
   visiblePngTuberCount,
   visibleLive2DCount,
@@ -192,6 +243,17 @@ const isVisibleAvatarSource = (
   source: SceneSource
 ): source is Extract<SceneSource, { kind: "pngtuber" | "live2d" }> =>
   source.visible && (source.kind === "pngtuber" || source.kind === "live2d");
+
+const runtimeAge = (runtime: FaceTrackingRuntimeState, now: FaceTrackingDiagnosticsOptions["now"]): number | null => {
+  if (now === undefined) {
+    return null;
+  }
+  const nowMs = now instanceof Date ? now.getTime() : now;
+  if (!Number.isFinite(nowMs) || !Number.isFinite(runtime.lastFrameAt)) {
+    return null;
+  }
+  return Math.max(0, Math.round(nowMs - runtime.lastFrameAt));
+};
 
 const hasActiveMotion = (source: Extract<SceneSource, { kind: "pngtuber" | "live2d" }>): boolean => {
   const motion = source.motion;

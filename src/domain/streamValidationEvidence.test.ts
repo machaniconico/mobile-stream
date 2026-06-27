@@ -327,7 +327,7 @@ describe("stream validation evidence", () => {
       [sessionSummary],
       [],
       null,
-      connectedChatOptions
+      { ...connectedChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
     );
 
     const run = createStreamValidationRun({
@@ -387,7 +387,7 @@ describe("stream validation evidence", () => {
       [],
       [],
       null,
-      connectedChatOptions
+      { ...connectedChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
     );
 
     const run = createStreamValidationRun({
@@ -429,7 +429,7 @@ describe("stream validation evidence", () => {
       [],
       [],
       null,
-      connectedChatOptions
+      { ...connectedChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
     );
 
     const run = createStreamValidationRun({
@@ -467,7 +467,7 @@ describe("stream validation evidence", () => {
       [],
       [],
       null,
-      connectedChatOptions
+      { ...connectedChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
     );
 
     const physicalRun = createStreamValidationRun({
@@ -1122,7 +1122,7 @@ describe("stream validation evidence", () => {
         expression: "neutral",
         lastFrameAt: Date.parse("2026-06-23T00:00:00.000Z")
       },
-      connectedChatOptions
+      { ...connectedChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
     );
 
     const run = createStreamValidationRun({
@@ -1238,7 +1238,7 @@ describe("stream validation evidence", () => {
       [],
       [],
       faceTrackingRuntime,
-      connectedChatOptions
+      { ...connectedChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
     );
     const iosRun = createStreamValidationRun({
       diagnostics: diagnosticsFor("ios"),
