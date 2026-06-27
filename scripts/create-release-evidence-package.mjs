@@ -466,6 +466,7 @@ function validatePackagedCommercialManifests(packageDir, packagedArtifacts, fail
   });
   if (storeSubmissionChecklist) {
     validatePackagedStoreSubmissionChecklist(storeSubmissionChecklist, packagedArtifacts, failures, {
+      packageDir,
       releaseReport,
       maxAgeHours,
       supportBundle
@@ -875,7 +876,7 @@ function validatePackagedStoreSubmissionChecklist(
   storeSubmissionChecklist,
   packagedArtifacts,
   failures,
-  { releaseReport, maxAgeHours, supportBundle }
+  { packageDir, releaseReport, maxAgeHours, supportBundle }
 ) {
   if (
     storeSubmissionChecklist?.app !== "MobileLiveCaster" ||
@@ -912,10 +913,26 @@ function validatePackagedStoreSubmissionChecklist(
   for (const record of records) {
     validatePackagedManifestRecord(packagedArtifacts, storeSubmissionArtifactGroup, record, "store submission checklist", failures);
   }
-  validatePackagedStoreSubmissionScreenshots(storeSubmissionChecklist.screenshots || [], releaseReport, maxAgeHours, supportBundle, failures);
+  validatePackagedStoreSubmissionScreenshots(
+    storeSubmissionChecklist.screenshots || [],
+    packagedArtifacts,
+    packageDir,
+    releaseReport,
+    maxAgeHours,
+    supportBundle,
+    failures
+  );
 }
 
-function validatePackagedStoreSubmissionScreenshots(screenshots, releaseReport, maxAgeHours, supportBundle, failures) {
+function validatePackagedStoreSubmissionScreenshots(
+  screenshots,
+  packagedArtifacts,
+  packageDir,
+  releaseReport,
+  maxAgeHours,
+  supportBundle,
+  failures
+) {
   const releaseFinishedAt = Date.parse(String(releaseReport?.finishedAt || ""));
   if (!Number.isFinite(releaseFinishedAt)) {
     failures.push("Packaged release report finishedAt timestamp is missing or invalid.");
@@ -972,6 +989,38 @@ function validatePackagedStoreSubmissionScreenshots(screenshots, releaseReport, 
         `Package store submission screenshot ${screenshot.path || "-"} must be at least ${finalStoreScreenshotMinimumShortEdge}px on the short edge and ${finalStoreScreenshotMinimumLongEdge}px on the long edge.`
       );
     }
+    validatePackagedStoreScreenshotArtifact(screenshot, packagedArtifacts, packageDir, failures);
+  }
+}
+
+function validatePackagedStoreScreenshotArtifact(screenshot, packagedArtifacts, packageDir, failures) {
+  const screenshotPath = workspaceRecordPath(screenshot?.path || "");
+  if (!screenshotPath) {
+    return;
+  }
+  const packagedArtifact = packagedArtifactFor(packagedArtifacts, storeSubmissionArtifactGroup, screenshotPath);
+  if (!packagedArtifact?.packagedPath || !safeRelativePath(packagedArtifact.packagedPath)) {
+    return;
+  }
+  const packagedPath = resolve(packageDir, packagedArtifact.packagedPath);
+  if (!isInsideDirectory(packagedPath, packageDir) || !existsSync(packagedPath) || !lstatSync(packagedPath).isFile()) {
+    return;
+  }
+  const content = readFileSync(packagedPath);
+  const pngEvidence = readPngEvidence(content);
+  if (!pngEvidence.valid) {
+    failures.push(`Package store submission screenshot is not a structurally valid PNG file: ${screenshotPath} (${pngEvidence.reason}).`);
+    return;
+  }
+  if (screenshot.width !== pngEvidence.width || screenshot.height !== pngEvidence.height) {
+    failures.push(`Package store submission screenshot dimensions mismatch for ${screenshotPath}.`);
+  }
+  const shortEdge = Math.min(pngEvidence.width, pngEvidence.height);
+  const longEdge = Math.max(pngEvidence.width, pngEvidence.height);
+  if (shortEdge < finalStoreScreenshotMinimumShortEdge || longEdge < finalStoreScreenshotMinimumLongEdge) {
+    failures.push(
+      `Package store submission screenshot ${screenshotPath} actual PNG dimensions must be at least ${finalStoreScreenshotMinimumShortEdge}px on the short edge and ${finalStoreScreenshotMinimumLongEdge}px on the long edge.`
+    );
   }
 }
 

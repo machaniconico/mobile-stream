@@ -542,6 +542,39 @@ describe("release evidence package creator", () => {
     );
   });
 
+  it("rejects packaged store submission screenshot PNG content that does not match checklist dimensions", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const sourceScreenshotPath = ".artifacts/release-evidence-package-test/ios-store.png";
+    const packagedScreenshotPath = `${packageDir}/artifacts/${sourceScreenshotPath}`;
+    const packagedChecklistPath = `${packageDir}/artifacts/${storeSubmissionChecklistPath}`;
+    writeFileSync(packagedScreenshotPath, pngBytes);
+
+    const checklist = JSON.parse(readFileSync(packagedChecklistPath, "utf8"));
+    const iosScreenshot = checklist.screenshots.find((screenshot) => screenshot.path === sourceScreenshotPath);
+    const screenshotContent = readFileSync(packagedScreenshotPath);
+    iosScreenshot.bytes = screenshotContent.byteLength;
+    iosScreenshot.sha256 = createHash("sha256").update(screenshotContent).digest("hex");
+    writeFileSync(packagedChecklistPath, JSON.stringify(checklist, null, 2));
+
+    refreshPackagedChecklistEvidence(packagedChecklistPath);
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    refreshPackageArtifactEntry(manifest, sourceScreenshotPath, packagedScreenshotPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package store submission screenshot dimensions mismatch for .artifacts/release-evidence-package-test/ios-store.png."
+    );
+    expect(failures).toContain(
+      "Package store submission screenshot .artifacts/release-evidence-package-test/ios-store.png actual PNG dimensions must be at least 1080px on the short edge and 1920px on the long edge."
+    );
+  });
+
   it("rejects packaged store submission screenshots older than the packaged release report", () => {
     resetPackageDir();
     writeReportFixture();
