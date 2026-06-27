@@ -91,7 +91,7 @@
 - Platform API controls refresh expiring YouTube/Twitch OAuth credentials before stream-key, broadcast, and channel operations on Web and React Native.
 - Mobile OAuth callback URL scheme registration and React Native callback capture for chat authorization.
 - Avatar runtime model for PNGTuber/Live2D expression, lip sync, and auto blink.
-- Still-image VTuber face tracking runtime with native-camera frames on mobile, simulated frames on web, neutral calibration, dead-zone filtering, jump limiting, lost-face return tuning, and iOS/Android native compositor 2.5D motion scaling.
+- Still-image VTuber face tracking runtime with native-camera frames on mobile, simulated frames on web, neutral calibration, dead-zone filtering, jump limiting, lost-face return tuning, iOS/Android native compositor 2.5D motion scaling, lightweight pseudo mesh deformation, hair/body follow-through, and eye/mouth deformation.
 - Stream state machine for idle, preparing, live, reconnecting, stopping, and failed states.
 - Mock live engine for UI development without native capture.
 - Browser-preview Studio UI:
@@ -195,7 +195,7 @@
 - iOS physical-device evidence that App Group-copied PNGTuber/image assets render correctly inside the Broadcast Upload Extension compositor.
 - First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
 - Live2D Cubism SDK integration.
-- IRIAM-style high-fidelity single-illustration auto-rigging beyond the current still-image 2.5D foundation, including automatic face/body part inference, pseudo mesh deformation, hair/body follow-through, eye/mouth deformation, and physical-device tuning against native-camera tracking.
+- IRIAM-style high-fidelity single-illustration auto-rigging beyond the current lightweight still-image 2.5D deformation, including automatic face/body part inference, true mesh/depth rigging, explicit eye/mouth part segmentation, and physical-device tuning against native-camera tracking.
 - Twitch stream key reset/rotation through API. Twitch currently exposes stream key retrieval through Helix, not a public reset endpoint.
 
 ## Local Environment Notes

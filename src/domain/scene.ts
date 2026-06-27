@@ -20,6 +20,12 @@ export interface AvatarMotion {
   bodyLean: number;
   bodyBounce: number;
   breathing: number;
+  depthTilt: number;
+  meshWarp: number;
+  eyeSquint: number;
+  mouthDeform: number;
+  hairSway: number;
+  shoulderSway: number;
   confidence: number;
 }
 
@@ -147,6 +153,12 @@ export const defaultAvatarMotion = (overrides: Partial<AvatarMotion> = {}): Avat
   bodyLean: 0,
   bodyBounce: 0,
   breathing: 0,
+  depthTilt: 0,
+  meshWarp: 0,
+  eyeSquint: 0,
+  mouthDeform: 0,
+  hairSway: 0,
+  shoulderSway: 0,
   confidence: 0,
   ...overrides
 });
@@ -404,6 +416,12 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
         bodyLean: pngMotion.bodyLean,
         bodyBounce: pngMotion.bodyBounce,
         breathing: pngMotion.breathing,
+        depthTilt: pngMotion.depthTilt,
+        meshWarp: pngMotion.meshWarp,
+        eyeSquint: pngMotion.eyeSquint,
+        mouthDeform: pngMotion.mouthDeform,
+        hairSway: pngMotion.hairSway,
+        shoulderSway: pngMotion.shoulderSway,
         trackingConfidence: pngMotion.confidence
       };
     }
@@ -422,6 +440,12 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
         bodyLean: live2dMotion.bodyLean,
         bodyBounce: live2dMotion.bodyBounce,
         breathing: live2dMotion.breathing,
+        depthTilt: live2dMotion.depthTilt,
+        meshWarp: live2dMotion.meshWarp,
+        eyeSquint: live2dMotion.eyeSquint,
+        mouthDeform: live2dMotion.mouthDeform,
+        hairSway: live2dMotion.hairSway,
+        shoulderSway: live2dMotion.shoulderSway,
         trackingConfidence: live2dMotion.confidence
       };
     }
@@ -500,6 +524,12 @@ const normalizeMotionValue = (value: unknown): AvatarMotion => {
     bodyLean: clampedNumber(value.bodyLean, 0, -1, 1),
     bodyBounce: clampedNumber(value.bodyBounce, 0, -1, 1),
     breathing: clampedNumber(value.breathing, 0, -1, 1),
+    depthTilt: clampedNumber(value.depthTilt, 0, 0, 1),
+    meshWarp: clampedNumber(value.meshWarp, 0, -1, 1),
+    eyeSquint: clampedNumber(value.eyeSquint, 0, 0, 1),
+    mouthDeform: clampedNumber(value.mouthDeform, 0, 0, 1),
+    hairSway: clampedNumber(value.hairSway, 0, -1, 1),
+    shoulderSway: clampedNumber(value.shoulderSway, 0, -1, 1),
     confidence: clampedNumber(value.confidence, 0, 0, 1)
   });
 };

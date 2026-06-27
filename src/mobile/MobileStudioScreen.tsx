@@ -970,6 +970,42 @@ export const MobileStudioScreen = ({
             onChange={(bodyRange) => updateFaceTracking({ bodyRange })}
           />
           <NumberStepper
+            label="Illust warp"
+            value={profile.faceTracking.illustrationDeform}
+            min={0}
+            max={1}
+            step={0.05}
+            disabled={setupLocked}
+            onChange={(illustrationDeform) => updateFaceTracking({ illustrationDeform })}
+          />
+          <NumberStepper
+            label="Hair sway"
+            value={profile.faceTracking.hairSway}
+            min={0}
+            max={1}
+            step={0.05}
+            disabled={setupLocked}
+            onChange={(hairSway) => updateFaceTracking({ hairSway })}
+          />
+          <NumberStepper
+            label="Eye deform"
+            value={profile.faceTracking.eyeDeform}
+            min={0}
+            max={1}
+            step={0.05}
+            disabled={setupLocked}
+            onChange={(eyeDeform) => updateFaceTracking({ eyeDeform })}
+          />
+          <NumberStepper
+            label="Mouth deform"
+            value={profile.faceTracking.mouthDeform}
+            min={0}
+            max={1}
+            step={0.05}
+            disabled={setupLocked}
+            onChange={(mouthDeform) => updateFaceTracking({ mouthDeform })}
+          />
+          <NumberStepper
             label="Mouth"
             value={profile.faceTracking.mouthSensitivity}
             min={0.2}
@@ -2210,6 +2246,8 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
 
   if (source.kind === "pngtuber" || source.kind === "live2d") {
     const motion = source.motion ?? defaultAvatarMotion();
+    const eyeClose = Math.min(0.95, Math.max(source.blink, motion.eyeSquint));
+    const mouthLevel = Math.max(source.mouthOpen, motion.mouthDeform);
 
     if (source.kind === "pngtuber" && source.imageUri.trim()) {
       return (
@@ -2218,11 +2256,13 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
             styles.avatarVisual,
             {
               transform: [
-                { translateX: motion.headX * 72 },
+                { translateX: motion.headX * 72 + motion.shoulderSway * 18 },
                 { translateY: (-motion.bodyBounce + motion.breathing + motion.headY) * 72 },
                 { rotate: `${motion.bodyLean * 10 + motion.headRoll * 18}deg` },
-                { scaleX: 1 - Math.abs(motion.headYaw) * 0.08 },
-                { scaleY: 1 - Math.abs(motion.headPitch) * 0.04 }
+                { skewX: `${motion.meshWarp * 4.5}deg` },
+                { skewY: `${motion.hairSway * 1.8}deg` },
+                { scaleX: Math.max(0.84, 1 - Math.abs(motion.headYaw) * 0.08 - motion.depthTilt * 0.045) },
+                { scaleY: Math.max(0.9, 1 - Math.abs(motion.headPitch) * 0.04 + mouthLevel * 0.018) }
               ]
             }
           ]}
@@ -2238,6 +2278,7 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
           styles.avatarVisual,
           {
             transform: [
+              { translateX: motion.shoulderSway * 18 },
               { translateY: (-motion.bodyBounce + motion.breathing) * 72 },
               { rotate: `${motion.bodyLean * 10}deg` }
             ]
@@ -2254,15 +2295,16 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
                 { translateX: motion.headX * 72 },
                 { translateY: motion.headY * 72 },
                 { rotate: `${motion.headRoll * 18}deg` },
-                { scaleX: 1 - Math.abs(motion.headYaw) * 0.08 },
-                { scaleY: 1 - Math.abs(motion.headPitch) * 0.04 }
+                { skewX: `${motion.meshWarp * 4.5}deg` },
+                { scaleX: Math.max(0.84, 1 - Math.abs(motion.headYaw) * 0.08 - motion.depthTilt * 0.04) },
+                { scaleY: Math.max(0.9, 1 - Math.abs(motion.headPitch) * 0.04) }
               ]
             }
           ]}
         >
-          <View style={[styles.avatarEye, styles.avatarEyeLeft, { transform: [{ scaleY: Math.max(0.1, 1 - source.blink) }] }]} />
-          <View style={[styles.avatarEye, styles.avatarEyeRight, { transform: [{ scaleY: Math.max(0.1, 1 - source.blink) }] }]} />
-          <View style={[styles.avatarMouth, { height: 6 + source.mouthOpen * 22 }]} />
+          <View style={[styles.avatarEye, styles.avatarEyeLeft, { transform: [{ scaleY: Math.max(0.1, 1 - eyeClose) }] }]} />
+          <View style={[styles.avatarEye, styles.avatarEyeRight, { transform: [{ scaleY: Math.max(0.1, 1 - eyeClose) }] }]} />
+          <View style={[styles.avatarMouth, { height: 6 + mouthLevel * 22 }]} />
         </View>
         <Text style={styles.avatarLabel}>{source.kind === "live2d" ? "Live2D" : "PNGTuber"}</Text>
       </View>

@@ -255,6 +255,10 @@ describe("studio profiles", () => {
         deadZone: -2,
         maxMotionStep: 3,
         lostReturnSpeed: -1,
+        illustrationDeform: 2,
+        hairSway: -2,
+        eyeDeform: 2,
+        mouthDeform: -2,
         mouthSensitivity: 0,
         neutralRoll: -8
       }
@@ -265,6 +269,10 @@ describe("studio profiles", () => {
     expect(profile.faceTracking.deadZone).toBe(0);
     expect(profile.faceTracking.maxMotionStep).toBe(1);
     expect(profile.faceTracking.lostReturnSpeed).toBe(0);
+    expect(profile.faceTracking.illustrationDeform).toBe(1);
+    expect(profile.faceTracking.hairSway).toBe(0);
+    expect(profile.faceTracking.eyeDeform).toBe(1);
+    expect(profile.faceTracking.mouthDeform).toBe(0);
     expect(profile.faceTracking.mouthSensitivity).toBe(0.2);
     expect(profile.faceTracking.neutralRoll).toBe(-1);
   });

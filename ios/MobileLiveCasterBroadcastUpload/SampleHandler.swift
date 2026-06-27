@@ -3115,19 +3115,48 @@ private struct BroadcastPngTuberMotion {
     let rotation: CGFloat
     let scaleX: CGFloat
     let scaleY: CGFloat
+    let depthTilt: CGFloat
+    let meshWarp: CGFloat
+    let eyeSquint: CGFloat
+    let mouthDeform: CGFloat
+    let hairSway: CGFloat
+    let shoulderSway: CGFloat
 
     init(
         offsetX: CGFloat = 0,
         offsetY: CGFloat = 0,
         rotation: CGFloat = 0,
         scaleX: CGFloat = 1,
-        scaleY: CGFloat = 1
+        scaleY: CGFloat = 1,
+        depthTilt: CGFloat = 0,
+        meshWarp: CGFloat = 0,
+        eyeSquint: CGFloat = 0,
+        mouthDeform: CGFloat = 0,
+        hairSway: CGFloat = 0,
+        shoulderSway: CGFloat = 0
     ) {
         self.offsetX = offsetX
         self.offsetY = offsetY
         self.rotation = rotation
         self.scaleX = scaleX
         self.scaleY = scaleY
+        self.depthTilt = depthTilt
+        self.meshWarp = meshWarp
+        self.eyeSquint = eyeSquint
+        self.mouthDeform = mouthDeform
+        self.hairSway = hairSway
+        self.shoulderSway = shoulderSway
+    }
+
+    var illustrationCacheKey: String {
+        [
+            depthTilt,
+            meshWarp,
+            hairSway,
+            shoulderSway
+        ]
+            .map { String(format: "%.4f", Double($0)) }
+            .joined(separator: ",")
     }
 }
 
@@ -3140,6 +3169,7 @@ final class BroadcastSceneCompositor {
     private let skippedKinds: [String]
     private let parseFailed: Bool
     private var cachedImages: [String: UIImage] = [:]
+    private var cachedRiggedImages: [String: UIImage] = [:]
     private var stillImageAssetResults: [String: Bool] = [:]
 
     var summary: BroadcastSceneCompositionSummary {
@@ -3319,19 +3349,33 @@ final class BroadcastSceneCompositor {
         let bodyLean = min(max(node.payload.cgFloatValue("bodyLean"), -1), 1)
         let breathing = min(max(node.payload.cgFloatValue("breathing"), -1), 1)
         let bodyBounce = min(max(node.payload.cgFloatValue("bodyBounce"), -1), 1)
+        let depthTilt = min(max(node.payload.cgFloatValue("depthTilt"), 0), 1)
+        let meshWarp = min(max(node.payload.cgFloatValue("meshWarp"), -1), 1)
+        let eyeSquint = min(max(node.payload.cgFloatValue("eyeSquint"), 0), 1)
+        let mouthDeform = min(max(node.payload.cgFloatValue("mouthDeform"), 0), 1)
+        let hairSway = min(max(node.payload.cgFloatValue("hairSway"), -1), 1)
+        let shoulderSway = min(max(node.payload.cgFloatValue("shoulderSway"), -1), 1)
         return BroadcastPngTuberMotion(
             offsetX: min(max(node.payload.cgFloatValue("headX"), -1), 1) * 0.025,
             offsetY: (min(max(node.payload.cgFloatValue("headY"), -1), 1) + breathing - bodyBounce) * 0.025,
             rotation: bodyLean * 10 + headRoll * 10 + headYaw * 4,
-            scaleX: min(max(1 - abs(headYaw) * 0.08, 0.88), 1.02),
-            scaleY: min(max(1 - abs(headPitch) * 0.04 + breathing * 0.5, 0.9), 1.04)
+            scaleX: min(max(1 - abs(headYaw) * 0.08 - depthTilt * 0.04, 0.84), 1.02),
+            scaleY: min(max(1 - abs(headPitch) * 0.04 + breathing * 0.5 + mouthDeform * 0.014, 0.9), 1.05),
+            depthTilt: depthTilt,
+            meshWarp: meshWarp,
+            eyeSquint: eyeSquint,
+            mouthDeform: mouthDeform,
+            hairSway: hairSway,
+            shoulderSway: shoulderSway
         )
     }
 
     private func drawPngTuber(_ node: BroadcastRenderNode, in context: CGContext, rect: CGRect) {
+        let motion = pngTuberMotion(for: node)
         if let image = image(for: node.payload.stringValue("imageUri"), node: node) {
+            let riggedImage = riggedIllustrationImage(image, node: node, motion: motion)
             UIGraphicsPushContext(context)
-            image.draw(in: rect)
+            riggedImage.draw(in: rect)
             UIGraphicsPopContext()
             return
         }
@@ -3339,6 +3383,8 @@ final class BroadcastSceneCompositor {
         let expression = node.payload.stringValue("expression", fallback: "neutral")
         let mouthOpen = min(max(node.payload.cgFloatValue("mouthOpen"), 0), 1)
         let blink = min(max(node.payload.cgFloatValue("blink"), 0), 1)
+        let eyeClose = max(blink, motion.eyeSquint)
+        let mouthLevel = max(mouthOpen, motion.mouthDeform)
         let bodyColor: UIColor
         switch expression {
         case "happy":
@@ -3366,14 +3412,14 @@ final class BroadcastSceneCompositor {
         context.strokePath()
 
         context.setFillColor(UIColor(white: 0.98, alpha: 1).cgColor)
-        let eyeHeight = max(42 * (1 - blink), 5)
+        let eyeHeight = max(42 * (1 - eyeClose), 5)
         context.addPath(CGPath(ellipseIn: mapBlueprintRect(CGRect(x: 255, y: 330, width: 50, height: eyeHeight), into: rect), transform: nil))
         context.fillPath()
         context.addPath(CGPath(ellipseIn: mapBlueprintRect(CGRect(x: 415, y: 330, width: 50, height: eyeHeight), into: rect), transform: nil))
         context.fillPath()
 
         context.setFillColor(UIColor(red: 24 / 255, green: 24 / 255, blue: 31 / 255, alpha: 1).cgColor)
-        let mouthHeight = 18 + mouthOpen * 86
+        let mouthHeight = 18 + mouthLevel * 86
         context.addPath(CGPath(ellipseIn: mapBlueprintRect(CGRect(x: 320, y: 442, width: 80, height: mouthHeight), into: rect), transform: nil))
         context.fillPath()
 
@@ -3389,6 +3435,66 @@ final class BroadcastSceneCompositor {
             ]
         )
         UIGraphicsPopContext()
+    }
+
+    private func riggedIllustrationImage(
+        _ image: UIImage,
+        node: BroadcastRenderNode,
+        motion: BroadcastPngTuberMotion
+    ) -> UIImage {
+        let intensity = abs(motion.meshWarp) + motion.depthTilt + abs(motion.hairSway) + abs(motion.shoulderSway)
+        guard intensity >= 0.01 else {
+            return image
+        }
+
+        let cacheKey = [
+            node.id,
+            node.payload.stringValue("imageUri"),
+            motion.illustrationCacheKey,
+            "\(image.size.width)x\(image.size.height)@\(image.scale)"
+        ].joined(separator: "|")
+        if let cached = cachedRiggedImages[cacheKey] {
+            return cached
+        }
+
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = image.scale
+        format.opaque = false
+        let riggedImage = UIGraphicsImageRenderer(size: image.size, format: format).image { _ in
+            let rect = CGRect(origin: .zero, size: image.size)
+            let sliceCount = 24
+            for index in 0..<sliceCount {
+                let sliceTop = CGFloat(index) * rect.height / CGFloat(sliceCount)
+                let sliceBottom = CGFloat(index + 1) * rect.height / CGFloat(sliceCount)
+                let centerY = (sliceTop + sliceBottom) * 0.5 / max(rect.height, 1)
+                let faceFalloff = min(max(1 - abs(centerY - 0.42) / 0.34, 0), 1)
+                let hairFalloff = centerY < 0.34 ? min(max(1 - centerY / 0.34, 0), 1) : 0
+                let shoulderFalloff = centerY > 0.62 ? min(max((centerY - 0.62) / 0.38, 0), 1) : 0
+                let shiftX = rect.width * (
+                    motion.meshWarp * 0.026 * faceFalloff +
+                        motion.hairSway * 0.024 * hairFalloff +
+                        motion.shoulderSway * 0.018 * shoulderFalloff
+                    )
+                let depthInset = rect.width * motion.depthTilt * 0.015 * faceFalloff
+                let band = CGRect(
+                    x: rect.minX - rect.width * 0.08,
+                    y: rect.minY + sliceTop,
+                    width: rect.width * 1.16,
+                    height: max(1, sliceBottom - sliceTop + 1)
+                )
+                let drawRect = rect.offsetBy(dx: shiftX, dy: 0).insetBy(dx: depthInset, dy: 0)
+
+                guard let currentContext = UIGraphicsGetCurrentContext() else {
+                    continue
+                }
+                currentContext.saveGState()
+                currentContext.clip(to: band)
+                image.draw(in: drawRect)
+                currentContext.restoreGState()
+            }
+        }
+        cachedRiggedImages[cacheKey] = riggedImage
+        return riggedImage
     }
 
     private func drawText(_ node: BroadcastRenderNode, in context: CGContext, rect: CGRect) {

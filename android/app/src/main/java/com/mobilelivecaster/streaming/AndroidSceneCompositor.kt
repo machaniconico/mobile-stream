@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
 import android.net.Uri
 import com.pedro.encoder.input.gl.render.filters.`object`.BaseObjectFilterRender
@@ -86,11 +87,13 @@ object AndroidSceneCompositor {
 
     private fun createPngTuberFilter(context: Context, node: RenderGraphNode): ImageObjectFilterRender {
         val imageUri = node.payload.optString("imageUri").trim()
-        val bitmap = if (imageUri.isNotEmpty()) {
+        val motion = parsePngTuberMotion(node)
+        val sourceBitmap = if (imageUri.isNotEmpty()) {
             loadBitmap(context, imageUri)
         } else {
             null
         } ?: createFallbackPngTuberBitmap(node)
+        val bitmap = createIllustrationRigBitmap(sourceBitmap, motion)
 
         return ImageObjectFilterRender().apply {
             setImage(bitmap)
@@ -202,12 +205,24 @@ object AndroidSceneCompositor {
         val bodyLean = node.payload.optDouble("bodyLean", 0.0).toFloat().coerceIn(-1f, 1f)
         val breathing = node.payload.optDouble("breathing", 0.0).toFloat().coerceIn(-1f, 1f)
         val bodyBounce = node.payload.optDouble("bodyBounce", 0.0).toFloat().coerceIn(-1f, 1f)
+        val depthTilt = node.payload.optDouble("depthTilt", 0.0).toFloat().coerceIn(0f, 1f)
+        val meshWarp = node.payload.optDouble("meshWarp", 0.0).toFloat().coerceIn(-1f, 1f)
+        val eyeSquint = node.payload.optDouble("eyeSquint", 0.0).toFloat().coerceIn(0f, 1f)
+        val mouthDeform = node.payload.optDouble("mouthDeform", 0.0).toFloat().coerceIn(0f, 1f)
+        val hairSway = node.payload.optDouble("hairSway", 0.0).toFloat().coerceIn(-1f, 1f)
+        val shoulderSway = node.payload.optDouble("shoulderSway", 0.0).toFloat().coerceIn(-1f, 1f)
         return PngTuberMotion(
             offsetX = node.payload.optDouble("headX", 0.0).toFloat().coerceIn(-1f, 1f) * 0.025f,
             offsetY = (node.payload.optDouble("headY", 0.0).toFloat().coerceIn(-1f, 1f) + breathing - bodyBounce) * 0.025f,
             rotation = bodyLean * 10f + headRoll * 10f + headYaw * 4f,
-            scaleX = (1f - abs(headYaw) * 0.08f).coerceIn(0.88f, 1.02f),
-            scaleY = (1f - abs(headPitch) * 0.04f + breathing * 0.5f).coerceIn(0.9f, 1.04f)
+            scaleX = (1f - abs(headYaw) * 0.08f - depthTilt * 0.04f).coerceIn(0.84f, 1.02f),
+            scaleY = (1f - abs(headPitch) * 0.04f + breathing * 0.5f + mouthDeform * 0.014f).coerceIn(0.9f, 1.05f),
+            depthTilt = depthTilt,
+            meshWarp = meshWarp,
+            eyeSquint = eyeSquint,
+            mouthDeform = mouthDeform,
+            hairSway = hairSway,
+            shoulderSway = shoulderSway
         )
     }
 
@@ -218,6 +233,8 @@ object AndroidSceneCompositor {
         val expression = node.payload.optString("expression", "neutral")
         val mouthOpen = node.payload.optDouble("mouthOpen", 0.0).toFloat().coerceIn(0f, 1f)
         val blink = node.payload.optDouble("blink", 0.0).toFloat().coerceIn(0f, 1f)
+        val eyeSquint = node.payload.optDouble("eyeSquint", 0.0).toFloat().coerceIn(0f, 1f)
+        val mouthDeform = node.payload.optDouble("mouthDeform", 0.0).toFloat().coerceIn(0f, 1f)
         val bodyColor = when (expression) {
             "happy" -> Color.rgb(34, 197, 94)
             "angry" -> Color.rgb(251, 113, 133)
@@ -236,12 +253,14 @@ object AndroidSceneCompositor {
         paint.style = Paint.Style.FILL
 
         paint.color = Color.rgb(248, 250, 252)
-        val eyeHeight = (42f * (1f - blink)).coerceAtLeast(5f)
+        val eyeClose = if (blink > eyeSquint) blink else eyeSquint
+        val eyeHeight = (42f * (1f - eyeClose)).coerceAtLeast(5f)
         canvas.drawOval(RectF(255f, 330f, 305f, 330f + eyeHeight), paint)
         canvas.drawOval(RectF(415f, 330f, 465f, 330f + eyeHeight), paint)
 
         paint.color = Color.rgb(24, 24, 31)
-        val mouthHeight = 18f + mouthOpen * 86f
+        val mouthLevel = if (mouthOpen > mouthDeform) mouthOpen else mouthDeform
+        val mouthHeight = 18f + mouthLevel * 86f
         canvas.drawOval(RectF(320f, 442f, 400f, 442f + mouthHeight), paint)
 
         paint.color = Color.argb(210, 248, 250, 252)
@@ -250,6 +269,36 @@ object AndroidSceneCompositor {
         canvas.drawText("PNGTuber", 360f, 930f, paint)
 
         return bitmap
+    }
+
+    private fun createIllustrationRigBitmap(bitmap: Bitmap, motion: PngTuberMotion): Bitmap {
+        val intensity = abs(motion.meshWarp) + motion.depthTilt + abs(motion.hairSway) + abs(motion.shoulderSway)
+        if (intensity < 0.01f) {
+            return bitmap
+        }
+
+        val output = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
+        val sliceCount = 24
+        for (index in 0 until sliceCount) {
+            val top = index * bitmap.height / sliceCount
+            val bottom = ((index + 1) * bitmap.height / sliceCount + 1).coerceAtMost(bitmap.height)
+            val centerY = (top + bottom) * 0.5f / bitmap.height.coerceAtLeast(1)
+            val faceFalloff = (1f - abs(centerY - 0.42f) / 0.34f).coerceIn(0f, 1f)
+            val hairFalloff = if (centerY < 0.34f) (1f - centerY / 0.34f).coerceIn(0f, 1f) else 0f
+            val shoulderFalloff = if (centerY > 0.62f) ((centerY - 0.62f) / 0.38f).coerceIn(0f, 1f) else 0f
+            val shiftX = bitmap.width * (
+                motion.meshWarp * 0.026f * faceFalloff +
+                    motion.hairSway * 0.024f * hairFalloff +
+                    motion.shoulderSway * 0.018f * shoulderFalloff
+                )
+            val depthInset = bitmap.width * motion.depthTilt * 0.015f * faceFalloff
+            val src = Rect(0, top, bitmap.width, bottom)
+            val dst = RectF(shiftX + depthInset, top.toFloat(), shiftX + bitmap.width - depthInset, bottom.toFloat())
+            canvas.drawBitmap(bitmap, src, dst, paint)
+        }
+        return output
     }
 
     private fun parseRenderGraph(renderGraphJson: String): List<RenderGraphNode>? {
@@ -342,5 +391,11 @@ private data class PngTuberMotion(
     val offsetY: Float = 0f,
     val rotation: Float = 0f,
     val scaleX: Float = 1f,
-    val scaleY: Float = 1f
+    val scaleY: Float = 1f,
+    val depthTilt: Float = 0f,
+    val meshWarp: Float = 0f,
+    val eyeSquint: Float = 0f,
+    val mouthDeform: Float = 0f,
+    val hairSway: Float = 0f,
+    val shoulderSway: Float = 0f
 )

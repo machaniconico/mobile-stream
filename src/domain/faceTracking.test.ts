@@ -22,6 +22,10 @@ describe("face tracking", () => {
       deadZone: 2,
       maxMotionStep: 0,
       lostReturnSpeed: 8,
+      illustrationDeform: 8,
+      hairSway: -2,
+      eyeDeform: 3,
+      mouthDeform: -1,
       mouthSensitivity: 9,
       blinkSensitivity: -1,
       neutralYaw: 3
@@ -35,6 +39,10 @@ describe("face tracking", () => {
     expect(profile.deadZone).toBe(0.2);
     expect(profile.maxMotionStep).toBe(0.04);
     expect(profile.lostReturnSpeed).toBe(1);
+    expect(profile.illustrationDeform).toBe(1);
+    expect(profile.hairSway).toBe(0);
+    expect(profile.eyeDeform).toBe(1);
+    expect(profile.mouthDeform).toBe(0);
     expect(profile.mouthSensitivity).toBe(2);
     expect(profile.blinkSensitivity).toBe(0.2);
     expect(profile.neutralYaw).toBe(1);
@@ -173,7 +181,11 @@ describe("face tracking", () => {
       trackingStrength: 1,
       headRange: 1,
       maxMotionStep: 1,
-      bodyRange: 1
+      bodyRange: 1,
+      illustrationDeform: 1,
+      hairSway: 1,
+      eyeDeform: 1,
+      mouthDeform: 1
     };
     const runtime = updateFaceTrackingRuntime(
       createFaceTrackingRuntimeState(2_000),
@@ -189,8 +201,39 @@ describe("face tracking", () => {
     expect(avatar?.kind).toBe("pngtuber");
     expect(avatar?.motion.confidence).toBeGreaterThan(0.5);
     expect(avatar?.motion.headYaw).not.toBe(0);
+    expect(avatar?.motion.meshWarp).not.toBe(0);
+    expect(avatar?.motion.depthTilt).toBeGreaterThan(0);
+    expect(avatar?.motion.hairSway).not.toBe(0);
+    expect(avatar?.motion.eyeSquint).toBeGreaterThanOrEqual(0);
+    expect(avatar?.motion.mouthDeform).toBeGreaterThan(0);
     expect(avatar?.mouthOpen).toBeGreaterThan(0);
     expect(screen).toEqual(scene.sources.find((source) => source.kind === "screen"));
+  });
+
+  it("lets the illustration warp control disable pseudo mesh deformation", () => {
+    const profile = {
+      ...defaultFaceTrackingProfile,
+      enabled: true,
+      bodyRange: 1,
+      illustrationDeform: 0,
+      hairSway: 1
+    };
+    const runtime = {
+      ...createFaceTrackingRuntimeState(2_000),
+      status: "tracking" as const,
+      yaw: 0.6,
+      pitch: -0.4,
+      roll: 0.5,
+      mouthOpen: 0.7,
+      blink: 0.2,
+      confidence: 0.94
+    };
+    const updated = applyFaceTrackingRuntime(createDefaultScene(), runtime, profile);
+    const avatar = updated.sources.find((source) => source.kind === "pngtuber");
+
+    expect(avatar?.motion.depthTilt).toBe(0);
+    expect(avatar?.motion.meshWarp).toBe(0);
+    expect(avatar?.motion.hairSway).not.toBe(0);
   });
 
   it("calibrates neutral pose from the current runtime offset", () => {

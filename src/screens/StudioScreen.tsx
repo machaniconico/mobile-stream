@@ -916,6 +916,42 @@ export const StudioScreen = ({
                 onChange={(bodyRange) => updateFaceTracking({ bodyRange })}
               />
               <SpeechSlider
+                label="Illust warp"
+                value={profile.faceTracking.illustrationDeform}
+                min={0}
+                max={1}
+                step={0.01}
+                disabled={setupLocked}
+                onChange={(illustrationDeform) => updateFaceTracking({ illustrationDeform })}
+              />
+              <SpeechSlider
+                label="Hair sway"
+                value={profile.faceTracking.hairSway}
+                min={0}
+                max={1}
+                step={0.01}
+                disabled={setupLocked}
+                onChange={(hairSway) => updateFaceTracking({ hairSway })}
+              />
+              <SpeechSlider
+                label="Eye deform"
+                value={profile.faceTracking.eyeDeform}
+                min={0}
+                max={1}
+                step={0.01}
+                disabled={setupLocked}
+                onChange={(eyeDeform) => updateFaceTracking({ eyeDeform })}
+              />
+              <SpeechSlider
+                label="Mouth deform"
+                value={profile.faceTracking.mouthDeform}
+                min={0}
+                max={1}
+                step={0.01}
+                disabled={setupLocked}
+                onChange={(mouthDeform) => updateFaceTracking({ mouthDeform })}
+              />
+              <SpeechSlider
                 label="Mouth"
                 value={profile.faceTracking.mouthSensitivity}
                 min={0.2}
@@ -1934,11 +1970,20 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
 
   if (source.kind === "pngtuber" || source.kind === "live2d") {
     const motion = source.motion ?? defaultAvatarMotion();
-    const bodyTransform = `translateY(${(-motion.bodyBounce + motion.breathing) * 100}px) rotate(${motion.bodyLean * 10}deg)`;
+    const eyeClose = Math.min(0.95, Math.max(source.blink, motion.eyeSquint));
+    const mouthLevel = Math.max(source.mouthOpen, motion.mouthDeform);
+    const bodyTransform = [
+      `translate(${motion.shoulderSway * 2.6}%, ${(-motion.bodyBounce + motion.breathing) * 100}px)`,
+      `rotate(${motion.bodyLean * 10}deg)`
+    ].join(" ");
     const headTransform = [
       `translate(${motion.headX * 100}%, ${motion.headY * 100}%)`,
       `rotate(${motion.headRoll * 18}deg)`,
-      `skew(${motion.headYaw * 7}deg, ${-motion.headPitch * 5}deg)`
+      `skew(${motion.headYaw * 7 + motion.meshWarp * 4.5}deg, ${-motion.headPitch * 5 + motion.hairSway * 1.8}deg)`,
+      `scale(${Math.max(0.84, 1 - Math.abs(motion.headYaw) * 0.08 - motion.depthTilt * 0.045)}, ${Math.max(
+        0.9,
+        1 - Math.abs(motion.headPitch) * 0.04 + mouthLevel * 0.018
+      )})`
     ].join(" ");
 
     if (source.kind === "pngtuber" && source.imageUri.trim()) {
@@ -1953,9 +1998,9 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
       <div className={`avatar-visual ${source.expression}`} style={{ transform: bodyTransform }}>
         <span className="avatar-body" aria-hidden="true" />
         <div className="avatar-head" style={{ transform: headTransform }}>
-          <span className="avatar-eye left" style={{ transform: `scaleY(${Math.max(0.1, 1 - source.blink)})` }} />
-          <span className="avatar-eye right" style={{ transform: `scaleY(${Math.max(0.1, 1 - source.blink)})` }} />
-          <span className="avatar-mouth" style={{ height: `${8 + source.mouthOpen * 34}px` }} />
+          <span className="avatar-eye left" style={{ transform: `scaleY(${Math.max(0.1, 1 - eyeClose)})` }} />
+          <span className="avatar-eye right" style={{ transform: `scaleY(${Math.max(0.1, 1 - eyeClose)})` }} />
+          <span className="avatar-mouth" style={{ height: `${8 + mouthLevel * 34}px` }} />
         </div>
         <span className="avatar-label">{source.kind === "live2d" ? "Live2D" : "PNGTuber"}</span>
       </div>

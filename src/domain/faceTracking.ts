@@ -15,6 +15,10 @@ export interface FaceTrackingProfile {
   lostReturnSpeed: number;
   headRange: number;
   bodyRange: number;
+  illustrationDeform: number;
+  hairSway: number;
+  eyeDeform: number;
+  mouthDeform: number;
   mouthSensitivity: number;
   blinkSensitivity: number;
   expressionSensitivity: number;
@@ -66,6 +70,10 @@ export const defaultFaceTrackingProfile: FaceTrackingProfile = {
   lostReturnSpeed: 0.36,
   headRange: 0.72,
   bodyRange: 0.35,
+  illustrationDeform: 0.48,
+  hairSway: 0.36,
+  eyeDeform: 0.38,
+  mouthDeform: 0.52,
   mouthSensitivity: 1.15,
   blinkSensitivity: 1,
   expressionSensitivity: 0.72,
@@ -102,6 +110,10 @@ export const normalizeFaceTrackingProfile = (
   lostReturnSpeed: clamp01(profile?.lostReturnSpeed ?? defaultFaceTrackingProfile.lostReturnSpeed),
   headRange: clamp01(profile?.headRange ?? defaultFaceTrackingProfile.headRange),
   bodyRange: clamp01(profile?.bodyRange ?? defaultFaceTrackingProfile.bodyRange),
+  illustrationDeform: clamp01(profile?.illustrationDeform ?? defaultFaceTrackingProfile.illustrationDeform),
+  hairSway: clamp01(profile?.hairSway ?? defaultFaceTrackingProfile.hairSway),
+  eyeDeform: clamp01(profile?.eyeDeform ?? defaultFaceTrackingProfile.eyeDeform),
+  mouthDeform: clamp01(profile?.mouthDeform ?? defaultFaceTrackingProfile.mouthDeform),
   mouthSensitivity: clamp(profile?.mouthSensitivity ?? defaultFaceTrackingProfile.mouthSensitivity, 0.2, 2),
   blinkSensitivity: clamp(profile?.blinkSensitivity ?? defaultFaceTrackingProfile.blinkSensitivity, 0.2, 2),
   expressionSensitivity: clamp01(profile?.expressionSensitivity ?? defaultFaceTrackingProfile.expressionSensitivity),
@@ -234,6 +246,8 @@ export const clearFaceTrackingMotion = (scene: SceneDocument): SceneDocument =>
 
 const runtimeToMotion = (runtime: FaceTrackingRuntimeState, profile: FaceTrackingProfile): AvatarMotion => {
   const lostMultiplier = runtime.status === "tracking" ? 1 : 0.35;
+  const illustrationRigMultiplier = profile.rigMode === "still-image-2d" || profile.rigMode === "layered-2d" ? lostMultiplier : 0;
+  const illustrationStrength = profile.illustrationDeform * illustrationRigMultiplier;
   return {
     headYaw: runtime.yaw * profile.headRange * lostMultiplier,
     headPitch: runtime.pitch * profile.headRange * lostMultiplier,
@@ -243,6 +257,12 @@ const runtimeToMotion = (runtime: FaceTrackingRuntimeState, profile: FaceTrackin
     bodyLean: runtime.roll * profile.bodyRange * lostMultiplier,
     bodyBounce: Math.abs(runtime.mouthOpen - 0.3) * 0.02 * profile.bodyRange,
     breathing: (0.5 + runtime.smile * 0.5) * 0.018 * profile.bodyRange,
+    depthTilt: clamp01((Math.abs(runtime.yaw) * 0.68 + Math.abs(runtime.pitch) * 0.42) * illustrationStrength),
+    meshWarp: clamp((runtime.yaw + runtime.roll * profile.bodyRange * 0.18) * illustrationStrength, -1, 1),
+    eyeSquint: clamp01(runtime.blink * profile.eyeDeform * illustrationRigMultiplier),
+    mouthDeform: clamp01(runtime.mouthOpen * profile.mouthDeform * illustrationRigMultiplier),
+    hairSway: clamp((-runtime.yaw * 0.72 + runtime.roll * 0.32) * profile.hairSway * illustrationRigMultiplier, -1, 1),
+    shoulderSway: clamp((runtime.roll * 0.62 + runtime.yaw * 0.2) * profile.bodyRange * illustrationRigMultiplier, -1, 1),
     confidence: runtime.confidence
   };
 };

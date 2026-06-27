@@ -77,6 +77,8 @@ describe("scene document", () => {
 
     expect(avatarNode?.payload.trackingConfidence).toBe(0);
     expect(avatarNode?.payload.headYaw).toBe(0);
+    expect(avatarNode?.payload.meshWarp).toBe(0);
+    expect(avatarNode?.payload.eyeSquint).toBe(0);
     expect(avatarNode?.payload.imageUri).toBe("");
   });
 
@@ -133,7 +135,7 @@ describe("scene document", () => {
           expression: "happy",
           mouthOpen: 0.2,
           blink: 0,
-          motion: { headYaw: 3, confidence: 2 },
+          motion: { headYaw: 3, depthTilt: 2, meshWarp: -9, shoulderSway: 4, confidence: 2 },
           transform: { x: 0.2, y: 0.2, width: 0.3, height: 0.4, rotation: 0, opacity: 1 }
         },
         {
@@ -169,7 +171,7 @@ describe("scene document", () => {
       id: "avatar-with-image",
       kind: "pngtuber",
       imageUri: "content://avatar/still.png",
-      motion: { headYaw: 1, confidence: 1 }
+      motion: { headYaw: 1, depthTilt: 1, meshWarp: -1, shoulderSway: 1, confidence: 1 }
     });
     expect(scene.sources[2]).toMatchObject({
       id: "chat-overlay",
@@ -194,6 +196,8 @@ describe("scene document", () => {
               motion: {
                 ...source.motion,
                 headYaw: 0.7,
+                meshWarp: 0.5,
+                hairSway: -0.4,
                 confidence: 1
               }
             }
@@ -206,6 +210,8 @@ describe("scene document", () => {
     expect(avatar?.mouthOpen).toBe(0);
     expect(avatar?.blink).toBe(0);
     expect(avatar?.motion.headYaw).toBe(0);
+    expect(avatar?.motion.meshWarp).toBe(0);
+    expect(avatar?.motion.hairSway).toBe(0);
     expect(avatar?.motion.confidence).toBe(0);
   });
 });
