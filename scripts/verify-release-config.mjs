@@ -108,12 +108,15 @@ const checks = [
     expectIncludes(files.releaseCandidateScript, "Distribution artifact manifest is required");
     expectIncludes(files.releaseCandidateScript, "Dashboard evidence manifest is required");
     expectIncludes(files.releaseCandidateScript, "Dashboard evidence status JSON");
+    expectIncludes(files.releaseCandidateScript, "validateManifestGitProvenance");
     expectIncludes(files.releaseCandidateScript, "requireRealDeviceScreenshots: true");
     expectIncludes(files.releaseCandidateScript, "Store release orchestration report is required");
     expectIncludes(files.releaseCandidateScript, "isLoopbackHttpUrl");
     expectIncludes(files.releaseCandidateScript, "--ui-url must be a loopback http(s) URL");
     expectIncludes(files.releaseCandidateScript, "UI evidence target must be a loopback http(s) URL.");
     expectIncludes(files.releaseReportScript, "Browser UI evidence target must be a loopback http(s) URL.");
+    expectIncludes(files.releaseReportScript, "validateManifestGitProvenance");
+    expectIncludes(files.releaseReportScript, "Browser UI evidence");
     expectIncludes(files.releaseReportScript, "Browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");
     expectIncludes(files.releaseReportScript, "Browser UI evidence finishedAt timestamp is missing or invalid.");
     expectIncludes(files.releaseReportScript, "Browser UI evidence for ${viewport.name} is missing text");

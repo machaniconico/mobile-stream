@@ -106,6 +106,20 @@ describe("release candidate verifier", () => {
     });
   });
 
+  it("rejects skipped UI evidence when git dirty-state provenance is missing", () => {
+    writeUiEvidenceFixture();
+    const evidencePath = `${fixtureRoot}/ui-evidence.json`;
+    const evidence = JSON.parse(readFileSync(evidencePath, "utf8"));
+    delete evidence.git.dirty;
+    writeFile(evidencePath, JSON.stringify(evidence, null, 2));
+
+    const result = runVerifier(["--skip-ui", `--ui-evidence-json=${evidencePath}`]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("UI evidence git dirty state is missing.");
+    expect(result.stdout).not.toContain("==> Verify commercial release support bundle");
+  });
+
   it("fails only on the missing store-release report when distribution and dashboard manifests exist", () => {
     writeStoreSubmissionChecklist();
     writeFile(distributionArtifactManifestPath, JSON.stringify({ type: "distribution-artifact-manifest" }));

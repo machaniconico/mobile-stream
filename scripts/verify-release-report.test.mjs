@@ -118,6 +118,15 @@ describe("release report verifier", () => {
     expect(failures).toContain(`Artifact metadata mismatch for ${report.artifacts.files[0].path}.`);
   });
 
+  it("rejects release reports when git dirty-state provenance is missing", () => {
+    const report = createReport();
+    delete report.git.dirty;
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain("Report git dirty state is missing.");
+  });
+
   it("rejects UI evidence screenshots that are not PNG files", () => {
     const report = createReport();
     const badScreenshotPath = ".artifacts/release-report-test/bad-mobile.png";
@@ -139,6 +148,17 @@ describe("release report verifier", () => {
     const failures = validateReport(report, reportOptions());
 
     expect(failures).toContain("Browser UI evidence target must be a loopback http(s) URL.");
+  });
+
+  it("rejects UI evidence when git dirty-state provenance is missing", () => {
+    const report = createReport();
+    rewriteUiEvidence(report, (evidence) => {
+      delete evidence.git.dirty;
+    });
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain("Browser UI evidence git dirty state is missing.");
   });
 
   it("rejects UI evidence with a mismatched report schema", () => {

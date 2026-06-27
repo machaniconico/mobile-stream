@@ -25,6 +25,7 @@ import {
 import { collectStoreReleaseArtifactRecords, validateStoreReleaseReport } from "./release-store-build.mjs";
 import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
 import { readPngEvidence } from "./png-evidence.mjs";
+import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 
 const defaultUiUrl = "http://127.0.0.1:5173/";
 const devServerTimeoutMs = 30_000;
@@ -735,14 +736,14 @@ function validateUiEvidence(evidence, { currentCommit, allowDirty, maxAgeHours }
   if (ageHours > maxAgeHours) {
     throw new GateError(`UI evidence is ${ageHours}h old, above the ${maxAgeHours}h release gate.`, 1);
   }
-  if (currentCommit && evidence.git?.commit !== currentCommit) {
-    throw new GateError(
-      `UI evidence commit ${evidence.git?.commit || "-"} does not match release candidate commit ${currentCommit}.`,
-      1
-    );
-  }
-  if (!allowDirty && evidence.git?.dirty) {
-    throw new GateError("UI evidence was generated from a dirty worktree. Regenerate UI evidence after committing changes.", 1);
+  const gitFailures = [];
+  validateManifestGitProvenance(
+    evidence.git,
+    { label: "UI evidence", currentCommit, allowDirty, allowCommitMismatch: false },
+    gitFailures
+  );
+  if (gitFailures.length > 0) {
+    throw new GateError(gitFailures.join("\n"), 1);
   }
   if (!isLoopbackHttpUrl(evidence.target)) {
     throw new GateError("UI evidence target must be a loopback http(s) URL.", 1);

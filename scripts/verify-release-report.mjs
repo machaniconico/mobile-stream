@@ -16,6 +16,7 @@ import { validateStoreReleaseReportInReleaseReport } from "./release-store-build
 import { createCommercialReleaseGate } from "./verify-commercial-release-bundle.mjs";
 import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
 import { readPngEvidence } from "./png-evidence.mjs";
+import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 
 const requiredUiViewportNames = ["desktop", "mobile"];
 const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
@@ -134,19 +135,14 @@ function validateReportAge(report, options, fail) {
 }
 
 function validateGitState(report, options, fail) {
-  const reportCommit = stringValue(report?.git?.commit);
   const currentCommit = commandOutput("git", ["rev-parse", "HEAD"]);
   const currentStatus = commandOutput("git", ["status", "--short"]);
 
-  if (!reportCommit) {
-    fail("Report git commit is missing.");
-  }
-  if (currentCommit && reportCommit && currentCommit !== reportCommit && !options.allowCommitMismatch) {
-    fail(`Current HEAD ${currentCommit} does not match report commit ${reportCommit}.`);
-  }
-  if (report?.git?.dirty && !options.allowDirty) {
-    fail("Report was generated from a dirty worktree.");
-  }
+  validateManifestGitProvenance(
+    report?.git,
+    { label: "Report", currentCommit, allowDirty: options.allowDirty, allowCommitMismatch: options.allowCommitMismatch },
+    failuresFrom(fail)
+  );
   if (report?.options?.allowDirty && !options.allowDirty) {
     fail("Report was generated with --allow-dirty.");
   }
@@ -357,12 +353,16 @@ function validateUiEvidence(report, options, fail) {
   } else if (evidenceAgeHours > options.maxAgeHours) {
     fail(`Browser UI evidence is ${evidenceAgeHours}h old, above the ${options.maxAgeHours}h release-report gate.`);
   }
-  if (evidence.git?.commit !== report.git?.commit && !options.allowCommitMismatch) {
-    fail(`Browser UI evidence commit ${evidence.git?.commit || "-"} does not match report commit ${report.git?.commit || "-"}.`);
-  }
-  if (evidence.git?.dirty && !options.allowDirty) {
-    fail("Browser UI evidence was generated from a dirty worktree.");
-  }
+  validateManifestGitProvenance(
+    evidence.git,
+    {
+      label: "Browser UI evidence",
+      currentCommit: stringValue(report?.git?.commit),
+      allowDirty: options.allowDirty,
+      allowCommitMismatch: options.allowCommitMismatch
+    },
+    failuresFrom(fail)
+  );
   if (!isLoopbackHttpUrl(evidence.target)) {
     fail("Browser UI evidence target must be a loopback http(s) URL.");
   }
@@ -424,6 +424,14 @@ function readJsonFile(path, label) {
   } catch (error) {
     throw new Error(`Could not read ${label} at ${path}: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+function failuresFrom(fail) {
+  return {
+    push(message) {
+      fail(message);
+    }
+  };
 }
 
 function fileSha256(path) {
