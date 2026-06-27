@@ -351,6 +351,98 @@ describe("store submission checklist verifier", () => {
     expect(result.stderr).toContain(`Store submission screenshot ${androidScreenshot} must include the app build/version used for capture.`);
   });
 
+  it("rejects Simulator and Emulator screenshot labels in final store-submission mode", () => {
+    writeStoreSubmissionFiles({
+      screenshots: [
+        {
+          platform: "ios",
+          device: "iPhone 15 Simulator",
+          path: iosScreenshot,
+          locale: "ja-JP",
+          role: "main",
+          source: "realDevice",
+          osVersion: "iOS 18.5 Simulator",
+          appBuild,
+          capturedAt
+        },
+        {
+          platform: "android",
+          device: "sdk_gphone64_arm64",
+          path: androidScreenshot,
+          locale: "ja-JP",
+          role: "main",
+          source: "realDevice",
+          osVersion: "Android 15",
+          appBuild,
+          capturedAt
+        }
+      ]
+    });
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    const result = runVerifier([
+      "--verify",
+      "--allow-dirty",
+      "--manifest",
+      manifestPath,
+      "--require-real-device-screenshots"
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      `Store submission screenshot ${iosScreenshot} must use a physical device label, not Simulator/Emulator/browser/test-device evidence.`
+    );
+    expect(result.stderr).toContain(
+      `Store submission screenshot ${androidScreenshot} must use a physical device label, not Simulator/Emulator/browser/test-device evidence.`
+    );
+  });
+
+  it("rejects generic physical-device labels in final store-submission mode", () => {
+    writeStoreSubmissionFiles({
+      screenshots: [
+        {
+          platform: "ios",
+          device: "iPhone",
+          path: iosScreenshot,
+          locale: "ja-JP",
+          role: "main",
+          source: "realDevice",
+          osVersion: "iOS 18.5",
+          appBuild,
+          capturedAt
+        },
+        {
+          platform: "android",
+          device: "Phone",
+          path: androidScreenshot,
+          locale: "ja-JP",
+          role: "main",
+          source: "realDevice",
+          osVersion: "Android 15",
+          appBuild,
+          capturedAt
+        }
+      ]
+    });
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    const result = runVerifier([
+      "--verify",
+      "--allow-dirty",
+      "--manifest",
+      manifestPath,
+      "--require-real-device-screenshots"
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      `Store submission screenshot ${iosScreenshot} must include a specific physical ios device label and OS version for final store submission.`
+    );
+    expect(result.stderr).toContain(
+      `Store submission screenshot ${androidScreenshot} must include a specific physical android device label and OS version for final store submission.`
+    );
+  });
+
   it("rejects placeholder-sized screenshots in final store-submission mode", () => {
     writeStoreSubmissionFiles();
     writeFileSync(iosScreenshot, tinyPngBytes);

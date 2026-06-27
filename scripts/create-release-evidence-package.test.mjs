@@ -492,6 +492,56 @@ describe("release evidence package creator", () => {
     );
   });
 
+  it("rejects packaged store submission screenshots with virtual-device identity labels", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedChecklistPath = `${packageDir}/artifacts/${storeSubmissionChecklistPath}`;
+    const checklist = JSON.parse(readFileSync(packagedChecklistPath, "utf8"));
+    const iosScreenshot = checklist.screenshots.find((screenshot) => screenshot.platform === "ios");
+    const androidScreenshot = checklist.screenshots.find((screenshot) => screenshot.platform === "android");
+    iosScreenshot.device = "iPhone 15 Simulator";
+    iosScreenshot.osVersion = "iOS 18.5 Simulator";
+    androidScreenshot.device = "sdk_gphone64_arm64";
+    androidScreenshot.osVersion = "Android 15";
+    writeFileSync(packagedChecklistPath, JSON.stringify(checklist, null, 2));
+    refreshPackagedChecklistEvidence(packagedChecklistPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package store submission screenshot .artifacts/release-evidence-package-test/ios-store.png must use a physical device label, not Simulator/Emulator/browser/test-device evidence."
+    );
+    expect(failures).toContain(
+      "Package store submission screenshot .artifacts/release-evidence-package-test/android-store.png must use a physical device label, not Simulator/Emulator/browser/test-device evidence."
+    );
+  });
+
+  it("rejects packaged store submission screenshots with generic device labels", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedChecklistPath = `${packageDir}/artifacts/${storeSubmissionChecklistPath}`;
+    const checklist = JSON.parse(readFileSync(packagedChecklistPath, "utf8"));
+    const iosScreenshot = checklist.screenshots.find((screenshot) => screenshot.platform === "ios");
+    const androidScreenshot = checklist.screenshots.find((screenshot) => screenshot.platform === "android");
+    iosScreenshot.device = "iPhone";
+    androidScreenshot.device = "Phone";
+    writeFileSync(packagedChecklistPath, JSON.stringify(checklist, null, 2));
+    refreshPackagedChecklistEvidence(packagedChecklistPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package store submission screenshot .artifacts/release-evidence-package-test/ios-store.png must include a specific physical ios device label and OS version."
+    );
+    expect(failures).toContain(
+      "Package store submission screenshot .artifacts/release-evidence-package-test/android-store.png must include a specific physical android device label and OS version."
+    );
+  });
+
   it("rejects packaged store submission screenshots older than the packaged release report", () => {
     resetPackageDir();
     writeReportFixture();

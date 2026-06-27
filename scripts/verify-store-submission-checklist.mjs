@@ -14,6 +14,8 @@ const storePlatforms = new Set(["ios", "android"]);
 const screenshotSources = new Set(["realDevice", "uiEvidenceDraft"]);
 const finalScreenshotMinimumShortEdge = 1080;
 const finalScreenshotMinimumLongEdge = 1920;
+const virtualStoreDevicePattern =
+  /(?:simulator|emulator|android\s*sdk|sdk[_\s-]*gphone|sdk[_\s-]*phone|aosp|generic|xcode|preview|browser|chrome|mock|test\s*device|unknown)/i;
 const metadataType = "store-submission-metadata";
 const reviewDocumentTypes = {
   submissionReview: Object.freeze({ extension: ".md" })
@@ -531,6 +533,7 @@ function validateScreenshotRecord(screenshot, failures, { requireRealDeviceScree
   }
   if (requireRealDeviceScreenshots && screenshot.source === "realDevice") {
     validateRealDeviceCaptureMetadata(normalizedScreenshot, failures);
+    validateRealDeviceIdentity(normalizedScreenshot, failures);
   }
   if (!existsSync(absolutePath)) {
     failures.push(`Store submission screenshot file does not exist: ${relativePath}.`);
@@ -579,6 +582,45 @@ function validateRealDeviceCaptureMetadata(screenshot, failures) {
   } else if (!Number.isFinite(Date.parse(screenshot.capturedAt))) {
     failures.push(`Store submission screenshot ${screenshot.path} has an invalid capturedAt timestamp.`);
   }
+}
+
+function validateRealDeviceIdentity(screenshot, failures) {
+  const device = stringValue(screenshot.device);
+  const osVersion = stringValue(screenshot.osVersion);
+  if (!device || !osVersion) {
+    return;
+  }
+  if (virtualStoreDevicePattern.test(`${device} ${osVersion}`)) {
+    failures.push(
+      `Store submission screenshot ${screenshot.path} must use a physical device label, not Simulator/Emulator/browser/test-device evidence.`
+    );
+    return;
+  }
+  if (!hasSpecificStoreDeviceLabel(screenshot.platform, device, osVersion)) {
+    failures.push(
+      `Store submission screenshot ${screenshot.path} must include a specific physical ${screenshot.platform} device label and OS version for final store submission.`
+    );
+  }
+}
+
+function hasSpecificStoreDeviceLabel(platform, device, osVersion) {
+  const normalizedDevice = device.trim().toLowerCase();
+  const normalizedOs = osVersion.trim().toLowerCase();
+  if (!normalizedDevice || !normalizedOs) {
+    return false;
+  }
+  if (platform === "ios") {
+    return /\bios|ipados\b/.test(normalizedOs) && /\b(iphone|ipad|ipod)\s+\S+/.test(normalizedDevice);
+  }
+  if (platform === "android") {
+    return (
+      /\bandroid\b/.test(normalizedOs) &&
+      !/^(android\s*)?(device|phone|mobile|handset)$/.test(normalizedDevice) &&
+      normalizedDevice.length >= 4 &&
+      (/\d/.test(normalizedDevice) || /[\s_-]/.test(normalizedDevice))
+    );
+  }
+  return false;
 }
 
 function validateFinalScreenshotDimensions(screenshot, dimensions, failures) {

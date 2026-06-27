@@ -22,6 +22,8 @@ export const releaseEvidencePackageType = "release-evidence-package-manifest";
 const storeReleaseReportGateLabel = "Verify store release orchestration report";
 const finalStoreScreenshotMinimumShortEdge = 1080;
 const finalStoreScreenshotMinimumLongEdge = 1920;
+const virtualStoreDevicePattern =
+  /(?:simulator|emulator|android\s*sdk|sdk[_\s-]*gphone|sdk[_\s-]*phone|aosp|generic|xcode|preview|browser|chrome|mock|test\s*device|unknown)/i;
 const dashboardScreenshotMinimumShortEdge = 720;
 const dashboardScreenshotMinimumLongEdge = 1280;
 const requiredUiViewportNames = ["desktop", "mobile"];
@@ -932,6 +934,7 @@ function validatePackagedStoreSubmissionScreenshots(screenshots, releaseReport, 
     if (screenshot.source !== "realDevice") {
       failures.push(`Package store submission screenshot ${screenshot.path || "-"} must be marked realDevice.`);
     }
+    validatePackagedStoreScreenshotDeviceIdentity(screenshot, failures);
     if (!stringValue(screenshot.osVersion)) {
       failures.push(`Package store submission screenshot ${screenshot.path || "-"} must include a real device OS version.`);
     }
@@ -970,6 +973,49 @@ function validatePackagedStoreSubmissionScreenshots(screenshots, releaseReport, 
       );
     }
   }
+}
+
+function validatePackagedStoreScreenshotDeviceIdentity(screenshot, failures) {
+  const device = stringValue(screenshot.device);
+  const osVersion = stringValue(screenshot.osVersion);
+  if (!device) {
+    failures.push(`Package store submission screenshot ${screenshot.path || "-"} must include a device label.`);
+    return;
+  }
+  if (!osVersion) {
+    return;
+  }
+  if (virtualStoreDevicePattern.test(`${device} ${osVersion}`)) {
+    failures.push(
+      `Package store submission screenshot ${screenshot.path || "-"} must use a physical device label, not Simulator/Emulator/browser/test-device evidence.`
+    );
+    return;
+  }
+  if (!hasSpecificStoreDeviceLabel(screenshot.platform, device, osVersion)) {
+    failures.push(
+      `Package store submission screenshot ${screenshot.path || "-"} must include a specific physical ${screenshot.platform} device label and OS version.`
+    );
+  }
+}
+
+function hasSpecificStoreDeviceLabel(platform, device, osVersion) {
+  const normalizedDevice = device.trim().toLowerCase();
+  const normalizedOs = osVersion.trim().toLowerCase();
+  if (!normalizedDevice || !normalizedOs) {
+    return false;
+  }
+  if (platform === "ios") {
+    return /\bios|ipados\b/.test(normalizedOs) && /\b(iphone|ipad|ipod)\s+\S+/.test(normalizedDevice);
+  }
+  if (platform === "android") {
+    return (
+      /\bandroid\b/.test(normalizedOs) &&
+      !/^(android\s*)?(device|phone|mobile|handset)$/.test(normalizedDevice) &&
+      normalizedDevice.length >= 4 &&
+      (/\d/.test(normalizedDevice) || /[\s_-]/.test(normalizedDevice))
+    );
+  }
+  return false;
 }
 
 function validatePackagedStoreReleaseReport({ report, packageDir, packagedArtifacts, failures, maxAgeHours }) {
