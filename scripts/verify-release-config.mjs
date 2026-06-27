@@ -115,6 +115,10 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "Package store release report");
     expectIncludes(files.storeReleaseBuildScript, "cannot be used as commercial release evidence");
     expectIncludes(files.releaseEvidencePackageScript, "cannot be used as commercial release evidence");
+    expectIncludes(files.releaseEvidencePackageScript, "validateCommercialPackageableReleaseReport");
+    expectIncludes(files.releaseEvidencePackageScript, "cannot be used as commercial package evidence");
+    expectIncludes(files.releaseEvidencePackageScript, "clean git worktree gate is missing from commercial package evidence");
+    expectIncludes(files.releaseEvidencePackageScript, "clean git worktree gate must be passed for commercial package evidence");
     expectIncludes(files.dashboardEvidenceScript, "youtubeScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "twitchScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "platform-dashboard-evidence-manifest");

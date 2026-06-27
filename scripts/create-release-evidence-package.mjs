@@ -46,6 +46,10 @@ export function createReleaseEvidencePackage({
   if (failures.length > 0) {
     throw new Error(["Release report is not packageable:", ...failures.map((failure) => `- ${failure}`)].join("\n"));
   }
+  const packageableFailures = validateCommercialPackageableReleaseReport(report);
+  if (packageableFailures.length > 0) {
+    throw new Error(["Release report cannot be used for a commercial evidence package:", ...packageableFailures.map((failure) => `- ${failure}`)].join("\n"));
+  }
 
   const packageDir = outputDir || defaultPackageDir(report);
   ensureNewOrEmptyDirectory(packageDir);
@@ -212,6 +216,7 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
   if (report?.app !== "MobileLiveCaster" || report?.type !== "release-candidate-verification" || report?.status !== "passed") {
     failures.push("Packaged release report must be a passed MobileLiveCaster release-candidate-verification report.");
   }
+  failures.push(...validateCommercialPackageableReleaseReport(report, "Packaged release report"));
   if (report?.git?.commit && manifest.git?.commit && report.git.commit !== manifest.git.commit) {
     failures.push(`Packaged release report commit ${report.git.commit} does not match package commit ${manifest.git.commit}.`);
   }
@@ -254,6 +259,28 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
       failures.push(`Packaged artifact metadata mismatch for ${reportArtifact.path}.`);
     }
   }
+}
+
+function validateCommercialPackageableReleaseReport(report, label = "Release report") {
+  const failures = [];
+  if (report?.git?.dirty) {
+    failures.push(`${label} was generated from a dirty worktree and cannot be used as commercial package evidence.`);
+  }
+  if (report?.options?.allowDirty) {
+    failures.push(`${label} was generated with --allow-dirty and cannot be used as commercial package evidence.`);
+  }
+  if (report?.options?.allowCommitMismatch) {
+    failures.push(`${label} was generated with --allow-commit-mismatch and cannot be used as commercial package evidence.`);
+  }
+  const cleanGitGate = Array.isArray(report?.gates)
+    ? report.gates.find((gate) => gate?.label === "Verify clean git worktree")
+    : null;
+  if (!cleanGitGate) {
+    failures.push(`${label} clean git worktree gate is missing from commercial package evidence.`);
+  } else if (cleanGitGate.status !== "passed") {
+    failures.push(`${label} clean git worktree gate must be passed for commercial package evidence.`);
+  }
+  return failures;
 }
 
 function readPackagedSupportBundle(manifest, packageDir, failures) {

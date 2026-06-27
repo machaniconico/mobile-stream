@@ -81,6 +81,57 @@ describe("release evidence package creator", () => {
     expect(validateReleaseEvidencePackage({ packageDir })).toEqual([]);
   });
 
+  it("rejects release reports generated with development-only dirty-worktree approval", () => {
+    writeReportFixture();
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    report.git.dirty = true;
+    report.git.statusShort = " M scripts/create-release-evidence-package.test.mjs";
+    report.options.allowDirty = true;
+    report.options.allowCommitMismatch = true;
+    const cleanGitGate = report.gates.find((gate) => gate.label === "Verify clean git worktree");
+    cleanGitGate.status = "skipped";
+    cleanGitGate.exitCode = null;
+    cleanGitGate.error = "Allowed by --allow-dirty.";
+    writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    expect(() =>
+      createReleaseEvidencePackage({
+        reportPath,
+        outputDir: `${fixtureRoot}/dirty-package`,
+        allowDirty: true
+      })
+    ).toThrow("Release report cannot be used for a commercial evidence package:");
+  });
+
+  it("rejects packaged release reports that were later marked development-only", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    packagedReport.git.dirty = true;
+    packagedReport.git.statusShort = " M scripts/create-release-evidence-package.test.mjs";
+    packagedReport.options.allowDirty = true;
+    packagedReport.options.allowCommitMismatch = true;
+    const cleanGitGate = packagedReport.gates.find((gate) => gate.label === "Verify clean git worktree");
+    cleanGitGate.status = "skipped";
+    cleanGitGate.exitCode = null;
+    cleanGitGate.error = "Allowed by --allow-dirty.";
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+    refreshPackagedSourceReportEvidence();
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Packaged release report was generated with --allow-dirty and cannot be used as commercial package evidence."
+    );
+    expect(failures).toContain(
+      "Packaged release report was generated with --allow-commit-mismatch and cannot be used as commercial package evidence."
+    );
+    expect(failures).toContain("Packaged release report clean git worktree gate must be passed for commercial package evidence.");
+  });
+
   it("rejects packaged support bundles that fail the commercial release gate", () => {
     resetPackageDir();
     writeReportFixture();
@@ -767,11 +818,10 @@ function writeReportFixture() {
         git: {
           commit: currentCommit(),
           branch: "main",
-          dirty: true,
-          statusShort: " M scripts/create-release-evidence-package.test.mjs"
+          dirty: false,
+          statusShort: ""
         },
         options: {
-          allowDirty: true,
           skipUi: true
         },
         supportBundle: {
@@ -788,12 +838,12 @@ function writeReportFixture() {
           ...requiredReleaseGateLabels.map((label) => ({
             label,
             command: "fixture",
-            status: label === "Verify clean git worktree" ? "skipped" : "passed",
+            status: "passed",
             startedAt: new Date(Date.now() - 1_000).toISOString(),
             finishedAt: new Date().toISOString(),
             durationMs: 1,
-            exitCode: label === "Verify clean git worktree" ? null : 0,
-            error: label === "Verify clean git worktree" ? "Allowed by --allow-dirty." : null
+            exitCode: 0,
+            error: null
           })),
           {
             label: "Verify browser UI evidence",
@@ -886,11 +936,11 @@ function writeStoreReleaseFixture({ status = "passed" } = {}) {
         git: {
           commit: currentCommit(),
           branch: "main",
-          dirty: true,
-          statusShort: " M scripts/create-release-evidence-package.test.mjs"
+          dirty: false,
+          statusShort: ""
         },
         options: {
-          allowDirty: true,
+          allowDirty: false,
           allowCommitMismatch: false,
           skipEnv: false,
           skipBuild: false
