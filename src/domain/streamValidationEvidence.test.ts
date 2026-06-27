@@ -1311,6 +1311,8 @@ describe("stream validation evidence", () => {
         inputMode: "native-camera" as const,
         rigMode: "still-image-2d" as const,
         runtimeStatus: "tracking" as const,
+        runtimeAgeMs: 120,
+        runtimeFresh: true,
         visibleAvatarCount: 1,
         preparedPngTuberCount: 1,
         activeMotionCount: 0,
@@ -1326,7 +1328,7 @@ describe("stream validation evidence", () => {
 
     const summary = summarizeStreamValidationEvidence([androidRun, iosRun], { now: validationNow });
 
-    expect(summary.faceTrackingReadyCount).toBe(2);
+    expect(summary.faceTrackingReadyCount).toBe(0);
     expect(summary.faceTrackingIosPass).toBe(false);
     expect(summary.faceTrackingAndroidPass).toBe(false);
     expect(summary.status).toBe("partial");

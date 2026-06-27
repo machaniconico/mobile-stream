@@ -28,6 +28,8 @@ export interface StreamValidationFaceTrackingSummary {
   inputMode: StreamDiagnostics["faceTracking"]["inputMode"];
   rigMode: StreamDiagnostics["faceTracking"]["rigMode"];
   runtimeStatus: StreamDiagnostics["faceTracking"]["runtimeStatus"];
+  runtimeAgeMs: number | null;
+  runtimeFresh: boolean;
   visibleAvatarCount: number;
   preparedPngTuberCount: number;
   activeMotionCount: number;
@@ -542,7 +544,7 @@ export const summarizeStreamValidationEvidence = (
   const faceTrackingRuns = scopedRuns.filter((run) => run.faceTracking && run.faceTracking.status !== "info");
   const faceTrackingRunCount = faceTrackingRuns.length;
   const faceTrackingWarningCount = faceTrackingRuns.filter((run) => run.faceTracking?.status === "warn").length;
-  const faceTrackingReadyCount = faceTrackingRuns.filter((run) => run.faceTracking?.status === "pass").length;
+  const faceTrackingReadyCount = faceTrackingRuns.filter((run) => isAvatarMotionEvidencePass(run.faceTracking)).length;
   const audioRuns = scopedRuns.filter((run) => run.audio);
   const audioRunCount = audioRuns.length;
   const audioReadyCount = audioRuns.filter((run) => isAudioEvidencePass(run.audio)).length;
@@ -1021,7 +1023,7 @@ const isPhysicalDeviceEvidencePass = (run: StreamValidationRun | null | undefine
   run?.physicalDeviceStatus === "pass" && run.physicalDevice;
 
 const isAvatarMotionEvidencePass = (faceTracking: StreamValidationFaceTrackingSummary | null | undefined): boolean =>
-  faceTracking?.status === "pass" && faceTracking.activeMotionCount > 0;
+  faceTracking?.status === "pass" && faceTracking.runtimeFresh && faceTracking.activeMotionCount > 0;
 
 const isNativeRuntimeEvidencePass = (
   nativeRuntime: StreamSessionNativeRuntimeSummary | null | undefined,
@@ -1563,6 +1565,8 @@ const createFaceTrackingValidationSummary = (
   inputMode: faceTracking.inputMode,
   rigMode: faceTracking.rigMode,
   runtimeStatus: faceTracking.runtimeStatus,
+  runtimeAgeMs: faceTracking.runtimeAgeMs,
+  runtimeFresh: faceTracking.runtimeFresh,
   visibleAvatarCount: faceTracking.visibleAvatarCount,
   preparedPngTuberCount: faceTracking.preparedPngTuberCount,
   activeMotionCount: faceTracking.activeMotionCount,
@@ -2306,6 +2310,8 @@ const normalizeFaceTrackingValidationSummary = (value: unknown): StreamValidatio
     inputMode: value.inputMode === "native-camera" ? "native-camera" : "simulated",
     rigMode: value.rigMode === "layered-2d" ? "layered-2d" : "still-image-2d",
     runtimeStatus: normalizeFaceTrackingRuntimeStatus(value.runtimeStatus),
+    runtimeAgeMs: normalizeNullableCount(value.runtimeAgeMs),
+    runtimeFresh: value.runtimeFresh === true,
     visibleAvatarCount: normalizeCount(value.visibleAvatarCount),
     preparedPngTuberCount: normalizeCount(value.preparedPngTuberCount),
     activeMotionCount: normalizeCount(value.activeMotionCount),

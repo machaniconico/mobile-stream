@@ -33,7 +33,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 15;
+const minimumSupportBundleVersion = 16;
 const defaultMaxBundleAgeHours = 24;
 
 export const createCommercialReleaseGate = (
@@ -301,7 +301,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v15 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v16 or newer after retaining release-candidate validation runs."
     );
   }
   const latestRuns = latestEligibleManifestRunsByPlatform(manifest);

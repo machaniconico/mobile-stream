@@ -3,7 +3,7 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
-const minimumSupportBundleVersion = 15;
+const minimumSupportBundleVersion = 16;
 const defaultMaxBundleAgeHours = 24;
 const redactedMarker = "[redacted]";
 const sensitivePropertyNames = new Set([
@@ -374,7 +374,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v15 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v16 or newer after retaining release-candidate validation runs."
     );
   }
   const eligiblePlatforms = new Set(

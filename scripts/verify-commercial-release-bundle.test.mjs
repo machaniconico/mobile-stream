@@ -27,6 +27,21 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Can release: yes");
   });
 
+  it("blocks v15 support bundles without avatar runtime freshness evidence", () => {
+    writeBundle({
+      app: {
+        name: "MobileLiveCaster",
+        reportVersion: 1,
+        bundleVersion: 15
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Support bundle v15 is older than the required v16.");
+  });
+
   it("blocks prefix-named token and API key leaks", () => {
     writeBundle({
       diagnostics: {
@@ -177,7 +192,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 15
+      bundleVersion: 16
     },
     generatedAt: new Date().toISOString(),
     ...patch,

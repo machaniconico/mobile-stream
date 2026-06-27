@@ -127,6 +127,22 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks v15 support bundles that do not carry avatar runtime freshness evidence", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        app: {
+          name: "MobileLiveCaster",
+          reportVersion: 1,
+          bundleVersion: 15
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues.map((issue) => issue.code)).toContain("bundle-version");
+  });
+
   it("blocks bundles whose retained runs are not physical-device evidence", () => {
     const bundle = supportBundle({
       summary: {
@@ -305,7 +321,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 15 as const
+    bundleVersion: 16 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   summary = {}
