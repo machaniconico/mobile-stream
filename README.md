@@ -53,8 +53,8 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Durable scene persistence on web, iOS, and Android with persisted-scene normalization.
 - Quality presets.
 - Voice lip-sync meter and expression buttons.
-- Still-image VTuber face tracking with native-camera input on mobile, simulated input on web, calibration, dead-zone filtering, jump limiting, lost-face return tuning, native 2.5D motion scaling, lightweight pseudo mesh deformation, hair/body follow-through, and eye/mouth deformation in the iOS/Android compositor.
-- IRIAM-style single-illustration animation is now covered by the still-image 2.5D tracker foundation plus lightweight pseudo deformation; automatic illustration part inference, true mesh/depth rigging, and physical-device tuning against native-camera tracking remain commercial-grade continuous improvements.
+- Still-image VTuber face tracking with native-camera input on mobile, simulated input on web, calibration, dead-zone filtering, jump limiting, lost-face return tuning, native 2.5D motion scaling, tunable illustration rig regions, lightweight pseudo mesh deformation, hair/body follow-through, and eye/mouth deformation in the iOS/Android compositor.
+- IRIAM-style single-illustration animation is now covered by the still-image 2.5D tracker foundation plus tunable lightweight pseudo deformation; automatic illustration part inference, true mesh/depth rigging, and physical-device tuning against native-camera tracking remain commercial-grade continuous improvements.
 - Mic effect presets with gain, noise gate, compression, and Android PCM processing.
 - Headphone-only mic monitor settings for hearing the processed mic signal locally, with native iOS/Android output-route detection and Go Live blocking when monitoring would route to speakers.
 - Chat/comment read-aloud queue with test comments, muted words, duplicate suppression, queue limits, speech controls, queued/recent comment privacy reset, and stream-stop chat auto-disconnect/readout silence.

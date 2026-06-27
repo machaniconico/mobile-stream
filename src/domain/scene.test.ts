@@ -79,6 +79,8 @@ describe("scene document", () => {
     expect(avatarNode?.payload.headYaw).toBe(0);
     expect(avatarNode?.payload.meshWarp).toBe(0);
     expect(avatarNode?.payload.eyeSquint).toBe(0);
+    expect(avatarNode?.payload.rigFaceCenterY).toBe(0.42);
+    expect(avatarNode?.payload.rigSliceCount).toBe(24);
     expect(avatarNode?.payload.imageUri).toBe("");
   });
 
@@ -132,6 +134,15 @@ describe("scene document", () => {
           blendMode: "normal",
           avatarId: "avatar-custom",
           imageUri: "content://avatar/still.png",
+          illustrationRig: {
+            faceCenterY: 3,
+            faceRange: -1,
+            hairLineY: -1,
+            shoulderLineY: 2,
+            eyeLineY: 2,
+            mouthLineY: -1,
+            sliceCount: 99
+          },
           expression: "happy",
           mouthOpen: 0.2,
           blink: 0,
@@ -171,6 +182,15 @@ describe("scene document", () => {
       id: "avatar-with-image",
       kind: "pngtuber",
       imageUri: "content://avatar/still.png",
+      illustrationRig: {
+        faceCenterY: 0.85,
+        faceRange: 0.08,
+        hairLineY: 0.05,
+        shoulderLineY: 0.95,
+        eyeLineY: 0.65,
+        mouthLineY: 0.25,
+        sliceCount: 40
+      },
       motion: { headYaw: 1, depthTilt: 1, meshWarp: -1, shoulderSway: 1, confidence: 1 }
     });
     expect(scene.sources[2]).toMatchObject({

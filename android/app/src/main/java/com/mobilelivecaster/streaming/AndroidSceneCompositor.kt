@@ -211,6 +211,7 @@ object AndroidSceneCompositor {
         val mouthDeform = node.payload.optDouble("mouthDeform", 0.0).toFloat().coerceIn(0f, 1f)
         val hairSway = node.payload.optDouble("hairSway", 0.0).toFloat().coerceIn(-1f, 1f)
         val shoulderSway = node.payload.optDouble("shoulderSway", 0.0).toFloat().coerceIn(-1f, 1f)
+        val rig = parsePngTuberRig(node)
         return PngTuberMotion(
             offsetX = node.payload.optDouble("headX", 0.0).toFloat().coerceIn(-1f, 1f) * 0.025f,
             offsetY = (node.payload.optDouble("headY", 0.0).toFloat().coerceIn(-1f, 1f) + breathing - bodyBounce) * 0.025f,
@@ -222,9 +223,21 @@ object AndroidSceneCompositor {
             eyeSquint = eyeSquint,
             mouthDeform = mouthDeform,
             hairSway = hairSway,
-            shoulderSway = shoulderSway
+            shoulderSway = shoulderSway,
+            rig = rig
         )
     }
+
+    private fun parsePngTuberRig(node: RenderGraphNode): PngTuberRig =
+        PngTuberRig(
+            faceCenterY = node.payload.optDouble("rigFaceCenterY", 0.42).toFloat().coerceIn(0.15f, 0.85f),
+            faceRange = node.payload.optDouble("rigFaceRange", 0.34).toFloat().coerceIn(0.08f, 0.6f),
+            hairLineY = node.payload.optDouble("rigHairLineY", 0.34).toFloat().coerceIn(0.05f, 0.55f),
+            shoulderLineY = node.payload.optDouble("rigShoulderLineY", 0.62).toFloat().coerceIn(0.45f, 0.95f),
+            eyeLineY = node.payload.optDouble("rigEyeLineY", 0.35).toFloat().coerceIn(0.12f, 0.65f),
+            mouthLineY = node.payload.optDouble("rigMouthLineY", 0.5).toFloat().coerceIn(0.25f, 0.85f),
+            sliceCount = node.payload.optInt("rigSliceCount", 24).coerceIn(12, 40)
+        )
 
     private fun createFallbackPngTuberBitmap(node: RenderGraphNode): Bitmap {
         val bitmap = Bitmap.createBitmap(720, 960, Bitmap.Config.ARGB_8888)
@@ -280,22 +293,35 @@ object AndroidSceneCompositor {
         val output = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
-        val sliceCount = 24
+        val rig = motion.rig
+        val sliceCount = rig.sliceCount
         for (index in 0 until sliceCount) {
             val top = index * bitmap.height / sliceCount
             val bottom = ((index + 1) * bitmap.height / sliceCount + 1).coerceAtMost(bitmap.height)
             val centerY = (top + bottom) * 0.5f / bitmap.height.coerceAtLeast(1)
-            val faceFalloff = (1f - abs(centerY - 0.42f) / 0.34f).coerceIn(0f, 1f)
-            val hairFalloff = if (centerY < 0.34f) (1f - centerY / 0.34f).coerceIn(0f, 1f) else 0f
-            val shoulderFalloff = if (centerY > 0.62f) ((centerY - 0.62f) / 0.38f).coerceIn(0f, 1f) else 0f
+            val faceFalloff = (1f - abs(centerY - rig.faceCenterY) / rig.faceRange).coerceIn(0f, 1f)
+            val hairFalloff = if (centerY < rig.hairLineY) (1f - centerY / rig.hairLineY).coerceIn(0f, 1f) else 0f
+            val shoulderFalloff = if (centerY > rig.shoulderLineY) {
+                ((centerY - rig.shoulderLineY) / (1f - rig.shoulderLineY).coerceAtLeast(0.001f)).coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+            val eyeFalloff = (1f - abs(centerY - rig.eyeLineY) / 0.045f).coerceIn(0f, 1f)
+            val mouthFalloff = (1f - abs(centerY - rig.mouthLineY) / 0.06f).coerceIn(0f, 1f)
             val shiftX = bitmap.width * (
                 motion.meshWarp * 0.026f * faceFalloff +
                     motion.hairSway * 0.024f * hairFalloff +
                     motion.shoulderSway * 0.018f * shoulderFalloff
                 )
             val depthInset = bitmap.width * motion.depthTilt * 0.015f * faceFalloff
+            val expressionInset = bitmap.width * (motion.eyeSquint * 0.012f * eyeFalloff - motion.mouthDeform * 0.01f * mouthFalloff)
             val src = Rect(0, top, bitmap.width, bottom)
-            val dst = RectF(shiftX + depthInset, top.toFloat(), shiftX + bitmap.width - depthInset, bottom.toFloat())
+            val dst = RectF(
+                shiftX + depthInset + expressionInset,
+                top.toFloat(),
+                shiftX + bitmap.width - depthInset - expressionInset,
+                bottom.toFloat()
+            )
             canvas.drawBitmap(bitmap, src, dst, paint)
         }
         return output
@@ -397,5 +423,16 @@ private data class PngTuberMotion(
     val eyeSquint: Float = 0f,
     val mouthDeform: Float = 0f,
     val hairSway: Float = 0f,
-    val shoulderSway: Float = 0f
+    val shoulderSway: Float = 0f,
+    val rig: PngTuberRig = PngTuberRig()
+)
+
+private data class PngTuberRig(
+    val faceCenterY: Float = 0.42f,
+    val faceRange: Float = 0.34f,
+    val hairLineY: Float = 0.34f,
+    val shoulderLineY: Float = 0.62f,
+    val eyeLineY: Float = 0.35f,
+    val mouthLineY: Float = 0.5f,
+    val sliceCount: Int = 24
 )

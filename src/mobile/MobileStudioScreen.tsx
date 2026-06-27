@@ -48,6 +48,7 @@ import type { ReadinessIssue, ReadinessReport } from "../domain/readiness";
 import {
   addSource,
   createSource,
+  defaultAvatarIllustrationRig,
   defaultAvatarMotion,
   reorderSource,
   setLocked,
@@ -55,6 +56,7 @@ import {
   toRenderGraph,
   updateSource,
   updateTransform,
+  type AvatarIllustrationRig,
   type SceneDocument,
   type RenderNode,
   type SceneSource,
@@ -317,6 +319,21 @@ export const MobileStudioScreen = ({
   const operationBusy = operationStatus?.kind === "pending";
   const platformApiBusy = Boolean(platformApiOperationLabel);
   const setupLocked = isLive || isBusy || operationBusy || platformApiBusy;
+  const updateSelectedIllustrationRig = (key: keyof AvatarIllustrationRig, value: number) => {
+    onSceneChange(
+      updateSource(scene, selectedSource.id, (source) =>
+        source.kind === "pngtuber"
+          ? {
+              ...source,
+              illustrationRig: defaultAvatarIllustrationRig({
+                ...source.illustrationRig,
+                [key]: value
+              })
+            }
+          : source
+      )
+    );
+  };
   const chatOverlayMessages = selectChatOverlayMessages(chatReader);
   const diagnostics = createStreamDiagnostics(
     scene,
@@ -655,6 +672,73 @@ export const MobileStudioScreen = ({
                   {assetPrepareStatus.message}
                 </Text>
               ) : null}
+            </>
+          ) : null}
+          {selectedSource.kind === "pngtuber" ? (
+            <>
+              <NumberStepper
+                label="Face Y"
+                value={selectedSource.illustrationRig.faceCenterY}
+                min={0.15}
+                max={0.85}
+                step={0.05}
+                disabled={setupLocked}
+                onChange={(faceCenterY) => updateSelectedIllustrationRig("faceCenterY", faceCenterY)}
+              />
+              <NumberStepper
+                label="Face range"
+                value={selectedSource.illustrationRig.faceRange}
+                min={0.08}
+                max={0.6}
+                step={0.05}
+                disabled={setupLocked}
+                onChange={(faceRange) => updateSelectedIllustrationRig("faceRange", faceRange)}
+              />
+              <NumberStepper
+                label="Hair line"
+                value={selectedSource.illustrationRig.hairLineY}
+                min={0.05}
+                max={0.55}
+                step={0.05}
+                disabled={setupLocked}
+                onChange={(hairLineY) => updateSelectedIllustrationRig("hairLineY", hairLineY)}
+              />
+              <NumberStepper
+                label="Shoulder"
+                value={selectedSource.illustrationRig.shoulderLineY}
+                min={0.45}
+                max={0.95}
+                step={0.05}
+                disabled={setupLocked}
+                onChange={(shoulderLineY) => updateSelectedIllustrationRig("shoulderLineY", shoulderLineY)}
+              />
+              <NumberStepper
+                label="Eye line"
+                value={selectedSource.illustrationRig.eyeLineY}
+                min={0.12}
+                max={0.65}
+                step={0.05}
+                disabled={setupLocked}
+                onChange={(eyeLineY) => updateSelectedIllustrationRig("eyeLineY", eyeLineY)}
+              />
+              <NumberStepper
+                label="Mouth line"
+                value={selectedSource.illustrationRig.mouthLineY}
+                min={0.25}
+                max={0.85}
+                step={0.05}
+                disabled={setupLocked}
+                onChange={(mouthLineY) => updateSelectedIllustrationRig("mouthLineY", mouthLineY)}
+              />
+              <NumberStepper
+                label="Rig slices"
+                value={selectedSource.illustrationRig.sliceCount}
+                min={12}
+                max={40}
+                step={1}
+                disabled={setupLocked}
+                onChange={(sliceCount) => updateSelectedIllustrationRig("sliceCount", Math.round(sliceCount))}
+              />
             </>
           ) : null}
           {selectedSource.kind === "chat" ? (
@@ -2246,8 +2330,10 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
 
   if (source.kind === "pngtuber" || source.kind === "live2d") {
     const motion = source.motion ?? defaultAvatarMotion();
+    const rig = source.kind === "pngtuber" ? source.illustrationRig : defaultAvatarIllustrationRig();
     const eyeClose = Math.min(0.95, Math.max(source.blink, motion.eyeSquint));
     const mouthLevel = Math.max(source.mouthOpen, motion.mouthDeform);
+    const shoulderTravel = 12 + rig.shoulderLineY * 12;
 
     if (source.kind === "pngtuber" && source.imageUri.trim()) {
       return (
@@ -2256,11 +2342,11 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
             styles.avatarVisual,
             {
               transform: [
-                { translateX: motion.headX * 72 + motion.shoulderSway * 18 },
+                { translateX: motion.headX * 72 + motion.shoulderSway * shoulderTravel },
                 { translateY: (-motion.bodyBounce + motion.breathing + motion.headY) * 72 },
                 { rotate: `${motion.bodyLean * 10 + motion.headRoll * 18}deg` },
-                { skewX: `${motion.meshWarp * 4.5}deg` },
-                { skewY: `${motion.hairSway * 1.8}deg` },
+                { skewX: `${motion.meshWarp * (3.5 + rig.faceRange * 3)}deg` },
+                { skewY: `${motion.hairSway * (2.4 - rig.hairLineY)}deg` },
                 { scaleX: Math.max(0.84, 1 - Math.abs(motion.headYaw) * 0.08 - motion.depthTilt * 0.045) },
                 { scaleY: Math.max(0.9, 1 - Math.abs(motion.headPitch) * 0.04 + mouthLevel * 0.018) }
               ]
@@ -2278,7 +2364,7 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
           styles.avatarVisual,
           {
             transform: [
-              { translateX: motion.shoulderSway * 18 },
+              { translateX: motion.shoulderSway * shoulderTravel },
               { translateY: (-motion.bodyBounce + motion.breathing) * 72 },
               { rotate: `${motion.bodyLean * 10}deg` }
             ]

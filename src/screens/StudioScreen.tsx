@@ -56,6 +56,7 @@ import type { ReadinessReport } from "../domain/readiness";
 import {
   addSource,
   createSource,
+  defaultAvatarIllustrationRig,
   defaultAvatarMotion,
   reorderSource,
   setLocked,
@@ -64,6 +65,7 @@ import {
   updateSource,
   updateTransform,
   type SceneDocument,
+  type AvatarIllustrationRig,
   type RenderNode,
   type SceneSource,
   type SourceKind
@@ -456,6 +458,22 @@ export const StudioScreen = ({
     onSceneChange(updateSource(scene, selectedSource.id, (source) => ({ ...source, name })));
   };
 
+  const updateSelectedIllustrationRig = (key: keyof AvatarIllustrationRig, value: number) => {
+    onSceneChange(
+      updateSource(scene, selectedSource.id, (source) =>
+        source.kind === "pngtuber"
+          ? {
+              ...source,
+              illustrationRig: defaultAvatarIllustrationRig({
+                ...source.illustrationRig,
+                [key]: value
+              })
+            }
+          : source
+      )
+    );
+  };
+
   return (
     <main className="studio-shell">
       <header className="top-bar">
@@ -616,6 +634,73 @@ export const StudioScreen = ({
                   }
                 />
               </label>
+            ) : null}
+            {selectedSource.kind === "pngtuber" ? (
+              <>
+                <SpeechSlider
+                  label="Face Y"
+                  value={selectedSource.illustrationRig.faceCenterY}
+                  min={0.15}
+                  max={0.85}
+                  step={0.01}
+                  disabled={setupLocked}
+                  onChange={(faceCenterY) => updateSelectedIllustrationRig("faceCenterY", faceCenterY)}
+                />
+                <SpeechSlider
+                  label="Face range"
+                  value={selectedSource.illustrationRig.faceRange}
+                  min={0.08}
+                  max={0.6}
+                  step={0.01}
+                  disabled={setupLocked}
+                  onChange={(faceRange) => updateSelectedIllustrationRig("faceRange", faceRange)}
+                />
+                <SpeechSlider
+                  label="Hair line"
+                  value={selectedSource.illustrationRig.hairLineY}
+                  min={0.05}
+                  max={0.55}
+                  step={0.01}
+                  disabled={setupLocked}
+                  onChange={(hairLineY) => updateSelectedIllustrationRig("hairLineY", hairLineY)}
+                />
+                <SpeechSlider
+                  label="Shoulder"
+                  value={selectedSource.illustrationRig.shoulderLineY}
+                  min={0.45}
+                  max={0.95}
+                  step={0.01}
+                  disabled={setupLocked}
+                  onChange={(shoulderLineY) => updateSelectedIllustrationRig("shoulderLineY", shoulderLineY)}
+                />
+                <SpeechSlider
+                  label="Eye line"
+                  value={selectedSource.illustrationRig.eyeLineY}
+                  min={0.12}
+                  max={0.65}
+                  step={0.01}
+                  disabled={setupLocked}
+                  onChange={(eyeLineY) => updateSelectedIllustrationRig("eyeLineY", eyeLineY)}
+                />
+                <SpeechSlider
+                  label="Mouth line"
+                  value={selectedSource.illustrationRig.mouthLineY}
+                  min={0.25}
+                  max={0.85}
+                  step={0.01}
+                  disabled={setupLocked}
+                  onChange={(mouthLineY) => updateSelectedIllustrationRig("mouthLineY", mouthLineY)}
+                />
+                <SpeechSlider
+                  label="Rig slices"
+                  value={selectedSource.illustrationRig.sliceCount}
+                  min={12}
+                  max={40}
+                  step={1}
+                  disabled={setupLocked}
+                  onChange={(sliceCount) => updateSelectedIllustrationRig("sliceCount", Math.round(sliceCount))}
+                />
+              </>
             ) : null}
             {selectedSource.kind === "chat" ? (
               <>
@@ -1970,6 +2055,7 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
 
   if (source.kind === "pngtuber" || source.kind === "live2d") {
     const motion = source.motion ?? defaultAvatarMotion();
+    const rig = source.kind === "pngtuber" ? source.illustrationRig : defaultAvatarIllustrationRig();
     const eyeClose = Math.min(0.95, Math.max(source.blink, motion.eyeSquint));
     const mouthLevel = Math.max(source.mouthOpen, motion.mouthDeform);
     const bodyTransform = [
@@ -1988,7 +2074,10 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
 
     if (source.kind === "pngtuber" && source.imageUri.trim()) {
       return (
-        <div className="avatar-visual still-image" style={{ transform: `${bodyTransform} ${headTransform}` }}>
+        <div
+          className="avatar-visual still-image"
+          style={{ transform: `${bodyTransform} ${headTransform}`, transformOrigin: `50% ${Math.round(rig.shoulderLineY * 100)}%` }}
+        >
           <img src={source.imageUri} alt="" />
         </div>
       );

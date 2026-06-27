@@ -29,6 +29,16 @@ export interface AvatarMotion {
   confidence: number;
 }
 
+export interface AvatarIllustrationRig {
+  faceCenterY: number;
+  faceRange: number;
+  hairLineY: number;
+  shoulderLineY: number;
+  eyeLineY: number;
+  mouthLineY: number;
+  sliceCount: number;
+}
+
 export interface BaseSource {
   id: string;
   kind: SourceKind;
@@ -48,6 +58,7 @@ export interface PNGTuberSource extends BaseSource {
   kind: "pngtuber";
   avatarId: string;
   imageUri: string;
+  illustrationRig: AvatarIllustrationRig;
   expression: string;
   mouthOpen: number;
   blink: number;
@@ -130,6 +141,7 @@ export interface RenderNode {
 }
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+const clampRange = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const sourceKinds: readonly SourceKind[] = ["screen", "pngtuber", "live2d", "image", "solid", "text", "chat"];
 const blendModes: readonly BlendMode[] = ["normal", "multiply", "screen"];
 
@@ -161,6 +173,16 @@ export const defaultAvatarMotion = (overrides: Partial<AvatarMotion> = {}): Avat
   shoulderSway: 0,
   confidence: 0,
   ...overrides
+});
+
+export const defaultAvatarIllustrationRig = (overrides: Partial<AvatarIllustrationRig> = {}): AvatarIllustrationRig => ({
+  faceCenterY: clampRange(overrides.faceCenterY ?? 0.42, 0.15, 0.85),
+  faceRange: clampRange(overrides.faceRange ?? 0.34, 0.08, 0.6),
+  hairLineY: clampRange(overrides.hairLineY ?? 0.34, 0.05, 0.55),
+  shoulderLineY: clampRange(overrides.shoulderLineY ?? 0.62, 0.45, 0.95),
+  eyeLineY: clampRange(overrides.eyeLineY ?? 0.35, 0.12, 0.65),
+  mouthLineY: clampRange(overrides.mouthLineY ?? 0.5, 0.25, 0.85),
+  sliceCount: Math.round(clampRange(overrides.sliceCount ?? 24, 12, 40))
 });
 
 export const defaultTransform = (overrides: Partial<Transform> = {}): Transform =>
@@ -213,6 +235,7 @@ export const createDefaultScene = (): SceneDocument => ({
       blendMode: "normal",
       avatarId: "default-pngtuber",
       imageUri: "",
+      illustrationRig: defaultAvatarIllustrationRig(),
       expression: "neutral",
       mouthOpen: 0.18,
       blink: 0,
@@ -270,6 +293,7 @@ export const createSource = (kind: SourceKind): SceneSource => {
         kind,
         avatarId: "default-pngtuber",
         imageUri: "",
+        illustrationRig: defaultAvatarIllustrationRig(),
         expression: "neutral",
         mouthOpen: 0,
         blink: 0,
@@ -402,9 +426,17 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
       return { captureMode: source.captureMode };
     case "pngtuber": {
       const pngMotion = source.motion ?? defaultAvatarMotion();
+      const rig = source.illustrationRig ?? defaultAvatarIllustrationRig();
       return {
         avatarId: source.avatarId,
         imageUri: source.imageUri,
+        rigFaceCenterY: rig.faceCenterY,
+        rigFaceRange: rig.faceRange,
+        rigHairLineY: rig.hairLineY,
+        rigShoulderLineY: rig.shoulderLineY,
+        rigEyeLineY: rig.eyeLineY,
+        rigMouthLineY: rig.mouthLineY,
+        rigSliceCount: rig.sliceCount,
         expression: source.expression,
         mouthOpen: source.mouthOpen,
         blink: source.blink,
@@ -534,6 +566,21 @@ const normalizeMotionValue = (value: unknown): AvatarMotion => {
   });
 };
 
+const normalizeIllustrationRigValue = (value: unknown): AvatarIllustrationRig => {
+  if (!isRecord(value)) {
+    return defaultAvatarIllustrationRig();
+  }
+  return defaultAvatarIllustrationRig({
+    faceCenterY: clampedNumber(value.faceCenterY, 0.42, 0.15, 0.85),
+    faceRange: clampedNumber(value.faceRange, 0.34, 0.08, 0.6),
+    hairLineY: clampedNumber(value.hairLineY, 0.34, 0.05, 0.55),
+    shoulderLineY: clampedNumber(value.shoulderLineY, 0.62, 0.45, 0.95),
+    eyeLineY: clampedNumber(value.eyeLineY, 0.35, 0.12, 0.65),
+    mouthLineY: clampedNumber(value.mouthLineY, 0.5, 0.25, 0.85),
+    sliceCount: Math.round(clampedNumber(value.sliceCount, 24, 12, 40))
+  });
+};
+
 const normalizeSceneSource = (value: unknown): SceneSource | null => {
   if (!isRecord(value) || !isSourceKind(value.kind)) {
     return null;
@@ -563,6 +610,7 @@ const normalizeSceneSource = (value: unknown): SceneSource | null => {
         kind: "pngtuber",
         avatarId: stringValue(value.avatarId, sourceFallback.avatarId),
         imageUri: typeof value.imageUri === "string" ? value.imageUri : sourceFallback.imageUri,
+        illustrationRig: normalizeIllustrationRigValue(value.illustrationRig),
         expression: stringValue(value.expression, sourceFallback.expression),
         mouthOpen: clampedNumber(value.mouthOpen, sourceFallback.mouthOpen, 0, 1),
         blink: clampedNumber(value.blink, sourceFallback.blink, 0, 1),

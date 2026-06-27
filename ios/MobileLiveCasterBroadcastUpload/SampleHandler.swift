@@ -3121,6 +3121,7 @@ private struct BroadcastPngTuberMotion {
     let mouthDeform: CGFloat
     let hairSway: CGFloat
     let shoulderSway: CGFloat
+    let rig: BroadcastPngTuberRig
 
     init(
         offsetX: CGFloat = 0,
@@ -3133,7 +3134,8 @@ private struct BroadcastPngTuberMotion {
         eyeSquint: CGFloat = 0,
         mouthDeform: CGFloat = 0,
         hairSway: CGFloat = 0,
-        shoulderSway: CGFloat = 0
+        shoulderSway: CGFloat = 0,
+        rig: BroadcastPngTuberRig = BroadcastPngTuberRig()
     ) {
         self.offsetX = offsetX
         self.offsetY = offsetY
@@ -3146,6 +3148,7 @@ private struct BroadcastPngTuberMotion {
         self.mouthDeform = mouthDeform
         self.hairSway = hairSway
         self.shoulderSway = shoulderSway
+        self.rig = rig
     }
 
     var illustrationCacheKey: String {
@@ -3153,10 +3156,45 @@ private struct BroadcastPngTuberMotion {
             depthTilt,
             meshWarp,
             hairSway,
-            shoulderSway
+            shoulderSway,
+            rig.faceCenterY,
+            rig.faceRange,
+            rig.hairLineY,
+            rig.shoulderLineY,
+            rig.eyeLineY,
+            rig.mouthLineY,
+            CGFloat(rig.sliceCount)
         ]
-            .map { String(format: "%.4f", Double($0)) }
+            .map { String(format: "%.2f", Double($0)) }
             .joined(separator: ",")
+    }
+}
+
+private struct BroadcastPngTuberRig {
+    let faceCenterY: CGFloat
+    let faceRange: CGFloat
+    let hairLineY: CGFloat
+    let shoulderLineY: CGFloat
+    let eyeLineY: CGFloat
+    let mouthLineY: CGFloat
+    let sliceCount: Int
+
+    init(
+        faceCenterY: CGFloat = 0.42,
+        faceRange: CGFloat = 0.34,
+        hairLineY: CGFloat = 0.34,
+        shoulderLineY: CGFloat = 0.62,
+        eyeLineY: CGFloat = 0.35,
+        mouthLineY: CGFloat = 0.5,
+        sliceCount: Int = 24
+    ) {
+        self.faceCenterY = faceCenterY
+        self.faceRange = faceRange
+        self.hairLineY = hairLineY
+        self.shoulderLineY = shoulderLineY
+        self.eyeLineY = eyeLineY
+        self.mouthLineY = mouthLineY
+        self.sliceCount = sliceCount
     }
 }
 
@@ -3355,6 +3393,7 @@ final class BroadcastSceneCompositor {
         let mouthDeform = min(max(node.payload.cgFloatValue("mouthDeform"), 0), 1)
         let hairSway = min(max(node.payload.cgFloatValue("hairSway"), -1), 1)
         let shoulderSway = min(max(node.payload.cgFloatValue("shoulderSway"), -1), 1)
+        let rig = pngTuberRig(for: node)
         return BroadcastPngTuberMotion(
             offsetX: min(max(node.payload.cgFloatValue("headX"), -1), 1) * 0.025,
             offsetY: (min(max(node.payload.cgFloatValue("headY"), -1), 1) + breathing - bodyBounce) * 0.025,
@@ -3366,7 +3405,20 @@ final class BroadcastSceneCompositor {
             eyeSquint: eyeSquint,
             mouthDeform: mouthDeform,
             hairSway: hairSway,
-            shoulderSway: shoulderSway
+            shoulderSway: shoulderSway,
+            rig: rig
+        )
+    }
+
+    private func pngTuberRig(for node: BroadcastRenderNode) -> BroadcastPngTuberRig {
+        BroadcastPngTuberRig(
+            faceCenterY: min(max(node.payload.cgFloatValue("rigFaceCenterY", fallback: 0.42), 0.15), 0.85),
+            faceRange: min(max(node.payload.cgFloatValue("rigFaceRange", fallback: 0.34), 0.08), 0.6),
+            hairLineY: min(max(node.payload.cgFloatValue("rigHairLineY", fallback: 0.34), 0.05), 0.55),
+            shoulderLineY: min(max(node.payload.cgFloatValue("rigShoulderLineY", fallback: 0.62), 0.45), 0.95),
+            eyeLineY: min(max(node.payload.cgFloatValue("rigEyeLineY", fallback: 0.35), 0.12), 0.65),
+            mouthLineY: min(max(node.payload.cgFloatValue("rigMouthLineY", fallback: 0.5), 0.25), 0.85),
+            sliceCount: min(max(Int(node.payload.cgFloatValue("rigSliceCount", fallback: 24).rounded()), 12), 40)
         )
     }
 
@@ -3462,27 +3514,36 @@ final class BroadcastSceneCompositor {
         format.opaque = false
         let riggedImage = UIGraphicsImageRenderer(size: image.size, format: format).image { _ in
             let rect = CGRect(origin: .zero, size: image.size)
-            let sliceCount = 24
+            let rig = motion.rig
+            let sliceCount = rig.sliceCount
             for index in 0..<sliceCount {
                 let sliceTop = CGFloat(index) * rect.height / CGFloat(sliceCount)
                 let sliceBottom = CGFloat(index + 1) * rect.height / CGFloat(sliceCount)
                 let centerY = (sliceTop + sliceBottom) * 0.5 / max(rect.height, 1)
-                let faceFalloff = min(max(1 - abs(centerY - 0.42) / 0.34, 0), 1)
-                let hairFalloff = centerY < 0.34 ? min(max(1 - centerY / 0.34, 0), 1) : 0
-                let shoulderFalloff = centerY > 0.62 ? min(max((centerY - 0.62) / 0.38, 0), 1) : 0
+                let faceFalloff = min(max(1 - abs(centerY - rig.faceCenterY) / rig.faceRange, 0), 1)
+                let hairFalloff = centerY < rig.hairLineY ? min(max(1 - centerY / rig.hairLineY, 0), 1) : 0
+                let shoulderFalloff: CGFloat
+                if centerY > rig.shoulderLineY {
+                    shoulderFalloff = min(max((centerY - rig.shoulderLineY) / max(1 - rig.shoulderLineY, 0.001), 0), 1)
+                } else {
+                    shoulderFalloff = 0
+                }
+                let eyeFalloff = min(max(1 - abs(centerY - rig.eyeLineY) / 0.045, 0), 1)
+                let mouthFalloff = min(max(1 - abs(centerY - rig.mouthLineY) / 0.06, 0), 1)
                 let shiftX = rect.width * (
                     motion.meshWarp * 0.026 * faceFalloff +
                         motion.hairSway * 0.024 * hairFalloff +
                         motion.shoulderSway * 0.018 * shoulderFalloff
                     )
                 let depthInset = rect.width * motion.depthTilt * 0.015 * faceFalloff
+                let expressionInset = rect.width * (motion.eyeSquint * 0.012 * eyeFalloff - motion.mouthDeform * 0.01 * mouthFalloff)
                 let band = CGRect(
                     x: rect.minX - rect.width * 0.08,
                     y: rect.minY + sliceTop,
                     width: rect.width * 1.16,
                     height: max(1, sliceBottom - sliceTop + 1)
                 )
-                let drawRect = rect.offsetBy(dx: shiftX, dy: 0).insetBy(dx: depthInset, dy: 0)
+                let drawRect = rect.offsetBy(dx: shiftX, dy: 0).insetBy(dx: depthInset + expressionInset, dy: 0)
 
                 guard let currentContext = UIGraphicsGetCurrentContext() else {
                     continue
@@ -3492,6 +3553,9 @@ final class BroadcastSceneCompositor {
                 image.draw(in: drawRect)
                 currentContext.restoreGState()
             }
+        }
+        if cachedRiggedImages.count > 24 {
+            cachedRiggedImages.removeAll(keepingCapacity: true)
         }
         cachedRiggedImages[cacheKey] = riggedImage
         return riggedImage
