@@ -130,7 +130,7 @@ npm run release:evidence-package -- /path/to/release-candidate-verification.json
 
 `npm run verify:web-bundle-size` checks the built web assets in `dist/assets` and fails if the studio shell loses code-splitting or any JavaScript chunk exceeds the release limit. Run `npm run build` first.
 
-`npm run verify:store-release-env` checks the local store-distribution environment without building or printing secret values. It validates iOS team/profile/App Store Connect API-key inputs, Android release keystore inputs, absolute signing-file paths, and keeps signing material outside the repository. Use `npm run ios:verify-release-env` or `npm run android:verify-release-env` for platform-specific checks.
+`npm run verify:store-release-env` checks the local store-distribution environment without building or printing secret values. It validates iOS team/profile/App Store Connect API-key inputs, Android release keystore inputs, absolute signing-file paths, rejects symlinked signing material, and keeps signing material outside the repository even after resolving real paths. Use `npm run ios:verify-release-env` or `npm run android:verify-release-env` for platform-specific checks.
 
 `npm run ios:export-options` writes an App Store Connect export-options plist for the host app and ReplayKit Broadcast Upload Extension. Set `MLC_IOS_TEAM_ID`, `MLC_IOS_APP_PROFILE_NAME`, and `MLC_IOS_BROADCAST_PROFILE_NAME` first; optionally set `MLC_APP_STORE_CONNECT_KEY_PATH`, `MLC_APP_STORE_CONNECT_KEY_ID`, and `MLC_APP_STORE_CONNECT_ISSUER_ID` when `xcodebuild` should authenticate with App Store Connect outside Xcode Accounts.
 

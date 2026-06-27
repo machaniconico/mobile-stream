@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -51,6 +51,60 @@ describe("store release environment verifier", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("MLC_RELEASE_STORE_FILE must point outside the repository");
+  });
+
+  it("rejects Android release keystore symlinks before accepting linked signing material", () => {
+    const envPatch = createReadyEnv();
+    const symlinkKeystorePath = join(fixtureRoot, "release-link.keystore");
+    symlinkSync(envPatch.MLC_RELEASE_STORE_FILE, symlinkKeystorePath);
+
+    const result = runVerifier(
+      {
+        ...envPatch,
+        MLC_RELEASE_STORE_FILE: symlinkKeystorePath
+      },
+      ["--android-only"]
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("MLC_RELEASE_STORE_FILE must not point to a symbolic link.");
+    expect(result.stdout).not.toContain(envPatch.MLC_RELEASE_STORE_PASSWORD);
+  });
+
+  it("rejects Android release keystores reached through a symlinked parent into the repository", () => {
+    const repoKeystoreDir = ".artifacts/verify-store-release-env-test/repo-keystore-dir";
+    const repoKeystore = `${repoKeystoreDir}/release.keystore`;
+    const linkedParent = join(fixtureRoot, "repo-keystore-dir-link");
+    mkdirSync(repoKeystoreDir, { recursive: true });
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(repoKeystore, "fake-keystore");
+    symlinkSync(process.cwd() + "/" + repoKeystoreDir, linkedParent, "dir");
+
+    const result = runVerifier(
+      {
+        ...createReadyEnv(),
+        MLC_RELEASE_STORE_FILE: `${linkedParent}/release.keystore`
+      },
+      ["--android-only"]
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("MLC_RELEASE_STORE_FILE must point outside the repository");
+  });
+
+  it("rejects iOS App Store Connect API key symlinks", () => {
+    const envPatch = createReadyEnv();
+    const authKeyLink = join(fixtureRoot, "AuthKey_link.p8");
+    symlinkSync(envPatch.MLC_APP_STORE_CONNECT_KEY_PATH, authKeyLink);
+
+    const result = runVerifier({
+      ...envPatch,
+      MLC_APP_STORE_CONNECT_KEY_PATH: authKeyLink
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("MLC_APP_STORE_CONNECT_KEY_PATH must not point to a symbolic link.");
+    expect(result.stdout).not.toContain(envPatch.MLC_APP_STORE_CONNECT_KEY_PATH);
   });
 
   it("can scope checks to Android-only environments", () => {

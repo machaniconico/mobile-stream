@@ -1,4 +1,4 @@
-import { existsSync, statSync } from "node:fs";
+import { lstatSync, realpathSync } from "node:fs";
 import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { argv, cwd, env, exit } from "node:process";
 import { iosReleaseEnv } from "./ios-release-config.mjs";
@@ -129,15 +129,21 @@ function requireAbsoluteExistingFile(checks, value, { label, envName, root = cwd
   }
 
   const absolutePath = resolve(pathValue);
-  if (!existsSync(absolutePath)) {
+  const fileStat = lstatExisting(absolutePath);
+  if (!fileStat) {
     checks.push(fail(label, `${envName} does not point to an existing file.`));
     return;
   }
-  if (!statSync(absolutePath).isFile()) {
+  if (fileStat.isSymbolicLink()) {
+    checks.push(fail(label, `${envName} must not point to a symbolic link.`));
+    return;
+  }
+  if (!fileStat.isFile()) {
     checks.push(fail(label, `${envName} must point to a file.`));
     return;
   }
-  if (!allowInsideRepo && isPathInside(root, absolutePath)) {
+  const realPath = realpathSync(absolutePath);
+  if (!allowInsideRepo && (isPathInside(root, absolutePath) || isPathInside(root, realPath))) {
     checks.push(fail(label, `${envName} must point outside the repository so signing material is not committed.`));
     return;
   }
@@ -156,6 +162,17 @@ function looksLikePlaceholder(value) {
 function isPathInside(root, absolutePath) {
   const relativePath = relative(resolve(root), absolutePath);
   return Boolean(relativePath) && relativePath !== ".." && !relativePath.startsWith(`..${sep}`) && !isAbsolute(relativePath);
+}
+
+function lstatExisting(path) {
+  try {
+    return lstatSync(resolve(path));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function pass(label, detail) {
