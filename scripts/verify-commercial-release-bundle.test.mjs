@@ -1,5 +1,5 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -65,10 +65,58 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Physical validation coverage");
     expect(result.stdout).toContain("physical device identity");
   });
+
+  it("rejects symlinked support bundles before reading linked targets", () => {
+    const outsideBundlePath = ".artifacts/verify-commercial-release-bundle-test/outside-support-bundle.json";
+    mkdirSync(dirname(fixturePath), { recursive: true });
+    writeFileSync(outsideBundlePath, JSON.stringify(createBundle(), null, 2));
+    symlinkSync(resolve(outsideBundlePath), fixturePath);
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain(`Support bundle must not be a symbolic link: ${fixturePath}`);
+    expect(result.stdout).not.toContain("Can release: yes");
+  });
+
+  it("rejects dangling symlinked support bundles", () => {
+    const missingBundlePath = ".artifacts/verify-commercial-release-bundle-test/missing-support-bundle.json";
+    mkdirSync(dirname(fixturePath), { recursive: true });
+    symlinkSync(resolve(missingBundlePath), fixturePath);
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain(`Support bundle must not be a symbolic link: ${fixturePath}`);
+  });
+
+  it("rejects support bundles under symlinked workspace parents", () => {
+    const realParent = ".artifacts/verify-commercial-release-bundle-test/real-parent";
+    const linkParent = ".artifacts/verify-commercial-release-bundle-test/link-parent";
+    const linkedBundlePath = `${linkParent}/support-bundle.json`;
+    mkdirSync(realParent, { recursive: true });
+    writeFileSync(`${realParent}/support-bundle.json`, JSON.stringify(createBundle(), null, 2));
+    symlinkSync(resolve(realParent), linkParent, "dir");
+
+    const result = runVerifier(linkedBundlePath);
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain(`Support bundle path parent must not be a symbolic link: ${linkParent}`);
+    expect(result.stdout).not.toContain("Can release: yes");
+  });
+
+  it("rejects support bundle paths that point to directories", () => {
+    mkdirSync(fixturePath, { recursive: true });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain(`Support bundle must point to a file: ${fixturePath}`);
+  });
 });
 
-const runVerifier = () =>
-  spawnSync(process.execPath, ["scripts/verify-commercial-release-bundle.mjs", fixturePath, "--max-age-hours=24"], {
+const runVerifier = (path = fixturePath) =>
+  spawnSync(process.execPath, ["scripts/verify-commercial-release-bundle.mjs", path, "--max-age-hours=24"], {
     encoding: "utf8"
   });
 
