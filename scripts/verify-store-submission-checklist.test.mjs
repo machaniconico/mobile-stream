@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -200,6 +200,22 @@ describe("store submission checklist verifier", () => {
     expect(result.stderr).toContain(
       `Store submission review document path must be workspace-relative: ${absoluteReviewDocumentPath}.`
     );
+  });
+
+  it("rejects symlinked checklist artifact files before reading linked targets", () => {
+    writeStoreSubmissionFiles();
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    const outsideReviewDocument = `${fixtureRoot}/outside-review.md`;
+    writeFileSync(outsideReviewDocument, "Updated review with client_secret=supersecretvalue12345");
+    rmSync(reviewDocument);
+    symlinkSync(resolve(outsideReviewDocument), reviewDocument);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission review document must not be a symbolic link: ${reviewDocument}.`);
+    expect(result.stderr).not.toContain("Store submission metadata contains possible OAuth/access/refresh/client secret");
   });
 
   it("rejects UI evidence draft screenshots in final store-submission mode", () => {

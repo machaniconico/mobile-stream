@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -133,6 +133,21 @@ describe("distribution artifact verifier", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`Distribution artifact path must be workspace-relative: ${absolutePath}.`);
+  });
+
+  it("rejects symlinked manifest artifact files", () => {
+    writeDistributionFiles();
+    expect(
+      runVerifier(["--write", "--allow-dirty", "--android-aab", androidAab, "--manifest", manifestPath]).status
+    ).toBe(0);
+
+    rmSync(androidAab);
+    symlinkSync(resolve(iosIpa), androidAab);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Distribution artifact must not be a symbolic link: ${androidAab}.`);
   });
 
   it("rejects placeholder-sized distribution artifacts", () => {

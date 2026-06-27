@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
@@ -241,7 +241,11 @@ function createReviewDocumentRecord({ kind = "submissionReview", path }) {
   if (!existsSync(resolve(relativePath))) {
     throw new Error(`${kind} review document does not exist: ${relativePath}`);
   }
-  if (!statSync(resolve(relativePath)).isFile()) {
+  const reviewDocumentStat = lstatSync(resolve(relativePath));
+  if (reviewDocumentStat.isSymbolicLink()) {
+    throw new Error(`${kind} review document must not be a symbolic link: ${relativePath}`);
+  }
+  if (!reviewDocumentStat.isFile()) {
     throw new Error(`${kind} review document must point to a file: ${relativePath}`);
   }
 
@@ -270,7 +274,11 @@ function createMetadataRecord(path) {
   if (!existsSync(resolve(relativePath))) {
     throw new Error(`Store submission metadata does not exist: ${relativePath}`);
   }
-  if (!statSync(resolve(relativePath)).isFile()) {
+  const metadataStat = lstatSync(resolve(relativePath));
+  if (metadataStat.isSymbolicLink()) {
+    throw new Error(`Store submission metadata must not be a symbolic link: ${relativePath}`);
+  }
+  if (!metadataStat.isFile()) {
     throw new Error(`Store submission metadata must point to a file: ${relativePath}`);
   }
 
@@ -313,7 +321,11 @@ function createScreenshotRecord({
   if (!existsSync(resolve(relativePath))) {
     throw new Error(`${platform} store screenshot does not exist: ${relativePath}`);
   }
-  if (!statSync(resolve(relativePath)).isFile()) {
+  const screenshotStat = lstatSync(resolve(relativePath));
+  if (screenshotStat.isSymbolicLink()) {
+    throw new Error(`${platform} store screenshot must not be a symbolic link: ${relativePath}`);
+  }
+  if (!screenshotStat.isFile()) {
     throw new Error(`${platform} store screenshot must point to a file: ${relativePath}`);
   }
 
@@ -364,7 +376,12 @@ function validateMetadataRecord(record, failures) {
     failures.push(`Store submission metadata file does not exist: ${relativePath}.`);
     return null;
   }
-  if (!statSync(absolutePath).isFile()) {
+  const metadataStat = lstatSync(absolutePath);
+  if (metadataStat.isSymbolicLink()) {
+    failures.push(`Store submission metadata must not be a symbolic link: ${relativePath}.`);
+    return null;
+  }
+  if (!metadataStat.isFile()) {
     failures.push(`Store submission metadata must point to a file: ${relativePath}.`);
     return null;
   }
@@ -512,7 +529,12 @@ function validateScreenshotRecord(screenshot, failures, { requireRealDeviceScree
     failures.push(`Store submission screenshot file does not exist: ${relativePath}.`);
     return;
   }
-  if (!statSync(absolutePath).isFile()) {
+  const screenshotStat = lstatSync(absolutePath);
+  if (screenshotStat.isSymbolicLink()) {
+    failures.push(`Store submission screenshot must not be a symbolic link: ${relativePath}.`);
+    return;
+  }
+  if (!screenshotStat.isFile()) {
     failures.push(`Store submission screenshot must point to a file: ${relativePath}.`);
     return;
   }
@@ -581,7 +603,12 @@ function validateReviewDocumentRecord(reviewDocument, failures) {
     failures.push(`Store submission review document file does not exist: ${relativePath}.`);
     return;
   }
-  if (!statSync(absolutePath).isFile()) {
+  const reviewDocumentStat = lstatSync(absolutePath);
+  if (reviewDocumentStat.isSymbolicLink()) {
+    failures.push(`Store submission review document must not be a symbolic link: ${relativePath}.`);
+    return;
+  }
+  if (!reviewDocumentStat.isFile()) {
     failures.push(`Store submission review document must point to a file: ${relativePath}.`);
     return;
   }
@@ -617,6 +644,10 @@ function createReleaseArtifactRecord(group, path) {
   const relativePath = workspaceRelativePath(path);
   if (!relativePath) {
     throw new Error(`Artifact path must be inside the workspace: ${path}`);
+  }
+  const artifactStat = lstatSync(resolve(relativePath));
+  if (artifactStat.isSymbolicLink() || !artifactStat.isFile()) {
+    throw new Error(`Artifact path must point to a regular file: ${relativePath}`);
   }
   const content = readFileSync(resolve(relativePath));
   return {

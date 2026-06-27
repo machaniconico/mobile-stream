@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
@@ -163,7 +163,11 @@ function createDistributionArtifactRecord({ platform, kind, extension, path }) {
   if (!existsSync(resolve(relativePath))) {
     throw new Error(`${platform} ${kind} artifact does not exist: ${relativePath}`);
   }
-  if (!statSync(resolve(relativePath)).isFile()) {
+  const artifactStat = lstatSync(resolve(relativePath));
+  if (artifactStat.isSymbolicLink()) {
+    throw new Error(`${platform} ${kind} artifact must not be a symbolic link: ${relativePath}`);
+  }
+  if (!artifactStat.isFile()) {
     throw new Error(`${platform} ${kind} artifact must point to a file: ${relativePath}`);
   }
 
@@ -207,7 +211,12 @@ function validateDistributionArtifact(artifact, failures) {
     failures.push(`Distribution artifact file does not exist: ${relativePath}.`);
     return;
   }
-  if (!statSync(absolutePath).isFile()) {
+  const artifactStat = lstatSync(absolutePath);
+  if (artifactStat.isSymbolicLink()) {
+    failures.push(`Distribution artifact must not be a symbolic link: ${relativePath}.`);
+    return;
+  }
+  if (!artifactStat.isFile()) {
     failures.push(`Distribution artifact must point to a file: ${relativePath}.`);
     return;
   }
@@ -346,6 +355,10 @@ function createReleaseArtifactRecord(group, path) {
   const relativePath = workspaceRelativePath(path);
   if (!relativePath) {
     throw new Error(`Artifact path must be inside the workspace: ${path}`);
+  }
+  const artifactStat = lstatSync(resolve(relativePath));
+  if (artifactStat.isSymbolicLink() || !artifactStat.isFile()) {
+    throw new Error(`Artifact path must point to a regular file: ${relativePath}`);
   }
   const content = readFileSync(resolve(relativePath));
   return {

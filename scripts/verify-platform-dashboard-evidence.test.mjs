@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
@@ -228,6 +228,30 @@ describe("platform dashboard evidence verifier", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`Dashboard evidence path must be workspace-relative: ${nonCanonicalScreenshotPath}.`);
     expect(result.stderr).toContain(`Dashboard evidence path must be workspace-relative: ${absoluteJsonPath}.`);
+  });
+
+  it("rejects symlinked manifest evidence files", () => {
+    writeEvidenceFiles();
+    expect(
+      runVerifier([
+        "--write",
+        "--allow-dirty",
+        "--youtube-json",
+        youtubeJson,
+        "--twitch-json",
+        twitchJson,
+        "--manifest",
+        manifestPath
+      ]).status
+    ).toBe(0);
+
+    rmSync(youtubeJson);
+    symlinkSync(resolve(twitchJson), youtubeJson);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence artifact must not be a symbolic link: ${youtubeJson}.`);
   });
 
   it("rejects dashboard status JSON for the wrong platform", () => {
