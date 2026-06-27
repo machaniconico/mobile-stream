@@ -23,6 +23,7 @@ import {
   validateStoreSubmissionChecklist
 } from "./verify-store-submission-checklist.mjs";
 import { collectStoreReleaseArtifactRecords, validateStoreReleaseReport } from "./release-store-build.mjs";
+import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
 
 const defaultUiUrl = "http://127.0.0.1:5173/";
 const devServerTimeoutMs = 30_000;
@@ -679,13 +680,13 @@ function parseArgs(args) {
 function normalizeUiUrl(value) {
   try {
     const url = new URL(value);
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      throw new Error("unsupported protocol");
+    if (!isLoopbackHttpUrl(url.toString())) {
+      throw new Error("unsupported host");
     }
     return url.toString();
   } catch {
     printUsage();
-    throw new GateError("\n--ui-url must be an http(s) URL.", 2);
+    throw new GateError("\n--ui-url must be a loopback http(s) URL, such as http://127.0.0.1:5173/.", 2);
   }
 }
 
@@ -742,8 +743,8 @@ function validateUiEvidence(evidence, { currentCommit, allowDirty, maxAgeHours }
   if (!allowDirty && evidence.git?.dirty) {
     throw new GateError("UI evidence was generated from a dirty worktree. Regenerate UI evidence after committing changes.", 1);
   }
-  if (!isHttpUrl(evidence.target)) {
-    throw new GateError("UI evidence target must be an http(s) URL.", 1);
+  if (!isLoopbackHttpUrl(evidence.target)) {
+    throw new GateError("UI evidence target must be a loopback http(s) URL.", 1);
   }
 
   const viewports = Array.isArray(evidence.viewports) ? evidence.viewports : [];
@@ -799,15 +800,6 @@ function ageInHours(value, now) {
     return null;
   }
   return Math.floor(ageMs / 3_600_000);
-}
-
-function isHttpUrl(value) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
 }
 
 function fileSha256(path) {
@@ -951,6 +943,7 @@ function printUsage() {
       "Writes a JSON evidence report for release approval audit trails.",
       "Fails on uncommitted source changes unless --allow-dirty is provided for development-only evidence.",
       "Use --ui-url when a preview server is already running.",
+      "The --ui-url value and skipped UI evidence target must be loopback preview URLs: localhost, 127.0.0.1, or [::1].",
       "Use --skip-ui only when Chrome is unavailable and pass --ui-evidence-json from a separate passing `npm run verify:ui` run."
     ].join("\n")
   );

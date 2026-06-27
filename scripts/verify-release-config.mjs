@@ -13,6 +13,7 @@ const root = cwd();
 
 const files = {
   packageJson: read("package.json"),
+  releaseArtifactPolicyScript: read("scripts/release-artifact-policy.mjs"),
   androidGradle: read("android/app/build.gradle"),
   androidManifest: read("android/app/src/main/AndroidManifest.xml"),
   iosInfo: read("ios/MobileLiveCaster/Info.plist"),
@@ -27,6 +28,7 @@ const files = {
   releaseCandidateScript: read("scripts/verify-release-candidate.mjs"),
   releaseReportScript: read("scripts/verify-release-report.mjs"),
   releaseEvidencePackageScript: read("scripts/create-release-evidence-package.mjs"),
+  releaseUrlPolicyScript: read("scripts/release-url-policy.mjs"),
   iosReleaseConfigScript: read("scripts/ios-release-config.mjs"),
   createIosExportOptionsScript: read("scripts/create-ios-export-options.mjs"),
   archiveIosReleaseScript: read("scripts/archive-ios-release.mjs"),
@@ -103,6 +105,15 @@ const checks = [
     expectIncludes(files.releaseCandidateScript, "Dashboard evidence status JSON");
     expectIncludes(files.releaseCandidateScript, "requireRealDeviceScreenshots: true");
     expectIncludes(files.releaseCandidateScript, "Store release orchestration report is required");
+    expectIncludes(files.releaseCandidateScript, "isLoopbackHttpUrl");
+    expectIncludes(files.releaseCandidateScript, "--ui-url must be a loopback http(s) URL");
+    expectIncludes(files.releaseCandidateScript, "UI evidence target must be a loopback http(s) URL.");
+    expectIncludes(files.releaseReportScript, "Browser UI evidence target must be a loopback http(s) URL.");
+    expectIncludes(files.releaseUrlPolicyScript, "isLoopbackHttpUrl");
+    expectIncludes(files.releaseUrlPolicyScript, "localhost");
+    expectIncludes(files.releaseUrlPolicyScript, "127.0.0.1");
+    expectIncludes(files.releaseUrlPolicyScript, "[::1]");
+    expectIncludes(files.releaseArtifactPolicyScript, "scripts/release-url-policy.mjs");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
     expectBefore(
       files.releaseCandidateScript,

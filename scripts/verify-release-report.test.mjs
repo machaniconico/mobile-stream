@@ -133,6 +133,14 @@ describe("release report verifier", () => {
     );
   });
 
+  it("rejects UI evidence captured from a non-loopback target", () => {
+    const report = createReport({ uiEvidenceTarget: "https://example.com/" });
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain("Browser UI evidence target must be a loopback http(s) URL.");
+  });
+
   it("accepts release reports with a matching distribution artifact manifest", () => {
     restoreUiScreenshots();
     const failures = validateReport(createReport({ includeDistribution: true }), reportOptions());
@@ -234,11 +242,12 @@ function createReport({
   includeStoreRelease = false,
   storeReleaseStatus = "passed",
   storeReleaseFinishedAt,
+  uiEvidenceTarget = "http://127.0.0.1:5173/",
   allowWarnings = false,
   supportBundlePatch = {}
 } = {}) {
   writeSupportBundleFixture(supportBundlePatch);
-  writeUiEvidenceFile();
+  writeUiEvidenceFile({ target: uiEvidenceTarget });
   const shouldIncludeDistribution = includeDistribution || includeStoreRelease;
   if (shouldIncludeDistribution) {
     writeDistributionFixture();
@@ -319,7 +328,7 @@ function createReport({
         evidence: {
           path: ".artifacts/release-report-test/ui-evidence.json",
           sha256: fileSha256(".artifacts/release-report-test/ui-evidence.json"),
-          target: "http://127.0.0.1:5173/",
+          target: uiEvidenceTarget,
           finishedAt: new Date().toISOString(),
           viewports: []
         }
@@ -864,7 +873,8 @@ function storeReviewDocumentRecord() {
 
 function writeUiEvidenceFile({
   desktopPath = ".artifacts/mobile-live-caster-desktop.png",
-  mobilePath = ".artifacts/mobile-live-caster-mobile.png"
+  mobilePath = ".artifacts/mobile-live-caster-mobile.png",
+  target = "http://127.0.0.1:5173/"
 } = {}) {
   writeFile(
     ".artifacts/release-report-test/ui-evidence.json",
@@ -874,7 +884,7 @@ function writeUiEvidenceFile({
         app: "MobileLiveCaster",
         type: "browser-ui-verification",
         status: "passed",
-        target: "http://127.0.0.1:5173/",
+        target,
         finishedAt: new Date().toISOString(),
         git: {
           commit: currentCommit(),

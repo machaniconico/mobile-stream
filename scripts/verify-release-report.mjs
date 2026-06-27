@@ -14,6 +14,7 @@ import { validateDashboardEvidenceInReport } from "./verify-platform-dashboard-e
 import { validateStoreSubmissionInReport } from "./verify-store-submission-checklist.mjs";
 import { validateStoreReleaseReportInReleaseReport } from "./release-store-build.mjs";
 import { createCommercialReleaseGate } from "./verify-commercial-release-bundle.mjs";
+import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
 
 const requiredUiViewportNames = ["desktop", "mobile"];
 const requiredReactNativeArtifacts = [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"];
@@ -343,6 +344,9 @@ function validateUiEvidence(report, options, fail) {
   }
   if (evidence.git?.dirty && !options.allowDirty) {
     fail("Browser UI evidence was generated from a dirty worktree.");
+  }
+  if (!isLoopbackHttpUrl(evidence.target)) {
+    fail("Browser UI evidence target must be a loopback http(s) URL.");
   }
 
   const viewports = Array.isArray(evidence.viewports) ? evidence.viewports : [];

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -78,6 +79,32 @@ describe("release candidate verifier", () => {
         storeReleaseReportRequired: true,
         storeReleaseReportSupplied: false
       }
+    });
+  });
+
+  it("rejects non-loopback preview URLs before running source gates", () => {
+    const result = runVerifier(["--ui-url=https://example.com/"]);
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("Usage:");
+    expect(result.stderr).toContain("--ui-url must be a loopback http(s) URL");
+    expect(result.stdout).not.toContain("==> Run unit tests");
+  });
+
+  it("rejects skipped UI evidence captured from a non-loopback target before source gates", () => {
+    writeUiEvidenceFixture({ target: "https://example.com/" });
+
+    const result = runVerifier(["--skip-ui", `--ui-evidence-json=${fixtureRoot}/ui-evidence.json`]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("UI evidence target must be a loopback http(s) URL.");
+    expect(result.stdout).not.toContain("==> Verify commercial release support bundle");
+
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    const uiGate = report.gates.find((entry) => entry.label === "Verify browser UI evidence");
+    expect(uiGate).toMatchObject({
+      status: "failed",
+      exitCode: 1
     });
   });
 
@@ -447,6 +474,60 @@ function writeValidHandoffEvidence({ dashboardCheckedAt = new Date().toISOString
     )
   );
   createStoreSubmissionChecklist({ metadataPath: `${fixtureRoot}/submission-metadata.json` });
+}
+
+function writeUiEvidenceFixture({ target = "http://127.0.0.1:5173/" } = {}) {
+  const desktopPath = `${fixtureRoot}/ui-desktop.png`;
+  const mobilePath = `${fixtureRoot}/ui-mobile.png`;
+  writeFile(desktopPath, pngBytes);
+  writeFile(mobilePath, pngBytes);
+  writeFile(
+    `${fixtureRoot}/ui-evidence.json`,
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: "browser-ui-verification",
+        status: "passed",
+        target,
+        finishedAt: new Date().toISOString(),
+        git: {
+          commit: currentCommit(),
+          dirty: true
+        },
+        viewports: [
+          uiViewportEvidence("desktop", desktopPath),
+          uiViewportEvidence("mobile", mobilePath)
+        ]
+      },
+      null,
+      2
+    )
+  );
+}
+
+function uiViewportEvidence(name, path) {
+  return {
+    name,
+    horizontalOverflow: false,
+    requiredTextChecks: ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"].map(
+      (text) => ({ text, count: 1 })
+    ),
+    screenshot: fileRecord(path)
+  };
+}
+
+function fileRecord(path) {
+  const content = readFileSync(path);
+  return {
+    path,
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
+function currentCommit() {
+  return spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim();
 }
 
 function restoreManagedArtifacts() {
