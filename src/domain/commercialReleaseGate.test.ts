@@ -127,13 +127,13 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v16 support bundles that do not carry still-image rig quality evidence", () => {
+  it("blocks v17 support bundles that do not carry spoken chat readout manifest proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         app: {
           name: "MobileLiveCaster",
           reportVersion: 1,
-          bundleVersion: 16
+          bundleVersion: 17
         }
       }),
       { now }
@@ -205,6 +205,50 @@ describe("commercial release gate", () => {
       expect.objectContaining({
         code: "validation-evidence-manifest-integrity",
         detail: expect.stringContaining("iOS avatar-motion proof")
+      })
+    );
+  });
+
+  it("blocks chat-readout summary claims when the manifest has no spoken chat success", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", chatReadoutSpokenMessageCount: 0 }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS spoken chat-readout proof")
+      })
+    );
+  });
+
+  it("blocks chat-readout summary claims when the manifest keeps speech failures", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", chatReadoutSpeechFailureCount: 1 }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS spoken chat-readout proof")
       })
     );
   });
@@ -289,7 +333,7 @@ describe("commercial release gate", () => {
         expect.objectContaining({
           code: "validation-evidence-manifest-integrity",
           severity: "fail",
-          detail: expect.stringContaining("Android chat-readout proof is claimed by summary but not backed")
+          detail: expect.stringContaining("Android spoken chat-readout proof is claimed by summary but not backed")
         })
       ])
     );
@@ -387,7 +431,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 17 as const
+    bundleVersion: 18 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   summary = {}
@@ -484,6 +528,8 @@ const manifestRun = ({
   faceTrackingRigIssueCount = 0,
   audioStatus = "pass",
   chatReadoutStatus = "pass",
+  chatReadoutSpokenMessageCount = 1,
+  chatReadoutSpeechFailureCount = 0,
   qualityAutomationStatus = "pass",
   platformPublishingStatus = "pass",
   platformPublishingFreshnessStatus = "fresh"
@@ -506,6 +552,8 @@ const manifestRun = ({
   faceTrackingRigIssueCount?: ValidationManifestRun["faceTrackingRigIssueCount"];
   audioStatus?: ValidationManifestRun["audioStatus"];
   chatReadoutStatus?: ValidationManifestRun["chatReadoutStatus"];
+  chatReadoutSpokenMessageCount?: ValidationManifestRun["chatReadoutSpokenMessageCount"];
+  chatReadoutSpeechFailureCount?: ValidationManifestRun["chatReadoutSpeechFailureCount"];
   qualityAutomationStatus?: ValidationManifestRun["qualityAutomationStatus"];
   platformPublishingStatus?: ValidationManifestRun["platformPublishingStatus"];
   platformPublishingFreshnessStatus?: ValidationManifestRun["platformPublishingFreshnessStatus"];
@@ -536,6 +584,8 @@ const manifestRun = ({
   faceTrackingRigIssueCount,
   audioStatus,
   chatReadoutStatus,
+  chatReadoutSpokenMessageCount,
+  chatReadoutSpeechFailureCount,
   qualityAutomationStatus,
   platformPublishingStatus,
   platformPublishingFreshnessStatus,

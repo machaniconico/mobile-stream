@@ -27,19 +27,19 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Can release: yes");
   });
 
-  it("blocks v16 support bundles without still-image rig quality evidence", () => {
+  it("blocks v17 support bundles without spoken chat readout manifest proof", () => {
     writeBundle({
       app: {
         name: "MobileLiveCaster",
         reportVersion: 1,
-        bundleVersion: 16
+        bundleVersion: 17
       }
     });
 
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v16 is older than the required v17.");
+    expect(result.stdout).toContain("Support bundle v17 is older than the required v18.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -127,6 +127,38 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("zero still-image rig issues");
+  });
+
+  it("blocks chat readout claims when retained manifests have no spoken chat success", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { chatReadoutSpokenMessageCount: 0 }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("spoken-message success and zero speech failures");
+  });
+
+  it("blocks chat readout claims when retained manifests keep speech failures", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { chatReadoutSpeechFailureCount: 1 }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("spoken-message success and zero speech failures");
   });
 
   it("rejects symlinked support bundles before reading linked targets", () => {
@@ -240,7 +272,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 17
+      bundleVersion: 18
     },
     generatedAt: new Date().toISOString(),
     ...patch,
@@ -278,6 +310,8 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   faceTrackingRigIssueCount: 0,
   audioStatus: "pass",
   chatReadoutStatus: "pass",
+  chatReadoutSpokenMessageCount: 1,
+  chatReadoutSpeechFailureCount: 0,
   qualityAutomationStatus: "pass",
   platformPublishingStatus: "pass",
   platformPublishingFreshnessStatus: "fresh",

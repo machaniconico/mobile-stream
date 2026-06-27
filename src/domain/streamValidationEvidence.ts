@@ -197,6 +197,8 @@ export interface StreamValidationEvidenceRunManifestItem {
   faceTrackingRigIssueCount: number;
   audioStatus: StreamValidationAudioSummary["status"] | null;
   chatReadoutStatus: StreamValidationChatReadoutSummary["status"] | null;
+  chatReadoutSpokenMessageCount: number;
+  chatReadoutSpeechFailureCount: number;
   qualityAutomationStatus: StreamValidationQualityAutomationSummary["status"] | null;
   platformPublishingStatus: StreamDiagnostics["platformPublishing"]["status"] | null;
   platformPublishingFreshnessStatus: PlatformPublishingFreshnessStatus | null;
@@ -557,8 +559,8 @@ export const summarizeStreamValidationEvidence = (
   const audioWarningCount = audioRuns.filter((run) => !isAudioEvidencePass(run.audio)).length;
   const chatReadoutRuns = scopedRuns.filter((run) => run.chatReadout);
   const chatReadoutRunCount = chatReadoutRuns.length;
-  const chatReadoutReadyCount = chatReadoutRuns.filter((run) => run.chatReadout?.status === "pass").length;
-  const chatReadoutWarningCount = chatReadoutRuns.filter((run) => run.chatReadout?.status !== "pass").length;
+  const chatReadoutReadyCount = chatReadoutRuns.filter((run) => isChatReadoutEvidencePass(run.chatReadout)).length;
+  const chatReadoutWarningCount = chatReadoutRuns.filter((run) => !isChatReadoutEvidencePass(run.chatReadout)).length;
   const qualityAutomationRuns = scopedRuns.filter((run) => run.qualityAutomation);
   const qualityAutomationRunCount = qualityAutomationRuns.length;
   const qualityAutomationLiveUpdateCount = qualityAutomationRuns.reduce(
@@ -631,8 +633,8 @@ export const summarizeStreamValidationEvidence = (
   const faceTrackingAndroidPass = androidPass && isAvatarMotionEvidencePass(androidLatestRun?.faceTracking);
   const audioIosPass = iosPass && isAudioEvidencePass(iosLatestRun?.audio);
   const audioAndroidPass = androidPass && isAudioEvidencePass(androidLatestRun?.audio);
-  const chatReadoutIosPass = iosPass && isFeatureEvidencePass(iosLatestRun?.chatReadout);
-  const chatReadoutAndroidPass = androidPass && isFeatureEvidencePass(androidLatestRun?.chatReadout);
+  const chatReadoutIosPass = iosPass && isChatReadoutEvidencePass(iosLatestRun?.chatReadout);
+  const chatReadoutAndroidPass = androidPass && isChatReadoutEvidencePass(androidLatestRun?.chatReadout);
   const platformPublishingIosPass = iosPass && isPlatformPublishingRunEvidencePass(iosLatestRun);
   const platformPublishingAndroidPass = androidPass && isPlatformPublishingRunEvidencePass(androidLatestRun);
   const appBuildMismatch = Boolean(
@@ -1139,6 +1141,11 @@ const isMonitorHoldEvidencePass = (monitorHold: StreamValidationMonitorHoldSumma
 const isFeatureEvidencePass = (
   feature: { status: StreamValidationFeatureStatus } | null | undefined
 ): boolean => feature?.status === "pass";
+
+const isChatReadoutEvidencePass = (chatReadout: StreamValidationChatReadoutSummary | null | undefined): boolean =>
+  chatReadout?.status === "pass" &&
+  chatReadout.spokenMessageCount > 0 &&
+  chatReadout.speechFailureCount === 0;
 
 const isAudioEvidencePass = (audio: StreamValidationAudioSummary | null | undefined): boolean =>
   audio?.status === "pass" &&
@@ -2067,6 +2074,8 @@ const createEvidenceRunManifestItem = (
   faceTrackingRigIssueCount: run.faceTracking?.rigIssueCount ?? 0,
   audioStatus: run.audio?.status ?? null,
   chatReadoutStatus: run.chatReadout?.status ?? null,
+  chatReadoutSpokenMessageCount: run.chatReadout?.spokenMessageCount ?? 0,
+  chatReadoutSpeechFailureCount: run.chatReadout?.speechFailureCount ?? 0,
   qualityAutomationStatus: run.qualityAutomation?.status ?? null,
   platformPublishingStatus: run.platformPublishing?.status ?? null,
   platformPublishingFreshnessStatus: getRunPlatformPublishingFreshness(run)?.status ?? null,

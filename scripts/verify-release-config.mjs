@@ -43,6 +43,7 @@ const files = {
   storeSubmissionApprovalScript: read("scripts/verify-store-submission-approval.mjs"),
   supportBundleDomain: read("src/domain/supportBundle.ts"),
   commercialReleaseGateDomain: read("src/domain/commercialReleaseGate.ts"),
+  streamValidationEvidenceDomain: read("src/domain/streamValidationEvidence.ts"),
   liveCasterBridge: read("ios/MobileLiveCaster/LiveCasterBridge.swift"),
   broadcastHandler: read("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift")
 };
@@ -143,9 +144,13 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 17");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 17");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 17");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 18");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 18");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 18");
+    expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpokenMessageCount");
+    expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpeechFailureCount");
+    expectIncludes(files.commercialReleaseGateDomain, "isManifestChatReadoutPass");
+    expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-chat-readout");
     expectBefore(
       files.releaseCandidateScript,
       "runCommercialSupportBundleGate(report, options);",

@@ -3,7 +3,7 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
-const minimumSupportBundleVersion = 17;
+const minimumSupportBundleVersion = 18;
 const defaultMaxBundleAgeHours = 24;
 const redactedMarker = "[redacted]";
 const sensitivePropertyNames = new Set([
@@ -374,7 +374,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v17 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v18 or newer after retaining release-candidate validation runs."
     );
   }
   const eligiblePlatforms = new Set(
@@ -425,7 +425,30 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-avatar-motion",
       "Validation evidence manifest",
       "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, active motion, and zero still-image rig issues.",
-      "Export a support bundle v17 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and reviewed PNGTuber rig lines."
+      "Export a support bundle v18 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and reviewed PNGTuber rig lines."
+    );
+  }
+  const eligibleChatReadoutPlatforms = new Set(
+    manifest
+      .filter(
+        (run) =>
+          run?.eligible === true &&
+          run?.result === "pass" &&
+          run?.chatReadoutStatus === "pass" &&
+          number(run?.chatReadoutSpokenMessageCount) > 0 &&
+          isZeroNumber(run?.chatReadoutSpeechFailureCount)
+      )
+      .map((run) => run.devicePlatform)
+  );
+  if (
+    (summary.validationEvidenceChatReadoutIosPass === true && !eligibleChatReadoutPlatforms.has("ios")) ||
+    (summary.validationEvidenceChatReadoutAndroidPass === true && !eligibleChatReadoutPlatforms.has("android"))
+  ) {
+    return fail(
+      "validation-evidence-manifest-chat-readout",
+      "Validation evidence manifest",
+      "The manifest does not back claimed chat readout evidence with spoken-message success and zero speech failures.",
+      "Export a support bundle v18 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
     );
   }
   return null;

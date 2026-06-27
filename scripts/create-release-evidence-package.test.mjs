@@ -1323,7 +1323,7 @@ function commercialSupportBundleFixture() {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 17
+      bundleVersion: 18
     },
     generatedAt: capturedAt,
     fixture: true,
@@ -1404,6 +1404,8 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     faceTrackingRigIssueCount: 0,
     audioStatus: "pass",
     chatReadoutStatus: "pass",
+    chatReadoutSpokenMessageCount: 1,
+    chatReadoutSpeechFailureCount: 0,
     qualityAutomationStatus: "pass",
     platformPublishingStatus: "pass",
     platformPublishingFreshnessStatus: "fresh",

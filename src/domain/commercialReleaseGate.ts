@@ -33,7 +33,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 17;
+const minimumSupportBundleVersion = 18;
 const defaultMaxBundleAgeHours = 24;
 
 export const createCommercialReleaseGate = (
@@ -301,7 +301,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v17 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v18 or newer after retaining release-candidate validation runs."
     );
   }
   const latestRuns = latestEligibleManifestRunsByPlatform(manifest);
@@ -394,8 +394,12 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): 
     ],
     [summary.validationEvidenceAudioIosPass, "iOS mic/headphone proof", isManifestFeaturePass(iosRun?.audioStatus)],
     [summary.validationEvidenceAudioAndroidPass, "Android mic/headphone proof", isManifestFeaturePass(androidRun?.audioStatus)],
-    [summary.validationEvidenceChatReadoutIosPass, "iOS chat-readout proof", isManifestFeaturePass(iosRun?.chatReadoutStatus)],
-    [summary.validationEvidenceChatReadoutAndroidPass, "Android chat-readout proof", isManifestFeaturePass(androidRun?.chatReadoutStatus)],
+    [summary.validationEvidenceChatReadoutIosPass, "iOS spoken chat-readout proof", isManifestChatReadoutPass(iosRun)],
+    [
+      summary.validationEvidenceChatReadoutAndroidPass,
+      "Android spoken chat-readout proof",
+      isManifestChatReadoutPass(androidRun)
+    ],
     [
       summary.validationEvidencePlatformPublishingIosPass,
       "iOS platform dashboard proof",
@@ -576,6 +580,16 @@ const hasZeroManifestRigIssues = (run: ValidationEvidenceManifestRun | undefined
   typeof run?.faceTrackingRigIssueCount === "number" &&
   Number.isFinite(run.faceTrackingRigIssueCount) &&
   run.faceTrackingRigIssueCount === 0;
+
+const isManifestChatReadoutPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  isManifestFeaturePass(run?.chatReadoutStatus) &&
+  Number(run?.chatReadoutSpokenMessageCount) > 0 &&
+  hasZeroManifestChatSpeechFailures(run);
+
+const hasZeroManifestChatSpeechFailures = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  typeof run?.chatReadoutSpeechFailureCount === "number" &&
+  Number.isFinite(run.chatReadoutSpeechFailureCount) &&
+  run.chatReadoutSpeechFailureCount === 0;
 
 const isManifestPlatformPublishingPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.platformPublishingStatus) &&

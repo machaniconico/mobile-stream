@@ -27,7 +27,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 17;
+    bundleVersion: 18;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -352,7 +352,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 17
+      bundleVersion: 18
     },
     summary: {
       status: diagnostics.status,
@@ -784,7 +784,7 @@ const formatValidationEvidenceRunManifest = (
         `native ${run.nativeRuntimeStatus ?? "-"}`,
         `hold ${run.monitorHoldStatus ?? "-"}`,
         `audio ${run.audioStatus ?? "-"}`,
-        `chat ${run.chatReadoutStatus ?? "-"}`,
+        `chat ${run.chatReadoutStatus ?? "-"} spoken ${run.chatReadoutSpokenMessageCount} failed ${run.chatReadoutSpeechFailureCount}`,
         `dashboard ${run.platformPublishingStatus ?? "-"}/${run.platformPublishingFreshnessStatus ?? "-"}`
       ].join(" ");
     })

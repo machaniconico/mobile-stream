@@ -85,6 +85,28 @@ const connectedChatOptions = {
   },
   audioRoute: headphoneAudioRoute
 };
+const spokenChatSessionSummary = () => {
+  const summary = createStreamSessionSummary({
+    events: [
+      {
+        id: "chat-speech-spoken",
+        at: "2026-06-23T00:00:03.000Z",
+        kind: "chat",
+        severity: "info",
+        title: "Chat speech spoken",
+        message: "Chat readout finished speaking a youtube message."
+      }
+    ],
+    healthSamples: [healthSample(1), healthSample(4)],
+    target: { bitrateKbps: 3500, fps: 30 },
+    endReason: "stopped",
+    endedAt: new Date("2026-06-23T00:00:05.000Z")
+  });
+  if (!summary) {
+    throw new Error("Expected spoken chat session summary.");
+  }
+  return summary;
+};
 const tunedMonitor = {
   measuredLatencyMs: 92,
   note: "wired monitor baseline clean"
@@ -1235,7 +1257,7 @@ describe("stream validation evidence", () => {
       },
       [],
       stableMonitorSamples(),
-      [],
+      [spokenChatSessionSummary()],
       [],
       faceTrackingRuntime,
       { ...connectedChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
@@ -1275,6 +1297,11 @@ describe("stream validation evidence", () => {
     expect(summary.audioAndroidPass).toBe(true);
     expect(summary.chatReadoutIosPass).toBe(true);
     expect(summary.chatReadoutAndroidPass).toBe(true);
+    expect(summary.runManifest.find((run) => run.devicePlatform === "ios")).toMatchObject({
+      chatReadoutStatus: "pass",
+      chatReadoutSpokenMessageCount: 1,
+      chatReadoutSpeechFailureCount: 0
+    });
     expect(summary.platformPublishingReadyCount).toBe(2);
     expect(summary.platformPublishingFreshCount).toBe(2);
     expect(summary.platformPublishingIosPass).toBe(true);
