@@ -1,5 +1,5 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import { createStoreSubmissionChecklist, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
@@ -270,7 +270,7 @@ function workspaceRelativePath(path) {
   }
   const absolutePath = resolve(path);
   const relativePath = relative(cwd(), absolutePath);
-  if (!relativePath || relativePath.startsWith("..") || isAbsolute(relativePath)) {
+  if (!relativePath || relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
     return "";
   }
   return relativePath;

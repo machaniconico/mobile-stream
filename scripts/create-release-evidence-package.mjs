@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync, copyFileSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import { distributionArtifactGroup, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
@@ -1418,7 +1418,7 @@ function safeBasename(path) {
 function workspaceRelativePath(path) {
   const absolutePath = resolve(path);
   const relativePath = relative(cwd(), absolutePath);
-  if (!relativePath || relativePath.startsWith("..") || isAbsolute(relativePath)) {
+  if (!relativePath || relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
     return "";
   }
   return relativePath;
@@ -1467,7 +1467,7 @@ function normalizeBuildLabel(value) {
 
 function isInsideDirectory(path, directory) {
   const relativePath = relative(resolve(directory), resolve(path));
-  return Boolean(relativePath) && !relativePath.startsWith("..") && !isAbsolute(relativePath);
+  return Boolean(relativePath) && relativePath !== ".." && !relativePath.startsWith(`..${sep}`) && !isAbsolute(relativePath);
 }
 
 function parseArgs(args) {

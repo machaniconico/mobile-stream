@@ -1,5 +1,5 @@
 import { existsSync, statSync } from "node:fs";
-import { basename, isAbsolute, relative, resolve } from "node:path";
+import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { argv, cwd, env, exit } from "node:process";
 import { iosReleaseEnv } from "./ios-release-config.mjs";
 
@@ -155,7 +155,7 @@ function looksLikePlaceholder(value) {
 
 function isPathInside(root, absolutePath) {
   const relativePath = relative(resolve(root), absolutePath);
-  return Boolean(relativePath) && !relativePath.startsWith("..") && !isAbsolute(relativePath);
+  return Boolean(relativePath) && relativePath !== ".." && !relativePath.startsWith(`..${sep}`) && !isAbsolute(relativePath);
 }
 
 function pass(label, detail) {

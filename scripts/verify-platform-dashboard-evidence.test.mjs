@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 
@@ -196,6 +197,37 @@ describe("platform dashboard evidence verifier", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("JSON");
+  });
+
+  it("rejects non-canonical manifest evidence paths before reading evidence files", () => {
+    writeEvidenceFiles();
+    expect(
+      runVerifier([
+        "--write",
+        "--allow-dirty",
+        "--youtube-screenshot",
+        youtubeScreenshot,
+        "--youtube-screenshot-captured-at",
+        dashboardCapturedAt,
+        "--youtube-json",
+        youtubeJson,
+        "--manifest",
+        manifestPath
+      ]).status
+    ).toBe(0);
+
+    const nonCanonicalScreenshotPath = `${fixtureRoot}/nested/../youtube-dashboard.png`;
+    const absoluteJsonPath = resolve(youtubeJson);
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.artifacts.find((artifact) => artifact.kind === "screenshot").path = nonCanonicalScreenshotPath;
+    manifest.artifacts.find((artifact) => artifact.kind === "statusJson").path = absoluteJsonPath;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence path must be workspace-relative: ${nonCanonicalScreenshotPath}.`);
+    expect(result.stderr).toContain(`Dashboard evidence path must be workspace-relative: ${absoluteJsonPath}.`);
   });
 
   it("rejects dashboard status JSON for the wrong platform", () => {

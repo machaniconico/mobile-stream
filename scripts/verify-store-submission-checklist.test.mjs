@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 
@@ -175,6 +176,29 @@ describe("store submission checklist verifier", () => {
     expect(result.stderr).toContain(`Store submission screenshot path must be workspace-relative: ${traversalScreenshotPath}.`);
     expect(result.stderr).toContain(
       `Store submission review document path must be workspace-relative: ${traversalReviewDocumentPath}.`
+    );
+  });
+
+  it("rejects non-canonical checklist artifact paths before reading evidence files", () => {
+    writeStoreSubmissionFiles();
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    const dotPrefixedMetadataPath = `./${metadataPath}`;
+    const nonCanonicalScreenshotPath = `${fixtureRoot}/nested/../ios-store.png`;
+    const absoluteReviewDocumentPath = resolve(reviewDocument);
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.metadata.path = dotPrefixedMetadataPath;
+    manifest.screenshots[0].path = nonCanonicalScreenshotPath;
+    manifest.reviewDocuments[0].path = absoluteReviewDocumentPath;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission metadata path must be workspace-relative: ${dotPrefixedMetadataPath}.`);
+    expect(result.stderr).toContain(`Store submission screenshot path must be workspace-relative: ${nonCanonicalScreenshotPath}.`);
+    expect(result.stderr).toContain(
+      `Store submission review document path must be workspace-relative: ${absoluteReviewDocumentPath}.`
     );
   });
 

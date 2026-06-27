@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 const fixtureRoot = ".artifacts/verify-distribution-artifacts-test";
@@ -98,6 +99,40 @@ describe("distribution artifact verifier", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`Distribution artifact path must be workspace-relative: ${traversalPath}.`);
+  });
+
+  it("rejects non-canonical manifest artifact paths before reading binaries", () => {
+    writeDistributionFiles();
+    expect(
+      runVerifier(["--write", "--allow-dirty", "--android-aab", androidAab, "--manifest", manifestPath]).status
+    ).toBe(0);
+
+    const nonCanonicalPath = `${fixtureRoot}/nested/../app-release.aab`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.artifacts[0].path = nonCanonicalPath;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Distribution artifact path must be workspace-relative: ${nonCanonicalPath}.`);
+  });
+
+  it("rejects absolute manifest artifact paths before reading binaries", () => {
+    writeDistributionFiles();
+    expect(
+      runVerifier(["--write", "--allow-dirty", "--android-aab", androidAab, "--manifest", manifestPath]).status
+    ).toBe(0);
+
+    const absolutePath = resolve(androidAab);
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.artifacts[0].path = absolutePath;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Distribution artifact path must be workspace-relative: ${absolutePath}.`);
   });
 
   it("rejects placeholder-sized distribution artifacts", () => {

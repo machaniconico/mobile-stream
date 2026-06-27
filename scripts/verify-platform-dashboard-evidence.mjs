@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, extname, isAbsolute, relative, resolve } from "node:path";
+import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import { readPngEvidence } from "./png-evidence.mjs";
@@ -413,7 +413,7 @@ function requiredIdentityValue(value, label, path, failures) {
 function workspaceRelativePath(path) {
   const absolutePath = resolve(path);
   const relativePath = relative(cwd(), absolutePath);
-  if (!relativePath || relativePath.startsWith("..") || isAbsolute(relativePath)) {
+  if (!relativePath || relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
     return "";
   }
   return relativePath;
