@@ -94,7 +94,9 @@ export interface TextSource extends BaseSource {
 export interface ChatOverlaySource extends BaseSource {
   kind: "chat";
   maxMessages: number;
+  maxMessageLength: number;
   showAuthor: boolean;
+  redactUrls: boolean;
   color: string;
   fontSize: number;
   backgroundColor: string;
@@ -262,7 +264,9 @@ export const createDefaultScene = (): SceneDocument => ({
       locked: false,
       blendMode: "normal",
       maxMessages: 4,
+      maxMessageLength: 160,
       showAuthor: true,
+      redactUrls: true,
       color: "#f8fafc",
       fontSize: 34,
       backgroundColor: "#000000",
@@ -320,7 +324,9 @@ export const createSource = (kind: SourceKind): SceneSource => {
         ...base,
         kind,
         maxMessages: 4,
+        maxMessageLength: 160,
         showAuthor: true,
+        redactUrls: true,
         color: "#f8fafc",
         fontSize: 34,
         backgroundColor: "#000000",
@@ -493,7 +499,9 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
         text: messages.map((message) => formatChatOverlayLine(message, source.showAuthor)).join("\n"),
         messagesJson: JSON.stringify(messages),
         maxMessages: source.maxMessages,
+        maxMessageLength: source.maxMessageLength,
         showAuthor: source.showAuthor,
+        redactUrls: source.redactUrls,
         color: source.color,
         fontSize: source.fontSize,
         backgroundColor: source.backgroundColor,
@@ -653,7 +661,9 @@ const normalizeSceneSource = (value: unknown): SceneSource | null => {
         ...base,
         kind: "chat",
         maxMessages: Math.round(clampedNumber(value.maxMessages, sourceFallback.maxMessages, 1, 8)),
+        maxMessageLength: Math.round(clampedNumber(value.maxMessageLength, sourceFallback.maxMessageLength, 40, 240)),
         showAuthor: booleanValue(value.showAuthor, sourceFallback.showAuthor),
+        redactUrls: booleanValue(value.redactUrls, sourceFallback.redactUrls),
         color: stringValue(value.color, sourceFallback.color),
         fontSize: clampedNumber(value.fontSize, sourceFallback.fontSize, 10, 120),
         backgroundColor: typeof value.backgroundColor === "string" ? value.backgroundColor : sourceFallback.backgroundColor,
@@ -676,7 +686,7 @@ const serializeChatOverlayMessages = (messages: ChatOverlayMessage[], source: Ch
   messages
     .map((message) => ({
       author: normalizeOverlayText(message.author).slice(0, 48) || "viewer",
-      body: normalizeOverlayText(message.body).slice(0, 160),
+      body: truncateOverlayText(source.redactUrls ? redactOverlayUrls(message.body) : message.body, source.maxMessageLength),
       source: normalizeOverlayText(message.source ?? "").slice(0, 24)
     }))
     .filter((message) => message.body.length > 0)
@@ -685,4 +695,18 @@ const serializeChatOverlayMessages = (messages: ChatOverlayMessage[], source: Ch
 const formatChatOverlayLine = (message: ChatOverlayMessage, showAuthor: boolean): string =>
   showAuthor ? `${message.author}: ${message.body}` : message.body;
 
-const normalizeOverlayText = (value: string): string => value.replace(/\s+/g, " ").trim();
+const normalizeOverlayText = (value: string): string =>
+  value
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const redactOverlayUrls = (value: string): string => value.replace(/https?:\/\/\S+/gi, "[link]");
+
+const truncateOverlayText = (value: string, maxLength: number): string => {
+  const clean = normalizeOverlayText(value);
+  if (clean.length <= maxLength) {
+    return clean;
+  }
+  return `${clean.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
+};

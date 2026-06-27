@@ -9,6 +9,8 @@ export interface ChatMessage {
 export interface ChatReaderSettings {
   enabled: boolean;
   readAuthorName: boolean;
+  redactUrls: boolean;
+  skipCommandMessages: boolean;
   rate: number;
   pitch: number;
   volume: number;
@@ -46,6 +48,8 @@ const MAX_HISTORY_LENGTH = 16;
 export const createDefaultChatReaderSettings = (): ChatReaderSettings => ({
   enabled: true,
   readAuthorName: true,
+  redactUrls: true,
+  skipCommandMessages: true,
   rate: 1,
   pitch: 1,
   volume: 0.85,
@@ -85,6 +89,13 @@ export const enqueueChatMessage = (state: ChatReaderState, message: ChatMessage)
   }
 
   if (isDuplicateRecentMessage(message, state.history, state.settings.duplicateWindowSeconds)) {
+    return {
+      ...state,
+      skippedCount: state.skippedCount + 1
+    };
+  }
+
+  if (shouldSkipCommandMessage(message, state.settings)) {
     return {
       ...state,
       skippedCount: state.skippedCount + 1
@@ -168,11 +179,11 @@ export const selectChatOverlayMessages = (state: ChatReaderState, limit = 4): Ch
     }));
 
 export const createSpeechText = (message: ChatMessage, settings: ChatReaderSettings): string | null => {
-  if (isMutedMessage(message, settings)) {
+  if (isMutedMessage(message, settings) || shouldSkipCommandMessage(message, settings)) {
     return null;
   }
 
-  const body = truncateForSpeech(stripUrls(message.body), settings.maxMessageLength);
+  const body = truncateForSpeech(settings.redactUrls ? stripUrls(message.body) : message.body, settings.maxMessageLength);
   if (!body) {
     return null;
   }
@@ -192,6 +203,8 @@ const normalizeChatReaderSettings = (settings: ChatReaderSettings): ChatReaderSe
   rate: clamp(settings.rate, 0.5, 1.5),
   pitch: clamp(settings.pitch, 0.5, 1.5),
   volume: clamp(settings.volume, 0, 1),
+  redactUrls: settings.redactUrls !== false,
+  skipCommandMessages: settings.skipCommandMessages !== false,
   maxMessageLength: Math.round(clamp(settings.maxMessageLength, 40, 240)),
   maxQueueLength: Math.round(clamp(settings.maxQueueLength, 4, MAX_QUEUE_LENGTH)),
   duplicateWindowSeconds: Math.round(clamp(settings.duplicateWindowSeconds, 0, 120)),
@@ -206,6 +219,9 @@ const isMutedMessage = (message: ChatMessage, settings: ChatReaderSettings): boo
   const haystack = `${message.author} ${message.body}`.toLowerCase();
   return settings.mutedWords.some((word) => haystack.includes(word));
 };
+
+const shouldSkipCommandMessage = (message: ChatMessage, settings: ChatReaderSettings): boolean =>
+  settings.skipCommandMessages && /^![\w-]{1,32}(?:\s|$)/.test(normalizeWhitespace(message.body));
 
 const isDuplicateRecentMessage = (message: ChatMessage, history: ChatMessage[], duplicateWindowSeconds: number): boolean => {
   if (duplicateWindowSeconds <= 0) {

@@ -212,11 +212,37 @@ describe("chatReader", () => {
     expect(createSpeechText(message, state.settings)).toBe("viewer says please open link omitted and read this...");
   });
 
+  it("skips command-style chat by default and can preserve URLs when requested", () => {
+    const state = createDefaultChatReaderState();
+    const command = createChatMessage({
+      source: "twitch",
+      author: "viewer",
+      body: "!join raffle",
+      receivedAt: 6
+    });
+
+    const skipped = enqueueChatMessage(state, command);
+    const urlReadable = updateChatReaderSettings(state, {
+      redactUrls: false,
+      skipCommandMessages: false
+    });
+
+    expect(skipped.queue).toHaveLength(0);
+    expect(skipped.history).toHaveLength(0);
+    expect(skipped.skippedCount).toBe(1);
+    expect(createSpeechText(command, state.settings)).toBeNull();
+    expect(createSpeechText(createChatMessage({ author: "viewer", body: "open https://example.com" }), urlReadable.settings)).toBe(
+      "viewer says open https://example.com"
+    );
+  });
+
   it("normalizes controls and muted word input", () => {
     const state = updateChatReaderSettings(createDefaultChatReaderState(), {
       rate: 4,
       pitch: -1,
       volume: 2,
+      redactUrls: false,
+      skipCommandMessages: false,
       maxMessageLength: 999,
       maxQueueLength: 999,
       duplicateWindowSeconds: 999,
@@ -226,6 +252,8 @@ describe("chatReader", () => {
     expect(state.settings.rate).toBe(1.5);
     expect(state.settings.pitch).toBe(0.5);
     expect(state.settings.volume).toBe(1);
+    expect(state.settings.redactUrls).toBe(false);
+    expect(state.settings.skipCommandMessages).toBe(false);
     expect(state.settings.maxMessageLength).toBe(240);
     expect(state.settings.maxQueueLength).toBe(24);
     expect(state.settings.duplicateWindowSeconds).toBe(120);

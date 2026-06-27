@@ -758,6 +758,21 @@ export const MobileStudioScreen = ({
                   )
                 }
               />
+              <NumberStepper
+                label="Max length"
+                value={selectedSource.maxMessageLength}
+                min={40}
+                max={240}
+                step={10}
+                disabled={setupLocked}
+                onChange={(maxMessageLength) =>
+                  onSceneChange(
+                    updateSource(scene, selectedSource.id, (source) =>
+                      source.kind === "chat" ? { ...source, maxMessageLength: Math.round(maxMessageLength) } : source
+                    )
+                  )
+                }
+              />
               <Label text="Text color" />
               <TextInput
                 value={selectedSource.color}
@@ -780,6 +795,18 @@ export const MobileStudioScreen = ({
                     onSceneChange(
                       updateSource(scene, selectedSource.id, (source) =>
                         source.kind === "chat" ? { ...source, showAuthor: !source.showAuthor } : source
+                      )
+                    )
+                  }
+                />
+                <ActionButton
+                  label={selectedSource.redactUrls ? "URL Redact On" : "URL Redact Off"}
+                  variant={selectedSource.redactUrls ? "active" : "default"}
+                  disabled={setupLocked}
+                  onPress={() =>
+                    onSceneChange(
+                      updateSource(scene, selectedSource.id, (source) =>
+                        source.kind === "chat" ? { ...source, redactUrls: !source.redactUrls } : source
                       )
                     )
                   }
@@ -2249,6 +2276,18 @@ const ChatReaderPanel = ({
         step={5}
         onChange={(duplicateWindowSeconds) => onSettingsChange({ duplicateWindowSeconds })}
       />
+      <View style={styles.grid2}>
+        <ActionButton
+          label={chatReader.settings.redactUrls ? "URL Redact On" : "URL Redact Off"}
+          variant={chatReader.settings.redactUrls ? "active" : "default"}
+          onPress={() => onSettingsChange({ redactUrls: !chatReader.settings.redactUrls })}
+        />
+        <ActionButton
+          label={chatReader.settings.skipCommandMessages ? "Skip Cmd On" : "Skip Cmd Off"}
+          variant={chatReader.settings.skipCommandMessages ? "active" : "default"}
+          onPress={() => onSettingsChange({ skipCommandMessages: !chatReader.settings.skipCommandMessages })}
+        />
+      </View>
 
       <Label text="Muted words" />
       <TextInput

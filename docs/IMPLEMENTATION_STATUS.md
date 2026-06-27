@@ -67,8 +67,8 @@
 - In-app stream key clear/replacement controls for browser and mobile setup screens.
 - Mic effect profile model with presets, gain, noise gate, compression, and headphone monitor settings.
 - Shared audio-route safety model for speaker/receiver/wired/USB/Bluetooth/AirPlay/HDMI output state, monitor-route diagnostics, and Go Live preflight blocking when headphones-only monitoring is routed to speakers.
-- Chat/comment read-aloud domain model with queueing, muted words, duplicate suppression, queue limits, URL redaction, and speech text shaping.
-- Transparent chat/comment overlay scene source with runtime-only recent message payloads, author toggle, line limits, text color, optional semi-transparent backdrop, and native/web compositor support without persisting comment text into scene storage.
+- Chat/comment read-aloud domain model with queueing, muted words, command-message skipping, duplicate suppression, queue limits, URL redaction, and speech text shaping.
+- Transparent chat/comment overlay scene source with runtime-only recent message payloads, author toggle, line limits, per-source message length limits, URL redaction, text color, optional semi-transparent backdrop, and native/web compositor support without persisting comment text into scene storage.
 - Platform chat adapter model for YouTube LiveChatMessages responses and Twitch EventSub chat notifications.
 - Platform chat adapter settings persisted with the shared studio profile on web and mobile.
 - OAuth chat authorization layer for YouTube PKCE authorization-code callbacks, Twitch implicit callbacks, and Twitch Device Code Flow, with tokens kept out of persisted profiles.

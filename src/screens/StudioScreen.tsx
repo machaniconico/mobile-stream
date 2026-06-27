@@ -719,6 +719,21 @@ export const StudioScreen = ({
                     )
                   }
                 />
+                <SpeechSlider
+                  label="Max length"
+                  value={selectedSource.maxMessageLength}
+                  min={40}
+                  max={240}
+                  step={10}
+                  disabled={setupLocked}
+                  onChange={(maxMessageLength) =>
+                    onSceneChange(
+                      updateSource(scene, selectedSource.id, (source) =>
+                        source.kind === "chat" ? { ...source, maxMessageLength: Math.round(maxMessageLength) } : source
+                      )
+                    )
+                  }
+                />
                 <label className="field">
                   <span>Text color</span>
                   <input
@@ -747,6 +762,20 @@ export const StudioScreen = ({
                     }
                   >
                     Author
+                  </button>
+                  <button
+                    className={`segmented-button ${selectedSource.redactUrls ? "active" : ""}`}
+                    type="button"
+                    disabled={setupLocked}
+                    onClick={() =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "chat" ? { ...source, redactUrls: !source.redactUrls } : source
+                        )
+                      )
+                    }
+                  >
+                    URL Redact
                   </button>
                   <button
                     className={`segmented-button ${selectedSource.backgroundOpacity > 0 ? "active" : ""}`}
@@ -1973,6 +2002,22 @@ const ChatReaderPanel = ({
         step={5}
         onChange={(duplicateWindowSeconds) => onSettingsChange({ duplicateWindowSeconds })}
       />
+      <div className="monitor-row">
+        <button
+          className={`segmented-button ${chatReader.settings.redactUrls ? "active" : ""}`}
+          type="button"
+          onClick={() => onSettingsChange({ redactUrls: !chatReader.settings.redactUrls })}
+        >
+          URL Redact
+        </button>
+        <button
+          className={`segmented-button ${chatReader.settings.skipCommandMessages ? "active" : ""}`}
+          type="button"
+          onClick={() => onSettingsChange({ skipCommandMessages: !chatReader.settings.skipCommandMessages })}
+        >
+          Skip Commands
+        </button>
+      </div>
 
       <label className="field">
         <span>Muted words</span>

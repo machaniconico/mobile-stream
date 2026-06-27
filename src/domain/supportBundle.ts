@@ -826,7 +826,9 @@ const sourcePayloadSummary = (source: SceneSource): Record<string, string | numb
     case "chat":
       return {
         maxMessages: source.maxMessages,
+        maxMessageLength: source.maxMessageLength,
         showAuthor: source.showAuthor,
+        redactUrls: source.redactUrls,
         color: source.color,
         fontSize: source.fontSize,
         backgroundOpacity: source.backgroundOpacity

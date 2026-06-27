@@ -88,8 +88,8 @@ describe("scene document", () => {
     const scene = createDefaultScene();
     const graph = toRenderGraph(scene, {
       chatMessages: [
-        { author: "macha", body: "  first   comment  ", source: "youtube" },
-        { author: "viewer", body: "second comment", source: "twitch" }
+        { author: "macha", body: "  first   comment https://example.com/secret  ", source: "youtube" },
+        { author: "viewer", body: "second\u202e comment", source: "twitch" }
       ]
     });
 
@@ -98,11 +98,15 @@ describe("scene document", () => {
     const persistedChat = persisted.sources.find((source) => source.kind === "chat");
 
     expect(chatNode?.payload).toMatchObject({
-      text: "macha: first comment\nviewer: second comment",
+      text: "macha: first comment [link]\nviewer: second comment",
       backgroundOpacity: 0,
-      showAuthor: true
+      showAuthor: true,
+      maxMessageLength: 160,
+      redactUrls: true
     });
     expect(String(chatNode?.payload.messagesJson)).toContain("first comment");
+    expect(String(chatNode?.payload.messagesJson)).not.toContain("example.com");
+    expect(String(chatNode?.payload.messagesJson)).not.toContain("\u202e");
     expect(JSON.stringify(persistedChat)).not.toContain("first comment");
   });
 
@@ -157,7 +161,9 @@ describe("scene document", () => {
           locked: false,
           blendMode: "normal",
           maxMessages: 99,
+          maxMessageLength: 999,
           showAuthor: false,
+          redactUrls: false,
           color: "#fff",
           fontSize: 999,
           backgroundColor: "#000000",
@@ -197,7 +203,9 @@ describe("scene document", () => {
       id: "chat-overlay",
       kind: "chat",
       maxMessages: 8,
+      maxMessageLength: 240,
       showAuthor: false,
+      redactUrls: false,
       fontSize: 120,
       backgroundOpacity: 1
     });
