@@ -56,6 +56,7 @@ export const createCommercialReleaseGate = (
     createValidationEvidenceIssue(bundle),
     createValidationEvidenceCoverageIssue(bundle),
     createValidationEvidenceManifestIssue(bundle),
+    createValidationEvidenceManifestIntegrityIssue(bundle),
     createValidationEvidenceFeatureIssue(bundle),
     createRetainedStaleEvidenceIssue(bundle)
   ];
@@ -303,16 +304,12 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "Export a support bundle v15 or newer after retaining release-candidate validation runs."
     );
   }
-  const eligiblePlatforms = new Set(
-    manifest
-      .filter((run) => run.eligible && run.result === "pass" && run.physicalDevice === true && run.physicalDeviceStatus === "pass")
-      .map((run) => run.devicePlatform)
-  );
-  if (!eligiblePlatforms.has("ios") || !eligiblePlatforms.has("android")) {
+  const latestRuns = latestEligibleManifestRunsByPlatform(manifest);
+  if (!isManifestPhysicalRunPass(latestRuns.get("ios")) || !isManifestPhysicalRunPass(latestRuns.get("android"))) {
     return failIssue(
       "validation-evidence-manifest-incomplete",
       "Validation evidence manifest",
-      "The manifest does not include eligible passing physical-device iOS and Android runs.",
+      "The manifest does not include fresh in-scope passing physical-device iOS and Android runs.",
       "Record and retain passing physical-device validation runs for both iOS and Android on the current build."
     );
   }
@@ -325,6 +322,108 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
     );
   }
   return null;
+};
+
+const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+  const manifest = bundle.summary.validationEvidenceRunManifest;
+  if (!Array.isArray(manifest) || manifest.length === 0) {
+    return null;
+  }
+
+  const summary = bundle.summary;
+  const mismatches: string[] = [];
+  const latestRuns = latestEligibleManifestRunsByPlatform(manifest);
+  const iosRun = latestRuns.get("ios");
+  const androidRun = latestRuns.get("android");
+  const derivedEligibleRunCount = manifest.filter(isManifestRunFreshInScope).length;
+  const derivedStaleRunCount = manifest.filter((run) => run.fresh !== true).length;
+
+  if (derivedEligibleRunCount !== summary.validationEvidenceEligibleRunCount) {
+    mismatches.push(
+      `eligible run count summary=${summary.validationEvidenceEligibleRunCount} manifest=${derivedEligibleRunCount}`
+    );
+  }
+  if (derivedStaleRunCount !== summary.validationEvidenceStaleRunCount) {
+    mismatches.push(`stale run count summary=${summary.validationEvidenceStaleRunCount} manifest=${derivedStaleRunCount}`);
+  }
+
+  const eligibilityFlagMismatchCount = manifest.filter((run) => run.eligible !== isManifestRunFreshInScope(run)).length;
+  if (eligibilityFlagMismatchCount > 0) {
+    mismatches.push(`${eligibilityFlagMismatchCount} manifest eligible flag(s) do not match fresh in-scope state`);
+  }
+
+  const expectedBuild = nonEmptyText(summary.validationEvidenceConsistentAppBuild);
+  if (expectedBuild) {
+    const expected = normalizeBuildLabel(expectedBuild);
+    if (!iosRun || !androidRun || normalizeBuildLabel(iosRun.appBuild) !== expected || normalizeBuildLabel(androidRun.appBuild) !== expected) {
+      mismatches.push(`summary build ${expectedBuild} is not backed by latest manifest iOS/Android app-build rows`);
+    }
+  }
+
+  const manifestBuildMismatch = Boolean(
+    iosRun &&
+      androidRun &&
+      normalizeBuildLabel(iosRun.appBuild) !== normalizeBuildLabel(androidRun.appBuild)
+  );
+  if (!summary.validationEvidenceAppBuildMismatch && manifestBuildMismatch) {
+    mismatches.push(`summary reports same build but manifest latest iOS/Android builds are ${iosRun?.appBuild} / ${androidRun?.appBuild}`);
+  }
+
+  const claimChecks: Array<[boolean, string, boolean]> = [
+    [summary.validationEvidenceIosPass, "iOS validation pass", isManifestRunPass(iosRun)],
+    [summary.validationEvidenceAndroidPass, "Android validation pass", isManifestRunPass(androidRun)],
+    [summary.validationEvidencePhysicalDeviceIosPass, "iOS physical-device proof", isManifestPhysicalRunPass(iosRun)],
+    [summary.validationEvidencePhysicalDeviceAndroidPass, "Android physical-device proof", isManifestPhysicalRunPass(androidRun)],
+    [summary.validationEvidenceNativeRuntimeIosPass, "iOS native runtime proof", isManifestFeaturePass(iosRun?.nativeRuntimeStatus)],
+    [
+      summary.validationEvidenceNativeRuntimeAndroidPass,
+      "Android native runtime proof",
+      isManifestFeaturePass(androidRun?.nativeRuntimeStatus)
+    ],
+    [summary.validationEvidenceMonitorHoldIosPass, "iOS stable monitor-hold proof", isManifestFeaturePass(iosRun?.monitorHoldStatus)],
+    [
+      summary.validationEvidenceMonitorHoldAndroidPass,
+      "Android stable monitor-hold proof",
+      isManifestFeaturePass(androidRun?.monitorHoldStatus)
+    ],
+    [summary.validationEvidenceFaceTrackingIosPass, "iOS avatar-motion proof", isManifestFeaturePass(iosRun?.faceTrackingStatus)],
+    [
+      summary.validationEvidenceFaceTrackingAndroidPass,
+      "Android avatar-motion proof",
+      isManifestFeaturePass(androidRun?.faceTrackingStatus)
+    ],
+    [summary.validationEvidenceAudioIosPass, "iOS mic/headphone proof", isManifestFeaturePass(iosRun?.audioStatus)],
+    [summary.validationEvidenceAudioAndroidPass, "Android mic/headphone proof", isManifestFeaturePass(androidRun?.audioStatus)],
+    [summary.validationEvidenceChatReadoutIosPass, "iOS chat-readout proof", isManifestFeaturePass(iosRun?.chatReadoutStatus)],
+    [summary.validationEvidenceChatReadoutAndroidPass, "Android chat-readout proof", isManifestFeaturePass(androidRun?.chatReadoutStatus)],
+    [
+      summary.validationEvidencePlatformPublishingIosPass,
+      "iOS platform dashboard proof",
+      isManifestPlatformPublishingPass(iosRun)
+    ],
+    [
+      summary.validationEvidencePlatformPublishingAndroidPass,
+      "Android platform dashboard proof",
+      isManifestPlatformPublishingPass(androidRun)
+    ]
+  ];
+  for (const [claimed, label, backedByManifest] of claimChecks) {
+    if (claimed && !backedByManifest) {
+      mismatches.push(`${label} is claimed by summary but not backed by the latest manifest row`);
+    }
+  }
+
+  if (mismatches.length === 0) {
+    return null;
+  }
+
+  const detail = mismatches.slice(0, 4).join("; ");
+  return failIssue(
+    "validation-evidence-manifest-integrity",
+    "Validation evidence manifest",
+    `${detail}${mismatches.length > 4 ? `; ${mismatches.length - 4} more mismatch(es)` : ""}.`,
+    "Export a fresh support bundle from the release-candidate build so summary validation claims are regenerated from the retained-run manifest."
+  );
 };
 
 const createValidationEvidenceFeatureIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
@@ -437,6 +536,41 @@ const ageInHours = (createdAt: string, now: Date): number | null => {
 
 const nonEmptyText = (value: string | null | undefined): string | null =>
   typeof value === "string" && value.trim() ? value.trim() : null;
+
+type ValidationEvidenceManifestRun = SupportBundle["summary"]["validationEvidenceRunManifest"][number];
+
+const latestEligibleManifestRunsByPlatform = (
+  manifest: ValidationEvidenceManifestRun[]
+): Map<ValidationEvidenceManifestRun["devicePlatform"], ValidationEvidenceManifestRun> => {
+  const runsByPlatform = new Map<ValidationEvidenceManifestRun["devicePlatform"], ValidationEvidenceManifestRun>();
+  const sortedRuns = [...manifest]
+    .filter(isManifestRunFreshInScope)
+    .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+  for (const run of sortedRuns) {
+    if (runsByPlatform.has(run.devicePlatform)) {
+      continue;
+    }
+    runsByPlatform.set(run.devicePlatform, run);
+  }
+  return runsByPlatform;
+};
+
+const isManifestRunFreshInScope = (run: ValidationEvidenceManifestRun): boolean =>
+  run.fresh === true && run.matchesScope === true && Number.isFinite(Date.parse(run.createdAt));
+
+const isManifestRunPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  run?.result === "pass";
+
+const isManifestPhysicalRunPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  isManifestRunPass(run) && run?.physicalDevice === true && run.physicalDeviceStatus === "pass";
+
+const isManifestFeaturePass = (status: string | null | undefined): boolean => status === "pass";
+
+const isManifestPlatformPublishingPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  isManifestFeaturePass(run?.platformPublishingStatus) &&
+  (run?.platformPublishingFreshnessStatus === "fresh" || run?.platformPublishingFreshnessStatus === "not-applicable");
+
+const normalizeBuildLabel = (value: string): string => value.trim().toLowerCase();
 
 interface SensitiveBundleFinding {
   path: string;

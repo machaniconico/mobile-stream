@@ -83,7 +83,13 @@ describe("commercial release gate", () => {
       summary: {
         publicLaunchStatus: "warning",
         publicLaunchWarningCount: 1,
-        validationEvidenceStaleRunCount: 1
+        validationEvidenceRunCount: 3,
+        validationEvidenceStaleRunCount: 1,
+        validationEvidenceRunManifest: [
+          manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
+          manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" }),
+          manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios-stale", eligible: false, fresh: false })
+        ]
       }
     });
 
@@ -149,6 +155,88 @@ describe("commercial release gate", () => {
       ])
     );
     expect(formatCommercialReleaseGate(gate)).toContain("physical device identity");
+  });
+
+  it("blocks summary claims backed only by stale or out-of-scope manifest rows", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios-stale", eligible: true, fresh: false }),
+            manifestRun({
+              devicePlatform: "android",
+              fingerprint: "svr1-android-out-of-scope",
+              eligible: true,
+              matchesScope: false
+            })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining(["validation-evidence-manifest-incomplete", "validation-evidence-manifest-integrity"])
+    );
+    expect(formatCommercialReleaseGate(gate)).toContain("eligible run count summary=2 manifest=0");
+  });
+
+  it("blocks summary feature claims not backed by the latest manifest row", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
+            manifestRun({
+              devicePlatform: "android",
+              fingerprint: "svr1-android-chat-warn",
+              chatReadoutStatus: "warn"
+            })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "validation-evidence-manifest-integrity",
+          severity: "fail",
+          detail: expect.stringContaining("Android chat-readout proof is claimed by summary but not backed")
+        })
+      ])
+    );
+  });
+
+  it("blocks hidden same-build summary claims when manifest app builds differ", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", appBuild: "rc-1" }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android", appBuild: "rc-2" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "validation-evidence-manifest-integrity",
+          severity: "fail",
+          detail: expect.stringContaining("summary build rc-1 is not backed")
+        })
+      ])
+    );
   });
 
   it("blocks support bundles that contain unredacted sensitive data", () => {
@@ -286,46 +374,70 @@ const supportBundle = ({
     }
   }) as SupportBundle;
 
+type ValidationManifestRun = SupportBundle["summary"]["validationEvidenceRunManifest"][number];
+
 const manifestRun = ({
   devicePlatform,
   fingerprint,
   eligible = true,
   result = "pass",
   physicalDevice = true,
-  physicalDeviceStatus = "pass"
+  physicalDeviceStatus = "pass",
+  fresh = true,
+  matchesScope = true,
+  appBuild = "rc-1",
+  nativeRuntimeStatus = "pass",
+  monitorHoldStatus = "pass",
+  faceTrackingStatus = "pass",
+  audioStatus = "pass",
+  chatReadoutStatus = "pass",
+  qualityAutomationStatus = "pass",
+  platformPublishingStatus = "pass",
+  platformPublishingFreshnessStatus = "fresh"
 }: {
   devicePlatform: "ios" | "android";
   fingerprint: string;
-  eligible?: boolean;
-  result?: "pass" | "warn" | "fail";
-  physicalDevice?: boolean;
-  physicalDeviceStatus?: "pass" | "warn" | "fail" | "pending";
-}): SupportBundle["summary"]["validationEvidenceRunManifest"][number] => ({
+  eligible?: ValidationManifestRun["eligible"];
+  result?: ValidationManifestRun["result"];
+  physicalDevice?: ValidationManifestRun["physicalDevice"];
+  physicalDeviceStatus?: ValidationManifestRun["physicalDeviceStatus"];
+  fresh?: ValidationManifestRun["fresh"];
+  matchesScope?: ValidationManifestRun["matchesScope"];
+  appBuild?: ValidationManifestRun["appBuild"];
+  nativeRuntimeStatus?: ValidationManifestRun["nativeRuntimeStatus"];
+  monitorHoldStatus?: ValidationManifestRun["monitorHoldStatus"];
+  faceTrackingStatus?: ValidationManifestRun["faceTrackingStatus"];
+  audioStatus?: ValidationManifestRun["audioStatus"];
+  chatReadoutStatus?: ValidationManifestRun["chatReadoutStatus"];
+  qualityAutomationStatus?: ValidationManifestRun["qualityAutomationStatus"];
+  platformPublishingStatus?: ValidationManifestRun["platformPublishingStatus"];
+  platformPublishingFreshnessStatus?: ValidationManifestRun["platformPublishingFreshnessStatus"];
+}): ValidationManifestRun => ({
   id: `validation-${devicePlatform}`,
   fingerprint,
   createdAt: "2026-06-23T11:00:00.000Z",
   ageDays: 0,
-  fresh: true,
-  matchesScope: true,
+  fresh,
+  matchesScope,
   eligible,
   devicePlatform,
   deviceName: devicePlatform === "ios" ? "iPhone 15 Pro" : "Pixel 8 Pro",
   osVersion: devicePlatform === "ios" ? "iOS 18.5" : "Android 15",
   physicalDevice,
   physicalDeviceStatus,
-  appBuild: "rc-1",
+  appBuild,
   networkProfile: "private test",
   targetPlatform: "YouTube Live",
   transport: "rtmps",
   result,
-  nativeRuntimeStatus: "pass",
-  monitorHoldStatus: "pass",
-  faceTrackingStatus: "pass",
-  audioStatus: "pass",
-  chatReadoutStatus: "pass",
-  qualityAutomationStatus: "pass",
-  platformPublishingStatus: "pass",
-  platformPublishingFreshnessStatus: "fresh",
+  nativeRuntimeStatus,
+  monitorHoldStatus,
+  faceTrackingStatus,
+  audioStatus,
+  chatReadoutStatus,
+  qualityAutomationStatus,
+  platformPublishingStatus,
+  platformPublishingFreshnessStatus,
   summary: "Validation run retained.",
   recommendation: "Keep this run with release evidence."
 });
