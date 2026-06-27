@@ -165,6 +165,53 @@ describe("release evidence package creator", () => {
     expect(failures).toContain("Package manifest git dirty state is missing.");
   });
 
+  it("rejects packages whose manifest generatedAt timestamp is missing or invalid", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.generatedAt = "";
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Package manifest generatedAt timestamp is missing or invalid.");
+  });
+
+  it("rejects packages whose manifest generatedAt timestamp is in the future", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.generatedAt = new Date(Date.now() + 60_000).toISOString();
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Package manifest generatedAt timestamp is in the future.");
+  });
+
+  it("rejects packages generated before the packaged release report finished", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.generatedAt = new Date(Date.parse(packagedReport.finishedAt) - 1_000).toISOString();
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Package manifest generatedAt is before the packaged release report finishedAt.");
+  });
+
   it("rejects packaged release reports whose git dirty-state provenance is missing", () => {
     resetPackageDir();
     writeReportFixture();

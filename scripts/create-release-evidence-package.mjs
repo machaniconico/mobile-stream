@@ -182,6 +182,7 @@ export function validateReleaseEvidencePackage({ packageDir, verifySources = fal
     { label: "Package manifest", currentCommit: "", allowDirty: false, allowCommitMismatch: true },
     failures
   );
+  validatePackageManifestGeneratedAt(manifest, failures);
 
   const entries = [
     manifest.sourceReport,
@@ -226,6 +227,7 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
   if (report?.app !== "MobileLiveCaster" || report?.type !== "release-candidate-verification" || report?.status !== "passed") {
     failures.push("Packaged release report must be a passed MobileLiveCaster release-candidate-verification report.");
   }
+  validatePackageManifestGeneratedAfterReport(manifest, report, failures);
   failures.push(...validateCommercialPackageableReleaseReport(report, "Packaged release report"));
   if (report?.git?.commit && manifest.git?.commit && report.git.commit !== manifest.git.commit) {
     failures.push(`Packaged release report commit ${report.git.commit} does not match package commit ${manifest.git.commit}.`);
@@ -271,6 +273,28 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
     if (packagedArtifact.bytes !== reportArtifact.bytes || packagedArtifact.sha256 !== reportArtifact.sha256) {
       failures.push(`Packaged artifact metadata mismatch for ${reportArtifact.path}.`);
     }
+  }
+}
+
+function validatePackageManifestGeneratedAt(manifest, failures) {
+  const generatedAt = Date.parse(String(manifest?.generatedAt || ""));
+  if (!Number.isFinite(generatedAt)) {
+    failures.push("Package manifest generatedAt timestamp is missing or invalid.");
+    return;
+  }
+  if (generatedAt > Date.now()) {
+    failures.push("Package manifest generatedAt timestamp is in the future.");
+  }
+}
+
+function validatePackageManifestGeneratedAfterReport(manifest, report, failures) {
+  const generatedAt = Date.parse(String(manifest?.generatedAt || ""));
+  const reportFinishedAt = Date.parse(String(report?.finishedAt || ""));
+  if (!Number.isFinite(generatedAt) || !Number.isFinite(reportFinishedAt)) {
+    return;
+  }
+  if (generatedAt < reportFinishedAt) {
+    failures.push("Package manifest generatedAt is before the packaged release report finishedAt.");
   }
 }
 
