@@ -769,6 +769,57 @@ describe("release evidence package creator", () => {
     expect(failures).toContain("Package source metadata mismatch for dist/index.html.");
   });
 
+  it("rejects unsafe package source paths before source verification reads them", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    const absoluteArtifactPath = resolve("dist/index.html");
+    const absoluteUiEvidencePath = resolve(manifest.uiEvidence.sourcePath);
+    manifest.sourceReport.sourcePath = `./${reportPath}`;
+    manifest.uiEvidence.sourcePath = absoluteUiEvidencePath;
+    manifest.artifacts.find((artifact) => artifact.sourcePath === "dist/index.html").sourcePath = absoluteArtifactPath;
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir, verifySources: true });
+
+    expect(failures).toContain(`Package releaseReport source path must be canonical absolute or workspace-relative: ./${reportPath}.`);
+    expect(failures).toContain(`Package uiEvidence source path must be workspace-relative: ${absoluteUiEvidencePath}.`);
+    expect(failures).toContain(`Package artifact source path must be workspace-relative: ${absoluteArtifactPath}.`);
+  });
+
+  it("rejects unsupported source entry roles during source verification", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.sourceReport.role = "debugSource";
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir, verifySources: true });
+
+    expect(failures).toContain("Package source entry role is unsupported for source verification: debugSource.");
+  });
+
+  it("rejects package source paths that point to directories", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.artifacts.find((artifact) => artifact.sourcePath === "dist/index.html").sourcePath = "dist";
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir, verifySources: true });
+
+    expect(failures).toContain("Package source must point to a file: dist.");
+  });
+
   it("rejects packaged browser UI evidence with an invalid schema even when metadata hashes match", () => {
     resetPackageDir();
     writeReportFixture();

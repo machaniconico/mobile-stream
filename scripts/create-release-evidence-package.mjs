@@ -1349,15 +1349,53 @@ function validatePackageEntry(entry, packageDir, failures) {
 }
 
 function validateSourceEntry(entry, failures) {
-  if (!existsSync(resolve(entry.sourcePath))) {
-    failures.push(`Package source file does not exist: ${entry.sourcePath}.`);
+  const sourcePath = sourceEntryRecordPath(entry);
+  if (!sourcePath) {
+    failures.push(sourceEntryPathFailure(entry));
     return;
   }
-  const bytes = statSync(resolve(entry.sourcePath)).size;
-  const sha256 = fileSha256(resolve(entry.sourcePath));
-  if (bytes !== entry.bytes || sha256 !== entry.sha256) {
-    failures.push(`Package source metadata mismatch for ${entry.sourcePath}.`);
+  if (!existsSync(resolve(sourcePath))) {
+    failures.push(`Package source file does not exist: ${sourcePath}.`);
+    return;
   }
+  const sourceStat = statSync(resolve(sourcePath));
+  if (!sourceStat.isFile()) {
+    failures.push(`Package source must point to a file: ${sourcePath}.`);
+    return;
+  }
+  const bytes = sourceStat.size;
+  const sha256 = fileSha256(resolve(sourcePath));
+  if (bytes !== entry.bytes || sha256 !== entry.sha256) {
+    failures.push(`Package source metadata mismatch for ${sourcePath}.`);
+  }
+}
+
+function sourceEntryRecordPath(entry) {
+  if (typeof entry?.sourcePath !== "string") {
+    return "";
+  }
+  if (entry.role === "artifact" || entry.role === "uiEvidence") {
+    return workspaceRecordPath(entry.sourcePath);
+  }
+  if (entry.role !== "releaseReport" && entry.role !== "supportBundle") {
+    return "";
+  }
+  if (isAbsolute(entry.sourcePath)) {
+    const absolutePath = resolve(entry.sourcePath);
+    return absolutePath === entry.sourcePath ? absolutePath : "";
+  }
+  return workspaceRecordPath(entry.sourcePath);
+}
+
+function sourceEntryPathFailure(entry) {
+  const sourcePath = entry?.sourcePath || "-";
+  if (entry?.role === "artifact" || entry?.role === "uiEvidence") {
+    return `Package ${entry.role} source path must be workspace-relative: ${sourcePath}.`;
+  }
+  if (entry?.role !== "releaseReport" && entry?.role !== "supportBundle") {
+    return `Package source entry role is unsupported for source verification: ${entry?.role || "-"}.`;
+  }
+  return `Package ${entry?.role || "entry"} source path must be canonical absolute or workspace-relative: ${sourcePath}.`;
 }
 
 function collectPackageFiles(packageDir, prefix = "") {
