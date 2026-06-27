@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { releaseConfigArtifactPaths, requiredReleaseGateLabels } from "./release-artifact-policy.mjs";
-import { distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
+import { distributionArtifactGroup, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
 import { dashboardEvidenceArtifactGroup, dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
 import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
 import { storeSubmissionArtifactGroup, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
@@ -862,6 +862,42 @@ describe("release evidence package creator", () => {
 
     expect(failures).toContain(
       `Package store release report distribution manifest metadata mismatch for ${distributionArtifactManifestPath}.`
+    );
+  });
+
+  it("rejects packaged distribution binaries whose ZIP content no longer satisfies release requirements", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const sourceAabPath = ".artifacts/release-evidence-package-test/app-release.aab";
+    const packagedAabPath = `${packageDir}/artifacts/${sourceAabPath}`;
+    const packagedDistributionManifestPath = `${packageDir}/artifacts/${distributionArtifactManifestPath}`;
+    writeFileSync(
+      packagedAabPath,
+      zipArtifactBytes([
+        { name: "BundleConfig.pb", data: Buffer.from("bundle config") },
+        { name: "base/dex/classes.dex", size: minimumDistributionArtifactBytes }
+      ])
+    );
+
+    const distributionManifest = JSON.parse(readFileSync(packagedDistributionManifestPath, "utf8"));
+    const aabRecord = distributionManifest.artifacts.find((artifact) => artifact.path === sourceAabPath);
+    const aabContent = readFileSync(packagedAabPath);
+    aabRecord.bytes = aabContent.byteLength;
+    aabRecord.sha256 = createHash("sha256").update(aabContent).digest("hex");
+    aabRecord.zipEntryCount = 2;
+    writeFileSync(packagedDistributionManifestPath, JSON.stringify(distributionManifest, null, 2));
+
+    refreshPackagedDistributionEvidence(packagedDistributionManifestPath, sourceAabPath, packagedAabPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package distribution artifact .artifacts/release-evidence-package-test/app-release.aab is missing required android ZIP entry base/manifest/AndroidManifest.xml."
+    );
+    expect(failures).toContain(
+      "Package distribution artifact required ZIP entries mismatch for .artifacts/release-evidence-package-test/app-release.aab."
     );
   });
 
@@ -1756,6 +1792,10 @@ function distributionManifestRecord(platform, kind, path) {
 function distributionManifestSummary(path) {
   const content = readFileSync(path);
   const manifest = JSON.parse(content.toString("utf8"));
+  return distributionManifestSummaryFromManifest(path, manifest, content);
+}
+
+function distributionManifestSummaryFromManifest(path, manifest, content) {
   return {
     path,
     bytes: content.byteLength,
@@ -1989,6 +2029,52 @@ function refreshPackagedSupportBundleEvidence(packagedSupportBundlePath) {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   manifest.supportBundle.bytes = supportBundleContent.byteLength;
   manifest.supportBundle.sha256 = supportBundleSha256;
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+}
+
+function refreshPackagedDistributionEvidence(packagedDistributionManifestPath, sourceArtifactPath, packagedArtifactPath) {
+  const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+  const packagedStoreReleaseReportPath = `${packageDir}/artifacts/${storeReleaseReportPath}`;
+  const distributionManifestContent = readFileSync(packagedDistributionManifestPath);
+  const distributionManifestSha256 = createHash("sha256").update(distributionManifestContent).digest("hex");
+  const artifactContent = readFileSync(packagedArtifactPath);
+  const artifactSha256 = createHash("sha256").update(artifactContent).digest("hex");
+  const distributionManifest = JSON.parse(distributionManifestContent.toString("utf8"));
+  const manifestArtifact = distributionManifest.artifacts.find((artifact) => artifact.path === sourceArtifactPath);
+
+  const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+  const reportDistributionManifest = packagedReport.artifacts.files.find(
+    (artifact) => artifact.group === distributionArtifactGroup && artifact.path === distributionArtifactManifestPath
+  );
+  reportDistributionManifest.bytes = distributionManifestContent.byteLength;
+  reportDistributionManifest.sha256 = distributionManifestSha256;
+  const reportDistributionArtifact = packagedReport.artifacts.files.find(
+    (artifact) => artifact.group === distributionArtifactGroup && artifact.path === sourceArtifactPath
+  );
+  reportDistributionArtifact.bytes = artifactContent.byteLength;
+  reportDistributionArtifact.sha256 = artifactSha256;
+  writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+  const storeReleaseReport = JSON.parse(readFileSync(packagedStoreReleaseReportPath, "utf8"));
+  storeReleaseReport.artifacts.distributionManifest = distributionManifestSummaryFromManifest(
+    distributionArtifactManifestPath,
+    distributionManifest,
+    distributionManifestContent
+  );
+  const storeSummaryArtifact = storeReleaseReport.artifacts.distributionManifest.artifacts.find(
+    (artifact) => artifact.path === sourceArtifactPath
+  );
+  storeSummaryArtifact.bytes = manifestArtifact.bytes;
+  storeSummaryArtifact.sha256 = manifestArtifact.sha256;
+  writeFileSync(packagedStoreReleaseReportPath, JSON.stringify(storeReleaseReport, null, 2));
+
+  const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+  manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+  refreshPackageArtifactEntry(manifest, distributionArtifactManifestPath, packagedDistributionManifestPath);
+  refreshPackageArtifactEntry(manifest, sourceArtifactPath, packagedArtifactPath);
+  refreshPackageArtifactEntry(manifest, storeReleaseReportPath, packagedStoreReleaseReportPath);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 }
 

@@ -247,7 +247,7 @@ function validateDistributionArtifact(artifact, failures) {
   }
 }
 
-function inspectDistributionArtifactContent(artifact, content) {
+export function inspectDistributionArtifactContent(artifact, content) {
   const failures = [];
   let zipEntryCount = 0;
   let requiredEntriesFound = [];

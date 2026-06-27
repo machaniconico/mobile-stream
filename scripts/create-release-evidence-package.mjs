@@ -3,7 +3,11 @@ import { existsSync, copyFileSync, lstatSync, mkdirSync, readFileSync, readdirSy
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
-import { distributionArtifactGroup, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
+import {
+  distributionArtifactGroup,
+  distributionArtifactManifestPath,
+  inspectDistributionArtifactContent
+} from "./verify-distribution-artifacts.mjs";
 import {
   dashboardEvidenceArtifactGroup,
   dashboardEvidenceManifestPath,
@@ -442,7 +446,7 @@ function validatePackagedCommercialManifests(packageDir, packagedArtifacts, fail
     failures
   });
   if (distributionManifest) {
-    validatePackagedDistributionManifest(distributionManifest, packagedArtifacts, failures);
+    validatePackagedDistributionManifest(distributionManifest, packagedArtifacts, packageDir, failures);
   }
 
   const dashboardManifest = readPackagedJsonArtifact({
@@ -628,7 +632,7 @@ function validatePackagedUiEvidenceScreenshot(viewport, packagedArtifacts, packa
   }
 }
 
-function validatePackagedDistributionManifest(distributionManifest, packagedArtifacts, failures) {
+function validatePackagedDistributionManifest(distributionManifest, packagedArtifacts, packageDir, failures) {
   if (
     distributionManifest?.app !== "MobileLiveCaster" ||
     distributionManifest?.type !== "distribution-artifact-manifest" ||
@@ -654,7 +658,37 @@ function validatePackagedDistributionManifest(distributionManifest, packagedArti
   );
   for (const record of records) {
     validatePackagedManifestRecord(packagedArtifacts, distributionArtifactGroup, record, "distribution manifest", failures);
+    validatePackagedDistributionArtifactContent(record, packagedArtifacts, packageDir, failures);
   }
+}
+
+function validatePackagedDistributionArtifactContent(record, packagedArtifacts, packageDir, failures) {
+  const recordPath = workspaceRecordPath(record?.path || "");
+  if (!recordPath) {
+    return;
+  }
+  const packagedArtifact = packagedArtifactFor(packagedArtifacts, distributionArtifactGroup, recordPath);
+  if (!packagedArtifact?.packagedPath || !safeRelativePath(packagedArtifact.packagedPath)) {
+    return;
+  }
+  const packagedPath = resolve(packageDir, packagedArtifact.packagedPath);
+  if (!isInsideDirectory(packagedPath, packageDir) || !existsSync(packagedPath) || !lstatSync(packagedPath).isFile()) {
+    return;
+  }
+  const contentInspection = inspectDistributionArtifactContent(record, readFileSync(packagedPath));
+  failures.push(...contentInspection.failures.map((failure) => failure.replace("Distribution artifact", "Package distribution artifact")));
+  if (record.zipEntryCount !== contentInspection.zipEntryCount) {
+    failures.push(`Package distribution artifact ZIP entry count mismatch for ${recordPath}.`);
+  }
+  if (!sameStringMembers(record.requiredZipEntries, contentInspection.requiredZipEntries)) {
+    failures.push(`Package distribution artifact required ZIP entries mismatch for ${recordPath}.`);
+  }
+}
+
+function sameStringMembers(actual, expected) {
+  const left = Array.isArray(actual) ? [...actual].sort() : [];
+  const right = Array.isArray(expected) ? [...expected].sort() : [];
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function validatePackagedDashboardEvidenceManifest(
