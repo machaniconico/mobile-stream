@@ -327,6 +327,31 @@ describe("platform dashboard evidence verifier", () => {
     expect(result.stderr).toContain(`Dashboard evidence status JSON summary mismatch for ${youtubeJson}.`);
   });
 
+  it("rejects verification when git commit provenance is missing", () => {
+    writeEvidenceFiles();
+    expect(
+      runVerifier([
+        "--write",
+        "--allow-dirty",
+        "--youtube-screenshot",
+        youtubeScreenshot,
+        "--youtube-screenshot-captured-at",
+        dashboardCapturedAt,
+        "--manifest",
+        manifestPath
+      ]).status
+    ).toBe(0);
+
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.git.commit = "";
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Dashboard evidence manifest git commit is missing.");
+  });
+
   it("rejects dashboard status JSON without a valid checkedAt timestamp", () => {
     mkdirSync(fixtureRoot, { recursive: true });
     writeFileSync(

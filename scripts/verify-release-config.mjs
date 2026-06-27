@@ -37,6 +37,7 @@ const files = {
   distributionArtifactsScript: read("scripts/verify-distribution-artifacts.mjs"),
   dashboardEvidenceScript: read("scripts/verify-platform-dashboard-evidence.mjs"),
   storeSubmissionScript: read("scripts/verify-store-submission-checklist.mjs"),
+  releaseGitProvenanceScript: read("scripts/release-git-provenance.mjs"),
   storeSubmissionApprovalScript: read("scripts/verify-store-submission-approval.mjs"),
   liveCasterBridge: read("ios/MobileLiveCaster/LiveCasterBridge.swift"),
   broadcastHandler: read("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift")
@@ -84,6 +85,10 @@ const checks = [
     expectIncludes(files.distributionArtifactsScript, "androidAab");
     expectIncludes(files.distributionArtifactsScript, ".aab");
     expectIncludes(files.distributionArtifactsScript, "sha256");
+    expectIncludes(files.distributionArtifactsScript, "validateManifestGitProvenance");
+    expectIncludes(files.releaseGitProvenanceScript, "git commit is missing");
+    expectIncludes(files.releaseGitProvenanceScript, "git dirty state is missing");
+    expectIncludes(files.releaseGitProvenanceScript, "does not match current commit");
     expectIncludes(files.storeReleaseBuildScript, "android:verify-release-env");
     expectIncludes(files.storeReleaseBuildScript, "android:bundleRelease");
     expectIncludes(files.storeReleaseBuildScript, "createDistributionManifest");
@@ -147,6 +152,7 @@ const checks = [
     expectIncludes(files.dashboardEvidenceScript, "youtubeScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "twitchScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "platform-dashboard-evidence-manifest");
+    expectIncludes(files.dashboardEvidenceScript, "validateManifestGitProvenance");
     expectIncludes(files.dashboardEvidenceScript, "readPngEvidence");
     expectIncludes(files.dashboardEvidenceScript, "dashboardScreenshotMinimumShortEdge");
     expectIncludes(files.dashboardEvidenceScript, "Dashboard evidence screenshot dimensions mismatch");
@@ -156,6 +162,7 @@ const checks = [
     expectIncludes(files.dashboardEvidenceScript, "must include Twitch liveStatus");
     expectIncludes(files.dashboardEvidenceScript, "Twitch broadcasterId");
     expectIncludes(files.storeSubmissionScript, "store-submission-checklist-manifest");
+    expectIncludes(files.storeSubmissionScript, "validateManifestGitProvenance");
     expectIncludes(files.storeSubmissionScript, "readPngEvidence");
     expectIncludes(files.storeSubmissionScript, "privacyPolicyUrl");
     expectIncludes(files.storeSubmissionScript, "dataSafetyNotes");

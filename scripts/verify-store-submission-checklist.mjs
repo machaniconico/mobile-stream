@@ -5,6 +5,7 @@ import { basename, dirname, extname, isAbsolute, relative, resolve } from "node:
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import { readPngEvidence } from "./png-evidence.mjs";
+import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 
 export const storeSubmissionChecklistPath = ".artifacts/store-submission-checklist.json";
 export const storeSubmissionArtifactGroup = "store-submission";
@@ -124,14 +125,12 @@ export function validateStoreSubmissionChecklist(
     failures.push("Store submission checklist is not a MobileLiveCaster store-submission-checklist-manifest reportVersion 1 file.");
     return failures;
   }
-  if (!allowDirty && manifest.git?.dirty) {
-    failures.push("Store submission checklist was generated from a dirty worktree.");
-  }
-
   const currentCommit = commandOutput("git", ["rev-parse", "HEAD"]);
-  if (!allowCommitMismatch && currentCommit && manifest.git?.commit && currentCommit !== manifest.git.commit) {
-    failures.push(`Store submission checklist commit ${manifest.git.commit} does not match current commit ${currentCommit}.`);
-  }
+  validateManifestGitProvenance(
+    manifest.git,
+    { label: "Store submission checklist", currentCommit, allowDirty, allowCommitMismatch },
+    failures
+  );
   if (!workspaceRelativePath(manifestPath)) {
     failures.push("Store submission checklist path must be inside the workspace.");
   }

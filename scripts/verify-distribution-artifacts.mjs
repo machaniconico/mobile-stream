@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { basename, dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
+import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 
 export const distributionArtifactManifestPath = ".artifacts/distribution-artifacts.json";
 export const distributionArtifactGroup = "distribution";
@@ -74,14 +75,12 @@ export function validateDistributionManifest(
     failures.push("Distribution manifest has no artifacts.");
     return failures;
   }
-  if (!allowDirty && manifest.git?.dirty) {
-    failures.push("Distribution manifest was generated from a dirty worktree.");
-  }
-
   const currentCommit = commandOutput("git", ["rev-parse", "HEAD"]);
-  if (!allowCommitMismatch && currentCommit && manifest.git?.commit && currentCommit !== manifest.git.commit) {
-    failures.push(`Distribution manifest commit ${manifest.git.commit} does not match current commit ${currentCommit}.`);
-  }
+  validateManifestGitProvenance(
+    manifest.git,
+    { label: "Distribution manifest", currentCommit, allowDirty, allowCommitMismatch },
+    failures
+  );
 
   const seen = new Set();
   for (const artifact of manifest.artifacts) {

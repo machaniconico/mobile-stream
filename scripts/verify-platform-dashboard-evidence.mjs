@@ -5,6 +5,7 @@ import { basename, dirname, extname, isAbsolute, relative, resolve } from "node:
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import { readPngEvidence } from "./png-evidence.mjs";
+import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 
 export const dashboardEvidenceManifestPath = ".artifacts/platform-dashboard-evidence.json";
 export const dashboardEvidenceArtifactGroup = "dashboard";
@@ -83,14 +84,12 @@ export function validateDashboardEvidenceManifest(
     failures.push("Dashboard evidence manifest has no artifacts.");
     return failures;
   }
-  if (!allowDirty && manifest.git?.dirty) {
-    failures.push("Dashboard evidence manifest was generated from a dirty worktree.");
-  }
-
   const currentCommit = commandOutput("git", ["rev-parse", "HEAD"]);
-  if (!allowCommitMismatch && currentCommit && manifest.git?.commit && currentCommit !== manifest.git.commit) {
-    failures.push(`Dashboard evidence manifest commit ${manifest.git.commit} does not match current commit ${currentCommit}.`);
-  }
+  validateManifestGitProvenance(
+    manifest.git,
+    { label: "Dashboard evidence manifest", currentCommit, allowDirty, allowCommitMismatch },
+    failures
+  );
 
   const seen = new Set();
   for (const artifact of manifest.artifacts) {

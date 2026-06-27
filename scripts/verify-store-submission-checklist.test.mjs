@@ -141,6 +141,20 @@ describe("store submission checklist verifier", () => {
     expect(result.stderr).toContain("Store submission metadata contains possible OAuth/access/refresh/client secret");
   });
 
+  it("rejects verification when git commit provenance is missing", () => {
+    writeStoreSubmissionFiles();
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.git.commit = "";
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Store submission checklist git commit is missing.");
+  });
+
   it("rejects UI evidence draft screenshots in final store-submission mode", () => {
     writeStoreSubmissionFiles({
       screenshots: [

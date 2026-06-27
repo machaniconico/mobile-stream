@@ -67,6 +67,22 @@ describe("distribution artifact verifier", () => {
     expect(result.stderr).toContain(`Distribution artifact metadata mismatch for ${androidAab}.`);
   });
 
+  it("rejects verification when git commit provenance is missing", () => {
+    writeDistributionFiles();
+    expect(
+      runVerifier(["--write", "--allow-dirty", "--android-aab", androidAab, "--manifest", manifestPath]).status
+    ).toBe(0);
+
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.git.commit = "";
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Distribution manifest git commit is missing.");
+  });
+
   it("rejects placeholder-sized distribution artifacts", () => {
     mkdirSync(fixtureRoot, { recursive: true });
     writeFileSync(
