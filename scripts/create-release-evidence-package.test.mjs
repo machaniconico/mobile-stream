@@ -52,6 +52,7 @@ const storePngBytes = pngWithDimensions(1179, 2556);
 const dashboardPngBytes = pngWithDimensions(1440, 900);
 const minimumDistributionArtifactBytes = 1_048_576;
 const capturedAt = new Date().toISOString();
+const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
 
 describe("release evidence package creator", () => {
   beforeAll(() => {
@@ -1414,7 +1415,7 @@ function writeUiEvidenceFile() {
       {
         reportVersion: 1,
         app: "MobileLiveCaster",
-        type: "ui-verification",
+        type: "browser-ui-verification",
         status: "passed",
         target: "http://127.0.0.1:5173/",
         finishedAt: new Date().toISOString(),
@@ -1439,6 +1440,7 @@ function uiViewport(name, screenshotPath) {
   return {
     name,
     horizontalOverflow: false,
+    requiredTextChecks: requiredUiTextChecks.map((text) => ({ text, count: 1 })),
     screenshot: {
       path: screenshotPath,
       bytes: content.byteLength,

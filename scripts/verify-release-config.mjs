@@ -109,6 +109,12 @@ const checks = [
     expectIncludes(files.releaseCandidateScript, "--ui-url must be a loopback http(s) URL");
     expectIncludes(files.releaseCandidateScript, "UI evidence target must be a loopback http(s) URL.");
     expectIncludes(files.releaseReportScript, "Browser UI evidence target must be a loopback http(s) URL.");
+    expectIncludes(files.releaseReportScript, "Browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");
+    expectIncludes(files.releaseReportScript, "Browser UI evidence finishedAt timestamp is missing or invalid.");
+    expectIncludes(files.releaseReportScript, "Browser UI evidence for ${viewport.name} is missing text");
+    expectIncludes(files.releaseReportScript, "Browser UI verification is missing evidence artifact");
+    expectIncludes(files.releaseReportScript, "defaultBrowserUiEvidencePath");
+    expectIncludes(files.releaseReportScript, "requiredUiTextChecks");
     expectIncludes(files.releaseUrlPolicyScript, "isLoopbackHttpUrl");
     expectIncludes(files.releaseUrlPolicyScript, "localhost");
     expectIncludes(files.releaseUrlPolicyScript, "127.0.0.1");

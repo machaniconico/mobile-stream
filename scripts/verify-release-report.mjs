@@ -17,6 +17,8 @@ import { createCommercialReleaseGate } from "./verify-commercial-release-bundle.
 import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
 
 const requiredUiViewportNames = ["desktop", "mobile"];
+const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
+const defaultBrowserUiEvidencePath = ".artifacts/ui-verification.json";
 const requiredReactNativeArtifacts = [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"];
 const requiredUiArtifacts = [".artifacts/mobile-live-caster-desktop.png", ".artifacts/mobile-live-caster-mobile.png"];
 
@@ -313,31 +315,46 @@ function validateArtifactRecord(artifact, fail) {
 function validateUiEvidence(report, options, fail) {
   const gates = Array.isArray(report?.gates) ? report.gates : [];
   const evidenceGate = gates.find((gate) => gate?.label === "Verify browser UI evidence");
+  const browserUiGate = gates.find((gate) => gate?.label === "Verify browser UI");
 
   if (report?.options?.skipUi && !evidenceGate) {
     fail("Report skipped in-process UI verification but does not include a browser UI evidence gate.");
     return;
   }
-  if (!evidenceGate) {
+  if (!evidenceGate && !browserUiGate) {
     return;
   }
 
-  const evidencePath = evidenceGate.evidence?.path;
+  const evidenceSource = evidenceGate?.evidence || browserUiEvidenceArtifact(report);
+  const evidencePath = evidenceSource?.path;
   if (!evidencePath) {
-    fail("Browser UI evidence gate is missing its evidence path.");
+    fail(
+      evidenceGate
+        ? "Browser UI evidence gate is missing its evidence path."
+        : `Browser UI verification is missing evidence artifact ${defaultBrowserUiEvidencePath}.`
+    );
     return;
   }
   if (!existsSync(resolve(evidencePath))) {
     fail(`Browser UI evidence file does not exist: ${evidencePath}.`);
     return;
   }
-  if (!isSha256(evidenceGate.evidence?.sha256) || fileSha256(evidencePath) !== evidenceGate.evidence.sha256) {
+  if (!isSha256(evidenceSource.sha256) || fileSha256(evidencePath) !== evidenceSource.sha256) {
     fail(`Browser UI evidence SHA-256 mismatch for ${evidencePath}.`);
   }
 
   const evidence = readJsonFile(evidencePath, "browser UI evidence");
+  if (evidence?.app !== "MobileLiveCaster" || evidence?.type !== "browser-ui-verification" || evidence?.reportVersion !== 1) {
+    fail("Browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");
+  }
   if (evidence.status !== "passed") {
     fail(`Browser UI evidence status must be passed, got ${JSON.stringify(evidence.status)}.`);
+  }
+  const evidenceAgeHours = ageInHours(evidence.finishedAt, new Date());
+  if (evidenceAgeHours === null) {
+    fail("Browser UI evidence finishedAt timestamp is missing or invalid.");
+  } else if (evidenceAgeHours > options.maxAgeHours) {
+    fail(`Browser UI evidence is ${evidenceAgeHours}h old, above the ${options.maxAgeHours}h release-report gate.`);
   }
   if (evidence.git?.commit !== report.git?.commit && !options.allowCommitMismatch) {
     fail(`Browser UI evidence commit ${evidence.git?.commit || "-"} does not match report commit ${report.git?.commit || "-"}.`);
@@ -359,7 +376,23 @@ function validateUiEvidence(report, options, fail) {
     if (viewport.horizontalOverflow !== false) {
       fail(`Browser UI evidence reports horizontal overflow for ${viewportName}.`);
     }
+    validateEvidenceTextChecks(viewport, fail);
     validateEvidenceScreenshot(viewport, fail);
+  }
+}
+
+function browserUiEvidenceArtifact(report) {
+  const artifacts = Array.isArray(report?.artifacts?.files) ? report.artifacts.files : [];
+  return artifacts.find((artifact) => artifact?.group === "ui" && artifact?.path === defaultBrowserUiEvidencePath);
+}
+
+function validateEvidenceTextChecks(viewport, fail) {
+  const checks = Array.isArray(viewport.requiredTextChecks) ? viewport.requiredTextChecks : [];
+  for (const text of requiredUiTextChecks) {
+    const check = checks.find((candidate) => candidate?.text === text);
+    if (!check || !Number.isFinite(check.count) || check.count <= 0) {
+      fail(`Browser UI evidence for ${viewport.name} is missing text ${JSON.stringify(text)}.`);
+    }
   }
 }
 

@@ -21,6 +21,7 @@ const generatedFiles = [
   ".artifacts/rn/index.android.bundle",
   ".artifacts/mobile-live-caster-desktop.png",
   ".artifacts/mobile-live-caster-mobile.png",
+  ".artifacts/ui-verification.json",
   ".artifacts/distribution-artifacts.json",
   ".artifacts/release-report-test/app-release.aab",
   ".artifacts/release-report-test/MobileLiveCaster.ipa",
@@ -46,6 +47,7 @@ const tinyPngBytes = Buffer.from(
 const minimumDistributionArtifactBytes = 1_048_576;
 const pngBytes = pngWithDimensions(1179, 2556);
 const capturedAt = "2026-06-25T00:00:00.000Z";
+const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
 
 describe("release report verifier", () => {
   beforeAll(() => {
@@ -139,6 +141,55 @@ describe("release report verifier", () => {
     const failures = validateReport(report, reportOptions());
 
     expect(failures).toContain("Browser UI evidence target must be a loopback http(s) URL.");
+  });
+
+  it("rejects UI evidence with a mismatched report schema", () => {
+    const report = createReport();
+    rewriteUiEvidence(report, (evidence) => {
+      evidence.app = "OtherApp";
+    });
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain(
+      "Browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file."
+    );
+  });
+
+  it("rejects stale UI evidence even when the release report is fresh", () => {
+    const report = createReport();
+    rewriteUiEvidence(report, (evidence) => {
+      evidence.finishedAt = new Date(Date.now() - 49 * 3_600_000).toISOString();
+    });
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain("Browser UI evidence is 49h old, above the 24h release-report gate.");
+  });
+
+  it("rejects UI evidence missing required text checks", () => {
+    const report = createReport();
+    rewriteUiEvidence(report, (evidence) => {
+      const mobile = evidence.viewports.find((viewport) => viewport.name === "mobile");
+      mobile.requiredTextChecks = mobile.requiredTextChecks.filter((check) => check.text !== "Go Live");
+    });
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain('Browser UI evidence for mobile is missing text "Go Live".');
+  });
+
+  it("audits UI evidence artifacts from in-process browser UI gates", () => {
+    const report = createReport({ skipUi: false, uiEvidencePath: ".artifacts/ui-verification.json" });
+    rewriteUiEvidence(report, (evidence) => {
+      evidence.reportVersion = 0;
+    });
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain(
+      "Browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file."
+    );
   });
 
   it("accepts release reports with a matching distribution artifact manifest", () => {
@@ -242,12 +293,14 @@ function createReport({
   includeStoreRelease = false,
   storeReleaseStatus = "passed",
   storeReleaseFinishedAt,
+  skipUi = true,
+  uiEvidencePath = ".artifacts/release-report-test/ui-evidence.json",
   uiEvidenceTarget = "http://127.0.0.1:5173/",
   allowWarnings = false,
   supportBundlePatch = {}
 } = {}) {
   writeSupportBundleFixture(supportBundlePatch);
-  writeUiEvidenceFile({ target: uiEvidenceTarget });
+  writeUiEvidenceFile({ path: uiEvidencePath, target: uiEvidenceTarget });
   const shouldIncludeDistribution = includeDistribution || includeStoreRelease;
   if (shouldIncludeDistribution) {
     writeDistributionFixture();
@@ -271,6 +324,7 @@ function createReport({
     artifactRecord("react-native", ".artifacts/rn/index.android.bundle"),
     artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
     artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
+    ...(!skipUi ? [artifactRecord("ui", uiEvidencePath)] : []),
     ...(shouldIncludeDistribution ? distributionArtifactRecords() : []),
     ...(includeDashboardEvidence ? dashboardEvidenceRecords() : []),
     ...(includeStoreSubmission ? storeSubmissionRecords() : []),
@@ -293,7 +347,7 @@ function createReport({
     options: {
       allowDirty: true,
       allowWarnings,
-      skipUi: true
+      skipUi
     },
     supportBundle: {
       path: supportBundlePath,
@@ -316,23 +370,34 @@ function createReport({
         exitCode: label === "Verify clean git worktree" ? null : 0,
         error: label === "Verify clean git worktree" ? "Allowed by --allow-dirty." : null
       })),
-      {
-        label: "Verify browser UI evidence",
-        command: "read .artifacts/release-report-test/ui-evidence.json",
-        status: "passed",
-        startedAt: new Date(Date.now() - 1_000).toISOString(),
-        finishedAt: new Date().toISOString(),
-        durationMs: 1,
-        exitCode: 0,
-        error: null,
-        evidence: {
-          path: ".artifacts/release-report-test/ui-evidence.json",
-          sha256: fileSha256(".artifacts/release-report-test/ui-evidence.json"),
-          target: uiEvidenceTarget,
-          finishedAt: new Date().toISOString(),
-          viewports: []
-        }
-      }
+      skipUi
+        ? {
+            label: "Verify browser UI evidence",
+            command: `read ${uiEvidencePath}`,
+            status: "passed",
+            startedAt: new Date(Date.now() - 1_000).toISOString(),
+            finishedAt: new Date().toISOString(),
+            durationMs: 1,
+            exitCode: 0,
+            error: null,
+            evidence: {
+              path: uiEvidencePath,
+              sha256: fileSha256(uiEvidencePath),
+              target: uiEvidenceTarget,
+              finishedAt: new Date().toISOString(),
+              viewports: []
+            }
+          }
+        : {
+            label: "Verify browser UI",
+            command: "npm run verify:ui",
+            status: "passed",
+            startedAt: new Date(Date.now() - 1_000).toISOString(),
+            finishedAt: new Date().toISOString(),
+            durationMs: 1,
+            exitCode: 0,
+            error: null
+          }
     ],
     error: null
   };
@@ -872,12 +937,13 @@ function storeReviewDocumentRecord() {
 }
 
 function writeUiEvidenceFile({
+  path = ".artifacts/release-report-test/ui-evidence.json",
   desktopPath = ".artifacts/mobile-live-caster-desktop.png",
   mobilePath = ".artifacts/mobile-live-caster-mobile.png",
   target = "http://127.0.0.1:5173/"
 } = {}) {
   writeFile(
-    ".artifacts/release-report-test/ui-evidence.json",
+    path,
     JSON.stringify(
       {
         reportVersion: 1,
@@ -905,8 +971,32 @@ function viewportEvidence(name, path) {
   return {
     name,
     horizontalOverflow: false,
+    requiredTextChecks: requiredUiTextChecks.map((text) => ({ text, count: 1 })),
     screenshot: artifactRecord("ui", path)
   };
+}
+
+function rewriteUiEvidence(report, mutate) {
+  const evidencePath = uiEvidencePathForReport(report);
+  const evidence = JSON.parse(readFileSync(evidencePath, "utf8"));
+  mutate(evidence);
+  writeFile(evidencePath, JSON.stringify(evidence, null, 2));
+  const evidenceGate = report.gates.find((gate) => gate.label === "Verify browser UI evidence");
+  if (evidenceGate) {
+    evidenceGate.evidence.sha256 = fileSha256(evidencePath);
+    evidenceGate.evidence.target = evidence.target;
+    evidenceGate.evidence.finishedAt = evidence.finishedAt;
+  }
+  const artifact = report.artifacts.files.find((candidate) => candidate.path === evidencePath);
+  if (artifact) {
+    artifact.bytes = readFileSync(evidencePath).byteLength;
+    artifact.sha256 = fileSha256(evidencePath);
+  }
+}
+
+function uiEvidencePathForReport(report) {
+  const evidenceGate = report.gates.find((gate) => gate.label === "Verify browser UI evidence");
+  return evidenceGate?.evidence?.path || ".artifacts/ui-verification.json";
 }
 
 function artifactRecord(group, path) {
