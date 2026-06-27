@@ -198,6 +198,15 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeStillImageAssetLoadedCount: number;
   nativeRuntimeStillImageAssetMissingCount: number;
   monitorHoldStatus: StreamValidationMonitorHoldSummary["status"] | null;
+  monitorHoldSampleCount: number;
+  monitorHoldDurationSeconds: number;
+  monitorHoldStability: StreamValidationMonitorHoldSummary["stability"] | null;
+  monitorHoldAverageBitrateKbps: number;
+  monitorHoldMinimumBitrateKbps: number;
+  monitorHoldAverageFps: number;
+  monitorHoldMinimumFps: number;
+  monitorHoldDroppedFrameIncrease: number;
+  monitorHoldObservedReconnectAttempts: number;
   faceTrackingStatus: StreamValidationFaceTrackingSummary["status"] | null;
   faceTrackingRuntimeFresh: boolean | null;
   faceTrackingRuntimeAgeMs: number | null;
@@ -2091,6 +2100,15 @@ const createEvidenceRunManifestItem = (
   nativeRuntimeStillImageAssetLoadedCount: run.nativeRuntime?.stillImageAssetLoadedCount ?? 0,
   nativeRuntimeStillImageAssetMissingCount: run.nativeRuntime?.stillImageAssetMissingCount ?? 0,
   monitorHoldStatus: run.monitorHold?.status ?? null,
+  monitorHoldSampleCount: run.monitorHold?.sampleCount ?? 0,
+  monitorHoldDurationSeconds: run.monitorHold?.durationSeconds ?? 0,
+  monitorHoldStability: run.monitorHold?.stability ?? null,
+  monitorHoldAverageBitrateKbps: run.monitorHold?.averageBitrateKbps ?? 0,
+  monitorHoldMinimumBitrateKbps: run.monitorHold?.minimumBitrateKbps ?? 0,
+  monitorHoldAverageFps: run.monitorHold?.averageFps ?? 0,
+  monitorHoldMinimumFps: run.monitorHold?.minimumFps ?? 0,
+  monitorHoldDroppedFrameIncrease: run.monitorHold?.droppedFrameIncrease ?? 0,
+  monitorHoldObservedReconnectAttempts: run.monitorHold?.observedReconnectAttempts ?? 0,
   faceTrackingStatus: run.faceTracking?.status ?? null,
   faceTrackingRuntimeFresh: run.faceTracking?.runtimeFresh ?? null,
   faceTrackingRuntimeAgeMs: run.faceTracking?.runtimeAgeMs ?? null,

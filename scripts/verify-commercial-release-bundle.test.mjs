@@ -27,19 +27,19 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Can release: yes");
   });
 
-  it("blocks v19 support bundles without audio monitor manifest proof", () => {
+  it("blocks v20 support bundles without monitor-hold manifest proof", () => {
     writeBundle({
       app: {
         name: "MobileLiveCaster",
         reportVersion: 1,
-        bundleVersion: 19
+        bundleVersion: 20
       }
     });
 
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v19 is older than the required v20.");
+    expect(result.stdout).toContain("Support bundle v20 is older than the required v21.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -130,6 +130,87 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("loaded still-image assets");
+  });
+
+  it("blocks monitor-hold claims when retained manifests lack stable duration proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { monitorHoldDurationSeconds: 59 }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("stable duration, sample count");
+  });
+
+  it("uses the latest eligible platform row for monitor-hold manifest proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunCount: 3,
+        validationEvidenceEligibleRunCount: 3,
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios-older", { createdAt: "2026-06-23T09:00:00.000Z" }),
+          manifestRun("ios", "svr1-ios-latest", {
+            createdAt: "2026-06-23T10:00:00.000Z",
+            monitorHoldDurationSeconds: 59
+          }),
+          manifestRun("android", "svr1-android", { createdAt: "2026-06-23T10:00:00.000Z" })
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("stable duration, sample count");
+  });
+
+  it("keeps monitor-hold manifest failures blocking when manifest count warnings are allowed", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunCount: 2,
+        validationEvidenceEligibleRunCount: 3,
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios-older", { createdAt: "2026-06-23T09:00:00.000Z" }),
+          manifestRun("ios", "svr1-ios-latest", {
+            createdAt: "2026-06-23T10:00:00.000Z",
+            monitorHoldDurationSeconds: 59
+          }),
+          manifestRun("android", "svr1-android", { createdAt: "2026-06-23T10:00:00.000Z" })
+        ]
+      }
+    });
+
+    const result = runVerifierAllowWarnings();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Can release: no");
+    expect(result.stdout).toContain("stable duration, sample count");
+    expect(result.stdout).not.toContain("release warning");
+  });
+
+  it("blocks monitor-hold claims when retained manifests keep drops or reconnects", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            monitorHoldDroppedFrameIncrease: 1,
+            monitorHoldObservedReconnectAttempts: 1
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("zero dropped frames, and zero reconnects");
   });
 
   it("blocks audio claims when retained manifests lack native monitor write proof", () => {
@@ -285,6 +366,11 @@ const runVerifier = (path = fixturePath) =>
     encoding: "utf8"
   });
 
+const runVerifierAllowWarnings = (path = fixturePath) =>
+  spawnSync(process.execPath, ["scripts/verify-commercial-release-bundle.mjs", path, "--max-age-hours=24", "--allow-warnings"], {
+    encoding: "utf8"
+  });
+
 const writeBundle = (patch = {}) => {
   mkdirSync(dirname(fixturePath), { recursive: true });
   writeFileSync(fixturePath, JSON.stringify(createBundle(patch), null, 2));
@@ -342,7 +428,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 20
+      bundleVersion: 21
     },
     generatedAt: new Date().toISOString(),
     ...patch,
@@ -381,6 +467,15 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeStillImageAssetLoadedCount: 1,
   nativeRuntimeStillImageAssetMissingCount: 0,
   monitorHoldStatus: "pass",
+  monitorHoldSampleCount: 3,
+  monitorHoldDurationSeconds: 65,
+  monitorHoldStability: "stable",
+  monitorHoldAverageBitrateKbps: 4_400,
+  monitorHoldMinimumBitrateKbps: 4_100,
+  monitorHoldAverageFps: 29.8,
+  monitorHoldMinimumFps: 29.2,
+  monitorHoldDroppedFrameIncrease: 0,
+  monitorHoldObservedReconnectAttempts: 0,
   faceTrackingStatus: "pass",
   faceTrackingRuntimeFresh: true,
   faceTrackingRuntimeAgeMs: 120,

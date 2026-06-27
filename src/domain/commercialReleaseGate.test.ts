@@ -127,13 +127,13 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v19 support bundles that do not carry audio monitor manifest proof", () => {
+  it("blocks v20 support bundles that do not carry monitor-hold manifest proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         app: {
           name: "MobileLiveCaster",
           reportVersion: 1,
-          bundleVersion: 19
+          bundleVersion: 20
         }
       }),
       { now }
@@ -141,6 +141,55 @@ describe("commercial release gate", () => {
 
     expect(gate.status).toBe("blocked");
     expect(gate.issues.map((issue) => issue.code)).toContain("bundle-version");
+  });
+
+  it("blocks monitor-hold summary claims when the manifest lacks stable duration proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", monitorHoldDurationSeconds: 59 }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS stable monitor-hold proof")
+      })
+    );
+  });
+
+  it("blocks monitor-hold summary claims when the manifest has drops or reconnects", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              monitorHoldDroppedFrameIncrease: 1,
+              monitorHoldObservedReconnectAttempts: 1
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS stable monitor-hold proof")
+      })
+    );
   });
 
   it("blocks avatar-motion summary claims when the manifest lacks fresh tracking runtime proof", () => {
@@ -529,7 +578,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 20 as const
+    bundleVersion: 21 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   summary = {}
@@ -627,6 +676,15 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetLoadedCount = 1,
   nativeRuntimeStillImageAssetMissingCount = 0,
   monitorHoldStatus = "pass",
+  monitorHoldSampleCount = 3,
+  monitorHoldDurationSeconds = 65,
+  monitorHoldStability = "stable",
+  monitorHoldAverageBitrateKbps = 4_400,
+  monitorHoldMinimumBitrateKbps = 4_100,
+  monitorHoldAverageFps = 29.8,
+  monitorHoldMinimumFps = 29.2,
+  monitorHoldDroppedFrameIncrease = 0,
+  monitorHoldObservedReconnectAttempts = 0,
   faceTrackingStatus = "pass",
   faceTrackingRuntimeFresh = true,
   faceTrackingRuntimeAgeMs = 120,
@@ -667,6 +725,15 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetLoadedCount?: ValidationManifestRun["nativeRuntimeStillImageAssetLoadedCount"];
   nativeRuntimeStillImageAssetMissingCount?: ValidationManifestRun["nativeRuntimeStillImageAssetMissingCount"];
   monitorHoldStatus?: ValidationManifestRun["monitorHoldStatus"];
+  monitorHoldSampleCount?: ValidationManifestRun["monitorHoldSampleCount"];
+  monitorHoldDurationSeconds?: ValidationManifestRun["monitorHoldDurationSeconds"];
+  monitorHoldStability?: ValidationManifestRun["monitorHoldStability"];
+  monitorHoldAverageBitrateKbps?: ValidationManifestRun["monitorHoldAverageBitrateKbps"];
+  monitorHoldMinimumBitrateKbps?: ValidationManifestRun["monitorHoldMinimumBitrateKbps"];
+  monitorHoldAverageFps?: ValidationManifestRun["monitorHoldAverageFps"];
+  monitorHoldMinimumFps?: ValidationManifestRun["monitorHoldMinimumFps"];
+  monitorHoldDroppedFrameIncrease?: ValidationManifestRun["monitorHoldDroppedFrameIncrease"];
+  monitorHoldObservedReconnectAttempts?: ValidationManifestRun["monitorHoldObservedReconnectAttempts"];
   faceTrackingStatus?: ValidationManifestRun["faceTrackingStatus"];
   faceTrackingRuntimeFresh?: ValidationManifestRun["faceTrackingRuntimeFresh"];
   faceTrackingRuntimeAgeMs?: ValidationManifestRun["faceTrackingRuntimeAgeMs"];
@@ -715,6 +782,15 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetLoadedCount,
   nativeRuntimeStillImageAssetMissingCount,
   monitorHoldStatus,
+  monitorHoldSampleCount,
+  monitorHoldDurationSeconds,
+  monitorHoldStability,
+  monitorHoldAverageBitrateKbps,
+  monitorHoldMinimumBitrateKbps,
+  monitorHoldAverageFps,
+  monitorHoldMinimumFps,
+  monitorHoldDroppedFrameIncrease,
+  monitorHoldObservedReconnectAttempts,
   faceTrackingStatus,
   faceTrackingRuntimeFresh,
   faceTrackingRuntimeAgeMs,

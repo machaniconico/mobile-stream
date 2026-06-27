@@ -3,7 +3,9 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
-const minimumSupportBundleVersion = 20;
+const minimumSupportBundleVersion = 21;
+const minimumValidationMonitorDurationSeconds = 60;
+const minimumValidationMonitorSampleCount = 3;
 const defaultMaxBundleAgeHours = 24;
 const redactedMarker = "[redacted]";
 const sensitivePropertyNames = new Set([
@@ -374,11 +376,12 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v20 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v21 or newer after retaining release-candidate validation runs."
     );
   }
+  const latestEligibleRuns = [...latestEligibleManifestRunsByPlatform(manifest).values()];
   const eligiblePlatforms = new Set(
-    manifest
+    latestEligibleRuns
       .filter(
         (run) =>
           run?.eligible === true &&
@@ -396,16 +399,8 @@ function validationManifestIssue(bundle) {
       "Record and retain passing physical-device validation runs for both iOS and Android on the current build."
     );
   }
-  if (manifest.length !== number(summary.validationEvidenceRunCount)) {
-    return warn(
-      "validation-evidence-manifest-count-mismatch",
-      "Validation evidence manifest",
-      `Manifest has ${manifest.length} run(s), but the summary reports ${number(summary.validationEvidenceRunCount)}.`,
-      "Export a fresh support bundle so retained run counts and manifest rows match."
-    );
-  }
   const eligibleNativeRuntimePlatforms = new Set(
-    manifest
+    latestEligibleRuns
       .filter(
         (run) =>
           run?.eligible === true &&
@@ -429,11 +424,37 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-native-runtime",
       "Validation evidence manifest",
       "The manifest does not back claimed native runtime evidence with platform-matched video/audio frames, bytes written, compositor status, and loaded still-image assets.",
-      "Export a support bundle v20 or newer after retaining iOS and Android validation runs with native publisher/compositor telemetry from the current scene."
+      "Export a support bundle v21 or newer after retaining iOS and Android validation runs with native publisher/compositor telemetry from the current scene."
+    );
+  }
+  const eligibleMonitorHoldPlatforms = new Set(
+    latestEligibleRuns
+      .filter(
+        (run) =>
+          run?.eligible === true &&
+          run?.result === "pass" &&
+          run?.monitorHoldStatus === "pass" &&
+          isAtLeastNumber(run?.monitorHoldSampleCount, minimumValidationMonitorSampleCount) &&
+          isAtLeastNumber(run?.monitorHoldDurationSeconds, minimumValidationMonitorDurationSeconds) &&
+          run?.monitorHoldStability === "stable" &&
+          isZeroNumber(run?.monitorHoldDroppedFrameIncrease) &&
+          isZeroNumber(run?.monitorHoldObservedReconnectAttempts)
+      )
+      .map((run) => run.devicePlatform)
+  );
+  if (
+    (summary.validationEvidenceMonitorHoldIosPass === true && !eligibleMonitorHoldPlatforms.has("ios")) ||
+    (summary.validationEvidenceMonitorHoldAndroidPass === true && !eligibleMonitorHoldPlatforms.has("android"))
+  ) {
+    return fail(
+      "validation-evidence-manifest-monitor-hold",
+      "Validation evidence manifest",
+      "The manifest does not back claimed monitor-hold evidence with stable duration, sample count, zero dropped frames, and zero reconnects.",
+      "Export a support bundle v21 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry."
     );
   }
   const eligibleAudioPlatforms = new Set(
-    manifest
+    latestEligibleRuns
       .filter(
         (run) =>
           run?.eligible === true &&
@@ -458,11 +479,11 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-audio-monitor",
       "Validation evidence manifest",
       "The manifest does not back claimed mic/headphone evidence with native monitor write/drop proof, headphone route proof, and measured monitor latency.",
-      "Export a support bundle v20 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones."
+      "Export a support bundle v21 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones."
     );
   }
   const eligibleAvatarPlatforms = new Set(
-    manifest
+    latestEligibleRuns
       .filter(
         (run) =>
           run?.eligible === true &&
@@ -482,11 +503,11 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-avatar-motion",
       "Validation evidence manifest",
       "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, active motion, and zero still-image rig issues.",
-      "Export a support bundle v20 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and reviewed PNGTuber rig lines."
+      "Export a support bundle v21 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and reviewed PNGTuber rig lines."
     );
   }
   const eligibleChatReadoutPlatforms = new Set(
-    manifest
+    latestEligibleRuns
       .filter(
         (run) =>
           run?.eligible === true &&
@@ -505,7 +526,15 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-chat-readout",
       "Validation evidence manifest",
       "The manifest does not back claimed chat readout evidence with spoken-message success and zero speech failures.",
-      "Export a support bundle v20 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
+      "Export a support bundle v21 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
+    );
+  }
+  if (manifest.length !== number(summary.validationEvidenceRunCount)) {
+    return warn(
+      "validation-evidence-manifest-count-mismatch",
+      "Validation evidence manifest",
+      `Manifest has ${manifest.length} run(s), but the summary reports ${number(summary.validationEvidenceRunCount)}.`,
+      "Export a fresh support bundle so retained run counts and manifest rows match."
     );
   }
   return null;
@@ -617,8 +646,31 @@ function isPositiveNumber(value) {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
+function isAtLeastNumber(value, minimum) {
+  return typeof value === "number" && Number.isFinite(value) && value >= minimum;
+}
+
 function isZeroNumber(value) {
   return typeof value === "number" && Number.isFinite(value) && value === 0;
+}
+
+function latestEligibleManifestRunsByPlatform(manifest) {
+  const runsByPlatform = new Map();
+  const sortedRuns = [...manifest].filter(isManifestRunFreshInScope).sort((left, right) => {
+    const rightTime = Date.parse(String(right?.createdAt));
+    const leftTime = Date.parse(String(left?.createdAt));
+    return rightTime - leftTime;
+  });
+  for (const run of sortedRuns) {
+    if (!runsByPlatform.has(run.devicePlatform)) {
+      runsByPlatform.set(run.devicePlatform, run);
+    }
+  }
+  return runsByPlatform;
+}
+
+function isManifestRunFreshInScope(run) {
+  return run?.fresh === true && run?.matchesScope === true && Number.isFinite(Date.parse(String(run?.createdAt)));
 }
 
 function hasLoadedAllNativeRuntimeAssets(run) {

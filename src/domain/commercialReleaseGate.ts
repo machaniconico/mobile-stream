@@ -1,4 +1,8 @@
 import type { SupportBundle } from "./supportBundle";
+import {
+  minimumValidationMonitorDurationSeconds,
+  minimumValidationMonitorSampleCount
+} from "./streamValidationThresholds";
 
 export type CommercialReleaseGateStatus = "ready" | "warning" | "blocked";
 export type CommercialReleaseGateIssueSeverity = "warn" | "fail";
@@ -33,7 +37,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 20;
+const minimumSupportBundleVersion = 21;
 const defaultMaxBundleAgeHours = 24;
 
 export const createCommercialReleaseGate = (
@@ -301,7 +305,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v20 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v21 or newer after retaining release-candidate validation runs."
     );
   }
   const latestRuns = latestEligibleManifestRunsByPlatform(manifest);
@@ -380,11 +384,11 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): 
       "Android native runtime proof",
       isManifestNativeRuntimePass(androidRun)
     ],
-    [summary.validationEvidenceMonitorHoldIosPass, "iOS stable monitor-hold proof", isManifestFeaturePass(iosRun?.monitorHoldStatus)],
+    [summary.validationEvidenceMonitorHoldIosPass, "iOS stable monitor-hold proof", isManifestMonitorHoldPass(iosRun)],
     [
       summary.validationEvidenceMonitorHoldAndroidPass,
       "Android stable monitor-hold proof",
-      isManifestFeaturePass(androidRun?.monitorHoldStatus)
+      isManifestMonitorHoldPass(androidRun)
     ],
     [summary.validationEvidenceFaceTrackingIosPass, "iOS avatar-motion proof", isManifestAvatarMotionPass(iosRun)],
     [
@@ -580,8 +584,23 @@ const isManifestNativeRuntimePass = (run: ValidationEvidenceManifestRun | undefi
   hasZeroManifestNativeRuntimeMissingAssets(run) &&
   hasLoadedAllManifestNativeRuntimeAssets(run);
 
+const isManifestMonitorHoldPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  isManifestFeaturePass(run?.monitorHoldStatus) &&
+  isAtLeastFiniteNumber(run?.monitorHoldSampleCount, minimumValidationMonitorSampleCount) &&
+  isAtLeastFiniteNumber(run?.monitorHoldDurationSeconds, minimumValidationMonitorDurationSeconds) &&
+  run?.monitorHoldStability === "stable" &&
+  hasZeroManifestMonitorHoldInstability(run);
+
+const hasZeroManifestMonitorHoldInstability = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  isZeroFiniteNumber(run?.monitorHoldDroppedFrameIncrease) && isZeroFiniteNumber(run?.monitorHoldObservedReconnectAttempts);
+
 const isPositiveFiniteNumber = (value: unknown): boolean =>
   typeof value === "number" && Number.isFinite(value) && value > 0;
+
+const isAtLeastFiniteNumber = (value: unknown, minimum: number): boolean =>
+  typeof value === "number" && Number.isFinite(value) && value >= minimum;
+
+const isZeroFiniteNumber = (value: unknown): boolean => typeof value === "number" && Number.isFinite(value) && value === 0;
 
 const hasZeroManifestNativeRuntimeMissingAssets = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   typeof run?.nativeRuntimeStillImageAssetMissingCount === "number" &&
