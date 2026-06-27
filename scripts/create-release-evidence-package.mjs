@@ -95,7 +95,7 @@ export function createReleaseEvidencePackage({
     if (!artifact?.group || !artifact?.path) {
       throw new Error("Release report contains an artifact without group or path.");
     }
-    const artifactPath = workspaceRelativePath(artifact.path);
+    const artifactPath = workspaceRecordPath(artifact.path);
     if (!artifactPath) {
       throw new Error(`Release artifact path must be workspace-relative: ${artifact.path}.`);
     }
@@ -1008,20 +1008,25 @@ function validatePackagedStoreReleaseDistributionManifest(storeReport, packagedA
     failures.push("Package store release report distribution manifest evidence is missing or invalid.");
     return;
   }
-  const packagedDistributionManifest = packagedArtifactFor(packagedArtifacts, distributionArtifactGroup, summary.path);
+  const summaryPath = workspaceRecordPath(summary.path);
+  if (!summaryPath) {
+    failures.push(`Package store release report distribution manifest path must be workspace-relative: ${summary.path || "-"}.`);
+    return;
+  }
+  const packagedDistributionManifest = packagedArtifactFor(packagedArtifacts, distributionArtifactGroup, summaryPath);
   if (!packagedDistributionManifest) {
-    failures.push(`Package store release report references distribution manifest not present in package: ${summary.path}.`);
+    failures.push(`Package store release report references distribution manifest not present in package: ${summaryPath}.`);
     return;
   }
   if (packagedDistributionManifest.bytes !== summary.bytes || packagedDistributionManifest.sha256 !== summary.sha256) {
-    failures.push(`Package store release report distribution manifest metadata mismatch for ${summary.path}.`);
+    failures.push(`Package store release report distribution manifest metadata mismatch for ${summaryPath}.`);
     return;
   }
 
   const distributionManifest = readPackagedJsonArtifact({
     packagedArtifacts,
     group: distributionArtifactGroup,
-    sourcePath: summary.path,
+    sourcePath: summaryPath,
     packageDir,
     label: "store release report distribution manifest",
     failures
@@ -1032,25 +1037,35 @@ function validatePackagedStoreReleaseDistributionManifest(storeReport, packagedA
 
   const manifestArtifacts = Array.isArray(distributionManifest.artifacts) ? distributionManifest.artifacts : [];
   if (summary.artifactCount !== manifestArtifacts.length) {
-    failures.push(`Package store release report distribution manifest artifact count mismatch for ${summary.path}.`);
+    failures.push(`Package store release report distribution manifest artifact count mismatch for ${summaryPath}.`);
   }
   const summaryArtifacts = Array.isArray(summary.artifacts) ? summary.artifacts : [];
+  for (const summaryArtifact of summaryArtifacts) {
+    if (!workspaceRecordPath(summaryArtifact?.path)) {
+      failures.push(`Package store release report distribution artifact summary path must be workspace-relative: ${summaryArtifact?.path || "-"}.`);
+    }
+  }
   for (const manifestArtifact of manifestArtifacts) {
-    const summaryArtifact = summaryArtifacts.find((artifact) => artifact?.path === manifestArtifact.path);
+    const manifestArtifactPath = workspaceRecordPath(manifestArtifact?.path);
+    if (!manifestArtifactPath) {
+      failures.push(`Package store release report distribution artifact path must be workspace-relative: ${manifestArtifact?.path || "-"}.`);
+      continue;
+    }
+    const summaryArtifact = summaryArtifacts.find((artifact) => artifact?.path === manifestArtifactPath);
     if (!summaryArtifact) {
-      failures.push(`Package store release report is missing distribution artifact summary ${manifestArtifact.path}.`);
+      failures.push(`Package store release report is missing distribution artifact summary ${manifestArtifactPath}.`);
     } else if (summaryArtifact.bytes !== manifestArtifact.bytes || summaryArtifact.sha256 !== manifestArtifact.sha256) {
-      failures.push(`Package store release report distribution artifact metadata mismatch for ${manifestArtifact.path}.`);
+      failures.push(`Package store release report distribution artifact metadata mismatch for ${manifestArtifactPath}.`);
     }
 
-    const packagedDistributionArtifact = packagedArtifactFor(packagedArtifacts, distributionArtifactGroup, manifestArtifact.path);
+    const packagedDistributionArtifact = packagedArtifactFor(packagedArtifacts, distributionArtifactGroup, manifestArtifactPath);
     if (!packagedDistributionArtifact) {
-      failures.push(`Package store release report references distribution artifact not present in package: ${manifestArtifact.path}.`);
+      failures.push(`Package store release report references distribution artifact not present in package: ${manifestArtifactPath}.`);
     } else if (
       packagedDistributionArtifact.bytes !== manifestArtifact.bytes ||
       packagedDistributionArtifact.sha256 !== manifestArtifact.sha256
     ) {
-      failures.push(`Package store release report distribution artifact package metadata mismatch for ${manifestArtifact.path}.`);
+      failures.push(`Package store release report distribution artifact package metadata mismatch for ${manifestArtifactPath}.`);
     }
   }
 }
@@ -1068,13 +1083,18 @@ function validatePackagedManifestRecord(packagedArtifacts, group, record, label,
     failures.push(`Package ${label} contains artifact without path.`);
     return;
   }
-  const packagedArtifact = packagedArtifactFor(packagedArtifacts, group, record.path);
+  const recordPath = workspaceRecordPath(record.path);
+  if (!recordPath) {
+    failures.push(`Package ${label} artifact path must be workspace-relative: ${record.path}.`);
+    return;
+  }
+  const packagedArtifact = packagedArtifactFor(packagedArtifacts, group, recordPath);
   if (!packagedArtifact) {
-    failures.push(`Package ${label} references artifact not present in package: ${record.path}.`);
+    failures.push(`Package ${label} references artifact not present in package: ${recordPath}.`);
     return;
   }
   if (packagedArtifact.bytes !== record.bytes || packagedArtifact.sha256 !== record.sha256) {
-    failures.push(`Package ${label} metadata mismatch for ${record.path}.`);
+    failures.push(`Package ${label} metadata mismatch for ${recordPath}.`);
   }
 }
 
@@ -1127,7 +1147,7 @@ function validateReportSourcePathsForPackaging(report) {
   }
 
   for (const artifact of report?.artifacts?.files || []) {
-    if (!workspaceRelativePath(artifact?.path || "")) {
+    if (!workspaceRecordPath(artifact?.path || "")) {
       failures.push(`Release artifact path must be workspace-relative: ${artifact?.path || "-"}.`);
     }
   }
@@ -1402,6 +1422,14 @@ function workspaceRelativePath(path) {
     return "";
   }
   return relativePath;
+}
+
+function workspaceRecordPath(path) {
+  if (typeof path !== "string") {
+    return "";
+  }
+  const relativePath = workspaceRelativePath(path);
+  return relativePath === path ? relativePath : "";
 }
 
 function safeSourcePath(path) {

@@ -706,6 +706,58 @@ describe("release evidence package creator", () => {
     ).toThrow("Release report contains unsafe package source paths:");
   });
 
+  it("rejects non-canonical artifact paths before package creation normalizes sources", () => {
+    writeReportFixture();
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    report.artifacts.files[0].path = "dist/../dist/index.html";
+    writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    expect(() =>
+      createReleaseEvidencePackage({
+        reportPath,
+        outputDir: `${fixtureRoot}/non-canonical-package`,
+        allowDirty: true
+      })
+    ).toThrow("Release report contains unsafe package source paths:");
+  });
+
+  it("rejects packaged commercial manifests with traversal artifact paths", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedDistributionManifestPath = `${packageDir}/artifacts/${distributionArtifactManifestPath}`;
+    const distributionTraversalPath = `${fixtureRoot}/nested/../../../../app-release.aab`;
+    const distributionManifest = JSON.parse(readFileSync(packagedDistributionManifestPath, "utf8"));
+    distributionManifest.artifacts[0].path = distributionTraversalPath;
+    writeFileSync(packagedDistributionManifestPath, JSON.stringify(distributionManifest, null, 2));
+
+    const packagedDashboardManifestPath = `${packageDir}/artifacts/${dashboardEvidenceManifestPath}`;
+    const dashboardTraversalPath = `${fixtureRoot}/nested/../../../../youtube-dashboard.png`;
+    const dashboardManifest = JSON.parse(readFileSync(packagedDashboardManifestPath, "utf8"));
+    dashboardManifest.artifacts[0].path = dashboardTraversalPath;
+    writeFileSync(packagedDashboardManifestPath, JSON.stringify(dashboardManifest, null, 2));
+
+    const packagedChecklistPath = `${packageDir}/artifacts/${storeSubmissionChecklistPath}`;
+    const checklistTraversalPath = `${fixtureRoot}/nested/../../../../submission-metadata.json`;
+    const checklist = JSON.parse(readFileSync(packagedChecklistPath, "utf8"));
+    checklist.metadata.path = checklistTraversalPath;
+    writeFileSync(packagedChecklistPath, JSON.stringify(checklist, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    refreshPackageArtifactEntry(manifest, distributionArtifactManifestPath, packagedDistributionManifestPath);
+    refreshPackageArtifactEntry(manifest, dashboardEvidenceManifestPath, packagedDashboardManifestPath);
+    refreshPackageArtifactEntry(manifest, storeSubmissionChecklistPath, packagedChecklistPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(`Package distribution manifest artifact path must be workspace-relative: ${distributionTraversalPath}.`);
+    expect(failures).toContain(`Package dashboard evidence manifest artifact path must be workspace-relative: ${dashboardTraversalPath}.`);
+    expect(failures).toContain(`Package store submission checklist artifact path must be workspace-relative: ${checklistTraversalPath}.`);
+  });
+
   it("rejects source drift when source verification is requested", () => {
     resetPackageDir();
     writeReportFixture();
