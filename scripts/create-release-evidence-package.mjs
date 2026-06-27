@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, copyFileSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, copyFileSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
@@ -157,6 +157,16 @@ export function validateReleaseEvidencePackage({ packageDir, verifySources = fal
 
   if (!packageDir) {
     return ["Missing release evidence package directory."];
+  }
+  const packageDirStat = lstatExisting(resolvedPackageDir);
+  if (!packageDirStat) {
+    return [`Release evidence package directory does not exist: ${packageDir}.`];
+  }
+  if (packageDirStat.isSymbolicLink()) {
+    return [`Release evidence package directory must not be a symbolic link: ${packageDir}.`];
+  }
+  if (!packageDirStat.isDirectory()) {
+    return [`Release evidence package path must point to a directory: ${packageDir}.`];
   }
   if (!existsSync(manifestPath)) {
     return [`Release evidence package manifest does not exist: ${manifestPath}.`];
@@ -1273,13 +1283,9 @@ function copyEvidenceFile({
   expectedSha256 = undefined
 }) {
   const resolvedSourcePath = resolve(sourcePath);
-  if (!existsSync(resolvedSourcePath)) {
-    throw new Error(`${role} source file does not exist: ${sourcePath}.`);
-  }
-  if (!statSync(resolvedSourcePath).isFile()) {
-    throw new Error(`${role} source must point to a file: ${sourcePath}.`);
-  }
-  const sourceBytes = statSync(resolvedSourcePath).size;
+  assertRegularSourceFile(sourcePath, `${role} source`);
+  const sourceStat = lstatSync(resolvedSourcePath);
+  const sourceBytes = sourceStat.size;
   const sourceSha256 = fileSha256(resolvedSourcePath);
   if (sourceBytes <= 0) {
     throw new Error(`${role} source file is empty: ${sourcePath}.`);
@@ -1301,11 +1307,21 @@ function copyEvidenceFile({
     throw new Error(`${role} packaged path escapes the package directory: ${packagedPath}.`);
   }
 
-  if (existsSync(destination) && fileSha256(destination) !== sourceSha256) {
-    throw new Error(`${role} destination already exists with different content: ${packagedPath}.`);
+  const destinationStat = lstatExisting(destination);
+  if (destinationStat) {
+    if (destinationStat.isSymbolicLink()) {
+      throw new Error(`${role} destination must not be a symbolic link: ${packagedPath}.`);
+    }
+    if (!destinationStat.isFile()) {
+      throw new Error(`${role} destination must point to a file: ${packagedPath}.`);
+    }
+    if (fileSha256(destination) !== sourceSha256) {
+      throw new Error(`${role} destination already exists with different content: ${packagedPath}.`);
+    }
   }
 
   mkdirSync(dirname(destination), { recursive: true });
+  assertNoSymlinkedParentDirectories(destination, `${role} destination`);
   copyFileSync(resolvedSourcePath, destination);
 
   return {
@@ -1427,8 +1443,13 @@ function collectPackageFiles(packageDir, prefix = "") {
 
 function ensureNewOrEmptyDirectory(outputDir) {
   const resolvedOutputDir = resolve(outputDir);
-  if (existsSync(resolvedOutputDir)) {
-    if (!statSync(resolvedOutputDir).isDirectory()) {
+  assertNoSymlinkedParentDirectories(outputDir, "Release evidence output directory");
+  const outputDirStat = lstatExisting(resolvedOutputDir);
+  if (outputDirStat) {
+    if (outputDirStat.isSymbolicLink()) {
+      throw new Error(`Release evidence output directory must not be a symbolic link: ${outputDir}.`);
+    }
+    if (!outputDirStat.isDirectory()) {
       throw new Error(`Release evidence output path exists but is not a directory: ${outputDir}.`);
     }
     const existing = readdirSync(resolvedOutputDir);
@@ -1448,6 +1469,7 @@ function defaultPackageDir(report) {
 
 function readJsonFile(path, label) {
   try {
+    assertRegularSourceFile(path, label);
     return JSON.parse(readFileSync(resolve(path), "utf8"));
   } catch (error) {
     throw new Error(`Failed to read ${label} ${path}: ${error instanceof Error ? error.message : String(error)}`);
@@ -1455,6 +1477,7 @@ function readJsonFile(path, label) {
 }
 
 function fileSha256(path) {
+  assertRegularSourceFile(path, "File");
   return createHash("sha256").update(readFileSync(resolve(path))).digest("hex");
 }
 
@@ -1515,6 +1538,54 @@ function normalizeBuildLabel(value) {
 function isInsideDirectory(path, directory) {
   const relativePath = relative(resolve(directory), resolve(path));
   return Boolean(relativePath) && relativePath !== ".." && !relativePath.startsWith(`..${sep}`) && !isAbsolute(relativePath);
+}
+
+function assertRegularSourceFile(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatExisting(path);
+  if (!stat) {
+    throw new Error(`${label} file does not exist: ${path}.`);
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} must not be a symbolic link: ${path}.`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} must point to a file: ${path}.`);
+  }
+}
+
+function assertNoSymlinkedParentDirectories(path, label) {
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    return;
+  }
+  const parts = relativePath.split(sep).filter(Boolean);
+  let currentPath = cwd();
+  for (const part of parts.slice(0, -1)) {
+    currentPath = join(currentPath, part);
+    const stat = lstatExisting(currentPath);
+    if (!stat) {
+      return;
+    }
+    const displayPath = relative(cwd(), currentPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`${label} path parent must not be a symbolic link: ${displayPath}.`);
+    }
+    if (!stat.isDirectory()) {
+      throw new Error(`${label} path parent must point to a directory: ${displayPath}.`);
+    }
+  }
+}
+
+function lstatExisting(path) {
+  try {
+    return lstatSync(resolve(path));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function parseArgs(args) {

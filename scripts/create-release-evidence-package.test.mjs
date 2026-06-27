@@ -99,6 +99,55 @@ describe("release evidence package creator", () => {
     expect(validateReleaseEvidencePackage({ packageDir })).toEqual([]);
   });
 
+  it("rejects symlinked release report inputs before reading linked reports", () => {
+    writeReportFixture();
+    const reportLink = `${fixtureRoot}/release-report-link.json`;
+    const outsideReport = `${fixtureRoot}/outside-release-report.json`;
+    writeFile(outsideReport, JSON.stringify({ secret: "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456" }));
+    symlinkSync(resolve(outsideReport), reportLink);
+
+    expect(() =>
+      createReleaseEvidencePackage({
+        reportPath: reportLink,
+        outputDir: `${fixtureRoot}/report-link-package`,
+        allowDirty: true
+      })
+    ).toThrow(`release-candidate report must not be a symbolic link: ${reportLink}.`);
+  });
+
+  it("rejects symlinked output directories before writing linked package files", () => {
+    writeReportFixture();
+    const outsidePackageDir = `${fixtureRoot}/outside-package-target`;
+    const outputLinkDir = `${fixtureRoot}/package-output-link`;
+    mkdirSync(outsidePackageDir, { recursive: true });
+    symlinkSync(resolve(outsidePackageDir), outputLinkDir, "dir");
+
+    expect(() =>
+      createReleaseEvidencePackage({
+        reportPath,
+        outputDir: outputLinkDir,
+        allowDirty: true
+      })
+    ).toThrow(`Release evidence output directory must not be a symbolic link: ${outputLinkDir}.`);
+    expect(existsSync(`${outsidePackageDir}/release-candidate-report.json`)).toBe(false);
+  });
+
+  it("rejects symlinked package directories before reading linked manifests", () => {
+    writeReportFixture();
+    const outsidePackageDir = `${fixtureRoot}/outside-package-for-validation`;
+    createReleaseEvidencePackage({ reportPath, outputDir: outsidePackageDir, allowDirty: true });
+    rmSync(packageDir, { recursive: true, force: true });
+    symlinkSync(resolve(outsidePackageDir), packageDir, "dir");
+
+    try {
+      const failures = validateReleaseEvidencePackage({ packageDir });
+
+      expect(failures).toContain(`Release evidence package directory must not be a symbolic link: ${packageDir}.`);
+    } finally {
+      rmSync(packageDir, { recursive: true, force: true });
+    }
+  });
+
   it("rejects unmanifested files inside the release evidence package", () => {
     resetPackageDir();
     writeReportFixture();
@@ -856,6 +905,28 @@ describe("release evidence package creator", () => {
 
     expect(failures).toContain(`Package source must not be a symbolic link: ${symlinkSourcePath}.`);
     expect(failures.join("\n")).not.toContain("Authorization");
+  });
+
+  it("rejects symlinked artifact sources before package creation copies linked targets", () => {
+    writeReportFixture();
+    const outsideArtifact = `${fixtureRoot}/outside-artifact-secret.html`;
+    const originalIndex = readFileSync("dist/index.html");
+    writeFile(outsideArtifact, "<!doctype html><title>Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456</title>");
+    rmSync("dist/index.html", { force: true });
+    symlinkSync(resolve(outsideArtifact), "dist/index.html");
+
+    try {
+      expect(() =>
+        createReleaseEvidencePackage({
+          reportPath,
+          outputDir: `${fixtureRoot}/artifact-link-package`,
+          allowDirty: true
+        })
+      ).toThrow("Release report is not packageable:\n- Artifact must not be a symbolic link: dist/index.html.");
+    } finally {
+      rmSync("dist/index.html", { force: true });
+      writeFile("dist/index.html", originalIndex);
+    }
   });
 
   it("rejects packaged browser UI evidence with an invalid schema even when metadata hashes match", () => {
