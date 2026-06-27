@@ -127,13 +127,13 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v15 support bundles that do not carry avatar runtime freshness evidence", () => {
+  it("blocks v16 support bundles that do not carry still-image rig quality evidence", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         app: {
           name: "MobileLiveCaster",
           reportVersion: 1,
-          bundleVersion: 15
+          bundleVersion: 16
         }
       }),
       { now }
@@ -171,6 +171,28 @@ describe("commercial release gate", () => {
         summary: {
           validationEvidenceRunManifest: [
             manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", faceTrackingRigIssueCount: 1 }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS avatar-motion proof")
+      })
+    );
+  });
+
+  it("blocks avatar-motion summary claims when the manifest omits still-image rig quality proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRunWithoutRigIssueCount({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
             manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
           ]
         }
@@ -365,7 +387,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 16 as const
+    bundleVersion: 17 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   summary = {}
@@ -435,6 +457,13 @@ const supportBundle = ({
   }) as SupportBundle;
 
 type ValidationManifestRun = SupportBundle["summary"]["validationEvidenceRunManifest"][number];
+
+const manifestRunWithoutRigIssueCount = (
+  patch: Parameters<typeof manifestRun>[0]
+): ValidationManifestRun => {
+  const { faceTrackingRigIssueCount: _faceTrackingRigIssueCount, ...run } = manifestRun(patch);
+  return run as ValidationManifestRun;
+};
 
 const manifestRun = ({
   devicePlatform,

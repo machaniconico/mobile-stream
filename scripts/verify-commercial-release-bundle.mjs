@@ -3,7 +3,7 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
-const minimumSupportBundleVersion = 16;
+const minimumSupportBundleVersion = 17;
 const defaultMaxBundleAgeHours = 24;
 const redactedMarker = "[redacted]";
 const sensitivePropertyNames = new Set([
@@ -374,7 +374,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v16 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v17 or newer after retaining release-candidate validation runs."
     );
   }
   const eligiblePlatforms = new Set(
@@ -413,7 +413,7 @@ function validationManifestIssue(bundle) {
           run?.faceTrackingStatus === "pass" &&
           run?.faceTrackingRuntimeFresh === true &&
           number(run?.faceTrackingActiveMotionCount) > 0 &&
-          number(run?.faceTrackingRigIssueCount) === 0
+          isZeroNumber(run?.faceTrackingRigIssueCount)
       )
       .map((run) => run.devicePlatform)
   );
@@ -425,7 +425,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-avatar-motion",
       "Validation evidence manifest",
       "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, active motion, and zero still-image rig issues.",
-      "Export a support bundle v16 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and reviewed PNGTuber rig lines."
+      "Export a support bundle v17 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and reviewed PNGTuber rig lines."
     );
   }
   return null;
@@ -531,6 +531,10 @@ function ageInHours(value, now) {
 
 function number(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function isZeroNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) && value === 0;
 }
 
 function text(value) {

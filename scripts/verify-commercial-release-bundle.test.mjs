@@ -27,19 +27,19 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Can release: yes");
   });
 
-  it("blocks v15 support bundles without avatar runtime freshness evidence", () => {
+  it("blocks v16 support bundles without still-image rig quality evidence", () => {
     writeBundle({
       app: {
         name: "MobileLiveCaster",
         reportVersion: 1,
-        bundleVersion: 15
+        bundleVersion: 16
       }
     });
 
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v15 is older than the required v16.");
+    expect(result.stdout).toContain("Support bundle v16 is older than the required v17.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -102,6 +102,22 @@ describe("commercial release bundle verifier CLI", () => {
       summary: {
         validationEvidenceRunManifest: [
           manifestRun("ios", "svr1-ios", { faceTrackingRigIssueCount: 1 }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("zero still-image rig issues");
+  });
+
+  it("blocks avatar-motion claims when retained manifests omit still-image rig quality proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          withoutRigIssueCount(manifestRun("ios", "svr1-ios")),
           manifestRun("android", "svr1-android")
         ]
       }
@@ -224,7 +240,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 16
+      bundleVersion: 17
     },
     generatedAt: new Date().toISOString(),
     ...patch,
@@ -269,3 +285,8 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   recommendation: "Keep this run with release evidence.",
   ...patch
 });
+
+const withoutRigIssueCount = (run) => {
+  const { faceTrackingRigIssueCount: _faceTrackingRigIssueCount, ...rest } = run;
+  return rest;
+};

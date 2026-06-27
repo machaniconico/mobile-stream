@@ -387,7 +387,7 @@ function writeSupportBundleFixture() {
     ".artifacts/store-approval-test/support-bundle.json",
     JSON.stringify(
       {
-        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 16 },
+        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 17 },
         generatedAt: new Date().toISOString(),
         summary: {
           preflightStatus: "ready",

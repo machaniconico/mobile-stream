@@ -29,6 +29,7 @@ const files = {
   releaseCandidateScript: read("scripts/verify-release-candidate.mjs"),
   releaseReportScript: read("scripts/verify-release-report.mjs"),
   releaseEvidencePackageScript: read("scripts/create-release-evidence-package.mjs"),
+  commercialReleaseBundleScript: read("scripts/verify-commercial-release-bundle.mjs"),
   releaseUrlPolicyScript: read("scripts/release-url-policy.mjs"),
   iosReleaseConfigScript: read("scripts/ios-release-config.mjs"),
   createIosExportOptionsScript: read("scripts/create-ios-export-options.mjs"),
@@ -40,6 +41,8 @@ const files = {
   storeSubmissionScript: read("scripts/verify-store-submission-checklist.mjs"),
   releaseGitProvenanceScript: read("scripts/release-git-provenance.mjs"),
   storeSubmissionApprovalScript: read("scripts/verify-store-submission-approval.mjs"),
+  supportBundleDomain: read("src/domain/supportBundle.ts"),
+  commercialReleaseGateDomain: read("src/domain/commercialReleaseGate.ts"),
   liveCasterBridge: read("ios/MobileLiveCaster/LiveCasterBridge.swift"),
   broadcastHandler: read("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift")
 };
@@ -140,6 +143,9 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 17");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 17");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 17");
     expectBefore(
       files.releaseCandidateScript,
       "runCommercialSupportBundleGate(report, options);",

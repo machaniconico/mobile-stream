@@ -33,7 +33,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 16;
+const minimumSupportBundleVersion = 17;
 const defaultMaxBundleAgeHours = 24;
 
 export const createCommercialReleaseGate = (
@@ -301,7 +301,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v16 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v17 or newer after retaining release-candidate validation runs."
     );
   }
   const latestRuns = latestEligibleManifestRunsByPlatform(manifest);
@@ -570,7 +570,12 @@ const isManifestAvatarMotionPass = (run: ValidationEvidenceManifestRun | undefin
   isManifestFeaturePass(run?.faceTrackingStatus) &&
   run?.faceTrackingRuntimeFresh === true &&
   Number(run.faceTrackingActiveMotionCount) > 0 &&
-  Number(run.faceTrackingRigIssueCount ?? 0) === 0;
+  hasZeroManifestRigIssues(run);
+
+const hasZeroManifestRigIssues = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  typeof run?.faceTrackingRigIssueCount === "number" &&
+  Number.isFinite(run.faceTrackingRigIssueCount) &&
+  run.faceTrackingRigIssueCount === 0;
 
 const isManifestPlatformPublishingPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.platformPublishingStatus) &&
