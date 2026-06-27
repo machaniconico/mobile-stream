@@ -154,6 +154,9 @@ const checks = [
     expectIncludes(files.storeSubmissionApprovalScript, "dashboardEvidenceManifestPath");
     expectIncludes(files.storeSubmissionApprovalScript, "storeReleaseReportArtifactGroup");
     expectIncludes(files.storeSubmissionApprovalScript, "validateStoreReleaseReportInReleaseReport");
+    expectIncludes(files.storeSubmissionApprovalScript, "validateCommercialApprovableReleaseReport");
+    expectIncludes(files.storeSubmissionApprovalScript, "cannot be used for store submission approval");
+    expectIncludes(files.storeSubmissionApprovalScript, "clean git worktree gate must be passed for store submission approval");
     expectIncludes(files.storeSubmissionApprovalScript, "validateDashboardStatusFreshness");
     expectIncludes(files.storeSubmissionApprovalScript, "validateStoreScreenshotFreshness");
     expectIncludes(files.storeSubmissionApprovalScript, "maxAgeHours: options.maxAgeHours");

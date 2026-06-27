@@ -66,6 +66,38 @@ describe("store submission approval verifier", () => {
     expect(failures).toEqual([]);
   });
 
+  it("rejects development-only RC reports for final store submission approval", () => {
+    const report = createReport();
+    report.git.dirty = true;
+    report.git.statusShort = " M scripts/verify-store-submission-approval.test.mjs";
+    report.options.allowDirty = true;
+    report.options.allowCommitMismatch = true;
+    const cleanGitGate = report.gates.find((gate) => gate.label === "Verify clean git worktree");
+    cleanGitGate.status = "skipped";
+    cleanGitGate.exitCode = null;
+    cleanGitGate.error = "Allowed by --allow-dirty.";
+
+    const failures = validateStoreSubmissionApproval(report, readStoreManifest(), approvalOptions());
+
+    expect(failures).toContain(
+      "Release report was generated from a dirty worktree and cannot be used for store submission approval."
+    );
+    expect(failures).toContain("Release report was generated with --allow-dirty and cannot be used for store submission approval.");
+    expect(failures).toContain(
+      "Release report was generated with --allow-commit-mismatch and cannot be used for store submission approval."
+    );
+    expect(failures).toContain("Release report clean git worktree gate must be passed for store submission approval.");
+  });
+
+  it("rejects RC reports missing clean-git approval evidence", () => {
+    const report = createReport();
+    report.gates = report.gates.filter((gate) => gate.label !== "Verify clean git worktree");
+
+    const failures = validateStoreSubmissionApproval(report, readStoreManifest(), approvalOptions());
+
+    expect(failures).toContain("Release report clean git worktree gate is missing from store submission approval evidence.");
+  });
+
   it("rejects approval when the RC report did not capture a referenced store artifact", () => {
     const report = createReport();
     report.artifacts.files = report.artifacts.files.filter(
@@ -212,11 +244,10 @@ function createReport() {
     git: {
       commit: currentCommit(),
       branch: "main",
-      dirty: true,
-      statusShort: " M scripts/verify-store-submission-approval.test.mjs"
+      dirty: false,
+      statusShort: ""
     },
     options: {
-      allowDirty: true,
       skipUi: true
     },
     supportBundle: {
@@ -250,12 +281,12 @@ function createReport() {
       ...requiredReleaseGateLabels.map((label) => ({
         label,
         command: "fixture",
-        status: label === "Verify clean git worktree" ? "skipped" : "passed",
+        status: "passed",
         startedAt: new Date(Date.now() - 1_000).toISOString(),
         finishedAt: new Date().toISOString(),
         durationMs: 1,
-        exitCode: label === "Verify clean git worktree" ? null : 0,
-        error: label === "Verify clean git worktree" ? "Allowed by --allow-dirty." : null
+        exitCode: 0,
+        error: null
       })),
       {
         label: "Verify browser UI evidence",

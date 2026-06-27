@@ -79,6 +79,9 @@ export function validateStoreSubmissionApproval(report, manifest, options) {
   for (const failure of validateReport(report, options)) {
     fail(failure);
   }
+  for (const failure of validateCommercialApprovableReleaseReport(report)) {
+    fail(failure);
+  }
   for (const failure of validateStoreSubmissionChecklist(manifest, {
     manifestPath: options.manifestPath,
     allowDirty: options.allowDirty,
@@ -98,6 +101,28 @@ export function validateStoreSubmissionApproval(report, manifest, options) {
   validateScreenshotBuildMatchesSupportBundle(report, manifest, fail);
   validateStoreScreenshotFreshness(report, manifest, options, fail);
 
+  return failures;
+}
+
+function validateCommercialApprovableReleaseReport(report) {
+  const failures = [];
+  if (report?.git?.dirty) {
+    failures.push("Release report was generated from a dirty worktree and cannot be used for store submission approval.");
+  }
+  if (report?.options?.allowDirty) {
+    failures.push("Release report was generated with --allow-dirty and cannot be used for store submission approval.");
+  }
+  if (report?.options?.allowCommitMismatch) {
+    failures.push("Release report was generated with --allow-commit-mismatch and cannot be used for store submission approval.");
+  }
+  const cleanGitGate = Array.isArray(report?.gates)
+    ? report.gates.find((gate) => gate?.label === "Verify clean git worktree")
+    : null;
+  if (!cleanGitGate) {
+    failures.push("Release report clean git worktree gate is missing from store submission approval evidence.");
+  } else if (cleanGitGate.status !== "passed") {
+    failures.push("Release report clean git worktree gate must be passed for store submission approval.");
+  }
   return failures;
 }
 
