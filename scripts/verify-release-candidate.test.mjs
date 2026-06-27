@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDistributionManifest, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
 import { createDashboardEvidenceManifest, dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
 import { createStoreSubmissionChecklist, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
+import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 
 const fixtureRoot = ".artifacts/verify-release-candidate-test";
 const supportBundlePath = `${fixtureRoot}/support-bundle.json`;
@@ -26,10 +27,7 @@ const managedArtifactPaths = [
   `${fixtureRoot}/submission-review.md`
 ];
 let artifactBackups = new Map();
-const tinyPngBytes = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
-  "base64"
-);
+const tinyPngBytes = createRgbaPngFixture(1, 1);
 const minimumDistributionArtifactBytes = 1_048_576;
 const pngBytes = pngWithDimensions(1179, 2556);
 const appBuild = "1.0.0 (1)";
@@ -546,10 +544,7 @@ function writeFile(path, content) {
 }
 
 function pngWithDimensions(width, height) {
-  const bytes = Buffer.from(tinyPngBytes);
-  bytes.writeUInt32BE(width, 16);
-  bytes.writeUInt32BE(height, 20);
-  return bytes;
+  return createRgbaPngFixture(width, height);
 }
 
 function androidAabBytes({ marker = 0x5a } = {}) {

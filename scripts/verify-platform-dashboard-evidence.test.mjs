@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
+import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 
 const fixtureRoot = ".artifacts/verify-platform-dashboard-evidence-test";
 const youtubeScreenshot = `${fixtureRoot}/youtube-dashboard.png`;
@@ -13,10 +14,7 @@ const expectedYoutubeStatusSummary = "broadcast:live:ytBroadcast9xYz stream:acti
 const expectedTwitchStatusSummary = "live:live channel:123456789/mobilelivecaster stream:987654321";
 const dashboardCapturedAt = "2026-06-23T00:00:00.000Z";
 
-const pngBytes = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
-  "base64"
-);
+const pngBytes = createRgbaPngFixture(1, 1);
 const dashboardPngBytes = pngWithDimensions(1440, 900);
 
 describe("platform dashboard evidence verifier", () => {
@@ -114,6 +112,30 @@ describe("platform dashboard evidence verifier", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(
       `Dashboard evidence screenshot ${youtubeScreenshot} must be at least 720px on the short edge and 1280px on the long edge.`
+    );
+  });
+
+  it("rejects dashboard screenshots with forged IHDR dimensions", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    const forgedPng = Buffer.from(pngBytes);
+    forgedPng.writeUInt32BE(1440, 16);
+    forgedPng.writeUInt32BE(900, 20);
+    writeFileSync(youtubeScreenshot, forgedPng);
+
+    const result = runVerifier([
+      "--write",
+      "--allow-dirty",
+      "--youtube-screenshot",
+      youtubeScreenshot,
+      "--youtube-screenshot-captured-at",
+      dashboardCapturedAt,
+      "--manifest",
+      manifestPath
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      `youtube dashboard screenshot evidence must be a structurally valid PNG file: ${youtubeScreenshot} (CRC mismatch in IHDR chunk)`
     );
   });
 
@@ -394,8 +416,5 @@ function runVerifier(args) {
 }
 
 function pngWithDimensions(width, height) {
-  const bytes = Buffer.from(pngBytes);
-  bytes.writeUInt32BE(width, 16);
-  bytes.writeUInt32BE(height, 20);
-  return bytes;
+  return createRgbaPngFixture(width, height);
 }

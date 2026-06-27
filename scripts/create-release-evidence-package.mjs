@@ -14,6 +14,7 @@ import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./relea
 import { storeSubmissionArtifactGroup, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import { createCommercialReleaseGate } from "./verify-commercial-release-bundle.mjs";
 import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
+import { readPngEvidence } from "./png-evidence.mjs";
 
 export const releaseEvidencePackageManifestName = "release-evidence-package.json";
 export const releaseEvidencePackageType = "release-evidence-package-manifest";
@@ -541,8 +542,9 @@ function validatePackagedUiEvidenceScreenshot(viewport, packagedArtifacts, packa
     failures.push(`Package browser UI evidence screenshot file does not exist: ${packagedArtifact.packagedPath}.`);
     return;
   }
-  if (!isPng(readFileSync(screenshotPath))) {
-    failures.push(`Package browser UI evidence screenshot is not a PNG file: ${screenshot.path}.`);
+  const pngEvidence = readPngEvidence(readFileSync(screenshotPath));
+  if (!pngEvidence.valid) {
+    failures.push(`Package browser UI evidence screenshot is not a structurally valid PNG file: ${screenshot.path} (${pngEvidence.reason}).`);
   }
 }
 
@@ -1317,20 +1319,6 @@ function readJsonFile(path, label) {
 
 function fileSha256(path) {
   return createHash("sha256").update(readFileSync(resolve(path))).digest("hex");
-}
-
-function isPng(content) {
-  return (
-    content.length >= 8 &&
-    content[0] === 0x89 &&
-    content[1] === 0x50 &&
-    content[2] === 0x4e &&
-    content[3] === 0x47 &&
-    content[4] === 0x0d &&
-    content[5] === 0x0a &&
-    content[6] === 0x1a &&
-    content[7] === 0x0a
-  );
 }
 
 function safeBasename(path) {

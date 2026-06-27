@@ -12,6 +12,7 @@ import { dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evide
 import { storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
 import { validateReport } from "./verify-release-report.mjs";
+import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 
 const generatedFiles = [
   "dist/index.html",
@@ -40,10 +41,7 @@ const generatedFiles = [
   ".artifacts/release-report-test/ui-evidence.json"
 ];
 const fileBackups = new Map();
-const tinyPngBytes = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
-  "base64"
-);
+const tinyPngBytes = createRgbaPngFixture(1, 1);
 const minimumDistributionArtifactBytes = 1_048_576;
 const pngBytes = pngWithDimensions(1179, 2556);
 const capturedAt = "2026-06-25T00:00:00.000Z";
@@ -131,7 +129,7 @@ describe("release report verifier", () => {
     const failures = validateReport(report, reportOptions());
 
     expect(failures).toContain(
-      "Browser UI evidence screenshot is not a PNG file: .artifacts/release-report-test/bad-mobile.png."
+      "Browser UI evidence screenshot is not a structurally valid PNG file: .artifacts/release-report-test/bad-mobile.png (missing PNG signature)."
     );
   });
 
@@ -1039,10 +1037,7 @@ function restoreFiles() {
 }
 
 function pngWithDimensions(width, height) {
-  const bytes = Buffer.from(tinyPngBytes);
-  bytes.writeUInt32BE(width, 16);
-  bytes.writeUInt32BE(height, 20);
-  return bytes;
+  return createRgbaPngFixture(width, height);
 }
 
 function pngDimensions(content) {

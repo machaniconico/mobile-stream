@@ -143,9 +143,11 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence target must be a loopback http(s) URL.");
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence for ${viewport.name} is missing text");
+    expectIncludes(files.releaseEvidencePackageScript, "structurally valid PNG file");
     expectIncludes(files.dashboardEvidenceScript, "youtubeScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "twitchScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "platform-dashboard-evidence-manifest");
+    expectIncludes(files.dashboardEvidenceScript, "readPngEvidence");
     expectIncludes(files.dashboardEvidenceScript, "dashboardScreenshotMinimumShortEdge");
     expectIncludes(files.dashboardEvidenceScript, "Dashboard evidence screenshot dimensions mismatch");
     expectIncludes(files.dashboardEvidenceScript, "statusSummary");
@@ -154,6 +156,7 @@ const checks = [
     expectIncludes(files.dashboardEvidenceScript, "must include Twitch liveStatus");
     expectIncludes(files.dashboardEvidenceScript, "Twitch broadcasterId");
     expectIncludes(files.storeSubmissionScript, "store-submission-checklist-manifest");
+    expectIncludes(files.storeSubmissionScript, "readPngEvidence");
     expectIncludes(files.storeSubmissionScript, "privacyPolicyUrl");
     expectIncludes(files.storeSubmissionScript, "dataSafetyNotes");
     expectIncludes(files.storeSubmissionScript, "reviewDocuments");

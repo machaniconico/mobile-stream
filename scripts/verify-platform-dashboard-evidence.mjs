@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { basename, dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
+import { readPngEvidence } from "./png-evidence.mjs";
 
 export const dashboardEvidenceManifestPath = ".artifacts/platform-dashboard-evidence.json";
 export const dashboardEvidenceArtifactGroup = "dashboard";
@@ -183,9 +184,11 @@ function createDashboardArtifactRecord({ platform, kind, path, capturedAt }) {
   if (content.byteLength <= 0) {
     throw new Error(`${platform} dashboard ${kind} evidence is empty: ${relativePath}`);
   }
-  const screenshotDimensions = kind === "screenshot" ? readPngDimensions(content) : null;
-  if (kind === "screenshot" && !screenshotDimensions) {
-    throw new Error(`${platform} dashboard screenshot evidence must be a readable PNG file: ${relativePath}`);
+  const screenshotEvidence = kind === "screenshot" ? readPngEvidence(content) : null;
+  if (kind === "screenshot" && !screenshotEvidence?.valid) {
+    throw new Error(
+      `${platform} dashboard screenshot evidence must be a structurally valid PNG file: ${relativePath} (${screenshotEvidence?.reason || "unknown error"})`
+    );
   }
   const screenshotCapturedAt = kind === "screenshot" ? normalizeDashboardTimestamp(capturedAt) : "";
   if (kind === "screenshot" && !screenshotCapturedAt) {
@@ -203,8 +206,8 @@ function createDashboardArtifactRecord({ platform, kind, path, capturedAt }) {
     kind,
     path: relativePath,
     basename: basename(relativePath),
-    ...(screenshotDimensions
-      ? { width: screenshotDimensions.width, height: screenshotDimensions.height, capturedAt: screenshotCapturedAt }
+    ...(screenshotEvidence?.valid
+      ? { width: screenshotEvidence.width, height: screenshotEvidence.height, capturedAt: screenshotCapturedAt }
       : {}),
     ...(statusJsonSummary ? { checkedAt: statusJsonSummary.checkedAt, statusSummary: statusJsonSummary.statusSummary } : {}),
     bytes: content.byteLength,
@@ -243,14 +246,14 @@ function validateDashboardArtifact(artifact, failures) {
     failures.push(`Dashboard evidence artifact metadata mismatch for ${artifact.path}.`);
   }
   if (artifact.kind === "screenshot") {
-    const dimensions = readPngDimensions(content);
-    if (!dimensions) {
-      failures.push(`Dashboard evidence screenshot is not a readable PNG file: ${artifact.path}.`);
+    const pngEvidence = readPngEvidence(content);
+    if (!pngEvidence.valid) {
+      failures.push(`Dashboard evidence screenshot is not a structurally valid PNG file: ${artifact.path} (${pngEvidence.reason}).`);
     } else {
-      if (artifact.width !== dimensions.width || artifact.height !== dimensions.height) {
+      if (artifact.width !== pngEvidence.width || artifact.height !== pngEvidence.height) {
         failures.push(`Dashboard evidence screenshot dimensions mismatch for ${artifact.path}.`);
       }
-      validateDashboardScreenshotDimensions(artifact, dimensions, failures);
+      validateDashboardScreenshotDimensions(artifact, pngEvidence, failures);
     }
     if (!normalizeDashboardTimestamp(artifact.capturedAt)) {
       failures.push(`Dashboard evidence screenshot ${artifact.path} must include a valid capturedAt timestamp.`);
@@ -363,32 +366,6 @@ function validateDashboardScreenshotDimensions(artifact, dimensions, failures) {
       `Dashboard evidence screenshot ${artifact.path} must be at least ${dashboardScreenshotMinimumShortEdge}px on the short edge and ${dashboardScreenshotMinimumLongEdge}px on the long edge.`
     );
   }
-}
-
-function readPngDimensions(content) {
-  if (!isPng(content) || content.length < 24 || content.toString("ascii", 12, 16) !== "IHDR") {
-    return null;
-  }
-  const width = content.readUInt32BE(16);
-  const height = content.readUInt32BE(20);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    return null;
-  }
-  return { width, height };
-}
-
-function isPng(content) {
-  return (
-    content.length >= 8 &&
-    content[0] === 0x89 &&
-    content[1] === 0x50 &&
-    content[2] === 0x4e &&
-    content[3] === 0x47 &&
-    content[4] === 0x0d &&
-    content[5] === 0x0a &&
-    content[6] === 0x1a &&
-    content[7] === 0x0a
-  );
 }
 
 function createReleaseArtifactRecord(group, path) {

@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
+import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 
 const fixtureRoot = ".artifacts/verify-store-submission-checklist-test";
 const metadataPath = `${fixtureRoot}/submission-metadata.json`;
@@ -11,10 +12,7 @@ const manifestPath = `${fixtureRoot}/store-submission-checklist.json`;
 const capturedAt = "2026-06-25T00:00:00.000Z";
 const appBuild = "1.0.0 (15)";
 
-const tinyPngBytes = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
-  "base64"
-);
+const tinyPngBytes = createRgbaPngFixture(1, 1);
 const pngBytes = pngWithDimensions(1179, 2556);
 
 describe("store submission checklist verifier", () => {
@@ -114,6 +112,21 @@ describe("store submission checklist verifier", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`Store submission screenshot metadata mismatch for ${androidScreenshot}.`);
+  });
+
+  it("rejects store screenshots with forged IHDR dimensions", () => {
+    writeStoreSubmissionFiles();
+    const forgedPng = Buffer.from(tinyPngBytes);
+    forgedPng.writeUInt32BE(1179, 16);
+    forgedPng.writeUInt32BE(2556, 20);
+    writeFileSync(iosScreenshot, forgedPng);
+
+    const result = runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      `ios store screenshot is not a structurally valid PNG file: ${iosScreenshot} (CRC mismatch in IHDR chunk).`
+    );
   });
 
   it("fails when a review document is modified after manifest creation", () => {
@@ -273,8 +286,5 @@ function runVerifier(args) {
 }
 
 function pngWithDimensions(width, height) {
-  const bytes = Buffer.from(tinyPngBytes);
-  bytes.writeUInt32BE(width, 16);
-  bytes.writeUInt32BE(height, 20);
-  return bytes;
+  return createRgbaPngFixture(width, height);
 }

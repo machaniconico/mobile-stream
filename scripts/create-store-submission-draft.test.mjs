@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
+import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 
 const fixtureRoot = ".artifacts/create-store-submission-draft-test";
 const sourceRoot = `${fixtureRoot}/source`;
@@ -10,10 +11,7 @@ const iosSource = `${sourceRoot}/ios-source.png`;
 const androidSource = `${sourceRoot}/android-source.png`;
 const uiEvidencePath = `${fixtureRoot}/ui-evidence.json`;
 
-const pngBytes = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
-  "base64"
-);
+const pngBytes = createRgbaPngFixture(1, 1);
 
 describe("store submission draft creator", () => {
   afterEach(() => {

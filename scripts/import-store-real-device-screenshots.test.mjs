@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
+import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 
 const fixtureRoot = ".artifacts/import-store-real-device-screenshots-test";
 const sourceRoot = `${fixtureRoot}/source`;
@@ -14,10 +15,7 @@ const reviewPath = `${outputDir}/submission-review.md`;
 const capturedAt = "2026-06-25T00:00:00.000Z";
 const appBuild = "1.0.0 (15)";
 
-const tinyPngBytes = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
-  "base64"
-);
+const tinyPngBytes = createRgbaPngFixture(1, 1);
 const pngBytes = pngWithDimensions(390, 844);
 const otherPngBytes = pngWithDimensions(1179, 2556);
 
@@ -308,8 +306,5 @@ function runChecklist(args) {
 }
 
 function pngWithDimensions(width, height) {
-  const bytes = Buffer.from(tinyPngBytes);
-  bytes.writeUInt32BE(width, 16);
-  bytes.writeUInt32BE(height, 20);
-  return bytes;
+  return createRgbaPngFixture(width, height);
 }

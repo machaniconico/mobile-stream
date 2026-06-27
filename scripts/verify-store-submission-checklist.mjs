@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { basename, dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
+import { readPngEvidence } from "./png-evidence.mjs";
 
 export const storeSubmissionChecklistPath = ".artifacts/store-submission-checklist.json";
 export const storeSubmissionArtifactGroup = "store-submission";
@@ -318,12 +319,9 @@ function createScreenshotRecord({
   if (content.byteLength <= 0) {
     throw new Error(`${platform} store screenshot is empty: ${relativePath}`);
   }
-  if (!isPng(content)) {
-    throw new Error(`${platform} store screenshot is not a PNG file: ${relativePath}`);
-  }
-  const dimensions = readPngDimensions(content);
-  if (!dimensions) {
-    throw new Error(`${platform} store screenshot PNG dimensions could not be read: ${relativePath}`);
+  const pngEvidence = readPngEvidence(content);
+  if (!pngEvidence.valid) {
+    throw new Error(`${platform} store screenshot is not a structurally valid PNG file: ${relativePath} (${pngEvidence.reason}).`);
   }
 
   return {
@@ -338,8 +336,8 @@ function createScreenshotRecord({
     appBuild: stringValue(appBuild),
     path: relativePath,
     basename: basename(relativePath),
-    width: dimensions.width,
-    height: dimensions.height,
+    width: pngEvidence.width,
+    height: pngEvidence.height,
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
@@ -520,18 +518,15 @@ function validateScreenshotRecord(screenshot, failures, { requireRealDeviceScree
   if (content.byteLength !== screenshot.bytes || actualSha256 !== screenshot.sha256) {
     failures.push(`Store submission screenshot metadata mismatch for ${screenshot.path}.`);
   }
-  if (!isPng(content)) {
-    failures.push(`Store submission screenshot is not a PNG file: ${screenshot.path}.`);
-  }
-  const dimensions = readPngDimensions(content);
-  if (!dimensions) {
-    failures.push(`Store submission screenshot PNG dimensions could not be read: ${screenshot.path}.`);
+  const pngEvidence = readPngEvidence(content);
+  if (!pngEvidence.valid) {
+    failures.push(`Store submission screenshot is not a structurally valid PNG file: ${screenshot.path} (${pngEvidence.reason}).`);
   } else {
-    if (screenshot.width !== dimensions.width || screenshot.height !== dimensions.height) {
+    if (screenshot.width !== pngEvidence.width || screenshot.height !== pngEvidence.height) {
       failures.push(`Store submission screenshot dimensions mismatch for ${screenshot.path}.`);
     }
     if (requireRealDeviceScreenshots) {
-      validateFinalScreenshotDimensions(screenshot, dimensions, failures);
+      validateFinalScreenshotDimensions(screenshot, pngEvidence, failures);
     }
   }
 }
@@ -558,18 +553,6 @@ function validateFinalScreenshotDimensions(screenshot, dimensions, failures) {
       `Store submission screenshot ${screenshot.path} must be at least ${finalScreenshotMinimumShortEdge}px on the short edge and ${finalScreenshotMinimumLongEdge}px on the long edge for final store submission.`
     );
   }
-}
-
-function readPngDimensions(content) {
-  if (!isPng(content) || content.length < 24 || content.toString("ascii", 12, 16) !== "IHDR") {
-    return null;
-  }
-  const width = content.readUInt32BE(16);
-  const height = content.readUInt32BE(20);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    return null;
-  }
-  return { width, height };
 }
 
 function validateReviewDocumentRecord(reviewDocument, failures) {
@@ -669,20 +652,6 @@ function isHttpsUrl(value) {
 
 function isEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function isPng(content) {
-  return (
-    content.length >= 8 &&
-    content[0] === 0x89 &&
-    content[1] === 0x50 &&
-    content[2] === 0x4e &&
-    content[3] === 0x47 &&
-    content[4] === 0x0d &&
-    content[5] === 0x0a &&
-    content[6] === 0x1a &&
-    content[7] === 0x0a
-  );
 }
 
 function parseArgs(args) {

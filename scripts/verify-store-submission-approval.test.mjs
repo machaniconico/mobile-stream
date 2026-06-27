@@ -12,6 +12,7 @@ import { dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evide
 import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
 import { storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import { validateStoreSubmissionApproval } from "./verify-store-submission-approval.mjs";
+import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 
 const generatedFiles = [
   "dist/index.html",
@@ -39,10 +40,7 @@ const generatedFiles = [
   ".artifacts/store-approval-test/ui-evidence.json"
 ];
 const fileBackups = new Map();
-const tinyPngBytes = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
-  "base64"
-);
+const tinyPngBytes = createRgbaPngFixture(1, 1);
 const pngBytes = pngWithDimensions(1179, 2556);
 const dashboardPngBytes = pngWithDimensions(1440, 900);
 const minimumDistributionArtifactBytes = 1_048_576;
@@ -857,10 +855,7 @@ function record(kind, path) {
 }
 
 function pngWithDimensions(width, height) {
-  const bytes = Buffer.from(tinyPngBytes);
-  bytes.writeUInt32BE(width, 16);
-  bytes.writeUInt32BE(height, 20);
-  return bytes;
+  return createRgbaPngFixture(width, height);
 }
 
 function pngDimensions(content) {

@@ -8,6 +8,7 @@ import {
   storeSubmissionChecklistPath,
   validateStoreSubmissionChecklist
 } from "./verify-store-submission-checklist.mjs";
+import { readPngEvidence } from "./png-evidence.mjs";
 
 const defaultMetadataPath = ".artifacts/store/submission-metadata.json";
 const defaultReviewPath = ".artifacts/store/submission-review.md";
@@ -203,8 +204,9 @@ function copyScreenshot({ sourcePath, outputPath, label }) {
     throw new Error(`${label} real-device screenshot source must be a PNG file: ${sourcePath}`);
   }
   const content = readFileSync(resolve(readPath));
-  if (!isPng(content)) {
-    throw new Error(`${label} real-device screenshot source is not a PNG file: ${sourcePath}`);
+  const pngEvidence = readPngEvidence(content);
+  if (!pngEvidence.valid) {
+    throw new Error(`${label} real-device screenshot source is not a structurally valid PNG file: ${sourcePath} (${pngEvidence.reason})`);
   }
 
   const relativeOutputPath = workspaceRelativePath(outputPath);
@@ -236,20 +238,6 @@ function workspaceRelativePath(path) {
     return "";
   }
   return relativePath;
-}
-
-function isPng(content) {
-  return (
-    content.length >= 8 &&
-    content[0] === 0x89 &&
-    content[1] === 0x50 &&
-    content[2] === 0x4e &&
-    content[3] === 0x47 &&
-    content[4] === 0x0d &&
-    content[5] === 0x0a &&
-    content[6] === 0x1a &&
-    content[7] === 0x0a
-  );
 }
 
 function stringValue(value) {

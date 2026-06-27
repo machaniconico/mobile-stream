@@ -14,6 +14,7 @@ import {
   releaseEvidencePackageType,
   validateReleaseEvidencePackage
 } from "./create-release-evidence-package.mjs";
+import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 
 const fixtureRoot = ".artifacts/release-evidence-package-test";
 const packageDir = `${fixtureRoot}/package`;
@@ -45,10 +46,7 @@ const generatedFiles = [
   ".artifacts/release-evidence-package-test/android-store.png"
 ];
 const fileBackups = new Map();
-const pngBytes = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
-  "base64"
-);
+const pngBytes = createRgbaPngFixture(1, 1);
 const storePngBytes = pngWithDimensions(1179, 2556);
 const dashboardPngBytes = pngWithDimensions(1440, 900);
 const minimumDistributionArtifactBytes = 1_048_576;
@@ -1330,10 +1328,7 @@ function storeRecord(kind, path) {
 }
 
 function pngWithDimensions(width, height) {
-  const bytes = Buffer.from(pngBytes);
-  bytes.writeUInt32BE(width, 16);
-  bytes.writeUInt32BE(height, 20);
-  return bytes;
+  return createRgbaPngFixture(width, height);
 }
 
 function pngDimensions(content) {

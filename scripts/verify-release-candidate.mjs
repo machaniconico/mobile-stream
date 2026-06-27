@@ -24,6 +24,7 @@ import {
 } from "./verify-store-submission-checklist.mjs";
 import { collectStoreReleaseArtifactRecords, validateStoreReleaseReport } from "./release-store-build.mjs";
 import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
+import { readPngEvidence } from "./png-evidence.mjs";
 
 const defaultUiUrl = "http://127.0.0.1:5173/";
 const devServerTimeoutMs = 30_000;
@@ -785,8 +786,9 @@ function validateUiScreenshot(viewport) {
   if (content.byteLength !== screenshot.bytes || actualSha256 !== screenshot.sha256) {
     throw new GateError(`UI evidence screenshot hash mismatch for ${screenshot.path}.`, 1);
   }
-  if (!isPng(content)) {
-    throw new GateError(`UI evidence screenshot is not a PNG file: ${screenshot.path}.`, 1);
+  const pngEvidence = readPngEvidence(content);
+  if (!pngEvidence.valid) {
+    throw new GateError(`UI evidence screenshot is not a structurally valid PNG file: ${screenshot.path} (${pngEvidence.reason}).`, 1);
   }
 }
 
@@ -804,20 +806,6 @@ function ageInHours(value, now) {
 
 function fileSha256(path) {
   return createHash("sha256").update(readFileSync(resolve(path))).digest("hex");
-}
-
-function isPng(content) {
-  return (
-    content.length >= 8 &&
-    content[0] === 0x89 &&
-    content[1] === 0x50 &&
-    content[2] === 0x4e &&
-    content[3] === 0x47 &&
-    content[4] === 0x0d &&
-    content[5] === 0x0a &&
-    content[6] === 0x1a &&
-    content[7] === 0x0a
-  );
 }
 
 function createReport(options, supportBundle) {

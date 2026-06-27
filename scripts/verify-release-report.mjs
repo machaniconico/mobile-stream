@@ -15,6 +15,7 @@ import { validateStoreSubmissionInReport } from "./verify-store-submission-check
 import { validateStoreReleaseReportInReleaseReport } from "./release-store-build.mjs";
 import { createCommercialReleaseGate } from "./verify-commercial-release-bundle.mjs";
 import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
+import { readPngEvidence } from "./png-evidence.mjs";
 
 const requiredUiViewportNames = ["desktop", "mobile"];
 const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
@@ -411,8 +412,9 @@ function validateEvidenceScreenshot(viewport, fail) {
   if (content.byteLength !== screenshot.bytes || actualSha256 !== screenshot.sha256) {
     fail(`Browser UI evidence screenshot metadata mismatch for ${screenshot.path}.`);
   }
-  if (!isPng(content)) {
-    fail(`Browser UI evidence screenshot is not a PNG file: ${screenshot.path}.`);
+  const pngEvidence = readPngEvidence(content);
+  if (!pngEvidence.valid) {
+    fail(`Browser UI evidence screenshot is not a structurally valid PNG file: ${screenshot.path} (${pngEvidence.reason}).`);
   }
 }
 
@@ -453,20 +455,6 @@ function ageInHours(value, now) {
 
 function isSha256(value) {
   return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
-}
-
-function isPng(content) {
-  return (
-    content.length >= 8 &&
-    content[0] === 0x89 &&
-    content[1] === 0x50 &&
-    content[2] === 0x4e &&
-    content[3] === 0x47 &&
-    content[4] === 0x0d &&
-    content[5] === 0x0a &&
-    content[6] === 0x1a &&
-    content[7] === 0x0a
-  );
 }
 
 function stringValue(value) {
