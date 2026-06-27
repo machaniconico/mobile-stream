@@ -150,6 +150,37 @@ describe("release evidence package creator", () => {
     expect(failures).toContain("Packaged release report clean git worktree gate must be passed for commercial package evidence.");
   });
 
+  it("rejects packages whose manifest git dirty-state provenance is missing", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    delete manifest.git.dirty;
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Package manifest git dirty state is missing.");
+  });
+
+  it("rejects packaged release reports whose git dirty-state provenance is missing", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    delete packagedReport.git.dirty;
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+    refreshPackagedSourceReportEvidence();
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Packaged release report git dirty state is missing.");
+  });
+
   it("rejects packaged support bundles that fail the commercial release gate", () => {
     resetPackageDir();
     writeReportFixture();
@@ -640,6 +671,22 @@ describe("release evidence package creator", () => {
     const failures = validateReleaseEvidencePackage({ packageDir });
 
     expect(failures).toContain('Package browser UI evidence for mobile is missing text "Go Live".');
+  });
+
+  it("rejects packaged browser UI evidence whose git dirty-state provenance is missing", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedUiEvidencePath = `${packageDir}/ui-evidence/ui-evidence.json`;
+    const packagedUiEvidence = JSON.parse(readFileSync(packagedUiEvidencePath, "utf8"));
+    delete packagedUiEvidence.git.dirty;
+    writeFileSync(packagedUiEvidencePath, JSON.stringify(packagedUiEvidence, null, 2));
+    refreshPackagedUiEvidence(packagedUiEvidencePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Package browser UI evidence git dirty state is missing.");
   });
 
   it("rejects unredacted sensitive text even when package metadata hashes match", () => {

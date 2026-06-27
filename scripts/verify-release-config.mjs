@@ -148,6 +148,8 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, ".artifacts/ui-verification.json");
     expectIncludes(files.releaseEvidencePackageScript, "Packaged release report is missing browser UI evidence JSON metadata.");
     expectIncludes(files.releaseEvidencePackageScript, "validatePackagedUiEvidence");
+    expectIncludes(files.releaseEvidencePackageScript, "validateManifestGitProvenance");
+    expectIncludes(files.releaseEvidencePackageScript, "Package manifest");
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence target must be a loopback http(s) URL.");
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence for ${viewport.name} is missing text");

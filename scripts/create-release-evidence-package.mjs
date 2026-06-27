@@ -15,6 +15,7 @@ import { storeSubmissionArtifactGroup, storeSubmissionChecklistPath } from "./ve
 import { createCommercialReleaseGate } from "./verify-commercial-release-bundle.mjs";
 import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
 import { readPngEvidence } from "./png-evidence.mjs";
+import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 
 export const releaseEvidencePackageManifestName = "release-evidence-package.json";
 export const releaseEvidencePackageType = "release-evidence-package-manifest";
@@ -176,6 +177,11 @@ export function validateReleaseEvidencePackage({ packageDir, verifySources = fal
     failures.push("Package manifest is not a MobileLiveCaster release-evidence-package-manifest reportVersion 1 file.");
     return failures;
   }
+  validateManifestGitProvenance(
+    manifest.git,
+    { label: "Package manifest", currentCommit: "", allowDirty: false, allowCommitMismatch: true },
+    failures
+  );
 
   const entries = [
     manifest.sourceReport,
@@ -270,6 +276,11 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
 
 function validateCommercialPackageableReleaseReport(report, label = "Release report") {
   const failures = [];
+  validateManifestGitProvenance(
+    report?.git,
+    { label, currentCommit: "", allowDirty: false, allowCommitMismatch: true },
+    failures
+  );
   if (report?.git?.dirty) {
     failures.push(`${label} was generated from a dirty worktree and cannot be used as commercial package evidence.`);
   }
@@ -486,13 +497,13 @@ function validatePackagedUiEvidenceFreshness(evidence, releaseReport, maxAgeHour
 function validatePackagedUiEvidenceGit(evidence, releaseReport, failures) {
   const evidenceCommit = String(evidence?.git?.commit || "");
   const reportCommit = String(releaseReport?.git?.commit || "");
-  if (!evidenceCommit) {
-    failures.push("Package browser UI evidence git commit is missing.");
-  } else if (reportCommit && evidenceCommit !== reportCommit) {
+  validateManifestGitProvenance(
+    evidence?.git,
+    { label: "Package browser UI evidence", currentCommit: "", allowDirty: false, allowCommitMismatch: true },
+    failures
+  );
+  if (evidenceCommit && reportCommit && evidenceCommit !== reportCommit) {
     failures.push(`Package browser UI evidence commit ${evidenceCommit} does not match release report commit ${reportCommit}.`);
-  }
-  if (evidence?.git?.dirty) {
-    failures.push("Package browser UI evidence was generated from a dirty worktree.");
   }
 }
 
