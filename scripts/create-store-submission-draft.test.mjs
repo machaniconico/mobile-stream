@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 
@@ -106,6 +107,120 @@ describe("store submission draft creator", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("iOS store screenshot source must be a PNG file");
+  });
+
+  it("rejects symlinked screenshot sources before copying store evidence", () => {
+    writeSourceScreenshots();
+    const iosSymlink = `${sourceRoot}/ios-link.png`;
+    symlinkSync(resolve(iosSource), iosSymlink);
+
+    const result = runDraft([
+      "--output-dir",
+      outputDir,
+      "--manifest",
+      manifestPath,
+      "--ios-screenshot",
+      iosSymlink,
+      "--android-screenshot",
+      androidSource
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`iOS store screenshot source must not be a symbolic link: ${iosSymlink}`);
+  });
+
+  it("rejects UI evidence paths with symlinked parents before reading linked JSON", () => {
+    writeSourceScreenshots();
+    const outsideEvidenceRoot = `${fixtureRoot}/outside-ui-evidence`;
+    const evidenceLinkRoot = `${fixtureRoot}/ui-evidence-link`;
+    mkdirSync(outsideEvidenceRoot, { recursive: true });
+    writeFileSync(`${outsideEvidenceRoot}/ui-evidence.json`, "{}");
+    symlinkSync(resolve(outsideEvidenceRoot), evidenceLinkRoot);
+
+    const result = runDraft([
+      "--output-dir",
+      outputDir,
+      "--manifest",
+      manifestPath,
+      "--ui-evidence-json",
+      `${evidenceLinkRoot}/ui-evidence.json`
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`UI evidence JSON path parent must not be a symbolic link: ${evidenceLinkRoot}`);
+  });
+
+  it("rejects symlinked output directories before creating store screenshots", () => {
+    writeSourceScreenshots();
+    const outsideStore = `${fixtureRoot}/outside-store`;
+    mkdirSync(outsideStore, { recursive: true });
+    symlinkSync(resolve(outsideStore), outputDir);
+
+    const result = runDraft([
+      "--output-dir",
+      outputDir,
+      "--manifest",
+      manifestPath,
+      "--ios-screenshot",
+      iosSource,
+      "--android-screenshot",
+      androidSource
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission screenshots directory path parent must not be a symbolic link: ${outputDir}`);
+    expect(existsSync(`${outsideStore}/screenshots/ios-store.png`)).toBe(false);
+  });
+
+  it("rejects symlinked metadata output paths before writing linked targets", () => {
+    writeSourceScreenshots();
+    mkdirSync(outputDir, { recursive: true });
+    const outsideMetadata = `${fixtureRoot}/outside-metadata.json`;
+    const metadataSymlink = `${outputDir}/submission-metadata.json`;
+    writeFileSync(outsideMetadata, "unchanged");
+    symlinkSync(resolve(outsideMetadata), metadataSymlink);
+
+    const result = runDraft([
+      "--output-dir",
+      outputDir,
+      "--manifest",
+      manifestPath,
+      "--metadata-out",
+      metadataSymlink,
+      "--ios-screenshot",
+      iosSource,
+      "--android-screenshot",
+      androidSource
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission metadata output must not be a symbolic link: ${metadataSymlink}`);
+    expect(readFileSync(outsideMetadata, "utf8")).toBe("unchanged");
+  });
+
+  it("rejects dangling metadata output symlinks before creating linked targets", () => {
+    writeSourceScreenshots();
+    mkdirSync(outputDir, { recursive: true });
+    const missingMetadataTarget = `${fixtureRoot}/missing-metadata-target.json`;
+    const metadataSymlink = `${outputDir}/submission-metadata.json`;
+    symlinkSync(resolve(missingMetadataTarget), metadataSymlink);
+
+    const result = runDraft([
+      "--output-dir",
+      outputDir,
+      "--manifest",
+      manifestPath,
+      "--metadata-out",
+      metadataSymlink,
+      "--ios-screenshot",
+      iosSource,
+      "--android-screenshot",
+      androidSource
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission metadata output must not be a symbolic link: ${metadataSymlink}`);
+    expect(existsSync(missingMetadataTarget)).toBe(false);
   });
 });
 

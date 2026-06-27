@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 
@@ -170,6 +171,182 @@ describe("store real-device screenshot importer", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("iOS real-device screenshot source must be a PNG file");
+  });
+
+  it("rejects symlinked metadata before copying real-device screenshots", () => {
+    writeSourceScreenshots();
+    writeMetadata();
+    const outsideMetadata = `${fixtureRoot}/outside-metadata.json`;
+    writeFileSync(outsideMetadata, readFileSync(metadataPath));
+    rmSync(metadataPath);
+    symlinkSync(resolve(outsideMetadata), metadataPath);
+
+    const result = runImporter([
+      "--metadata",
+      metadataPath,
+      "--manifest",
+      manifestPath,
+      "--ios-screenshot",
+      iosRealSource,
+      "--android-screenshot",
+      androidRealSource,
+      "--ios-os-version",
+      "iOS 18.5",
+      "--android-os-version",
+      "Android 15",
+      "--app-build",
+      appBuild
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission metadata must not be a symbolic link: ${metadataPath}`);
+  });
+
+  it("rejects symlinked real-device screenshot sources before copying linked targets", () => {
+    writeSourceScreenshots();
+    writeMetadata();
+    const iosSymlink = `${sourceRoot}/ios-real-link.png`;
+    symlinkSync(resolve(iosRealSource), iosSymlink);
+
+    const result = runImporter([
+      "--metadata",
+      metadataPath,
+      "--manifest",
+      manifestPath,
+      "--ios-screenshot",
+      iosSymlink,
+      "--android-screenshot",
+      androidRealSource,
+      "--ios-os-version",
+      "iOS 18.5",
+      "--android-os-version",
+      "Android 15",
+      "--app-build",
+      appBuild
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`iOS real-device screenshot source must not be a symbolic link: ${iosSymlink}`);
+  });
+
+  it("rejects real-device screenshot paths with symlinked parents before copying linked sources", () => {
+    writeSourceScreenshots();
+    writeMetadata();
+    const outsideSourceRoot = `${fixtureRoot}/outside-real-sources`;
+    const sourceLinkRoot = `${fixtureRoot}/real-source-link`;
+    mkdirSync(outsideSourceRoot, { recursive: true });
+    writeFileSync(`${outsideSourceRoot}/ios-real.png`, otherPngBytes);
+    symlinkSync(resolve(outsideSourceRoot), sourceLinkRoot);
+
+    const result = runImporter([
+      "--metadata",
+      metadataPath,
+      "--manifest",
+      manifestPath,
+      "--ios-screenshot",
+      `${sourceLinkRoot}/ios-real.png`,
+      "--android-screenshot",
+      androidRealSource,
+      "--ios-os-version",
+      "iOS 18.5",
+      "--android-os-version",
+      "Android 15",
+      "--app-build",
+      appBuild
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`iOS real-device screenshot source path parent must not be a symbolic link: ${sourceLinkRoot}`);
+  });
+
+  it("rejects symlinked screenshot output paths before writing linked targets", () => {
+    writeSourceScreenshots();
+    writeMetadata();
+    const outsideScreenshot = `${fixtureRoot}/outside-ios-store.png`;
+    writeFileSync(outsideScreenshot, tinyPngBytes);
+    rmSync(`${outputDir}/screenshots/ios-store.png`);
+    symlinkSync(resolve(outsideScreenshot), `${outputDir}/screenshots/ios-store.png`);
+
+    const result = runImporter([
+      "--metadata",
+      metadataPath,
+      "--manifest",
+      manifestPath,
+      "--ios-screenshot",
+      iosRealSource,
+      "--android-screenshot",
+      androidRealSource,
+      "--ios-os-version",
+      "iOS 18.5",
+      "--android-os-version",
+      "Android 15",
+      "--app-build",
+      appBuild
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`iOS store screenshot output must not be a symbolic link: ${outputDir}/screenshots/ios-store.png`);
+    expect(readFileSync(outsideScreenshot).equals(tinyPngBytes)).toBe(true);
+  });
+
+  it("rejects dangling screenshot output symlinks before creating linked targets", () => {
+    writeSourceScreenshots();
+    writeMetadata();
+    const missingScreenshotTarget = `${fixtureRoot}/missing-ios-store.png`;
+    rmSync(`${outputDir}/screenshots/ios-store.png`);
+    symlinkSync(resolve(missingScreenshotTarget), `${outputDir}/screenshots/ios-store.png`);
+
+    const result = runImporter([
+      "--metadata",
+      metadataPath,
+      "--manifest",
+      manifestPath,
+      "--ios-screenshot",
+      iosRealSource,
+      "--android-screenshot",
+      androidRealSource,
+      "--ios-os-version",
+      "iOS 18.5",
+      "--android-os-version",
+      "Android 15",
+      "--app-build",
+      appBuild
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`iOS store screenshot output must not be a symbolic link: ${outputDir}/screenshots/ios-store.png`);
+    expect(existsSync(missingScreenshotTarget)).toBe(false);
+  });
+
+  it("rejects screenshot output paths with symlinked parents before writing linked targets", () => {
+    writeSourceScreenshots();
+    writeMetadata();
+    const outsideScreenshots = `${fixtureRoot}/outside-screenshots`;
+    rmSync(`${outputDir}/screenshots`, { recursive: true, force: true });
+    mkdirSync(outsideScreenshots, { recursive: true });
+    writeFileSync(`${outsideScreenshots}/ios-store.png`, tinyPngBytes);
+    symlinkSync(resolve(outsideScreenshots), `${outputDir}/screenshots`);
+
+    const result = runImporter([
+      "--metadata",
+      metadataPath,
+      "--manifest",
+      manifestPath,
+      "--ios-screenshot",
+      iosRealSource,
+      "--android-screenshot",
+      androidRealSource,
+      "--ios-os-version",
+      "iOS 18.5",
+      "--android-os-version",
+      "Android 15",
+      "--app-build",
+      appBuild
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`iOS store screenshot path parent must not be a symbolic link: ${outputDir}/screenshots`);
+    expect(readFileSync(`${outsideScreenshots}/ios-store.png`).equals(tinyPngBytes)).toBe(true);
   });
 
   it("requires OS and app build metadata before importing final screenshots", () => {

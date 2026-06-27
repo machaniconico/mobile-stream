@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -216,6 +216,54 @@ describe("store submission checklist verifier", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`Store submission review document must not be a symbolic link: ${reviewDocument}.`);
     expect(result.stderr).not.toContain("Store submission metadata contains possible OAuth/access/refresh/client secret");
+  });
+
+  it("rejects symlinked checklist manifest output paths before writing linked targets", () => {
+    writeStoreSubmissionFiles();
+    const outsideManifest = `${fixtureRoot}/outside-manifest.json`;
+    const manifestSymlink = `${fixtureRoot}/manifest-link.json`;
+    writeFileSync(outsideManifest, "unchanged");
+    symlinkSync(resolve(outsideManifest), manifestSymlink);
+
+    const result = runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestSymlink]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission checklist output must not be a symbolic link: ${manifestSymlink}`);
+    expect(readFileSync(outsideManifest, "utf8")).toBe("unchanged");
+  });
+
+  it("rejects dangling checklist manifest output symlinks before creating linked targets", () => {
+    writeStoreSubmissionFiles();
+    const missingManifestTarget = `${fixtureRoot}/missing-manifest-target.json`;
+    const manifestSymlink = `${fixtureRoot}/manifest-link.json`;
+    symlinkSync(resolve(missingManifestTarget), manifestSymlink);
+
+    const result = runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestSymlink]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission checklist output must not be a symbolic link: ${manifestSymlink}`);
+    expect(existsSync(missingManifestTarget)).toBe(false);
+  });
+
+  it("rejects checklist manifest output paths with symlinked parents before writing linked targets", () => {
+    writeStoreSubmissionFiles();
+    const outsideManifestDir = `${fixtureRoot}/outside-manifests`;
+    const manifestLinkDir = `${fixtureRoot}/manifest-link-dir`;
+    mkdirSync(outsideManifestDir, { recursive: true });
+    symlinkSync(resolve(outsideManifestDir), manifestLinkDir);
+
+    const result = runVerifier([
+      "--write",
+      "--allow-dirty",
+      "--metadata",
+      metadataPath,
+      "--manifest",
+      `${manifestLinkDir}/store-submission-checklist.json`
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission checklist path parent must not be a symbolic link: ${manifestLinkDir}`);
+    expect(existsSync(`${outsideManifestDir}/store-submission-checklist.json`)).toBe(false);
   });
 
   it("rejects UI evidence draft screenshots in final store-submission mode", () => {

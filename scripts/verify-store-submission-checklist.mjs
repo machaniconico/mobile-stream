@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import { readPngEvidence } from "./png-evidence.mjs";
@@ -97,7 +97,9 @@ export function createStoreSubmissionChecklist({
     throw new Error(failures.join("\n"));
   }
 
-  const absoluteManifestPath = resolve(manifestPath);
+  const relativeManifestPath = workspaceRelativePath(manifestPath);
+  assertWritableRegularPath(relativeManifestPath, "Store submission checklist");
+  const absoluteManifestPath = resolve(relativeManifestPath);
   mkdirSync(dirname(absoluteManifestPath), { recursive: true });
   writeFileSync(absoluteManifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   return { manifest, manifestPath: relative(cwd(), absoluteManifestPath) };
@@ -656,6 +658,54 @@ function createReleaseArtifactRecord(group, path) {
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
+}
+
+function assertWritableRegularPath(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatExisting(path);
+  if (!stat) {
+    return;
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} output must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} output must point to a file: ${path}`);
+  }
+}
+
+function assertNoSymlinkedParentDirectories(path, label) {
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    return;
+  }
+  const parts = relativePath.split(sep).filter(Boolean);
+  let currentPath = cwd();
+  for (const part of parts.slice(0, -1)) {
+    currentPath = join(currentPath, part);
+    const stat = lstatExisting(currentPath);
+    if (!stat) {
+      return;
+    }
+    const displayPath = relative(cwd(), currentPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`${label} path parent must not be a symbolic link: ${displayPath}`);
+    }
+    if (!stat.isDirectory()) {
+      throw new Error(`${label} path parent must point to a directory: ${displayPath}`);
+    }
+  }
+}
+
+function lstatExisting(path) {
+  try {
+    return lstatSync(resolve(path));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function workspaceRelativePath(path) {

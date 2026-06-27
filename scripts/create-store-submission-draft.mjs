@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
@@ -30,6 +30,7 @@ export function createStoreSubmissionDraft({
 
   const screenshotSources = resolveScreenshotSources({ iosScreenshot, androidScreenshot, uiEvidenceJson });
   const screenshotsDir = join(relativeOutputDir, "screenshots");
+  assertWritableDirectoryPath(screenshotsDir, "Store submission screenshots directory");
   mkdirSync(resolve(screenshotsDir), { recursive: true });
 
   const iosScreenshotPath = copyScreenshot({
@@ -47,10 +48,12 @@ export function createStoreSubmissionDraft({
   if (!relativeMetadataPath) {
     throw new Error(`Store submission metadata path must be inside the workspace: ${metadataPath}`);
   }
+  assertWritableRegularPath(relativeMetadataPath, "Store submission metadata");
   const relativeReviewPath = workspaceRelativePath(reviewPath || join(relativeOutputDir, defaultReviewFilename));
   if (!relativeReviewPath) {
     throw new Error(`Store submission review path must be inside the workspace: ${reviewPath}`);
   }
+  assertWritableRegularPath(relativeReviewPath, "Store submission review");
 
   const metadata = createMetadata({
     iosScreenshotPath,
@@ -105,6 +108,7 @@ function mobileScreenshotFromUiEvidence(path) {
   if (!existsSync(resolve(readPath))) {
     throw new Error(`UI evidence JSON does not exist: ${path}`);
   }
+  assertRegularSourceFile(readPath, "UI evidence JSON");
   const evidence = JSON.parse(readFileSync(resolve(readPath), "utf8"));
   if (evidence?.app !== "MobileLiveCaster" || evidence?.type !== "browser-ui-verification" || evidence?.status !== "passed") {
     throw new Error("UI evidence JSON must be a passing MobileLiveCaster browser-ui-verification report.");
@@ -123,9 +127,7 @@ function copyScreenshot({ sourcePath, outputPath, label }) {
   if (!existsSync(resolve(readPath))) {
     throw new Error(`${label} store screenshot source does not exist: ${sourcePath}`);
   }
-  if (!statSync(resolve(readPath)).isFile()) {
-    throw new Error(`${label} store screenshot source must point to a file: ${sourcePath}`);
-  }
+  assertRegularSourceFile(readPath, `${label} store screenshot source`);
   if (extname(readPath) !== ".png") {
     throw new Error(`${label} store screenshot source must be a PNG file: ${sourcePath}`);
   }
@@ -139,9 +141,83 @@ function copyScreenshot({ sourcePath, outputPath, label }) {
   if (!relativeOutputPath) {
     throw new Error(`${label} store screenshot output must be inside the workspace: ${outputPath}`);
   }
+  assertWritableRegularPath(relativeOutputPath, `${label} store screenshot`);
   mkdirSync(dirname(resolve(relativeOutputPath)), { recursive: true });
   copyFileSync(resolve(readPath), resolve(relativeOutputPath));
   return relativeOutputPath;
+}
+
+function assertRegularSourceFile(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatSync(resolve(path));
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} must point to a file: ${path}`);
+  }
+}
+
+function assertWritableRegularPath(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatExisting(path);
+  if (!stat) {
+    return;
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} output must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} output must point to a file: ${path}`);
+  }
+}
+
+function assertWritableDirectoryPath(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatExisting(path);
+  if (!stat) {
+    return;
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} output must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isDirectory()) {
+    throw new Error(`${label} output must point to a directory: ${path}`);
+  }
+}
+
+function assertNoSymlinkedParentDirectories(path, label) {
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    return;
+  }
+  const parts = relativePath.split(sep).filter(Boolean);
+  let currentPath = cwd();
+  for (const part of parts.slice(0, -1)) {
+    currentPath = join(currentPath, part);
+    const stat = lstatExisting(currentPath);
+    if (!stat) {
+      return;
+    }
+    const displayPath = relative(cwd(), currentPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`${label} path parent must not be a symbolic link: ${displayPath}`);
+    }
+    if (!stat.isDirectory()) {
+      throw new Error(`${label} path parent must point to a directory: ${displayPath}`);
+    }
+  }
+}
+
+function lstatExisting(path) {
+  try {
+    return lstatSync(resolve(path));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function createMetadata({
