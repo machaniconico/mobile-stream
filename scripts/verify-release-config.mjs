@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
+import { join, relative, resolve, sep } from "node:path";
 import { cwd, exit } from "node:process";
 import { productionNativeSourcePaths, releaseConfigArtifactPaths } from "./release-artifact-policy.mjs";
 import {
@@ -422,6 +422,7 @@ if (failures.length > 0) {
 console.log(`Release configuration verification passed (${checks.length} checks).`);
 
 function read(relativePath) {
+  assertRegularSourceFile(relativePath, "Release configuration file");
   return readFileSync(join(root, relativePath), "utf8");
 }
 
@@ -430,16 +431,89 @@ function collectOptionalSourceFiles(relativePath, extensions) {
   if (!existsSync(directory)) {
     return [];
   }
+  assertRegularDirectory(relativePath, "Release configuration source directory");
   return readdirSync(directory, { withFileTypes: true }).flatMap((dirent) => {
     const childPath = `${relativePath}/${dirent.name}`;
-    if (dirent.isDirectory()) {
+    const childStat = lstatSync(join(root, childPath));
+    if (childStat.isSymbolicLink()) {
+      throw new Error(`Release configuration source path must not be a symbolic link: ${childPath}`);
+    }
+    if (childStat.isDirectory()) {
       return collectOptionalSourceFiles(childPath, extensions);
     }
-    if (!dirent.isFile() || !extensions.some((extension) => childPath.endsWith(extension))) {
+    if (!childStat.isFile() || !extensions.some((extension) => childPath.endsWith(extension))) {
       return [];
     }
     return [childPath];
   });
+}
+
+function assertRegularSourceFile(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatSync(join(root, path));
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} must point to a file: ${path}`);
+  }
+}
+
+function assertRegularDirectory(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatSync(join(root, path));
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isDirectory()) {
+    throw new Error(`${label} must point to a directory: ${path}`);
+  }
+}
+
+function assertNoSymlinkedParentDirectories(path, label) {
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    return;
+  }
+  const parts = relativePath.split(sep).filter(Boolean);
+  let currentPath = root;
+  for (const part of parts.slice(0, -1)) {
+    currentPath = join(currentPath, part);
+    const stat = lstatExisting(currentPath);
+    if (!stat) {
+      return;
+    }
+    const displayPath = relative(root, currentPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`${label} path parent must not be a symbolic link: ${displayPath}`);
+    }
+    if (!stat.isDirectory()) {
+      throw new Error(`${label} path parent must point to a directory: ${displayPath}`);
+    }
+  }
+}
+
+function workspaceRelativePath(path) {
+  const absolutePath = resolve(root, path);
+  const relativePath = relative(root, absolutePath);
+  if (relativePath === "") {
+    return ".";
+  }
+  if (relativePath.startsWith("..") || relativePath === ".." || relativePath.includes(`..${sep}`)) {
+    return null;
+  }
+  return relativePath;
+}
+
+function lstatExisting(path) {
+  try {
+    return lstatSync(resolve(path));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function check(name, assertion) {
