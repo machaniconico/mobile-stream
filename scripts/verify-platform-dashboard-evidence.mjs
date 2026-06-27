@@ -94,7 +94,7 @@ export function validateDashboardEvidenceManifest(
   const seen = new Set();
   for (const artifact of manifest.artifacts) {
     validateDashboardArtifact(artifact, failures);
-    const key = `${artifact.platform}:${artifact.kind}:${artifact.path}`;
+    const key = `${artifact?.platform}:${artifact?.kind}:${artifact?.path}`;
     if (seen.has(key)) {
       failures.push(`Dashboard evidence manifest contains duplicate artifact ${key}.`);
     }
@@ -117,8 +117,9 @@ export function collectDashboardEvidenceArtifactRecords({ manifestPath = dashboa
   const manifest = readDashboardEvidenceManifest(manifestPath);
   const records = [createReleaseArtifactRecord(dashboardEvidenceArtifactGroup, manifestPath)];
   for (const artifact of Array.isArray(manifest.artifacts) ? manifest.artifacts : []) {
-    if (artifact?.path && existsSync(resolve(artifact.path))) {
-      records.push(createReleaseArtifactRecord(dashboardEvidenceArtifactGroup, artifact.path));
+    const relativePath = workspaceRecordPath(artifact?.path);
+    if (relativePath && existsSync(resolve(relativePath))) {
+      records.push(createReleaseArtifactRecord(dashboardEvidenceArtifactGroup, relativePath));
     }
   }
   return records;
@@ -220,52 +221,55 @@ function validateDashboardArtifact(artifact, failures) {
     failures.push(`Dashboard evidence artifact has unsupported platform/kind: ${JSON.stringify(artifact?.platform)}/${JSON.stringify(artifact?.kind)}.`);
     return;
   }
-  if (!artifact.path || artifact.path.startsWith("/") || artifact.path.startsWith("..")) {
+  const relativePath = workspaceRecordPath(artifact.path);
+  if (!relativePath) {
     failures.push(`Dashboard evidence path must be workspace-relative: ${artifact.path || "-"}.`);
     return;
   }
-  if (extname(artifact.path) !== expected.extension) {
-    failures.push(`Dashboard evidence artifact ${artifact.path} must end with ${expected.extension}.`);
+  const absolutePath = resolve(relativePath);
+  const normalizedArtifact = { ...artifact, path: relativePath };
+  if (extname(relativePath) !== expected.extension) {
+    failures.push(`Dashboard evidence artifact ${relativePath} must end with ${expected.extension}.`);
   }
-  if (!existsSync(resolve(artifact.path))) {
-    failures.push(`Dashboard evidence artifact file does not exist: ${artifact.path}.`);
+  if (!existsSync(absolutePath)) {
+    failures.push(`Dashboard evidence artifact file does not exist: ${relativePath}.`);
     return;
   }
-  if (!statSync(resolve(artifact.path)).isFile()) {
-    failures.push(`Dashboard evidence artifact must point to a file: ${artifact.path}.`);
+  if (!statSync(absolutePath).isFile()) {
+    failures.push(`Dashboard evidence artifact must point to a file: ${relativePath}.`);
     return;
   }
 
-  const content = readFileSync(resolve(artifact.path));
+  const content = readFileSync(absolutePath);
   const actualSha256 = createHash("sha256").update(content).digest("hex");
   if (content.byteLength <= 0) {
-    failures.push(`Dashboard evidence artifact is empty: ${artifact.path}.`);
+    failures.push(`Dashboard evidence artifact is empty: ${relativePath}.`);
   }
   if (content.byteLength !== artifact.bytes || actualSha256 !== artifact.sha256) {
-    failures.push(`Dashboard evidence artifact metadata mismatch for ${artifact.path}.`);
+    failures.push(`Dashboard evidence artifact metadata mismatch for ${relativePath}.`);
   }
   if (artifact.kind === "screenshot") {
     const pngEvidence = readPngEvidence(content);
     if (!pngEvidence.valid) {
-      failures.push(`Dashboard evidence screenshot is not a structurally valid PNG file: ${artifact.path} (${pngEvidence.reason}).`);
+      failures.push(`Dashboard evidence screenshot is not a structurally valid PNG file: ${relativePath} (${pngEvidence.reason}).`);
     } else {
       if (artifact.width !== pngEvidence.width || artifact.height !== pngEvidence.height) {
-        failures.push(`Dashboard evidence screenshot dimensions mismatch for ${artifact.path}.`);
+        failures.push(`Dashboard evidence screenshot dimensions mismatch for ${relativePath}.`);
       }
-      validateDashboardScreenshotDimensions(artifact, pngEvidence, failures);
+      validateDashboardScreenshotDimensions(normalizedArtifact, pngEvidence, failures);
     }
     if (!normalizeDashboardTimestamp(artifact.capturedAt)) {
-      failures.push(`Dashboard evidence screenshot ${artifact.path} must include a valid capturedAt timestamp.`);
+      failures.push(`Dashboard evidence screenshot ${relativePath} must include a valid capturedAt timestamp.`);
     }
   }
   if (artifact.kind === "statusJson") {
-    const statusJsonSummary = createStatusJsonSummary(artifact, content);
+    const statusJsonSummary = createStatusJsonSummary(normalizedArtifact, content);
     failures.push(...statusJsonSummary.failures);
     if (artifact.checkedAt !== statusJsonSummary.checkedAt) {
-      failures.push(`Dashboard evidence status JSON checkedAt mismatch for ${artifact.path}.`);
+      failures.push(`Dashboard evidence status JSON checkedAt mismatch for ${relativePath}.`);
     }
     if (artifact.statusSummary !== statusJsonSummary.statusSummary) {
-      failures.push(`Dashboard evidence status JSON summary mismatch for ${artifact.path}.`);
+      failures.push(`Dashboard evidence status JSON summary mismatch for ${relativePath}.`);
     }
   }
 }
@@ -413,6 +417,14 @@ function workspaceRelativePath(path) {
     return "";
   }
   return relativePath;
+}
+
+function workspaceRecordPath(path) {
+  if (typeof path !== "string") {
+    return "";
+  }
+  const relativePath = workspaceRelativePath(path);
+  return relativePath === path ? relativePath : "";
 }
 
 function commandOutput(command, args) {

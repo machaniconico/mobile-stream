@@ -85,7 +85,7 @@ export function validateDistributionManifest(
   const seen = new Set();
   for (const artifact of manifest.artifacts) {
     validateDistributionArtifact(artifact, failures);
-    const key = `${artifact.platform}:${artifact.path}`;
+    const key = `${artifact?.platform}:${artifact?.path}`;
     if (seen.has(key)) {
       failures.push(`Distribution manifest contains duplicate artifact ${key}.`);
     }
@@ -108,8 +108,9 @@ export function collectDistributionArtifactRecords({ manifestPath = distribution
   const manifest = readDistributionManifest(manifestPath);
   const records = [createReleaseArtifactRecord(distributionArtifactGroup, manifestPath)];
   for (const artifact of Array.isArray(manifest.artifacts) ? manifest.artifacts : []) {
-    if (artifact?.path && existsSync(resolve(artifact.path))) {
-      records.push(createReleaseArtifactRecord(distributionArtifactGroup, artifact.path));
+    const relativePath = workspaceRecordPath(artifact?.path);
+    if (relativePath && existsSync(resolve(relativePath))) {
+      records.push(createReleaseArtifactRecord(distributionArtifactGroup, relativePath));
     }
   }
   return records;
@@ -189,38 +190,40 @@ function createDistributionArtifactRecord({ platform, kind, extension, path }) {
 
 function validateDistributionArtifact(artifact, failures) {
   const expected = distributionArtifactTypes[artifact?.platform];
-  if (!expected || artifact.kind !== expected.kind) {
+  if (!expected || artifact?.kind !== expected.kind) {
     failures.push(`Distribution artifact has unsupported platform/kind: ${JSON.stringify(artifact?.platform)}/${JSON.stringify(artifact?.kind)}.`);
     return;
   }
-  if (!artifact.path || artifact.path.startsWith("/") || artifact.path.startsWith("..")) {
+  const relativePath = workspaceRecordPath(artifact.path);
+  if (!relativePath) {
     failures.push(`Distribution artifact path must be workspace-relative: ${artifact.path || "-"}.`);
     return;
   }
-  if (extname(artifact.path) !== expected.extension) {
-    failures.push(`Distribution artifact ${artifact.path} must end with ${expected.extension}.`);
+  const absolutePath = resolve(relativePath);
+  if (extname(relativePath) !== expected.extension) {
+    failures.push(`Distribution artifact ${relativePath} must end with ${expected.extension}.`);
   }
-  if (!existsSync(resolve(artifact.path))) {
-    failures.push(`Distribution artifact file does not exist: ${artifact.path}.`);
+  if (!existsSync(absolutePath)) {
+    failures.push(`Distribution artifact file does not exist: ${relativePath}.`);
     return;
   }
-  if (!statSync(resolve(artifact.path)).isFile()) {
-    failures.push(`Distribution artifact must point to a file: ${artifact.path}.`);
+  if (!statSync(absolutePath).isFile()) {
+    failures.push(`Distribution artifact must point to a file: ${relativePath}.`);
     return;
   }
 
-  const content = readFileSync(resolve(artifact.path));
+  const content = readFileSync(absolutePath);
   const actualSha256 = createHash("sha256").update(content).digest("hex");
   if (content.byteLength !== artifact.bytes || actualSha256 !== artifact.sha256) {
-    failures.push(`Distribution artifact metadata mismatch for ${artifact.path}.`);
+    failures.push(`Distribution artifact metadata mismatch for ${relativePath}.`);
   }
-  const contentInspection = inspectDistributionArtifactContent(artifact, content);
+  const contentInspection = inspectDistributionArtifactContent({ ...artifact, path: relativePath }, content);
   failures.push(...contentInspection.failures);
   if (artifact.zipEntryCount !== contentInspection.zipEntryCount) {
-    failures.push(`Distribution artifact ZIP entry count mismatch for ${artifact.path}.`);
+    failures.push(`Distribution artifact ZIP entry count mismatch for ${relativePath}.`);
   }
   if (!sameStringMembers(artifact.requiredZipEntries, contentInspection.requiredZipEntries)) {
-    failures.push(`Distribution artifact required ZIP entries mismatch for ${artifact.path}.`);
+    failures.push(`Distribution artifact required ZIP entries mismatch for ${relativePath}.`);
   }
 }
 
@@ -360,6 +363,14 @@ function workspaceRelativePath(path) {
     return "";
   }
   return relativePath;
+}
+
+function workspaceRecordPath(path) {
+  if (typeof path !== "string") {
+    return "";
+  }
+  const relativePath = workspaceRelativePath(path);
+  return relativePath === path ? relativePath : "";
 }
 
 function commandOutput(command, args) {

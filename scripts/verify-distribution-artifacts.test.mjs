@@ -83,6 +83,23 @@ describe("distribution artifact verifier", () => {
     expect(result.stderr).toContain("Distribution manifest git commit is missing.");
   });
 
+  it("rejects manifest artifact paths with traversal segments", () => {
+    writeDistributionFiles();
+    expect(
+      runVerifier(["--write", "--allow-dirty", "--android-aab", androidAab, "--manifest", manifestPath]).status
+    ).toBe(0);
+
+    const traversalPath = `${fixtureRoot}/nested/../../../../outside.aab`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.artifacts[0].path = traversalPath;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Distribution artifact path must be workspace-relative: ${traversalPath}.`);
+  });
+
   it("rejects placeholder-sized distribution artifacts", () => {
     mkdirSync(fixtureRoot, { recursive: true });
     writeFileSync(

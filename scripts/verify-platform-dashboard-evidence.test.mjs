@@ -352,6 +352,32 @@ describe("platform dashboard evidence verifier", () => {
     expect(result.stderr).toContain("Dashboard evidence manifest git commit is missing.");
   });
 
+  it("rejects manifest evidence paths with traversal segments", () => {
+    writeEvidenceFiles();
+    expect(
+      runVerifier([
+        "--write",
+        "--allow-dirty",
+        "--youtube-screenshot",
+        youtubeScreenshot,
+        "--youtube-screenshot-captured-at",
+        dashboardCapturedAt,
+        "--manifest",
+        manifestPath
+      ]).status
+    ).toBe(0);
+
+    const traversalPath = `${fixtureRoot}/nested/../../../../youtube-dashboard.png`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.artifacts[0].path = traversalPath;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence path must be workspace-relative: ${traversalPath}.`);
+  });
+
   it("rejects dashboard status JSON without a valid checkedAt timestamp", () => {
     mkdirSync(fixtureRoot, { recursive: true });
     writeFileSync(

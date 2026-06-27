@@ -155,6 +155,29 @@ describe("store submission checklist verifier", () => {
     expect(result.stderr).toContain("Store submission checklist git commit is missing.");
   });
 
+  it("rejects checklist artifact paths with traversal segments", () => {
+    writeStoreSubmissionFiles();
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    const traversalMetadataPath = `${fixtureRoot}/nested/../../../../submission-metadata.json`;
+    const traversalScreenshotPath = `${fixtureRoot}/nested/../../../../ios-store.png`;
+    const traversalReviewDocumentPath = `${fixtureRoot}/nested/../../../../submission-review.md`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.metadata.path = traversalMetadataPath;
+    manifest.screenshots[0].path = traversalScreenshotPath;
+    manifest.reviewDocuments[0].path = traversalReviewDocumentPath;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission metadata path must be workspace-relative: ${traversalMetadataPath}.`);
+    expect(result.stderr).toContain(`Store submission screenshot path must be workspace-relative: ${traversalScreenshotPath}.`);
+    expect(result.stderr).toContain(
+      `Store submission review document path must be workspace-relative: ${traversalReviewDocumentPath}.`
+    );
+  });
+
   it("rejects UI evidence draft screenshots in final store-submission mode", () => {
     writeStoreSubmissionFiles({
       screenshots: [

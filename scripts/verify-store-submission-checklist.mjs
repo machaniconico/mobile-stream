@@ -171,17 +171,20 @@ export function collectStoreSubmissionArtifactRecords({ manifestPath = storeSubm
 
   const manifest = readStoreSubmissionChecklist(manifestPath);
   const records = [createReleaseArtifactRecord(storeSubmissionArtifactGroup, manifestPath)];
-  if (manifest.metadata?.path && existsSync(resolve(manifest.metadata.path))) {
-    records.push(createReleaseArtifactRecord(storeSubmissionArtifactGroup, manifest.metadata.path));
+  const metadataPath = workspaceRecordPath(manifest.metadata?.path);
+  if (metadataPath && existsSync(resolve(metadataPath))) {
+    records.push(createReleaseArtifactRecord(storeSubmissionArtifactGroup, metadataPath));
   }
   for (const screenshot of Array.isArray(manifest.screenshots) ? manifest.screenshots : []) {
-    if (screenshot?.path && existsSync(resolve(screenshot.path))) {
-      records.push(createReleaseArtifactRecord(storeSubmissionArtifactGroup, screenshot.path));
+    const screenshotPath = workspaceRecordPath(screenshot?.path);
+    if (screenshotPath && existsSync(resolve(screenshotPath))) {
+      records.push(createReleaseArtifactRecord(storeSubmissionArtifactGroup, screenshotPath));
     }
   }
   for (const reviewDocument of Array.isArray(manifest.reviewDocuments) ? manifest.reviewDocuments : []) {
-    if (reviewDocument?.path && existsSync(resolve(reviewDocument.path))) {
-      records.push(createReleaseArtifactRecord(storeSubmissionArtifactGroup, reviewDocument.path));
+    const reviewDocumentPath = workspaceRecordPath(reviewDocument?.path);
+    if (reviewDocumentPath && existsSync(resolve(reviewDocumentPath))) {
+      records.push(createReleaseArtifactRecord(storeSubmissionArtifactGroup, reviewDocumentPath));
     }
   }
   return records;
@@ -347,38 +350,40 @@ function validateMetadataRecord(record, failures) {
     failures.push("Store submission checklist metadata record is missing or has an unsupported kind.");
     return null;
   }
-  if (!record.path || record.path.startsWith("/") || record.path.startsWith("..")) {
+  const relativePath = workspaceRecordPath(record.path);
+  if (!relativePath) {
     failures.push(`Store submission metadata path must be workspace-relative: ${record.path || "-"}.`);
     return null;
   }
-  if (extname(record.path) !== ".json") {
-    failures.push(`Store submission metadata must be a JSON file: ${record.path}.`);
+  const absolutePath = resolve(relativePath);
+  if (extname(relativePath) !== ".json") {
+    failures.push(`Store submission metadata must be a JSON file: ${relativePath}.`);
     return null;
   }
-  if (!existsSync(resolve(record.path))) {
-    failures.push(`Store submission metadata file does not exist: ${record.path}.`);
+  if (!existsSync(absolutePath)) {
+    failures.push(`Store submission metadata file does not exist: ${relativePath}.`);
     return null;
   }
-  if (!statSync(resolve(record.path)).isFile()) {
-    failures.push(`Store submission metadata must point to a file: ${record.path}.`);
+  if (!statSync(absolutePath).isFile()) {
+    failures.push(`Store submission metadata must point to a file: ${relativePath}.`);
     return null;
   }
 
-  const content = readFileSync(resolve(record.path));
+  const content = readFileSync(absolutePath);
   const actualSha256 = createHash("sha256").update(content).digest("hex");
   if (content.byteLength <= 0) {
-    failures.push(`Store submission metadata is empty: ${record.path}.`);
+    failures.push(`Store submission metadata is empty: ${relativePath}.`);
     return null;
   }
   if (content.byteLength !== record.bytes || actualSha256 !== record.sha256) {
-    failures.push(`Store submission metadata metadata mismatch for ${record.path}.`);
+    failures.push(`Store submission metadata metadata mismatch for ${relativePath}.`);
     return null;
   }
 
   try {
     return JSON.parse(content.toString("utf8"));
   } catch {
-    failures.push(`Store submission metadata JSON is unreadable: ${record.path}.`);
+    failures.push(`Store submission metadata JSON is unreadable: ${relativePath}.`);
     return null;
   }
 }
@@ -482,50 +487,53 @@ function validateScreenshotRecord(screenshot, failures, { requireRealDeviceScree
     failures.push(`Store submission screenshot has unsupported platform/kind: ${JSON.stringify(screenshot?.platform)}/${JSON.stringify(screenshot?.kind)}.`);
     return;
   }
-  if (!screenshot.path || screenshot.path.startsWith("/") || screenshot.path.startsWith("..")) {
+  const relativePath = workspaceRecordPath(screenshot.path);
+  if (!relativePath) {
     failures.push(`Store submission screenshot path must be workspace-relative: ${screenshot.path || "-"}.`);
     return;
   }
-  if (extname(screenshot.path) !== ".png") {
-    failures.push(`Store submission screenshot must be a PNG file: ${screenshot.path}.`);
+  const absolutePath = resolve(relativePath);
+  const normalizedScreenshot = { ...screenshot, path: relativePath };
+  if (extname(relativePath) !== ".png") {
+    failures.push(`Store submission screenshot must be a PNG file: ${relativePath}.`);
   }
   if (!stringValue(screenshot.device)) {
-    failures.push(`Store submission screenshot ${screenshot.path} must include a device label.`);
+    failures.push(`Store submission screenshot ${relativePath} must include a device label.`);
   }
   if (!screenshotSources.has(screenshot.source)) {
-    failures.push(`Store submission screenshot ${screenshot.path} has unsupported source ${JSON.stringify(screenshot.source)}.`);
+    failures.push(`Store submission screenshot ${relativePath} has unsupported source ${JSON.stringify(screenshot.source)}.`);
   } else if (requireRealDeviceScreenshots && screenshot.source !== "realDevice") {
-    failures.push(`Store submission screenshot ${screenshot.path} must be captured from a real device for final store submission.`);
+    failures.push(`Store submission screenshot ${relativePath} must be captured from a real device for final store submission.`);
   }
   if (requireRealDeviceScreenshots && screenshot.source === "realDevice") {
-    validateRealDeviceCaptureMetadata(screenshot, failures);
+    validateRealDeviceCaptureMetadata(normalizedScreenshot, failures);
   }
-  if (!existsSync(resolve(screenshot.path))) {
-    failures.push(`Store submission screenshot file does not exist: ${screenshot.path}.`);
+  if (!existsSync(absolutePath)) {
+    failures.push(`Store submission screenshot file does not exist: ${relativePath}.`);
     return;
   }
-  if (!statSync(resolve(screenshot.path)).isFile()) {
-    failures.push(`Store submission screenshot must point to a file: ${screenshot.path}.`);
+  if (!statSync(absolutePath).isFile()) {
+    failures.push(`Store submission screenshot must point to a file: ${relativePath}.`);
     return;
   }
 
-  const content = readFileSync(resolve(screenshot.path));
+  const content = readFileSync(absolutePath);
   const actualSha256 = createHash("sha256").update(content).digest("hex");
   if (content.byteLength <= 0) {
-    failures.push(`Store submission screenshot is empty: ${screenshot.path}.`);
+    failures.push(`Store submission screenshot is empty: ${relativePath}.`);
   }
   if (content.byteLength !== screenshot.bytes || actualSha256 !== screenshot.sha256) {
-    failures.push(`Store submission screenshot metadata mismatch for ${screenshot.path}.`);
+    failures.push(`Store submission screenshot metadata mismatch for ${relativePath}.`);
   }
   const pngEvidence = readPngEvidence(content);
   if (!pngEvidence.valid) {
-    failures.push(`Store submission screenshot is not a structurally valid PNG file: ${screenshot.path} (${pngEvidence.reason}).`);
+    failures.push(`Store submission screenshot is not a structurally valid PNG file: ${relativePath} (${pngEvidence.reason}).`);
   } else {
     if (screenshot.width !== pngEvidence.width || screenshot.height !== pngEvidence.height) {
-      failures.push(`Store submission screenshot dimensions mismatch for ${screenshot.path}.`);
+      failures.push(`Store submission screenshot dimensions mismatch for ${relativePath}.`);
     }
     if (requireRealDeviceScreenshots) {
-      validateFinalScreenshotDimensions(screenshot, pngEvidence, failures);
+      validateFinalScreenshotDimensions(normalizedScreenshot, pngEvidence, failures);
     }
   }
 }
@@ -560,29 +568,31 @@ function validateReviewDocumentRecord(reviewDocument, failures) {
     failures.push(`Store submission review document has unsupported kind: ${JSON.stringify(reviewDocument?.kind)}.`);
     return;
   }
-  if (!reviewDocument.path || reviewDocument.path.startsWith("/") || reviewDocument.path.startsWith("..")) {
+  const relativePath = workspaceRecordPath(reviewDocument.path);
+  if (!relativePath) {
     failures.push(`Store submission review document path must be workspace-relative: ${reviewDocument.path || "-"}.`);
     return;
   }
-  if (extname(reviewDocument.path) !== expected.extension) {
-    failures.push(`Store submission review document ${reviewDocument.path} must end with ${expected.extension}.`);
+  const absolutePath = resolve(relativePath);
+  if (extname(relativePath) !== expected.extension) {
+    failures.push(`Store submission review document ${relativePath} must end with ${expected.extension}.`);
   }
-  if (!existsSync(resolve(reviewDocument.path))) {
-    failures.push(`Store submission review document file does not exist: ${reviewDocument.path}.`);
+  if (!existsSync(absolutePath)) {
+    failures.push(`Store submission review document file does not exist: ${relativePath}.`);
     return;
   }
-  if (!statSync(resolve(reviewDocument.path)).isFile()) {
-    failures.push(`Store submission review document must point to a file: ${reviewDocument.path}.`);
+  if (!statSync(absolutePath).isFile()) {
+    failures.push(`Store submission review document must point to a file: ${relativePath}.`);
     return;
   }
 
-  const content = readFileSync(resolve(reviewDocument.path));
+  const content = readFileSync(absolutePath);
   const actualSha256 = createHash("sha256").update(content).digest("hex");
   if (content.byteLength <= 0) {
-    failures.push(`Store submission review document is empty: ${reviewDocument.path}.`);
+    failures.push(`Store submission review document is empty: ${relativePath}.`);
   }
   if (content.byteLength !== reviewDocument.bytes || actualSha256 !== reviewDocument.sha256) {
-    failures.push(`Store submission review document metadata mismatch for ${reviewDocument.path}.`);
+    failures.push(`Store submission review document metadata mismatch for ${relativePath}.`);
   }
   validateNoSensitiveText(content.toString("utf8"), failures, `review document ${reviewDocument.path}`);
 }
@@ -624,6 +634,14 @@ function workspaceRelativePath(path) {
     return "";
   }
   return relativePath;
+}
+
+function workspaceRecordPath(path) {
+  if (typeof path !== "string") {
+    return "";
+  }
+  const relativePath = workspaceRelativePath(path);
+  return relativePath === path ? relativePath : "";
 }
 
 function commandOutput(command, args) {
