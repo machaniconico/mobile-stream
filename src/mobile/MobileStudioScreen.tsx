@@ -47,6 +47,7 @@ import {
 import type { ReadinessIssue, ReadinessReport } from "../domain/readiness";
 import {
   addSource,
+  applyInferredAvatarIllustrationRig,
   createSource,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
@@ -333,6 +334,12 @@ export const MobileStudioScreen = ({
           : source
       )
     );
+  };
+  const autoRigSelectedAvatar = () => {
+    if (setupLocked || selectedSource.kind !== "pngtuber") {
+      return;
+    }
+    onSceneChange(applyInferredAvatarIllustrationRig(scene, selectedSource.id));
   };
   const chatOverlayMessages = selectChatOverlayMessages(chatReader);
   const diagnostics = createStreamDiagnostics(
@@ -677,6 +684,7 @@ export const MobileStudioScreen = ({
           ) : null}
           {selectedSource.kind === "pngtuber" ? (
             <>
+              <ActionButton label="Auto rig" disabled={setupLocked} onPress={autoRigSelectedAvatar} />
               <NumberStepper
                 label="Face Y"
                 value={selectedSource.illustrationRig.faceCenterY}

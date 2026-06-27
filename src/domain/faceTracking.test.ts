@@ -236,6 +236,77 @@ describe("face tracking", () => {
     expect(avatar?.motion.hairSway).not.toBe(0);
   });
 
+  it("uses inferred illustration rig landmarks to tune still-image motion", () => {
+    const profile = {
+      ...defaultFaceTrackingProfile,
+      enabled: true,
+      headRange: 1,
+      bodyRange: 1,
+      illustrationDeform: 1,
+      hairSway: 1,
+      mouthDeform: 1
+    };
+    const runtime = {
+      ...createFaceTrackingRuntimeState(2_000),
+      status: "tracking" as const,
+      yaw: 0.48,
+      pitch: -0.22,
+      roll: 0.36,
+      mouthOpen: 0.72,
+      blink: 0.2,
+      confidence: 0.96
+    };
+    const scene = createDefaultScene();
+    const closeUpScene = {
+      ...scene,
+      sources: scene.sources.map((source) =>
+        source.kind === "pngtuber"
+          ? {
+              ...source,
+              illustrationRig: {
+                ...source.illustrationRig,
+                faceRange: 0.58,
+                hairLineY: 0.06,
+                shoulderLineY: 0.9,
+                eyeLineY: 0.34,
+                mouthLineY: 0.66
+              }
+            }
+          : source
+      )
+    };
+    const fullBodyScene = {
+      ...scene,
+      sources: scene.sources.map((source) =>
+        source.kind === "pngtuber"
+          ? {
+              ...source,
+              illustrationRig: {
+                ...source.illustrationRig,
+                faceRange: 0.12,
+                hairLineY: 0.54,
+                shoulderLineY: 0.46,
+                eyeLineY: 0.32,
+                mouthLineY: 0.4
+              }
+            }
+          : source
+      )
+    };
+
+    const closeUpAvatar = applyFaceTrackingRuntime(closeUpScene, runtime, profile).sources.find(
+      (source) => source.kind === "pngtuber"
+    );
+    const fullBodyAvatar = applyFaceTrackingRuntime(fullBodyScene, runtime, profile).sources.find(
+      (source) => source.kind === "pngtuber"
+    );
+
+    expect(Math.abs(closeUpAvatar?.motion.meshWarp ?? 0)).toBeGreaterThan(Math.abs(fullBodyAvatar?.motion.meshWarp ?? 0));
+    expect(Math.abs(closeUpAvatar?.motion.hairSway ?? 0)).toBeGreaterThan(Math.abs(fullBodyAvatar?.motion.hairSway ?? 0));
+    expect(Math.abs(closeUpAvatar?.motion.shoulderSway ?? 0)).toBeGreaterThan(Math.abs(fullBodyAvatar?.motion.shoulderSway ?? 0));
+    expect(closeUpAvatar?.motion.mouthDeform).toBeGreaterThan(fullBodyAvatar?.motion.mouthDeform ?? 0);
+  });
+
   it("calibrates neutral pose from the current runtime offset", () => {
     const calibrated = calibrateFaceTrackingProfile(defaultFaceTrackingProfile, {
       ...createFaceTrackingRuntimeState(3_000),

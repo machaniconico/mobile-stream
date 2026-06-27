@@ -134,6 +134,12 @@ export interface SceneDocument {
   sources: SceneSource[];
 }
 
+export interface AvatarIllustrationRigInferenceInput {
+  canvas?: Partial<SceneDocument["canvas"]> | null;
+  transform?: Partial<Transform> | null;
+  imageAspectRatio?: number | null;
+}
+
 export interface RenderNode {
   id: string;
   kind: SourceKind;
@@ -187,6 +193,52 @@ export const defaultAvatarIllustrationRig = (overrides: Partial<AvatarIllustrati
   sliceCount: Math.round(clampRange(overrides.sliceCount ?? 24, 12, 40))
 });
 
+export const inferAvatarIllustrationRig = (
+  input: AvatarIllustrationRigInferenceInput = {},
+  overrides: Partial<AvatarIllustrationRig> = {}
+): AvatarIllustrationRig => {
+  const canvasWidth = clampRange(input.canvas?.width ?? 1920, 1, 7680);
+  const canvasHeight = clampRange(input.canvas?.height ?? 1080, 1, 4320);
+  const transformWidth = clampRange(input.transform?.width ?? 0.3, 0.03, 1);
+  const transformHeight = clampRange(input.transform?.height ?? 0.45, 0.03, 1);
+  const imageAspectRatio = finiteNumber(input.imageAspectRatio, 0);
+  const renderAspect =
+    imageAspectRatio > 0 ? imageAspectRatio : (transformWidth * canvasWidth) / Math.max(transformHeight * canvasHeight, 1);
+  const tallOrLarge = transformHeight >= 0.58 || renderAspect < 0.74;
+  const closeUp = transformHeight <= 0.28 || renderAspect > 1.32;
+  const inferred = tallOrLarge
+    ? {
+        faceCenterY: 0.32,
+        faceRange: 0.24,
+        hairLineY: 0.23,
+        shoulderLineY: 0.54,
+        eyeLineY: 0.28,
+        mouthLineY: 0.39,
+        sliceCount: 32
+      }
+    : closeUp
+      ? {
+          faceCenterY: 0.46,
+          faceRange: 0.48,
+          hairLineY: 0.26,
+          shoulderLineY: 0.82,
+          eyeLineY: 0.4,
+          mouthLineY: 0.58,
+          sliceCount: 20
+        }
+      : {
+          faceCenterY: 0.39,
+          faceRange: 0.34,
+          hairLineY: 0.31,
+          shoulderLineY: 0.63,
+          eyeLineY: 0.34,
+          mouthLineY: 0.49,
+          sliceCount: 24
+        };
+
+  return defaultAvatarIllustrationRig({ ...inferred, ...overrides });
+};
+
 export const defaultTransform = (overrides: Partial<Transform> = {}): Transform =>
   clampTransform({
     x: 0.05,
@@ -198,16 +250,20 @@ export const defaultTransform = (overrides: Partial<Transform> = {}): Transform 
     ...overrides
   });
 
-export const createDefaultScene = (): SceneDocument => ({
-  version: 1,
-  id: "scene-main",
-  name: "Main Scene",
-  canvas: {
+export const createDefaultScene = (): SceneDocument => {
+  const canvas = {
     width: 1920,
     height: 1080,
     fps: 30
-  },
-  sources: [
+  };
+  const avatarTransform = defaultTransform({ x: 0.67, y: 0.44, width: 0.26, height: 0.45 });
+
+  return {
+    version: 1,
+    id: "scene-main",
+    name: "Main Scene",
+    canvas,
+    sources: [
     {
       id: "source-background",
       kind: "solid",
@@ -237,12 +293,12 @@ export const createDefaultScene = (): SceneDocument => ({
       blendMode: "normal",
       avatarId: "default-pngtuber",
       imageUri: "",
-      illustrationRig: defaultAvatarIllustrationRig(),
+      illustrationRig: inferAvatarIllustrationRig({ canvas, transform: avatarTransform }),
       expression: "neutral",
       mouthOpen: 0.18,
       blink: 0,
       motion: defaultAvatarMotion(),
-      transform: defaultTransform({ x: 0.67, y: 0.44, width: 0.26, height: 0.45 })
+      transform: avatarTransform
     },
     {
       id: "source-label",
@@ -274,7 +330,8 @@ export const createDefaultScene = (): SceneDocument => ({
       transform: defaultTransform({ x: 0.04, y: 0.64, width: 0.48, height: 0.28 })
     }
   ]
-});
+  };
+};
 
 export const createSource = (kind: SourceKind): SceneSource => {
   const base: BaseSource = {
@@ -297,7 +354,7 @@ export const createSource = (kind: SourceKind): SceneSource => {
         kind,
         avatarId: "default-pngtuber",
         imageUri: "",
-        illustrationRig: defaultAvatarIllustrationRig(),
+        illustrationRig: inferAvatarIllustrationRig({ transform: base.transform }),
         expression: "neutral",
         mouthOpen: 0,
         blink: 0,
@@ -342,9 +399,10 @@ export const normalizeSceneDocument = (value: unknown): SceneDocument => {
     return fallback;
   }
 
+  const canvas = normalizeCanvas(value.canvas, fallback.canvas);
   const sources = Array.isArray(value.sources)
     ? value.sources.flatMap((source) => {
-        const normalized = normalizeSceneSource(source);
+        const normalized = normalizeSceneSource(source, canvas);
         return normalized ? [normalized] : [];
       })
     : fallback.sources;
@@ -353,7 +411,7 @@ export const normalizeSceneDocument = (value: unknown): SceneDocument => {
     version: 1,
     id: stringValue(value.id, fallback.id),
     name: stringValue(value.name, fallback.name),
-    canvas: normalizeCanvas(value.canvas, fallback.canvas),
+    canvas,
     sources: sources.length > 0 ? sources : fallback.sources
   };
 };
@@ -396,6 +454,20 @@ export const updateTransform = (
     ...source,
     transform: clampTransform({ ...source.transform, ...transform })
   }));
+
+export const applyInferredAvatarIllustrationRig = (
+  scene: SceneDocument,
+  sourceId: string,
+  overrides: Partial<AvatarIllustrationRig> = {}
+): SceneDocument =>
+  updateSource(scene, sourceId, (source) =>
+    source.kind === "pngtuber"
+      ? {
+          ...source,
+          illustrationRig: inferAvatarIllustrationRig({ canvas: scene.canvas, transform: source.transform }, overrides)
+        }
+      : source
+  );
 
 export const setVisibility = (scene: SceneDocument, sourceId: string, visible: boolean): SceneDocument =>
   updateSource(scene, sourceId, (source) => ({ ...source, visible }));
@@ -574,9 +646,13 @@ const normalizeMotionValue = (value: unknown): AvatarMotion => {
   });
 };
 
-const normalizeIllustrationRigValue = (value: unknown): AvatarIllustrationRig => {
+const normalizeIllustrationRigValue = (
+  value: unknown,
+  transform: Transform,
+  canvas: SceneDocument["canvas"]
+): AvatarIllustrationRig => {
   if (!isRecord(value)) {
-    return defaultAvatarIllustrationRig();
+    return inferAvatarIllustrationRig({ canvas, transform });
   }
   return defaultAvatarIllustrationRig({
     faceCenterY: clampedNumber(value.faceCenterY, 0.42, 0.15, 0.85),
@@ -589,7 +665,7 @@ const normalizeIllustrationRigValue = (value: unknown): AvatarIllustrationRig =>
   });
 };
 
-const normalizeSceneSource = (value: unknown): SceneSource | null => {
+const normalizeSceneSource = (value: unknown, canvas: SceneDocument["canvas"] = createDefaultScene().canvas): SceneSource | null => {
   if (!isRecord(value) || !isSourceKind(value.kind)) {
     return null;
   }
@@ -618,7 +694,7 @@ const normalizeSceneSource = (value: unknown): SceneSource | null => {
         kind: "pngtuber",
         avatarId: stringValue(value.avatarId, sourceFallback.avatarId),
         imageUri: typeof value.imageUri === "string" ? value.imageUri : sourceFallback.imageUri,
-        illustrationRig: normalizeIllustrationRigValue(value.illustrationRig),
+        illustrationRig: normalizeIllustrationRigValue(value.illustrationRig, base.transform, canvas),
         expression: stringValue(value.expression, sourceFallback.expression),
         mouthOpen: clampedNumber(value.mouthOpen, sourceFallback.mouthOpen, 0, 1),
         blink: clampedNumber(value.blink, sourceFallback.blink, 0, 1),

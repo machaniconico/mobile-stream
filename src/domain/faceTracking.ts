@@ -1,5 +1,13 @@
 import type { AvatarExpression } from "./avatar";
-import { defaultAvatarMotion, updateSource, type AvatarMotion, type SceneDocument, type SceneSource } from "./scene";
+import {
+  defaultAvatarIllustrationRig,
+  defaultAvatarMotion,
+  updateSource,
+  type AvatarIllustrationRig,
+  type AvatarMotion,
+  type SceneDocument,
+  type SceneSource
+} from "./scene";
 
 export type FaceTrackingInputMode = "simulated" | "native-camera";
 export type FaceTrackingRigMode = "still-image-2d" | "layered-2d";
@@ -227,7 +235,8 @@ export const applyFaceTrackingRuntime = (
       if (!isAvatarSource(current)) {
         return current;
       }
-      const motion = profile.enabled ? runtimeToMotion(runtime, profile) : defaultAvatarMotion();
+      const rig = current.kind === "pngtuber" ? current.illustrationRig : defaultAvatarIllustrationRig();
+      const motion = profile.enabled ? runtimeToMotion(runtime, profile, rig) : defaultAvatarMotion();
       return {
         ...current,
         expression: profile.enabled && profile.autoExpression ? runtime.expression : current.expression,
@@ -244,25 +253,37 @@ export const applyFaceTrackingRuntime = (
 export const clearFaceTrackingMotion = (scene: SceneDocument): SceneDocument =>
   applyFaceTrackingRuntime(scene, createFaceTrackingRuntimeState(), { ...defaultFaceTrackingProfile, enabled: false });
 
-const runtimeToMotion = (runtime: FaceTrackingRuntimeState, profile: FaceTrackingProfile): AvatarMotion => {
+const runtimeToMotion = (
+  runtime: FaceTrackingRuntimeState,
+  profile: FaceTrackingProfile,
+  rig: AvatarIllustrationRig = defaultAvatarIllustrationRig()
+): AvatarMotion => {
   const lostMultiplier = runtime.status === "tracking" ? 1 : 0.35;
   const illustrationRigMultiplier = profile.rigMode === "still-image-2d" || profile.rigMode === "layered-2d" ? lostMultiplier : 0;
   const illustrationStrength = profile.illustrationDeform * illustrationRigMultiplier;
+  const faceInfluence = clamp01((rig.faceRange - 0.08) / 0.52);
+  const lowerBodyInfluence = clamp01((rig.shoulderLineY - 0.45) / 0.5);
+  const hairInfluence = clamp01((0.55 - rig.hairLineY) / 0.5);
+  const mouthEyeSeparation = clamp01((rig.mouthLineY - rig.eyeLineY) / 0.45);
+  const faceMotionScale = 0.84 + faceInfluence * 0.34;
+  const bodyMotionScale = 0.74 + lowerBodyInfluence * 0.36;
+  const hairMotionScale = 0.72 + hairInfluence * 0.46;
+  const mouthMotionScale = 0.84 + mouthEyeSeparation * 0.34;
   return {
-    headYaw: runtime.yaw * profile.headRange * lostMultiplier,
-    headPitch: runtime.pitch * profile.headRange * lostMultiplier,
-    headRoll: runtime.roll * profile.headRange * lostMultiplier,
-    headX: runtime.yaw * 0.035 * profile.headRange * lostMultiplier,
-    headY: runtime.pitch * 0.03 * profile.headRange * lostMultiplier,
-    bodyLean: runtime.roll * profile.bodyRange * lostMultiplier,
+    headYaw: clamp(runtime.yaw * profile.headRange * lostMultiplier * faceMotionScale, -1, 1),
+    headPitch: clamp(runtime.pitch * profile.headRange * lostMultiplier * faceMotionScale, -1, 1),
+    headRoll: clamp(runtime.roll * profile.headRange * lostMultiplier * faceMotionScale, -1, 1),
+    headX: clamp(runtime.yaw * 0.035 * profile.headRange * lostMultiplier * faceMotionScale, -1, 1),
+    headY: clamp(runtime.pitch * 0.03 * profile.headRange * lostMultiplier * faceMotionScale, -1, 1),
+    bodyLean: clamp(runtime.roll * profile.bodyRange * lostMultiplier * bodyMotionScale, -1, 1),
     bodyBounce: Math.abs(runtime.mouthOpen - 0.3) * 0.02 * profile.bodyRange,
     breathing: (0.5 + runtime.smile * 0.5) * 0.018 * profile.bodyRange,
-    depthTilt: clamp01((Math.abs(runtime.yaw) * 0.68 + Math.abs(runtime.pitch) * 0.42) * illustrationStrength),
-    meshWarp: clamp((runtime.yaw + runtime.roll * profile.bodyRange * 0.18) * illustrationStrength, -1, 1),
+    depthTilt: clamp01((Math.abs(runtime.yaw) * 0.68 + Math.abs(runtime.pitch) * 0.42) * illustrationStrength * faceMotionScale),
+    meshWarp: clamp((runtime.yaw + runtime.roll * profile.bodyRange * 0.18) * illustrationStrength * faceMotionScale, -1, 1),
     eyeSquint: clamp01(runtime.blink * profile.eyeDeform * illustrationRigMultiplier),
-    mouthDeform: clamp01(runtime.mouthOpen * profile.mouthDeform * illustrationRigMultiplier),
-    hairSway: clamp((-runtime.yaw * 0.72 + runtime.roll * 0.32) * profile.hairSway * illustrationRigMultiplier, -1, 1),
-    shoulderSway: clamp((runtime.roll * 0.62 + runtime.yaw * 0.2) * profile.bodyRange * illustrationRigMultiplier, -1, 1),
+    mouthDeform: clamp01(runtime.mouthOpen * profile.mouthDeform * illustrationRigMultiplier * mouthMotionScale),
+    hairSway: clamp((-runtime.yaw * 0.72 + runtime.roll * 0.32) * profile.hairSway * illustrationRigMultiplier * hairMotionScale, -1, 1),
+    shoulderSway: clamp((runtime.roll * 0.62 + runtime.yaw * 0.2) * profile.bodyRange * illustrationRigMultiplier * bodyMotionScale, -1, 1),
     confidence: runtime.confidence
   };
 };

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   addSource,
+  applyInferredAvatarIllustrationRig,
   createDefaultScene,
   createSource,
+  inferAvatarIllustrationRig,
   normalizeSceneDocument,
   reorderSource,
   setLocked,
@@ -79,9 +81,39 @@ describe("scene document", () => {
     expect(avatarNode?.payload.headYaw).toBe(0);
     expect(avatarNode?.payload.meshWarp).toBe(0);
     expect(avatarNode?.payload.eyeSquint).toBe(0);
-    expect(avatarNode?.payload.rigFaceCenterY).toBe(0.42);
+    expect(avatarNode?.payload.rigFaceCenterY).toBe(0.39);
     expect(avatarNode?.payload.rigSliceCount).toBe(24);
     expect(avatarNode?.payload.imageUri).toBe("");
+  });
+
+  it("infers still-image illustration rig landmarks from avatar framing", () => {
+    const canvas = { width: 1920, height: 1080, fps: 30 };
+    const bust = inferAvatarIllustrationRig({ canvas, transform: { width: 0.3, height: 0.42 } });
+    const fullBody = inferAvatarIllustrationRig({ canvas, transform: { width: 0.18, height: 0.7 } });
+    const closeUp = inferAvatarIllustrationRig({ canvas, transform: { width: 0.62, height: 0.24 } });
+
+    expect(fullBody.faceCenterY).toBeLessThan(bust.faceCenterY);
+    expect(fullBody.sliceCount).toBeGreaterThan(bust.sliceCount);
+    expect(closeUp.faceRange).toBeGreaterThan(bust.faceRange);
+    expect(closeUp.shoulderLineY).toBeGreaterThan(bust.shoulderLineY);
+  });
+
+  it("applies inferred illustration rig to selected PNGTuber sources", () => {
+    const scene = createDefaultScene();
+    const avatar = scene.sources.find((source) => source.kind === "pngtuber");
+    expect(avatar).toBeDefined();
+
+    const reframed = updateTransform(scene, avatar!.id, { width: 0.18, height: 0.72 });
+    const rigged = applyInferredAvatarIllustrationRig(reframed, avatar!.id, { mouthLineY: 0.42 });
+    const riggedAvatar = rigged.sources.find((source) => source.kind === "pngtuber");
+
+    expect(riggedAvatar?.kind).toBe("pngtuber");
+    expect(riggedAvatar?.illustrationRig).toMatchObject({
+      faceCenterY: 0.32,
+      shoulderLineY: 0.54,
+      mouthLineY: 0.42,
+      sliceCount: 32
+    });
   });
 
   it("builds transparent chat overlay payloads from runtime comments without persisting message text", () => {

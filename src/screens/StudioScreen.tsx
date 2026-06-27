@@ -21,6 +21,7 @@ import {
   Square,
   Unlock,
   Volume2,
+  Wand2,
   Wifi
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -55,6 +56,7 @@ import { applyMicEffectPreset, micEffectPresets, type MicEffectPresetId, type St
 import type { ReadinessReport } from "../domain/readiness";
 import {
   addSource,
+  applyInferredAvatarIllustrationRig,
   createSource,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
@@ -475,6 +477,13 @@ export const StudioScreen = ({
     );
   };
 
+  const autoRigSelectedAvatar = () => {
+    if (setupLocked || selectedSource.kind !== "pngtuber") {
+      return;
+    }
+    onSceneChange(applyInferredAvatarIllustrationRig(scene, selectedSource.id));
+  };
+
   return (
     <main className="studio-shell">
       <header className="top-bar">
@@ -638,6 +647,10 @@ export const StudioScreen = ({
             ) : null}
             {selectedSource.kind === "pngtuber" ? (
               <>
+                <button className="secondary-action compact-action" type="button" disabled={setupLocked} onClick={autoRigSelectedAvatar}>
+                  <Wand2 size={16} />
+                  <span>Auto rig</span>
+                </button>
                 <SpeechSlider
                   label="Face Y"
                   value={selectedSource.illustrationRig.faceCenterY}
