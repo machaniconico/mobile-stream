@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { dirname, extname, join, resolve } from "node:path";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, env, exit, platform } from "node:process";
 import { pathToFileURL } from "node:url";
 import { iosReleasePaths } from "./ios-release-config.mjs";
@@ -317,17 +317,28 @@ function writeStoreReleaseReport(report, reportJsonPath) {
   if (!report || !reportJsonPath) {
     return;
   }
-  const resolvedPath = resolve(reportJsonPath);
+  const relativeReportPath = workspaceRelativePath(reportJsonPath);
+  if (!relativeReportPath) {
+    throw new Error(`Store release report output path must be inside the workspace: ${reportJsonPath}`);
+  }
+  assertWritableRegularPath(relativeReportPath, "Store release report");
+  const resolvedPath = resolve(relativeReportPath);
   mkdirSync(dirname(resolvedPath), { recursive: true });
   writeFileSync(resolvedPath, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(`Store release report written to ${reportJsonPath}`);
+  console.log(`Store release report written to ${relativeReportPath}`);
 }
 
 function distributionManifestSummary(manifestPath, manifest) {
-  const resolvedPath = resolve(manifestPath);
+  const relativeManifestPath = workspaceRelativePath(manifestPath);
+  if (!relativeManifestPath) {
+    throw new Error(`Store release distribution manifest must be inside the workspace: ${manifestPath}`);
+  }
+  assertRegularSourceFile(relativeManifestPath, "Store release distribution manifest");
+  const resolvedPath = resolve(relativeManifestPath);
+  const manifestStat = lstatSync(resolvedPath);
   return {
-    path: manifestPath,
-    bytes: statSync(resolvedPath).size,
+    path: relativeManifestPath,
+    bytes: manifestStat.size,
     sha256: fileSha256(resolvedPath),
     artifactCount: Array.isArray(manifest.artifacts) ? manifest.artifacts.length : 0,
     artifacts: (manifest.artifacts || []).map((artifact) => ({
@@ -341,7 +352,12 @@ function distributionManifestSummary(manifestPath, manifest) {
 }
 
 export function readStoreReleaseReport(reportPath = storeReleaseReportDefaultPath) {
-  return JSON.parse(readFileSync(resolve(reportPath), "utf8"));
+  const relativeReportPath = workspaceRelativePath(reportPath);
+  if (!relativeReportPath) {
+    throw new Error(`Store release report must be inside the workspace: ${reportPath}`);
+  }
+  assertRegularSourceFile(relativeReportPath, "Store release report");
+  return JSON.parse(readFileSync(resolve(relativeReportPath), "utf8"));
 }
 
 export function validateStoreReleaseReport(
@@ -463,10 +479,11 @@ function validateRequiredStoreReleaseSteps(report, platforms, steps, failures, {
 }
 
 export function collectStoreReleaseArtifactRecords({ reportPath = storeReleaseReportDefaultPath } = {}) {
-  if (!reportPath || !existsSync(resolve(reportPath))) {
+  const relativeReportPath = workspaceRelativePath(reportPath);
+  if (!relativeReportPath || !existsSync(resolve(relativeReportPath))) {
     return [];
   }
-  return [createReleaseArtifactRecord(storeReleaseReportArtifactGroup, reportPath)];
+  return [createReleaseArtifactRecord(storeReleaseReportArtifactGroup, relativeReportPath)];
 }
 
 export function validateStoreReleaseReportInReleaseReport(
@@ -525,14 +542,31 @@ function validateStoreReleaseDistributionManifest(report, reportPath, failures) 
     failures.push("Store release report distribution manifest evidence is missing or invalid.");
     return;
   }
-  if (!existsSync(resolve(summary.path))) {
-    failures.push(`Store release report distribution manifest does not exist: ${summary.path}.`);
+  const relativeSummaryPath = workspaceRecordPath(summary.path);
+  if (!relativeSummaryPath) {
+    failures.push(`Store release report distribution manifest path must be workspace-relative: ${summary.path}.`);
     return;
   }
-  const content = readFileSync(resolve(summary.path));
+  if (!validateNoSymlinkedParentDirectories(relativeSummaryPath, "Store release report distribution manifest", failures)) {
+    return;
+  }
+  const summaryStat = lstatExisting(relativeSummaryPath);
+  if (!summaryStat) {
+    failures.push(`Store release report distribution manifest does not exist: ${relativeSummaryPath}.`);
+    return;
+  }
+  if (summaryStat.isSymbolicLink()) {
+    failures.push(`Store release report distribution manifest must not be a symbolic link: ${relativeSummaryPath}.`);
+    return;
+  }
+  if (!summaryStat.isFile()) {
+    failures.push(`Store release report distribution manifest must point to a file: ${relativeSummaryPath}.`);
+    return;
+  }
+  const content = readFileSync(resolve(relativeSummaryPath));
   const actualSha256 = createHash("sha256").update(content).digest("hex");
   if (content.byteLength !== summary.bytes || actualSha256 !== summary.sha256) {
-    failures.push(`Store release report distribution manifest metadata mismatch for ${summary.path}.`);
+    failures.push(`Store release report distribution manifest metadata mismatch for ${relativeSummaryPath}.`);
     return;
   }
 
@@ -545,7 +579,7 @@ function validateStoreReleaseDistributionManifest(report, reportPath, failures) 
   }
   const manifestArtifacts = Array.isArray(manifest.artifacts) ? manifest.artifacts : [];
   if (summary.artifactCount !== manifestArtifacts.length) {
-    failures.push(`Store release report distribution manifest artifact count mismatch for ${summary.path}.`);
+    failures.push(`Store release report distribution manifest artifact count mismatch for ${relativeSummaryPath}.`);
   }
   const summaryArtifacts = Array.isArray(summary.artifacts) ? summary.artifacts : [];
   for (const manifestArtifact of manifestArtifacts) {
@@ -558,8 +592,22 @@ function validateStoreReleaseDistributionManifest(report, reportPath, failures) 
       failures.push(`Store release report distribution artifact metadata mismatch for ${manifestArtifact.path}.`);
     }
   }
-  if (reportPath && !existsSync(resolve(reportPath))) {
-    failures.push(`Store release report file does not exist: ${reportPath}.`);
+  if (reportPath) {
+    const relativeReportPath = workspaceRecordPath(reportPath);
+    if (!relativeReportPath) {
+      failures.push(`Store release report path must be workspace-relative: ${reportPath}.`);
+    } else if (!validateNoSymlinkedParentDirectories(relativeReportPath, "Store release report", failures)) {
+      return;
+    } else {
+      const reportStat = lstatExisting(relativeReportPath);
+      if (!reportStat) {
+        failures.push(`Store release report file does not exist: ${relativeReportPath}.`);
+      } else if (reportStat.isSymbolicLink()) {
+        failures.push(`Store release report must not be a symbolic link: ${relativeReportPath}.`);
+      } else if (!reportStat.isFile()) {
+        failures.push(`Store release report must point to a file: ${relativeReportPath}.`);
+      }
+    }
   }
 }
 
@@ -581,14 +629,20 @@ function commandOutput(command, args) {
 }
 
 function fileSha256(path) {
+  assertRegularSourceFile(path, "Store release artifact");
   return createHash("sha256").update(readFileSync(resolve(path))).digest("hex");
 }
 
 function createReleaseArtifactRecord(group, path) {
-  const content = readFileSync(resolve(path));
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    throw new Error(`Artifact path must be inside the workspace: ${path}`);
+  }
+  assertRegularSourceFile(relativePath, "Store release artifact");
+  const content = readFileSync(resolve(relativePath));
   return {
     group,
-    path: relativeToWorkspace(path),
+    path: relativePath,
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
@@ -611,7 +665,99 @@ function ageInHours(value, now) {
 }
 
 function relativeToWorkspace(path) {
-  return resolve(path).startsWith(resolve(cwd())) ? resolve(path).slice(resolve(cwd()).length + 1) : path;
+  return workspaceRelativePath(path) || path;
+}
+
+function assertRegularSourceFile(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatExisting(path);
+  if (!stat) {
+    throw new Error(`${label} does not exist: ${path}`);
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} must point to a file: ${path}`);
+  }
+}
+
+function assertWritableRegularPath(path, label) {
+  assertNoSymlinkedParentDirectories(path, label);
+  const stat = lstatExisting(path);
+  if (!stat) {
+    return;
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} output must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} output must point to a file: ${path}`);
+  }
+}
+
+function validateNoSymlinkedParentDirectories(path, label, failures) {
+  try {
+    assertNoSymlinkedParentDirectories(path, label);
+    return true;
+  } catch (error) {
+    failures.push(`${error instanceof Error ? error.message : String(error)}.`);
+    return false;
+  }
+}
+
+function assertNoSymlinkedParentDirectories(path, label) {
+  const relativePath = workspaceRelativePath(path);
+  if (!relativePath) {
+    return;
+  }
+  const parts = relativePath.split(sep).filter(Boolean);
+  let currentPath = cwd();
+  for (const part of parts.slice(0, -1)) {
+    currentPath = join(currentPath, part);
+    const stat = lstatExisting(currentPath);
+    if (!stat) {
+      return;
+    }
+    const displayPath = relative(cwd(), currentPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`${label} path parent must not be a symbolic link: ${displayPath}`);
+    }
+    if (!stat.isDirectory()) {
+      throw new Error(`${label} path parent must point to a directory: ${displayPath}`);
+    }
+  }
+}
+
+function lstatExisting(path) {
+  try {
+    return lstatSync(resolve(path));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function workspaceRelativePath(path) {
+  if (!path) {
+    return "";
+  }
+  const absolutePath = resolve(path);
+  const relativePath = relative(cwd(), absolutePath);
+  if (!relativePath || relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
+    return "";
+  }
+  return relativePath;
+}
+
+function workspaceRecordPath(path) {
+  if (typeof path !== "string") {
+    return "";
+  }
+  const relativePath = workspaceRelativePath(path);
+  return relativePath === path ? relativePath : "";
 }
 
 function isDirtyWorktree() {

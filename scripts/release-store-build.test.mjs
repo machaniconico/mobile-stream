@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { validateStoreReleaseReport } from "./release-store-build.mjs";
+import { readStoreReleaseReport, validateStoreReleaseReport } from "./release-store-build.mjs";
 
 const fixtureRoot = ".artifacts/release-store-build-test";
 const androidAab = `${fixtureRoot}/app-release.aab`;
@@ -46,6 +47,87 @@ describe("store release orchestration", () => {
       platforms: ["android", "ios"]
     });
     expect(report.steps.every((step) => step.status === "planned")).toBe(true);
+  });
+
+  it("rejects symlinked store release report output paths before writing linked targets", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    const outsideReport = `${fixtureRoot}/outside-report.json`;
+    const reportSymlink = `${fixtureRoot}/report-link.json`;
+    writeFileSync(outsideReport, "unchanged");
+    symlinkSync(resolve(outsideReport), reportSymlink);
+
+    const result = runStoreRelease(["--dry-run", "--manifest", manifestPath, "--report-json", reportSymlink]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store release report output must not be a symbolic link: ${reportSymlink}`);
+    expect(readFileSync(outsideReport, "utf8")).toBe("unchanged");
+  });
+
+  it("rejects dangling store release report output symlinks before creating linked targets", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    const missingReportTarget = `${fixtureRoot}/missing-report-target.json`;
+    const reportSymlink = `${fixtureRoot}/report-link.json`;
+    symlinkSync(resolve(missingReportTarget), reportSymlink);
+
+    const result = runStoreRelease(["--dry-run", "--manifest", manifestPath, "--report-json", reportSymlink]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store release report output must not be a symbolic link: ${reportSymlink}`);
+    expect(existsSync(missingReportTarget)).toBe(false);
+  });
+
+  it("rejects store release report output paths with symlinked parents before writing linked targets", () => {
+    const outsideReportDir = `${fixtureRoot}/outside-reports`;
+    const reportLinkDir = `${fixtureRoot}/report-link-dir`;
+    mkdirSync(outsideReportDir, { recursive: true });
+    symlinkSync(resolve(outsideReportDir), reportLinkDir);
+
+    const result = runStoreRelease([
+      "--dry-run",
+      "--manifest",
+      manifestPath,
+      "--report-json",
+      `${reportLinkDir}/store-release-report.json`
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store release report path parent must not be a symbolic link: ${reportLinkDir}`);
+    expect(existsSync(`${outsideReportDir}/store-release-report.json`)).toBe(false);
+  });
+
+  it("rejects symlinked store release report input paths before reading linked reports", () => {
+    expect(runStoreRelease(["--dry-run", "--manifest", manifestPath, "--report-json", reportPath]).status).toBe(0);
+    const reportSymlink = `${fixtureRoot}/report-link.json`;
+    symlinkSync(resolve(reportPath), reportSymlink);
+
+    expect(() => readStoreReleaseReport(reportSymlink)).toThrow(
+      `Store release report must not be a symbolic link: ${reportSymlink}`
+    );
+  });
+
+  it("rejects dangling store release report input symlinks before creating linked targets", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    const missingReportTarget = `${fixtureRoot}/missing-report-target.json`;
+    const reportSymlink = `${fixtureRoot}/report-link.json`;
+    symlinkSync(resolve(missingReportTarget), reportSymlink);
+
+    expect(() => readStoreReleaseReport(reportSymlink)).toThrow(
+      `Store release report must not be a symbolic link: ${reportSymlink}`
+    );
+    expect(existsSync(missingReportTarget)).toBe(false);
+  });
+
+  it("rejects store release report input paths with symlinked parents before reading linked reports", () => {
+    expect(runStoreRelease(["--dry-run", "--manifest", manifestPath, "--report-json", reportPath]).status).toBe(0);
+    const outsideReportDir = `${fixtureRoot}/outside-reports`;
+    const reportLinkDir = `${fixtureRoot}/report-link-dir`;
+    mkdirSync(outsideReportDir, { recursive: true });
+    writeFileSync(`${outsideReportDir}/store-release-report.json`, readFileSync(reportPath));
+    symlinkSync(resolve(outsideReportDir), reportLinkDir);
+
+    expect(() => readStoreReleaseReport(`${reportLinkDir}/store-release-report.json`)).toThrow(
+      `Store release report path parent must not be a symbolic link: ${reportLinkDir}`
+    );
   });
 
   it("writes a distribution manifest from existing artifacts when build and env checks are skipped", () => {
@@ -178,6 +260,80 @@ describe("store release orchestration", () => {
     });
 
     expect(failures).toContain("Store release report git dirty state is missing.");
+  });
+
+  it("rejects symlinked distribution manifests referenced by store release reports", () => {
+    writeDistributionFiles();
+    expect(
+      runStoreRelease([
+        "--skip-build",
+        "--skip-env",
+        "--allow-dirty",
+        "--manifest",
+        manifestPath,
+        "--report-json",
+        reportPath,
+        "--android-aab",
+        androidAab,
+        "--ios-ipa",
+        iosIpa
+      ]).status
+    ).toBe(0);
+
+    const outsideManifest = `${fixtureRoot}/outside-distribution-artifacts.json`;
+    writeFileSync(outsideManifest, readFileSync(manifestPath));
+    rmSync(manifestPath);
+    symlinkSync(resolve(outsideManifest), manifestPath);
+
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    const failures = validateStoreReleaseReport(report, {
+      reportPath,
+      currentCommit: report.git.commit,
+      allowDirty: true,
+      allowCommitMismatch: true,
+      requirePassed: false
+    });
+
+    expect(failures).toContain(`Store release report distribution manifest must not be a symbolic link: ${manifestPath}.`);
+  });
+
+  it("rejects distribution manifest paths with symlinked parents in store release reports", () => {
+    writeDistributionFiles();
+    expect(
+      runStoreRelease([
+        "--skip-build",
+        "--skip-env",
+        "--allow-dirty",
+        "--manifest",
+        manifestPath,
+        "--report-json",
+        reportPath,
+        "--android-aab",
+        androidAab,
+        "--ios-ipa",
+        iosIpa
+      ]).status
+    ).toBe(0);
+
+    const outsideManifestDir = `${fixtureRoot}/outside-manifests`;
+    const manifestLinkDir = `${fixtureRoot}/manifest-link-dir`;
+    mkdirSync(outsideManifestDir, { recursive: true });
+    writeFileSync(`${outsideManifestDir}/distribution-artifacts.json`, readFileSync(manifestPath));
+    symlinkSync(resolve(outsideManifestDir), manifestLinkDir);
+
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    report.artifacts.distributionManifest.path = `${manifestLinkDir}/distribution-artifacts.json`;
+    const failures = validateStoreReleaseReport(report, {
+      reportPath,
+      currentCommit: report.git.commit,
+      allowDirty: true,
+      allowCommitMismatch: true,
+      requirePassed: false
+    });
+
+    expect(failures).toContain(
+      `Store release report distribution manifest path parent must not be a symbolic link: ${manifestLinkDir}.`
+    );
   });
 
   it("rejects commercial store release reports missing required platform steps", () => {
