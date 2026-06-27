@@ -1,15 +1,20 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { argv, env, exit } from "node:process";
+import { assertWritableRegularPath } from "./ios-release-path-safety.mjs";
 import { iosReleasePaths, renderIosExportOptionsPlist } from "./ios-release-config.mjs";
 
 export function createIosExportOptions({ args = argv.slice(2), envVars = env } = {}) {
   const parsed = parseArgs(args);
   const paths = iosReleasePaths(envVars);
   const outputPath = parsed.outputPath || paths.exportOptionsPath;
-  const absoluteOutputPath = resolve(outputPath);
-  const plist = renderIosExportOptionsPlist(envVars);
+  return writeIosExportOptionsPlist(outputPath, envVars);
+}
 
+export function writeIosExportOptionsPlist(outputPath, envVars = env) {
+  const absoluteOutputPath = resolve(outputPath);
+  assertWritableRegularPath(absoluteOutputPath, "iOS export options");
+  const plist = renderIosExportOptionsPlist(envVars);
   mkdirSync(dirname(absoluteOutputPath), { recursive: true });
   writeFileSync(absoluteOutputPath, plist);
   return absoluteOutputPath;

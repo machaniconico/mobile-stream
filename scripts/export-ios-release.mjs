@@ -1,15 +1,16 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { mkdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { env, exit } from "node:process";
-import { iosExportArgs, iosReleasePaths, renderIosExportOptionsPlist } from "./ios-release-config.mjs";
+import { writeIosExportOptionsPlist } from "./create-ios-export-options.mjs";
+import { assertWritableDirectoryPath } from "./ios-release-path-safety.mjs";
+import { iosExportArgs, iosReleasePaths } from "./ios-release-config.mjs";
 
 function run() {
   try {
     const paths = iosReleasePaths(env);
-    mkdirSync(dirname(paths.exportOptionsPath), { recursive: true });
-    mkdirSync(paths.exportPath, { recursive: true });
-    writeFileSync(paths.exportOptionsPath, renderIosExportOptionsPlist(env));
+    const exportPath = assertWritableDirectoryPath(paths.exportPath, "iOS export directory");
+    mkdirSync(exportPath, { recursive: true });
+    writeIosExportOptionsPlist(paths.exportOptionsPath, env);
 
     const result = spawnSync("xcodebuild", iosExportArgs(env), { stdio: "inherit" });
     if (result.error) {
