@@ -127,13 +127,13 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v18 support bundles that do not carry native runtime manifest proof", () => {
+  it("blocks v19 support bundles that do not carry audio monitor manifest proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         app: {
           name: "MobileLiveCaster",
           reportVersion: 1,
-          bundleVersion: 18
+          bundleVersion: 19
         }
       }),
       { now }
@@ -210,6 +210,55 @@ describe("commercial release gate", () => {
       expect.objectContaining({
         code: "validation-evidence-manifest-integrity",
         detail: expect.stringContaining("iOS native runtime proof")
+      })
+    );
+  });
+
+  it("blocks audio summary claims when the manifest lacks native monitor write proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", audioNativeMonitorWrittenFrames: 0 }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS mic/headphone proof")
+      })
+    );
+  });
+
+  it("blocks audio summary claims when the manifest has monitor drops or missing headphone proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              audioNativeMonitorHeadphonesConnected: false,
+              audioNativeMonitorDroppedFrames: 1
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS mic/headphone proof")
       })
     );
   });
@@ -480,7 +529,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 19 as const
+    bundleVersion: 20 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   summary = {}
@@ -584,6 +633,14 @@ const manifestRun = ({
   faceTrackingActiveMotionCount = 1,
   faceTrackingRigIssueCount = 0,
   audioStatus = "pass",
+  audioMonitorHeadphonesOnly = true,
+  audioNativeMonitorHeadphonesConnected = true,
+  audioNativeMonitorWrittenFrames = 24_576,
+  audioNativeMonitorDroppedFrames = 0,
+  audioNativeMonitorWrittenBuffers = 48,
+  audioNativeMonitorDroppedBuffers = 0,
+  audioMonitorLatencyStatus = "pass",
+  audioMonitorLatencyMs = 92,
   chatReadoutStatus = "pass",
   chatReadoutSpokenMessageCount = 1,
   chatReadoutSpeechFailureCount = 0,
@@ -616,6 +673,14 @@ const manifestRun = ({
   faceTrackingActiveMotionCount?: ValidationManifestRun["faceTrackingActiveMotionCount"];
   faceTrackingRigIssueCount?: ValidationManifestRun["faceTrackingRigIssueCount"];
   audioStatus?: ValidationManifestRun["audioStatus"];
+  audioMonitorHeadphonesOnly?: ValidationManifestRun["audioMonitorHeadphonesOnly"];
+  audioNativeMonitorHeadphonesConnected?: ValidationManifestRun["audioNativeMonitorHeadphonesConnected"];
+  audioNativeMonitorWrittenFrames?: ValidationManifestRun["audioNativeMonitorWrittenFrames"];
+  audioNativeMonitorDroppedFrames?: ValidationManifestRun["audioNativeMonitorDroppedFrames"];
+  audioNativeMonitorWrittenBuffers?: ValidationManifestRun["audioNativeMonitorWrittenBuffers"];
+  audioNativeMonitorDroppedBuffers?: ValidationManifestRun["audioNativeMonitorDroppedBuffers"];
+  audioMonitorLatencyStatus?: ValidationManifestRun["audioMonitorLatencyStatus"];
+  audioMonitorLatencyMs?: ValidationManifestRun["audioMonitorLatencyMs"];
   chatReadoutStatus?: ValidationManifestRun["chatReadoutStatus"];
   chatReadoutSpokenMessageCount?: ValidationManifestRun["chatReadoutSpokenMessageCount"];
   chatReadoutSpeechFailureCount?: ValidationManifestRun["chatReadoutSpeechFailureCount"];
@@ -656,6 +721,14 @@ const manifestRun = ({
   faceTrackingActiveMotionCount,
   faceTrackingRigIssueCount,
   audioStatus,
+  audioMonitorHeadphonesOnly,
+  audioNativeMonitorHeadphonesConnected,
+  audioNativeMonitorWrittenFrames,
+  audioNativeMonitorDroppedFrames,
+  audioNativeMonitorWrittenBuffers,
+  audioNativeMonitorDroppedBuffers,
+  audioMonitorLatencyStatus,
+  audioMonitorLatencyMs,
   chatReadoutStatus,
   chatReadoutSpokenMessageCount,
   chatReadoutSpeechFailureCount,

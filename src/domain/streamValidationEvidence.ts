@@ -204,6 +204,14 @@ export interface StreamValidationEvidenceRunManifestItem {
   faceTrackingActiveMotionCount: number;
   faceTrackingRigIssueCount: number;
   audioStatus: StreamValidationAudioSummary["status"] | null;
+  audioMonitorHeadphonesOnly: boolean;
+  audioNativeMonitorHeadphonesConnected: boolean;
+  audioNativeMonitorWrittenFrames: number;
+  audioNativeMonitorDroppedFrames: number;
+  audioNativeMonitorWrittenBuffers: number;
+  audioNativeMonitorDroppedBuffers: number;
+  audioMonitorLatencyStatus: StreamValidationAudioSummary["monitorLatencyStatus"] | null;
+  audioMonitorLatencyMs: number | null;
   chatReadoutStatus: StreamValidationChatReadoutSummary["status"] | null;
   chatReadoutSpokenMessageCount: number;
   chatReadoutSpeechFailureCount: number;
@@ -2089,6 +2097,14 @@ const createEvidenceRunManifestItem = (
   faceTrackingActiveMotionCount: run.faceTracking?.activeMotionCount ?? 0,
   faceTrackingRigIssueCount: run.faceTracking?.rigIssueCount ?? 0,
   audioStatus: run.audio?.status ?? null,
+  audioMonitorHeadphonesOnly: run.audio?.monitorHeadphonesOnly ?? false,
+  audioNativeMonitorHeadphonesConnected: run.audio?.nativeMonitorHeadphonesConnected ?? false,
+  audioNativeMonitorWrittenFrames: run.audio?.nativeMonitorWrittenFrames ?? 0,
+  audioNativeMonitorDroppedFrames: run.audio?.nativeMonitorDroppedFrames ?? 0,
+  audioNativeMonitorWrittenBuffers: run.audio?.nativeMonitorWrittenBuffers ?? 0,
+  audioNativeMonitorDroppedBuffers: run.audio?.nativeMonitorDroppedBuffers ?? 0,
+  audioMonitorLatencyStatus: run.audio?.monitorLatencyStatus ?? null,
+  audioMonitorLatencyMs: run.audio?.monitorLatencyMs ?? null,
   chatReadoutStatus: run.chatReadout?.status ?? null,
   chatReadoutSpokenMessageCount: run.chatReadout?.spokenMessageCount ?? 0,
   chatReadoutSpeechFailureCount: run.chatReadout?.speechFailureCount ?? 0,

@@ -27,19 +27,19 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Can release: yes");
   });
 
-  it("blocks v18 support bundles without native runtime manifest proof", () => {
+  it("blocks v19 support bundles without audio monitor manifest proof", () => {
     writeBundle({
       app: {
         name: "MobileLiveCaster",
         reportVersion: 1,
-        bundleVersion: 18
+        bundleVersion: 19
       }
     });
 
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v18 is older than the required v19.");
+    expect(result.stdout).toContain("Support bundle v19 is older than the required v20.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -130,6 +130,41 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("loaded still-image assets");
+  });
+
+  it("blocks audio claims when retained manifests lack native monitor write proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { audioNativeMonitorWrittenFrames: 0 }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("native monitor write/drop proof");
+  });
+
+  it("blocks audio claims when retained manifests keep monitor drops or miss headphone proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            audioNativeMonitorHeadphonesConnected: false,
+            audioNativeMonitorDroppedFrames: 1
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("headphone route proof");
   });
 
   it("blocks avatar-motion claims when retained manifests keep still-image rig issues", () => {
@@ -307,7 +342,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 19
+      bundleVersion: 20
     },
     generatedAt: new Date().toISOString(),
     ...patch,
@@ -352,6 +387,14 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   faceTrackingActiveMotionCount: 1,
   faceTrackingRigIssueCount: 0,
   audioStatus: "pass",
+  audioMonitorHeadphonesOnly: true,
+  audioNativeMonitorHeadphonesConnected: true,
+  audioNativeMonitorWrittenFrames: 24576,
+  audioNativeMonitorDroppedFrames: 0,
+  audioNativeMonitorWrittenBuffers: 48,
+  audioNativeMonitorDroppedBuffers: 0,
+  audioMonitorLatencyStatus: "pass",
+  audioMonitorLatencyMs: 92,
   chatReadoutStatus: "pass",
   chatReadoutSpokenMessageCount: 1,
   chatReadoutSpeechFailureCount: 0,

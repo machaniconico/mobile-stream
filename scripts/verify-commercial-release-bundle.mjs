@@ -3,7 +3,7 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
-const minimumSupportBundleVersion = 19;
+const minimumSupportBundleVersion = 20;
 const defaultMaxBundleAgeHours = 24;
 const redactedMarker = "[redacted]";
 const sensitivePropertyNames = new Set([
@@ -374,7 +374,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v19 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v20 or newer after retaining release-candidate validation runs."
     );
   }
   const eligiblePlatforms = new Set(
@@ -429,7 +429,36 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-native-runtime",
       "Validation evidence manifest",
       "The manifest does not back claimed native runtime evidence with platform-matched video/audio frames, bytes written, compositor status, and loaded still-image assets.",
-      "Export a support bundle v19 or newer after retaining iOS and Android validation runs with native publisher/compositor telemetry from the current scene."
+      "Export a support bundle v20 or newer after retaining iOS and Android validation runs with native publisher/compositor telemetry from the current scene."
+    );
+  }
+  const eligibleAudioPlatforms = new Set(
+    manifest
+      .filter(
+        (run) =>
+          run?.eligible === true &&
+          run?.result === "pass" &&
+          run?.audioStatus === "pass" &&
+          isPositiveNumber(run?.audioNativeMonitorWrittenFrames) &&
+          isPositiveNumber(run?.audioNativeMonitorWrittenBuffers) &&
+          isZeroNumber(run?.audioNativeMonitorDroppedFrames) &&
+          isZeroNumber(run?.audioNativeMonitorDroppedBuffers) &&
+          run?.audioMonitorLatencyStatus === "pass" &&
+          typeof run.audioMonitorLatencyMs === "number" &&
+          Number.isFinite(run.audioMonitorLatencyMs) &&
+          (!run.audioMonitorHeadphonesOnly || run.audioNativeMonitorHeadphonesConnected === true)
+      )
+      .map((run) => run.devicePlatform)
+  );
+  if (
+    (summary.validationEvidenceAudioIosPass === true && !eligibleAudioPlatforms.has("ios")) ||
+    (summary.validationEvidenceAudioAndroidPass === true && !eligibleAudioPlatforms.has("android"))
+  ) {
+    return fail(
+      "validation-evidence-manifest-audio-monitor",
+      "Validation evidence manifest",
+      "The manifest does not back claimed mic/headphone evidence with native monitor write/drop proof, headphone route proof, and measured monitor latency.",
+      "Export a support bundle v20 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones."
     );
   }
   const eligibleAvatarPlatforms = new Set(
@@ -453,7 +482,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-avatar-motion",
       "Validation evidence manifest",
       "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, active motion, and zero still-image rig issues.",
-      "Export a support bundle v19 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and reviewed PNGTuber rig lines."
+      "Export a support bundle v20 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and reviewed PNGTuber rig lines."
     );
   }
   const eligibleChatReadoutPlatforms = new Set(
@@ -476,7 +505,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-chat-readout",
       "Validation evidence manifest",
       "The manifest does not back claimed chat readout evidence with spoken-message success and zero speech failures.",
-      "Export a support bundle v19 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
+      "Export a support bundle v20 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
     );
   }
   return null;

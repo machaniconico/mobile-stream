@@ -1304,6 +1304,17 @@ describe("stream validation evidence", () => {
     });
     expect(summary.audioIosPass).toBe(true);
     expect(summary.audioAndroidPass).toBe(true);
+    expect(summary.runManifest.find((run) => run.devicePlatform === "ios")).toMatchObject({
+      audioStatus: "pass",
+      audioMonitorHeadphonesOnly: true,
+      audioNativeMonitorHeadphonesConnected: true,
+      audioNativeMonitorWrittenFrames: 24576,
+      audioNativeMonitorDroppedFrames: 0,
+      audioNativeMonitorWrittenBuffers: 48,
+      audioNativeMonitorDroppedBuffers: 0,
+      audioMonitorLatencyStatus: "pass",
+      audioMonitorLatencyMs: 92
+    });
     expect(summary.chatReadoutIosPass).toBe(true);
     expect(summary.chatReadoutAndroidPass).toBe(true);
     expect(summary.runManifest.find((run) => run.devicePlatform === "ios")).toMatchObject({

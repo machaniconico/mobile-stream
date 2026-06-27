@@ -33,7 +33,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 19;
+const minimumSupportBundleVersion = 20;
 const defaultMaxBundleAgeHours = 24;
 
 export const createCommercialReleaseGate = (
@@ -301,7 +301,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v19 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v20 or newer after retaining release-candidate validation runs."
     );
   }
   const latestRuns = latestEligibleManifestRunsByPlatform(manifest);
@@ -392,8 +392,8 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): 
       "Android avatar-motion proof",
       isManifestAvatarMotionPass(androidRun)
     ],
-    [summary.validationEvidenceAudioIosPass, "iOS mic/headphone proof", isManifestFeaturePass(iosRun?.audioStatus)],
-    [summary.validationEvidenceAudioAndroidPass, "Android mic/headphone proof", isManifestFeaturePass(androidRun?.audioStatus)],
+    [summary.validationEvidenceAudioIosPass, "iOS mic/headphone proof", isManifestAudioPass(iosRun)],
+    [summary.validationEvidenceAudioAndroidPass, "Android mic/headphone proof", isManifestAudioPass(androidRun)],
     [summary.validationEvidenceChatReadoutIosPass, "iOS spoken chat-readout proof", isManifestChatReadoutPass(iosRun)],
     [
       summary.validationEvidenceChatReadoutAndroidPass,
@@ -594,6 +594,24 @@ const hasLoadedAllManifestNativeRuntimeAssets = (run: ValidationEvidenceManifest
   Number.isFinite(run.nativeRuntimeStillImageAssetLoadedCount) &&
   Number.isFinite(run.nativeRuntimeStillImageAssetCount) &&
   run.nativeRuntimeStillImageAssetLoadedCount >= run.nativeRuntimeStillImageAssetCount;
+
+const isManifestAudioPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  isManifestFeaturePass(run?.audioStatus) &&
+  isPositiveFiniteNumber(run?.audioNativeMonitorWrittenFrames) &&
+  isPositiveFiniteNumber(run?.audioNativeMonitorWrittenBuffers) &&
+  hasZeroManifestAudioDrops(run) &&
+  run?.audioMonitorLatencyStatus === "pass" &&
+  typeof run.audioMonitorLatencyMs === "number" &&
+  Number.isFinite(run.audioMonitorLatencyMs) &&
+  (!run.audioMonitorHeadphonesOnly || run.audioNativeMonitorHeadphonesConnected === true);
+
+const hasZeroManifestAudioDrops = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  typeof run?.audioNativeMonitorDroppedFrames === "number" &&
+  typeof run.audioNativeMonitorDroppedBuffers === "number" &&
+  Number.isFinite(run.audioNativeMonitorDroppedFrames) &&
+  Number.isFinite(run.audioNativeMonitorDroppedBuffers) &&
+  run.audioNativeMonitorDroppedFrames === 0 &&
+  run.audioNativeMonitorDroppedBuffers === 0;
 
 const isManifestAvatarMotionPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.faceTrackingStatus) &&
