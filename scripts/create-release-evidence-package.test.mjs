@@ -635,6 +635,59 @@ describe("release evidence package creator", () => {
     );
   });
 
+  it("rejects packaged dashboard status JSON with non-release platform state after metadata is refreshed", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const sourceStatusPath = ".artifacts/release-evidence-package-test/youtube-dashboard.json";
+    const packagedStatusPath = `${packageDir}/artifacts/${sourceStatusPath}`;
+    const statusJson = JSON.parse(readFileSync(packagedStatusPath, "utf8"));
+    statusJson.broadcastStatus = "complete";
+    writeFileSync(packagedStatusPath, JSON.stringify(statusJson, null, 2));
+
+    const packagedDashboardManifestPath = `${packageDir}/artifacts/${dashboardEvidenceManifestPath}`;
+    const dashboardManifest = JSON.parse(readFileSync(packagedDashboardManifestPath, "utf8"));
+    const statusRecord = dashboardManifest.artifacts.find((artifact) => artifact.path === sourceStatusPath);
+    statusRecord.bytes = readFileSync(packagedStatusPath).byteLength;
+    statusRecord.sha256 = fileSha256(packagedStatusPath);
+    statusRecord.statusSummary = "broadcast:complete:ytBroadcast9xYz stream:active:ytStream8aBc channel:UCMobileLiveCaster";
+    writeFileSync(packagedDashboardManifestPath, JSON.stringify(dashboardManifest, null, 2));
+    refreshPackagedDashboardEvidenceEntries({
+      sourceDashboardArtifactPath: sourceStatusPath,
+      packagedDashboardArtifactPath: packagedStatusPath,
+      packagedDashboardManifestPath
+    });
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package dashboard evidence status JSON .artifacts/release-evidence-package-test/youtube-dashboard.json has non-release YouTube broadcastStatus complete."
+    );
+  });
+
+  it("rejects packaged dashboard screenshot dimensions that do not match the packaged PNG", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedDashboardManifestPath = `${packageDir}/artifacts/${dashboardEvidenceManifestPath}`;
+    const dashboardManifest = JSON.parse(readFileSync(packagedDashboardManifestPath, "utf8"));
+    const screenshotRecord = dashboardManifest.artifacts.find(
+      (artifact) => artifact.platform === "youtube" && artifact.kind === "screenshot"
+    );
+    screenshotRecord.width = 1;
+    screenshotRecord.height = 1;
+    writeFileSync(packagedDashboardManifestPath, JSON.stringify(dashboardManifest, null, 2));
+    refreshPackagedDashboardEvidenceEntries({ packagedDashboardManifestPath });
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package dashboard evidence screenshot dimensions mismatch for .artifacts/release-evidence-package-test/youtube-dashboard.png."
+    );
+  });
+
   it("rejects packages whose store release report artifact is missing from the package", () => {
     resetPackageDir();
     writeReportFixture();
@@ -1825,6 +1878,41 @@ function refreshPackagedChecklistEvidence(packagedChecklistPath) {
   manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
   manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
   refreshPackageArtifactEntry(manifest, storeSubmissionChecklistPath, packagedChecklistPath);
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+}
+
+function refreshPackagedDashboardEvidenceEntries({
+  sourceDashboardArtifactPath = "",
+  packagedDashboardArtifactPath = "",
+  packagedDashboardManifestPath
+}) {
+  const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+  const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+  if (sourceDashboardArtifactPath && packagedDashboardArtifactPath) {
+    const dashboardArtifactContent = readFileSync(packagedDashboardArtifactPath);
+    const reportArtifact = packagedReport.artifacts.files.find(
+      (artifact) => artifact.group === dashboardEvidenceArtifactGroup && artifact.path === sourceDashboardArtifactPath
+    );
+    reportArtifact.bytes = dashboardArtifactContent.byteLength;
+    reportArtifact.sha256 = createHash("sha256").update(dashboardArtifactContent).digest("hex");
+  }
+
+  const dashboardManifestContent = readFileSync(packagedDashboardManifestPath);
+  const reportManifestArtifact = packagedReport.artifacts.files.find(
+    (artifact) => artifact.group === dashboardEvidenceArtifactGroup && artifact.path === dashboardEvidenceManifestPath
+  );
+  reportManifestArtifact.bytes = dashboardManifestContent.byteLength;
+  reportManifestArtifact.sha256 = createHash("sha256").update(dashboardManifestContent).digest("hex");
+  writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+  const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+  manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+  if (sourceDashboardArtifactPath && packagedDashboardArtifactPath) {
+    refreshPackageArtifactEntry(manifest, sourceDashboardArtifactPath, packagedDashboardArtifactPath);
+  }
+  refreshPackageArtifactEntry(manifest, dashboardEvidenceManifestPath, packagedDashboardManifestPath);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 }
 

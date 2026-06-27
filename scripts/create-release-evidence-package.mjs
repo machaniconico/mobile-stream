@@ -22,8 +22,13 @@ export const releaseEvidencePackageType = "release-evidence-package-manifest";
 const storeReleaseReportGateLabel = "Verify store release orchestration report";
 const finalStoreScreenshotMinimumShortEdge = 1080;
 const finalStoreScreenshotMinimumLongEdge = 1920;
+const dashboardScreenshotMinimumShortEdge = 720;
+const dashboardScreenshotMinimumLongEdge = 1280;
 const requiredUiViewportNames = ["desktop", "mobile"];
 const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
+const badDashboardIdentityMarkers = new Set(["-", "mock", "n/a", "na", "none", "null", "placeholder", "test", "unknown"]);
+const badYoutubeBroadcastStatuses = new Set(["complete", "failed", "revoked"]);
+const badYoutubeStreamStatuses = new Set(["inactive", "error"]);
 const requiredCommercialPackageArtifacts = [
   { group: distributionArtifactGroup, path: distributionArtifactManifestPath, label: "distribution artifact manifest" },
   { group: dashboardEvidenceArtifactGroup, path: dashboardEvidenceManifestPath, label: "dashboard evidence manifest" },
@@ -442,7 +447,11 @@ function validatePackagedCommercialManifests(packageDir, packagedArtifacts, fail
     failures
   });
   if (dashboardManifest) {
-    validatePackagedDashboardEvidenceManifest(dashboardManifest, packagedArtifacts, failures, { releaseReport, maxAgeHours });
+    validatePackagedDashboardEvidenceManifest(dashboardManifest, packagedArtifacts, failures, {
+      packageDir,
+      releaseReport,
+      maxAgeHours
+    });
   }
 
   const storeSubmissionChecklist = readPackagedJsonArtifact({
@@ -640,7 +649,12 @@ function validatePackagedDistributionManifest(distributionManifest, packagedArti
   }
 }
 
-function validatePackagedDashboardEvidenceManifest(dashboardManifest, packagedArtifacts, failures, { releaseReport, maxAgeHours }) {
+function validatePackagedDashboardEvidenceManifest(
+  dashboardManifest,
+  packagedArtifacts,
+  failures,
+  { packageDir, releaseReport, maxAgeHours }
+) {
   if (
     dashboardManifest?.app !== "MobileLiveCaster" ||
     dashboardManifest?.type !== "platform-dashboard-evidence-manifest" ||
@@ -670,9 +684,131 @@ function validatePackagedDashboardEvidenceManifest(dashboardManifest, packagedAr
   );
   for (const record of records) {
     validatePackagedManifestRecord(packagedArtifacts, dashboardEvidenceArtifactGroup, record, "dashboard evidence manifest", failures);
+    validatePackagedDashboardEvidenceArtifact(record, packagedArtifacts, packageDir, failures);
   }
   validatePackagedDashboardEvidenceTiming(records, failures);
   validatePackagedDashboardEvidenceFreshness(records, releaseReport, maxAgeHours, failures);
+}
+
+function validatePackagedDashboardEvidenceArtifact(record, packagedArtifacts, packageDir, failures) {
+  const recordPath = workspaceRecordPath(record?.path || "");
+  if (!recordPath) {
+    return;
+  }
+  const packagedArtifact = packagedArtifactFor(packagedArtifacts, dashboardEvidenceArtifactGroup, recordPath);
+  if (!packagedArtifact?.packagedPath || !safeRelativePath(packagedArtifact.packagedPath)) {
+    return;
+  }
+  const packagedPath = resolve(packageDir, packagedArtifact.packagedPath);
+  if (!isInsideDirectory(packagedPath, packageDir) || !existsSync(packagedPath) || !lstatSync(packagedPath).isFile()) {
+    return;
+  }
+  const content = readFileSync(packagedPath);
+  if (record.kind === "screenshot") {
+    validatePackagedDashboardScreenshot(record, content, failures);
+    return;
+  }
+  if (record.kind === "statusJson") {
+    validatePackagedDashboardStatusJson(record, content, failures);
+  }
+}
+
+function validatePackagedDashboardScreenshot(record, content, failures) {
+  const pngEvidence = readPngEvidence(content);
+  if (!pngEvidence.valid) {
+    failures.push(`Package dashboard evidence screenshot is not a structurally valid PNG file: ${record.path} (${pngEvidence.reason}).`);
+    return;
+  }
+  if (record.width !== pngEvidence.width || record.height !== pngEvidence.height) {
+    failures.push(`Package dashboard evidence screenshot dimensions mismatch for ${record.path}.`);
+  }
+  const shortEdge = Math.min(pngEvidence.width, pngEvidence.height);
+  const longEdge = Math.max(pngEvidence.width, pngEvidence.height);
+  if (shortEdge < dashboardScreenshotMinimumShortEdge || longEdge < dashboardScreenshotMinimumLongEdge) {
+    failures.push(
+      `Package dashboard evidence screenshot ${record.path} must be at least ${dashboardScreenshotMinimumShortEdge}px on the short edge and ${dashboardScreenshotMinimumLongEdge}px on the long edge.`
+    );
+  }
+}
+
+function validatePackagedDashboardStatusJson(record, content, failures) {
+  let parsed;
+  try {
+    parsed = JSON.parse(content.toString("utf8"));
+  } catch {
+    failures.push(`Package dashboard evidence status JSON is unreadable: ${record.path}.`);
+    return;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    failures.push(`Package dashboard evidence status JSON must be an object: ${record.path}.`);
+    return;
+  }
+  const platform = stringValue(parsed.platform);
+  if (platform !== record.platform) {
+    failures.push(`Package dashboard evidence status JSON ${record.path} platform must be ${record.platform}.`);
+  }
+  const checkedAt = stringValue(parsed.checkedAt);
+  if (!validTimestamp(checkedAt)) {
+    failures.push(`Package dashboard evidence status JSON ${record.path} must include a valid checkedAt timestamp.`);
+  } else if (checkedAt !== record.checkedAt) {
+    failures.push(`Package dashboard evidence status JSON checkedAt mismatch for ${record.path}.`);
+  }
+
+  const statusSummary = record.platform === "youtube"
+    ? packagedYoutubeStatusSummary(parsed, record.path, failures)
+    : record.platform === "twitch"
+      ? packagedTwitchStatusSummary(parsed, record.path, failures)
+      : "";
+  if (statusSummary && record.statusSummary !== statusSummary) {
+    failures.push(`Package dashboard evidence status JSON summary mismatch for ${record.path}.`);
+  }
+}
+
+function packagedYoutubeStatusSummary(parsed, path, failures) {
+  const broadcastStatus = stringValue(parsed.broadcastStatus).toLowerCase();
+  const streamStatus = stringValue(parsed.streamStatus).toLowerCase();
+  const broadcastId = requiredDashboardIdentity(parsed.broadcastId, "YouTube broadcastId", path, failures);
+  const streamId = requiredDashboardIdentity(parsed.streamId, "YouTube streamId", path, failures);
+  const channelId = requiredDashboardIdentity(parsed.channelId, "YouTube channelId", path, failures);
+  if (!broadcastStatus) {
+    failures.push(`Package dashboard evidence status JSON ${path} must include YouTube broadcastStatus.`);
+  } else if (badYoutubeBroadcastStatuses.has(broadcastStatus)) {
+    failures.push(`Package dashboard evidence status JSON ${path} has non-release YouTube broadcastStatus ${broadcastStatus}.`);
+  }
+  if (!streamStatus) {
+    failures.push(`Package dashboard evidence status JSON ${path} must include YouTube streamStatus.`);
+  } else if (badYoutubeStreamStatuses.has(streamStatus)) {
+    failures.push(`Package dashboard evidence status JSON ${path} has non-release YouTube streamStatus ${streamStatus}.`);
+  }
+  return `broadcast:${broadcastStatus}:${broadcastId} stream:${streamStatus}:${streamId} channel:${channelId}`;
+}
+
+function packagedTwitchStatusSummary(parsed, path, failures) {
+  const liveStatus = stringValue(parsed.liveStatus).toLowerCase();
+  const broadcasterId = requiredDashboardIdentity(parsed.broadcasterId, "Twitch broadcasterId", path, failures);
+  const broadcasterLogin = requiredDashboardIdentity(parsed.broadcasterLogin, "Twitch broadcasterLogin", path, failures);
+  const streamId = requiredDashboardIdentity(parsed.streamId, "Twitch streamId", path, failures);
+  if (!liveStatus) {
+    failures.push(`Package dashboard evidence status JSON ${path} must include Twitch liveStatus.`);
+  } else if (liveStatus !== "live") {
+    failures.push(`Package dashboard evidence status JSON ${path} has non-release Twitch liveStatus ${liveStatus}.`);
+  }
+  return `live:${liveStatus} channel:${broadcasterId}/${broadcasterLogin} stream:${streamId}`;
+}
+
+function requiredDashboardIdentity(value, label, path, failures) {
+  const identity = stringValue(value);
+  if (!identity) {
+    failures.push(`Package dashboard evidence status JSON ${path} must include ${label}.`);
+    return "";
+  }
+  if (badDashboardIdentityMarkers.has(identity.toLowerCase())) {
+    failures.push(`Package dashboard evidence status JSON ${path} has placeholder ${label} ${identity}.`);
+  }
+  if (identity.length > 128 || /[\s\u0000-\u001f\u007f]/.test(identity)) {
+    failures.push(`Package dashboard evidence status JSON ${path} has invalid ${label} ${identity}.`);
+  }
+  return identity;
 }
 
 function validatePackagedDashboardEvidenceTiming(records, failures) {
