@@ -77,7 +77,7 @@ export const createPublicLaunchChecklist = ({
   const failCount = countItems(items, "fail");
   const status: PublicLaunchChecklistStatus = failCount > 0 ? "blocked" : warningCount > 0 ? "warning" : "ready";
   const startLockApplies = shouldApplyPublicLaunchStartLock(profile);
-  const startLockBlocked = startLockApplies && status === "blocked";
+  const startLockBlocked = startLockApplies && status !== "ready";
   const startLock = createStartLock(startLockApplies, startLockBlocked, status, items);
 
   return {
@@ -110,14 +110,15 @@ export const formatPublicLaunchChecklistBlockMessage = (checklist: PublicLaunchC
     return "Public launch checklist allows start.";
   }
 
-  const visibleFailures = checklist.items
-    .filter((item) => item.status === "fail")
+  const visibleProblems = checklist.items
+    .filter((item) => item.status === "fail" || (checklist.startLock.blocked && item.status === "warn"))
     .slice(0, 3)
     .map((item) => `${item.label}: ${item.detail}`);
-  const remainingCount = checklist.failCount - visibleFailures.length;
+  const visibleProblemCount = checklist.failCount + (checklist.startLock.blocked ? checklist.warningCount : 0);
+  const remainingCount = visibleProblemCount - visibleProblems.length;
   const suffix = remainingCount > 0 ? ` (+${remainingCount} more)` : "";
   const prefix = checklist.startLock.blocked ? "Public launch lock blocked" : "Launch preflight blocked";
-  const details = visibleFailures.length > 0 ? visibleFailures.join("; ") : checklist.summary;
+  const details = visibleProblems.length > 0 ? visibleProblems.join("; ") : checklist.summary;
 
   return `${prefix}: ${details}${suffix}. ${checklist.startLock.action}`;
 };
@@ -451,6 +452,15 @@ const createStartLock = (
   }
 
   if (blocked) {
+    if (status === "warning") {
+      return {
+        applies,
+        blocked,
+        summary: "Public start lock is active because launch warnings remain.",
+        action: items.find((item) => item.status === "warn")?.action ?? "Resolve public launch warnings before Go Live."
+      };
+    }
+
     return {
       applies,
       blocked,

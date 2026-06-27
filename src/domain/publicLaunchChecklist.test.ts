@@ -226,7 +226,7 @@ describe("public launch checklist", () => {
     });
   });
 
-  it("warns when dashboard evidence is stale", () => {
+  it("locks public launch when dashboard evidence is stale", () => {
     const checklist = createPublicLaunchChecklist({
       preflight: readyPreflight,
       diagnostics: readyDiagnostics(),
@@ -241,13 +241,19 @@ describe("public launch checklist", () => {
     });
 
     expect(checklist.status).toBe("warning");
-    expect(checklist.canStart).toBe(true);
+    expect(checklist.canStart).toBe(false);
+    expect(checklist.startLock).toMatchObject({
+      applies: true,
+      blocked: true,
+      summary: "Public start lock is active because launch warnings remain.",
+      action: "Refresh YouTube status within 10 minutes of launch."
+    });
     expect(checklist.items.find((item) => item.id === "platform-dashboard")).toMatchObject({
       status: "warn"
     });
   });
 
-  it("warns when validation passed but the private runbook is not complete", () => {
+  it("locks public launch when validation passed but the private runbook is not complete", () => {
     const diagnostics = readyDiagnostics();
     const checklist = createPublicLaunchChecklist({
       preflight: readyPreflight,
@@ -269,11 +275,65 @@ describe("public launch checklist", () => {
     });
 
     expect(checklist.status).toBe("warning");
-    expect(checklist.canStart).toBe(true);
+    expect(checklist.canStart).toBe(false);
+    expect(checklist.startLock).toMatchObject({
+      applies: true,
+      blocked: true,
+      summary: "Public start lock is active because launch warnings remain.",
+      action: expect.stringContaining("controlled weak-network")
+    });
     expect(checklist.items.find((item) => item.id === "commercial-evidence")).toMatchObject({
       status: "warn",
       detail: "1 validation step remains before release evidence is complete.",
       action: expect.stringContaining("controlled weak-network")
+    });
+  });
+
+  it("locks public launch when spoken chat readout is disabled", () => {
+    const diagnostics = readyDiagnostics();
+    const checklist = createPublicLaunchChecklist({
+      preflight: readyPreflight,
+      diagnostics: {
+        ...diagnostics,
+        chatReadout: {
+          ...diagnostics.chatReadout,
+          readerEnabled: false
+        }
+      },
+      platformPublishingFreshness: freshDashboard,
+      profile: youtubePublicProfile()
+    });
+
+    expect(checklist.status).toBe("warning");
+    expect(checklist.canStart).toBe(false);
+    expect(checklist.startLock).toMatchObject({
+      applies: true,
+      blocked: true,
+      action: "Turn on chat readout and verify one sample message is queued and spoken."
+    });
+  });
+
+  it("locks public launch when headphone mic monitoring is muted", () => {
+    const diagnostics = readyDiagnostics();
+    const checklist = createPublicLaunchChecklist({
+      preflight: readyPreflight,
+      diagnostics: {
+        ...diagnostics,
+        audio: {
+          ...diagnostics.audio,
+          monitorVolume: 0
+        }
+      },
+      platformPublishingFreshness: freshDashboard,
+      profile: twitchProfile()
+    });
+
+    expect(checklist.status).toBe("warning");
+    expect(checklist.canStart).toBe(false);
+    expect(checklist.startLock).toMatchObject({
+      applies: true,
+      blocked: true,
+      action: "Raise monitor volume to an audible level and confirm the processed voice in headphones."
     });
   });
 
