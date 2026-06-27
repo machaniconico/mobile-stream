@@ -99,6 +99,18 @@ describe("release evidence package creator", () => {
     expect(validateReleaseEvidencePackage({ packageDir })).toEqual([]);
   });
 
+  it("rejects unmanifested files inside the release evidence package", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    writeFileSync(`${packageDir}/artifacts/unmanifested-note.txt`, "operator note outside the package manifest");
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Release evidence package contains unmanifested file artifacts/unmanifested-note.txt.");
+  });
+
   it("rejects release reports generated with development-only dirty-worktree approval", () => {
     writeReportFixture();
     const report = JSON.parse(readFileSync(reportPath, "utf8"));

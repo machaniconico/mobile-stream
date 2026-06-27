@@ -195,6 +195,8 @@ export function validateReleaseEvidencePackage({ packageDir, verifySources = fal
     return failures;
   }
 
+  validatePackageFileSet(manifest, resolvedPackageDir, failures);
+
   const seenPackagedPaths = new Set();
   for (const entry of entries) {
     validatePackageEntry(entry, resolvedPackageDir, failures);
@@ -212,6 +214,22 @@ export function validateReleaseEvidencePackage({ packageDir, verifySources = fal
   validatePackagedReport(manifest, resolvedPackageDir, failures, { maxAgeHours });
   validatePackagePrivacy(manifest, resolvedPackageDir, failures);
   return failures;
+}
+
+function validatePackageFileSet(manifest, packageDir, failures) {
+  const expectedFiles = new Set([
+    releaseEvidencePackageManifestName,
+    manifest.sourceReport?.packagedPath,
+    manifest.supportBundle?.packagedPath,
+    manifest.uiEvidence?.packagedPath,
+    ...(Array.isArray(manifest.artifacts) ? manifest.artifacts.map((artifact) => artifact?.packagedPath) : [])
+  ].filter(Boolean));
+
+  for (const packagedPath of collectPackageFiles(packageDir)) {
+    if (!expectedFiles.has(packagedPath)) {
+      failures.push(`Release evidence package contains unmanifested file ${packagedPath}.`);
+    }
+  }
 }
 
 function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours }) {
@@ -1320,6 +1338,24 @@ function validateSourceEntry(entry, failures) {
   if (bytes !== entry.bytes || sha256 !== entry.sha256) {
     failures.push(`Package source metadata mismatch for ${entry.sourcePath}.`);
   }
+}
+
+function collectPackageFiles(packageDir, prefix = "") {
+  const files = [];
+  const directory = resolve(packageDir, prefix);
+  for (const dirent of readdirSync(directory, { withFileTypes: true })) {
+    const relativePath = prefix ? `${prefix}/${dirent.name}` : dirent.name;
+    const absolutePath = resolve(packageDir, relativePath);
+    if (!isInsideDirectory(absolutePath, packageDir)) {
+      continue;
+    }
+    if (dirent.isDirectory()) {
+      files.push(...collectPackageFiles(packageDir, relativePath));
+    } else {
+      files.push(relativePath);
+    }
+  }
+  return files;
 }
 
 function ensureNewOrEmptyDirectory(outputDir) {

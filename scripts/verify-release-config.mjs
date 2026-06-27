@@ -153,6 +153,7 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "validateManifestGitProvenance");
     expectIncludes(files.releaseEvidencePackageScript, "Package manifest");
     expectIncludes(files.releaseEvidencePackageScript, "Package manifest generatedAt timestamp is missing or invalid");
+    expectIncludes(files.releaseEvidencePackageScript, "Release evidence package contains unmanifested file");
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence target must be a loopback http(s) URL.");
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence for ${viewport.name} is missing text");
