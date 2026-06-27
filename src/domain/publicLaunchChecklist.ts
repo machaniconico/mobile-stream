@@ -70,7 +70,7 @@ export const createPublicLaunchChecklist = ({
     createChatReadoutItem(preflight, diagnostics),
     createMicMonitorItem(preflight, diagnostics),
     createCommercialEvidenceItem(preflight, diagnostics),
-    createEngineItem(preflight, diagnostics)
+    createEngineItem(preflight, diagnostics, profile)
   ];
   const passCount = countItems(items, "pass");
   const warningCount = countItems(items, "warn");
@@ -358,21 +358,34 @@ const createCommercialEvidenceItem = (
 
 const createEngineItem = (
   preflight: StreamStartPreflightReport,
-  diagnostics: PublicLaunchChecklistInput["diagnostics"]
+  diagnostics: PublicLaunchChecklistInput["diagnostics"],
+  profile: PublicLaunchChecklistInput["profile"]
 ): PublicLaunchChecklistItem => {
   const issue = findMostSevereIssue(preflight, ["engine", "operation"]);
   if (issue) {
     return issueItem("engine", "Engine state", issue);
   }
 
+  if (shouldApplyPublicLaunchStartLock(profile) && !isNativeEnginePlatform(diagnostics.telemetry.enginePlatform)) {
+    return {
+      id: "engine",
+      status: "fail",
+      label: "Engine state",
+      detail: `Native streaming engine is not active; current engine platform is ${diagnostics.telemetry.enginePlatform}.`,
+      action: "Install and verify the iOS or Android native LiveCaster module before starting a public or Twitch stream."
+    };
+  }
+
   return {
     id: "engine",
     status: "pass",
     label: "Engine state",
-    detail: `Encoder state is ${diagnostics.telemetry.streamStatus}.`,
+    detail: `Encoder state is ${diagnostics.telemetry.streamStatus} on ${diagnostics.telemetry.enginePlatform}.`,
     action: "Start only when the encoder is idle and no previous operation is pending."
   };
 };
+
+const isNativeEnginePlatform = (platform: string): boolean => platform === "ios" || platform === "android";
 
 const findMostSevereIssue = (
   preflight: StreamStartPreflightReport,

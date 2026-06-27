@@ -115,6 +115,7 @@ export interface StreamDiagnostics {
     estimatedUploadKbps: number;
   };
   telemetry: {
+    enginePlatform: string;
     streamStatus: StreamStatus;
     bitrateKbps: number;
     fps: number;
@@ -177,6 +178,7 @@ export interface StreamDiagnosticReport {
 }
 
 interface SnapshotLike {
+  platform?: string;
   state: {
     status: StreamStatus;
   };
@@ -376,6 +378,7 @@ export const createStreamDiagnostics = (
       estimatedUploadKbps
     },
     telemetry: {
+      enginePlatform: snapshot.platform ?? "unknown",
       streamStatus: snapshot.state.status,
       bitrateKbps: snapshot.health.bitrateKbps,
       fps: snapshot.health.fps,
@@ -472,6 +475,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Upload target: ${diagnostics.quality.estimatedUploadKbps} kbps`,
     "",
     "Telemetry",
+    `- Engine platform: ${diagnostics.telemetry.enginePlatform}`,
     `- State: ${diagnostics.telemetry.streamStatus}`,
     `- Bitrate: ${diagnostics.telemetry.bitrateKbps} kbps`,
     `- FPS: ${diagnostics.telemetry.fps}`,

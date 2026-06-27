@@ -53,6 +53,7 @@ describe("stream diagnostics", () => {
     expect(diagnostics.target.host).toBe("a.rtmps.youtube.com");
     expect(diagnostics.target.publishUrlPreview).toContain(redactStreamKey(demoStreamKey));
     expect(diagnostics.target.publishUrlPreview).not.toContain(demoStreamKey);
+    expect(diagnostics.telemetry.enginePlatform).toBe("unknown");
     expect(diagnostics.quality.estimatedUploadKbps).toBe(4535);
     expect(diagnostics.recovery.mode).toBe("idle");
     expect(diagnostics.recovery.attemptsRemaining).toBe(5);
@@ -66,6 +67,20 @@ describe("stream diagnostics", () => {
     expect(diagnostics.nativeComposition.coverage).toBe("preview-only-overlays");
     expect(diagnostics.nativeComposition.assetIssueCount).toBe(1);
     expect(diagnostics.checks.some((check) => check.code === "native-composition-preview-only-overlays")).toBe(true);
+  });
+
+  it("retains the active engine platform from the native snapshot", () => {
+    const scene = createDefaultScene();
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      platform: "mock",
+      state: { status: "idle" },
+      health: health()
+    });
+
+    expect(diagnostics.telemetry.enginePlatform).toBe("mock");
   });
 
   it("summarizes YouTube dashboard status for validation evidence", () => {

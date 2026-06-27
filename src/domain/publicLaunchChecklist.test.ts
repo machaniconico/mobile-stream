@@ -39,6 +39,7 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
     secureTransport: true
   },
   telemetry: {
+    enginePlatform: "ios",
     streamStatus: "idle",
     bitrateKbps: 0,
     fps: 0,
@@ -310,6 +311,88 @@ describe("public launch checklist", () => {
     expect(checklist.status).toBe("blocked");
     expect(checklist.canStart).toBe(false);
     expect(checklist.startLock).toMatchObject({ applies: true, blocked: true });
+  });
+
+  it("locks public starts when the mobile app is using the mock engine", () => {
+    const diagnostics = readyDiagnostics();
+    const checklist = createPublicLaunchChecklist({
+      preflight: readyPreflight,
+      diagnostics: {
+        ...diagnostics,
+        telemetry: {
+          ...diagnostics.telemetry,
+          enginePlatform: "mock"
+        }
+      },
+      platformPublishingFreshness: freshDashboard,
+      profile: youtubePublicProfile()
+    });
+
+    expect(checklist.status).toBe("blocked");
+    expect(checklist.canStart).toBe(false);
+    expect(checklist.startLock).toMatchObject({ applies: true, blocked: true });
+    expect(checklist.items.find((item) => item.id === "engine")).toMatchObject({
+      status: "fail",
+      detail: "Native streaming engine is not active; current engine platform is mock."
+    });
+
+    const twitchChecklist = createPublicLaunchChecklist({
+      preflight: readyPreflight,
+      diagnostics: {
+        ...diagnostics,
+        telemetry: {
+          ...diagnostics.telemetry,
+          enginePlatform: "mock"
+        }
+      },
+      platformPublishingFreshness: freshDashboard,
+      profile: twitchProfile()
+    });
+
+    expect(twitchChecklist.canStart).toBe(false);
+    expect(twitchChecklist.items.find((item) => item.id === "engine")).toMatchObject({ status: "fail" });
+  });
+
+  it("locks public starts when engine platform evidence is missing", () => {
+    const diagnostics = readyDiagnostics();
+    const checklist = createPublicLaunchChecklist({
+      preflight: readyPreflight,
+      diagnostics: {
+        ...diagnostics,
+        telemetry: {
+          ...diagnostics.telemetry,
+          enginePlatform: "unknown"
+        }
+      },
+      platformPublishingFreshness: freshDashboard,
+      profile: youtubePublicProfile()
+    });
+
+    expect(checklist.canStart).toBe(false);
+    expect(checklist.items.find((item) => item.id === "engine")).toMatchObject({
+      status: "fail",
+      detail: "Native streaming engine is not active; current engine platform is unknown."
+    });
+  });
+
+  it("keeps private validation starts available on the mock engine", () => {
+    const diagnostics = readyDiagnostics();
+    const checklist = createPublicLaunchChecklist({
+      preflight: readyPreflight,
+      diagnostics: {
+        ...diagnostics,
+        telemetry: {
+          ...diagnostics.telemetry,
+          enginePlatform: "mock"
+        }
+      },
+      platformPublishingFreshness: freshDashboard,
+      profile: youtubePrivateProfile()
+    });
+
+    expect(checklist.status).toBe("ready");
+    expect(checklist.canStart).toBe(true);
+    expect(checklist.startLock).toMatchObject({ applies: false, blocked: false });
   });
 
   it("formats a start-layer block message for unsafe public starts", () => {
