@@ -1,6 +1,7 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { cwd, exit } from "node:process";
+import { productionNativeSourcePaths, releaseConfigArtifactPaths } from "./release-artifact-policy.mjs";
 import {
   iosArchiveArgs,
   iosExportArgs,
@@ -44,9 +45,7 @@ const files = {
 };
 
 const productionNativeSourceFiles = [
-  ...readSourceFiles("android/app/src/main/java", [".kt", ".java"]),
-  ...readSourceFiles("ios/MobileLiveCaster", [".swift", ".m", ".mm"]),
-  ...readSourceFiles("ios/MobileLiveCasterBroadcastUpload", [".swift", ".m", ".mm"])
+  ...productionNativeSourcePaths.map((path) => ({ path, content: read(path) }))
 ];
 
 const iosReleaseConfig = {
@@ -136,6 +135,9 @@ const checks = [
     expectIncludes(files.releaseUrlPolicyScript, "127.0.0.1");
     expectIncludes(files.releaseUrlPolicyScript, "[::1]");
     expectIncludes(files.releaseArtifactPolicyScript, "scripts/release-url-policy.mjs");
+    expectIncludes(files.releaseArtifactPolicyScript, "productionNativeSourcePaths");
+    expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
+    expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
     expectBefore(
       files.releaseCandidateScript,
@@ -385,6 +387,12 @@ const checks = [
     if (productionNativeSourceFiles.length === 0) {
       throw new Error("missing production native source files");
     }
+    for (const sourcePath of productionNativeSourcePaths) {
+      expectArrayIncludes(releaseConfigArtifactPaths, sourcePath);
+    }
+    expectArrayIncludes(releaseConfigArtifactPaths, "ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift");
+    expectArrayIncludes(releaseConfigArtifactPaths, "android/app/src/main/java/com/mobilelivecaster/streaming/MediaProjectionService.kt");
+
     const unresolvedImplementationPattern = /\b(?:TODO|FIXME)\b|Not implemented|not implemented/g;
     for (const sourceFile of productionNativeSourceFiles) {
       const matches = [...sourceFile.content.matchAll(unresolvedImplementationPattern)];
@@ -409,20 +417,6 @@ console.log(`Release configuration verification passed (${checks.length} checks)
 
 function read(relativePath) {
   return readFileSync(join(root, relativePath), "utf8");
-}
-
-function readSourceFiles(relativePath, extensions) {
-  const directory = join(root, relativePath);
-  return readdirSync(directory, { withFileTypes: true }).flatMap((dirent) => {
-    const childPath = `${relativePath}/${dirent.name}`;
-    if (dirent.isDirectory()) {
-      return readSourceFiles(childPath, extensions);
-    }
-    if (!dirent.isFile() || !extensions.some((extension) => childPath.endsWith(extension))) {
-      return [];
-    }
-    return [{ path: childPath, content: read(childPath) }];
-  });
 }
 
 function check(name, assertion) {

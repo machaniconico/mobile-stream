@@ -1,4 +1,8 @@
-export const releaseConfigArtifactPaths = [
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { cwd } from "node:process";
+
+const staticReleaseConfigArtifactPaths = [
   "package.json",
   "package-lock.json",
   "vite.config.ts",
@@ -39,6 +43,16 @@ export const releaseConfigArtifactPaths = [
   "ios/MobileLiveCasterBroadcastUpload/MobileLiveCasterBroadcastUpload.entitlements"
 ];
 
+export const productionNativeSourcePaths = [
+  ...collectSourceFiles("android/app/src/main/java", [".kt", ".java"]),
+  ...collectSourceFiles("ios/MobileLiveCaster", [".swift", ".m", ".mm"]),
+  ...collectSourceFiles("ios/MobileLiveCasterBroadcastUpload", [".swift", ".m", ".mm"])
+].sort((left, right) => left.localeCompare(right));
+
+export const releaseConfigArtifactPaths = [...new Set([...staticReleaseConfigArtifactPaths, ...productionNativeSourcePaths])].sort(
+  (left, right) => left.localeCompare(right)
+);
+
 export const requiredReleaseGateLabels = [
   "Verify clean git worktree",
   "Verify release automation scripts",
@@ -53,3 +67,20 @@ export const requiredReleaseGateLabels = [
 ];
 
 export const requiredReleaseArtifactGroups = ["release-config", "web", "react-native", "ui"];
+
+function collectSourceFiles(relativePath, extensions) {
+  const absoluteDirectory = join(cwd(), relativePath);
+  if (!existsSync(absoluteDirectory) || !statSync(absoluteDirectory).isDirectory()) {
+    return [];
+  }
+  return readdirSync(absoluteDirectory, { withFileTypes: true }).flatMap((dirent) => {
+    const childPath = `${relativePath}/${dirent.name}`;
+    if (dirent.isDirectory()) {
+      return collectSourceFiles(childPath, extensions);
+    }
+    if (!dirent.isFile() || !extensions.some((extension) => childPath.endsWith(extension))) {
+      return [];
+    }
+    return [childPath];
+  });
+}
