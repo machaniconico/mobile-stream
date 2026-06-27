@@ -28,6 +28,7 @@ const generatedFiles = [
   ".artifacts/rn/index.android.bundle",
   ".artifacts/mobile-live-caster-desktop.png",
   ".artifacts/mobile-live-caster-mobile.png",
+  ".artifacts/ui-verification.json",
   ".artifacts/distribution-artifacts.json",
   ".artifacts/release-evidence-package-test/app-release.aab",
   ".artifacts/release-evidence-package-test/MobileLiveCaster.ipa",
@@ -79,6 +80,24 @@ describe("release evidence package creator", () => {
     expect(existsSync(`${packageDir}/support-bundle/support-bundle.json`)).toBe(true);
     expect(existsSync(`${packageDir}/ui-evidence/ui-evidence.json`)).toBe(true);
     expect(existsSync(`${packageDir}/artifacts/dist/index.html`)).toBe(true);
+    expect(validateReleaseEvidencePackage({ packageDir })).toEqual([]);
+  });
+
+  it("packages UI evidence JSON from in-process browser UI gates", () => {
+    writeReportFixture({ skipUi: false, uiEvidencePath: ".artifacts/ui-verification.json" });
+
+    const result = createReleaseEvidencePackage({
+      reportPath,
+      outputDir: packageDir,
+      allowDirty: true
+    });
+
+    expect(result.manifest.uiEvidence).toMatchObject({
+      role: "uiEvidence",
+      sourcePath: ".artifacts/ui-verification.json",
+      packagedPath: "ui-evidence/ui-verification.json"
+    });
+    expect(existsSync(`${packageDir}/ui-evidence/ui-verification.json`)).toBe(true);
     expect(validateReleaseEvidencePackage({ packageDir })).toEqual([]);
   });
 
@@ -789,8 +808,9 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
   };
 }
 
-function writeReportFixture() {
+function writeReportFixture({ skipUi = true, uiEvidencePath = ".artifacts/release-evidence-package-test/ui-evidence.json" } = {}) {
   writeFixtureFiles();
+  writeUiEvidenceFile({ path: uiEvidencePath });
   const artifactFiles = [
     ...releaseConfigArtifactPaths.map((path) => artifactRecord("release-config", path)),
     artifactRecord("web", "dist/index.html"),
@@ -800,6 +820,7 @@ function writeReportFixture() {
     artifactRecord("react-native", ".artifacts/rn/index.android.bundle"),
     artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
     artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
+    ...(!skipUi ? [artifactRecord("ui", uiEvidencePath)] : []),
     ...distributionArtifactRecords(),
     ...storeReleaseRecords(),
     ...dashboardEvidenceRecords(),
@@ -823,7 +844,7 @@ function writeReportFixture() {
           statusShort: ""
         },
         options: {
-          skipUi: true
+          skipUi
         },
         supportBundle: {
           path: supportBundlePath,
@@ -846,23 +867,34 @@ function writeReportFixture() {
             exitCode: 0,
             error: null
           })),
-          {
-            label: "Verify browser UI evidence",
-            command: "read .artifacts/release-evidence-package-test/ui-evidence.json",
-            status: "passed",
-            startedAt: new Date(Date.now() - 1_000).toISOString(),
-            finishedAt: new Date().toISOString(),
-            durationMs: 1,
-            exitCode: 0,
-            error: null,
-            evidence: {
-              path: ".artifacts/release-evidence-package-test/ui-evidence.json",
-              sha256: fileSha256(".artifacts/release-evidence-package-test/ui-evidence.json"),
-              target: "http://127.0.0.1:5173/",
-              finishedAt: new Date().toISOString(),
-              viewports: []
-            }
-          },
+          skipUi
+            ? {
+                label: "Verify browser UI evidence",
+                command: `read ${uiEvidencePath}`,
+                status: "passed",
+                startedAt: new Date(Date.now() - 1_000).toISOString(),
+                finishedAt: new Date().toISOString(),
+                durationMs: 1,
+                exitCode: 0,
+                error: null,
+                evidence: {
+                  path: uiEvidencePath,
+                  sha256: fileSha256(uiEvidencePath),
+                  target: "http://127.0.0.1:5173/",
+                  finishedAt: new Date().toISOString(),
+                  viewports: []
+                }
+              }
+            : {
+                label: "Verify browser UI",
+                command: "npm run verify:ui",
+                status: "passed",
+                startedAt: new Date(Date.now() - 1_000).toISOString(),
+                finishedAt: new Date().toISOString(),
+                durationMs: 1,
+                exitCode: 0,
+                error: null
+              },
           {
             label: "Verify store release orchestration report",
             command: `read ${storeReleaseReportPath}`,
@@ -1408,9 +1440,9 @@ function refreshPackagedChecklistEvidence(packagedChecklistPath) {
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 }
 
-function writeUiEvidenceFile() {
+function writeUiEvidenceFile({ path = ".artifacts/release-evidence-package-test/ui-evidence.json" } = {}) {
   writeFile(
-    ".artifacts/release-evidence-package-test/ui-evidence.json",
+    path,
     JSON.stringify(
       {
         reportVersion: 1,

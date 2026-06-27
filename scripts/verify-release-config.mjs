@@ -136,6 +136,9 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "cannot be used as commercial package evidence");
     expectIncludes(files.releaseEvidencePackageScript, "clean git worktree gate is missing from commercial package evidence");
     expectIncludes(files.releaseEvidencePackageScript, "clean git worktree gate must be passed for commercial package evidence");
+    expectIncludes(files.releaseEvidencePackageScript, "uiEvidenceSourceFromReport");
+    expectIncludes(files.releaseEvidencePackageScript, ".artifacts/ui-verification.json");
+    expectIncludes(files.releaseEvidencePackageScript, "Packaged release report is missing browser UI evidence JSON metadata.");
     expectIncludes(files.dashboardEvidenceScript, "youtubeScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "twitchScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "platform-dashboard-evidence-manifest");

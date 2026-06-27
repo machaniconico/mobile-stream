@@ -73,14 +73,14 @@ export function createReleaseEvidencePackage({
     expectedSha256: report.supportBundle.sha256
   });
 
-  const uiEvidenceGate = uiEvidenceReportGate(report);
-  const uiEvidenceEntry = uiEvidenceGate?.evidence?.path
+  const uiEvidenceSource = uiEvidenceSourceFromReport(report);
+  const uiEvidenceEntry = uiEvidenceSource?.path
     ? copyEvidenceFile({
         role: "uiEvidence",
-        sourcePath: uiEvidenceGate.evidence.path,
-        packagedPath: `ui-evidence/${safeBasename(uiEvidenceGate.evidence.path)}`,
+        sourcePath: uiEvidenceSource.path,
+        packagedPath: `ui-evidence/${safeBasename(uiEvidenceSource.path)}`,
         packageDir,
-        expectedSha256: uiEvidenceGate.evidence.sha256
+        expectedSha256: uiEvidenceSource.sha256
       })
     : null;
 
@@ -226,13 +226,15 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
   const supportBundle = readPackagedSupportBundle(manifest, packageDir, failures);
   validatePackagedSupportBundleGate(supportBundle, report, maxAgeHours, failures);
 
-  const evidenceGate = uiEvidenceReportGate(report);
-  if (evidenceGate?.evidence?.sha256) {
+  const uiEvidenceSource = uiEvidenceSourceFromReport(report);
+  if (uiEvidenceSource?.sha256) {
     if (!manifest.uiEvidence) {
       failures.push("Package is missing browser UI evidence JSON referenced by the release report.");
-    } else if (manifest.uiEvidence.sha256 !== evidenceGate.evidence.sha256) {
+    } else if (manifest.uiEvidence.sha256 !== uiEvidenceSource.sha256) {
       failures.push("Packaged browser UI evidence SHA-256 does not match the release report UI evidence SHA-256.");
     }
+  } else if (hasBrowserUiGate(report)) {
+    failures.push("Packaged release report is missing browser UI evidence JSON metadata.");
   }
 
   const reportArtifacts = new Map((report.artifacts?.files || []).map((artifact) => [`${artifact.group}:${artifact.path}`, artifact]));
@@ -1028,6 +1030,31 @@ function looksLikeTokenValue(value) {
 
 function uiEvidenceReportGate(report) {
   return (Array.isArray(report?.gates) ? report.gates : []).find((gate) => gate?.label === "Verify browser UI evidence");
+}
+
+function hasBrowserUiGate(report) {
+  return (Array.isArray(report?.gates) ? report.gates : []).some((gate) => gate?.label === "Verify browser UI");
+}
+
+function uiEvidenceSourceFromReport(report) {
+  const evidenceGate = uiEvidenceReportGate(report);
+  if (evidenceGate?.evidence?.path) {
+    return {
+      path: evidenceGate.evidence.path,
+      sha256: evidenceGate.evidence.sha256
+    };
+  }
+  if (!hasBrowserUiGate(report)) {
+    return null;
+  }
+  const artifacts = Array.isArray(report?.artifacts?.files) ? report.artifacts.files : [];
+  const artifact = artifacts.find((candidate) => candidate?.group === "ui" && candidate?.path === ".artifacts/ui-verification.json");
+  return artifact?.path
+    ? {
+        path: artifact.path,
+        sha256: artifact.sha256
+      }
+    : null;
 }
 
 function copyEvidenceFile({
