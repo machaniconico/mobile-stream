@@ -13,12 +13,15 @@ import { validateReport } from "./verify-release-report.mjs";
 import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
 import { storeSubmissionArtifactGroup, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import { createCommercialReleaseGate } from "./verify-commercial-release-bundle.mjs";
+import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
 
 export const releaseEvidencePackageManifestName = "release-evidence-package.json";
 export const releaseEvidencePackageType = "release-evidence-package-manifest";
 const storeReleaseReportGateLabel = "Verify store release orchestration report";
 const finalStoreScreenshotMinimumShortEdge = 1080;
 const finalStoreScreenshotMinimumLongEdge = 1920;
+const requiredUiViewportNames = ["desktop", "mobile"];
+const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
 const requiredCommercialPackageArtifacts = [
   { group: distributionArtifactGroup, path: distributionArtifactManifestPath, label: "distribution artifact manifest" },
   { group: dashboardEvidenceArtifactGroup, path: dashboardEvidenceManifestPath, label: "dashboard evidence manifest" },
@@ -241,6 +244,7 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
   const packagedArtifacts = new Map(
     (manifest.artifacts || []).map((artifact) => [`${artifact.group}:${artifact.sourcePath}`, artifact])
   );
+  validatePackagedUiEvidence(manifest, report, packagedArtifacts, packageDir, failures, { maxAgeHours });
   validateRequiredCommercialPackageArtifacts(report, manifest, reportArtifacts, packagedArtifacts, failures);
   validatePackagedCommercialManifests(packageDir, packagedArtifacts, failures, { releaseReport: report, maxAgeHours, supportBundle });
   validatePackagedStoreReleaseReport({ report, packageDir, packagedArtifacts, failures, maxAgeHours });
@@ -411,6 +415,134 @@ function readPackagedJsonArtifact({ packagedArtifacts, group, sourcePath, packag
   } catch (error) {
     failures.push(`Package ${label} cannot be read: ${error instanceof Error ? error.message : String(error)}.`);
     return null;
+  }
+}
+
+function readPackagedJsonEntry(entry, packageDir, label, failures) {
+  if (!entry?.packagedPath || !safeRelativePath(entry.packagedPath)) {
+    return null;
+  }
+  const path = resolve(packageDir, entry.packagedPath);
+  if (!isInsideDirectory(path, packageDir) || !existsSync(path) || !statSync(path).isFile()) {
+    return null;
+  }
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    failures.push(`Package ${label} cannot be read: ${error instanceof Error ? error.message : String(error)}.`);
+    return null;
+  }
+}
+
+function validatePackagedUiEvidence(manifest, releaseReport, packagedArtifacts, packageDir, failures, { maxAgeHours }) {
+  const uiEvidenceSource = uiEvidenceSourceFromReport(releaseReport);
+  if (!uiEvidenceSource?.sha256 || !manifest.uiEvidence) {
+    return;
+  }
+
+  const evidence = readPackagedJsonEntry(manifest.uiEvidence, packageDir, "browser UI evidence", failures);
+  if (!evidence) {
+    return;
+  }
+  if (evidence?.app !== "MobileLiveCaster" || evidence?.type !== "browser-ui-verification" || evidence?.reportVersion !== 1) {
+    failures.push("Package browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");
+  }
+  if (evidence.status !== "passed") {
+    failures.push(`Package browser UI evidence status must be passed, got ${JSON.stringify(evidence.status)}.`);
+  }
+  if (!isLoopbackHttpUrl(evidence.target)) {
+    failures.push("Package browser UI evidence target must be a loopback http(s) URL.");
+  }
+
+  validatePackagedUiEvidenceFreshness(evidence, releaseReport, maxAgeHours, failures);
+  validatePackagedUiEvidenceGit(evidence, releaseReport, failures);
+  validatePackagedUiEvidenceViewports(evidence, packagedArtifacts, packageDir, failures);
+}
+
+function validatePackagedUiEvidenceFreshness(evidence, releaseReport, maxAgeHours, failures) {
+  const evidenceFinishedAt = Date.parse(String(evidence?.finishedAt || ""));
+  const releaseFinishedAt = Date.parse(String(releaseReport?.finishedAt || ""));
+  if (!Number.isFinite(evidenceFinishedAt)) {
+    failures.push("Package browser UI evidence finishedAt timestamp is missing or invalid.");
+    return;
+  }
+  if (!Number.isFinite(releaseFinishedAt)) {
+    failures.push("Packaged release report finishedAt timestamp is missing or invalid.");
+    return;
+  }
+  if (evidenceFinishedAt > releaseFinishedAt) {
+    failures.push("Package browser UI evidence finishedAt is after the packaged release report finishedAt.");
+    return;
+  }
+  const ageHours = Math.floor((releaseFinishedAt - evidenceFinishedAt) / 3_600_000);
+  if (ageHours > maxAgeHours) {
+    failures.push(
+      `Package browser UI evidence is ${ageHours}h older than the release report, above the ${maxAgeHours}h commercial release gate.`
+    );
+  }
+}
+
+function validatePackagedUiEvidenceGit(evidence, releaseReport, failures) {
+  const evidenceCommit = String(evidence?.git?.commit || "");
+  const reportCommit = String(releaseReport?.git?.commit || "");
+  if (!evidenceCommit) {
+    failures.push("Package browser UI evidence git commit is missing.");
+  } else if (reportCommit && evidenceCommit !== reportCommit) {
+    failures.push(`Package browser UI evidence commit ${evidenceCommit} does not match release report commit ${reportCommit}.`);
+  }
+  if (evidence?.git?.dirty) {
+    failures.push("Package browser UI evidence was generated from a dirty worktree.");
+  }
+}
+
+function validatePackagedUiEvidenceViewports(evidence, packagedArtifacts, packageDir, failures) {
+  const viewports = Array.isArray(evidence?.viewports) ? evidence.viewports : [];
+  for (const viewportName of requiredUiViewportNames) {
+    const viewport = viewports.find((candidate) => candidate?.name === viewportName);
+    if (!viewport) {
+      failures.push(`Package browser UI evidence is missing ${viewportName} viewport results.`);
+      continue;
+    }
+    if (viewport.horizontalOverflow !== false) {
+      failures.push(`Package browser UI evidence reports horizontal overflow for ${viewportName}.`);
+    }
+    validatePackagedUiEvidenceTextChecks(viewport, failures);
+    validatePackagedUiEvidenceScreenshot(viewport, packagedArtifacts, packageDir, failures);
+  }
+}
+
+function validatePackagedUiEvidenceTextChecks(viewport, failures) {
+  const checks = Array.isArray(viewport.requiredTextChecks) ? viewport.requiredTextChecks : [];
+  for (const text of requiredUiTextChecks) {
+    const check = checks.find((candidate) => candidate?.text === text);
+    if (!check || !Number.isFinite(check.count) || check.count <= 0) {
+      failures.push(`Package browser UI evidence for ${viewport.name} is missing text ${JSON.stringify(text)}.`);
+    }
+  }
+}
+
+function validatePackagedUiEvidenceScreenshot(viewport, packagedArtifacts, packageDir, failures) {
+  const screenshot = viewport.screenshot;
+  if (!screenshot?.path || !Number.isFinite(screenshot.bytes) || screenshot.bytes <= 0 || !isSha256(screenshot.sha256)) {
+    failures.push(`Package browser UI evidence for ${viewport.name} is missing valid screenshot metadata.`);
+    return;
+  }
+  const packagedArtifact = packagedArtifactFor(packagedArtifacts, "ui", screenshot.path);
+  if (!packagedArtifact) {
+    failures.push(`Package browser UI evidence screenshot is missing from package artifacts: ${screenshot.path}.`);
+    return;
+  }
+  if (packagedArtifact.bytes !== screenshot.bytes || packagedArtifact.sha256 !== screenshot.sha256) {
+    failures.push(`Package browser UI evidence screenshot metadata mismatch for ${screenshot.path}.`);
+    return;
+  }
+  const screenshotPath = resolve(packageDir, packagedArtifact.packagedPath);
+  if (!isInsideDirectory(screenshotPath, packageDir) || !existsSync(screenshotPath) || !statSync(screenshotPath).isFile()) {
+    failures.push(`Package browser UI evidence screenshot file does not exist: ${packagedArtifact.packagedPath}.`);
+    return;
+  }
+  if (!isPng(readFileSync(screenshotPath))) {
+    failures.push(`Package browser UI evidence screenshot is not a PNG file: ${screenshot.path}.`);
   }
 }
 
@@ -1185,6 +1317,20 @@ function readJsonFile(path, label) {
 
 function fileSha256(path) {
   return createHash("sha256").update(readFileSync(resolve(path))).digest("hex");
+}
+
+function isPng(content) {
+  return (
+    content.length >= 8 &&
+    content[0] === 0x89 &&
+    content[1] === 0x50 &&
+    content[2] === 0x4e &&
+    content[3] === 0x47 &&
+    content[4] === 0x0d &&
+    content[5] === 0x0a &&
+    content[6] === 0x1a &&
+    content[7] === 0x0a
+  );
 }
 
 function safeBasename(path) {

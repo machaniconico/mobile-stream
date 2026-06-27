@@ -609,6 +609,41 @@ describe("release evidence package creator", () => {
     expect(failures).toContain("Package source metadata mismatch for dist/index.html.");
   });
 
+  it("rejects packaged browser UI evidence with an invalid schema even when metadata hashes match", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedUiEvidencePath = `${packageDir}/ui-evidence/ui-evidence.json`;
+    const packagedUiEvidence = JSON.parse(readFileSync(packagedUiEvidencePath, "utf8"));
+    packagedUiEvidence.type = "ui-verification";
+    writeFileSync(packagedUiEvidencePath, JSON.stringify(packagedUiEvidence, null, 2));
+    refreshPackagedUiEvidence(packagedUiEvidencePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file."
+    );
+  });
+
+  it("rejects packaged browser UI evidence missing required text checks", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedUiEvidencePath = `${packageDir}/ui-evidence/ui-evidence.json`;
+    const packagedUiEvidence = JSON.parse(readFileSync(packagedUiEvidencePath, "utf8"));
+    const mobile = packagedUiEvidence.viewports.find((viewport) => viewport.name === "mobile");
+    mobile.requiredTextChecks = mobile.requiredTextChecks.filter((check) => check.text !== "Go Live");
+    writeFileSync(packagedUiEvidencePath, JSON.stringify(packagedUiEvidence, null, 2));
+    refreshPackagedUiEvidence(packagedUiEvidencePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain('Package browser UI evidence for mobile is missing text "Go Live".');
+  });
+
   it("rejects unredacted sensitive text even when package metadata hashes match", () => {
     resetPackageDir();
     writeReportFixture();
@@ -1393,6 +1428,26 @@ function refreshPackageArtifactEntry(manifest, sourcePath, packagedPath) {
   entry.sha256 = createHash("sha256").update(content).digest("hex");
 }
 
+function refreshPackagedUiEvidence(packagedUiEvidencePath) {
+  const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+  const evidenceContent = readFileSync(packagedUiEvidencePath);
+  const evidenceSha256 = createHash("sha256").update(evidenceContent).digest("hex");
+
+  const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+  const evidenceGate = packagedReport.gates.find((gate) => gate.label === "Verify browser UI evidence");
+  if (evidenceGate?.evidence) {
+    evidenceGate.evidence.sha256 = evidenceSha256;
+  }
+  writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+  refreshPackagedSourceReportEvidence();
+
+  const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.uiEvidence.bytes = evidenceContent.byteLength;
+  manifest.uiEvidence.sha256 = evidenceSha256;
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+}
+
 function refreshPackagedSupportBundleEvidence(packagedSupportBundlePath) {
   const packagedReportPath = `${packageDir}/release-candidate-report.json`;
   const supportBundleContent = readFileSync(packagedSupportBundlePath);
@@ -1453,8 +1508,8 @@ function writeUiEvidenceFile({ path = ".artifacts/release-evidence-package-test/
         finishedAt: new Date().toISOString(),
         git: {
           commit: currentCommit(),
-          dirty: true,
-          statusShort: " M scripts/create-release-evidence-package.test.mjs"
+          dirty: false,
+          statusShort: ""
         },
         viewports: [
           uiViewport("desktop", ".artifacts/mobile-live-caster-desktop.png"),
