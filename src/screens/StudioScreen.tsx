@@ -283,7 +283,7 @@ const validationMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.validation.status} / ${diagnostics.validation.pendingCount} pending / ${diagnostics.validation.failCount} fail`;
 
 const rehearsalMetricLabel = (diagnostics: StreamDiagnostics): string =>
-  `${diagnostics.rehearsal.status} / ${diagnostics.rehearsal.pendingCount} pending / ${diagnostics.rehearsal.failCount} fail`;
+  `${diagnostics.rehearsal.score}/100 ${diagnostics.rehearsal.grade} / ${diagnostics.rehearsal.status} / ${diagnostics.rehearsal.weakAreaCount} weak`;
 
 const platformPublishingFreshnessMetricLabel = (
   diagnostics: StreamDiagnostics,
@@ -1560,7 +1560,9 @@ const StreamDiagnosticsPanel = ({
         <div className={`diagnostic-incident ${rehearsalTone(diagnostics)}`}>
           <strong>Launch rehearsal</strong>
           <span>{diagnostics.rehearsal.summary}</span>
-          <em>{diagnostics.rehearsal.primaryAction}</em>
+          <em>
+            Score {diagnostics.rehearsal.score}/100 grade {diagnostics.rehearsal.grade}. {diagnostics.rehearsal.primaryAction}
+          </em>
         </div>
         <div className={`diagnostic-incident ${platformPublishingFreshnessTone(platformPublishingFreshness.status)}`}>
           <strong>Platform dashboard freshness</strong>

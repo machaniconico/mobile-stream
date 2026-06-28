@@ -5,6 +5,7 @@ import type { StreamValidationRunbook } from "./streamValidationRunbook";
 
 export type StreamRehearsalStatus = "ready" | "needs-run" | "blocked";
 export type StreamRehearsalItemStatus = "pass" | "warn" | "fail" | "pending";
+export type StreamRehearsalGrade = "A" | "B" | "C" | "D" | "F";
 export type StreamRehearsalItemId =
   | "target"
   | "private-ingest"
@@ -25,6 +26,9 @@ export interface StreamRehearsalReport {
   canPromoteToPublic: boolean;
   summary: string;
   primaryAction: string;
+  score: number;
+  grade: StreamRehearsalGrade;
+  weakAreaCount: number;
   passCount: number;
   warningCount: number;
   failCount: number;
@@ -80,6 +84,7 @@ export const createStreamRehearsalReport = (input: StreamRehearsalInput): Stream
   const warningCount = countStatus(items, "warn");
   const failCount = countStatus(items, "fail");
   const pendingCount = countStatus(items, "pending");
+  const score = scoreRehearsalItems(items);
   const status: StreamRehearsalStatus =
     failCount > 0 ? "blocked" : warningCount > 0 || pendingCount > 0 ? "needs-run" : "ready";
 
@@ -88,6 +93,9 @@ export const createStreamRehearsalReport = (input: StreamRehearsalInput): Stream
     canPromoteToPublic: status === "ready",
     summary: createSummary(status, { failCount, warningCount, pendingCount }),
     primaryAction: createPrimaryAction(items),
+    score,
+    grade: gradeRehearsalScore(score),
+    weakAreaCount: items.length - passCount,
     passCount,
     warningCount,
     failCount,
@@ -276,3 +284,47 @@ const createPrimaryAction = (items: StreamRehearsalItem[]): string =>
 
 const countStatus = (items: StreamRehearsalItem[], status: StreamRehearsalItemStatus): number =>
   items.filter((item) => item.status === status).length;
+
+const rehearsalItemWeights: Record<StreamRehearsalItemId, number> = {
+  target: 10,
+  "private-ingest": 25,
+  runbook: 20,
+  "feature-proof": 25,
+  "release-evidence": 20
+};
+
+const rehearsalStatusFactors: Record<StreamRehearsalItemStatus, number> = {
+  pass: 1,
+  warn: 0.7,
+  pending: 0.35,
+  fail: 0
+};
+
+export const scoreRehearsalItems = (items: StreamRehearsalItem[]): number => {
+  const totalWeight = items.reduce((total, item) => total + (rehearsalItemWeights[item.id] ?? 0), 0);
+  if (totalWeight <= 0) {
+    return 0;
+  }
+
+  const weightedScore = items.reduce(
+    (total, item) => total + (rehearsalItemWeights[item.id] ?? 0) * rehearsalStatusFactors[item.status],
+    0
+  );
+  return Math.round((weightedScore / totalWeight) * 100);
+};
+
+export const gradeRehearsalScore = (score: number): StreamRehearsalGrade => {
+  if (score >= 95) {
+    return "A";
+  }
+  if (score >= 85) {
+    return "B";
+  }
+  if (score >= 70) {
+    return "C";
+  }
+  if (score >= 50) {
+    return "D";
+  }
+  return "F";
+};

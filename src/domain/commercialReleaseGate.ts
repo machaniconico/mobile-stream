@@ -264,6 +264,7 @@ const createValidationRunbookIssue = (bundle: SupportBundle): CommercialReleaseG
 };
 
 const createRehearsalIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+  const rehearsalScore = bundle.summary.rehearsalScore;
   if (
     bundle.summary.rehearsalStatus !== "ready" ||
     !bundle.summary.rehearsalCanPromoteToPublic ||
@@ -276,6 +277,14 @@ const createRehearsalIssue = (bundle: SupportBundle): CommercialReleaseGateIssue
       bundle.summary.rehearsalSummary ||
         `Launch rehearsal is ${bundle.summary.rehearsalStatus || "missing"} with ${bundle.summary.rehearsalFailCount ?? 0} failure(s) and ${bundle.summary.rehearsalPendingCount ?? 0} pending check(s).`,
       bundle.summary.rehearsalPrimaryAction || "Run and archive a passing private rehearsal before commercial release approval."
+    );
+  }
+  if (typeof rehearsalScore === "number" && Number.isFinite(rehearsalScore) && rehearsalScore < 95) {
+    return failIssue(
+      "stream-rehearsal-score-low",
+      "Launch rehearsal",
+      `Launch rehearsal score is ${rehearsalScore}/100 grade ${bundle.summary.rehearsalGrade ?? "-"}.`,
+      bundle.summary.rehearsalPrimaryAction || "Repeat the private rehearsal until the pre-launch score is A."
     );
   }
   if (bundle.summary.rehearsalWarningCount > 0) {

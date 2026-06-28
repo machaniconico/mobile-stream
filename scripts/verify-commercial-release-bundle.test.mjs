@@ -378,6 +378,23 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Rehearsal still needs 2 checks.");
   });
 
+  it("blocks release when a ready launch rehearsal carries a low score", () => {
+    writeBundle({
+      summary: {
+        rehearsalScore: 82,
+        rehearsalGrade: "C",
+        rehearsalWeakAreaCount: 1
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Launch rehearsal");
+    expect(result.stdout).toContain("Launch rehearsal score is 82/100 grade C.");
+  });
+
+
   it("blocks manifest rows marked in-scope for another destination", () => {
     writeBundle({
       summary: {
@@ -494,6 +511,9 @@ const createBundle = (patch = {}) => {
     validationRunbookNextAction: "Archive this support bundle.",
     rehearsalStatus: "ready",
     rehearsalCanPromoteToPublic: true,
+    rehearsalScore: 100,
+    rehearsalGrade: "A",
+    rehearsalWeakAreaCount: 0,
     rehearsalSummary: "Rehearsal is ready to promote to a platform-visible launch.",
     rehearsalPrimaryAction: "Export a support bundle and keep the rehearsed profile unchanged.",
     rehearsalPendingCount: 0,

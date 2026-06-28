@@ -697,6 +697,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Evidence platform dashboard: ${formatValidationPlatformPublishing(diagnostics, generatedAt)}`,
     `- Runbook: ${diagnostics.validationRunbook.status} / ${diagnostics.validationRunbook.summary}`,
     `- Runbook next: ${diagnostics.validationRunbook.nextAction}`,
+    `- Rehearsal score: ${diagnostics.rehearsal.score}/100 grade ${diagnostics.rehearsal.grade} / weak areas ${diagnostics.rehearsal.weakAreaCount}`,
     ...diagnostics.validationRunbook.items.map(
       (item) => `- [${item.status.toUpperCase()}] ${item.title}: ${item.detail} Action: ${item.action}`
     ),

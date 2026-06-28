@@ -101,6 +101,9 @@ export interface SupportBundle {
     validationRunbookNextAction: string;
     rehearsalStatus: StreamDiagnostics["rehearsal"]["status"];
     rehearsalCanPromoteToPublic: boolean;
+    rehearsalScore: number;
+    rehearsalGrade: StreamDiagnostics["rehearsal"]["grade"];
+    rehearsalWeakAreaCount: number;
     rehearsalSummary: string;
     rehearsalPrimaryAction: string;
     rehearsalPendingCount: number;
@@ -434,6 +437,9 @@ export const createSupportBundle = ({
       validationRunbookNextAction: diagnostics.validationRunbook.nextAction,
       rehearsalStatus: diagnostics.rehearsal.status,
       rehearsalCanPromoteToPublic: diagnostics.rehearsal.canPromoteToPublic,
+      rehearsalScore: diagnostics.rehearsal.score,
+      rehearsalGrade: diagnostics.rehearsal.grade,
+      rehearsalWeakAreaCount: diagnostics.rehearsal.weakAreaCount,
       rehearsalSummary: diagnostics.rehearsal.summary,
       rehearsalPrimaryAction: diagnostics.rehearsal.primaryAction,
       rehearsalPendingCount: diagnostics.rehearsal.pendingCount,
@@ -746,7 +752,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Status: ${bundle.summary.validationStatus}`,
     `- Runbook: ${bundle.summary.validationRunbookStatus} / ${bundle.summary.validationRunbookWarningCount} warn / ${bundle.summary.validationRunbookFailCount} fail / ${bundle.summary.validationRunbookPendingCount} pending`,
     `- Runbook next: ${bundle.summary.validationRunbookNextAction}`,
-    `- Rehearsal: ${bundle.summary.rehearsalStatus} / promote ${bundle.summary.rehearsalCanPromoteToPublic ? "yes" : "no"} / ${bundle.summary.rehearsalWarningCount} warn / ${bundle.summary.rehearsalFailCount} fail / ${bundle.summary.rehearsalPendingCount} pending`,
+    `- Rehearsal: ${bundle.summary.rehearsalStatus} / score ${bundle.summary.rehearsalScore}/100 grade ${bundle.summary.rehearsalGrade} / promote ${bundle.summary.rehearsalCanPromoteToPublic ? "yes" : "no"} / weak ${bundle.summary.rehearsalWeakAreaCount} / ${bundle.summary.rehearsalWarningCount} warn / ${bundle.summary.rehearsalFailCount} fail / ${bundle.summary.rehearsalPendingCount} pending`,
     `- Rehearsal summary: ${bundle.summary.rehearsalSummary}`,
     `- Rehearsal action: ${bundle.summary.rehearsalPrimaryAction}`,
     `- Pending: ${bundle.summary.validationPendingCount}`,

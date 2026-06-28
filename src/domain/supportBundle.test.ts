@@ -197,6 +197,9 @@ describe("support bundle", () => {
     expect(bundle.summary.validationRunbookPendingCount).toBeGreaterThan(0);
     expect(bundle.summary.rehearsalStatus).toBe("needs-run");
     expect(bundle.summary.rehearsalCanPromoteToPublic).toBe(false);
+    expect(bundle.summary.rehearsalScore).toBeGreaterThanOrEqual(0);
+    expect(bundle.summary.rehearsalGrade).toMatch(/^[ABCDF]$/);
+    expect(bundle.summary.rehearsalWeakAreaCount).toBeGreaterThan(0);
     expect(bundle.summary.rehearsalPendingCount).toBeGreaterThan(0);
     expect(bundle.summary.rehearsalSummary).toContain("Rehearsal");
     expect(bundle.summary.qualityAdvisorAction).toBe("maintain");

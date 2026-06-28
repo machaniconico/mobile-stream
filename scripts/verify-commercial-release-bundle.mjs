@@ -332,6 +332,7 @@ function validationRunbookIssue(bundle) {
 
 function rehearsalIssue(bundle) {
   const summary = bundle?.summary ?? {};
+  const rehearsalScore = summary.rehearsalScore;
   if (
     summary.rehearsalStatus !== "ready" ||
     summary.rehearsalCanPromoteToPublic !== true ||
@@ -344,6 +345,14 @@ function rehearsalIssue(bundle) {
       text(summary.rehearsalSummary) ||
         `Launch rehearsal is ${summary.rehearsalStatus || "missing"} with ${number(summary.rehearsalFailCount)} failure(s) and ${number(summary.rehearsalPendingCount)} pending check(s).`,
       text(summary.rehearsalPrimaryAction) || "Run and archive a passing private rehearsal before commercial release approval."
+    );
+  }
+  if (typeof rehearsalScore === "number" && Number.isFinite(rehearsalScore) && rehearsalScore < 95) {
+    return fail(
+      "stream-rehearsal-score-low",
+      "Launch rehearsal",
+      `Launch rehearsal score is ${rehearsalScore}/100 grade ${text(summary.rehearsalGrade) || "-"}.`,
+      text(summary.rehearsalPrimaryAction) || "Repeat the private rehearsal until the pre-launch score is A."
     );
   }
   if (number(summary.rehearsalWarningCount) > 0) {

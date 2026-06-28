@@ -170,6 +170,32 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks commercial release when a ready rehearsal carries a low score", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          rehearsalScore: 82,
+          rehearsalGrade: "C",
+          rehearsalWeakAreaCount: 1
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "stream-rehearsal-score-low",
+          severity: "fail",
+          detail: "Launch rehearsal score is 82/100 grade C."
+        })
+      ])
+    );
+  });
+
+
   it("blocks monitor-hold summary claims when the manifest lacks stable duration proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -776,6 +802,9 @@ const supportBundle = ({
       validationRunbookNextAction: "Archive this support bundle.",
       rehearsalStatus: "ready",
       rehearsalCanPromoteToPublic: true,
+      rehearsalScore: 100,
+      rehearsalGrade: "A",
+      rehearsalWeakAreaCount: 0,
       rehearsalSummary: "Rehearsal is ready to promote to a platform-visible launch.",
       rehearsalPrimaryAction: "Export a support bundle and keep the rehearsed profile unchanged.",
       rehearsalPendingCount: 0,

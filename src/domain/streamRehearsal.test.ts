@@ -7,6 +7,9 @@ describe("stream rehearsal report", () => {
 
     expect(report.status).toBe("ready");
     expect(report.canPromoteToPublic).toBe(true);
+    expect(report.score).toBe(100);
+    expect(report.grade).toBe("A");
+    expect(report.weakAreaCount).toBe(0);
     expect(report.summary).toContain("ready to promote");
     expect(report.items.map((item) => item.status)).toEqual(["pass", "pass", "pass", "pass", "pass"]);
   });
@@ -33,6 +36,9 @@ describe("stream rehearsal report", () => {
 
     expect(report.status).toBe("needs-run");
     expect(report.canPromoteToPublic).toBe(false);
+    expect(report.score).toBe(71);
+    expect(report.grade).toBe("C");
+    expect(report.weakAreaCount).toBe(2);
     expect(report.primaryAction).toContain("private or unlisted rehearsal");
     expect(report.items).toContainEqual(
       expect.objectContaining({
@@ -56,6 +62,8 @@ describe("stream rehearsal report", () => {
 
     expect(report.status).toBe("needs-run");
     expect(report.canPromoteToPublic).toBe(false);
+    expect(report.score).toBe(71);
+    expect(report.grade).toBe("C");
     expect(report.items).toContainEqual(
       expect.objectContaining({
         id: "feature-proof",

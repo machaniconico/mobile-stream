@@ -242,7 +242,7 @@ const validationMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.validation.status} / ${diagnostics.validation.pendingCount} pending / ${diagnostics.validation.failCount} fail`;
 
 const rehearsalMetricLabel = (diagnostics: StreamDiagnostics): string =>
-  `${diagnostics.rehearsal.status} / ${diagnostics.rehearsal.pendingCount} pending / ${diagnostics.rehearsal.failCount} fail`;
+  `${diagnostics.rehearsal.score}/100 ${diagnostics.rehearsal.grade} / ${diagnostics.rehearsal.status} / ${diagnostics.rehearsal.weakAreaCount} weak`;
 
 const platformPublishingFreshnessMetricLabel = (
   diagnostics: StreamDiagnostics,
@@ -1748,7 +1748,9 @@ const StreamDiagnosticsPanel = ({
       <View style={[styles.diagnosticIncident, diagnosticRehearsalStyle(diagnostics)]}>
         <Text style={styles.diagnosticIncidentTitle}>Launch rehearsal</Text>
         <Text style={styles.diagnosticIncidentText}>{diagnostics.rehearsal.summary}</Text>
-        <Text style={styles.diagnosticIncidentRecommendation}>{diagnostics.rehearsal.primaryAction}</Text>
+        <Text style={styles.diagnosticIncidentRecommendation}>
+          Score {diagnostics.rehearsal.score}/100 grade {diagnostics.rehearsal.grade}. {diagnostics.rehearsal.primaryAction}
+        </Text>
       </View>
       {diagnostics.validation.items.map((item) => (
         <View key={item.id} style={[styles.diagnosticIncident, diagnosticValidationItemStyle(item.status)]}>
