@@ -19,6 +19,7 @@ import {
   stripTransientSceneCollectionRuntime,
   stripTransientSceneRuntime,
   toRenderGraph,
+  updateSceneTransition,
   updateTransform
 } from "./scene";
 
@@ -35,6 +36,7 @@ describe("scene document", () => {
     const collection = createDefaultSceneCollection();
 
     expect(collection.activeSceneId).toBe("scene-main");
+    expect(collection.transition).toEqual({ kind: "fade", durationMs: 300 });
     expect(collection.scenes.map((scene) => scene.name)).toEqual(["Main Scene", "Starting Soon", "Break"]);
     expect(selectActiveScene(collection).id).toBe("scene-main");
     expect(collection.scenes.find((scene) => scene.id === "scene-starting-soon")?.sources.map((source) => source.kind)).toEqual([
@@ -54,8 +56,23 @@ describe("scene document", () => {
     });
 
     expect(collection.activeSceneId).toBe("legacy-scene");
+    expect(collection.transition).toEqual({ kind: "fade", durationMs: 300 });
     expect(collection.scenes).toHaveLength(1);
     expect(selectActiveScene(collection).name).toBe("Legacy");
+  });
+
+  it("normalizes and updates scene transition settings", () => {
+    const collection = normalizeSceneCollection({
+      version: 1,
+      activeSceneId: "scene-main",
+      transition: { kind: "invalid", durationMs: 99999 },
+      scenes: [createDefaultScene()]
+    });
+    const updated = updateSceneTransition(collection, { kind: "cut", durationMs: -5 });
+
+    expect(collection.transition).toEqual({ kind: "fade", durationMs: 2000 });
+    expect(updated.transition).toEqual({ kind: "cut", durationMs: 0 });
+    expect(selectActiveScene(updated).id).toBe("scene-main");
   });
 
   it("switches, adds, and duplicates active scenes without mutating the originals", () => {

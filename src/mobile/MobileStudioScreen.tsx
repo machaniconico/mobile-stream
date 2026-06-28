@@ -62,6 +62,9 @@ import {
   type RenderNode,
   type SceneSource,
   type SceneTemplateId,
+  type SceneTransitionKind,
+  type SceneTransitionPreview,
+  type SceneTransitionSettings,
   type SourceKind
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
@@ -98,6 +101,8 @@ interface MobileStudioScreenProps {
   scene: SceneDocument;
   scenes: SceneDocument[];
   activeSceneId: string;
+  sceneTransitionSettings: SceneTransitionSettings;
+  sceneTransitionPreview: SceneTransitionPreview | null;
   profile: StudioProfile;
   selectedSourceId: string;
   snapshot: NativeEngineSnapshot;
@@ -127,6 +132,7 @@ interface MobileStudioScreenProps {
   onSceneSwitch(sceneId: string): void;
   onSceneCreate(templateId: SceneTemplateId): void;
   onSceneDuplicate(): void;
+  onSceneTransitionChange(settings: Partial<SceneTransitionSettings>): void;
   onProfileChange(profile: StudioProfile): void;
   onSelectSource(sourceId: string): void;
   onMicLevelChange(level: number): void;
@@ -169,6 +175,10 @@ const sourceLabels: Record<SourceKind, string> = {
 };
 
 const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "chat", "text", "image", "solid"];
+const sceneTransitionKinds: Array<{ kind: SceneTransitionKind; label: string }> = [
+  { kind: "cut", label: "Cut" },
+  { kind: "fade", label: "Fade" }
+];
 const expressions: AvatarExpression[] = ["neutral", "happy", "angry", "surprised"];
 
 const shareStreamDiagnosticReport = async (diagnostics: StreamDiagnostics, publicLaunchChecklist: PublicLaunchChecklist) => {
@@ -265,6 +275,8 @@ export const MobileStudioScreen = ({
   scene,
   scenes,
   activeSceneId,
+  sceneTransitionSettings,
+  sceneTransitionPreview,
   profile,
   selectedSourceId,
   snapshot,
@@ -294,6 +306,7 @@ export const MobileStudioScreen = ({
   onSceneSwitch,
   onSceneCreate,
   onSceneDuplicate,
+  onSceneTransitionChange,
   onProfileChange,
   onSelectSource,
   onMicLevelChange,
@@ -608,6 +621,34 @@ export const MobileStudioScreen = ({
             <ActionButton label="+ Start" disabled={setupLocked} onPress={() => onSceneCreate("starting-soon")} />
             <ActionButton label="+ Break" disabled={setupLocked} onPress={() => onSceneCreate("break")} />
           </View>
+          <View style={styles.sceneTransitionControl}>
+            <View style={styles.sceneTransitionHeader}>
+              <Text style={styles.sourceMeta}>Transition</Text>
+              <Text style={styles.sourceMeta}>
+                {sceneTransitionSettings.kind === "cut" ? "instant" : `${sceneTransitionSettings.durationMs}ms`}
+              </Text>
+            </View>
+            <View style={styles.grid2}>
+              {sceneTransitionKinds.map((item) => (
+                <ActionButton
+                  key={item.kind}
+                  label={item.label}
+                  variant={sceneTransitionSettings.kind === item.kind ? "active" : "default"}
+                  disabled={setupLocked}
+                  onPress={() => onSceneTransitionChange({ kind: item.kind })}
+                />
+              ))}
+            </View>
+            <NumberStepper
+              label="Duration ms"
+              value={sceneTransitionSettings.durationMs}
+              min={0}
+              max={2000}
+              step={50}
+              disabled={setupLocked || sceneTransitionSettings.kind === "cut"}
+              onChange={(durationMs) => onSceneTransitionChange({ durationMs })}
+            />
+          </View>
         </Panel>
 
         <Panel title="Sources">
@@ -653,6 +694,7 @@ export const MobileStudioScreen = ({
             scene={scene}
             selectedSourceId={selectedSource.id}
             chatMessages={chatOverlayMessages}
+            transitionPreview={sceneTransitionPreview}
             onSelectSource={onSelectSource}
           />
         </Panel>
@@ -2400,21 +2442,51 @@ const ProgramPreview = ({
   scene,
   selectedSourceId,
   chatMessages,
+  transitionPreview,
   onSelectSource
 }: {
   scene: SceneDocument;
   selectedSourceId: string;
   chatMessages: ReturnType<typeof selectChatOverlayMessages>;
+  transitionPreview: SceneTransitionPreview | null;
   onSelectSource(sourceId: string): void;
+}) => {
+  const transitionOpacity = useSceneTransitionOpacity(transitionPreview);
+  return (
+    <View style={styles.previewStage}>
+      <ScenePreviewLayer scene={scene} selectedSourceId={selectedSourceId} chatMessages={chatMessages} onSelectSource={onSelectSource} />
+      {transitionPreview && transitionOpacity > 0 ? (
+        <View style={[styles.previewTransitionLayer, { opacity: transitionOpacity }]} pointerEvents="none">
+          <ScenePreviewLayer scene={transitionPreview.scene} chatMessages={chatMessages} />
+        </View>
+      ) : null}
+    </View>
+  );
+};
+
+const ScenePreviewLayer = ({
+  scene,
+  selectedSourceId = "",
+  chatMessages,
+  onSelectSource
+}: {
+  scene: SceneDocument;
+  selectedSourceId?: string;
+  chatMessages: ReturnType<typeof selectChatOverlayMessages>;
+  onSelectSource?(sourceId: string): void;
 }) => (
-  <View style={styles.previewStage}>
+  <>
     {toRenderGraph(scene, { chatMessages }).map((node) => {
       const source = scene.sources.find((item) => item.id === node.id);
       if (!source) {
         return null;
       }
+      const interactive = Boolean(onSelectSource);
 
-      return (
+      const content = (
+        <SourceVisual source={source} node={node} />
+      );
+      return interactive ? (
         <Pressable
           key={source.id}
           style={[
@@ -2429,14 +2501,52 @@ const ProgramPreview = ({
             },
             source.id === selectedSourceId && styles.previewSourceSelected
           ]}
-          onPress={() => onSelectSource(source.id)}
+          onPress={() => onSelectSource?.(source.id)}
         >
-          <SourceVisual source={source} node={node} />
+          {content}
         </Pressable>
+      ) : (
+        <View
+          key={source.id}
+          style={[
+            styles.previewSource,
+            {
+              left: `${source.transform.x * 100}%`,
+              top: `${source.transform.y * 100}%`,
+              width: `${source.transform.width * 100}%`,
+              height: `${source.transform.height * 100}%`,
+              opacity: source.transform.opacity,
+              transform: [{ rotate: `${source.transform.rotation}deg` }]
+            }
+          ]}
+        >
+          {content}
+        </View>
       );
     })}
-  </View>
+  </>
 );
+
+const useSceneTransitionOpacity = (transitionPreview: SceneTransitionPreview | null): number => {
+  const [opacity, setOpacity] = useState(0);
+
+  useEffect(() => {
+    if (!transitionPreview || transitionPreview.settings.kind !== "fade" || transitionPreview.settings.durationMs <= 0) {
+      setOpacity(0);
+      return undefined;
+    }
+
+    const updateOpacity = () => {
+      const elapsed = Date.now() - transitionPreview.startedAt;
+      setOpacity(Math.max(0, 1 - elapsed / transitionPreview.settings.durationMs));
+    };
+    updateOpacity();
+    const timer = setInterval(updateOpacity, 16);
+    return () => clearInterval(timer);
+  }, [transitionPreview]);
+
+  return opacity;
+};
 
 const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode }) => {
   if (source.kind === "screen") {
@@ -3267,6 +3377,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "900"
   },
+  sceneTransitionControl: {
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: "#15151c",
+    gap: 8
+  },
+  sceneTransitionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10
+  },
   sourceKind: {
     color: "#2dd4bf",
     fontSize: 12,
@@ -3357,6 +3480,14 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderRadius: 8,
     backgroundColor: "#0d0d13"
+  },
+  previewTransitionLayer: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 20
   },
   previewSource: {
     position: "absolute",

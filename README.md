@@ -6,7 +6,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 
 ## Current Prototype
 
-- OBS-like multi-scene/source stack with Main, Starting Soon, and Break scene presets plus live scene switching.
+- OBS-like multi-scene/source stack with Main, Starting Soon, and Break scene presets, live scene switching, and cut/fade transition settings.
 - Screen, PNGTuber, Live2D, image, solid, and text source records.
 - Layer visibility, lock, ordering, and transform controls.
 - RTMP/RTMPS destination profiles with YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
@@ -50,7 +50,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Native Android/iOS status and publisher-runtime messages redact publish URLs, stream keys, and bearer tokens before app display.
 - Keychain/Android Keystore-backed mobile profile storage for stream keys.
 - In-app stream key clear and replacement controls.
-- Durable multi-scene persistence on web, iOS, and Android with legacy single-scene migration and persisted-scene normalization.
+- Durable multi-scene persistence on web, iOS, and Android with transition settings, legacy single-scene migration, and persisted-scene normalization.
 - Quality presets.
 - Voice lip-sync meter and expression buttons.
 - Still-image VTuber face tracking with native-camera input on mobile, simulated input on web, calibration, dead-zone filtering, jump limiting, lost-face return tuning, image-aspect-aware geometry rig inference, production rig-line diagnostics, native 2.5D motion scaling, tunable illustration rig regions, lightweight pseudo mesh deformation, hair/body follow-through, and eye/mouth deformation in the iOS/Android compositor.

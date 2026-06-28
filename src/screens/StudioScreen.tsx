@@ -73,6 +73,9 @@ import {
   type RenderNode,
   type SceneSource,
   type SceneTemplateId,
+  type SceneTransitionKind,
+  type SceneTransitionPreview,
+  type SceneTransitionSettings,
   type SourceKind
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
@@ -110,6 +113,8 @@ interface StudioScreenProps {
   scene: SceneDocument;
   scenes: SceneDocument[];
   activeSceneId: string;
+  sceneTransitionSettings: SceneTransitionSettings;
+  sceneTransitionPreview: SceneTransitionPreview | null;
   profile: StudioProfile;
   selectedSourceId: string;
   snapshot: NativeEngineSnapshot;
@@ -138,6 +143,7 @@ interface StudioScreenProps {
   onSceneSwitch(sceneId: string): void;
   onSceneCreate(templateId: SceneTemplateId): void;
   onSceneDuplicate(): void;
+  onSceneTransitionChange(settings: Partial<SceneTransitionSettings>): void;
   onProfileChange(profile: StudioProfile): void;
   onSelectSource(sourceId: string): void;
   onMicLevelChange(level: number): void;
@@ -180,6 +186,10 @@ const sourceLabels: Record<SourceKind, string> = {
 };
 
 const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "chat", "text", "image", "solid"];
+const sceneTransitionKinds: Array<{ kind: SceneTransitionKind; label: string }> = [
+  { kind: "cut", label: "Cut" },
+  { kind: "fade", label: "Fade" }
+];
 
 const expressions: AvatarExpression[] = ["neutral", "happy", "angry", "surprised"];
 
@@ -329,6 +339,8 @@ export const StudioScreen = ({
   scene,
   scenes,
   activeSceneId,
+  sceneTransitionSettings,
+  sceneTransitionPreview,
   profile,
   selectedSourceId,
   snapshot,
@@ -357,6 +369,7 @@ export const StudioScreen = ({
   onSceneSwitch,
   onSceneCreate,
   onSceneDuplicate,
+  onSceneTransitionChange,
   onProfileChange,
   onSelectSource,
   onMicLevelChange,
@@ -563,6 +576,37 @@ export const StudioScreen = ({
               <span>Break</span>
             </button>
           </div>
+          <div className="scene-transition-control">
+            <div className="scene-transition-header">
+              <span>Transition</span>
+              <span>{sceneTransitionSettings.kind === "cut" ? "instant" : `${sceneTransitionSettings.durationMs}ms`}</span>
+            </div>
+            <div className="scene-transition-buttons" role="group" aria-label="scene transition type">
+              {sceneTransitionKinds.map((item) => (
+                <button
+                  key={item.kind}
+                  className={`segmented-button ${sceneTransitionSettings.kind === item.kind ? "active" : ""}`}
+                  type="button"
+                  disabled={setupLocked}
+                  onClick={() => onSceneTransitionChange({ kind: item.kind })}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <label className="scene-duration-control">
+              <span>Duration</span>
+              <input
+                type="range"
+                min={0}
+                max={2000}
+                step={50}
+                disabled={setupLocked || sceneTransitionSettings.kind === "cut"}
+                value={sceneTransitionSettings.durationMs}
+                onChange={(event) => onSceneTransitionChange({ durationMs: Number(event.target.value) })}
+              />
+            </label>
+          </div>
 
           <PanelTitle icon={<Layers size={18} />} title="Sources" />
           <div className="source-list">
@@ -637,6 +681,7 @@ export const StudioScreen = ({
             scene={scene}
             selectedSourceId={selectedSource.id}
             chatMessages={chatOverlayMessages}
+            transitionPreview={sceneTransitionPreview}
             onSelectSource={onSelectSource}
           />
           <div className="transport-bar">
@@ -2139,11 +2184,12 @@ interface ProgramPreviewProps {
   scene: SceneDocument;
   selectedSourceId: string;
   chatMessages: ReturnType<typeof selectChatOverlayMessages>;
+  transitionPreview: SceneTransitionPreview | null;
   onSelectSource(sourceId: string): void;
 }
 
-const ProgramPreview = ({ scene, selectedSourceId, chatMessages, onSelectSource }: ProgramPreviewProps) => {
-  const graph = toRenderGraph(scene, { chatMessages });
+const ProgramPreview = ({ scene, selectedSourceId, chatMessages, transitionPreview, onSelectSource }: ProgramPreviewProps) => {
+  const transitionOpacity = useSceneTransitionOpacity(transitionPreview);
   return (
     <div className="program-preview">
       <div className="preview-toolbar">
@@ -2153,34 +2199,83 @@ const ProgramPreview = ({ scene, selectedSourceId, chatMessages, onSelectSource 
         </span>
       </div>
       <div className="program-stage">
-        {graph.map((node) => {
-          const source = scene.sources.find((item) => item.id === node.id);
-          if (!source) {
-            return null;
-          }
-          const style = {
-            left: `${source.transform.x * 100}%`,
-            top: `${source.transform.y * 100}%`,
-            width: `${source.transform.width * 100}%`,
-            height: `${source.transform.height * 100}%`,
-            opacity: source.transform.opacity,
-            transform: `rotate(${source.transform.rotation}deg)`
-          };
-          return (
-            <button
-              key={source.id}
-              className={`program-source ${source.kind} ${source.id === selectedSourceId ? "selected" : ""}`}
-              style={style}
-              type="button"
-              onClick={() => onSelectSource(source.id)}
-            >
-              <SourceVisual source={source} node={node} />
-            </button>
-          );
-        })}
+        <ScenePreviewLayer
+          scene={scene}
+          selectedSourceId={selectedSourceId}
+          chatMessages={chatMessages}
+          interactive
+          onSelectSource={onSelectSource}
+        />
+        {transitionPreview && transitionOpacity > 0 ? (
+          <div className="program-transition-layer" style={{ opacity: transitionOpacity }} aria-hidden="true">
+            <ScenePreviewLayer scene={transitionPreview.scene} chatMessages={chatMessages} />
+          </div>
+        ) : null}
       </div>
     </div>
   );
+};
+
+const ScenePreviewLayer = ({
+  scene,
+  selectedSourceId = "",
+  chatMessages,
+  interactive = false,
+  onSelectSource
+}: {
+  scene: SceneDocument;
+  selectedSourceId?: string;
+  chatMessages: ReturnType<typeof selectChatOverlayMessages>;
+  interactive?: boolean;
+  onSelectSource?(sourceId: string): void;
+}) => (
+  <>
+    {toRenderGraph(scene, { chatMessages }).map((node) => {
+      const source = scene.sources.find((item) => item.id === node.id);
+      if (!source) {
+        return null;
+      }
+      const style = {
+        left: `${source.transform.x * 100}%`,
+        top: `${source.transform.y * 100}%`,
+        width: `${source.transform.width * 100}%`,
+        height: `${source.transform.height * 100}%`,
+        opacity: source.transform.opacity,
+        transform: `rotate(${source.transform.rotation}deg)`
+      };
+      const className = `program-source ${source.kind} ${source.id === selectedSourceId ? "selected" : ""}`;
+      return interactive && onSelectSource ? (
+        <button key={source.id} className={className} style={style} type="button" onClick={() => onSelectSource(source.id)}>
+          <SourceVisual source={source} node={node} />
+        </button>
+      ) : (
+        <div key={source.id} className={className} style={style}>
+          <SourceVisual source={source} node={node} />
+        </div>
+      );
+    })}
+  </>
+);
+
+const useSceneTransitionOpacity = (transitionPreview: SceneTransitionPreview | null): number => {
+  const [opacity, setOpacity] = useState(0);
+
+  useEffect(() => {
+    if (!transitionPreview || transitionPreview.settings.kind !== "fade" || transitionPreview.settings.durationMs <= 0) {
+      setOpacity(0);
+      return undefined;
+    }
+
+    const updateOpacity = () => {
+      const elapsed = Date.now() - transitionPreview.startedAt;
+      setOpacity(Math.max(0, 1 - elapsed / transitionPreview.settings.durationMs));
+    };
+    updateOpacity();
+    const timer = window.setInterval(updateOpacity, 16);
+    return () => window.clearInterval(timer);
+  }, [transitionPreview]);
+
+  return opacity;
 };
 
 const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode }) => {

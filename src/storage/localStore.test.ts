@@ -97,6 +97,7 @@ describe("local stream session summary store", () => {
     const collection = loadSceneCollection();
 
     expect(collection?.activeSceneId).toBe("legacy-scene");
+    expect(collection?.transition).toEqual({ kind: "fade", durationMs: 300 });
     expect(collection?.scenes).toHaveLength(1);
     expect(loadScene()?.name).toBe("Legacy Scene");
   });
@@ -108,6 +109,7 @@ describe("local stream session summary store", () => {
     const withRuntime = {
       ...collection,
       activeSceneId: "scene-break",
+      transition: { kind: "cut" as const, durationMs: 0 },
       scenes: collection.scenes.map((scene) => ({
         ...scene,
         sources: scene.sources.map((source) =>
@@ -121,6 +123,7 @@ describe("local stream session summary store", () => {
 
     expect(loaded?.scenes).toHaveLength(3);
     expect(loaded?.activeSceneId).toBe("scene-break");
+    expect(loaded?.transition).toEqual({ kind: "cut", durationMs: 0 });
     const activeAvatar = selectActiveScene(loaded!).sources.find((source) => source.kind === "pngtuber");
     expect(activeAvatar?.mouthOpen).toBe(0);
     expect(activeAvatar?.blink).toBe(0);

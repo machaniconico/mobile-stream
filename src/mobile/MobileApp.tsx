@@ -82,11 +82,14 @@ import {
   setActiveScene,
   stripTransientSceneCollectionRuntime,
   updateActiveScene,
+  updateSceneTransition,
   updateSource,
   type Live2DSource,
   type PNGTuberSource,
   type SceneCollection,
   type SceneTemplateId,
+  type SceneTransitionPreview,
+  type SceneTransitionSettings,
   type SceneDocument
 } from "../domain/scene";
 import {
@@ -197,6 +200,7 @@ export const MobileApp = () => {
   const [platformStreamKeyStatus, setPlatformStreamKeyStatus] = useState("Platform stream key sync idle.");
   const [platformPublishingStatus, setPlatformPublishingStatus] = useState("Platform publishing setup idle.");
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
+  const [sceneTransitionPreview, setSceneTransitionPreview] = useState<SceneTransitionPreview | null>(null);
   const [snapshot, setSnapshot] = useState<NativeEngineSnapshot>(() => engine.getSnapshot());
   const [avatarRuntime, setAvatarRuntime] = useState(() => createAvatarRuntimeStateFromScene(scene, Date.now()));
   const [faceTrackingRuntime, setFaceTrackingRuntime] = useState(() => createFaceTrackingRuntimeState(Date.now()));
@@ -549,17 +553,58 @@ export const MobileApp = () => {
     []
   );
 
-  const switchScene = useCallback((sceneId: string) => {
-    setSceneCollection((currentCollection) => setActiveScene(currentCollection, sceneId));
+  const startSceneTransitionPreview = useCallback((fromScene: SceneDocument, settings: SceneTransitionSettings) => {
+    if (settings.kind !== "fade" || settings.durationMs <= 0) {
+      setSceneTransitionPreview(null);
+      return;
+    }
+    setSceneTransitionPreview({
+      scene: fromScene,
+      startedAt: Date.now(),
+      settings
+    });
   }, []);
+
+  const switchScene = useCallback((sceneId: string) => {
+    if (sceneId === sceneCollection.activeSceneId) {
+      return;
+    }
+    const fromScene = selectActiveScene(sceneCollection);
+    const nextCollection = setActiveScene(sceneCollection, sceneId);
+    if (nextCollection.activeSceneId !== sceneCollection.activeSceneId) {
+      startSceneTransitionPreview(fromScene, sceneCollection.transition);
+      setSceneCollection(nextCollection);
+    }
+  }, [sceneCollection, startSceneTransitionPreview]);
 
   const createScene = useCallback((templateId: SceneTemplateId) => {
-    setSceneCollection((currentCollection) => addSceneToCollection(currentCollection, createSceneFromTemplate(templateId)));
-  }, []);
+    const fromScene = selectActiveScene(sceneCollection);
+    const nextCollection = addSceneToCollection(sceneCollection, createSceneFromTemplate(templateId));
+    startSceneTransitionPreview(fromScene, sceneCollection.transition);
+    setSceneCollection(nextCollection);
+  }, [sceneCollection, startSceneTransitionPreview]);
 
   const duplicateScene = useCallback(() => {
-    setSceneCollection((currentCollection) => duplicateActiveScene(currentCollection));
+    const fromScene = selectActiveScene(sceneCollection);
+    const nextCollection = duplicateActiveScene(sceneCollection);
+    startSceneTransitionPreview(fromScene, sceneCollection.transition);
+    setSceneCollection(nextCollection);
+  }, [sceneCollection, startSceneTransitionPreview]);
+
+  const updateSceneTransitionSettings = useCallback((settings: Partial<SceneTransitionSettings>) => {
+    setSceneCollection((currentCollection) => updateSceneTransition(currentCollection, settings));
   }, []);
+
+  useEffect(() => {
+    if (!sceneTransitionPreview) {
+      return undefined;
+    }
+    const timeout = setTimeout(
+      () => setSceneTransitionPreview(null),
+      Math.max(80, sceneTransitionPreview.settings.durationMs + 80)
+    );
+    return () => clearTimeout(timeout);
+  }, [sceneTransitionPreview]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1298,6 +1343,8 @@ export const MobileApp = () => {
         scene={scene}
         scenes={sceneCollection.scenes}
         activeSceneId={sceneCollection.activeSceneId}
+        sceneTransitionSettings={sceneCollection.transition}
+        sceneTransitionPreview={sceneTransitionPreview}
         profile={profile}
         selectedSourceId={selectedSourceId}
         snapshot={snapshot}
@@ -1327,6 +1374,7 @@ export const MobileApp = () => {
         onSceneSwitch={switchScene}
         onSceneCreate={createScene}
         onSceneDuplicate={duplicateScene}
+        onSceneTransitionChange={updateSceneTransitionSettings}
         onProfileChange={setProfile}
         onSelectSource={setSelectedSourceId}
         onMicLevelChange={updateMicLevel}

@@ -135,10 +135,23 @@ export interface SceneDocument {
 }
 
 export type SceneTemplateId = "main" | "starting-soon" | "break";
+export type SceneTransitionKind = "cut" | "fade";
+
+export interface SceneTransitionSettings {
+  kind: SceneTransitionKind;
+  durationMs: number;
+}
+
+export interface SceneTransitionPreview {
+  scene: SceneDocument;
+  startedAt: number;
+  settings: SceneTransitionSettings;
+}
 
 export interface SceneCollection {
   version: 1;
   activeSceneId: string;
+  transition: SceneTransitionSettings;
   scenes: SceneDocument[];
 }
 
@@ -160,6 +173,7 @@ const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 const clampRange = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const sourceKinds: readonly SourceKind[] = ["screen", "pngtuber", "live2d", "image", "solid", "text", "chat"];
 const blendModes: readonly BlendMode[] = ["normal", "multiply", "screen"];
+const sceneTransitionKinds: readonly SceneTransitionKind[] = ["cut", "fade"];
 
 const clampTransform = (transform: Transform): Transform => ({
   x: clamp01(transform.x),
@@ -171,6 +185,13 @@ const clampTransform = (transform: Transform): Transform => ({
 });
 
 const makeId = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+
+export const defaultSceneTransitionSettings = (
+  overrides: Partial<SceneTransitionSettings> = {}
+): SceneTransitionSettings => ({
+  kind: sceneTransitionKinds.includes(overrides.kind as SceneTransitionKind) ? (overrides.kind as SceneTransitionKind) : "fade",
+  durationMs: Math.round(clampRange(overrides.durationMs ?? 300, 0, 2000))
+});
 
 export const defaultAvatarMotion = (overrides: Partial<AvatarMotion> = {}): AvatarMotion => ({
   headYaw: 0,
@@ -409,6 +430,7 @@ export const createSceneFromTemplate = (templateId: SceneTemplateId): SceneDocum
 export const createDefaultSceneCollection = (): SceneCollection => ({
   version: 1,
   activeSceneId: "scene-main",
+  transition: defaultSceneTransitionSettings(),
   scenes: sceneTemplateIds.map(createSceneFromTemplate)
 });
 
@@ -505,6 +527,7 @@ export const normalizeSceneCollection = (value: unknown): SceneCollection => {
     return {
       version: 1,
       activeSceneId: scene.id,
+      transition: defaultSceneTransitionSettings(),
       scenes: [scene]
     };
   }
@@ -522,6 +545,7 @@ export const normalizeSceneCollection = (value: unknown): SceneCollection => {
   return {
     version: 1,
     activeSceneId,
+    transition: normalizeSceneTransitionSettings(value.transition),
     scenes
   };
 };
@@ -563,6 +587,20 @@ export const setActiveScene = (collection: SceneCollection, sceneId: string): Sc
   };
 };
 
+export const updateSceneTransition = (
+  collection: SceneCollection,
+  settings: Partial<SceneTransitionSettings>
+): SceneCollection => {
+  const normalized = normalizeSceneCollection(collection);
+  return {
+    ...normalized,
+    transition: defaultSceneTransitionSettings({
+      ...normalized.transition,
+      ...settings
+    })
+  };
+};
+
 export const updateActiveScene = (collection: SceneCollection, scene: SceneDocument): SceneCollection => {
   const normalized = normalizeSceneCollection(collection);
   const nextScene = normalizeSceneDocument(scene);
@@ -584,6 +622,7 @@ export const addSceneToCollection = (collection: SceneCollection, scene: SceneDo
   return {
     version: 1,
     activeSceneId: nextScene.id,
+    transition: normalized.transition,
     scenes: [...normalized.scenes, nextScene]
   };
 };
@@ -782,6 +821,16 @@ const normalizeCanvas = (value: unknown, fallback: SceneDocument["canvas"]): Sce
   };
 };
 
+const normalizeSceneTransitionSettings = (value: unknown): SceneTransitionSettings => {
+  if (!isRecord(value)) {
+    return defaultSceneTransitionSettings();
+  }
+  return defaultSceneTransitionSettings({
+    kind: isSceneTransitionKind(value.kind) ? value.kind : undefined,
+    durationMs: finiteNumber(value.durationMs, 300)
+  });
+};
+
 const ensureUniqueSceneIds = (scenes: SceneDocument[]): SceneDocument[] => {
   const used = new Set<string>();
   return scenes.map((scene, index) => {
@@ -950,6 +999,9 @@ const isSourceKind = (value: unknown): value is SourceKind =>
 
 const isBlendMode = (value: unknown): value is BlendMode =>
   typeof value === "string" && blendModes.includes(value as BlendMode);
+
+const isSceneTransitionKind = (value: unknown): value is SceneTransitionKind =>
+  typeof value === "string" && sceneTransitionKinds.includes(value as SceneTransitionKind);
 
 const isAvatarSource = (source: SceneSource): source is PNGTuberSource | Live2DSource =>
   source.kind === "pngtuber" || source.kind === "live2d";
