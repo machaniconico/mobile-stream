@@ -118,6 +118,7 @@ describe("platformPublishing", () => {
       "https://www.googleapis.com/youtube/v3/liveBroadcasts/bind?id=broadcast-1&part=snippet%2CcontentDetails%2Cstatus&streamId=stream-1"
     );
     expect(result.profile.platformPublishing.youtubeBroadcastId).toBe("broadcast-1");
+    expect(result.profile.platformPublishing.youtubeBroadcastBoundStreamId).toBe("stream-1");
     expect(result.profile.platformPublishing.youtubeLiveChatId).toBe("chat-1");
     expect(result.profile.platformPublishing.youtubeBroadcastPrivacyStatus).toBe("unlisted");
     expect(result.profile.platformPublishing.youtubeStatusCheckedAt).toBe("2026-01-01T00:00:00.000Z");
@@ -168,6 +169,7 @@ describe("platformPublishing", () => {
     );
     expect(fetcher.mock.calls[0][0]).not.toContain("yt-access");
     expect(result.profile.platformPublishing.youtubeBroadcastStatus).toBe("live");
+    expect(result.profile.platformPublishing.youtubeBroadcastBoundStreamId).toBe("");
     expect(result.profile.platformPublishing.youtubeBroadcastPrivacyStatus).toBe("public");
     expect(result.profile.platformPublishing.youtubeLiveChatId).toBe("chat-2");
     expect(result.profile.platformPublishing.youtubeStatusCheckedAt).toBe("2026-06-23T00:03:00.000Z");
@@ -245,12 +247,70 @@ describe("platformPublishing", () => {
     expect(fetcher.mock.calls[1][0]).toBe("https://www.googleapis.com/youtube/v3/liveStreams?id=stream-1&part=status");
     expect(fetcher.mock.calls[0][0]).not.toContain("yt-access");
     expect(result.profile.platformPublishing.youtubeBroadcastStatus).toBe("testing");
+    expect(result.profile.platformPublishing.youtubeBroadcastBoundStreamId).toBe("stream-1");
     expect(result.profile.platformPublishing.youtubeBroadcastPrivacyStatus).toBe("private");
     expect(result.profile.platformPublishing.youtubeStreamStatus).toBe("active");
     expect(result.profile.platformPublishing.youtubeStreamHealthStatus).toBe("ok");
     expect(result.profile.platformPublishing.youtubeStreamHealthIssues).toEqual(["warning: bitrateLow: Video output low"]);
     expect(result.profile.platformPublishing.youtubeStatusCheckedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(result.profile.platformChat.youtubeLiveChatId).toBe("chat-1");
+  });
+
+  it("keeps the saved YouTube stream ID when a refreshed broadcast is bound to another stream", async () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        youtubeBroadcastId: "broadcast-1",
+        youtubeStreamId: "saved-stream"
+      }
+    };
+    const fetcher = vi.fn(async (...args: Parameters<PlatformChatFetch>) => {
+      const [url] = args;
+      if (url.startsWith("https://www.googleapis.com/youtube/v3/liveStreams")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            items: [
+              {
+                id: "bound-stream",
+                status: {
+                  streamStatus: "active",
+                  healthStatus: { status: "ok", configurationIssues: [] }
+                }
+              }
+            ]
+          })
+        };
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: [
+            {
+              id: "broadcast-1",
+              contentDetails: {
+                boundStreamId: "bound-stream"
+              },
+              status: {
+                lifeCycleStatus: "testing",
+                privacyStatus: "private"
+              }
+            }
+          ]
+        })
+      };
+    });
+
+    const result = await refreshYouTubeBroadcastStatus(profile, youtubeCredential(), fetcher, Date.parse("2026-06-23T00:06:00.000Z"));
+
+    expect(fetcher.mock.calls[1][0]).toBe("https://www.googleapis.com/youtube/v3/liveStreams?id=bound-stream&part=status");
+    expect(result.profile.platformPublishing.youtubeStreamId).toBe("saved-stream");
+    expect(result.profile.platformPublishing.youtubeBroadcastBoundStreamId).toBe("bound-stream");
+    expect(result.profile.platformPublishing.youtubeStreamStatus).toBe("active");
   });
 
   it("updates Twitch channel metadata with resolved category IDs", async () => {

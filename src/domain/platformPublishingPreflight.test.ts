@@ -115,6 +115,26 @@ describe("platform publishing preflight", () => {
     expect(formatPlatformPublishingPreflightBlockMessage(report)).toContain("app is configured for private");
   });
 
+  it("blocks YouTube lifecycle transitions when the broadcast is bound to another stream ID", () => {
+    const report = transitionReport({
+      profile: youtubeProfile({
+        youtubeStreamId: "saved-stream",
+        youtubeBroadcastBoundStreamId: "bound-stream"
+      }),
+      transitionStatus: "live",
+      streamStatus: "live",
+      validation: {
+        status: "needs-test",
+        recommendedNextStep: "Keep private validation controlled."
+      },
+      now: transitionNow
+    });
+
+    expect(report.canProceed).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toEqual(["youtube-transition-bound-stream-mismatch"]);
+    expect(formatPlatformPublishingPreflightBlockMessage(report)).toContain("bound to stream bound-stream");
+  });
+
   it("blocks YouTube lifecycle transitions when OAuth management credential is not retained", () => {
     const report = transitionReport({
       profile: youtubeProfile({ privacyStatus: "private" }),

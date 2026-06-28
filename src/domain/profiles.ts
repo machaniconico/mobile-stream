@@ -91,6 +91,7 @@ export interface PlatformPublishingSettings {
   enableAutoStop: boolean;
   youtubeStreamId: string;
   youtubeBroadcastId: string;
+  youtubeBroadcastBoundStreamId: string;
   youtubeLiveChatId: string;
   youtubeBroadcastStatus: string;
   youtubeBroadcastPrivacyStatus: YouTubePrivacyStatus | "";
@@ -486,6 +487,7 @@ export const defaultPlatformPublishingSettings: PlatformPublishingSettings = {
   enableAutoStop: true,
   youtubeStreamId: "",
   youtubeBroadcastId: "",
+  youtubeBroadcastBoundStreamId: "",
   youtubeLiveChatId: "",
   youtubeBroadcastStatus: "",
   youtubeBroadcastPrivacyStatus: "",
@@ -629,6 +631,7 @@ export const normalizePlatformPublishingSettings = (
     enableAutoStop: settings?.enableAutoStop ?? fallback.enableAutoStop,
     youtubeStreamId: normalizeSingleLine(settings?.youtubeStreamId).slice(0, 180),
     youtubeBroadcastId: normalizeSingleLine(settings?.youtubeBroadcastId).slice(0, 180),
+    youtubeBroadcastBoundStreamId: normalizeSingleLine(settings?.youtubeBroadcastBoundStreamId).slice(0, 180),
     youtubeLiveChatId: normalizeSingleLine(settings?.youtubeLiveChatId).slice(0, 180),
     youtubeBroadcastStatus: normalizeSingleLine(settings?.youtubeBroadcastStatus).slice(0, 40),
     youtubeBroadcastPrivacyStatus,

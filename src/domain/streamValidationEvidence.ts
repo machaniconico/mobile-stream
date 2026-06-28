@@ -2702,6 +2702,7 @@ const normalizeYouTubePublishingDiagnostics = (
     hasBroadcastId: value.hasBroadcastId === true,
     hasStreamId: value.hasStreamId === true,
     broadcastStatus: normalizeText(value.broadcastStatus, ""),
+    boundStreamId: normalizeText(value.boundStreamId, ""),
     broadcastPrivacyStatus: normalizeText(value.broadcastPrivacyStatus, ""),
     streamStatus: normalizeText(value.streamStatus, ""),
     healthStatus: normalizeText(value.healthStatus, ""),

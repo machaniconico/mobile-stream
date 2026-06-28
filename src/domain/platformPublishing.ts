@@ -202,13 +202,15 @@ export const createYouTubeBroadcastAndBindStream = async (
   const bound = await readPlatformPublishingJson<YouTubeLiveBroadcastResource>(bindResponse, "YouTube broadcast bind");
 
   const liveChatId = normalizeSingleLine(bound.snippet?.liveChatId || inserted.snippet?.liveChatId);
+  const boundStreamId = normalizeSingleLine(bound.contentDetails?.boundStreamId) || settings.youtubeStreamId;
   const nextPublishing: PlatformPublishingSettings = {
     ...settings,
     youtubeBroadcastId: broadcastId,
+    youtubeBroadcastBoundStreamId: boundStreamId,
     youtubeLiveChatId: liveChatId,
     youtubeBroadcastStatus: normalizeSingleLine(bound.status?.lifeCycleStatus || inserted.status?.lifeCycleStatus) || "created",
     youtubeBroadcastPrivacyStatus: normalizeYouTubePrivacyStatus(bound.status?.privacyStatus || inserted.status?.privacyStatus) || settings.privacyStatus,
-    youtubeStreamId: normalizeSingleLine(bound.contentDetails?.boundStreamId) || settings.youtubeStreamId,
+    youtubeStreamId: settings.youtubeStreamId || boundStreamId,
     youtubeStatusCheckedAt: new Date(now).toISOString()
   };
 
@@ -265,6 +267,7 @@ export const transitionYouTubeBroadcast = async (
   const liveChatId = normalizeSingleLine(payload.snippet?.liveChatId || settings.youtubeLiveChatId);
   const nextStatus = normalizeSingleLine(payload.status?.lifeCycleStatus) || broadcastStatus;
   const nextPrivacyStatus = normalizeYouTubePrivacyStatus(payload.status?.privacyStatus) || settings.youtubeBroadcastPrivacyStatus;
+  const nextBoundStreamId = normalizeSingleLine(payload.contentDetails?.boundStreamId) || settings.youtubeBroadcastBoundStreamId;
 
   return {
     profile: {
@@ -272,6 +275,7 @@ export const transitionYouTubeBroadcast = async (
       platformPublishing: {
         ...settings,
         youtubeBroadcastStatus: nextStatus,
+        youtubeBroadcastBoundStreamId: nextBoundStreamId,
         youtubeBroadcastPrivacyStatus: nextPrivacyStatus,
         youtubeLiveChatId: liveChatId,
         youtubeStatusCheckedAt: new Date(now).toISOString()
@@ -324,24 +328,26 @@ export const refreshYouTubeBroadcastStatus = async (
     throw new PlatformPublishingError("YouTube broadcast status response did not include the saved broadcast.");
   }
 
-  const streamId = normalizeSingleLine(broadcast.contentDetails?.boundStreamId || settings.youtubeStreamId);
+  const boundStreamId = normalizeSingleLine(broadcast.contentDetails?.boundStreamId);
+  const streamStatusLookupId = boundStreamId || settings.youtubeStreamId;
   const liveChatId = normalizeSingleLine(broadcast.snippet?.liveChatId || settings.youtubeLiveChatId);
   const nextPublishing: PlatformPublishingSettings = {
     ...settings,
     youtubeBroadcastStatus: normalizeSingleLine(broadcast.status?.lifeCycleStatus) || settings.youtubeBroadcastStatus,
+    youtubeBroadcastBoundStreamId: boundStreamId || settings.youtubeBroadcastBoundStreamId,
     youtubeBroadcastPrivacyStatus: normalizeYouTubePrivacyStatus(broadcast.status?.privacyStatus) || settings.youtubeBroadcastPrivacyStatus,
     youtubeLiveChatId: liveChatId,
-    youtubeStreamId: streamId || settings.youtubeStreamId,
+    youtubeStreamId: settings.youtubeStreamId || boundStreamId,
     youtubeStreamStatus: settings.youtubeStreamStatus,
     youtubeStreamHealthStatus: settings.youtubeStreamHealthStatus,
     youtubeStreamHealthIssues: settings.youtubeStreamHealthIssues,
     youtubeStatusCheckedAt: new Date(now).toISOString()
   };
 
-  if (streamId) {
+  if (streamStatusLookupId) {
     const streamResponse = await fetcher(
       `${YOUTUBE_LIVE_STREAMS_URL}?${createQueryParams({
-        id: streamId,
+        id: streamStatusLookupId,
         part: "status"
       })}`,
       {
@@ -370,7 +376,7 @@ export const refreshYouTubeBroadcastStatus = async (
 
   const statusSummary = [
     `broadcast ${nextPublishing.youtubeBroadcastStatus || "unknown"}`,
-    streamId ? `stream ${nextPublishing.youtubeStreamStatus || "unknown"}` : "no bound stream"
+    streamStatusLookupId ? `stream ${nextPublishing.youtubeStreamStatus || "unknown"}` : "no bound stream"
   ].join(", ");
 
   return {

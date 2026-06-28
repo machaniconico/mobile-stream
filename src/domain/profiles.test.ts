@@ -52,6 +52,7 @@ describe("studio profiles", () => {
         enableAutoStop: false,
         youtubeStreamId: " stream-id ",
         youtubeBroadcastId: " broadcast-id ",
+        youtubeBroadcastBoundStreamId: " bound-stream-id ",
         youtubeLiveChatId: " chat-id ",
         youtubeBroadcastStatus: " live ",
         youtubeBroadcastPrivacyStatus: " unlisted " as unknown as "unlisted",
@@ -73,6 +74,7 @@ describe("studio profiles", () => {
     expect(profile.platformPublishing.description).toBe("Line 1\nLine 2");
     expect(profile.platformPublishing.scheduledStartMinutesFromNow).toBe(1);
     expect(profile.platformPublishing.youtubeStreamId).toBe("stream-id");
+    expect(profile.platformPublishing.youtubeBroadcastBoundStreamId).toBe("bound-stream-id");
     expect(profile.platformPublishing.youtubeBroadcastStatus).toBe("live");
     expect(profile.platformPublishing.youtubeBroadcastPrivacyStatus).toBe("unlisted");
     expect(profile.platformPublishing.youtubeStreamStatus).toBe("active");

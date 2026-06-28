@@ -319,6 +319,7 @@ export interface SupportBundle {
       enableAutoStop: boolean;
       hasYouTubeStreamId: boolean;
       hasYouTubeBroadcastId: boolean;
+      youtubeBroadcastBoundStreamId: string;
       youtubeBroadcastStatus: string;
       youtubeBroadcastPrivacyStatus: string;
       youtubeStreamStatus: string;
@@ -668,6 +669,7 @@ export const createSupportBundle = ({
         enableAutoStop: profile.platformPublishing.enableAutoStop,
         hasYouTubeStreamId: Boolean(profile.platformPublishing.youtubeStreamId.trim()),
         hasYouTubeBroadcastId: Boolean(profile.platformPublishing.youtubeBroadcastId.trim()),
+        youtubeBroadcastBoundStreamId: profile.platformPublishing.youtubeBroadcastBoundStreamId,
         youtubeBroadcastStatus: profile.platformPublishing.youtubeBroadcastStatus,
         youtubeBroadcastPrivacyStatus: profile.platformPublishing.youtubeBroadcastPrivacyStatus,
         youtubeStreamStatus: profile.platformPublishing.youtubeStreamStatus,

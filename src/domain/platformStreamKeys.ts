@@ -114,7 +114,16 @@ export const rotateYouTubeStreamKey = async (
       destination,
       platformPublishing: {
         ...profile.platformPublishing,
-        youtubeStreamId: youtubeStreamId || profile.platformPublishing.youtubeStreamId
+        youtubeStreamId: youtubeStreamId || profile.platformPublishing.youtubeStreamId,
+        youtubeBroadcastId: "",
+        youtubeBroadcastBoundStreamId: "",
+        youtubeLiveChatId: "",
+        youtubeBroadcastStatus: "",
+        youtubeBroadcastPrivacyStatus: "",
+        youtubeStreamStatus: "",
+        youtubeStreamHealthStatus: "",
+        youtubeStreamHealthIssues: [],
+        youtubeStatusCheckedAt: ""
       }
     },
     destination,

@@ -122,6 +122,7 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
       hasBroadcastId: true,
       hasStreamId: true,
       broadcastStatus: "testing",
+      boundStreamId: "stream-id",
       broadcastPrivacyStatus: "public",
       streamStatus: "active",
       healthStatus: "good",

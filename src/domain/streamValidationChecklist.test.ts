@@ -462,6 +462,7 @@ const readyPlatformPublishing = (statusCheckedAt = "2026-06-23T00:04:00.000Z") =
     hasBroadcastId: true,
     hasStreamId: true,
     broadcastStatus: "live",
+    boundStreamId: "stream-id",
     broadcastPrivacyStatus: "private",
     streamStatus: "active",
     healthStatus: "ok",

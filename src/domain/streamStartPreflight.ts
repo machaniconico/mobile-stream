@@ -490,6 +490,10 @@ const createYouTubePublishingIssues = (
   if (privacyMismatchIssue) {
     issues.push(privacyMismatchIssue);
   }
+  const boundStreamMismatchIssue = createYouTubeBoundStreamMismatchIssue(profile);
+  if (boundStreamMismatchIssue) {
+    issues.push(boundStreamMismatchIssue);
+  }
 
   const visibilityRequiresManagedBroadcast = settings.privacyStatus !== "private" && validation?.status === "ready";
   if (!visibilityRequiresManagedBroadcast) {
@@ -580,6 +584,28 @@ const createYouTubeBroadcastPrivacyMismatchIssue = (
     label: "YouTube privacy",
     message: `YouTube broadcast privacy is ${settings.youtubeBroadcastPrivacyStatus}, but the app is configured for ${settings.privacyStatus}.`,
     recommendation: "Refresh or recreate the YouTube broadcast so the dashboard privacy matches the app setting before starting."
+  };
+};
+
+const createYouTubeBoundStreamMismatchIssue = (
+  profile: NonNullable<StreamStartPreflightInput["profile"]>
+): StreamStartPreflightIssue | null => {
+  const settings = profile.platformPublishing;
+  if (!settings.youtubeBroadcastId.trim() || !settings.youtubeStreamId.trim() || !settings.youtubeBroadcastBoundStreamId.trim()) {
+    return null;
+  }
+
+  if (settings.youtubeBroadcastBoundStreamId === settings.youtubeStreamId) {
+    return null;
+  }
+
+  return {
+    code: "publishing-youtube-bound-stream-mismatch",
+    severity: "block",
+    area: "publishing",
+    label: "YouTube stream binding",
+    message: `YouTube broadcast is bound to stream ${settings.youtubeBroadcastBoundStreamId}, but the app stream key is for ${settings.youtubeStreamId}.`,
+    recommendation: "Recreate or rebind the YouTube broadcast after syncing the stream key so the broadcast uses the same stream ID before starting."
   };
 };
 

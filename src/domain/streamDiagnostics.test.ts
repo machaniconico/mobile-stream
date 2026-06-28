@@ -356,6 +356,7 @@ describe("stream diagnostics", () => {
         ...createDefaultStudioProfile().platformPublishing,
         youtubeBroadcastId: "broadcast-1",
         youtubeStreamId: "stream-1",
+        youtubeBroadcastBoundStreamId: "stream-1",
         youtubeBroadcastStatus: "live",
         youtubeBroadcastPrivacyStatus: "private" as const,
         youtubeStreamStatus: "active",
@@ -378,7 +379,7 @@ describe("stream diagnostics", () => {
     expect(diagnostics.platformPublishing.youtube?.statusCheckedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(report).toContain("Platform Publishing");
     expect(report).toContain(
-      "YouTube dashboard: broadcast live, privacy private (app private), stream active, health ok, issues 0, checked 2026-06-23T00:00:00.000Z."
+      "YouTube dashboard: broadcast live, bound stream stream-1 (app stream-1), privacy private (app private), stream active, health ok, issues 0, checked 2026-06-23T00:00:00.000Z."
     );
     expect(report).toContain("- Freshness: fresh / YouTube dashboard status was checked 5 minutes ago.");
   });
@@ -414,6 +415,39 @@ describe("stream diagnostics", () => {
     expect(diagnostics.platformPublishing.status).toBe("fail");
     expect(diagnostics.platformPublishing.summary).toContain("privacy unlisted (app public)");
     expect(diagnostics.platformPublishing.recommendation).toContain("dashboard privacy matches");
+  });
+
+  it("fails YouTube dashboard diagnostics when the bound stream differs from the app stream ID", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      },
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        youtubeBroadcastId: "broadcast-1",
+        youtubeStreamId: "saved-stream",
+        youtubeBroadcastBoundStreamId: "bound-stream",
+        youtubeBroadcastStatus: "testing",
+        youtubeBroadcastPrivacyStatus: "private" as const,
+        youtubeStreamStatus: "active",
+        youtubeStreamHealthStatus: "ok",
+        youtubeStreamHealthIssues: [],
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health({ bitrateKbps: 3500, fps: 30 })
+    });
+
+    expect(diagnostics.platformPublishing.status).toBe("fail");
+    expect(diagnostics.platformPublishing.summary).toContain("bound stream bound-stream (app saved-stream)");
+    expect(diagnostics.platformPublishing.recommendation).toContain("bound stream matches");
   });
 
   it("exports retained native runtime proof frame and byte counts in validation evidence", () => {

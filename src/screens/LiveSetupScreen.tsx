@@ -258,6 +258,10 @@ export const LiveSetupScreen = ({
           <div className="platform-status-grid">
             <span>Broadcast {profile.platformPublishing.youtubeBroadcastStatus || "unknown"}</span>
             <span>
+              Bound {profile.platformPublishing.youtubeBroadcastBoundStreamId || "unknown"} / app{" "}
+              {profile.platformPublishing.youtubeStreamId || "unknown"}
+            </span>
+            <span>
               Privacy {profile.platformPublishing.youtubeBroadcastPrivacyStatus || "unknown"} / app{" "}
               {profile.platformPublishing.privacyStatus}
             </span>

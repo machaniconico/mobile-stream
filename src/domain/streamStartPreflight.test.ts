@@ -382,6 +382,37 @@ describe("stream start preflight", () => {
     expect(formatStreamStartPreflightBlockMessage(report)).toContain("app is configured for private");
   });
 
+  it("blocks YouTube starts when the broadcast is bound to a different stream ID", () => {
+    const profile = {
+      ...validProfile(),
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "public" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "saved-stream",
+        youtubeBroadcastBoundStreamId: "bound-stream",
+        youtubeBroadcastStatus: "testing",
+        youtubeBroadcastPrivacyStatus: "public" as const,
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toEqual(["publishing-youtube-bound-stream-mismatch"]);
+    expect(formatStreamStartPreflightBlockMessage(report)).toContain("bound to stream bound-stream");
+  });
+
   it("blocks public YouTube launches while visible Live2D is preview-only", () => {
     const profile = {
       ...validProfile(),

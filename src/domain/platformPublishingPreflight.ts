@@ -130,6 +130,10 @@ const createYouTubeBroadcastTransitionIssues = (
   if (privacyMismatchIssue) {
     issues.push(privacyMismatchIssue);
   }
+  const boundStreamMismatchIssue = createYouTubeBoundStreamMismatchIssue(profile);
+  if (boundStreamMismatchIssue) {
+    issues.push(boundStreamMismatchIssue);
+  }
 
   if (!settings.youtubeBroadcastId.trim()) {
     issues.push({
@@ -198,6 +202,27 @@ const createYouTubePrivacyMismatchIssue = (
     label: "YouTube privacy",
     message: `YouTube broadcast privacy is ${settings.youtubeBroadcastPrivacyStatus}, but the app is configured for ${settings.privacyStatus}.`,
     recommendation: "Refresh or recreate the YouTube broadcast so dashboard privacy matches the app setting before changing lifecycle state."
+  };
+};
+
+const createYouTubeBoundStreamMismatchIssue = (
+  profile: YouTubeBroadcastTransitionPreflightInput["profile"]
+): PlatformPublishingPreflightIssue | null => {
+  const settings = profile.platformPublishing;
+  if (!settings.youtubeBroadcastId.trim() || !settings.youtubeStreamId.trim() || !settings.youtubeBroadcastBoundStreamId.trim()) {
+    return null;
+  }
+
+  if (settings.youtubeBroadcastBoundStreamId === settings.youtubeStreamId) {
+    return null;
+  }
+
+  return {
+    code: "youtube-transition-bound-stream-mismatch",
+    severity: "block",
+    label: "YouTube stream binding",
+    message: `YouTube broadcast is bound to stream ${settings.youtubeBroadcastBoundStreamId}, but the app stream key is for ${settings.youtubeStreamId}.`,
+    recommendation: "Recreate or rebind the YouTube broadcast after syncing the stream key so lifecycle transitions target the same stream ID."
   };
 };
 

@@ -88,6 +88,7 @@ export interface PlatformPublishingDiagnostics {
     hasBroadcastId: boolean;
     hasStreamId: boolean;
     broadcastStatus: string;
+    boundStreamId: string;
     broadcastPrivacyStatus: string;
     streamStatus: string;
     healthStatus: string;
@@ -960,6 +961,7 @@ const createYouTubePublishingDiagnostics = (
   settings: StudioProfile["platformPublishing"]
 ): PlatformPublishingDiagnostics => {
   const broadcastStatus = settings.youtubeBroadcastStatus || "";
+  const boundStreamId = settings.youtubeBroadcastBoundStreamId || "";
   const broadcastPrivacyStatus = settings.youtubeBroadcastPrivacyStatus || "";
   const streamStatus = settings.youtubeStreamStatus || "";
   const healthStatus = settings.youtubeStreamHealthStatus || "";
@@ -968,15 +970,18 @@ const createYouTubePublishingDiagnostics = (
     settings.youtubeBroadcastId ||
       settings.youtubeStreamId ||
       broadcastStatus ||
+      boundStreamId ||
       broadcastPrivacyStatus ||
       streamStatus ||
       healthStatus ||
       healthIssueCount > 0
   );
   const privacyMismatch = Boolean(broadcastPrivacyStatus && broadcastPrivacyStatus !== settings.privacyStatus);
+  const streamBindingMismatch = Boolean(boundStreamId && settings.youtubeStreamId && boundStreamId !== settings.youtubeStreamId);
   const hasErrorIssue = settings.youtubeStreamHealthIssues.some((issue) => issue.trim().toLowerCase().startsWith("error:"));
   const unhealthy =
     privacyMismatch ||
+    streamBindingMismatch ||
     ["failed", "revoked"].includes(broadcastStatus.toLowerCase()) ||
     ["inactive", "error"].includes(streamStatus.toLowerCase()) ||
     ["error", "bad"].includes(healthStatus.toLowerCase()) ||
@@ -994,12 +999,14 @@ const createYouTubePublishingDiagnostics = (
     summary:
       status === "info"
         ? "No YouTube dashboard status has been captured yet."
-        : `YouTube dashboard: broadcast ${broadcastStatus || "unknown"}, privacy ${broadcastPrivacyStatus || "unknown"} (app ${settings.privacyStatus}), stream ${streamStatus || "unknown"}, health ${healthStatus || "unknown"}, issues ${healthIssueCount}, checked ${settings.youtubeStatusCheckedAt || "not recorded"}.`,
+        : `YouTube dashboard: broadcast ${broadcastStatus || "unknown"}, bound stream ${boundStreamId || "unknown"} (app ${settings.youtubeStreamId || "unknown"}), privacy ${broadcastPrivacyStatus || "unknown"} (app ${settings.privacyStatus}), stream ${streamStatus || "unknown"}, health ${healthStatus || "unknown"}, issues ${healthIssueCount}, checked ${settings.youtubeStatusCheckedAt || "not recorded"}.`,
     recommendation:
       status === "pass"
         ? "Keep the YouTube dashboard health snapshot with this release-candidate validation run."
         : status === "fail"
-          ? privacyMismatch
+          ? streamBindingMismatch
+            ? "Recreate or rebind the YouTube broadcast so the bound stream matches the app stream key."
+            : privacyMismatch
             ? "Refresh or recreate the YouTube broadcast so dashboard privacy matches the app setting."
             : "Fix YouTube ingest health or broadcast state before treating this run as production evidence."
           : status === "warn"
@@ -1009,6 +1016,7 @@ const createYouTubePublishingDiagnostics = (
       hasBroadcastId: Boolean(settings.youtubeBroadcastId.trim()),
       hasStreamId: Boolean(settings.youtubeStreamId.trim()),
       broadcastStatus,
+      boundStreamId,
       broadcastPrivacyStatus,
       streamStatus,
       healthStatus,

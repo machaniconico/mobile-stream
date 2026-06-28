@@ -54,7 +54,23 @@ describe("platformStreamKeys", () => {
       })
     });
 
-    const result = await rotateYouTubeStreamKey(createDefaultStudioProfile(), youtubeCredential(), fetcher, 1000);
+    const profile = {
+      ...createDefaultStudioProfile(),
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        youtubeBroadcastId: "old-broadcast",
+        youtubeBroadcastBoundStreamId: "old-stream",
+        youtubeLiveChatId: "old-chat",
+        youtubeBroadcastStatus: "testing",
+        youtubeBroadcastPrivacyStatus: "private" as const,
+        youtubeStreamStatus: "active",
+        youtubeStreamHealthStatus: "ok",
+        youtubeStreamHealthIssues: ["warning: old"],
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+
+    const result = await rotateYouTubeStreamKey(profile, youtubeCredential(), fetcher, 1000);
 
     expect(fetcher).toHaveBeenCalledWith("https://www.googleapis.com/youtube/v3/liveStreams?part=snippet%2Ccdn%2CcontentDetails", {
       method: "POST",
@@ -73,6 +89,12 @@ describe("platformStreamKeys", () => {
       streamKey: "yt-stream-key"
     });
     expect(result.profile.platformPublishing.youtubeStreamId).toBe("stream-1");
+    expect(result.profile.platformPublishing.youtubeBroadcastId).toBe("");
+    expect(result.profile.platformPublishing.youtubeBroadcastBoundStreamId).toBe("");
+    expect(result.profile.platformPublishing.youtubeLiveChatId).toBe("");
+    expect(result.profile.platformPublishing.youtubeBroadcastStatus).toBe("");
+    expect(result.profile.platformPublishing.youtubeStreamStatus).toBe("");
+    expect(result.profile.platformPublishing.youtubeStatusCheckedAt).toBe("");
   });
 
   it("syncs Twitch stream keys through Helix and keeps the current Twitch ingest preset", async () => {
