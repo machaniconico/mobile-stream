@@ -1323,7 +1323,7 @@ function commercialSupportBundleFixture() {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 23
+      bundleVersion: 24
     },
     generatedAt: capturedAt,
     fixture: true,
@@ -1344,6 +1344,13 @@ function commercialSupportBundleFixture() {
       validationPendingCount: 0,
       validationRunbookStatus: "complete",
       validationRunbookNextAction: "Archive this support bundle.",
+      rehearsalStatus: "ready",
+      rehearsalCanPromoteToPublic: true,
+      rehearsalSummary: "Rehearsal is ready to promote to a platform-visible launch.",
+      rehearsalPrimaryAction: "Export a support bundle and keep the rehearsed profile unchanged.",
+      rehearsalPendingCount: 0,
+      rehearsalWarningCount: 0,
+      rehearsalFailCount: 0,
       validationEvidenceStatus: "ready",
       validationEvidenceFingerprint: "sve1-ready",
       validationEvidenceLatestRunFingerprint: "svr1-android",

@@ -222,6 +222,9 @@ const sessionHistoryMetricLabel = (diagnostics: StreamDiagnostics): string =>
 const validationMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.validation.status} / ${diagnostics.validation.pendingCount} pending / ${diagnostics.validation.failCount} fail`;
 
+const rehearsalMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  `${diagnostics.rehearsal.status} / ${diagnostics.rehearsal.pendingCount} pending / ${diagnostics.rehearsal.failCount} fail`;
+
 const platformPublishingFreshnessMetricLabel = (
   diagnostics: StreamDiagnostics,
   freshness: PlatformPublishingFreshness
@@ -1550,6 +1553,7 @@ const StreamDiagnosticsPanel = ({
       <DiagnosticMetric label="Advisor" value={diagnostics.qualityAdvisor.action} />
       <DiagnosticMetric label="Native comp" value={nativeCompositionMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Validation" value={validationMetricLabel(diagnostics)} />
+      <DiagnosticMetric label="Rehearsal" value={rehearsalMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Dashboard" value={platformPublishingFreshnessMetricLabel(diagnostics, platformPublishingFreshness)} />
     </View>
     <View style={styles.diagnosticIncidents}>
@@ -1593,6 +1597,11 @@ const StreamDiagnosticsPanel = ({
           {diagnostics.validation.passCount} pass / {diagnostics.validation.warningCount} warn / {diagnostics.validation.failCount} fail /{" "}
           {diagnostics.validation.pendingCount} pending
         </Text>
+      </View>
+      <View style={[styles.diagnosticIncident, diagnosticRehearsalStyle(diagnostics)]}>
+        <Text style={styles.diagnosticIncidentTitle}>Launch rehearsal</Text>
+        <Text style={styles.diagnosticIncidentText}>{diagnostics.rehearsal.summary}</Text>
+        <Text style={styles.diagnosticIncidentRecommendation}>{diagnostics.rehearsal.primaryAction}</Text>
       </View>
       {diagnostics.validation.items.map((item) => (
         <View key={item.id} style={[styles.diagnosticIncident, diagnosticValidationItemStyle(item.status)]}>
@@ -2927,6 +2936,13 @@ const diagnosticValidationRunbookStyle = (diagnostics: StreamDiagnostics) =>
   diagnostics.validationRunbook.status === "blocked"
     ? styles.diagnosticCheckFail
     : diagnostics.validationRunbook.status === "complete"
+      ? null
+      : styles.diagnosticCheckWarn;
+
+const diagnosticRehearsalStyle = (diagnostics: StreamDiagnostics) =>
+  diagnostics.rehearsal.status === "blocked"
+    ? styles.diagnosticCheckFail
+    : diagnostics.rehearsal.status === "ready"
       ? null
       : styles.diagnosticCheckWarn;
 

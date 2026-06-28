@@ -54,6 +54,10 @@ import {
   type StreamValidationRunbook
 } from "./streamValidationRunbook";
 import {
+  createStreamRehearsalReport,
+  type StreamRehearsalReport
+} from "./streamRehearsal";
+import {
   summarizeStreamValidationEvidence,
   type StreamValidationEvidenceSummary,
   type StreamValidationRun
@@ -164,6 +168,7 @@ export interface StreamDiagnostics {
   validationEvidence: StreamValidationEvidenceSummary;
   validation: StreamValidationChecklist;
   validationRunbook: StreamValidationRunbook;
+  rehearsal: StreamRehearsalReport;
   checks: DiagnosticCheck[];
 }
 
@@ -359,6 +364,22 @@ export const createStreamDiagnostics = (
     platformPublishing,
     evidence: validationEvidence
   });
+  const rehearsal = createStreamRehearsalReport({
+    target: {
+      platform: targetPlatform,
+      protocol: destination.protocol,
+      secureTransport: destination.protocol === "rtmps"
+    },
+    telemetry: {
+      streamStatus: snapshot.state.status,
+      bitrateKbps: snapshot.health.bitrateKbps,
+      fps: snapshot.health.fps,
+      elapsedSeconds: snapshot.health.elapsedSeconds
+    },
+    validation,
+    runbook: validationRunbook,
+    evidence: validationEvidence
+  });
 
   return {
     summary: summaryText(status, checks),
@@ -416,6 +437,7 @@ export const createStreamDiagnostics = (
     validationEvidence,
     validation,
     validationRunbook,
+    rehearsal,
     checks
   };
 };

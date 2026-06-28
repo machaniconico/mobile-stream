@@ -27,7 +27,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 23;
+    bundleVersion: 24;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -99,6 +99,13 @@ export interface SupportBundle {
     validationRunbookWarningCount: number;
     validationRunbookFailCount: number;
     validationRunbookNextAction: string;
+    rehearsalStatus: StreamDiagnostics["rehearsal"]["status"];
+    rehearsalCanPromoteToPublic: boolean;
+    rehearsalSummary: string;
+    rehearsalPrimaryAction: string;
+    rehearsalPendingCount: number;
+    rehearsalWarningCount: number;
+    rehearsalFailCount: number;
     validationEvidenceStatus: StreamDiagnostics["validationEvidence"]["status"];
     validationEvidenceFingerprint: string;
     validationEvidenceLatestRunFingerprint: string | null;
@@ -352,7 +359,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 23
+      bundleVersion: 24
     },
     summary: {
       status: diagnostics.status,
@@ -424,6 +431,13 @@ export const createSupportBundle = ({
       validationRunbookWarningCount: diagnostics.validationRunbook.warningCount,
       validationRunbookFailCount: diagnostics.validationRunbook.failCount,
       validationRunbookNextAction: diagnostics.validationRunbook.nextAction,
+      rehearsalStatus: diagnostics.rehearsal.status,
+      rehearsalCanPromoteToPublic: diagnostics.rehearsal.canPromoteToPublic,
+      rehearsalSummary: diagnostics.rehearsal.summary,
+      rehearsalPrimaryAction: diagnostics.rehearsal.primaryAction,
+      rehearsalPendingCount: diagnostics.rehearsal.pendingCount,
+      rehearsalWarningCount: diagnostics.rehearsal.warningCount,
+      rehearsalFailCount: diagnostics.rehearsal.failCount,
       validationEvidenceStatus: diagnostics.validationEvidence.status,
       validationEvidenceFingerprint: diagnostics.validationEvidence.fingerprint,
       validationEvidenceLatestRunFingerprint: diagnostics.validationEvidence.latestRun?.fingerprint ?? null,
@@ -726,6 +740,9 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Status: ${bundle.summary.validationStatus}`,
     `- Runbook: ${bundle.summary.validationRunbookStatus} / ${bundle.summary.validationRunbookWarningCount} warn / ${bundle.summary.validationRunbookFailCount} fail / ${bundle.summary.validationRunbookPendingCount} pending`,
     `- Runbook next: ${bundle.summary.validationRunbookNextAction}`,
+    `- Rehearsal: ${bundle.summary.rehearsalStatus} / promote ${bundle.summary.rehearsalCanPromoteToPublic ? "yes" : "no"} / ${bundle.summary.rehearsalWarningCount} warn / ${bundle.summary.rehearsalFailCount} fail / ${bundle.summary.rehearsalPendingCount} pending`,
+    `- Rehearsal summary: ${bundle.summary.rehearsalSummary}`,
+    `- Rehearsal action: ${bundle.summary.rehearsalPrimaryAction}`,
     `- Pending: ${bundle.summary.validationPendingCount}`,
     `- Warnings: ${bundle.summary.validationWarningCount}`,
     `- Failures: ${bundle.summary.validationFailCount}`,

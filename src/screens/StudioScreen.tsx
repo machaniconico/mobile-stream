@@ -255,6 +255,9 @@ const sessionHistoryMetricLabel = (diagnostics: StreamDiagnostics): string =>
 const validationMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.validation.status} / ${diagnostics.validation.pendingCount} pending / ${diagnostics.validation.failCount} fail`;
 
+const rehearsalMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  `${diagnostics.rehearsal.status} / ${diagnostics.rehearsal.pendingCount} pending / ${diagnostics.rehearsal.failCount} fail`;
+
 const platformPublishingFreshnessMetricLabel = (
   diagnostics: StreamDiagnostics,
   freshness: PlatformPublishingFreshness
@@ -1344,6 +1347,8 @@ const StreamDiagnosticsPanel = ({
         <strong>{nativeCompositionMetricLabel(diagnostics)}</strong>
         <span>Validation</span>
         <strong>{validationMetricLabel(diagnostics)}</strong>
+        <span>Rehearsal</span>
+        <strong>{rehearsalMetricLabel(diagnostics)}</strong>
       </div>
       <div className="diagnostic-incidents">
         <div className={`diagnostic-incident-summary ${qualityAdvisorTone(diagnostics)}`}>
@@ -1383,6 +1388,11 @@ const StreamDiagnosticsPanel = ({
             {diagnostics.validation.passCount} pass / {diagnostics.validation.warningCount} warn / {diagnostics.validation.failCount} fail /{" "}
             {diagnostics.validation.pendingCount} pending
           </em>
+        </div>
+        <div className={`diagnostic-incident ${rehearsalTone(diagnostics)}`}>
+          <strong>Launch rehearsal</strong>
+          <span>{diagnostics.rehearsal.summary}</span>
+          <em>{diagnostics.rehearsal.primaryAction}</em>
         </div>
         <div className={`diagnostic-incident ${platformPublishingFreshnessTone(platformPublishingFreshness.status)}`}>
           <strong>Platform dashboard freshness</strong>
@@ -1687,6 +1697,9 @@ const validationRunbookTone = (diagnostics: StreamDiagnostics): "pass" | "warn" 
     : diagnostics.validationRunbook.status === "blocked"
       ? "fail"
       : "warn";
+
+const rehearsalTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" =>
+  diagnostics.rehearsal.status === "ready" ? "pass" : diagnostics.rehearsal.status === "blocked" ? "fail" : "warn";
 
 const validationRunTone = (result: StreamValidationRunResult): "pass" | "warn" | "fail" =>
   result === "pass" ? "pass" : result === "fail" ? "fail" : "warn";

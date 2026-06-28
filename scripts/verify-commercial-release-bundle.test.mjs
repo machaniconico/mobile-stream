@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v23.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v24.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -360,6 +360,24 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("fresh checked-at proof");
   });
 
+  it("blocks release when the launch rehearsal is not ready", () => {
+    writeBundle({
+      summary: {
+        rehearsalStatus: "needs-run",
+        rehearsalCanPromoteToPublic: false,
+        rehearsalSummary: "Rehearsal still needs 2 checks.",
+        rehearsalPrimaryAction: "Start a private rehearsal stream.",
+        rehearsalPendingCount: 2
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Launch rehearsal");
+    expect(result.stdout).toContain("Rehearsal still needs 2 checks.");
+  });
+
   it("blocks manifest rows marked in-scope for another destination", () => {
     writeBundle({
       summary: {
@@ -474,6 +492,13 @@ const createBundle = (patch = {}) => {
     validationPendingCount: 0,
     validationRunbookStatus: "complete",
     validationRunbookNextAction: "Archive this support bundle.",
+    rehearsalStatus: "ready",
+    rehearsalCanPromoteToPublic: true,
+    rehearsalSummary: "Rehearsal is ready to promote to a platform-visible launch.",
+    rehearsalPrimaryAction: "Export a support bundle and keep the rehearsed profile unchanged.",
+    rehearsalPendingCount: 0,
+    rehearsalWarningCount: 0,
+    rehearsalFailCount: 0,
     validationEvidenceStatus: "ready",
     validationEvidenceFingerprint: "sve1-ready",
     validationEvidenceLatestRunFingerprint: "svr1-android",
@@ -508,7 +533,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 23
+      bundleVersion: 24
     },
     generatedAt: new Date().toISOString(),
     profile: {

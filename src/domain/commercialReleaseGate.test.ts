@@ -143,6 +143,33 @@ describe("commercial release gate", () => {
     expect(gate.issues.map((issue) => issue.code)).toContain("bundle-version");
   });
 
+  it("blocks commercial release when launch rehearsal has not passed", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          rehearsalStatus: "needs-run",
+          rehearsalCanPromoteToPublic: false,
+          rehearsalSummary: "Rehearsal still needs 2 checks.",
+          rehearsalPrimaryAction: "Start a private or unlisted rehearsal stream from a physical device.",
+          rehearsalPendingCount: 2
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "stream-rehearsal-not-ready",
+          severity: "fail",
+          detail: "Rehearsal still needs 2 checks."
+        })
+      ])
+    );
+  });
+
   it("blocks monitor-hold summary claims when the manifest lacks stable duration proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -708,7 +735,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 23 as const
+    bundleVersion: 24 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   summary = {}
@@ -747,6 +774,13 @@ const supportBundle = ({
       validationPendingCount: 0,
       validationRunbookStatus: "complete",
       validationRunbookNextAction: "Archive this support bundle.",
+      rehearsalStatus: "ready",
+      rehearsalCanPromoteToPublic: true,
+      rehearsalSummary: "Rehearsal is ready to promote to a platform-visible launch.",
+      rehearsalPrimaryAction: "Export a support bundle and keep the rehearsed profile unchanged.",
+      rehearsalPendingCount: 0,
+      rehearsalWarningCount: 0,
+      rehearsalFailCount: 0,
       validationEvidenceStatus: "ready",
       validationEvidenceFingerprint: "sve1-ready",
       validationEvidenceLatestRunFingerprint: "svr1-android",

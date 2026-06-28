@@ -38,7 +38,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 23;
+const minimumSupportBundleVersion = 24;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -64,6 +64,7 @@ export const createCommercialReleaseGate = (
     createPlatformPublishingFreshnessIssue(bundle),
     createValidationIssue(bundle),
     createValidationRunbookIssue(bundle),
+    createRehearsalIssue(bundle),
     createValidationEvidenceIssue(bundle),
     createValidationEvidenceCoverageIssue(bundle),
     createValidationEvidenceManifestIssue(bundle),
@@ -262,6 +263,32 @@ const createValidationRunbookIssue = (bundle: SupportBundle): CommercialReleaseG
   return null;
 };
 
+const createRehearsalIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+  if (
+    bundle.summary.rehearsalStatus !== "ready" ||
+    !bundle.summary.rehearsalCanPromoteToPublic ||
+    bundle.summary.rehearsalFailCount > 0 ||
+    bundle.summary.rehearsalPendingCount > 0
+  ) {
+    return failIssue(
+      "stream-rehearsal-not-ready",
+      "Launch rehearsal",
+      bundle.summary.rehearsalSummary ||
+        `Launch rehearsal is ${bundle.summary.rehearsalStatus || "missing"} with ${bundle.summary.rehearsalFailCount ?? 0} failure(s) and ${bundle.summary.rehearsalPendingCount ?? 0} pending check(s).`,
+      bundle.summary.rehearsalPrimaryAction || "Run and archive a passing private rehearsal before commercial release approval."
+    );
+  }
+  if (bundle.summary.rehearsalWarningCount > 0) {
+    return warnIssue(
+      "stream-rehearsal-warning",
+      "Launch rehearsal",
+      bundle.summary.rehearsalSummary,
+      bundle.summary.rehearsalPrimaryAction || "Review rehearsal warnings before approving release."
+    );
+  }
+  return null;
+};
+
 const createValidationEvidenceIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
   if (bundle.summary.validationEvidenceStatus !== "ready") {
     return failIssue(
@@ -312,7 +339,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v23 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v24 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);

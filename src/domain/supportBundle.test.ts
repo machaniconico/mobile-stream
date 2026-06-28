@@ -156,7 +156,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 23 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 24 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
@@ -195,6 +195,10 @@ describe("support bundle", () => {
     expect(bundle.summary.lastSessionNativeRuntimeStillImageAssetMissingCount).toBe(0);
     expect(bundle.summary.validationRunbookStatus).toBe("running");
     expect(bundle.summary.validationRunbookPendingCount).toBeGreaterThan(0);
+    expect(bundle.summary.rehearsalStatus).toBe("needs-run");
+    expect(bundle.summary.rehearsalCanPromoteToPublic).toBe(false);
+    expect(bundle.summary.rehearsalPendingCount).toBeGreaterThan(0);
+    expect(bundle.summary.rehearsalSummary).toContain("Rehearsal");
     expect(bundle.summary.qualityAdvisorAction).toBe("maintain");
     expect(bundle.summary.qualityAdvisorSeverity).toBe("pass");
     expect(bundle.summary.suggestedQualityTarget).toBeNull();
