@@ -534,6 +534,58 @@ describe("commercial release gate", () => {
     expect(formatCommercialReleaseGate(gate)).toContain("eligible run count summary=2 manifest=0");
   });
 
+  it("blocks manifest rows that are marked in-scope for a different destination", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", targetPlatform: "Twitch" }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "validation-evidence-manifest-scope",
+          severity: "fail",
+          detail: expect.stringContaining("current destination scope YouTube Live/RTMPS")
+        })
+      ])
+    );
+  });
+
+  it("blocks manifest rows that are marked in-scope for a different transport", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", transport: "rtmp" }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "validation-evidence-manifest-scope",
+          severity: "fail",
+          detail: expect.stringContaining("current destination scope YouTube Live/RTMPS")
+        })
+      ])
+    );
+  });
+
   it("blocks summary feature claims not backed by the latest manifest row", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -656,7 +708,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 22 as const
+    bundleVersion: 23 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   summary = {}
@@ -672,6 +724,12 @@ const supportBundle = ({
   ({
     app,
     generatedAt,
+    profile: {
+      destination: {
+        platform: "youtube-live",
+        protocol: "rtmps"
+      }
+    },
     summary: {
       preflightStatus: "ready",
       publicLaunchStatus: "ready",
@@ -744,6 +802,8 @@ const manifestRun = ({
   fresh = true,
   matchesScope = true,
   appBuild = "rc-1",
+  targetPlatform = "YouTube Live",
+  transport = "rtmps",
   nativeRuntimePlatform,
   nativeRuntimeStatus = "pass",
   nativeRuntimeCompositionStatus = "applied",
@@ -806,6 +866,8 @@ const manifestRun = ({
   fresh?: ValidationManifestRun["fresh"];
   matchesScope?: ValidationManifestRun["matchesScope"];
   appBuild?: ValidationManifestRun["appBuild"];
+  targetPlatform?: ValidationManifestRun["targetPlatform"];
+  transport?: ValidationManifestRun["transport"];
   nativeRuntimePlatform?: ValidationManifestRun["nativeRuntimePlatform"];
   nativeRuntimeStatus?: ValidationManifestRun["nativeRuntimeStatus"];
   nativeRuntimeCompositionStatus?: ValidationManifestRun["nativeRuntimeCompositionStatus"];
@@ -873,8 +935,8 @@ const manifestRun = ({
   physicalDeviceStatus,
   appBuild,
   networkProfile: "private test",
-  targetPlatform: "YouTube Live",
-  transport: "rtmps",
+  targetPlatform,
+  transport,
   result,
   nativeRuntimePlatform: nativeRuntimePlatform ?? devicePlatform,
   nativeRuntimeStatus,

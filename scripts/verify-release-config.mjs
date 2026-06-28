@@ -144,9 +144,11 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 22");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 22");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 22");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 23");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 23");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 23");
+    expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scope");
+    expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-scope");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeSentVideoFrames");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetLoadedCount");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestNativeRuntimePass");

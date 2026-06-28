@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v22.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v23.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -360,6 +360,38 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("fresh checked-at proof");
   });
 
+  it("blocks manifest rows marked in-scope for another destination", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { targetPlatform: "Twitch" }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("current destination scope YouTube Live/RTMPS");
+  });
+
+  it("blocks manifest rows marked in-scope for another RTMP transport", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { transport: "rtmp" }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("current destination scope YouTube Live/RTMPS");
+  });
+
   it("rejects symlinked support bundles before reading linked targets", () => {
     const outsideBundlePath = ".artifacts/verify-commercial-release-bundle-test/outside-support-bundle.json";
     mkdirSync(dirname(fixturePath), { recursive: true });
@@ -476,9 +508,15 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 22
+      bundleVersion: 23
     },
     generatedAt: new Date().toISOString(),
+    profile: {
+      destination: {
+        platform: "youtube-live",
+        protocol: "rtmps"
+      }
+    },
     ...patch,
     summary: {
       ...summary,

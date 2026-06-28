@@ -38,8 +38,14 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 22;
+const minimumSupportBundleVersion = 23;
 const defaultMaxBundleAgeHours = 24;
+
+const destinationTargetPlatformLabels = {
+  "youtube-live": "YouTube Live",
+  twitch: "Twitch",
+  custom: "Custom"
+} as const;
 
 export const createCommercialReleaseGate = (
   bundle: SupportBundle,
@@ -306,10 +312,22 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v22 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v23 or newer after retaining release-candidate validation runs."
     );
   }
-  const latestRuns = latestEligibleManifestRunsByPlatform(manifest);
+  const manifestScope = createExpectedManifestScope(bundle);
+  const destinationScopeMismatchCount = manifest.filter(
+    (run) => isManifestRunFreshAndScopeClaimed(run) && !isManifestRunDestinationScopePass(run, manifestScope)
+  ).length;
+  if (destinationScopeMismatchCount > 0) {
+    return failIssue(
+      "validation-evidence-manifest-scope",
+      "Validation evidence manifest",
+      `${destinationScopeMismatchCount} fresh manifest run(s) marked in-scope do not match the current destination scope ${formatManifestScope(manifestScope)}.`,
+      "Record and retain iOS and Android validation runs against the exact current destination and RTMP(S) transport before release approval."
+    );
+  }
+  const latestRuns = latestEligibleManifestRunsByPlatform(manifest, manifestScope);
   if (!isManifestPhysicalRunPass(latestRuns.get("ios")) || !isManifestPhysicalRunPass(latestRuns.get("android"))) {
     return failIssue(
       "validation-evidence-manifest-incomplete",
@@ -337,10 +355,11 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): 
 
   const summary = bundle.summary;
   const mismatches: string[] = [];
-  const latestRuns = latestEligibleManifestRunsByPlatform(manifest);
+  const manifestScope = createExpectedManifestScope(bundle);
+  const latestRuns = latestEligibleManifestRunsByPlatform(manifest, manifestScope);
   const iosRun = latestRuns.get("ios");
   const androidRun = latestRuns.get("android");
-  const derivedEligibleRunCount = manifest.filter(isManifestRunFreshInScope).length;
+  const derivedEligibleRunCount = manifest.filter((run) => isManifestRunFreshInScope(run, manifestScope)).length;
   const derivedStaleRunCount = manifest.filter((run) => run.fresh !== true).length;
 
   if (derivedEligibleRunCount !== summary.validationEvidenceEligibleRunCount) {
@@ -352,9 +371,9 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): 
     mismatches.push(`stale run count summary=${summary.validationEvidenceStaleRunCount} manifest=${derivedStaleRunCount}`);
   }
 
-  const eligibilityFlagMismatchCount = manifest.filter((run) => run.eligible !== isManifestRunFreshInScope(run)).length;
+  const eligibilityFlagMismatchCount = manifest.filter((run) => run.eligible !== isManifestRunFreshInScope(run, manifestScope)).length;
   if (eligibilityFlagMismatchCount > 0) {
-    mismatches.push(`${eligibilityFlagMismatchCount} manifest eligible flag(s) do not match fresh in-scope state`);
+    mismatches.push(`${eligibilityFlagMismatchCount} manifest eligible flag(s) do not match fresh destination-scope state`);
   }
 
   const expectedBuild = nonEmptyText(summary.validationEvidenceConsistentAppBuild);
@@ -548,12 +567,18 @@ const nonEmptyText = (value: string | null | undefined): string | null =>
 
 type ValidationEvidenceManifestRun = SupportBundle["summary"]["validationEvidenceRunManifest"][number];
 
+interface ExpectedManifestScope {
+  targetPlatform: string | null;
+  transport: string | null;
+}
+
 const latestEligibleManifestRunsByPlatform = (
-  manifest: ValidationEvidenceManifestRun[]
+  manifest: ValidationEvidenceManifestRun[],
+  manifestScope: ExpectedManifestScope = emptyExpectedManifestScope
 ): Map<ValidationEvidenceManifestRun["devicePlatform"], ValidationEvidenceManifestRun> => {
   const runsByPlatform = new Map<ValidationEvidenceManifestRun["devicePlatform"], ValidationEvidenceManifestRun>();
   const sortedRuns = [...manifest]
-    .filter(isManifestRunFreshInScope)
+    .filter((run) => isManifestRunFreshInScope(run, manifestScope))
     .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
   for (const run of sortedRuns) {
     if (runsByPlatform.has(run.devicePlatform)) {
@@ -564,8 +589,59 @@ const latestEligibleManifestRunsByPlatform = (
   return runsByPlatform;
 };
 
-const isManifestRunFreshInScope = (run: ValidationEvidenceManifestRun): boolean =>
+const emptyExpectedManifestScope: ExpectedManifestScope = {
+  targetPlatform: null,
+  transport: null
+};
+
+const createExpectedManifestScope = (bundle: SupportBundle): ExpectedManifestScope => ({
+  targetPlatform: expectedTargetPlatformForBundle(bundle),
+  transport: expectedTransportForBundle(bundle)
+});
+
+const expectedTargetPlatformForBundle = (bundle: SupportBundle): string | null => {
+  const platform = bundle.profile?.destination?.platform;
+  if (typeof platform !== "string") {
+    return null;
+  }
+  return destinationTargetPlatformLabels[platform as keyof typeof destinationTargetPlatformLabels] ?? null;
+};
+
+const expectedTransportForBundle = (bundle: SupportBundle): string | null => {
+  const protocol = bundle.profile?.destination?.protocol;
+  const transport = normalizeTransportLabel(protocol);
+  return transport || null;
+};
+
+const isManifestRunFreshAndScopeClaimed = (run: ValidationEvidenceManifestRun): boolean =>
   run.fresh === true && run.matchesScope === true && Number.isFinite(Date.parse(run.createdAt));
+
+const isManifestRunFreshInScope = (
+  run: ValidationEvidenceManifestRun,
+  manifestScope: ExpectedManifestScope = emptyExpectedManifestScope
+): boolean => isManifestRunFreshAndScopeClaimed(run) && isManifestRunDestinationScopePass(run, manifestScope);
+
+const isManifestRunDestinationScopePass = (
+  run: ValidationEvidenceManifestRun,
+  { targetPlatform, transport }: ExpectedManifestScope
+): boolean => {
+  const expectedTarget = normalizeTargetPlatformLabel(targetPlatform);
+  if (expectedTarget && normalizeTargetPlatformLabel(run.targetPlatform) !== expectedTarget) {
+    return false;
+  }
+  const expectedTransport = normalizeTransportLabel(transport);
+  if (expectedTransport && normalizeTransportLabel(run.transport) !== expectedTransport) {
+    return false;
+  }
+  return true;
+};
+
+const formatManifestScope = ({ targetPlatform, transport }: ExpectedManifestScope): string =>
+  `${targetPlatform ?? "unknown target"}/${transport ?? "unknown transport"}`;
+
+const normalizeTargetPlatformLabel = (value: unknown): string => (typeof value === "string" ? value.trim().toLowerCase() : "");
+
+const normalizeTransportLabel = (value: unknown): string => (typeof value === "string" ? value.trim().toUpperCase() : "");
 
 const isManifestRunPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   run?.result === "pass";
