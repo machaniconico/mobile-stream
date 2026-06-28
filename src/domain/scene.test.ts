@@ -2,13 +2,21 @@ import { describe, expect, it } from "vitest";
 import {
   addSource,
   applyInferredAvatarIllustrationRig,
+  addSceneToCollection,
+  createDefaultSceneCollection,
   createDefaultScene,
+  createSceneFromTemplate,
   createSource,
+  duplicateActiveScene,
   inferAvatarIllustrationRig,
+  normalizeSceneCollection,
   normalizeSceneDocument,
   reorderSource,
+  selectActiveScene,
+  setActiveScene,
   setLocked,
   setVisibility,
+  stripTransientSceneCollectionRuntime,
   stripTransientSceneRuntime,
   toRenderGraph,
   updateTransform
@@ -21,6 +29,47 @@ describe("scene document", () => {
 
     expect(scene.sources).toHaveLength(5);
     expect(graph.map((node) => node.kind)).toEqual(["solid", "screen", "pngtuber", "text", "chat"]);
+  });
+
+  it("creates an OBS-like scene collection with live-switchable presets", () => {
+    const collection = createDefaultSceneCollection();
+
+    expect(collection.activeSceneId).toBe("scene-main");
+    expect(collection.scenes.map((scene) => scene.name)).toEqual(["Main Scene", "Starting Soon", "Break"]);
+    expect(selectActiveScene(collection).id).toBe("scene-main");
+    expect(collection.scenes.find((scene) => scene.id === "scene-starting-soon")?.sources.map((source) => source.kind)).toEqual([
+      "solid",
+      "text",
+      "pngtuber",
+      "chat"
+    ]);
+  });
+
+  it("normalizes legacy single-scene persistence into a scene collection", () => {
+    const scene = createDefaultScene();
+    const collection = normalizeSceneCollection({
+      ...scene,
+      id: "legacy-scene",
+      name: "Legacy"
+    });
+
+    expect(collection.activeSceneId).toBe("legacy-scene");
+    expect(collection.scenes).toHaveLength(1);
+    expect(selectActiveScene(collection).name).toBe("Legacy");
+  });
+
+  it("switches, adds, and duplicates active scenes without mutating the originals", () => {
+    const collection = createDefaultSceneCollection();
+    const switched = setActiveScene(collection, "scene-break");
+    const withStartingScene = addSceneToCollection(switched, createSceneFromTemplate("starting-soon"));
+    const duplicated = duplicateActiveScene(withStartingScene);
+
+    expect(selectActiveScene(switched).name).toBe("Break");
+    expect(withStartingScene.scenes).toHaveLength(4);
+    expect(duplicated.scenes).toHaveLength(5);
+    expect(selectActiveScene(duplicated).name).toBe("Starting Soon Copy");
+    expect(duplicated.scenes.at(-1)?.sources[0]?.id).not.toBe(selectActiveScene(withStartingScene).sources[0]?.id);
+    expect(collection.activeSceneId).toBe("scene-main");
   });
 
   it("adds, hides, locks, and reorders sources", () => {
@@ -291,5 +340,35 @@ describe("scene document", () => {
     expect(avatar?.motion.meshWarp).toBe(0);
     expect(avatar?.motion.hairSway).toBe(0);
     expect(avatar?.motion.confidence).toBe(0);
+  });
+
+  it("strips transient avatar runtime from every persisted scene", () => {
+    const collection = createDefaultSceneCollection();
+    const withRuntime = {
+      ...collection,
+      scenes: collection.scenes.map((scene) => ({
+        ...scene,
+        sources: scene.sources.map((source) =>
+          source.kind === "pngtuber"
+            ? {
+                ...source,
+                mouthOpen: 1,
+                blink: 1,
+                motion: { ...source.motion, headYaw: 1, confidence: 1 }
+              }
+            : source
+        )
+      }))
+    };
+
+    const persisted = stripTransientSceneCollectionRuntime(withRuntime);
+
+    for (const scene of persisted.scenes) {
+      const avatar = scene.sources.find((source) => source.kind === "pngtuber");
+      expect(avatar?.mouthOpen).toBe(0);
+      expect(avatar?.blink).toBe(0);
+      expect(avatar?.motion.headYaw).toBe(0);
+      expect(avatar?.motion.confidence).toBe(0);
+    }
   });
 });

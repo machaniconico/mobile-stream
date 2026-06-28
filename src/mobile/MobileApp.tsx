@@ -74,11 +74,19 @@ import { rotateYouTubeStreamKey, syncTwitchStreamKey } from "../domain/platformS
 import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
-  createDefaultScene,
-  stripTransientSceneRuntime,
+  addSceneToCollection,
+  createDefaultSceneCollection,
+  createSceneFromTemplate,
+  duplicateActiveScene,
+  selectActiveScene,
+  setActiveScene,
+  stripTransientSceneCollectionRuntime,
+  updateActiveScene,
   updateSource,
   type Live2DSource,
   type PNGTuberSource,
+  type SceneCollection,
+  type SceneTemplateId,
   type SceneDocument
 } from "../domain/scene";
 import {
@@ -137,7 +145,7 @@ import { IOSLiveCaster, canUseIOSLiveCaster } from "./IOSLiveCaster";
 import { MobileStudioScreen } from "./MobileStudioScreen";
 import { NativeChatSpeechEngine } from "./NativeChatSpeechEngine";
 import { NativeFaceTrackingInput } from "./NativeFaceTrackingInput";
-import { loadMobileScene, saveMobileScene } from "./sceneStore";
+import { loadMobileSceneCollection, saveMobileSceneCollection } from "./sceneStore";
 import {
   clearMobileStreamSessionSummaries,
   loadMobileStreamSessionSummaries,
@@ -168,7 +176,8 @@ export const MobileApp = () => {
   const platformApiOperationGate = useMemo(() => createPlatformApiOperationGate(), []);
   const chatSpeechEngine = useMemo(() => new NativeChatSpeechEngine(), []);
   const faceTrackingInput = useMemo(() => new NativeFaceTrackingInput(), []);
-  const [scene, setScene] = useState<SceneDocument>(() => createDefaultScene());
+  const [sceneCollection, setSceneCollection] = useState<SceneCollection>(() => createDefaultSceneCollection());
+  const scene = useMemo(() => selectActiveScene(sceneCollection), [sceneCollection]);
   const [profile, setProfile] = useState<StudioProfile>(() => createDefaultStudioProfile());
   const [sceneLoaded, setSceneLoaded] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
@@ -201,7 +210,10 @@ export const MobileApp = () => {
   const platformChatOAuthSyncRequest = useRef<(() => void) | null>(null);
   const audioLevelSamplesRef = useRef<StreamAudioLevelSample[]>([]);
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
-  const persistableSceneJson = useMemo(() => JSON.stringify(stripTransientSceneRuntime(scene)), [scene]);
+  const persistableSceneCollectionJson = useMemo(
+    () => JSON.stringify(stripTransientSceneCollectionRuntime(sceneCollection)),
+    [sceneCollection]
+  );
   const chatOverlayMessages = useMemo(
     () => selectChatOverlayMessages(chatReader),
     [chatReader.history, chatReader.settings]
@@ -491,13 +503,14 @@ export const MobileApp = () => {
 
   useEffect(() => {
     let cancelled = false;
-    void loadMobileScene()
+    void loadMobileSceneCollection()
       .catch(() => null)
-      .then((storedScene) => {
-        if (cancelled || !storedScene) {
+      .then((storedCollection) => {
+        if (cancelled || !storedCollection) {
           return;
         }
-        setScene(storedScene);
+        const storedScene = selectActiveScene(storedCollection);
+        setSceneCollection(storedCollection);
         setAvatarRuntime(createAvatarRuntimeStateFromScene(storedScene, Date.now()));
         setSelectedSourceId((currentSourceId) =>
           storedScene.sources.some((source) => source.id === currentSourceId)
@@ -513,6 +526,39 @@ export const MobileApp = () => {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    setSelectedSourceId((currentSourceId) =>
+      scene.sources.some((source) => source.id === currentSourceId)
+        ? currentSourceId
+        : scene.sources[0]?.id ?? currentSourceId
+    );
+    setAvatarRuntime(createAvatarRuntimeStateFromScene(scene, Date.now()));
+  }, [scene.id]);
+
+  const updateActiveSceneDocument = useCallback(
+    (nextSceneOrUpdater: SceneDocument | ((currentScene: SceneDocument) => SceneDocument)) => {
+      setSceneCollection((currentCollection) => {
+        const currentScene = selectActiveScene(currentCollection);
+        const nextScene =
+          typeof nextSceneOrUpdater === "function" ? nextSceneOrUpdater(currentScene) : nextSceneOrUpdater;
+        return updateActiveScene(currentCollection, nextScene);
+      });
+    },
+    []
+  );
+
+  const switchScene = useCallback((sceneId: string) => {
+    setSceneCollection((currentCollection) => setActiveScene(currentCollection, sceneId));
+  }, []);
+
+  const createScene = useCallback((templateId: SceneTemplateId) => {
+    setSceneCollection((currentCollection) => addSceneToCollection(currentCollection, createSceneFromTemplate(templateId)));
+  }, []);
+
+  const duplicateScene = useCallback(() => {
+    setSceneCollection((currentCollection) => duplicateActiveScene(currentCollection));
   }, []);
 
   useEffect(() => {
@@ -631,8 +677,8 @@ export const MobileApp = () => {
     if (!sceneLoaded) {
       return;
     }
-    void saveMobileScene(JSON.parse(persistableSceneJson) as SceneDocument).catch(() => undefined);
-  }, [persistableSceneJson, sceneLoaded]);
+    void saveMobileSceneCollection(JSON.parse(persistableSceneCollectionJson) as SceneCollection).catch(() => undefined);
+  }, [persistableSceneCollectionJson, sceneLoaded]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -668,7 +714,7 @@ export const MobileApp = () => {
             : blinkedAvatar;
           recordAudioLevelSample(nextAvatar.mouthOpen, trackingProfile.enabled ? "face-tracking" : "manual");
 
-          setScene((currentScene) => {
+          updateActiveSceneDocument((currentScene) => {
             const withAvatar = applyAvatarRuntime(currentScene, nextAvatar.expression, nextAvatar.mouthOpen, nextAvatar.blink);
             return trackingProfile.enabled
               ? applyFaceTrackingRuntime(withAvatar, nextTracking, trackingProfile)
@@ -682,13 +728,13 @@ export const MobileApp = () => {
       });
     }, 140);
     return () => clearInterval(timer);
-  }, [faceTrackingInput, profile.faceTracking, recordAudioLevelSample]);
+  }, [faceTrackingInput, profile.faceTracking, recordAudioLevelSample, updateActiveSceneDocument]);
 
   const updateMicLevel = (level: number) => {
     recordAudioLevelSample(level, "manual");
     setAvatarRuntime((current) => {
       const next = { ...current, mouthOpen: level };
-      setScene((currentScene) => applyAvatarRuntime(currentScene, next.expression, next.mouthOpen, next.blink));
+      updateActiveSceneDocument((currentScene) => applyAvatarRuntime(currentScene, next.expression, next.mouthOpen, next.blink));
       return next;
     });
   };
@@ -696,7 +742,7 @@ export const MobileApp = () => {
   const updateExpression = (expression: AvatarExpression) => {
     setAvatarRuntime((current) => {
       const next = setExpression(current, expression);
-      setScene((currentScene) => applyAvatarRuntime(currentScene, next.expression, next.mouthOpen, next.blink));
+      updateActiveSceneDocument((currentScene) => applyAvatarRuntime(currentScene, next.expression, next.mouthOpen, next.blink));
       return next;
     });
   };
@@ -1250,6 +1296,8 @@ export const MobileApp = () => {
     <SafeAreaProvider>
       <MobileStudioScreen
         scene={scene}
+        scenes={sceneCollection.scenes}
+        activeSceneId={sceneCollection.activeSceneId}
         profile={profile}
         selectedSourceId={selectedSourceId}
         snapshot={snapshot}
@@ -1275,7 +1323,10 @@ export const MobileApp = () => {
         audioRoute={audioRoute}
         avatarRuntime={avatarRuntime}
         faceTrackingRuntime={faceTrackingRuntime}
-        onSceneChange={setScene}
+        onSceneChange={updateActiveSceneDocument}
+        onSceneSwitch={switchScene}
+        onSceneCreate={createScene}
+        onSceneDuplicate={duplicateScene}
         onProfileChange={setProfile}
         onSelectSource={setSelectedSourceId}
         onMicLevelChange={updateMicLevel}

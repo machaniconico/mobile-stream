@@ -1,4 +1,12 @@
-import { normalizeSceneDocument, stripTransientSceneRuntime, type SceneDocument } from "../domain/scene";
+import {
+  normalizeSceneCollection,
+  normalizeSceneDocument,
+  selectActiveScene,
+  stripTransientSceneCollectionRuntime,
+  stripTransientSceneRuntime,
+  type SceneCollection,
+  type SceneDocument
+} from "../domain/scene";
 import { normalizeStudioProfile, stripSensitiveProfileData, type StudioProfile } from "../domain/profiles";
 import {
   normalizeStreamSessionSummaries,
@@ -32,8 +40,8 @@ export const loadScene = (): SceneDocument | null => {
   if (!hasLocalStorage()) {
     return null;
   }
-  const scene = safeParse<Partial<SceneDocument>>(localStorage.getItem(SCENE_KEY));
-  return scene ? normalizeSceneDocument(scene) : null;
+  const storedScene = safeParse<unknown>(localStorage.getItem(SCENE_KEY));
+  return storedScene ? selectActiveScene(normalizeSceneCollection(storedScene)) : null;
 };
 
 export const saveScene = (scene: SceneDocument): void => {
@@ -41,6 +49,21 @@ export const saveScene = (scene: SceneDocument): void => {
     return;
   }
   localStorage.setItem(SCENE_KEY, JSON.stringify(stripTransientSceneRuntime(normalizeSceneDocument(scene))));
+};
+
+export const loadSceneCollection = (): SceneCollection | null => {
+  if (!hasLocalStorage()) {
+    return null;
+  }
+  const storedCollection = safeParse<unknown>(localStorage.getItem(SCENE_KEY));
+  return storedCollection ? normalizeSceneCollection(storedCollection) : null;
+};
+
+export const saveSceneCollection = (collection: SceneCollection): void => {
+  if (!hasLocalStorage()) {
+    return;
+  }
+  localStorage.setItem(SCENE_KEY, JSON.stringify(stripTransientSceneCollectionRuntime(normalizeSceneCollection(collection))));
 };
 
 export const loadProfile = (): StudioProfile | null => {

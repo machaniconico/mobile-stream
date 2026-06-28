@@ -6,7 +6,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 
 ## Current Prototype
 
-- OBS-like scene/source stack.
+- OBS-like multi-scene/source stack with Main, Starting Soon, and Break scene presets plus live scene switching.
 - Screen, PNGTuber, Live2D, image, solid, and text source records.
 - Layer visibility, lock, ordering, and transform controls.
 - RTMP/RTMPS destination profiles with YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
@@ -50,7 +50,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Native Android/iOS status and publisher-runtime messages redact publish URLs, stream keys, and bearer tokens before app display.
 - Keychain/Android Keystore-backed mobile profile storage for stream keys.
 - In-app stream key clear and replacement controls.
-- Durable scene persistence on web, iOS, and Android with persisted-scene normalization.
+- Durable multi-scene persistence on web, iOS, and Android with legacy single-scene migration and persisted-scene normalization.
 - Quality presets.
 - Voice lip-sync meter and expression buttons.
 - Still-image VTuber face tracking with native-camera input on mobile, simulated input on web, calibration, dead-zone filtering, jump limiting, lost-face return tuning, image-aspect-aware geometry rig inference, production rig-line diagnostics, native 2.5D motion scaling, tunable illustration rig regions, lightweight pseudo mesh deformation, hair/body follow-through, and eye/mouth deformation in the iOS/Android compositor.
@@ -178,7 +178,7 @@ GitHub Actions runs the required `test` status check on pull requests and `main`
 - Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, avatar tracking readiness/motion/runtime-freshness proof, bitrate/FPS/drop/reconnect telemetry, stable monitor-hold proof, mic FX/headphone monitor route readiness, native publisher/compositor proof, native self-monitor write/drop proof, measured/native-estimated monitor latency evidence, audio-meter sample evidence, chat readout connection/readiness, spoken-chat success/failure evidence, native still-image asset loaded/missing evidence, private validation runbook state, estimated upload target, post-stream session evidence, physical validation audio/chat/avatar evidence, physical validation native-runtime evidence, platform dashboard evidence, and sanitized export/share reports are available before, during, and after live sessions.
 - Secret storage: browser persistence strips stream keys; mobile persistence uses Keychain/Android Keystore-backed native storage.
 - Stream key management: users can clear the stored key in-app and paste a replacement key without changing the destination preset.
-- Scene storage: web uses localStorage; Android uses app SharedPreferences; iOS writes an atomic scene JSON file under Application Support.
+- Scene storage: web uses localStorage; Android uses app SharedPreferences; iOS writes an atomic scene collection JSON file under Application Support, while legacy single-scene JSON is migrated on load.
 - Chat reader: YouTube/Twitch payload adapters can feed the shared queue; current UI includes manual/test comments, platform adapter test ingest, OAuth authorization/callback controls, Twitch device-code authorization, network connect controls, command-message skipping, URL redaction, stream-stop chat auto-disconnect/readout silence, queued/recent comment privacy reset, and native/browser TTS output. Public launch preflight warns when URL redaction or command skipping is disabled. Browser OAuth remains session-only; mobile credentials are stored through Keychain/Android Keystore-backed native storage.
 - Platform stream key management: YouTube OAuth uses Live Streaming API `liveStreams.insert` to rotate by creating a new reusable stream; Twitch OAuth uses Helix Get Stream Key to sync the current key because Twitch does not expose a public reset endpoint.
 - Platform publishing management: YouTube OAuth uses Live Streaming API `liveBroadcasts.insert`, `liveBroadcasts.bind`, `liveBroadcasts.list`, `liveStreams.list`, and `liveBroadcasts.transition` for scheduled broadcast setup, ingest health refresh, and lifecycle control; Twitch OAuth uses Helix `PATCH /channels`, category search, `GET /channels`, and `GET /streams` for channel metadata and live/offline status.

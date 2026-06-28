@@ -61,6 +61,7 @@ import {
   type SceneDocument,
   type RenderNode,
   type SceneSource,
+  type SceneTemplateId,
   type SourceKind
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
@@ -95,6 +96,8 @@ import { pickStillImageAsset, prepareStillImageAsset } from "./sceneStore";
 
 interface MobileStudioScreenProps {
   scene: SceneDocument;
+  scenes: SceneDocument[];
+  activeSceneId: string;
   profile: StudioProfile;
   selectedSourceId: string;
   snapshot: NativeEngineSnapshot;
@@ -121,6 +124,9 @@ interface MobileStudioScreenProps {
   avatarRuntime: AvatarRuntimeState;
   faceTrackingRuntime: FaceTrackingRuntimeState;
   onSceneChange(scene: SceneDocument): void;
+  onSceneSwitch(sceneId: string): void;
+  onSceneCreate(templateId: SceneTemplateId): void;
+  onSceneDuplicate(): void;
   onProfileChange(profile: StudioProfile): void;
   onSelectSource(sourceId: string): void;
   onMicLevelChange(level: number): void;
@@ -257,6 +263,8 @@ const qualityAdvisorTargetLabel = (diagnostics: StreamDiagnostics): string =>
 
 export const MobileStudioScreen = ({
   scene,
+  scenes,
+  activeSceneId,
   profile,
   selectedSourceId,
   snapshot,
@@ -283,6 +291,9 @@ export const MobileStudioScreen = ({
   avatarRuntime,
   faceTrackingRuntime,
   onSceneChange,
+  onSceneSwitch,
+  onSceneCreate,
+  onSceneDuplicate,
   onProfileChange,
   onSelectSource,
   onMicLevelChange,
@@ -323,6 +334,7 @@ export const MobileStudioScreen = ({
   const operationBusy = operationStatus?.kind === "pending";
   const platformApiBusy = Boolean(platformApiOperationLabel);
   const setupLocked = isLive || isBusy || operationBusy || platformApiBusy;
+  const sceneSwitchLocked = isBusy || operationBusy || platformApiBusy;
   const updateSelectedIllustrationRig = (key: keyof AvatarIllustrationRig, value: number) => {
     onSceneChange(
       updateSource(scene, selectedSource.id, (source) =>
@@ -570,6 +582,33 @@ export const MobileStudioScreen = ({
           <Metric label={`${snapshot.health.droppedFrames} drops`} />
           {snapshot.health.reconnectAttempts > 0 ? <Metric label={`${snapshot.health.reconnectAttempts} retries`} /> : null}
         </View>
+
+        <Panel title="Scenes">
+          {scenes.map((candidate) => (
+            <Pressable
+              key={candidate.id}
+              disabled={sceneSwitchLocked && candidate.id !== activeSceneId}
+              hitSlop={8}
+              style={[
+                styles.sceneRow,
+                candidate.id === activeSceneId && styles.selectedRow,
+                sceneSwitchLocked && candidate.id !== activeSceneId && styles.disabledRow
+              ]}
+              onPress={() => onSceneSwitch(candidate.id)}
+            >
+              <Text style={styles.sceneName} numberOfLines={1}>
+                {candidate.name}
+              </Text>
+              <Text style={styles.sourceMeta}>{candidate.sources.length} sources</Text>
+            </Pressable>
+          ))}
+
+          <View style={styles.grid3}>
+            <ActionButton label="Duplicate" disabled={setupLocked} onPress={onSceneDuplicate} />
+            <ActionButton label="+ Start" disabled={setupLocked} onPress={() => onSceneCreate("starting-soon")} />
+            <ActionButton label="+ Break" disabled={setupLocked} onPress={() => onSceneCreate("break")} />
+          </View>
+        </Panel>
 
         <Panel title="Sources">
           {[...scene.sources].reverse().map((source) => (
@@ -3208,8 +3247,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#20202a",
     gap: 3
   },
+  sceneRow: {
+    minHeight: 50,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: "#15151c",
+    gap: 3
+  },
   selectedRow: {
     borderColor: "#2dd4bf"
+  },
+  disabledRow: {
+    opacity: 0.48
+  },
+  sceneName: {
+    color: "#f8fafc",
+    fontSize: 15,
+    fontWeight: "900"
   },
   sourceKind: {
     color: "#2dd4bf",

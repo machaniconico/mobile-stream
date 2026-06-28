@@ -1,5 +1,13 @@
 import { NativeModules } from "react-native";
-import { normalizeSceneDocument, stripTransientSceneRuntime, type SceneDocument } from "../domain/scene";
+import {
+  normalizeSceneCollection,
+  normalizeSceneDocument,
+  selectActiveScene,
+  stripTransientSceneCollectionRuntime,
+  stripTransientSceneRuntime,
+  type SceneCollection,
+  type SceneDocument
+} from "../domain/scene";
 
 interface MobileSceneStoreModule {
   saveScene(sceneJson: string): Promise<boolean>;
@@ -24,7 +32,7 @@ export const loadMobileScene = async (): Promise<SceneDocument | null> => {
   }
 
   try {
-    return normalizeSceneDocument(JSON.parse(sceneJson) as Partial<SceneDocument>);
+    return selectActiveScene(normalizeSceneCollection(JSON.parse(sceneJson) as unknown));
   } catch {
     await nativeStore.clearScene();
     return null;
@@ -37,6 +45,32 @@ export const saveMobileScene = async (scene: SceneDocument): Promise<void> => {
   }
   const persistableScene = stripTransientSceneRuntime(normalizeSceneDocument(scene));
   await nativeStore.saveScene(JSON.stringify(persistableScene));
+};
+
+export const loadMobileSceneCollection = async (): Promise<SceneCollection | null> => {
+  if (!canUseMobileSceneStore() || !nativeStore) {
+    return null;
+  }
+
+  const sceneJson = await nativeStore.loadScene();
+  if (!sceneJson) {
+    return null;
+  }
+
+  try {
+    return normalizeSceneCollection(JSON.parse(sceneJson) as unknown);
+  } catch {
+    await nativeStore.clearScene();
+    return null;
+  }
+};
+
+export const saveMobileSceneCollection = async (collection: SceneCollection): Promise<void> => {
+  if (!canUseMobileSceneStore() || !nativeStore) {
+    return;
+  }
+  const persistableCollection = stripTransientSceneCollectionRuntime(normalizeSceneCollection(collection));
+  await nativeStore.saveScene(JSON.stringify(persistableCollection));
 };
 
 export const clearMobileScene = async (): Promise<void> => {

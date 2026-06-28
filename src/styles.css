@@ -208,6 +208,52 @@ select:focus-visible {
   margin-bottom: 12px;
 }
 
+.scene-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.scene-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #15151c;
+  color: var(--text);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.scene-row.selected {
+  border-color: var(--teal);
+  background: rgba(45, 212, 191, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.25);
+}
+
+.scene-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.scene-meta {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.scene-tool-grid {
+  margin-bottom: 18px;
+}
+
 .source-row {
   display: grid;
   grid-template-columns: 76px 1fr auto;

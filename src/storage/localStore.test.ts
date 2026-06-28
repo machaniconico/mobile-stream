@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDefaultStudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
-import { createDefaultScene } from "../domain/scene";
+import { createDefaultScene, createDefaultSceneCollection, selectActiveScene } from "../domain/scene";
 import { type StreamHealthSample } from "../domain/streamHealthHistory";
 import { createStreamDiagnostics } from "../domain/streamDiagnostics";
 import { createStreamSessionSummary } from "../domain/streamSessionSummary";
@@ -10,14 +10,18 @@ import { initialStreamState } from "../domain/streamState";
 import {
   clearStreamSessionSummaries,
   clearStreamValidationRuns,
+  loadScene,
+  loadSceneCollection,
   loadProfile,
   loadStreamSessionSummaries,
   loadStreamValidationRuns,
+  saveSceneCollection,
   saveProfile,
   saveStreamSessionSummaries,
   saveStreamValidationRuns
 } from "./localStore";
 
+const sceneStorageKey = "mobile-live-caster.scene";
 const profileStorageKey = "mobile-live-caster.profile";
 const sessionSummaryStorageKey = "mobile-live-caster.stream-session-summaries";
 const validationRunsStorageKey = "mobile-live-caster.stream-validation-runs";
@@ -78,6 +82,49 @@ describe("local stream session summary store", () => {
 
     expect(loadStreamSessionSummaries()).toEqual([]);
     expect(storage.getItem(sessionSummaryStorageKey)).toBeNull();
+  });
+
+  it("loads legacy scene persistence as an active scene collection", () => {
+    const storage = createMemoryStorage();
+    vi.stubGlobal("localStorage", storage);
+    const scene = {
+      ...createDefaultScene(),
+      id: "legacy-scene",
+      name: "Legacy Scene"
+    };
+    storage.setItem(sceneStorageKey, JSON.stringify(scene));
+
+    const collection = loadSceneCollection();
+
+    expect(collection?.activeSceneId).toBe("legacy-scene");
+    expect(collection?.scenes).toHaveLength(1);
+    expect(loadScene()?.name).toBe("Legacy Scene");
+  });
+
+  it("saves and loads scene collections without transient avatar runtime", () => {
+    const storage = createMemoryStorage();
+    vi.stubGlobal("localStorage", storage);
+    const collection = createDefaultSceneCollection();
+    const withRuntime = {
+      ...collection,
+      activeSceneId: "scene-break",
+      scenes: collection.scenes.map((scene) => ({
+        ...scene,
+        sources: scene.sources.map((source) =>
+          source.kind === "pngtuber" ? { ...source, mouthOpen: 0.9, blink: 0.7 } : source
+        )
+      }))
+    };
+
+    saveSceneCollection(withRuntime);
+    const loaded = loadSceneCollection();
+
+    expect(loaded?.scenes).toHaveLength(3);
+    expect(loaded?.activeSceneId).toBe("scene-break");
+    const activeAvatar = selectActiveScene(loaded!).sources.find((source) => source.kind === "pngtuber");
+    expect(activeAvatar?.mouthOpen).toBe(0);
+    expect(activeAvatar?.blink).toBe(0);
+    expect(storage.getItem(sceneStorageKey)).toContain("scene-starting-soon");
   });
 
   it("saves, loads, and clears physical validation runs", () => {

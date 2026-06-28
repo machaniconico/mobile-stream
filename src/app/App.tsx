@@ -68,11 +68,19 @@ import { rotateYouTubeStreamKey, syncTwitchStreamKey } from "../domain/platformS
 import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
-  createDefaultScene,
-  stripTransientSceneRuntime,
+  addSceneToCollection,
+  createDefaultSceneCollection,
+  createSceneFromTemplate,
+  duplicateActiveScene,
+  selectActiveScene,
+  setActiveScene,
+  stripTransientSceneCollectionRuntime,
+  updateActiveScene,
   updateSource,
   type PNGTuberSource,
   type Live2DSource,
+  type SceneCollection,
+  type SceneTemplateId,
   type SceneDocument
 } from "../domain/scene";
 import {
@@ -126,11 +134,11 @@ import {
   clearStreamSessionSummaries,
   clearStreamValidationRuns,
   loadProfile,
-  loadScene,
+  loadSceneCollection,
   loadStreamSessionSummaries,
   loadStreamValidationRuns,
   saveProfile,
-  saveScene,
+  saveSceneCollection,
   saveStreamSessionSummaries,
   saveStreamValidationRuns
 } from "../storage/localStore";
@@ -145,7 +153,8 @@ export const App = () => {
   const engine = useMemo(() => new MockLiveCaster(), []);
   const platformApiOperationGate = useMemo(() => createPlatformApiOperationGate(), []);
   const chatSpeechEngine = useMemo(() => new WebChatSpeechEngine(), []);
-  const [scene, setScene] = useState<SceneDocument>(() => loadScene() ?? createDefaultScene());
+  const [sceneCollection, setSceneCollection] = useState<SceneCollection>(() => loadSceneCollection() ?? createDefaultSceneCollection());
+  const scene = useMemo(() => selectActiveScene(sceneCollection), [sceneCollection]);
   const [profile, setProfile] = useState<StudioProfile>(() => loadProfile() ?? createDefaultStudioProfile());
   const [chatReader, setChatReader] = useState(() => createDefaultChatReaderState());
   const [platformChatAuth, setPlatformChatAuth] = useState<PlatformChatAuthSession>(() => createDefaultPlatformChatAuthSession());
@@ -167,7 +176,10 @@ export const App = () => {
   const operationInFlight = useRef(false);
   const audioLevelSamplesRef = useRef<StreamAudioLevelSample[]>([]);
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
-  const persistableSceneJson = useMemo(() => JSON.stringify(stripTransientSceneRuntime(scene)), [scene]);
+  const persistableSceneCollectionJson = useMemo(
+    () => JSON.stringify(stripTransientSceneCollectionRuntime(sceneCollection)),
+    [sceneCollection]
+  );
   const chatOverlayMessages = useMemo(
     () => selectChatOverlayMessages(chatReader),
     [chatReader.history, chatReader.settings]
@@ -237,8 +249,41 @@ export const App = () => {
   useChatSpeechQueue(chatReader, setChatReader, chatSpeechEngine, { onSpeechEvent: recordChatSpeechEvent });
 
   useEffect(() => {
-    saveScene(JSON.parse(persistableSceneJson) as SceneDocument);
-  }, [persistableSceneJson]);
+    saveSceneCollection(JSON.parse(persistableSceneCollectionJson) as SceneCollection);
+  }, [persistableSceneCollectionJson]);
+
+  useEffect(() => {
+    setSelectedSourceId((currentSourceId) =>
+      scene.sources.some((source) => source.id === currentSourceId)
+        ? currentSourceId
+        : scene.sources[0]?.id ?? currentSourceId
+    );
+    setAvatarRuntime(createAvatarRuntimeStateFromScene(scene, Date.now()));
+  }, [scene.id]);
+
+  const updateActiveSceneDocument = useCallback(
+    (nextSceneOrUpdater: SceneDocument | ((currentScene: SceneDocument) => SceneDocument)) => {
+      setSceneCollection((currentCollection) => {
+        const currentScene = selectActiveScene(currentCollection);
+        const nextScene =
+          typeof nextSceneOrUpdater === "function" ? nextSceneOrUpdater(currentScene) : nextSceneOrUpdater;
+        return updateActiveScene(currentCollection, nextScene);
+      });
+    },
+    []
+  );
+
+  const switchScene = useCallback((sceneId: string) => {
+    setSceneCollection((currentCollection) => setActiveScene(currentCollection, sceneId));
+  }, []);
+
+  const createScene = useCallback((templateId: SceneTemplateId) => {
+    setSceneCollection((currentCollection) => addSceneToCollection(currentCollection, createSceneFromTemplate(templateId)));
+  }, []);
+
+  const duplicateScene = useCallback(() => {
+    setSceneCollection((currentCollection) => duplicateActiveScene(currentCollection));
+  }, []);
 
   useEffect(() => {
     if (!shouldPushSceneToEngine(snapshot.state.status)) {
@@ -278,7 +323,7 @@ export const App = () => {
             : blinkedAvatar;
           recordAudioLevelSample(nextAvatar.mouthOpen, trackingProfile.enabled ? "face-tracking" : "manual");
 
-          setScene((currentScene) => {
+          updateActiveSceneDocument((currentScene) => {
             const withAvatar = applyAvatarRuntime(currentScene, nextAvatar.expression, nextAvatar.mouthOpen, nextAvatar.blink);
             return trackingProfile.enabled
               ? applyFaceTrackingRuntime(withAvatar, nextTracking, trackingProfile)
@@ -292,13 +337,13 @@ export const App = () => {
       });
     }, 120);
     return () => window.clearInterval(timer);
-  }, [profile.faceTracking, recordAudioLevelSample]);
+  }, [profile.faceTracking, recordAudioLevelSample, updateActiveSceneDocument]);
 
   const updateMicLevel = (level: number) => {
     recordAudioLevelSample(level, "manual");
     setAvatarRuntime((current) => {
       const next = { ...current, mouthOpen: level };
-      setScene((currentScene) => applyAvatarRuntime(currentScene, next.expression, next.mouthOpen, next.blink));
+      updateActiveSceneDocument((currentScene) => applyAvatarRuntime(currentScene, next.expression, next.mouthOpen, next.blink));
       return next;
     });
   };
@@ -306,7 +351,7 @@ export const App = () => {
   const updateExpression = (expression: AvatarExpression) => {
     setAvatarRuntime((current) => {
       const next = setExpression(current, expression);
-      setScene((currentScene) => applyAvatarRuntime(currentScene, next.expression, next.mouthOpen, next.blink));
+      updateActiveSceneDocument((currentScene) => applyAvatarRuntime(currentScene, next.expression, next.mouthOpen, next.blink));
       return next;
     });
   };
@@ -896,6 +941,8 @@ export const App = () => {
     <Suspense fallback={<div className="studio-loading" role="status">Loading studio...</div>}>
       <StudioScreen
         scene={scene}
+        scenes={sceneCollection.scenes}
+        activeSceneId={sceneCollection.activeSceneId}
         profile={profile}
         selectedSourceId={selectedSourceId}
         snapshot={snapshot}
@@ -920,7 +967,10 @@ export const App = () => {
         platformChatConnection={platformChatConnection.connection}
         avatarRuntime={avatarRuntime}
         faceTrackingRuntime={faceTrackingRuntime}
-        onSceneChange={setScene}
+        onSceneChange={updateActiveSceneDocument}
+        onSceneSwitch={switchScene}
+        onSceneCreate={createScene}
+        onSceneDuplicate={duplicateScene}
         onProfileChange={setProfile}
         onSelectSource={setSelectedSourceId}
         onMicLevelChange={updateMicLevel}

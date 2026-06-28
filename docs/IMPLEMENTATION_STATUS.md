@@ -3,8 +3,8 @@
 ## Implemented Now
 
 - TypeScript app scaffold with Vite.
-- OBS-like scene/source/render graph domain model.
-- Persisted scene normalization with clamped canvas/source/transform/avatar runtime values.
+- OBS-like multi-scene/source/render graph domain model with Main, Starting Soon, and Break presets plus active scene switching.
+- Persisted scene collection normalization with clamped canvas/source/transform/avatar runtime values and legacy single-scene migration.
 - Stream profile model for RTMP and RTMPS destinations, including YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - RTMP/RTMPS destination normalization for pasted YouTube/Twitch full publish URLs across shared profile handling and native endpoint assembly.
@@ -165,7 +165,7 @@
 - Native release-configuration audit script covering Android release signing, release cleartext-traffic blocking, Android/iOS store version alignment, streaming permissions, OAuth callback schemes, iOS usage descriptions, iOS privacy manifest packaging, unresolved implementation markers in production native sources, and ReplayKit Broadcast Upload Extension bundle identifiers, Debug/Release entitlements, extension-only settings, and matching App Group setup.
 - Android Keystore-backed encrypted mobile profile storage for stream keys.
 - Mobile stream key clearing by overwriting the secure native profile with a cleared key.
-- Durable mobile-side scene persistence through Android SharedPreferences and iOS atomic Application Support JSON storage.
+- Durable mobile-side scene collection persistence through Android SharedPreferences and iOS atomic Application Support JSON storage.
 - Android TextToSpeech native module for chat read-aloud.
 - iOS Keychain-backed mobile profile storage exposed to React Native.
 - iOS AVSpeechSynthesizer native module for chat read-aloud.

@@ -134,6 +134,14 @@ export interface SceneDocument {
   sources: SceneSource[];
 }
 
+export type SceneTemplateId = "main" | "starting-soon" | "break";
+
+export interface SceneCollection {
+  version: 1;
+  activeSceneId: string;
+  scenes: SceneDocument[];
+}
+
 export interface AvatarIllustrationRigInferenceInput {
   canvas?: Partial<SceneDocument["canvas"]> | null;
   transform?: Partial<Transform> | null;
@@ -333,6 +341,77 @@ export const createDefaultScene = (): SceneDocument => {
   };
 };
 
+const templateLabels: Record<SceneTemplateId, string> = {
+  main: "Main Scene",
+  "starting-soon": "Starting Soon",
+  break: "Break"
+};
+
+export const sceneTemplateIds: readonly SceneTemplateId[] = ["main", "starting-soon", "break"];
+
+const defaultSource = <Kind extends SourceKind>(kind: Kind): Extract<SceneSource, { kind: Kind }> => {
+  const source = createDefaultScene().sources.find((item): item is Extract<SceneSource, { kind: Kind }> => item.kind === kind);
+  if (!source) {
+    throw new Error(`Missing default ${kind} source.`);
+  }
+  return source;
+};
+
+export const createSceneFromTemplate = (templateId: SceneTemplateId): SceneDocument => {
+  if (templateId === "main") {
+    return createDefaultScene();
+  }
+
+  const canvas = createDefaultScene().canvas;
+  const background = defaultSource("solid");
+  const label = defaultSource("text");
+  const avatar = defaultSource("pngtuber");
+  const chat = defaultSource("chat");
+  const isBreak = templateId === "break";
+
+  return {
+    version: 1,
+    id: `scene-${templateId}`,
+    name: templateLabels[templateId],
+    canvas,
+    sources: [
+      {
+        ...background,
+        id: `source-${templateId}-background`,
+        name: isBreak ? "Break Background" : "Waiting Background",
+        color: isBreak ? "#15151c" : "#0f172a"
+      },
+      {
+        ...label,
+        id: `source-${templateId}-label`,
+        name: isBreak ? "Break Label" : "Waiting Label",
+        text: isBreak ? "Be right back" : "Starting soon",
+        fontSize: isBreak ? 70 : 76,
+        transform: defaultTransform({ x: 0.08, y: 0.18, width: 0.72, height: 0.18 })
+      },
+      {
+        ...avatar,
+        id: `source-${templateId}-avatar`,
+        name: "PNGTuber",
+        transform: defaultTransform({ x: 0.68, y: 0.42, width: 0.24, height: 0.46 })
+      },
+      {
+        ...chat,
+        id: `source-${templateId}-chat`,
+        name: "Chat Overlay",
+        maxMessages: 5,
+        transform: defaultTransform({ x: 0.08, y: 0.58, width: 0.44, height: 0.3 })
+      }
+    ]
+  };
+};
+
+export const createDefaultSceneCollection = (): SceneCollection => ({
+  version: 1,
+  activeSceneId: "scene-main",
+  scenes: sceneTemplateIds.map(createSceneFromTemplate)
+});
+
 export const createSource = (kind: SourceKind): SceneSource => {
   const base: BaseSource = {
     id: makeId(`source-${kind}`),
@@ -416,6 +495,37 @@ export const normalizeSceneDocument = (value: unknown): SceneDocument => {
   };
 };
 
+export const normalizeSceneCollection = (value: unknown): SceneCollection => {
+  if (!isRecord(value)) {
+    return createDefaultSceneCollection();
+  }
+
+  if (!Array.isArray(value.scenes) && Array.isArray(value.sources)) {
+    const scene = normalizeSceneDocument(value);
+    return {
+      version: 1,
+      activeSceneId: scene.id,
+      scenes: [scene]
+    };
+  }
+
+  const rawScenes = Array.isArray(value.scenes) ? value.scenes : [];
+  const scenes = ensureUniqueSceneIds(rawScenes.map(normalizeSceneDocument));
+  if (scenes.length === 0) {
+    return createDefaultSceneCollection();
+  }
+
+  const activeSceneId = scenes.some((scene) => scene.id === value.activeSceneId)
+    ? String(value.activeSceneId)
+    : scenes[0].id;
+
+  return {
+    version: 1,
+    activeSceneId,
+    scenes
+  };
+};
+
 export const stripTransientSceneRuntime = (scene: SceneDocument): SceneDocument => ({
   ...scene,
   sources: scene.sources.map((source) => {
@@ -430,6 +540,68 @@ export const stripTransientSceneRuntime = (scene: SceneDocument): SceneDocument 
     };
   })
 });
+
+export const stripTransientSceneCollectionRuntime = (collection: SceneCollection): SceneCollection => {
+  const normalized = normalizeSceneCollection(collection);
+  return {
+    ...normalized,
+    scenes: normalized.scenes.map(stripTransientSceneRuntime)
+  };
+};
+
+export const selectActiveScene = (collection: SceneCollection): SceneDocument =>
+  collection.scenes.find((scene) => scene.id === collection.activeSceneId) ?? collection.scenes[0] ?? createDefaultScene();
+
+export const setActiveScene = (collection: SceneCollection, sceneId: string): SceneCollection => {
+  const normalized = normalizeSceneCollection(collection);
+  if (!normalized.scenes.some((scene) => scene.id === sceneId)) {
+    return normalized;
+  }
+  return {
+    ...normalized,
+    activeSceneId: sceneId
+  };
+};
+
+export const updateActiveScene = (collection: SceneCollection, scene: SceneDocument): SceneCollection => {
+  const normalized = normalizeSceneCollection(collection);
+  const nextScene = normalizeSceneDocument(scene);
+  const activeIndex = normalized.scenes.findIndex((current) => current.id === normalized.activeSceneId);
+  const replaceIndex = activeIndex >= 0 ? activeIndex : 0;
+  const scenes = normalized.scenes.map((current, index) => (index === replaceIndex ? nextScene : current));
+  const uniqueScenes = ensureUniqueSceneIds(scenes);
+  const activeSceneId = uniqueScenes[replaceIndex]?.id ?? uniqueScenes[0]?.id ?? createDefaultScene().id;
+  return {
+    ...normalized,
+    activeSceneId,
+    scenes: uniqueScenes.length > 0 ? uniqueScenes : [createDefaultScene()]
+  };
+};
+
+export const addSceneToCollection = (collection: SceneCollection, scene: SceneDocument): SceneCollection => {
+  const normalized = normalizeSceneCollection(collection);
+  const nextScene = createUniqueScene(normalizeSceneDocument(scene), new Set(normalized.scenes.map((candidate) => candidate.id)));
+  return {
+    version: 1,
+    activeSceneId: nextScene.id,
+    scenes: [...normalized.scenes, nextScene]
+  };
+};
+
+export const duplicateActiveScene = (collection: SceneCollection): SceneCollection => {
+  const normalized = normalizeSceneCollection(collection);
+  const activeScene = selectActiveScene(normalized);
+  const duplicate = {
+    ...stripTransientSceneRuntime(activeScene),
+    id: makeId("scene"),
+    name: `${activeScene.name} Copy`,
+    sources: activeScene.sources.map((source) => ({
+      ...source,
+      id: makeId(`source-${source.kind}`)
+    }))
+  };
+  return addSceneToCollection(normalized, duplicate);
+};
 
 export const addSource = (scene: SceneDocument, source: SceneSource): SceneDocument => ({
   ...scene,
@@ -608,6 +780,29 @@ const normalizeCanvas = (value: unknown, fallback: SceneDocument["canvas"]): Sce
     height: Math.round(clampedNumber(value.height, fallback.height, 1, 4320)),
     fps: Math.round(clampedNumber(value.fps, fallback.fps, 1, 120))
   };
+};
+
+const ensureUniqueSceneIds = (scenes: SceneDocument[]): SceneDocument[] => {
+  const used = new Set<string>();
+  return scenes.map((scene, index) => {
+    const uniqueScene = createUniqueScene(
+      { ...scene, id: scene.id.trim() || `scene-${index + 1}` },
+      used
+    );
+    used.add(uniqueScene.id);
+    return uniqueScene;
+  });
+};
+
+const createUniqueScene = (scene: SceneDocument, used: Set<string>): SceneDocument => {
+  const baseId = scene.id.trim() || "scene";
+  let nextId = baseId;
+  let suffix = 2;
+  while (used.has(nextId)) {
+    nextId = `${baseId}-${suffix}`;
+    suffix += 1;
+  }
+  return nextId === scene.id ? scene : { ...scene, id: nextId };
 };
 
 const normalizeTransformValue = (value: unknown, fallback: Transform): Transform => {

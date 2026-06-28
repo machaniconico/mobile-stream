@@ -2,6 +2,8 @@ import {
   Activity,
   ArrowDown,
   ArrowUp,
+  Clapperboard,
+  Copy,
   Download,
   Eye,
   EyeOff,
@@ -70,6 +72,7 @@ import {
   type AvatarIllustrationRig,
   type RenderNode,
   type SceneSource,
+  type SceneTemplateId,
   type SourceKind
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
@@ -105,6 +108,8 @@ import { PanelTitle } from "./ui";
 
 interface StudioScreenProps {
   scene: SceneDocument;
+  scenes: SceneDocument[];
+  activeSceneId: string;
   profile: StudioProfile;
   selectedSourceId: string;
   snapshot: NativeEngineSnapshot;
@@ -130,6 +135,9 @@ interface StudioScreenProps {
   avatarRuntime: AvatarRuntimeState;
   faceTrackingRuntime: FaceTrackingRuntimeState;
   onSceneChange(scene: SceneDocument): void;
+  onSceneSwitch(sceneId: string): void;
+  onSceneCreate(templateId: SceneTemplateId): void;
+  onSceneDuplicate(): void;
   onProfileChange(profile: StudioProfile): void;
   onSelectSource(sourceId: string): void;
   onMicLevelChange(level: number): void;
@@ -319,6 +327,8 @@ const validationItemTone = (status: StreamDiagnostics["validation"]["items"][num
 
 export const StudioScreen = ({
   scene,
+  scenes,
+  activeSceneId,
   profile,
   selectedSourceId,
   snapshot,
@@ -344,6 +354,9 @@ export const StudioScreen = ({
   avatarRuntime,
   faceTrackingRuntime,
   onSceneChange,
+  onSceneSwitch,
+  onSceneCreate,
+  onSceneDuplicate,
   onProfileChange,
   onSelectSource,
   onMicLevelChange,
@@ -380,6 +393,7 @@ export const StudioScreen = ({
   const operationBusy = operationStatus?.kind === "pending";
   const platformApiBusy = Boolean(platformApiOperationLabel);
   const setupLocked = isLive || isBusy || operationBusy || platformApiBusy;
+  const sceneSwitchLocked = isBusy || operationBusy || platformApiBusy;
   const chatOverlayMessages = selectChatOverlayMessages(chatReader);
   const diagnostics = createStreamDiagnostics(
     scene,
@@ -520,6 +534,36 @@ export const StudioScreen = ({
 
       <section className="studio-grid">
         <aside className="left-rail" aria-label="scene sources">
+          <PanelTitle icon={<Clapperboard size={18} />} title="Scenes" />
+          <div className="scene-list">
+            {scenes.map((candidate) => (
+              <button
+                key={candidate.id}
+                className={`scene-row ${candidate.id === activeSceneId ? "selected" : ""}`}
+                type="button"
+                disabled={sceneSwitchLocked && candidate.id !== activeSceneId}
+                onClick={() => onSceneSwitch(candidate.id)}
+              >
+                <span className="scene-name">{candidate.name}</span>
+                <span className="scene-meta">{candidate.sources.length} sources</span>
+              </button>
+            ))}
+          </div>
+          <div className="button-grid scene-tool-grid">
+            <button className="tool-button" type="button" disabled={setupLocked} onClick={onSceneDuplicate}>
+              <Copy size={16} />
+              <span>Duplicate</span>
+            </button>
+            <button className="tool-button" type="button" disabled={setupLocked} onClick={() => onSceneCreate("starting-soon")}>
+              <Plus size={16} />
+              <span>Start</span>
+            </button>
+            <button className="tool-button" type="button" disabled={setupLocked} onClick={() => onSceneCreate("break")}>
+              <Plus size={16} />
+              <span>Break</span>
+            </button>
+          </div>
+
           <PanelTitle icon={<Layers size={18} />} title="Sources" />
           <div className="source-list">
             {[...scene.sources].reverse().map((source) => (
