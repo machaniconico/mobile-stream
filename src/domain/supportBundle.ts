@@ -778,6 +778,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     "Profile",
     `- Mic effects: ${bundle.profile.micEffects.enabled ? bundle.profile.micEffects.presetId : "off"}`,
     `- Broadcast mix: ${formatBroadcastMixerSummary(bundle.profile.broadcastMixer)}`,
+    `- Audio peak guard: ${bundle.diagnostics.audio.audioGuard.status} / ${bundle.diagnostics.audio.audioGuard.summary}`,
     `- Mic monitor: ${bundle.profile.micEffects.monitorEnabled ? "on" : "off"} / headphones-only ${bundle.profile.micEffects.monitorHeadphonesOnly ? "on" : "off"}`,
     `- Face tracking: ${bundle.profile.faceTracking.enabled ? bundle.profile.faceTracking.inputMode : "off"} / ${bundle.profile.faceTracking.rigMode}`,
     `- Platform chat: ${bundle.profile.platformChat.enabled ? bundle.profile.platformChat.platform : "off"}`,

@@ -58,6 +58,16 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
     monitorHeadphonesOnly: true,
     broadcastMixer: createDefaultStudioProfile().broadcastMixer,
     broadcastMixerSummary: "Mic 100% / App 85% / Chat 85%",
+    audioGuard: {
+      status: "pass",
+      nativeProcessedSamples: 24_576,
+      nativeLimitedSamples: 2,
+      nativeLimitedSamplePercent: 0,
+      lastSessionPeakLevel: 0.82,
+      lastSessionClippedSampleCount: 0,
+      summary: "Native mic limiter is below threshold at 0%.",
+      recommendation: "Keep this audio peak baseline with validation evidence."
+    },
     monitorSafety: {
       status: "pass",
       route: "wired-headphones",

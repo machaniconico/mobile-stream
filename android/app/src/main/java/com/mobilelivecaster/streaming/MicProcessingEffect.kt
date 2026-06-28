@@ -85,7 +85,13 @@ class MicProcessingEffect(
             monitorDroppedBuffers = monitorDroppedBuffers,
             monitorEstimatedLatencyMs = estimatedLatencyMs,
             monitorLatencySource = if (estimatedLatencyMs > 0) "android-audiotrack-buffer" else "",
-            monitorLastError = monitorLastError
+            monitorLastError = monitorLastError,
+            broadcastMicVolume = broadcastMixer.mic.volume,
+            broadcastMicMuted = broadcastMixer.mic.muted,
+            broadcastAppAudioVolume = broadcastMixer.appAudio.volume,
+            broadcastAppAudioMuted = broadcastMixer.appAudio.muted,
+            broadcastChatReadoutVolume = broadcastMixer.chatReadout.volume,
+            broadcastChatReadoutMuted = broadcastMixer.chatReadout.muted
         )
     }
 

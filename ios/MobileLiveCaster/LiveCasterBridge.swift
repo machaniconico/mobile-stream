@@ -1022,6 +1022,10 @@ final class LiveCasterNative: RCTEventEmitter {
         let audioEncoder = runtimeState.dictionaryValue("audioEncoder")
         let micEffects = audioEncoder.dictionaryValue("micEffects")
         let monitor = micEffects.dictionaryValue("monitor")
+        let broadcastMixer = runtimeState.dictionaryValue("broadcastMixer")
+        let broadcastMic = broadcastMixer.dictionaryValue("mic")
+        let broadcastAppAudio = broadcastMixer.dictionaryValue("appAudio")
+        let broadcastChatReadout = broadcastMixer.dictionaryValue("chatReadout")
         let publisher = runtimeState.dictionaryValue("publisher")
         let sceneComposition = runtimeState.dictionaryValue("sceneComposition")
         let runtimeStatus = redactSensitiveText(runtimeState.stringValue("status", fallback: status.rawValue), streamKey: streamKey, publishURL: publishURL)
@@ -1108,7 +1112,13 @@ final class LiveCasterNative: RCTEventEmitter {
                     monitor.stringValue("lastError"),
                     streamKey: streamKey,
                     publishURL: publishURL
-                )
+                ),
+                "broadcastMicVolume": broadcastMic.doubleValue("volume", fallback: 1),
+                "broadcastMicMuted": broadcastMic.boolValue("muted"),
+                "broadcastAppAudioVolume": broadcastAppAudio.doubleValue("volume", fallback: 0.85),
+                "broadcastAppAudioMuted": broadcastAppAudio.boolValue("muted"),
+                "broadcastChatReadoutVolume": broadcastChatReadout.doubleValue("volume", fallback: 0.85),
+                "broadcastChatReadoutMuted": broadcastChatReadout.boolValue("muted")
             ],
             "message": redactSensitiveText(message, streamKey: streamKey, publishURL: publishURL)
         ]

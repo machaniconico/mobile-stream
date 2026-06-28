@@ -10,10 +10,11 @@ import {
   formatStreamDiagnosticReport,
   serializeStreamDiagnosticReport
 } from "./streamDiagnostics";
-import { createStreamSessionSummary } from "./streamSessionSummary";
+import { createStreamAudioLevelSample, createStreamSessionSummary } from "./streamSessionSummary";
 import { createStreamStartPreflightReport } from "./streamStartPreflight";
 import { createStreamValidationRun } from "./streamValidationEvidence";
 import { initialStreamState, type StreamHealth } from "./streamState";
+import type { NativeRuntimeTelemetry } from "./nativeRuntime";
 
 const health = (update: Partial<StreamHealth> = {}): StreamHealth => ({
   ...initialStreamState.health,
@@ -30,6 +31,69 @@ const nativeReadyScene = () =>
         }
       : source
   );
+
+const nativeRuntimeWithAudioProcessing = (
+  audioProcessing: NativeRuntimeTelemetry["audioProcessing"]
+): NativeRuntimeTelemetry => ({
+  platform: "ios",
+  runtimeStatus: "live",
+  updatedAt: Date.parse("2026-06-23T00:00:10.000Z"),
+  stale: false,
+  elapsedSeconds: 10,
+  videoFrames: 300,
+  encodedBytes: 4_500_000,
+  droppedFrames: 0,
+  publisher: {
+    state: "published",
+    reconnectAttempts: 0,
+    sentVideoFrames: 300,
+    sentAudioFrames: 470,
+    droppedVideoFrames: 0,
+    droppedAudioFrames: 0,
+    bytesWritten: 4_500_000,
+    cacheSize: 120,
+    itemsInCache: 0,
+    congested: false,
+    lastError: ""
+  },
+  composition: {
+    status: "applied",
+    appliedCount: 1,
+    skippedCount: 0,
+    skippedKinds: [],
+    stillImageAssetCount: 1,
+    stillImageAssetLoadedCount: 1,
+    stillImageAssetMissingCount: 0,
+    stillImageAssetMissingKinds: [],
+    message: "Native overlays applied"
+  },
+  audioProcessing,
+  message: "Native runtime live"
+});
+
+const nativeAudioProcessing = (overrides: Partial<NonNullable<NativeRuntimeTelemetry["audioProcessing"]>> = {}) => ({
+  micEffectsEnabled: true,
+  micEffectsPresetId: "broadcast",
+  micEffectsProcessedFrames: 48,
+  micEffectsProcessedSamples: 24_576,
+  micEffectsGatedSamples: 0,
+  micEffectsLimitedSamples: 2,
+  monitorEnabled: true,
+  monitorRunning: true,
+  monitorVolume: 0.45,
+  monitorHeadphonesOnly: true,
+  monitorRoute: "wired-headphones",
+  monitorOutputName: "Wired headphones",
+  monitorHeadphonesConnected: true,
+  monitorWrittenFrames: 24_576,
+  monitorDroppedFrames: 0,
+  monitorWrittenBuffers: 48,
+  monitorDroppedBuffers: 0,
+  monitorEstimatedLatencyMs: 0,
+  monitorLatencySource: "",
+  monitorLastError: "",
+  ...overrides
+});
 
 describe("stream diagnostics", () => {
   it("combines readiness, target, and redacted publish URL details", () => {
@@ -125,6 +189,81 @@ describe("stream diagnostics", () => {
 
     expect(diagnostics.status).toBe("fail");
     expect(diagnostics.checks.find((check) => check.code === "broadcast-mixer-silent")?.status).toBe("fail");
+  });
+
+  it("fails diagnostics when native mic limiting is above the public-stream threshold", () => {
+    const scene = createDefaultScene();
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30 }),
+      nativeRuntime: nativeRuntimeWithAudioProcessing(
+        nativeAudioProcessing({
+          micEffectsProcessedSamples: 10_000,
+          micEffectsLimitedSamples: 620
+        })
+      )
+    });
+
+    expect(diagnostics.audio.audioGuard.status).toBe("fail");
+    expect(diagnostics.audio.audioGuard.nativeLimitedSamplePercent).toBe(6.2);
+    expect(diagnostics.checks.find((check) => check.code === "broadcast-audio-guard-fail")?.status).toBe("fail");
+  });
+
+  it("warns when the last retained audio meter summary clipped", () => {
+    const scene = createDefaultScene();
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [
+        {
+          at: "2026-06-23T00:00:00.000Z",
+          status: "live",
+          elapsedSeconds: 0,
+          bitrateKbps: 3500,
+          fps: 30,
+          droppedFrames: 0,
+          reconnectAttempts: 0
+        },
+        {
+          at: "2026-06-23T00:00:05.000Z",
+          status: "live",
+          elapsedSeconds: 5,
+          bitrateKbps: 3500,
+          fps: 30,
+          droppedFrames: 0,
+          reconnectAttempts: 0
+        }
+      ],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:06.000Z"),
+      audioLevelSamples: [
+        createStreamAudioLevelSample(0.62, "manual", new Date("2026-06-23T00:00:02.000Z")),
+        createStreamAudioLevelSample(1, "manual", new Date("2026-06-23T00:00:03.000Z"))
+      ]
+    });
+
+    expect(summary).not.toBeNull();
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health()
+      },
+      [],
+      [],
+      summary ? [summary] : []
+    );
+
+    expect(diagnostics.audio.audioGuard.status).toBe("warn");
+    expect(diagnostics.audio.audioGuard.lastSessionClippedSampleCount).toBe(1);
+    expect(diagnostics.checks.find((check) => check.code === "broadcast-audio-guard-warn")?.status).toBe("warn");
   });
 
   it("summarizes YouTube dashboard status for validation evidence", () => {

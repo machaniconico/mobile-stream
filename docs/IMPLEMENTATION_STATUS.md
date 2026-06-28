@@ -132,6 +132,7 @@
 - iOS Broadcast Upload Extension VideoToolbox H.264 encoder.
 - iOS Broadcast Upload Extension AudioToolbox AAC encoder with app/mic PCM mixing.
 - iOS Broadcast Upload Extension microphone DSP applies the shared mic effects profile to ReplayKit microphone PCM before AAC mixing, including input gain, noise gate, compression, bright/robot presets, soft limiting, and runtime processing evidence.
+- Shared Audio Peak Guard diagnostics use native mic limiter counters plus retained audio-meter peak/clipping evidence to warn or fail readiness before a public stream starts.
 - iOS Broadcast Upload Extension RTMP/RTMPS publisher foundation with H.264/AAC packetization.
 - iOS RTMP publisher reconnect backoff state with bounded retry attempts.
 - iOS ReplayKit Broadcast Upload Extension compositor for PNGTuber still-image/fallback, text, chat, image, and solid overlays on encoded frames, with App Group runtime composition status and still-image asset load/miss evidence.
@@ -146,6 +147,7 @@
 - Android native GL overlay compositor for PNGTuber still-image, text, chat, image, and solid scene sources on top of MediaProjection capture, with applied/pending overlay status in stream health messages.
 - Android mobile still-image asset picker/preparation copies selected content/file/path PNGTuber/image source assets into app-internal storage and stores a stable `file://` URI for native GL overlay rendering.
 - Android microphone PCM effect path through RootEncoder `CustomAudioEffect`.
+- Android and iOS native runtime telemetry surfaces broadcast mixer gain/mute state and processed/limited mic sample counters for Audio Peak Guard evidence.
 - Android headphone-only mic monitor playback through `AudioTrack`, with monitor write/drop counters and AudioTrack-buffer latency estimates surfaced in native runtime telemetry.
 - Android `LiveCasterNative.getAudioRoute()` reports current output route and headphone connection state for monitor-safety preflight.
 - iOS Broadcast Upload Extension headphone-gated self-monitor playback for processed ReplayKit microphone PCM with runtime route, write/drop, and AVAudioSession latency evidence.

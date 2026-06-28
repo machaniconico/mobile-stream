@@ -267,6 +267,9 @@ const nativeRuntimeMetricLabel = (diagnostics: StreamDiagnostics): string =>
     ? `${diagnostics.nativeRuntime.platform} / ${diagnostics.nativeRuntime.publisher.state || diagnostics.nativeRuntime.runtimeStatus} / ${diagnostics.nativeRuntime.composition.status} / assets ${diagnostics.nativeRuntime.composition.stillImageAssetLoadedCount ?? 0}/${diagnostics.nativeRuntime.composition.stillImageAssetCount ?? 0}${diagnostics.nativeRuntime.audioProcessing?.micEffectsEnabled ? ` / mic fx ${diagnostics.nativeRuntime.audioProcessing.micEffectsPresetId} ${diagnostics.nativeRuntime.audioProcessing.micEffectsProcessedFrames}` : ""}${nativeRuntimeMonitorMetricLabel(diagnostics)}${diagnostics.nativeRuntime.stale ? " / stale" : ""}${diagnostics.nativeRuntime.publisher.congested ? " / congested" : ""}`
     : "Not linked";
 
+const audioGuardMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  `${diagnostics.audio.audioGuard.status} / limiter ${diagnostics.audio.audioGuard.nativeLimitedSamplePercent}% / peak ${Math.round(diagnostics.audio.audioGuard.lastSessionPeakLevel * 100)}%`;
+
 const qualityAdvisorTargetLabel = (diagnostics: StreamDiagnostics): string =>
   diagnostics.qualityAdvisor.suggestedTarget
     ? `${diagnostics.qualityAdvisor.suggestedTarget.profileName} / ${diagnostics.qualityAdvisor.suggestedTarget.videoBitrateKbps} kbps / ${diagnostics.qualityAdvisor.suggestedTarget.fps}fps`
@@ -985,6 +988,10 @@ export const MobileStudioScreen = ({
           <View style={styles.levelTrack}>
             <View style={[styles.levelFill, { width: `${Math.round(avatarRuntime.mouthOpen * 100)}%` }]} />
           </View>
+          <View style={[styles.audioGuardChip, audioGuardChipStyle(diagnostics.audio.audioGuard.status)]}>
+            <Text style={styles.audioGuardTitle}>Peak guard</Text>
+            <Text style={styles.audioGuardText}>{diagnostics.audio.audioGuard.summary}</Text>
+          </View>
           <View style={styles.grid2}>
             {expressions.map((expression) => (
               <ActionButton
@@ -1668,6 +1675,7 @@ const StreamDiagnosticsPanel = ({
       <DiagnosticMetric label="Quality" value={`${diagnostics.quality.resolution} / ${diagnostics.quality.fps}fps`} />
       <DiagnosticMetric label="Upload target" value={`${diagnostics.quality.estimatedUploadKbps} kbps`} />
       <DiagnosticMetric label="Telemetry" value={`${diagnostics.telemetry.bitrateKbps} kbps / ${diagnostics.telemetry.fps} fps`} />
+      <DiagnosticMetric label="Audio guard" value={audioGuardMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Audio route" value={`${diagnostics.audio.monitorSafety.status} / ${diagnostics.audio.monitorSafety.outputName}`} />
       <DiagnosticMetric label="Native runtime" value={nativeRuntimeMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Recovery" value={recoveryMetricLabel(diagnostics)} />
@@ -2973,6 +2981,19 @@ const diagnosticCheckTextStyle = (status: StreamDiagnostics["checks"][number]["s
   }
 };
 
+const audioGuardChipStyle = (status: StreamDiagnostics["audio"]["audioGuard"]["status"]) => {
+  switch (status) {
+    case "pass":
+      return styles.audioGuardPass;
+    case "warn":
+      return styles.audioGuardWarn;
+    case "fail":
+      return styles.audioGuardFail;
+    default:
+      return styles.audioGuardInfo;
+  }
+};
+
 const diagnosticEventStyle = (severity: StreamDiagnostics["session"]["events"][number]["severity"]) => {
   switch (severity) {
     case "warn":
@@ -4001,6 +4022,37 @@ const styles = StyleSheet.create({
   levelFill: {
     height: "100%",
     backgroundColor: "#22c55e"
+  },
+  audioGuardChip: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: "#181820",
+    gap: 3
+  },
+  audioGuardPass: {
+    borderColor: "rgba(34, 197, 94, 0.44)"
+  },
+  audioGuardWarn: {
+    borderColor: "rgba(245, 158, 11, 0.58)"
+  },
+  audioGuardFail: {
+    borderColor: "rgba(251, 113, 133, 0.64)"
+  },
+  audioGuardInfo: {
+    borderColor: "rgba(148, 163, 184, 0.38)"
+  },
+  audioGuardTitle: {
+    color: "#a1a1aa",
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase"
+  },
+  audioGuardText: {
+    color: "#f4f4f5",
+    fontSize: 12,
+    lineHeight: 17
   },
   sectionDivider: {
     height: 1,

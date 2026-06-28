@@ -205,7 +205,13 @@ const normalizeNativeRuntime = (
           monitorDroppedBuffers: runtime.audioProcessing?.monitorDroppedBuffers ?? 0,
           monitorEstimatedLatencyMs: runtime.audioProcessing?.monitorEstimatedLatencyMs ?? 0,
           monitorLatencySource: runtime.audioProcessing?.monitorLatencySource ?? "",
-          monitorLastError: runtime.audioProcessing?.monitorLastError ?? ""
+          monitorLastError: runtime.audioProcessing?.monitorLastError ?? "",
+          broadcastMicVolume: runtime.audioProcessing?.broadcastMicVolume ?? 1,
+          broadcastMicMuted: runtime.audioProcessing?.broadcastMicMuted ?? false,
+          broadcastAppAudioVolume: runtime.audioProcessing?.broadcastAppAudioVolume ?? 0.85,
+          broadcastAppAudioMuted: runtime.audioProcessing?.broadcastAppAudioMuted ?? false,
+          broadcastChatReadoutVolume: runtime.audioProcessing?.broadcastChatReadoutVolume ?? 0.85,
+          broadcastChatReadoutMuted: runtime.audioProcessing?.broadcastChatReadoutMuted ?? false
         },
         message: runtime.message ?? ""
       }

@@ -101,7 +101,13 @@ data class NativeRuntimeAudioProcessing(
     val monitorDroppedBuffers: Long = 0,
     val monitorEstimatedLatencyMs: Int = 0,
     val monitorLatencySource: String = "",
-    val monitorLastError: String = ""
+    val monitorLastError: String = "",
+    val broadcastMicVolume: Float = 1f,
+    val broadcastMicMuted: Boolean = false,
+    val broadcastAppAudioVolume: Float = 0.85f,
+    val broadcastAppAudioMuted: Boolean = false,
+    val broadcastChatReadoutVolume: Float = 0.85f,
+    val broadcastChatReadoutMuted: Boolean = false
 ) {
     fun asWritableMap(): WritableMap = Arguments.createMap().apply {
         putBoolean("micEffectsEnabled", micEffectsEnabled)
@@ -124,6 +130,12 @@ data class NativeRuntimeAudioProcessing(
         putInt("monitorEstimatedLatencyMs", monitorEstimatedLatencyMs)
         putString("monitorLatencySource", monitorLatencySource)
         putString("monitorLastError", monitorLastError)
+        putDouble("broadcastMicVolume", broadcastMicVolume.toDouble())
+        putBoolean("broadcastMicMuted", broadcastMicMuted)
+        putDouble("broadcastAppAudioVolume", broadcastAppAudioVolume.toDouble())
+        putBoolean("broadcastAppAudioMuted", broadcastAppAudioMuted)
+        putDouble("broadcastChatReadoutVolume", broadcastChatReadoutVolume.toDouble())
+        putBoolean("broadcastChatReadoutMuted", broadcastChatReadoutMuted)
     }
 }
 

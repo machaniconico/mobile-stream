@@ -308,6 +308,9 @@ const nativeRuntimeMetricLabel = (diagnostics: StreamDiagnostics): string =>
     ? `${diagnostics.nativeRuntime.platform} / ${diagnostics.nativeRuntime.publisher.state || diagnostics.nativeRuntime.runtimeStatus} / ${diagnostics.nativeRuntime.composition.status} / assets ${diagnostics.nativeRuntime.composition.stillImageAssetLoadedCount ?? 0}/${diagnostics.nativeRuntime.composition.stillImageAssetCount ?? 0}${diagnostics.nativeRuntime.audioProcessing?.micEffectsEnabled ? ` / mic fx ${diagnostics.nativeRuntime.audioProcessing.micEffectsPresetId} ${diagnostics.nativeRuntime.audioProcessing.micEffectsProcessedFrames}` : ""}${nativeRuntimeMonitorMetricLabel(diagnostics)}${diagnostics.nativeRuntime.stale ? " / stale" : ""}${diagnostics.nativeRuntime.publisher.congested ? " / congested" : ""}`
     : "Not linked";
 
+const audioGuardMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  `${diagnostics.audio.audioGuard.status} / limiter ${diagnostics.audio.audioGuard.nativeLimitedSamplePercent}% / peak ${Math.round(diagnostics.audio.audioGuard.lastSessionPeakLevel * 100)}%`;
+
 const qualityIncidentSummaryTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" => {
   if (diagnostics.qualityIncidents.incidents.some((incident) => incident.severity === "fail")) {
     return "fail";
@@ -963,6 +966,10 @@ export const StudioScreen = ({
             <div className="level-meter" aria-label="lip sync meter">
               <span style={{ width: `${Math.round(avatarRuntime.mouthOpen * 100)}%` }} />
             </div>
+            <div className={`audio-guard-chip ${diagnostics.audio.audioGuard.status}`}>
+              <span>Peak guard</span>
+              <strong>{diagnostics.audio.audioGuard.summary}</strong>
+            </div>
             <div className="expression-grid">
               {expressions.map((expression) => (
                 <button
@@ -1468,6 +1475,8 @@ const StreamDiagnosticsPanel = ({
         <strong>
           {diagnostics.telemetry.bitrateKbps} kbps / {diagnostics.telemetry.fps} fps
         </strong>
+        <span>Audio guard</span>
+        <strong>{audioGuardMetricLabel(diagnostics)}</strong>
         <span>Dashboard</span>
         <strong>{platformPublishingFreshnessMetricLabel(diagnostics, platformPublishingFreshness)}</strong>
         <span>Native runtime</span>

@@ -49,6 +49,7 @@ import {
 import type { StreamSessionEvent } from "./streamSessionLog";
 import {
   createStreamSessionHistorySummary,
+  type StreamSessionAudioLevelSummary,
   type StreamSessionHistorySummary,
   type StreamSessionSummary
 } from "./streamSessionSummary";
@@ -105,6 +106,17 @@ export interface DiagnosticCheck {
   message: string;
 }
 
+export interface BroadcastAudioGuardDiagnostics {
+  status: DiagnosticStatus;
+  nativeProcessedSamples: number;
+  nativeLimitedSamples: number;
+  nativeLimitedSamplePercent: number;
+  lastSessionPeakLevel: number;
+  lastSessionClippedSampleCount: number;
+  summary: string;
+  recommendation: string;
+}
+
 export interface StreamDiagnostics {
   summary: string;
   status: DiagnosticStatus;
@@ -157,6 +169,7 @@ export interface StreamDiagnostics {
     monitorSafety: AudioMonitorSafetyStatus;
     broadcastMixer: BroadcastMixerProfile;
     broadcastMixerSummary: string;
+    audioGuard: BroadcastAudioGuardDiagnostics;
   };
   audioRoute: AudioRouteState;
   chatReadout: {
@@ -268,6 +281,7 @@ export const createStreamDiagnostics = (
   const platformPublishing = createPlatformPublishingDiagnostics(destination.platform, profile.platformPublishing);
   const audioRoute = normalizeAudioRouteState(options.audioRoute ?? createDefaultAudioRouteState());
   const monitorSafety = createAudioMonitorSafetyStatus(micEffects, audioRoute);
+  const audioGuard = createBroadcastAudioGuardDiagnostics(nativeRuntime?.audioProcessing ?? null, sessionSummaries[0]?.audioLevel ?? null);
   const checks = [
     ...readiness.issues.map<DiagnosticCheck>((issue) => ({
       code: `readiness-${issue.code}`,
@@ -290,6 +304,7 @@ export const createStreamDiagnostics = (
     createFaceTrackingCheck(faceTracking),
     createNativeCompositionCheck(nativeComposition),
     createBroadcastMixerCheck(broadcastMixer),
+    createBroadcastAudioGuardCheck(audioGuard),
     createAudioRouteCheck(monitorSafety),
     createHistoryCheck(history),
     createRecoveryCheck(recoveryStatus)
@@ -339,7 +354,8 @@ export const createStreamDiagnostics = (
     monitorHeadphonesOnly: micEffects.monitorHeadphonesOnly,
     monitorSafety,
     broadcastMixer,
-    broadcastMixerSummary: formatBroadcastMixerSummary(broadcastMixer)
+    broadcastMixerSummary: formatBroadcastMixerSummary(broadcastMixer),
+    audioGuard
   };
   const chatReadout = {
     platformChatEnabled: platformChat.enabled,
@@ -572,6 +588,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     "Audio Validation",
     `- Mic effects: ${diagnostics.audio.micEffectsEnabled ? "on" : "off"} / preset ${diagnostics.audio.presetId} / gain ${diagnostics.audio.inputGainDb} dB / compression ${diagnostics.audio.compression}`,
     `- Broadcast mix: ${diagnostics.audio.broadcastMixerSummary}`,
+    `- Peak guard: ${diagnostics.audio.audioGuard.status} / ${diagnostics.audio.audioGuard.summary} Action: ${diagnostics.audio.audioGuard.recommendation}`,
     `- Monitor: ${diagnostics.audio.monitorEnabled ? "on" : "off"} / volume ${Math.round(diagnostics.audio.monitorVolume * 100)}% / headphones-only ${diagnostics.audio.monitorHeadphonesOnly ? "yes" : "no"}`,
     `- Monitor route: ${diagnostics.audio.monitorSafety.status} / ${diagnostics.audio.monitorSafety.outputName} / headphones ${diagnostics.audio.monitorSafety.headphonesConnected ? "yes" : "no"} / stale ${diagnostics.audio.monitorSafety.stale ? "yes" : "no"}`,
     `- Route action: ${diagnostics.audio.monitorSafety.recommendation}`,
@@ -796,6 +813,84 @@ const formatBroadcastMixerSummary = (mixer: BroadcastMixerProfile): string =>
       return `${channel.shortLabel} ${level}`;
     })
     .join(" / ");
+
+const createBroadcastAudioGuardDiagnostics = (
+  audioProcessing: NativeRuntimeTelemetry["audioProcessing"] | null | undefined,
+  lastAudioLevel: StreamSessionAudioLevelSummary | null | undefined
+): BroadcastAudioGuardDiagnostics => {
+  const nativeProcessedSamples = Math.max(0, Math.round(audioProcessing?.micEffectsProcessedSamples ?? 0));
+  const nativeLimitedSamples = Math.max(0, Math.round(audioProcessing?.micEffectsLimitedSamples ?? 0));
+  const nativeLimitedSamplePercent =
+    nativeProcessedSamples > 0 ? Math.round((nativeLimitedSamples / nativeProcessedSamples) * 1000) / 10 : 0;
+  const lastSessionPeakLevel = lastAudioLevel?.peakLevel ?? 0;
+  const lastSessionClippedSampleCount = lastAudioLevel?.clippedSampleCount ?? 0;
+
+  if (nativeProcessedSamples > 0 && nativeLimitedSamplePercent >= 5) {
+    return {
+      status: "fail",
+      nativeProcessedSamples,
+      nativeLimitedSamples,
+      nativeLimitedSamplePercent,
+      lastSessionPeakLevel,
+      lastSessionClippedSampleCount,
+      summary: `Native mic limiter is catching ${nativeLimitedSamplePercent}% of processed samples.`,
+      recommendation: "Lower mic gain or compression before starting a public stream."
+    };
+  }
+
+  if (nativeProcessedSamples > 0 && nativeLimitedSamplePercent >= 1) {
+    return {
+      status: "warn",
+      nativeProcessedSamples,
+      nativeLimitedSamples,
+      nativeLimitedSamplePercent,
+      lastSessionPeakLevel,
+      lastSessionClippedSampleCount,
+      summary: `Native mic limiter is catching ${nativeLimitedSamplePercent}% of processed samples.`,
+      recommendation: "Reduce gain slightly and repeat the private mic monitor check."
+    };
+  }
+
+  if (lastSessionClippedSampleCount > 0) {
+    return {
+      status: "warn",
+      nativeProcessedSamples,
+      nativeLimitedSamples,
+      nativeLimitedSamplePercent,
+      lastSessionPeakLevel,
+      lastSessionClippedSampleCount,
+      summary: `Last session peaked at ${Math.round(lastSessionPeakLevel * 100)}% with ${lastSessionClippedSampleCount} clipped meter sample${lastSessionClippedSampleCount === 1 ? "" : "s"}.`,
+      recommendation: "Lower mic gain and record a new private validation run."
+    };
+  }
+
+  if (nativeProcessedSamples === 0 && !lastAudioLevel) {
+    return {
+      status: "info",
+      nativeProcessedSamples,
+      nativeLimitedSamples,
+      nativeLimitedSamplePercent,
+      lastSessionPeakLevel,
+      lastSessionClippedSampleCount,
+      summary: "No native limiter or retained meter evidence yet.",
+      recommendation: "Run a private spoken audio check before approving a production stream."
+    };
+  }
+
+  return {
+    status: "pass",
+    nativeProcessedSamples,
+    nativeLimitedSamples,
+    nativeLimitedSamplePercent,
+    lastSessionPeakLevel,
+    lastSessionClippedSampleCount,
+    summary:
+      nativeProcessedSamples > 0
+        ? `Native mic limiter is below threshold at ${nativeLimitedSamplePercent}%.`
+        : `Last session peak was ${Math.round(lastSessionPeakLevel * 100)}% with no clipped meter samples.`,
+    recommendation: "Keep this audio peak baseline with validation evidence."
+  };
+};
 
 const formatValidationChatReadout = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestChatReadout
@@ -1326,6 +1421,13 @@ const createBroadcastMixerCheck = (mixer: BroadcastMixerProfile): DiagnosticChec
     message: summary
   };
 };
+
+const createBroadcastAudioGuardCheck = (audioGuard: BroadcastAudioGuardDiagnostics): DiagnosticCheck => ({
+  code: `broadcast-audio-guard-${audioGuard.status}`,
+  status: audioGuard.status,
+  label: "Audio peak guard",
+  message: audioGuard.summary
+});
 
 const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): DiagnosticCheck => {
   if (!runtime) {

@@ -47,6 +47,12 @@ export interface NativeRuntimeAudioProcessing {
   monitorEstimatedLatencyMs: number;
   monitorLatencySource: string;
   monitorLastError: string;
+  broadcastMicVolume?: number;
+  broadcastMicMuted?: boolean;
+  broadcastAppAudioVolume?: number;
+  broadcastAppAudioMuted?: boolean;
+  broadcastChatReadoutVolume?: number;
+  broadcastChatReadoutMuted?: boolean;
 }
 
 export interface NativeRuntimeTelemetry {
