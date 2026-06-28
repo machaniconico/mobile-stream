@@ -71,10 +71,11 @@ import {
   formatPublicLaunchChecklistBlockMessage
 } from "../domain/publicLaunchChecklist";
 import { rotateYouTubeStreamKey, syncTwitchStreamKey } from "../domain/platformStreamKeys";
-import { clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
+import { applyEmergencyBroadcastMute, clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
   addSceneToCollection,
+  activatePrivacyShieldScene,
   createDefaultSceneCollection,
   createSceneFromTemplate,
   duplicateActiveScene,
@@ -114,7 +115,8 @@ import {
   createStreamOperationEvent,
   createStreamPlatformApiOperationEvent,
   createStreamQualityAutomationEvent,
-  createStreamRecoveryEvent
+  createStreamRecoveryEvent,
+  createStreamSafetyEvent
 } from "../domain/streamSessionLog";
 import {
   applyStreamQualityAdvisorTarget,
@@ -1077,6 +1079,47 @@ export const MobileApp = () => {
     clearChatReadout();
   };
 
+  const activatePrivacyShield = useCallback(async () => {
+    const fromScene = selectActiveScene(sceneCollection);
+    const nextCollection = activatePrivacyShieldScene(sceneCollection);
+    const nextScene = selectActiveScene(nextCollection);
+    const nextProfile = applyEmergencyBroadcastMute(profile);
+
+    if (nextCollection.activeSceneId !== sceneCollection.activeSceneId) {
+      startSceneTransitionPreview(fromScene, sceneCollection.transition);
+    }
+    setSceneCollection(nextCollection);
+    setProfile(nextProfile);
+    void saveSecureProfile(nextProfile).catch(() => undefined);
+    clearChatReadout();
+    recordStreamSessionEvent(
+      createStreamSafetyEvent(
+        "privacy-shield-armed",
+        "Privacy Shield switched to a blackout scene, muted all broadcast audio channels, and stopped chat readout."
+      )
+    );
+
+    if (!shouldPushSceneToEngine(snapshot.state.status)) {
+      return;
+    }
+
+    try {
+      await engine.updateScene(nextScene, { chatMessages: [] });
+      await engine.updateQuality(nextProfile);
+    } catch (error) {
+      const safeMessage = errorToSafeMessage(error, "Privacy Shield native update failed.");
+      recordStreamSessionEvent(createStreamSafetyEvent("privacy-shield-failed", safeMessage));
+    }
+  }, [
+    clearChatReadout,
+    engine,
+    profile,
+    recordStreamSessionEvent,
+    sceneCollection,
+    snapshot.state.status,
+    startSceneTransitionPreview
+  ]);
+
   const updatePlatformChatSettings = (settings: Partial<PlatformChatSettings>) => {
     setProfile((current) => ({
       ...current,
@@ -1401,6 +1444,7 @@ export const MobileApp = () => {
         onPlatformChatDisconnect={platformChatConnection.disconnect}
         onPlatformChatSampleIngest={ingestPlatformChatSample}
         onClearStreamKey={clearSavedStreamKey}
+        onPrivacyShieldActivate={activatePrivacyShield}
         onClearStreamSessionSummaries={clearCompletedStreamSessionSummaries}
         onRecordStreamValidationRun={recordStreamValidationRun}
         onClearStreamValidationRuns={clearRecordedStreamValidationRuns}

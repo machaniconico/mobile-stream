@@ -7,6 +7,7 @@ import {
   createStreamPlatformApiOperationEvent,
   createStreamQualityAutomationEvent,
   createStreamRecoveryEvent,
+  createStreamSafetyEvent,
   createStreamStatusEvent,
   maxStreamSessionEvents,
   type StreamSessionEvent,
@@ -111,6 +112,31 @@ describe("stream session log", () => {
     expect(skipped).toMatchObject({
       severity: "warn",
       title: "OAuth callback exchange skipped"
+    });
+  });
+
+  it("creates privacy shield safety events", () => {
+    const armed = createStreamSafetyEvent(
+      "privacy-shield-armed",
+      " Privacy Shield switched to blackout. \n Audio muted. ",
+      new Date("2026-06-23T00:00:00.000Z")
+    );
+    const failed = createStreamSafetyEvent(
+      "privacy-shield-failed",
+      "Native update failed.",
+      new Date("2026-06-23T00:00:01.000Z")
+    );
+
+    expect(armed).toMatchObject({
+      kind: "safety",
+      severity: "warn",
+      title: "Privacy shield armed",
+      message: "Privacy Shield switched to blackout. Audio muted."
+    });
+    expect(failed).toMatchObject({
+      kind: "safety",
+      severity: "fail",
+      title: "Privacy shield failed"
     });
   });
 

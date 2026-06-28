@@ -17,8 +17,8 @@ import kotlin.math.tanh
 
 class MicProcessingEffect(
     context: Context,
-    private val settings: MicEffectsProfile,
-    private val broadcastMixer: BroadcastMixerProfile = BroadcastMixerProfile(),
+    @Volatile private var settings: MicEffectsProfile,
+    @Volatile private var broadcastMixer: BroadcastMixerProfile = BroadcastMixerProfile(),
     private val sampleRate: Int = 44100,
     private val isStereo: Boolean = true
 ) : CustomAudioEffect() {
@@ -26,10 +26,7 @@ class MicProcessingEffect(
     private val audioManager = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val channelMask = if (isStereo) AudioFormat.CHANNEL_OUT_STEREO else AudioFormat.CHANNEL_OUT_MONO
     private val channelCount = if (isStereo) 2 else 1
-    private val gain = 10.0.pow(settings.inputGainDb.toDouble() / 20.0).toFloat()
-    private val gateThreshold = 10.0.pow(settings.noiseGateDb.toDouble() / 20.0).toFloat()
     private val compressorThreshold = 0.42f
-    private val compressorRatio = 1f + settings.compression * 7f
     private val robotStep = (2.0 * PI * 32.0 / sampleRate).toFloat()
     private var robotPhase = 0f
     private var sampleCursor = 0L
@@ -47,35 +44,39 @@ class MicProcessingEffect(
 
     override fun process(pcmBuffer: ByteArray): ByteArray {
         val processed = pcmBuffer.copyOf()
+        val currentSettings = settings
+        val currentMixer = broadcastMixer
 
-        if (settings.enabled) {
-            val stats = processSamples(processed, settings.presetId, 1f)
+        if (currentSettings.enabled) {
+            val stats = processSamples(processed, currentSettings, 1f)
             micEffectsProcessedFrames += 1
             micEffectsProcessedSamples += stats.processedSamples.toLong()
             micEffectsGatedSamples += stats.gatedSamples.toLong()
             micEffectsLimitedSamples += stats.limitedSamples.toLong()
         }
 
-        writeMonitor(processed)
-        applyVolume(processed, broadcastMixer.mic.effectiveVolume())
+        writeMonitor(processed, currentSettings)
+        applyVolume(processed, currentMixer.mic.effectiveVolume())
         return processed
     }
 
     fun snapshot(): NativeRuntimeAudioProcessing {
+        val currentSettings = settings
+        val currentMixer = broadcastMixer
         val preferredDevice = headphoneOutputDevice()
         val outputDevice = preferredDevice ?: currentOutputDevice()
         val estimatedLatencyMs = monitorEstimatedLatencyMs()
         return NativeRuntimeAudioProcessing(
-            micEffectsEnabled = settings.enabled,
-            micEffectsPresetId = settings.presetId,
+            micEffectsEnabled = currentSettings.enabled,
+            micEffectsPresetId = currentSettings.presetId,
             micEffectsProcessedFrames = micEffectsProcessedFrames,
             micEffectsProcessedSamples = micEffectsProcessedSamples,
             micEffectsGatedSamples = micEffectsGatedSamples,
             micEffectsLimitedSamples = micEffectsLimitedSamples,
-            monitorEnabled = settings.monitorEnabled,
+            monitorEnabled = currentSettings.monitorEnabled,
             monitorRunning = monitorTrack?.playState == AudioTrack.PLAYSTATE_PLAYING,
-            monitorVolume = settings.monitorVolume,
-            monitorHeadphonesOnly = settings.monitorHeadphonesOnly,
+            monitorVolume = currentSettings.monitorVolume,
+            monitorHeadphonesOnly = currentSettings.monitorHeadphonesOnly,
             monitorRoute = outputDevice?.routeKind() ?: "unknown",
             monitorOutputName = outputDevice?.productName?.toString()?.takeIf { it.isNotBlank() } ?: "Unknown",
             monitorHeadphonesConnected = preferredDevice != null,
@@ -86,20 +87,31 @@ class MicProcessingEffect(
             monitorEstimatedLatencyMs = estimatedLatencyMs,
             monitorLatencySource = if (estimatedLatencyMs > 0) "android-audiotrack-buffer" else "",
             monitorLastError = monitorLastError,
-            broadcastMicVolume = broadcastMixer.mic.volume,
-            broadcastMicMuted = broadcastMixer.mic.muted,
-            broadcastAppAudioVolume = broadcastMixer.appAudio.volume,
-            broadcastAppAudioMuted = broadcastMixer.appAudio.muted,
-            broadcastChatReadoutVolume = broadcastMixer.chatReadout.volume,
-            broadcastChatReadoutMuted = broadcastMixer.chatReadout.muted
+            broadcastMicVolume = currentMixer.mic.volume,
+            broadcastMicMuted = currentMixer.mic.muted,
+            broadcastAppAudioVolume = currentMixer.appAudio.volume,
+            broadcastAppAudioMuted = currentMixer.appAudio.muted,
+            broadcastChatReadoutVolume = currentMixer.chatReadout.volume,
+            broadcastChatReadoutMuted = currentMixer.chatReadout.muted
         )
+    }
+
+    fun updateProfile(nextSettings: MicEffectsProfile, nextBroadcastMixer: BroadcastMixerProfile) {
+        settings = nextSettings
+        broadcastMixer = nextBroadcastMixer
+        if (!nextSettings.monitorEnabled || nextSettings.monitorVolume <= 0f) {
+            releaseMonitor()
+        }
     }
 
     fun release() {
         releaseMonitor()
     }
 
-    private fun processSamples(pcmBuffer: ByteArray, presetId: String, outputVolume: Float): MicProcessingStats {
+    private fun processSamples(pcmBuffer: ByteArray, currentSettings: MicEffectsProfile, outputVolume: Float): MicProcessingStats {
+        val gain = 10.0.pow(currentSettings.inputGainDb.toDouble() / 20.0).toFloat()
+        val gateThreshold = 10.0.pow(currentSettings.noiseGateDb.toDouble() / 20.0).toFloat()
+        val compressorRatio = 1f + currentSettings.compression * 7f
         var index = 0
         var processedSamples = 0
         var gatedSamples = 0
@@ -115,7 +127,7 @@ class MicProcessingEffect(
 
             normalized *= gain
 
-            if (settings.compression > 0f) {
+            if (currentSettings.compression > 0f) {
                 val direction = if (normalized < 0f) -1f else 1f
                 val magnitude = abs(normalized)
                 if (magnitude > compressorThreshold) {
@@ -124,7 +136,7 @@ class MicProcessingEffect(
                 }
             }
 
-            normalized = when (presetId) {
+            normalized = when (currentSettings.presetId) {
                 "bright" -> normalized + normalized * abs(normalized) * 0.16f
                 "robot" -> {
                     if (sampleCursor % channelCount.toLong() == 0L) {
@@ -149,8 +161,8 @@ class MicProcessingEffect(
     private fun softLimit(value: Float): Float =
         (tanh((value * 1.25f).toDouble()) / tanh(1.25)).toFloat().coerceIn(-1f, 1f)
 
-    private fun writeMonitor(processed: ByteArray) {
-        if (!settings.monitorEnabled || settings.monitorVolume <= 0f) {
+    private fun writeMonitor(processed: ByteArray, currentSettings: MicEffectsProfile) {
+        if (!currentSettings.monitorEnabled || currentSettings.monitorVolume <= 0f) {
             monitorLastError = ""
             releaseMonitor()
             return
@@ -158,7 +170,7 @@ class MicProcessingEffect(
 
         val frameCount = (processed.size / bytesPerFrame()).coerceAtLeast(0)
         val preferredDevice = headphoneOutputDevice()
-        if (settings.monitorHeadphonesOnly && preferredDevice == null) {
+        if (currentSettings.monitorHeadphonesOnly && preferredDevice == null) {
             monitorDroppedFrames += frameCount.toLong()
             monitorDroppedBuffers += 1
             monitorLastError = "Headphones-only monitor blocked without a headphone output."
@@ -174,7 +186,7 @@ class MicProcessingEffect(
             return
         }
         val monitorBuffer = processed.copyOf()
-        applyVolume(monitorBuffer, settings.monitorVolume)
+        applyVolume(monitorBuffer, currentSettings.monitorVolume)
         val writtenBytes = track.write(monitorBuffer, 0, monitorBuffer.size, AudioTrack.WRITE_NON_BLOCKING)
         if (writtenBytes > 0) {
             val writtenFrames = (writtenBytes / bytesPerFrame()).coerceAtLeast(0)

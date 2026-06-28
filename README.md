@@ -6,7 +6,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 
 ## Current Prototype
 
-- OBS-like multi-scene/source stack with Main, Starting Soon, and Break scene presets, live scene switching, and cut/fade transition settings.
+- OBS-like multi-scene/source stack with Main, Starting Soon, Break, and Privacy Shield scene presets, live scene switching, and cut/fade transition settings.
 - Screen, PNGTuber, Live2D, image, solid, and text source records.
 - Layer visibility, lock, ordering, and transform controls.
 - RTMP/RTMPS destination profiles with YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
@@ -58,6 +58,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - IRIAM-style single-illustration animation is now covered by the still-image 2.5D tracker foundation plus image-aspect-aware geometry auto rigging and tunable lightweight pseudo deformation; true image-segmentation-based mesh/depth rigging, explicit face/body part extraction, and physical-device tuning against native-camera tracking remain commercial-grade continuous improvements.
 - Mic effect presets with gain, noise gate, compression, and Android PCM processing.
 - Broadcast audio mixer profile for mic, captured app audio, and chat readout channels, with per-channel volume/mute controls, start/diagnostics silent-mix checks, Android mic-output gain/mute, and iOS ReplayKit app/mic mix gain.
+- Privacy Shield emergency control switches to a blackout scene, mutes all broadcast audio channels, stops chat readout, records a safety audit event, and pushes the safe scene/profile to the native engine when a stream is active.
 - Headphone-only mic monitor settings for hearing the processed mic signal locally, with native iOS/Android output-route detection and Go Live blocking when monitoring would route to speakers.
 - Chat/comment read-aloud queue with test comments, muted words, command-message skipping, duplicate suppression, queue limits, URL redaction, speech controls, queued/recent comment privacy reset, and stream-stop chat auto-disconnect/readout silence.
 - Transparent-background chat/comment overlay source for web preview and native iOS/Android compositors, fed from recent YouTube/Twitch/manual chat history with URL redaction and per-source message length limits, without persisting comment text in the scene.

@@ -5,7 +5,7 @@ import type { StreamHealth, StreamStatus } from "./streamState";
 import type { PlatformChatReconnectDecision } from "./platformChatConnection";
 
 export type StreamSessionEventSeverity = "info" | "warn" | "fail";
-export type StreamSessionEventKind = "status" | "operation" | "recovery" | "quality" | "chat" | "platform-api";
+export type StreamSessionEventKind = "status" | "operation" | "recovery" | "quality" | "chat" | "platform-api" | "safety";
 
 export interface StreamSessionEvent {
   id: string;
@@ -46,6 +46,8 @@ export interface StreamPlatformApiOperationEventInput {
   message?: string;
   retryDelayLabel?: string | null;
 }
+
+export type StreamSafetyEventPhase = "privacy-shield-armed" | "privacy-shield-failed";
 
 export const maxStreamSessionEvents = 50;
 
@@ -209,6 +211,19 @@ export const createStreamPlatformApiOperationEvent = (
     ].filter(Boolean).join(" ")
   };
 };
+
+export const createStreamSafetyEvent = (
+  phase: StreamSafetyEventPhase,
+  message: string,
+  now: Date = new Date()
+): StreamSessionEvent => ({
+  id: createEventId(now, "safety", phase),
+  at: now.toISOString(),
+  kind: "safety",
+  severity: phase === "privacy-shield-failed" ? "fail" : "warn",
+  title: phase === "privacy-shield-failed" ? "Privacy shield failed" : "Privacy shield armed",
+  message: sanitizeSingleLine(message)
+});
 
 const chatEventTitle = (phase: StreamChatEventPhase): string => {
   switch (phase) {

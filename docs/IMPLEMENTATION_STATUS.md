@@ -3,7 +3,7 @@
 ## Implemented Now
 
 - TypeScript app scaffold with Vite.
-- OBS-like multi-scene/source/render graph domain model with Main, Starting Soon, and Break presets, active scene switching, and cut/fade transition settings.
+- OBS-like multi-scene/source/render graph domain model with Main, Starting Soon, Break, and Privacy Shield presets, active scene switching, and cut/fade transition settings.
 - Persisted scene collection normalization with transition settings, clamped canvas/source/transform/avatar runtime values, and legacy single-scene migration.
 - Stream profile model for RTMP and RTMPS destinations, including YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
@@ -50,6 +50,7 @@
 - Release-candidate checklist and private validation runbook require fresh YouTube/Twitch dashboard checked-at evidence before treating destination dashboard validation as complete.
 - Live quality advisor model for maintaining, monitoring, lowering quality, reconnecting, or stopping based on active incidents, history, and recovery state, with safe suggested-quality application in Web and React Native.
 - Shared quality automation guard for Web and React Native that raises live-session quality alerts, records quality automation events, and automatically applies a safer next-stream target only after the encoder is no longer live.
+- Privacy Shield emergency control across Web and React Native switches to a blackout scene, mutes mic/app/chat broadcast mixer channels, disables self-monitor playback, stops chat readout, records a safety audit event, and pushes safe scene/profile updates to the native engine when live.
 - Live quality update API for Mock, Android, and iOS, allowing same-resolution bitrate/FPS pressure relief while Android stays live, while iOS refreshes the App Group quality target for the next ReplayKit broadcast restart.
 - Completed session summaries, physical validation evidence, diagnostics, validation panels, and support bundles retain live quality automation evidence, including live bitrate/FPS updates, next-start target changes, and failed native quality updates.
 - Private validation runbook includes a weak-network quality stress fallback step, requiring retained live quality-update or next-start fallback evidence before the runbook can be complete, and blocking when native quality updates fail.

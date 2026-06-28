@@ -274,7 +274,9 @@ object LiveCasterSession {
             height = nextProfile.height,
             fps = nextProfile.fps,
             videoBitrate = nextProfile.videoBitrate,
-            audioBitrate = nextProfile.audioBitrate
+            audioBitrate = nextProfile.audioBitrate,
+            micEffects = nextProfile.micEffects,
+            broadcastMixer = nextProfile.broadcastMixer
         )
         profile = updatedProfile
         updateHealth(

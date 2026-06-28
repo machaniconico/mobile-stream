@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyDestinationPreset,
+  applyEmergencyBroadcastMute,
   applyMicEffectPreset,
   buildPublishUrl,
   clearStreamKey,
@@ -269,6 +270,32 @@ describe("studio profiles", () => {
     expect(profile.broadcastMixer.mic).toEqual({ volume: 1, muted: true });
     expect(profile.broadcastMixer.appAudio).toEqual({ volume: 0, muted: false });
     expect(profile.broadcastMixer.chatReadout).toEqual({ volume: 0.4, muted: true });
+  });
+
+  it("applies emergency broadcast mute without changing destination settings", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: "secret-key"
+      },
+      micEffects: {
+        ...createDefaultStudioProfile().micEffects,
+        monitorEnabled: true,
+        monitorVolume: 0.45
+      }
+    };
+
+    const muted = applyEmergencyBroadcastMute(profile);
+
+    expect(muted.destination.streamKey).toBe("secret-key");
+    expect(muted.broadcastMixer).toEqual({
+      mic: { volume: 0, muted: true },
+      appAudio: { volume: 0, muted: true },
+      chatReadout: { volume: 0, muted: true }
+    });
+    expect(muted.micEffects.monitorEnabled).toBe(false);
+    expect(muted.micEffects.monitorVolume).toBe(0);
   });
 
   it("normalizes face tracking values for persisted profiles", () => {

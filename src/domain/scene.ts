@@ -134,7 +134,7 @@ export interface SceneDocument {
   sources: SceneSource[];
 }
 
-export type SceneTemplateId = "main" | "starting-soon" | "break";
+export type SceneTemplateId = "main" | "starting-soon" | "break" | "privacy-shield";
 export type SceneTransitionKind = "cut" | "fade";
 
 export interface SceneTransitionSettings {
@@ -362,13 +362,16 @@ export const createDefaultScene = (): SceneDocument => {
   };
 };
 
+export const privacyShieldSceneId = "scene-privacy-shield";
+
 const templateLabels: Record<SceneTemplateId, string> = {
   main: "Main Scene",
   "starting-soon": "Starting Soon",
-  break: "Break"
+  break: "Break",
+  "privacy-shield": "Privacy Shield"
 };
 
-export const sceneTemplateIds: readonly SceneTemplateId[] = ["main", "starting-soon", "break"];
+export const sceneTemplateIds: readonly SceneTemplateId[] = ["main", "starting-soon", "break", "privacy-shield"];
 
 const defaultSource = <Kind extends SourceKind>(kind: Kind): Extract<SceneSource, { kind: Kind }> => {
   const source = createDefaultScene().sources.find((item): item is Extract<SceneSource, { kind: Kind }> => item.kind === kind);
@@ -389,6 +392,33 @@ export const createSceneFromTemplate = (templateId: SceneTemplateId): SceneDocum
   const avatar = defaultSource("pngtuber");
   const chat = defaultSource("chat");
   const isBreak = templateId === "break";
+
+  if (templateId === "privacy-shield") {
+    return {
+      version: 1,
+      id: privacyShieldSceneId,
+      name: templateLabels[templateId],
+      canvas,
+      sources: [
+        {
+          ...background,
+          id: "source-privacy-shield-background",
+          name: "Privacy Background",
+          color: "#050506",
+          transform: defaultTransform({ x: 0, y: 0, width: 1, height: 1 })
+        },
+        {
+          ...label,
+          id: "source-privacy-shield-label",
+          name: "Privacy Label",
+          text: "Privacy Shield",
+          color: "#f8fafc",
+          fontSize: 72,
+          transform: defaultTransform({ x: 0.16, y: 0.38, width: 0.68, height: 0.16 })
+        }
+      ]
+    };
+  }
 
   return {
     version: 1,
@@ -585,6 +615,19 @@ export const setActiveScene = (collection: SceneCollection, sceneId: string): Sc
     ...normalized,
     activeSceneId: sceneId
   };
+};
+
+export const activatePrivacyShieldScene = (collection: SceneCollection): SceneCollection => {
+  const normalized = normalizeSceneCollection(collection);
+  const shieldSceneId =
+    normalized.scenes.find((scene) => scene.id === privacyShieldSceneId)?.id ??
+    normalized.scenes.find((scene) => scene.name.trim().toLowerCase() === "privacy shield")?.id;
+
+  if (shieldSceneId) {
+    return setActiveScene(normalized, shieldSceneId);
+  }
+
+  return addSceneToCollection(normalized, createSceneFromTemplate("privacy-shield"));
 };
 
 export const updateSceneTransition = (

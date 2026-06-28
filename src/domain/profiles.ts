@@ -518,6 +518,20 @@ export const applyMicEffectPreset = (profile: StudioProfile, presetId: MicEffect
   };
 };
 
+export const applyEmergencyBroadcastMute = (profile: StudioProfile): StudioProfile => ({
+  ...profile,
+  micEffects: {
+    ...profile.micEffects,
+    monitorEnabled: false,
+    monitorVolume: 0
+  },
+  broadcastMixer: {
+    mic: { ...profile.broadcastMixer.mic, muted: true, volume: 0 },
+    appAudio: { ...profile.broadcastMixer.appAudio, muted: true, volume: 0 },
+    chatReadout: { ...profile.broadcastMixer.chatReadout, muted: true, volume: 0 }
+  }
+});
+
 export const createDefaultStudioProfile = (): StudioProfile => ({
   destination: { ...defaultDestinationProfile },
   quality: qualityProfiles[0],

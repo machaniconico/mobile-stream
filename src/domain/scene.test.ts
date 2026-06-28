@@ -3,6 +3,7 @@ import {
   addSource,
   applyInferredAvatarIllustrationRig,
   addSceneToCollection,
+  activatePrivacyShieldScene,
   createDefaultSceneCollection,
   createDefaultScene,
   createSceneFromTemplate,
@@ -37,13 +38,17 @@ describe("scene document", () => {
 
     expect(collection.activeSceneId).toBe("scene-main");
     expect(collection.transition).toEqual({ kind: "fade", durationMs: 300 });
-    expect(collection.scenes.map((scene) => scene.name)).toEqual(["Main Scene", "Starting Soon", "Break"]);
+    expect(collection.scenes.map((scene) => scene.name)).toEqual(["Main Scene", "Starting Soon", "Break", "Privacy Shield"]);
     expect(selectActiveScene(collection).id).toBe("scene-main");
     expect(collection.scenes.find((scene) => scene.id === "scene-starting-soon")?.sources.map((source) => source.kind)).toEqual([
       "solid",
       "text",
       "pngtuber",
       "chat"
+    ]);
+    expect(collection.scenes.find((scene) => scene.id === "scene-privacy-shield")?.sources.map((source) => source.kind)).toEqual([
+      "solid",
+      "text"
     ]);
   });
 
@@ -82,11 +87,27 @@ describe("scene document", () => {
     const duplicated = duplicateActiveScene(withStartingScene);
 
     expect(selectActiveScene(switched).name).toBe("Break");
-    expect(withStartingScene.scenes).toHaveLength(4);
-    expect(duplicated.scenes).toHaveLength(5);
+    expect(withStartingScene.scenes).toHaveLength(5);
+    expect(duplicated.scenes).toHaveLength(6);
     expect(selectActiveScene(duplicated).name).toBe("Starting Soon Copy");
     expect(duplicated.scenes.at(-1)?.sources[0]?.id).not.toBe(selectActiveScene(withStartingScene).sources[0]?.id);
     expect(collection.activeSceneId).toBe("scene-main");
+  });
+
+  it("activates or creates the privacy shield scene for emergency blackout use", () => {
+    const collection = createDefaultSceneCollection();
+    const activated = activatePrivacyShieldScene(collection);
+    const legacyCollection = normalizeSceneCollection({
+      version: 1,
+      activeSceneId: "scene-main",
+      scenes: [createDefaultScene()]
+    });
+    const created = activatePrivacyShieldScene(legacyCollection);
+
+    expect(activated.activeSceneId).toBe("scene-privacy-shield");
+    expect(selectActiveScene(activated).sources.map((source) => source.kind)).toEqual(["solid", "text"]);
+    expect(created.activeSceneId).toBe("scene-privacy-shield");
+    expect(created.scenes).toHaveLength(2);
   });
 
   it("adds, hides, locks, and reorders sources", () => {
@@ -382,10 +403,14 @@ describe("scene document", () => {
 
     for (const scene of persisted.scenes) {
       const avatar = scene.sources.find((source) => source.kind === "pngtuber");
-      expect(avatar?.mouthOpen).toBe(0);
-      expect(avatar?.blink).toBe(0);
-      expect(avatar?.motion.headYaw).toBe(0);
-      expect(avatar?.motion.confidence).toBe(0);
+      if (!avatar) {
+        expect(scene.id).toBe("scene-privacy-shield");
+        continue;
+      }
+      expect(avatar.mouthOpen).toBe(0);
+      expect(avatar.blink).toBe(0);
+      expect(avatar.motion.headYaw).toBe(0);
+      expect(avatar.motion.confidence).toBe(0);
     }
   });
 });

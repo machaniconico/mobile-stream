@@ -160,6 +160,7 @@ interface MobileStudioScreenProps {
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
   onClearStreamKey(): void | Promise<void>;
+  onPrivacyShieldActivate(): void | Promise<void>;
   onClearStreamSessionSummaries(): void | Promise<void>;
   onRecordStreamValidationRun(run: StreamValidationRun): void | Promise<void>;
   onClearStreamValidationRuns(): void | Promise<void>;
@@ -337,6 +338,7 @@ export const MobileStudioScreen = ({
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
   onClearStreamKey,
+  onPrivacyShieldActivate,
   onClearStreamSessionSummaries,
   onRecordStreamValidationRun,
   onClearStreamValidationRuns
@@ -724,6 +726,7 @@ export const MobileStudioScreen = ({
         <View style={styles.transport}>
           <ActionButton label="Go Live" variant="primary" disabled={!canGoLive} onPress={onStart} />
           <ActionButton label="Stop" variant="danger" disabled={operationBusy || isBusy || !isLive} onPress={onStop} />
+          <ActionButton label="Shield" variant="danger" onPress={onPrivacyShieldActivate} />
           <ActionButton label="Reconnect" disabled={operationBusy || !isLive} onPress={onReconnect} />
           <View style={styles.transportReadout}>
             <Text style={styles.mutedText}>{formatElapsed(snapshot.health.elapsedSeconds)}</Text>

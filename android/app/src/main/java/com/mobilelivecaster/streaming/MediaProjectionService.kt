@@ -95,10 +95,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             val microphoneSource = MicrophoneSource()
             micProcessingEffect?.release()
             micProcessingEffect = MicProcessingEffect(applicationContext, profile.micEffects, profile.broadcastMixer).also { effect ->
-                val micMix = profile.broadcastMixer.mic
-                if (profile.micEffects.enabled || profile.micEffects.monitorEnabled || micMix.muted || micMix.volume < 1f) {
-                    microphoneSource.setAudioEffect(effect)
-                }
+                microphoneSource.setAudioEffect(effect)
             }
 
             val stream = GenericStream(baseContext, this, NoVideoSource(), microphoneSource).apply {
@@ -207,6 +204,7 @@ class MediaProjectionService : Service(), ConnectChecker {
         try {
             stream.setVideoBitrateOnFly(profile.videoBitrate)
             stream.getGlInterface().setForceRender(true, profile.fps)
+            micProcessingEffect?.updateProfile(profile.micEffects, profile.broadcastMixer)
             stream.requestKeyframe()
             lastNativeFps = profile.fps
             val message = liveMessage("Live quality updated to ${profile.videoBitrate / 1000} kbps / ${profile.fps}fps")

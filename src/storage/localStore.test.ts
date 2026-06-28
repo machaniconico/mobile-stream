@@ -121,13 +121,14 @@ describe("local stream session summary store", () => {
     saveSceneCollection(withRuntime);
     const loaded = loadSceneCollection();
 
-    expect(loaded?.scenes).toHaveLength(3);
+    expect(loaded?.scenes).toHaveLength(4);
     expect(loaded?.activeSceneId).toBe("scene-break");
     expect(loaded?.transition).toEqual({ kind: "cut", durationMs: 0 });
     const activeAvatar = selectActiveScene(loaded!).sources.find((source) => source.kind === "pngtuber");
     expect(activeAvatar?.mouthOpen).toBe(0);
     expect(activeAvatar?.blink).toBe(0);
     expect(storage.getItem(sceneStorageKey)).toContain("scene-starting-soon");
+    expect(storage.getItem(sceneStorageKey)).toContain("scene-privacy-shield");
   });
 
   it("saves, loads, and clears physical validation runs", () => {

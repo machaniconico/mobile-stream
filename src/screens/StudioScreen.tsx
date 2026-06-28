@@ -177,6 +177,7 @@ interface StudioScreenProps {
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
   onClearStreamKey(): void;
+  onPrivacyShieldActivate(): void | Promise<void>;
   onClearStreamSessionSummaries(): void;
   onRecordStreamValidationRun(run: StreamValidationRun): void;
   onClearStreamValidationRuns(): void;
@@ -406,6 +407,7 @@ export const StudioScreen = ({
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
   onClearStreamKey,
+  onPrivacyShieldActivate,
   onClearStreamSessionSummaries,
   onRecordStreamValidationRun,
   onClearStreamValidationRuns
@@ -726,6 +728,10 @@ export const StudioScreen = ({
             <button className="danger-action" type="button" disabled={operationBusy || isBusy || !isLive} onClick={onStop}>
               <Square size={18} />
               <span>Stop</span>
+            </button>
+            <button className="danger-action emergency-action" type="button" onClick={onPrivacyShieldActivate}>
+              <ShieldCheck size={18} />
+              <span>Shield</span>
             </button>
             <button className="secondary-action" type="button" disabled={operationBusy || !isLive} onClick={onReconnect}>
               <RotateCcw size={18} />
