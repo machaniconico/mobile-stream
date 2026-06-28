@@ -1945,7 +1945,9 @@ const StreamValidationRecorder = ({
           {diagnostics.validationEvidence.audioIosPass ? "pass" : "missing"} / Android{" "}
           {diagnostics.validationEvidence.audioAndroidPass ? "pass" : "missing"} / dashboard iOS{" "}
           {diagnostics.validationEvidence.platformPublishingIosPass ? "pass" : "missing"} / Android{" "}
-          {diagnostics.validationEvidence.platformPublishingAndroidPass ? "pass" : "missing"}
+          {diagnostics.validationEvidence.platformPublishingAndroidPass ? "pass" : "missing"} / ingest iOS{" "}
+          {diagnostics.validationEvidence.platformIngestIosPass ? "pass" : "missing"} / Android{" "}
+          {diagnostics.validationEvidence.platformIngestAndroidPass ? "pass" : "missing"}
         </Text>
         <Text style={styles.diagnosticIncidentRecommendation}>evidence fingerprint {diagnostics.validationEvidence.fingerprint}</Text>
       </View>

@@ -248,6 +248,9 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceQualityAutomationLiveUpdateCount).toBe(0);
     expect(bundle.summary.validationEvidenceLatestQualityAutomationStatus).toBeNull();
     expect(bundle.summary.validationEvidencePlatformPublishingRunCount).toBe(0);
+    expect(bundle.summary.validationEvidencePlatformIngestRunCount).toBe(0);
+    expect(bundle.summary.validationEvidencePlatformIngestIosPass).toBe(false);
+    expect(bundle.summary.validationEvidencePlatformIngestAndroidPass).toBe(false);
     expect(bundle.summary.validationEvidenceLatestPlatformPublishingStatus).toBeNull();
     expect(bundle.summary.validationEvidencePlatformPublishingFreshnessStatus).toBeNull();
     expect(bundle.summary.platformPublishingFreshnessStatus).toBe("missing");
@@ -281,6 +284,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Evidence chat readout: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence quality automation: 0 retained / live 0 / next-start 0 / failed 0");
     expect(formatSupportBundle(bundle)).toContain("Evidence platform dashboard: 0 retained / 0 ready / 0 fresh / 0 freshness warn / 0 warn / 0 fail");
+    expect(formatSupportBundle(bundle)).toContain("Evidence platform ingest: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence platform dashboard freshness: - / -");
     expect(formatSupportBundle(bundle)).toContain("Publishing status freshness: missing / YouTube dashboard status has no checked-at timestamp.");
   });
@@ -391,6 +395,9 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceFingerprint).toMatch(/^sve1-[0-9a-f]{8}-[0-9a-z]+$/);
     expect(bundle.summary.validationEvidenceLatestRunFingerprint).toBe(latestRunFingerprint);
     expect(bundle.summary.validationEvidencePlatformPublishingRunCount).toBe(1);
+    expect(bundle.summary.validationEvidencePlatformIngestRunCount).toBe(1);
+    expect(bundle.summary.validationEvidencePlatformIngestReadyCount).toBe(0);
+    expect(bundle.summary.validationEvidencePlatformIngestWarningCount).toBe(1);
     expect(bundle.summary.validationEvidenceQualityAutomationRunCount).toBe(1);
     expect(bundle.summary.validationEvidenceQualityAutomationLiveUpdateCount).toBe(1);
     expect(bundle.summary.validationEvidenceQualityAutomationFailureCount).toBe(0);
@@ -423,6 +430,7 @@ describe("support bundle", () => {
     expect(text).toContain("Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / sent 0 video 0 audio / bytes 0");
     expect(text).toContain("latency missing warn / source - / budget 180ms");
     expect(text).toContain("Evidence quality automation: 1 retained / live 1 / next-start 0 / failed 0");
+    expect(text).toContain("Evidence platform ingest: 1 retained / 0 ready / 1 warn / 0 fail / iOS missing / Android missing");
     expect(text).toContain("Evidence platform dashboard freshness: fresh / YouTube dashboard status was checked 1 minutes ago.");
     expect(text).toContain("Publishing status freshness: stale / YouTube dashboard status is 20 minutes old.");
   });

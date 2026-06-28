@@ -605,6 +605,27 @@ function validationManifestIssue(bundle) {
       "Export a support bundle v24 or newer after retaining iOS and Android validation runs with fresh YouTube/Twitch dashboard status from the destination receiving the stream."
     );
   }
+  const eligiblePlatformIngestPlatforms = new Set(
+    latestEligibleRuns
+      .filter(
+        (run) =>
+          run?.eligible === true &&
+          run?.result === "pass" &&
+          isManifestPlatformIngestPass(run)
+      )
+      .map((run) => run.devicePlatform)
+  );
+  if (
+    (summary.validationEvidencePlatformIngestIosPass === true && !eligiblePlatformIngestPlatforms.has("ios")) ||
+    (summary.validationEvidencePlatformIngestAndroidPass === true && !eligiblePlatformIngestPlatforms.has("android"))
+  ) {
+    return fail(
+      "validation-evidence-manifest-platform-ingest",
+      "Validation evidence manifest",
+      "The manifest does not back claimed platform ingest proof with same-run native send telemetry and YouTube/Twitch receiving-state proof.",
+      "Export a support bundle after retaining iOS and Android validation runs where the same run proves native video/audio frames were sent and the destination dashboard received ingest."
+    );
+  }
   if (manifest.length !== number(summary.validationEvidenceRunCount)) {
     return warn(
       "validation-evidence-manifest-count-mismatch",
@@ -618,6 +639,7 @@ function validationManifestIssue(bundle) {
 
 function validationFeatureIssue(bundle) {
   const summary = bundle?.summary ?? {};
+  const platformIngestPasses = validationEvidencePlatformIngestPasses(bundle);
   const missing = [
     summary.validationEvidencePhysicalDeviceIosPass !== true || summary.validationEvidencePhysicalDeviceAndroidPass !== true
       ? "physical device identity"
@@ -639,6 +661,9 @@ function validationFeatureIssue(bundle) {
       : "",
     summary.validationEvidencePlatformPublishingIosPass !== true || summary.validationEvidencePlatformPublishingAndroidPass !== true
       ? "platform dashboard"
+      : "",
+    !platformIngestPasses.ios || !platformIngestPasses.android
+      ? "same-run platform ingest"
       : ""
   ].filter(Boolean);
   if (missing.length === 0) {
@@ -650,6 +675,25 @@ function validationFeatureIssue(bundle) {
     `Missing passing evidence for ${missing.join(", ")}.`,
     "Repeat private validation until both iOS and Android runs include all release-candidate feature proof."
   );
+}
+
+function validationEvidencePlatformIngestPasses(bundle) {
+  const summary = bundle?.summary ?? {};
+  const manifest = summary.validationEvidenceRunManifest;
+  const latestRuns = Array.isArray(manifest)
+    ? latestEligibleManifestRunsByPlatform(manifest, createExpectedManifestScope(bundle))
+    : new Map();
+  return {
+    ios: resolveValidationEvidencePlatformIngestPass(summary.validationEvidencePlatformIngestIosPass, latestRuns.get("ios")),
+    android: resolveValidationEvidencePlatformIngestPass(
+      summary.validationEvidencePlatformIngestAndroidPass,
+      latestRuns.get("android")
+    )
+  };
+}
+
+function resolveValidationEvidencePlatformIngestPass(summaryValue, manifestRun) {
+  return typeof summaryValue === "boolean" ? summaryValue : isManifestPlatformIngestPass(manifestRun);
 }
 
 function staleEvidenceIssue(bundle) {
@@ -782,6 +826,34 @@ function isManifestPlatformPublishingPass(run) {
     isAtMostNumber(run?.platformPublishingFreshnessAgeMinutes, platformPublishingDashboardMaxAgeMinutes) &&
     isManifestPlatformIdentityPass(run)
   );
+}
+
+function isManifestPlatformIngestPass(run) {
+  if (!run) {
+    return false;
+  }
+  if (!isManifestPlatformIngestProofRequired(run)) {
+    return true;
+  }
+  return isManifestNativeRuntimePass(run) && isManifestPlatformPublishingPass(run);
+}
+
+function isManifestNativeRuntimePass(run) {
+  return (
+    run?.nativeRuntimeStatus === "pass" &&
+    run?.nativeRuntimePlatform === run?.devicePlatform &&
+    isPositiveNumber(run?.nativeRuntimeSentVideoFrames) &&
+    isPositiveNumber(run?.nativeRuntimeSentAudioFrames) &&
+    isPositiveNumber(run?.nativeRuntimeBytesWritten) &&
+    (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
+    isZeroNumber(run?.nativeRuntimeStillImageAssetMissingCount) &&
+    hasLoadedAllNativeRuntimeAssets(run)
+  );
+}
+
+function isManifestPlatformIngestProofRequired(run) {
+  const target = normalizeTargetPlatformLabel(run?.targetPlatform);
+  return target === "youtube live" || target.includes("youtube") || target === "twitch" || target.includes("twitch");
 }
 
 function isManifestPlatformIdentityPass(run) {

@@ -1094,6 +1094,9 @@ describe("stream validation evidence", () => {
     expect(summary.platformPublishingRunCount).toBe(1);
     expect(summary.platformPublishingWarningCount).toBe(1);
     expect(summary.platformPublishingFailureCount).toBe(0);
+    expect(summary.platformIngestRunCount).toBe(1);
+    expect(summary.platformIngestReadyCount).toBe(0);
+    expect(summary.platformIngestWarningCount).toBe(1);
     expect(summary.latestPlatformPublishing?.status).toBe("warn");
   });
 
@@ -1166,6 +1169,9 @@ describe("stream validation evidence", () => {
     expect(summary.platformPublishingReadyCount).toBe(0);
     expect(summary.platformPublishingFreshnessWarningCount).toBe(1);
     expect(summary.platformPublishingIosPass).toBe(false);
+    expect(summary.platformIngestRunCount).toBe(1);
+    expect(summary.platformIngestReadyCount).toBe(0);
+    expect(summary.platformIngestIosPass).toBe(false);
     expect(summary.latestPlatformPublishing).toBeNull();
     expect(summary.latestPlatformPublishingFreshness?.status).toBe("missing");
   });
@@ -1332,6 +1338,12 @@ describe("stream validation evidence", () => {
     expect(summary.platformPublishingFreshCount).toBe(2);
     expect(summary.platformPublishingIosPass).toBe(true);
     expect(summary.platformPublishingAndroidPass).toBe(true);
+    expect(summary.platformIngestRunCount).toBe(2);
+    expect(summary.platformIngestReadyCount).toBe(2);
+    expect(summary.platformIngestWarningCount).toBe(0);
+    expect(summary.platformIngestFailureCount).toBe(0);
+    expect(summary.platformIngestIosPass).toBe(true);
+    expect(summary.platformIngestAndroidPass).toBe(true);
     expect(summary.runManifest.find((run) => run.devicePlatform === "ios")).toMatchObject({
       platformPublishingPlatform: "youtube-live",
       platformPublishingStatus: "pass",

@@ -531,6 +531,33 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks same-run platform ingest claims when the manifest lacks native send proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceNativeRuntimeIosPass: false,
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeSentVideoFrames: 0
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS same-run platform ingest proof")
+      })
+    );
+  });
+
   it("blocks bundles whose retained runs are not physical-device evidence", () => {
     const bundle = supportBundle({
       summary: {
@@ -834,6 +861,8 @@ const supportBundle = ({
       validationEvidenceChatReadoutAndroidPass: true,
       validationEvidencePlatformPublishingIosPass: true,
       validationEvidencePlatformPublishingAndroidPass: true,
+      validationEvidencePlatformIngestIosPass: true,
+      validationEvidencePlatformIngestAndroidPass: true,
       platformPublishingFreshnessStatus: "fresh",
       platformPublishingFreshnessAgeMinutes: 1,
       platformPublishingFreshnessSummary: "YouTube dashboard status was checked 1 minutes ago.",

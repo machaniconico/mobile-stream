@@ -55,7 +55,8 @@ describe("stream rehearsal report", () => {
           ...readyEvidence,
           status: "partial",
           summary: "Physical validation is partial.",
-          platformPublishingAndroidPass: false
+          platformPublishingAndroidPass: false,
+          platformIngestAndroidPass: false
         }
       })
     );
@@ -84,7 +85,9 @@ describe("stream rehearsal report", () => {
         evidence: {
           ...readyEvidence,
           platformPublishingIosPass: false,
-          platformPublishingAndroidPass: false
+          platformPublishingAndroidPass: false,
+          platformIngestIosPass: false,
+          platformIngestAndroidPass: false
         }
       })
     );
@@ -114,7 +117,9 @@ const readyEvidence: StreamRehearsalInput["evidence"] = {
   chatReadoutIosPass: true,
   chatReadoutAndroidPass: true,
   platformPublishingIosPass: true,
-  platformPublishingAndroidPass: true
+  platformPublishingAndroidPass: true,
+  platformIngestIosPass: true,
+  platformIngestAndroidPass: true
 };
 
 const rehearsalInput = (patch: Partial<StreamRehearsalInput> = {}): StreamRehearsalInput => ({

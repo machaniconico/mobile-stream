@@ -695,6 +695,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Evidence chat readout: ${formatValidationChatReadout(diagnostics)}`,
     `- Evidence quality automation: ${formatValidationQualityAutomation(diagnostics)}`,
     `- Evidence platform dashboard: ${formatValidationPlatformPublishing(diagnostics, generatedAt)}`,
+    `- Evidence platform ingest: ${formatValidationPlatformIngest(diagnostics)}`,
     `- Runbook: ${diagnostics.validationRunbook.status} / ${diagnostics.validationRunbook.summary}`,
     `- Runbook next: ${diagnostics.validationRunbook.nextAction}`,
     `- Rehearsal score: ${diagnostics.rehearsal.score}/100 grade ${diagnostics.rehearsal.grade} / weak areas ${diagnostics.rehearsal.weakAreaCount}`,
@@ -930,6 +931,9 @@ const formatValidationPlatformPublishing = (diagnostics: StreamDiagnostics, now:
   const freshness = latestFreshness ?? assessPlatformPublishingFreshness(latestPlatformPublishing, now);
   return `${diagnostics.validationEvidence.platformPublishingRunCount} retained / ${diagnostics.validationEvidence.platformPublishingReadyCount} ready / ${diagnostics.validationEvidence.platformPublishingFreshCount} fresh / ${diagnostics.validationEvidence.platformPublishingFreshnessWarningCount} freshness warn / ${diagnostics.validationEvidence.platformPublishingWarningCount} warn / ${diagnostics.validationEvidence.platformPublishingFailureCount} fail / iOS ${diagnostics.validationEvidence.platformPublishingIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.platformPublishingAndroidPass ? "pass" : "missing"} / latest ${latestPlatformPublishing?.status ?? "-"} ${latestPlatformPublishing?.summary ?? "-"} / freshness ${freshness.status} ${freshness.summary}`;
 };
+
+const formatValidationPlatformIngest = (diagnostics: StreamDiagnostics): string =>
+  `${diagnostics.validationEvidence.platformIngestRunCount} retained / ${diagnostics.validationEvidence.platformIngestReadyCount} ready / ${diagnostics.validationEvidence.platformIngestWarningCount} warn / ${diagnostics.validationEvidence.platformIngestFailureCount} fail / iOS ${diagnostics.validationEvidence.platformIngestIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.platformIngestAndroidPass ? "pass" : "missing"}`;
 
 const createPlatformPublishingDiagnostics = (
   platform: StudioProfile["destination"]["platform"],

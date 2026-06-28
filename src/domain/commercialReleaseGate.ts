@@ -469,6 +469,16 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): 
       summary.validationEvidencePlatformPublishingAndroidPass,
       "Android platform dashboard proof",
       isManifestPlatformPublishingPass(androidRun)
+    ],
+    [
+      summary.validationEvidencePlatformIngestIosPass,
+      "iOS same-run platform ingest proof",
+      isManifestPlatformIngestPass(iosRun)
+    ],
+    [
+      summary.validationEvidencePlatformIngestAndroidPass,
+      "Android same-run platform ingest proof",
+      isManifestPlatformIngestPass(androidRun)
     ]
   ];
   for (const [claimed, label, backedByManifest] of claimChecks) {
@@ -491,6 +501,8 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): 
 };
 
 const createValidationEvidenceFeatureIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+  const { ios: platformIngestIosPass, android: platformIngestAndroidPass } =
+    getValidationEvidencePlatformIngestPasses(bundle);
   const missing = [
     !bundle.summary.validationEvidencePhysicalDeviceIosPass || !bundle.summary.validationEvidencePhysicalDeviceAndroidPass
       ? "physical device identity"
@@ -512,6 +524,9 @@ const createValidationEvidenceFeatureIssue = (bundle: SupportBundle): Commercial
       : "",
     !bundle.summary.validationEvidencePlatformPublishingIosPass || !bundle.summary.validationEvidencePlatformPublishingAndroidPass
       ? "platform dashboard"
+      : "",
+    !platformIngestIosPass || !platformIngestAndroidPass
+      ? "same-run platform ingest"
       : ""
   ].filter(Boolean);
   if (missing.length === 0) {
@@ -524,6 +539,25 @@ const createValidationEvidenceFeatureIssue = (bundle: SupportBundle): Commercial
     "Repeat private validation until both iOS and Android runs include all release-candidate feature proof."
   );
 };
+
+const getValidationEvidencePlatformIngestPasses = (bundle: SupportBundle): { ios: boolean; android: boolean } => {
+  const manifest = bundle.summary.validationEvidenceRunManifest;
+  const latestRuns = Array.isArray(manifest)
+    ? latestEligibleManifestRunsByPlatform(manifest, createExpectedManifestScope(bundle))
+    : new Map<string, ValidationEvidenceManifestRun>();
+  return {
+    ios: resolveValidationEvidencePlatformIngestPass(bundle.summary.validationEvidencePlatformIngestIosPass, latestRuns.get("ios")),
+    android: resolveValidationEvidencePlatformIngestPass(
+      bundle.summary.validationEvidencePlatformIngestAndroidPass,
+      latestRuns.get("android")
+    )
+  };
+};
+
+const resolveValidationEvidencePlatformIngestPass = (
+  summaryValue: unknown,
+  manifestRun: ValidationEvidenceManifestRun | undefined
+): boolean => (typeof summaryValue === "boolean" ? summaryValue : isManifestPlatformIngestPass(manifestRun));
 
 const createRetainedStaleEvidenceIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
   if (bundle.summary.validationEvidenceStaleRunCount <= 0) {
@@ -776,6 +810,21 @@ const isManifestPlatformPublishingPass = (run: ValidationEvidenceManifestRun | u
     isNonEmptyIsoDate(run.platformPublishingCheckedAt) &&
     isAtMostFiniteNumber(run.platformPublishingFreshnessAgeMinutes, platformPublishingDashboardMaxAgeMinutes) &&
     isManifestPlatformIdentityPass(run));
+
+const isManifestPlatformIngestPass = (run: ValidationEvidenceManifestRun | undefined): boolean => {
+  if (!run) {
+    return false;
+  }
+  if (!isManifestPlatformIngestProofRequired(run)) {
+    return true;
+  }
+  return isManifestNativeRuntimePass(run) && isManifestPlatformPublishingPass(run);
+};
+
+const isManifestPlatformIngestProofRequired = (run: ValidationEvidenceManifestRun): boolean => {
+  const target = normalizeTargetPlatformLabel(run.targetPlatform);
+  return target === "youtube live" || target.includes("youtube") || target === "twitch" || target.includes("twitch");
+};
 
 const isManifestPlatformIdentityPass = (run: ValidationEvidenceManifestRun): boolean => {
   if (run.platformPublishingPlatform === "youtube-live") {

@@ -69,6 +69,8 @@ export interface StreamRehearsalInput {
     | "chatReadoutAndroidPass"
     | "platformPublishingIosPass"
     | "platformPublishingAndroidPass"
+    | "platformIngestIosPass"
+    | "platformIngestAndroidPass"
   >;
 }
 
@@ -257,6 +259,9 @@ const missingFeatureProof = (
   evidence.chatReadoutIosPass && evidence.chatReadoutAndroidPass ? "" : "chat readout",
   shouldRequireDashboardProof(target) && (!evidence.platformPublishingIosPass || !evidence.platformPublishingAndroidPass)
     ? "destination dashboard"
+    : "",
+  shouldRequireDashboardProof(target) && (!evidence.platformIngestIosPass || !evidence.platformIngestAndroidPass)
+    ? "same-run destination ingest"
     : ""
 ].filter(Boolean);
 

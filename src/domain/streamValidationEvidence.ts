@@ -298,6 +298,12 @@ export interface StreamValidationEvidenceSummary {
   platformPublishingFailureCount: number;
   platformPublishingIosPass: boolean;
   platformPublishingAndroidPass: boolean;
+  platformIngestRunCount: number;
+  platformIngestReadyCount: number;
+  platformIngestWarningCount: number;
+  platformIngestFailureCount: number;
+  platformIngestIosPass: boolean;
+  platformIngestAndroidPass: boolean;
   status: "none" | "partial" | "failing" | "ready" | "stale";
   iosPass: boolean;
   androidPass: boolean;
@@ -629,6 +635,11 @@ export const summarizeStreamValidationEvidence = (
   ).length;
   const platformPublishingWarningCount = platformPublishingRuns.filter((run) => run.platformPublishing?.status === "warn").length;
   const platformPublishingFailureCount = platformPublishingRuns.filter((run) => run.platformPublishing?.status === "fail").length;
+  const platformIngestRuns = scopedRuns.filter((run) => isPlatformIngestProofRequired(run));
+  const platformIngestRunCount = platformIngestRuns.length;
+  const platformIngestReadyCount = platformIngestRuns.filter((run) => getPlatformIngestEvidenceStatus(run) === "pass").length;
+  const platformIngestWarningCount = platformIngestRuns.filter((run) => getPlatformIngestEvidenceStatus(run) === "warn").length;
+  const platformIngestFailureCount = platformIngestRuns.filter((run) => getPlatformIngestEvidenceStatus(run) === "fail").length;
   const latestRun = normalized[0] ?? null;
   const latestEligibleRun = eligibleRuns[0] ?? null;
   const latestPassingRun = eligibleRuns.find((run) => run.result === "pass") ?? null;
@@ -675,6 +686,8 @@ export const summarizeStreamValidationEvidence = (
   const chatReadoutAndroidPass = androidPass && isChatReadoutEvidencePass(androidLatestRun?.chatReadout);
   const platformPublishingIosPass = iosPass && isPlatformPublishingRunEvidencePass(iosLatestRun);
   const platformPublishingAndroidPass = androidPass && isPlatformPublishingRunEvidencePass(androidLatestRun);
+  const platformIngestIosPass = iosPass && isPlatformIngestRunEvidencePass(iosLatestRun);
+  const platformIngestAndroidPass = androidPass && isPlatformIngestRunEvidencePass(androidLatestRun);
   const appBuildMismatch = Boolean(
     iosPass &&
       androidPass &&
@@ -708,7 +721,9 @@ export const summarizeStreamValidationEvidence = (
     chatReadoutIosPass,
     chatReadoutAndroidPass,
     platformPublishingIosPass,
-    platformPublishingAndroidPass
+    platformPublishingAndroidPass,
+    platformIngestIosPass,
+    platformIngestAndroidPass
   });
 
   return {
@@ -765,6 +780,12 @@ export const summarizeStreamValidationEvidence = (
     platformPublishingFailureCount,
     platformPublishingIosPass,
     platformPublishingAndroidPass,
+    platformIngestRunCount,
+    platformIngestReadyCount,
+    platformIngestWarningCount,
+    platformIngestFailureCount,
+    platformIngestIosPass,
+    platformIngestAndroidPass,
     status,
     iosPass,
     androidPass,
@@ -807,6 +828,8 @@ export const summarizeStreamValidationEvidence = (
       chatReadoutAndroidPass,
       platformPublishingIosPass,
       platformPublishingAndroidPass,
+      platformIngestIosPass,
+      platformIngestAndroidPass,
       appBuildMismatch,
       iosAppBuild: iosLatestRun?.appBuild ?? null,
       androidAppBuild: androidLatestRun?.appBuild ?? null,
@@ -831,7 +854,9 @@ export const summarizeStreamValidationEvidence = (
       chatReadoutIosPass,
       chatReadoutAndroidPass,
       platformPublishingIosPass,
-      platformPublishingAndroidPass
+      platformPublishingAndroidPass,
+      platformIngestIosPass,
+      platformIngestAndroidPass
     })
   };
 };
@@ -978,7 +1003,9 @@ const createEvidenceStatus = ({
   chatReadoutIosPass,
   chatReadoutAndroidPass,
   platformPublishingIosPass,
-  platformPublishingAndroidPass
+  platformPublishingAndroidPass,
+  platformIngestIosPass,
+  platformIngestAndroidPass
 }: {
   totalRuns: number;
   eligibleRunCount: number;
@@ -1001,6 +1028,8 @@ const createEvidenceStatus = ({
   chatReadoutAndroidPass: boolean;
   platformPublishingIosPass: boolean;
   platformPublishingAndroidPass: boolean;
+  platformIngestIosPass: boolean;
+  platformIngestAndroidPass: boolean;
 }): StreamValidationEvidenceSummary["status"] => {
   if (totalRuns === 0) {
     return "none";
@@ -1028,7 +1057,9 @@ const createEvidenceStatus = ({
     chatReadoutIosPass &&
     chatReadoutAndroidPass &&
     platformPublishingIosPass &&
-    platformPublishingAndroidPass
+    platformPublishingAndroidPass &&
+    platformIngestIosPass &&
+    platformIngestAndroidPass
   ) {
     return "ready";
   }
@@ -1239,6 +1270,33 @@ const isPlatformPublishingEvidencePass = (
 const isPlatformPublishingRunEvidencePass = (run: StreamValidationRun | null | undefined): boolean =>
   run ? isPlatformPublishingEvidencePass(run.platformPublishing, getRunPlatformPublishingFreshness(run)) : false;
 
+const isPlatformIngestProofRequired = (run: StreamValidationRun | null | undefined): boolean => {
+  const platform = resolvePlatformPublishingFreshnessPlatform(run?.targetPlatform);
+  return platform === "youtube-live" || platform === "twitch";
+};
+
+const isPlatformIngestRunEvidencePass = (run: StreamValidationRun | null | undefined): boolean => {
+  if (!run) {
+    return false;
+  }
+  if (!isPlatformIngestProofRequired(run)) {
+    return true;
+  }
+  return isNativeRuntimeEvidencePass(run.nativeRuntime, run.devicePlatform) && isPlatformPublishingRunEvidencePass(run);
+};
+
+const getPlatformIngestEvidenceStatus = (
+  run: StreamValidationRun | null | undefined
+): "pass" | "warn" | "fail" => {
+  if (isPlatformIngestRunEvidencePass(run)) {
+    return "pass";
+  }
+  if (run?.result === "fail" || run?.nativeRuntime?.status === "fail" || run?.platformPublishing?.status === "fail") {
+    return "fail";
+  }
+  return "warn";
+};
+
 const getLatestPlatformPublishingFreshness = (runs: StreamValidationRun[]): PlatformPublishingFreshness | null => {
   for (const run of runs) {
     const freshness = getRunPlatformPublishingFreshness(run);
@@ -1274,6 +1332,8 @@ const createEvidenceSummary = (
     chatReadoutAndroidPass: boolean;
     platformPublishingIosPass: boolean;
     platformPublishingAndroidPass: boolean;
+    platformIngestIosPass: boolean;
+    platformIngestAndroidPass: boolean;
     appBuildMismatch: boolean;
     iosAppBuild: string | null;
     androidAppBuild: string | null;
@@ -1317,6 +1377,9 @@ const createEvidenceSummary = (
   if (counts.iosPass && counts.androidPass && (!counts.platformPublishingIosPass || !counts.platformPublishingAndroidPass)) {
     return `Physical validation is partial: iOS and Android passed, but retained YouTube/Twitch dashboard evidence is incomplete: iOS ${counts.platformPublishingIosPass ? "pass" : "missing fresh dashboard proof"} / Android ${counts.platformPublishingAndroidPass ? "pass" : "missing fresh dashboard proof"}.`;
   }
+  if (counts.iosPass && counts.androidPass && (!counts.platformIngestIosPass || !counts.platformIngestAndroidPass)) {
+    return `Physical validation is partial: iOS and Android passed, but retained YouTube/Twitch ingest handoff proof is incomplete: iOS ${counts.platformIngestIosPass ? "pass" : "missing same-run send/receive proof"} / Android ${counts.platformIngestAndroidPass ? "pass" : "missing same-run send/receive proof"}.`;
+  }
   const covered = [counts.iosPass ? "iOS" : null, counts.androidPass ? "Android" : null].filter(Boolean).join(" and ");
   return covered
     ? `Physical validation is partial: ${covered} passed, remaining platform still needs evidence.`
@@ -1345,6 +1408,8 @@ const createEvidenceRecommendation = (
     chatReadoutAndroidPass: boolean;
     platformPublishingIosPass: boolean;
     platformPublishingAndroidPass: boolean;
+    platformIngestIosPass: boolean;
+    platformIngestAndroidPass: boolean;
   }
 ): string => {
   if (status === "ready") {
@@ -1376,6 +1441,9 @@ const createEvidenceRecommendation = (
   }
   if (context.iosPass && context.androidPass && (!context.platformPublishingIosPass || !context.platformPublishingAndroidPass)) {
     return "Record fresh iOS and Android validation runs after refreshing YouTube Live or Twitch dashboard status within 10 minutes and retaining the live/active proof.";
+  }
+  if (context.iosPass && context.androidPass && (!context.platformIngestIosPass || !context.platformIngestAndroidPass)) {
+    return "Record fresh iOS and Android validation runs where the same run proves native video/audio frames were sent and YouTube Live or Twitch dashboard status was receiving ingest.";
   }
   if (status === "stale") {
     return `Repeat private RTMPS validation on physical iOS and Android devices; retained evidence expires after ${context.maxAgeDays} days.`;
