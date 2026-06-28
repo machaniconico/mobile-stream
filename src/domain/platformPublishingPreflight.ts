@@ -126,6 +126,11 @@ const createYouTubeBroadcastTransitionIssues = (
     issues.push(oauthIssue);
   }
 
+  const privacyMismatchIssue = createYouTubePrivacyMismatchIssue(profile);
+  if (privacyMismatchIssue) {
+    issues.push(privacyMismatchIssue);
+  }
+
   if (!settings.youtubeBroadcastId.trim()) {
     issues.push({
       code: "youtube-transition-missing-broadcast",
@@ -173,6 +178,27 @@ const createYouTubeBroadcastTransitionIssues = (
   }
 
   return issues;
+};
+
+const createYouTubePrivacyMismatchIssue = (
+  profile: YouTubeBroadcastTransitionPreflightInput["profile"]
+): PlatformPublishingPreflightIssue | null => {
+  const settings = profile.platformPublishing;
+  if (!settings.youtubeBroadcastId.trim() || !settings.youtubeBroadcastPrivacyStatus) {
+    return null;
+  }
+
+  if (settings.youtubeBroadcastPrivacyStatus === settings.privacyStatus) {
+    return null;
+  }
+
+  return {
+    code: "youtube-transition-privacy-mismatch",
+    severity: "block",
+    label: "YouTube privacy",
+    message: `YouTube broadcast privacy is ${settings.youtubeBroadcastPrivacyStatus}, but the app is configured for ${settings.privacyStatus}.`,
+    recommendation: "Refresh or recreate the YouTube broadcast so dashboard privacy matches the app setting before changing lifecycle state."
+  };
 };
 
 const resolveYouTubeTransitionCredential = (

@@ -357,6 +357,7 @@ describe("stream diagnostics", () => {
         youtubeBroadcastId: "broadcast-1",
         youtubeStreamId: "stream-1",
         youtubeBroadcastStatus: "live",
+        youtubeBroadcastPrivacyStatus: "private" as const,
         youtubeStreamStatus: "active",
         youtubeStreamHealthStatus: "ok",
         youtubeStreamHealthIssues: [],
@@ -372,11 +373,47 @@ describe("stream diagnostics", () => {
     const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics, new Date("2026-06-23T00:05:00.000Z")));
 
     expect(diagnostics.platformPublishing.status).toBe("pass");
+    expect(diagnostics.platformPublishing.youtube?.broadcastPrivacyStatus).toBe("private");
     expect(diagnostics.platformPublishing.youtube?.healthStatus).toBe("ok");
     expect(diagnostics.platformPublishing.youtube?.statusCheckedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(report).toContain("Platform Publishing");
-    expect(report).toContain("YouTube dashboard: broadcast live, stream active, health ok, issues 0, checked 2026-06-23T00:00:00.000Z.");
+    expect(report).toContain(
+      "YouTube dashboard: broadcast live, privacy private (app private), stream active, health ok, issues 0, checked 2026-06-23T00:00:00.000Z."
+    );
     expect(report).toContain("- Freshness: fresh / YouTube dashboard status was checked 5 minutes ago.");
+  });
+
+  it("fails YouTube dashboard diagnostics when broadcast privacy differs from the app setting", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      },
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        privacyStatus: "public" as const,
+        youtubeBroadcastId: "broadcast-1",
+        youtubeStreamId: "stream-1",
+        youtubeBroadcastStatus: "testing",
+        youtubeBroadcastPrivacyStatus: "unlisted" as const,
+        youtubeStreamStatus: "active",
+        youtubeStreamHealthStatus: "ok",
+        youtubeStreamHealthIssues: [],
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health({ bitrateKbps: 3500, fps: 30 })
+    });
+
+    expect(diagnostics.platformPublishing.status).toBe("fail");
+    expect(diagnostics.platformPublishing.summary).toContain("privacy unlisted (app public)");
+    expect(diagnostics.platformPublishing.recommendation).toContain("dashboard privacy matches");
   });
 
   it("exports retained native runtime proof frame and byte counts in validation evidence", () => {

@@ -331,6 +331,57 @@ describe("stream start preflight", () => {
     expect(report.issues.map((issue) => issue.code)).not.toContain("validation-youtube-public-not-ready");
   });
 
+  it("blocks YouTube starts when dashboard privacy differs from the app setting", () => {
+    const profile = {
+      ...validProfile(),
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "public" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "stream-id",
+        youtubeBroadcastStatus: "testing",
+        youtubeBroadcastPrivacyStatus: "unlisted" as const,
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toEqual(["publishing-youtube-privacy-mismatch"]);
+    expect(report.blocks[0]?.message).toContain("YouTube broadcast privacy is unlisted");
+  });
+
+  it("blocks private validation starts when the saved YouTube broadcast is public", () => {
+    const profile = {
+      ...validProfile(),
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "private" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeBroadcastPrivacyStatus: "public" as const
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toEqual(["publishing-youtube-privacy-mismatch"]);
+    expect(formatStreamStartPreflightBlockMessage(report)).toContain("app is configured for private");
+  });
+
   it("blocks public YouTube launches while visible Live2D is preview-only", () => {
     const profile = {
       ...validProfile(),

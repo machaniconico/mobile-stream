@@ -320,6 +320,7 @@ export interface SupportBundle {
       hasYouTubeStreamId: boolean;
       hasYouTubeBroadcastId: boolean;
       youtubeBroadcastStatus: string;
+      youtubeBroadcastPrivacyStatus: string;
       youtubeStreamStatus: string;
       youtubeStreamHealthStatus: string;
       youtubeStreamHealthIssueCount: number;
@@ -668,6 +669,7 @@ export const createSupportBundle = ({
         hasYouTubeStreamId: Boolean(profile.platformPublishing.youtubeStreamId.trim()),
         hasYouTubeBroadcastId: Boolean(profile.platformPublishing.youtubeBroadcastId.trim()),
         youtubeBroadcastStatus: profile.platformPublishing.youtubeBroadcastStatus,
+        youtubeBroadcastPrivacyStatus: profile.platformPublishing.youtubeBroadcastPrivacyStatus,
         youtubeStreamStatus: profile.platformPublishing.youtubeStreamStatus,
         youtubeStreamHealthStatus: profile.platformPublishing.youtubeStreamHealthStatus,
         youtubeStreamHealthIssueCount: profile.platformPublishing.youtubeStreamHealthIssues.length,

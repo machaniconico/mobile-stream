@@ -54,6 +54,7 @@ describe("studio profiles", () => {
         youtubeBroadcastId: " broadcast-id ",
         youtubeLiveChatId: " chat-id ",
         youtubeBroadcastStatus: " live ",
+        youtubeBroadcastPrivacyStatus: " unlisted " as unknown as "unlisted",
         youtubeStreamStatus: " active ",
         youtubeStreamHealthStatus: " good ",
         youtubeStreamHealthIssues: [" warning: bitrateLow ", "", " error: noAudioStream "],
@@ -73,6 +74,7 @@ describe("studio profiles", () => {
     expect(profile.platformPublishing.scheduledStartMinutesFromNow).toBe(1);
     expect(profile.platformPublishing.youtubeStreamId).toBe("stream-id");
     expect(profile.platformPublishing.youtubeBroadcastStatus).toBe("live");
+    expect(profile.platformPublishing.youtubeBroadcastPrivacyStatus).toBe("unlisted");
     expect(profile.platformPublishing.youtubeStreamStatus).toBe("active");
     expect(profile.platformPublishing.youtubeStreamHealthStatus).toBe("good");
     expect(profile.platformPublishing.youtubeStreamHealthIssues).toEqual(["warning: bitrateLow", "error: noAudioStream"]);

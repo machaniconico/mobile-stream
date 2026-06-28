@@ -93,6 +93,7 @@ export interface PlatformPublishingSettings {
   youtubeBroadcastId: string;
   youtubeLiveChatId: string;
   youtubeBroadcastStatus: string;
+  youtubeBroadcastPrivacyStatus: YouTubePrivacyStatus | "";
   youtubeStreamStatus: string;
   youtubeStreamHealthStatus: string;
   youtubeStreamHealthIssues: string[];
@@ -487,6 +488,7 @@ export const defaultPlatformPublishingSettings: PlatformPublishingSettings = {
   youtubeBroadcastId: "",
   youtubeLiveChatId: "",
   youtubeBroadcastStatus: "",
+  youtubeBroadcastPrivacyStatus: "",
   youtubeStreamStatus: "",
   youtubeStreamHealthStatus: "",
   youtubeStreamHealthIssues: [],
@@ -607,6 +609,13 @@ export const normalizePlatformPublishingSettings = (
     settings?.privacyStatus === "public" || settings?.privacyStatus === "unlisted" || settings?.privacyStatus === "private"
       ? settings.privacyStatus
       : fallback.privacyStatus;
+  const normalizedYoutubeBroadcastPrivacyStatus = normalizeSingleLine(settings?.youtubeBroadcastPrivacyStatus).toLowerCase();
+  const youtubeBroadcastPrivacyStatus: YouTubePrivacyStatus | "" =
+    normalizedYoutubeBroadcastPrivacyStatus === "public" ||
+    normalizedYoutubeBroadcastPrivacyStatus === "unlisted" ||
+    normalizedYoutubeBroadcastPrivacyStatus === "private"
+      ? normalizedYoutubeBroadcastPrivacyStatus
+      : "";
 
   return {
     title: normalizeSingleLine(settings?.title || fallback.title).slice(0, 100) || fallback.title,
@@ -622,6 +631,7 @@ export const normalizePlatformPublishingSettings = (
     youtubeBroadcastId: normalizeSingleLine(settings?.youtubeBroadcastId).slice(0, 180),
     youtubeLiveChatId: normalizeSingleLine(settings?.youtubeLiveChatId).slice(0, 180),
     youtubeBroadcastStatus: normalizeSingleLine(settings?.youtubeBroadcastStatus).slice(0, 40),
+    youtubeBroadcastPrivacyStatus,
     youtubeStreamStatus: normalizeSingleLine(settings?.youtubeStreamStatus).slice(0, 40),
     youtubeStreamHealthStatus: normalizeSingleLine(settings?.youtubeStreamHealthStatus).slice(0, 40),
     youtubeStreamHealthIssues: Array.isArray(settings?.youtubeStreamHealthIssues)

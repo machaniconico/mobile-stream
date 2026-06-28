@@ -95,6 +95,26 @@ describe("platform publishing preflight", () => {
     expect(report.summary).toBe("Live transition is ready.");
   });
 
+  it("blocks YouTube lifecycle transitions when dashboard privacy differs from the app setting", () => {
+    const report = transitionReport({
+      profile: youtubeProfile({
+        privacyStatus: "private",
+        youtubeBroadcastPrivacyStatus: "public"
+      }),
+      transitionStatus: "live",
+      streamStatus: "live",
+      validation: {
+        status: "needs-test",
+        recommendedNextStep: "Keep private validation controlled."
+      },
+      now: transitionNow
+    });
+
+    expect(report.canProceed).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toEqual(["youtube-transition-privacy-mismatch"]);
+    expect(formatPlatformPublishingPreflightBlockMessage(report)).toContain("app is configured for private");
+  });
+
   it("blocks YouTube lifecycle transitions when OAuth management credential is not retained", () => {
     const report = transitionReport({
       profile: youtubeProfile({ privacyStatus: "private" }),

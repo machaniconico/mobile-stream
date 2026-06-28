@@ -1484,6 +1484,10 @@ export const MobileStudioScreen = ({
                   Broadcast {profile.platformPublishing.youtubeBroadcastStatus || "unknown"}
                 </Text>
                 <Text style={styles.statusCell} numberOfLines={1}>
+                  Privacy {profile.platformPublishing.youtubeBroadcastPrivacyStatus || "unknown"} / app{" "}
+                  {profile.platformPublishing.privacyStatus}
+                </Text>
+                <Text style={styles.statusCell} numberOfLines={1}>
                   Stream {profile.platformPublishing.youtubeStreamStatus || "unknown"}
                 </Text>
                 <Text style={styles.statusCell} numberOfLines={1}>

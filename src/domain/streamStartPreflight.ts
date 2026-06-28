@@ -485,12 +485,17 @@ const createYouTubePublishingIssues = (
   platformChatOAuthCredential: StreamStartPreflightInput["platformChatOAuthCredential"]
 ): StreamStartPreflightIssue[] => {
   const settings = profile.platformPublishing;
-  const visibilityRequiresManagedBroadcast = settings.privacyStatus !== "private" && validation?.status === "ready";
-  if (!visibilityRequiresManagedBroadcast) {
-    return [];
+  const issues: StreamStartPreflightIssue[] = [];
+  const privacyMismatchIssue = createYouTubeBroadcastPrivacyMismatchIssue(profile);
+  if (privacyMismatchIssue) {
+    issues.push(privacyMismatchIssue);
   }
 
-  const issues: StreamStartPreflightIssue[] = [];
+  const visibilityRequiresManagedBroadcast = settings.privacyStatus !== "private" && validation?.status === "ready";
+  if (!visibilityRequiresManagedBroadcast) {
+    return issues;
+  }
+
   const oauthIssue = createOAuthScopeIssue({
     credential: resolvePreflightCredential(platformChatOAuthCredentials, platformChatOAuthCredential, "youtube"),
     platform: "youtube",
@@ -510,6 +515,7 @@ const createYouTubePublishingIssues = (
   if (freshnessIssue) {
     issues.push(freshnessIssue);
   }
+
   if (!settings.youtubeBroadcastId.trim()) {
     issues.push({
       code: "publishing-youtube-broadcast-required",
@@ -553,6 +559,28 @@ const createYouTubePublishingIssues = (
   }
 
   return issues;
+};
+
+const createYouTubeBroadcastPrivacyMismatchIssue = (
+  profile: NonNullable<StreamStartPreflightInput["profile"]>
+): StreamStartPreflightIssue | null => {
+  const settings = profile.platformPublishing;
+  if (!settings.youtubeBroadcastId.trim() || !settings.youtubeBroadcastPrivacyStatus) {
+    return null;
+  }
+
+  if (settings.youtubeBroadcastPrivacyStatus === settings.privacyStatus) {
+    return null;
+  }
+
+  return {
+    code: "publishing-youtube-privacy-mismatch",
+    severity: "block",
+    area: "publishing",
+    label: "YouTube privacy",
+    message: `YouTube broadcast privacy is ${settings.youtubeBroadcastPrivacyStatus}, but the app is configured for ${settings.privacyStatus}.`,
+    recommendation: "Refresh or recreate the YouTube broadcast so the dashboard privacy matches the app setting before starting."
+  };
 };
 
 const createTwitchPublishingIssues = (

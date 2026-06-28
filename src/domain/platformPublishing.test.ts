@@ -62,6 +62,9 @@ describe("platformPublishing", () => {
               title: "Launch live",
               liveChatId: "chat-1"
             },
+            status: {
+              privacyStatus: "unlisted"
+            },
             contentDetails: {
               boundStreamId: "stream-1"
             }
@@ -116,6 +119,7 @@ describe("platformPublishing", () => {
     );
     expect(result.profile.platformPublishing.youtubeBroadcastId).toBe("broadcast-1");
     expect(result.profile.platformPublishing.youtubeLiveChatId).toBe("chat-1");
+    expect(result.profile.platformPublishing.youtubeBroadcastPrivacyStatus).toBe("unlisted");
     expect(result.profile.platformPublishing.youtubeStatusCheckedAt).toBe("2026-01-01T00:00:00.000Z");
     expect(result.profile.platformChat.youtubeLiveChatId).toBe("chat-1");
   });
@@ -138,7 +142,8 @@ describe("platformPublishing", () => {
           liveChatId: "chat-2"
         },
         status: {
-          lifeCycleStatus: "live"
+          lifeCycleStatus: "live",
+          privacyStatus: "public"
         }
       })
     }));
@@ -163,6 +168,7 @@ describe("platformPublishing", () => {
     );
     expect(fetcher.mock.calls[0][0]).not.toContain("yt-access");
     expect(result.profile.platformPublishing.youtubeBroadcastStatus).toBe("live");
+    expect(result.profile.platformPublishing.youtubeBroadcastPrivacyStatus).toBe("public");
     expect(result.profile.platformPublishing.youtubeLiveChatId).toBe("chat-2");
     expect(result.profile.platformPublishing.youtubeStatusCheckedAt).toBe("2026-06-23T00:03:00.000Z");
     expect(result.profile.platformChat.youtubeLiveChatId).toBe("chat-2");
@@ -221,7 +227,8 @@ describe("platformPublishing", () => {
                 boundStreamId: "stream-1"
               },
               status: {
-                lifeCycleStatus: "testing"
+                lifeCycleStatus: "testing",
+                privacyStatus: "private"
               }
             }
           ]
@@ -238,6 +245,7 @@ describe("platformPublishing", () => {
     expect(fetcher.mock.calls[1][0]).toBe("https://www.googleapis.com/youtube/v3/liveStreams?id=stream-1&part=status");
     expect(fetcher.mock.calls[0][0]).not.toContain("yt-access");
     expect(result.profile.platformPublishing.youtubeBroadcastStatus).toBe("testing");
+    expect(result.profile.platformPublishing.youtubeBroadcastPrivacyStatus).toBe("private");
     expect(result.profile.platformPublishing.youtubeStreamStatus).toBe("active");
     expect(result.profile.platformPublishing.youtubeStreamHealthStatus).toBe("ok");
     expect(result.profile.platformPublishing.youtubeStreamHealthIssues).toEqual(["warning: bitrateLow: Video output low"]);

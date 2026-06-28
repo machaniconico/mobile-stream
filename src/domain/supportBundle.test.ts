@@ -302,6 +302,7 @@ describe("support bundle", () => {
         youtubeBroadcastId: "broadcast-1",
         youtubeStreamId: "stream-1",
         youtubeBroadcastStatus: "live",
+        youtubeBroadcastPrivacyStatus: "private" as const,
         youtubeStreamStatus: "active",
         youtubeStreamHealthStatus: "ok",
         youtubeStreamHealthIssues: [],
@@ -395,6 +396,7 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceFingerprint).toMatch(/^sve1-[0-9a-f]{8}-[0-9a-z]+$/);
     expect(bundle.summary.validationEvidenceLatestRunFingerprint).toBe(latestRunFingerprint);
     expect(bundle.summary.validationEvidencePlatformPublishingRunCount).toBe(1);
+    expect(bundle.profile.platformPublishing.youtubeBroadcastPrivacyStatus).toBe("private");
     expect(bundle.summary.validationEvidencePlatformIngestRunCount).toBe(1);
     expect(bundle.summary.validationEvidencePlatformIngestReadyCount).toBe(0);
     expect(bundle.summary.validationEvidencePlatformIngestWarningCount).toBe(1);

@@ -207,6 +207,7 @@ export const createYouTubeBroadcastAndBindStream = async (
     youtubeBroadcastId: broadcastId,
     youtubeLiveChatId: liveChatId,
     youtubeBroadcastStatus: normalizeSingleLine(bound.status?.lifeCycleStatus || inserted.status?.lifeCycleStatus) || "created",
+    youtubeBroadcastPrivacyStatus: normalizeYouTubePrivacyStatus(bound.status?.privacyStatus || inserted.status?.privacyStatus) || settings.privacyStatus,
     youtubeStreamId: normalizeSingleLine(bound.contentDetails?.boundStreamId) || settings.youtubeStreamId,
     youtubeStatusCheckedAt: new Date(now).toISOString()
   };
@@ -263,6 +264,7 @@ export const transitionYouTubeBroadcast = async (
 
   const liveChatId = normalizeSingleLine(payload.snippet?.liveChatId || settings.youtubeLiveChatId);
   const nextStatus = normalizeSingleLine(payload.status?.lifeCycleStatus) || broadcastStatus;
+  const nextPrivacyStatus = normalizeYouTubePrivacyStatus(payload.status?.privacyStatus) || settings.youtubeBroadcastPrivacyStatus;
 
   return {
     profile: {
@@ -270,6 +272,7 @@ export const transitionYouTubeBroadcast = async (
       platformPublishing: {
         ...settings,
         youtubeBroadcastStatus: nextStatus,
+        youtubeBroadcastPrivacyStatus: nextPrivacyStatus,
         youtubeLiveChatId: liveChatId,
         youtubeStatusCheckedAt: new Date(now).toISOString()
       },
@@ -326,6 +329,7 @@ export const refreshYouTubeBroadcastStatus = async (
   const nextPublishing: PlatformPublishingSettings = {
     ...settings,
     youtubeBroadcastStatus: normalizeSingleLine(broadcast.status?.lifeCycleStatus) || settings.youtubeBroadcastStatus,
+    youtubeBroadcastPrivacyStatus: normalizeYouTubePrivacyStatus(broadcast.status?.privacyStatus) || settings.youtubeBroadcastPrivacyStatus,
     youtubeLiveChatId: liveChatId,
     youtubeStreamId: streamId || settings.youtubeStreamId,
     youtubeStreamStatus: settings.youtubeStreamStatus,
@@ -630,3 +634,8 @@ const formatYouTubeHealthIssue = (issue: YouTubeLiveStreamHealthIssue): string =
 };
 
 const normalizeSingleLine = (value: unknown): string => (typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "");
+
+const normalizeYouTubePrivacyStatus = (value: unknown): PlatformPublishingSettings["privacyStatus"] | "" => {
+  const normalized = normalizeSingleLine(value).toLowerCase();
+  return normalized === "private" || normalized === "unlisted" || normalized === "public" ? normalized : "";
+};
