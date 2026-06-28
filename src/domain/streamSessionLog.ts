@@ -47,7 +47,11 @@ export interface StreamPlatformApiOperationEventInput {
   retryDelayLabel?: string | null;
 }
 
-export type StreamSafetyEventPhase = "privacy-shield-armed" | "privacy-shield-failed";
+export type StreamSafetyEventPhase =
+  | "privacy-shield-armed"
+  | "privacy-shield-failed"
+  | "public-launch-confirmed"
+  | "public-launch-cancelled";
 
 export const maxStreamSessionEvents = 50;
 
@@ -79,7 +83,7 @@ export const createStreamStatusEvent = (
 
 export const createStreamOperationEvent = (
   action: StreamControlAction,
-  phase: "started" | "succeeded" | "failed",
+  phase: "started" | "succeeded" | "failed" | "cancelled",
   message: string,
   now: Date = new Date()
 ): StreamSessionEvent => ({
@@ -220,10 +224,30 @@ export const createStreamSafetyEvent = (
   id: createEventId(now, "safety", phase),
   at: now.toISOString(),
   kind: "safety",
-  severity: phase === "privacy-shield-failed" ? "fail" : "warn",
-  title: phase === "privacy-shield-failed" ? "Privacy shield failed" : "Privacy shield armed",
+  severity: safetyEventSeverity(phase),
+  title: safetyEventTitle(phase),
   message: sanitizeSingleLine(message)
 });
+
+const safetyEventSeverity = (phase: StreamSafetyEventPhase): StreamSessionEventSeverity => {
+  if (phase === "privacy-shield-failed") {
+    return "fail";
+  }
+  return phase === "public-launch-confirmed" ? "info" : "warn";
+};
+
+const safetyEventTitle = (phase: StreamSafetyEventPhase): string => {
+  switch (phase) {
+    case "privacy-shield-armed":
+      return "Privacy shield armed";
+    case "privacy-shield-failed":
+      return "Privacy shield failed";
+    case "public-launch-confirmed":
+      return "Public launch confirmed";
+    case "public-launch-cancelled":
+      return "Public launch cancelled";
+  }
+};
 
 const chatEventTitle = (phase: StreamChatEventPhase): string => {
   switch (phase) {

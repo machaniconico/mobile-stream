@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createFailedStreamOperation, createPendingStreamOperation } from "./streamOperation";
+import {
+  createFailedStreamOperation,
+  createPendingStreamOperation,
+  isStreamOperationCancelledError,
+  StreamOperationCancelledError
+} from "./streamOperation";
 
 describe("stream operation status", () => {
   it("builds pending status labels for stream controls", () => {
@@ -27,5 +32,13 @@ describe("stream operation status", () => {
 
     expect(status.message).toContain("Authorization: Bearer [redacted]");
     expect(status.message).not.toContain("abcdefghijklmnop");
+  });
+
+  it("marks user-cancelled operations without treating them as native failures", () => {
+    const error = new StreamOperationCancelledError("Public launch confirmation cancelled.");
+
+    expect(isStreamOperationCancelledError(error)).toBe(true);
+    expect(isStreamOperationCancelledError(new Error("Public launch confirmation cancelled."))).toBe(false);
+    expect(createFailedStreamOperation("start", error).message).toBe("Start failed: Public launch confirmation cancelled.");
   });
 });

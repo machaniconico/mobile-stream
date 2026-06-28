@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Linking } from "react-native";
+import { Alert, Linking } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { createAvatarRuntimeStateFromScene, setExpression, tickAutoBlink, type AvatarExpression } from "../domain/avatar";
 import {
@@ -70,6 +70,12 @@ import {
   createPublicLaunchChecklist,
   formatPublicLaunchChecklistBlockMessage
 } from "../domain/publicLaunchChecklist";
+import {
+  createPublicLaunchConfirmation,
+  formatPublicLaunchConfirmationCancelMessage,
+  formatPublicLaunchConfirmationEventMessage,
+  type PublicLaunchConfirmation
+} from "../domain/publicLaunchConfirmation";
 import { rotateYouTubeStreamKey, syncTwitchStreamKey } from "../domain/platformStreamKeys";
 import { applyEmergencyBroadcastMute, clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
@@ -96,6 +102,8 @@ import {
 import {
   createFailedStreamOperation,
   createPendingStreamOperation,
+  isStreamOperationCancelledError,
+  StreamOperationCancelledError,
   type StreamControlAction,
   type StreamOperationStatus
 } from "../domain/streamOperation";
@@ -849,6 +857,18 @@ export const MobileApp = () => {
       if (!publicLaunchChecklist.canStart) {
         throw new Error(formatPublicLaunchChecklistBlockMessage(publicLaunchChecklist));
       }
+      const publicLaunchConfirmation = createPublicLaunchConfirmation(profile, publicLaunchChecklist);
+      if (publicLaunchConfirmation) {
+        const confirmed = await confirmPublicLaunchStart(publicLaunchConfirmation);
+        if (!confirmed) {
+          const message = formatPublicLaunchConfirmationCancelMessage(publicLaunchConfirmation);
+          recordStreamSessionEvent(createStreamSafetyEvent("public-launch-cancelled", message));
+          throw new StreamOperationCancelledError(message);
+        }
+        recordStreamSessionEvent(
+          createStreamSafetyEvent("public-launch-confirmed", formatPublicLaunchConfirmationEventMessage(publicLaunchConfirmation))
+        );
+      }
       await engine.prepare(scene, readiness.sanitizedProfile, { chatMessages: chatOverlayMessages });
       await engine.start();
       const chatPlan = platformChatConnection.ensureConnected(chatReader.settings.enabled);
@@ -902,6 +922,11 @@ export const MobileApp = () => {
       setOperationStatus(null);
       recordStreamSessionEvent(createStreamOperationEvent(action, "succeeded", `${pending.message} completed.`));
     } catch (error) {
+      if (isStreamOperationCancelledError(error)) {
+        setOperationStatus(null);
+        recordStreamSessionEvent(createStreamOperationEvent(action, "cancelled", error.message));
+        return;
+      }
       const failed = createFailedStreamOperation(action, error);
       setOperationStatus(failed);
       recordStreamSessionEvent(createStreamOperationEvent(action, "failed", failed.message));
@@ -1499,6 +1524,39 @@ const mergeOAuthAuth = (
 
 const shouldDisconnectPlatformChatOnStreamStop = (phase: string): boolean =>
   phase === "connecting" || phase === "connected" || phase === "failed";
+
+const confirmPublicLaunchStart = (confirmation: PublicLaunchConfirmation): Promise<boolean> =>
+  new Promise((resolve) => {
+    let settled = false;
+    const settle = (value: boolean) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(value);
+    };
+
+    Alert.alert(
+      "Confirm public start",
+      confirmation.message,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => settle(false)
+        },
+        {
+          text: confirmation.confirmationLabel,
+          style: "destructive",
+          onPress: () => settle(true)
+        }
+      ],
+      {
+        cancelable: true,
+        onDismiss: () => settle(false)
+      }
+    );
+  });
 
 const resolvePlatformApiCredentialPlatform = (
   profile: Pick<StudioProfile, "destination" | "platformChat">

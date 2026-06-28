@@ -20,6 +20,16 @@ const pendingMessages: Record<StreamControlAction, string> = {
   reconnect: "Reconnecting stream"
 };
 
+export class StreamOperationCancelledError extends Error {
+  constructor(message = "Stream operation cancelled.") {
+    super(message);
+    this.name = "StreamOperationCancelledError";
+  }
+}
+
+export const isStreamOperationCancelledError = (error: unknown): error is StreamOperationCancelledError =>
+  error instanceof StreamOperationCancelledError;
+
 export const createPendingStreamOperation = (action: StreamControlAction): StreamOperationStatus => ({
   kind: "pending",
   action,

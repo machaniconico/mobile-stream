@@ -64,6 +64,11 @@ import {
   createPublicLaunchChecklist,
   formatPublicLaunchChecklistBlockMessage
 } from "../domain/publicLaunchChecklist";
+import {
+  createPublicLaunchConfirmation,
+  formatPublicLaunchConfirmationCancelMessage,
+  formatPublicLaunchConfirmationEventMessage
+} from "../domain/publicLaunchConfirmation";
 import { rotateYouTubeStreamKey, syncTwitchStreamKey } from "../domain/platformStreamKeys";
 import { applyEmergencyBroadcastMute, clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
@@ -90,6 +95,8 @@ import {
 import {
   createFailedStreamOperation,
   createPendingStreamOperation,
+  isStreamOperationCancelledError,
+  StreamOperationCancelledError,
   type StreamControlAction,
   type StreamOperationStatus
 } from "../domain/streamOperation";
@@ -456,6 +463,18 @@ export const App = () => {
       if (!publicLaunchChecklist.canStart) {
         throw new Error(formatPublicLaunchChecklistBlockMessage(publicLaunchChecklist));
       }
+      const publicLaunchConfirmation = createPublicLaunchConfirmation(profile, publicLaunchChecklist);
+      if (publicLaunchConfirmation) {
+        const confirmed = window.confirm(publicLaunchConfirmation.message);
+        if (!confirmed) {
+          const message = formatPublicLaunchConfirmationCancelMessage(publicLaunchConfirmation);
+          recordStreamSessionEvent(createStreamSafetyEvent("public-launch-cancelled", message));
+          throw new StreamOperationCancelledError(message);
+        }
+        recordStreamSessionEvent(
+          createStreamSafetyEvent("public-launch-confirmed", formatPublicLaunchConfirmationEventMessage(publicLaunchConfirmation))
+        );
+      }
       await engine.prepare(scene, readiness.sanitizedProfile, { chatMessages: chatOverlayMessages });
       await engine.start();
       const chatPlan = platformChatConnection.ensureConnected(chatReader.settings.enabled);
@@ -509,6 +528,11 @@ export const App = () => {
       setOperationStatus(null);
       recordStreamSessionEvent(createStreamOperationEvent(action, "succeeded", `${pending.message} completed.`));
     } catch (error) {
+      if (isStreamOperationCancelledError(error)) {
+        setOperationStatus(null);
+        recordStreamSessionEvent(createStreamOperationEvent(action, "cancelled", error.message));
+        return;
+      }
       const failed = createFailedStreamOperation(action, error);
       setOperationStatus(failed);
       recordStreamSessionEvent(createStreamOperationEvent(action, "failed", failed.message));

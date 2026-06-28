@@ -65,11 +65,14 @@ describe("stream session log", () => {
   it("creates stream operation events", () => {
     const started = createStreamOperationEvent("start", "started", "Starting stream", new Date("2026-06-23T00:00:00.000Z"));
     const failed = createStreamOperationEvent("reconnect", "failed", "Reconnect failed", new Date("2026-06-23T00:00:01.000Z"));
+    const cancelled = createStreamOperationEvent("start", "cancelled", "Public launch confirmation cancelled.", new Date("2026-06-23T00:00:02.000Z"));
 
     expect(started.title).toBe("Start started");
     expect(started.severity).toBe("info");
     expect(failed.title).toBe("Reconnect failed");
     expect(failed.severity).toBe("fail");
+    expect(cancelled.title).toBe("Start cancelled");
+    expect(cancelled.severity).toBe("info");
   });
 
   it("creates platform API operation audit events", () => {
@@ -137,6 +140,30 @@ describe("stream session log", () => {
       kind: "safety",
       severity: "fail",
       title: "Privacy shield failed"
+    });
+  });
+
+  it("creates public launch safety confirmation events", () => {
+    const confirmed = createStreamSafetyEvent(
+      "public-launch-confirmed",
+      "YouTube Public launch confirmation accepted.",
+      new Date("2026-06-23T00:00:00.000Z")
+    );
+    const cancelled = createStreamSafetyEvent(
+      "public-launch-cancelled",
+      "Twitch launch confirmation cancelled.",
+      new Date("2026-06-23T00:00:01.000Z")
+    );
+
+    expect(confirmed).toMatchObject({
+      kind: "safety",
+      severity: "info",
+      title: "Public launch confirmed"
+    });
+    expect(cancelled).toMatchObject({
+      kind: "safety",
+      severity: "warn",
+      title: "Public launch cancelled"
     });
   });
 
