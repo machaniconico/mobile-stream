@@ -842,6 +842,7 @@ export const MobileApp = () => {
       const preflight = createStreamStartPreflightReport({
         readiness,
         streamStatus: engineSnapshot.state.status,
+        enginePlatform: engineSnapshot.platform,
         profile,
         validation: diagnostics.validation,
         chatReader: chatReader.settings,
@@ -977,6 +978,7 @@ export const MobileApp = () => {
     const preflight = createStreamStartPreflightReport({
       readiness,
       streamStatus: snapshot.state.status,
+      enginePlatform: snapshot.platform,
       profile,
       validation: diagnostics.validation,
       chatReader: chatReader.settings,
@@ -1322,6 +1324,7 @@ export const MobileApp = () => {
         const startPreflight = createStreamStartPreflightReport({
           readiness,
           streamStatus: engineSnapshot.state.status,
+          enginePlatform: engineSnapshot.platform,
           profile,
           validation: diagnostics.validation,
           chatReader: chatReader.settings,

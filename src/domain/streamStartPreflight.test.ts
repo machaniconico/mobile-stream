@@ -464,6 +464,81 @@ describe("stream start preflight", () => {
     expect(report.warnings.map((issue) => issue.code)).toContain("readiness-scene-native-composition-native-overlays");
   });
 
+  it("blocks public YouTube starts when the native engine is not active", () => {
+    const profile = {
+      ...validProfile(),
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "public" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "stream-id",
+        youtubeBroadcastStatus: "testing",
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      enginePlatform: "mock",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toEqual(["engine-native-required"]);
+    expect(formatStreamStartPreflightBlockMessage(report)).toContain("current engine platform is mock");
+  });
+
+  it("blocks Twitch starts when engine platform evidence is missing", () => {
+    const baseProfile = applyDestinationPreset(validProfile(), "twitch-auto");
+    const profile = {
+      ...baseProfile,
+      destination: {
+        ...baseProfile.destination,
+        streamKey: "placeholder-twitch-key"
+      },
+      platformPublishing: {
+        ...baseProfile.platformPublishing,
+        twitchLiveStatus: "offline",
+        twitchStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      enginePlatform: "unknown",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: twitchCredential([TWITCH_CHANNEL_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toEqual(["engine-native-required"]);
+    expect(report.blocks[0]?.message).toContain("current engine platform is unknown");
+  });
+
+  it("keeps private YouTube validation starts available on the mock engine", () => {
+    const report = createStreamStartPreflightReport({
+      readiness: validReadiness(),
+      streamStatus: "idle",
+      enginePlatform: "mock",
+      profile: validProfile()
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("ready");
+    expect(report.issues.map((issue) => issue.code)).not.toContain("engine-native-required");
+  });
+
   it("blocks Twitch launches when native still-image assets are not iOS extension-readable", () => {
     const baseProfile = applyDestinationPreset(validProfile(), "twitch-auto");
     const profile = {

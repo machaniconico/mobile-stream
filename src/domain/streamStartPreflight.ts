@@ -64,6 +64,7 @@ export interface StreamStartPreflightReport {
 export interface StreamStartPreflightInput {
   readiness: ReadinessReport;
   streamStatus: StreamStatus;
+  enginePlatform?: string | null;
   operationStatus?: StreamOperationStatus | null;
   profile?: Pick<StudioProfile, "destination" | "platformPublishing" | "platformChat" | "micEffects" | "broadcastMixer">;
   validation?: Pick<StreamValidationChecklist, "status" | "recommendedNextStep"> | null;
@@ -90,6 +91,7 @@ export const platformPublishingStatusMaxAgeMinutes = 10;
 export const createStreamStartPreflightReport = ({
   readiness,
   streamStatus,
+  enginePlatform = null,
   operationStatus = null,
   profile,
   validation = null,
@@ -112,6 +114,7 @@ export const createStreamStartPreflightReport = ({
     ...createChatReadoutIssues(profile, chatReader, platformChatAuth, platformChatOAuthCredentials, platformChatOAuthCredential, platformChatConnection, now),
     ...createCommercialValidationIssues(profile, validation),
     ...createPlatformPublishingIssues(profile, validation, now, platformChatOAuthCredentials, platformChatOAuthCredential),
+    ...createEnginePlatformIssues(profile, enginePlatform),
     ...createEngineStateIssues(streamStatus),
     ...createOperationIssues(operationStatus)
   ];
@@ -223,6 +226,9 @@ const isPlatformVisibleProductionTarget = (profile: StreamStartPreflightInput["p
   return profile.destination.platform === "youtube-live" && profile.platformPublishing.privacyStatus === "public";
 };
 
+const isNativeEnginePlatform = (enginePlatform: string | null | undefined): boolean =>
+  enginePlatform === "ios" || enginePlatform === "android";
+
 const readinessArea = (issue: ReadinessIssue): StreamStartPreflightArea => {
   if (issue.field === "serverUrl" || issue.field === "streamKey") {
     return "destination";
@@ -319,6 +325,30 @@ const createEngineStateIssues = (status: StreamStatus): StreamStartPreflightIssu
       label: "Engine",
       message: messages[status],
       recommendation: "Wait for the current stream operation to finish before starting again."
+    }
+  ];
+};
+
+const createEnginePlatformIssues = (
+  profile: StreamStartPreflightInput["profile"],
+  enginePlatform: StreamStartPreflightInput["enginePlatform"]
+): StreamStartPreflightIssue[] => {
+  if (!isPlatformVisibleProductionTarget(profile) || enginePlatform === null || enginePlatform === undefined) {
+    return [];
+  }
+
+  if (isNativeEnginePlatform(enginePlatform)) {
+    return [];
+  }
+
+  return [
+    {
+      code: "engine-native-required",
+      severity: "block",
+      area: "engine",
+      label: "Native engine",
+      message: `Native streaming engine is required for platform-visible streams, but current engine platform is ${enginePlatform}.`,
+      recommendation: "Run the iOS or Android app with the native LiveCaster module linked before starting YouTube Public or Twitch streams."
     }
   ];
 };

@@ -444,6 +444,7 @@ export const StudioScreen = ({
   const startPreflight = createStreamStartPreflightReport({
     readiness,
     streamStatus: snapshot.state.status,
+    enginePlatform: snapshot.platform,
     operationStatus,
     profile,
     validation: diagnostics.validation,

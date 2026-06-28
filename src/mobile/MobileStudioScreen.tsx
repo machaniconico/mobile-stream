@@ -409,6 +409,7 @@ export const MobileStudioScreen = ({
   const startPreflight = createStreamStartPreflightReport({
     readiness,
     streamStatus: snapshot.state.status,
+    enginePlatform: snapshot.platform,
     operationStatus,
     profile,
     validation: diagnostics.validation,
