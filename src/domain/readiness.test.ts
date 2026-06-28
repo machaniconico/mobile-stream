@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultScene } from "./scene";
+import { createDefaultScene, updateSource } from "./scene";
 import { applyDestinationPreset, createDefaultStudioProfile, legacyCustomDestinationProfile } from "./profiles";
 import { createReadinessReport } from "./readiness";
 
@@ -32,7 +32,7 @@ describe("stream readiness", () => {
       destination: {
         ...createDefaultStudioProfile().destination,
         serverUrl: "rtmps://live.example-stream.test/app",
-        streamKey: "abcd-1234-efgh"
+        streamKey: "dummy-stream-value"
       }
     };
 
@@ -205,6 +205,37 @@ describe("stream readiness", () => {
 
     expect(report.issues.map((issue) => issue.code)).toContain("mic-gain-hot");
     expect(report.issues.map((issue) => issue.code)).toContain("mic-monitor-loud");
+  });
+
+  it("warns when a visible chat overlay uses a non-transparent background", () => {
+    const scene = updateSource(createDefaultScene(), "source-chat", (source) =>
+      source.kind === "chat"
+        ? {
+            ...source,
+            backgroundOpacity: 0.35
+          }
+        : source
+    );
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "dummy-stream-value"
+      }
+    };
+
+    const report = createReadinessReport(scene, profile);
+
+    expect(report.canStart).toBe(true);
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        code: "scene-chat-overlay-background-opaque",
+        field: "scene",
+        severity: "warning",
+        message: expect.stringContaining("non-transparent chat background")
+      })
+    );
   });
 
   it("warns when face tracking is enabled but not production-ready", () => {

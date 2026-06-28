@@ -265,6 +265,9 @@ const readinessRecommendation = (issue: ReadinessIssue): string => {
   if (issue.code === "scene-native-composition-no-screen-capture") {
     return "Enable a screen source and confirm the native compositor output before public or Twitch launch.";
   }
+  if (issue.code === "scene-chat-overlay-background-opaque") {
+    return "Keep chat overlay background opacity at 0 for transparent comment overlays unless an intentional lower-third design has been validated on device.";
+  }
   switch (issue.field) {
     case "serverUrl":
       return "Set a valid YouTube Live, Twitch, or custom RTMP(S) ingest endpoint.";

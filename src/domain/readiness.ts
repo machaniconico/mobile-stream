@@ -1,4 +1,4 @@
-import type { SceneDocument } from "./scene";
+import type { ChatOverlaySource, SceneDocument } from "./scene";
 import type { StudioProfile, StreamProtocol } from "./profiles";
 import { normalizeStudioProfile } from "./profiles";
 import { createNativeCompositionReport } from "./nativeComposition";
@@ -22,6 +22,7 @@ export interface ReadinessReport {
 }
 
 const supportedProtocols = new Set(["rtmp:", "rtmps:"]);
+const chatOverlayBackgroundOpacityWarningThreshold = 0.05;
 
 export const createReadinessReport = (scene: SceneDocument, profile: StudioProfile): ReadinessReport => {
   const sanitizedProfile = sanitizeStudioProfile(profile);
@@ -304,6 +305,20 @@ const validateScene = (scene: SceneDocument): ReadinessIssue[] => {
       severity: "warning",
       field: "scene",
       message: "An image source has no asset selected."
+    });
+  }
+
+  const opaqueChatOverlays = visibleSources.filter(
+    (source): source is ChatOverlaySource =>
+      source.kind === "chat" && source.backgroundOpacity > chatOverlayBackgroundOpacityWarningThreshold
+  );
+  if (opaqueChatOverlays.length > 0) {
+    const names = opaqueChatOverlays.map((source) => source.name).join(", ");
+    issues.push({
+      code: "scene-chat-overlay-background-opaque",
+      severity: "warning",
+      field: "scene",
+      message: `${names} uses a non-transparent chat background that can cover gameplay or avatar overlays.`
     });
   }
 

@@ -135,6 +135,34 @@ describe("stream start preflight", () => {
     expect(report.summary).toBe("Launch preflight is ready.");
   });
 
+  it("warns before start when the chat overlay background is not transparent", () => {
+    const profile = validProfile();
+    const scene = updateSource(createScreenOnlyScene(), "source-chat", (source) =>
+      source.kind === "chat"
+        ? {
+            ...source,
+            visible: true,
+            backgroundOpacity: 0.35
+          }
+        : source
+    );
+
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(scene, profile),
+      streamStatus: "idle",
+      profile
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("warning");
+    expect(report.warnings).toContainEqual(
+      expect.objectContaining({
+        code: "readiness-scene-chat-overlay-background-opaque",
+        recommendation: expect.stringContaining("background opacity at 0")
+      })
+    );
+  });
+
   it("blocks start when every broadcast mixer channel is silent", () => {
     const profile: StudioProfile = {
       ...validProfile(),
