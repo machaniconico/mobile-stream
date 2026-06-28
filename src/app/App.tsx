@@ -210,6 +210,11 @@ export const App = () => {
     );
   }, []);
   const getAudioLevelSamples = useCallback(() => audioLevelSamplesRef.current, []);
+  useEffect(() => {
+    if (snapshot.state.status === "preparing") {
+      audioLevelSamplesRef.current = [];
+    }
+  }, [snapshot.state.status]);
   const recordChatSpeechEvent = useCallback(
     (event: ChatSpeechQueueEvent) => {
       recordStreamSessionEvent(
@@ -437,7 +442,8 @@ export const App = () => {
         faceTrackingRuntime,
         {
           chatReader: chatReader.settings,
-          platformChatConnection: platformChatConnection.connection
+          platformChatConnection: platformChatConnection.connection,
+          audioLevelSamples: getAudioLevelSamples()
         }
       );
       const preflight = createStreamStartPreflightReport({
@@ -614,7 +620,8 @@ export const App = () => {
       faceTrackingRuntime,
       {
         chatReader: chatReader.settings,
-        platformChatConnection: platformChatConnection.connection
+        platformChatConnection: platformChatConnection.connection,
+        audioLevelSamples: getAudioLevelSamples()
       }
     );
     const preflight = createStreamStartPreflightReport({
@@ -644,6 +651,7 @@ export const App = () => {
   }, [
     chatReader.settings,
     faceTrackingRuntime,
+    getAudioLevelSamples,
     platformChatAuth,
     platformChatConnection.connection,
     profile,
@@ -669,12 +677,14 @@ export const App = () => {
         faceTrackingRuntime,
         {
           chatReader: chatReader.settings,
-          platformChatConnection: platformChatConnection.connection
+          platformChatConnection: platformChatConnection.connection,
+          audioLevelSamples: getAudioLevelSamples()
         }
       ),
     [
       chatReader.settings,
       faceTrackingRuntime,
+      getAudioLevelSamples,
       platformChatConnection.connection,
       profile,
       readiness,
@@ -955,7 +965,8 @@ export const App = () => {
           faceTrackingRuntime,
           {
             chatReader: chatReader.settings,
-            platformChatConnection: platformChatConnection.connection
+            platformChatConnection: platformChatConnection.connection,
+            audioLevelSamples: getAudioLevelSamples()
           }
         );
         const startPreflight = createStreamStartPreflightReport({
@@ -1062,6 +1073,7 @@ export const App = () => {
         streamSessionEvents={streamSessionEvents}
         streamHealthSamples={streamHealthSamples}
         streamSessionSummaries={streamSessionSummaries.summaries}
+        audioLevelSamples={getAudioLevelSamples()}
         streamValidationRuns={streamValidationRuns}
         qualityAutomationDecision={qualityAutomationDecision}
         operationStatus={operationStatus}

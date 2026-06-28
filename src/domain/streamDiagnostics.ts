@@ -42,6 +42,10 @@ import {
   type StreamQualityAdvisorRecommendation
 } from "./streamQualityAdvisor";
 import {
+  createBroadcastAudioSilenceGuardDiagnostics,
+  type BroadcastAudioSilenceGuardDiagnostics
+} from "./streamAudioSilenceGuard";
+import {
   summarizeStreamHealthHistory,
   type StreamHealthHistorySummary,
   type StreamHealthSample
@@ -49,6 +53,7 @@ import {
 import type { StreamSessionEvent } from "./streamSessionLog";
 import {
   createStreamSessionHistorySummary,
+  type StreamAudioLevelSample,
   type StreamSessionAudioLevelSummary,
   type StreamSessionHistorySummary,
   type StreamSessionSummary
@@ -170,6 +175,7 @@ export interface StreamDiagnostics {
     broadcastMixer: BroadcastMixerProfile;
     broadcastMixerSummary: string;
     audioGuard: BroadcastAudioGuardDiagnostics;
+    audioSilenceGuard: BroadcastAudioSilenceGuardDiagnostics;
   };
   audioRoute: AudioRouteState;
   chatReadout: {
@@ -224,6 +230,7 @@ export interface StreamDiagnosticsOptions {
     message?: string;
   } | null;
   audioRoute?: AudioRouteState | null;
+  audioLevelSamples?: StreamAudioLevelSample[];
 }
 
 const platformLabels: Record<StudioProfile["destination"]["platform"], string> = {
@@ -282,6 +289,13 @@ export const createStreamDiagnostics = (
   const audioRoute = normalizeAudioRouteState(options.audioRoute ?? createDefaultAudioRouteState());
   const monitorSafety = createAudioMonitorSafetyStatus(micEffects, audioRoute);
   const audioGuard = createBroadcastAudioGuardDiagnostics(nativeRuntime?.audioProcessing ?? null, sessionSummaries[0]?.audioLevel ?? null);
+  const audioSilenceGuard = createBroadcastAudioSilenceGuardDiagnostics({
+    samples: options.audioLevelSamples ?? [],
+    healthSamples,
+    broadcastMixer,
+    streamStatus: snapshot.state.status,
+    elapsedSeconds: snapshot.health.elapsedSeconds
+  });
   const checks = [
     ...readiness.issues.map<DiagnosticCheck>((issue) => ({
       code: `readiness-${issue.code}`,
@@ -305,6 +319,7 @@ export const createStreamDiagnostics = (
     createNativeCompositionCheck(nativeComposition),
     createBroadcastMixerCheck(broadcastMixer),
     createBroadcastAudioGuardCheck(audioGuard),
+    createBroadcastAudioSilenceGuardCheck(audioSilenceGuard),
     createAudioRouteCheck(monitorSafety),
     createHistoryCheck(history),
     createRecoveryCheck(recoveryStatus)
@@ -355,7 +370,8 @@ export const createStreamDiagnostics = (
     monitorSafety,
     broadcastMixer,
     broadcastMixerSummary: formatBroadcastMixerSummary(broadcastMixer),
-    audioGuard
+    audioGuard,
+    audioSilenceGuard
   };
   const chatReadout = {
     platformChatEnabled: platformChat.enabled,
@@ -589,6 +605,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Mic effects: ${diagnostics.audio.micEffectsEnabled ? "on" : "off"} / preset ${diagnostics.audio.presetId} / gain ${diagnostics.audio.inputGainDb} dB / compression ${diagnostics.audio.compression}`,
     `- Broadcast mix: ${diagnostics.audio.broadcastMixerSummary}`,
     `- Peak guard: ${diagnostics.audio.audioGuard.status} / ${diagnostics.audio.audioGuard.summary} Action: ${diagnostics.audio.audioGuard.recommendation}`,
+    `- Silence guard: ${diagnostics.audio.audioSilenceGuard.status} / ${diagnostics.audio.audioSilenceGuard.summary} Action: ${diagnostics.audio.audioSilenceGuard.recommendation}`,
     `- Monitor: ${diagnostics.audio.monitorEnabled ? "on" : "off"} / volume ${Math.round(diagnostics.audio.monitorVolume * 100)}% / headphones-only ${diagnostics.audio.monitorHeadphonesOnly ? "yes" : "no"}`,
     `- Monitor route: ${diagnostics.audio.monitorSafety.status} / ${diagnostics.audio.monitorSafety.outputName} / headphones ${diagnostics.audio.monitorSafety.headphonesConnected ? "yes" : "no"} / stale ${diagnostics.audio.monitorSafety.stale ? "yes" : "no"}`,
     `- Route action: ${diagnostics.audio.monitorSafety.recommendation}`,
@@ -1427,6 +1444,15 @@ const createBroadcastAudioGuardCheck = (audioGuard: BroadcastAudioGuardDiagnosti
   status: audioGuard.status,
   label: "Audio peak guard",
   message: audioGuard.summary
+});
+
+const createBroadcastAudioSilenceGuardCheck = (
+  audioSilenceGuard: BroadcastAudioSilenceGuardDiagnostics
+): DiagnosticCheck => ({
+  code: `broadcast-audio-silence-guard-${audioSilenceGuard.status}`,
+  status: audioSilenceGuard.status,
+  label: "Audio silence guard",
+  message: audioSilenceGuard.summary
 });
 
 const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): DiagnosticCheck => {

@@ -83,7 +83,7 @@ import {
 import { applyStreamQualityAdvisorTarget } from "../domain/streamQualityAdvisor";
 import type { StreamQualityAutomationDecision } from "../domain/streamQualityAutomation";
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
-import type { StreamSessionSummary } from "../domain/streamSessionSummary";
+import type { StreamAudioLevelSample, StreamSessionSummary } from "../domain/streamSessionSummary";
 import {
   createStreamValidationRun,
   formatStreamValidationRunAudioLabel,
@@ -110,6 +110,7 @@ interface MobileStudioScreenProps {
   streamSessionEvents: StreamSessionEvent[];
   streamHealthSamples: StreamHealthSample[];
   streamSessionSummaries: StreamSessionSummary[];
+  audioLevelSamples: StreamAudioLevelSample[];
   streamValidationRuns: StreamValidationRun[];
   qualityAutomationDecision: StreamQualityAutomationDecision;
   operationStatus: StreamOperationStatus | null;
@@ -271,6 +272,9 @@ const nativeRuntimeMetricLabel = (diagnostics: StreamDiagnostics): string =>
 const audioGuardMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.audio.audioGuard.status} / limiter ${diagnostics.audio.audioGuard.nativeLimitedSamplePercent}% / peak ${Math.round(diagnostics.audio.audioGuard.lastSessionPeakLevel * 100)}%`;
 
+const audioSilenceGuardMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  `${diagnostics.audio.audioSilenceGuard.status} / samples ${diagnostics.audio.audioSilenceGuard.sampleCount} / active ${diagnostics.audio.audioSilenceGuard.activePercent}% / peak ${Math.round(diagnostics.audio.audioSilenceGuard.peakLevel * 100)}%`;
+
 const qualityAdvisorTargetLabel = (diagnostics: StreamDiagnostics): string =>
   diagnostics.qualityAdvisor.suggestedTarget
     ? `${diagnostics.qualityAdvisor.suggestedTarget.profileName} / ${diagnostics.qualityAdvisor.suggestedTarget.videoBitrateKbps} kbps / ${diagnostics.qualityAdvisor.suggestedTarget.fps}fps`
@@ -288,6 +292,7 @@ export const MobileStudioScreen = ({
   streamSessionEvents,
   streamHealthSamples,
   streamSessionSummaries,
+  audioLevelSamples,
   streamValidationRuns,
   qualityAutomationDecision,
   operationStatus,
@@ -397,7 +402,8 @@ export const MobileStudioScreen = ({
     {
       chatReader: chatReader.settings,
       platformChatConnection,
-      audioRoute
+      audioRoute,
+      audioLevelSamples
     }
   );
   const startPreflight = createStreamStartPreflightReport({
@@ -994,6 +1000,10 @@ export const MobileStudioScreen = ({
           <View style={[styles.audioGuardChip, audioGuardChipStyle(diagnostics.audio.audioGuard.status)]}>
             <Text style={styles.audioGuardTitle}>Peak guard</Text>
             <Text style={styles.audioGuardText}>{diagnostics.audio.audioGuard.summary}</Text>
+          </View>
+          <View style={[styles.audioGuardChip, audioGuardChipStyle(diagnostics.audio.audioSilenceGuard.status)]}>
+            <Text style={styles.audioGuardTitle}>Silence guard</Text>
+            <Text style={styles.audioGuardText}>{diagnostics.audio.audioSilenceGuard.summary}</Text>
           </View>
           <View style={styles.grid2}>
             {expressions.map((expression) => (
@@ -1679,6 +1689,7 @@ const StreamDiagnosticsPanel = ({
       <DiagnosticMetric label="Upload target" value={`${diagnostics.quality.estimatedUploadKbps} kbps`} />
       <DiagnosticMetric label="Telemetry" value={`${diagnostics.telemetry.bitrateKbps} kbps / ${diagnostics.telemetry.fps} fps`} />
       <DiagnosticMetric label="Audio guard" value={audioGuardMetricLabel(diagnostics)} />
+      <DiagnosticMetric label="Audio silence" value={audioSilenceGuardMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Audio route" value={`${diagnostics.audio.monitorSafety.status} / ${diagnostics.audio.monitorSafety.outputName}`} />
       <DiagnosticMetric label="Native runtime" value={nativeRuntimeMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Recovery" value={recoveryMetricLabel(diagnostics)} />

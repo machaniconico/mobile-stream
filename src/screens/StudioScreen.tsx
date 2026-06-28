@@ -100,7 +100,7 @@ import {
 import { applyStreamQualityAdvisorTarget } from "../domain/streamQualityAdvisor";
 import type { StreamQualityAutomationDecision } from "../domain/streamQualityAutomation";
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
-import type { StreamSessionSummary } from "../domain/streamSessionSummary";
+import type { StreamAudioLevelSample, StreamSessionSummary } from "../domain/streamSessionSummary";
 import {
   createStreamValidationRun,
   formatStreamValidationRunAudioLabel,
@@ -128,6 +128,7 @@ interface StudioScreenProps {
   streamSessionEvents: StreamSessionEvent[];
   streamHealthSamples: StreamHealthSample[];
   streamSessionSummaries: StreamSessionSummary[];
+  audioLevelSamples: StreamAudioLevelSample[];
   streamValidationRuns: StreamValidationRun[];
   qualityAutomationDecision: StreamQualityAutomationDecision;
   operationStatus: StreamOperationStatus | null;
@@ -312,6 +313,9 @@ const nativeRuntimeMetricLabel = (diagnostics: StreamDiagnostics): string =>
 const audioGuardMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.audio.audioGuard.status} / limiter ${diagnostics.audio.audioGuard.nativeLimitedSamplePercent}% / peak ${Math.round(diagnostics.audio.audioGuard.lastSessionPeakLevel * 100)}%`;
 
+const audioSilenceGuardMetricLabel = (diagnostics: StreamDiagnostics): string =>
+  `${diagnostics.audio.audioSilenceGuard.status} / samples ${diagnostics.audio.audioSilenceGuard.sampleCount} / active ${diagnostics.audio.audioSilenceGuard.activePercent}% / peak ${Math.round(diagnostics.audio.audioSilenceGuard.peakLevel * 100)}%`;
+
 const qualityIncidentSummaryTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" => {
   if (diagnostics.qualityIncidents.incidents.some((incident) => incident.severity === "fail")) {
     return "fail";
@@ -358,6 +362,7 @@ export const StudioScreen = ({
   streamSessionEvents,
   streamHealthSamples,
   streamSessionSummaries,
+  audioLevelSamples,
   streamValidationRuns,
   qualityAutomationDecision,
   operationStatus,
@@ -432,7 +437,8 @@ export const StudioScreen = ({
     faceTrackingRuntime,
     {
       chatReader: chatReader.settings,
-      platformChatConnection
+      platformChatConnection,
+      audioLevelSamples
     }
   );
   const startPreflight = createStreamStartPreflightReport({
@@ -976,6 +982,10 @@ export const StudioScreen = ({
               <span>Peak guard</span>
               <strong>{diagnostics.audio.audioGuard.summary}</strong>
             </div>
+            <div className={`audio-guard-chip ${diagnostics.audio.audioSilenceGuard.status}`}>
+              <span>Silence guard</span>
+              <strong>{diagnostics.audio.audioSilenceGuard.summary}</strong>
+            </div>
             <div className="expression-grid">
               {expressions.map((expression) => (
                 <button
@@ -1483,6 +1493,8 @@ const StreamDiagnosticsPanel = ({
         </strong>
         <span>Audio guard</span>
         <strong>{audioGuardMetricLabel(diagnostics)}</strong>
+        <span>Audio silence</span>
+        <strong>{audioSilenceGuardMetricLabel(diagnostics)}</strong>
         <span>Dashboard</span>
         <strong>{platformPublishingFreshnessMetricLabel(diagnostics, platformPublishingFreshness)}</strong>
         <span>Native runtime</span>

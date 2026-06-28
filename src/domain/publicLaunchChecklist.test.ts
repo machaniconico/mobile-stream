@@ -68,6 +68,15 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
       summary: "Native mic limiter is below threshold at 0%.",
       recommendation: "Keep this audio peak baseline with validation evidence."
     },
+    audioSilenceGuard: {
+      status: "pass",
+      sampleCount: 12,
+      activePercent: 92,
+      peakLevel: 0.62,
+      micExpected: true,
+      summary: "Mic activity is present.",
+      recommendation: "Keep this current mic activity baseline with the live validation evidence."
+    },
     monitorSafety: {
       status: "pass",
       route: "wired-headphones",

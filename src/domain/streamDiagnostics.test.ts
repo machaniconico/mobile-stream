@@ -266,6 +266,84 @@ describe("stream diagnostics", () => {
     expect(diagnostics.checks.find((check) => check.code === "broadcast-audio-guard-warn")?.status).toBe("warn");
   });
 
+  it("warns when the live mic has no current audio activity samples", () => {
+    const scene = createDefaultScene();
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "live" },
+        health: health({ bitrateKbps: 3500, fps: 30, elapsedSeconds: 30 })
+      },
+      [],
+      [
+        {
+          at: "2026-06-23T00:00:00.000Z",
+          status: "live",
+          elapsedSeconds: 1,
+          bitrateKbps: 3500,
+          fps: 30,
+          droppedFrames: 0,
+          reconnectAttempts: 0
+        }
+      ],
+      [],
+      [],
+      null,
+      {
+        audioLevelSamples: []
+      }
+    );
+
+    expect(diagnostics.audio.audioSilenceGuard.status).toBe("warn");
+    expect(diagnostics.audio.audioSilenceGuard.sampleCount).toBe(0);
+    expect(diagnostics.checks.find((check) => check.code === "broadcast-audio-silence-guard-warn")?.status).toBe("warn");
+  });
+
+  it("passes the live mic silence guard when current audio activity is present", () => {
+    const scene = createDefaultScene();
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "live" },
+        health: health({ bitrateKbps: 3500, fps: 30, elapsedSeconds: 30 })
+      },
+      [],
+      [
+        {
+          at: "2026-06-23T00:00:00.000Z",
+          status: "live",
+          elapsedSeconds: 1,
+          bitrateKbps: 3500,
+          fps: 30,
+          droppedFrames: 0,
+          reconnectAttempts: 0
+        }
+      ],
+      [],
+      [],
+      null,
+      {
+        audioLevelSamples: [
+          createStreamAudioLevelSample(0.12, "manual", new Date("2026-06-23T00:00:02.000Z")),
+          createStreamAudioLevelSample(0.18, "manual", new Date("2026-06-23T00:00:03.000Z")),
+          createStreamAudioLevelSample(0.24, "manual", new Date("2026-06-23T00:00:04.000Z"))
+        ]
+      }
+    );
+
+    expect(diagnostics.audio.audioSilenceGuard.status).toBe("pass");
+    expect(diagnostics.audio.audioSilenceGuard.activePercent).toBe(100);
+    expect(diagnostics.checks.find((check) => check.code === "broadcast-audio-silence-guard-pass")?.status).toBe("pass");
+  });
+
   it("summarizes YouTube dashboard status for validation evidence", () => {
     const scene = createDefaultScene();
     const profile = {

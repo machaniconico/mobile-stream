@@ -150,6 +150,7 @@
 - Android mobile still-image asset picker/preparation copies selected content/file/path PNGTuber/image source assets into app-internal storage and stores a stable `file://` URI for native GL overlay rendering.
 - Android microphone PCM effect path through RootEncoder `CustomAudioEffect`.
 - Android and iOS native runtime telemetry surfaces broadcast mixer gain/mute state and processed/limited mic sample counters for Audio Peak Guard evidence.
+- Shared Audio Silence Guard diagnostics warn during live/reconnecting sessions when the mic channel is in the broadcast mix but current retained mic-activity samples are missing, silent, or very low.
 - Android headphone-only mic monitor playback through `AudioTrack`, with monitor write/drop counters and AudioTrack-buffer latency estimates surfaced in native runtime telemetry.
 - Android `LiveCasterNative.getAudioRoute()` reports current output route and headphone connection state for monitor-safety preflight.
 - iOS Broadcast Upload Extension headphone-gated self-monitor playback for processed ReplayKit microphone PCM with runtime route, write/drop, and AVAudioSession latency evidence.

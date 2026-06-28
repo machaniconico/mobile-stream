@@ -240,6 +240,11 @@ export const MobileApp = () => {
     );
   }, []);
   const getAudioLevelSamples = useCallback(() => audioLevelSamplesRef.current, []);
+  useEffect(() => {
+    if (snapshot.state.status === "preparing") {
+      audioLevelSamplesRef.current = [];
+    }
+  }, [snapshot.state.status]);
   const recordChatSpeechEvent = useCallback(
     (event: ChatSpeechQueueEvent) => {
       recordStreamSessionEvent(
@@ -830,7 +835,8 @@ export const MobileApp = () => {
         {
           chatReader: chatReader.settings,
           platformChatConnection: platformChatConnection.connection,
-          audioRoute
+          audioRoute,
+          audioLevelSamples: getAudioLevelSamples()
         }
       );
       const preflight = createStreamStartPreflightReport({
@@ -964,7 +970,8 @@ export const MobileApp = () => {
       {
         chatReader: chatReader.settings,
         platformChatConnection: platformChatConnection.connection,
-        audioRoute
+        audioRoute,
+        audioLevelSamples: getAudioLevelSamples()
       }
     );
     const preflight = createStreamStartPreflightReport({
@@ -996,6 +1003,7 @@ export const MobileApp = () => {
     audioRoute,
     chatReader.settings,
     faceTrackingRuntime,
+    getAudioLevelSamples,
     platformChatAuth,
     platformChatConnection.connection,
     profile,
@@ -1022,13 +1030,15 @@ export const MobileApp = () => {
         {
           chatReader: chatReader.settings,
           platformChatConnection: platformChatConnection.connection,
-          audioRoute
+          audioRoute,
+          audioLevelSamples: getAudioLevelSamples()
         }
       ),
     [
       audioRoute,
       chatReader.settings,
       faceTrackingRuntime,
+      getAudioLevelSamples,
       platformChatConnection.connection,
       profile,
       readiness,
@@ -1305,7 +1315,8 @@ export const MobileApp = () => {
           {
             chatReader: chatReader.settings,
             platformChatConnection: platformChatConnection.connection,
-            audioRoute
+            audioRoute,
+            audioLevelSamples: getAudioLevelSamples()
           }
         );
         const startPreflight = createStreamStartPreflightReport({
@@ -1419,6 +1430,7 @@ export const MobileApp = () => {
         streamSessionEvents={streamSessionEvents}
         streamHealthSamples={streamHealthSamples}
         streamSessionSummaries={streamSessionSummaries.summaries}
+        audioLevelSamples={getAudioLevelSamples()}
         streamValidationRuns={streamValidationRuns}
         qualityAutomationDecision={qualityAutomationDecision}
         operationStatus={operationStatus}
