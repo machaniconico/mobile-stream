@@ -8,6 +8,7 @@ import {
 export type StreamProtocol = "rtmp" | "rtmps";
 export type StreamPlatform = "custom" | "youtube-live" | "twitch";
 export type MicEffectPresetId = "clean" | "broadcast" | "bright" | "robot";
+export type BroadcastMixerChannelId = "mic" | "appAudio" | "chatReadout";
 export type YouTubePrivacyStatus = "private" | "unlisted" | "public";
 export type DestinationPresetId =
   | "youtube-live-rtmps"
@@ -65,6 +66,13 @@ export interface MicEffectsProfile {
   monitorHeadphonesOnly: boolean;
 }
 
+export interface BroadcastMixerChannel {
+  volume: number;
+  muted: boolean;
+}
+
+export type BroadcastMixerProfile = Record<BroadcastMixerChannelId, BroadcastMixerChannel>;
+
 export interface MicEffectPreset {
   id: MicEffectPresetId;
   name: string;
@@ -103,6 +111,7 @@ export interface StudioProfile {
   quality: QualityProfile;
   avatar: AvatarProfile;
   micEffects: MicEffectsProfile;
+  broadcastMixer: BroadcastMixerProfile;
   faceTracking: FaceTrackingProfile;
   platformChat: PlatformChatSettings;
   platformPublishing: PlatformPublishingSettings;
@@ -450,6 +459,22 @@ export const defaultMicEffectsProfile: MicEffectsProfile = {
   monitorHeadphonesOnly: true
 };
 
+export const broadcastMixerChannels: Array<{
+  id: BroadcastMixerChannelId;
+  label: string;
+  shortLabel: string;
+}> = [
+  { id: "mic", label: "Mic", shortLabel: "Mic" },
+  { id: "appAudio", label: "App audio", shortLabel: "App" },
+  { id: "chatReadout", label: "Chat readout", shortLabel: "Chat" }
+];
+
+export const defaultBroadcastMixerProfile: BroadcastMixerProfile = {
+  mic: { volume: 1, muted: false },
+  appAudio: { volume: 0.85, muted: false },
+  chatReadout: { volume: 0.85, muted: false }
+};
+
 export const defaultPlatformPublishingSettings: PlatformPublishingSettings = {
   title: "MobileLiveCaster Live",
   description: "",
@@ -498,6 +523,7 @@ export const createDefaultStudioProfile = (): StudioProfile => ({
   quality: qualityProfiles[0],
   avatar: { ...defaultAvatarProfile },
   micEffects: { ...defaultMicEffectsProfile },
+  broadcastMixer: cloneBroadcastMixerProfile(defaultBroadcastMixerProfile),
   faceTracking: { ...defaultFaceTrackingProfile },
   platformChat: createDefaultPlatformChatSettings(),
   platformPublishing: { ...defaultPlatformPublishingSettings }
@@ -544,11 +570,20 @@ export const normalizeStudioProfile = (profile: Partial<StudioProfile> | null | 
       ...profile?.avatar
     },
     micEffects: normalizeMicEffectsProfile(profile?.micEffects),
+    broadcastMixer: normalizeBroadcastMixerProfile(profile?.broadcastMixer),
     faceTracking: normalizeFaceTrackingProfile(profile?.faceTracking),
     platformChat: normalizePlatformChatSettings(profile?.platformChat ?? fallback.platformChat),
     platformPublishing: normalizePlatformPublishingSettings(profile?.platformPublishing)
   };
 };
+
+export const normalizeBroadcastMixerProfile = (
+  mixer: Partial<BroadcastMixerProfile> | null | undefined
+): BroadcastMixerProfile => ({
+  mic: normalizeBroadcastMixerChannel(mixer?.mic, defaultBroadcastMixerProfile.mic),
+  appAudio: normalizeBroadcastMixerChannel(mixer?.appAudio, defaultBroadcastMixerProfile.appAudio),
+  chatReadout: normalizeBroadcastMixerChannel(mixer?.chatReadout, defaultBroadcastMixerProfile.chatReadout)
+});
 
 export const normalizePlatformPublishingSettings = (
   settings: Partial<PlatformPublishingSettings> | null | undefined
@@ -603,6 +638,20 @@ const normalizeMicEffectsProfile = (micEffects: Partial<MicEffectsProfile> | nul
     monitorHeadphonesOnly: micEffects?.monitorHeadphonesOnly ?? defaultMicEffectsProfile.monitorHeadphonesOnly
   };
 };
+
+const normalizeBroadcastMixerChannel = (
+  channel: Partial<BroadcastMixerChannel> | null | undefined,
+  fallback: BroadcastMixerChannel
+): BroadcastMixerChannel => ({
+  volume: clampNumber(channel?.volume ?? fallback.volume, 0, 1),
+  muted: channel?.muted === true
+});
+
+const cloneBroadcastMixerProfile = (mixer: BroadcastMixerProfile): BroadcastMixerProfile => ({
+  mic: { ...mixer.mic },
+  appAudio: { ...mixer.appAudio },
+  chatReadout: { ...mixer.chatReadout }
+});
 
 const clampNumber = (value: number, min: number, max: number): number => {
   if (!Number.isFinite(value)) {

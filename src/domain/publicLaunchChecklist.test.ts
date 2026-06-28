@@ -56,6 +56,8 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
     monitorEnabled: true,
     monitorVolume: 0.5,
     monitorHeadphonesOnly: true,
+    broadcastMixer: createDefaultStudioProfile().broadcastMixer,
+    broadcastMixerSummary: "Mic 100% / App 85% / Chat 85%",
     monitorSafety: {
       status: "pass",
       route: "wired-headphones",

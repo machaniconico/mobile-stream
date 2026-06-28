@@ -67,6 +67,7 @@
 - Native Android/iOS status and publisher-runtime message redaction for publish URLs, stream keys, and bearer tokens before app display.
 - In-app stream key clear/replacement controls for browser and mobile setup screens.
 - Mic effect profile model with presets, gain, noise gate, compression, and headphone monitor settings.
+- Broadcast audio mixer profile with per-channel mic/app-audio/chat-readout volume and mute settings, launch/diagnostics silent-mix detection, Android mic broadcast gain/mute, and iOS ReplayKit app/mic mix gain.
 - Shared audio-route safety model for speaker/receiver/wired/USB/Bluetooth/AirPlay/HDMI output state, monitor-route diagnostics, and Go Live preflight blocking when headphones-only monitoring is routed to speakers.
 - Chat/comment read-aloud domain model with queueing, muted words, command-message skipping, duplicate suppression, queue limits, URL redaction, speech text shaping, and launch preflight warnings when public-stream safety controls are disabled.
 - Transparent chat/comment overlay scene source with runtime-only recent message payloads, author toggle, line limits, per-source message length limits, URL redaction, text color, optional semi-transparent backdrop, and native/web compositor support without persisting comment text into scene storage.

@@ -29,6 +29,8 @@ describe("studio profiles", () => {
     expect(profile.avatar.id).toBe("avatar-default");
     expect(profile.micEffects.presetId).toBe("clean");
     expect(profile.micEffects.monitorHeadphonesOnly).toBe(true);
+    expect(profile.broadcastMixer.mic).toEqual({ volume: 1, muted: false });
+    expect(profile.broadcastMixer.appAudio).toEqual({ volume: 0.85, muted: false });
     expect(profile.faceTracking.enabled).toBe(false);
     expect(profile.faceTracking.inputMode).toBe("simulated");
     expect(profile.platformChat.enabled).toBe(false);
@@ -244,6 +246,29 @@ describe("studio profiles", () => {
     expect(profile.micEffects.noiseGateDb).toBe(-70);
     expect(profile.micEffects.compression).toBe(1);
     expect(profile.micEffects.monitorVolume).toBe(1);
+  });
+
+  it("normalizes broadcast mixer channels into safe ranges", () => {
+    const profile = normalizeStudioProfile({
+      broadcastMixer: {
+        mic: {
+          volume: 5,
+          muted: true
+        },
+        appAudio: {
+          volume: -2,
+          muted: false
+        },
+        chatReadout: {
+          volume: 0.4,
+          muted: true
+        }
+      }
+    });
+
+    expect(profile.broadcastMixer.mic).toEqual({ volume: 1, muted: true });
+    expect(profile.broadcastMixer.appAudio).toEqual({ volume: 0, muted: false });
+    expect(profile.broadcastMixer.chatReadout).toEqual({ volume: 0.4, muted: true });
   });
 
   it("normalizes face tracking values for persisted profiles", () => {

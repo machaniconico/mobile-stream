@@ -123,6 +123,7 @@ struct LiveCasterPreparedConfiguration {
     let videoBitrateKbps: Int
     let audioBitrateKbps: Int
     let micEffects: LiveCasterMicEffectsConfiguration
+    let broadcastMixer: LiveCasterBroadcastMixerConfiguration
 
     init(profileJSON: String) throws {
         guard
@@ -161,6 +162,7 @@ struct LiveCasterPreparedConfiguration {
         videoBitrateKbps = Self.intValue(quality["videoBitrateKbps"], fallback: 4500, range: 800...20000)
         audioBitrateKbps = Self.intValue(quality["audioBitrateKbps"], fallback: 128, range: 64...320)
         micEffects = LiveCasterMicEffectsConfiguration(payload: root["micEffects"] as? [String: Any])
+        broadcastMixer = LiveCasterBroadcastMixerConfiguration(payload: root["broadcastMixer"] as? [String: Any])
     }
 
     func payload(renderGraphJSON: String) -> [String: Any] {
@@ -180,6 +182,7 @@ struct LiveCasterPreparedConfiguration {
             "videoBitrateKbps": videoBitrateKbps,
             "audioBitrateKbps": audioBitrateKbps,
             "micEffects": micEffects.payload,
+            "broadcastMixer": broadcastMixer.payload,
             "renderGraph": renderGraphJSON
         ]
     }
@@ -337,6 +340,83 @@ struct LiveCasterMicEffectsConfiguration {
             return fallback
         }
         return min(max(parsed, range.lowerBound), range.upperBound)
+    }
+}
+
+struct LiveCasterBroadcastMixerConfiguration {
+    let mic: LiveCasterBroadcastMixerChannelConfiguration
+    let appAudio: LiveCasterBroadcastMixerChannelConfiguration
+    let chatReadout: LiveCasterBroadcastMixerChannelConfiguration
+
+    init(payload: [String: Any]?) {
+        mic = LiveCasterBroadcastMixerChannelConfiguration(payload: payload?["mic"] as? [String: Any], fallbackVolume: 1)
+        appAudio = LiveCasterBroadcastMixerChannelConfiguration(payload: payload?["appAudio"] as? [String: Any], fallbackVolume: 0.85)
+        chatReadout = LiveCasterBroadcastMixerChannelConfiguration(payload: payload?["chatReadout"] as? [String: Any], fallbackVolume: 0.85)
+    }
+
+    var payload: [String: Any] {
+        [
+            "mic": mic.payload,
+            "appAudio": appAudio.payload,
+            "chatReadout": chatReadout.payload
+        ]
+    }
+}
+
+struct LiveCasterBroadcastMixerChannelConfiguration {
+    let volume: Double
+    let muted: Bool
+
+    var effectiveVolume: Double {
+        muted ? 0 : volume
+    }
+
+    init(payload: [String: Any]?, fallbackVolume: Double) {
+        volume = Self.doubleValue(payload?["volume"], fallback: fallbackVolume, range: 0...1)
+        muted = Self.boolValue(payload?["muted"], fallback: false)
+    }
+
+    var payload: [String: Any] {
+        [
+            "volume": volume,
+            "muted": muted
+        ]
+    }
+
+    private static func doubleValue(_ value: Any?, fallback: Double, range: ClosedRange<Double>) -> Double {
+        let parsed: Double?
+        if let doubleValue = value as? Double {
+            parsed = doubleValue
+        } else if let numberValue = value as? NSNumber {
+            parsed = numberValue.doubleValue
+        } else if let stringValue = value as? String {
+            parsed = Double(stringValue.trimmingCharacters(in: .whitespacesAndNewlines))
+        } else {
+            parsed = nil
+        }
+        guard let parsed else {
+            return fallback
+        }
+        return min(max(parsed, range.lowerBound), range.upperBound)
+    }
+
+    private static func boolValue(_ value: Any?, fallback: Bool) -> Bool {
+        if let boolValue = value as? Bool {
+            return boolValue
+        }
+        if let numberValue = value as? NSNumber {
+            return numberValue.boolValue
+        }
+        if let stringValue = value as? String {
+            let normalized = stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if ["true", "yes", "1"].contains(normalized) {
+                return true
+            }
+            if ["false", "no", "0"].contains(normalized) {
+                return false
+            }
+        }
+        return fallback
     }
 }
 

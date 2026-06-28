@@ -193,6 +193,7 @@ struct BroadcastUploadConfiguration: Equatable {
     let audioBitrateKbps: Int
     let renderGraphJSON: String?
     let micEffects: BroadcastMicEffectsConfiguration
+    let broadcastMixer: BroadcastMixerConfiguration
 
     var transportScheme: String {
         publishURL.scheme?.lowercased() ?? ""
@@ -213,6 +214,7 @@ struct BroadcastUploadConfiguration: Equatable {
         audioBitrateKbps = Self.clampedInt(["audioBitrateKbps"], in: setupInfo, defaultValue: 128, range: 64...320)
         renderGraphJSON = Self.stringValue(["renderGraph", "renderGraphJSON"], in: setupInfo)
         micEffects = BroadcastMicEffectsConfiguration(payload: Self.dictionaryValue(["micEffects"], in: setupInfo))
+        broadcastMixer = BroadcastMixerConfiguration(payload: Self.dictionaryValue(["broadcastMixer"], in: setupInfo))
     }
 
     private static func resolvePublishURL(setupInfo: [String: NSObject]) throws -> URL {
@@ -432,6 +434,86 @@ struct BroadcastMicEffectsConfiguration: Equatable {
     }
 }
 
+struct BroadcastMixerConfiguration: Equatable {
+    let mic: BroadcastMixerChannelConfiguration
+    let appAudio: BroadcastMixerChannelConfiguration
+    let chatReadout: BroadcastMixerChannelConfiguration
+
+    init(payload: [String: Any]?) {
+        mic = BroadcastMixerChannelConfiguration(payload: payload?["mic"] as? [String: Any], fallbackVolume: 1)
+        appAudio = BroadcastMixerChannelConfiguration(payload: payload?["appAudio"] as? [String: Any], fallbackVolume: 0.85)
+        chatReadout = BroadcastMixerChannelConfiguration(payload: payload?["chatReadout"] as? [String: Any], fallbackVolume: 0.85)
+    }
+
+    func asDictionary() -> [String: Any] {
+        [
+            "mic": mic.asDictionary(),
+            "appAudio": appAudio.asDictionary(),
+            "chatReadout": chatReadout.asDictionary()
+        ]
+    }
+}
+
+struct BroadcastMixerChannelConfiguration: Equatable {
+    let volume: Float
+    let muted: Bool
+
+    var effectiveVolume: Float {
+        muted ? 0 : volume
+    }
+
+    init(payload: [String: Any]?, fallbackVolume: Float) {
+        volume = Self.floatValue(payload?["volume"], fallback: fallbackVolume, range: 0...1)
+        muted = Self.boolValue(payload?["muted"], fallback: false)
+    }
+
+    func asDictionary() -> [String: Any] {
+        [
+            "volume": volume,
+            "muted": muted
+        ]
+    }
+
+    private static func floatValue(_ value: Any?, fallback: Float, range: ClosedRange<Float>) -> Float {
+        let parsed: Float?
+        if let floatValue = value as? Float {
+            parsed = floatValue
+        } else if let doubleValue = value as? Double {
+            parsed = Float(doubleValue)
+        } else if let numberValue = value as? NSNumber {
+            parsed = numberValue.floatValue
+        } else if let stringValue = value as? String {
+            parsed = Float(stringValue.trimmingCharacters(in: .whitespacesAndNewlines))
+        } else {
+            parsed = nil
+        }
+        guard let parsed else {
+            return fallback
+        }
+        return min(max(parsed, range.lowerBound), range.upperBound)
+    }
+
+    private static func boolValue(_ value: Any?, fallback: Bool) -> Bool {
+        if let boolValue = value as? Bool {
+            return boolValue
+        }
+        if let numberValue = value as? NSNumber {
+            return numberValue.boolValue
+        }
+        if let stringValue = value as? String {
+            switch stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "true", "1", "yes":
+                return true
+            case "false", "0", "no":
+                return false
+            default:
+                break
+            }
+        }
+        return fallback
+    }
+}
+
 struct BroadcastUploadStats: Equatable {
     private(set) var startedAt: Date?
     private(set) var stoppedAt: Date?
@@ -624,6 +706,7 @@ final class BroadcastSharedStore {
             payload["videoBitrateKbps"] = configuration.videoBitrateKbps
             payload["audioBitrateKbps"] = configuration.audioBitrateKbps
             payload["micEffects"] = configuration.micEffects.asDictionary()
+            payload["broadcastMixer"] = configuration.broadcastMixer.asDictionary()
         }
 
         defaults.set(payload, forKey: broadcastRuntimeStateKey)
@@ -2241,8 +2324,8 @@ final class BroadcastAudioEncoder {
     private let mixerChannelCount = 2
     private let mixerFramesPerAACPacket = 1024
     private let mixerSoloFlushFrameThreshold = 2048
-    private let appGain: Float = 0.85
-    private let microphoneGain: Float = 1.0
+    private let appGain: Float
+    private let microphoneGain: Float
 
     var stats: BroadcastAudioEncoderStats {
         statsLock.performLocked {
@@ -2256,6 +2339,8 @@ final class BroadcastAudioEncoder {
     ) {
         self.configuration = configuration
         self.onEncodedFrame = onEncodedFrame
+        appGain = configuration.broadcastMixer.appAudio.effectiveVolume
+        microphoneGain = configuration.broadcastMixer.mic.effectiveVolume
         microphoneProcessor = BroadcastMicrophoneProcessor(configuration: configuration.micEffects)
         microphoneMonitor = BroadcastMicrophoneMonitor(configuration: configuration.micEffects)
         currentStats.configureMicEffects(configuration.micEffects)

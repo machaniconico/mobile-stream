@@ -135,6 +135,44 @@ describe("stream start preflight", () => {
     expect(report.summary).toBe("Launch preflight is ready.");
   });
 
+  it("blocks start when every broadcast mixer channel is silent", () => {
+    const profile: StudioProfile = {
+      ...validProfile(),
+      broadcastMixer: {
+        mic: { volume: 0, muted: true },
+        appAudio: { volume: 0, muted: true },
+        chatReadout: { volume: 0, muted: true }
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toContain("broadcast-mixer-silent");
+  });
+
+  it("warns before start when the broadcast mic channel is silent", () => {
+    const profile: StudioProfile = {
+      ...validProfile(),
+      broadcastMixer: {
+        ...validProfile().broadcastMixer,
+        mic: { volume: 0, muted: true }
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("warning");
+    expect(report.warnings.map((issue) => issue.code)).toContain("broadcast-mixer-mic-muted");
+  });
+
   it("uses current face tracking diagnostics instead of stale readiness warnings", () => {
     const profile = {
       ...validProfile(),

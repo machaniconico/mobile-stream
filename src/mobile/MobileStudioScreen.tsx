@@ -32,11 +32,12 @@ import {
   createYouTubeBroadcastTransitionPreflightReport,
   type PlatformPublishingPreflightReport
 } from "../domain/platformPublishingPreflight";
-import type { DestinationPresetId, MicEffectPresetId, StudioProfile, StreamProtocol } from "../domain/profiles";
+import type { BroadcastMixerChannelId, DestinationPresetId, MicEffectPresetId, StudioProfile, StreamProtocol } from "../domain/profiles";
 import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../domain/platformChat";
 import {
   applyDestinationPreset,
   applyMicEffectPreset,
+  broadcastMixerChannels,
   destinationPresets,
   markDestinationCustom,
   micEffectPresets,
@@ -487,6 +488,24 @@ export const MobileStudioScreen = ({
       return;
     }
     onProfileChange(applyMicEffectPreset(profile, presetId));
+  };
+  const updateBroadcastMixerChannel = (
+    channelId: BroadcastMixerChannelId,
+    update: Partial<StudioProfile["broadcastMixer"][BroadcastMixerChannelId]>
+  ) => {
+    if (setupLocked) {
+      return;
+    }
+    onProfileChange({
+      ...profile,
+      broadcastMixer: {
+        ...profile.broadcastMixer,
+        [channelId]: {
+          ...profile.broadcastMixer[channelId],
+          ...update
+        }
+      }
+    });
   };
   const updateFaceTracking = (update: Partial<StudioProfile["faceTracking"]>) => {
     if (setupLocked) {
@@ -1058,6 +1077,31 @@ export const MobileStudioScreen = ({
             disabled={setupLocked || !profile.micEffects.monitorEnabled}
             onChange={(monitorVolume) => updateMicEffects({ monitorVolume })}
           />
+          <Label text="Broadcast mix" />
+          {broadcastMixerChannels.map((channel) => {
+            const settings = profile.broadcastMixer[channel.id];
+            return (
+              <View key={channel.id} style={styles.broadcastMixerRow}>
+                <ActionButton
+                  label={settings.muted ? "Muted" : "Live"}
+                  variant={settings.muted ? "active" : "default"}
+                  disabled={setupLocked}
+                  onPress={() => updateBroadcastMixerChannel(channel.id, { muted: !settings.muted })}
+                />
+                <View style={styles.broadcastMixerVolume}>
+                  <NumberStepper
+                    label={channel.label}
+                    value={settings.volume}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    disabled={setupLocked || settings.muted}
+                    onChange={(volume) => updateBroadcastMixerChannel(channel.id, { volume })}
+                  />
+                </View>
+              </View>
+            );
+          })}
           <View style={styles.trackingReadout}>
             <Text style={[styles.trackingCell, diagnostics.audio.monitorSafety.status === "pass" && styles.trackingCellActive]}>
               {diagnostics.audio.monitorSafety.status}
@@ -3417,6 +3461,16 @@ const styles = StyleSheet.create({
   grid4: {
     flexDirection: "row",
     gap: 8
+  },
+  broadcastMixerRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    alignItems: "stretch"
+  },
+  broadcastMixerVolume: {
+    flex: 2,
+    minWidth: 180
   },
   actionButton: {
     minHeight: 46,

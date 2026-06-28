@@ -54,7 +54,14 @@ import {
   type PublicLaunchChecklist,
   type PublicLaunchChecklistItemStatus
 } from "../domain/publicLaunchChecklist";
-import { applyMicEffectPreset, micEffectPresets, type MicEffectPresetId, type StudioProfile } from "../domain/profiles";
+import {
+  applyMicEffectPreset,
+  broadcastMixerChannels,
+  micEffectPresets,
+  type BroadcastMixerChannelId,
+  type MicEffectPresetId,
+  type StudioProfile
+} from "../domain/profiles";
 import type { ReadinessReport } from "../domain/readiness";
 import {
   addSource,
@@ -460,6 +467,24 @@ export const StudioScreen = ({
       return;
     }
     onProfileChange(applyMicEffectPreset(profile, presetId));
+  };
+  const updateBroadcastMixerChannel = (
+    channelId: BroadcastMixerChannelId,
+    update: Partial<StudioProfile["broadcastMixer"][BroadcastMixerChannelId]>
+  ) => {
+    if (setupLocked) {
+      return;
+    }
+    onProfileChange({
+      ...profile,
+      broadcastMixer: {
+        ...profile.broadcastMixer,
+        [channelId]: {
+          ...profile.broadcastMixer[channelId],
+          ...update
+        }
+      }
+    });
   };
   const updateFaceTracking = (update: Partial<StudioProfile["faceTracking"]>) => {
     if (setupLocked) {
@@ -1038,6 +1063,33 @@ export const StudioScreen = ({
                 disabled={setupLocked || !profile.micEffects.monitorEnabled}
                 onChange={(monitorVolume) => updateMicEffects({ monitorVolume })}
               />
+            </div>
+            <div className="broadcast-mixer" aria-label="broadcast audio mixer">
+              <div className="section-kicker">Broadcast mix</div>
+              {broadcastMixerChannels.map((channel) => {
+                const settings = profile.broadcastMixer[channel.id];
+                return (
+                  <div className="broadcast-mixer-row" key={channel.id}>
+                    <button
+                      className={`segmented-button ${settings.muted ? "active" : ""}`}
+                      type="button"
+                      disabled={setupLocked}
+                      onClick={() => updateBroadcastMixerChannel(channel.id, { muted: !settings.muted })}
+                    >
+                      {settings.muted ? "Muted" : "Live"}
+                    </button>
+                    <SpeechSlider
+                      label={channel.label}
+                      value={settings.volume}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      disabled={setupLocked || settings.muted}
+                      onChange={(volume) => updateBroadcastMixerChannel(channel.id, { volume })}
+                    />
+                  </div>
+                );
+              })}
             </div>
             <div className="face-tracking">
               <div className="protocol-row" role="group" aria-label="face tracking power">

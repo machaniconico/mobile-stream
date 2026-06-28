@@ -94,8 +94,9 @@ class MediaProjectionService : Service(), ConnectChecker {
 
             val microphoneSource = MicrophoneSource()
             micProcessingEffect?.release()
-            micProcessingEffect = MicProcessingEffect(applicationContext, profile.micEffects).also { effect ->
-                if (profile.micEffects.enabled || profile.micEffects.monitorEnabled) {
+            micProcessingEffect = MicProcessingEffect(applicationContext, profile.micEffects, profile.broadcastMixer).also { effect ->
+                val micMix = profile.broadcastMixer.mic
+                if (profile.micEffects.enabled || profile.micEffects.monitorEnabled || micMix.muted || micMix.volume < 1f) {
                     microphoneSource.setAudioEffect(effect)
                 }
             }

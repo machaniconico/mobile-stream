@@ -18,6 +18,7 @@ import kotlin.math.tanh
 class MicProcessingEffect(
     context: Context,
     private val settings: MicEffectsProfile,
+    private val broadcastMixer: BroadcastMixerProfile = BroadcastMixerProfile(),
     private val sampleRate: Int = 44100,
     private val isStereo: Boolean = true
 ) : CustomAudioEffect() {
@@ -56,6 +57,7 @@ class MicProcessingEffect(
         }
 
         writeMonitor(processed)
+        applyVolume(processed, broadcastMixer.mic.effectiveVolume())
         return processed
     }
 

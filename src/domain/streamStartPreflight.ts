@@ -22,7 +22,7 @@ import {
   type PlatformChatOAuthCredentialStore
 } from "./platformChatOAuth";
 import type { ReadinessIssue, ReadinessReport } from "./readiness";
-import type { StudioProfile } from "./profiles";
+import { broadcastMixerChannels, type StudioProfile } from "./profiles";
 import type { StreamOperationStatus } from "./streamOperation";
 import type { StreamStatus } from "./streamState";
 import type { StreamValidationChecklist } from "./streamValidationChecklist";
@@ -65,7 +65,7 @@ export interface StreamStartPreflightInput {
   readiness: ReadinessReport;
   streamStatus: StreamStatus;
   operationStatus?: StreamOperationStatus | null;
-  profile?: Pick<StudioProfile, "destination" | "platformPublishing" | "platformChat" | "micEffects">;
+  profile?: Pick<StudioProfile, "destination" | "platformPublishing" | "platformChat" | "micEffects" | "broadcastMixer">;
   validation?: Pick<StreamValidationChecklist, "status" | "recommendedNextStep"> | null;
   chatReader?: (Pick<ChatReaderSettings, "enabled"> & Partial<Pick<ChatReaderSettings, "redactUrls" | "skipCommandMessages">>) | null;
   platformChatAuth?: PlatformChatAuthSession | null;
@@ -99,6 +99,7 @@ export const createStreamStartPreflightReport = ({
       .filter((issue) => !shouldReplaceReadinessFaceTrackingIssue(issue, faceTracking))
       .map((issue) => toPreflightIssue(issue, profile)),
     ...createFaceTrackingIssues(faceTracking),
+    ...createBroadcastMixerIssues(profile),
     ...createAudioMonitorRouteIssues(profile, audioRoute),
     ...createChatReadoutIssues(profile, chatReader, platformChatAuth, platformChatOAuthCredentials, platformChatOAuthCredential, platformChatConnection, now),
     ...createCommercialValidationIssues(profile, validation),
@@ -641,6 +642,55 @@ const createAudioMonitorRouteIssues = (
 
   return [];
 };
+
+const createBroadcastMixerIssues = (profile: StreamStartPreflightInput["profile"]): StreamStartPreflightIssue[] => {
+  if (!profile?.broadcastMixer) {
+    return [];
+  }
+
+  const { broadcastMixer } = profile;
+  const micLive = !broadcastMixer.mic.muted && broadcastMixer.mic.volume > 0;
+  const appLive = !broadcastMixer.appAudio.muted && broadcastMixer.appAudio.volume > 0;
+  const chatLive = !broadcastMixer.chatReadout.muted && broadcastMixer.chatReadout.volume > 0;
+  const summary = formatBroadcastMixerSummary(broadcastMixer);
+
+  if (!micLive && !appLive && !chatLive) {
+    return [
+      {
+        code: "broadcast-mixer-silent",
+        severity: "block",
+        area: "audio",
+        label: "Broadcast mixer",
+        message: `All broadcast audio channels are muted or set to zero. ${summary}`,
+        recommendation: "Unmute at least one broadcast audio channel before starting."
+      }
+    ];
+  }
+
+  if (!micLive) {
+    return [
+      {
+        code: "broadcast-mixer-mic-muted",
+        severity: "warning",
+        area: "audio",
+        label: "Broadcast mixer",
+        message: `The mic channel is muted or set to zero in the broadcast mix. ${summary}`,
+        recommendation: "Unmute the mic channel if the stream should include your voice."
+      }
+    ];
+  }
+
+  return [];
+};
+
+const formatBroadcastMixerSummary = (mixer: StudioProfile["broadcastMixer"]): string =>
+  broadcastMixerChannels
+    .map((channel) => {
+      const settings = mixer[channel.id];
+      const level = settings.muted || settings.volume <= 0 ? "muted" : `${Math.round(settings.volume * 100)}%`;
+      return `${channel.shortLabel} ${level}`;
+    })
+    .join(" / ");
 
 const createChatReadoutIssues = (
   profile: StreamStartPreflightInput["profile"],

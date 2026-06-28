@@ -83,6 +83,50 @@ describe("stream diagnostics", () => {
     expect(diagnostics.telemetry.enginePlatform).toBe("mock");
   });
 
+  it("warns when the broadcast mic channel is muted", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      broadcastMixer: {
+        ...createDefaultStudioProfile().broadcastMixer,
+        mic: {
+          volume: 0,
+          muted: true
+        }
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health()
+    });
+
+    expect(diagnostics.audio.broadcastMixerSummary).toContain("Mic muted");
+    expect(diagnostics.checks.find((check) => check.code === "broadcast-mixer-mic-muted")?.status).toBe("warn");
+  });
+
+  it("fails diagnostics when every broadcast audio channel is silent", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      broadcastMixer: {
+        mic: { volume: 0, muted: true },
+        appAudio: { volume: 0, muted: true },
+        chatReadout: { volume: 0, muted: true }
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health()
+    });
+
+    expect(diagnostics.status).toBe("fail");
+    expect(diagnostics.checks.find((check) => check.code === "broadcast-mixer-silent")?.status).toBe("fail");
+  });
+
   it("summarizes YouTube dashboard status for validation evidence", () => {
     const scene = createDefaultScene();
     const profile = {

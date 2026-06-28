@@ -1,4 +1,4 @@
-import { getDestinationPreset, type StudioProfile } from "./profiles";
+import { broadcastMixerChannels, getDestinationPreset, type StudioProfile } from "./profiles";
 import {
   assessPlatformPublishingFreshness,
   type PlatformPublishingFreshnessStatus
@@ -292,6 +292,7 @@ export interface SupportBundle {
       streamKeyPreview: string;
     };
     micEffects: StudioProfile["micEffects"];
+    broadcastMixer: StudioProfile["broadcastMixer"];
     faceTracking: StudioProfile["faceTracking"];
     platformChat: {
       enabled: boolean;
@@ -626,6 +627,11 @@ export const createSupportBundle = ({
         streamKeyPreview: diagnostics.target.streamKeyPreview
       },
       micEffects: { ...profile.micEffects },
+      broadcastMixer: {
+        mic: { ...profile.broadcastMixer.mic },
+        appAudio: { ...profile.broadcastMixer.appAudio },
+        chatReadout: { ...profile.broadcastMixer.chatReadout }
+      },
       faceTracking: { ...profile.faceTracking },
       platformChat: {
         enabled: profile.platformChat.enabled,
@@ -771,6 +777,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     "",
     "Profile",
     `- Mic effects: ${bundle.profile.micEffects.enabled ? bundle.profile.micEffects.presetId : "off"}`,
+    `- Broadcast mix: ${formatBroadcastMixerSummary(bundle.profile.broadcastMixer)}`,
     `- Mic monitor: ${bundle.profile.micEffects.monitorEnabled ? "on" : "off"} / headphones-only ${bundle.profile.micEffects.monitorHeadphonesOnly ? "on" : "off"}`,
     `- Face tracking: ${bundle.profile.faceTracking.enabled ? bundle.profile.faceTracking.inputMode : "off"} / ${bundle.profile.faceTracking.rigMode}`,
     `- Platform chat: ${bundle.profile.platformChat.enabled ? bundle.profile.platformChat.platform : "off"}`,
@@ -780,6 +787,15 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Publishing freshness action: ${bundle.summary.platformPublishingFreshnessRecommendation}`
   ].join("\n");
 };
+
+const formatBroadcastMixerSummary = (mixer: StudioProfile["broadcastMixer"]): string =>
+  broadcastMixerChannels
+    .map((channel) => {
+      const settings = mixer[channel.id];
+      const level = settings.muted || settings.volume <= 0 ? "muted" : `${Math.round(settings.volume * 100)}%`;
+      return `${channel.shortLabel} ${level}`;
+    })
+    .join(" / ");
 
 const formatValidationEvidenceRunManifest = (
   manifest: StreamDiagnostics["validationEvidence"]["runManifest"]

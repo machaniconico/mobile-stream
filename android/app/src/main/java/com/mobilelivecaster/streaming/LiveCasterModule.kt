@@ -174,7 +174,8 @@ data class LiveCasterProfile(
     val fps: Int,
     val videoBitrate: Int,
     val audioBitrate: Int,
-    val micEffects: MicEffectsProfile
+    val micEffects: MicEffectsProfile,
+    val broadcastMixer: BroadcastMixerProfile
 )
 
 data class MicEffectsProfile(
@@ -186,6 +187,19 @@ data class MicEffectsProfile(
     val monitorEnabled: Boolean = false,
     val monitorVolume: Float = 0.45f,
     val monitorHeadphonesOnly: Boolean = true
+)
+
+data class BroadcastMixerChannelProfile(
+    val volume: Float = 1f,
+    val muted: Boolean = false
+) {
+    fun effectiveVolume(): Float = if (muted) 0f else volume.coerceIn(0f, 1f)
+}
+
+data class BroadcastMixerProfile(
+    val mic: BroadcastMixerChannelProfile = BroadcastMixerChannelProfile(),
+    val appAudio: BroadcastMixerChannelProfile = BroadcastMixerChannelProfile(volume = 0.85f),
+    val chatReadout: BroadcastMixerChannelProfile = BroadcastMixerChannelProfile(volume = 0.85f)
 )
 
 object LiveCasterSession {
@@ -425,6 +439,7 @@ object LiveCasterSession {
         val destination = root.getJSONObject("destination")
         val quality = root.getJSONObject("quality")
         val micEffects = parseMicEffects(root.optJSONObject("micEffects"))
+        val broadcastMixer = parseBroadcastMixer(root.optJSONObject("broadcastMixer"))
         val endpointParts = buildEndpointParts(
             destination.getString("serverUrl"),
             destination.optString("streamKey", "")
@@ -442,7 +457,8 @@ object LiveCasterSession {
             fps = quality.getInt("fps"),
             videoBitrate = quality.getInt("videoBitrateKbps") * 1000,
             audioBitrate = quality.getInt("audioBitrateKbps") * 1000,
-            micEffects = micEffects
+            micEffects = micEffects,
+            broadcastMixer = broadcastMixer
         )
     }
 
@@ -460,6 +476,27 @@ object LiveCasterSession {
             monitorEnabled = micEffects.optBoolean("monitorEnabled", false),
             monitorVolume = micEffects.optDouble("monitorVolume", 0.45).toFloat().coerceIn(0f, 1f),
             monitorHeadphonesOnly = micEffects.optBoolean("monitorHeadphonesOnly", true)
+        )
+    }
+
+    private fun parseBroadcastMixer(mixer: JSONObject?): BroadcastMixerProfile {
+        if (mixer == null) {
+            return BroadcastMixerProfile()
+        }
+        return BroadcastMixerProfile(
+            mic = parseBroadcastMixerChannel(mixer.optJSONObject("mic"), BroadcastMixerChannelProfile()),
+            appAudio = parseBroadcastMixerChannel(mixer.optJSONObject("appAudio"), BroadcastMixerChannelProfile(volume = 0.85f)),
+            chatReadout = parseBroadcastMixerChannel(mixer.optJSONObject("chatReadout"), BroadcastMixerChannelProfile(volume = 0.85f))
+        )
+    }
+
+    private fun parseBroadcastMixerChannel(channel: JSONObject?, fallback: BroadcastMixerChannelProfile): BroadcastMixerChannelProfile {
+        if (channel == null) {
+            return fallback
+        }
+        return BroadcastMixerChannelProfile(
+            volume = channel.optDouble("volume", fallback.volume.toDouble()).toFloat().coerceIn(0f, 1f),
+            muted = channel.optBoolean("muted", fallback.muted)
         )
     }
 

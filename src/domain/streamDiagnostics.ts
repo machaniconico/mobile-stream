@@ -1,4 +1,11 @@
-import { buildPublishUrl, getDestinationPreset, redactStreamKey, type StudioProfile } from "./profiles";
+import {
+  broadcastMixerChannels,
+  buildPublishUrl,
+  getDestinationPreset,
+  redactStreamKey,
+  type BroadcastMixerProfile,
+  type StudioProfile
+} from "./profiles";
 import {
   createAudioMonitorSafetyStatus,
   createDefaultAudioRouteState,
@@ -148,6 +155,8 @@ export interface StreamDiagnostics {
     monitorVolume: number;
     monitorHeadphonesOnly: boolean;
     monitorSafety: AudioMonitorSafetyStatus;
+    broadcastMixer: BroadcastMixerProfile;
+    broadcastMixerSummary: string;
   };
   audioRoute: AudioRouteState;
   chatReadout: {
@@ -225,6 +234,7 @@ export const createStreamDiagnostics = (
   const destination = readiness.sanitizedProfile.destination;
   const quality = readiness.sanitizedProfile.quality;
   const micEffects = readiness.sanitizedProfile.micEffects;
+  const broadcastMixer = readiness.sanitizedProfile.broadcastMixer;
   const platformChat = readiness.sanitizedProfile.platformChat;
   const platformChatConnection = options.platformChatConnection ?? null;
   const endpoint = parseEndpoint(destination.serverUrl);
@@ -279,6 +289,7 @@ export const createStreamDiagnostics = (
     createQualityAdvisorCheck(qualityAdvisor),
     createFaceTrackingCheck(faceTracking),
     createNativeCompositionCheck(nativeComposition),
+    createBroadcastMixerCheck(broadcastMixer),
     createAudioRouteCheck(monitorSafety),
     createHistoryCheck(history),
     createRecoveryCheck(recoveryStatus)
@@ -326,7 +337,9 @@ export const createStreamDiagnostics = (
     monitorEnabled: micEffects.monitorEnabled,
     monitorVolume: micEffects.monitorVolume,
     monitorHeadphonesOnly: micEffects.monitorHeadphonesOnly,
-    monitorSafety
+    monitorSafety,
+    broadcastMixer,
+    broadcastMixerSummary: formatBroadcastMixerSummary(broadcastMixer)
   };
   const chatReadout = {
     platformChatEnabled: platformChat.enabled,
@@ -558,6 +571,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     "",
     "Audio Validation",
     `- Mic effects: ${diagnostics.audio.micEffectsEnabled ? "on" : "off"} / preset ${diagnostics.audio.presetId} / gain ${diagnostics.audio.inputGainDb} dB / compression ${diagnostics.audio.compression}`,
+    `- Broadcast mix: ${diagnostics.audio.broadcastMixerSummary}`,
     `- Monitor: ${diagnostics.audio.monitorEnabled ? "on" : "off"} / volume ${Math.round(diagnostics.audio.monitorVolume * 100)}% / headphones-only ${diagnostics.audio.monitorHeadphonesOnly ? "yes" : "no"}`,
     `- Monitor route: ${diagnostics.audio.monitorSafety.status} / ${diagnostics.audio.monitorSafety.outputName} / headphones ${diagnostics.audio.monitorSafety.headphonesConnected ? "yes" : "no"} / stale ${diagnostics.audio.monitorSafety.stale ? "yes" : "no"}`,
     `- Route action: ${diagnostics.audio.monitorSafety.recommendation}`,
@@ -773,6 +787,15 @@ const formatValidationAudio = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestAudio
     ? `${diagnostics.validationEvidence.audioRunCount} retained / ${diagnostics.validationEvidence.audioReadyCount} ready / ${diagnostics.validationEvidence.audioWarningCount} warn / iOS ${diagnostics.validationEvidence.audioIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.audioAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestAudio.status} ${diagnostics.validationEvidence.latestAudio.presetId} / monitor ${diagnostics.validationEvidence.latestAudio.monitorEnabled ? "on" : "off"} / headphones-only ${diagnostics.validationEvidence.latestAudio.monitorHeadphonesOnly ? "yes" : "no"} / route ${diagnostics.validationEvidence.latestAudio.monitorRouteStatus} ${diagnostics.validationEvidence.latestAudio.outputName} / native monitor ${diagnostics.validationEvidence.latestAudio.nativeMonitorReported ? (diagnostics.validationEvidence.latestAudio.nativeMonitorRunning ? "running" : "reported") : "missing"} ${diagnostics.validationEvidence.latestAudio.nativeMonitorWrittenFrames}/${diagnostics.validationEvidence.latestAudio.nativeMonitorDroppedFrames} frames / samples ${diagnostics.validationEvidence.latestAudio.levelSampleCount} / peak ${Math.round(diagnostics.validationEvidence.latestAudio.peakLevel * 100)}%`
     : "-";
+
+const formatBroadcastMixerSummary = (mixer: BroadcastMixerProfile): string =>
+  broadcastMixerChannels
+    .map((channel) => {
+      const settings = mixer[channel.id];
+      const level = settings.muted || settings.volume <= 0 ? "muted" : `${Math.round(settings.volume * 100)}%`;
+      return `${channel.shortLabel} ${level}`;
+    })
+    .join(" / ");
 
 const formatValidationChatReadout = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestChatReadout
@@ -1271,6 +1294,38 @@ const createAudioRouteCheck = (monitorSafety: AudioMonitorSafetyStatus): Diagnos
   label: "Audio monitor route",
   message: monitorSafety.summary
 });
+
+const createBroadcastMixerCheck = (mixer: BroadcastMixerProfile): DiagnosticCheck => {
+  const micLive = !mixer.mic.muted && mixer.mic.volume > 0;
+  const appLive = !mixer.appAudio.muted && mixer.appAudio.volume > 0;
+  const chatLive = !mixer.chatReadout.muted && mixer.chatReadout.volume > 0;
+  const summary = formatBroadcastMixerSummary(mixer);
+
+  if (!micLive && !appLive && !chatLive) {
+    return {
+      code: "broadcast-mixer-silent",
+      status: "fail",
+      label: "Broadcast mixer",
+      message: `All broadcast audio channels are muted or set to zero. ${summary}`
+    };
+  }
+
+  if (!micLive) {
+    return {
+      code: "broadcast-mixer-mic-muted",
+      status: "warn",
+      label: "Broadcast mixer",
+      message: `The mic channel is muted or set to zero in the broadcast mix. ${summary}`
+    };
+  }
+
+  return {
+    code: "broadcast-mixer-ready",
+    status: "pass",
+    label: "Broadcast mixer",
+    message: summary
+  };
+};
 
 const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): DiagnosticCheck => {
   if (!runtime) {
