@@ -76,6 +76,98 @@ describe("chatReader", () => {
     ]);
   });
 
+  it("redacts urls from chat overlay messages when url redaction is enabled", () => {
+    const state = createDefaultChatReaderState();
+    const message = createChatMessage({
+      source: "youtube",
+      author: "viewer",
+      body: "open https://example.com/private",
+      receivedAt: 2
+    });
+    const next = enqueueChatMessage(state, message);
+
+    expect(selectChatOverlayMessages(next)).toEqual([
+      {
+        author: "viewer",
+        body: "open link omitted",
+        source: "youtube"
+      }
+    ]);
+  });
+
+  it("blocks link comments from speech and overlay when link blocking is enabled", () => {
+    const state = updateChatReaderSettings(createDefaultChatReaderState(), {
+      blockLinkMessages: true
+    });
+    const message = createChatMessage({
+      source: "twitch",
+      author: "viewer",
+      body: "watch https://example.com now",
+      receivedAt: 2
+    });
+
+    const next = enqueueChatMessage(state, message);
+
+    expect(next.queue).toHaveLength(0);
+    expect(next.history).toHaveLength(0);
+    expect(next.skippedCount).toBe(1);
+    expect(selectChatOverlayMessages(next)).toHaveLength(0);
+  });
+
+  it("applies content moderation to existing speech and overlay selections", () => {
+    const accepted = enqueueChatMessage(
+      updateChatReaderSettings(createDefaultChatReaderState(), {
+        blockLinkMessages: false
+      }),
+      createChatMessage({
+        source: "youtube",
+        author: "viewer",
+        body: "open https://example.com/private",
+        receivedAt: 2
+      })
+    );
+    const blocked = updateChatReaderSettings(accepted, {
+      blockLinkMessages: true
+    });
+
+    expect(blocked.queue).toHaveLength(1);
+    expect(createSpeechText(blocked.queue[0], blocked.settings)).toBeNull();
+    expect(selectChatOverlayMessages(blocked)).toHaveLength(0);
+  });
+
+  it("blocks excessive caps comments by default", () => {
+    const state = createDefaultChatReaderState();
+    const message = createChatMessage({
+      source: "youtube",
+      author: "viewer",
+      body: "THIS STREAM IS AMAZINGGGG",
+      receivedAt: 2
+    });
+
+    const next = enqueueChatMessage(state, message);
+
+    expect(next.queue).toHaveLength(0);
+    expect(next.history).toHaveLength(0);
+    expect(next.skippedCount).toBe(1);
+  });
+
+  it("rate limits repeated comments from the same author", () => {
+    const state = updateChatReaderSettings(createDefaultChatReaderState(), {
+      maxMessagesPerAuthorPerMinute: 2
+    });
+    const first = createChatMessage({ author: "viewer", body: "one", receivedAt: 1000 });
+    const second = createChatMessage({ author: "viewer", body: "two", receivedAt: 2000 });
+    const third = createChatMessage({ author: "viewer", body: "three", receivedAt: 3000 });
+    const other = createChatMessage({ author: "other", body: "four", receivedAt: 4000 });
+    const later = createChatMessage({ author: "viewer", body: "five", receivedAt: 65000 });
+
+    const limited = [first, second, third, other, later].reduce(enqueueChatMessage, state);
+
+    expect(limited.queue.map((message) => message.body)).toEqual(["one", "two", "four", "five"]);
+    expect(limited.history.map((message) => message.body)).toEqual(["five", "four", "two", "one"]);
+    expect(limited.skippedCount).toBe(1);
+  });
+
   it("uses external message ids for stable queue dedupe", () => {
     const state = createDefaultChatReaderState();
     const first = createChatMessage({
@@ -243,9 +335,13 @@ describe("chatReader", () => {
       volume: 2,
       redactUrls: false,
       skipCommandMessages: false,
+      moderationEnabled: false,
+      blockLinkMessages: true,
+      blockExcessiveCaps: false,
       maxMessageLength: 999,
       maxQueueLength: 999,
       duplicateWindowSeconds: 999,
+      maxMessagesPerAuthorPerMinute: 999,
       mutedWords: normalizeMutedWordsInput(" spam, Spoiler,  ")
     });
 
@@ -254,9 +350,13 @@ describe("chatReader", () => {
     expect(state.settings.volume).toBe(1);
     expect(state.settings.redactUrls).toBe(false);
     expect(state.settings.skipCommandMessages).toBe(false);
+    expect(state.settings.moderationEnabled).toBe(false);
+    expect(state.settings.blockLinkMessages).toBe(true);
+    expect(state.settings.blockExcessiveCaps).toBe(false);
     expect(state.settings.maxMessageLength).toBe(240);
     expect(state.settings.maxQueueLength).toBe(24);
     expect(state.settings.duplicateWindowSeconds).toBe(120);
+    expect(state.settings.maxMessagesPerAuthorPerMinute).toBe(30);
     expect(state.settings.mutedWords).toEqual(["spam", "spoiler"]);
     expect(clearChatReaderQueue(enqueueChatMessage(state, createChatMessage({ author: "a", body: "b" }))).queue).toHaveLength(0);
   });

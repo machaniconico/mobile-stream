@@ -2438,6 +2438,14 @@ const ChatReaderPanel = ({
         step={5}
         onChange={(duplicateWindowSeconds) => onSettingsChange({ duplicateWindowSeconds })}
       />
+      <NumberStepper
+        label="Author/min"
+        value={chatReader.settings.maxMessagesPerAuthorPerMinute}
+        min={1}
+        max={30}
+        step={1}
+        onChange={(maxMessagesPerAuthorPerMinute) => onSettingsChange({ maxMessagesPerAuthorPerMinute })}
+      />
       <View style={styles.grid2}>
         <ActionButton
           label={chatReader.settings.redactUrls ? "URL Redact On" : "URL Redact Off"}
@@ -2448,6 +2456,23 @@ const ChatReaderPanel = ({
           label={chatReader.settings.skipCommandMessages ? "Skip Cmd On" : "Skip Cmd Off"}
           variant={chatReader.settings.skipCommandMessages ? "active" : "default"}
           onPress={() => onSettingsChange({ skipCommandMessages: !chatReader.settings.skipCommandMessages })}
+        />
+      </View>
+      <View style={styles.grid3}>
+        <ActionButton
+          label={chatReader.settings.moderationEnabled ? "Spam On" : "Spam Off"}
+          variant={chatReader.settings.moderationEnabled ? "active" : "default"}
+          onPress={() => onSettingsChange({ moderationEnabled: !chatReader.settings.moderationEnabled })}
+        />
+        <ActionButton
+          label={chatReader.settings.blockLinkMessages ? "Block Links" : "Allow Links"}
+          variant={chatReader.settings.blockLinkMessages ? "active" : "default"}
+          onPress={() => onSettingsChange({ blockLinkMessages: !chatReader.settings.blockLinkMessages })}
+        />
+        <ActionButton
+          label={chatReader.settings.blockExcessiveCaps ? "Block Caps" : "Allow Caps"}
+          variant={chatReader.settings.blockExcessiveCaps ? "active" : "default"}
+          onPress={() => onSettingsChange({ blockExcessiveCaps: !chatReader.settings.blockExcessiveCaps })}
         />
       </View>
 

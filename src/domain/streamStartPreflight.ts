@@ -67,7 +67,15 @@ export interface StreamStartPreflightInput {
   operationStatus?: StreamOperationStatus | null;
   profile?: Pick<StudioProfile, "destination" | "platformPublishing" | "platformChat" | "micEffects" | "broadcastMixer">;
   validation?: Pick<StreamValidationChecklist, "status" | "recommendedNextStep"> | null;
-  chatReader?: (Pick<ChatReaderSettings, "enabled"> & Partial<Pick<ChatReaderSettings, "redactUrls" | "skipCommandMessages">>) | null;
+  chatReader?: (
+    Pick<ChatReaderSettings, "enabled"> &
+      Partial<
+        Pick<
+          ChatReaderSettings,
+          "redactUrls" | "skipCommandMessages" | "moderationEnabled" | "blockExcessiveCaps" | "maxMessagesPerAuthorPerMinute"
+        >
+      >
+  ) | null;
   platformChatAuth?: PlatformChatAuthSession | null;
   platformChatOAuthCredentials?: PlatformChatOAuthCredentialStore | null;
   platformChatOAuthCredential?: PlatformChatOAuthCredential | null;
@@ -737,6 +745,36 @@ const createChatReadoutIssues = (
       label: "Chat safety",
       message: "Chat command skipping is turned off.",
       recommendation: "Turn command skipping on before public streams so bot commands and giveaway entries are not spoken aloud."
+    });
+  }
+  if (chatReader.moderationEnabled === false) {
+    issues.push({
+      code: "chat-reader-moderation-disabled",
+      severity: "warning",
+      area: "chat",
+      label: "Chat safety",
+      message: "Chat moderation filtering is turned off.",
+      recommendation: "Turn moderation filtering on before public streams so spam bursts are kept out of readout and overlays."
+    });
+  }
+  if (chatReader.blockExcessiveCaps === false) {
+    issues.push({
+      code: "chat-reader-caps-filter-disabled",
+      severity: "warning",
+      area: "chat",
+      label: "Chat safety",
+      message: "Excessive-caps chat filtering is turned off.",
+      recommendation: "Turn excessive-caps filtering on before public streams so shouty spam is not spoken aloud or shown on the overlay."
+    });
+  }
+  if (chatReader.maxMessagesPerAuthorPerMinute && chatReader.maxMessagesPerAuthorPerMinute > 12) {
+    issues.push({
+      code: "chat-reader-author-rate-limit-loose",
+      severity: "warning",
+      area: "chat",
+      label: "Chat safety",
+      message: `Per-viewer chat rate limit is loose at ${chatReader.maxMessagesPerAuthorPerMinute} messages per minute.`,
+      recommendation: "Use a per-viewer limit of 12 messages per minute or lower before public streams."
     });
   }
 

@@ -2193,6 +2193,14 @@ const ChatReaderPanel = ({
         step={5}
         onChange={(duplicateWindowSeconds) => onSettingsChange({ duplicateWindowSeconds })}
       />
+      <SpeechSlider
+        label="Author/min"
+        value={chatReader.settings.maxMessagesPerAuthorPerMinute}
+        min={1}
+        max={30}
+        step={1}
+        onChange={(maxMessagesPerAuthorPerMinute) => onSettingsChange({ maxMessagesPerAuthorPerMinute })}
+      />
       <div className="monitor-row">
         <button
           className={`segmented-button ${chatReader.settings.redactUrls ? "active" : ""}`}
@@ -2207,6 +2215,29 @@ const ChatReaderPanel = ({
           onClick={() => onSettingsChange({ skipCommandMessages: !chatReader.settings.skipCommandMessages })}
         >
           Skip Commands
+        </button>
+      </div>
+      <div className="monitor-row">
+        <button
+          className={`segmented-button ${chatReader.settings.moderationEnabled ? "active" : ""}`}
+          type="button"
+          onClick={() => onSettingsChange({ moderationEnabled: !chatReader.settings.moderationEnabled })}
+        >
+          Spam Guard
+        </button>
+        <button
+          className={`segmented-button ${chatReader.settings.blockLinkMessages ? "active" : ""}`}
+          type="button"
+          onClick={() => onSettingsChange({ blockLinkMessages: !chatReader.settings.blockLinkMessages })}
+        >
+          Block Links
+        </button>
+        <button
+          className={`segmented-button ${chatReader.settings.blockExcessiveCaps ? "active" : ""}`}
+          type="button"
+          onClick={() => onSettingsChange({ blockExcessiveCaps: !chatReader.settings.blockExcessiveCaps })}
+        >
+          Block Caps
         </button>
       </div>
 

@@ -60,7 +60,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Broadcast audio mixer profile for mic, captured app audio, and chat readout channels, with per-channel volume/mute controls, start/diagnostics silent-mix checks, Android mic-output gain/mute, and iOS ReplayKit app/mic mix gain.
 - Privacy Shield emergency control switches to a blackout scene, mutes all broadcast audio channels, stops chat readout, records a safety audit event, and pushes the safe scene/profile to the native engine when a stream is active.
 - Headphone-only mic monitor settings for hearing the processed mic signal locally, with native iOS/Android output-route detection and Go Live blocking when monitoring would route to speakers.
-- Chat/comment read-aloud queue with test comments, muted words, command-message skipping, duplicate suppression, queue limits, URL redaction, speech controls, queued/recent comment privacy reset, and stream-stop chat auto-disconnect/readout silence.
+- Chat/comment read-aloud queue with test comments, muted words, command-message skipping, duplicate suppression, per-viewer rate limiting, excessive-caps spam blocking, optional link blocking, queue limits, URL redaction, speech controls, queued/recent comment privacy reset, and stream-stop chat auto-disconnect/readout silence.
 - Transparent-background chat/comment overlay source for web preview and native iOS/Android compositors, fed from recent YouTube/Twitch/manual chat history with URL redaction and per-source message length limits, without persisting comment text in the scene.
 - YouTube LiveChatMessages and Twitch EventSub chat payload adapters feeding the shared read-aloud queue.
 - Durable platform chat adapter settings through the shared profile store.

@@ -801,7 +801,6 @@ describe("stream start preflight", () => {
       readiness: createReadinessReport(createScreenOnlyScene(), profile),
       streamStatus: "idle",
       profile,
-      chatReader: { enabled: true, redactUrls: false, skipCommandMessages: false },
       platformChatAuth: {
         youtubeAccessToken: "",
         twitchOauthToken: "oauth-placeholder",
@@ -811,13 +810,27 @@ describe("stream start preflight", () => {
       platformChatConnection: {
         phase: "connected",
         message: "Connected."
+      },
+      chatReader: {
+        enabled: true,
+        redactUrls: false,
+        skipCommandMessages: false,
+        moderationEnabled: false,
+        blockExcessiveCaps: false,
+        maxMessagesPerAuthorPerMinute: 24
       }
     });
 
     expect(report.canStart).toBe(true);
     expect(report.status).toBe("warning");
     expect(report.warnings.map((issue) => issue.code)).toEqual(
-      expect.arrayContaining(["chat-reader-url-redaction-disabled", "chat-reader-command-skip-disabled"])
+      expect.arrayContaining([
+        "chat-reader-url-redaction-disabled",
+        "chat-reader-command-skip-disabled",
+        "chat-reader-moderation-disabled",
+        "chat-reader-caps-filter-disabled",
+        "chat-reader-author-rate-limit-loose"
+      ])
     );
   });
 

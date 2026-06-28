@@ -11,12 +11,16 @@ export interface ChatReaderSettings {
   readAuthorName: boolean;
   redactUrls: boolean;
   skipCommandMessages: boolean;
+  moderationEnabled: boolean;
+  blockLinkMessages: boolean;
+  blockExcessiveCaps: boolean;
   rate: number;
   pitch: number;
   volume: number;
   maxMessageLength: number;
   maxQueueLength: number;
   duplicateWindowSeconds: number;
+  maxMessagesPerAuthorPerMinute: number;
   mutedWords: string[];
 }
 
@@ -50,12 +54,16 @@ export const createDefaultChatReaderSettings = (): ChatReaderSettings => ({
   readAuthorName: true,
   redactUrls: true,
   skipCommandMessages: true,
+  moderationEnabled: true,
+  blockLinkMessages: false,
+  blockExcessiveCaps: true,
   rate: 1,
   pitch: 1,
   volume: 0.85,
   maxMessageLength: 140,
   maxQueueLength: MAX_QUEUE_LENGTH,
   duplicateWindowSeconds: 20,
+  maxMessagesPerAuthorPerMinute: 6,
   mutedWords: []
 });
 
@@ -96,6 +104,13 @@ export const enqueueChatMessage = (state: ChatReaderState, message: ChatMessage)
   }
 
   if (shouldSkipCommandMessage(message, state.settings)) {
+    return {
+      ...state,
+      skippedCount: state.skippedCount + 1
+    };
+  }
+
+  if (isModerationBlockedMessage(message, state)) {
     return {
       ...state,
       skippedCount: state.skippedCount + 1
@@ -171,15 +186,16 @@ export const clearChatReaderSession = (state: ChatReaderState): ChatReaderState 
 export const selectChatOverlayMessages = (state: ChatReaderState, limit = 4): ChatOverlayDisplayMessage[] =>
   state.history
     .filter((message) => !isMutedMessage(message, state.settings))
+    .filter((message) => !isMessageContentBlockedByModeration(message, state.settings))
     .slice(0, Math.round(clamp(limit, 1, 8)))
     .map((message) => ({
       author: message.author,
-      body: message.body,
+      body: state.settings.redactUrls ? stripUrls(message.body) : message.body,
       source: message.source
     }));
 
 export const createSpeechText = (message: ChatMessage, settings: ChatReaderSettings): string | null => {
-  if (isMutedMessage(message, settings) || shouldSkipCommandMessage(message, settings)) {
+  if (isMutedMessage(message, settings) || shouldSkipCommandMessage(message, settings) || isMessageContentBlockedByModeration(message, settings)) {
     return null;
   }
 
@@ -205,9 +221,13 @@ const normalizeChatReaderSettings = (settings: ChatReaderSettings): ChatReaderSe
   volume: clamp(settings.volume, 0, 1),
   redactUrls: settings.redactUrls !== false,
   skipCommandMessages: settings.skipCommandMessages !== false,
+  moderationEnabled: settings.moderationEnabled !== false,
+  blockLinkMessages: settings.blockLinkMessages === true,
+  blockExcessiveCaps: settings.blockExcessiveCaps !== false,
   maxMessageLength: Math.round(clamp(settings.maxMessageLength, 40, 240)),
   maxQueueLength: Math.round(clamp(settings.maxQueueLength, 4, MAX_QUEUE_LENGTH)),
   duplicateWindowSeconds: Math.round(clamp(settings.duplicateWindowSeconds, 0, 120)),
+  maxMessagesPerAuthorPerMinute: Math.round(clamp(settings.maxMessagesPerAuthorPerMinute, 1, 30)),
   mutedWords: settings.mutedWords.map((word) => normalizeWhitespace(word).toLowerCase()).filter(Boolean).slice(0, 24)
 });
 
@@ -222,6 +242,34 @@ const isMutedMessage = (message: ChatMessage, settings: ChatReaderSettings): boo
 
 const shouldSkipCommandMessage = (message: ChatMessage, settings: ChatReaderSettings): boolean =>
   settings.skipCommandMessages && /^![\w-]{1,32}(?:\s|$)/.test(normalizeWhitespace(message.body));
+
+const isModerationBlockedMessage = (message: ChatMessage, state: ChatReaderState): boolean => {
+  const { settings } = state;
+  if (!settings.moderationEnabled) {
+    return false;
+  }
+
+  if (isMessageContentBlockedByModeration(message, settings)) {
+    return true;
+  }
+
+  const windowMillis = 60 * 1000;
+  const author = normalizeWhitespace(message.author).toLowerCase();
+  const recentAuthorMessageCount = state.history.filter((item) => {
+    if (message.receivedAt - item.receivedAt > windowMillis) {
+      return false;
+    }
+    return normalizeWhitespace(item.author).toLowerCase() === author;
+  }).length;
+  return recentAuthorMessageCount >= settings.maxMessagesPerAuthorPerMinute;
+};
+
+const isMessageContentBlockedByModeration = (message: ChatMessage, settings: ChatReaderSettings): boolean => {
+  if (!settings.moderationEnabled) {
+    return false;
+  }
+  return (settings.blockLinkMessages && containsUrl(message.body)) || (settings.blockExcessiveCaps && hasExcessiveCaps(message.body));
+};
 
 const isDuplicateRecentMessage = (message: ChatMessage, history: ChatMessage[], duplicateWindowSeconds: number): boolean => {
   if (duplicateWindowSeconds <= 0) {
@@ -241,7 +289,18 @@ const isDuplicateRecentMessage = (message: ChatMessage, history: ChatMessage[], 
 const messageSignature = (message: ChatMessage): string =>
   `${message.source}:${normalizeWhitespace(message.author).toLowerCase()}:${normalizeWhitespace(message.body).toLowerCase()}`;
 
+const containsUrl = (value: string): boolean => /https?:\/\/\S+/i.test(value);
+
 const stripUrls = (value: string): string => value.replace(/https?:\/\/\S+/gi, "link omitted");
+
+const hasExcessiveCaps = (value: string): boolean => {
+  const letters = value.replace(/[^a-z]/gi, "");
+  if (letters.length < 12) {
+    return false;
+  }
+  const uppercase = letters.replace(/[^A-Z]/g, "");
+  return uppercase.length / letters.length >= 0.75;
+};
 
 const truncateForSpeech = (value: string, maxLength: number): string => {
   const clean = normalizeWhitespace(value);
