@@ -9,6 +9,12 @@ export interface NativeRuntimeComposition {
   stillImageAssetLoadedCount?: number;
   stillImageAssetMissingCount?: number;
   stillImageAssetMissingKinds?: string[];
+  vrmSourceCount?: number;
+  vrmPosePayloadCount?: number;
+  vrmActivePoseCount?: number;
+  vrmMissingPoseCount?: number;
+  vrmModelUriCount?: number;
+  vrmRuntimeStatuses?: string[];
   message: string;
 }
 

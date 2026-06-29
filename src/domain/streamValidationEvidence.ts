@@ -197,6 +197,10 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeStillImageAssetCount: number;
   nativeRuntimeStillImageAssetLoadedCount: number;
   nativeRuntimeStillImageAssetMissingCount: number;
+  nativeRuntimeVrmSourceCount: number;
+  nativeRuntimeVrmPosePayloadCount: number;
+  nativeRuntimeVrmActivePoseCount: number;
+  nativeRuntimeVrmMissingPoseCount: number;
   monitorHoldStatus: StreamValidationMonitorHoldSummary["status"] | null;
   monitorHoldSampleCount: number;
   monitorHoldDurationSeconds: number;
@@ -2189,6 +2193,10 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeStillImageAssetCount: run.nativeRuntime?.stillImageAssetCount ?? 0,
     nativeRuntimeStillImageAssetLoadedCount: run.nativeRuntime?.stillImageAssetLoadedCount ?? 0,
     nativeRuntimeStillImageAssetMissingCount: run.nativeRuntime?.stillImageAssetMissingCount ?? 0,
+    nativeRuntimeVrmSourceCount: run.nativeRuntime?.vrmSourceCount ?? 0,
+    nativeRuntimeVrmPosePayloadCount: run.nativeRuntime?.vrmPosePayloadCount ?? 0,
+    nativeRuntimeVrmActivePoseCount: run.nativeRuntime?.vrmActivePoseCount ?? 0,
+    nativeRuntimeVrmMissingPoseCount: run.nativeRuntime?.vrmMissingPoseCount ?? 0,
     monitorHoldStatus: run.monitorHold?.status ?? null,
     monitorHoldSampleCount: run.monitorHold?.sampleCount ?? 0,
     monitorHoldDurationSeconds: run.monitorHold?.durationSeconds ?? 0,

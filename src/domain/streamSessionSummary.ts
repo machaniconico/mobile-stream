@@ -38,6 +38,12 @@ export interface StreamSessionNativeRuntimeSummary {
   stillImageAssetLoadedCount: number;
   stillImageAssetMissingCount: number;
   stillImageAssetMissingKinds: string[];
+  vrmSourceCount: number;
+  vrmPosePayloadCount: number;
+  vrmActivePoseCount: number;
+  vrmMissingPoseCount: number;
+  vrmModelUriCount: number;
+  vrmRuntimeStatuses: string[];
   stale: boolean;
   congested: boolean;
   queuedItems: number;
@@ -632,8 +638,14 @@ export const createNativeRuntimeSessionSummary = (
   const pendingComposition = runtime.composition.status === "pending";
   const missingAssetCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetMissingCount);
   const missingAssets = missingAssetCount > 0;
-  const status: StreamSessionNativeRuntimeStatus = failed ? "fail" : stale || congested || pendingComposition || missingAssets ? "warn" : "pass";
-  const issueCount = [failed, stale, congested, pendingComposition, missingAssets].filter(Boolean).length;
+  const missingVrmPoseCount = normalizeNonNegativeInteger(runtime.composition.vrmMissingPoseCount);
+  const missingVrmPoses = missingVrmPoseCount > 0 && normalizeNonNegativeInteger(runtime.composition.vrmSourceCount) > 0;
+  const status: StreamSessionNativeRuntimeStatus = failed
+    ? "fail"
+    : stale || congested || pendingComposition || missingAssets || missingVrmPoses
+      ? "warn"
+      : "pass";
+  const issueCount = [failed, stale, congested, pendingComposition, missingAssets, missingVrmPoses].filter(Boolean).length;
   const queue = `${runtime.publisher.itemsInCache}/${runtime.publisher.cacheSize}`;
 
   return {
@@ -646,6 +658,12 @@ export const createNativeRuntimeSessionSummary = (
     stillImageAssetLoadedCount: normalizeNonNegativeInteger(runtime.composition.stillImageAssetLoadedCount),
     stillImageAssetMissingCount: missingAssetCount,
     stillImageAssetMissingKinds: runtime.composition.stillImageAssetMissingKinds ?? [],
+    vrmSourceCount: normalizeNonNegativeInteger(runtime.composition.vrmSourceCount),
+    vrmPosePayloadCount: normalizeNonNegativeInteger(runtime.composition.vrmPosePayloadCount),
+    vrmActivePoseCount: normalizeNonNegativeInteger(runtime.composition.vrmActivePoseCount),
+    vrmMissingPoseCount: missingVrmPoseCount,
+    vrmModelUriCount: normalizeNonNegativeInteger(runtime.composition.vrmModelUriCount),
+    vrmRuntimeStatuses: runtime.composition.vrmRuntimeStatuses ?? [],
     stale,
     congested,
     queuedItems: normalizeNonNegativeInteger(runtime.publisher.itemsInCache),
@@ -685,9 +703,11 @@ export const createNativeRuntimeSessionSummary = (
             ? "Confirm the native runtime is still reporting current telemetry during device validation."
             : missingAssets
               ? "Confirm App Group-copied PNGTuber/image assets load inside the iOS Broadcast Upload Extension before public streams."
-            : pendingComposition
-              ? "Review native compositor coverage before treating this scene as production-ready."
-              : "Keep this native runtime result as supporting evidence for the destination."
+              : missingVrmPoses
+                ? "Confirm VRM runtime pose payloads reach the native compositor before retaining production evidence."
+                : pendingComposition
+                  ? "Review native compositor coverage before treating this scene as production-ready."
+                  : "Keep this native runtime result as supporting evidence for the destination."
   };
 };
 
@@ -908,6 +928,14 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     stillImageAssetMissingCount: normalizeNonNegativeInteger(value.stillImageAssetMissingCount),
     stillImageAssetMissingKinds: Array.isArray(value.stillImageAssetMissingKinds)
       ? value.stillImageAssetMissingKinds.filter((kind): kind is string => typeof kind === "string")
+      : [],
+    vrmSourceCount: normalizeNonNegativeInteger(value.vrmSourceCount),
+    vrmPosePayloadCount: normalizeNonNegativeInteger(value.vrmPosePayloadCount),
+    vrmActivePoseCount: normalizeNonNegativeInteger(value.vrmActivePoseCount),
+    vrmMissingPoseCount: normalizeNonNegativeInteger(value.vrmMissingPoseCount),
+    vrmModelUriCount: normalizeNonNegativeInteger(value.vrmModelUriCount),
+    vrmRuntimeStatuses: Array.isArray(value.vrmRuntimeStatuses)
+      ? value.vrmRuntimeStatuses.filter((status): status is string => typeof status === "string")
       : [],
     stale: value.stale === true,
     congested: value.congested === true,

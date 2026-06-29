@@ -28,7 +28,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 27;
+    bundleVersion: 28;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -87,6 +87,10 @@ export interface SupportBundle {
     lastSessionNativeRuntimeStillImageAssetCount: number;
     lastSessionNativeRuntimeStillImageAssetLoadedCount: number;
     lastSessionNativeRuntimeStillImageAssetMissingCount: number;
+    lastSessionNativeRuntimeVrmSourceCount: number;
+    lastSessionNativeRuntimeVrmPosePayloadCount: number;
+    lastSessionNativeRuntimeVrmActivePoseCount: number;
+    lastSessionNativeRuntimeVrmMissingPoseCount: number;
     audioMonitorRouteStatus: StreamDiagnostics["audio"]["monitorSafety"]["status"];
     audioMonitorRouteOutputName: string;
     audioMonitorRouteHeadphonesConnected: boolean;
@@ -158,6 +162,10 @@ export interface SupportBundle {
     validationEvidenceLatestNativeRuntimeStillImageAssetCount: number;
     validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount: number;
     validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount: number;
+    validationEvidenceLatestNativeRuntimeVrmSourceCount: number;
+    validationEvidenceLatestNativeRuntimeVrmPosePayloadCount: number;
+    validationEvidenceLatestNativeRuntimeVrmActivePoseCount: number;
+    validationEvidenceLatestNativeRuntimeVrmMissingPoseCount: number;
     validationEvidenceFaceTrackingRunCount: number;
     validationEvidenceFaceTrackingReadyCount: number;
     validationEvidenceFaceTrackingWarningCount: number;
@@ -263,6 +271,10 @@ export interface SupportBundle {
     nativeRuntimeStillImageAssetCount: number;
     nativeRuntimeStillImageAssetLoadedCount: number;
     nativeRuntimeStillImageAssetMissingCount: number;
+    nativeRuntimeVrmSourceCount: number;
+    nativeRuntimeVrmPosePayloadCount: number;
+    nativeRuntimeVrmActivePoseCount: number;
+    nativeRuntimeVrmMissingPoseCount: number;
     nativeRuntimeStale: boolean;
     nativeRuntimeCongested: boolean;
     nativeRuntimeQueuedItems: number;
@@ -377,7 +389,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 27
+      bundleVersion: 28
     },
     summary: {
       status: diagnostics.status,
@@ -436,6 +448,10 @@ export const createSupportBundle = ({
       lastSessionNativeRuntimeStillImageAssetCount: diagnostics.session.lastSummary?.nativeRuntime?.stillImageAssetCount ?? 0,
       lastSessionNativeRuntimeStillImageAssetLoadedCount: diagnostics.session.lastSummary?.nativeRuntime?.stillImageAssetLoadedCount ?? 0,
       lastSessionNativeRuntimeStillImageAssetMissingCount: diagnostics.session.lastSummary?.nativeRuntime?.stillImageAssetMissingCount ?? 0,
+      lastSessionNativeRuntimeVrmSourceCount: diagnostics.session.lastSummary?.nativeRuntime?.vrmSourceCount ?? 0,
+      lastSessionNativeRuntimeVrmPosePayloadCount: diagnostics.session.lastSummary?.nativeRuntime?.vrmPosePayloadCount ?? 0,
+      lastSessionNativeRuntimeVrmActivePoseCount: diagnostics.session.lastSummary?.nativeRuntime?.vrmActivePoseCount ?? 0,
+      lastSessionNativeRuntimeVrmMissingPoseCount: diagnostics.session.lastSummary?.nativeRuntime?.vrmMissingPoseCount ?? 0,
       audioMonitorRouteStatus: diagnostics.audio.monitorSafety.status,
       audioMonitorRouteOutputName: diagnostics.audio.monitorSafety.outputName,
       audioMonitorRouteHeadphonesConnected: diagnostics.audio.monitorSafety.headphonesConnected,
@@ -507,6 +523,10 @@ export const createSupportBundle = ({
       validationEvidenceLatestNativeRuntimeStillImageAssetCount: diagnostics.validationEvidence.latestNativeRuntime?.stillImageAssetCount ?? 0,
       validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount: diagnostics.validationEvidence.latestNativeRuntime?.stillImageAssetLoadedCount ?? 0,
       validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount: diagnostics.validationEvidence.latestNativeRuntime?.stillImageAssetMissingCount ?? 0,
+      validationEvidenceLatestNativeRuntimeVrmSourceCount: diagnostics.validationEvidence.latestNativeRuntime?.vrmSourceCount ?? 0,
+      validationEvidenceLatestNativeRuntimeVrmPosePayloadCount: diagnostics.validationEvidence.latestNativeRuntime?.vrmPosePayloadCount ?? 0,
+      validationEvidenceLatestNativeRuntimeVrmActivePoseCount: diagnostics.validationEvidence.latestNativeRuntime?.vrmActivePoseCount ?? 0,
+      validationEvidenceLatestNativeRuntimeVrmMissingPoseCount: diagnostics.validationEvidence.latestNativeRuntime?.vrmMissingPoseCount ?? 0,
       validationEvidenceFaceTrackingRunCount: diagnostics.validationEvidence.faceTrackingRunCount,
       validationEvidenceFaceTrackingReadyCount: diagnostics.validationEvidence.faceTrackingReadyCount,
       validationEvidenceFaceTrackingWarningCount: diagnostics.validationEvidence.faceTrackingWarningCount,
@@ -614,6 +634,10 @@ export const createSupportBundle = ({
       nativeRuntimeStillImageAssetCount: diagnostics.nativeRuntime?.composition.stillImageAssetCount ?? 0,
       nativeRuntimeStillImageAssetLoadedCount: diagnostics.nativeRuntime?.composition.stillImageAssetLoadedCount ?? 0,
       nativeRuntimeStillImageAssetMissingCount: diagnostics.nativeRuntime?.composition.stillImageAssetMissingCount ?? 0,
+      nativeRuntimeVrmSourceCount: diagnostics.nativeRuntime?.composition.vrmSourceCount ?? 0,
+      nativeRuntimeVrmPosePayloadCount: diagnostics.nativeRuntime?.composition.vrmPosePayloadCount ?? 0,
+      nativeRuntimeVrmActivePoseCount: diagnostics.nativeRuntime?.composition.vrmActivePoseCount ?? 0,
+      nativeRuntimeVrmMissingPoseCount: diagnostics.nativeRuntime?.composition.vrmMissingPoseCount ?? 0,
       nativeRuntimeStale: diagnostics.nativeRuntime?.stale ?? false,
       nativeRuntimeCongested: diagnostics.nativeRuntime?.publisher.congested ?? false,
       nativeRuntimeQueuedItems: diagnostics.nativeRuntime?.publisher.itemsInCache ?? 0,
@@ -760,7 +784,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Last quality automation: ${bundle.summary.lastSessionQualityEventCount} events / ${bundle.summary.lastSessionQualityLiveUpdateCount} live updates / ${bundle.summary.lastSessionQualityNextTargetCount} next-start targets / ${bundle.summary.lastSessionQualityUpdateFailureCount} failed`,
     `- Last audio meter: ${bundle.summary.lastSessionAudioLevelSampleCount} samples / peak ${Math.round(bundle.summary.lastSessionAudioPeakLevel * 100)}% / active ${bundle.summary.lastSessionAudioActivePercent}% / clipped ${bundle.summary.lastSessionAudioClippedSampleCount}`,
     `- Last summary: ${bundle.diagnostics.session.lastSummary?.summary ?? "-"}`,
-    `- Last native runtime: ${bundle.summary.lastSessionNativeRuntimeStatus ?? "-"} / ${bundle.summary.lastSessionNativeRuntimePlatform ?? "-"} / assets ${bundle.summary.lastSessionNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.lastSessionNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.lastSessionNativeRuntimeStillImageAssetMissingCount} missing / congested ${bundle.summary.lastSessionNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.lastSessionNativeRuntimeQueuedItems}/${bundle.summary.lastSessionNativeRuntimeCacheSize}`,
+    `- Last native runtime: ${bundle.summary.lastSessionNativeRuntimeStatus ?? "-"} / ${bundle.summary.lastSessionNativeRuntimePlatform ?? "-"} / assets ${bundle.summary.lastSessionNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.lastSessionNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.lastSessionNativeRuntimeStillImageAssetMissingCount} missing / vrm ${bundle.summary.lastSessionNativeRuntimeVrmActivePoseCount}/${bundle.summary.lastSessionNativeRuntimeVrmSourceCount} active payloads ${bundle.summary.lastSessionNativeRuntimeVrmPosePayloadCount} missing ${bundle.summary.lastSessionNativeRuntimeVrmMissingPoseCount} / congested ${bundle.summary.lastSessionNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.lastSessionNativeRuntimeQueuedItems}/${bundle.summary.lastSessionNativeRuntimeCacheSize}`,
     `- Last recommendation: ${bundle.diagnostics.session.lastSummary?.recommendation ?? "-"}`,
     `- Health history: ${bundle.diagnostics.history.summary}`,
     `- Quality incidents: ${bundle.diagnostics.qualityIncidents.summary}`,
@@ -772,7 +796,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Recovery: ${bundle.diagnostics.recovery.mode} / ${bundle.diagnostics.recovery.recommendedAction}`,
     `- Native composition: ${bundle.summary.nativeCompositionStatus} / ${bundle.summary.nativeCompositionCoverage} / preview-only ${bundle.summary.nativeCompositionPreviewOnlySourceCount} / asset issues ${bundle.summary.nativeCompositionAssetIssueCount} / file-backed ${bundle.summary.nativeCompositionFileBackedAssetIssueCount}`,
     `- Native compositor required: ${bundle.summary.nativeCompositionRequiresCompositor ? "yes" : "no"}`,
-    `- Native runtime: ${bundle.summary.nativeRuntimePlatform ?? "-"} / ${bundle.summary.nativeRuntimeStatus ?? "-"} / publisher ${bundle.summary.nativeRuntimePublisherState ?? "-"} / composition ${bundle.summary.nativeRuntimeCompositionStatus ?? "-"} / assets ${bundle.summary.nativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.nativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.nativeRuntimeStillImageAssetMissingCount} missing / stale ${bundle.summary.nativeRuntimeStale ? "yes" : "no"} / congested ${bundle.summary.nativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.nativeRuntimeQueuedItems}/${bundle.summary.nativeRuntimeCacheSize}`,
+    `- Native runtime: ${bundle.summary.nativeRuntimePlatform ?? "-"} / ${bundle.summary.nativeRuntimeStatus ?? "-"} / publisher ${bundle.summary.nativeRuntimePublisherState ?? "-"} / composition ${bundle.summary.nativeRuntimeCompositionStatus ?? "-"} / assets ${bundle.summary.nativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.nativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.nativeRuntimeStillImageAssetMissingCount} missing / vrm ${bundle.summary.nativeRuntimeVrmActivePoseCount}/${bundle.summary.nativeRuntimeVrmSourceCount} active payloads ${bundle.summary.nativeRuntimeVrmPosePayloadCount} missing ${bundle.summary.nativeRuntimeVrmMissingPoseCount} / stale ${bundle.summary.nativeRuntimeStale ? "yes" : "no"} / congested ${bundle.summary.nativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.nativeRuntimeQueuedItems}/${bundle.summary.nativeRuntimeCacheSize}`,
     `- Audio monitor route: ${bundle.summary.audioMonitorRouteStatus} / ${bundle.summary.audioMonitorRouteOutputName} / headphones ${bundle.summary.audioMonitorRouteHeadphonesConnected ? "yes" : "no"} / stale ${bundle.summary.audioMonitorRouteStale ? "yes" : "no"}`,
     "",
     "Commercial Validation",
@@ -793,7 +817,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Evidence outcomes: ${bundle.summary.validationEvidencePassCount} pass / ${bundle.summary.validationEvidenceFailureCount} fail`,
     `- Evidence physical devices: ${bundle.summary.validationEvidencePhysicalDeviceRunCount} retained / ${bundle.summary.validationEvidencePhysicalDeviceReadyCount} ready / ${bundle.summary.validationEvidencePhysicalDeviceWarningCount} warn / ${bundle.summary.validationEvidencePhysicalDeviceFailureCount} fail / iOS ${bundle.summary.validationEvidencePhysicalDeviceIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidencePhysicalDeviceAndroidPass ? "pass" : "missing"}`,
     `- Evidence monitor hold: ${bundle.summary.validationEvidenceMonitorHoldRunCount} retained / ${bundle.summary.validationEvidenceMonitorHoldReadyCount} ready / ${bundle.summary.validationEvidenceMonitorHoldWarningCount} warn / ${bundle.summary.validationEvidenceMonitorHoldFailureCount} fail / iOS ${bundle.summary.validationEvidenceMonitorHoldIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceMonitorHoldAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestMonitorHoldStatus ?? "-"} ${bundle.summary.validationEvidenceLatestMonitorHoldDurationSeconds}s ${bundle.summary.validationEvidenceLatestMonitorHoldSampleCount} samples / ${bundle.summary.validationEvidenceLatestMonitorHoldStability ?? "-"} / avg ${bundle.summary.validationEvidenceLatestMonitorHoldAverageBitrateKbps} kbps ${bundle.summary.validationEvidenceLatestMonitorHoldAverageFps} fps / min ${bundle.summary.validationEvidenceLatestMonitorHoldMinimumBitrateKbps} kbps ${bundle.summary.validationEvidenceLatestMonitorHoldMinimumFps} fps / drops ${bundle.summary.validationEvidenceLatestMonitorHoldDroppedFrameIncrease} / reconnects ${bundle.summary.validationEvidenceLatestMonitorHoldObservedReconnectAttempts}`,
-    `- Evidence native runtime: ${bundle.summary.validationEvidenceNativeRuntimeRunCount} retained / ${bundle.summary.validationEvidenceNativeRuntimeReadyCount} ready / ${bundle.summary.validationEvidenceNativeRuntimeWarningCount} warn / ${bundle.summary.validationEvidenceNativeRuntimeFailureCount} fail / iOS ${bundle.summary.validationEvidenceNativeRuntimeIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceNativeRuntimeAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestNativeRuntimeStatus ?? "-"} ${bundle.summary.validationEvidenceLatestNativeRuntimePlatform ?? "-"} / sent ${bundle.summary.validationEvidenceLatestNativeRuntimeSentVideoFrames} video ${bundle.summary.validationEvidenceLatestNativeRuntimeSentAudioFrames} audio / bytes ${bundle.summary.validationEvidenceLatestNativeRuntimeBytesWritten} / assets ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount} missing / congested ${bundle.summary.validationEvidenceLatestNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.validationEvidenceLatestNativeRuntimeQueuedItems}/${bundle.summary.validationEvidenceLatestNativeRuntimeCacheSize}`,
+    `- Evidence native runtime: ${bundle.summary.validationEvidenceNativeRuntimeRunCount} retained / ${bundle.summary.validationEvidenceNativeRuntimeReadyCount} ready / ${bundle.summary.validationEvidenceNativeRuntimeWarningCount} warn / ${bundle.summary.validationEvidenceNativeRuntimeFailureCount} fail / iOS ${bundle.summary.validationEvidenceNativeRuntimeIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceNativeRuntimeAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestNativeRuntimeStatus ?? "-"} ${bundle.summary.validationEvidenceLatestNativeRuntimePlatform ?? "-"} / sent ${bundle.summary.validationEvidenceLatestNativeRuntimeSentVideoFrames} video ${bundle.summary.validationEvidenceLatestNativeRuntimeSentAudioFrames} audio / bytes ${bundle.summary.validationEvidenceLatestNativeRuntimeBytesWritten} / assets ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetMissingCount} missing / vrm ${bundle.summary.validationEvidenceLatestNativeRuntimeVrmActivePoseCount}/${bundle.summary.validationEvidenceLatestNativeRuntimeVrmSourceCount} active payloads ${bundle.summary.validationEvidenceLatestNativeRuntimeVrmPosePayloadCount} missing ${bundle.summary.validationEvidenceLatestNativeRuntimeVrmMissingPoseCount} / congested ${bundle.summary.validationEvidenceLatestNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.validationEvidenceLatestNativeRuntimeQueuedItems}/${bundle.summary.validationEvidenceLatestNativeRuntimeCacheSize}`,
     `- Evidence face tracking: ${bundle.summary.validationEvidenceFaceTrackingRunCount} retained / ${bundle.summary.validationEvidenceFaceTrackingReadyCount} ready / ${bundle.summary.validationEvidenceFaceTrackingWarningCount} warn / iOS ${bundle.summary.validationEvidenceFaceTrackingIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceFaceTrackingAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestFaceTrackingStatus ?? "-"} ${bundle.summary.validationEvidenceLatestFaceTrackingRuntimeStatus ?? "-"} / age ${bundle.summary.validationEvidenceLatestFaceTrackingRuntimeAgeMs === null ? "-" : `${bundle.summary.validationEvidenceLatestFaceTrackingRuntimeAgeMs} ms`} / fresh ${bundle.summary.validationEvidenceLatestFaceTrackingRuntimeFresh ? "yes" : "no"} / prepared ${bundle.summary.validationEvidenceLatestFaceTrackingPreparedPngTuberCount} / moving ${bundle.summary.validationEvidenceLatestFaceTrackingActiveMotionCount}`,
     `- Evidence audio: ${bundle.summary.validationEvidenceAudioRunCount} retained / ${bundle.summary.validationEvidenceAudioReadyCount} ready / ${bundle.summary.validationEvidenceAudioWarningCount} warn / iOS ${bundle.summary.validationEvidenceAudioIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceAudioAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestAudioStatus ?? "-"} ${bundle.summary.validationEvidenceLatestAudioPresetId ?? "-"} / monitor ${bundle.summary.validationEvidenceLatestAudioMonitorEnabled ? "on" : "off"} / headphones-only ${bundle.summary.validationEvidenceLatestAudioMonitorHeadphonesOnly ? "yes" : "no"} / route ${bundle.summary.validationEvidenceLatestAudioMonitorRouteStatus ?? "-"} ${bundle.summary.validationEvidenceLatestAudioOutputName ?? "-"} / headphones ${bundle.summary.validationEvidenceLatestAudioHeadphonesConnected ? "yes" : "no"} / stale ${bundle.summary.validationEvidenceLatestAudioRouteStale ? "yes" : "no"} / native monitor ${bundle.summary.validationEvidenceLatestAudioNativeMonitorReported ? (bundle.summary.validationEvidenceLatestAudioNativeMonitorRunning ? "running" : "reported") : "missing"} ${bundle.summary.validationEvidenceLatestAudioNativeMonitorWrittenFrames}/${bundle.summary.validationEvidenceLatestAudioNativeMonitorDroppedFrames} frames ${bundle.summary.validationEvidenceLatestAudioNativeMonitorOutputName ?? "-"} / buffers ${bundle.summary.validationEvidenceLatestAudioNativeMonitorWrittenBuffers}/${bundle.summary.validationEvidenceLatestAudioNativeMonitorDroppedBuffers} / latency ${bundle.summary.validationEvidenceLatestAudioMonitorLatencyMs === null ? "missing" : `${bundle.summary.validationEvidenceLatestAudioMonitorLatencyMs}ms`} ${bundle.summary.validationEvidenceLatestAudioMonitorLatencyStatus ?? "-"} / source ${bundle.summary.validationEvidenceLatestAudioMonitorLatencySource ?? "-"} / budget ${bundle.summary.validationEvidenceLatestAudioMonitorLatencyBudgetMs}ms / bluetooth ${bundle.summary.validationEvidenceLatestAudioBluetoothRoute ? "yes" : "no"} / tuning ${bundle.summary.validationEvidenceLatestAudioMonitorTuningNote ?? "-"} / samples ${bundle.summary.validationEvidenceLatestAudioLevelSampleCount} / peak ${Math.round(bundle.summary.validationEvidenceLatestAudioPeakLevel * 100)}% / clipped ${bundle.summary.validationEvidenceLatestAudioClippedLevelCount}`,
     `- Evidence chat readout: ${bundle.summary.validationEvidenceChatReadoutRunCount} retained / ${bundle.summary.validationEvidenceChatReadoutReadyCount} ready / ${bundle.summary.validationEvidenceChatReadoutWarningCount} warn / iOS ${bundle.summary.validationEvidenceChatReadoutIosPass ? "pass" : "missing"} / Android ${bundle.summary.validationEvidenceChatReadoutAndroidPass ? "pass" : "missing"} / latest ${bundle.summary.validationEvidenceLatestChatReadoutStatus ?? "-"} ${bundle.summary.validationEvidenceLatestChatReadoutConnectionPhase ?? "-"} / spoken ${bundle.summary.validationEvidenceLatestChatReadoutSpokenMessageCount} / failed ${bundle.summary.validationEvidenceLatestChatReadoutSpeechFailureCount}`,
@@ -849,7 +873,7 @@ const formatValidationEvidenceRunManifest = (
         `${run.targetPlatform}/${run.transport}`,
         `${run.ageDays}d`,
         run.fingerprint,
-        `native ${run.nativeRuntimeStatus ?? "-"} ${run.nativeRuntimePlatform ?? "-"} ${run.nativeRuntimeCompositionStatus ?? "-"} frames ${run.nativeRuntimeSentVideoFrames}/${run.nativeRuntimeSentAudioFrames} bytes ${run.nativeRuntimeBytesWritten} assets ${run.nativeRuntimeStillImageAssetLoadedCount}/${run.nativeRuntimeStillImageAssetCount} missing ${run.nativeRuntimeStillImageAssetMissingCount}`,
+        `native ${run.nativeRuntimeStatus ?? "-"} ${run.nativeRuntimePlatform ?? "-"} ${run.nativeRuntimeCompositionStatus ?? "-"} frames ${run.nativeRuntimeSentVideoFrames}/${run.nativeRuntimeSentAudioFrames} bytes ${run.nativeRuntimeBytesWritten} assets ${run.nativeRuntimeStillImageAssetLoadedCount}/${run.nativeRuntimeStillImageAssetCount} missing ${run.nativeRuntimeStillImageAssetMissingCount} vrm ${run.nativeRuntimeVrmActivePoseCount}/${run.nativeRuntimeVrmSourceCount} payloads ${run.nativeRuntimeVrmPosePayloadCount} missing ${run.nativeRuntimeVrmMissingPoseCount}`,
         `hold ${run.monitorHoldStatus ?? "-"} samples ${run.monitorHoldSampleCount} duration ${run.monitorHoldDurationSeconds}s stability ${run.monitorHoldStability ?? "-"} bitrate ${run.monitorHoldAverageBitrateKbps}/${run.monitorHoldMinimumBitrateKbps} fps ${run.monitorHoldAverageFps}/${run.monitorHoldMinimumFps} drops ${run.monitorHoldDroppedFrameIncrease} reconnects ${run.monitorHoldObservedReconnectAttempts}`,
         `audio ${run.audioStatus ?? "-"} monitor frames ${run.audioNativeMonitorWrittenFrames}/${run.audioNativeMonitorDroppedFrames} buffers ${run.audioNativeMonitorWrittenBuffers}/${run.audioNativeMonitorDroppedBuffers} headphones ${run.audioNativeMonitorHeadphonesConnected ? "yes" : "no"} latency ${run.audioMonitorLatencyMs === null ? "-" : `${run.audioMonitorLatencyMs}ms`} ${run.audioMonitorLatencyStatus ?? "-"}`,
         `chat ${run.chatReadoutStatus ?? "-"} spoken ${run.chatReadoutSpokenMessageCount} failed ${run.chatReadoutSpeechFailureCount}`,

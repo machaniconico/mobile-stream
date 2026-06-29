@@ -172,6 +172,12 @@ const normalizeNativeRuntime = (
           stillImageAssetLoadedCount: runtime.composition?.stillImageAssetLoadedCount ?? 0,
           stillImageAssetMissingCount: runtime.composition?.stillImageAssetMissingCount ?? 0,
           stillImageAssetMissingKinds: runtime.composition?.stillImageAssetMissingKinds ?? [],
+          vrmSourceCount: runtime.composition?.vrmSourceCount ?? 0,
+          vrmPosePayloadCount: runtime.composition?.vrmPosePayloadCount ?? 0,
+          vrmActivePoseCount: runtime.composition?.vrmActivePoseCount ?? 0,
+          vrmMissingPoseCount: runtime.composition?.vrmMissingPoseCount ?? 0,
+          vrmModelUriCount: runtime.composition?.vrmModelUriCount ?? 0,
+          vrmRuntimeStatuses: runtime.composition?.vrmRuntimeStatuses ?? [],
           message: runtime.composition?.message ?? ""
         },
         audioProcessing: {

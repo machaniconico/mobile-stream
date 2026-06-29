@@ -75,6 +75,12 @@ describe("support bundle", () => {
           stillImageAssetLoadedCount: 1,
           stillImageAssetMissingCount: 0,
           stillImageAssetMissingKinds: [],
+          vrmSourceCount: 1,
+          vrmPosePayloadCount: 1,
+          vrmActivePoseCount: 1,
+          vrmMissingPoseCount: 0,
+          vrmModelUriCount: 1,
+          vrmRuntimeStatuses: ["active"],
           message: "Native screen capture ready"
         },
         message: `Publishing ${streamKey}`
@@ -156,7 +162,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 27 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 28 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
@@ -196,6 +202,10 @@ describe("support bundle", () => {
     expect(bundle.summary.lastSessionNativeRuntimeStillImageAssetCount).toBe(1);
     expect(bundle.summary.lastSessionNativeRuntimeStillImageAssetLoadedCount).toBe(1);
     expect(bundle.summary.lastSessionNativeRuntimeStillImageAssetMissingCount).toBe(0);
+    expect(bundle.summary.lastSessionNativeRuntimeVrmSourceCount).toBe(1);
+    expect(bundle.summary.lastSessionNativeRuntimeVrmPosePayloadCount).toBe(1);
+    expect(bundle.summary.lastSessionNativeRuntimeVrmActivePoseCount).toBe(1);
+    expect(bundle.summary.lastSessionNativeRuntimeVrmMissingPoseCount).toBe(0);
     expect(bundle.summary.validationRunbookStatus).toBe("running");
     expect(bundle.summary.validationRunbookPendingCount).toBeGreaterThan(0);
     expect(bundle.summary.rehearsalStatus).toBe("needs-run");
@@ -226,6 +236,10 @@ describe("support bundle", () => {
     expect(bundle.summary.nativeRuntimeStillImageAssetCount).toBe(1);
     expect(bundle.summary.nativeRuntimeStillImageAssetLoadedCount).toBe(1);
     expect(bundle.summary.nativeRuntimeStillImageAssetMissingCount).toBe(0);
+    expect(bundle.summary.nativeRuntimeVrmSourceCount).toBe(1);
+    expect(bundle.summary.nativeRuntimeVrmPosePayloadCount).toBe(1);
+    expect(bundle.summary.nativeRuntimeVrmActivePoseCount).toBe(1);
+    expect(bundle.summary.nativeRuntimeVrmMissingPoseCount).toBe(0);
     expect(bundle.summary.validationStatus).toBe("needs-test");
     expect(bundle.summary.validationFailCount).toBe(0);
     expect(bundle.summary.validationWarningCount).toBeGreaterThan(0);
@@ -276,7 +290,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("asset issues 1 / file-backed 0");
     expect(formatSupportBundle(bundle)).toContain("assets 1/1 loaded / 0 missing");
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
-    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / assets 1/1 loaded / 0 missing / congested yes / queue 64/120");
+    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / assets 1/1 loaded / 0 missing / vrm 1/1 active payloads 1 missing 0 / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
     expect(formatSupportBundle(bundle)).toContain("Evidence fingerprint: sve1-");
     expect(formatSupportBundle(bundle)).toContain("Evidence run manifest: -");
@@ -348,6 +362,12 @@ describe("support bundle", () => {
           stillImageAssetLoadedCount: 1,
           stillImageAssetMissingCount: 0,
           stillImageAssetMissingKinds: [],
+          vrmSourceCount: 1,
+          vrmPosePayloadCount: 1,
+          vrmActivePoseCount: 1,
+          vrmMissingPoseCount: 0,
+          vrmModelUriCount: 1,
+          vrmRuntimeStatuses: ["active"],
           message: "Native overlays applied"
         },
         message: "Native runtime live"
@@ -416,6 +436,10 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeSentVideoFrames).toBe(0);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeSentAudioFrames).toBe(0);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeBytesWritten).toBe(0);
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeVrmSourceCount).toBe(1);
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeVrmPosePayloadCount).toBe(1);
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeVrmActivePoseCount).toBe(1);
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeVrmMissingPoseCount).toBe(0);
     expect(bundle.summary.validationEvidenceLatestAudioMonitorLatencyStatus).toBe("warn");
     expect(bundle.summary.validationEvidenceLatestAudioMonitorLatencyMs).toBeNull();
     expect(bundle.summary.validationEvidenceRunManifest).toHaveLength(1);
@@ -426,6 +450,10 @@ describe("support bundle", () => {
       matchesScope: true,
       eligible: true,
       nativeRuntimeStatus: "pass",
+      nativeRuntimeVrmSourceCount: 1,
+      nativeRuntimeVrmPosePayloadCount: 1,
+      nativeRuntimeVrmActivePoseCount: 1,
+      nativeRuntimeVrmMissingPoseCount: 0,
       audioStatus: "warn",
       platformPublishingFreshnessStatus: "fresh",
       platformPublishingCheckedAt: "2026-06-23T00:00:00.000Z"

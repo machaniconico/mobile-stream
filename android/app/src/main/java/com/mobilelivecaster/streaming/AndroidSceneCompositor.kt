@@ -18,19 +18,36 @@ import org.json.JSONObject
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+data class AndroidVrmPoseSummary(
+    val sourceCount: Int = 0,
+    val posePayloadCount: Int = 0,
+    val activePoseCount: Int = 0,
+    val missingPoseCount: Int = 0,
+    val modelUriCount: Int = 0,
+    val runtimeStatuses: Set<String> = emptySet()
+)
+
 data class AndroidCompositionResult(
     val appliedCount: Int,
     val skippedCount: Int,
     val skippedKinds: Set<String>,
-    val parseFailed: Boolean = false
+    val parseFailed: Boolean = false,
+    val vrmPoseSummary: AndroidVrmPoseSummary = AndroidVrmPoseSummary()
 ) {
     val summary: String
-        get() = when {
-            parseFailed -> "Native composition skipped: invalid render graph"
-            appliedCount == 0 && skippedCount == 0 -> "Native composition screen-only"
-            skippedCount == 0 -> "Native overlays applied: $appliedCount"
-            appliedCount == 0 -> "Native overlays pending: ${skippedKinds.joinToString("/")}"
-            else -> "Native overlays applied: $appliedCount, pending: ${skippedKinds.joinToString("/")}"
+        get() {
+            val base = when {
+                parseFailed -> "Native composition skipped: invalid render graph"
+                appliedCount == 0 && skippedCount == 0 -> "Native composition screen-only"
+                skippedCount == 0 -> "Native overlays applied: $appliedCount"
+                appliedCount == 0 -> "Native overlays pending: ${skippedKinds.joinToString("/")}"
+                else -> "Native overlays applied: $appliedCount, pending: ${skippedKinds.joinToString("/")}"
+            }
+            return if (vrmPoseSummary.sourceCount > 0) {
+                "$base; VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}"
+            } else {
+                base
+            }
         }
 }
 
@@ -38,6 +55,7 @@ object AndroidSceneCompositor {
     fun apply(context: Context, stream: GenericStream, renderGraphJson: String): AndroidCompositionResult {
         val renderNodes = parseRenderGraph(renderGraphJson)
             ?: return AndroidCompositionResult(appliedCount = 0, skippedCount = 0, skippedKinds = emptySet(), parseFailed = true)
+        val vrmPoseSummary = summarizeVrmPosePayloads(renderNodes)
 
         val primaryScreenOrder = renderNodes
             .filter { node -> node.kind == "screen" }
@@ -70,7 +88,8 @@ object AndroidSceneCompositor {
         return AndroidCompositionResult(
             appliedCount = appliedCount,
             skippedCount = skippedCount,
-            skippedKinds = skippedKinds
+            skippedKinds = skippedKinds,
+            vrmPoseSummary = vrmPoseSummary
         )
     }
 
@@ -343,6 +362,65 @@ object AndroidSceneCompositor {
         } catch (_: Throwable) {
             null
         }
+    }
+
+    private fun summarizeVrmPosePayloads(renderNodes: List<RenderGraphNode>): AndroidVrmPoseSummary {
+        val vrmNodes = renderNodes.filter { node -> node.kind == "vrm" }
+        if (vrmNodes.isEmpty()) {
+            return AndroidVrmPoseSummary()
+        }
+
+        var posePayloadCount = 0
+        var activePoseCount = 0
+        var modelUriCount = 0
+        val runtimeStatuses = linkedSetOf<String>()
+
+        vrmNodes.forEach { node ->
+            if (node.payload.optString("modelUri").trim().isNotEmpty()) {
+                modelUriCount += 1
+            }
+
+            val directStatus = normalizeVrmRuntimeStatus(node.payload.optString("vrmRuntimeStatus"))
+            val rawPose = node.payload.optString("vrmRuntimePoseJson").trim()
+            var poseStatus = ""
+            if (rawPose.isNotEmpty()) {
+                try {
+                    val pose = JSONObject(rawPose)
+                    posePayloadCount += 1
+                    poseStatus = normalizeVrmRuntimeStatus(pose.optString("status", directStatus))
+                } catch (_: Throwable) {
+                    runtimeStatuses.add("invalid")
+                }
+            }
+
+            val status = poseStatus.ifEmpty { directStatus.ifEmpty { "missing" } }
+            if (status == "active") {
+                activePoseCount += 1
+            }
+            runtimeStatuses.add(status)
+        }
+
+        val missingPoseCount = (vrmNodes.size - posePayloadCount).coerceAtLeast(0)
+        if (missingPoseCount > 0) {
+            runtimeStatuses.add("missing")
+        }
+
+        return AndroidVrmPoseSummary(
+            sourceCount = vrmNodes.size,
+            posePayloadCount = posePayloadCount,
+            activePoseCount = activePoseCount,
+            missingPoseCount = missingPoseCount,
+            modelUriCount = modelUriCount,
+            runtimeStatuses = runtimeStatuses
+        )
+    }
+
+    private fun normalizeVrmRuntimeStatus(value: String): String {
+        return value
+            .trim()
+            .lowercase()
+            .replace(Regex("[^a-z0-9_-]"), "")
+            .take(40)
     }
 
     private fun parseTransform(transform: JSONObject?): RenderTransform {

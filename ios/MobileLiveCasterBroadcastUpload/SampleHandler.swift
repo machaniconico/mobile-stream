@@ -3072,6 +3072,7 @@ struct BroadcastSceneCompositionSummary: Equatable {
     let stillImageAssetLoadedCount: Int
     let stillImageAssetMissingCount: Int
     let stillImageAssetMissingKinds: [String]
+    let vrmPoseSummary: BroadcastVrmPoseSummary
 
     static let screenOnly = BroadcastSceneCompositionSummary(
         appliedCount: 0,
@@ -3081,7 +3082,8 @@ struct BroadcastSceneCompositionSummary: Equatable {
         stillImageAssetCount: 0,
         stillImageAssetLoadedCount: 0,
         stillImageAssetMissingCount: 0,
-        stillImageAssetMissingKinds: []
+        stillImageAssetMissingKinds: [],
+        vrmPoseSummary: .empty
     )
 
     var message: String {
@@ -3091,14 +3093,18 @@ struct BroadcastSceneCompositionSummary: Equatable {
         if appliedCount == 0 && skippedCount == 0 {
             return "Native composition screen-only"
         }
-        let assetSuffix = assetEvidenceMessage.map { "; \($0)" } ?? ""
+        let evidenceSuffix = evidenceMessages.isEmpty ? "" : "; \(evidenceMessages.joined(separator: "; "))"
         if skippedCount == 0 {
-            return "Native overlays applied: \(appliedCount)\(assetSuffix)"
+            return "Native overlays applied: \(appliedCount)\(evidenceSuffix)"
         }
         if appliedCount == 0 {
-            return "Native overlays pending: \(skippedKinds.joined(separator: "/"))\(assetSuffix)"
+            return "Native overlays pending: \(skippedKinds.joined(separator: "/"))\(evidenceSuffix)"
         }
-        return "Native overlays applied: \(appliedCount), pending: \(skippedKinds.joined(separator: "/"))\(assetSuffix)"
+        return "Native overlays applied: \(appliedCount), pending: \(skippedKinds.joined(separator: "/"))\(evidenceSuffix)"
+    }
+
+    private var evidenceMessages: [String] {
+        [assetEvidenceMessage, vrmPoseSummary.evidenceMessage].compactMap { $0 }
     }
 
     private var assetEvidenceMessage: String? {
@@ -3122,8 +3128,40 @@ struct BroadcastSceneCompositionSummary: Equatable {
             "stillImageAssetLoadedCount": stillImageAssetLoadedCount,
             "stillImageAssetMissingCount": stillImageAssetMissingCount,
             "stillImageAssetMissingKinds": stillImageAssetMissingKinds,
+            "vrmSourceCount": vrmPoseSummary.sourceCount,
+            "vrmPosePayloadCount": vrmPoseSummary.posePayloadCount,
+            "vrmActivePoseCount": vrmPoseSummary.activePoseCount,
+            "vrmMissingPoseCount": vrmPoseSummary.missingPoseCount,
+            "vrmModelUriCount": vrmPoseSummary.modelUriCount,
+            "vrmRuntimeStatuses": vrmPoseSummary.runtimeStatuses,
             "message": message
         ]
+    }
+}
+
+struct BroadcastVrmPoseSummary: Equatable {
+    let sourceCount: Int
+    let posePayloadCount: Int
+    let activePoseCount: Int
+    let missingPoseCount: Int
+    let modelUriCount: Int
+    let runtimeStatuses: [String]
+
+    static let empty = BroadcastVrmPoseSummary(
+        sourceCount: 0,
+        posePayloadCount: 0,
+        activePoseCount: 0,
+        missingPoseCount: 0,
+        modelUriCount: 0,
+        runtimeStatuses: []
+    )
+
+    var evidenceMessage: String? {
+        guard sourceCount > 0 else {
+            return nil
+        }
+        let statusSuffix = runtimeStatuses.isEmpty ? "" : ", statuses \(runtimeStatuses.joined(separator: "/"))"
+        return "VRM poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix)"
     }
 }
 
@@ -3291,6 +3329,7 @@ final class BroadcastSceneCompositor {
     private let skippedCount: Int
     private let skippedKinds: [String]
     private let parseFailed: Bool
+    private let vrmPoseSummary: BroadcastVrmPoseSummary
     private var cachedImages: [String: UIImage] = [:]
     private var cachedRiggedImages: [String: UIImage] = [:]
     private var stillImageAssetResults: [String: Bool] = [:]
@@ -3307,7 +3346,8 @@ final class BroadcastSceneCompositor {
             stillImageAssetCount: stillImageNodes.count,
             stillImageAssetLoadedCount: loadedCount,
             stillImageAssetMissingCount: missingNodes.count,
-            stillImageAssetMissingKinds: Array(Set(missingNodes.map(\.kind))).sorted()
+            stillImageAssetMissingKinds: Array(Set(missingNodes.map(\.kind))).sorted(),
+            vrmPoseSummary: vrmPoseSummary
         )
     }
 
@@ -3320,6 +3360,7 @@ final class BroadcastSceneCompositor {
             skippedCount = 0
             skippedKinds = []
             parseFailed = false
+            vrmPoseSummary = .empty
             return
         }
 
@@ -3328,8 +3369,10 @@ final class BroadcastSceneCompositor {
             skippedCount = 0
             skippedKinds = []
             parseFailed = true
+            vrmPoseSummary = .empty
             return
         }
+        vrmPoseSummary = Self.summarizeVrmPosePayloads(renderNodes)
 
         let primaryScreenOrder = renderNodes
             .filter { $0.kind == "screen" }
@@ -3769,6 +3812,67 @@ final class BroadcastSceneCompositor {
 
     private static func assetEvidenceKey(for node: BroadcastRenderNode) -> String {
         "\(node.kind):\(node.id)"
+    }
+
+    private static func summarizeVrmPosePayloads(_ nodes: [BroadcastRenderNode]) -> BroadcastVrmPoseSummary {
+        let vrmNodes = nodes.filter { $0.kind == "vrm" }
+        guard !vrmNodes.isEmpty else {
+            return .empty
+        }
+
+        var posePayloadCount = 0
+        var activePoseCount = 0
+        var modelUriCount = 0
+        var runtimeStatuses = Set<String>()
+
+        for node in vrmNodes {
+            if let modelUri = node.payload["modelUri"] as? String, !modelUri.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                modelUriCount += 1
+            }
+
+            let directStatus = normalizeVrmRuntimeStatus(node.payload["vrmRuntimeStatus"] as? String)
+            let rawPose = (node.payload["vrmRuntimePoseJson"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            var poseStatus = ""
+            if !rawPose.isEmpty, let data = rawPose.data(using: .utf8) {
+                if let object = try? JSONSerialization.jsonObject(with: data),
+                   let pose = object as? [String: Any] {
+                    posePayloadCount += 1
+                    poseStatus = normalizeVrmRuntimeStatus(pose["status"] as? String)
+                } else {
+                    runtimeStatuses.insert("invalid")
+                }
+            }
+
+            let status = !poseStatus.isEmpty ? poseStatus : (!directStatus.isEmpty ? directStatus : "missing")
+            if status == "active" {
+                activePoseCount += 1
+            }
+            runtimeStatuses.insert(status)
+        }
+
+        let missingPoseCount = max(0, vrmNodes.count - posePayloadCount)
+        if missingPoseCount > 0 {
+            runtimeStatuses.insert("missing")
+        }
+
+        return BroadcastVrmPoseSummary(
+            sourceCount: vrmNodes.count,
+            posePayloadCount: posePayloadCount,
+            activePoseCount: activePoseCount,
+            missingPoseCount: missingPoseCount,
+            modelUriCount: modelUriCount,
+            runtimeStatuses: runtimeStatuses.sorted()
+        )
+    }
+
+    private static func normalizeVrmRuntimeStatus(_ value: String?) -> String {
+        let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else {
+            return ""
+        }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789-_")
+        let scalars = trimmed.unicodeScalars.filter { allowed.contains($0) }
+        return String(String(String.UnicodeScalarView(scalars)).prefix(40))
     }
 
     private func mapBlueprintRect(_ blueprintRect: CGRect, into targetRect: CGRect) -> CGRect {

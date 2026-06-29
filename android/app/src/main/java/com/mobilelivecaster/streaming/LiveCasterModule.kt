@@ -21,6 +21,12 @@ data class NativeRuntimeComposition(
     val appliedCount: Int = 0,
     val skippedCount: Int = 0,
     val skippedKinds: List<String> = emptyList(),
+    val vrmSourceCount: Int = 0,
+    val vrmPosePayloadCount: Int = 0,
+    val vrmActivePoseCount: Int = 0,
+    val vrmMissingPoseCount: Int = 0,
+    val vrmModelUriCount: Int = 0,
+    val vrmRuntimeStatuses: List<String> = emptyList(),
     val message: String = ""
 ) {
     fun asWritableMap(): WritableMap = Arguments.createMap().apply {
@@ -28,6 +34,12 @@ data class NativeRuntimeComposition(
         putInt("appliedCount", appliedCount)
         putInt("skippedCount", skippedCount)
         putArray("skippedKinds", skippedKinds.toWritableArray())
+        putInt("vrmSourceCount", vrmSourceCount)
+        putInt("vrmPosePayloadCount", vrmPosePayloadCount)
+        putInt("vrmActivePoseCount", vrmActivePoseCount)
+        putInt("vrmMissingPoseCount", vrmMissingPoseCount)
+        putInt("vrmModelUriCount", vrmModelUriCount)
+        putArray("vrmRuntimeStatuses", vrmRuntimeStatuses.toWritableArray())
         putString("message", message)
     }
 }
@@ -49,6 +61,12 @@ private fun AndroidCompositionResult.toNativeRuntimeComposition(): NativeRuntime
         appliedCount = appliedCount,
         skippedCount = skippedCount,
         skippedKinds = skippedKinds.toList().sorted(),
+        vrmSourceCount = vrmPoseSummary.sourceCount,
+        vrmPosePayloadCount = vrmPoseSummary.posePayloadCount,
+        vrmActivePoseCount = vrmPoseSummary.activePoseCount,
+        vrmMissingPoseCount = vrmPoseSummary.missingPoseCount,
+        vrmModelUriCount = vrmPoseSummary.modelUriCount,
+        vrmRuntimeStatuses = vrmPoseSummary.runtimeStatuses.toList().sorted(),
         message = summary
     )
 }

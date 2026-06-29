@@ -860,7 +860,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 27 as const
+    bundleVersion: 28 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -982,6 +982,10 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetCount = 1,
   nativeRuntimeStillImageAssetLoadedCount = 1,
   nativeRuntimeStillImageAssetMissingCount = 0,
+  nativeRuntimeVrmSourceCount = 0,
+  nativeRuntimeVrmPosePayloadCount = 0,
+  nativeRuntimeVrmActivePoseCount = 0,
+  nativeRuntimeVrmMissingPoseCount = 0,
   monitorHoldStatus = "pass",
   monitorHoldSampleCount = 3,
   monitorHoldDurationSeconds = 65,
@@ -1053,6 +1057,10 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetCount?: ValidationManifestRun["nativeRuntimeStillImageAssetCount"];
   nativeRuntimeStillImageAssetLoadedCount?: ValidationManifestRun["nativeRuntimeStillImageAssetLoadedCount"];
   nativeRuntimeStillImageAssetMissingCount?: ValidationManifestRun["nativeRuntimeStillImageAssetMissingCount"];
+  nativeRuntimeVrmSourceCount?: ValidationManifestRun["nativeRuntimeVrmSourceCount"];
+  nativeRuntimeVrmPosePayloadCount?: ValidationManifestRun["nativeRuntimeVrmPosePayloadCount"];
+  nativeRuntimeVrmActivePoseCount?: ValidationManifestRun["nativeRuntimeVrmActivePoseCount"];
+  nativeRuntimeVrmMissingPoseCount?: ValidationManifestRun["nativeRuntimeVrmMissingPoseCount"];
   monitorHoldStatus?: ValidationManifestRun["monitorHoldStatus"];
   monitorHoldSampleCount?: ValidationManifestRun["monitorHoldSampleCount"];
   monitorHoldDurationSeconds?: ValidationManifestRun["monitorHoldDurationSeconds"];
@@ -1130,6 +1138,10 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetCount,
   nativeRuntimeStillImageAssetLoadedCount,
   nativeRuntimeStillImageAssetMissingCount,
+  nativeRuntimeVrmSourceCount,
+  nativeRuntimeVrmPosePayloadCount,
+  nativeRuntimeVrmActivePoseCount,
+  nativeRuntimeVrmMissingPoseCount,
   monitorHoldStatus,
   monitorHoldSampleCount,
   monitorHoldDurationSeconds,
