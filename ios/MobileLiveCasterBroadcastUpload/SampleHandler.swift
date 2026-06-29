@@ -3136,6 +3136,12 @@ struct BroadcastSceneCompositionSummary: Equatable {
             "vrmModelVersions": vrmPoseSummary.modelVersions,
             "vrmHumanoidBoneCount": vrmPoseSummary.humanoidBoneCount,
             "vrmExpressionCount": vrmPoseSummary.expressionCount,
+            "vrmMeshPrimitiveCount": vrmPoseSummary.meshPrimitiveCount,
+            "vrmSkinnedMeshPrimitiveCount": vrmPoseSummary.skinnedMeshPrimitiveCount,
+            "vrmSkinJointCount": vrmPoseSummary.skinJointCount,
+            "vrmMorphTargetCount": vrmPoseSummary.morphTargetCount,
+            "vrmMaterialCount": vrmPoseSummary.materialCount,
+            "vrmTextureCount": vrmPoseSummary.textureCount,
             "vrmPoseBoneCount": vrmPoseSummary.poseBoneCount,
             "vrmPoseBoneAppliedCount": vrmPoseSummary.poseBoneAppliedCount,
             "vrmPoseBoneUnsupportedCount": vrmPoseSummary.poseBoneUnsupportedCount,
@@ -3163,6 +3169,12 @@ struct BroadcastVrmPoseSummary: Equatable {
     let modelVersions: [String]
     let humanoidBoneCount: Int
     let expressionCount: Int
+    let meshPrimitiveCount: Int
+    let skinnedMeshPrimitiveCount: Int
+    let skinJointCount: Int
+    let morphTargetCount: Int
+    let materialCount: Int
+    let textureCount: Int
     let poseBoneCount: Int
     let poseBoneAppliedCount: Int
     let poseBoneUnsupportedCount: Int
@@ -3186,6 +3198,12 @@ struct BroadcastVrmPoseSummary: Equatable {
         modelVersions: [],
         humanoidBoneCount: 0,
         expressionCount: 0,
+        meshPrimitiveCount: 0,
+        skinnedMeshPrimitiveCount: 0,
+        skinJointCount: 0,
+        morphTargetCount: 0,
+        materialCount: 0,
+        textureCount: 0,
         poseBoneCount: 0,
         poseBoneAppliedCount: 0,
         poseBoneUnsupportedCount: 0,
@@ -3206,7 +3224,7 @@ struct BroadcastVrmPoseSummary: Equatable {
             return nil
         }
         let statusSuffix = runtimeStatuses.isEmpty ? "" : ", statuses \(runtimeStatuses.joined(separator: "/"))"
-        return "VRM poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix), renderer \(rendererStatus) \(rendererBackend), rendered \(renderedSourceCount)/\(sourceCount), models \(modelLoadedCount)/\(modelUriCount), bones \(humanoidBoneCount), expressions \(expressionCount), pose bones \(poseBoneAppliedCount)/\(poseBoneCount), pose expressions \(poseExpressionAppliedCount)/\(poseExpressionCount), failed \(renderFailureCount)"
+        return "VRM poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix), renderer \(rendererStatus) \(rendererBackend), rendered \(renderedSourceCount)/\(sourceCount), models \(modelLoadedCount)/\(modelUriCount), bones \(humanoidBoneCount), expressions \(expressionCount), primitives \(meshPrimitiveCount), skinned \(skinnedMeshPrimitiveCount), joints \(skinJointCount), morphs \(morphTargetCount), materials \(materialCount), textures \(textureCount), pose bones \(poseBoneAppliedCount)/\(poseBoneCount), pose expressions \(poseExpressionAppliedCount)/\(poseExpressionCount), failed \(renderFailureCount)"
     }
 }
 
@@ -3873,6 +3891,12 @@ final class BroadcastSceneCompositor {
         var modelVersions = Set<String>()
         var humanoidBoneCount = 0
         var expressionCount = 0
+        var meshPrimitiveCount = 0
+        var skinnedMeshPrimitiveCount = 0
+        var skinJointCount = 0
+        var morphTargetCount = 0
+        var materialCount = 0
+        var textureCount = 0
         var poseBoneCount = 0
         var poseBoneAppliedCount = 0
         var poseExpressionCount = 0
@@ -3890,6 +3914,12 @@ final class BroadcastSceneCompositor {
                     modelVersions.insert(metadata.version)
                     humanoidBoneCount += metadata.humanoidBoneNames.count
                     expressionCount += metadata.expressionNames.count
+                    meshPrimitiveCount += metadata.meshPrimitiveCount
+                    skinnedMeshPrimitiveCount += metadata.skinnedMeshPrimitiveCount
+                    skinJointCount += metadata.skinJointCount
+                    morphTargetCount += metadata.morphTargetCount
+                    materialCount += metadata.materialCount
+                    textureCount += metadata.textureCount
                 } else {
                     modelLoadFailureCount += 1
                 }
@@ -3937,6 +3967,12 @@ final class BroadcastSceneCompositor {
             modelVersions: modelVersions.sorted(),
             humanoidBoneCount: humanoidBoneCount,
             expressionCount: expressionCount,
+            meshPrimitiveCount: meshPrimitiveCount,
+            skinnedMeshPrimitiveCount: skinnedMeshPrimitiveCount,
+            skinJointCount: skinJointCount,
+            morphTargetCount: morphTargetCount,
+            materialCount: materialCount,
+            textureCount: textureCount,
             poseBoneCount: poseBoneCount,
             poseBoneAppliedCount: poseBoneAppliedCount,
             poseBoneUnsupportedCount: max(0, poseBoneCount - poseBoneAppliedCount),
@@ -4003,21 +4039,71 @@ final class BroadcastSceneCompositor {
         else {
             return nil
         }
+        let renderability = summarizeVrmGlbRenderability(root)
         if let vrm1 = extensions["VRMC_vrm"] as? [String: Any] {
             return BroadcastVrmModelMetadata(
                 version: "1.0",
                 humanoidBoneNames: extractVrm1HumanoidBoneNames(vrm1),
-                expressionNames: extractVrm1ExpressionNames(vrm1)
+                expressionNames: extractVrm1ExpressionNames(vrm1),
+                meshPrimitiveCount: renderability.meshPrimitiveCount,
+                skinnedMeshPrimitiveCount: renderability.skinnedMeshPrimitiveCount,
+                skinJointCount: renderability.skinJointCount,
+                morphTargetCount: renderability.morphTargetCount,
+                materialCount: renderability.materialCount,
+                textureCount: renderability.textureCount
             )
         }
         if let vrm0 = extensions["VRM"] as? [String: Any] {
             return BroadcastVrmModelMetadata(
                 version: "0.x",
                 humanoidBoneNames: extractVrm0HumanoidBoneNames(vrm0),
-                expressionNames: extractVrm0ExpressionNames(vrm0)
+                expressionNames: extractVrm0ExpressionNames(vrm0),
+                meshPrimitiveCount: renderability.meshPrimitiveCount,
+                skinnedMeshPrimitiveCount: renderability.skinnedMeshPrimitiveCount,
+                skinJointCount: renderability.skinJointCount,
+                morphTargetCount: renderability.morphTargetCount,
+                materialCount: renderability.materialCount,
+                textureCount: renderability.textureCount
             )
         }
         return nil
+    }
+
+    private static func summarizeVrmGlbRenderability(_ root: [String: Any]) -> BroadcastVrmRenderabilityMetadata {
+        let meshes = root["meshes"] as? [[String: Any]] ?? []
+        var meshPrimitiveCounts: [Int: Int] = [:]
+        var meshPrimitiveCount = 0
+        var morphTargetCount = 0
+
+        for (meshIndex, mesh) in meshes.enumerated() {
+            let primitives = mesh["primitives"] as? [[String: Any]] ?? []
+            meshPrimitiveCounts[meshIndex] = primitives.count
+            meshPrimitiveCount += primitives.count
+            morphTargetCount += primitives.reduce(0) { count, primitive in
+                count + ((primitive["targets"] as? [Any])?.count ?? 0)
+            }
+        }
+
+        let nodes = root["nodes"] as? [[String: Any]] ?? []
+        let skinnedMeshPrimitiveCount = nodes.reduce(0) { count, node in
+            guard node["skin"] != nil, let meshIndex = (node["mesh"] as? NSNumber)?.intValue else {
+                return count
+            }
+            return count + (meshPrimitiveCounts[meshIndex] ?? 0)
+        }
+
+        let skinJointCount = (root["skins"] as? [[String: Any]] ?? []).reduce(0) { count, skin in
+            count + ((skin["joints"] as? [Any])?.count ?? 0)
+        }
+
+        return BroadcastVrmRenderabilityMetadata(
+            meshPrimitiveCount: meshPrimitiveCount,
+            skinnedMeshPrimitiveCount: skinnedMeshPrimitiveCount,
+            skinJointCount: skinJointCount,
+            morphTargetCount: morphTargetCount,
+            materialCount: (root["materials"] as? [Any])?.count ?? 0,
+            textureCount: max((root["textures"] as? [Any])?.count ?? 0, (root["images"] as? [Any])?.count ?? 0)
+        )
     }
 
     private static func extractVrm1HumanoidBoneNames(_ vrm: [String: Any]) -> Set<String> {
@@ -4270,6 +4356,21 @@ private struct BroadcastVrmModelMetadata {
     let version: String
     let humanoidBoneNames: Set<String>
     let expressionNames: Set<String>
+    let meshPrimitiveCount: Int
+    let skinnedMeshPrimitiveCount: Int
+    let skinJointCount: Int
+    let morphTargetCount: Int
+    let materialCount: Int
+    let textureCount: Int
+}
+
+private struct BroadcastVrmRenderabilityMetadata {
+    let meshPrimitiveCount: Int
+    let skinnedMeshPrimitiveCount: Int
+    let skinJointCount: Int
+    let morphTargetCount: Int
+    let materialCount: Int
+    let textureCount: Int
 }
 
 private extension Data {

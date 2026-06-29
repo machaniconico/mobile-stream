@@ -17,6 +17,12 @@ export interface NativeRuntimeComposition {
   vrmModelVersions?: string[];
   vrmHumanoidBoneCount?: number;
   vrmExpressionCount?: number;
+  vrmMeshPrimitiveCount?: number;
+  vrmSkinnedMeshPrimitiveCount?: number;
+  vrmSkinJointCount?: number;
+  vrmMorphTargetCount?: number;
+  vrmMaterialCount?: number;
+  vrmTextureCount?: number;
   vrmPoseBoneCount?: number;
   vrmPoseBoneAppliedCount?: number;
   vrmPoseBoneUnsupportedCount?: number;

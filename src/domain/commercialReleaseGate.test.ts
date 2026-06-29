@@ -860,7 +860,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 31 as const
+    bundleVersion: 32 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -992,6 +992,12 @@ const manifestRun = ({
   nativeRuntimeVrmModelVersions = [],
   nativeRuntimeVrmHumanoidBoneCount = 0,
   nativeRuntimeVrmExpressionCount = 0,
+  nativeRuntimeVrmMeshPrimitiveCount = 0,
+  nativeRuntimeVrmSkinnedMeshPrimitiveCount = 0,
+  nativeRuntimeVrmSkinJointCount = 0,
+  nativeRuntimeVrmMorphTargetCount = 0,
+  nativeRuntimeVrmMaterialCount = 0,
+  nativeRuntimeVrmTextureCount = 0,
   nativeRuntimeVrmPoseBoneCount = 0,
   nativeRuntimeVrmPoseBoneAppliedCount = 0,
   nativeRuntimeVrmPoseBoneUnsupportedCount = 0,
@@ -1082,6 +1088,12 @@ const manifestRun = ({
   nativeRuntimeVrmModelVersions?: ValidationManifestRun["nativeRuntimeVrmModelVersions"];
   nativeRuntimeVrmHumanoidBoneCount?: ValidationManifestRun["nativeRuntimeVrmHumanoidBoneCount"];
   nativeRuntimeVrmExpressionCount?: ValidationManifestRun["nativeRuntimeVrmExpressionCount"];
+  nativeRuntimeVrmMeshPrimitiveCount?: ValidationManifestRun["nativeRuntimeVrmMeshPrimitiveCount"];
+  nativeRuntimeVrmSkinnedMeshPrimitiveCount?: ValidationManifestRun["nativeRuntimeVrmSkinnedMeshPrimitiveCount"];
+  nativeRuntimeVrmSkinJointCount?: ValidationManifestRun["nativeRuntimeVrmSkinJointCount"];
+  nativeRuntimeVrmMorphTargetCount?: ValidationManifestRun["nativeRuntimeVrmMorphTargetCount"];
+  nativeRuntimeVrmMaterialCount?: ValidationManifestRun["nativeRuntimeVrmMaterialCount"];
+  nativeRuntimeVrmTextureCount?: ValidationManifestRun["nativeRuntimeVrmTextureCount"];
   nativeRuntimeVrmPoseBoneCount?: ValidationManifestRun["nativeRuntimeVrmPoseBoneCount"];
   nativeRuntimeVrmPoseBoneAppliedCount?: ValidationManifestRun["nativeRuntimeVrmPoseBoneAppliedCount"];
   nativeRuntimeVrmPoseBoneUnsupportedCount?: ValidationManifestRun["nativeRuntimeVrmPoseBoneUnsupportedCount"];
@@ -1178,6 +1190,12 @@ const manifestRun = ({
   nativeRuntimeVrmModelVersions,
   nativeRuntimeVrmHumanoidBoneCount,
   nativeRuntimeVrmExpressionCount,
+  nativeRuntimeVrmMeshPrimitiveCount,
+  nativeRuntimeVrmSkinnedMeshPrimitiveCount,
+  nativeRuntimeVrmSkinJointCount,
+  nativeRuntimeVrmMorphTargetCount,
+  nativeRuntimeVrmMaterialCount,
+  nativeRuntimeVrmTextureCount,
   nativeRuntimeVrmPoseBoneCount,
   nativeRuntimeVrmPoseBoneAppliedCount,
   nativeRuntimeVrmPoseBoneUnsupportedCount,

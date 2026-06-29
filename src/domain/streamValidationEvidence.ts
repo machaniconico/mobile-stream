@@ -207,6 +207,12 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeVrmModelVersions: string[];
   nativeRuntimeVrmHumanoidBoneCount: number;
   nativeRuntimeVrmExpressionCount: number;
+  nativeRuntimeVrmMeshPrimitiveCount: number;
+  nativeRuntimeVrmSkinnedMeshPrimitiveCount: number;
+  nativeRuntimeVrmSkinJointCount: number;
+  nativeRuntimeVrmMorphTargetCount: number;
+  nativeRuntimeVrmMaterialCount: number;
+  nativeRuntimeVrmTextureCount: number;
   nativeRuntimeVrmPoseBoneCount: number;
   nativeRuntimeVrmPoseBoneAppliedCount: number;
   nativeRuntimeVrmPoseBoneUnsupportedCount: number;
@@ -2218,6 +2224,12 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeVrmModelVersions: run.nativeRuntime?.vrmModelVersions ?? [],
     nativeRuntimeVrmHumanoidBoneCount: run.nativeRuntime?.vrmHumanoidBoneCount ?? 0,
     nativeRuntimeVrmExpressionCount: run.nativeRuntime?.vrmExpressionCount ?? 0,
+    nativeRuntimeVrmMeshPrimitiveCount: run.nativeRuntime?.vrmMeshPrimitiveCount ?? 0,
+    nativeRuntimeVrmSkinnedMeshPrimitiveCount: run.nativeRuntime?.vrmSkinnedMeshPrimitiveCount ?? 0,
+    nativeRuntimeVrmSkinJointCount: run.nativeRuntime?.vrmSkinJointCount ?? 0,
+    nativeRuntimeVrmMorphTargetCount: run.nativeRuntime?.vrmMorphTargetCount ?? 0,
+    nativeRuntimeVrmMaterialCount: run.nativeRuntime?.vrmMaterialCount ?? 0,
+    nativeRuntimeVrmTextureCount: run.nativeRuntime?.vrmTextureCount ?? 0,
     nativeRuntimeVrmPoseBoneCount: run.nativeRuntime?.vrmPoseBoneCount ?? 0,
     nativeRuntimeVrmPoseBoneAppliedCount: run.nativeRuntime?.vrmPoseBoneAppliedCount ?? 0,
     nativeRuntimeVrmPoseBoneUnsupportedCount: run.nativeRuntime?.vrmPoseBoneUnsupportedCount ?? 0,

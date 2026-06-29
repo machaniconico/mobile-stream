@@ -32,6 +32,12 @@ data class AndroidVrmPoseSummary(
     val modelVersions: Set<String> = emptySet(),
     val humanoidBoneCount: Int = 0,
     val expressionCount: Int = 0,
+    val meshPrimitiveCount: Int = 0,
+    val skinnedMeshPrimitiveCount: Int = 0,
+    val skinJointCount: Int = 0,
+    val morphTargetCount: Int = 0,
+    val materialCount: Int = 0,
+    val textureCount: Int = 0,
     val poseBoneCount: Int = 0,
     val poseBoneAppliedCount: Int = 0,
     val poseBoneUnsupportedCount: Int = 0,
@@ -64,7 +70,7 @@ data class AndroidCompositionResult(
                 else -> "Native overlays applied: $appliedCount, pending: ${skippedKinds.joinToString("/")}"
             }
             return if (vrmPoseSummary.sourceCount > 0) {
-                "$base; VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}; VRM renderer ${vrmPoseSummary.rendererStatus} ${vrmPoseSummary.rendererBackend}, rendered ${vrmPoseSummary.renderedSourceCount}/${vrmPoseSummary.sourceCount}, models ${vrmPoseSummary.modelLoadedCount}/${vrmPoseSummary.modelUriCount}, bones ${vrmPoseSummary.humanoidBoneCount}, expressions ${vrmPoseSummary.expressionCount}, pose bones ${vrmPoseSummary.poseBoneAppliedCount}/${vrmPoseSummary.poseBoneCount}, pose expressions ${vrmPoseSummary.poseExpressionAppliedCount}/${vrmPoseSummary.poseExpressionCount}, failed ${vrmPoseSummary.renderFailureCount}"
+                "$base; VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}; VRM renderer ${vrmPoseSummary.rendererStatus} ${vrmPoseSummary.rendererBackend}, rendered ${vrmPoseSummary.renderedSourceCount}/${vrmPoseSummary.sourceCount}, models ${vrmPoseSummary.modelLoadedCount}/${vrmPoseSummary.modelUriCount}, bones ${vrmPoseSummary.humanoidBoneCount}, expressions ${vrmPoseSummary.expressionCount}, primitives ${vrmPoseSummary.meshPrimitiveCount}, skinned ${vrmPoseSummary.skinnedMeshPrimitiveCount}, joints ${vrmPoseSummary.skinJointCount}, morphs ${vrmPoseSummary.morphTargetCount}, materials ${vrmPoseSummary.materialCount}, textures ${vrmPoseSummary.textureCount}, pose bones ${vrmPoseSummary.poseBoneAppliedCount}/${vrmPoseSummary.poseBoneCount}, pose expressions ${vrmPoseSummary.poseExpressionAppliedCount}/${vrmPoseSummary.poseExpressionCount}, failed ${vrmPoseSummary.renderFailureCount}"
             } else {
                 base
             }
@@ -398,6 +404,12 @@ object AndroidSceneCompositor {
         val modelVersions = linkedSetOf<String>()
         var humanoidBoneCount = 0
         var expressionCount = 0
+        var meshPrimitiveCount = 0
+        var skinnedMeshPrimitiveCount = 0
+        var skinJointCount = 0
+        var morphTargetCount = 0
+        var materialCount = 0
+        var textureCount = 0
         var poseBoneCount = 0
         var poseBoneAppliedCount = 0
         var poseExpressionCount = 0
@@ -416,6 +428,12 @@ object AndroidSceneCompositor {
                     modelVersions.add(metadata.version)
                     humanoidBoneCount += metadata.humanoidBoneNames.size
                     expressionCount += metadata.expressionNames.size
+                    meshPrimitiveCount += metadata.meshPrimitiveCount
+                    skinnedMeshPrimitiveCount += metadata.skinnedMeshPrimitiveCount
+                    skinJointCount += metadata.skinJointCount
+                    morphTargetCount += metadata.morphTargetCount
+                    materialCount += metadata.materialCount
+                    textureCount += metadata.textureCount
                 } else {
                     modelLoadFailureCount += 1
                 }
@@ -465,6 +483,12 @@ object AndroidSceneCompositor {
             modelVersions = modelVersions,
             humanoidBoneCount = humanoidBoneCount,
             expressionCount = expressionCount,
+            meshPrimitiveCount = meshPrimitiveCount,
+            skinnedMeshPrimitiveCount = skinnedMeshPrimitiveCount,
+            skinJointCount = skinJointCount,
+            morphTargetCount = morphTargetCount,
+            materialCount = materialCount,
+            textureCount = textureCount,
             poseBoneCount = poseBoneCount,
             poseBoneAppliedCount = poseBoneAppliedCount,
             poseBoneUnsupportedCount = (poseBoneCount - poseBoneAppliedCount).coerceAtLeast(0),
@@ -524,19 +548,79 @@ object AndroidSceneCompositor {
         val extensions = root.optJSONObject("extensions") ?: return null
         val vrm1 = extensions.optJSONObject("VRMC_vrm")
         val vrm0 = extensions.optJSONObject("VRM")
+        val renderability = summarizeVrmGlbRenderability(root)
         return when {
             vrm1 != null -> AndroidVrmModelMetadata(
                 version = "1.0",
                 humanoidBoneNames = extractVrm1HumanoidBoneNames(vrm1),
-                expressionNames = extractVrm1ExpressionNames(vrm1)
+                expressionNames = extractVrm1ExpressionNames(vrm1),
+                meshPrimitiveCount = renderability.meshPrimitiveCount,
+                skinnedMeshPrimitiveCount = renderability.skinnedMeshPrimitiveCount,
+                skinJointCount = renderability.skinJointCount,
+                morphTargetCount = renderability.morphTargetCount,
+                materialCount = renderability.materialCount,
+                textureCount = renderability.textureCount
             )
             vrm0 != null -> AndroidVrmModelMetadata(
                 version = "0.x",
                 humanoidBoneNames = extractVrm0HumanoidBoneNames(vrm0),
-                expressionNames = extractVrm0ExpressionNames(vrm0)
+                expressionNames = extractVrm0ExpressionNames(vrm0),
+                meshPrimitiveCount = renderability.meshPrimitiveCount,
+                skinnedMeshPrimitiveCount = renderability.skinnedMeshPrimitiveCount,
+                skinJointCount = renderability.skinJointCount,
+                morphTargetCount = renderability.morphTargetCount,
+                materialCount = renderability.materialCount,
+                textureCount = renderability.textureCount
             )
             else -> null
         }
+    }
+
+    private fun summarizeVrmGlbRenderability(root: JSONObject): AndroidVrmRenderabilityMetadata {
+        val meshes = root.optJSONArray("meshes")
+        val meshPrimitiveCounts = mutableMapOf<Int, Int>()
+        var meshPrimitiveCount = 0
+        var morphTargetCount = 0
+        if (meshes != null) {
+            for (meshIndex in 0 until meshes.length()) {
+                val primitives = meshes.optJSONObject(meshIndex)?.optJSONArray("primitives")
+                val primitiveCount = primitives?.length() ?: 0
+                meshPrimitiveCounts[meshIndex] = primitiveCount
+                meshPrimitiveCount += primitiveCount
+                if (primitives != null) {
+                    for (primitiveIndex in 0 until primitives.length()) {
+                        morphTargetCount += primitives.optJSONObject(primitiveIndex)?.optJSONArray("targets")?.length() ?: 0
+                    }
+                }
+            }
+        }
+
+        var skinnedMeshPrimitiveCount = 0
+        root.optJSONArray("nodes")?.let { nodes ->
+            for (index in 0 until nodes.length()) {
+                val node = nodes.optJSONObject(index) ?: continue
+                if (node.has("skin")) {
+                    val meshIndex = node.optInt("mesh", -1)
+                    skinnedMeshPrimitiveCount += meshPrimitiveCounts[meshIndex] ?: 0
+                }
+            }
+        }
+
+        var skinJointCount = 0
+        root.optJSONArray("skins")?.let { skins ->
+            for (index in 0 until skins.length()) {
+                skinJointCount += skins.optJSONObject(index)?.optJSONArray("joints")?.length() ?: 0
+            }
+        }
+
+        return AndroidVrmRenderabilityMetadata(
+            meshPrimitiveCount = meshPrimitiveCount,
+            skinnedMeshPrimitiveCount = skinnedMeshPrimitiveCount,
+            skinJointCount = skinJointCount,
+            morphTargetCount = morphTargetCount,
+            materialCount = root.optJSONArray("materials")?.length() ?: 0,
+            textureCount = maxOf(root.optJSONArray("textures")?.length() ?: 0, root.optJSONArray("images")?.length() ?: 0)
+        )
     }
 
     private fun extractVrm1HumanoidBoneNames(vrm: JSONObject): Set<String> {
@@ -714,7 +798,22 @@ private const val MAX_VRM_JSON_CHUNK_BYTES = 2 * 1024 * 1024
 private data class AndroidVrmModelMetadata(
     val version: String,
     val humanoidBoneNames: Set<String>,
-    val expressionNames: Set<String>
+    val expressionNames: Set<String>,
+    val meshPrimitiveCount: Int,
+    val skinnedMeshPrimitiveCount: Int,
+    val skinJointCount: Int,
+    val morphTargetCount: Int,
+    val materialCount: Int,
+    val textureCount: Int
+)
+
+private data class AndroidVrmRenderabilityMetadata(
+    val meshPrimitiveCount: Int,
+    val skinnedMeshPrimitiveCount: Int,
+    val skinJointCount: Int,
+    val morphTargetCount: Int,
+    val materialCount: Int,
+    val textureCount: Int
 )
 
 private data class RenderGraphNode(

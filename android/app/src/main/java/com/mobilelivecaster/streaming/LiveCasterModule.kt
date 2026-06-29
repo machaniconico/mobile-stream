@@ -29,6 +29,12 @@ data class NativeRuntimeComposition(
     val vrmModelVersions: List<String> = emptyList(),
     val vrmHumanoidBoneCount: Int = 0,
     val vrmExpressionCount: Int = 0,
+    val vrmMeshPrimitiveCount: Int = 0,
+    val vrmSkinnedMeshPrimitiveCount: Int = 0,
+    val vrmSkinJointCount: Int = 0,
+    val vrmMorphTargetCount: Int = 0,
+    val vrmMaterialCount: Int = 0,
+    val vrmTextureCount: Int = 0,
     val vrmPoseBoneCount: Int = 0,
     val vrmPoseBoneAppliedCount: Int = 0,
     val vrmPoseBoneUnsupportedCount: Int = 0,
@@ -57,6 +63,12 @@ data class NativeRuntimeComposition(
         putArray("vrmModelVersions", vrmModelVersions.toWritableArray())
         putInt("vrmHumanoidBoneCount", vrmHumanoidBoneCount)
         putInt("vrmExpressionCount", vrmExpressionCount)
+        putInt("vrmMeshPrimitiveCount", vrmMeshPrimitiveCount)
+        putInt("vrmSkinnedMeshPrimitiveCount", vrmSkinnedMeshPrimitiveCount)
+        putInt("vrmSkinJointCount", vrmSkinJointCount)
+        putInt("vrmMorphTargetCount", vrmMorphTargetCount)
+        putInt("vrmMaterialCount", vrmMaterialCount)
+        putInt("vrmTextureCount", vrmTextureCount)
         putInt("vrmPoseBoneCount", vrmPoseBoneCount)
         putInt("vrmPoseBoneAppliedCount", vrmPoseBoneAppliedCount)
         putInt("vrmPoseBoneUnsupportedCount", vrmPoseBoneUnsupportedCount)
@@ -99,6 +111,12 @@ private fun AndroidCompositionResult.toNativeRuntimeComposition(): NativeRuntime
         vrmModelVersions = vrmPoseSummary.modelVersions.toList().sorted(),
         vrmHumanoidBoneCount = vrmPoseSummary.humanoidBoneCount,
         vrmExpressionCount = vrmPoseSummary.expressionCount,
+        vrmMeshPrimitiveCount = vrmPoseSummary.meshPrimitiveCount,
+        vrmSkinnedMeshPrimitiveCount = vrmPoseSummary.skinnedMeshPrimitiveCount,
+        vrmSkinJointCount = vrmPoseSummary.skinJointCount,
+        vrmMorphTargetCount = vrmPoseSummary.morphTargetCount,
+        vrmMaterialCount = vrmPoseSummary.materialCount,
+        vrmTextureCount = vrmPoseSummary.textureCount,
         vrmPoseBoneCount = vrmPoseSummary.poseBoneCount,
         vrmPoseBoneAppliedCount = vrmPoseSummary.poseBoneAppliedCount,
         vrmPoseBoneUnsupportedCount = vrmPoseSummary.poseBoneUnsupportedCount,

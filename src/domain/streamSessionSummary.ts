@@ -46,6 +46,12 @@ export interface StreamSessionNativeRuntimeSummary {
   vrmModelVersions: string[];
   vrmHumanoidBoneCount: number;
   vrmExpressionCount: number;
+  vrmMeshPrimitiveCount: number;
+  vrmSkinnedMeshPrimitiveCount: number;
+  vrmSkinJointCount: number;
+  vrmMorphTargetCount: number;
+  vrmMaterialCount: number;
+  vrmTextureCount: number;
   vrmPoseBoneCount: number;
   vrmPoseBoneAppliedCount: number;
   vrmPoseBoneUnsupportedCount: number;
@@ -668,6 +674,12 @@ export const createNativeRuntimeSessionSummary = (
   const vrmModelLoadedCount = normalizeNonNegativeInteger(runtime.composition.vrmModelLoadedCount);
   const vrmHumanoidBoneCount = normalizeNonNegativeInteger(runtime.composition.vrmHumanoidBoneCount);
   const vrmExpressionCount = normalizeNonNegativeInteger(runtime.composition.vrmExpressionCount);
+  const vrmMeshPrimitiveCount = normalizeNonNegativeInteger(runtime.composition.vrmMeshPrimitiveCount);
+  const vrmSkinnedMeshPrimitiveCount = normalizeNonNegativeInteger(runtime.composition.vrmSkinnedMeshPrimitiveCount);
+  const vrmSkinJointCount = normalizeNonNegativeInteger(runtime.composition.vrmSkinJointCount);
+  const vrmMorphTargetCount = normalizeNonNegativeInteger(runtime.composition.vrmMorphTargetCount);
+  const vrmMaterialCount = normalizeNonNegativeInteger(runtime.composition.vrmMaterialCount);
+  const vrmTextureCount = normalizeNonNegativeInteger(runtime.composition.vrmTextureCount);
   const vrmPoseBoneCount = normalizeNonNegativeInteger(runtime.composition.vrmPoseBoneCount);
   const vrmPoseBoneAppliedCount = normalizeNonNegativeInteger(runtime.composition.vrmPoseBoneAppliedCount);
   const vrmPoseBoneUnsupportedCount = normalizeNonNegativeInteger(
@@ -680,6 +692,8 @@ export const createNativeRuntimeSessionSummary = (
       Math.max(0, vrmPoseExpressionCount - vrmPoseExpressionAppliedCount)
   );
   const incompleteVrmModelMetadata = vrmModelLoadedCount > 0 && (vrmHumanoidBoneCount === 0 || vrmExpressionCount === 0);
+  const incompleteVrmRenderability =
+    vrmModelLoadedCount > 0 && (vrmMeshPrimitiveCount === 0 || vrmSkinnedMeshPrimitiveCount === 0 || vrmSkinJointCount === 0);
   const incompleteVrmPoseMapping =
     vrmModelLoadedCount > 0 && (vrmPoseBoneUnsupportedCount > 0 || vrmPoseExpressionUnsupportedCount > 0);
   const incompleteVrmRendering =
@@ -689,6 +703,7 @@ export const createNativeRuntimeSessionSummary = (
       vrmRenderMissingCount > 0 ||
       vrmRenderFailureCount > 0 ||
       incompleteVrmModelMetadata ||
+      incompleteVrmRenderability ||
       incompleteVrmPoseMapping);
   const status: StreamSessionNativeRuntimeStatus = failed
     ? "fail"
@@ -716,6 +731,12 @@ export const createNativeRuntimeSessionSummary = (
     vrmModelVersions: normalizeStringArray(runtime.composition.vrmModelVersions),
     vrmHumanoidBoneCount,
     vrmExpressionCount,
+    vrmMeshPrimitiveCount,
+    vrmSkinnedMeshPrimitiveCount,
+    vrmSkinJointCount,
+    vrmMorphTargetCount,
+    vrmMaterialCount,
+    vrmTextureCount,
     vrmPoseBoneCount,
     vrmPoseBoneAppliedCount,
     vrmPoseBoneUnsupportedCount,
@@ -772,11 +793,13 @@ export const createNativeRuntimeSessionSummary = (
                 ? "Confirm VRM runtime pose payloads reach the native compositor before retaining production evidence."
                 : incompleteVrmModelMetadata
                   ? "Use VRM/GLB files with humanoid bones and expression metadata before retaining production renderer evidence."
-                  : incompleteVrmPoseMapping
-                    ? "Confirm VRM pose bones and expression weights map to the imported model before retaining production evidence."
-                    : incompleteVrmRendering
-                      ? "Confirm the native VRM renderer loads and renders every visible VRM source before retaining production evidence."
-                      : pendingComposition
+                  : incompleteVrmRenderability
+                    ? "Use VRM/GLB files with renderable mesh primitives, skinned meshes, and skin joints before retaining production renderer evidence."
+                    : incompleteVrmPoseMapping
+                      ? "Confirm VRM pose bones and expression weights map to the imported model before retaining production evidence."
+                      : incompleteVrmRendering
+                        ? "Confirm the native VRM renderer loads and renders every visible VRM source before retaining production evidence."
+                        : pendingComposition
                     ? "Review native compositor coverage before treating this scene as production-ready."
                     : "Keep this native runtime result as supporting evidence for the destination."
   };
@@ -1008,6 +1031,12 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     vrmModelVersions: normalizeStringArray(value.vrmModelVersions),
     vrmHumanoidBoneCount: normalizeNonNegativeInteger(value.vrmHumanoidBoneCount),
     vrmExpressionCount: normalizeNonNegativeInteger(value.vrmExpressionCount),
+    vrmMeshPrimitiveCount: normalizeNonNegativeInteger(value.vrmMeshPrimitiveCount),
+    vrmSkinnedMeshPrimitiveCount: normalizeNonNegativeInteger(value.vrmSkinnedMeshPrimitiveCount),
+    vrmSkinJointCount: normalizeNonNegativeInteger(value.vrmSkinJointCount),
+    vrmMorphTargetCount: normalizeNonNegativeInteger(value.vrmMorphTargetCount),
+    vrmMaterialCount: normalizeNonNegativeInteger(value.vrmMaterialCount),
+    vrmTextureCount: normalizeNonNegativeInteger(value.vrmTextureCount),
     vrmPoseBoneCount: normalizeNonNegativeInteger(value.vrmPoseBoneCount),
     vrmPoseBoneAppliedCount: normalizeNonNegativeInteger(value.vrmPoseBoneAppliedCount),
     vrmPoseBoneUnsupportedCount: normalizeNonNegativeInteger(value.vrmPoseBoneUnsupportedCount),
