@@ -38,7 +38,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 25;
+const minimumSupportBundleVersion = 26;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -69,6 +69,7 @@ export const createCommercialReleaseGate = (
     createValidationEvidenceCoverageIssue(bundle),
     createValidationEvidenceManifestIssue(bundle),
     createValidationEvidenceManifestIntegrityIssue(bundle),
+    createValidationEvidenceQualityAutomationIssue(bundle),
     createValidationEvidenceFeatureIssue(bundle),
     createRetainedStaleEvidenceIssue(bundle)
   ];
@@ -348,7 +349,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v25 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v26 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -538,6 +539,30 @@ const createValidationEvidenceFeatureIssue = (bundle: SupportBundle): Commercial
     `Missing passing evidence for ${missing.join(", ")}.`,
     "Repeat private validation until both iOS and Android runs include all release-candidate feature proof."
   );
+};
+
+const createValidationEvidenceQualityAutomationIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+  const { ios, android } = getValidationEvidenceQualityAutomationPasses(bundle);
+  if (ios && android) {
+    return null;
+  }
+  return failIssue(
+    "validation-evidence-quality-automation-gap",
+    "Weak-network quality automation proof",
+    `Missing passing controlled weak-network quality automation evidence for ${[!ios ? "iOS" : "", !android ? "Android" : ""].filter(Boolean).join(" and ")}.`,
+    "Repeat controlled weak-network private validation on both iOS and Android until each retained run proves a live quality update or next-start fallback with zero update failures."
+  );
+};
+
+const getValidationEvidenceQualityAutomationPasses = (bundle: SupportBundle): { ios: boolean; android: boolean } => {
+  const manifest = bundle.summary.validationEvidenceRunManifest;
+  const latestRuns = Array.isArray(manifest)
+    ? latestEligibleManifestRunsByPlatform(manifest, createExpectedManifestScope(bundle))
+    : new Map<string, ValidationEvidenceManifestRun>();
+  return {
+    ios: isManifestQualityAutomationPass(latestRuns.get("ios")),
+    android: isManifestQualityAutomationPass(latestRuns.get("android"))
+  };
 };
 
 const getValidationEvidencePlatformIngestPasses = (bundle: SupportBundle): { ios: boolean; android: boolean } => {
@@ -802,6 +827,11 @@ const hasZeroManifestChatSpeechFailures = (run: ValidationEvidenceManifestRun | 
   typeof run?.chatReadoutSpeechFailureCount === "number" &&
   Number.isFinite(run.chatReadoutSpeechFailureCount) &&
   run.chatReadoutSpeechFailureCount === 0;
+
+const isManifestQualityAutomationPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  isManifestFeaturePass(run?.qualityAutomationStatus) &&
+  (Number(run?.qualityAutomationLiveUpdateCount) > 0 || Number(run?.qualityAutomationNextTargetCount) > 0) &&
+  isZeroFiniteNumber(run?.qualityAutomationFailureCount);
 
 const isManifestPlatformPublishingPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   run?.platformPublishingFreshnessStatus === "not-applicable" ||

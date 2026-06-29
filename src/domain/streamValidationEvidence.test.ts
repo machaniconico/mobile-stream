@@ -956,6 +956,12 @@ describe("stream validation evidence", () => {
     expect(summary.qualityAutomationLiveUpdateCount).toBe(1);
     expect(summary.qualityAutomationFailureCount).toBe(0);
     expect(summary.latestQualityAutomation?.status).toBe("pass");
+    expect(summary.runManifest[0]).toMatchObject({
+      qualityAutomationStatus: "pass",
+      qualityAutomationLiveUpdateCount: 1,
+      qualityAutomationNextTargetCount: 0,
+      qualityAutomationFailureCount: 0
+    });
   });
 
   it("stores safe native runtime evidence and downgrades passing runs that need review", () => {

@@ -225,6 +225,9 @@ export interface StreamValidationEvidenceRunManifestItem {
   chatReadoutSpokenMessageCount: number;
   chatReadoutSpeechFailureCount: number;
   qualityAutomationStatus: StreamValidationQualityAutomationSummary["status"] | null;
+  qualityAutomationLiveUpdateCount: number;
+  qualityAutomationNextTargetCount: number;
+  qualityAutomationFailureCount: number;
   platformPublishingPlatform: StreamDiagnostics["platformPublishing"]["platform"] | null;
   platformPublishingStatus: StreamDiagnostics["platformPublishing"]["status"] | null;
   platformPublishingFreshnessStatus: PlatformPublishingFreshnessStatus | null;
@@ -2214,6 +2217,9 @@ const createEvidenceRunManifestItem = (
     chatReadoutSpokenMessageCount: run.chatReadout?.spokenMessageCount ?? 0,
     chatReadoutSpeechFailureCount: run.chatReadout?.speechFailureCount ?? 0,
     qualityAutomationStatus: run.qualityAutomation?.status ?? null,
+    qualityAutomationLiveUpdateCount: run.qualityAutomation?.liveUpdateCount ?? 0,
+    qualityAutomationNextTargetCount: run.qualityAutomation?.nextTargetCount ?? 0,
+    qualityAutomationFailureCount: run.qualityAutomation?.failureCount ?? 0,
     platformPublishingPlatform: run.platformPublishing?.platform ?? null,
     platformPublishingStatus: run.platformPublishing?.status ?? null,
     platformPublishingFreshnessStatus: platformPublishingFreshness.status,

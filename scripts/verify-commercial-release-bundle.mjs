@@ -3,7 +3,7 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
-const minimumSupportBundleVersion = 25;
+const minimumSupportBundleVersion = 26;
 const minimumValidationMonitorDurationSeconds = 60;
 const minimumValidationMonitorSampleCount = 3;
 const platformPublishingDashboardMaxAgeMinutes = 10;
@@ -113,6 +113,7 @@ export function createCommercialReleaseGate(bundle, { now, maxBundleAgeHours = d
     validationEvidenceIssue(bundle),
     validationCoverageIssue(bundle),
     validationManifestIssue(bundle),
+    validationQualityAutomationIssue(bundle),
     validationFeatureIssue(bundle),
     staleEvidenceIssue(bundle)
   ].filter(Boolean);
@@ -419,7 +420,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v25 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v26 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -479,7 +480,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-native-runtime",
       "Validation evidence manifest",
       "The manifest does not back claimed native runtime evidence with platform-matched video/audio frames, bytes written, compositor status, and loaded still-image assets.",
-      "Export a support bundle v25 or newer after retaining iOS and Android validation runs with native publisher/compositor telemetry from the current scene."
+      "Export a support bundle v26 or newer after retaining iOS and Android validation runs with native publisher/compositor telemetry from the current scene."
     );
   }
   const eligibleMonitorHoldPlatforms = new Set(
@@ -505,7 +506,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-monitor-hold",
       "Validation evidence manifest",
       "The manifest does not back claimed monitor-hold evidence with stable duration, sample count, zero dropped frames, and zero reconnects.",
-      "Export a support bundle v25 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry."
+      "Export a support bundle v26 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry."
     );
   }
   const eligibleAudioPlatforms = new Set(
@@ -534,7 +535,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-audio-monitor",
       "Validation evidence manifest",
       "The manifest does not back claimed mic/headphone evidence with native monitor write/drop proof, headphone route proof, and measured monitor latency.",
-      "Export a support bundle v25 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones."
+      "Export a support bundle v26 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones."
     );
   }
   const eligibleAvatarPlatforms = new Set(
@@ -558,7 +559,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-avatar-motion",
       "Validation evidence manifest",
       "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, active motion, and zero still-image rig issues.",
-      "Export a support bundle v25 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and reviewed PNGTuber rig lines."
+      "Export a support bundle v26 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and reviewed PNGTuber rig lines."
     );
   }
   const eligibleChatReadoutPlatforms = new Set(
@@ -581,7 +582,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-chat-readout",
       "Validation evidence manifest",
       "The manifest does not back claimed chat readout evidence with spoken-message success and zero speech failures.",
-      "Export a support bundle v25 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
+      "Export a support bundle v26 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
     );
   }
   const eligiblePlatformDashboardPlatforms = new Set(
@@ -602,7 +603,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-platform-dashboard",
       "Validation evidence manifest",
       "The manifest does not back claimed platform dashboard evidence with fresh checked-at proof, YouTube identity/state proof, and Twitch dashboard status and Twitch title/category/language metadata.",
-      "Export a support bundle v25 or newer after retaining iOS and Android validation runs with fresh YouTube/Twitch dashboard status and Twitch title/category/language metadata from the destination receiving the stream."
+      "Export a support bundle v26 or newer after retaining iOS and Android validation runs with fresh YouTube/Twitch dashboard status and Twitch title/category/language metadata from the destination receiving the stream."
     );
   }
   const eligiblePlatformIngestPlatforms = new Set(
@@ -675,6 +676,31 @@ function validationFeatureIssue(bundle) {
     `Missing passing evidence for ${missing.join(", ")}.`,
     "Repeat private validation until both iOS and Android runs include all release-candidate feature proof."
   );
+}
+
+function validationQualityAutomationIssue(bundle) {
+  const passes = validationEvidenceQualityAutomationPasses(bundle);
+  if (passes.ios && passes.android) {
+    return null;
+  }
+  return fail(
+    "validation-evidence-quality-automation-gap",
+    "Weak-network quality automation proof",
+    `Missing passing controlled weak-network quality automation evidence for ${[!passes.ios ? "iOS" : "", !passes.android ? "Android" : ""].filter(Boolean).join(" and ")}.`,
+    "Repeat controlled weak-network private validation on both iOS and Android until each retained run proves a live quality update or next-start fallback with zero update failures."
+  );
+}
+
+function validationEvidenceQualityAutomationPasses(bundle) {
+  const summary = bundle?.summary ?? {};
+  const manifest = summary.validationEvidenceRunManifest;
+  const latestRuns = Array.isArray(manifest)
+    ? latestEligibleManifestRunsByPlatform(manifest, createExpectedManifestScope(bundle))
+    : new Map();
+  return {
+    ios: isManifestQualityAutomationPass(latestRuns.get("ios")),
+    android: isManifestQualityAutomationPass(latestRuns.get("android"))
+  };
 }
 
 function validationEvidencePlatformIngestPasses(bundle) {
@@ -825,6 +851,14 @@ function isManifestPlatformPublishingPass(run) {
     isNonEmptyIsoDate(run?.platformPublishingCheckedAt) &&
     isAtMostNumber(run?.platformPublishingFreshnessAgeMinutes, platformPublishingDashboardMaxAgeMinutes) &&
     isManifestPlatformIdentityPass(run)
+  );
+}
+
+function isManifestQualityAutomationPass(run) {
+  return (
+    run?.qualityAutomationStatus === "pass" &&
+    (number(run?.qualityAutomationLiveUpdateCount) > 0 || number(run?.qualityAutomationNextTargetCount) > 0) &&
+    isZeroNumber(run?.qualityAutomationFailureCount)
   );
 }
 

@@ -477,7 +477,7 @@ function commercialSupportBundleFixture(patch = {}) {
   };
 
   return {
-    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 25 },
+    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 26 },
     generatedAt: new Date().toISOString(),
     fixture: true,
     ...patch,
@@ -544,6 +544,9 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     chatReadoutSpokenMessageCount: 1,
     chatReadoutSpeechFailureCount: 0,
     qualityAutomationStatus: "pass",
+    qualityAutomationLiveUpdateCount: 1,
+    qualityAutomationNextTargetCount: 0,
+    qualityAutomationFailureCount: 0,
     platformPublishingPlatform: "youtube-live",
     platformPublishingStatus: "pass",
     platformPublishingFreshnessStatus: "fresh",

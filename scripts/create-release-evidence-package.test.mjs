@@ -1323,7 +1323,7 @@ function commercialSupportBundleFixture() {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 25
+      bundleVersion: 26
     },
     generatedAt: capturedAt,
     fixture: true,
@@ -1439,6 +1439,9 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     chatReadoutSpokenMessageCount: 1,
     chatReadoutSpeechFailureCount: 0,
     qualityAutomationStatus: "pass",
+    qualityAutomationLiveUpdateCount: 1,
+    qualityAutomationNextTargetCount: 0,
+    qualityAutomationFailureCount: 0,
     platformPublishingPlatform: "youtube-live",
     platformPublishingStatus: "pass",
     platformPublishingFreshnessStatus: "fresh",

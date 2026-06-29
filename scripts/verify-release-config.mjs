@@ -144,9 +144,9 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 25");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 25");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 25");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 26");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 26");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 26");
     expectIncludes(files.commercialReleaseGateDomain, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseBundleScript, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scope");
@@ -167,6 +167,10 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpeechFailureCount");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestChatReadoutPass");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-chat-readout");
+    expectIncludes(files.streamValidationEvidenceDomain, "qualityAutomationLiveUpdateCount");
+    expectIncludes(files.streamValidationEvidenceDomain, "qualityAutomationFailureCount");
+    expectIncludes(files.commercialReleaseGateDomain, "isManifestQualityAutomationPass");
+    expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-quality-automation-gap");
     expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingCheckedAt");
     expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingYoutubeHasBroadcastId");
     expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingTwitchChannelLanguage");

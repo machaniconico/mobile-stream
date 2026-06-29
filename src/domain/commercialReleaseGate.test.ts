@@ -453,6 +453,33 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks release when retained manifests lack controlled weak-network quality automation proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              qualityAutomationLiveUpdateCount: 0,
+              qualityAutomationNextTargetCount: 0
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-quality-automation-gap",
+        detail: expect.stringContaining("iOS")
+      })
+    );
+  });
+
   it("blocks platform dashboard summary claims when the manifest lacks destination identity proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -833,7 +860,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 25 as const
+    bundleVersion: 26 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -983,6 +1010,9 @@ const manifestRun = ({
   chatReadoutSpokenMessageCount = 1,
   chatReadoutSpeechFailureCount = 0,
   qualityAutomationStatus = "pass",
+  qualityAutomationLiveUpdateCount = 1,
+  qualityAutomationNextTargetCount = 0,
+  qualityAutomationFailureCount = 0,
   platformPublishingPlatform = "youtube-live",
   platformPublishingStatus = "pass",
   platformPublishingFreshnessStatus = "fresh",
@@ -1051,6 +1081,9 @@ const manifestRun = ({
   chatReadoutSpokenMessageCount?: ValidationManifestRun["chatReadoutSpokenMessageCount"];
   chatReadoutSpeechFailureCount?: ValidationManifestRun["chatReadoutSpeechFailureCount"];
   qualityAutomationStatus?: ValidationManifestRun["qualityAutomationStatus"];
+  qualityAutomationLiveUpdateCount?: ValidationManifestRun["qualityAutomationLiveUpdateCount"];
+  qualityAutomationNextTargetCount?: ValidationManifestRun["qualityAutomationNextTargetCount"];
+  qualityAutomationFailureCount?: ValidationManifestRun["qualityAutomationFailureCount"];
   platformPublishingPlatform?: ValidationManifestRun["platformPublishingPlatform"];
   platformPublishingStatus?: ValidationManifestRun["platformPublishingStatus"];
   platformPublishingFreshnessStatus?: ValidationManifestRun["platformPublishingFreshnessStatus"];
@@ -1125,6 +1158,9 @@ const manifestRun = ({
   chatReadoutSpokenMessageCount,
   chatReadoutSpeechFailureCount,
   qualityAutomationStatus,
+  qualityAutomationLiveUpdateCount,
+  qualityAutomationNextTargetCount,
+  qualityAutomationFailureCount,
   platformPublishingPlatform,
   platformPublishingStatus,
   platformPublishingFreshnessStatus,

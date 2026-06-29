@@ -387,7 +387,7 @@ function writeSupportBundleFixture() {
     ".artifacts/store-approval-test/support-bundle.json",
     JSON.stringify(
       {
-        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 25 },
+        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 26 },
         generatedAt: new Date().toISOString(),
         summary: {
           preflightStatus: "ready",
@@ -505,6 +505,9 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     chatReadoutSpokenMessageCount: 1,
     chatReadoutSpeechFailureCount: 0,
     qualityAutomationStatus: "pass",
+    qualityAutomationLiveUpdateCount: 1,
+    qualityAutomationNextTargetCount: 0,
+    qualityAutomationFailureCount: 0,
     platformPublishingPlatform: "youtube-live",
     platformPublishingStatus: "pass",
     platformPublishingFreshnessStatus: "fresh",

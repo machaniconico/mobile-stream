@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v25.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v26.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -310,6 +310,25 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("spoken-message success and zero speech failures");
+  });
+
+  it("blocks retained manifests without controlled weak-network quality automation proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            qualityAutomationLiveUpdateCount: 0,
+            qualityAutomationNextTargetCount: 0
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("controlled weak-network quality automation evidence for iOS");
   });
 
   it("blocks platform dashboard claims when retained manifests lack destination identity proof", () => {
@@ -608,7 +627,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 25
+      bundleVersion: 26
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -680,6 +699,9 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   chatReadoutSpokenMessageCount: 1,
   chatReadoutSpeechFailureCount: 0,
   qualityAutomationStatus: "pass",
+  qualityAutomationLiveUpdateCount: 1,
+  qualityAutomationNextTargetCount: 0,
+  qualityAutomationFailureCount: 0,
   platformPublishingPlatform: "youtube-live",
   platformPublishingStatus: "pass",
   platformPublishingFreshnessStatus: "fresh",
