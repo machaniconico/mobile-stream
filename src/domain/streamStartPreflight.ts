@@ -601,7 +601,8 @@ const createYouTubePublishingIssues = (
   if (oauthIssue) {
     issues.push(oauthIssue);
   }
-  const freshnessIssue = createStatusFreshnessIssue("youtube", settings.youtubeStatusCheckedAt, now);
+  const freshnessSeverity = settings.privacyStatus === "public" ? "block" : "warning";
+  const freshnessIssue = createStatusFreshnessIssue("youtube", settings.youtubeStatusCheckedAt, now, freshnessSeverity);
   if (freshnessIssue) {
     issues.push(freshnessIssue);
   }
@@ -701,7 +702,7 @@ const createTwitchPublishingIssues = (
   platformChatOAuthCredentials: StreamStartPreflightInput["platformChatOAuthCredentials"],
   platformChatOAuthCredential: StreamStartPreflightInput["platformChatOAuthCredential"]
 ): StreamStartPreflightIssue[] => {
-  const freshnessIssue = createStatusFreshnessIssue("twitch", profile.platformPublishing.twitchStatusCheckedAt, now);
+  const freshnessIssue = createStatusFreshnessIssue("twitch", profile.platformPublishing.twitchStatusCheckedAt, now, "block");
   const issues: StreamStartPreflightIssue[] = createTwitchMetadataMismatchIssues(profile);
   const oauthIssue = createOAuthScopeIssue({
     credential: resolvePreflightCredential(platformChatOAuthCredentials, platformChatOAuthCredential, "twitch"),
@@ -813,14 +814,15 @@ const formatTwitchCategoryForMessage = (category: string, categoryId: string): s
 const createStatusFreshnessIssue = (
   platform: "youtube" | "twitch",
   checkedAt: string,
-  now: Date
+  now: Date,
+  severity: StreamStartPreflightSeverity
 ): StreamStartPreflightIssue | null => {
   const label = platform === "youtube" ? "YouTube status" : "Twitch status";
   const platformName = platform === "youtube" ? "YouTube" : "Twitch";
   if (!checkedAt.trim()) {
     return {
       code: `publishing-${platform}-status-unchecked`,
-      severity: "warning",
+      severity,
       area: "publishing",
       label,
       message: `${platformName} dashboard status has not been refreshed in this profile.`,
@@ -833,7 +835,7 @@ const createStatusFreshnessIssue = (
   if (!Number.isFinite(checkedTimestamp) || !Number.isFinite(nowTimestamp)) {
     return {
       code: `publishing-${platform}-status-invalid`,
-      severity: "warning",
+      severity,
       area: "publishing",
       label,
       message: `${platformName} dashboard status timestamp is invalid.`,
@@ -848,7 +850,7 @@ const createStatusFreshnessIssue = (
 
   return {
     code: `publishing-${platform}-status-stale`,
-    severity: "warning",
+    severity,
     area: "publishing",
     label,
     message: `${platformName} dashboard status is ${ageMinutes} minutes old.`,

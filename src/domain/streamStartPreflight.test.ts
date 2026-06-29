@@ -900,7 +900,7 @@ describe("stream start preflight", () => {
     expect(report.blocks.map((issue) => issue.code)).toContain("readiness-scene-native-composition-native-overlays");
   });
 
-  it("warns when platform-visible YouTube status has not been refreshed before launch", () => {
+  it("blocks public YouTube starts when dashboard status is stale", () => {
     const profile = {
       ...validProfile(),
       platformPublishing: {
@@ -924,9 +924,9 @@ describe("stream start preflight", () => {
       now: new Date("2026-06-23T00:16:00.000Z")
     });
 
-    expect(report.canStart).toBe(true);
-    expect(report.status).toBe("warning");
-    expect(report.warnings.map((issue) => issue.code)).toContain("publishing-youtube-status-stale");
+    expect(report.canStart).toBe(false);
+    expect(report.status).toBe("blocked");
+    expect(report.blocks.map((issue) => issue.code)).toContain("publishing-youtube-status-stale");
   });
 
   it("blocks platform-visible YouTube launches without a bound broadcast after validation is ready", () => {
@@ -1163,7 +1163,7 @@ describe("stream start preflight", () => {
     expect(report.canStart).toBe(true);
   });
 
-  it("warns when Twitch status has never been refreshed before launch", () => {
+  it("blocks Twitch starts when dashboard status has never been refreshed", () => {
     const baseProfile = applyDestinationPreset(validProfile(), "twitch-auto");
     const profile = {
       ...baseProfile,
@@ -1184,9 +1184,38 @@ describe("stream start preflight", () => {
       now: new Date("2026-06-23T00:05:00.000Z")
     });
 
+    expect(report.canStart).toBe(false);
+    expect(report.status).toBe("blocked");
+    expect(report.blocks.map((issue) => issue.code)).toContain("publishing-twitch-status-unchecked");
+  });
+
+  it("keeps stale unlisted YouTube dashboard status as a validation warning", () => {
+    const profile = {
+      ...validProfile(),
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "unlisted" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "stream-id",
+        youtubeBroadcastStatus: "testing",
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:16:00.000Z")
+    });
+
     expect(report.canStart).toBe(true);
     expect(report.status).toBe("warning");
-    expect(report.warnings.map((issue) => issue.code)).toContain("publishing-twitch-status-unchecked");
+    expect(report.warnings.map((issue) => issue.code)).toContain("publishing-youtube-status-stale");
   });
 
   it("warns for unlisted YouTube launches before commercial validation is ready", () => {
