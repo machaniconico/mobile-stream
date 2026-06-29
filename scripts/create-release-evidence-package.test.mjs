@@ -51,7 +51,7 @@ const storePngBytes = pngWithDimensions(1179, 2556);
 const dashboardPngBytes = pngWithDimensions(1440, 900);
 const minimumDistributionArtifactBytes = 1_048_576;
 const capturedAt = new Date().toISOString();
-const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
+const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality"];
 
 describe("release evidence package creator", () => {
   beforeAll(() => {

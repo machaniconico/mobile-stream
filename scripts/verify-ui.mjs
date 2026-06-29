@@ -11,7 +11,7 @@ const viewports = [
   { name: "desktop", width: 1440, height: 1000 },
   { name: "mobile", width: 390, height: 900 }
 ];
-const requiredTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
+const requiredTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality"];
 
 if (isDirectRun()) {
   exit(await run());
@@ -81,6 +81,7 @@ export async function verifyUi({
     for (const viewport of viewports) {
       const page = await browser.newPage({ viewport });
       await page.goto(target, { waitUntil: "networkidle" });
+      const rigQualityProgressBarCount = await selectPngTuberSourceForUiProof(page, viewport.name);
 
       const checks = [];
 
@@ -108,6 +109,7 @@ export async function verifyUi({
         ...viewport,
         requiredTextChecks: checks,
         horizontalOverflow: false,
+        rigQualityProgressBarCount,
         screenshot
       });
 
@@ -130,6 +132,18 @@ export async function verifyUi({
     viewports,
     report
   };
+}
+
+async function selectPngTuberSourceForUiProof(page, viewportName) {
+  const sourceRow = page.locator(".source-row").filter({ hasText: "PNGTuber" }).first();
+  await sourceRow.waitFor({ timeout: 10_000 });
+  await sourceRow.click();
+  await waitForRequiredText(page, "Rig quality", viewportName);
+  const progressBarCount = await page.locator('.avatar-rig-quality [role="progressbar"]').count();
+  if (progressBarCount < 3) {
+    throw new Error(`Rig quality panel is missing score bars at ${viewportName}`);
+  }
+  return progressBarCount;
 }
 
 function finishReport(report, status, error = null) {

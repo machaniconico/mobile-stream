@@ -10,7 +10,13 @@ export interface AvatarIllustrationRigQuality {
   highFidelityFactor: number;
 }
 
-const clamp01 = (value: number): number => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+export type AvatarIllustrationRigQualityGrade = "ready" | "review" | "blocked";
+
+export interface AvatarIllustrationRigTuningSummary extends AvatarIllustrationRigQuality {
+  highFidelityScore: number;
+  grade: AvatarIllustrationRigQualityGrade;
+  issues: string[];
+}
 
 export const createAvatarIllustrationRigQuality = (rig: AvatarIllustrationRig): AvatarIllustrationRigQuality => {
   const faceTop = rig.faceCenterY - rig.faceRange / 2;
@@ -27,6 +33,20 @@ export const createAvatarIllustrationRigQuality = (rig: AvatarIllustrationRig): 
     partSeparationFactor,
     depthContinuityFactor,
     highFidelityFactor: Math.min(partSeparationFactor, depthContinuityFactor)
+  };
+};
+
+export const createAvatarIllustrationRigTuningSummary = (
+  rig: AvatarIllustrationRig
+): AvatarIllustrationRigTuningSummary => {
+  const quality = createAvatarIllustrationRigQuality(rig);
+  const issues = createAvatarIllustrationRigTuningIssues(rig, quality);
+  const highFidelityScore = Math.min(quality.partSeparationScore, quality.depthContinuityScore);
+  return {
+    ...quality,
+    highFidelityScore,
+    grade: createAvatarIllustrationRigQualityGrade(highFidelityScore, issues.length),
+    issues
   };
 };
 
@@ -64,6 +84,48 @@ export const scoreAvatarIllustrationRigDepthContinuity = (
       rig.sliceCount >= 24 ? 100 : rig.sliceCount >= 20 ? 90 : Math.max(0, Math.round((rig.sliceCount / 20) * 80))
     )
   );
+};
+
+const createAvatarIllustrationRigTuningIssues = (
+  rig: AvatarIllustrationRig,
+  quality: AvatarIllustrationRigQuality
+): string[] => {
+  const issues: string[] = [];
+  const eyeMouthGap = rig.mouthLineY - rig.eyeLineY;
+  const hairEyeGap = rig.eyeLineY - rig.hairLineY;
+  const mouthShoulderGap = rig.shoulderLineY - rig.mouthLineY;
+  if (!(rig.hairLineY < rig.eyeLineY && rig.eyeLineY < rig.mouthLineY && rig.mouthLineY < rig.shoulderLineY)) {
+    issues.push("Line order must stay hair < eyes < mouth < shoulders.");
+  }
+  if (rig.eyeLineY < quality.faceTop || rig.mouthLineY > quality.faceBottom) {
+    issues.push("Face range must cover the eye and mouth lines.");
+  }
+  if (eyeMouthGap < 0.12 || eyeMouthGap > 0.34) {
+    issues.push("Eye and mouth lines need 12-34% vertical separation.");
+  }
+  if (hairEyeGap < 0.03 || hairEyeGap > 0.24) {
+    issues.push("Hair line should leave 3-24% headroom above the eyes.");
+  }
+  if (mouthShoulderGap < 0.14 || mouthShoulderGap > 0.42) {
+    issues.push("Shoulder line should stay 14-42% below the mouth.");
+  }
+  if (rig.faceRange < 0.22 || rig.faceRange > 0.64) {
+    issues.push("Face range should stay within 22-64% of the illustration height.");
+  }
+  if (rig.sliceCount < 20) {
+    issues.push("Rig should use at least 20 slices for production deformation.");
+  }
+  return issues;
+};
+
+const createAvatarIllustrationRigQualityGrade = (
+  score: number,
+  issueCount: number
+): AvatarIllustrationRigQualityGrade => {
+  if (score >= 90 && issueCount === 0) {
+    return "ready";
+  }
+  return score >= 70 ? "review" : "blocked";
 };
 
 const scoreBand = (value: number, min: number, idealMin: number, idealMax: number, max: number): number => {

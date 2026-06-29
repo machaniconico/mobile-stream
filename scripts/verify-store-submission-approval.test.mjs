@@ -1066,7 +1066,7 @@ function artifactRecord(group, path) {
 }
 
 function requiredTextChecks() {
-  return ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"].map(
+  return ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality"].map(
     (text) => ({ text, count: 1 })
   );
 }

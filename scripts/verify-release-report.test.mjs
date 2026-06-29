@@ -45,7 +45,7 @@ const tinyPngBytes = createRgbaPngFixture(1, 1);
 const minimumDistributionArtifactBytes = 1_048_576;
 const pngBytes = pngWithDimensions(1179, 2556);
 const capturedAt = "2026-06-25T00:00:00.000Z";
-const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
+const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality"];
 
 describe("release report verifier", () => {
   beforeAll(() => {

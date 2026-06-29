@@ -30,7 +30,7 @@ import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 const defaultUiUrl = "http://127.0.0.1:5173/";
 const devServerTimeoutMs = 30_000;
 const defaultReportPath = ".artifacts/release-candidate-verification.json";
-const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
+const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality"];
 const requiredUiViewportNames = ["desktop", "mobile"];
 const sourceGates = [
   ["Verify release automation scripts", ["run", "verify:scripts"]],

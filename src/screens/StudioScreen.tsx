@@ -26,8 +26,9 @@ import {
   Wand2,
   Wifi
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
+import { createAvatarIllustrationRigTuningSummary } from "../domain/avatarIllustrationRigQuality";
 import {
   normalizeMutedWordsInput,
   selectChatOverlayMessages,
@@ -900,6 +901,7 @@ export const StudioScreen = ({
                   <Wand2 size={16} />
                   <span>Auto rig</span>
                 </button>
+                <AvatarRigQualityPanel rig={selectedSource.illustrationRig} />
                 <SpeechSlider
                   label="Face Y"
                   value={selectedSource.illustrationRig.faceCenterY}
@@ -2798,6 +2800,70 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
 const StatusPill = ({ label, tone }: { label: string; tone: "live" | "idle" | "bad" }) => (
   <span className={`status-pill ${tone}`}>{label}</span>
 );
+
+const AvatarRigQualityPanel = ({ rig }: { rig: AvatarIllustrationRig }) => {
+  const summary = createAvatarIllustrationRigTuningSummary(rig);
+  const faceTop = clampRigPercent(summary.faceTop);
+  const faceBottom = clampRigPercent(summary.faceBottom);
+  const faceBandStyle: CSSProperties = {
+    top: `${faceTop}%`,
+    height: `${Math.max(6, faceBottom - faceTop)}%`
+  };
+  const issue = summary.issues[0] ?? "Ready for retained proof.";
+
+  return (
+    <div className={`avatar-rig-quality ${summary.grade}`} aria-label="PNGTuber rig quality">
+      <div className="rig-quality-head">
+        <span>Rig quality</span>
+        <strong>{summary.highFidelityScore}/100</strong>
+      </div>
+      <div className="rig-quality-body">
+        <div className="rig-map" aria-hidden="true">
+          <span className="rig-face-band" style={faceBandStyle} />
+          <RigMapLine label="Hair" value={rig.hairLineY} />
+          <RigMapLine label="Eye" value={rig.eyeLineY} />
+          <RigMapLine label="Mouth" value={rig.mouthLineY} />
+          <RigMapLine label="Shoulder" value={rig.shoulderLineY} />
+        </div>
+        <div className="rig-score-list">
+          <RigScoreBar label="Parts" score={summary.partSeparationScore} />
+          <RigScoreBar label="Depth" score={summary.depthContinuityScore} />
+          <RigScoreBar label="Slices" score={rig.sliceCount >= 24 ? 100 : rig.sliceCount >= 20 ? 90 : 0} />
+        </div>
+      </div>
+      <p className="rig-quality-message">{issue}</p>
+    </div>
+  );
+};
+
+const RigMapLine = ({ label, value }: { label: string; value: number }) => (
+  <span className="rig-map-line" style={{ top: `${clampRigPercent(value)}%` }}>
+    <i />
+    <b>{label}</b>
+  </span>
+);
+
+const RigScoreBar = ({ label, score }: { label: string; score: number }) => {
+  const normalized = clampRigPercent(score / 100);
+  return (
+    <span className="rig-score-row">
+      <span>{label}</span>
+      <span
+        className="rig-score-track"
+        role="progressbar"
+        aria-label={`${label} rig score`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(normalized)}
+      >
+        <i style={{ width: `${normalized}%` }} />
+      </span>
+      <strong>{Math.round(normalized)}</strong>
+    </span>
+  );
+};
+
+const clampRigPercent = (value: number): number => Math.max(0, Math.min(100, Number.isFinite(value) ? value * 100 : 0));
 
 const Metric = ({ icon, label }: { icon: ReactNode; label: string }) => (
   <span className="metric">

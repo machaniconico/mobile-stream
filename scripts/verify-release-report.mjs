@@ -19,7 +19,7 @@ import { readPngEvidence } from "./png-evidence.mjs";
 import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 
 const requiredUiViewportNames = ["desktop", "mobile"];
-const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"];
+const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality"];
 const defaultBrowserUiEvidencePath = ".artifacts/ui-verification.json";
 const requiredReactNativeArtifacts = [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"];
 const requiredUiArtifacts = [".artifacts/mobile-live-caster-desktop.png", ".artifacts/mobile-live-caster-mobile.png"];

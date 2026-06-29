@@ -734,7 +734,7 @@ function uiViewportEvidence(name, path) {
   return {
     name,
     horizontalOverflow: false,
-    requiredTextChecks: ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range"].map(
+    requiredTextChecks: ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality"].map(
       (text) => ({ text, count: 1 })
     ),
     screenshot: fileRecord(path)
