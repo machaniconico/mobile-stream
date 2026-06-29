@@ -21,11 +21,20 @@ export interface VrmGlbHeaderReport {
   version: number | null;
   declaredLength: number;
   jsonChunkLength: number;
+  binaryChunkCount: number;
   vrmExtensionVersion: "1.0" | "0.x" | null;
   requiredExtensionCount: number;
   usedExtensionCount: number;
+  unsupportedRequiredExtensionCount: number;
+  unsupportedRequiredExtensions: string[];
   humanoidBoneCount: number;
   expressionCount: number;
+  bufferUriCount: number;
+  imageCount: number;
+  imageUriCount: number;
+  externalImageUriCount: number;
+  dataImageUriCount: number;
+  unsupportedImageMimeCount: number;
   issueCount: number;
   issues: VrmModelAssetIssue[];
   summary: string;
@@ -36,6 +45,15 @@ const localFileSchemes = new Set(["file", "content"]);
 const remoteOrInlineSchemes = new Set(["http", "https", "data"]);
 const glbMagic = 0x46546c67;
 const glbJsonChunkType = 0x4e4f534a;
+const glbBinChunkType = 0x004e4942;
+const recognizedRequiredExtensions = new Set([
+  "VRM",
+  "VRMC_vrm",
+  "VRMC_materials_mtoon",
+  "KHR_materials_unlit",
+  "KHR_texture_transform",
+  "KHR_materials_emissive_strength"
+]);
 
 export const normalizeVrmModelUri = (value: unknown): string => {
   if (typeof value !== "string") {
@@ -114,6 +132,7 @@ export const createVrmGlbHeaderReport = (value: ArrayBuffer | ArrayLike<number>)
   }
 
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const binaryChunkCount = countGlbChunks(view, bytes.byteLength, glbBinChunkType);
   const magic = view.getUint32(0, true);
   if (magic !== glbMagic) {
     return glbReport({
@@ -191,6 +210,17 @@ export const createVrmGlbHeaderReport = (value: ArrayBuffer | ArrayLike<number>)
 
   const extensionsUsed = stringArray(parsed.extensionsUsed);
   const extensionsRequired = stringArray(parsed.extensionsRequired);
+  const unsupportedRequiredExtensions = extensionsRequired.filter(
+    (extension) => !recognizedRequiredExtensions.has(extension)
+  );
+  if (unsupportedRequiredExtensions.length > 0) {
+    issues.push({
+      code: "vrm-required-extension-unsupported",
+      severity: "fail",
+      message: `VRM model requires unsupported glTF extension${unsupportedRequiredExtensions.length === 1 ? "" : "s"}: ${unsupportedRequiredExtensions.join(", ")}.`
+    });
+  }
+
   const extensions = isRecord(parsed.extensions) ? parsed.extensions : {};
   const vrm1 = isRecord(extensions.VRMC_vrm) ? extensions.VRMC_vrm : null;
   const vrm0 = isRecord(extensions.VRM) ? extensions.VRM : null;
@@ -222,15 +252,61 @@ export const createVrmGlbHeaderReport = (value: ArrayBuffer | ArrayLike<number>)
     });
   }
 
+  const buffers = recordArray(parsed.buffers);
+  const bufferUriCount = buffers.filter((buffer) => trimmedString(buffer.uri).length > 0).length;
+  if (bufferUriCount > 0) {
+    issues.push({
+      code: "vrm-buffer-uri",
+      severity: "fail",
+      message: "VRM mobile rendering requires self-contained GLB binary buffers, not external or inline buffer URIs."
+    });
+  }
+  if (buffers.length > 0 && bufferUriCount < buffers.length && binaryChunkCount === 0) {
+    issues.push({
+      code: "vrm-glb-bin-chunk-missing",
+      severity: "fail",
+      message: "VRM GLB declares binary buffers but does not include a BIN chunk."
+    });
+  }
+
+  const images = recordArray(parsed.images);
+  const imageUris = images.map((image) => trimmedString(image.uri)).filter((uri) => uri.length > 0);
+  const dataImageUriCount = imageUris.filter(isDataUri).length;
+  const externalImageUriCount = imageUris.length - dataImageUriCount;
+  const unsupportedImageMimeCount = images.filter(hasUnsupportedImageMimeOrUri).length;
+  if (externalImageUriCount > 0) {
+    issues.push({
+      code: "vrm-image-external-uri",
+      severity: "warn",
+      message: "VRM image textures should be embedded in the GLB for native mobile rendering."
+    });
+  }
+  if (unsupportedImageMimeCount > 0) {
+    issues.push({
+      code: "vrm-image-mime-unsupported",
+      severity: "warn",
+      message: "VRM image textures must be PNG or JPEG for the native renderer compatibility path."
+    });
+  }
+
   return glbReport({
     version,
     declaredLength,
     jsonChunkLength,
+    binaryChunkCount,
     vrmExtensionVersion,
     requiredExtensionCount: extensionsRequired.length,
     usedExtensionCount: extensionsUsed.length,
+    unsupportedRequiredExtensionCount: unsupportedRequiredExtensions.length,
+    unsupportedRequiredExtensions,
     humanoidBoneCount,
     expressionCount,
+    bufferUriCount,
+    imageCount: images.length,
+    imageUriCount: imageUris.length,
+    externalImageUriCount,
+    dataImageUriCount,
+    unsupportedImageMimeCount,
     issues
   });
 };
@@ -239,11 +315,20 @@ const glbReport = ({
   version = null,
   declaredLength = 0,
   jsonChunkLength = 0,
+  binaryChunkCount = 0,
   vrmExtensionVersion = null,
   requiredExtensionCount = 0,
   usedExtensionCount = 0,
+  unsupportedRequiredExtensionCount = 0,
+  unsupportedRequiredExtensions = [],
   humanoidBoneCount = 0,
   expressionCount = 0,
+  bufferUriCount = 0,
+  imageCount = 0,
+  imageUriCount = 0,
+  externalImageUriCount = 0,
+  dataImageUriCount = 0,
+  unsupportedImageMimeCount = 0,
   issues
 }: Partial<Omit<VrmGlbHeaderReport, "status" | "summary" | "issueCount">> & {
   issues: VrmModelAssetIssue[];
@@ -254,18 +339,44 @@ const glbReport = ({
     version,
     declaredLength,
     jsonChunkLength,
+    binaryChunkCount,
     vrmExtensionVersion,
     requiredExtensionCount,
     usedExtensionCount,
+    unsupportedRequiredExtensionCount,
+    unsupportedRequiredExtensions,
     humanoidBoneCount,
     expressionCount,
+    bufferUriCount,
+    imageCount,
+    imageUriCount,
+    externalImageUriCount,
+    dataImageUriCount,
+    unsupportedImageMimeCount,
     issueCount: issues.length,
     issues,
     summary:
       status === "pass"
-        ? `VRM GLB header is ready: VRM ${vrmExtensionVersion}, ${humanoidBoneCount} humanoid bone${humanoidBoneCount === 1 ? "" : "s"}, ${expressionCount} expression${expressionCount === 1 ? "" : "s"}.`
+        ? `VRM GLB header is ready: VRM ${vrmExtensionVersion}, ${humanoidBoneCount} humanoid bone${humanoidBoneCount === 1 ? "" : "s"}, ${expressionCount} expression${expressionCount === 1 ? "" : "s"}, ${imageCount} image${imageCount === 1 ? "" : "s"}.`
         : `VRM GLB header needs review: ${issues.length} issue${issues.length === 1 ? "" : "s"}.`
   };
+};
+
+const countGlbChunks = (view: DataView, byteLength: number, chunkType: number): number => {
+  let count = 0;
+  for (let offset = 12; offset + 8 <= byteLength; ) {
+    const chunkLength = view.getUint32(offset, true);
+    const type = view.getUint32(offset + 4, true);
+    if (type === chunkType) {
+      count += 1;
+    }
+    const nextOffset = offset + 8 + align4(chunkLength);
+    if (nextOffset <= offset || nextOffset > byteLength) {
+      break;
+    }
+    offset = nextOffset;
+  }
+  return count;
 };
 
 const bytesFrom = (value: ArrayBuffer | ArrayLike<number>): Uint8Array =>
@@ -310,8 +421,28 @@ const decodeUtf8 = (bytes: Uint8Array): string => {
 const stringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
+const recordArray = (value: unknown): Record<string, unknown>[] =>
+  Array.isArray(value) ? value.filter(isRecord) : [];
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+const trimmedString = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+
+const isDataUri = (uri: string): boolean => uri.toLowerCase().startsWith("data:");
+
+const hasUnsupportedImageMimeOrUri = (image: Record<string, unknown>): boolean => {
+  const mimeType = trimmedString(image.mimeType).toLowerCase();
+  const uri = trimmedString(image.uri).toLowerCase();
+  const supportedMime = mimeType === "image/png" || mimeType === "image/jpeg";
+  const supportedUri =
+    uri.endsWith(".png") ||
+    uri.endsWith(".jpg") ||
+    uri.endsWith(".jpeg") ||
+    uri.startsWith("data:image/png") ||
+    uri.startsWith("data:image/jpeg");
+  return !supportedMime && !supportedUri;
+};
 
 const uriScheme = (uri: string): string | null => {
   const match = uri.match(/^([a-z][a-z0-9+.-]*):/i);
@@ -351,6 +482,8 @@ const countExpressions = (vrm1: Record<string, unknown> | null, vrm0: Record<str
   }
   return 0;
 };
+
+const align4 = (value: number): number => Math.ceil(value / 4) * 4;
 
 const statusFromIssues = (issues: VrmModelAssetIssue[]): VrmModelAssetStatus => {
   if (issues.some((issue) => issue.severity === "fail")) {

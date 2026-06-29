@@ -94,11 +94,57 @@ describe("VRM model assets", () => {
     expect(report).toMatchObject({
       status: "pass",
       version: 2,
+      binaryChunkCount: 0,
       vrmExtensionVersion: "1.0",
       requiredExtensionCount: 1,
       usedExtensionCount: 1,
+      unsupportedRequiredExtensionCount: 0,
       humanoidBoneCount: 2,
-      expressionCount: 3
+      expressionCount: 3,
+      imageCount: 0,
+      unsupportedImageMimeCount: 0
+    });
+  });
+
+  it("accepts self-contained VRoid-style GLB assets with binary buffers and PNG textures", () => {
+    const report = createVrmGlbHeaderReport(
+      createGlb(
+        {
+          asset: { version: "2.0" },
+          extensionsUsed: ["VRMC_vrm", "VRMC_materials_mtoon"],
+          extensionsRequired: ["VRMC_vrm"],
+          extensions: {
+            VRMC_vrm: {
+              humanoid: {
+                humanBones: {
+                  hips: { node: 1 },
+                  spine: { node: 2 },
+                  head: { node: 3 }
+                }
+              },
+              expressions: {
+                preset: {
+                  happy: {},
+                  aa: {}
+                }
+              }
+            }
+          },
+          buffers: [{ byteLength: 32 }],
+          images: [{ bufferView: 0, mimeType: "image/png" }]
+        },
+        32
+      )
+    );
+
+    expect(report).toMatchObject({
+      status: "pass",
+      binaryChunkCount: 1,
+      bufferUriCount: 0,
+      imageCount: 1,
+      imageUriCount: 0,
+      externalImageUriCount: 0,
+      unsupportedImageMimeCount: 0
     });
   });
 
@@ -126,6 +172,79 @@ describe("VRM model assets", () => {
     expect(report.issues.map((issue) => issue.code)).toEqual(["vrm-expressions-missing"]);
   });
 
+  it("fails VRM GLBs that require external buffers or unsupported required extensions", () => {
+    const report = createVrmGlbHeaderReport(
+      createGlb({
+        asset: { version: "2.0" },
+        extensionsUsed: ["VRMC_vrm", "VENDOR_custom_physics"],
+        extensionsRequired: ["VRMC_vrm", "VENDOR_custom_physics"],
+        extensions: {
+          VRMC_vrm: {
+            humanoid: {
+              humanBones: {
+                hips: { node: 1 },
+                head: { node: 2 }
+              }
+            },
+            expressions: {
+              preset: {
+                happy: {}
+              }
+            }
+          }
+        },
+        buffers: [{ uri: "avatar.bin", byteLength: 32 }],
+        images: [{ uri: "textures/avatar.webp", mimeType: "image/webp" }]
+      })
+    );
+
+    expect(report.status).toBe("fail");
+    expect(report).toMatchObject({
+      unsupportedRequiredExtensionCount: 1,
+      unsupportedRequiredExtensions: ["VENDOR_custom_physics"],
+      bufferUriCount: 1,
+      imageCount: 1,
+      imageUriCount: 1,
+      externalImageUriCount: 1,
+      unsupportedImageMimeCount: 1
+    });
+    expect(report.issues.map((issue) => issue.code)).toEqual([
+      "vrm-required-extension-unsupported",
+      "vrm-buffer-uri",
+      "vrm-image-external-uri",
+      "vrm-image-mime-unsupported"
+    ]);
+  });
+
+  it("fails VRM GLBs that declare embedded buffers without a BIN chunk", () => {
+    const report = createVrmGlbHeaderReport(
+      createGlb({
+        asset: { version: "2.0" },
+        extensionsUsed: ["VRMC_vrm"],
+        extensionsRequired: ["VRMC_vrm"],
+        extensions: {
+          VRMC_vrm: {
+            humanoid: {
+              humanBones: {
+                hips: { node: 1 }
+              }
+            },
+            expressions: {
+              preset: {
+                happy: {}
+              }
+            }
+          }
+        },
+        buffers: [{ byteLength: 32 }]
+      })
+    );
+
+    expect(report.status).toBe("fail");
+    expect(report.binaryChunkCount).toBe(0);
+    expect(report.issues.map((issue) => issue.code)).toEqual(["vrm-glb-bin-chunk-missing"]);
+  });
+
   it("fails non-VRM or malformed GLB files", () => {
     expect(createVrmGlbHeaderReport([0, 1, 2]).issues.map((issue) => issue.code)).toEqual(["vrm-glb-too-small"]);
 
@@ -141,10 +260,11 @@ describe("VRM model assets", () => {
   });
 });
 
-const createGlb = (json: Record<string, unknown>): Uint8Array => {
+const createGlb = (json: Record<string, unknown>, binaryLength = 0): Uint8Array => {
   const jsonBytes = new TextEncoder().encode(JSON.stringify(json));
   const jsonChunkLength = align4(jsonBytes.length);
-  const totalLength = 12 + 8 + jsonChunkLength;
+  const binaryChunkLength = binaryLength > 0 ? align4(binaryLength) : 0;
+  const totalLength = 12 + 8 + jsonChunkLength + (binaryChunkLength > 0 ? 8 + binaryChunkLength : 0);
   const bytes = new Uint8Array(totalLength);
   const view = new DataView(bytes.buffer);
 
@@ -156,6 +276,11 @@ const createGlb = (json: Record<string, unknown>): Uint8Array => {
   bytes.set(jsonBytes, 20);
   for (let index = 20 + jsonBytes.length; index < bytes.length; index += 1) {
     bytes[index] = 0x20;
+  }
+  if (binaryChunkLength > 0) {
+    const binaryHeaderOffset = 20 + jsonChunkLength;
+    view.setUint32(binaryHeaderOffset, binaryChunkLength, true);
+    view.setUint32(binaryHeaderOffset + 4, 0x004e4942, true);
   }
 
   return bytes;
