@@ -860,7 +860,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 32 as const
+    bundleVersion: 33 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -995,6 +995,11 @@ const manifestRun = ({
   nativeRuntimeVrmMeshPrimitiveCount = 0,
   nativeRuntimeVrmSkinnedMeshPrimitiveCount = 0,
   nativeRuntimeVrmSkinJointCount = 0,
+  nativeRuntimeVrmPositionAccessorCount = 0,
+  nativeRuntimeVrmVertexCount = 0,
+  nativeRuntimeVrmIndexCount = 0,
+  nativeRuntimeVrmBoundsAccessorCount = 0,
+  nativeRuntimeVrmSkinningAttributePrimitiveCount = 0,
   nativeRuntimeVrmMorphTargetCount = 0,
   nativeRuntimeVrmMaterialCount = 0,
   nativeRuntimeVrmTextureCount = 0,
@@ -1091,6 +1096,11 @@ const manifestRun = ({
   nativeRuntimeVrmMeshPrimitiveCount?: ValidationManifestRun["nativeRuntimeVrmMeshPrimitiveCount"];
   nativeRuntimeVrmSkinnedMeshPrimitiveCount?: ValidationManifestRun["nativeRuntimeVrmSkinnedMeshPrimitiveCount"];
   nativeRuntimeVrmSkinJointCount?: ValidationManifestRun["nativeRuntimeVrmSkinJointCount"];
+  nativeRuntimeVrmPositionAccessorCount?: ValidationManifestRun["nativeRuntimeVrmPositionAccessorCount"];
+  nativeRuntimeVrmVertexCount?: ValidationManifestRun["nativeRuntimeVrmVertexCount"];
+  nativeRuntimeVrmIndexCount?: ValidationManifestRun["nativeRuntimeVrmIndexCount"];
+  nativeRuntimeVrmBoundsAccessorCount?: ValidationManifestRun["nativeRuntimeVrmBoundsAccessorCount"];
+  nativeRuntimeVrmSkinningAttributePrimitiveCount?: ValidationManifestRun["nativeRuntimeVrmSkinningAttributePrimitiveCount"];
   nativeRuntimeVrmMorphTargetCount?: ValidationManifestRun["nativeRuntimeVrmMorphTargetCount"];
   nativeRuntimeVrmMaterialCount?: ValidationManifestRun["nativeRuntimeVrmMaterialCount"];
   nativeRuntimeVrmTextureCount?: ValidationManifestRun["nativeRuntimeVrmTextureCount"];
@@ -1193,6 +1203,11 @@ const manifestRun = ({
   nativeRuntimeVrmMeshPrimitiveCount,
   nativeRuntimeVrmSkinnedMeshPrimitiveCount,
   nativeRuntimeVrmSkinJointCount,
+  nativeRuntimeVrmPositionAccessorCount,
+  nativeRuntimeVrmVertexCount,
+  nativeRuntimeVrmIndexCount,
+  nativeRuntimeVrmBoundsAccessorCount,
+  nativeRuntimeVrmSkinningAttributePrimitiveCount,
   nativeRuntimeVrmMorphTargetCount,
   nativeRuntimeVrmMaterialCount,
   nativeRuntimeVrmTextureCount,

@@ -20,6 +20,11 @@ export interface NativeRuntimeComposition {
   vrmMeshPrimitiveCount?: number;
   vrmSkinnedMeshPrimitiveCount?: number;
   vrmSkinJointCount?: number;
+  vrmPositionAccessorCount?: number;
+  vrmVertexCount?: number;
+  vrmIndexCount?: number;
+  vrmBoundsAccessorCount?: number;
+  vrmSkinningAttributePrimitiveCount?: number;
   vrmMorphTargetCount?: number;
   vrmMaterialCount?: number;
   vrmTextureCount?: number;

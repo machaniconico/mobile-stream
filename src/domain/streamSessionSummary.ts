@@ -49,6 +49,11 @@ export interface StreamSessionNativeRuntimeSummary {
   vrmMeshPrimitiveCount: number;
   vrmSkinnedMeshPrimitiveCount: number;
   vrmSkinJointCount: number;
+  vrmPositionAccessorCount: number;
+  vrmVertexCount: number;
+  vrmIndexCount: number;
+  vrmBoundsAccessorCount: number;
+  vrmSkinningAttributePrimitiveCount: number;
   vrmMorphTargetCount: number;
   vrmMaterialCount: number;
   vrmTextureCount: number;
@@ -677,6 +682,11 @@ export const createNativeRuntimeSessionSummary = (
   const vrmMeshPrimitiveCount = normalizeNonNegativeInteger(runtime.composition.vrmMeshPrimitiveCount);
   const vrmSkinnedMeshPrimitiveCount = normalizeNonNegativeInteger(runtime.composition.vrmSkinnedMeshPrimitiveCount);
   const vrmSkinJointCount = normalizeNonNegativeInteger(runtime.composition.vrmSkinJointCount);
+  const vrmPositionAccessorCount = normalizeNonNegativeInteger(runtime.composition.vrmPositionAccessorCount);
+  const vrmVertexCount = normalizeNonNegativeInteger(runtime.composition.vrmVertexCount);
+  const vrmIndexCount = normalizeNonNegativeInteger(runtime.composition.vrmIndexCount);
+  const vrmBoundsAccessorCount = normalizeNonNegativeInteger(runtime.composition.vrmBoundsAccessorCount);
+  const vrmSkinningAttributePrimitiveCount = normalizeNonNegativeInteger(runtime.composition.vrmSkinningAttributePrimitiveCount);
   const vrmMorphTargetCount = normalizeNonNegativeInteger(runtime.composition.vrmMorphTargetCount);
   const vrmMaterialCount = normalizeNonNegativeInteger(runtime.composition.vrmMaterialCount);
   const vrmTextureCount = normalizeNonNegativeInteger(runtime.composition.vrmTextureCount);
@@ -693,7 +703,13 @@ export const createNativeRuntimeSessionSummary = (
   );
   const incompleteVrmModelMetadata = vrmModelLoadedCount > 0 && (vrmHumanoidBoneCount === 0 || vrmExpressionCount === 0);
   const incompleteVrmRenderability =
-    vrmModelLoadedCount > 0 && (vrmMeshPrimitiveCount === 0 || vrmSkinnedMeshPrimitiveCount === 0 || vrmSkinJointCount === 0);
+    vrmModelLoadedCount > 0 &&
+    (vrmMeshPrimitiveCount === 0 ||
+      vrmSkinnedMeshPrimitiveCount === 0 ||
+      vrmSkinJointCount === 0 ||
+      vrmPositionAccessorCount === 0 ||
+      vrmVertexCount === 0 ||
+      vrmSkinningAttributePrimitiveCount < vrmSkinnedMeshPrimitiveCount);
   const incompleteVrmPoseMapping =
     vrmModelLoadedCount > 0 && (vrmPoseBoneUnsupportedCount > 0 || vrmPoseExpressionUnsupportedCount > 0);
   const incompleteVrmRendering =
@@ -734,6 +750,11 @@ export const createNativeRuntimeSessionSummary = (
     vrmMeshPrimitiveCount,
     vrmSkinnedMeshPrimitiveCount,
     vrmSkinJointCount,
+    vrmPositionAccessorCount,
+    vrmVertexCount,
+    vrmIndexCount,
+    vrmBoundsAccessorCount,
+    vrmSkinningAttributePrimitiveCount,
     vrmMorphTargetCount,
     vrmMaterialCount,
     vrmTextureCount,
@@ -794,7 +815,7 @@ export const createNativeRuntimeSessionSummary = (
                 : incompleteVrmModelMetadata
                   ? "Use VRM/GLB files with humanoid bones and expression metadata before retaining production renderer evidence."
                   : incompleteVrmRenderability
-                    ? "Use VRM/GLB files with renderable mesh primitives, skinned meshes, and skin joints before retaining production renderer evidence."
+                    ? "Use VRM/GLB files with POSITION vertices, skinned meshes, skin joints, and JOINTS_0/WEIGHTS_0 attributes before retaining production renderer evidence."
                     : incompleteVrmPoseMapping
                       ? "Confirm VRM pose bones and expression weights map to the imported model before retaining production evidence."
                       : incompleteVrmRendering
@@ -1034,6 +1055,11 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     vrmMeshPrimitiveCount: normalizeNonNegativeInteger(value.vrmMeshPrimitiveCount),
     vrmSkinnedMeshPrimitiveCount: normalizeNonNegativeInteger(value.vrmSkinnedMeshPrimitiveCount),
     vrmSkinJointCount: normalizeNonNegativeInteger(value.vrmSkinJointCount),
+    vrmPositionAccessorCount: normalizeNonNegativeInteger(value.vrmPositionAccessorCount),
+    vrmVertexCount: normalizeNonNegativeInteger(value.vrmVertexCount),
+    vrmIndexCount: normalizeNonNegativeInteger(value.vrmIndexCount),
+    vrmBoundsAccessorCount: normalizeNonNegativeInteger(value.vrmBoundsAccessorCount),
+    vrmSkinningAttributePrimitiveCount: normalizeNonNegativeInteger(value.vrmSkinningAttributePrimitiveCount),
     vrmMorphTargetCount: normalizeNonNegativeInteger(value.vrmMorphTargetCount),
     vrmMaterialCount: normalizeNonNegativeInteger(value.vrmMaterialCount),
     vrmTextureCount: normalizeNonNegativeInteger(value.vrmTextureCount),

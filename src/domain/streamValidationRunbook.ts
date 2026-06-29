@@ -498,7 +498,11 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
     (nativeRuntime.composition.vrmModelLoadedCount ?? 0) > 0 &&
     ((nativeRuntime.composition.vrmMeshPrimitiveCount ?? 0) === 0 ||
       (nativeRuntime.composition.vrmSkinnedMeshPrimitiveCount ?? 0) === 0 ||
-      (nativeRuntime.composition.vrmSkinJointCount ?? 0) === 0);
+      (nativeRuntime.composition.vrmSkinJointCount ?? 0) === 0 ||
+      (nativeRuntime.composition.vrmPositionAccessorCount ?? 0) === 0 ||
+      (nativeRuntime.composition.vrmVertexCount ?? 0) === 0 ||
+      (nativeRuntime.composition.vrmSkinningAttributePrimitiveCount ?? 0) <
+        (nativeRuntime.composition.vrmSkinnedMeshPrimitiveCount ?? 0));
   const missingVrmPoseMapping =
     (nativeRuntime.composition.vrmModelLoadedCount ?? 0) > 0 &&
     ((nativeRuntime.composition.vrmPoseBoneUnsupportedCount ?? 0) > 0 ||
@@ -534,7 +538,7 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
             : missingVrmModelMetadata
               ? "Prepare a VRM/GLB model with humanoid bones and expression metadata before recording a pass."
               : missingVrmRenderability
-                ? "Prepare a VRM/GLB model with renderable mesh primitives, skinned meshes, and skin joints before recording a pass."
+                ? "Prepare a VRM/GLB model with POSITION vertices, skinned meshes, skin joints, and JOINTS_0/WEIGHTS_0 attributes before recording a pass."
                 : missingVrmPoseMapping
                   ? "Confirm the delivered VRM pose bones and expression weights are supported by the imported model before recording a pass."
                   : missingVrmRenders

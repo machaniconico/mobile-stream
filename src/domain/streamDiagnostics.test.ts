@@ -787,6 +787,11 @@ describe("stream diagnostics", () => {
           vrmMeshPrimitiveCount: 4,
           vrmSkinnedMeshPrimitiveCount: 4,
           vrmSkinJointCount: 55,
+          vrmPositionAccessorCount: 4,
+          vrmVertexCount: 12_480,
+          vrmIndexCount: 36_240,
+          vrmBoundsAccessorCount: 4,
+          vrmSkinningAttributePrimitiveCount: 4,
           vrmMorphTargetCount: 8,
           vrmMaterialCount: 3,
           vrmTextureCount: 3,
@@ -940,7 +945,7 @@ describe("stream diagnostics", () => {
     expect(nativeCheck?.status).toBe("warn");
     expect(nativeCheck?.message).toContain("Native VRM renderer is unavailable");
     expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
-      "Composition VRM renderer: unavailable / none / rendered 0/1 / models 0/1 / versions - / bones 0 / expressions 0 / primitives 0 / skinned 0 / joints 0 / morphs 0 / materials 0 / textures 0 / pose bones 0/0 / pose expressions 0/0 / missing 1 / failed 0"
+      "Composition VRM renderer: unavailable / none / rendered 0/1 / models 0/1 / versions - / bones 0 / expressions 0 / primitives 0 / skinned 0 / joints 0 / position accessors 0 / vertices 0 / indices 0 / bounds 0 / skin attrs 0 / morphs 0 / materials 0 / textures 0 / pose bones 0/0 / pose expressions 0/0 / missing 1 / failed 0"
     );
   });
 

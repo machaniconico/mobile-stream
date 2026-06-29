@@ -86,6 +86,11 @@ describe("support bundle", () => {
           vrmMeshPrimitiveCount: 4,
           vrmSkinnedMeshPrimitiveCount: 4,
           vrmSkinJointCount: 55,
+          vrmPositionAccessorCount: 4,
+          vrmVertexCount: 12_480,
+          vrmIndexCount: 36_240,
+          vrmBoundsAccessorCount: 4,
+          vrmSkinningAttributePrimitiveCount: 4,
           vrmMorphTargetCount: 8,
           vrmMaterialCount: 3,
           vrmTextureCount: 3,
@@ -183,7 +188,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 32 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 33 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
@@ -232,6 +237,9 @@ describe("support bundle", () => {
     expect(bundle.summary.lastSessionNativeRuntimeVrmMeshPrimitiveCount).toBe(4);
     expect(bundle.summary.lastSessionNativeRuntimeVrmSkinnedMeshPrimitiveCount).toBe(4);
     expect(bundle.summary.lastSessionNativeRuntimeVrmSkinJointCount).toBe(55);
+    expect(bundle.summary.lastSessionNativeRuntimeVrmVertexCount).toBe(12_480);
+    expect(bundle.summary.lastSessionNativeRuntimeVrmIndexCount).toBe(36_240);
+    expect(bundle.summary.lastSessionNativeRuntimeVrmSkinningAttributePrimitiveCount).toBe(4);
     expect(bundle.summary.lastSessionNativeRuntimeVrmMorphTargetCount).toBe(8);
     expect(bundle.summary.validationRunbookStatus).toBe("running");
     expect(bundle.summary.validationRunbookPendingCount).toBeGreaterThan(0);
@@ -272,6 +280,9 @@ describe("support bundle", () => {
     expect(bundle.summary.nativeRuntimeVrmMeshPrimitiveCount).toBe(4);
     expect(bundle.summary.nativeRuntimeVrmSkinnedMeshPrimitiveCount).toBe(4);
     expect(bundle.summary.nativeRuntimeVrmSkinJointCount).toBe(55);
+    expect(bundle.summary.nativeRuntimeVrmVertexCount).toBe(12_480);
+    expect(bundle.summary.nativeRuntimeVrmIndexCount).toBe(36_240);
+    expect(bundle.summary.nativeRuntimeVrmSkinningAttributePrimitiveCount).toBe(4);
     expect(bundle.summary.nativeRuntimeVrmMorphTargetCount).toBe(8);
     expect(bundle.summary.validationStatus).toBe("needs-test");
     expect(bundle.summary.validationFailCount).toBe(0);
@@ -323,7 +334,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("asset issues 1 / file-backed 0");
     expect(formatSupportBundle(bundle)).toContain("assets 1/1 loaded / 0 missing");
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
-    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / assets 1/1 loaded / 0 missing / vrm 1/1 active payloads 1 missing 0 / renderer ready native-test rendered 1/1 models 1 versions 1.0 bones 55 expressions 8 mesh primitives 4 skinned 4 skin joints 55 morphs 8 materials 3 textures 3 pose bones 7/7 unsupported 0 pose expressions 3/3 unsupported 0 missing 0 failed 0 / congested yes / queue 64/120");
+    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / assets 1/1 loaded / 0 missing / vrm 1/1 active payloads 1 missing 0 / renderer ready native-test rendered 1/1 models 1 versions 1.0 bones 55 expressions 8 mesh primitives 4 skinned 4 skin joints 55 position accessors 4 vertices 12480 indices 36240 bounds 4 skin attrs 4 morphs 8 materials 3 textures 3 pose bones 7/7 unsupported 0 pose expressions 3/3 unsupported 0 missing 0 failed 0 / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
     expect(formatSupportBundle(bundle)).toContain("Evidence fingerprint: sve1-");
     expect(formatSupportBundle(bundle)).toContain("Evidence run manifest: -");
@@ -406,6 +417,11 @@ describe("support bundle", () => {
           vrmMeshPrimitiveCount: 4,
           vrmSkinnedMeshPrimitiveCount: 4,
           vrmSkinJointCount: 55,
+          vrmPositionAccessorCount: 4,
+          vrmVertexCount: 12_480,
+          vrmIndexCount: 36_240,
+          vrmBoundsAccessorCount: 4,
+          vrmSkinningAttributePrimitiveCount: 4,
           vrmMorphTargetCount: 8,
           vrmMaterialCount: 3,
           vrmTextureCount: 3,
@@ -499,6 +515,9 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeVrmMeshPrimitiveCount).toBe(4);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeVrmSkinnedMeshPrimitiveCount).toBe(4);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeVrmSkinJointCount).toBe(55);
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeVrmVertexCount).toBe(12_480);
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeVrmIndexCount).toBe(36_240);
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeVrmSkinningAttributePrimitiveCount).toBe(4);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeVrmMorphTargetCount).toBe(8);
     expect(bundle.summary.validationEvidenceLatestAudioMonitorLatencyStatus).toBe("warn");
     expect(bundle.summary.validationEvidenceLatestAudioMonitorLatencyMs).toBeNull();
@@ -519,6 +538,11 @@ describe("support bundle", () => {
       nativeRuntimeVrmMeshPrimitiveCount: 4,
       nativeRuntimeVrmSkinnedMeshPrimitiveCount: 4,
       nativeRuntimeVrmSkinJointCount: 55,
+      nativeRuntimeVrmPositionAccessorCount: 4,
+      nativeRuntimeVrmVertexCount: 12_480,
+      nativeRuntimeVrmIndexCount: 36_240,
+      nativeRuntimeVrmBoundsAccessorCount: 4,
+      nativeRuntimeVrmSkinningAttributePrimitiveCount: 4,
       nativeRuntimeVrmMorphTargetCount: 8,
       audioStatus: "warn",
       platformPublishingFreshnessStatus: "fresh",

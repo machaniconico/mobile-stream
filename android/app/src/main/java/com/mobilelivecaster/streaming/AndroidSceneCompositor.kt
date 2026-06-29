@@ -35,6 +35,11 @@ data class AndroidVrmPoseSummary(
     val meshPrimitiveCount: Int = 0,
     val skinnedMeshPrimitiveCount: Int = 0,
     val skinJointCount: Int = 0,
+    val positionAccessorCount: Int = 0,
+    val vertexCount: Int = 0,
+    val indexCount: Int = 0,
+    val boundsAccessorCount: Int = 0,
+    val skinningAttributePrimitiveCount: Int = 0,
     val morphTargetCount: Int = 0,
     val materialCount: Int = 0,
     val textureCount: Int = 0,
@@ -70,7 +75,7 @@ data class AndroidCompositionResult(
                 else -> "Native overlays applied: $appliedCount, pending: ${skippedKinds.joinToString("/")}"
             }
             return if (vrmPoseSummary.sourceCount > 0) {
-                "$base; VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}; VRM renderer ${vrmPoseSummary.rendererStatus} ${vrmPoseSummary.rendererBackend}, rendered ${vrmPoseSummary.renderedSourceCount}/${vrmPoseSummary.sourceCount}, models ${vrmPoseSummary.modelLoadedCount}/${vrmPoseSummary.modelUriCount}, bones ${vrmPoseSummary.humanoidBoneCount}, expressions ${vrmPoseSummary.expressionCount}, primitives ${vrmPoseSummary.meshPrimitiveCount}, skinned ${vrmPoseSummary.skinnedMeshPrimitiveCount}, joints ${vrmPoseSummary.skinJointCount}, morphs ${vrmPoseSummary.morphTargetCount}, materials ${vrmPoseSummary.materialCount}, textures ${vrmPoseSummary.textureCount}, pose bones ${vrmPoseSummary.poseBoneAppliedCount}/${vrmPoseSummary.poseBoneCount}, pose expressions ${vrmPoseSummary.poseExpressionAppliedCount}/${vrmPoseSummary.poseExpressionCount}, failed ${vrmPoseSummary.renderFailureCount}"
+                "$base; VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}; VRM renderer ${vrmPoseSummary.rendererStatus} ${vrmPoseSummary.rendererBackend}, rendered ${vrmPoseSummary.renderedSourceCount}/${vrmPoseSummary.sourceCount}, models ${vrmPoseSummary.modelLoadedCount}/${vrmPoseSummary.modelUriCount}, bones ${vrmPoseSummary.humanoidBoneCount}, expressions ${vrmPoseSummary.expressionCount}, primitives ${vrmPoseSummary.meshPrimitiveCount}, skinned ${vrmPoseSummary.skinnedMeshPrimitiveCount}, joints ${vrmPoseSummary.skinJointCount}, position accessors ${vrmPoseSummary.positionAccessorCount}, vertices ${vrmPoseSummary.vertexCount}, indices ${vrmPoseSummary.indexCount}, bounds ${vrmPoseSummary.boundsAccessorCount}, skin attrs ${vrmPoseSummary.skinningAttributePrimitiveCount}, morphs ${vrmPoseSummary.morphTargetCount}, materials ${vrmPoseSummary.materialCount}, textures ${vrmPoseSummary.textureCount}, pose bones ${vrmPoseSummary.poseBoneAppliedCount}/${vrmPoseSummary.poseBoneCount}, pose expressions ${vrmPoseSummary.poseExpressionAppliedCount}/${vrmPoseSummary.poseExpressionCount}, failed ${vrmPoseSummary.renderFailureCount}"
             } else {
                 base
             }
@@ -407,6 +412,11 @@ object AndroidSceneCompositor {
         var meshPrimitiveCount = 0
         var skinnedMeshPrimitiveCount = 0
         var skinJointCount = 0
+        var positionAccessorCount = 0
+        var vertexCount = 0
+        var indexCount = 0
+        var boundsAccessorCount = 0
+        var skinningAttributePrimitiveCount = 0
         var morphTargetCount = 0
         var materialCount = 0
         var textureCount = 0
@@ -431,6 +441,11 @@ object AndroidSceneCompositor {
                     meshPrimitiveCount += metadata.meshPrimitiveCount
                     skinnedMeshPrimitiveCount += metadata.skinnedMeshPrimitiveCount
                     skinJointCount += metadata.skinJointCount
+                    positionAccessorCount += metadata.positionAccessorCount
+                    vertexCount += metadata.vertexCount
+                    indexCount += metadata.indexCount
+                    boundsAccessorCount += metadata.boundsAccessorCount
+                    skinningAttributePrimitiveCount += metadata.skinningAttributePrimitiveCount
                     morphTargetCount += metadata.morphTargetCount
                     materialCount += metadata.materialCount
                     textureCount += metadata.textureCount
@@ -486,6 +501,11 @@ object AndroidSceneCompositor {
             meshPrimitiveCount = meshPrimitiveCount,
             skinnedMeshPrimitiveCount = skinnedMeshPrimitiveCount,
             skinJointCount = skinJointCount,
+            positionAccessorCount = positionAccessorCount,
+            vertexCount = vertexCount,
+            indexCount = indexCount,
+            boundsAccessorCount = boundsAccessorCount,
+            skinningAttributePrimitiveCount = skinningAttributePrimitiveCount,
             morphTargetCount = morphTargetCount,
             materialCount = materialCount,
             textureCount = textureCount,
@@ -557,6 +577,11 @@ object AndroidSceneCompositor {
                 meshPrimitiveCount = renderability.meshPrimitiveCount,
                 skinnedMeshPrimitiveCount = renderability.skinnedMeshPrimitiveCount,
                 skinJointCount = renderability.skinJointCount,
+                positionAccessorCount = renderability.positionAccessorCount,
+                vertexCount = renderability.vertexCount,
+                indexCount = renderability.indexCount,
+                boundsAccessorCount = renderability.boundsAccessorCount,
+                skinningAttributePrimitiveCount = renderability.skinningAttributePrimitiveCount,
                 morphTargetCount = renderability.morphTargetCount,
                 materialCount = renderability.materialCount,
                 textureCount = renderability.textureCount
@@ -568,6 +593,11 @@ object AndroidSceneCompositor {
                 meshPrimitiveCount = renderability.meshPrimitiveCount,
                 skinnedMeshPrimitiveCount = renderability.skinnedMeshPrimitiveCount,
                 skinJointCount = renderability.skinJointCount,
+                positionAccessorCount = renderability.positionAccessorCount,
+                vertexCount = renderability.vertexCount,
+                indexCount = renderability.indexCount,
+                boundsAccessorCount = renderability.boundsAccessorCount,
+                skinningAttributePrimitiveCount = renderability.skinningAttributePrimitiveCount,
                 morphTargetCount = renderability.morphTargetCount,
                 materialCount = renderability.materialCount,
                 textureCount = renderability.textureCount
@@ -578,8 +608,14 @@ object AndroidSceneCompositor {
 
     private fun summarizeVrmGlbRenderability(root: JSONObject): AndroidVrmRenderabilityMetadata {
         val meshes = root.optJSONArray("meshes")
+        val accessors = root.optJSONArray("accessors")
         val meshPrimitiveCounts = mutableMapOf<Int, Int>()
         var meshPrimitiveCount = 0
+        var positionAccessorCount = 0
+        var vertexCount = 0
+        var indexCount = 0
+        var boundsAccessorCount = 0
+        var skinningAttributePrimitiveCount = 0
         var morphTargetCount = 0
         if (meshes != null) {
             for (meshIndex in 0 until meshes.length()) {
@@ -589,7 +625,27 @@ object AndroidSceneCompositor {
                 meshPrimitiveCount += primitiveCount
                 if (primitives != null) {
                     for (primitiveIndex in 0 until primitives.length()) {
-                        morphTargetCount += primitives.optJSONObject(primitiveIndex)?.optJSONArray("targets")?.length() ?: 0
+                        val primitive = primitives.optJSONObject(primitiveIndex) ?: continue
+                        val attributes = primitive.optJSONObject("attributes")
+                        val positionAccessorIndex = attributes?.optInt("POSITION", -1) ?: -1
+                        if (positionAccessorIndex >= 0) {
+                            val positionAccessor = accessors?.optJSONObject(positionAccessorIndex)
+                            positionAccessorCount += 1
+                            vertexCount += positionAccessor?.optInt("count", 0) ?: 0
+                            val min = positionAccessor?.optJSONArray("min")
+                            val max = positionAccessor?.optJSONArray("max")
+                            if ((min?.length() ?: 0) >= 3 && (max?.length() ?: 0) >= 3) {
+                                boundsAccessorCount += 1
+                            }
+                        }
+                        val indexAccessorIndex = primitive.optInt("indices", -1)
+                        if (indexAccessorIndex >= 0) {
+                            indexCount += accessors?.optJSONObject(indexAccessorIndex)?.optInt("count", 0) ?: 0
+                        }
+                        if (attributes?.has("JOINTS_0") == true && attributes.has("WEIGHTS_0")) {
+                            skinningAttributePrimitiveCount += 1
+                        }
+                        morphTargetCount += primitive.optJSONArray("targets")?.length() ?: 0
                     }
                 }
             }
@@ -617,6 +673,11 @@ object AndroidSceneCompositor {
             meshPrimitiveCount = meshPrimitiveCount,
             skinnedMeshPrimitiveCount = skinnedMeshPrimitiveCount,
             skinJointCount = skinJointCount,
+            positionAccessorCount = positionAccessorCount,
+            vertexCount = vertexCount,
+            indexCount = indexCount,
+            boundsAccessorCount = boundsAccessorCount,
+            skinningAttributePrimitiveCount = skinningAttributePrimitiveCount,
             morphTargetCount = morphTargetCount,
             materialCount = root.optJSONArray("materials")?.length() ?: 0,
             textureCount = maxOf(root.optJSONArray("textures")?.length() ?: 0, root.optJSONArray("images")?.length() ?: 0)
@@ -802,6 +863,11 @@ private data class AndroidVrmModelMetadata(
     val meshPrimitiveCount: Int,
     val skinnedMeshPrimitiveCount: Int,
     val skinJointCount: Int,
+    val positionAccessorCount: Int,
+    val vertexCount: Int,
+    val indexCount: Int,
+    val boundsAccessorCount: Int,
+    val skinningAttributePrimitiveCount: Int,
     val morphTargetCount: Int,
     val materialCount: Int,
     val textureCount: Int
@@ -811,6 +877,11 @@ private data class AndroidVrmRenderabilityMetadata(
     val meshPrimitiveCount: Int,
     val skinnedMeshPrimitiveCount: Int,
     val skinJointCount: Int,
+    val positionAccessorCount: Int,
+    val vertexCount: Int,
+    val indexCount: Int,
+    val boundsAccessorCount: Int,
+    val skinningAttributePrimitiveCount: Int,
     val morphTargetCount: Int,
     val materialCount: Int,
     val textureCount: Int

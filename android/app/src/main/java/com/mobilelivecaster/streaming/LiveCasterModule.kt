@@ -32,6 +32,11 @@ data class NativeRuntimeComposition(
     val vrmMeshPrimitiveCount: Int = 0,
     val vrmSkinnedMeshPrimitiveCount: Int = 0,
     val vrmSkinJointCount: Int = 0,
+    val vrmPositionAccessorCount: Int = 0,
+    val vrmVertexCount: Int = 0,
+    val vrmIndexCount: Int = 0,
+    val vrmBoundsAccessorCount: Int = 0,
+    val vrmSkinningAttributePrimitiveCount: Int = 0,
     val vrmMorphTargetCount: Int = 0,
     val vrmMaterialCount: Int = 0,
     val vrmTextureCount: Int = 0,
@@ -66,6 +71,11 @@ data class NativeRuntimeComposition(
         putInt("vrmMeshPrimitiveCount", vrmMeshPrimitiveCount)
         putInt("vrmSkinnedMeshPrimitiveCount", vrmSkinnedMeshPrimitiveCount)
         putInt("vrmSkinJointCount", vrmSkinJointCount)
+        putInt("vrmPositionAccessorCount", vrmPositionAccessorCount)
+        putInt("vrmVertexCount", vrmVertexCount)
+        putInt("vrmIndexCount", vrmIndexCount)
+        putInt("vrmBoundsAccessorCount", vrmBoundsAccessorCount)
+        putInt("vrmSkinningAttributePrimitiveCount", vrmSkinningAttributePrimitiveCount)
         putInt("vrmMorphTargetCount", vrmMorphTargetCount)
         putInt("vrmMaterialCount", vrmMaterialCount)
         putInt("vrmTextureCount", vrmTextureCount)
@@ -114,6 +124,11 @@ private fun AndroidCompositionResult.toNativeRuntimeComposition(): NativeRuntime
         vrmMeshPrimitiveCount = vrmPoseSummary.meshPrimitiveCount,
         vrmSkinnedMeshPrimitiveCount = vrmPoseSummary.skinnedMeshPrimitiveCount,
         vrmSkinJointCount = vrmPoseSummary.skinJointCount,
+        vrmPositionAccessorCount = vrmPoseSummary.positionAccessorCount,
+        vrmVertexCount = vrmPoseSummary.vertexCount,
+        vrmIndexCount = vrmPoseSummary.indexCount,
+        vrmBoundsAccessorCount = vrmPoseSummary.boundsAccessorCount,
+        vrmSkinningAttributePrimitiveCount = vrmPoseSummary.skinningAttributePrimitiveCount,
         vrmMorphTargetCount = vrmPoseSummary.morphTargetCount,
         vrmMaterialCount = vrmPoseSummary.materialCount,
         vrmTextureCount = vrmPoseSummary.textureCount,

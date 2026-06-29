@@ -3139,6 +3139,11 @@ struct BroadcastSceneCompositionSummary: Equatable {
             "vrmMeshPrimitiveCount": vrmPoseSummary.meshPrimitiveCount,
             "vrmSkinnedMeshPrimitiveCount": vrmPoseSummary.skinnedMeshPrimitiveCount,
             "vrmSkinJointCount": vrmPoseSummary.skinJointCount,
+            "vrmPositionAccessorCount": vrmPoseSummary.positionAccessorCount,
+            "vrmVertexCount": vrmPoseSummary.vertexCount,
+            "vrmIndexCount": vrmPoseSummary.indexCount,
+            "vrmBoundsAccessorCount": vrmPoseSummary.boundsAccessorCount,
+            "vrmSkinningAttributePrimitiveCount": vrmPoseSummary.skinningAttributePrimitiveCount,
             "vrmMorphTargetCount": vrmPoseSummary.morphTargetCount,
             "vrmMaterialCount": vrmPoseSummary.materialCount,
             "vrmTextureCount": vrmPoseSummary.textureCount,
@@ -3172,6 +3177,11 @@ struct BroadcastVrmPoseSummary: Equatable {
     let meshPrimitiveCount: Int
     let skinnedMeshPrimitiveCount: Int
     let skinJointCount: Int
+    let positionAccessorCount: Int
+    let vertexCount: Int
+    let indexCount: Int
+    let boundsAccessorCount: Int
+    let skinningAttributePrimitiveCount: Int
     let morphTargetCount: Int
     let materialCount: Int
     let textureCount: Int
@@ -3201,6 +3211,11 @@ struct BroadcastVrmPoseSummary: Equatable {
         meshPrimitiveCount: 0,
         skinnedMeshPrimitiveCount: 0,
         skinJointCount: 0,
+        positionAccessorCount: 0,
+        vertexCount: 0,
+        indexCount: 0,
+        boundsAccessorCount: 0,
+        skinningAttributePrimitiveCount: 0,
         morphTargetCount: 0,
         materialCount: 0,
         textureCount: 0,
@@ -3224,7 +3239,7 @@ struct BroadcastVrmPoseSummary: Equatable {
             return nil
         }
         let statusSuffix = runtimeStatuses.isEmpty ? "" : ", statuses \(runtimeStatuses.joined(separator: "/"))"
-        return "VRM poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix), renderer \(rendererStatus) \(rendererBackend), rendered \(renderedSourceCount)/\(sourceCount), models \(modelLoadedCount)/\(modelUriCount), bones \(humanoidBoneCount), expressions \(expressionCount), primitives \(meshPrimitiveCount), skinned \(skinnedMeshPrimitiveCount), joints \(skinJointCount), morphs \(morphTargetCount), materials \(materialCount), textures \(textureCount), pose bones \(poseBoneAppliedCount)/\(poseBoneCount), pose expressions \(poseExpressionAppliedCount)/\(poseExpressionCount), failed \(renderFailureCount)"
+        return "VRM poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix), renderer \(rendererStatus) \(rendererBackend), rendered \(renderedSourceCount)/\(sourceCount), models \(modelLoadedCount)/\(modelUriCount), bones \(humanoidBoneCount), expressions \(expressionCount), primitives \(meshPrimitiveCount), skinned \(skinnedMeshPrimitiveCount), joints \(skinJointCount), position accessors \(positionAccessorCount), vertices \(vertexCount), indices \(indexCount), bounds \(boundsAccessorCount), skin attrs \(skinningAttributePrimitiveCount), morphs \(morphTargetCount), materials \(materialCount), textures \(textureCount), pose bones \(poseBoneAppliedCount)/\(poseBoneCount), pose expressions \(poseExpressionAppliedCount)/\(poseExpressionCount), failed \(renderFailureCount)"
     }
 }
 
@@ -3894,6 +3909,11 @@ final class BroadcastSceneCompositor {
         var meshPrimitiveCount = 0
         var skinnedMeshPrimitiveCount = 0
         var skinJointCount = 0
+        var positionAccessorCount = 0
+        var vertexCount = 0
+        var indexCount = 0
+        var boundsAccessorCount = 0
+        var skinningAttributePrimitiveCount = 0
         var morphTargetCount = 0
         var materialCount = 0
         var textureCount = 0
@@ -3917,6 +3937,11 @@ final class BroadcastSceneCompositor {
                     meshPrimitiveCount += metadata.meshPrimitiveCount
                     skinnedMeshPrimitiveCount += metadata.skinnedMeshPrimitiveCount
                     skinJointCount += metadata.skinJointCount
+                    positionAccessorCount += metadata.positionAccessorCount
+                    vertexCount += metadata.vertexCount
+                    indexCount += metadata.indexCount
+                    boundsAccessorCount += metadata.boundsAccessorCount
+                    skinningAttributePrimitiveCount += metadata.skinningAttributePrimitiveCount
                     morphTargetCount += metadata.morphTargetCount
                     materialCount += metadata.materialCount
                     textureCount += metadata.textureCount
@@ -3970,6 +3995,11 @@ final class BroadcastSceneCompositor {
             meshPrimitiveCount: meshPrimitiveCount,
             skinnedMeshPrimitiveCount: skinnedMeshPrimitiveCount,
             skinJointCount: skinJointCount,
+            positionAccessorCount: positionAccessorCount,
+            vertexCount: vertexCount,
+            indexCount: indexCount,
+            boundsAccessorCount: boundsAccessorCount,
+            skinningAttributePrimitiveCount: skinningAttributePrimitiveCount,
             morphTargetCount: morphTargetCount,
             materialCount: materialCount,
             textureCount: textureCount,
@@ -4048,6 +4078,11 @@ final class BroadcastSceneCompositor {
                 meshPrimitiveCount: renderability.meshPrimitiveCount,
                 skinnedMeshPrimitiveCount: renderability.skinnedMeshPrimitiveCount,
                 skinJointCount: renderability.skinJointCount,
+                positionAccessorCount: renderability.positionAccessorCount,
+                vertexCount: renderability.vertexCount,
+                indexCount: renderability.indexCount,
+                boundsAccessorCount: renderability.boundsAccessorCount,
+                skinningAttributePrimitiveCount: renderability.skinningAttributePrimitiveCount,
                 morphTargetCount: renderability.morphTargetCount,
                 materialCount: renderability.materialCount,
                 textureCount: renderability.textureCount
@@ -4061,6 +4096,11 @@ final class BroadcastSceneCompositor {
                 meshPrimitiveCount: renderability.meshPrimitiveCount,
                 skinnedMeshPrimitiveCount: renderability.skinnedMeshPrimitiveCount,
                 skinJointCount: renderability.skinJointCount,
+                positionAccessorCount: renderability.positionAccessorCount,
+                vertexCount: renderability.vertexCount,
+                indexCount: renderability.indexCount,
+                boundsAccessorCount: renderability.boundsAccessorCount,
+                skinningAttributePrimitiveCount: renderability.skinningAttributePrimitiveCount,
                 morphTargetCount: renderability.morphTargetCount,
                 materialCount: renderability.materialCount,
                 textureCount: renderability.textureCount
@@ -4071,16 +4111,43 @@ final class BroadcastSceneCompositor {
 
     private static func summarizeVrmGlbRenderability(_ root: [String: Any]) -> BroadcastVrmRenderabilityMetadata {
         let meshes = root["meshes"] as? [[String: Any]] ?? []
+        let accessors = root["accessors"] as? [[String: Any]] ?? []
         var meshPrimitiveCounts: [Int: Int] = [:]
         var meshPrimitiveCount = 0
+        var positionAccessorCount = 0
+        var vertexCount = 0
+        var indexCount = 0
+        var boundsAccessorCount = 0
+        var skinningAttributePrimitiveCount = 0
         var morphTargetCount = 0
 
         for (meshIndex, mesh) in meshes.enumerated() {
             let primitives = mesh["primitives"] as? [[String: Any]] ?? []
             meshPrimitiveCounts[meshIndex] = primitives.count
             meshPrimitiveCount += primitives.count
-            morphTargetCount += primitives.reduce(0) { count, primitive in
-                count + ((primitive["targets"] as? [Any])?.count ?? 0)
+            for primitive in primitives {
+                let attributes = primitive["attributes"] as? [String: Any] ?? [:]
+                if let positionAccessorIndex = (attributes["POSITION"] as? NSNumber)?.intValue,
+                   positionAccessorIndex >= 0,
+                   positionAccessorIndex < accessors.count {
+                    let positionAccessor = accessors[positionAccessorIndex]
+                    positionAccessorCount += 1
+                    vertexCount += (positionAccessor["count"] as? NSNumber)?.intValue ?? 0
+                    let min = positionAccessor["min"] as? [Any]
+                    let max = positionAccessor["max"] as? [Any]
+                    if (min?.count ?? 0) >= 3 && (max?.count ?? 0) >= 3 {
+                        boundsAccessorCount += 1
+                    }
+                }
+                if let indexAccessorIndex = (primitive["indices"] as? NSNumber)?.intValue,
+                   indexAccessorIndex >= 0,
+                   indexAccessorIndex < accessors.count {
+                    indexCount += (accessors[indexAccessorIndex]["count"] as? NSNumber)?.intValue ?? 0
+                }
+                if attributes["JOINTS_0"] != nil && attributes["WEIGHTS_0"] != nil {
+                    skinningAttributePrimitiveCount += 1
+                }
+                morphTargetCount += (primitive["targets"] as? [Any])?.count ?? 0
             }
         }
 
@@ -4100,6 +4167,11 @@ final class BroadcastSceneCompositor {
             meshPrimitiveCount: meshPrimitiveCount,
             skinnedMeshPrimitiveCount: skinnedMeshPrimitiveCount,
             skinJointCount: skinJointCount,
+            positionAccessorCount: positionAccessorCount,
+            vertexCount: vertexCount,
+            indexCount: indexCount,
+            boundsAccessorCount: boundsAccessorCount,
+            skinningAttributePrimitiveCount: skinningAttributePrimitiveCount,
             morphTargetCount: morphTargetCount,
             materialCount: (root["materials"] as? [Any])?.count ?? 0,
             textureCount: max((root["textures"] as? [Any])?.count ?? 0, (root["images"] as? [Any])?.count ?? 0)
@@ -4359,6 +4431,11 @@ private struct BroadcastVrmModelMetadata {
     let meshPrimitiveCount: Int
     let skinnedMeshPrimitiveCount: Int
     let skinJointCount: Int
+    let positionAccessorCount: Int
+    let vertexCount: Int
+    let indexCount: Int
+    let boundsAccessorCount: Int
+    let skinningAttributePrimitiveCount: Int
     let morphTargetCount: Int
     let materialCount: Int
     let textureCount: Int
@@ -4368,6 +4445,11 @@ private struct BroadcastVrmRenderabilityMetadata {
     let meshPrimitiveCount: Int
     let skinnedMeshPrimitiveCount: Int
     let skinJointCount: Int
+    let positionAccessorCount: Int
+    let vertexCount: Int
+    let indexCount: Int
+    let boundsAccessorCount: Int
+    let skinningAttributePrimitiveCount: Int
     let morphTargetCount: Int
     let materialCount: Int
     let textureCount: Int

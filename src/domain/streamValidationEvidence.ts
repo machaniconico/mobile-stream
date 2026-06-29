@@ -210,6 +210,11 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeVrmMeshPrimitiveCount: number;
   nativeRuntimeVrmSkinnedMeshPrimitiveCount: number;
   nativeRuntimeVrmSkinJointCount: number;
+  nativeRuntimeVrmPositionAccessorCount: number;
+  nativeRuntimeVrmVertexCount: number;
+  nativeRuntimeVrmIndexCount: number;
+  nativeRuntimeVrmBoundsAccessorCount: number;
+  nativeRuntimeVrmSkinningAttributePrimitiveCount: number;
   nativeRuntimeVrmMorphTargetCount: number;
   nativeRuntimeVrmMaterialCount: number;
   nativeRuntimeVrmTextureCount: number;
@@ -2227,6 +2232,11 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeVrmMeshPrimitiveCount: run.nativeRuntime?.vrmMeshPrimitiveCount ?? 0,
     nativeRuntimeVrmSkinnedMeshPrimitiveCount: run.nativeRuntime?.vrmSkinnedMeshPrimitiveCount ?? 0,
     nativeRuntimeVrmSkinJointCount: run.nativeRuntime?.vrmSkinJointCount ?? 0,
+    nativeRuntimeVrmPositionAccessorCount: run.nativeRuntime?.vrmPositionAccessorCount ?? 0,
+    nativeRuntimeVrmVertexCount: run.nativeRuntime?.vrmVertexCount ?? 0,
+    nativeRuntimeVrmIndexCount: run.nativeRuntime?.vrmIndexCount ?? 0,
+    nativeRuntimeVrmBoundsAccessorCount: run.nativeRuntime?.vrmBoundsAccessorCount ?? 0,
+    nativeRuntimeVrmSkinningAttributePrimitiveCount: run.nativeRuntime?.vrmSkinningAttributePrimitiveCount ?? 0,
     nativeRuntimeVrmMorphTargetCount: run.nativeRuntime?.vrmMorphTargetCount ?? 0,
     nativeRuntimeVrmMaterialCount: run.nativeRuntime?.vrmMaterialCount ?? 0,
     nativeRuntimeVrmTextureCount: run.nativeRuntime?.vrmTextureCount ?? 0,
