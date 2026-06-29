@@ -202,6 +202,10 @@ data class NativeRuntimePublisher(
     val droppedVideoFrames: Long = 0,
     val droppedAudioFrames: Long = 0,
     val bytesWritten: Long = 0,
+    val videoFrameIntervalSampleCount: Long = 0,
+    val videoFrameIntervalAverageMs: Double = 0.0,
+    val videoFrameIntervalMaxMs: Double = 0.0,
+    val videoFrameIntervalJitterMs: Double = 0.0,
     val cacheSize: Int = 0,
     val itemsInCache: Int = 0,
     val congested: Boolean = false,
@@ -215,6 +219,10 @@ data class NativeRuntimePublisher(
         putDouble("droppedVideoFrames", droppedVideoFrames.toDouble())
         putDouble("droppedAudioFrames", droppedAudioFrames.toDouble())
         putDouble("bytesWritten", bytesWritten.toDouble())
+        putDouble("videoFrameIntervalSampleCount", videoFrameIntervalSampleCount.toDouble())
+        putDouble("videoFrameIntervalAverageMs", videoFrameIntervalAverageMs)
+        putDouble("videoFrameIntervalMaxMs", videoFrameIntervalMaxMs)
+        putDouble("videoFrameIntervalJitterMs", videoFrameIntervalJitterMs)
         putInt("cacheSize", cacheSize)
         putInt("itemsInCache", itemsInCache)
         putBoolean("congested", congested)
@@ -497,6 +505,10 @@ object LiveCasterSession {
         droppedVideoFrames: Long? = null,
         droppedAudioFrames: Long? = null,
         bytesWritten: Long? = null,
+        videoFrameIntervalSampleCount: Long? = null,
+        videoFrameIntervalAverageMs: Double? = null,
+        videoFrameIntervalMaxMs: Double? = null,
+        videoFrameIntervalJitterMs: Double? = null,
         cacheSize: Int? = null,
         itemsInCache: Int? = null,
         congested: Boolean? = null,
@@ -517,6 +529,10 @@ object LiveCasterSession {
             droppedVideoFrames = droppedVideoFrames ?: publisher.droppedVideoFrames,
             droppedAudioFrames = droppedAudioFrames ?: publisher.droppedAudioFrames,
             bytesWritten = bytesWritten ?: publisher.bytesWritten,
+            videoFrameIntervalSampleCount = videoFrameIntervalSampleCount ?: publisher.videoFrameIntervalSampleCount,
+            videoFrameIntervalAverageMs = videoFrameIntervalAverageMs ?: publisher.videoFrameIntervalAverageMs,
+            videoFrameIntervalMaxMs = videoFrameIntervalMaxMs ?: publisher.videoFrameIntervalMaxMs,
+            videoFrameIntervalJitterMs = videoFrameIntervalJitterMs ?: publisher.videoFrameIntervalJitterMs,
             cacheSize = cacheSize ?: publisher.cacheSize,
             itemsInCache = itemsInCache ?: publisher.itemsInCache,
             congested = congested ?: publisher.congested,

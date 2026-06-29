@@ -63,6 +63,10 @@ export interface NativeRuntimePublisher {
   droppedVideoFrames: number;
   droppedAudioFrames: number;
   bytesWritten: number;
+  videoFrameIntervalSampleCount?: number;
+  videoFrameIntervalAverageMs?: number;
+  videoFrameIntervalMaxMs?: number;
+  videoFrameIntervalJitterMs?: number;
   cacheSize: number;
   itemsInCache: number;
   congested: boolean;

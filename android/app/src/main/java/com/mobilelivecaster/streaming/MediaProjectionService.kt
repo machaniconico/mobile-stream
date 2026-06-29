@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import com.mobilelivecaster.R
 import com.pedro.common.ConnectChecker
@@ -46,6 +47,7 @@ class MediaProjectionService : Service(), ConnectChecker {
     private var lastBitrateSampleAtMs: Long? = null
     private var lastKnownBitrate = 0L
     private var lastNativeFps = 0
+    private val videoFrameIntervalTracker = VideoFrameIntervalTracker()
     private val mediaProjectionManager: MediaProjectionManager by lazy {
         applicationContext.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
     }
@@ -229,6 +231,7 @@ class MediaProjectionService : Service(), ConnectChecker {
         lastBitrateSampleAtMs = null
         lastKnownBitrate = 0L
         lastNativeFps = 0
+        videoFrameIntervalTracker.reset()
     }
 
     private fun recordBitrateSample(bitrate: Long): Long {
@@ -268,6 +271,7 @@ class MediaProjectionService : Service(), ConnectChecker {
         val sentAudioFrames = client?.getSentAudioFrames()
         val droppedVideoFrames = client?.getDroppedVideoFrames()
         val droppedAudioFrames = client?.getDroppedAudioFrames()
+        val videoFrameInterval = videoFrameIntervalTracker.record(sentVideoFrames)
         val estimatedBytes = estimatedBytesWritten.takeIf { it > 0L }
         LiveCasterSession.updateNativeRuntime(
             publisherState = publisherState,
@@ -279,6 +283,10 @@ class MediaProjectionService : Service(), ConnectChecker {
             droppedVideoFrames = droppedVideoFrames,
             droppedAudioFrames = droppedAudioFrames,
             bytesWritten = bytesWritten ?: estimatedBytes,
+            videoFrameIntervalSampleCount = videoFrameInterval.sampleCount,
+            videoFrameIntervalAverageMs = videoFrameInterval.averageMs,
+            videoFrameIntervalMaxMs = videoFrameInterval.maxMs,
+            videoFrameIntervalJitterMs = videoFrameInterval.jitterMs,
             cacheSize = client?.getCacheSize(),
             itemsInCache = client?.getItemsInCache(),
             congested = client?.hasCongestion(),
@@ -426,5 +434,63 @@ class MediaProjectionService : Service(), ConnectChecker {
     private fun liveMessage(prefix: String): String {
         val compositionSummary = nativeCompositionResult?.summary
         return if (compositionSummary.isNullOrBlank()) prefix else "$prefix; $compositionSummary"
+    }
+}
+
+private data class VideoFrameIntervalSnapshot(
+    val sampleCount: Long = 0,
+    val averageMs: Double = 0.0,
+    val maxMs: Double = 0.0,
+    val jitterMs: Double = 0.0
+)
+
+private class VideoFrameIntervalTracker {
+    private var lastSentVideoFrames: Long? = null
+    private var lastSampleAtMs: Long? = null
+    private var sampleCount = 0L
+    private var totalIntervalMs = 0.0
+    private var minIntervalMs = Double.POSITIVE_INFINITY
+    private var maxIntervalMs = 0.0
+
+    fun reset() {
+        lastSentVideoFrames = null
+        lastSampleAtMs = null
+        sampleCount = 0L
+        totalIntervalMs = 0.0
+        minIntervalMs = Double.POSITIVE_INFINITY
+        maxIntervalMs = 0.0
+    }
+
+    fun record(sentVideoFrames: Long?): VideoFrameIntervalSnapshot {
+        val totalFrames = sentVideoFrames ?: return snapshot()
+        val nowMs = SystemClock.elapsedRealtime()
+        val previousFrames = lastSentVideoFrames
+        val previousAtMs = lastSampleAtMs
+        if (previousFrames != null && previousAtMs != null && totalFrames > previousFrames) {
+            val frameDelta = totalFrames - previousFrames
+            val elapsedMs = (nowMs - previousAtMs).coerceAtLeast(1L)
+            val intervalMs = elapsedMs.toDouble() / frameDelta.toDouble()
+            sampleCount += frameDelta
+            totalIntervalMs += intervalMs * frameDelta.toDouble()
+            minIntervalMs = minOf(minIntervalMs, intervalMs)
+            maxIntervalMs = maxOf(maxIntervalMs, intervalMs)
+        }
+        lastSentVideoFrames = totalFrames
+        lastSampleAtMs = nowMs
+        return snapshot()
+    }
+
+    private fun snapshot(): VideoFrameIntervalSnapshot {
+        if (sampleCount <= 0L) {
+            return VideoFrameIntervalSnapshot()
+        }
+        val averageMs = totalIntervalMs / sampleCount.toDouble()
+        val safeMinMs = if (minIntervalMs.isFinite()) minIntervalMs else 0.0
+        return VideoFrameIntervalSnapshot(
+            sampleCount = sampleCount,
+            averageMs = averageMs,
+            maxMs = maxIntervalMs,
+            jitterMs = (maxIntervalMs - safeMinMs).coerceAtLeast(0.0)
+        )
     }
 }

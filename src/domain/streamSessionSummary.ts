@@ -93,6 +93,10 @@ export interface StreamSessionNativeRuntimeSummary {
   droppedVideoFrames: number;
   droppedAudioFrames: number;
   bytesWritten: number;
+  videoFrameIntervalSampleCount: number;
+  videoFrameIntervalAverageMs: number;
+  videoFrameIntervalMaxMs: number;
+  videoFrameIntervalJitterMs: number;
   encodedBytes: number;
   micEffectsEnabled: boolean;
   micEffectsPresetId: string;
@@ -848,6 +852,10 @@ export const createNativeRuntimeSessionSummary = (
     droppedVideoFrames: normalizeNonNegativeInteger(runtime.publisher.droppedVideoFrames),
     droppedAudioFrames: normalizeNonNegativeInteger(runtime.publisher.droppedAudioFrames),
     bytesWritten: normalizeNonNegativeInteger(runtime.publisher.bytesWritten),
+    videoFrameIntervalSampleCount: normalizeNonNegativeInteger(runtime.publisher.videoFrameIntervalSampleCount),
+    videoFrameIntervalAverageMs: normalizeNonNegativeNumber(runtime.publisher.videoFrameIntervalAverageMs),
+    videoFrameIntervalMaxMs: normalizeNonNegativeNumber(runtime.publisher.videoFrameIntervalMaxMs),
+    videoFrameIntervalJitterMs: normalizeNonNegativeNumber(runtime.publisher.videoFrameIntervalJitterMs),
     encodedBytes: normalizeNonNegativeInteger(runtime.encodedBytes),
     micEffectsEnabled: runtime.audioProcessing?.micEffectsEnabled ?? false,
     micEffectsPresetId: runtime.audioProcessing?.micEffectsPresetId ?? "clean",
@@ -1171,6 +1179,10 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     droppedVideoFrames: normalizeNonNegativeInteger(value.droppedVideoFrames),
     droppedAudioFrames: normalizeNonNegativeInteger(value.droppedAudioFrames),
     bytesWritten: normalizeNonNegativeInteger(value.bytesWritten),
+    videoFrameIntervalSampleCount: normalizeNonNegativeInteger(value.videoFrameIntervalSampleCount),
+    videoFrameIntervalAverageMs: normalizeNonNegativeNumber(value.videoFrameIntervalAverageMs),
+    videoFrameIntervalMaxMs: normalizeNonNegativeNumber(value.videoFrameIntervalMaxMs),
+    videoFrameIntervalJitterMs: normalizeNonNegativeNumber(value.videoFrameIntervalJitterMs),
     encodedBytes: normalizeNonNegativeInteger(value.encodedBytes),
     micEffectsEnabled: value.micEffectsEnabled === true,
     micEffectsPresetId: typeof value.micEffectsPresetId === "string" ? value.micEffectsPresetId : "clean",

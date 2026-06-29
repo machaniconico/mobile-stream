@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v39.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v40.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -759,7 +759,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 39
+      bundleVersion: 40
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -803,6 +803,10 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeSentVideoFrames: 120,
   nativeRuntimeSentAudioFrames: 190,
   nativeRuntimeBytesWritten: 2_200_000,
+  nativeRuntimeVideoFrameIntervalSampleCount: 119,
+  nativeRuntimeVideoFrameIntervalAverageMs: 33.3,
+  nativeRuntimeVideoFrameIntervalMaxMs: 42,
+  nativeRuntimeVideoFrameIntervalJitterMs: 8.7,
   nativeRuntimeStillImageAssetCount: 1,
   nativeRuntimeStillImageAssetLoadedCount: 1,
   nativeRuntimeStillImageAssetMissingCount: 0,

@@ -38,7 +38,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 39;
+const minimumSupportBundleVersion = 40;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -349,7 +349,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v39 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v40 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -752,9 +752,16 @@ const isManifestNativeRuntimePass = (run: ValidationEvidenceManifestRun | undefi
   isPositiveFiniteNumber(run?.nativeRuntimeSentVideoFrames) &&
   isPositiveFiniteNumber(run?.nativeRuntimeSentAudioFrames) &&
   isPositiveFiniteNumber(run?.nativeRuntimeBytesWritten) &&
+  hasManifestNativeRuntimeVideoFrameIntervalProof(run) &&
   (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
   hasManifestStillImageOverlayProof(run) &&
   hasManifestVrmReleaseProof(run);
+
+const hasManifestNativeRuntimeVideoFrameIntervalProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  isPositiveFiniteNumber(run?.nativeRuntimeVideoFrameIntervalSampleCount) &&
+  isPositiveFiniteNumber(run?.nativeRuntimeVideoFrameIntervalAverageMs) &&
+  isPositiveFiniteNumber(run?.nativeRuntimeVideoFrameIntervalMaxMs) &&
+  isNonNegativeFiniteNumber(run?.nativeRuntimeVideoFrameIntervalJitterMs);
 
 const isManifestMonitorHoldPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.monitorHoldStatus) &&
@@ -768,6 +775,9 @@ const hasZeroManifestMonitorHoldInstability = (run: ValidationEvidenceManifestRu
 
 const isPositiveFiniteNumber = (value: unknown): boolean =>
   typeof value === "number" && Number.isFinite(value) && value > 0;
+
+const isNonNegativeFiniteNumber = (value: unknown): boolean =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0;
 
 const isAtLeastFiniteNumber = (value: unknown, minimum: number): boolean =>
   typeof value === "number" && Number.isFinite(value) && value >= minimum;

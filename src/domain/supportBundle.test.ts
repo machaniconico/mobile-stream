@@ -61,6 +61,10 @@ describe("support bundle", () => {
           droppedVideoFrames: 1,
           droppedAudioFrames: 0,
           bytesWritten: 2_200_000,
+          videoFrameIntervalSampleCount: 119,
+          videoFrameIntervalAverageMs: 33.3,
+          videoFrameIntervalMaxMs: 42,
+          videoFrameIntervalJitterMs: 8.7,
           cacheSize: 120,
           itemsInCache: 64,
           congested: true,
@@ -199,7 +203,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 39 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 40 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
@@ -372,7 +376,9 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Evidence fingerprint: sve1-");
     expect(formatSupportBundle(bundle)).toContain("Evidence run manifest: -");
     expect(formatSupportBundle(bundle)).toContain("Evidence monitor hold: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - 0s 0 samples");
-    expect(formatSupportBundle(bundle)).toContain("Evidence native runtime: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - - / sent 0 video 0 audio / bytes 0 / overlays applied 0 skipped 0");
+    expect(formatSupportBundle(bundle)).toContain(
+      "Evidence native runtime: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - - / sent 0 video 0 audio / bytes 0 / frame interval 0 samples avg 0ms max 0ms jitter 0ms / overlays applied 0 skipped 0"
+    );
     expect(formatSupportBundle(bundle)).toContain("Evidence face tracking: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("landmarks 0% not-ready");
     expect(formatSupportBundle(bundle)).toContain("rig quality 0/100 blocked");
@@ -427,6 +433,10 @@ describe("support bundle", () => {
           droppedVideoFrames: 0,
           droppedAudioFrames: 0,
           bytesWritten: 0,
+          videoFrameIntervalSampleCount: 119,
+          videoFrameIntervalAverageMs: 33.3,
+          videoFrameIntervalMaxMs: 42,
+          videoFrameIntervalJitterMs: 8.7,
           cacheSize: 120,
           itemsInCache: 0,
           congested: false,
@@ -608,7 +618,9 @@ describe("support bundle", () => {
     expect(text).toContain(`Evidence fingerprint: ${bundle.summary.validationEvidenceFingerprint} / latest ${latestRunFingerprint ?? "-"}`);
     expect(text).toContain("Evidence run manifest: ios warn eligible");
     expect(text).toContain(latestRunFingerprint ?? "-");
-    expect(text).toContain("Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / sent 0 video 0 audio / bytes 0 / overlays applied 1 skipped 0");
+    expect(text).toContain(
+      "Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / sent 0 video 0 audio / bytes 0 / frame interval 119 samples avg 33.3ms max 42ms jitter 8.7ms / overlays applied 1 skipped 0"
+    );
     expect(text).toContain("latency missing warn / source - / budget 180ms");
     expect(text).toContain("Evidence quality automation: 1 retained / live 1 / next-start 0 / failed 0");
     expect(text).toContain("Evidence platform ingest: 1 retained / 0 ready / 1 warn / 0 fail / iOS missing / Android missing");

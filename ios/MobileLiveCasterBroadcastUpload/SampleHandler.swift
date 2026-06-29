@@ -524,6 +524,10 @@ struct BroadcastUploadStats: Equatable {
     private(set) var unknownSamples: Int = 0
     private(set) var lastVideoPresentationTimeSeconds: Double?
     private(set) var lastAudioPresentationTimeSeconds: Double?
+    private(set) var videoFrameIntervalSampleCount: Int = 0
+    private(set) var videoFrameIntervalTotalMs: Double = 0
+    private(set) var videoFrameIntervalMinMs: Double = .infinity
+    private(set) var videoFrameIntervalMaxMs: Double = 0
     private(set) var videoEncodeFailures: Int = 0
     private(set) var lastVideoEncodeStatus: Int32 = 0
     private(set) var audioEncodeFailures: Int = 0
@@ -538,6 +542,20 @@ struct BroadcastUploadStats: Equatable {
         return max(0, Int(endDate.timeIntervalSince(startedAt)))
     }
 
+    var videoFrameIntervalAverageMs: Double {
+        guard videoFrameIntervalSampleCount > 0 else {
+            return 0
+        }
+        return videoFrameIntervalTotalMs / Double(videoFrameIntervalSampleCount)
+    }
+
+    var videoFrameIntervalJitterMs: Double {
+        guard videoFrameIntervalSampleCount > 0, videoFrameIntervalMinMs.isFinite else {
+            return 0
+        }
+        return max(0, videoFrameIntervalMaxMs - videoFrameIntervalMinMs)
+    }
+
     mutating func start() {
         startedAt = Date()
         stoppedAt = nil
@@ -548,6 +566,10 @@ struct BroadcastUploadStats: Equatable {
         unknownSamples = 0
         lastVideoPresentationTimeSeconds = nil
         lastAudioPresentationTimeSeconds = nil
+        videoFrameIntervalSampleCount = 0
+        videoFrameIntervalTotalMs = 0
+        videoFrameIntervalMinMs = .infinity
+        videoFrameIntervalMaxMs = 0
         videoEncodeFailures = 0
         lastVideoEncodeStatus = 0
         audioEncodeFailures = 0
@@ -560,7 +582,19 @@ struct BroadcastUploadStats: Equatable {
 
     mutating func recordVideo(_ sampleBuffer: CMSampleBuffer) {
         videoFrames += 1
-        lastVideoPresentationTimeSeconds = sampleTimeSeconds(sampleBuffer)
+        let nextPresentationTimeSeconds = sampleTimeSeconds(sampleBuffer)
+        if let previousPresentationTimeSeconds = lastVideoPresentationTimeSeconds,
+           let nextPresentationTimeSeconds,
+           nextPresentationTimeSeconds > previousPresentationTimeSeconds {
+            let intervalMs = (nextPresentationTimeSeconds - previousPresentationTimeSeconds) * 1000
+            if intervalMs.isFinite && intervalMs > 0 && intervalMs <= 10_000 {
+                videoFrameIntervalSampleCount += 1
+                videoFrameIntervalTotalMs += intervalMs
+                videoFrameIntervalMinMs = min(videoFrameIntervalMinMs, intervalMs)
+                videoFrameIntervalMaxMs = max(videoFrameIntervalMaxMs, intervalMs)
+            }
+        }
+        lastVideoPresentationTimeSeconds = nextPresentationTimeSeconds
     }
 
     mutating func recordAppAudio(_ sampleBuffer: CMSampleBuffer) {
@@ -601,6 +635,10 @@ struct BroadcastUploadStats: Equatable {
             "unknownSamples": unknownSamples,
             "lastVideoPresentationTimeSeconds": lastVideoPresentationTimeSeconds ?? 0,
             "lastAudioPresentationTimeSeconds": lastAudioPresentationTimeSeconds ?? 0,
+            "videoFrameIntervalSampleCount": videoFrameIntervalSampleCount,
+            "videoFrameIntervalAverageMs": videoFrameIntervalAverageMs,
+            "videoFrameIntervalMaxMs": videoFrameIntervalMaxMs,
+            "videoFrameIntervalJitterMs": videoFrameIntervalJitterMs,
             "videoEncodeFailures": videoEncodeFailures,
             "lastVideoEncodeStatus": lastVideoEncodeStatus,
             "audioEncodeFailures": audioEncodeFailures,

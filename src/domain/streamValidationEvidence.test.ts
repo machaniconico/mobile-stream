@@ -129,6 +129,10 @@ const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
     droppedVideoFrames: 0,
     droppedAudioFrames: 0,
     bytesWritten: 2_200_000,
+    videoFrameIntervalSampleCount: 119,
+    videoFrameIntervalAverageMs: 33.3,
+    videoFrameIntervalMaxMs: 42,
+    videoFrameIntervalJitterMs: 8.7,
     cacheSize: 120,
     itemsInCache: 0,
     congested: false,
@@ -958,6 +962,10 @@ describe("stream validation evidence", () => {
       sentVideoFrames: 0,
       sentAudioFrames: 0,
       bytesWritten: 0,
+      videoFrameIntervalSampleCount: 119,
+      videoFrameIntervalAverageMs: 33.3,
+      videoFrameIntervalMaxMs: 42,
+      videoFrameIntervalJitterMs: 8.7,
       compositionStatus: "applied",
       stillImageAssetLoadedCount: 1,
       stillImageAssetMissingCount: 0
@@ -1010,6 +1018,61 @@ describe("stream validation evidence", () => {
       bytesWritten: 2_200_000
     });
     expect(run.recommendation).toContain("matching this validation device");
+    expect(summary.nativeRuntimeRunCount).toBe(1);
+    expect(summary.nativeRuntimeReadyCount).toBe(0);
+    expect(summary.nativeRuntimeIosPass).toBe(false);
+  });
+
+  it("requires native runtime video frame interval proof", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntime("ios");
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: {
+          ...runtime,
+          publisher: {
+            ...runtime.publisher,
+            videoFrameIntervalSampleCount: 0,
+            videoFrameIntervalAverageMs: 0,
+            videoFrameIntervalMaxMs: 0,
+            videoFrameIntervalJitterMs: 0
+          }
+        }
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.nativeRuntime).toMatchObject({
+      status: "pass",
+      sentVideoFrames: 120,
+      videoFrameIntervalSampleCount: 0,
+      videoFrameIntervalAverageMs: 0,
+      videoFrameIntervalMaxMs: 0
+    });
+    expect(run.recommendation).toContain("native publisher/compositor telemetry");
     expect(summary.nativeRuntimeRunCount).toBe(1);
     expect(summary.nativeRuntimeReadyCount).toBe(0);
     expect(summary.nativeRuntimeIosPass).toBe(false);
@@ -1438,6 +1501,10 @@ describe("stream validation evidence", () => {
           droppedVideoFrames: 1,
           droppedAudioFrames: 0,
           bytesWritten: 2_200_000,
+          videoFrameIntervalSampleCount: 119,
+          videoFrameIntervalAverageMs: 33.3,
+          videoFrameIntervalMaxMs: 42,
+          videoFrameIntervalJitterMs: 8.7,
           cacheSize: 120,
           itemsInCache: 64,
           congested: true,
@@ -1811,6 +1878,10 @@ describe("stream validation evidence", () => {
       nativeRuntimeSentVideoFrames: 120,
       nativeRuntimeSentAudioFrames: 190,
       nativeRuntimeBytesWritten: 2_200_000,
+      nativeRuntimeVideoFrameIntervalSampleCount: 119,
+      nativeRuntimeVideoFrameIntervalAverageMs: 33.3,
+      nativeRuntimeVideoFrameIntervalMaxMs: 42,
+      nativeRuntimeVideoFrameIntervalJitterMs: 8.7,
       nativeRuntimeStillImageAssetCount: 1,
       nativeRuntimeStillImageAssetLoadedCount: 1,
       nativeRuntimeStillImageAssetMissingCount: 0,
@@ -2189,6 +2260,10 @@ describe("stream validation evidence", () => {
           droppedVideoFrames: 0,
           droppedAudioFrames: 1,
           bytesWritten: 500_000,
+          videoFrameIntervalSampleCount: 119,
+          videoFrameIntervalAverageMs: 33.3,
+          videoFrameIntervalMaxMs: 42,
+          videoFrameIntervalJitterMs: 8.7,
           cacheSize: 120,
           itemsInCache: 0,
           congested: false,

@@ -20,6 +20,33 @@ describe("commercial release gate", () => {
     expect(formatCommercialReleaseGate(gate)).toContain("Can release: yes");
   });
 
+  it("blocks native runtime claims without video frame interval proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeVideoFrameIntervalSampleCount: 0,
+              nativeRuntimeVideoFrameIntervalAverageMs: 0,
+              nativeRuntimeVideoFrameIntervalMaxMs: 0
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity"
+      })
+    );
+  });
+
   it("blocks stale bundles and incomplete physical validation proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -1152,7 +1179,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 39 as const
+    bundleVersion: 40 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1289,6 +1316,10 @@ const manifestRun = ({
   nativeRuntimeSentVideoFrames = 120,
   nativeRuntimeSentAudioFrames = 190,
   nativeRuntimeBytesWritten = 2_200_000,
+  nativeRuntimeVideoFrameIntervalSampleCount = 119,
+  nativeRuntimeVideoFrameIntervalAverageMs = 33.3,
+  nativeRuntimeVideoFrameIntervalMaxMs = 42,
+  nativeRuntimeVideoFrameIntervalJitterMs = 8.7,
   nativeRuntimeStillImageAssetCount = 1,
   nativeRuntimeStillImageAssetLoadedCount = 1,
   nativeRuntimeStillImageAssetMissingCount = 0,
@@ -1413,6 +1444,10 @@ const manifestRun = ({
   nativeRuntimeSentVideoFrames?: ValidationManifestRun["nativeRuntimeSentVideoFrames"];
   nativeRuntimeSentAudioFrames?: ValidationManifestRun["nativeRuntimeSentAudioFrames"];
   nativeRuntimeBytesWritten?: ValidationManifestRun["nativeRuntimeBytesWritten"];
+  nativeRuntimeVideoFrameIntervalSampleCount?: ValidationManifestRun["nativeRuntimeVideoFrameIntervalSampleCount"];
+  nativeRuntimeVideoFrameIntervalAverageMs?: ValidationManifestRun["nativeRuntimeVideoFrameIntervalAverageMs"];
+  nativeRuntimeVideoFrameIntervalMaxMs?: ValidationManifestRun["nativeRuntimeVideoFrameIntervalMaxMs"];
+  nativeRuntimeVideoFrameIntervalJitterMs?: ValidationManifestRun["nativeRuntimeVideoFrameIntervalJitterMs"];
   nativeRuntimeStillImageAssetCount?: ValidationManifestRun["nativeRuntimeStillImageAssetCount"];
   nativeRuntimeStillImageAssetLoadedCount?: ValidationManifestRun["nativeRuntimeStillImageAssetLoadedCount"];
   nativeRuntimeStillImageAssetMissingCount?: ValidationManifestRun["nativeRuntimeStillImageAssetMissingCount"];
@@ -1543,6 +1578,10 @@ const manifestRun = ({
   nativeRuntimeSentVideoFrames,
   nativeRuntimeSentAudioFrames,
   nativeRuntimeBytesWritten,
+  nativeRuntimeVideoFrameIntervalSampleCount,
+  nativeRuntimeVideoFrameIntervalAverageMs,
+  nativeRuntimeVideoFrameIntervalMaxMs,
+  nativeRuntimeVideoFrameIntervalJitterMs,
   nativeRuntimeStillImageAssetCount,
   nativeRuntimeStillImageAssetLoadedCount,
   nativeRuntimeStillImageAssetMissingCount,

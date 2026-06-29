@@ -204,6 +204,10 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeSentVideoFrames: number;
   nativeRuntimeSentAudioFrames: number;
   nativeRuntimeBytesWritten: number;
+  nativeRuntimeVideoFrameIntervalSampleCount: number;
+  nativeRuntimeVideoFrameIntervalAverageMs: number;
+  nativeRuntimeVideoFrameIntervalMaxMs: number;
+  nativeRuntimeVideoFrameIntervalJitterMs: number;
   nativeRuntimeStillImageAssetCount: number;
   nativeRuntimeStillImageAssetLoadedCount: number;
   nativeRuntimeStillImageAssetMissingCount: number;
@@ -1197,9 +1201,22 @@ const isNativeRuntimeEvidencePass = (
   nativeRuntime.sentVideoFrames > 0 &&
   nativeRuntime.sentAudioFrames > 0 &&
   nativeRuntime.bytesWritten > 0 &&
+  hasNativeRuntimeVideoFrameIntervalProof(nativeRuntime) &&
   (nativeRuntime.compositionStatus === "applied" || nativeRuntime.compositionStatus === "screen-only") &&
   hasNativeRuntimeStillImageOverlayProof(nativeRuntime) &&
   hasNativeRuntimeVrmReleaseProof(nativeRuntime);
+
+const hasNativeRuntimeVideoFrameIntervalProof = (
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null | undefined
+): boolean =>
+  Boolean(
+    nativeRuntime &&
+      nativeRuntime.sentVideoFrames > 1 &&
+      nativeRuntime.videoFrameIntervalSampleCount > 0 &&
+      nativeRuntime.videoFrameIntervalAverageMs > 0 &&
+      nativeRuntime.videoFrameIntervalMaxMs > 0 &&
+      nativeRuntime.videoFrameIntervalJitterMs >= 0
+  );
 
 const hasNativeRuntimeStillImageOverlayProof = (
   nativeRuntime: StreamSessionNativeRuntimeSummary | null | undefined
@@ -2367,6 +2384,10 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeSentVideoFrames: run.nativeRuntime?.sentVideoFrames ?? 0,
     nativeRuntimeSentAudioFrames: run.nativeRuntime?.sentAudioFrames ?? 0,
     nativeRuntimeBytesWritten: run.nativeRuntime?.bytesWritten ?? 0,
+    nativeRuntimeVideoFrameIntervalSampleCount: run.nativeRuntime?.videoFrameIntervalSampleCount ?? 0,
+    nativeRuntimeVideoFrameIntervalAverageMs: run.nativeRuntime?.videoFrameIntervalAverageMs ?? 0,
+    nativeRuntimeVideoFrameIntervalMaxMs: run.nativeRuntime?.videoFrameIntervalMaxMs ?? 0,
+    nativeRuntimeVideoFrameIntervalJitterMs: run.nativeRuntime?.videoFrameIntervalJitterMs ?? 0,
     nativeRuntimeStillImageAssetCount: run.nativeRuntime?.stillImageAssetCount ?? 0,
     nativeRuntimeStillImageAssetLoadedCount: run.nativeRuntime?.stillImageAssetLoadedCount ?? 0,
     nativeRuntimeStillImageAssetMissingCount: run.nativeRuntime?.stillImageAssetMissingCount ?? 0,

@@ -477,7 +477,7 @@ function commercialSupportBundleFixture(patch = {}) {
   };
 
   return {
-    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 39 },
+    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 40 },
     generatedAt: new Date().toISOString(),
     fixture: true,
     ...patch,
@@ -516,6 +516,10 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     nativeRuntimeSentVideoFrames: 120,
     nativeRuntimeSentAudioFrames: 190,
     nativeRuntimeBytesWritten: 2_200_000,
+    nativeRuntimeVideoFrameIntervalSampleCount: 119,
+    nativeRuntimeVideoFrameIntervalAverageMs: 33.3,
+    nativeRuntimeVideoFrameIntervalMaxMs: 42,
+    nativeRuntimeVideoFrameIntervalJitterMs: 8.7,
     nativeRuntimeStillImageAssetCount: 1,
     nativeRuntimeStillImageAssetLoadedCount: 1,
     nativeRuntimeStillImageAssetMissingCount: 0,

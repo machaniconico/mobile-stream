@@ -144,9 +144,9 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 39");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 39");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 39");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 40");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 40");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 40");
     expectIncludes(files.commercialReleaseGateDomain, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseBundleScript, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scope");
