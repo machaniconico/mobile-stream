@@ -329,5 +329,5 @@ const blinkPulse = (t: number, offset: number): number => {
 
 const isAvatarSource = (
   source: SceneSource
-): source is Extract<SceneSource, { kind: "pngtuber" | "live2d" }> =>
-  source.kind === "pngtuber" || source.kind === "live2d";
+): source is Extract<SceneSource, { kind: "pngtuber" | "live2d" | "vrm" }> =>
+  source.kind === "pngtuber" || source.kind === "live2d" || source.kind === "vrm";

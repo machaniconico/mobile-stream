@@ -1,6 +1,7 @@
 import { normalizeLive2DModelJsonUri } from "./live2dModel";
+import { normalizeVrmModelUri } from "./vrmModel";
 
-export type SourceKind = "screen" | "pngtuber" | "live2d" | "image" | "solid" | "text" | "chat";
+export type SourceKind = "screen" | "pngtuber" | "live2d" | "vrm" | "image" | "solid" | "text" | "chat";
 
 export type BlendMode = "normal" | "multiply" | "screen";
 
@@ -77,6 +78,16 @@ export interface Live2DSource extends BaseSource {
   motion: AvatarMotion;
 }
 
+export interface VRMSource extends BaseSource {
+  kind: "vrm";
+  modelId: string;
+  modelUri: string;
+  expression: string;
+  mouthOpen: number;
+  blink: number;
+  motion: AvatarMotion;
+}
+
 export interface ImageSource extends BaseSource {
   kind: "image";
   uri: string;
@@ -110,6 +121,7 @@ export type SceneSource =
   | ScreenSource
   | PNGTuberSource
   | Live2DSource
+  | VRMSource
   | ImageSource
   | SolidSource
   | TextSource
@@ -174,7 +186,7 @@ export interface RenderNode {
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 const clampRange = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-const sourceKinds: readonly SourceKind[] = ["screen", "pngtuber", "live2d", "image", "solid", "text", "chat"];
+const sourceKinds: readonly SourceKind[] = ["screen", "pngtuber", "live2d", "vrm", "image", "solid", "text", "chat"];
 const blendModes: readonly BlendMode[] = ["normal", "multiply", "screen"];
 const sceneTransitionKinds: readonly SceneTransitionKind[] = ["cut", "fade"];
 
@@ -472,7 +484,15 @@ export const createSource = (kind: SourceKind): SceneSource => {
     id: makeId(`source-${kind}`),
     kind,
     name:
-      kind === "pngtuber" ? "PNGTuber" : kind === "live2d" ? "Live2D" : kind === "chat" ? "Chat Overlay" : `${kind} source`,
+      kind === "pngtuber"
+        ? "PNGTuber"
+        : kind === "live2d"
+          ? "Live2D"
+          : kind === "vrm"
+            ? "VRM"
+            : kind === "chat"
+              ? "Chat Overlay"
+              : `${kind} source`,
     visible: true,
     locked: false,
     blendMode: "normal",
@@ -500,6 +520,17 @@ export const createSource = (kind: SourceKind): SceneSource => {
         kind,
         modelId: "default-live2d",
         modelJsonUri: "",
+        expression: "neutral",
+        mouthOpen: 0,
+        blink: 0,
+        motion: defaultAvatarMotion()
+      };
+    case "vrm":
+      return {
+        ...base,
+        kind,
+        modelId: "default-vrm",
+        modelUri: "",
         expression: "neutral",
         mouthOpen: 0,
         blink: 0,
@@ -819,6 +850,31 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
         trackingConfidence: live2dMotion.confidence
       };
     }
+    case "vrm": {
+      const vrmMotion = source.motion ?? defaultAvatarMotion();
+      return {
+        modelId: source.modelId,
+        modelUri: source.modelUri,
+        expression: source.expression,
+        mouthOpen: source.mouthOpen,
+        blink: source.blink,
+        headYaw: vrmMotion.headYaw,
+        headPitch: vrmMotion.headPitch,
+        headRoll: vrmMotion.headRoll,
+        headX: vrmMotion.headX,
+        headY: vrmMotion.headY,
+        bodyLean: vrmMotion.bodyLean,
+        bodyBounce: vrmMotion.bodyBounce,
+        breathing: vrmMotion.breathing,
+        depthTilt: vrmMotion.depthTilt,
+        meshWarp: vrmMotion.meshWarp,
+        eyeSquint: vrmMotion.eyeSquint,
+        mouthDeform: vrmMotion.mouthDeform,
+        hairSway: vrmMotion.hairSway,
+        shoulderSway: vrmMotion.shoulderSway,
+        trackingConfidence: vrmMotion.confidence
+      };
+    }
     case "image":
       return { uri: source.uri };
     case "solid":
@@ -1007,6 +1063,19 @@ const normalizeSceneSource = (value: unknown, canvas: SceneDocument["canvas"] = 
         motion: normalizeMotionValue(value.motion)
       };
     }
+    case "vrm": {
+      const sourceFallback = createSource("vrm") as VRMSource;
+      return {
+        ...base,
+        kind: "vrm",
+        modelId: stringValue(value.modelId, sourceFallback.modelId),
+        modelUri: normalizeVrmModelUri(value.modelUri),
+        expression: stringValue(value.expression, sourceFallback.expression),
+        mouthOpen: clampedNumber(value.mouthOpen, sourceFallback.mouthOpen, 0, 1),
+        blink: clampedNumber(value.blink, sourceFallback.blink, 0, 1),
+        motion: normalizeMotionValue(value.motion)
+      };
+    }
     case "image": {
       const sourceFallback = createSource("image") as ImageSource;
       return { ...base, kind: "image", uri: typeof value.uri === "string" ? value.uri : sourceFallback.uri };
@@ -1052,8 +1121,8 @@ const isBlendMode = (value: unknown): value is BlendMode =>
 const isSceneTransitionKind = (value: unknown): value is SceneTransitionKind =>
   typeof value === "string" && sceneTransitionKinds.includes(value as SceneTransitionKind);
 
-const isAvatarSource = (source: SceneSource): source is PNGTuberSource | Live2DSource =>
-  source.kind === "pngtuber" || source.kind === "live2d";
+const isAvatarSource = (source: SceneSource): source is PNGTuberSource | Live2DSource | VRMSource =>
+  source.kind === "pngtuber" || source.kind === "live2d" || source.kind === "vrm";
 
 const serializeChatOverlayMessages = (messages: ChatOverlayMessage[], source: ChatOverlaySource): ChatOverlayMessage[] =>
   messages

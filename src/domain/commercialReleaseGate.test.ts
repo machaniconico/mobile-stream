@@ -860,7 +860,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 26 as const
+    bundleVersion: 27 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {

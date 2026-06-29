@@ -86,6 +86,7 @@ import {
   updateSource,
   type PNGTuberSource,
   type Live2DSource,
+  type VRMSource,
   type SceneCollection,
   type SceneTemplateId,
   type SceneTransitionPreview,
@@ -158,8 +159,8 @@ import { WebChatSpeechEngine } from "./WebChatSpeechEngine";
 
 const StudioScreen = lazy(() => import("../screens/StudioScreen").then((module) => ({ default: module.StudioScreen })));
 
-const isAvatarSource = (source: SceneDocument["sources"][number]): source is PNGTuberSource | Live2DSource =>
-  source.kind === "pngtuber" || source.kind === "live2d";
+const isAvatarSource = (source: SceneDocument["sources"][number]): source is PNGTuberSource | Live2DSource | VRMSource =>
+  source.kind === "pngtuber" || source.kind === "live2d" || source.kind === "vrm";
 
 export const App = () => {
   const engine = useMemo(() => new MockLiveCaster(), []);

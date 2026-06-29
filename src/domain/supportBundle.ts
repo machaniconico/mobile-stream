@@ -27,7 +27,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 26;
+    bundleVersion: 27;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -376,7 +376,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 26
+      bundleVersion: 27
     },
     summary: {
       status: diagnostics.status,
@@ -864,6 +864,7 @@ const countSources = (sources: SceneSource[]): Record<SourceKind, number> => {
     screen: 0,
     pngtuber: 0,
     live2d: 0,
+    vrm: 0,
     image: 0,
     solid: 0,
     text: 0,
@@ -898,6 +899,8 @@ const sourcePayloadSummary = (source: SceneSource): Record<string, string | numb
       return { avatarId: source.avatarId, expression: source.expression, hasImageUri: Boolean(source.imageUri.trim()) };
     case "live2d":
       return { modelId: source.modelId, expression: source.expression, hasModelJsonUri: Boolean(source.modelJsonUri.trim()) };
+    case "vrm":
+      return { modelId: source.modelId, expression: source.expression, hasModelUri: Boolean(source.modelUri.trim()) };
     case "image":
       return { hasUri: Boolean(source.uri.trim()) };
     case "solid":

@@ -171,13 +171,14 @@ const sourceLabels: Record<SourceKind, string> = {
   screen: "Screen",
   pngtuber: "PNGTuber",
   live2d: "Live2D",
+  vrm: "VRM",
   image: "Image",
   solid: "Solid",
   text: "Text",
   chat: "Chat"
 };
 
-const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "chat", "text", "image", "solid"];
+const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "vrm", "chat", "text", "image", "solid"];
 const sceneTransitionKinds: Array<{ kind: SceneTransitionKind; label: string }> = [
   { kind: "cut", label: "Cut" },
   { kind: "fade", label: "Fade" }
@@ -833,6 +834,35 @@ export const MobileStudioScreen = ({
                 style={styles.input}
                 editable={!setupLocked}
                 placeholder="file:// or absolute path to .model3.json"
+                placeholderTextColor="#71717a"
+              />
+            </>
+          ) : null}
+          {selectedSource.kind === "vrm" ? (
+            <>
+              <Label text="Model ID" />
+              <TextInput
+                value={selectedSource.modelId}
+                onChangeText={(modelId) =>
+                  onSceneChange(
+                    updateSource(scene, selectedSource.id, (source) => (source.kind === "vrm" ? { ...source, modelId } : source))
+                  )
+                }
+                style={styles.input}
+                editable={!setupLocked}
+                placeholderTextColor="#71717a"
+              />
+              <Label text="VRM URI" />
+              <TextInput
+                value={selectedSource.modelUri}
+                onChangeText={(modelUri) =>
+                  onSceneChange(
+                    updateSource(scene, selectedSource.id, (source) => (source.kind === "vrm" ? { ...source, modelUri } : source))
+                  )
+                }
+                style={styles.input}
+                editable={!setupLocked}
+                placeholder="file:// or absolute path to .vrm/.glb"
                 placeholderTextColor="#71717a"
               />
             </>
@@ -2708,7 +2738,7 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
     );
   }
 
-  if (source.kind === "pngtuber" || source.kind === "live2d") {
+  if (source.kind === "pngtuber" || source.kind === "live2d" || source.kind === "vrm") {
     const motion = source.motion ?? defaultAvatarMotion();
     const rig = source.kind === "pngtuber" ? source.illustrationRig : defaultAvatarIllustrationRig();
     const eyeClose = Math.min(0.95, Math.max(source.blink, motion.eyeSquint));
@@ -2772,7 +2802,7 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
           <View style={[styles.avatarEye, styles.avatarEyeRight, { transform: [{ scaleY: Math.max(0.1, 1 - eyeClose) }] }]} />
           <View style={[styles.avatarMouth, { height: 6 + mouthLevel * 22 }]} />
         </View>
-        <Text style={styles.avatarLabel}>{source.kind === "live2d" ? "Live2D" : "PNGTuber"}</Text>
+        <Text style={styles.avatarLabel}>{source.kind === "live2d" ? "Live2D" : source.kind === "vrm" ? "VRM" : "PNGTuber"}</Text>
       </View>
     );
   }

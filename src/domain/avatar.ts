@@ -23,7 +23,7 @@ export const createAvatarRuntimeState = (now = 0): AvatarRuntimeState => ({
 
 export const createAvatarRuntimeStateFromScene = (scene: SceneDocument, now = 0): AvatarRuntimeState => {
   const fallback = createAvatarRuntimeState(now);
-  const avatar = scene.sources.find((source) => source.kind === "pngtuber" || source.kind === "live2d");
+  const avatar = scene.sources.find((source) => source.kind === "pngtuber" || source.kind === "live2d" || source.kind === "vrm");
   if (!avatar) {
     return fallback;
   }

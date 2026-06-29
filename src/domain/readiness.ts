@@ -4,6 +4,7 @@ import { normalizeStudioProfile } from "./profiles";
 import { createNativeCompositionReport } from "./nativeComposition";
 import { createFaceTrackingDiagnostics } from "./faceTrackingDiagnostics";
 import { createLive2DModelAssetReport } from "./live2dModel";
+import { createVrmModelAssetReport } from "./vrmModel";
 
 export type ReadinessSeverity = "error" | "warning";
 
@@ -300,18 +301,38 @@ const validateScene = (scene: SceneDocument): ReadinessIssue[] => {
     });
   }
 
+  if (visibleSources.some((source) => source.kind === "vrm")) {
+    issues.push({
+      code: "scene-vrm-preview",
+      severity: "warning",
+      field: "scene",
+      message: "VRM/VRoid is still using the preview renderer until native VRM rendering lands."
+    });
+  }
+
   for (const source of visibleSources) {
-    if (source.kind !== "live2d") {
-      continue;
+    if (source.kind === "live2d") {
+      const report = createLive2DModelAssetReport(source);
+      for (const issue of report.issues) {
+        issues.push({
+          code: `scene-${issue.code}`,
+          severity: "warning",
+          field: "scene",
+          message: issue.message
+        });
+      }
     }
-    const report = createLive2DModelAssetReport(source);
-    for (const issue of report.issues) {
-      issues.push({
-        code: `scene-${issue.code}`,
-        severity: "warning",
-        field: "scene",
-        message: issue.message
-      });
+
+    if (source.kind === "vrm") {
+      const report = createVrmModelAssetReport(source);
+      for (const issue of report.issues) {
+        issues.push({
+          code: `scene-${issue.code}`,
+          severity: "warning",
+          field: "scene",
+          message: issue.message
+        });
+      }
     }
   }
 

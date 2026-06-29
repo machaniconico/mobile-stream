@@ -91,7 +91,7 @@ export const createFaceTrackingDiagnostics = (
     );
   }
 
-  if (visiblePngTubers.length === 0 && visibleLive2D.length > 0) {
+  if (visiblePngTubers.length === 0 && visibleAvatars.length > 0) {
     return createWarning(
       faceTracking,
       runtimeStatus,
@@ -104,8 +104,8 @@ export const createFaceTrackingDiagnostics = (
       rigIssueSummary,
       runtimeAgeMs,
       runtimeFresh,
-      "Face tracking is targeting Live2D only, but native Live2D rendering is not production-ready yet.",
-      "Use a prepared PNGTuber still image for production validation until Cubism SDK integration lands."
+      "Face tracking is targeting Live2D/VRM only, but native Live2D/VRM rendering is not production-ready yet.",
+      "Use a prepared PNGTuber still image for production validation until native Cubism or VRM rendering lands."
     );
   }
 
@@ -290,8 +290,8 @@ const createWarning = (
 
 const isVisibleAvatarSource = (
   source: SceneSource
-): source is Extract<SceneSource, { kind: "pngtuber" | "live2d" }> =>
-  source.visible && (source.kind === "pngtuber" || source.kind === "live2d");
+): source is Extract<SceneSource, { kind: "pngtuber" | "live2d" | "vrm" }> =>
+  source.visible && (source.kind === "pngtuber" || source.kind === "live2d" || source.kind === "vrm");
 
 const runtimeAge = (runtime: FaceTrackingRuntimeState, now: FaceTrackingDiagnosticsOptions["now"]): number | null => {
   if (now === undefined) {
@@ -304,7 +304,7 @@ const runtimeAge = (runtime: FaceTrackingRuntimeState, now: FaceTrackingDiagnost
   return Math.max(0, Math.round(nowMs - runtime.lastFrameAt));
 };
 
-const hasActiveMotion = (source: Extract<SceneSource, { kind: "pngtuber" | "live2d" }>): boolean => {
+const hasActiveMotion = (source: Extract<SceneSource, { kind: "pngtuber" | "live2d" | "vrm" }>): boolean => {
   const motion = source.motion;
   return (
     motion.confidence > 0.05 ||

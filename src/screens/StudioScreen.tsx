@@ -188,13 +188,14 @@ const sourceLabels: Record<SourceKind, string> = {
   screen: "Screen",
   pngtuber: "PNGTuber",
   live2d: "Live2D",
+  vrm: "VRM",
   image: "Image",
   solid: "Solid",
   text: "Text",
   chat: "Chat"
 };
 
-const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "chat", "text", "image", "solid"];
+const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "vrm", "chat", "text", "image", "solid"];
 const sceneTransitionKinds: Array<{ kind: SceneTransitionKind; label: string }> = [
   { kind: "cut", label: "Cut" },
   { kind: "fade", label: "Fade" }
@@ -812,6 +813,39 @@ export const StudioScreen = ({
                       onSceneChange(
                         updateSource(scene, selectedSource.id, (source) =>
                           source.kind === "live2d" ? { ...source, modelJsonUri: event.target.value } : source
+                        )
+                      )
+                    }
+                  />
+                </label>
+              </>
+            ) : null}
+            {selectedSource.kind === "vrm" ? (
+              <>
+                <label className="field">
+                  <span>Model ID</span>
+                  <input
+                    value={selectedSource.modelId}
+                    disabled={setupLocked}
+                    onChange={(event) =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "vrm" ? { ...source, modelId: event.target.value } : source
+                        )
+                      )
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>VRM URI</span>
+                  <input
+                    value={selectedSource.modelUri}
+                    disabled={setupLocked}
+                    placeholder="file:// or absolute path to .vrm/.glb"
+                    onChange={(event) =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "vrm" ? { ...source, modelUri: event.target.value } : source
                         )
                       )
                     }
@@ -2436,7 +2470,7 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
     );
   }
 
-  if (source.kind === "pngtuber" || source.kind === "live2d") {
+  if (source.kind === "pngtuber" || source.kind === "live2d" || source.kind === "vrm") {
     const motion = source.motion ?? defaultAvatarMotion();
     const rig = source.kind === "pngtuber" ? source.illustrationRig : defaultAvatarIllustrationRig();
     const eyeClose = Math.min(0.95, Math.max(source.blink, motion.eyeSquint));
@@ -2474,7 +2508,7 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
           <span className="avatar-eye right" style={{ transform: `scaleY(${Math.max(0.1, 1 - eyeClose)})` }} />
           <span className="avatar-mouth" style={{ height: `${8 + mouthLevel * 34}px` }} />
         </div>
-        <span className="avatar-label">{source.kind === "live2d" ? "Live2D" : "PNGTuber"}</span>
+        <span className="avatar-label">{source.kind === "live2d" ? "Live2D" : source.kind === "vrm" ? "VRM" : "PNGTuber"}</span>
       </div>
     );
   }

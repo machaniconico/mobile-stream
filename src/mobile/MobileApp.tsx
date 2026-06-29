@@ -93,6 +93,7 @@ import {
   updateSource,
   type Live2DSource,
   type PNGTuberSource,
+  type VRMSource,
   type SceneCollection,
   type SceneTemplateId,
   type SceneTransitionPreview,
@@ -178,8 +179,8 @@ import {
 } from "./secureProfileStore";
 import { useAudioRouteMonitor } from "./useAudioRouteMonitor";
 
-const isAvatarSource = (source: SceneDocument["sources"][number]): source is PNGTuberSource | Live2DSource =>
-  source.kind === "pngtuber" || source.kind === "live2d";
+const isAvatarSource = (source: SceneDocument["sources"][number]): source is PNGTuberSource | Live2DSource | VRMSource =>
+  source.kind === "pngtuber" || source.kind === "live2d" || source.kind === "vrm";
 
 export const MobileApp = () => {
   const engine = useMemo(

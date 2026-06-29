@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createNativeCompositionReport } from "./nativeComposition";
-import { createDefaultScene, setVisibility, updateSource } from "./scene";
+import { createDefaultScene, createSource, setVisibility, updateSource } from "./scene";
 
 const appGroupAvatarUri = "file:///private/var/mobile/Containers/Shared/AppGroup/ABCDEF/avatar.png";
 
@@ -61,6 +61,29 @@ describe("native composition report", () => {
     expect(report.fileBackedAssetIssueCount).toBe(1);
     expect(report.issues.map((issue) => issue.code)).toEqual(["native-compositor-asset-file-sandbox"]);
     expect(report.recommendedNextStep).toContain("App Group");
+  });
+
+  it("counts VRM as an avatar but keeps it preview-only until native rendering lands", () => {
+    const scene = updateSource(
+      setVisibility(createDefaultScene(), "source-background", false),
+      "source-avatar",
+      (source) =>
+        source.kind === "pngtuber"
+          ? {
+              ...createSource("vrm"),
+              id: source.id,
+              visible: true,
+              transform: source.transform
+            }
+          : source
+    );
+
+    const report = createNativeCompositionReport(scene);
+
+    expect(report.status).toBe("warn");
+    expect(report.avatarSourceCount).toBe(1);
+    expect(report.unsupportedSourceKinds).toEqual(["vrm"]);
+    expect(report.issues.map((issue) => issue.code)).toContain("native-compositor-vrm");
   });
 
   it("warns when native still-image overlays use URI schemes the iOS extension cannot load", () => {

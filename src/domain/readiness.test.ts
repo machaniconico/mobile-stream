@@ -279,4 +279,30 @@ describe("stream readiness", () => {
       "production mobile rendering needs a local model package"
     );
   });
+
+  it("warns when a visible VRM source has no local VRM model package", () => {
+    const vrm = createSource("vrm");
+    if (vrm.kind !== "vrm") {
+      throw new Error("Expected VRM source.");
+    }
+    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...vrm,
+            id: source.id,
+            transform: source.transform,
+            modelUri: "https://example.test/avatar.vrm"
+          }
+        : source
+    );
+
+    const report = createReadinessReport(scene, createDefaultStudioProfile());
+
+    expect(report.issues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining(["scene-vrm-preview", "scene-vrm-model-remote"])
+    );
+    expect(report.issues.find((issue) => issue.code === "scene-vrm-model-remote")?.message).toContain(
+      "production mobile rendering needs a local VRM package"
+    );
+  });
 });

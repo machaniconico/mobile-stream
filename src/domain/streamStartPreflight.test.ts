@@ -85,6 +85,22 @@ const createLive2DScene = (): SceneDocument =>
         : source
   );
 
+const createVrmScene = (): SceneDocument =>
+  updateSource(
+    setVisibility(createDefaultScene(), "source-background", false),
+    "source-avatar",
+    (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...createSource("vrm"),
+            id: source.id,
+            name: "Production VRoid",
+            visible: true,
+            transform: source.transform
+          }
+        : source
+  );
+
 const createHostSandboxAvatarScene = (): SceneDocument =>
   updateSource(
     setVisibility(createDefaultScene(), "source-background", false),
@@ -462,6 +478,53 @@ describe("stream start preflight", () => {
     expect(report.canStart).toBe(true);
     expect(report.status).toBe("warning");
     expect(report.warnings.map((issue) => issue.code)).toContain("readiness-scene-live2d-preview");
+  });
+
+  it("blocks public YouTube launches while visible VRM is preview-only", () => {
+    const profile = {
+      ...validProfile(),
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "public" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "stream-id",
+        youtubeBroadcastStatus: "testing",
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createVrmScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.status).toBe("blocked");
+    expect(report.blocks.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining(["readiness-scene-vrm-preview", "readiness-scene-vrm-model-missing"])
+    );
+  });
+
+  it("keeps private VRM validation starts as warnings", () => {
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createVrmScene(), validProfile()),
+      streamStatus: "idle",
+      profile: validProfile(),
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      }
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("warning");
+    expect(report.warnings.map((issue) => issue.code)).toContain("readiness-scene-vrm-preview");
   });
 
   it("blocks Twitch launches while visible Live2D is preview-only", () => {

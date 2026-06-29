@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultStudioProfile, redactStreamKey } from "./profiles";
 import { createReadinessReport } from "./readiness";
-import { createDefaultScene, setVisibility, updateSource } from "./scene";
+import { addSource, createDefaultScene, createSource, setVisibility, updateSource } from "./scene";
 import { createStreamDiagnostics } from "./streamDiagnostics";
 import { createStreamSessionSummary } from "./streamSessionSummary";
 import { createStreamStartPreflightReport } from "./streamStartPreflight";
@@ -156,7 +156,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 26 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 27 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
@@ -578,5 +578,38 @@ describe("support bundle", () => {
     expect(text).not.toContain("private support code");
     expect(json).not.toContain(streamKey);
     expect(text).not.toContain(streamKey);
+  });
+
+  it("summarizes VRM source model readiness without exposing local paths", () => {
+    const vrm = createSource("vrm");
+    if (vrm.kind !== "vrm") {
+      throw new Error("Expected VRM source.");
+    }
+    const scene = addSource(createDefaultScene(), {
+      ...vrm,
+      modelId: "vroid-avatar",
+      modelUri: "file:///private/var/mobile/Containers/Shared/AppGroup/ABCDEF/avatar.vrm"
+    });
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health()
+    });
+    const preflight = createStreamStartPreflightReport({
+      readiness,
+      streamStatus: "idle"
+    });
+
+    const bundle = createSupportBundle({ scene, profile, readiness, preflight, diagnostics });
+    const vrmSummary = bundle.scene.sources.find((source) => source.kind === "vrm");
+
+    expect(bundle.scene.sourceCounts.vrm).toBe(1);
+    expect(vrmSummary?.payload).toEqual({
+      modelId: "vroid-avatar",
+      expression: "neutral",
+      hasModelUri: true
+    });
+    expect(serializeSupportBundle(bundle)).not.toContain("avatar.vrm");
   });
 });

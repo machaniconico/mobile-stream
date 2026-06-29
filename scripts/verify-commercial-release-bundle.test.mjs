@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v26.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v27.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -627,7 +627,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 26
+      bundleVersion: 27
     },
     generatedAt: new Date().toISOString(),
     profile: {

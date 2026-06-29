@@ -35,7 +35,7 @@ export interface NativeCompositionReport {
   issues: NativeCompositionIssue[];
 }
 
-const avatarKinds = new Set<SourceKind>(["pngtuber", "live2d"]);
+const avatarKinds = new Set<SourceKind>(["pngtuber", "live2d", "vrm"]);
 const nativeOverlayKinds = new Set<SourceKind>(["pngtuber", "image", "solid", "text", "chat"]);
 const nativeStillImageKinds = new Set<SourceKind>(["pngtuber", "image"]);
 const iosBroadcastAppGroup = "group.com.mobilelivecaster.app";
@@ -106,7 +106,7 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       status: "warn",
       coverage: "preview-only-overlays",
       summary: `${previewOnlySources.length} visible source${previewOnlySources.length === 1 ? "" : "s"} are not covered by the current native RTMP compositor order or source support.`,
-      recommendedNextStep: "Move supported overlays above the screen source, and keep Live2D out of release-critical output until Cubism SDK integration lands.",
+      recommendedNextStep: "Move supported overlays above the screen source, and keep Live2D/VRM out of release-critical output until native avatar renderers land.",
       visibleSourceCount: visibleSources.length,
       screenSourceCount: screenSources.length,
       avatarSourceCount: countAvatarSources(visibleSources),
@@ -356,6 +356,8 @@ const nativeCompositionAction = (kind: SourceKind): string => {
       return "iOS and Android can render this as a native still-image PNGTuber with expression, blink, lip-sync, face-motion position/rotation, 2.5D scale, tunable rig regions, and lightweight pseudo mesh deformation when it is above the screen source.";
     case "live2d":
       return "Integrate a native Live2D Cubism renderer before relying on this source in production output.";
+    case "vrm":
+      return "Integrate a native VRM renderer and VRM humanoid/expression mapping before relying on this source in production output.";
     case "image":
       return "iOS and Android can render this through native overlay filters when the asset is available to the native app or broadcast extension.";
     case "solid":

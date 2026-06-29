@@ -194,6 +194,34 @@ describe("scene document", () => {
     expect(live2dNode?.payload.modelJsonUri).toBe("file:///models/hiyori/hiyori.model3.json");
   });
 
+  it("persists and renders VRM model URIs for VRoid sources", () => {
+    const vrm = createSource("vrm");
+    if (vrm.kind !== "vrm") {
+      throw new Error("Expected VRM source.");
+    }
+    const scene = addSource(createDefaultScene(), {
+      ...vrm,
+      modelId: "vroid-avatar",
+      modelUri: " file:///models/vroid/avatar.vrm\n",
+      mouthOpen: 0.42,
+      motion: { ...vrm.motion, headYaw: 0.31, confidence: 0.88 }
+    });
+    const normalized = normalizeSceneDocument(scene);
+    const vrmSource = normalized.sources.find((source) => source.kind === "vrm");
+    const vrmNode = toRenderGraph(normalized).find((node) => node.kind === "vrm");
+
+    expect(vrmSource).toMatchObject({
+      modelId: "vroid-avatar",
+      modelUri: "file:///models/vroid/avatar.vrm",
+      mouthOpen: 0.42
+    });
+    expect(vrmNode?.payload).toMatchObject({
+      modelUri: "file:///models/vroid/avatar.vrm",
+      headYaw: 0.31,
+      trackingConfidence: 0.88
+    });
+  });
+
   it("infers still-image illustration rig landmarks from avatar framing", () => {
     const canvas = { width: 1920, height: 1080, fps: 30 };
     const bust = inferAvatarIllustrationRig({ canvas, transform: { width: 0.3, height: 0.42 } });

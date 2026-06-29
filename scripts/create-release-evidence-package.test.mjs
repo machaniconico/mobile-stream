@@ -1323,7 +1323,7 @@ function commercialSupportBundleFixture() {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 26
+      bundleVersion: 27
     },
     generatedAt: capturedAt,
     fixture: true,
