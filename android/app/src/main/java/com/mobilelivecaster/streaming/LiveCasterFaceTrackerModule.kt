@@ -31,6 +31,7 @@ import com.google.mlkit.vision.face.FaceContour
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetector
 import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.google.mlkit.vision.face.FaceLandmark
 import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -212,7 +213,10 @@ class LiveCasterFaceTrackerModule(private val reactContext: ReactApplicationCont
             activeDetector.process(input)
                 .addOnSuccessListener(directExecutor) { faces ->
                     val largestFace = faces.maxByOrNull { face -> face.boundingBox.width() * face.boundingBox.height() }
-                    latestFrame.set(largestFace?.let(::faceToFrame) ?: lostFrame())
+                    val rotated = cameraRotationDegrees == 90 || cameraRotationDegrees == 270
+                    val frameWidth = if (rotated) FRAME_HEIGHT else FRAME_WIDTH
+                    val frameHeight = if (rotated) FRAME_WIDTH else FRAME_HEIGHT
+                    latestFrame.set(largestFace?.let { face -> faceToFrame(face, frameWidth, frameHeight) } ?: lostFrame())
                 }
                 .addOnFailureListener(directExecutor) {
                     latestFrame.set(lostFrame())
@@ -228,7 +232,7 @@ class LiveCasterFaceTrackerModule(private val reactContext: ReactApplicationCont
         }
     }
 
-    private fun faceToFrame(face: Face): NativeFaceFrame {
+    private fun faceToFrame(face: Face, frameWidth: Int, frameHeight: Int): NativeFaceFrame {
         val box = face.boundingBox
         val confidence = clamp(max(box.width(), box.height()).toFloat() / max(FRAME_WIDTH, FRAME_HEIGHT).toFloat() * 1.9f, 0.45f, 0.98f)
         val yaw = clamp(face.headEulerAngleY / 36f, -1f, 1f)
@@ -248,7 +252,8 @@ class LiveCasterFaceTrackerModule(private val reactContext: ReactApplicationCont
             smile = smile.toDouble(),
             browRaise = estimateBrowRaise(face).toDouble(),
             confidence = confidence.toDouble(),
-            timestamp = System.currentTimeMillis().toDouble()
+            timestamp = System.currentTimeMillis().toDouble(),
+            faceLandmarkAnalysis = faceLandmarkAnalysis(face, frameWidth, frameHeight, confidence)
         )
     }
 
@@ -262,7 +267,8 @@ class LiveCasterFaceTrackerModule(private val reactContext: ReactApplicationCont
         smile = 0.0,
         browRaise = 0.0,
         confidence = 0.0,
-        timestamp = System.currentTimeMillis().toDouble()
+        timestamp = System.currentTimeMillis().toDouble(),
+        faceLandmarkAnalysis = null
     )
 
     private fun stopCamera() {
@@ -350,6 +356,80 @@ class LiveCasterFaceTrackerModule(private val reactContext: ReactApplicationCont
         return clamp(0.24f + max(0f, -face.headEulerAngleX / 35f) * 0.28f, 0f, 1f)
     }
 
+    private fun faceLandmarkAnalysis(face: Face, frameWidth: Int, frameHeight: Int, confidence: Float): WritableMap {
+        val box = face.boundingBox
+        val top = normalizeY(box.top.toFloat(), frameHeight)
+        val height = clamp(box.height().toFloat() / max(1, frameHeight).toFloat(), 0f, 1f)
+        return Arguments.createMap().apply {
+            putDouble("confidence", confidence.toDouble())
+            putMap("faceCenter", normalizedPoint(box.centerX().toFloat(), box.top + box.height() * 0.54f, frameWidth, frameHeight, confidence))
+            putNullablePoint(
+                "leftEye",
+                averagePoint(face.getContour(FaceContour.LEFT_EYE)?.points)
+                    ?: face.getLandmark(FaceLandmark.LEFT_EYE)?.position,
+                frameWidth,
+                frameHeight,
+                confidence
+            )
+            putNullablePoint(
+                "rightEye",
+                averagePoint(face.getContour(FaceContour.RIGHT_EYE)?.points)
+                    ?: face.getLandmark(FaceLandmark.RIGHT_EYE)?.position,
+                frameWidth,
+                frameHeight,
+                confidence
+            )
+            putNullablePoint(
+                "mouthCenter",
+                averagePoint(
+                    listOfNotNull(
+                        face.getContour(FaceContour.UPPER_LIP_BOTTOM)?.points,
+                        face.getContour(FaceContour.LOWER_LIP_TOP)?.points
+                    ).flatten()
+                ) ?: face.getLandmark(FaceLandmark.MOUTH_BOTTOM)?.position,
+                frameWidth,
+                frameHeight,
+                confidence
+            )
+            putDouble("hairLineY", clamp(top - height * 0.18f, 0f, 1f).toDouble())
+            putDouble("shoulderLineY", clamp(top + height * 1.58f, 0f, 1f).toDouble())
+        }
+    }
+
+    private fun WritableMap.putNullablePoint(
+        key: String,
+        point: android.graphics.PointF?,
+        frameWidth: Int,
+        frameHeight: Int,
+        confidence: Float
+    ) {
+        if (point == null) {
+            putNull(key)
+        } else {
+            putMap(key, normalizedPoint(point.x, point.y, frameWidth, frameHeight, confidence))
+        }
+    }
+
+    private fun normalizedPoint(x: Float, y: Float, frameWidth: Int, frameHeight: Int, confidence: Float): WritableMap =
+        Arguments.createMap().apply {
+            putDouble("x", normalizeX(x, frameWidth).toDouble())
+            putDouble("y", normalizeY(y, frameHeight).toDouble())
+            putDouble("confidence", confidence.toDouble())
+        }
+
+    private fun normalizeX(x: Float, frameWidth: Int): Float = clamp(x / max(1, frameWidth).toFloat(), 0f, 1f)
+
+    private fun normalizeY(y: Float, frameHeight: Int): Float = clamp(y / max(1, frameHeight).toFloat(), 0f, 1f)
+
+    private fun averagePoint(points: List<android.graphics.PointF>?): android.graphics.PointF? {
+        if (points.isNullOrEmpty()) {
+            return null
+        }
+        val x = points.sumOf { point -> point.x.toDouble() }.toFloat() / points.size
+        val y = points.sumOf { point -> point.y.toDouble() }.toFloat() / points.size
+        return android.graphics.PointF(x, y)
+    }
+
     private fun averageY(points: List<android.graphics.PointF>?): Float? {
         if (points.isNullOrEmpty()) {
             return null
@@ -391,7 +471,8 @@ class LiveCasterFaceTrackerModule(private val reactContext: ReactApplicationCont
         val smile: Double,
         val browRaise: Double,
         val confidence: Double,
-        val timestamp: Double
+        val timestamp: Double,
+        val faceLandmarkAnalysis: WritableMap?
     ) {
         fun toWritableMap(): WritableMap = Arguments.createMap().apply {
             putDouble("yaw", yaw)
@@ -404,6 +485,11 @@ class LiveCasterFaceTrackerModule(private val reactContext: ReactApplicationCont
             putDouble("browRaise", browRaise)
             putDouble("confidence", confidence)
             putDouble("timestamp", timestamp)
+            if (faceLandmarkAnalysis == null) {
+                putNull("faceLandmarkAnalysis")
+            } else {
+                putMap("faceLandmarkAnalysis", faceLandmarkAnalysis)
+            }
         }
     }
 }

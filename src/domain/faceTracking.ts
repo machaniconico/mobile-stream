@@ -1,5 +1,6 @@
 import type { AvatarExpression } from "./avatar";
 import {
+  type AvatarIllustrationLandmarkAnalysis,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
   updateSource,
@@ -47,6 +48,7 @@ export interface FaceTrackingFrame {
   browRaise: number;
   confidence: number;
   timestamp: number;
+  faceLandmarkAnalysis?: AvatarIllustrationLandmarkAnalysis | null;
 }
 
 export interface FaceTrackingRuntimeState {
@@ -59,6 +61,7 @@ export interface FaceTrackingRuntimeState {
   smile: number;
   browRaise: number;
   confidence: number;
+  faceLandmarkConfidence?: number;
   expression: AvatarExpression;
   lastFrameAt: number;
 }
@@ -101,6 +104,7 @@ export const createFaceTrackingRuntimeState = (now = Date.now()): FaceTrackingRu
   smile: 0,
   browRaise: 0,
   confidence: 0,
+  faceLandmarkConfidence: 0,
   expression: "neutral",
   lastFrameAt: now
 });
@@ -185,6 +189,7 @@ export const updateFaceTrackingRuntime = (
   const blink = clamp01(((frame.leftBlink + frame.rightBlink) / 2) * profile.blinkSensitivity);
   const smile = clamp01(frame.smile);
   const browRaise = clamp01(frame.browRaise);
+  const faceLandmarkConfidence = clamp01(frame.faceLandmarkAnalysis?.confidence ?? 0);
   const poseStep = profile.maxMotionStep;
   const expressionStep = Math.max(profile.maxMotionStep, 0.42);
 
@@ -198,6 +203,7 @@ export const updateFaceTrackingRuntime = (
     smile: limitedLerp(current.smile, smile, follow, expressionStep),
     browRaise: limitedLerp(current.browRaise, browRaise, follow, expressionStep),
     confidence: limitedLerp(current.confidence, confidence, follow, expressionStep),
+    faceLandmarkConfidence: limitedLerp(current.faceLandmarkConfidence ?? 0, faceLandmarkConfidence, follow, expressionStep),
     expression: current.expression,
     lastFrameAt: now
   };

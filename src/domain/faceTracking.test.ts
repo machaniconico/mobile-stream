@@ -83,6 +83,45 @@ describe("face tracking", () => {
     expect(runtime.expression).toBe("happy");
   });
 
+  it("retains native semantic landmark confidence on the tracking runtime", () => {
+    const profile = {
+      ...defaultFaceTrackingProfile,
+      enabled: true,
+      smoothing: 0,
+      trackingStrength: 1,
+      maxMotionStep: 1
+    };
+    const runtime = updateFaceTrackingRuntime(
+      createFaceTrackingRuntimeState(1_000),
+      {
+        yaw: 0.2,
+        pitch: 0.1,
+        roll: 0,
+        mouthOpen: 0.42,
+        leftBlink: 0.1,
+        rightBlink: 0.12,
+        smile: 0.4,
+        browRaise: 0.2,
+        confidence: 0.88,
+        timestamp: 1_120,
+        faceLandmarkAnalysis: {
+          confidence: 0.84,
+          faceCenter: { x: 0.5, y: 0.46, confidence: 0.84 },
+          leftEye: { x: 0.42, y: 0.36, confidence: 0.84 },
+          rightEye: { x: 0.58, y: 0.36, confidence: 0.84 },
+          mouthCenter: { x: 0.5, y: 0.58, confidence: 0.84 },
+          hairLineY: 0.12,
+          shoulderLineY: 0.9
+        }
+      },
+      profile,
+      1_120
+    );
+
+    expect(runtime.status).toBe("tracking");
+    expect(runtime.faceLandmarkConfidence).toBeCloseTo(0.7728, 4);
+  });
+
   it("filters small pose jitter with a neutral dead zone", () => {
     const profile = {
       ...defaultFaceTrackingProfile,

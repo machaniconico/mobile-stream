@@ -1,5 +1,6 @@
 import { NativeModules } from "react-native";
 import type { FaceTrackingFrame, FaceTrackingProfile } from "../domain/faceTracking";
+import type { AvatarIllustrationLandmarkAnalysis, AvatarIllustrationLandmarkPoint } from "../domain/scene";
 
 interface NativeFaceTrackingFrame {
   yaw?: number;
@@ -12,6 +13,23 @@ interface NativeFaceTrackingFrame {
   browRaise?: number;
   confidence?: number;
   timestamp?: number;
+  faceLandmarkAnalysis?: NativeFaceLandmarkAnalysis | null;
+}
+
+interface NativeFaceLandmarkAnalysis {
+  confidence?: number;
+  faceCenter?: NativeFaceLandmarkPoint | null;
+  leftEye?: NativeFaceLandmarkPoint | null;
+  rightEye?: NativeFaceLandmarkPoint | null;
+  mouthCenter?: NativeFaceLandmarkPoint | null;
+  hairLineY?: number | null;
+  shoulderLineY?: number | null;
+}
+
+interface NativeFaceLandmarkPoint {
+  x?: number;
+  y?: number;
+  confidence?: number;
 }
 
 interface LiveCasterFaceTrackerModule {
@@ -95,8 +113,53 @@ const normalizeNativeFrame = (frame: NativeFaceTrackingFrame, now: number): Face
   smile: finiteOr(frame.smile, 0),
   browRaise: finiteOr(frame.browRaise, 0),
   confidence: finiteOr(frame.confidence, 0),
-  timestamp: finiteOr(frame.timestamp, now)
+  timestamp: finiteOr(frame.timestamp, now),
+  faceLandmarkAnalysis: normalizeNativeLandmarkAnalysis(frame.faceLandmarkAnalysis)
 });
 
 const finiteOr = (value: number | undefined, fallback: number): number =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
+const normalizeNativeLandmarkAnalysis = (
+  analysis: NativeFaceLandmarkAnalysis | null | undefined
+): AvatarIllustrationLandmarkAnalysis | null => {
+  if (!analysis) {
+    return null;
+  }
+  const confidence = clamp01(finiteOr(analysis.confidence, 0));
+  if (confidence <= 0) {
+    return null;
+  }
+  return {
+    confidence,
+    faceCenter: normalizeNativeLandmarkPoint(analysis.faceCenter),
+    leftEye: normalizeNativeLandmarkPoint(analysis.leftEye),
+    rightEye: normalizeNativeLandmarkPoint(analysis.rightEye),
+    mouthCenter: normalizeNativeLandmarkPoint(analysis.mouthCenter),
+    hairLineY: normalizeNativeY(analysis.hairLineY),
+    shoulderLineY: normalizeNativeY(analysis.shoulderLineY)
+  };
+};
+
+const normalizeNativeLandmarkPoint = (
+  point: NativeFaceLandmarkPoint | null | undefined
+): AvatarIllustrationLandmarkPoint | null => {
+  if (!point) {
+    return null;
+  }
+  const x = normalizeNativeY(point.x);
+  const y = normalizeNativeY(point.y);
+  if (x === null || y === null) {
+    return null;
+  }
+  return {
+    x,
+    y,
+    confidence: clamp01(finiteOr(point.confidence, 1))
+  };
+};
+
+const normalizeNativeY = (value: number | null | undefined): number | null =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1 ? value : null;
+
+const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));

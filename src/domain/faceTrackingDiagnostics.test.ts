@@ -60,6 +60,7 @@ describe("face tracking diagnostics", () => {
       smile: 0.4,
       browRaise: 0.2,
       confidence: 0.92,
+      faceLandmarkConfidence: 0.81,
       expression: "neutral",
       lastFrameAt: 1_000
     });
@@ -72,6 +73,8 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.rigIssueCount).toBe(0);
     expect(diagnostics.rigQualityScore).toBe(100);
     expect(diagnostics.rigQualityGrade).toBe("ready");
+    expect(diagnostics.faceLandmarkConfidence).toBeCloseTo(0.81, 3);
+    expect(diagnostics.faceLandmarkReady).toBe(true);
   });
 
   it("warns when prepared PNGTuber rig lines are not production-safe", () => {

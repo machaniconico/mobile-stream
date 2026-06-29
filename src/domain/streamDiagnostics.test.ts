@@ -669,6 +669,7 @@ describe("stream diagnostics", () => {
         smile: 0.4,
         browRaise: 0.3,
         confidence: 0.9,
+        faceLandmarkConfidence: 0.78,
         expression: "neutral",
         lastFrameAt: 2_000
       },
@@ -682,6 +683,7 @@ describe("stream diagnostics", () => {
     expect(report).toContain("Face Tracking");
     expect(report).toContain("- Runtime: tracking");
     expect(report).toContain("- Runtime age: 200 ms / fresh yes");
+    expect(report).toContain("- Native landmarks: 78% / ready yes");
   });
 
   it("flags weak live telemetry against the configured quality target", () => {

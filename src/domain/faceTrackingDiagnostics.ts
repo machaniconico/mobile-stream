@@ -13,6 +13,8 @@ export interface FaceTrackingDiagnostics {
   runtimeStatus: FaceTrackingRuntimeState["status"] | "unavailable";
   runtimeAgeMs: number | null;
   runtimeFresh: boolean;
+  faceLandmarkConfidence?: number;
+  faceLandmarkReady?: boolean;
   visibleAvatarCount: number;
   visiblePngTuberCount: number;
   visibleLive2DCount: number;
@@ -32,6 +34,7 @@ export interface FaceTrackingDiagnosticsOptions {
 }
 
 export const faceTrackingRuntimeMaxAgeMs = 1500;
+const clamp01 = (value: number): number => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 
 export const createFaceTrackingDiagnostics = (
   scene: SceneDocument,
@@ -57,6 +60,8 @@ export const createFaceTrackingDiagnostics = (
   const maxRuntimeAgeMs = Math.max(0, options.maxRuntimeAgeMs ?? faceTrackingRuntimeMaxAgeMs);
   const runtimeAgeMs = runtime ? runtimeAge(runtime, options.now) : null;
   const runtimeFresh = runtimeAgeMs === null || runtimeAgeMs <= maxRuntimeAgeMs;
+  const faceLandmarkConfidence = clamp01(runtime?.faceLandmarkConfidence ?? 0);
+  const faceLandmarkReady = faceLandmarkConfidence >= 0.55;
 
   if (!faceTracking.enabled) {
     return {
@@ -67,6 +72,8 @@ export const createFaceTrackingDiagnostics = (
       runtimeStatus,
       runtimeAgeMs,
       runtimeFresh,
+      faceLandmarkConfidence,
+      faceLandmarkReady,
       visibleAvatarCount: visibleAvatars.length,
       visiblePngTuberCount: visiblePngTubers.length,
       visibleLive2DCount: visibleLive2D.length,
@@ -96,6 +103,8 @@ export const createFaceTrackingDiagnostics = (
       rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
+      faceLandmarkConfidence,
+      faceLandmarkReady,
       "Face tracking is enabled, but no visible avatar source is in the scene.",
       "Add or enable a PNGTuber source above the screen capture layer before production validation."
     );
@@ -116,6 +125,8 @@ export const createFaceTrackingDiagnostics = (
       rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
+      faceLandmarkConfidence,
+      faceLandmarkReady,
       "Face tracking is targeting Live2D/VRM only, but native Live2D/VRM rendering is not production-ready yet.",
       "Use a prepared PNGTuber still image for production validation until native Cubism or VRM rendering lands."
     );
@@ -136,6 +147,8 @@ export const createFaceTrackingDiagnostics = (
       rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
+      faceLandmarkConfidence,
+      faceLandmarkReady,
       "Face tracking is enabled, but visible PNGTuber sources do not have prepared still-image assets.",
       "Pick and prepare a PNGTuber still image so native iOS/Android compositors can render avatar motion."
     );
@@ -156,6 +169,8 @@ export const createFaceTrackingDiagnostics = (
       rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
+      faceLandmarkConfidence,
+      faceLandmarkReady,
       `Still-image avatar rig needs review: ${rigIssues[0]}`,
       "Run Auto rig on the PNGTuber source, then manually tune the face, eye, mouth, and shoulder lines before physical validation."
     );
@@ -176,6 +191,8 @@ export const createFaceTrackingDiagnostics = (
       rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
+      faceLandmarkConfidence,
+      faceLandmarkReady,
       "Face tracking is using simulated input.",
       "Switch to native camera input and verify tracking on a physical mobile device before release validation."
     );
@@ -196,6 +213,8 @@ export const createFaceTrackingDiagnostics = (
       rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
+      faceLandmarkConfidence,
+      faceLandmarkReady,
       "Native face tracking is enabled, but the latest face state is lost.",
       "Reposition the camera/lighting and confirm tracking stays stable before starting a production stream."
     );
@@ -216,6 +235,8 @@ export const createFaceTrackingDiagnostics = (
       rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
+      faceLandmarkConfidence,
+      faceLandmarkReady,
       "Native face tracking has not reported runtime status yet.",
       "Open this scene on iOS/Android and confirm the tracker reads tracking before production validation."
     );
@@ -236,6 +257,8 @@ export const createFaceTrackingDiagnostics = (
       rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
+      faceLandmarkConfidence,
+      faceLandmarkReady,
       `Native face tracking runtime is stale by ${runtimeAgeMs ?? 0} ms.`,
       "Confirm the camera tracker is still publishing fresh frames before starting a production stream."
     );
@@ -256,6 +279,8 @@ export const createFaceTrackingDiagnostics = (
       rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
+      faceLandmarkConfidence,
+      faceLandmarkReady,
       "Native face tracking is reading, but no visible avatar source has applied motion yet.",
       "Confirm the prepared PNGTuber moves with head, blink, and mouth input during physical validation."
     );
@@ -269,6 +294,8 @@ export const createFaceTrackingDiagnostics = (
     runtimeStatus,
     runtimeAgeMs,
     runtimeFresh,
+    faceLandmarkConfidence,
+    faceLandmarkReady,
     visibleAvatarCount: visibleAvatars.length,
     visiblePngTuberCount: visiblePngTubers.length,
     visibleLive2DCount: visibleLive2D.length,
@@ -297,6 +324,8 @@ const createWarning = (
   rigQualityGrade: FaceTrackingRigQualityGrade,
   runtimeAgeMs: number | null,
   runtimeFresh: boolean,
+  faceLandmarkConfidence: number,
+  faceLandmarkReady: boolean,
   summary: string,
   recommendation: string
 ): FaceTrackingDiagnostics => ({
@@ -307,6 +336,8 @@ const createWarning = (
   runtimeStatus,
   runtimeAgeMs,
   runtimeFresh,
+  faceLandmarkConfidence,
+  faceLandmarkReady,
   visibleAvatarCount,
   visiblePngTuberCount,
   visibleLive2DCount,

@@ -14,7 +14,7 @@ final class LiveCasterFaceTracker: NSObject, AVCaptureVideoDataOutputSampleBuffe
     private var configured = false
     private var processingFrame = false
     private var usingARKit = false
-    private var latestFrame: [String: Double]?
+    private var latestFrame: [String: Any]?
 
     override init() {
         super.init()
@@ -183,13 +183,13 @@ final class LiveCasterFaceTracker: NSObject, AVCaptureVideoDataOutputSampleBuffe
         setLatestFrame(Self.frame(from: faceAnchor))
     }
 
-    private func setLatestFrame(_ frame: [String: Double]?) {
+    private func setLatestFrame(_ frame: [String: Any]?) {
         frameQueue.async { [weak self] in
             self?.latestFrame = frame
         }
     }
 
-    private static func frame(from anchor: ARFaceAnchor) -> [String: Double] {
+    private static func frame(from anchor: ARFaceAnchor) -> [String: Any] {
         let pose = eulerAngles(from: anchor.transform)
         let leftBlink = blend(anchor, .eyeBlinkLeft)
         let rightBlink = blend(anchor, .eyeBlinkRight)
@@ -221,7 +221,7 @@ final class LiveCasterFaceTracker: NSObject, AVCaptureVideoDataOutputSampleBuffe
         ]
     }
 
-    private static func frame(from observation: VNFaceObservation) -> [String: Double] {
+    private static func frame(from observation: VNFaceObservation) -> [String: Any] {
         let yaw = clamp(observation.yaw?.doubleValue ?? centerOffset(observation.boundingBox.midX), min: -1, max: 1)
         let roll = clamp((observation.roll?.doubleValue ?? 0) / .pi, min: -1, max: 1)
         let pitch = estimatedPitch(observation)
@@ -231,7 +231,7 @@ final class LiveCasterFaceTracker: NSObject, AVCaptureVideoDataOutputSampleBuffe
         let smile = smileValue(observation.landmarks?.outerLips)
         let browRaise = clamp(max(0, -pitch) * 0.6 + 0.18, min: 0, max: 1)
 
-        return [
+        var frame: [String: Any] = [
             "yaw": yaw,
             "pitch": pitch,
             "roll": roll,
@@ -243,6 +243,10 @@ final class LiveCasterFaceTracker: NSObject, AVCaptureVideoDataOutputSampleBuffe
             "confidence": Double(observation.confidence),
             "timestamp": Date().timeIntervalSince1970 * 1000
         ]
+        if let landmarkAnalysis = landmarkAnalysis(from: observation) {
+            frame["faceLandmarkAnalysis"] = landmarkAnalysis
+        }
+        return frame
     }
 
     private static func estimatedPitch(_ observation: VNFaceObservation) -> Double {
@@ -276,6 +280,55 @@ final class LiveCasterFaceTracker: NSObject, AVCaptureVideoDataOutputSampleBuffe
         return clamp((bounds.width - bounds.height * 1.7) * 1.9 + 0.25, min: 0, max: 1)
     }
 
+    private static func landmarkAnalysis(from observation: VNFaceObservation) -> [String: Any]? {
+        let box = observation.boundingBox
+        guard box.width > 0, box.height > 0 else {
+            return nil
+        }
+        let top = clamp(1 - Double(box.maxY), min: 0, max: 1)
+        let height = clamp(Double(box.height), min: 0, max: 1)
+        var analysis: [String: Any] = [
+            "confidence": clamp(Double(observation.confidence), min: 0, max: 1),
+            "faceCenter": [
+                "x": clamp(Double(box.midX), min: 0, max: 1),
+                "y": clamp(top + height * 0.54, min: 0, max: 1),
+                "confidence": clamp(Double(observation.confidence), min: 0, max: 1)
+            ],
+            "hairLineY": clamp(top - height * 0.18, min: 0, max: 1),
+            "shoulderLineY": clamp(top + height * 1.58, min: 0, max: 1)
+        ]
+        if let leftEye = centerPoint(observation.landmarks?.leftEye, in: box, confidence: Double(observation.confidence)) {
+            analysis["leftEye"] = leftEye
+        }
+        if let rightEye = centerPoint(observation.landmarks?.rightEye, in: box, confidence: Double(observation.confidence)) {
+            analysis["rightEye"] = rightEye
+        }
+        if let mouth = centerPoint(observation.landmarks?.outerLips, in: box, confidence: Double(observation.confidence)) {
+            analysis["mouthCenter"] = mouth
+        }
+        return analysis
+    }
+
+    private static func centerPoint(
+        _ region: VNFaceLandmarkRegion2D?,
+        in box: CGRect,
+        confidence: Double
+    ) -> [String: Double]? {
+        guard let region, region.pointCount > 0 else {
+            return nil
+        }
+        let points = region.normalizedPoints
+        let x = points.map(\.x).reduce(CGFloat(0), +) / CGFloat(points.count)
+        let y = points.map(\.y).reduce(CGFloat(0), +) / CGFloat(points.count)
+        let imageX = box.minX + x * box.width
+        let imageY = box.minY + y * box.height
+        return [
+            "x": clamp(Double(imageX), min: 0, max: 1),
+            "y": clamp(1 - Double(imageY), min: 0, max: 1),
+            "confidence": clamp(confidence, min: 0, max: 1)
+        ]
+    }
+
     private static func boundsFor(_ points: [CGPoint]) -> CGRect {
         let xs = points.map(\.x)
         let ys = points.map(\.y)
@@ -307,7 +360,7 @@ final class LiveCasterFaceTracker: NSObject, AVCaptureVideoDataOutputSampleBuffe
         return (yaw: yaw, pitch: pitch, roll: roll)
     }
 
-    private static func lostFrame() -> [String: Double] {
+    private static func lostFrame() -> [String: Any] {
         [
             "yaw": 0,
             "pitch": 0,

@@ -267,6 +267,8 @@ describe("support bundle", () => {
     expect(bundle.summary.suggestedQualityTarget).toBeNull();
     expect(bundle.summary.faceTrackingStatus).toBe("info");
     expect(bundle.summary.faceTrackingRuntimeStatus).toBe("unavailable");
+    expect(bundle.summary.faceTrackingFaceLandmarkConfidence).toBe(0);
+    expect(bundle.summary.faceTrackingFaceLandmarkReady).toBe(false);
     expect(bundle.summary.faceTrackingPreparedPngTuberCount).toBe(0);
     expect(bundle.summary.faceTrackingRigIssueCount).toBe(0);
     expect(bundle.summary.faceTrackingRigIssueSummary).toBe("No still-image rig issues.");

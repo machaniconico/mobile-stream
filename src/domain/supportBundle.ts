@@ -320,6 +320,8 @@ export interface SupportBundle {
     faceTrackingRuntimeStatus: StreamDiagnostics["faceTracking"]["runtimeStatus"];
     faceTrackingRuntimeAgeMs: number | null;
     faceTrackingRuntimeFresh: boolean;
+    faceTrackingFaceLandmarkConfidence: number;
+    faceTrackingFaceLandmarkReady: boolean;
     faceTrackingPreparedPngTuberCount: number;
     faceTrackingActiveMotionCount: number;
     faceTrackingRigIssueCount: number;
@@ -821,6 +823,8 @@ export const createSupportBundle = ({
       faceTrackingRuntimeStatus: diagnostics.faceTracking.runtimeStatus,
       faceTrackingRuntimeAgeMs: diagnostics.faceTracking.runtimeAgeMs,
       faceTrackingRuntimeFresh: diagnostics.faceTracking.runtimeFresh,
+      faceTrackingFaceLandmarkConfidence: diagnostics.faceTracking.faceLandmarkConfidence ?? 0,
+      faceTrackingFaceLandmarkReady: diagnostics.faceTracking.faceLandmarkReady ?? false,
       faceTrackingPreparedPngTuberCount: diagnostics.faceTracking.preparedPngTuberCount,
       faceTrackingActiveMotionCount: diagnostics.faceTracking.activeMotionCount,
       faceTrackingRigIssueCount: diagnostics.faceTracking.rigIssueCount,
@@ -1033,7 +1037,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Quality incidents: ${bundle.diagnostics.qualityIncidents.summary}`,
     `- Quality advisor: ${bundle.summary.qualityAdvisorAction} / ${bundle.summary.qualityAdvisorSeverity}`,
     `- Suggested quality: ${bundle.summary.suggestedQualityTarget ?? "-"}`,
-    `- Face tracking: ${bundle.summary.faceTrackingStatus} / runtime ${bundle.summary.faceTrackingRuntimeStatus} / age ${bundle.summary.faceTrackingRuntimeAgeMs === null ? "-" : `${bundle.summary.faceTrackingRuntimeAgeMs} ms`} / fresh ${bundle.summary.faceTrackingRuntimeFresh ? "yes" : "no"} / prepared PNGTuber ${bundle.summary.faceTrackingPreparedPngTuberCount} / moving ${bundle.summary.faceTrackingActiveMotionCount} / rig quality ${bundle.summary.faceTrackingRigQualityScore}/100 ${bundle.summary.faceTrackingRigQualityGrade} / rig issues ${bundle.summary.faceTrackingRigIssueCount}`,
+    `- Face tracking: ${bundle.summary.faceTrackingStatus} / runtime ${bundle.summary.faceTrackingRuntimeStatus} / age ${bundle.summary.faceTrackingRuntimeAgeMs === null ? "-" : `${bundle.summary.faceTrackingRuntimeAgeMs} ms`} / fresh ${bundle.summary.faceTrackingRuntimeFresh ? "yes" : "no"} / landmarks ${Math.round(bundle.summary.faceTrackingFaceLandmarkConfidence * 100)}% ${bundle.summary.faceTrackingFaceLandmarkReady ? "ready" : "not-ready"} / prepared PNGTuber ${bundle.summary.faceTrackingPreparedPngTuberCount} / moving ${bundle.summary.faceTrackingActiveMotionCount} / rig quality ${bundle.summary.faceTrackingRigQualityScore}/100 ${bundle.summary.faceTrackingRigQualityGrade} / rig issues ${bundle.summary.faceTrackingRigIssueCount}`,
     `- Face tracking rig: ${bundle.summary.faceTrackingRigIssueSummary}`,
     `- Face tracking recommendation: ${bundle.summary.faceTrackingRecommendation}`,
     `- Recovery: ${bundle.diagnostics.recovery.mode} / ${bundle.diagnostics.recovery.recommendedAction}`,

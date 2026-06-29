@@ -604,6 +604,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Input: ${diagnostics.faceTracking.inputMode}`,
     `- Runtime: ${diagnostics.faceTracking.runtimeStatus}`,
     `- Runtime age: ${diagnostics.faceTracking.runtimeAgeMs === null ? "-" : `${diagnostics.faceTracking.runtimeAgeMs} ms`} / fresh ${diagnostics.faceTracking.runtimeFresh ? "yes" : "no"}`,
+    `- Native landmarks: ${Math.round((diagnostics.faceTracking.faceLandmarkConfidence ?? 0) * 100)}% / ready ${diagnostics.faceTracking.faceLandmarkReady ? "yes" : "no"}`,
     `- Rig: ${diagnostics.faceTracking.rigMode}`,
     `- Avatars: ${diagnostics.faceTracking.visibleAvatarCount} visible / ${diagnostics.faceTracking.preparedPngTuberCount} prepared PNGTuber / ${diagnostics.faceTracking.activeMotionCount} moving`,
     `- Rig quality: ${diagnostics.faceTracking.rigQualityScore}/100 ${diagnostics.faceTracking.rigQualityGrade}`,
