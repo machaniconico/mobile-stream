@@ -860,7 +860,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 33 as const
+    bundleVersion: 34 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1000,9 +1000,16 @@ const manifestRun = ({
   nativeRuntimeVrmIndexCount = 0,
   nativeRuntimeVrmBoundsAccessorCount = 0,
   nativeRuntimeVrmSkinningAttributePrimitiveCount = 0,
+  nativeRuntimeVrmTrianglePrimitiveCount = 0,
+  nativeRuntimeVrmUnsupportedPrimitiveModeCount = 0,
+  nativeRuntimeVrmNormalAccessorCount = 0,
+  nativeRuntimeVrmTexcoordAccessorCount = 0,
   nativeRuntimeVrmMorphTargetCount = 0,
   nativeRuntimeVrmMaterialCount = 0,
   nativeRuntimeVrmTextureCount = 0,
+  nativeRuntimeVrmImageCount = 0,
+  nativeRuntimeVrmUnsupportedImageMimeCount = 0,
+  nativeRuntimeVrmTransparentMaterialCount = 0,
   nativeRuntimeVrmPoseBoneCount = 0,
   nativeRuntimeVrmPoseBoneAppliedCount = 0,
   nativeRuntimeVrmPoseBoneUnsupportedCount = 0,
@@ -1101,9 +1108,16 @@ const manifestRun = ({
   nativeRuntimeVrmIndexCount?: ValidationManifestRun["nativeRuntimeVrmIndexCount"];
   nativeRuntimeVrmBoundsAccessorCount?: ValidationManifestRun["nativeRuntimeVrmBoundsAccessorCount"];
   nativeRuntimeVrmSkinningAttributePrimitiveCount?: ValidationManifestRun["nativeRuntimeVrmSkinningAttributePrimitiveCount"];
+  nativeRuntimeVrmTrianglePrimitiveCount?: ValidationManifestRun["nativeRuntimeVrmTrianglePrimitiveCount"];
+  nativeRuntimeVrmUnsupportedPrimitiveModeCount?: ValidationManifestRun["nativeRuntimeVrmUnsupportedPrimitiveModeCount"];
+  nativeRuntimeVrmNormalAccessorCount?: ValidationManifestRun["nativeRuntimeVrmNormalAccessorCount"];
+  nativeRuntimeVrmTexcoordAccessorCount?: ValidationManifestRun["nativeRuntimeVrmTexcoordAccessorCount"];
   nativeRuntimeVrmMorphTargetCount?: ValidationManifestRun["nativeRuntimeVrmMorphTargetCount"];
   nativeRuntimeVrmMaterialCount?: ValidationManifestRun["nativeRuntimeVrmMaterialCount"];
   nativeRuntimeVrmTextureCount?: ValidationManifestRun["nativeRuntimeVrmTextureCount"];
+  nativeRuntimeVrmImageCount?: ValidationManifestRun["nativeRuntimeVrmImageCount"];
+  nativeRuntimeVrmUnsupportedImageMimeCount?: ValidationManifestRun["nativeRuntimeVrmUnsupportedImageMimeCount"];
+  nativeRuntimeVrmTransparentMaterialCount?: ValidationManifestRun["nativeRuntimeVrmTransparentMaterialCount"];
   nativeRuntimeVrmPoseBoneCount?: ValidationManifestRun["nativeRuntimeVrmPoseBoneCount"];
   nativeRuntimeVrmPoseBoneAppliedCount?: ValidationManifestRun["nativeRuntimeVrmPoseBoneAppliedCount"];
   nativeRuntimeVrmPoseBoneUnsupportedCount?: ValidationManifestRun["nativeRuntimeVrmPoseBoneUnsupportedCount"];
@@ -1208,9 +1222,16 @@ const manifestRun = ({
   nativeRuntimeVrmIndexCount,
   nativeRuntimeVrmBoundsAccessorCount,
   nativeRuntimeVrmSkinningAttributePrimitiveCount,
+  nativeRuntimeVrmTrianglePrimitiveCount,
+  nativeRuntimeVrmUnsupportedPrimitiveModeCount,
+  nativeRuntimeVrmNormalAccessorCount,
+  nativeRuntimeVrmTexcoordAccessorCount,
   nativeRuntimeVrmMorphTargetCount,
   nativeRuntimeVrmMaterialCount,
   nativeRuntimeVrmTextureCount,
+  nativeRuntimeVrmImageCount,
+  nativeRuntimeVrmUnsupportedImageMimeCount,
+  nativeRuntimeVrmTransparentMaterialCount,
   nativeRuntimeVrmPoseBoneCount,
   nativeRuntimeVrmPoseBoneAppliedCount,
   nativeRuntimeVrmPoseBoneUnsupportedCount,

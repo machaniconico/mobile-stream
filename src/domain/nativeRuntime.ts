@@ -25,9 +25,16 @@ export interface NativeRuntimeComposition {
   vrmIndexCount?: number;
   vrmBoundsAccessorCount?: number;
   vrmSkinningAttributePrimitiveCount?: number;
+  vrmTrianglePrimitiveCount?: number;
+  vrmUnsupportedPrimitiveModeCount?: number;
+  vrmNormalAccessorCount?: number;
+  vrmTexcoordAccessorCount?: number;
   vrmMorphTargetCount?: number;
   vrmMaterialCount?: number;
   vrmTextureCount?: number;
+  vrmImageCount?: number;
+  vrmUnsupportedImageMimeCount?: number;
+  vrmTransparentMaterialCount?: number;
   vrmPoseBoneCount?: number;
   vrmPoseBoneAppliedCount?: number;
   vrmPoseBoneUnsupportedCount?: number;

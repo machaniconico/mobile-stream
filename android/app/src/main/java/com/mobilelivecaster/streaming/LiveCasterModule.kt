@@ -37,9 +37,16 @@ data class NativeRuntimeComposition(
     val vrmIndexCount: Int = 0,
     val vrmBoundsAccessorCount: Int = 0,
     val vrmSkinningAttributePrimitiveCount: Int = 0,
+    val vrmTrianglePrimitiveCount: Int = 0,
+    val vrmUnsupportedPrimitiveModeCount: Int = 0,
+    val vrmNormalAccessorCount: Int = 0,
+    val vrmTexcoordAccessorCount: Int = 0,
     val vrmMorphTargetCount: Int = 0,
     val vrmMaterialCount: Int = 0,
     val vrmTextureCount: Int = 0,
+    val vrmImageCount: Int = 0,
+    val vrmUnsupportedImageMimeCount: Int = 0,
+    val vrmTransparentMaterialCount: Int = 0,
     val vrmPoseBoneCount: Int = 0,
     val vrmPoseBoneAppliedCount: Int = 0,
     val vrmPoseBoneUnsupportedCount: Int = 0,
@@ -76,9 +83,16 @@ data class NativeRuntimeComposition(
         putInt("vrmIndexCount", vrmIndexCount)
         putInt("vrmBoundsAccessorCount", vrmBoundsAccessorCount)
         putInt("vrmSkinningAttributePrimitiveCount", vrmSkinningAttributePrimitiveCount)
+        putInt("vrmTrianglePrimitiveCount", vrmTrianglePrimitiveCount)
+        putInt("vrmUnsupportedPrimitiveModeCount", vrmUnsupportedPrimitiveModeCount)
+        putInt("vrmNormalAccessorCount", vrmNormalAccessorCount)
+        putInt("vrmTexcoordAccessorCount", vrmTexcoordAccessorCount)
         putInt("vrmMorphTargetCount", vrmMorphTargetCount)
         putInt("vrmMaterialCount", vrmMaterialCount)
         putInt("vrmTextureCount", vrmTextureCount)
+        putInt("vrmImageCount", vrmImageCount)
+        putInt("vrmUnsupportedImageMimeCount", vrmUnsupportedImageMimeCount)
+        putInt("vrmTransparentMaterialCount", vrmTransparentMaterialCount)
         putInt("vrmPoseBoneCount", vrmPoseBoneCount)
         putInt("vrmPoseBoneAppliedCount", vrmPoseBoneAppliedCount)
         putInt("vrmPoseBoneUnsupportedCount", vrmPoseBoneUnsupportedCount)
@@ -129,9 +143,16 @@ private fun AndroidCompositionResult.toNativeRuntimeComposition(): NativeRuntime
         vrmIndexCount = vrmPoseSummary.indexCount,
         vrmBoundsAccessorCount = vrmPoseSummary.boundsAccessorCount,
         vrmSkinningAttributePrimitiveCount = vrmPoseSummary.skinningAttributePrimitiveCount,
+        vrmTrianglePrimitiveCount = vrmPoseSummary.trianglePrimitiveCount,
+        vrmUnsupportedPrimitiveModeCount = vrmPoseSummary.unsupportedPrimitiveModeCount,
+        vrmNormalAccessorCount = vrmPoseSummary.normalAccessorCount,
+        vrmTexcoordAccessorCount = vrmPoseSummary.texcoordAccessorCount,
         vrmMorphTargetCount = vrmPoseSummary.morphTargetCount,
         vrmMaterialCount = vrmPoseSummary.materialCount,
         vrmTextureCount = vrmPoseSummary.textureCount,
+        vrmImageCount = vrmPoseSummary.imageCount,
+        vrmUnsupportedImageMimeCount = vrmPoseSummary.unsupportedImageMimeCount,
+        vrmTransparentMaterialCount = vrmPoseSummary.transparentMaterialCount,
         vrmPoseBoneCount = vrmPoseSummary.poseBoneCount,
         vrmPoseBoneAppliedCount = vrmPoseSummary.poseBoneAppliedCount,
         vrmPoseBoneUnsupportedCount = vrmPoseSummary.poseBoneUnsupportedCount,

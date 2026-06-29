@@ -40,9 +40,16 @@ data class AndroidVrmPoseSummary(
     val indexCount: Int = 0,
     val boundsAccessorCount: Int = 0,
     val skinningAttributePrimitiveCount: Int = 0,
+    val trianglePrimitiveCount: Int = 0,
+    val unsupportedPrimitiveModeCount: Int = 0,
+    val normalAccessorCount: Int = 0,
+    val texcoordAccessorCount: Int = 0,
     val morphTargetCount: Int = 0,
     val materialCount: Int = 0,
     val textureCount: Int = 0,
+    val imageCount: Int = 0,
+    val unsupportedImageMimeCount: Int = 0,
+    val transparentMaterialCount: Int = 0,
     val poseBoneCount: Int = 0,
     val poseBoneAppliedCount: Int = 0,
     val poseBoneUnsupportedCount: Int = 0,
@@ -75,7 +82,7 @@ data class AndroidCompositionResult(
                 else -> "Native overlays applied: $appliedCount, pending: ${skippedKinds.joinToString("/")}"
             }
             return if (vrmPoseSummary.sourceCount > 0) {
-                "$base; VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}; VRM renderer ${vrmPoseSummary.rendererStatus} ${vrmPoseSummary.rendererBackend}, rendered ${vrmPoseSummary.renderedSourceCount}/${vrmPoseSummary.sourceCount}, models ${vrmPoseSummary.modelLoadedCount}/${vrmPoseSummary.modelUriCount}, bones ${vrmPoseSummary.humanoidBoneCount}, expressions ${vrmPoseSummary.expressionCount}, primitives ${vrmPoseSummary.meshPrimitiveCount}, skinned ${vrmPoseSummary.skinnedMeshPrimitiveCount}, joints ${vrmPoseSummary.skinJointCount}, position accessors ${vrmPoseSummary.positionAccessorCount}, vertices ${vrmPoseSummary.vertexCount}, indices ${vrmPoseSummary.indexCount}, bounds ${vrmPoseSummary.boundsAccessorCount}, skin attrs ${vrmPoseSummary.skinningAttributePrimitiveCount}, morphs ${vrmPoseSummary.morphTargetCount}, materials ${vrmPoseSummary.materialCount}, textures ${vrmPoseSummary.textureCount}, pose bones ${vrmPoseSummary.poseBoneAppliedCount}/${vrmPoseSummary.poseBoneCount}, pose expressions ${vrmPoseSummary.poseExpressionAppliedCount}/${vrmPoseSummary.poseExpressionCount}, failed ${vrmPoseSummary.renderFailureCount}"
+                "$base; VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}; VRM renderer ${vrmPoseSummary.rendererStatus} ${vrmPoseSummary.rendererBackend}, rendered ${vrmPoseSummary.renderedSourceCount}/${vrmPoseSummary.sourceCount}, models ${vrmPoseSummary.modelLoadedCount}/${vrmPoseSummary.modelUriCount}, bones ${vrmPoseSummary.humanoidBoneCount}, expressions ${vrmPoseSummary.expressionCount}, primitives ${vrmPoseSummary.meshPrimitiveCount}, triangles ${vrmPoseSummary.trianglePrimitiveCount}, unsupported modes ${vrmPoseSummary.unsupportedPrimitiveModeCount}, skinned ${vrmPoseSummary.skinnedMeshPrimitiveCount}, joints ${vrmPoseSummary.skinJointCount}, position accessors ${vrmPoseSummary.positionAccessorCount}, normals ${vrmPoseSummary.normalAccessorCount}, uvs ${vrmPoseSummary.texcoordAccessorCount}, vertices ${vrmPoseSummary.vertexCount}, indices ${vrmPoseSummary.indexCount}, bounds ${vrmPoseSummary.boundsAccessorCount}, skin attrs ${vrmPoseSummary.skinningAttributePrimitiveCount}, morphs ${vrmPoseSummary.morphTargetCount}, materials ${vrmPoseSummary.materialCount}, transparent materials ${vrmPoseSummary.transparentMaterialCount}, textures ${vrmPoseSummary.textureCount}, images ${vrmPoseSummary.imageCount}, unsupported image mimes ${vrmPoseSummary.unsupportedImageMimeCount}, pose bones ${vrmPoseSummary.poseBoneAppliedCount}/${vrmPoseSummary.poseBoneCount}, pose expressions ${vrmPoseSummary.poseExpressionAppliedCount}/${vrmPoseSummary.poseExpressionCount}, failed ${vrmPoseSummary.renderFailureCount}"
             } else {
                 base
             }
@@ -417,9 +424,16 @@ object AndroidSceneCompositor {
         var indexCount = 0
         var boundsAccessorCount = 0
         var skinningAttributePrimitiveCount = 0
+        var trianglePrimitiveCount = 0
+        var unsupportedPrimitiveModeCount = 0
+        var normalAccessorCount = 0
+        var texcoordAccessorCount = 0
         var morphTargetCount = 0
         var materialCount = 0
         var textureCount = 0
+        var imageCount = 0
+        var unsupportedImageMimeCount = 0
+        var transparentMaterialCount = 0
         var poseBoneCount = 0
         var poseBoneAppliedCount = 0
         var poseExpressionCount = 0
@@ -446,9 +460,16 @@ object AndroidSceneCompositor {
                     indexCount += metadata.indexCount
                     boundsAccessorCount += metadata.boundsAccessorCount
                     skinningAttributePrimitiveCount += metadata.skinningAttributePrimitiveCount
+                    trianglePrimitiveCount += metadata.trianglePrimitiveCount
+                    unsupportedPrimitiveModeCount += metadata.unsupportedPrimitiveModeCount
+                    normalAccessorCount += metadata.normalAccessorCount
+                    texcoordAccessorCount += metadata.texcoordAccessorCount
                     morphTargetCount += metadata.morphTargetCount
                     materialCount += metadata.materialCount
                     textureCount += metadata.textureCount
+                    imageCount += metadata.imageCount
+                    unsupportedImageMimeCount += metadata.unsupportedImageMimeCount
+                    transparentMaterialCount += metadata.transparentMaterialCount
                 } else {
                     modelLoadFailureCount += 1
                 }
@@ -506,9 +527,16 @@ object AndroidSceneCompositor {
             indexCount = indexCount,
             boundsAccessorCount = boundsAccessorCount,
             skinningAttributePrimitiveCount = skinningAttributePrimitiveCount,
+            trianglePrimitiveCount = trianglePrimitiveCount,
+            unsupportedPrimitiveModeCount = unsupportedPrimitiveModeCount,
+            normalAccessorCount = normalAccessorCount,
+            texcoordAccessorCount = texcoordAccessorCount,
             morphTargetCount = morphTargetCount,
             materialCount = materialCount,
             textureCount = textureCount,
+            imageCount = imageCount,
+            unsupportedImageMimeCount = unsupportedImageMimeCount,
+            transparentMaterialCount = transparentMaterialCount,
             poseBoneCount = poseBoneCount,
             poseBoneAppliedCount = poseBoneAppliedCount,
             poseBoneUnsupportedCount = (poseBoneCount - poseBoneAppliedCount).coerceAtLeast(0),
@@ -582,9 +610,16 @@ object AndroidSceneCompositor {
                 indexCount = renderability.indexCount,
                 boundsAccessorCount = renderability.boundsAccessorCount,
                 skinningAttributePrimitiveCount = renderability.skinningAttributePrimitiveCount,
+                trianglePrimitiveCount = renderability.trianglePrimitiveCount,
+                unsupportedPrimitiveModeCount = renderability.unsupportedPrimitiveModeCount,
+                normalAccessorCount = renderability.normalAccessorCount,
+                texcoordAccessorCount = renderability.texcoordAccessorCount,
                 morphTargetCount = renderability.morphTargetCount,
                 materialCount = renderability.materialCount,
-                textureCount = renderability.textureCount
+                textureCount = renderability.textureCount,
+                imageCount = renderability.imageCount,
+                unsupportedImageMimeCount = renderability.unsupportedImageMimeCount,
+                transparentMaterialCount = renderability.transparentMaterialCount
             )
             vrm0 != null -> AndroidVrmModelMetadata(
                 version = "0.x",
@@ -598,9 +633,16 @@ object AndroidSceneCompositor {
                 indexCount = renderability.indexCount,
                 boundsAccessorCount = renderability.boundsAccessorCount,
                 skinningAttributePrimitiveCount = renderability.skinningAttributePrimitiveCount,
+                trianglePrimitiveCount = renderability.trianglePrimitiveCount,
+                unsupportedPrimitiveModeCount = renderability.unsupportedPrimitiveModeCount,
+                normalAccessorCount = renderability.normalAccessorCount,
+                texcoordAccessorCount = renderability.texcoordAccessorCount,
                 morphTargetCount = renderability.morphTargetCount,
                 materialCount = renderability.materialCount,
-                textureCount = renderability.textureCount
+                textureCount = renderability.textureCount,
+                imageCount = renderability.imageCount,
+                unsupportedImageMimeCount = renderability.unsupportedImageMimeCount,
+                transparentMaterialCount = renderability.transparentMaterialCount
             )
             else -> null
         }
@@ -616,6 +658,10 @@ object AndroidSceneCompositor {
         var indexCount = 0
         var boundsAccessorCount = 0
         var skinningAttributePrimitiveCount = 0
+        var trianglePrimitiveCount = 0
+        var unsupportedPrimitiveModeCount = 0
+        var normalAccessorCount = 0
+        var texcoordAccessorCount = 0
         var morphTargetCount = 0
         if (meshes != null) {
             for (meshIndex in 0 until meshes.length()) {
@@ -627,6 +673,11 @@ object AndroidSceneCompositor {
                     for (primitiveIndex in 0 until primitives.length()) {
                         val primitive = primitives.optJSONObject(primitiveIndex) ?: continue
                         val attributes = primitive.optJSONObject("attributes")
+                        if (primitive.optInt("mode", 4) == 4) {
+                            trianglePrimitiveCount += 1
+                        } else {
+                            unsupportedPrimitiveModeCount += 1
+                        }
                         val positionAccessorIndex = attributes?.optInt("POSITION", -1) ?: -1
                         if (positionAccessorIndex >= 0) {
                             val positionAccessor = accessors?.optJSONObject(positionAccessorIndex)
@@ -637,6 +688,14 @@ object AndroidSceneCompositor {
                             if ((min?.length() ?: 0) >= 3 && (max?.length() ?: 0) >= 3) {
                                 boundsAccessorCount += 1
                             }
+                        }
+                        val normalAccessorIndex = attributes?.optInt("NORMAL", -1) ?: -1
+                        if (normalAccessorIndex >= 0 && accessors?.optJSONObject(normalAccessorIndex) != null) {
+                            normalAccessorCount += 1
+                        }
+                        val texcoordAccessorIndex = attributes?.optInt("TEXCOORD_0", -1) ?: -1
+                        if (texcoordAccessorIndex >= 0 && accessors?.optJSONObject(texcoordAccessorIndex) != null) {
+                            texcoordAccessorCount += 1
                         }
                         val indexAccessorIndex = primitive.optInt("indices", -1)
                         if (indexAccessorIndex >= 0) {
@@ -669,6 +728,24 @@ object AndroidSceneCompositor {
             }
         }
 
+        val materials = root.optJSONArray("materials")
+        var transparentMaterialCount = 0
+        if (materials != null) {
+            for (index in 0 until materials.length()) {
+                val alphaMode = materials.optJSONObject(index)?.optString("alphaMode", "OPAQUE")
+                    ?.trim()
+                    ?.uppercase(Locale.US)
+                    ?: "OPAQUE"
+                if (alphaMode.isNotEmpty() && alphaMode != "OPAQUE") {
+                    transparentMaterialCount += 1
+                }
+            }
+        }
+
+        val images = root.optJSONArray("images")
+        val imageCount = images?.length() ?: 0
+        val unsupportedImageMimeCount = countUnsupportedVrmImageMimes(images)
+
         return AndroidVrmRenderabilityMetadata(
             meshPrimitiveCount = meshPrimitiveCount,
             skinnedMeshPrimitiveCount = skinnedMeshPrimitiveCount,
@@ -678,10 +755,35 @@ object AndroidSceneCompositor {
             indexCount = indexCount,
             boundsAccessorCount = boundsAccessorCount,
             skinningAttributePrimitiveCount = skinningAttributePrimitiveCount,
+            trianglePrimitiveCount = trianglePrimitiveCount,
+            unsupportedPrimitiveModeCount = unsupportedPrimitiveModeCount,
+            normalAccessorCount = normalAccessorCount,
+            texcoordAccessorCount = texcoordAccessorCount,
             morphTargetCount = morphTargetCount,
-            materialCount = root.optJSONArray("materials")?.length() ?: 0,
-            textureCount = maxOf(root.optJSONArray("textures")?.length() ?: 0, root.optJSONArray("images")?.length() ?: 0)
+            materialCount = materials?.length() ?: 0,
+            textureCount = maxOf(root.optJSONArray("textures")?.length() ?: 0, imageCount),
+            imageCount = imageCount,
+            unsupportedImageMimeCount = unsupportedImageMimeCount,
+            transparentMaterialCount = transparentMaterialCount
         )
+    }
+
+    private fun countUnsupportedVrmImageMimes(images: JSONArray?): Int {
+        if (images == null) {
+            return 0
+        }
+        var unsupported = 0
+        for (index in 0 until images.length()) {
+            val image = images.optJSONObject(index) ?: continue
+            val mimeType = image.optString("mimeType", "").trim().lowercase(Locale.US)
+            val uri = image.optString("uri", "").trim().lowercase(Locale.US)
+            val supportedMime = mimeType == "image/png" || mimeType == "image/jpeg"
+            val supportedUri = uri.endsWith(".png") || uri.endsWith(".jpg") || uri.endsWith(".jpeg")
+            if (!supportedMime && !supportedUri) {
+                unsupported += 1
+            }
+        }
+        return unsupported
     }
 
     private fun extractVrm1HumanoidBoneNames(vrm: JSONObject): Set<String> {
@@ -868,9 +970,16 @@ private data class AndroidVrmModelMetadata(
     val indexCount: Int,
     val boundsAccessorCount: Int,
     val skinningAttributePrimitiveCount: Int,
+    val trianglePrimitiveCount: Int,
+    val unsupportedPrimitiveModeCount: Int,
+    val normalAccessorCount: Int,
+    val texcoordAccessorCount: Int,
     val morphTargetCount: Int,
     val materialCount: Int,
-    val textureCount: Int
+    val textureCount: Int,
+    val imageCount: Int,
+    val unsupportedImageMimeCount: Int,
+    val transparentMaterialCount: Int
 )
 
 private data class AndroidVrmRenderabilityMetadata(
@@ -882,9 +991,16 @@ private data class AndroidVrmRenderabilityMetadata(
     val indexCount: Int,
     val boundsAccessorCount: Int,
     val skinningAttributePrimitiveCount: Int,
+    val trianglePrimitiveCount: Int,
+    val unsupportedPrimitiveModeCount: Int,
+    val normalAccessorCount: Int,
+    val texcoordAccessorCount: Int,
     val morphTargetCount: Int,
     val materialCount: Int,
-    val textureCount: Int
+    val textureCount: Int,
+    val imageCount: Int,
+    val unsupportedImageMimeCount: Int,
+    val transparentMaterialCount: Int
 )
 
 private data class RenderGraphNode(

@@ -3144,9 +3144,16 @@ struct BroadcastSceneCompositionSummary: Equatable {
             "vrmIndexCount": vrmPoseSummary.indexCount,
             "vrmBoundsAccessorCount": vrmPoseSummary.boundsAccessorCount,
             "vrmSkinningAttributePrimitiveCount": vrmPoseSummary.skinningAttributePrimitiveCount,
+            "vrmTrianglePrimitiveCount": vrmPoseSummary.trianglePrimitiveCount,
+            "vrmUnsupportedPrimitiveModeCount": vrmPoseSummary.unsupportedPrimitiveModeCount,
+            "vrmNormalAccessorCount": vrmPoseSummary.normalAccessorCount,
+            "vrmTexcoordAccessorCount": vrmPoseSummary.texcoordAccessorCount,
             "vrmMorphTargetCount": vrmPoseSummary.morphTargetCount,
             "vrmMaterialCount": vrmPoseSummary.materialCount,
             "vrmTextureCount": vrmPoseSummary.textureCount,
+            "vrmImageCount": vrmPoseSummary.imageCount,
+            "vrmUnsupportedImageMimeCount": vrmPoseSummary.unsupportedImageMimeCount,
+            "vrmTransparentMaterialCount": vrmPoseSummary.transparentMaterialCount,
             "vrmPoseBoneCount": vrmPoseSummary.poseBoneCount,
             "vrmPoseBoneAppliedCount": vrmPoseSummary.poseBoneAppliedCount,
             "vrmPoseBoneUnsupportedCount": vrmPoseSummary.poseBoneUnsupportedCount,
@@ -3182,9 +3189,16 @@ struct BroadcastVrmPoseSummary: Equatable {
     let indexCount: Int
     let boundsAccessorCount: Int
     let skinningAttributePrimitiveCount: Int
+    let trianglePrimitiveCount: Int
+    let unsupportedPrimitiveModeCount: Int
+    let normalAccessorCount: Int
+    let texcoordAccessorCount: Int
     let morphTargetCount: Int
     let materialCount: Int
     let textureCount: Int
+    let imageCount: Int
+    let unsupportedImageMimeCount: Int
+    let transparentMaterialCount: Int
     let poseBoneCount: Int
     let poseBoneAppliedCount: Int
     let poseBoneUnsupportedCount: Int
@@ -3216,9 +3230,16 @@ struct BroadcastVrmPoseSummary: Equatable {
         indexCount: 0,
         boundsAccessorCount: 0,
         skinningAttributePrimitiveCount: 0,
+        trianglePrimitiveCount: 0,
+        unsupportedPrimitiveModeCount: 0,
+        normalAccessorCount: 0,
+        texcoordAccessorCount: 0,
         morphTargetCount: 0,
         materialCount: 0,
         textureCount: 0,
+        imageCount: 0,
+        unsupportedImageMimeCount: 0,
+        transparentMaterialCount: 0,
         poseBoneCount: 0,
         poseBoneAppliedCount: 0,
         poseBoneUnsupportedCount: 0,
@@ -3239,7 +3260,7 @@ struct BroadcastVrmPoseSummary: Equatable {
             return nil
         }
         let statusSuffix = runtimeStatuses.isEmpty ? "" : ", statuses \(runtimeStatuses.joined(separator: "/"))"
-        return "VRM poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix), renderer \(rendererStatus) \(rendererBackend), rendered \(renderedSourceCount)/\(sourceCount), models \(modelLoadedCount)/\(modelUriCount), bones \(humanoidBoneCount), expressions \(expressionCount), primitives \(meshPrimitiveCount), skinned \(skinnedMeshPrimitiveCount), joints \(skinJointCount), position accessors \(positionAccessorCount), vertices \(vertexCount), indices \(indexCount), bounds \(boundsAccessorCount), skin attrs \(skinningAttributePrimitiveCount), morphs \(morphTargetCount), materials \(materialCount), textures \(textureCount), pose bones \(poseBoneAppliedCount)/\(poseBoneCount), pose expressions \(poseExpressionAppliedCount)/\(poseExpressionCount), failed \(renderFailureCount)"
+        return "VRM poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix), renderer \(rendererStatus) \(rendererBackend), rendered \(renderedSourceCount)/\(sourceCount), models \(modelLoadedCount)/\(modelUriCount), bones \(humanoidBoneCount), expressions \(expressionCount), primitives \(meshPrimitiveCount), triangles \(trianglePrimitiveCount), unsupported modes \(unsupportedPrimitiveModeCount), skinned \(skinnedMeshPrimitiveCount), joints \(skinJointCount), position accessors \(positionAccessorCount), normals \(normalAccessorCount), uvs \(texcoordAccessorCount), vertices \(vertexCount), indices \(indexCount), bounds \(boundsAccessorCount), skin attrs \(skinningAttributePrimitiveCount), morphs \(morphTargetCount), materials \(materialCount), transparent materials \(transparentMaterialCount), textures \(textureCount), images \(imageCount), unsupported image mimes \(unsupportedImageMimeCount), pose bones \(poseBoneAppliedCount)/\(poseBoneCount), pose expressions \(poseExpressionAppliedCount)/\(poseExpressionCount), failed \(renderFailureCount)"
     }
 }
 
@@ -3914,9 +3935,16 @@ final class BroadcastSceneCompositor {
         var indexCount = 0
         var boundsAccessorCount = 0
         var skinningAttributePrimitiveCount = 0
+        var trianglePrimitiveCount = 0
+        var unsupportedPrimitiveModeCount = 0
+        var normalAccessorCount = 0
+        var texcoordAccessorCount = 0
         var morphTargetCount = 0
         var materialCount = 0
         var textureCount = 0
+        var imageCount = 0
+        var unsupportedImageMimeCount = 0
+        var transparentMaterialCount = 0
         var poseBoneCount = 0
         var poseBoneAppliedCount = 0
         var poseExpressionCount = 0
@@ -3942,9 +3970,16 @@ final class BroadcastSceneCompositor {
                     indexCount += metadata.indexCount
                     boundsAccessorCount += metadata.boundsAccessorCount
                     skinningAttributePrimitiveCount += metadata.skinningAttributePrimitiveCount
+                    trianglePrimitiveCount += metadata.trianglePrimitiveCount
+                    unsupportedPrimitiveModeCount += metadata.unsupportedPrimitiveModeCount
+                    normalAccessorCount += metadata.normalAccessorCount
+                    texcoordAccessorCount += metadata.texcoordAccessorCount
                     morphTargetCount += metadata.morphTargetCount
                     materialCount += metadata.materialCount
                     textureCount += metadata.textureCount
+                    imageCount += metadata.imageCount
+                    unsupportedImageMimeCount += metadata.unsupportedImageMimeCount
+                    transparentMaterialCount += metadata.transparentMaterialCount
                 } else {
                     modelLoadFailureCount += 1
                 }
@@ -4000,9 +4035,16 @@ final class BroadcastSceneCompositor {
             indexCount: indexCount,
             boundsAccessorCount: boundsAccessorCount,
             skinningAttributePrimitiveCount: skinningAttributePrimitiveCount,
+            trianglePrimitiveCount: trianglePrimitiveCount,
+            unsupportedPrimitiveModeCount: unsupportedPrimitiveModeCount,
+            normalAccessorCount: normalAccessorCount,
+            texcoordAccessorCount: texcoordAccessorCount,
             morphTargetCount: morphTargetCount,
             materialCount: materialCount,
             textureCount: textureCount,
+            imageCount: imageCount,
+            unsupportedImageMimeCount: unsupportedImageMimeCount,
+            transparentMaterialCount: transparentMaterialCount,
             poseBoneCount: poseBoneCount,
             poseBoneAppliedCount: poseBoneAppliedCount,
             poseBoneUnsupportedCount: max(0, poseBoneCount - poseBoneAppliedCount),
@@ -4083,9 +4125,16 @@ final class BroadcastSceneCompositor {
                 indexCount: renderability.indexCount,
                 boundsAccessorCount: renderability.boundsAccessorCount,
                 skinningAttributePrimitiveCount: renderability.skinningAttributePrimitiveCount,
+                trianglePrimitiveCount: renderability.trianglePrimitiveCount,
+                unsupportedPrimitiveModeCount: renderability.unsupportedPrimitiveModeCount,
+                normalAccessorCount: renderability.normalAccessorCount,
+                texcoordAccessorCount: renderability.texcoordAccessorCount,
                 morphTargetCount: renderability.morphTargetCount,
                 materialCount: renderability.materialCount,
-                textureCount: renderability.textureCount
+                textureCount: renderability.textureCount,
+                imageCount: renderability.imageCount,
+                unsupportedImageMimeCount: renderability.unsupportedImageMimeCount,
+                transparentMaterialCount: renderability.transparentMaterialCount
             )
         }
         if let vrm0 = extensions["VRM"] as? [String: Any] {
@@ -4101,9 +4150,16 @@ final class BroadcastSceneCompositor {
                 indexCount: renderability.indexCount,
                 boundsAccessorCount: renderability.boundsAccessorCount,
                 skinningAttributePrimitiveCount: renderability.skinningAttributePrimitiveCount,
+                trianglePrimitiveCount: renderability.trianglePrimitiveCount,
+                unsupportedPrimitiveModeCount: renderability.unsupportedPrimitiveModeCount,
+                normalAccessorCount: renderability.normalAccessorCount,
+                texcoordAccessorCount: renderability.texcoordAccessorCount,
                 morphTargetCount: renderability.morphTargetCount,
                 materialCount: renderability.materialCount,
-                textureCount: renderability.textureCount
+                textureCount: renderability.textureCount,
+                imageCount: renderability.imageCount,
+                unsupportedImageMimeCount: renderability.unsupportedImageMimeCount,
+                transparentMaterialCount: renderability.transparentMaterialCount
             )
         }
         return nil
@@ -4119,6 +4175,10 @@ final class BroadcastSceneCompositor {
         var indexCount = 0
         var boundsAccessorCount = 0
         var skinningAttributePrimitiveCount = 0
+        var trianglePrimitiveCount = 0
+        var unsupportedPrimitiveModeCount = 0
+        var normalAccessorCount = 0
+        var texcoordAccessorCount = 0
         var morphTargetCount = 0
 
         for (meshIndex, mesh) in meshes.enumerated() {
@@ -4127,6 +4187,12 @@ final class BroadcastSceneCompositor {
             meshPrimitiveCount += primitives.count
             for primitive in primitives {
                 let attributes = primitive["attributes"] as? [String: Any] ?? [:]
+                let mode = (primitive["mode"] as? NSNumber)?.intValue ?? 4
+                if mode == 4 {
+                    trianglePrimitiveCount += 1
+                } else {
+                    unsupportedPrimitiveModeCount += 1
+                }
                 if let positionAccessorIndex = (attributes["POSITION"] as? NSNumber)?.intValue,
                    positionAccessorIndex >= 0,
                    positionAccessorIndex < accessors.count {
@@ -4138,6 +4204,16 @@ final class BroadcastSceneCompositor {
                     if (min?.count ?? 0) >= 3 && (max?.count ?? 0) >= 3 {
                         boundsAccessorCount += 1
                     }
+                }
+                if let normalAccessorIndex = (attributes["NORMAL"] as? NSNumber)?.intValue,
+                   normalAccessorIndex >= 0,
+                   normalAccessorIndex < accessors.count {
+                    normalAccessorCount += 1
+                }
+                if let texcoordAccessorIndex = (attributes["TEXCOORD_0"] as? NSNumber)?.intValue,
+                   texcoordAccessorIndex >= 0,
+                   texcoordAccessorIndex < accessors.count {
+                    texcoordAccessorCount += 1
                 }
                 if let indexAccessorIndex = (primitive["indices"] as? NSNumber)?.intValue,
                    indexAccessorIndex >= 0,
@@ -4162,6 +4238,19 @@ final class BroadcastSceneCompositor {
         let skinJointCount = (root["skins"] as? [[String: Any]] ?? []).reduce(0) { count, skin in
             count + ((skin["joints"] as? [Any])?.count ?? 0)
         }
+        let materials = root["materials"] as? [[String: Any]] ?? []
+        let transparentMaterialCount = materials.filter { material in
+            let alphaMode = ((material["alphaMode"] as? String) ?? "OPAQUE").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            return !alphaMode.isEmpty && alphaMode != "OPAQUE"
+        }.count
+        let images = root["images"] as? [[String: Any]] ?? []
+        let unsupportedImageMimeCount = images.filter { image in
+            let mimeType = ((image["mimeType"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let uri = ((image["uri"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let supportedMime = mimeType == "image/png" || mimeType == "image/jpeg"
+            let supportedUri = uri.hasSuffix(".png") || uri.hasSuffix(".jpg") || uri.hasSuffix(".jpeg")
+            return !supportedMime && !supportedUri
+        }.count
 
         return BroadcastVrmRenderabilityMetadata(
             meshPrimitiveCount: meshPrimitiveCount,
@@ -4172,9 +4261,16 @@ final class BroadcastSceneCompositor {
             indexCount: indexCount,
             boundsAccessorCount: boundsAccessorCount,
             skinningAttributePrimitiveCount: skinningAttributePrimitiveCount,
+            trianglePrimitiveCount: trianglePrimitiveCount,
+            unsupportedPrimitiveModeCount: unsupportedPrimitiveModeCount,
+            normalAccessorCount: normalAccessorCount,
+            texcoordAccessorCount: texcoordAccessorCount,
             morphTargetCount: morphTargetCount,
-            materialCount: (root["materials"] as? [Any])?.count ?? 0,
-            textureCount: max((root["textures"] as? [Any])?.count ?? 0, (root["images"] as? [Any])?.count ?? 0)
+            materialCount: materials.count,
+            textureCount: max((root["textures"] as? [Any])?.count ?? 0, images.count),
+            imageCount: images.count,
+            unsupportedImageMimeCount: unsupportedImageMimeCount,
+            transparentMaterialCount: transparentMaterialCount
         )
     }
 
@@ -4436,9 +4532,16 @@ private struct BroadcastVrmModelMetadata {
     let indexCount: Int
     let boundsAccessorCount: Int
     let skinningAttributePrimitiveCount: Int
+    let trianglePrimitiveCount: Int
+    let unsupportedPrimitiveModeCount: Int
+    let normalAccessorCount: Int
+    let texcoordAccessorCount: Int
     let morphTargetCount: Int
     let materialCount: Int
     let textureCount: Int
+    let imageCount: Int
+    let unsupportedImageMimeCount: Int
+    let transparentMaterialCount: Int
 }
 
 private struct BroadcastVrmRenderabilityMetadata {
@@ -4450,9 +4553,16 @@ private struct BroadcastVrmRenderabilityMetadata {
     let indexCount: Int
     let boundsAccessorCount: Int
     let skinningAttributePrimitiveCount: Int
+    let trianglePrimitiveCount: Int
+    let unsupportedPrimitiveModeCount: Int
+    let normalAccessorCount: Int
+    let texcoordAccessorCount: Int
     let morphTargetCount: Int
     let materialCount: Int
     let textureCount: Int
+    let imageCount: Int
+    let unsupportedImageMimeCount: Int
+    let transparentMaterialCount: Int
 }
 
 private extension Data {

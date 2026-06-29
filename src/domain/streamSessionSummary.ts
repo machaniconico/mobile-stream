@@ -54,9 +54,16 @@ export interface StreamSessionNativeRuntimeSummary {
   vrmIndexCount: number;
   vrmBoundsAccessorCount: number;
   vrmSkinningAttributePrimitiveCount: number;
+  vrmTrianglePrimitiveCount: number;
+  vrmUnsupportedPrimitiveModeCount: number;
+  vrmNormalAccessorCount: number;
+  vrmTexcoordAccessorCount: number;
   vrmMorphTargetCount: number;
   vrmMaterialCount: number;
   vrmTextureCount: number;
+  vrmImageCount: number;
+  vrmUnsupportedImageMimeCount: number;
+  vrmTransparentMaterialCount: number;
   vrmPoseBoneCount: number;
   vrmPoseBoneAppliedCount: number;
   vrmPoseBoneUnsupportedCount: number;
@@ -687,9 +694,16 @@ export const createNativeRuntimeSessionSummary = (
   const vrmIndexCount = normalizeNonNegativeInteger(runtime.composition.vrmIndexCount);
   const vrmBoundsAccessorCount = normalizeNonNegativeInteger(runtime.composition.vrmBoundsAccessorCount);
   const vrmSkinningAttributePrimitiveCount = normalizeNonNegativeInteger(runtime.composition.vrmSkinningAttributePrimitiveCount);
+  const vrmTrianglePrimitiveCount = normalizeNonNegativeInteger(runtime.composition.vrmTrianglePrimitiveCount);
+  const vrmUnsupportedPrimitiveModeCount = normalizeNonNegativeInteger(runtime.composition.vrmUnsupportedPrimitiveModeCount);
+  const vrmNormalAccessorCount = normalizeNonNegativeInteger(runtime.composition.vrmNormalAccessorCount);
+  const vrmTexcoordAccessorCount = normalizeNonNegativeInteger(runtime.composition.vrmTexcoordAccessorCount);
   const vrmMorphTargetCount = normalizeNonNegativeInteger(runtime.composition.vrmMorphTargetCount);
   const vrmMaterialCount = normalizeNonNegativeInteger(runtime.composition.vrmMaterialCount);
   const vrmTextureCount = normalizeNonNegativeInteger(runtime.composition.vrmTextureCount);
+  const vrmImageCount = normalizeNonNegativeInteger(runtime.composition.vrmImageCount);
+  const vrmUnsupportedImageMimeCount = normalizeNonNegativeInteger(runtime.composition.vrmUnsupportedImageMimeCount);
+  const vrmTransparentMaterialCount = normalizeNonNegativeInteger(runtime.composition.vrmTransparentMaterialCount);
   const vrmPoseBoneCount = normalizeNonNegativeInteger(runtime.composition.vrmPoseBoneCount);
   const vrmPoseBoneAppliedCount = normalizeNonNegativeInteger(runtime.composition.vrmPoseBoneAppliedCount);
   const vrmPoseBoneUnsupportedCount = normalizeNonNegativeInteger(
@@ -709,7 +723,11 @@ export const createNativeRuntimeSessionSummary = (
       vrmSkinJointCount === 0 ||
       vrmPositionAccessorCount === 0 ||
       vrmVertexCount === 0 ||
-      vrmSkinningAttributePrimitiveCount < vrmSkinnedMeshPrimitiveCount);
+      vrmSkinningAttributePrimitiveCount < vrmSkinnedMeshPrimitiveCount ||
+      vrmTrianglePrimitiveCount < vrmMeshPrimitiveCount ||
+      vrmUnsupportedPrimitiveModeCount > 0 ||
+      vrmUnsupportedImageMimeCount > 0 ||
+      (vrmImageCount > 0 && vrmTexcoordAccessorCount === 0));
   const incompleteVrmPoseMapping =
     vrmModelLoadedCount > 0 && (vrmPoseBoneUnsupportedCount > 0 || vrmPoseExpressionUnsupportedCount > 0);
   const incompleteVrmRendering =
@@ -755,9 +773,16 @@ export const createNativeRuntimeSessionSummary = (
     vrmIndexCount,
     vrmBoundsAccessorCount,
     vrmSkinningAttributePrimitiveCount,
+    vrmTrianglePrimitiveCount,
+    vrmUnsupportedPrimitiveModeCount,
+    vrmNormalAccessorCount,
+    vrmTexcoordAccessorCount,
     vrmMorphTargetCount,
     vrmMaterialCount,
     vrmTextureCount,
+    vrmImageCount,
+    vrmUnsupportedImageMimeCount,
+    vrmTransparentMaterialCount,
     vrmPoseBoneCount,
     vrmPoseBoneAppliedCount,
     vrmPoseBoneUnsupportedCount,
@@ -815,7 +840,7 @@ export const createNativeRuntimeSessionSummary = (
                 : incompleteVrmModelMetadata
                   ? "Use VRM/GLB files with humanoid bones and expression metadata before retaining production renderer evidence."
                   : incompleteVrmRenderability
-                    ? "Use VRM/GLB files with POSITION vertices, skinned meshes, skin joints, and JOINTS_0/WEIGHTS_0 attributes before retaining production renderer evidence."
+                    ? "Use VRM/GLB files with triangle primitives, POSITION vertices, UVs for textured models, supported PNG/JPEG images, skinned meshes, skin joints, and JOINTS_0/WEIGHTS_0 attributes before retaining production renderer evidence."
                     : incompleteVrmPoseMapping
                       ? "Confirm VRM pose bones and expression weights map to the imported model before retaining production evidence."
                       : incompleteVrmRendering
@@ -1060,9 +1085,16 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     vrmIndexCount: normalizeNonNegativeInteger(value.vrmIndexCount),
     vrmBoundsAccessorCount: normalizeNonNegativeInteger(value.vrmBoundsAccessorCount),
     vrmSkinningAttributePrimitiveCount: normalizeNonNegativeInteger(value.vrmSkinningAttributePrimitiveCount),
+    vrmTrianglePrimitiveCount: normalizeNonNegativeInteger(value.vrmTrianglePrimitiveCount),
+    vrmUnsupportedPrimitiveModeCount: normalizeNonNegativeInteger(value.vrmUnsupportedPrimitiveModeCount),
+    vrmNormalAccessorCount: normalizeNonNegativeInteger(value.vrmNormalAccessorCount),
+    vrmTexcoordAccessorCount: normalizeNonNegativeInteger(value.vrmTexcoordAccessorCount),
     vrmMorphTargetCount: normalizeNonNegativeInteger(value.vrmMorphTargetCount),
     vrmMaterialCount: normalizeNonNegativeInteger(value.vrmMaterialCount),
     vrmTextureCount: normalizeNonNegativeInteger(value.vrmTextureCount),
+    vrmImageCount: normalizeNonNegativeInteger(value.vrmImageCount),
+    vrmUnsupportedImageMimeCount: normalizeNonNegativeInteger(value.vrmUnsupportedImageMimeCount),
+    vrmTransparentMaterialCount: normalizeNonNegativeInteger(value.vrmTransparentMaterialCount),
     vrmPoseBoneCount: normalizeNonNegativeInteger(value.vrmPoseBoneCount),
     vrmPoseBoneAppliedCount: normalizeNonNegativeInteger(value.vrmPoseBoneAppliedCount),
     vrmPoseBoneUnsupportedCount: normalizeNonNegativeInteger(value.vrmPoseBoneUnsupportedCount),

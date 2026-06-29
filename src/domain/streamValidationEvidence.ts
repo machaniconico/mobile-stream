@@ -215,9 +215,16 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeVrmIndexCount: number;
   nativeRuntimeVrmBoundsAccessorCount: number;
   nativeRuntimeVrmSkinningAttributePrimitiveCount: number;
+  nativeRuntimeVrmTrianglePrimitiveCount: number;
+  nativeRuntimeVrmUnsupportedPrimitiveModeCount: number;
+  nativeRuntimeVrmNormalAccessorCount: number;
+  nativeRuntimeVrmTexcoordAccessorCount: number;
   nativeRuntimeVrmMorphTargetCount: number;
   nativeRuntimeVrmMaterialCount: number;
   nativeRuntimeVrmTextureCount: number;
+  nativeRuntimeVrmImageCount: number;
+  nativeRuntimeVrmUnsupportedImageMimeCount: number;
+  nativeRuntimeVrmTransparentMaterialCount: number;
   nativeRuntimeVrmPoseBoneCount: number;
   nativeRuntimeVrmPoseBoneAppliedCount: number;
   nativeRuntimeVrmPoseBoneUnsupportedCount: number;
@@ -2237,9 +2244,16 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeVrmIndexCount: run.nativeRuntime?.vrmIndexCount ?? 0,
     nativeRuntimeVrmBoundsAccessorCount: run.nativeRuntime?.vrmBoundsAccessorCount ?? 0,
     nativeRuntimeVrmSkinningAttributePrimitiveCount: run.nativeRuntime?.vrmSkinningAttributePrimitiveCount ?? 0,
+    nativeRuntimeVrmTrianglePrimitiveCount: run.nativeRuntime?.vrmTrianglePrimitiveCount ?? 0,
+    nativeRuntimeVrmUnsupportedPrimitiveModeCount: run.nativeRuntime?.vrmUnsupportedPrimitiveModeCount ?? 0,
+    nativeRuntimeVrmNormalAccessorCount: run.nativeRuntime?.vrmNormalAccessorCount ?? 0,
+    nativeRuntimeVrmTexcoordAccessorCount: run.nativeRuntime?.vrmTexcoordAccessorCount ?? 0,
     nativeRuntimeVrmMorphTargetCount: run.nativeRuntime?.vrmMorphTargetCount ?? 0,
     nativeRuntimeVrmMaterialCount: run.nativeRuntime?.vrmMaterialCount ?? 0,
     nativeRuntimeVrmTextureCount: run.nativeRuntime?.vrmTextureCount ?? 0,
+    nativeRuntimeVrmImageCount: run.nativeRuntime?.vrmImageCount ?? 0,
+    nativeRuntimeVrmUnsupportedImageMimeCount: run.nativeRuntime?.vrmUnsupportedImageMimeCount ?? 0,
+    nativeRuntimeVrmTransparentMaterialCount: run.nativeRuntime?.vrmTransparentMaterialCount ?? 0,
     nativeRuntimeVrmPoseBoneCount: run.nativeRuntime?.vrmPoseBoneCount ?? 0,
     nativeRuntimeVrmPoseBoneAppliedCount: run.nativeRuntime?.vrmPoseBoneAppliedCount ?? 0,
     nativeRuntimeVrmPoseBoneUnsupportedCount: run.nativeRuntime?.vrmPoseBoneUnsupportedCount ?? 0,
