@@ -3114,6 +3114,12 @@ struct BroadcastSceneCompositionSummary: Equatable {
     let stillImageAssetDecodedPixelCount: Int
     let stillImageAssetCompositedCount: Int
     let stillImageAssetCompositedPixelCount: Int
+    let stillImageAssetAppGroupCount: Int
+    let stillImageAssetAppGroupLoadedCount: Int
+    let stillImageAssetAppGroupDecodedCount: Int
+    let stillImageAssetAppGroupDecodedPixelCount: Int
+    let stillImageAssetAppGroupCompositedCount: Int
+    let stillImageAssetAppGroupCompositedPixelCount: Int
     let vrmPoseSummary: BroadcastVrmPoseSummary
 
     static let screenOnly = BroadcastSceneCompositionSummary(
@@ -3129,6 +3135,12 @@ struct BroadcastSceneCompositionSummary: Equatable {
         stillImageAssetDecodedPixelCount: 0,
         stillImageAssetCompositedCount: 0,
         stillImageAssetCompositedPixelCount: 0,
+        stillImageAssetAppGroupCount: 0,
+        stillImageAssetAppGroupLoadedCount: 0,
+        stillImageAssetAppGroupDecodedCount: 0,
+        stillImageAssetAppGroupDecodedPixelCount: 0,
+        stillImageAssetAppGroupCompositedCount: 0,
+        stillImageAssetAppGroupCompositedPixelCount: 0,
         vrmPoseSummary: .empty
     )
 
@@ -3157,7 +3169,13 @@ struct BroadcastSceneCompositionSummary: Equatable {
         guard stillImageAssetCount > 0 else {
             return nil
         }
-        let assetSummary = "image assets \(stillImageAssetLoadedCount)/\(stillImageAssetCount), decoded \(stillImageAssetDecodedCount), pixels \(stillImageAssetDecodedPixelCount), composited \(stillImageAssetCompositedCount), pixels \(stillImageAssetCompositedPixelCount)"
+        let appGroupSummary: String
+        if stillImageAssetAppGroupCount > 0 {
+            appGroupSummary = ", app-group \(stillImageAssetAppGroupLoadedCount)/\(stillImageAssetAppGroupCount), decoded \(stillImageAssetAppGroupDecodedCount), pixels \(stillImageAssetAppGroupDecodedPixelCount), composited \(stillImageAssetAppGroupCompositedCount), pixels \(stillImageAssetAppGroupCompositedPixelCount)"
+        } else {
+            appGroupSummary = ""
+        }
+        let assetSummary = "image assets \(stillImageAssetLoadedCount)/\(stillImageAssetCount), decoded \(stillImageAssetDecodedCount), pixels \(stillImageAssetDecodedPixelCount), composited \(stillImageAssetCompositedCount), pixels \(stillImageAssetCompositedPixelCount)\(appGroupSummary)"
         if stillImageAssetMissingCount > 0 {
             return "\(assetSummary), missing \(stillImageAssetMissingCount): \(stillImageAssetMissingKinds.joined(separator: "/"))"
         }
@@ -3178,6 +3196,12 @@ struct BroadcastSceneCompositionSummary: Equatable {
             "stillImageAssetDecodedPixelCount": stillImageAssetDecodedPixelCount,
             "stillImageAssetCompositedCount": stillImageAssetCompositedCount,
             "stillImageAssetCompositedPixelCount": stillImageAssetCompositedPixelCount,
+            "stillImageAssetAppGroupCount": stillImageAssetAppGroupCount,
+            "stillImageAssetAppGroupLoadedCount": stillImageAssetAppGroupLoadedCount,
+            "stillImageAssetAppGroupDecodedCount": stillImageAssetAppGroupDecodedCount,
+            "stillImageAssetAppGroupDecodedPixelCount": stillImageAssetAppGroupDecodedPixelCount,
+            "stillImageAssetAppGroupCompositedCount": stillImageAssetAppGroupCompositedCount,
+            "stillImageAssetAppGroupCompositedPixelCount": stillImageAssetAppGroupCompositedPixelCount,
             "vrmSourceCount": vrmPoseSummary.sourceCount,
             "vrmPosePayloadCount": vrmPoseSummary.posePayloadCount,
             "vrmActivePoseCount": vrmPoseSummary.activePoseCount,
@@ -3474,6 +3498,7 @@ private struct BroadcastStillImageAssetResult: Equatable {
     let loaded: Bool
     let pixelCount: Int
     let compositedPixelCount: Int
+    let appGroupAsset: Bool
 }
 
 final class BroadcastSceneCompositor {
@@ -3496,6 +3521,12 @@ final class BroadcastSceneCompositor {
         let decodedPixelCount = stillImageAssetResults.values.reduce(0) { $0 + $1.pixelCount }
         let compositedCount = stillImageAssetResults.values.filter { $0.loaded && $0.compositedPixelCount > 0 }.count
         let compositedPixelCount = stillImageAssetResults.values.reduce(0) { $0 + $1.compositedPixelCount }
+        let appGroupResults = stillImageAssetResults.values.filter { $0.appGroupAsset }
+        let appGroupLoadedCount = appGroupResults.filter { $0.loaded }.count
+        let appGroupDecodedCount = appGroupResults.filter { $0.loaded && $0.pixelCount > 0 }.count
+        let appGroupDecodedPixelCount = appGroupResults.reduce(0) { $0 + $1.pixelCount }
+        let appGroupCompositedCount = appGroupResults.filter { $0.loaded && $0.compositedPixelCount > 0 }.count
+        let appGroupCompositedPixelCount = appGroupResults.reduce(0) { $0 + $1.compositedPixelCount }
         let missingNodes = stillImageNodes.filter { stillImageAssetResults[Self.assetEvidenceKey(for: $0)]?.loaded != true }
         return BroadcastSceneCompositionSummary(
             appliedCount: overlayNodes.count,
@@ -3510,6 +3541,12 @@ final class BroadcastSceneCompositor {
             stillImageAssetDecodedPixelCount: decodedPixelCount,
             stillImageAssetCompositedCount: compositedCount,
             stillImageAssetCompositedPixelCount: compositedPixelCount,
+            stillImageAssetAppGroupCount: appGroupResults.count,
+            stillImageAssetAppGroupLoadedCount: appGroupLoadedCount,
+            stillImageAssetAppGroupDecodedCount: appGroupDecodedCount,
+            stillImageAssetAppGroupDecodedPixelCount: appGroupDecodedPixelCount,
+            stillImageAssetAppGroupCompositedCount: appGroupCompositedCount,
+            stillImageAssetAppGroupCompositedPixelCount: appGroupCompositedPixelCount,
             vrmPoseSummary: vrmPoseSummary
         )
     }
@@ -3972,7 +4009,8 @@ final class BroadcastSceneCompositor {
         stillImageAssetResults[key] = BroadcastStillImageAssetResult(
             loaded: image != nil,
             pixelCount: Self.pixelCount(for: image),
-            compositedPixelCount: image == nil ? 0 : stillImageAssetResults[key]?.compositedPixelCount ?? 0
+            compositedPixelCount: image == nil ? 0 : stillImageAssetResults[key]?.compositedPixelCount ?? 0,
+            appGroupAsset: Self.isAppGroupStillImageAsset(node)
         )
     }
 
@@ -3991,12 +4029,39 @@ final class BroadcastSceneCompositor {
         stillImageAssetResults[key] = BroadcastStillImageAssetResult(
             loaded: current.loaded,
             pixelCount: current.pixelCount,
-            compositedPixelCount: max(current.compositedPixelCount, area)
+            compositedPixelCount: max(current.compositedPixelCount, area),
+            appGroupAsset: current.appGroupAsset
         )
     }
 
     private static func requiresStillImageAsset(_ node: BroadcastRenderNode) -> Bool {
         node.kind == "pngtuber" || node.kind == "image"
+    }
+
+    private static func stillImageAssetURI(for node: BroadcastRenderNode) -> String {
+        if node.kind == "pngtuber" {
+            return node.payload.stringValue("imageUri")
+        }
+        if node.kind == "image" {
+            return node.payload.stringValue("uri")
+        }
+        return ""
+    }
+
+    private static func isAppGroupStillImageAsset(_ node: BroadcastRenderNode) -> Bool {
+        let rawURI = stillImageAssetURI(for: node).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawURI.isEmpty else {
+            return false
+        }
+        let path: String
+        if let url = URL(string: rawURI), url.isFileURL {
+            path = url.path
+        } else {
+            path = rawURI
+        }
+        return path.contains("/Containers/Shared/AppGroup/") ||
+            path.contains("/Group Containers/\(broadcastAppGroup)/") ||
+            path.contains("/\(broadcastAppGroup)/")
     }
 
     private static func assetEvidenceKey(for node: BroadcastRenderNode) -> String {

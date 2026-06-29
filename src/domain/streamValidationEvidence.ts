@@ -215,6 +215,12 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeStillImageAssetDecodedPixelCount: number;
   nativeRuntimeStillImageAssetCompositedCount: number;
   nativeRuntimeStillImageAssetCompositedPixelCount: number;
+  nativeRuntimeStillImageAssetAppGroupCount: number;
+  nativeRuntimeStillImageAssetAppGroupLoadedCount: number;
+  nativeRuntimeStillImageAssetAppGroupDecodedCount: number;
+  nativeRuntimeStillImageAssetAppGroupDecodedPixelCount: number;
+  nativeRuntimeStillImageAssetAppGroupCompositedCount: number;
+  nativeRuntimeStillImageAssetAppGroupCompositedPixelCount: number;
   nativeRuntimeVrmSourceCount: number;
   nativeRuntimeVrmPosePayloadCount: number;
   nativeRuntimeVrmActivePoseCount: number;
@@ -1204,6 +1210,7 @@ const isNativeRuntimeEvidencePass = (
   hasNativeRuntimeVideoFrameIntervalProof(nativeRuntime) &&
   (nativeRuntime.compositionStatus === "applied" || nativeRuntime.compositionStatus === "screen-only") &&
   hasNativeRuntimeStillImageOverlayProof(nativeRuntime) &&
+  hasNativeRuntimeIosAppGroupStillImageProof(nativeRuntime, expectedPlatform) &&
   hasNativeRuntimeVrmReleaseProof(nativeRuntime);
 
 const hasNativeRuntimeVideoFrameIntervalProof = (
@@ -1235,6 +1242,24 @@ const hasNativeRuntimeStillImageOverlayProof = (
     nativeRuntime.stillImageAssetDecodedPixelCount > 0 &&
     nativeRuntime.stillImageAssetCompositedCount >= nativeRuntime.stillImageAssetCount &&
     nativeRuntime.stillImageAssetCompositedPixelCount > 0
+  );
+};
+
+const hasNativeRuntimeIosAppGroupStillImageProof = (
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null | undefined,
+  expectedPlatform: StreamValidationDevicePlatform
+): boolean => {
+  if (!nativeRuntime || expectedPlatform !== "ios" || nativeRuntime.stillImageAssetCount <= 0) {
+    return true;
+  }
+
+  return (
+    nativeRuntime.stillImageAssetAppGroupCount >= nativeRuntime.stillImageAssetCount &&
+    nativeRuntime.stillImageAssetAppGroupLoadedCount >= nativeRuntime.stillImageAssetCount &&
+    nativeRuntime.stillImageAssetAppGroupDecodedCount >= nativeRuntime.stillImageAssetCount &&
+    nativeRuntime.stillImageAssetAppGroupDecodedPixelCount > 0 &&
+    nativeRuntime.stillImageAssetAppGroupCompositedCount >= nativeRuntime.stillImageAssetCount &&
+    nativeRuntime.stillImageAssetAppGroupCompositedPixelCount > 0
   );
 };
 
@@ -2395,6 +2420,12 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeStillImageAssetDecodedPixelCount: run.nativeRuntime?.stillImageAssetDecodedPixelCount ?? 0,
     nativeRuntimeStillImageAssetCompositedCount: run.nativeRuntime?.stillImageAssetCompositedCount ?? 0,
     nativeRuntimeStillImageAssetCompositedPixelCount: run.nativeRuntime?.stillImageAssetCompositedPixelCount ?? 0,
+    nativeRuntimeStillImageAssetAppGroupCount: run.nativeRuntime?.stillImageAssetAppGroupCount ?? 0,
+    nativeRuntimeStillImageAssetAppGroupLoadedCount: run.nativeRuntime?.stillImageAssetAppGroupLoadedCount ?? 0,
+    nativeRuntimeStillImageAssetAppGroupDecodedCount: run.nativeRuntime?.stillImageAssetAppGroupDecodedCount ?? 0,
+    nativeRuntimeStillImageAssetAppGroupDecodedPixelCount: run.nativeRuntime?.stillImageAssetAppGroupDecodedPixelCount ?? 0,
+    nativeRuntimeStillImageAssetAppGroupCompositedCount: run.nativeRuntime?.stillImageAssetAppGroupCompositedCount ?? 0,
+    nativeRuntimeStillImageAssetAppGroupCompositedPixelCount: run.nativeRuntime?.stillImageAssetAppGroupCompositedPixelCount ?? 0,
     nativeRuntimeVrmSourceCount: run.nativeRuntime?.vrmSourceCount ?? 0,
     nativeRuntimeVrmPosePayloadCount: run.nativeRuntime?.vrmPosePayloadCount ?? 0,
     nativeRuntimeVrmActivePoseCount: run.nativeRuntime?.vrmActivePoseCount ?? 0,

@@ -13,6 +13,12 @@ export interface NativeRuntimeComposition {
   stillImageAssetDecodedPixelCount?: number;
   stillImageAssetCompositedCount?: number;
   stillImageAssetCompositedPixelCount?: number;
+  stillImageAssetAppGroupCount?: number;
+  stillImageAssetAppGroupLoadedCount?: number;
+  stillImageAssetAppGroupDecodedCount?: number;
+  stillImageAssetAppGroupDecodedPixelCount?: number;
+  stillImageAssetAppGroupCompositedCount?: number;
+  stillImageAssetAppGroupCompositedPixelCount?: number;
   vrmSourceCount?: number;
   vrmPosePayloadCount?: number;
   vrmActivePoseCount?: number;

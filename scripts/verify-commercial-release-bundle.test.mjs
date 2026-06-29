@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v40.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v41.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -178,6 +178,29 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("loaded, decoded, and composited still-image assets");
+  });
+
+  it("blocks iOS native runtime claims when retained manifests lack App Group still-image proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeStillImageAssetAppGroupCount: 0,
+            nativeRuntimeStillImageAssetAppGroupLoadedCount: 0,
+            nativeRuntimeStillImageAssetAppGroupDecodedCount: 0,
+            nativeRuntimeStillImageAssetAppGroupDecodedPixelCount: 0,
+            nativeRuntimeStillImageAssetAppGroupCompositedCount: 0,
+            nativeRuntimeStillImageAssetAppGroupCompositedPixelCount: 0
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("native publisher/compositor overlay telemetry");
   });
 
   it("blocks native runtime claims when retained manifests lack applied overlay proof", () => {
@@ -759,7 +782,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 40
+      bundleVersion: 41
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -814,6 +837,12 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeStillImageAssetDecodedPixelCount: 921_600,
     nativeRuntimeStillImageAssetCompositedCount: 1,
     nativeRuntimeStillImageAssetCompositedPixelCount: 921_600,
+    nativeRuntimeStillImageAssetAppGroupCount: devicePlatform === "ios" ? 1 : 0,
+    nativeRuntimeStillImageAssetAppGroupLoadedCount: devicePlatform === "ios" ? 1 : 0,
+    nativeRuntimeStillImageAssetAppGroupDecodedCount: devicePlatform === "ios" ? 1 : 0,
+    nativeRuntimeStillImageAssetAppGroupDecodedPixelCount: devicePlatform === "ios" ? 921_600 : 0,
+    nativeRuntimeStillImageAssetAppGroupCompositedCount: devicePlatform === "ios" ? 1 : 0,
+    nativeRuntimeStillImageAssetAppGroupCompositedPixelCount: devicePlatform === "ios" ? 921_600 : 0,
   nativeRuntimeVrmSourceCount: 0,
   nativeRuntimeVrmPosePayloadCount: 0,
   nativeRuntimeVrmActivePoseCount: 0,

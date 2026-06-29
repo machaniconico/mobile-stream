@@ -38,7 +38,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 40;
+const minimumSupportBundleVersion = 41;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -349,7 +349,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v40 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v41 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -755,6 +755,7 @@ const isManifestNativeRuntimePass = (run: ValidationEvidenceManifestRun | undefi
   hasManifestNativeRuntimeVideoFrameIntervalProof(run) &&
   (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
   hasManifestStillImageOverlayProof(run) &&
+  hasManifestIosAppGroupStillImageProof(run) &&
   hasManifestVrmReleaseProof(run);
 
 const hasManifestNativeRuntimeVideoFrameIntervalProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
@@ -832,6 +833,21 @@ const hasManifestStillImageOverlayProof = (run: ValidationEvidenceManifestRun | 
     hasLoadedAllManifestNativeRuntimeAssets(run) &&
     hasDecodedAllManifestNativeRuntimeAssets(run) &&
     hasCompositedAllManifestNativeRuntimeAssets(run)
+  );
+};
+
+const hasManifestIosAppGroupStillImageProof = (run: ValidationEvidenceManifestRun | undefined): boolean => {
+  if (run?.devicePlatform !== "ios" || !isPositiveFiniteNumber(run?.nativeRuntimeStillImageAssetCount)) {
+    return true;
+  }
+
+  return (
+    isAtLeastFiniteNumber(run.nativeRuntimeStillImageAssetAppGroupCount, run.nativeRuntimeStillImageAssetCount) &&
+    isAtLeastFiniteNumber(run.nativeRuntimeStillImageAssetAppGroupLoadedCount, run.nativeRuntimeStillImageAssetCount) &&
+    isAtLeastFiniteNumber(run.nativeRuntimeStillImageAssetAppGroupDecodedCount, run.nativeRuntimeStillImageAssetCount) &&
+    isPositiveFiniteNumber(run.nativeRuntimeStillImageAssetAppGroupDecodedPixelCount) &&
+    isAtLeastFiniteNumber(run.nativeRuntimeStillImageAssetAppGroupCompositedCount, run.nativeRuntimeStillImageAssetCount) &&
+    isPositiveFiniteNumber(run.nativeRuntimeStillImageAssetAppGroupCompositedPixelCount)
   );
 };
 

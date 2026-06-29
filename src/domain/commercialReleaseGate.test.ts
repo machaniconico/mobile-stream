@@ -47,6 +47,36 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks iOS native runtime claims without App Group still-image compositor proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeStillImageAssetAppGroupCount: 0,
+              nativeRuntimeStillImageAssetAppGroupLoadedCount: 0,
+              nativeRuntimeStillImageAssetAppGroupDecodedCount: 0,
+              nativeRuntimeStillImageAssetAppGroupDecodedPixelCount: 0,
+              nativeRuntimeStillImageAssetAppGroupCompositedCount: 0,
+              nativeRuntimeStillImageAssetAppGroupCompositedPixelCount: 0
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity"
+      })
+    );
+  });
+
   it("blocks stale bundles and incomplete physical validation proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -1179,7 +1209,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 40 as const
+    bundleVersion: 41 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1327,6 +1357,12 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetDecodedPixelCount = 921_600,
   nativeRuntimeStillImageAssetCompositedCount = 1,
   nativeRuntimeStillImageAssetCompositedPixelCount = 921_600,
+  nativeRuntimeStillImageAssetAppGroupCount = devicePlatform === "ios" ? 1 : 0,
+  nativeRuntimeStillImageAssetAppGroupLoadedCount = devicePlatform === "ios" ? 1 : 0,
+  nativeRuntimeStillImageAssetAppGroupDecodedCount = devicePlatform === "ios" ? 1 : 0,
+  nativeRuntimeStillImageAssetAppGroupDecodedPixelCount = devicePlatform === "ios" ? 921_600 : 0,
+  nativeRuntimeStillImageAssetAppGroupCompositedCount = devicePlatform === "ios" ? 1 : 0,
+  nativeRuntimeStillImageAssetAppGroupCompositedPixelCount = devicePlatform === "ios" ? 921_600 : 0,
   nativeRuntimeVrmSourceCount = 0,
   nativeRuntimeVrmPosePayloadCount = 0,
   nativeRuntimeVrmActivePoseCount = 0,
@@ -1455,6 +1491,12 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetDecodedPixelCount?: ValidationManifestRun["nativeRuntimeStillImageAssetDecodedPixelCount"];
   nativeRuntimeStillImageAssetCompositedCount?: ValidationManifestRun["nativeRuntimeStillImageAssetCompositedCount"];
   nativeRuntimeStillImageAssetCompositedPixelCount?: ValidationManifestRun["nativeRuntimeStillImageAssetCompositedPixelCount"];
+  nativeRuntimeStillImageAssetAppGroupCount?: ValidationManifestRun["nativeRuntimeStillImageAssetAppGroupCount"];
+  nativeRuntimeStillImageAssetAppGroupLoadedCount?: ValidationManifestRun["nativeRuntimeStillImageAssetAppGroupLoadedCount"];
+  nativeRuntimeStillImageAssetAppGroupDecodedCount?: ValidationManifestRun["nativeRuntimeStillImageAssetAppGroupDecodedCount"];
+  nativeRuntimeStillImageAssetAppGroupDecodedPixelCount?: ValidationManifestRun["nativeRuntimeStillImageAssetAppGroupDecodedPixelCount"];
+  nativeRuntimeStillImageAssetAppGroupCompositedCount?: ValidationManifestRun["nativeRuntimeStillImageAssetAppGroupCompositedCount"];
+  nativeRuntimeStillImageAssetAppGroupCompositedPixelCount?: ValidationManifestRun["nativeRuntimeStillImageAssetAppGroupCompositedPixelCount"];
   nativeRuntimeVrmSourceCount?: ValidationManifestRun["nativeRuntimeVrmSourceCount"];
   nativeRuntimeVrmPosePayloadCount?: ValidationManifestRun["nativeRuntimeVrmPosePayloadCount"];
   nativeRuntimeVrmActivePoseCount?: ValidationManifestRun["nativeRuntimeVrmActivePoseCount"];
@@ -1589,6 +1631,12 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetDecodedPixelCount,
   nativeRuntimeStillImageAssetCompositedCount,
   nativeRuntimeStillImageAssetCompositedPixelCount,
+  nativeRuntimeStillImageAssetAppGroupCount,
+  nativeRuntimeStillImageAssetAppGroupLoadedCount,
+  nativeRuntimeStillImageAssetAppGroupDecodedCount,
+  nativeRuntimeStillImageAssetAppGroupDecodedPixelCount,
+  nativeRuntimeStillImageAssetAppGroupCompositedCount,
+  nativeRuntimeStillImageAssetAppGroupCompositedPixelCount,
   nativeRuntimeVrmSourceCount,
   nativeRuntimeVrmPosePayloadCount,
   nativeRuntimeVrmActivePoseCount,

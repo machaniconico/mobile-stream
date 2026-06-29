@@ -477,7 +477,7 @@ function commercialSupportBundleFixture(patch = {}) {
   };
 
   return {
-    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 40 },
+    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 41 },
     generatedAt: new Date().toISOString(),
     fixture: true,
     ...patch,
@@ -527,6 +527,12 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     nativeRuntimeStillImageAssetDecodedPixelCount: 921_600,
     nativeRuntimeStillImageAssetCompositedCount: 1,
     nativeRuntimeStillImageAssetCompositedPixelCount: 921_600,
+    nativeRuntimeStillImageAssetAppGroupCount: devicePlatform === "ios" ? 1 : 0,
+    nativeRuntimeStillImageAssetAppGroupLoadedCount: devicePlatform === "ios" ? 1 : 0,
+    nativeRuntimeStillImageAssetAppGroupDecodedCount: devicePlatform === "ios" ? 1 : 0,
+    nativeRuntimeStillImageAssetAppGroupDecodedPixelCount: devicePlatform === "ios" ? 921_600 : 0,
+    nativeRuntimeStillImageAssetAppGroupCompositedCount: devicePlatform === "ios" ? 1 : 0,
+    nativeRuntimeStillImageAssetAppGroupCompositedPixelCount: devicePlatform === "ios" ? 921_600 : 0,
     monitorHoldStatus: "pass",
     monitorHoldSampleCount: 3,
     monitorHoldDurationSeconds: 65,

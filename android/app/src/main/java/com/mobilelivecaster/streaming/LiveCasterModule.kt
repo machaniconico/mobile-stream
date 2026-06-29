@@ -29,6 +29,12 @@ data class NativeRuntimeComposition(
     val stillImageAssetDecodedPixelCount: Long = 0,
     val stillImageAssetCompositedCount: Int = 0,
     val stillImageAssetCompositedPixelCount: Long = 0,
+    val stillImageAssetAppGroupCount: Int = 0,
+    val stillImageAssetAppGroupLoadedCount: Int = 0,
+    val stillImageAssetAppGroupDecodedCount: Int = 0,
+    val stillImageAssetAppGroupDecodedPixelCount: Long = 0,
+    val stillImageAssetAppGroupCompositedCount: Int = 0,
+    val stillImageAssetAppGroupCompositedPixelCount: Long = 0,
     val vrmSourceCount: Int = 0,
     val vrmPosePayloadCount: Int = 0,
     val vrmActivePoseCount: Int = 0,
@@ -83,6 +89,12 @@ data class NativeRuntimeComposition(
         putDouble("stillImageAssetDecodedPixelCount", stillImageAssetDecodedPixelCount.toDouble())
         putInt("stillImageAssetCompositedCount", stillImageAssetCompositedCount)
         putDouble("stillImageAssetCompositedPixelCount", stillImageAssetCompositedPixelCount.toDouble())
+        putInt("stillImageAssetAppGroupCount", stillImageAssetAppGroupCount)
+        putInt("stillImageAssetAppGroupLoadedCount", stillImageAssetAppGroupLoadedCount)
+        putInt("stillImageAssetAppGroupDecodedCount", stillImageAssetAppGroupDecodedCount)
+        putDouble("stillImageAssetAppGroupDecodedPixelCount", stillImageAssetAppGroupDecodedPixelCount.toDouble())
+        putInt("stillImageAssetAppGroupCompositedCount", stillImageAssetAppGroupCompositedCount)
+        putDouble("stillImageAssetAppGroupCompositedPixelCount", stillImageAssetAppGroupCompositedPixelCount.toDouble())
         putInt("vrmSourceCount", vrmSourceCount)
         putInt("vrmPosePayloadCount", vrmPosePayloadCount)
         putInt("vrmActivePoseCount", vrmActivePoseCount)

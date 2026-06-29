@@ -144,9 +144,9 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 40");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 40");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 40");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 41");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 41");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 41");
     expectIncludes(files.commercialReleaseGateDomain, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseBundleScript, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scope");
@@ -155,6 +155,9 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetLoadedCount");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetDecodedPixelCount");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetCompositedPixelCount");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetAppGroupCompositedPixelCount");
+    expectIncludes(files.commercialReleaseGateDomain, "hasManifestIosAppGroupStillImageProof");
+    expectIncludes(files.commercialReleaseBundleScript, "hasIosAppGroupStillImageProof");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestNativeRuntimePass");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-native-runtime");
     expectIncludes(files.streamValidationEvidenceDomain, "monitorHoldSampleCount");
