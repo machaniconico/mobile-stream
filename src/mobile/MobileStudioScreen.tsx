@@ -96,7 +96,12 @@ import {
   createSupportBundle,
   formatSupportBundle
 } from "../domain/supportBundle";
-import { pickStillImageAsset, prepareStillImageAsset } from "./sceneStore";
+import {
+  pickStillImageAsset,
+  pickVrmModelAsset,
+  prepareStillImageAsset,
+  prepareVrmModelAsset
+} from "./sceneStore";
 
 interface MobileStudioScreenProps {
   scene: SceneDocument;
@@ -607,6 +612,54 @@ export const MobileStudioScreen = ({
     }
   };
 
+  const prepareSelectedVrmModelAsset = async () => {
+    if (setupLocked || selectedSource.kind !== "vrm") {
+      return;
+    }
+    if (!selectedSource.modelUri.trim()) {
+      const message = "Enter a VRM/GLB URI before preparing it.";
+      setAssetPrepareStatus({ kind: "error", message });
+      Alert.alert("VRM model", message);
+      return;
+    }
+
+    setAssetPrepareStatus({ kind: "pending", message: "Preparing VRM model..." });
+    try {
+      const preparedUri = await prepareVrmModelAsset(selectedSource.modelUri, `${selectedSource.name}-${selectedSource.kind}.vrm`);
+      onSceneChange(
+        updateSource(scene, selectedSource.id, (source) => (source.kind === "vrm" ? { ...source, modelUri: preparedUri } : source))
+      );
+      setAssetPrepareStatus({ kind: "success", message: "VRM model ready for native loader validation." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "VRM model asset could not be prepared.";
+      setAssetPrepareStatus({ kind: "error", message });
+      Alert.alert("VRM model", message);
+    }
+  };
+
+  const pickSelectedVrmModelAsset = async () => {
+    if (setupLocked || selectedSource.kind !== "vrm") {
+      return;
+    }
+
+    setAssetPrepareStatus({ kind: "pending", message: "Opening VRM model picker..." });
+    try {
+      const pickedUri = await pickVrmModelAsset(`${selectedSource.name}-${selectedSource.kind}.vrm`);
+      if (!pickedUri) {
+        setAssetPrepareStatus(null);
+        return;
+      }
+      onSceneChange(
+        updateSource(scene, selectedSource.id, (source) => (source.kind === "vrm" ? { ...source, modelUri: pickedUri } : source))
+      );
+      setAssetPrepareStatus({ kind: "success", message: "VRM model selected and ready for native loader validation." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "VRM model asset could not be picked.";
+      setAssetPrepareStatus({ kind: "error", message });
+      Alert.alert("VRM model", message);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.shell}>
@@ -865,6 +918,29 @@ export const MobileStudioScreen = ({
                 placeholder="file:// or absolute path to .vrm/.glb"
                 placeholderTextColor="#71717a"
               />
+              <View style={styles.grid2}>
+                <ActionButton
+                  label="Pick VRM"
+                  disabled={setupLocked || assetPrepareStatus?.kind === "pending"}
+                  onPress={pickSelectedVrmModelAsset}
+                />
+                <ActionButton
+                  label="Prepare Model"
+                  disabled={setupLocked || assetPrepareStatus?.kind === "pending"}
+                  onPress={prepareSelectedVrmModelAsset}
+                />
+              </View>
+              {assetPrepareStatus ? (
+                <Text
+                  style={[
+                    styles.assetPrepareStatus,
+                    assetPrepareStatus.kind === "success" && styles.assetPrepareSuccess,
+                    assetPrepareStatus.kind === "error" && styles.assetPrepareError
+                  ]}
+                >
+                  {assetPrepareStatus.message}
+                </Text>
+              ) : null}
             </>
           ) : null}
           {selectedSource.kind === "pngtuber" ? (

@@ -15,6 +15,10 @@ import com.pedro.encoder.input.gl.render.filters.`object`.TextObjectFilterRender
 import com.pedro.library.generic.GenericStream
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileInputStream
+import java.io.InputStream
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -50,7 +54,7 @@ data class AndroidCompositionResult(
                 else -> "Native overlays applied: $appliedCount, pending: ${skippedKinds.joinToString("/")}"
             }
             return if (vrmPoseSummary.sourceCount > 0) {
-                "$base; VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}; VRM renderer ${vrmPoseSummary.rendererStatus} ${vrmPoseSummary.rendererBackend}, rendered ${vrmPoseSummary.renderedSourceCount}/${vrmPoseSummary.sourceCount}"
+                "$base; VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}; VRM renderer ${vrmPoseSummary.rendererStatus} ${vrmPoseSummary.rendererBackend}, rendered ${vrmPoseSummary.renderedSourceCount}/${vrmPoseSummary.sourceCount}, models ${vrmPoseSummary.modelLoadedCount}/${vrmPoseSummary.modelUriCount}, failed ${vrmPoseSummary.renderFailureCount}"
             } else {
                 base
             }
@@ -61,7 +65,7 @@ object AndroidSceneCompositor {
     fun apply(context: Context, stream: GenericStream, renderGraphJson: String): AndroidCompositionResult {
         val renderNodes = parseRenderGraph(renderGraphJson)
             ?: return AndroidCompositionResult(appliedCount = 0, skippedCount = 0, skippedKinds = emptySet(), parseFailed = true)
-        val vrmPoseSummary = summarizeVrmPosePayloads(renderNodes)
+        val vrmPoseSummary = summarizeVrmPosePayloads(context, renderNodes)
 
         val primaryScreenOrder = renderNodes
             .filter { node -> node.kind == "screen" }
@@ -370,7 +374,7 @@ object AndroidSceneCompositor {
         }
     }
 
-    private fun summarizeVrmPosePayloads(renderNodes: List<RenderGraphNode>): AndroidVrmPoseSummary {
+    private fun summarizeVrmPosePayloads(context: Context, renderNodes: List<RenderGraphNode>): AndroidVrmPoseSummary {
         val vrmNodes = renderNodes.filter { node -> node.kind == "vrm" }
         if (vrmNodes.isEmpty()) {
             return AndroidVrmPoseSummary()
@@ -379,11 +383,19 @@ object AndroidSceneCompositor {
         var posePayloadCount = 0
         var activePoseCount = 0
         var modelUriCount = 0
+        var modelLoadedCount = 0
+        var modelLoadFailureCount = 0
         val runtimeStatuses = linkedSetOf<String>()
 
         vrmNodes.forEach { node ->
-            if (node.payload.optString("modelUri").trim().isNotEmpty()) {
+            val modelUri = node.payload.optString("modelUri").trim()
+            if (modelUri.isNotEmpty()) {
                 modelUriCount += 1
+                if (isLoadableVrmModel(context, modelUri)) {
+                    modelLoadedCount += 1
+                } else {
+                    modelLoadFailureCount += 1
+                }
             }
 
             val directStatus = normalizeVrmRuntimeStatus(node.payload.optString("vrmRuntimeStatus"))
@@ -419,12 +431,79 @@ object AndroidSceneCompositor {
             modelUriCount = modelUriCount,
             runtimeStatuses = runtimeStatuses,
             rendererStatus = "unavailable",
-            rendererBackend = "none",
-            modelLoadedCount = 0,
+            rendererBackend = if (modelUriCount > 0) "native-vrm-glb-loader" else "none",
+            modelLoadedCount = modelLoadedCount,
             renderedSourceCount = 0,
             renderMissingCount = vrmNodes.size,
-            renderFailureCount = 0
+            renderFailureCount = modelLoadFailureCount
         )
+    }
+
+    private fun isLoadableVrmModel(context: Context, rawUri: String): Boolean {
+        return try {
+            openModelInputStream(context, rawUri).use { input ->
+                validateVrmGlbHeader(input)
+            }
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    private fun openModelInputStream(context: Context, rawUri: String): InputStream {
+        val uri = Uri.parse(rawUri)
+        return when (uri.scheme?.lowercase()) {
+            "content" -> context.contentResolver.openInputStream(uri)
+                ?: throw IllegalArgumentException("VRM model URI could not be opened")
+            "file" -> FileInputStream(File(uri.path ?: ""))
+            null, "" -> FileInputStream(File(rawUri))
+            else -> throw IllegalArgumentException("Unsupported VRM model URI scheme: ${uri.scheme}")
+        }
+    }
+
+    private fun validateVrmGlbHeader(input: InputStream): Boolean {
+        val header = input.readExact(20) ?: return false
+        if (header[0] != 0x67.toByte() || header[1] != 0x6c.toByte() || header[2] != 0x54.toByte() || header[3] != 0x46.toByte()) {
+            return false
+        }
+        if (header.littleEndianInt(4) != 2) {
+            return false
+        }
+        val declaredLength = header.littleEndianInt(8)
+        val jsonLength = header.littleEndianInt(12)
+        if (declaredLength < 20 || jsonLength <= 0 || jsonLength > MAX_VRM_JSON_CHUNK_BYTES) {
+            return false
+        }
+        if (header[16] != 0x4a.toByte() || header[17] != 0x53.toByte() || header[18] != 0x4f.toByte() || header[19] != 0x4e.toByte()) {
+            return false
+        }
+        val jsonBytes = input.readExact(jsonLength) ?: return false
+        val json = jsonBytes.toString(Charsets.UTF_8)
+        return json.contains("\"VRMC_vrm\"") || json.contains("\"VRM\"")
+    }
+
+    private fun InputStream.readExact(byteCount: Int): ByteArray? {
+        val output = ByteArrayOutputStream(byteCount)
+        val buffer = ByteArray(8192)
+        var remaining = byteCount
+        while (remaining > 0) {
+            val read = read(buffer, 0, minOf(buffer.size, remaining))
+            if (read < 0) {
+                return null
+            }
+            output.write(buffer, 0, read)
+            remaining -= read
+        }
+        return output.toByteArray()
+    }
+
+    private fun ByteArray.littleEndianInt(offset: Int): Int {
+        if (offset + 3 >= size) {
+            return -1
+        }
+        return (this[offset].toInt() and 0xff) or
+            ((this[offset + 1].toInt() and 0xff) shl 8) or
+            ((this[offset + 2].toInt() and 0xff) shl 16) or
+            ((this[offset + 3].toInt() and 0xff) shl 24)
     }
 
     private fun normalizeVrmRuntimeStatus(value: String): String {
@@ -484,6 +563,8 @@ object AndroidSceneCompositor {
         return if (candidate.isEmpty()) "..." else "$candidate..."
     }
 }
+
+private const val MAX_VRM_JSON_CHUNK_BYTES = 2 * 1024 * 1024
 
 private data class RenderGraphNode(
     val id: String,

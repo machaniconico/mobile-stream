@@ -3179,7 +3179,7 @@ struct BroadcastVrmPoseSummary: Equatable {
             return nil
         }
         let statusSuffix = runtimeStatuses.isEmpty ? "" : ", statuses \(runtimeStatuses.joined(separator: "/"))"
-        return "VRM poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix), renderer \(rendererStatus) \(rendererBackend), rendered \(renderedSourceCount)/\(sourceCount)"
+        return "VRM poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix), renderer \(rendererStatus) \(rendererBackend), rendered \(renderedSourceCount)/\(sourceCount), models \(modelLoadedCount)/\(modelUriCount), failed \(renderFailureCount)"
     }
 }
 
@@ -3841,11 +3841,19 @@ final class BroadcastSceneCompositor {
         var posePayloadCount = 0
         var activePoseCount = 0
         var modelUriCount = 0
+        var modelLoadedCount = 0
+        var modelLoadFailureCount = 0
         var runtimeStatuses = Set<String>()
 
         for node in vrmNodes {
-            if let modelUri = node.payload["modelUri"] as? String, !modelUri.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let modelUri = (node.payload["modelUri"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !modelUri.isEmpty {
                 modelUriCount += 1
+                if isLoadableVrmModel(modelUri) {
+                    modelLoadedCount += 1
+                } else {
+                    modelLoadFailureCount += 1
+                }
             }
 
             let directStatus = normalizeVrmRuntimeStatus(node.payload["vrmRuntimeStatus"] as? String)
@@ -3881,12 +3889,62 @@ final class BroadcastSceneCompositor {
             modelUriCount: modelUriCount,
             runtimeStatuses: runtimeStatuses.sorted(),
             rendererStatus: "unavailable",
-            rendererBackend: "none",
-            modelLoadedCount: 0,
+            rendererBackend: modelUriCount > 0 ? "native-vrm-glb-loader" : "none",
+            modelLoadedCount: modelLoadedCount,
             renderedSourceCount: 0,
             renderMissingCount: vrmNodes.count,
-            renderFailureCount: 0
+            renderFailureCount: modelLoadFailureCount
         )
+    }
+
+    private static func isLoadableVrmModel(_ rawURI: String) -> Bool {
+        guard let url = localFileURL(rawURI) else {
+            return false
+        }
+        guard let fileHandle = try? FileHandle(forReadingFrom: url) else {
+            return false
+        }
+        defer {
+            fileHandle.closeFile()
+        }
+        return validateVrmGlbHeader(fileHandle)
+    }
+
+    private static func localFileURL(_ rawURI: String) -> URL? {
+        let trimmedURI = rawURI.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = URL(string: trimmedURI), url.isFileURL {
+            return url
+        }
+        if trimmedURI.hasPrefix("/") {
+            return URL(fileURLWithPath: trimmedURI)
+        }
+        return nil
+    }
+
+    private static func validateVrmGlbHeader(_ fileHandle: FileHandle) -> Bool {
+        let header = fileHandle.readData(ofLength: 20)
+        guard header.count == 20 else {
+            return false
+        }
+        guard header[0] == 0x67, header[1] == 0x6c, header[2] == 0x54, header[3] == 0x46 else {
+            return false
+        }
+        guard header.littleEndianInt(at: 4) == 2 else {
+            return false
+        }
+        let declaredLength = header.littleEndianInt(at: 8)
+        let jsonLength = header.littleEndianInt(at: 12)
+        guard declaredLength >= 20, jsonLength > 0, jsonLength <= maxVrmJsonChunkBytes else {
+            return false
+        }
+        guard header[16] == 0x4a, header[17] == 0x53, header[18] == 0x4f, header[19] == 0x4e else {
+            return false
+        }
+        let jsonData = fileHandle.readData(ofLength: jsonLength)
+        guard jsonData.count == jsonLength, let json = String(data: jsonData, encoding: .utf8) else {
+            return false
+        }
+        return json.contains("\"VRMC_vrm\"") || json.contains("\"VRM\"")
     }
 
     private static func normalizeVrmRuntimeStatus(_ value: String?) -> String {
@@ -4013,6 +4071,20 @@ final class BroadcastSceneCompositor {
         shadow.shadowOffset = CGSize(width: 0, height: 2)
         shadow.shadowBlurRadius = 6
         return shadow
+    }
+}
+
+private let maxVrmJsonChunkBytes = 2 * 1024 * 1024
+
+private extension Data {
+    func littleEndianInt(at offset: Int) -> Int {
+        guard offset + 3 < count else {
+            return -1
+        }
+        return Int(self[offset]) |
+            (Int(self[offset + 1]) << 8) |
+            (Int(self[offset + 2]) << 16) |
+            (Int(self[offset + 3]) << 24)
     }
 }
 

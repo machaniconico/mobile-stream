@@ -28,20 +28,23 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
         private const val VALIDATION_RUNS_JSON = "validation_runs_json"
         private const val SCENE_ASSETS_DIR = "scene-assets"
         private const val STILL_IMAGE_PICK_REQUEST_CODE = 42071
+        private const val VRM_MODEL_PICK_REQUEST_CODE = 42072
     }
 
     private var pendingPickPromise: Promise? = null
     private var pendingPickFilenameHint = "still-image"
+    private var pendingPickAssetKind = SceneAssetKind.STILL_IMAGE
     private val activityEventListener: ActivityEventListener = object : BaseActivityEventListener() {
         override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
-            if (requestCode != STILL_IMAGE_PICK_REQUEST_CODE) {
+            if (requestCode != STILL_IMAGE_PICK_REQUEST_CODE && requestCode != VRM_MODEL_PICK_REQUEST_CODE) {
                 return
             }
 
             val promise = pendingPickPromise ?: return
             val filenameHint = pendingPickFilenameHint
+            val assetKind = pendingPickAssetKind
             pendingPickPromise = null
-            pendingPickFilenameHint = "still-image"
+            resetPendingPickerState()
 
             if (resultCode != Activity.RESULT_OK) {
                 promise.resolve(null)
@@ -62,7 +65,7 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
             }
 
             try {
-                promise.resolve(copyStillImageAsset(uri, uri.toString(), filenameHint))
+                promise.resolve(copySceneAsset(uri, uri.toString(), filenameHint, assetKind))
             } catch (error: Throwable) {
                 promise.reject("scene_asset_copy_failed", error)
             }
@@ -115,7 +118,7 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
 
         try {
             val uri = Uri.parse(trimmedUri)
-            promise.resolve(copyStillImageAsset(uri, trimmedUri, filenameHint))
+            promise.resolve(copySceneAsset(uri, trimmedUri, filenameHint, SceneAssetKind.STILL_IMAGE))
         } catch (error: Throwable) {
             promise.reject("scene_asset_copy_failed", error)
         }
@@ -142,11 +145,61 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
 
         pendingPickPromise = promise
         pendingPickFilenameHint = filenameHint.trim().ifBlank { "still-image" }
+        pendingPickAssetKind = SceneAssetKind.STILL_IMAGE
         try {
             activity.startActivityForResult(intent, STILL_IMAGE_PICK_REQUEST_CODE)
         } catch (error: Throwable) {
-            pendingPickPromise = null
-            pendingPickFilenameHint = "still-image"
+            resetPendingPickerState()
+            promise.reject("scene_asset_picker_failed", error)
+        }
+    }
+
+    @ReactMethod
+    fun prepareVrmModelAsset(sourceUri: String, filenameHint: String, promise: Promise) {
+        val trimmedUri = sourceUri.trim()
+        if (trimmedUri.isEmpty()) {
+            promise.reject("scene_asset_empty_uri", "VRM model asset URI is empty")
+            return
+        }
+
+        try {
+            val uri = Uri.parse(trimmedUri)
+            promise.resolve(copySceneAsset(uri, trimmedUri, filenameHint, SceneAssetKind.VRM_MODEL))
+        } catch (error: Throwable) {
+            promise.reject("scene_asset_copy_failed", error)
+        }
+    }
+
+    @ReactMethod
+    fun pickVrmModelAsset(filenameHint: String, promise: Promise) {
+        val activity = reactContext.currentActivity
+        if (activity == null) {
+            promise.reject("scene_asset_picker_unavailable", "No Activity is available to present the VRM model picker")
+            return
+        }
+        if (pendingPickPromise != null) {
+            promise.reject("scene_asset_picker_busy", "A scene asset picker is already open")
+            return
+        }
+
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                arrayOf("model/gltf-binary", "application/octet-stream", "application/x-vrm", "application/vnd.vrm")
+            )
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+
+        pendingPickPromise = promise
+        pendingPickFilenameHint = filenameHint.trim().ifBlank { "avatar.vrm" }
+        pendingPickAssetKind = SceneAssetKind.VRM_MODEL
+        try {
+            activity.startActivityForResult(intent, VRM_MODEL_PICK_REQUEST_CODE)
+        } catch (error: Throwable) {
+            resetPendingPickerState()
             promise.reject("scene_asset_picker_failed", error)
         }
     }
@@ -203,14 +256,14 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
 
     private fun prefs() = reactContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    private fun copyStillImageAsset(uri: Uri, rawUri: String, filenameHint: String): String {
-        val extension = stillImageExtension(uri, filenameHint)
+    private fun copySceneAsset(uri: Uri, rawUri: String, filenameHint: String, assetKind: SceneAssetKind): String {
+        val extension = assetExtension(uri, filenameHint, assetKind)
         val baseName = safeAssetBaseName(assetBaseName(uri, filenameHint))
         val destinationDir = File(reactContext.filesDir, SCENE_ASSETS_DIR)
         destinationDir.mkdirs()
         val destination = File(destinationDir, "$baseName-${UUID.randomUUID()}.$extension")
 
-        openStillImageInputStream(uri, rawUri).use { input ->
+        openSceneAssetInputStream(uri, rawUri, assetKind).use { input ->
             destination.outputStream().use { output ->
                 input.copyTo(output)
             }
@@ -218,14 +271,14 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
         return Uri.fromFile(destination).toString()
     }
 
-    private fun openStillImageInputStream(uri: Uri, rawUri: String) = when (uri.scheme?.lowercase()) {
+    private fun openSceneAssetInputStream(uri: Uri, rawUri: String, assetKind: SceneAssetKind) = when (uri.scheme?.lowercase()) {
         "content", "file" -> reactContext.contentResolver.openInputStream(uri)
-            ?: throw IllegalArgumentException("Still-image asset URI could not be opened")
+            ?: throw IllegalArgumentException("${assetKind.label} asset URI could not be opened")
         null, "" -> FileInputStream(File(rawUri))
-        else -> throw IllegalArgumentException("Unsupported still-image asset URI scheme: ${uri.scheme}")
+        else -> throw IllegalArgumentException("Unsupported ${assetKind.label} asset URI scheme: ${uri.scheme}")
     }
 
-    private fun stillImageExtension(uri: Uri, filenameHint: String): String {
+    private fun assetExtension(uri: Uri, filenameHint: String, assetKind: SceneAssetKind): String {
         val typeExtension = runCatching {
             reactContext.contentResolver.getType(uri)?.let { MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
         }.getOrNull()
@@ -233,8 +286,12 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
             typeExtension,
             uri.lastPathSegment?.substringAfterLast('.', missingDelimiterValue = ""),
             filenameHint.substringAfterLast('.', missingDelimiterValue = "")
-        ).firstOrNull { !it.isNullOrBlank() } ?: "png"
-        return candidate.lowercase().replace(Regex("[^a-z0-9]"), "").ifBlank { "png" }
+        ).firstOrNull { !it.isNullOrBlank() } ?: assetKind.fallbackExtension
+        val extension = candidate.lowercase().replace(Regex("[^a-z0-9]"), "").ifBlank { assetKind.fallbackExtension }
+        if (assetKind == SceneAssetKind.VRM_MODEL && extension != "vrm" && extension != "glb") {
+            throw IllegalArgumentException("VRM model asset must be a .vrm or .glb file")
+        }
+        return extension
     }
 
     private fun assetBaseName(uri: Uri, filenameHint: String): String =
@@ -248,4 +305,15 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
         val sanitized = value.replace(Regex("[^A-Za-z0-9_-]"), "-").trim('-', '_').take(48)
         return sanitized.ifBlank { "still-image" }
     }
+
+    private fun resetPendingPickerState() {
+        pendingPickPromise = null
+        pendingPickFilenameHint = "still-image"
+        pendingPickAssetKind = SceneAssetKind.STILL_IMAGE
+    }
+}
+
+private enum class SceneAssetKind(val label: String, val fallbackExtension: String) {
+    STILL_IMAGE("Still-image", "png"),
+    VRM_MODEL("VRM model", "vrm")
 }

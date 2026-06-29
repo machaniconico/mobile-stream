@@ -15,6 +15,8 @@ interface MobileSceneStoreModule {
   clearScene(): Promise<boolean>;
   prepareStillImageAsset?(sourceUri: string, filenameHint: string): Promise<string>;
   pickStillImageAsset?(filenameHint: string): Promise<string | null>;
+  prepareVrmModelAsset?(sourceUri: string, filenameHint: string): Promise<string>;
+  pickVrmModelAsset?(filenameHint: string): Promise<string | null>;
 }
 
 const nativeStore = NativeModules.LiveCasterSceneStore as MobileSceneStoreModule | undefined;
@@ -96,4 +98,22 @@ export const pickStillImageAsset = async (filenameHint = "still-image"): Promise
     return null;
   }
   return nativeStore.pickStillImageAsset(filenameHint);
+};
+
+export const prepareVrmModelAsset = async (sourceUri: string, filenameHint = "avatar.vrm"): Promise<string> => {
+  const trimmedUri = sourceUri.trim();
+  if (!trimmedUri) {
+    return "";
+  }
+  if (!canUseMobileSceneStore() || !nativeStore?.prepareVrmModelAsset) {
+    return trimmedUri;
+  }
+  return nativeStore.prepareVrmModelAsset(trimmedUri, filenameHint);
+};
+
+export const pickVrmModelAsset = async (filenameHint = "avatar.vrm"): Promise<string | null> => {
+  if (!canUseMobileSceneStore() || !nativeStore?.pickVrmModelAsset) {
+    return null;
+  }
+  return nativeStore.pickVrmModelAsset(filenameHint);
 };

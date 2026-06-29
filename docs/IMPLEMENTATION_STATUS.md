@@ -16,7 +16,7 @@
 - Public YouTube and Twitch starts require an explicit final operator confirmation after the public launch checklist passes, and accepted/cancelled confirmations are retained as safety/operation audit events.
 - Stream diagnostics model for redacted publish URL, endpoint parsing, upload target estimate, readiness issues, live telemetry health checks, and sanitized diagnostic reports.
 - Face-tracking production diagnostics for prepared PNGTuber assets, simulated/native-camera input risk, tracking runtime state, runtime frame freshness, active motion count, current-runtime Go Live preflight warnings, public launch start-lock evidence, support reports, and commercial validation checklist evidence.
-- Native composition readiness/diagnostics model that distinguishes native-supported avatar/image/solid/text/chat overlays from underlay ordering, Live2D/VRM production gaps, iOS Broadcast Upload Extension still-image asset access risks, VRM pose-payload delivery evidence, and VRM renderer backend/model-loaded/rendered-source evidence before device RTMP publishing.
+- Native composition readiness/diagnostics model that distinguishes native-supported avatar/image/solid/text/chat overlays from underlay ordering, Live2D/VRM production gaps, iOS Broadcast Upload Extension still-image asset access risks, VRM pose-payload delivery evidence, native VRM/GLB model-header load evidence, and VRM renderer backend/model-loaded/rendered-source evidence before device RTMP publishing.
 - Stream health history model for average/min bitrate and FPS, dropped-frame/reconnect trend summaries, diagnostics checks, and report export.
 - Post-stream session summary model for completed session outcome, warning/failure/recovery counts, health summary, lip-sync/audio-meter sample summary, spoken-chat success/failure counts, and next-stream recommendations.
 - Durable completed stream session summary persistence for Web localStorage and React Native native storage, with corrupt payload recovery and retention limiting.
@@ -97,7 +97,7 @@
 - Mobile OAuth callback URL scheme registration and React Native callback capture for chat authorization.
 - Avatar runtime model for PNGTuber/Live2D/VRM expression, lip sync, and auto blink.
 - Live2D source records now persist Cubism `model3.json` URIs, expose them in Web/React Native inspectors, warn on missing/remote/relative/unsupported model-package URIs, and include a shared `model3.json` manifest validator for Moc, textures, expressions, motions, physics, and unsafe package references.
-- VRM/VRoid source records now persist VRM/GLB model URIs, expose them in Web/React Native inspectors, warn on missing/remote/relative/unsupported or non-model URIs, and include a shared binary GLB header validator for VRM 1.0/0.x extensions, humanoid bone mappings, and expression/blendshape metadata.
+- VRM/VRoid source records now persist VRM/GLB model URIs, expose them in Web/React Native inspectors, can pick/prepare local `.vrm`/`.glb` files into native-readable storage, warn on missing/remote/relative/unsupported or non-model URIs, and include shared plus native binary GLB header validation for VRM 1.0/0.x extensions and runtime load evidence.
 - VRM/VRoid runtime pose mapping converts shared avatar motion into native-consumable humanoid bone rotations, expression/blendshape weights, look-at values, root offsets, render-graph payloads, native runtime pose-delivery telemetry, renderer readiness evidence, validation evidence, and support-bundle pose summaries.
 - Still-image VTuber face tracking runtime with native-camera frames on mobile, simulated frames on web, neutral calibration, dead-zone filtering, jump limiting, lost-face return tuning, image-aspect-aware geometry rig inference, production rig-line diagnostics, iOS/Android native compositor 2.5D motion scaling, tunable illustration rig regions, lightweight pseudo mesh deformation, hair/body follow-through, and eye/mouth deformation.
 - Stream state machine for idle, preparing, live, reconnecting, stopping, and failed states.
@@ -184,7 +184,7 @@
 - React Native bare app scaffold generated from React Native 0.85.3.
 - Standard `ios/` and `android/` projects for the MobileLiveCaster host app.
 - React Native mobile Studio UI that reuses `src/domain` and the mock stream engine.
-- React Native mobile source controls can pick or prepare PNGTuber/image still-image assets for native compositor storage before streaming.
+- React Native mobile source controls can pick or prepare PNGTuber/image still-image assets and VRM/GLB model files for native compositor/loader storage before streaming.
 - GitHub Actions `test` status check for PRs and `main` pushes, covering repository automation safety, native release-configuration audit, unit tests, web/RN typecheck, web build, web bundle-size verification, and iOS/Android React Native JavaScript bundling.
 - Metro bundle verification for both iOS and Android.
 - Homebrew React Native environment installed: JDK 17, Watchman, CocoaPods, Android command line tools.
@@ -206,7 +206,7 @@
 - iOS physical-device evidence that App Group-copied PNGTuber/image assets render correctly inside the Broadcast Upload Extension compositor.
 - First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
 - Native Live2D Cubism SDK rendering integration and physical-device validation.
-- Native VRM/VRoid 3D renderer integration, actual humanoid bone/expression rendering from the delivered pose telemetry, and physical-device validation.
+- Native VRM/VRoid 3D renderer integration, actual humanoid bone/expression rendering from the delivered pose telemetry, and physical-device validation. Native `.vrm`/`.glb` model selection, storage, and GLB/VRM header-load telemetry are now in place as renderer prerequisites.
 - IRIAM-style high-fidelity single-illustration auto-rigging beyond the current image-aspect-aware geometry lightweight still-image 2.5D deformation, including image-segmentation-based face/body part inference, true mesh/depth rigging, explicit eye/mouth part segmentation, and physical-device tuning against native-camera tracking.
 - Twitch stream key reset/rotation through API. Twitch currently exposes stream key retrieval through Helix, not a public reset endpoint.
 

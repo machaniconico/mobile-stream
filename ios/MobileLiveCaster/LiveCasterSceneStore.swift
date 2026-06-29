@@ -14,6 +14,7 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
     private var stillImagePickerResolve: RCTPromiseResolveBlock?
     private var stillImagePickerReject: RCTPromiseRejectBlock?
     private var stillImagePickerFilenameHint = "still-image"
+    private var stillImagePickerAssetKind = SceneAssetKind.stillImage
 
     @objc
     static func requiresMainQueueSetup() -> Bool {
@@ -93,13 +94,13 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
             return
         }
 
-        guard let sourceURL = stillImageSourceURL(trimmedURI) else {
+        guard let sourceURL = localSourceURL(trimmedURI) else {
             reject("scene_asset_unsupported_uri", "Still-image asset must be a file URL or absolute path on iOS", nil)
             return
         }
 
         do {
-            let destinationURL = try copyStillImageAsset(sourceURL: sourceURL, filenameHint: filenameHint)
+            let destinationURL = try copySceneAsset(sourceURL: sourceURL, filenameHint: filenameHint, assetKind: .stillImage)
             resolve(destinationURL.absoluteString)
         } catch {
             reject("scene_asset_copy_failed", "Still-image asset copy failed", error)
@@ -126,8 +127,70 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
             self.stillImagePickerResolve = resolve
             self.stillImagePickerReject = reject
             self.stillImagePickerFilenameHint = filenameHint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "still-image" : filenameHint
+            self.stillImagePickerAssetKind = .stillImage
 
             let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.image], asCopy: false)
+            picker.allowsMultipleSelection = false
+            picker.delegate = self
+            presenter.present(picker, animated: true)
+        }
+    }
+
+    @objc(prepareVrmModelAsset:filenameHint:resolver:rejecter:)
+    func prepareVrmModelAsset(
+        _ sourceURI: String,
+        filenameHint: String,
+        resolver resolve: RCTPromiseResolveBlock,
+        rejecter reject: RCTPromiseRejectBlock
+    ) {
+        let trimmedURI = sourceURI.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedURI.isEmpty else {
+            reject("scene_asset_empty_uri", "VRM model asset URI is empty", nil)
+            return
+        }
+
+        guard let sourceURL = localSourceURL(trimmedURI) else {
+            reject("scene_asset_unsupported_uri", "VRM model asset must be a file URL or absolute path on iOS", nil)
+            return
+        }
+
+        do {
+            let destinationURL = try copySceneAsset(sourceURL: sourceURL, filenameHint: filenameHint, assetKind: .vrmModel)
+            resolve(destinationURL.absoluteString)
+        } catch {
+            reject("scene_asset_copy_failed", "VRM model asset copy failed", error)
+        }
+    }
+
+    @objc(pickVrmModelAsset:resolver:rejecter:)
+    func pickVrmModelAsset(
+        _ filenameHint: String,
+        resolver resolve: @escaping RCTPromiseResolveBlock,
+        rejecter reject: @escaping RCTPromiseRejectBlock
+    ) {
+        DispatchQueue.main.async {
+            guard self.stillImagePickerResolve == nil else {
+                reject("scene_asset_picker_busy", "A scene asset picker is already open", nil)
+                return
+            }
+
+            guard let presenter = RCTPresentedViewController() else {
+                reject("scene_asset_picker_unavailable", "No view controller is available to present the VRM model picker", nil)
+                return
+            }
+
+            self.stillImagePickerResolve = resolve
+            self.stillImagePickerReject = reject
+            self.stillImagePickerFilenameHint = filenameHint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "avatar.vrm" : filenameHint
+            self.stillImagePickerAssetKind = .vrmModel
+
+            let picker = UIDocumentPickerViewController(
+                forOpeningContentTypes: [
+                    UTType(filenameExtension: "vrm") ?? .data,
+                    UTType(filenameExtension: "glb") ?? .data
+                ],
+                asCopy: false
+            )
             picker.allowsMultipleSelection = false
             picker.delegate = self
             presenter.present(picker, animated: true)
@@ -147,10 +210,10 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
         }
 
         do {
-            let destinationURL = try copyStillImageAsset(sourceURL: sourceURL, filenameHint: pending.filenameHint)
+            let destinationURL = try copySceneAsset(sourceURL: sourceURL, filenameHint: pending.filenameHint, assetKind: pending.assetKind)
             pending.resolve?(destinationURL.absoluteString)
         } catch {
-            pending.reject?("scene_asset_copy_failed", "Still-image asset copy failed", error)
+            pending.reject?("scene_asset_copy_failed", "\(pending.assetKind.label) asset copy failed", error)
         }
     }
 
@@ -292,7 +355,7 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
             .appendingPathComponent(sceneAssetsDirectoryName, isDirectory: true)
     }
 
-    private func stillImageSourceURL(_ rawURI: String) -> URL? {
+    private func localSourceURL(_ rawURI: String) -> URL? {
         if let url = URL(string: rawURI), url.isFileURL {
             return url
         }
@@ -302,18 +365,21 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
         return nil
     }
 
-    private func stillImageDestinationFileName(sourceURL: URL, filenameHint: String) -> String {
+    private func sceneAssetDestinationFileName(sourceURL: URL, filenameHint: String, assetKind: SceneAssetKind) throws -> String {
         let sourceExtension = sourceURL.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
         let hintExtension = URL(fileURLWithPath: filenameHint).pathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
         let candidateExtension = sourceExtension.isEmpty ? hintExtension : sourceExtension
-        let fileExtension = candidateExtension.isEmpty ? "png" : candidateExtension
+        let fileExtension = candidateExtension.isEmpty ? assetKind.fallbackExtension : candidateExtension.lowercased()
+        if assetKind == .vrmModel && fileExtension != "vrm" && fileExtension != "glb" {
+            throw LiveCasterSceneStoreError.unsupportedVrmModelExtension
+        }
         let sourceBaseName = sourceURL.deletingPathExtension().lastPathComponent
         let hintBaseName = URL(fileURLWithPath: filenameHint).deletingPathExtension().lastPathComponent
-        let safeBaseName = sanitizedAssetFileComponent(sourceBaseName.isEmpty ? hintBaseName : sourceBaseName)
-        return "\(safeBaseName)-\(UUID().uuidString).\(fileExtension.lowercased())"
+        let safeBaseName = sanitizedAssetFileComponent(sourceBaseName.isEmpty ? hintBaseName : sourceBaseName, fallback: assetKind.fallbackBaseName)
+        return "\(safeBaseName)-\(UUID().uuidString).\(fileExtension)"
     }
 
-    private func copyStillImageAsset(sourceURL: URL, filenameHint: String) throws -> URL {
+    private func copySceneAsset(sourceURL: URL, filenameHint: String, assetKind: SceneAssetKind) throws -> URL {
         guard let destinationDirectory = sceneAssetsURL() else {
             throw LiveCasterSceneStoreError.appGroupUnavailable
         }
@@ -331,7 +397,7 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
 
         try FileManager.default.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
         let destinationURL = destinationDirectory.appendingPathComponent(
-            stillImageDestinationFileName(sourceURL: sourceURL, filenameHint: filenameHint)
+            try sceneAssetDestinationFileName(sourceURL: sourceURL, filenameHint: filenameHint, assetKind: assetKind)
         )
         if FileManager.default.fileExists(atPath: destinationURL.path) {
             try FileManager.default.removeItem(at: destinationURL)
@@ -340,24 +406,31 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
         return destinationURL
     }
 
-    private func sanitizedAssetFileComponent(_ value: String) -> String {
+    private func sanitizedAssetFileComponent(_ value: String, fallback: String) -> String {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
         let sanitized = value.unicodeScalars
             .map { allowed.contains($0) ? String($0) : "-" }
             .joined()
             .trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
-        return sanitized.isEmpty ? "still-image" : String(sanitized.prefix(48))
+        return sanitized.isEmpty ? fallback : String(sanitized.prefix(48))
     }
 
     private func clearStillImagePicker() -> (
         resolve: RCTPromiseResolveBlock?,
         reject: RCTPromiseRejectBlock?,
-        filenameHint: String
+        filenameHint: String,
+        assetKind: SceneAssetKind
     ) {
-        let pending = (stillImagePickerResolve, stillImagePickerReject, stillImagePickerFilenameHint)
+        let pending = (
+            resolve: stillImagePickerResolve,
+            reject: stillImagePickerReject,
+            filenameHint: stillImagePickerFilenameHint,
+            assetKind: stillImagePickerAssetKind
+        )
         stillImagePickerResolve = nil
         stillImagePickerReject = nil
         stillImagePickerFilenameHint = "still-image"
+        stillImagePickerAssetKind = .stillImage
         return pending
     }
 }
@@ -365,13 +438,48 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
 private enum LiveCasterSceneStoreError: LocalizedError {
     case appGroupUnavailable
     case sourceMissing
+    case unsupportedVrmModelExtension
 
     var errorDescription: String? {
         switch self {
         case .appGroupUnavailable:
             return "App Group scene asset storage is unavailable"
         case .sourceMissing:
-            return "Still-image asset file does not exist"
+            return "Scene asset file does not exist"
+        case .unsupportedVrmModelExtension:
+            return "VRM model asset must be a .vrm or .glb file"
+        }
+    }
+}
+
+private enum SceneAssetKind {
+    case stillImage
+    case vrmModel
+
+    var label: String {
+        switch self {
+        case .stillImage:
+            return "Still-image"
+        case .vrmModel:
+            return "VRM model"
+        }
+    }
+
+    var fallbackExtension: String {
+        switch self {
+        case .stillImage:
+            return "png"
+        case .vrmModel:
+            return "vrm"
+        }
+    }
+
+    var fallbackBaseName: String {
+        switch self {
+        case .stillImage:
+            return "still-image"
+        case .vrmModel:
+            return "avatar"
         }
     }
 }
