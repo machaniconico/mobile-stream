@@ -509,9 +509,9 @@ const createPngTuberRigAnalysis = (
     issues.push("face range must cover both eye and mouth lines");
     score -= 25;
   }
-  if (rig.sliceCount < 18) {
-    issues.push("rig should use at least 18 slices for production pseudo mesh deformation");
-    score -= Math.min(30, (18 - rig.sliceCount) * 4);
+  if (rig.sliceCount < 20) {
+    issues.push("rig should use at least 20 slices for production pseudo mesh deformation");
+    score -= Math.min(30, (20 - rig.sliceCount) * 4);
   }
   if (rig.faceRange < 0.22 || rig.faceRange > 0.64) {
     issues.push("face range should stay within 22-64% of the illustration height");
@@ -524,6 +524,28 @@ const createPngTuberRigAnalysis = (
   }
   if (rig.shoulderLineY - rig.mouthLineY < 0.12) {
     issues.push("shoulder line should leave at least 12% body space below the mouth line");
+    score -= 10;
+  }
+  const hairEyeGap = rig.eyeLineY - rig.hairLineY;
+  if (hairEyeGap < 0.025) {
+    issues.push("hair-to-eye spacing should leave at least 2.5% headroom for blink and hair sway");
+    score -= 10;
+  }
+  if (hairEyeGap > 0.24) {
+    issues.push("hair-to-eye spacing should stay below 24% of the illustration height");
+    score -= 8;
+  }
+  const mouthShoulderGap = rig.shoulderLineY - rig.mouthLineY;
+  if (mouthShoulderGap > 0.42) {
+    issues.push("mouth-to-shoulder spacing should stay below 42% so body follow-through stays anchored");
+    score -= 8;
+  }
+  if (rig.faceCenterY <= rig.eyeLineY + 0.02 || rig.faceCenterY >= rig.mouthLineY - 0.02) {
+    issues.push("face center should stay between eye and mouth lines for stable 2.5D rotation");
+    score -= 12;
+  }
+  if (rig.eyeLineY - faceTop < 0.05 || faceBottom - rig.mouthLineY < 0.045) {
+    issues.push("face range should leave deformation margin above eyes and below mouth");
     score -= 10;
   }
   return { issues, score: Math.max(0, Math.min(100, Math.round(score))) };

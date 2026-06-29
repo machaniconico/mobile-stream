@@ -269,6 +269,102 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.rigIssueSummary).toContain("rig lines");
   });
 
+  it("warns when a still-image rig lacks headroom for high-fidelity blink and hair motion", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const
+      }
+    };
+    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...source,
+            imageUri: "file:///shared/avatar.png",
+            illustrationRig: {
+              ...source.illustrationRig,
+              hairLineY: 0.325,
+              eyeLineY: 0.34,
+              mouthLineY: 0.49,
+              shoulderLineY: 0.64,
+              sliceCount: 24
+            },
+            motion: { ...source.motion, headYaw: 0.2, confidence: 0.92 }
+          }
+        : source
+    );
+
+    const diagnostics = createFaceTrackingDiagnostics(scene, profile, {
+      status: "tracking",
+      yaw: 0.2,
+      pitch: 0.1,
+      roll: 0,
+      mouthOpen: 0.4,
+      blink: 0,
+      smile: 0.4,
+      browRaise: 0.2,
+      confidence: 0.92,
+      faceLandmarkConfidence: 0.81,
+      expression: "neutral",
+      lastFrameAt: 1_000
+    });
+
+    expect(diagnostics.status).toBe("warn");
+    expect(diagnostics.rigQualityGrade).toBe("review");
+    expect(diagnostics.rigIssueSummary).toContain("hair-to-eye spacing");
+  });
+
+  it("warns when a still-image rig face center cannot support stable 2.5D rotation", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const
+      }
+    };
+    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...source,
+            imageUri: "file:///shared/avatar.png",
+            illustrationRig: {
+              ...source.illustrationRig,
+              faceCenterY: 0.24,
+              faceRange: 0.6,
+              hairLineY: 0.29,
+              eyeLineY: 0.34,
+              mouthLineY: 0.49,
+              shoulderLineY: 0.64,
+              sliceCount: 24
+            },
+            motion: { ...source.motion, headYaw: 0.2, confidence: 0.92 }
+          }
+        : source
+    );
+
+    const diagnostics = createFaceTrackingDiagnostics(scene, profile, {
+      status: "tracking",
+      yaw: 0.2,
+      pitch: 0.1,
+      roll: 0,
+      mouthOpen: 0.4,
+      blink: 0,
+      smile: 0.4,
+      browRaise: 0.2,
+      confidence: 0.92,
+      faceLandmarkConfidence: 0.81,
+      expression: "neutral",
+      lastFrameAt: 1_000
+    });
+
+    expect(diagnostics.status).toBe("warn");
+    expect(diagnostics.rigQualityScore).toBe(88);
+    expect(diagnostics.rigIssueSummary).toContain("face center");
+  });
+
   it("warns when the native camera runtime stops reporting fresh frames", () => {
     const profile = {
       ...createDefaultStudioProfile(),
