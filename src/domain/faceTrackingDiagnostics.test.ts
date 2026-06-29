@@ -70,6 +70,8 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.runtimeFresh).toBe(true);
     expect(diagnostics.activeMotionCount).toBe(1);
     expect(diagnostics.rigIssueCount).toBe(0);
+    expect(diagnostics.rigQualityScore).toBe(100);
+    expect(diagnostics.rigQualityGrade).toBe("ready");
   });
 
   it("warns when prepared PNGTuber rig lines are not production-safe", () => {
@@ -115,6 +117,8 @@ describe("face tracking diagnostics", () => {
 
     expect(diagnostics.status).toBe("warn");
     expect(diagnostics.rigIssueCount).toBeGreaterThan(0);
+    expect(diagnostics.rigQualityScore).toBeLessThan(90);
+    expect(diagnostics.rigQualityGrade).not.toBe("ready");
     expect(diagnostics.summary).toContain("Still-image avatar rig needs review");
     expect(diagnostics.rigIssueSummary).toContain("rig lines");
   });

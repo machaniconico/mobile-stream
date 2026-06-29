@@ -392,7 +392,7 @@ describe("commercial release gate", () => {
       supportBundle({
         summary: {
           validationEvidenceRunManifest: [
-            manifestRunWithoutRigIssueCount({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
+            manifestRunWithoutRigQuality({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
             manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
           ]
         }
@@ -860,7 +860,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 34 as const
+    bundleVersion: 35 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -954,10 +954,14 @@ const supportBundle = ({
 
 type ValidationManifestRun = SupportBundle["summary"]["validationEvidenceRunManifest"][number];
 
-const manifestRunWithoutRigIssueCount = (
+const manifestRunWithoutRigQuality = (
   patch: Parameters<typeof manifestRun>[0]
 ): ValidationManifestRun => {
-  const { faceTrackingRigIssueCount: _faceTrackingRigIssueCount, ...run } = manifestRun(patch);
+  const {
+    faceTrackingRigQualityScore: _faceTrackingRigQualityScore,
+    faceTrackingRigQualityGrade: _faceTrackingRigQualityGrade,
+    ...run
+  } = manifestRun(patch);
   return run as ValidationManifestRun;
 };
 
@@ -1034,6 +1038,8 @@ const manifestRun = ({
   faceTrackingRuntimeAgeMs = 120,
   faceTrackingActiveMotionCount = 1,
   faceTrackingRigIssueCount = 0,
+  faceTrackingRigQualityScore = 100,
+  faceTrackingRigQualityGrade = "ready",
   audioStatus = "pass",
   audioMonitorHeadphonesOnly = true,
   audioNativeMonitorHeadphonesConnected = true,
@@ -1142,6 +1148,8 @@ const manifestRun = ({
   faceTrackingRuntimeAgeMs?: ValidationManifestRun["faceTrackingRuntimeAgeMs"];
   faceTrackingActiveMotionCount?: ValidationManifestRun["faceTrackingActiveMotionCount"];
   faceTrackingRigIssueCount?: ValidationManifestRun["faceTrackingRigIssueCount"];
+  faceTrackingRigQualityScore?: ValidationManifestRun["faceTrackingRigQualityScore"];
+  faceTrackingRigQualityGrade?: ValidationManifestRun["faceTrackingRigQualityGrade"];
   audioStatus?: ValidationManifestRun["audioStatus"];
   audioMonitorHeadphonesOnly?: ValidationManifestRun["audioMonitorHeadphonesOnly"];
   audioNativeMonitorHeadphonesConnected?: ValidationManifestRun["audioNativeMonitorHeadphonesConnected"];
@@ -1256,6 +1264,8 @@ const manifestRun = ({
   faceTrackingRuntimeAgeMs,
   faceTrackingActiveMotionCount,
   faceTrackingRigIssueCount,
+  faceTrackingRigQualityScore,
+  faceTrackingRigQualityGrade,
   audioStatus,
   audioMonitorHeadphonesOnly,
   audioNativeMonitorHeadphonesConnected,

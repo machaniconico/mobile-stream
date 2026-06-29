@@ -35,6 +35,8 @@ export interface StreamValidationFaceTrackingSummary {
   activeMotionCount: number;
   rigIssueCount: number;
   rigIssueSummary: string;
+  rigQualityScore: number;
+  rigQualityGrade: StreamDiagnostics["faceTracking"]["rigQualityGrade"];
   summary: string;
   recommendation: string;
 }
@@ -249,6 +251,8 @@ export interface StreamValidationEvidenceRunManifestItem {
   faceTrackingRuntimeAgeMs: number | null;
   faceTrackingActiveMotionCount: number;
   faceTrackingRigIssueCount: number;
+  faceTrackingRigQualityScore: number;
+  faceTrackingRigQualityGrade: StreamValidationFaceTrackingSummary["rigQualityGrade"] | null;
   audioStatus: StreamValidationAudioSummary["status"] | null;
   audioMonitorHeadphonesOnly: boolean;
   audioNativeMonitorHeadphonesConnected: boolean;
@@ -1147,7 +1151,9 @@ const isAvatarMotionEvidencePass = (faceTracking: StreamValidationFaceTrackingSu
   faceTracking?.status === "pass" &&
   faceTracking.runtimeFresh &&
   faceTracking.activeMotionCount > 0 &&
-  faceTracking.rigIssueCount === 0;
+  faceTracking.rigIssueCount === 0 &&
+  faceTracking.rigQualityGrade === "ready" &&
+  faceTracking.rigQualityScore >= 90;
 
 const isNativeRuntimeEvidencePass = (
   nativeRuntime: StreamSessionNativeRuntimeSummary | null | undefined,
@@ -1738,6 +1744,8 @@ const createFaceTrackingValidationSummary = (
   activeMotionCount: faceTracking.activeMotionCount,
   rigIssueCount: faceTracking.rigIssueCount,
   rigIssueSummary: sanitizeStoredText(faceTracking.rigIssueSummary, secrets),
+  rigQualityScore: faceTracking.rigQualityScore,
+  rigQualityGrade: faceTracking.rigQualityGrade,
   summary: sanitizeStoredText(faceTracking.summary, secrets),
   recommendation: sanitizeStoredText(faceTracking.recommendation, secrets)
 });
@@ -2278,6 +2286,8 @@ const createEvidenceRunManifestItem = (
     faceTrackingRuntimeAgeMs: run.faceTracking?.runtimeAgeMs ?? null,
     faceTrackingActiveMotionCount: run.faceTracking?.activeMotionCount ?? 0,
     faceTrackingRigIssueCount: run.faceTracking?.rigIssueCount ?? 0,
+    faceTrackingRigQualityScore: run.faceTracking?.rigQualityScore ?? 0,
+    faceTrackingRigQualityGrade: run.faceTracking?.rigQualityGrade ?? null,
     audioStatus: run.audio?.status ?? null,
     audioMonitorHeadphonesOnly: run.audio?.monitorHeadphonesOnly ?? false,
     audioNativeMonitorHeadphonesConnected: run.audio?.nativeMonitorHeadphonesConnected ?? false,
@@ -2576,6 +2586,8 @@ const normalizeFaceTrackingValidationSummary = (value: unknown): StreamValidatio
     activeMotionCount: normalizeCount(value.activeMotionCount),
     rigIssueCount: normalizeCount(value.rigIssueCount),
     rigIssueSummary: normalizeText(value.rigIssueSummary, "No still-image rig issues."),
+    rigQualityScore: normalizeScore(value.rigQualityScore),
+    rigQualityGrade: normalizeFaceTrackingRigQualityGrade(value.rigQualityGrade),
     summary: normalizeText(value.summary, "No face tracking validation evidence retained."),
     recommendation: normalizeText(value.recommendation, "Repeat face tracking validation on a physical mobile device.")
   };
@@ -2586,6 +2598,12 @@ const normalizeFaceTrackingDiagnosticStatus = (value: unknown): StreamValidation
 
 const normalizeFaceTrackingRuntimeStatus = (value: unknown): StreamValidationFaceTrackingSummary["runtimeStatus"] =>
   value === "disabled" || value === "tracking" || value === "lost" || value === "unavailable" ? value : "unavailable";
+
+const normalizeFaceTrackingRigQualityGrade = (value: unknown): StreamValidationFaceTrackingSummary["rigQualityGrade"] =>
+  value === "ready" || value === "review" || value === "blocked" ? value : "blocked";
+
+const normalizeScore = (value: unknown): number =>
+  typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : 0;
 
 const normalizeAudioValidationSummary = (value: unknown): StreamValidationAudioSummary | null => {
   if (!isRecord(value)) {

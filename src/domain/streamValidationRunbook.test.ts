@@ -65,6 +65,8 @@ const faceTracking: FaceTrackingDiagnostics = {
   activeMotionCount: 1,
   rigIssueCount: 0,
   rigIssueSummary: "No still-image rig issues.",
+  rigQualityScore: 100,
+  rigQualityGrade: "ready",
   summary: "Face tracking is ready.",
   recommendation: "Keep this tracker state with validation evidence."
 };

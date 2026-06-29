@@ -1367,7 +1367,9 @@ describe("stream validation evidence", () => {
       faceTrackingStatus: "pass",
       faceTrackingRuntimeFresh: true,
       faceTrackingActiveMotionCount: 1,
-      faceTrackingRigIssueCount: 0
+      faceTrackingRigIssueCount: 0,
+      faceTrackingRigQualityScore: 100,
+      faceTrackingRigQualityGrade: "ready"
     });
     expect(summary.audioIosPass).toBe(true);
     expect(summary.audioAndroidPass).toBe(true);
@@ -1457,6 +1459,8 @@ describe("stream validation evidence", () => {
         activeMotionCount: 0,
         rigIssueCount: 0,
         rigIssueSummary: "No still-image rig issues.",
+        rigQualityScore: 100,
+        rigQualityGrade: "ready" as const,
         summary: "Legacy pass retained without motion count.",
         recommendation: "Repeat validation."
       }
@@ -1515,6 +1519,8 @@ describe("stream validation evidence", () => {
         activeMotionCount: 1,
         rigIssueCount: 1,
         rigIssueSummary: "1 still-image rig issue: rig lines must be ordered hair < eyes < mouth < shoulders",
+        rigQualityScore: 55,
+        rigQualityGrade: "blocked" as const,
         summary: "Avatar motion was retained with a rig issue.",
         recommendation: "Run Auto rig."
       }
@@ -1525,6 +1531,8 @@ describe("stream validation evidence", () => {
     expect(summary.faceTrackingReadyCount).toBe(0);
     expect(summary.faceTrackingIosPass).toBe(false);
     expect(summary.runManifest[0]?.faceTrackingRigIssueCount).toBe(1);
+    expect(summary.runManifest[0]?.faceTrackingRigQualityScore).toBe(55);
+    expect(summary.runManifest[0]?.faceTrackingRigQualityGrade).toBe("blocked");
     expect(summary.status).toBe("partial");
   });
 

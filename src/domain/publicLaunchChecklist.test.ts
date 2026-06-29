@@ -103,6 +103,8 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
     activeMotionCount: 1,
     rigIssueCount: 0,
     rigIssueSummary: "No still-image rig issues.",
+    rigQualityScore: 100,
+    rigQualityGrade: "ready",
     summary: "Face tracking is ready with 1 prepared PNGTuber source.",
     recommendation: "Keep this tracker state with the next private iOS/Android validation run."
   },

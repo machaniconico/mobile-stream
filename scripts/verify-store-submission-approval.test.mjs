@@ -387,7 +387,7 @@ function writeSupportBundleFixture() {
     ".artifacts/store-approval-test/support-bundle.json",
     JSON.stringify(
       {
-        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 27 },
+        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 35 },
         generatedAt: new Date().toISOString(),
         summary: {
           preflightStatus: "ready",
@@ -492,6 +492,8 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     faceTrackingRuntimeAgeMs: 120,
     faceTrackingActiveMotionCount: 1,
     faceTrackingRigIssueCount: 0,
+    faceTrackingRigQualityScore: 100,
+    faceTrackingRigQualityGrade: "ready",
     audioStatus: "pass",
     audioMonitorHeadphonesOnly: true,
     audioNativeMonitorHeadphonesConnected: true,

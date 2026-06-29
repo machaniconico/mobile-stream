@@ -38,7 +38,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 27;
+const minimumSupportBundleVersion = 35;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -349,7 +349,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v27 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v35 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -811,12 +811,19 @@ const isManifestAvatarMotionPass = (run: ValidationEvidenceManifestRun | undefin
   isManifestFeaturePass(run?.faceTrackingStatus) &&
   run?.faceTrackingRuntimeFresh === true &&
   Number(run.faceTrackingActiveMotionCount) > 0 &&
-  hasZeroManifestRigIssues(run);
+  hasZeroManifestRigIssues(run) &&
+  hasReadyManifestRigQuality(run);
 
 const hasZeroManifestRigIssues = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   typeof run?.faceTrackingRigIssueCount === "number" &&
   Number.isFinite(run.faceTrackingRigIssueCount) &&
   run.faceTrackingRigIssueCount === 0;
+
+const hasReadyManifestRigQuality = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  run?.faceTrackingRigQualityGrade === "ready" &&
+  typeof run.faceTrackingRigQualityScore === "number" &&
+  Number.isFinite(run.faceTrackingRigQualityScore) &&
+  run.faceTrackingRigQualityScore >= 90;
 
 const isManifestChatReadoutPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.chatReadoutStatus) &&

@@ -3,6 +3,7 @@ import type { StudioProfile } from "./profiles";
 import type { AvatarIllustrationRig, SceneDocument, SceneSource } from "./scene";
 
 export type FaceTrackingDiagnosticStatus = "pass" | "warn" | "info";
+export type FaceTrackingRigQualityGrade = "ready" | "review" | "blocked";
 
 export interface FaceTrackingDiagnostics {
   status: FaceTrackingDiagnosticStatus;
@@ -19,6 +20,8 @@ export interface FaceTrackingDiagnostics {
   activeMotionCount: number;
   rigIssueCount: number;
   rigIssueSummary: string;
+  rigQualityScore: number;
+  rigQualityGrade: FaceTrackingRigQualityGrade;
   summary: string;
   recommendation: string;
 }
@@ -42,11 +45,14 @@ export const createFaceTrackingDiagnostics = (
   const visibleLive2D = visibleAvatars.filter((source) => source.kind === "live2d");
   const preparedPngTubers = visiblePngTubers.filter((source) => source.imageUri.trim());
   const activeMotionCount = visibleAvatars.filter(hasActiveMotion).length;
-  const rigIssues = visiblePngTubers.flatMap(createPngTuberRigIssues);
+  const rigAnalyses = visiblePngTubers.map(createPngTuberRigAnalysis);
+  const rigIssues = rigAnalyses.flatMap((analysis) => analysis.issues);
+  const rigQualityScore = rigAnalyses.length > 0 ? Math.min(...rigAnalyses.map((analysis) => analysis.score)) : 0;
+  const rigQualityGrade = createRigQualityGrade(rigQualityScore, rigIssues.length);
   const rigIssueSummary =
     rigIssues.length === 0
       ? "No still-image rig issues."
-      : `${rigIssues.length} still-image rig issue${rigIssues.length === 1 ? "" : "s"}: ${rigIssues[0]}`;
+      : `${rigIssues.length} still-image rig issue${rigIssues.length === 1 ? "" : "s"} (${rigQualityScore}/100 ${rigQualityGrade}): ${rigIssues[0]}`;
   const runtimeStatus = runtime?.status ?? "unavailable";
   const maxRuntimeAgeMs = Math.max(0, options.maxRuntimeAgeMs ?? faceTrackingRuntimeMaxAgeMs);
   const runtimeAgeMs = runtime ? runtimeAge(runtime, options.now) : null;
@@ -68,6 +74,8 @@ export const createFaceTrackingDiagnostics = (
       activeMotionCount,
       rigIssueCount: rigIssues.length,
       rigIssueSummary,
+      rigQualityScore,
+      rigQualityGrade,
       summary: "Face tracking is disabled.",
       recommendation: "Enable face tracking when validating VTuber avatar motion for production streams."
     };
@@ -84,6 +92,8 @@ export const createFaceTrackingDiagnostics = (
       activeMotionCount,
       rigIssues.length,
       rigIssueSummary,
+      rigQualityScore,
+      rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
       "Face tracking is enabled, but no visible avatar source is in the scene.",
@@ -102,6 +112,8 @@ export const createFaceTrackingDiagnostics = (
       activeMotionCount,
       rigIssues.length,
       rigIssueSummary,
+      rigQualityScore,
+      rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
       "Face tracking is targeting Live2D/VRM only, but native Live2D/VRM rendering is not production-ready yet.",
@@ -120,6 +132,8 @@ export const createFaceTrackingDiagnostics = (
       activeMotionCount,
       rigIssues.length,
       rigIssueSummary,
+      rigQualityScore,
+      rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
       "Face tracking is enabled, but visible PNGTuber sources do not have prepared still-image assets.",
@@ -138,6 +152,8 @@ export const createFaceTrackingDiagnostics = (
       activeMotionCount,
       rigIssues.length,
       rigIssueSummary,
+      rigQualityScore,
+      rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
       `Still-image avatar rig needs review: ${rigIssues[0]}`,
@@ -156,6 +172,8 @@ export const createFaceTrackingDiagnostics = (
       activeMotionCount,
       rigIssues.length,
       rigIssueSummary,
+      rigQualityScore,
+      rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
       "Face tracking is using simulated input.",
@@ -174,6 +192,8 @@ export const createFaceTrackingDiagnostics = (
       activeMotionCount,
       rigIssues.length,
       rigIssueSummary,
+      rigQualityScore,
+      rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
       "Native face tracking is enabled, but the latest face state is lost.",
@@ -192,6 +212,8 @@ export const createFaceTrackingDiagnostics = (
       activeMotionCount,
       rigIssues.length,
       rigIssueSummary,
+      rigQualityScore,
+      rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
       "Native face tracking has not reported runtime status yet.",
@@ -210,6 +232,8 @@ export const createFaceTrackingDiagnostics = (
       activeMotionCount,
       rigIssues.length,
       rigIssueSummary,
+      rigQualityScore,
+      rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
       `Native face tracking runtime is stale by ${runtimeAgeMs ?? 0} ms.`,
@@ -228,6 +252,8 @@ export const createFaceTrackingDiagnostics = (
       activeMotionCount,
       rigIssues.length,
       rigIssueSummary,
+      rigQualityScore,
+      rigQualityGrade,
       runtimeAgeMs,
       runtimeFresh,
       "Native face tracking is reading, but no visible avatar source has applied motion yet.",
@@ -250,6 +276,8 @@ export const createFaceTrackingDiagnostics = (
     activeMotionCount,
     rigIssueCount: rigIssues.length,
     rigIssueSummary,
+    rigQualityScore,
+    rigQualityGrade,
     summary: `Face tracking is ready with ${preparedPngTubers.length} prepared PNGTuber source${preparedPngTubers.length === 1 ? "" : "s"}.`,
     recommendation: "Keep this tracker state with the next private iOS/Android validation run."
   };
@@ -265,6 +293,8 @@ const createWarning = (
   activeMotionCount: number,
   rigIssueCount: number,
   rigIssueSummary: string,
+  rigQualityScore: number,
+  rigQualityGrade: FaceTrackingRigQualityGrade,
   runtimeAgeMs: number | null,
   runtimeFresh: boolean,
   summary: string,
@@ -284,6 +314,8 @@ const createWarning = (
   activeMotionCount,
   rigIssueCount,
   rigIssueSummary,
+  rigQualityScore,
+  rigQualityGrade,
   summary,
   recommendation
 });
@@ -319,25 +351,51 @@ const hasActiveMotion = (source: Extract<SceneSource, { kind: "pngtuber" | "live
   );
 };
 
-const createPngTuberRigIssues = (source: Extract<SceneSource, { kind: "pngtuber" }>): string[] => {
+const createPngTuberRigAnalysis = (
+  source: Extract<SceneSource, { kind: "pngtuber" }>
+): { issues: string[]; score: number } => {
   const rig = source.illustrationRig;
   const issues: string[] = [];
   const tolerance = 0.01;
+  let score = 100;
   if (!isRigLineOrderValid(rig, tolerance)) {
     issues.push("rig lines must be ordered hair < eyes < mouth < shoulders");
+    score -= 35;
   }
   const faceTop = rig.faceCenterY - rig.faceRange / 2;
   const faceBottom = rig.faceCenterY + rig.faceRange / 2;
   if (rig.eyeLineY < faceTop - tolerance || rig.mouthLineY > faceBottom + tolerance) {
     issues.push("face range must cover both eye and mouth lines");
+    score -= 25;
   }
   if (rig.sliceCount < 18) {
     issues.push("rig should use at least 18 slices for production pseudo mesh deformation");
+    score -= Math.min(30, (18 - rig.sliceCount) * 4);
   }
-  return issues;
+  if (rig.faceRange < 0.22 || rig.faceRange > 0.64) {
+    issues.push("face range should stay within 22-64% of the illustration height");
+    score -= 15;
+  }
+  const eyeMouthGap = rig.mouthLineY - rig.eyeLineY;
+  if (eyeMouthGap < 0.1 || eyeMouthGap > 0.34) {
+    issues.push("eye-to-mouth spacing should stay within 10-34% of the illustration height");
+    score -= 12;
+  }
+  if (rig.shoulderLineY - rig.mouthLineY < 0.12) {
+    issues.push("shoulder line should leave at least 12% body space below the mouth line");
+    score -= 10;
+  }
+  return { issues, score: Math.max(0, Math.min(100, Math.round(score))) };
 };
 
 const isRigLineOrderValid = (rig: AvatarIllustrationRig, tolerance: number): boolean =>
   rig.hairLineY + tolerance < rig.eyeLineY &&
   rig.eyeLineY + tolerance < rig.mouthLineY &&
   rig.mouthLineY + tolerance < rig.shoulderLineY;
+
+const createRigQualityGrade = (score: number, issueCount: number): FaceTrackingRigQualityGrade => {
+  if (score >= 90 && issueCount === 0) {
+    return "ready";
+  }
+  return score >= 70 ? "review" : "blocked";
+};

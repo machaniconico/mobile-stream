@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v27.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v35.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -264,11 +264,30 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("zero still-image rig issues");
   });
 
+  it("blocks avatar-motion claims when retained manifests keep low still-image rig quality", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            faceTrackingRigQualityScore: 72,
+            faceTrackingRigQualityGrade: "review"
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("ready still-image rig quality");
+  });
+
   it("blocks avatar-motion claims when retained manifests omit still-image rig quality proof", () => {
     writeBundle({
       summary: {
         validationEvidenceRunManifest: [
-          withoutRigIssueCount(manifestRun("ios", "svr1-ios")),
+          withoutRigQuality(manifestRun("ios", "svr1-ios")),
           manifestRun("android", "svr1-android")
         ]
       }
@@ -627,7 +646,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 27
+      bundleVersion: 35
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -686,6 +705,8 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   faceTrackingRuntimeAgeMs: 120,
   faceTrackingActiveMotionCount: 1,
   faceTrackingRigIssueCount: 0,
+  faceTrackingRigQualityScore: 100,
+  faceTrackingRigQualityGrade: "ready",
   audioStatus: "pass",
   audioMonitorHeadphonesOnly: true,
   audioNativeMonitorHeadphonesConnected: true,
@@ -728,5 +749,14 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
 
 const withoutRigIssueCount = (run) => {
   const { faceTrackingRigIssueCount: _faceTrackingRigIssueCount, ...rest } = run;
+  return rest;
+};
+
+const withoutRigQuality = (run) => {
+  const {
+    faceTrackingRigQualityScore: _faceTrackingRigQualityScore,
+    faceTrackingRigQualityGrade: _faceTrackingRigQualityGrade,
+    ...rest
+  } = run;
   return rest;
 };

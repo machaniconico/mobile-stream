@@ -606,6 +606,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Runtime age: ${diagnostics.faceTracking.runtimeAgeMs === null ? "-" : `${diagnostics.faceTracking.runtimeAgeMs} ms`} / fresh ${diagnostics.faceTracking.runtimeFresh ? "yes" : "no"}`,
     `- Rig: ${diagnostics.faceTracking.rigMode}`,
     `- Avatars: ${diagnostics.faceTracking.visibleAvatarCount} visible / ${diagnostics.faceTracking.preparedPngTuberCount} prepared PNGTuber / ${diagnostics.faceTracking.activeMotionCount} moving`,
+    `- Rig quality: ${diagnostics.faceTracking.rigQualityScore}/100 ${diagnostics.faceTracking.rigQualityGrade}`,
     `- Rig issues: ${diagnostics.faceTracking.rigIssueCount} / ${diagnostics.faceTracking.rigIssueSummary}`,
     `- Recommendation: ${diagnostics.faceTracking.recommendation}`,
     "",
@@ -829,6 +830,7 @@ const formatValidationEvidenceRunManifest = (
         `${run.ageDays}d`,
         run.fingerprint,
         `native ${run.nativeRuntimeStatus ?? "-"}`,
+        `rig ${run.faceTrackingRigQualityScore}/100 ${run.faceTrackingRigQualityGrade ?? "blocked"}`,
         `hold ${run.monitorHoldStatus ?? "-"}`,
         `audio ${run.audioStatus ?? "-"}`,
         `chat ${run.chatReadoutStatus ?? "-"}`,
@@ -849,7 +851,7 @@ const formatValidationMonitorHold = (diagnostics: StreamDiagnostics): string =>
     : "-";
 
 const formatValidationFaceTracking = (diagnostics: StreamDiagnostics): string =>
-  `${diagnostics.validationEvidence.faceTrackingRunCount} retained / ${diagnostics.validationEvidence.faceTrackingReadyCount} ready / ${diagnostics.validationEvidence.faceTrackingWarningCount} warn / iOS ${diagnostics.validationEvidence.faceTrackingIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestFaceTracking?.status ?? "-"} ${diagnostics.validationEvidence.latestFaceTracking?.runtimeStatus ?? "-"} / prepared ${diagnostics.validationEvidence.latestFaceTracking?.preparedPngTuberCount ?? 0} / moving ${diagnostics.validationEvidence.latestFaceTracking?.activeMotionCount ?? 0}`;
+  `${diagnostics.validationEvidence.faceTrackingRunCount} retained / ${diagnostics.validationEvidence.faceTrackingReadyCount} ready / ${diagnostics.validationEvidence.faceTrackingWarningCount} warn / iOS ${diagnostics.validationEvidence.faceTrackingIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestFaceTracking?.status ?? "-"} ${diagnostics.validationEvidence.latestFaceTracking?.runtimeStatus ?? "-"} / prepared ${diagnostics.validationEvidence.latestFaceTracking?.preparedPngTuberCount ?? 0} / moving ${diagnostics.validationEvidence.latestFaceTracking?.activeMotionCount ?? 0} / rig quality ${diagnostics.validationEvidence.latestFaceTracking?.rigQualityScore ?? 0}/100 ${diagnostics.validationEvidence.latestFaceTracking?.rigQualityGrade ?? "blocked"}`;
 
 const formatValidationAudio = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestAudio
