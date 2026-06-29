@@ -493,6 +493,11 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
   const missingDecodedAssets =
     stillImageAssetCount > 0 &&
     (decodedStillImageAssetCount < stillImageAssetCount || decodedStillImageAssetPixels <= 0);
+  const compositedStillImageAssetCount = nativeRuntime.composition.stillImageAssetCompositedCount ?? 0;
+  const compositedStillImageAssetPixels = nativeRuntime.composition.stillImageAssetCompositedPixelCount ?? 0;
+  const missingCompositedAssets =
+    stillImageAssetCount > 0 &&
+    (compositedStillImageAssetCount < stillImageAssetCount || compositedStillImageAssetPixels <= 0);
   const missingVrmPoses = nativeRuntime.composition.vrmMissingPoseCount ?? 0;
   const vrmSourceCount = nativeRuntime.composition.vrmSourceCount ?? 0;
   const vrmRendererStatus = nativeRuntime.composition.vrmRendererStatus ?? (vrmSourceCount > 0 ? "unavailable" : "not-required");
@@ -534,6 +539,7 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
     nativeRuntime.composition.status === "pending" ||
     missingAssets > 0 ||
     missingDecodedAssets ||
+    missingCompositedAssets ||
     missingVrmPoses > 0 ||
     missingVrmRenders
   ) {
@@ -548,7 +554,9 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
           ? "Prepare App Group/native-readable still-image assets again, then repeat the iOS compositor validation."
           : missingDecodedAssets
             ? "Repeat native compositor validation until every still-image asset decodes to non-zero pixels."
-            : missingVrmPoses > 0
+            : missingCompositedAssets
+              ? "Repeat native compositor validation until every still-image asset is composited with non-zero pixel proof."
+              : missingVrmPoses > 0
               ? "Confirm VRM runtime pose payloads are included in the render graph before recording a pass."
               : missingVrmModelMetadata
                 ? "Prepare a VRM/GLB model with humanoid bones and expression metadata before recording a pass."

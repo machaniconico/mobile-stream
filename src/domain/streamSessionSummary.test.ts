@@ -391,6 +391,8 @@ describe("stream session summary", () => {
           stillImageAssetMissingKinds: ["pngtuber"],
           stillImageAssetDecodedCount: 1,
           stillImageAssetDecodedPixelCount: 921_600,
+          stillImageAssetCompositedCount: 1,
+          stillImageAssetCompositedPixelCount: 921_600,
           message: "Native overlays applied: 2; image assets 1/2, missing 1: pngtuber"
         },
         message: "Live"
@@ -406,6 +408,60 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.stillImageAssetDecodedCount).toBe(1);
     expect(summary?.nativeRuntime?.stillImageAssetDecodedPixelCount).toBe(921_600);
     expect(summary?.nativeRuntime?.recommendation).toContain("App Group-copied");
+  });
+
+  it("warns when decoded iOS still-image assets are not composited", () => {
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z"),
+      nativeRuntime: {
+        platform: "ios",
+        runtimeStatus: "live",
+        updatedAt: Date.now(),
+        stale: false,
+        elapsedSeconds: 4,
+        videoFrames: 92,
+        encodedBytes: 1_900_000,
+        droppedFrames: 0,
+        publisher: {
+          state: "published",
+          reconnectAttempts: 0,
+          sentVideoFrames: 92,
+          sentAudioFrames: 180,
+          droppedVideoFrames: 0,
+          droppedAudioFrames: 0,
+          bytesWritten: 1_900_000,
+          cacheSize: 120,
+          itemsInCache: 0,
+          congested: false,
+          lastError: ""
+        },
+        composition: {
+          status: "applied",
+          appliedCount: 1,
+          skippedCount: 0,
+          skippedKinds: [],
+          stillImageAssetCount: 1,
+          stillImageAssetLoadedCount: 1,
+          stillImageAssetMissingCount: 0,
+          stillImageAssetMissingKinds: [],
+          stillImageAssetDecodedCount: 1,
+          stillImageAssetDecodedPixelCount: 921_600,
+          stillImageAssetCompositedCount: 0,
+          stillImageAssetCompositedPixelCount: 0,
+          message: "Native overlays applied: 1; image assets 1/1"
+        },
+        message: "Live"
+      }
+    });
+
+    expect(summary?.outcome).toBe("warn");
+    expect(summary?.nativeRuntime?.status).toBe("warn");
+    expect(summary?.nativeRuntime?.stillImageAssetCompositedCount).toBe(0);
+    expect(summary?.nativeRuntime?.recommendation).toContain("composited");
   });
 
   it("lets native runtime failures make the completed session fail", () => {
@@ -522,6 +578,8 @@ describe("stream session summary", () => {
           stillImageAssetMissingKinds: ["image"],
           stillImageAssetDecodedCount: 1,
           stillImageAssetDecodedPixelCount: 921_600,
+          stillImageAssetCompositedCount: 1,
+          stillImageAssetCompositedPixelCount: 921_600,
           stale: false,
           congested: true,
           queuedItems: 8,

@@ -144,9 +144,9 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 38");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 38");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 38");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 39");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 39");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 39");
     expectIncludes(files.commercialReleaseGateDomain, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseBundleScript, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scope");
@@ -154,6 +154,7 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeSentVideoFrames");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetLoadedCount");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetDecodedPixelCount");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetCompositedPixelCount");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestNativeRuntimePass");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-native-runtime");
     expectIncludes(files.streamValidationEvidenceDomain, "monitorHoldSampleCount");

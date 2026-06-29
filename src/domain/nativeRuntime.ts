@@ -11,6 +11,8 @@ export interface NativeRuntimeComposition {
   stillImageAssetMissingKinds?: string[];
   stillImageAssetDecodedCount?: number;
   stillImageAssetDecodedPixelCount?: number;
+  stillImageAssetCompositedCount?: number;
+  stillImageAssetCompositedPixelCount?: number;
   vrmSourceCount?: number;
   vrmPosePayloadCount?: number;
   vrmActivePoseCount?: number;

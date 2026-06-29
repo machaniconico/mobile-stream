@@ -106,6 +106,8 @@ const nativeRuntime: NativeRuntimeTelemetry = {
     stillImageAssetMissingKinds: [],
     stillImageAssetDecodedCount: 1,
     stillImageAssetDecodedPixelCount: 921_600,
+    stillImageAssetCompositedCount: 1,
+    stillImageAssetCompositedPixelCount: 921_600,
     message: "Native overlays applied: 2; image assets 1/1"
   },
   message: "iOS extension live"
@@ -295,6 +297,8 @@ describe("stream validation runbook", () => {
             stillImageAssetMissingKinds: ["pngtuber"],
             stillImageAssetDecodedCount: 1,
             stillImageAssetDecodedPixelCount: 921_600,
+    stillImageAssetCompositedCount: 1,
+    stillImageAssetCompositedPixelCount: 921_600,
             message: "Native overlays applied: 2; image assets 1/2, missing 1: pngtuber"
           }
         }

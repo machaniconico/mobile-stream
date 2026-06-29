@@ -43,6 +43,8 @@ export interface StreamSessionNativeRuntimeSummary {
   stillImageAssetMissingKinds: string[];
   stillImageAssetDecodedCount: number;
   stillImageAssetDecodedPixelCount: number;
+  stillImageAssetCompositedCount: number;
+  stillImageAssetCompositedPixelCount: number;
   vrmSourceCount: number;
   vrmPosePayloadCount: number;
   vrmActivePoseCount: number;
@@ -683,6 +685,11 @@ export const createNativeRuntimeSessionSummary = (
   const missingDecodedStillImageAssets =
     stillImageAssetCount > 0 &&
     (stillImageAssetDecodedCount < stillImageAssetCount || stillImageAssetDecodedPixelCount <= 0);
+  const stillImageAssetCompositedCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetCompositedCount);
+  const stillImageAssetCompositedPixelCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetCompositedPixelCount);
+  const missingCompositedStillImageAssets =
+    stillImageAssetCount > 0 &&
+    (stillImageAssetCompositedCount < stillImageAssetCount || stillImageAssetCompositedPixelCount <= 0);
   const missingVrmPoseCount = normalizeNonNegativeInteger(runtime.composition.vrmMissingPoseCount);
   const vrmSourceCount = normalizeNonNegativeInteger(runtime.composition.vrmSourceCount);
   const missingVrmPoses = missingVrmPoseCount > 0 && vrmSourceCount > 0;
@@ -758,6 +765,7 @@ export const createNativeRuntimeSessionSummary = (
         pendingComposition ||
         missingAssets ||
         missingDecodedStillImageAssets ||
+        missingCompositedStillImageAssets ||
         missingVrmPoses ||
         incompleteVrmRendering
       ? "warn"
@@ -769,6 +777,7 @@ export const createNativeRuntimeSessionSummary = (
     pendingComposition,
     missingAssets,
     missingDecodedStillImageAssets,
+    missingCompositedStillImageAssets,
     missingVrmPoses,
     incompleteVrmRendering
   ].filter(Boolean).length;
@@ -789,6 +798,8 @@ export const createNativeRuntimeSessionSummary = (
     stillImageAssetMissingKinds: normalizeStringArray(runtime.composition.stillImageAssetMissingKinds),
     stillImageAssetDecodedCount,
     stillImageAssetDecodedPixelCount,
+    stillImageAssetCompositedCount,
+    stillImageAssetCompositedPixelCount,
     vrmSourceCount,
     vrmPosePayloadCount: normalizeNonNegativeInteger(runtime.composition.vrmPosePayloadCount),
     vrmActivePoseCount: normalizeNonNegativeInteger(runtime.composition.vrmActivePoseCount),
@@ -869,7 +880,9 @@ export const createNativeRuntimeSessionSummary = (
               ? "Confirm App Group-copied PNGTuber/image assets load inside the iOS Broadcast Upload Extension before public streams."
               : missingDecodedStillImageAssets
                 ? "Confirm PNGTuber/image assets decode to non-zero pixels inside the native compositor before retaining production evidence."
-                : missingVrmPoses
+                : missingCompositedStillImageAssets
+                  ? "Confirm PNGTuber/image assets are composited by the native overlay pipeline before retaining production evidence."
+                  : missingVrmPoses
                   ? "Confirm VRM runtime pose payloads reach the native compositor before retaining production evidence."
                   : incompleteVrmModelMetadata
                     ? "Use VRM/GLB files with humanoid bones and expression metadata before retaining production renderer evidence."
@@ -1106,6 +1119,8 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     stillImageAssetMissingKinds: normalizeStringArray(value.stillImageAssetMissingKinds),
     stillImageAssetDecodedCount: normalizeNonNegativeInteger(value.stillImageAssetDecodedCount),
     stillImageAssetDecodedPixelCount: normalizeNonNegativeInteger(value.stillImageAssetDecodedPixelCount),
+    stillImageAssetCompositedCount: normalizeNonNegativeInteger(value.stillImageAssetCompositedCount),
+    stillImageAssetCompositedPixelCount: normalizeNonNegativeInteger(value.stillImageAssetCompositedPixelCount),
     vrmSourceCount: normalizeNonNegativeInteger(value.vrmSourceCount),
     vrmPosePayloadCount: normalizeNonNegativeInteger(value.vrmPosePayloadCount),
     vrmActivePoseCount: normalizeNonNegativeInteger(value.vrmActivePoseCount),

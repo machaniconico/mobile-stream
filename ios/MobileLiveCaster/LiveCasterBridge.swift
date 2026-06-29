@@ -1088,6 +1088,8 @@ final class LiveCasterNative: RCTEventEmitter {
                 },
                 "stillImageAssetDecodedCount": sceneComposition.intValue("stillImageAssetDecodedCount"),
                 "stillImageAssetDecodedPixelCount": sceneComposition.intValue("stillImageAssetDecodedPixelCount"),
+                "stillImageAssetCompositedCount": sceneComposition.intValue("stillImageAssetCompositedCount"),
+                "stillImageAssetCompositedPixelCount": sceneComposition.intValue("stillImageAssetCompositedPixelCount"),
                 "vrmSourceCount": sceneComposition.intValue("vrmSourceCount"),
                 "vrmPosePayloadCount": sceneComposition.intValue("vrmPosePayloadCount"),
                 "vrmActivePoseCount": sceneComposition.intValue("vrmActivePoseCount"),

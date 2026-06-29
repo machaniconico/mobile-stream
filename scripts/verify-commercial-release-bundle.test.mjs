@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v38.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v39.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -129,7 +129,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("loaded and decoded still-image assets");
+    expect(result.stdout).toContain("loaded, decoded, and composited still-image assets");
   });
 
   it("blocks native runtime claims when retained manifests lack decoded still-image proof", () => {
@@ -141,7 +141,9 @@ describe("commercial release bundle verifier CLI", () => {
             nativeRuntimeStillImageAssetLoadedCount: 1,
             nativeRuntimeStillImageAssetMissingCount: 0,
             nativeRuntimeStillImageAssetDecodedCount: 0,
-            nativeRuntimeStillImageAssetDecodedPixelCount: 0
+            nativeRuntimeStillImageAssetDecodedPixelCount: 0,
+            nativeRuntimeStillImageAssetCompositedCount: 0,
+            nativeRuntimeStillImageAssetCompositedPixelCount: 0
           }),
           manifestRun("android", "svr1-android")
         ]
@@ -151,7 +153,31 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("loaded and decoded still-image assets");
+    expect(result.stdout).toContain("loaded, decoded, and composited still-image assets");
+  });
+
+  it("blocks native runtime claims when retained manifests lack composited still-image proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeStillImageAssetCount: 1,
+            nativeRuntimeStillImageAssetLoadedCount: 1,
+            nativeRuntimeStillImageAssetMissingCount: 0,
+            nativeRuntimeStillImageAssetDecodedCount: 1,
+            nativeRuntimeStillImageAssetDecodedPixelCount: 921_600,
+            nativeRuntimeStillImageAssetCompositedCount: 0,
+            nativeRuntimeStillImageAssetCompositedPixelCount: 0
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("loaded, decoded, and composited still-image assets");
   });
 
   it("blocks native runtime claims when retained manifests lack applied overlay proof", () => {
@@ -733,7 +759,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 38
+      bundleVersion: 39
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -782,6 +808,8 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeStillImageAssetMissingCount: 0,
   nativeRuntimeStillImageAssetDecodedCount: 1,
   nativeRuntimeStillImageAssetDecodedPixelCount: 921_600,
+    nativeRuntimeStillImageAssetCompositedCount: 1,
+    nativeRuntimeStillImageAssetCompositedPixelCount: 921_600,
   nativeRuntimeVrmSourceCount: 0,
   nativeRuntimeVrmPosePayloadCount: 0,
   nativeRuntimeVrmActivePoseCount: 0,

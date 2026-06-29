@@ -38,7 +38,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 38;
+const minimumSupportBundleVersion = 39;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -349,7 +349,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v38 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v39 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -799,6 +799,16 @@ const hasDecodedAllManifestNativeRuntimeAssets = (run: ValidationEvidenceManifes
   run.nativeRuntimeStillImageAssetDecodedCount >= run.nativeRuntimeStillImageAssetCount &&
   run.nativeRuntimeStillImageAssetDecodedPixelCount > 0;
 
+const hasCompositedAllManifestNativeRuntimeAssets = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  typeof run?.nativeRuntimeStillImageAssetCompositedCount === "number" &&
+  typeof run?.nativeRuntimeStillImageAssetCompositedPixelCount === "number" &&
+  typeof run.nativeRuntimeStillImageAssetCount === "number" &&
+  Number.isFinite(run.nativeRuntimeStillImageAssetCompositedCount) &&
+  Number.isFinite(run.nativeRuntimeStillImageAssetCompositedPixelCount) &&
+  Number.isFinite(run.nativeRuntimeStillImageAssetCount) &&
+  run.nativeRuntimeStillImageAssetCompositedCount >= run.nativeRuntimeStillImageAssetCount &&
+  run.nativeRuntimeStillImageAssetCompositedPixelCount > 0;
+
 const hasManifestStillImageOverlayProof = (run: ValidationEvidenceManifestRun | undefined): boolean => {
   if (!isPositiveFiniteNumber(run?.nativeRuntimeStillImageAssetCount)) {
     return true;
@@ -810,7 +820,8 @@ const hasManifestStillImageOverlayProof = (run: ValidationEvidenceManifestRun | 
     isZeroFiniteNumber(run.nativeRuntimeCompositionSkippedCount) &&
     hasZeroManifestNativeRuntimeMissingAssets(run) &&
     hasLoadedAllManifestNativeRuntimeAssets(run) &&
-    hasDecodedAllManifestNativeRuntimeAssets(run)
+    hasDecodedAllManifestNativeRuntimeAssets(run) &&
+    hasCompositedAllManifestNativeRuntimeAssets(run)
   );
 };
 

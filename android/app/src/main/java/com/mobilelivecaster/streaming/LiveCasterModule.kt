@@ -27,6 +27,8 @@ data class NativeRuntimeComposition(
     val stillImageAssetMissingKinds: List<String> = emptyList(),
     val stillImageAssetDecodedCount: Int = 0,
     val stillImageAssetDecodedPixelCount: Long = 0,
+    val stillImageAssetCompositedCount: Int = 0,
+    val stillImageAssetCompositedPixelCount: Long = 0,
     val vrmSourceCount: Int = 0,
     val vrmPosePayloadCount: Int = 0,
     val vrmActivePoseCount: Int = 0,
@@ -79,6 +81,8 @@ data class NativeRuntimeComposition(
         putArray("stillImageAssetMissingKinds", stillImageAssetMissingKinds.toWritableArray())
         putInt("stillImageAssetDecodedCount", stillImageAssetDecodedCount)
         putDouble("stillImageAssetDecodedPixelCount", stillImageAssetDecodedPixelCount.toDouble())
+        putInt("stillImageAssetCompositedCount", stillImageAssetCompositedCount)
+        putDouble("stillImageAssetCompositedPixelCount", stillImageAssetCompositedPixelCount.toDouble())
         putInt("vrmSourceCount", vrmSourceCount)
         putInt("vrmPosePayloadCount", vrmPosePayloadCount)
         putInt("vrmActivePoseCount", vrmActivePoseCount)
@@ -145,6 +149,8 @@ private fun AndroidCompositionResult.toNativeRuntimeComposition(): NativeRuntime
         stillImageAssetMissingKinds = stillImageAssetMissingKinds.toList().sorted(),
         stillImageAssetDecodedCount = stillImageAssetDecodedCount,
         stillImageAssetDecodedPixelCount = stillImageAssetDecodedPixelCount,
+        stillImageAssetCompositedCount = stillImageAssetCompositedCount,
+        stillImageAssetCompositedPixelCount = stillImageAssetCompositedPixelCount,
         vrmSourceCount = vrmPoseSummary.sourceCount,
         vrmPosePayloadCount = vrmPoseSummary.posePayloadCount,
         vrmActivePoseCount = vrmPoseSummary.activePoseCount,

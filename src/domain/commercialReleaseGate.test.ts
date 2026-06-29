@@ -353,6 +353,8 @@ describe("commercial release gate", () => {
       nativeRuntimeStillImageAssetLoadedCount: 0,
       nativeRuntimeStillImageAssetDecodedCount: 0,
       nativeRuntimeStillImageAssetDecodedPixelCount: 0,
+      nativeRuntimeStillImageAssetCompositedCount: 0,
+      nativeRuntimeStillImageAssetCompositedPixelCount: 0,
       nativeRuntimeVrmSourceCount: 1,
       nativeRuntimeVrmPosePayloadCount: 1,
       nativeRuntimeVrmActivePoseCount: 1,
@@ -465,7 +467,41 @@ describe("commercial release gate", () => {
               nativeRuntimeStillImageAssetLoadedCount: 1,
               nativeRuntimeStillImageAssetMissingCount: 0,
               nativeRuntimeStillImageAssetDecodedCount: 0,
-              nativeRuntimeStillImageAssetDecodedPixelCount: 0
+              nativeRuntimeStillImageAssetDecodedPixelCount: 0,
+              nativeRuntimeStillImageAssetCompositedCount: 0,
+              nativeRuntimeStillImageAssetCompositedPixelCount: 0
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS native runtime proof")
+      })
+    );
+  });
+
+  it("blocks native-runtime summary claims when still-image compositor assets are not composited", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeStillImageAssetCount: 1,
+              nativeRuntimeStillImageAssetLoadedCount: 1,
+              nativeRuntimeStillImageAssetMissingCount: 0,
+              nativeRuntimeStillImageAssetDecodedCount: 1,
+              nativeRuntimeStillImageAssetDecodedPixelCount: 921_600,
+              nativeRuntimeStillImageAssetCompositedCount: 0,
+              nativeRuntimeStillImageAssetCompositedPixelCount: 0
             }),
             manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
           ]
@@ -1116,7 +1152,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 38 as const
+    bundleVersion: 39 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1258,6 +1294,8 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetMissingCount = 0,
   nativeRuntimeStillImageAssetDecodedCount = 1,
   nativeRuntimeStillImageAssetDecodedPixelCount = 921_600,
+  nativeRuntimeStillImageAssetCompositedCount = 1,
+  nativeRuntimeStillImageAssetCompositedPixelCount = 921_600,
   nativeRuntimeVrmSourceCount = 0,
   nativeRuntimeVrmPosePayloadCount = 0,
   nativeRuntimeVrmActivePoseCount = 0,
@@ -1380,6 +1418,8 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetMissingCount?: ValidationManifestRun["nativeRuntimeStillImageAssetMissingCount"];
   nativeRuntimeStillImageAssetDecodedCount?: ValidationManifestRun["nativeRuntimeStillImageAssetDecodedCount"];
   nativeRuntimeStillImageAssetDecodedPixelCount?: ValidationManifestRun["nativeRuntimeStillImageAssetDecodedPixelCount"];
+  nativeRuntimeStillImageAssetCompositedCount?: ValidationManifestRun["nativeRuntimeStillImageAssetCompositedCount"];
+  nativeRuntimeStillImageAssetCompositedPixelCount?: ValidationManifestRun["nativeRuntimeStillImageAssetCompositedPixelCount"];
   nativeRuntimeVrmSourceCount?: ValidationManifestRun["nativeRuntimeVrmSourceCount"];
   nativeRuntimeVrmPosePayloadCount?: ValidationManifestRun["nativeRuntimeVrmPosePayloadCount"];
   nativeRuntimeVrmActivePoseCount?: ValidationManifestRun["nativeRuntimeVrmActivePoseCount"];
@@ -1508,6 +1548,8 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetMissingCount,
   nativeRuntimeStillImageAssetDecodedCount,
   nativeRuntimeStillImageAssetDecodedPixelCount,
+  nativeRuntimeStillImageAssetCompositedCount,
+  nativeRuntimeStillImageAssetCompositedPixelCount,
   nativeRuntimeVrmSourceCount,
   nativeRuntimeVrmPosePayloadCount,
   nativeRuntimeVrmActivePoseCount,

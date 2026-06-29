@@ -209,6 +209,8 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeStillImageAssetMissingCount: number;
   nativeRuntimeStillImageAssetDecodedCount: number;
   nativeRuntimeStillImageAssetDecodedPixelCount: number;
+  nativeRuntimeStillImageAssetCompositedCount: number;
+  nativeRuntimeStillImageAssetCompositedPixelCount: number;
   nativeRuntimeVrmSourceCount: number;
   nativeRuntimeVrmPosePayloadCount: number;
   nativeRuntimeVrmActivePoseCount: number;
@@ -1213,7 +1215,9 @@ const hasNativeRuntimeStillImageOverlayProof = (
     nativeRuntime.stillImageAssetMissingCount === 0 &&
     nativeRuntime.stillImageAssetLoadedCount >= nativeRuntime.stillImageAssetCount &&
     nativeRuntime.stillImageAssetDecodedCount >= nativeRuntime.stillImageAssetCount &&
-    nativeRuntime.stillImageAssetDecodedPixelCount > 0
+    nativeRuntime.stillImageAssetDecodedPixelCount > 0 &&
+    nativeRuntime.stillImageAssetCompositedCount >= nativeRuntime.stillImageAssetCount &&
+    nativeRuntime.stillImageAssetCompositedPixelCount > 0
   );
 };
 
@@ -1295,6 +1299,8 @@ const alignNativeRuntimeWithComposition = (
   const runtimeLoadedEnoughAssets = nativeRuntime.stillImageAssetLoadedCount >= expectedStillImageCount;
   const runtimeDecodedEnoughAssets = nativeRuntime.stillImageAssetDecodedCount >= expectedStillImageCount;
   const runtimeDecodedPixelProof = nativeRuntime.stillImageAssetDecodedPixelCount > 0;
+  const runtimeCompositedEnoughAssets = nativeRuntime.stillImageAssetCompositedCount >= expectedStillImageCount;
+  const runtimeCompositedPixelProof = nativeRuntime.stillImageAssetCompositedPixelCount > 0;
 
   if (
     overlayApplied &&
@@ -1303,7 +1309,9 @@ const alignNativeRuntimeWithComposition = (
     runtimeDeclaredEnoughAssets &&
     runtimeLoadedEnoughAssets &&
     runtimeDecodedEnoughAssets &&
-    runtimeDecodedPixelProof
+    runtimeDecodedPixelProof &&
+    runtimeCompositedEnoughAssets &&
+    runtimeCompositedPixelProof
   ) {
     return nativeRuntime;
   }
@@ -1311,8 +1319,8 @@ const alignNativeRuntimeWithComposition = (
   return addNativeRuntimeCompositionReview(
     nativeRuntime,
     "warn",
-    `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, applied ${nativeRuntime.compositionAppliedCount}/${expectedStillImageCount}, skipped ${nativeRuntime.compositionSkippedCount}, assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded, decoded ${nativeRuntime.stillImageAssetDecodedCount}/${expectedStillImageCount}, pixels ${nativeRuntime.stillImageAssetDecodedPixelCount}.`,
-    "Repeat physical validation with the current scene and retain native compositor telemetry showing overlays applied, zero skipped overlays, and all required still-image assets decoded to non-zero pixels."
+    `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, applied ${nativeRuntime.compositionAppliedCount}/${expectedStillImageCount}, skipped ${nativeRuntime.compositionSkippedCount}, assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded, decoded ${nativeRuntime.stillImageAssetDecodedCount}/${expectedStillImageCount}, decoded pixels ${nativeRuntime.stillImageAssetDecodedPixelCount}, composited ${nativeRuntime.stillImageAssetCompositedCount}/${expectedStillImageCount}, composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount}.`,
+    "Repeat physical validation with the current scene and retain native compositor telemetry showing overlays applied, zero skipped overlays, and all required still-image assets decoded and composited to non-zero pixels."
   );
 };
 
@@ -2364,6 +2372,8 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeStillImageAssetMissingCount: run.nativeRuntime?.stillImageAssetMissingCount ?? 0,
     nativeRuntimeStillImageAssetDecodedCount: run.nativeRuntime?.stillImageAssetDecodedCount ?? 0,
     nativeRuntimeStillImageAssetDecodedPixelCount: run.nativeRuntime?.stillImageAssetDecodedPixelCount ?? 0,
+    nativeRuntimeStillImageAssetCompositedCount: run.nativeRuntime?.stillImageAssetCompositedCount ?? 0,
+    nativeRuntimeStillImageAssetCompositedPixelCount: run.nativeRuntime?.stillImageAssetCompositedPixelCount ?? 0,
     nativeRuntimeVrmSourceCount: run.nativeRuntime?.vrmSourceCount ?? 0,
     nativeRuntimeVrmPosePayloadCount: run.nativeRuntime?.vrmPosePayloadCount ?? 0,
     nativeRuntimeVrmActivePoseCount: run.nativeRuntime?.vrmActivePoseCount ?? 0,

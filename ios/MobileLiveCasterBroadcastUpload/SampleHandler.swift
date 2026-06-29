@@ -3074,6 +3074,8 @@ struct BroadcastSceneCompositionSummary: Equatable {
     let stillImageAssetMissingKinds: [String]
     let stillImageAssetDecodedCount: Int
     let stillImageAssetDecodedPixelCount: Int
+    let stillImageAssetCompositedCount: Int
+    let stillImageAssetCompositedPixelCount: Int
     let vrmPoseSummary: BroadcastVrmPoseSummary
 
     static let screenOnly = BroadcastSceneCompositionSummary(
@@ -3087,6 +3089,8 @@ struct BroadcastSceneCompositionSummary: Equatable {
         stillImageAssetMissingKinds: [],
         stillImageAssetDecodedCount: 0,
         stillImageAssetDecodedPixelCount: 0,
+        stillImageAssetCompositedCount: 0,
+        stillImageAssetCompositedPixelCount: 0,
         vrmPoseSummary: .empty
     )
 
@@ -3115,7 +3119,7 @@ struct BroadcastSceneCompositionSummary: Equatable {
         guard stillImageAssetCount > 0 else {
             return nil
         }
-        let assetSummary = "image assets \(stillImageAssetLoadedCount)/\(stillImageAssetCount), decoded \(stillImageAssetDecodedCount), pixels \(stillImageAssetDecodedPixelCount)"
+        let assetSummary = "image assets \(stillImageAssetLoadedCount)/\(stillImageAssetCount), decoded \(stillImageAssetDecodedCount), pixels \(stillImageAssetDecodedPixelCount), composited \(stillImageAssetCompositedCount), pixels \(stillImageAssetCompositedPixelCount)"
         if stillImageAssetMissingCount > 0 {
             return "\(assetSummary), missing \(stillImageAssetMissingCount): \(stillImageAssetMissingKinds.joined(separator: "/"))"
         }
@@ -3134,6 +3138,8 @@ struct BroadcastSceneCompositionSummary: Equatable {
             "stillImageAssetMissingKinds": stillImageAssetMissingKinds,
             "stillImageAssetDecodedCount": stillImageAssetDecodedCount,
             "stillImageAssetDecodedPixelCount": stillImageAssetDecodedPixelCount,
+            "stillImageAssetCompositedCount": stillImageAssetCompositedCount,
+            "stillImageAssetCompositedPixelCount": stillImageAssetCompositedPixelCount,
             "vrmSourceCount": vrmPoseSummary.sourceCount,
             "vrmPosePayloadCount": vrmPoseSummary.posePayloadCount,
             "vrmActivePoseCount": vrmPoseSummary.activePoseCount,
@@ -3429,6 +3435,7 @@ private struct BroadcastPngTuberRig {
 private struct BroadcastStillImageAssetResult: Equatable {
     let loaded: Bool
     let pixelCount: Int
+    let compositedPixelCount: Int
 }
 
 final class BroadcastSceneCompositor {
@@ -3449,6 +3456,8 @@ final class BroadcastSceneCompositor {
         let loadedCount = stillImageAssetResults.values.filter { $0.loaded }.count
         let decodedCount = stillImageAssetResults.values.filter { $0.loaded && $0.pixelCount > 0 }.count
         let decodedPixelCount = stillImageAssetResults.values.reduce(0) { $0 + $1.pixelCount }
+        let compositedCount = stillImageAssetResults.values.filter { $0.loaded && $0.compositedPixelCount > 0 }.count
+        let compositedPixelCount = stillImageAssetResults.values.reduce(0) { $0 + $1.compositedPixelCount }
         let missingNodes = stillImageNodes.filter { stillImageAssetResults[Self.assetEvidenceKey(for: $0)]?.loaded != true }
         return BroadcastSceneCompositionSummary(
             appliedCount: overlayNodes.count,
@@ -3461,6 +3470,8 @@ final class BroadcastSceneCompositor {
             stillImageAssetMissingKinds: Array(Set(missingNodes.map(\.kind))).sorted(),
             stillImageAssetDecodedCount: decodedCount,
             stillImageAssetDecodedPixelCount: decodedPixelCount,
+            stillImageAssetCompositedCount: compositedCount,
+            stillImageAssetCompositedPixelCount: compositedPixelCount,
             vrmPoseSummary: vrmPoseSummary
         )
     }
@@ -3671,6 +3682,7 @@ final class BroadcastSceneCompositor {
             UIGraphicsPushContext(context)
             riggedImage.draw(in: rect)
             UIGraphicsPopContext()
+            recordStillImageAssetComposited(for: node, rect: rect)
             return
         }
 
@@ -3884,6 +3896,7 @@ final class BroadcastSceneCompositor {
         UIGraphicsPushContext(context)
         image.draw(in: rect)
         UIGraphicsPopContext()
+        recordStillImageAssetComposited(for: node, rect: rect)
     }
 
     private func image(for rawURI: String, node: BroadcastRenderNode) -> UIImage? {
@@ -3917,9 +3930,30 @@ final class BroadcastSceneCompositor {
         guard Self.requiresStillImageAsset(node) else {
             return
         }
-        stillImageAssetResults[Self.assetEvidenceKey(for: node)] = BroadcastStillImageAssetResult(
+        let key = Self.assetEvidenceKey(for: node)
+        stillImageAssetResults[key] = BroadcastStillImageAssetResult(
             loaded: image != nil,
-            pixelCount: Self.pixelCount(for: image)
+            pixelCount: Self.pixelCount(for: image),
+            compositedPixelCount: image == nil ? 0 : stillImageAssetResults[key]?.compositedPixelCount ?? 0
+        )
+    }
+
+    private func recordStillImageAssetComposited(for node: BroadcastRenderNode, rect: CGRect) {
+        guard Self.requiresStillImageAsset(node) else {
+            return
+        }
+        let key = Self.assetEvidenceKey(for: node)
+        guard let current = stillImageAssetResults[key], current.loaded, current.pixelCount > 0 else {
+            return
+        }
+        let area = max(0, Int((rect.width * rect.height).rounded()))
+        guard area > 0 else {
+            return
+        }
+        stillImageAssetResults[key] = BroadcastStillImageAssetResult(
+            loaded: current.loaded,
+            pixelCount: current.pixelCount,
+            compositedPixelCount: max(current.compositedPixelCount, area)
         )
     }
 

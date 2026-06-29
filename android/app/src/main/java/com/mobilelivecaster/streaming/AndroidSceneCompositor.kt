@@ -67,7 +67,8 @@ data class AndroidVrmPoseSummary(
 
 data class AndroidStillImageAssetEvidence(
     val loaded: Boolean = false,
-    val decodedPixelCount: Long = 0
+    val decodedPixelCount: Long = 0,
+    val compositedPixelCount: Long = 0
 )
 
 data class AndroidCompositionResult(
@@ -81,6 +82,8 @@ data class AndroidCompositionResult(
     val stillImageAssetMissingKinds: Set<String> = emptySet(),
     val stillImageAssetDecodedCount: Int = 0,
     val stillImageAssetDecodedPixelCount: Long = 0,
+    val stillImageAssetCompositedCount: Int = 0,
+    val stillImageAssetCompositedPixelCount: Long = 0,
     val vrmPoseSummary: AndroidVrmPoseSummary = AndroidVrmPoseSummary()
 ) {
     val summary: String
@@ -99,7 +102,7 @@ data class AndroidCompositionResult(
                 } else {
                     ""
                 }
-                evidenceMessages.add("image assets $stillImageAssetLoadedCount/$stillImageAssetCount, decoded $stillImageAssetDecodedCount, pixels $stillImageAssetDecodedPixelCount$missingSuffix")
+                evidenceMessages.add("image assets $stillImageAssetLoadedCount/$stillImageAssetCount, decoded $stillImageAssetDecodedCount, pixels $stillImageAssetDecodedPixelCount, composited $stillImageAssetCompositedCount, pixels $stillImageAssetCompositedPixelCount$missingSuffix")
             }
             if (vrmPoseSummary.sourceCount > 0) {
                 evidenceMessages.add("VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}; VRM renderer ${vrmPoseSummary.rendererStatus} ${vrmPoseSummary.rendererBackend}, rendered ${vrmPoseSummary.renderedSourceCount}/${vrmPoseSummary.sourceCount}, models ${vrmPoseSummary.modelLoadedCount}/${vrmPoseSummary.modelUriCount}, bones ${vrmPoseSummary.humanoidBoneCount}, expressions ${vrmPoseSummary.expressionCount}, primitives ${vrmPoseSummary.meshPrimitiveCount}, triangles ${vrmPoseSummary.trianglePrimitiveCount}, unsupported modes ${vrmPoseSummary.unsupportedPrimitiveModeCount}, skinned ${vrmPoseSummary.skinnedMeshPrimitiveCount}, joints ${vrmPoseSummary.skinJointCount}, position accessors ${vrmPoseSummary.positionAccessorCount}, normals ${vrmPoseSummary.normalAccessorCount}, uvs ${vrmPoseSummary.texcoordAccessorCount}, vertices ${vrmPoseSummary.vertexCount}, indices ${vrmPoseSummary.indexCount}, bounds ${vrmPoseSummary.boundsAccessorCount}, skin attrs ${vrmPoseSummary.skinningAttributePrimitiveCount}, morphs ${vrmPoseSummary.morphTargetCount}, materials ${vrmPoseSummary.materialCount}, transparent materials ${vrmPoseSummary.transparentMaterialCount}, textures ${vrmPoseSummary.textureCount}, images ${vrmPoseSummary.imageCount}, unsupported image mimes ${vrmPoseSummary.unsupportedImageMimeCount}, pose bones ${vrmPoseSummary.poseBoneAppliedCount}/${vrmPoseSummary.poseBoneCount}, pose expressions ${vrmPoseSummary.poseExpressionAppliedCount}/${vrmPoseSummary.poseExpressionCount}, failed ${vrmPoseSummary.renderFailureCount}")
@@ -141,6 +144,7 @@ object AndroidSceneCompositor {
 
             applyTransform(filter, node)
             stream.getGlInterface().addFilter(filter)
+            recordStillImageAssetComposited(stillImageEvidence, node)
             appliedCount += 1
         }
         val missingStillImageNodes = stillImageNodes.filter { node ->
@@ -157,6 +161,8 @@ object AndroidSceneCompositor {
             stillImageAssetMissingKinds = missingStillImageNodes.mapTo(linkedSetOf()) { node -> node.kind },
             stillImageAssetDecodedCount = stillImageEvidence.values.count { evidence -> evidence.loaded && evidence.decodedPixelCount > 0 },
             stillImageAssetDecodedPixelCount = stillImageEvidence.values.sumOf { evidence -> evidence.decodedPixelCount },
+            stillImageAssetCompositedCount = stillImageEvidence.values.count { evidence -> evidence.loaded && evidence.compositedPixelCount > 0 },
+            stillImageAssetCompositedPixelCount = stillImageEvidence.values.sumOf { evidence -> evidence.compositedPixelCount },
             vrmPoseSummary = vrmPoseSummary
         )
     }
@@ -1000,8 +1006,24 @@ object AndroidSceneCompositor {
         }
         stillImageEvidence[assetEvidenceKey(node)] = AndroidStillImageAssetEvidence(
             loaded = bitmap != null,
-            decodedPixelCount = bitmap?.let { image -> image.width.toLong() * image.height.toLong() } ?: 0L
+            decodedPixelCount = bitmap?.let { image -> image.width.toLong() * image.height.toLong() } ?: 0L,
+            compositedPixelCount = if (bitmap != null) stillImageEvidence[assetEvidenceKey(node)]?.compositedPixelCount ?: 0L else 0L
         )
+    }
+
+    private fun recordStillImageAssetComposited(
+        stillImageEvidence: MutableMap<String, AndroidStillImageAssetEvidence>,
+        node: RenderGraphNode
+    ) {
+        if (!requiresStillImageAsset(node)) {
+            return
+        }
+        val key = assetEvidenceKey(node)
+        val current = stillImageEvidence[key] ?: return
+        if (!current.loaded || current.decodedPixelCount <= 0L) {
+            return
+        }
+        stillImageEvidence[key] = current.copy(compositedPixelCount = current.decodedPixelCount)
     }
 
     private fun parseColor(value: String, fallback: Int): Int {

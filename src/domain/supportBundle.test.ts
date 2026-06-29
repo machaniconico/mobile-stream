@@ -77,6 +77,8 @@ describe("support bundle", () => {
           stillImageAssetMissingKinds: [],
           stillImageAssetDecodedCount: 1,
           stillImageAssetDecodedPixelCount: 921_600,
+    stillImageAssetCompositedCount: 1,
+    stillImageAssetCompositedPixelCount: 921_600,
           vrmSourceCount: 1,
           vrmPosePayloadCount: 1,
           vrmActivePoseCount: 1,
@@ -197,7 +199,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 38 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 39 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
@@ -293,6 +295,8 @@ describe("support bundle", () => {
     expect(bundle.summary.nativeRuntimeStillImageAssetMissingCount).toBe(0);
     expect(bundle.summary.nativeRuntimeStillImageAssetDecodedCount).toBe(1);
     expect(bundle.summary.nativeRuntimeStillImageAssetDecodedPixelCount).toBe(921_600);
+    expect(bundle.summary.nativeRuntimeStillImageAssetCompositedCount).toBe(1);
+    expect(bundle.summary.nativeRuntimeStillImageAssetCompositedPixelCount).toBe(921_600);
     expect(bundle.summary.nativeRuntimeVrmSourceCount).toBe(1);
     expect(bundle.summary.nativeRuntimeVrmPosePayloadCount).toBe(1);
     expect(bundle.summary.nativeRuntimeVrmActivePoseCount).toBe(1);
@@ -359,9 +363,11 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Runbook: running");
     expect(formatSupportBundle(bundle)).toContain("Native composition: warn / preview-only-overlays");
     expect(formatSupportBundle(bundle)).toContain("asset issues 1 / file-backed 0");
-    expect(formatSupportBundle(bundle)).toContain("assets 1/1 loaded / 1 decoded / pixels 921600 / 0 missing");
+    expect(formatSupportBundle(bundle)).toContain(
+      "assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / 0 missing"
+    );
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
-    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / overlays applied 1 skipped 0 / assets 1/1 loaded / 1 decoded / pixels 921600 / 0 missing / vrm 1/1 active payloads 1 missing 0 / renderer ready native-test rendered 1/1 models 1 versions 1.0 bones 55 expressions 8 mesh primitives 4 triangles 4 unsupported modes 0 skinned 4 skin joints 55 position accessors 4 normals 4 uvs 4 vertices 12480 indices 36240 bounds 4 skin attrs 4 morphs 8 materials 3 transparent materials 1 textures 3 images 3 unsupported image mimes 0 pose bones 7/7 unsupported 0 pose expressions 3/3 unsupported 0 missing 0 failed 0 / congested yes / queue 64/120");
+    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / overlays applied 1 skipped 0 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / 0 missing / vrm 1/1 active payloads 1 missing 0 / renderer ready native-test rendered 1/1 models 1 versions 1.0 bones 55 expressions 8 mesh primitives 4 triangles 4 unsupported modes 0 skinned 4 skin joints 55 position accessors 4 normals 4 uvs 4 vertices 12480 indices 36240 bounds 4 skin attrs 4 morphs 8 materials 3 transparent materials 1 textures 3 images 3 unsupported image mimes 0 pose bones 7/7 unsupported 0 pose expressions 3/3 unsupported 0 missing 0 failed 0 / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
     expect(formatSupportBundle(bundle)).toContain("Evidence fingerprint: sve1-");
     expect(formatSupportBundle(bundle)).toContain("Evidence run manifest: -");
@@ -437,6 +443,8 @@ describe("support bundle", () => {
           stillImageAssetMissingKinds: [],
           stillImageAssetDecodedCount: 1,
           stillImageAssetDecodedPixelCount: 921_600,
+    stillImageAssetCompositedCount: 1,
+    stillImageAssetCompositedPixelCount: 921_600,
           vrmSourceCount: 1,
           vrmPosePayloadCount: 1,
           vrmActivePoseCount: 1,
