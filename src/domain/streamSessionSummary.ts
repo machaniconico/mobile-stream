@@ -46,6 +46,12 @@ export interface StreamSessionNativeRuntimeSummary {
   vrmModelVersions: string[];
   vrmHumanoidBoneCount: number;
   vrmExpressionCount: number;
+  vrmPoseBoneCount: number;
+  vrmPoseBoneAppliedCount: number;
+  vrmPoseBoneUnsupportedCount: number;
+  vrmPoseExpressionCount: number;
+  vrmPoseExpressionAppliedCount: number;
+  vrmPoseExpressionUnsupportedCount: number;
   vrmRuntimeStatuses: string[];
   vrmRendererStatus: NonNullable<NativeRuntimeTelemetry["composition"]["vrmRendererStatus"]>;
   vrmRendererBackend: string;
@@ -662,14 +668,28 @@ export const createNativeRuntimeSessionSummary = (
   const vrmModelLoadedCount = normalizeNonNegativeInteger(runtime.composition.vrmModelLoadedCount);
   const vrmHumanoidBoneCount = normalizeNonNegativeInteger(runtime.composition.vrmHumanoidBoneCount);
   const vrmExpressionCount = normalizeNonNegativeInteger(runtime.composition.vrmExpressionCount);
+  const vrmPoseBoneCount = normalizeNonNegativeInteger(runtime.composition.vrmPoseBoneCount);
+  const vrmPoseBoneAppliedCount = normalizeNonNegativeInteger(runtime.composition.vrmPoseBoneAppliedCount);
+  const vrmPoseBoneUnsupportedCount = normalizeNonNegativeInteger(
+    runtime.composition.vrmPoseBoneUnsupportedCount ?? Math.max(0, vrmPoseBoneCount - vrmPoseBoneAppliedCount)
+  );
+  const vrmPoseExpressionCount = normalizeNonNegativeInteger(runtime.composition.vrmPoseExpressionCount);
+  const vrmPoseExpressionAppliedCount = normalizeNonNegativeInteger(runtime.composition.vrmPoseExpressionAppliedCount);
+  const vrmPoseExpressionUnsupportedCount = normalizeNonNegativeInteger(
+    runtime.composition.vrmPoseExpressionUnsupportedCount ??
+      Math.max(0, vrmPoseExpressionCount - vrmPoseExpressionAppliedCount)
+  );
   const incompleteVrmModelMetadata = vrmModelLoadedCount > 0 && (vrmHumanoidBoneCount === 0 || vrmExpressionCount === 0);
+  const incompleteVrmPoseMapping =
+    vrmModelLoadedCount > 0 && (vrmPoseBoneUnsupportedCount > 0 || vrmPoseExpressionUnsupportedCount > 0);
   const incompleteVrmRendering =
     vrmSourceCount > 0 &&
     (vrmRendererStatus !== "ready" ||
       vrmRenderedSourceCount < vrmSourceCount ||
       vrmRenderMissingCount > 0 ||
       vrmRenderFailureCount > 0 ||
-      incompleteVrmModelMetadata);
+      incompleteVrmModelMetadata ||
+      incompleteVrmPoseMapping);
   const status: StreamSessionNativeRuntimeStatus = failed
     ? "fail"
     : stale || congested || pendingComposition || missingAssets || missingVrmPoses || incompleteVrmRendering
@@ -696,6 +716,12 @@ export const createNativeRuntimeSessionSummary = (
     vrmModelVersions: normalizeStringArray(runtime.composition.vrmModelVersions),
     vrmHumanoidBoneCount,
     vrmExpressionCount,
+    vrmPoseBoneCount,
+    vrmPoseBoneAppliedCount,
+    vrmPoseBoneUnsupportedCount,
+    vrmPoseExpressionCount,
+    vrmPoseExpressionAppliedCount,
+    vrmPoseExpressionUnsupportedCount,
     vrmRuntimeStatuses: runtime.composition.vrmRuntimeStatuses ?? [],
     vrmRendererStatus,
     vrmRendererBackend: runtime.composition.vrmRendererBackend || "none",
@@ -746,9 +772,11 @@ export const createNativeRuntimeSessionSummary = (
                 ? "Confirm VRM runtime pose payloads reach the native compositor before retaining production evidence."
                 : incompleteVrmModelMetadata
                   ? "Use VRM/GLB files with humanoid bones and expression metadata before retaining production renderer evidence."
-                : incompleteVrmRendering
-                  ? "Confirm the native VRM renderer loads and renders every visible VRM source before retaining production evidence."
-                  : pendingComposition
+                  : incompleteVrmPoseMapping
+                    ? "Confirm VRM pose bones and expression weights map to the imported model before retaining production evidence."
+                    : incompleteVrmRendering
+                      ? "Confirm the native VRM renderer loads and renders every visible VRM source before retaining production evidence."
+                      : pendingComposition
                     ? "Review native compositor coverage before treating this scene as production-ready."
                     : "Keep this native runtime result as supporting evidence for the destination."
   };
@@ -980,6 +1008,12 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     vrmModelVersions: normalizeStringArray(value.vrmModelVersions),
     vrmHumanoidBoneCount: normalizeNonNegativeInteger(value.vrmHumanoidBoneCount),
     vrmExpressionCount: normalizeNonNegativeInteger(value.vrmExpressionCount),
+    vrmPoseBoneCount: normalizeNonNegativeInteger(value.vrmPoseBoneCount),
+    vrmPoseBoneAppliedCount: normalizeNonNegativeInteger(value.vrmPoseBoneAppliedCount),
+    vrmPoseBoneUnsupportedCount: normalizeNonNegativeInteger(value.vrmPoseBoneUnsupportedCount),
+    vrmPoseExpressionCount: normalizeNonNegativeInteger(value.vrmPoseExpressionCount),
+    vrmPoseExpressionAppliedCount: normalizeNonNegativeInteger(value.vrmPoseExpressionAppliedCount),
+    vrmPoseExpressionUnsupportedCount: normalizeNonNegativeInteger(value.vrmPoseExpressionUnsupportedCount),
     vrmRuntimeStatuses: Array.isArray(value.vrmRuntimeStatuses)
       ? value.vrmRuntimeStatuses.filter((status): status is string => typeof status === "string")
       : [],

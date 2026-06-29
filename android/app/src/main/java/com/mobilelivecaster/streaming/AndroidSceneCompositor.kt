@@ -19,6 +19,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -31,6 +32,12 @@ data class AndroidVrmPoseSummary(
     val modelVersions: Set<String> = emptySet(),
     val humanoidBoneCount: Int = 0,
     val expressionCount: Int = 0,
+    val poseBoneCount: Int = 0,
+    val poseBoneAppliedCount: Int = 0,
+    val poseBoneUnsupportedCount: Int = 0,
+    val poseExpressionCount: Int = 0,
+    val poseExpressionAppliedCount: Int = 0,
+    val poseExpressionUnsupportedCount: Int = 0,
     val runtimeStatuses: Set<String> = emptySet(),
     val rendererStatus: String = "not-required",
     val rendererBackend: String = "none",
@@ -57,7 +64,7 @@ data class AndroidCompositionResult(
                 else -> "Native overlays applied: $appliedCount, pending: ${skippedKinds.joinToString("/")}"
             }
             return if (vrmPoseSummary.sourceCount > 0) {
-                "$base; VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}; VRM renderer ${vrmPoseSummary.rendererStatus} ${vrmPoseSummary.rendererBackend}, rendered ${vrmPoseSummary.renderedSourceCount}/${vrmPoseSummary.sourceCount}, models ${vrmPoseSummary.modelLoadedCount}/${vrmPoseSummary.modelUriCount}, bones ${vrmPoseSummary.humanoidBoneCount}, expressions ${vrmPoseSummary.expressionCount}, failed ${vrmPoseSummary.renderFailureCount}"
+                "$base; VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}; VRM renderer ${vrmPoseSummary.rendererStatus} ${vrmPoseSummary.rendererBackend}, rendered ${vrmPoseSummary.renderedSourceCount}/${vrmPoseSummary.sourceCount}, models ${vrmPoseSummary.modelLoadedCount}/${vrmPoseSummary.modelUriCount}, bones ${vrmPoseSummary.humanoidBoneCount}, expressions ${vrmPoseSummary.expressionCount}, pose bones ${vrmPoseSummary.poseBoneAppliedCount}/${vrmPoseSummary.poseBoneCount}, pose expressions ${vrmPoseSummary.poseExpressionAppliedCount}/${vrmPoseSummary.poseExpressionCount}, failed ${vrmPoseSummary.renderFailureCount}"
             } else {
                 base
             }
@@ -391,18 +398,24 @@ object AndroidSceneCompositor {
         val modelVersions = linkedSetOf<String>()
         var humanoidBoneCount = 0
         var expressionCount = 0
+        var poseBoneCount = 0
+        var poseBoneAppliedCount = 0
+        var poseExpressionCount = 0
+        var poseExpressionAppliedCount = 0
         val runtimeStatuses = linkedSetOf<String>()
 
         vrmNodes.forEach { node ->
             val modelUri = node.payload.optString("modelUri").trim()
+            var modelMetadata: AndroidVrmModelMetadata? = null
             if (modelUri.isNotEmpty()) {
                 modelUriCount += 1
                 val metadata = loadVrmModelMetadata(context, modelUri)
                 if (metadata != null) {
+                    modelMetadata = metadata
                     modelLoadedCount += 1
                     modelVersions.add(metadata.version)
-                    humanoidBoneCount += metadata.humanoidBoneCount
-                    expressionCount += metadata.expressionCount
+                    humanoidBoneCount += metadata.humanoidBoneNames.size
+                    expressionCount += metadata.expressionNames.size
                 } else {
                     modelLoadFailureCount += 1
                 }
@@ -416,6 +429,16 @@ object AndroidSceneCompositor {
                     val pose = JSONObject(rawPose)
                     posePayloadCount += 1
                     poseStatus = normalizeVrmRuntimeStatus(pose.optString("status", directStatus))
+                    val poseBones = extractVrmPoseBoneNames(pose)
+                    val poseExpressions = extractActiveVrmPoseExpressionNames(pose)
+                    val appliedBones = modelMetadata?.let { metadata -> poseBones.count { metadata.humanoidBoneNames.contains(it) } } ?: 0
+                    val appliedExpressions = modelMetadata?.let { metadata ->
+                        poseExpressions.count { metadata.expressionNames.contains(it) }
+                    } ?: 0
+                    poseBoneCount += poseBones.size
+                    poseBoneAppliedCount += appliedBones
+                    poseExpressionCount += poseExpressions.size
+                    poseExpressionAppliedCount += appliedExpressions
                 } catch (_: Throwable) {
                     runtimeStatuses.add("invalid")
                 }
@@ -442,6 +465,12 @@ object AndroidSceneCompositor {
             modelVersions = modelVersions,
             humanoidBoneCount = humanoidBoneCount,
             expressionCount = expressionCount,
+            poseBoneCount = poseBoneCount,
+            poseBoneAppliedCount = poseBoneAppliedCount,
+            poseBoneUnsupportedCount = (poseBoneCount - poseBoneAppliedCount).coerceAtLeast(0),
+            poseExpressionCount = poseExpressionCount,
+            poseExpressionAppliedCount = poseExpressionAppliedCount,
+            poseExpressionUnsupportedCount = (poseExpressionCount - poseExpressionAppliedCount).coerceAtLeast(0),
             runtimeStatuses = runtimeStatuses,
             rendererStatus = "unavailable",
             rendererBackend = if (modelUriCount > 0) "native-vrm-glb-loader" else "none",
@@ -498,36 +527,103 @@ object AndroidSceneCompositor {
         return when {
             vrm1 != null -> AndroidVrmModelMetadata(
                 version = "1.0",
-                humanoidBoneCount = countVrm1HumanoidBones(vrm1),
-                expressionCount = countVrm1Expressions(vrm1)
+                humanoidBoneNames = extractVrm1HumanoidBoneNames(vrm1),
+                expressionNames = extractVrm1ExpressionNames(vrm1)
             )
             vrm0 != null -> AndroidVrmModelMetadata(
                 version = "0.x",
-                humanoidBoneCount = countVrm0HumanoidBones(vrm0),
-                expressionCount = countVrm0Expressions(vrm0)
+                humanoidBoneNames = extractVrm0HumanoidBoneNames(vrm0),
+                expressionNames = extractVrm0ExpressionNames(vrm0)
             )
             else -> null
         }
     }
 
-    private fun countVrm1HumanoidBones(vrm: JSONObject): Int {
-        val humanBones = vrm.optJSONObject("humanoid")?.optJSONObject("humanBones") ?: return 0
-        return humanBones.length()
+    private fun extractVrm1HumanoidBoneNames(vrm: JSONObject): Set<String> {
+        val humanBones = vrm.optJSONObject("humanoid")?.optJSONObject("humanBones") ?: return emptySet()
+        return jsonObjectKeys(humanBones)
     }
 
-    private fun countVrm0HumanoidBones(vrm: JSONObject): Int {
-        return vrm.optJSONObject("humanoid")?.optJSONArray("humanBones")?.length() ?: 0
+    private fun extractVrm0HumanoidBoneNames(vrm: JSONObject): Set<String> {
+        val humanBones = vrm.optJSONObject("humanoid")?.optJSONArray("humanBones") ?: return emptySet()
+        return buildSet {
+            for (index in 0 until humanBones.length()) {
+                val bone = humanBones.optJSONObject(index)?.optString("bone")?.trim().orEmpty()
+                if (bone.isNotEmpty()) {
+                    add(bone)
+                }
+            }
+        }
     }
 
-    private fun countVrm1Expressions(vrm: JSONObject): Int {
-        val expressions = vrm.optJSONObject("expressions") ?: return 0
-        val presetCount = expressions.optJSONObject("preset")?.length() ?: 0
-        val customCount = expressions.optJSONObject("custom")?.length() ?: 0
-        return presetCount + customCount
+    private fun extractVrm1ExpressionNames(vrm: JSONObject): Set<String> {
+        val expressions = vrm.optJSONObject("expressions") ?: return emptySet()
+        return buildSet {
+            expressions.optJSONObject("preset")?.let { addAll(jsonObjectKeys(it).map(::normalizeVrmExpressionName)) }
+            expressions.optJSONObject("custom")?.let { addAll(jsonObjectKeys(it).map(::normalizeVrmExpressionName)) }
+        }
     }
 
-    private fun countVrm0Expressions(vrm: JSONObject): Int {
-        return vrm.optJSONObject("blendShapeMaster")?.optJSONArray("blendShapeGroups")?.length() ?: 0
+    private fun extractVrm0ExpressionNames(vrm: JSONObject): Set<String> {
+        val blendShapeGroups = vrm.optJSONObject("blendShapeMaster")?.optJSONArray("blendShapeGroups") ?: return emptySet()
+        return buildSet {
+            for (index in 0 until blendShapeGroups.length()) {
+                val group = blendShapeGroups.optJSONObject(index) ?: continue
+                listOf(group.optString("presetName"), group.optString("name")).forEach { rawName ->
+                    val name = normalizeVrmExpressionName(rawName)
+                    if (name.isNotEmpty() && name != "unknown") {
+                        add(name)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun extractVrmPoseBoneNames(pose: JSONObject): Set<String> {
+        val rotations = pose.optJSONArray("humanoidRotations") ?: return emptySet()
+        return buildSet {
+            for (index in 0 until rotations.length()) {
+                val bone = rotations.optJSONObject(index)?.optString("bone")?.trim().orEmpty()
+                if (bone.isNotEmpty()) {
+                    add(bone)
+                }
+            }
+        }
+    }
+
+    private fun extractActiveVrmPoseExpressionNames(pose: JSONObject): Set<String> {
+        val expressions = pose.optJSONObject("expressions") ?: return emptySet()
+        return buildSet {
+            expressions.keys().forEach { rawName ->
+                val name = normalizeVrmExpressionName(rawName)
+                val weight = expressions.optDouble(rawName, 0.0)
+                if (name.isNotEmpty() && name != "neutral" && weight > 0.001) {
+                    add(name)
+                }
+            }
+        }
+    }
+
+    private fun jsonObjectKeys(value: JSONObject): Set<String> = buildSet {
+        value.keys().forEach { key ->
+            val clean = key.trim()
+            if (clean.isNotEmpty()) {
+                add(clean)
+            }
+        }
+    }
+
+    private fun normalizeVrmExpressionName(rawName: String): String {
+        return when (rawName.trim().lowercase(Locale.US)) {
+            "a", "aa" -> "aa"
+            "i", "ih" -> "ih"
+            "u", "ou" -> "ou"
+            "e", "ee" -> "ee"
+            "o", "oh" -> "oh"
+            "joy", "happy" -> "happy"
+            "fun", "surprise", "surprised" -> "surprised"
+            else -> rawName.trim()
+        }
     }
 
     private fun InputStream.readExact(byteCount: Int): ByteArray? {
@@ -617,8 +713,8 @@ private const val MAX_VRM_JSON_CHUNK_BYTES = 2 * 1024 * 1024
 
 private data class AndroidVrmModelMetadata(
     val version: String,
-    val humanoidBoneCount: Int,
-    val expressionCount: Int
+    val humanoidBoneNames: Set<String>,
+    val expressionNames: Set<String>
 )
 
 private data class RenderGraphNode(

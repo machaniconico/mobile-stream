@@ -207,6 +207,12 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeVrmModelVersions: string[];
   nativeRuntimeVrmHumanoidBoneCount: number;
   nativeRuntimeVrmExpressionCount: number;
+  nativeRuntimeVrmPoseBoneCount: number;
+  nativeRuntimeVrmPoseBoneAppliedCount: number;
+  nativeRuntimeVrmPoseBoneUnsupportedCount: number;
+  nativeRuntimeVrmPoseExpressionCount: number;
+  nativeRuntimeVrmPoseExpressionAppliedCount: number;
+  nativeRuntimeVrmPoseExpressionUnsupportedCount: number;
   nativeRuntimeVrmRenderedSourceCount: number;
   nativeRuntimeVrmRenderMissingCount: number;
   nativeRuntimeVrmRenderFailureCount: number;
@@ -2212,6 +2218,12 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeVrmModelVersions: run.nativeRuntime?.vrmModelVersions ?? [],
     nativeRuntimeVrmHumanoidBoneCount: run.nativeRuntime?.vrmHumanoidBoneCount ?? 0,
     nativeRuntimeVrmExpressionCount: run.nativeRuntime?.vrmExpressionCount ?? 0,
+    nativeRuntimeVrmPoseBoneCount: run.nativeRuntime?.vrmPoseBoneCount ?? 0,
+    nativeRuntimeVrmPoseBoneAppliedCount: run.nativeRuntime?.vrmPoseBoneAppliedCount ?? 0,
+    nativeRuntimeVrmPoseBoneUnsupportedCount: run.nativeRuntime?.vrmPoseBoneUnsupportedCount ?? 0,
+    nativeRuntimeVrmPoseExpressionCount: run.nativeRuntime?.vrmPoseExpressionCount ?? 0,
+    nativeRuntimeVrmPoseExpressionAppliedCount: run.nativeRuntime?.vrmPoseExpressionAppliedCount ?? 0,
+    nativeRuntimeVrmPoseExpressionUnsupportedCount: run.nativeRuntime?.vrmPoseExpressionUnsupportedCount ?? 0,
     nativeRuntimeVrmRenderedSourceCount: run.nativeRuntime?.vrmRenderedSourceCount ?? 0,
     nativeRuntimeVrmRenderMissingCount: run.nativeRuntime?.vrmRenderMissingCount ?? 0,
     nativeRuntimeVrmRenderFailureCount: run.nativeRuntime?.vrmRenderFailureCount ?? 0,

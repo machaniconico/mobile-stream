@@ -3136,6 +3136,12 @@ struct BroadcastSceneCompositionSummary: Equatable {
             "vrmModelVersions": vrmPoseSummary.modelVersions,
             "vrmHumanoidBoneCount": vrmPoseSummary.humanoidBoneCount,
             "vrmExpressionCount": vrmPoseSummary.expressionCount,
+            "vrmPoseBoneCount": vrmPoseSummary.poseBoneCount,
+            "vrmPoseBoneAppliedCount": vrmPoseSummary.poseBoneAppliedCount,
+            "vrmPoseBoneUnsupportedCount": vrmPoseSummary.poseBoneUnsupportedCount,
+            "vrmPoseExpressionCount": vrmPoseSummary.poseExpressionCount,
+            "vrmPoseExpressionAppliedCount": vrmPoseSummary.poseExpressionAppliedCount,
+            "vrmPoseExpressionUnsupportedCount": vrmPoseSummary.poseExpressionUnsupportedCount,
             "vrmRuntimeStatuses": vrmPoseSummary.runtimeStatuses,
             "vrmRendererStatus": vrmPoseSummary.rendererStatus,
             "vrmRendererBackend": vrmPoseSummary.rendererBackend,
@@ -3157,6 +3163,12 @@ struct BroadcastVrmPoseSummary: Equatable {
     let modelVersions: [String]
     let humanoidBoneCount: Int
     let expressionCount: Int
+    let poseBoneCount: Int
+    let poseBoneAppliedCount: Int
+    let poseBoneUnsupportedCount: Int
+    let poseExpressionCount: Int
+    let poseExpressionAppliedCount: Int
+    let poseExpressionUnsupportedCount: Int
     let runtimeStatuses: [String]
     let rendererStatus: String
     let rendererBackend: String
@@ -3174,6 +3186,12 @@ struct BroadcastVrmPoseSummary: Equatable {
         modelVersions: [],
         humanoidBoneCount: 0,
         expressionCount: 0,
+        poseBoneCount: 0,
+        poseBoneAppliedCount: 0,
+        poseBoneUnsupportedCount: 0,
+        poseExpressionCount: 0,
+        poseExpressionAppliedCount: 0,
+        poseExpressionUnsupportedCount: 0,
         runtimeStatuses: [],
         rendererStatus: "not-required",
         rendererBackend: "none",
@@ -3188,7 +3206,7 @@ struct BroadcastVrmPoseSummary: Equatable {
             return nil
         }
         let statusSuffix = runtimeStatuses.isEmpty ? "" : ", statuses \(runtimeStatuses.joined(separator: "/"))"
-        return "VRM poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix), renderer \(rendererStatus) \(rendererBackend), rendered \(renderedSourceCount)/\(sourceCount), models \(modelLoadedCount)/\(modelUriCount), bones \(humanoidBoneCount), expressions \(expressionCount), failed \(renderFailureCount)"
+        return "VRM poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix), renderer \(rendererStatus) \(rendererBackend), rendered \(renderedSourceCount)/\(sourceCount), models \(modelLoadedCount)/\(modelUriCount), bones \(humanoidBoneCount), expressions \(expressionCount), pose bones \(poseBoneAppliedCount)/\(poseBoneCount), pose expressions \(poseExpressionAppliedCount)/\(poseExpressionCount), failed \(renderFailureCount)"
     }
 }
 
@@ -3855,17 +3873,23 @@ final class BroadcastSceneCompositor {
         var modelVersions = Set<String>()
         var humanoidBoneCount = 0
         var expressionCount = 0
+        var poseBoneCount = 0
+        var poseBoneAppliedCount = 0
+        var poseExpressionCount = 0
+        var poseExpressionAppliedCount = 0
         var runtimeStatuses = Set<String>()
 
         for node in vrmNodes {
             let modelUri = (node.payload["modelUri"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            var modelMetadata: BroadcastVrmModelMetadata?
             if !modelUri.isEmpty {
                 modelUriCount += 1
                 if let metadata = loadVrmModelMetadata(modelUri) {
+                    modelMetadata = metadata
                     modelLoadedCount += 1
                     modelVersions.insert(metadata.version)
-                    humanoidBoneCount += metadata.humanoidBoneCount
-                    expressionCount += metadata.expressionCount
+                    humanoidBoneCount += metadata.humanoidBoneNames.count
+                    expressionCount += metadata.expressionNames.count
                 } else {
                     modelLoadFailureCount += 1
                 }
@@ -3879,6 +3903,14 @@ final class BroadcastSceneCompositor {
                    let pose = object as? [String: Any] {
                     posePayloadCount += 1
                     poseStatus = normalizeVrmRuntimeStatus(pose["status"] as? String)
+                    let poseBones = extractVrmPoseBoneNames(pose)
+                    let poseExpressions = extractActiveVrmPoseExpressionNames(pose)
+                    let appliedBones = modelMetadata.map { poseBones.intersection($0.humanoidBoneNames).count } ?? 0
+                    let appliedExpressions = modelMetadata.map { poseExpressions.intersection($0.expressionNames).count } ?? 0
+                    poseBoneCount += poseBones.count
+                    poseBoneAppliedCount += appliedBones
+                    poseExpressionCount += poseExpressions.count
+                    poseExpressionAppliedCount += appliedExpressions
                 } else {
                     runtimeStatuses.insert("invalid")
                 }
@@ -3905,6 +3937,12 @@ final class BroadcastSceneCompositor {
             modelVersions: modelVersions.sorted(),
             humanoidBoneCount: humanoidBoneCount,
             expressionCount: expressionCount,
+            poseBoneCount: poseBoneCount,
+            poseBoneAppliedCount: poseBoneAppliedCount,
+            poseBoneUnsupportedCount: max(0, poseBoneCount - poseBoneAppliedCount),
+            poseExpressionCount: poseExpressionCount,
+            poseExpressionAppliedCount: poseExpressionAppliedCount,
+            poseExpressionUnsupportedCount: max(0, poseExpressionCount - poseExpressionAppliedCount),
             runtimeStatuses: runtimeStatuses.sorted(),
             rendererStatus: "unavailable",
             rendererBackend: modelUriCount > 0 ? "native-vrm-glb-loader" : "none",
@@ -3968,51 +4006,135 @@ final class BroadcastSceneCompositor {
         if let vrm1 = extensions["VRMC_vrm"] as? [String: Any] {
             return BroadcastVrmModelMetadata(
                 version: "1.0",
-                humanoidBoneCount: countVrm1HumanoidBones(vrm1),
-                expressionCount: countVrm1Expressions(vrm1)
+                humanoidBoneNames: extractVrm1HumanoidBoneNames(vrm1),
+                expressionNames: extractVrm1ExpressionNames(vrm1)
             )
         }
         if let vrm0 = extensions["VRM"] as? [String: Any] {
             return BroadcastVrmModelMetadata(
                 version: "0.x",
-                humanoidBoneCount: countVrm0HumanoidBones(vrm0),
-                expressionCount: countVrm0Expressions(vrm0)
+                humanoidBoneNames: extractVrm0HumanoidBoneNames(vrm0),
+                expressionNames: extractVrm0ExpressionNames(vrm0)
             )
         }
         return nil
     }
 
-    private static func countVrm1HumanoidBones(_ vrm: [String: Any]) -> Int {
+    private static func extractVrm1HumanoidBoneNames(_ vrm: [String: Any]) -> Set<String> {
         guard let humanoid = vrm["humanoid"] as? [String: Any],
               let humanBones = humanoid["humanBones"] as? [String: Any] else {
-            return 0
+            return []
         }
-        return humanBones.count
+        return Set(humanBones.keys.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
     }
 
-    private static func countVrm0HumanoidBones(_ vrm: [String: Any]) -> Int {
+    private static func extractVrm0HumanoidBoneNames(_ vrm: [String: Any]) -> Set<String> {
         guard let humanoid = vrm["humanoid"] as? [String: Any],
               let humanBones = humanoid["humanBones"] as? [Any] else {
-            return 0
+            return []
         }
-        return humanBones.count
+        return Set(
+            humanBones.compactMap { item in
+                guard let bone = (item as? [String: Any])?["bone"] as? String else {
+                    return nil
+                }
+                let clean = bone.trimmingCharacters(in: .whitespacesAndNewlines)
+                return clean.isEmpty ? nil : clean
+            }
+        )
     }
 
-    private static func countVrm1Expressions(_ vrm: [String: Any]) -> Int {
+    private static func extractVrm1ExpressionNames(_ vrm: [String: Any]) -> Set<String> {
         guard let expressions = vrm["expressions"] as? [String: Any] else {
-            return 0
+            return []
         }
-        let presetCount = (expressions["preset"] as? [String: Any])?.count ?? 0
-        let customCount = (expressions["custom"] as? [String: Any])?.count ?? 0
-        return presetCount + customCount
+        var names = Set<String>()
+        if let preset = expressions["preset"] as? [String: Any] {
+            names.formUnion(preset.keys.map(normalizeVrmExpressionName))
+        }
+        if let custom = expressions["custom"] as? [String: Any] {
+            names.formUnion(custom.keys.map(normalizeVrmExpressionName))
+        }
+        names.remove("")
+        return names
     }
 
-    private static func countVrm0Expressions(_ vrm: [String: Any]) -> Int {
+    private static func extractVrm0ExpressionNames(_ vrm: [String: Any]) -> Set<String> {
         guard let blendShapeMaster = vrm["blendShapeMaster"] as? [String: Any],
               let blendShapeGroups = blendShapeMaster["blendShapeGroups"] as? [Any] else {
-            return 0
+            return []
         }
-        return blendShapeGroups.count
+        return Set(
+            blendShapeGroups.flatMap { item -> [String] in
+                guard let group = item as? [String: Any] else {
+                    return []
+                }
+                return ["presetName", "name"].compactMap { key in
+                    guard let rawName = group[key] as? String else {
+                        return nil
+                    }
+                    let name = normalizeVrmExpressionName(rawName)
+                    return name.isEmpty || name == "unknown" ? nil : name
+                }
+            }
+        )
+    }
+
+    private static func extractVrmPoseBoneNames(_ pose: [String: Any]) -> Set<String> {
+        guard let rotations = pose["humanoidRotations"] as? [Any] else {
+            return []
+        }
+        return Set(
+            rotations.compactMap { item in
+                guard let bone = (item as? [String: Any])?["bone"] as? String else {
+                    return nil
+                }
+                let clean = bone.trimmingCharacters(in: .whitespacesAndNewlines)
+                return clean.isEmpty ? nil : clean
+            }
+        )
+    }
+
+    private static func extractActiveVrmPoseExpressionNames(_ pose: [String: Any]) -> Set<String> {
+        guard let expressions = pose["expressions"] as? [String: Any] else {
+            return []
+        }
+        return Set(
+            expressions.compactMap { rawName, rawWeight in
+                let name = normalizeVrmExpressionName(rawName)
+                let weight: Double
+                if let number = rawWeight as? NSNumber {
+                    weight = number.doubleValue
+                } else if let double = rawWeight as? Double {
+                    weight = double
+                } else {
+                    weight = 0
+                }
+                return !name.isEmpty && name != "neutral" && weight > 0.001 ? name : nil
+            }
+        )
+    }
+
+    private static func normalizeVrmExpressionName(_ rawName: String) -> String {
+        let clean = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch clean.lowercased() {
+        case "a", "aa":
+            return "aa"
+        case "i", "ih":
+            return "ih"
+        case "u", "ou":
+            return "ou"
+        case "e", "ee":
+            return "ee"
+        case "o", "oh":
+            return "oh"
+        case "joy", "happy":
+            return "happy"
+        case "fun", "surprise", "surprised":
+            return "surprised"
+        default:
+            return clean
+        }
     }
 
     private static func normalizeVrmRuntimeStatus(_ value: String?) -> String {
@@ -4146,8 +4268,8 @@ private let maxVrmJsonChunkBytes = 2 * 1024 * 1024
 
 private struct BroadcastVrmModelMetadata {
     let version: String
-    let humanoidBoneCount: Int
-    let expressionCount: Int
+    let humanoidBoneNames: Set<String>
+    let expressionNames: Set<String>
 }
 
 private extension Data {

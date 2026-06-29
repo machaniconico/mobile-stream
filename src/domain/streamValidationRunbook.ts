@@ -494,13 +494,18 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
   const missingVrmModelMetadata =
     (nativeRuntime.composition.vrmModelLoadedCount ?? 0) > 0 &&
     ((nativeRuntime.composition.vrmHumanoidBoneCount ?? 0) === 0 || (nativeRuntime.composition.vrmExpressionCount ?? 0) === 0);
+  const missingVrmPoseMapping =
+    (nativeRuntime.composition.vrmModelLoadedCount ?? 0) > 0 &&
+    ((nativeRuntime.composition.vrmPoseBoneUnsupportedCount ?? 0) > 0 ||
+      (nativeRuntime.composition.vrmPoseExpressionUnsupportedCount ?? 0) > 0);
   const missingVrmRenders =
     vrmSourceCount > 0 &&
     (vrmRendererStatus !== "ready" ||
       vrmRenderedSourceCount < vrmSourceCount ||
       (nativeRuntime.composition.vrmRenderMissingCount ?? 0) > 0 ||
       (nativeRuntime.composition.vrmRenderFailureCount ?? 0) > 0 ||
-      missingVrmModelMetadata);
+      missingVrmModelMetadata ||
+      missingVrmPoseMapping);
   if (
     nativeRuntime.stale ||
     nativeRuntime.publisher.congested ||
@@ -522,9 +527,11 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
             ? "Confirm VRM runtime pose payloads are included in the render graph before recording a pass."
             : missingVrmModelMetadata
               ? "Prepare a VRM/GLB model with humanoid bones and expression metadata before recording a pass."
-              : missingVrmRenders
-                ? "Integrate or enable the native VRM renderer, then repeat validation until every visible VRM source is rendered."
-                : "Review native runtime congestion, stale telemetry, or pending compositor state before recording a pass."
+              : missingVrmPoseMapping
+                ? "Confirm the delivered VRM pose bones and expression weights are supported by the imported model before recording a pass."
+                : missingVrmRenders
+                  ? "Integrate or enable the native VRM renderer, then repeat validation until every visible VRM source is rendered."
+                  : "Review native runtime congestion, stale telemetry, or pending compositor state before recording a pass."
     };
   }
 

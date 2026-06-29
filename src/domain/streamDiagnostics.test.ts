@@ -784,6 +784,12 @@ describe("stream diagnostics", () => {
           vrmModelVersions: ["1.0"],
           vrmHumanoidBoneCount: 55,
           vrmExpressionCount: 8,
+          vrmPoseBoneCount: 7,
+          vrmPoseBoneAppliedCount: 7,
+          vrmPoseBoneUnsupportedCount: 0,
+          vrmPoseExpressionCount: 3,
+          vrmPoseExpressionAppliedCount: 3,
+          vrmPoseExpressionUnsupportedCount: 0,
           vrmRuntimeStatuses: ["active"],
           vrmRendererStatus: "ready",
           vrmRendererBackend: "native-test",
@@ -928,7 +934,7 @@ describe("stream diagnostics", () => {
     expect(nativeCheck?.status).toBe("warn");
     expect(nativeCheck?.message).toContain("Native VRM renderer is unavailable");
     expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
-      "Composition VRM renderer: unavailable / none / rendered 0/1 / models 0/1 / versions - / bones 0 / expressions 0 / missing 1 / failed 0"
+      "Composition VRM renderer: unavailable / none / rendered 0/1 / models 0/1 / versions - / bones 0 / expressions 0 / pose bones 0/0 / pose expressions 0/0 / missing 1 / failed 0"
     );
   });
 

@@ -860,7 +860,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 30 as const
+    bundleVersion: 31 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -992,6 +992,12 @@ const manifestRun = ({
   nativeRuntimeVrmModelVersions = [],
   nativeRuntimeVrmHumanoidBoneCount = 0,
   nativeRuntimeVrmExpressionCount = 0,
+  nativeRuntimeVrmPoseBoneCount = 0,
+  nativeRuntimeVrmPoseBoneAppliedCount = 0,
+  nativeRuntimeVrmPoseBoneUnsupportedCount = 0,
+  nativeRuntimeVrmPoseExpressionCount = 0,
+  nativeRuntimeVrmPoseExpressionAppliedCount = 0,
+  nativeRuntimeVrmPoseExpressionUnsupportedCount = 0,
   nativeRuntimeVrmRenderedSourceCount = 0,
   nativeRuntimeVrmRenderMissingCount = 0,
   nativeRuntimeVrmRenderFailureCount = 0,
@@ -1076,6 +1082,12 @@ const manifestRun = ({
   nativeRuntimeVrmModelVersions?: ValidationManifestRun["nativeRuntimeVrmModelVersions"];
   nativeRuntimeVrmHumanoidBoneCount?: ValidationManifestRun["nativeRuntimeVrmHumanoidBoneCount"];
   nativeRuntimeVrmExpressionCount?: ValidationManifestRun["nativeRuntimeVrmExpressionCount"];
+  nativeRuntimeVrmPoseBoneCount?: ValidationManifestRun["nativeRuntimeVrmPoseBoneCount"];
+  nativeRuntimeVrmPoseBoneAppliedCount?: ValidationManifestRun["nativeRuntimeVrmPoseBoneAppliedCount"];
+  nativeRuntimeVrmPoseBoneUnsupportedCount?: ValidationManifestRun["nativeRuntimeVrmPoseBoneUnsupportedCount"];
+  nativeRuntimeVrmPoseExpressionCount?: ValidationManifestRun["nativeRuntimeVrmPoseExpressionCount"];
+  nativeRuntimeVrmPoseExpressionAppliedCount?: ValidationManifestRun["nativeRuntimeVrmPoseExpressionAppliedCount"];
+  nativeRuntimeVrmPoseExpressionUnsupportedCount?: ValidationManifestRun["nativeRuntimeVrmPoseExpressionUnsupportedCount"];
   nativeRuntimeVrmRenderedSourceCount?: ValidationManifestRun["nativeRuntimeVrmRenderedSourceCount"];
   nativeRuntimeVrmRenderMissingCount?: ValidationManifestRun["nativeRuntimeVrmRenderMissingCount"];
   nativeRuntimeVrmRenderFailureCount?: ValidationManifestRun["nativeRuntimeVrmRenderFailureCount"];
@@ -1166,6 +1178,12 @@ const manifestRun = ({
   nativeRuntimeVrmModelVersions,
   nativeRuntimeVrmHumanoidBoneCount,
   nativeRuntimeVrmExpressionCount,
+  nativeRuntimeVrmPoseBoneCount,
+  nativeRuntimeVrmPoseBoneAppliedCount,
+  nativeRuntimeVrmPoseBoneUnsupportedCount,
+  nativeRuntimeVrmPoseExpressionCount,
+  nativeRuntimeVrmPoseExpressionAppliedCount,
+  nativeRuntimeVrmPoseExpressionUnsupportedCount,
   nativeRuntimeVrmRenderedSourceCount,
   nativeRuntimeVrmRenderMissingCount,
   nativeRuntimeVrmRenderFailureCount,

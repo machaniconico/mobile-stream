@@ -191,6 +191,12 @@ const normalizeNativeRuntime = (
           vrmModelVersions: runtime.composition?.vrmModelVersions ?? [],
           vrmHumanoidBoneCount: runtime.composition?.vrmHumanoidBoneCount ?? 0,
           vrmExpressionCount: runtime.composition?.vrmExpressionCount ?? 0,
+          vrmPoseBoneCount: runtime.composition?.vrmPoseBoneCount ?? 0,
+          vrmPoseBoneAppliedCount: runtime.composition?.vrmPoseBoneAppliedCount ?? 0,
+          vrmPoseBoneUnsupportedCount: runtime.composition?.vrmPoseBoneUnsupportedCount ?? 0,
+          vrmPoseExpressionCount: runtime.composition?.vrmPoseExpressionCount ?? 0,
+          vrmPoseExpressionAppliedCount: runtime.composition?.vrmPoseExpressionAppliedCount ?? 0,
+          vrmPoseExpressionUnsupportedCount: runtime.composition?.vrmPoseExpressionUnsupportedCount ?? 0,
           vrmRuntimeStatuses: runtime.composition?.vrmRuntimeStatuses ?? [],
           vrmRendererStatus:
             runtime.composition?.vrmRendererStatus ??

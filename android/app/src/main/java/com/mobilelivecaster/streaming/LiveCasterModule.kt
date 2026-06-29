@@ -29,6 +29,12 @@ data class NativeRuntimeComposition(
     val vrmModelVersions: List<String> = emptyList(),
     val vrmHumanoidBoneCount: Int = 0,
     val vrmExpressionCount: Int = 0,
+    val vrmPoseBoneCount: Int = 0,
+    val vrmPoseBoneAppliedCount: Int = 0,
+    val vrmPoseBoneUnsupportedCount: Int = 0,
+    val vrmPoseExpressionCount: Int = 0,
+    val vrmPoseExpressionAppliedCount: Int = 0,
+    val vrmPoseExpressionUnsupportedCount: Int = 0,
     val vrmRuntimeStatuses: List<String> = emptyList(),
     val vrmRendererStatus: String = "not-required",
     val vrmRendererBackend: String = "none",
@@ -51,6 +57,12 @@ data class NativeRuntimeComposition(
         putArray("vrmModelVersions", vrmModelVersions.toWritableArray())
         putInt("vrmHumanoidBoneCount", vrmHumanoidBoneCount)
         putInt("vrmExpressionCount", vrmExpressionCount)
+        putInt("vrmPoseBoneCount", vrmPoseBoneCount)
+        putInt("vrmPoseBoneAppliedCount", vrmPoseBoneAppliedCount)
+        putInt("vrmPoseBoneUnsupportedCount", vrmPoseBoneUnsupportedCount)
+        putInt("vrmPoseExpressionCount", vrmPoseExpressionCount)
+        putInt("vrmPoseExpressionAppliedCount", vrmPoseExpressionAppliedCount)
+        putInt("vrmPoseExpressionUnsupportedCount", vrmPoseExpressionUnsupportedCount)
         putArray("vrmRuntimeStatuses", vrmRuntimeStatuses.toWritableArray())
         putString("vrmRendererStatus", vrmRendererStatus)
         putString("vrmRendererBackend", vrmRendererBackend)
@@ -87,6 +99,12 @@ private fun AndroidCompositionResult.toNativeRuntimeComposition(): NativeRuntime
         vrmModelVersions = vrmPoseSummary.modelVersions.toList().sorted(),
         vrmHumanoidBoneCount = vrmPoseSummary.humanoidBoneCount,
         vrmExpressionCount = vrmPoseSummary.expressionCount,
+        vrmPoseBoneCount = vrmPoseSummary.poseBoneCount,
+        vrmPoseBoneAppliedCount = vrmPoseSummary.poseBoneAppliedCount,
+        vrmPoseBoneUnsupportedCount = vrmPoseSummary.poseBoneUnsupportedCount,
+        vrmPoseExpressionCount = vrmPoseSummary.poseExpressionCount,
+        vrmPoseExpressionAppliedCount = vrmPoseSummary.poseExpressionAppliedCount,
+        vrmPoseExpressionUnsupportedCount = vrmPoseSummary.poseExpressionUnsupportedCount,
         vrmRuntimeStatuses = vrmPoseSummary.runtimeStatuses.toList().sorted(),
         vrmRendererStatus = vrmPoseSummary.rendererStatus,
         vrmRendererBackend = vrmPoseSummary.rendererBackend,

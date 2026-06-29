@@ -1096,6 +1096,12 @@ final class LiveCasterNative: RCTEventEmitter {
                 },
                 "vrmHumanoidBoneCount": sceneComposition.intValue("vrmHumanoidBoneCount"),
                 "vrmExpressionCount": sceneComposition.intValue("vrmExpressionCount"),
+                "vrmPoseBoneCount": sceneComposition.intValue("vrmPoseBoneCount"),
+                "vrmPoseBoneAppliedCount": sceneComposition.intValue("vrmPoseBoneAppliedCount"),
+                "vrmPoseBoneUnsupportedCount": sceneComposition.intValue("vrmPoseBoneUnsupportedCount"),
+                "vrmPoseExpressionCount": sceneComposition.intValue("vrmPoseExpressionCount"),
+                "vrmPoseExpressionAppliedCount": sceneComposition.intValue("vrmPoseExpressionAppliedCount"),
+                "vrmPoseExpressionUnsupportedCount": sceneComposition.intValue("vrmPoseExpressionUnsupportedCount"),
                 "vrmRuntimeStatuses": sceneComposition.stringArrayValue("vrmRuntimeStatuses").map {
                     redactSensitiveText($0, streamKey: streamKey, publishURL: publishURL)
                 },

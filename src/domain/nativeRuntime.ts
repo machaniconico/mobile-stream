@@ -17,6 +17,12 @@ export interface NativeRuntimeComposition {
   vrmModelVersions?: string[];
   vrmHumanoidBoneCount?: number;
   vrmExpressionCount?: number;
+  vrmPoseBoneCount?: number;
+  vrmPoseBoneAppliedCount?: number;
+  vrmPoseBoneUnsupportedCount?: number;
+  vrmPoseExpressionCount?: number;
+  vrmPoseExpressionAppliedCount?: number;
+  vrmPoseExpressionUnsupportedCount?: number;
   vrmRuntimeStatuses?: string[];
   vrmRendererStatus?: "not-required" | "unavailable" | "loading" | "ready" | "failed";
   vrmRendererBackend?: string;
