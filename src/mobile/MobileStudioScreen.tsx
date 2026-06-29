@@ -806,6 +806,37 @@ export const MobileStudioScreen = ({
               ) : null}
             </>
           ) : null}
+          {selectedSource.kind === "live2d" ? (
+            <>
+              <Label text="Model ID" />
+              <TextInput
+                value={selectedSource.modelId}
+                onChangeText={(modelId) =>
+                  onSceneChange(
+                    updateSource(scene, selectedSource.id, (source) => (source.kind === "live2d" ? { ...source, modelId } : source))
+                  )
+                }
+                style={styles.input}
+                editable={!setupLocked}
+                placeholderTextColor="#71717a"
+              />
+              <Label text="Model3 JSON URI" />
+              <TextInput
+                value={selectedSource.modelJsonUri}
+                onChangeText={(modelJsonUri) =>
+                  onSceneChange(
+                    updateSource(scene, selectedSource.id, (source) =>
+                      source.kind === "live2d" ? { ...source, modelJsonUri } : source
+                    )
+                  )
+                }
+                style={styles.input}
+                editable={!setupLocked}
+                placeholder="file:// or absolute path to .model3.json"
+                placeholderTextColor="#71717a"
+              />
+            </>
+          ) : null}
           {selectedSource.kind === "pngtuber" ? (
             <>
               <ActionButton label="Auto rig" disabled={setupLocked} onPress={autoRigSelectedAvatar} />

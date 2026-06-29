@@ -1,3 +1,5 @@
+import { normalizeLive2DModelJsonUri } from "./live2dModel";
+
 export type SourceKind = "screen" | "pngtuber" | "live2d" | "image" | "solid" | "text" | "chat";
 
 export type BlendMode = "normal" | "multiply" | "screen";
@@ -68,6 +70,7 @@ export interface PNGTuberSource extends BaseSource {
 export interface Live2DSource extends BaseSource {
   kind: "live2d";
   modelId: string;
+  modelJsonUri: string;
   expression: string;
   mouthOpen: number;
   blink: number;
@@ -496,6 +499,7 @@ export const createSource = (kind: SourceKind): SceneSource => {
         ...base,
         kind,
         modelId: "default-live2d",
+        modelJsonUri: "",
         expression: "neutral",
         mouthOpen: 0,
         blink: 0,
@@ -794,6 +798,7 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
       const live2dMotion = source.motion ?? defaultAvatarMotion();
       return {
         modelId: source.modelId,
+        modelJsonUri: source.modelJsonUri,
         expression: source.expression,
         mouthOpen: source.mouthOpen,
         blink: source.blink,
@@ -995,6 +1000,7 @@ const normalizeSceneSource = (value: unknown, canvas: SceneDocument["canvas"] = 
         ...base,
         kind: "live2d",
         modelId: stringValue(value.modelId, sourceFallback.modelId),
+        modelJsonUri: normalizeLive2DModelJsonUri(value.modelJsonUri),
         expression: stringValue(value.expression, sourceFallback.expression),
         mouthOpen: clampedNumber(value.mouthOpen, sourceFallback.mouthOpen, 0, 1),
         blink: clampedNumber(value.blink, sourceFallback.blink, 0, 1),

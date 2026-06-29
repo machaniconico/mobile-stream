@@ -173,6 +173,27 @@ describe("scene document", () => {
     expect(avatarNode?.payload.imageUri).toBe("");
   });
 
+  it("persists and renders Live2D model3 JSON URIs", () => {
+    const live2d = createSource("live2d");
+    if (live2d.kind !== "live2d") {
+      throw new Error("Expected Live2D source.");
+    }
+    const scene = addSource(createDefaultScene(), {
+      ...live2d,
+      modelId: "hiyori",
+      modelJsonUri: " file:///models/hiyori/hiyori.model3.json\n"
+    });
+    const normalized = normalizeSceneDocument(scene);
+    const live2dSource = normalized.sources.find((source) => source.kind === "live2d");
+    const live2dNode = toRenderGraph(normalized).find((node) => node.kind === "live2d");
+
+    expect(live2dSource).toMatchObject({
+      modelId: "hiyori",
+      modelJsonUri: "file:///models/hiyori/hiyori.model3.json"
+    });
+    expect(live2dNode?.payload.modelJsonUri).toBe("file:///models/hiyori/hiyori.model3.json");
+  });
+
   it("infers still-image illustration rig landmarks from avatar framing", () => {
     const canvas = { width: 1920, height: 1080, fps: 30 };
     const bust = inferAvatarIllustrationRig({ canvas, transform: { width: 0.3, height: 0.42 } });

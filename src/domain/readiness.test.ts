@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultScene, updateSource } from "./scene";
+import { createDefaultScene, createSource, updateSource } from "./scene";
 import { applyDestinationPreset, createDefaultStudioProfile, legacyCustomDestinationProfile } from "./profiles";
 import { createReadinessReport } from "./readiness";
 
@@ -252,5 +252,31 @@ describe("stream readiness", () => {
 
     expect(report.issues.map((issue) => issue.code)).toContain("face-tracking-not-production-ready");
     expect(report.issues.find((issue) => issue.code === "face-tracking-not-production-ready")?.field).toBe("faceTracking");
+  });
+
+  it("warns when a visible Live2D source has no local Cubism model package", () => {
+    const live2d = createSource("live2d");
+    if (live2d.kind !== "live2d") {
+      throw new Error("Expected Live2D source.");
+    }
+    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...live2d,
+            id: source.id,
+            transform: source.transform,
+            modelJsonUri: "https://example.test/hiyori.model3.json"
+          }
+        : source
+    );
+
+    const report = createReadinessReport(scene, createDefaultStudioProfile());
+
+    expect(report.issues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining(["scene-live2d-preview", "scene-live2d-model-json-remote"])
+    );
+    expect(report.issues.find((issue) => issue.code === "scene-live2d-model-json-remote")?.message).toContain(
+      "production mobile rendering needs a local model package"
+    );
   });
 });

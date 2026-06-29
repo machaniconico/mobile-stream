@@ -897,7 +897,7 @@ const sourcePayloadSummary = (source: SceneSource): Record<string, string | numb
     case "pngtuber":
       return { avatarId: source.avatarId, expression: source.expression, hasImageUri: Boolean(source.imageUri.trim()) };
     case "live2d":
-      return { modelId: source.modelId, expression: source.expression };
+      return { modelId: source.modelId, expression: source.expression, hasModelJsonUri: Boolean(source.modelJsonUri.trim()) };
     case "image":
       return { hasUri: Boolean(source.uri.trim()) };
     case "solid":

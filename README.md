@@ -7,7 +7,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 ## Current Prototype
 
 - OBS-like multi-scene/source stack with Main, Starting Soon, Break, and Privacy Shield scene presets, live scene switching, and cut/fade transition settings.
-- Screen, PNGTuber, Live2D, image, solid, and text source records.
+- Screen, PNGTuber, Live2D, image, solid, and text source records, including Live2D Cubism `model3.json` URI persistence for model-package preparation.
 - Layer visibility, lock, ordering, and transform controls.
 - RTMP/RTMPS destination profiles with YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - OAuth/API-backed platform stream key controls: YouTube can create a new reusable Live Stream and apply its RTMPS key; Twitch can sync the current Helix stream key.
@@ -46,6 +46,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Stream diagnostics panel with redacted publish URL, upload target estimate, live telemetry checks, platform API audit counts, avatar tracking validation with runtime freshness, mic FX/headphone monitor route validation, chat readout validation, native runtime validation evidence, native compositor still-image asset load evidence, platform dashboard validation evidence including YouTube broadcast privacy, YouTube bound-stream, and Twitch title/category/language mismatch checks, and sanitized report export/share.
 - Face-tracking production diagnostics for prepared PNGTuber assets, native-camera readiness, tracking runtime state, active avatar motion, support bundles, and commercial validation checks.
 - Native composition readiness and diagnostics for native-supported avatar/text/chat/image/solid overlays, underlay ordering, Live2D gaps, iOS Broadcast Upload Extension still-image asset access risks before device RTMP publishing, and runtime loaded/missing asset evidence.
+- Live2D Cubism model-package readiness checks for missing, remote, relative, or unsupported `model3.json` URIs plus a shared `model3.json` manifest validator for Moc, texture, expression, motion, physics, and unsafe reference checks; native Cubism rendering remains gated until SDK integration and physical validation are complete.
 - Mobile PNGTuber/image still-image picking and preparation that copies local assets into native-readable storage before streaming.
 - Stream key redaction and no-secret browser persistence.
 - Physical validation run persistence redacts supplied stream-key candidates plus OAuth/API tokens, device codes, client secrets, and Authorization headers before writing Web localStorage or mobile native storage.
@@ -188,7 +189,7 @@ GitHub Actions runs the required `test` status check on pull requests and `main`
 - Chat reader: YouTube/Twitch payload adapters can feed the shared queue; current UI includes manual/test comments, platform adapter test ingest, OAuth authorization/callback controls, Twitch device-code authorization, network connect controls, command-message skipping, URL redaction, stream-stop chat auto-disconnect/readout silence, queued/recent comment privacy reset, and native/browser TTS output. Public launch preflight warns when URL redaction or command skipping is disabled. Browser OAuth remains session-only; mobile credentials are stored through Keychain/Android Keystore-backed native storage.
 - Platform stream key management: YouTube OAuth uses Live Streaming API `liveStreams.insert` to rotate by creating a new reusable stream; Twitch OAuth uses Helix Get Stream Key to sync the current key because Twitch does not expose a public reset endpoint.
 - Platform publishing management: YouTube OAuth uses Live Streaming API `liveBroadcasts.insert`, `liveBroadcasts.bind`, `liveBroadcasts.list`, `liveStreams.list`, and `liveBroadcasts.transition` for scheduled broadcast setup, ingest health refresh, and lifecycle control; Twitch OAuth uses Helix `PATCH /channels`, category search, `GET /channels`, and `GET /streams` for channel metadata and live/offline status.
-- Avatar rendering: native PNGTuber overlays on iOS/Android first, Live2D after licensing and runtime validation.
+- Avatar rendering: native PNGTuber overlays on iOS/Android first; Live2D model-package validation is in place, with native Cubism rendering after licensing, SDK integration, and runtime validation.
 
 Android device streaming routes through `LiveCasterNative` when the native module is linked. iOS app-side setup can launch the Broadcast Upload Extension picker and pass App Group configuration into the extension. Non-device development still falls back to the mock engine.
 

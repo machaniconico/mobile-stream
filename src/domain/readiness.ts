@@ -3,6 +3,7 @@ import type { StudioProfile, StreamProtocol } from "./profiles";
 import { normalizeStudioProfile } from "./profiles";
 import { createNativeCompositionReport } from "./nativeComposition";
 import { createFaceTrackingDiagnostics } from "./faceTrackingDiagnostics";
+import { createLive2DModelAssetReport } from "./live2dModel";
 
 export type ReadinessSeverity = "error" | "warning";
 
@@ -297,6 +298,21 @@ const validateScene = (scene: SceneDocument): ReadinessIssue[] => {
       field: "scene",
       message: "Live2D is still using the preview renderer until Cubism SDK integration lands."
     });
+  }
+
+  for (const source of visibleSources) {
+    if (source.kind !== "live2d") {
+      continue;
+    }
+    const report = createLive2DModelAssetReport(source);
+    for (const issue of report.issues) {
+      issues.push({
+        code: `scene-${issue.code}`,
+        severity: "warning",
+        field: "scene",
+        message: issue.message
+      });
+    }
   }
 
   if (visibleSources.some((source) => source.kind === "image" && !source.uri.trim())) {

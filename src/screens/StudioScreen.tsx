@@ -786,6 +786,39 @@ export const StudioScreen = ({
                 />
               </label>
             ) : null}
+            {selectedSource.kind === "live2d" ? (
+              <>
+                <label className="field">
+                  <span>Model ID</span>
+                  <input
+                    value={selectedSource.modelId}
+                    disabled={setupLocked}
+                    onChange={(event) =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "live2d" ? { ...source, modelId: event.target.value } : source
+                        )
+                      )
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>Model3 JSON URI</span>
+                  <input
+                    value={selectedSource.modelJsonUri}
+                    disabled={setupLocked}
+                    placeholder="file:// or absolute path to .model3.json"
+                    onChange={(event) =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "live2d" ? { ...source, modelJsonUri: event.target.value } : source
+                        )
+                      )
+                    }
+                  />
+                </label>
+              </>
+            ) : null}
             {selectedSource.kind === "pngtuber" ? (
               <>
                 <button className="secondary-action compact-action" type="button" disabled={setupLocked} onClick={autoRigSelectedAvatar}>

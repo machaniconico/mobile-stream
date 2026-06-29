@@ -212,6 +212,7 @@ const readinessSeverity = (
 
 const isReleaseCriticalSceneReadinessIssue = (issue: ReadinessIssue): boolean =>
   issue.code === "scene-live2d-preview" ||
+  issue.code.startsWith("scene-live2d-model-json-") ||
   issue.code === "scene-native-composition-preview-only-overlays" ||
   issue.code === "scene-native-composition-native-overlays" ||
   issue.code === "scene-native-composition-no-screen-capture";
@@ -261,6 +262,9 @@ const readinessLabel = (issue: ReadinessIssue): string => {
 const readinessRecommendation = (issue: ReadinessIssue): string => {
   if (issue.code === "scene-live2d-preview") {
     return "Use a prepared PNGTuber source for platform-visible production streams until native Live2D Cubism rendering is integrated and validated.";
+  }
+  if (issue.code.startsWith("scene-live2d-model-json-")) {
+    return "Import a local Cubism model3.json package before validating Live2D for native production output.";
   }
   if (issue.code === "scene-native-composition-native-overlays") {
     return "Prepare PNGTuber and image assets with the mobile asset picker so iOS ReplayKit can load App Group file URLs before public or Twitch launch.";
