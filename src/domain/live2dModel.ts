@@ -21,11 +21,16 @@ export interface Live2DModel3ManifestReport {
   version: number | null;
   mocPath: string;
   textureCount: number;
+  unsupportedTextureCount: number;
   expressionCount: number;
+  missingExpressionFileCount: number;
   motionGroupCount: number;
   motionFileCount: number;
+  missingMotionFileCount: number;
   physicsPath: string;
   posePath: string;
+  referencedFileCount: number;
+  duplicateReferenceCount: number;
   issueCount: number;
   issues: Live2DModelAssetIssue[];
   summary: string;
@@ -112,6 +117,12 @@ export const createLive2DModel3ManifestReport = (value: unknown): Live2DModel3Ma
       severity: "warn",
       message: "Cubism model3.json is missing a numeric Version field."
     });
+  } else if (version < 3) {
+    issues.push({
+      code: "live2d-model3-version-unsupported",
+      severity: "warn",
+      message: "Cubism model3.json Version should be 3 or newer for the native Cubism renderer path."
+    });
   }
 
   const refs = isRecord(parsed.FileReferences) ? parsed.FileReferences : null;
@@ -144,7 +155,9 @@ export const createLive2DModel3ManifestReport = (value: unknown): Live2DModel3Ma
     });
   }
 
-  const textures = Array.isArray(refs.Textures) ? refs.Textures.filter((texture): texture is string => typeof texture === "string") : [];
+  const rawTextures = Array.isArray(refs.Textures) ? refs.Textures : [];
+  const textures = rawTextures.filter((texture): texture is string => typeof texture === "string").map((texture) => texture.trim());
+  const invalidTextureEntryCount = rawTextures.length - textures.length;
   if (textures.length === 0) {
     issues.push({
       code: "live2d-model3-textures-missing",
@@ -152,25 +165,54 @@ export const createLive2DModel3ManifestReport = (value: unknown): Live2DModel3Ma
       message: "Cubism model3.json must reference at least one texture."
     });
   }
+  if (invalidTextureEntryCount > 0 || textures.some((texture) => texture.length === 0)) {
+    issues.push({
+      code: "live2d-model3-texture-entry-invalid",
+      severity: "fail",
+      message: "Cubism texture references must be non-empty strings."
+    });
+  }
+  const unsupportedTextureCount = textures.filter((texture) => !hasSupportedTextureExtension(texture)).length;
+  if (unsupportedTextureCount > 0) {
+    issues.push({
+      code: "live2d-model3-texture-extension",
+      severity: "warn",
+      message: "Cubism textures should be PNG or JPEG files for native mobile renderer compatibility."
+    });
+  }
 
   const expressions = Array.isArray(refs.Expressions)
     ? refs.Expressions.filter((expression): expression is Record<string, unknown> => isRecord(expression))
     : [];
+  const missingExpressionFileCount = expressions.filter((expression) => !nonEmptyString(expression.File)).length;
   if (expressions.length === 0) {
     issues.push({
       code: "live2d-model3-expressions-missing",
       severity: "warn",
       message: "No Live2D expression files are declared for expression buttons."
     });
+  } else if (missingExpressionFileCount > 0) {
+    issues.push({
+      code: "live2d-model3-expression-file-missing",
+      severity: "warn",
+      message: "One or more Live2D expressions are missing a File reference."
+    });
   }
 
   const motionGroups = isRecord(refs.Motions) ? refs.Motions : {};
   const motionGroupEntries = Object.entries(motionGroups);
+  let missingMotionFileCount = 0;
   const motionFiles = motionGroupEntries.flatMap(([, group]) =>
     Array.isArray(group)
       ? group
           .filter((motion): motion is Record<string, unknown> => isRecord(motion))
-          .map((motion) => (typeof motion.File === "string" ? motion.File : ""))
+          .map((motion) => {
+            const file = typeof motion.File === "string" ? motion.File.trim() : "";
+            if (!file) {
+              missingMotionFileCount += 1;
+            }
+            return file;
+          })
           .filter(Boolean)
       : []
   );
@@ -179,6 +221,12 @@ export const createLive2DModel3ManifestReport = (value: unknown): Live2DModel3Ma
       code: "live2d-model3-motions-missing",
       severity: "warn",
       message: "No Live2D motion files are declared."
+    });
+  } else if (missingMotionFileCount > 0) {
+    issues.push({
+      code: "live2d-model3-motion-file-missing",
+      severity: "warn",
+      message: "One or more Live2D motions are missing a File reference."
     });
   }
 
@@ -190,6 +238,33 @@ export const createLive2DModel3ManifestReport = (value: unknown): Live2DModel3Ma
       severity: "warn",
       message: "No Live2D physics file is declared."
     });
+  }
+
+  const extensionChecks: Array<[string, string, readonly string[]]> = [
+    ["Moc", mocPath, [".moc3"]],
+    ...textures.map((texture) => ["Texture", texture, [".png", ".jpg", ".jpeg"]] as [string, string, readonly string[]]),
+    ...expressions.map((expression) => [
+      "Expression",
+      typeof expression.File === "string" ? expression.File.trim() : "",
+      [".exp3.json"]
+    ] as [string, string, readonly string[]]),
+    ...motionFiles.map((motion) => ["Motion", motion, [".motion3.json"]] as [string, string, readonly string[]]),
+    ["Physics", physicsPath, [".physics3.json"]],
+    ["Pose", posePath, [".pose3.json"]],
+    ["UserData", typeof refs.UserData === "string" ? refs.UserData.trim() : "", [".userdata3.json"]],
+    ["DisplayInfo", typeof refs.DisplayInfo === "string" ? refs.DisplayInfo.trim() : "", [".cdi3.json"]]
+  ];
+  for (const [label, path, expectedExtensions] of extensionChecks) {
+    if (!path || label === "Texture" || label === "Moc") {
+      continue;
+    }
+    if (!hasAnyExtension(path, expectedExtensions)) {
+      issues.push({
+        code: "live2d-model3-reference-extension",
+        severity: "warn",
+        message: `${label} reference "${path}" should end with ${expectedExtensions.join(" or ")}.`
+      });
+    }
   }
 
   const referencedFiles = [
@@ -215,16 +290,33 @@ export const createLive2DModel3ManifestReport = (value: unknown): Live2DModel3Ma
       });
     }
   }
+  const referencePaths = referencedFiles
+    .map(([, path]) => path.trim())
+    .filter(Boolean)
+    .map((path) => path.replace(/\\/g, "/").toLowerCase());
+  const duplicateReferenceCount = countDuplicateValues(referencePaths);
+  if (duplicateReferenceCount > 0) {
+    issues.push({
+      code: "live2d-model3-duplicate-reference",
+      severity: "warn",
+      message: "Cubism model3.json references the same package file more than once."
+    });
+  }
 
   return manifestReport({
     version,
     mocPath,
     textureCount: textures.length,
+    unsupportedTextureCount,
     expressionCount: expressions.length,
+    missingExpressionFileCount,
     motionGroupCount: motionGroupEntries.length,
     motionFileCount: motionFiles.length,
+    missingMotionFileCount,
     physicsPath,
     posePath,
+    referencedFileCount: referencePaths.length,
+    duplicateReferenceCount,
     issues
   });
 };
@@ -233,11 +325,16 @@ const manifestReport = ({
   version = null,
   mocPath = "",
   textureCount = 0,
+  unsupportedTextureCount = 0,
   expressionCount = 0,
+  missingExpressionFileCount = 0,
   motionGroupCount = 0,
   motionFileCount = 0,
+  missingMotionFileCount = 0,
   physicsPath = "",
   posePath = "",
+  referencedFileCount = 0,
+  duplicateReferenceCount = 0,
   issues
 }: Partial<Omit<Live2DModel3ManifestReport, "status" | "summary" | "issueCount">> & {
   issues: Live2DModelAssetIssue[];
@@ -248,16 +345,21 @@ const manifestReport = ({
     version,
     mocPath,
     textureCount,
+    unsupportedTextureCount,
     expressionCount,
+    missingExpressionFileCount,
     motionGroupCount,
     motionFileCount,
+    missingMotionFileCount,
     physicsPath,
     posePath,
+    referencedFileCount,
+    duplicateReferenceCount,
     issueCount: issues.length,
     issues,
     summary:
       status === "pass"
-        ? `Cubism model3 manifest is ready: ${textureCount} texture${textureCount === 1 ? "" : "s"}, ${expressionCount} expression${expressionCount === 1 ? "" : "s"}, ${motionFileCount} motion${motionFileCount === 1 ? "" : "s"}.`
+        ? `Cubism model3 manifest is ready: ${textureCount} texture${textureCount === 1 ? "" : "s"}, ${expressionCount} expression${expressionCount === 1 ? "" : "s"}, ${motionFileCount} motion${motionFileCount === 1 ? "" : "s"}, ${referencedFileCount} packaged reference${referencedFileCount === 1 ? "" : "s"}.`
         : `Cubism model3 manifest needs review: ${issues.length} issue${issues.length === 1 ? "" : "s"}.`
   };
 };
@@ -273,9 +375,31 @@ const parseJson = (value: string): unknown => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const nonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+
 const uriScheme = (uri: string): string | null => {
   const match = uri.match(/^([a-z][a-z0-9+.-]*):/i);
   return match ? match[1].toLowerCase() : null;
+};
+
+const hasSupportedTextureExtension = (path: string): boolean => hasAnyExtension(path, [".png", ".jpg", ".jpeg"]);
+
+const hasAnyExtension = (path: string, extensions: readonly string[]): boolean => {
+  const normalized = path.split(/[?#]/, 1)[0]?.toLowerCase() ?? "";
+  return extensions.some((extension) => normalized.endsWith(extension));
+};
+
+const countDuplicateValues = (values: string[]): number => {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  values.forEach((value) => {
+    if (seen.has(value)) {
+      duplicates.add(value);
+    } else {
+      seen.add(value);
+    }
+  });
+  return duplicates.size;
 };
 
 const unsafeModelReferenceReason = (path: string): string | null => {
