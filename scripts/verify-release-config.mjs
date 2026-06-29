@@ -144,9 +144,9 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 24");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 24");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 24");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 25");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 25");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 25");
     expectIncludes(files.commercialReleaseGateDomain, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseBundleScript, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scope");
@@ -169,6 +169,7 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-chat-readout");
     expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingCheckedAt");
     expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingYoutubeHasBroadcastId");
+    expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingTwitchChannelLanguage");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestPlatformIdentityPass");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-platform-dashboard");
     expectBefore(

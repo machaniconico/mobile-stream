@@ -38,7 +38,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 24;
+const minimumSupportBundleVersion = 25;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -348,7 +348,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v24 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v25 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -841,7 +841,11 @@ const isManifestPlatformIdentityPass = (run: ValidationEvidenceManifestRun): boo
     return (
       normalizeStatusLabel(run.platformPublishingTwitchLiveStatus) === "live" &&
       isNonEmptyIsoDate(run.platformPublishingTwitchStartedAt) &&
-      run.platformPublishingTwitchHasCategoryId === true
+      run.platformPublishingTwitchHasCategoryId === true &&
+      nonEmptyText(run.platformPublishingTwitchChannelTitle) !== null &&
+      nonEmptyText(run.platformPublishingTwitchChannelCategory) !== null &&
+      nonEmptyText(run.platformPublishingTwitchChannelCategoryId) !== null &&
+      nonEmptyText(run.platformPublishingTwitchChannelLanguage) !== null
     );
   }
   return false;

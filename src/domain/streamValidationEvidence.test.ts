@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultStudioProfile, type StudioProfile } from "./profiles";
+import { applyDestinationPreset, createDefaultStudioProfile, type StudioProfile } from "./profiles";
 import { createReadinessReport } from "./readiness";
 import { createDefaultScene, defaultAvatarMotion, setVisibility, updateSource } from "./scene";
 import { createStreamDiagnostics } from "./streamDiagnostics";
@@ -1098,6 +1098,55 @@ describe("stream validation evidence", () => {
     expect(summary.platformIngestReadyCount).toBe(0);
     expect(summary.platformIngestWarningCount).toBe(1);
     expect(summary.latestPlatformPublishing?.status).toBe("warn");
+  });
+
+  it("retains Twitch channel metadata in platform dashboard manifest evidence", () => {
+    const scene = nativeReadyScene();
+    const baseProfile = applyDestinationPreset(commercialProfileWithKey("validation-key"), "twitch-auto");
+    const profile = {
+      ...baseProfile,
+      platformPublishing: {
+        ...baseProfile.platformPublishing,
+        title: "App title",
+        twitchCategory: "Art",
+        twitchCategoryId: "509660",
+        twitchLanguage: "ja",
+        twitchChannelTitle: "App title",
+        twitchChannelCategory: "Art",
+        twitchChannelCategoryId: "509660",
+        twitchChannelLanguage: "ja",
+        twitchLiveStatus: "live",
+        twitchViewerCount: 12,
+        twitchStartedAt: "2026-06-22T12:00:00.000Z",
+        twitchStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30 })
+    });
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(summary.runManifest[0]).toMatchObject({
+      platformPublishingPlatform: "twitch",
+      platformPublishingStatus: "pass",
+      platformPublishingTwitchLiveStatus: "live",
+      platformPublishingTwitchStartedAt: "2026-06-22T12:00:00.000Z",
+      platformPublishingTwitchHasCategoryId: true,
+      platformPublishingTwitchChannelTitle: "App title",
+      platformPublishingTwitchChannelCategory: "Art",
+      platformPublishingTwitchChannelCategoryId: "509660",
+      platformPublishingTwitchChannelLanguage: "ja",
+      platformPublishingTwitchViewerCount: 12
+    });
   });
 
   it("requires fresh platform dashboard evidence before a validation run can pass", () => {

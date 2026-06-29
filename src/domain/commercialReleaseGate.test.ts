@@ -479,6 +479,51 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks Twitch platform dashboard claims when the manifest lacks channel metadata proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        destination: {
+          platform: "twitch",
+          protocol: "rtmps"
+        },
+        summary: {
+          platformPublishingFreshnessSummary: "Twitch dashboard status was checked 1 minutes ago.",
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              targetPlatform: "Twitch",
+              platformPublishingPlatform: "twitch",
+              platformPublishingTwitchLiveStatus: "live",
+              platformPublishingTwitchStartedAt: "2026-06-23T10:58:00.000Z",
+              platformPublishingTwitchHasCategoryId: true,
+              platformPublishingTwitchViewerCount: 1
+            }),
+            manifestRun({
+              devicePlatform: "android",
+              fingerprint: "svr1-android",
+              targetPlatform: "Twitch",
+              platformPublishingPlatform: "twitch",
+              platformPublishingTwitchLiveStatus: "live",
+              platformPublishingTwitchStartedAt: "2026-06-23T10:58:00.000Z",
+              platformPublishingTwitchHasCategoryId: true,
+              platformPublishingTwitchViewerCount: 1
+            })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("platform dashboard proof")
+      })
+    );
+  });
+
   it("blocks platform dashboard summary claims when the manifest keeps unhealthy destination state", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -788,9 +833,13 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 24 as const
+    bundleVersion: 25 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
+  destination = {
+    platform: "youtube-live" as const,
+    protocol: "rtmps"
+  },
   summary = {}
 }: {
   app?: {
@@ -799,16 +848,17 @@ const supportBundle = ({
     bundleVersion: number;
   };
   generatedAt?: string;
+  destination?: {
+    platform: SupportBundle["profile"]["destination"]["platform"];
+    protocol: SupportBundle["profile"]["destination"]["protocol"];
+  };
   summary?: Partial<SupportBundle["summary"]>;
 } = {}): SupportBundle =>
   ({
     app,
     generatedAt,
     profile: {
-      destination: {
-        platform: "youtube-live",
-        protocol: "rtmps"
-      }
+      destination
     },
     summary: {
       preflightStatus: "ready",
@@ -947,6 +997,10 @@ const manifestRun = ({
   platformPublishingTwitchLiveStatus = "",
   platformPublishingTwitchStartedAt = "",
   platformPublishingTwitchHasCategoryId = false,
+  platformPublishingTwitchChannelTitle = "",
+  platformPublishingTwitchChannelCategory = "",
+  platformPublishingTwitchChannelCategoryId = "",
+  platformPublishingTwitchChannelLanguage = "",
   platformPublishingTwitchViewerCount = 0
 }: {
   devicePlatform: "ios" | "android";
@@ -1011,6 +1065,10 @@ const manifestRun = ({
   platformPublishingTwitchLiveStatus?: ValidationManifestRun["platformPublishingTwitchLiveStatus"];
   platformPublishingTwitchStartedAt?: ValidationManifestRun["platformPublishingTwitchStartedAt"];
   platformPublishingTwitchHasCategoryId?: ValidationManifestRun["platformPublishingTwitchHasCategoryId"];
+  platformPublishingTwitchChannelTitle?: ValidationManifestRun["platformPublishingTwitchChannelTitle"];
+  platformPublishingTwitchChannelCategory?: ValidationManifestRun["platformPublishingTwitchChannelCategory"];
+  platformPublishingTwitchChannelCategoryId?: ValidationManifestRun["platformPublishingTwitchChannelCategoryId"];
+  platformPublishingTwitchChannelLanguage?: ValidationManifestRun["platformPublishingTwitchChannelLanguage"];
   platformPublishingTwitchViewerCount?: ValidationManifestRun["platformPublishingTwitchViewerCount"];
 }): ValidationManifestRun => ({
   id: `validation-${devicePlatform}`,
@@ -1081,6 +1139,10 @@ const manifestRun = ({
   platformPublishingTwitchLiveStatus,
   platformPublishingTwitchStartedAt,
   platformPublishingTwitchHasCategoryId,
+  platformPublishingTwitchChannelTitle,
+  platformPublishingTwitchChannelCategory,
+  platformPublishingTwitchChannelCategoryId,
+  platformPublishingTwitchChannelLanguage,
   platformPublishingTwitchViewerCount,
   summary: "Validation run retained.",
   recommendation: "Keep this run with release evidence."

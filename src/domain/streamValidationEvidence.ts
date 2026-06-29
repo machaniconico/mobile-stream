@@ -239,6 +239,10 @@ export interface StreamValidationEvidenceRunManifestItem {
   platformPublishingTwitchLiveStatus: string;
   platformPublishingTwitchStartedAt: string;
   platformPublishingTwitchHasCategoryId: boolean;
+  platformPublishingTwitchChannelTitle: string;
+  platformPublishingTwitchChannelCategory: string;
+  platformPublishingTwitchChannelCategoryId: string;
+  platformPublishingTwitchChannelLanguage: string;
   platformPublishingTwitchViewerCount: number;
   summary: string;
   recommendation: string;
@@ -2224,6 +2228,10 @@ const createEvidenceRunManifestItem = (
     platformPublishingTwitchLiveStatus: run.platformPublishing?.twitch?.liveStatus ?? "",
     platformPublishingTwitchStartedAt: run.platformPublishing?.twitch?.startedAt ?? "",
     platformPublishingTwitchHasCategoryId: run.platformPublishing?.twitch?.hasCategoryId ?? false,
+    platformPublishingTwitchChannelTitle: run.platformPublishing?.twitch?.channelTitle ?? "",
+    platformPublishingTwitchChannelCategory: run.platformPublishing?.twitch?.channelCategory ?? "",
+    platformPublishingTwitchChannelCategoryId: run.platformPublishing?.twitch?.channelCategoryId ?? "",
+    platformPublishingTwitchChannelLanguage: run.platformPublishing?.twitch?.channelLanguage ?? "",
     platformPublishingTwitchViewerCount: run.platformPublishing?.twitch?.viewerCount ?? 0,
     summary: run.summary,
     recommendation: run.recommendation

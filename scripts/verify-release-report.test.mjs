@@ -678,7 +678,7 @@ function commercialSupportBundleFixture(patch = {}) {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 24
+      bundleVersion: 25
     },
     generatedAt: new Date().toISOString(),
     fixture: true,
