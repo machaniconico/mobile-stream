@@ -860,7 +860,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 29 as const
+    bundleVersion: 30 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -989,6 +989,9 @@ const manifestRun = ({
   nativeRuntimeVrmRendererStatus = "not-required",
   nativeRuntimeVrmRendererBackend = "none",
   nativeRuntimeVrmModelLoadedCount = 0,
+  nativeRuntimeVrmModelVersions = [],
+  nativeRuntimeVrmHumanoidBoneCount = 0,
+  nativeRuntimeVrmExpressionCount = 0,
   nativeRuntimeVrmRenderedSourceCount = 0,
   nativeRuntimeVrmRenderMissingCount = 0,
   nativeRuntimeVrmRenderFailureCount = 0,
@@ -1070,6 +1073,9 @@ const manifestRun = ({
   nativeRuntimeVrmRendererStatus?: ValidationManifestRun["nativeRuntimeVrmRendererStatus"];
   nativeRuntimeVrmRendererBackend?: ValidationManifestRun["nativeRuntimeVrmRendererBackend"];
   nativeRuntimeVrmModelLoadedCount?: ValidationManifestRun["nativeRuntimeVrmModelLoadedCount"];
+  nativeRuntimeVrmModelVersions?: ValidationManifestRun["nativeRuntimeVrmModelVersions"];
+  nativeRuntimeVrmHumanoidBoneCount?: ValidationManifestRun["nativeRuntimeVrmHumanoidBoneCount"];
+  nativeRuntimeVrmExpressionCount?: ValidationManifestRun["nativeRuntimeVrmExpressionCount"];
   nativeRuntimeVrmRenderedSourceCount?: ValidationManifestRun["nativeRuntimeVrmRenderedSourceCount"];
   nativeRuntimeVrmRenderMissingCount?: ValidationManifestRun["nativeRuntimeVrmRenderMissingCount"];
   nativeRuntimeVrmRenderFailureCount?: ValidationManifestRun["nativeRuntimeVrmRenderFailureCount"];
@@ -1157,6 +1163,9 @@ const manifestRun = ({
   nativeRuntimeVrmRendererStatus,
   nativeRuntimeVrmRendererBackend,
   nativeRuntimeVrmModelLoadedCount,
+  nativeRuntimeVrmModelVersions,
+  nativeRuntimeVrmHumanoidBoneCount,
+  nativeRuntimeVrmExpressionCount,
   nativeRuntimeVrmRenderedSourceCount,
   nativeRuntimeVrmRenderMissingCount,
   nativeRuntimeVrmRenderFailureCount,

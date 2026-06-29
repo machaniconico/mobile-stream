@@ -204,6 +204,9 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeVrmRendererStatus: NonNullable<StreamSessionNativeRuntimeSummary["vrmRendererStatus"]> | null;
   nativeRuntimeVrmRendererBackend: string | null;
   nativeRuntimeVrmModelLoadedCount: number;
+  nativeRuntimeVrmModelVersions: string[];
+  nativeRuntimeVrmHumanoidBoneCount: number;
+  nativeRuntimeVrmExpressionCount: number;
   nativeRuntimeVrmRenderedSourceCount: number;
   nativeRuntimeVrmRenderMissingCount: number;
   nativeRuntimeVrmRenderFailureCount: number;
@@ -2206,6 +2209,9 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeVrmRendererStatus: run.nativeRuntime?.vrmRendererStatus ?? null,
     nativeRuntimeVrmRendererBackend: run.nativeRuntime?.vrmRendererBackend ?? null,
     nativeRuntimeVrmModelLoadedCount: run.nativeRuntime?.vrmModelLoadedCount ?? 0,
+    nativeRuntimeVrmModelVersions: run.nativeRuntime?.vrmModelVersions ?? [],
+    nativeRuntimeVrmHumanoidBoneCount: run.nativeRuntime?.vrmHumanoidBoneCount ?? 0,
+    nativeRuntimeVrmExpressionCount: run.nativeRuntime?.vrmExpressionCount ?? 0,
     nativeRuntimeVrmRenderedSourceCount: run.nativeRuntime?.vrmRenderedSourceCount ?? 0,
     nativeRuntimeVrmRenderMissingCount: run.nativeRuntime?.vrmRenderMissingCount ?? 0,
     nativeRuntimeVrmRenderFailureCount: run.nativeRuntime?.vrmRenderFailureCount ?? 0,

@@ -177,6 +177,9 @@ const normalizeNativeRuntime = (
           vrmActivePoseCount: runtime.composition?.vrmActivePoseCount ?? 0,
           vrmMissingPoseCount: runtime.composition?.vrmMissingPoseCount ?? 0,
           vrmModelUriCount: runtime.composition?.vrmModelUriCount ?? 0,
+          vrmModelVersions: runtime.composition?.vrmModelVersions ?? [],
+          vrmHumanoidBoneCount: runtime.composition?.vrmHumanoidBoneCount ?? 0,
+          vrmExpressionCount: runtime.composition?.vrmExpressionCount ?? 0,
           vrmRuntimeStatuses: runtime.composition?.vrmRuntimeStatuses ?? [],
           vrmRendererStatus:
             runtime.composition?.vrmRendererStatus ??

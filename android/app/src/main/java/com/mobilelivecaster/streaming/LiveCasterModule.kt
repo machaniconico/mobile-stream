@@ -26,6 +26,9 @@ data class NativeRuntimeComposition(
     val vrmActivePoseCount: Int = 0,
     val vrmMissingPoseCount: Int = 0,
     val vrmModelUriCount: Int = 0,
+    val vrmModelVersions: List<String> = emptyList(),
+    val vrmHumanoidBoneCount: Int = 0,
+    val vrmExpressionCount: Int = 0,
     val vrmRuntimeStatuses: List<String> = emptyList(),
     val vrmRendererStatus: String = "not-required",
     val vrmRendererBackend: String = "none",
@@ -45,6 +48,9 @@ data class NativeRuntimeComposition(
         putInt("vrmActivePoseCount", vrmActivePoseCount)
         putInt("vrmMissingPoseCount", vrmMissingPoseCount)
         putInt("vrmModelUriCount", vrmModelUriCount)
+        putArray("vrmModelVersions", vrmModelVersions.toWritableArray())
+        putInt("vrmHumanoidBoneCount", vrmHumanoidBoneCount)
+        putInt("vrmExpressionCount", vrmExpressionCount)
         putArray("vrmRuntimeStatuses", vrmRuntimeStatuses.toWritableArray())
         putString("vrmRendererStatus", vrmRendererStatus)
         putString("vrmRendererBackend", vrmRendererBackend)
@@ -78,6 +84,9 @@ private fun AndroidCompositionResult.toNativeRuntimeComposition(): NativeRuntime
         vrmActivePoseCount = vrmPoseSummary.activePoseCount,
         vrmMissingPoseCount = vrmPoseSummary.missingPoseCount,
         vrmModelUriCount = vrmPoseSummary.modelUriCount,
+        vrmModelVersions = vrmPoseSummary.modelVersions.toList().sorted(),
+        vrmHumanoidBoneCount = vrmPoseSummary.humanoidBoneCount,
+        vrmExpressionCount = vrmPoseSummary.expressionCount,
         vrmRuntimeStatuses = vrmPoseSummary.runtimeStatuses.toList().sorted(),
         vrmRendererStatus = vrmPoseSummary.rendererStatus,
         vrmRendererBackend = vrmPoseSummary.rendererBackend,

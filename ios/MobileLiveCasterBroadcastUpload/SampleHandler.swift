@@ -3133,6 +3133,9 @@ struct BroadcastSceneCompositionSummary: Equatable {
             "vrmActivePoseCount": vrmPoseSummary.activePoseCount,
             "vrmMissingPoseCount": vrmPoseSummary.missingPoseCount,
             "vrmModelUriCount": vrmPoseSummary.modelUriCount,
+            "vrmModelVersions": vrmPoseSummary.modelVersions,
+            "vrmHumanoidBoneCount": vrmPoseSummary.humanoidBoneCount,
+            "vrmExpressionCount": vrmPoseSummary.expressionCount,
             "vrmRuntimeStatuses": vrmPoseSummary.runtimeStatuses,
             "vrmRendererStatus": vrmPoseSummary.rendererStatus,
             "vrmRendererBackend": vrmPoseSummary.rendererBackend,
@@ -3151,6 +3154,9 @@ struct BroadcastVrmPoseSummary: Equatable {
     let activePoseCount: Int
     let missingPoseCount: Int
     let modelUriCount: Int
+    let modelVersions: [String]
+    let humanoidBoneCount: Int
+    let expressionCount: Int
     let runtimeStatuses: [String]
     let rendererStatus: String
     let rendererBackend: String
@@ -3165,6 +3171,9 @@ struct BroadcastVrmPoseSummary: Equatable {
         activePoseCount: 0,
         missingPoseCount: 0,
         modelUriCount: 0,
+        modelVersions: [],
+        humanoidBoneCount: 0,
+        expressionCount: 0,
         runtimeStatuses: [],
         rendererStatus: "not-required",
         rendererBackend: "none",
@@ -3179,7 +3188,7 @@ struct BroadcastVrmPoseSummary: Equatable {
             return nil
         }
         let statusSuffix = runtimeStatuses.isEmpty ? "" : ", statuses \(runtimeStatuses.joined(separator: "/"))"
-        return "VRM poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix), renderer \(rendererStatus) \(rendererBackend), rendered \(renderedSourceCount)/\(sourceCount), models \(modelLoadedCount)/\(modelUriCount), failed \(renderFailureCount)"
+        return "VRM poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix), renderer \(rendererStatus) \(rendererBackend), rendered \(renderedSourceCount)/\(sourceCount), models \(modelLoadedCount)/\(modelUriCount), bones \(humanoidBoneCount), expressions \(expressionCount), failed \(renderFailureCount)"
     }
 }
 
@@ -3843,14 +3852,20 @@ final class BroadcastSceneCompositor {
         var modelUriCount = 0
         var modelLoadedCount = 0
         var modelLoadFailureCount = 0
+        var modelVersions = Set<String>()
+        var humanoidBoneCount = 0
+        var expressionCount = 0
         var runtimeStatuses = Set<String>()
 
         for node in vrmNodes {
             let modelUri = (node.payload["modelUri"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !modelUri.isEmpty {
                 modelUriCount += 1
-                if isLoadableVrmModel(modelUri) {
+                if let metadata = loadVrmModelMetadata(modelUri) {
                     modelLoadedCount += 1
+                    modelVersions.insert(metadata.version)
+                    humanoidBoneCount += metadata.humanoidBoneCount
+                    expressionCount += metadata.expressionCount
                 } else {
                     modelLoadFailureCount += 1
                 }
@@ -3887,6 +3902,9 @@ final class BroadcastSceneCompositor {
             activePoseCount: activePoseCount,
             missingPoseCount: missingPoseCount,
             modelUriCount: modelUriCount,
+            modelVersions: modelVersions.sorted(),
+            humanoidBoneCount: humanoidBoneCount,
+            expressionCount: expressionCount,
             runtimeStatuses: runtimeStatuses.sorted(),
             rendererStatus: "unavailable",
             rendererBackend: modelUriCount > 0 ? "native-vrm-glb-loader" : "none",
@@ -3897,17 +3915,17 @@ final class BroadcastSceneCompositor {
         )
     }
 
-    private static func isLoadableVrmModel(_ rawURI: String) -> Bool {
+    private static func loadVrmModelMetadata(_ rawURI: String) -> BroadcastVrmModelMetadata? {
         guard let url = localFileURL(rawURI) else {
-            return false
+            return nil
         }
         guard let fileHandle = try? FileHandle(forReadingFrom: url) else {
-            return false
+            return nil
         }
         defer {
             fileHandle.closeFile()
         }
-        return validateVrmGlbHeader(fileHandle)
+        return readVrmGlbMetadata(fileHandle)
     }
 
     private static func localFileURL(_ rawURI: String) -> URL? {
@@ -3921,30 +3939,80 @@ final class BroadcastSceneCompositor {
         return nil
     }
 
-    private static func validateVrmGlbHeader(_ fileHandle: FileHandle) -> Bool {
+    private static func readVrmGlbMetadata(_ fileHandle: FileHandle) -> BroadcastVrmModelMetadata? {
         let header = fileHandle.readData(ofLength: 20)
         guard header.count == 20 else {
-            return false
+            return nil
         }
         guard header[0] == 0x67, header[1] == 0x6c, header[2] == 0x54, header[3] == 0x46 else {
-            return false
+            return nil
         }
         guard header.littleEndianInt(at: 4) == 2 else {
-            return false
+            return nil
         }
         let declaredLength = header.littleEndianInt(at: 8)
         let jsonLength = header.littleEndianInt(at: 12)
-        guard declaredLength >= 20, jsonLength > 0, jsonLength <= maxVrmJsonChunkBytes else {
-            return false
+        guard declaredLength >= 20, jsonLength > 0, jsonLength <= maxVrmJsonChunkBytes, declaredLength >= 20 + jsonLength else {
+            return nil
         }
         guard header[16] == 0x4a, header[17] == 0x53, header[18] == 0x4f, header[19] == 0x4e else {
-            return false
+            return nil
         }
         let jsonData = fileHandle.readData(ofLength: jsonLength)
-        guard jsonData.count == jsonLength, let json = String(data: jsonData, encoding: .utf8) else {
-            return false
+        guard jsonData.count == jsonLength,
+              let root = (try? JSONSerialization.jsonObject(with: jsonData)) as? [String: Any],
+              let extensions = root["extensions"] as? [String: Any]
+        else {
+            return nil
         }
-        return json.contains("\"VRMC_vrm\"") || json.contains("\"VRM\"")
+        if let vrm1 = extensions["VRMC_vrm"] as? [String: Any] {
+            return BroadcastVrmModelMetadata(
+                version: "1.0",
+                humanoidBoneCount: countVrm1HumanoidBones(vrm1),
+                expressionCount: countVrm1Expressions(vrm1)
+            )
+        }
+        if let vrm0 = extensions["VRM"] as? [String: Any] {
+            return BroadcastVrmModelMetadata(
+                version: "0.x",
+                humanoidBoneCount: countVrm0HumanoidBones(vrm0),
+                expressionCount: countVrm0Expressions(vrm0)
+            )
+        }
+        return nil
+    }
+
+    private static func countVrm1HumanoidBones(_ vrm: [String: Any]) -> Int {
+        guard let humanoid = vrm["humanoid"] as? [String: Any],
+              let humanBones = humanoid["humanBones"] as? [String: Any] else {
+            return 0
+        }
+        return humanBones.count
+    }
+
+    private static func countVrm0HumanoidBones(_ vrm: [String: Any]) -> Int {
+        guard let humanoid = vrm["humanoid"] as? [String: Any],
+              let humanBones = humanoid["humanBones"] as? [Any] else {
+            return 0
+        }
+        return humanBones.count
+    }
+
+    private static func countVrm1Expressions(_ vrm: [String: Any]) -> Int {
+        guard let expressions = vrm["expressions"] as? [String: Any] else {
+            return 0
+        }
+        let presetCount = (expressions["preset"] as? [String: Any])?.count ?? 0
+        let customCount = (expressions["custom"] as? [String: Any])?.count ?? 0
+        return presetCount + customCount
+    }
+
+    private static func countVrm0Expressions(_ vrm: [String: Any]) -> Int {
+        guard let blendShapeMaster = vrm["blendShapeMaster"] as? [String: Any],
+              let blendShapeGroups = blendShapeMaster["blendShapeGroups"] as? [Any] else {
+            return 0
+        }
+        return blendShapeGroups.count
     }
 
     private static func normalizeVrmRuntimeStatus(_ value: String?) -> String {
@@ -4075,6 +4143,12 @@ final class BroadcastSceneCompositor {
 }
 
 private let maxVrmJsonChunkBytes = 2 * 1024 * 1024
+
+private struct BroadcastVrmModelMetadata {
+    let version: String
+    let humanoidBoneCount: Int
+    let expressionCount: Int
+}
 
 private extension Data {
     func littleEndianInt(at offset: Int) -> Int {

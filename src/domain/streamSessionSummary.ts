@@ -43,6 +43,9 @@ export interface StreamSessionNativeRuntimeSummary {
   vrmActivePoseCount: number;
   vrmMissingPoseCount: number;
   vrmModelUriCount: number;
+  vrmModelVersions: string[];
+  vrmHumanoidBoneCount: number;
+  vrmExpressionCount: number;
   vrmRuntimeStatuses: string[];
   vrmRendererStatus: NonNullable<NativeRuntimeTelemetry["composition"]["vrmRendererStatus"]>;
   vrmRendererBackend: string;
@@ -656,9 +659,17 @@ export const createNativeRuntimeSessionSummary = (
     runtime.composition.vrmRenderMissingCount ?? Math.max(0, vrmSourceCount - vrmRenderedSourceCount)
   );
   const vrmRenderFailureCount = normalizeNonNegativeInteger(runtime.composition.vrmRenderFailureCount);
+  const vrmModelLoadedCount = normalizeNonNegativeInteger(runtime.composition.vrmModelLoadedCount);
+  const vrmHumanoidBoneCount = normalizeNonNegativeInteger(runtime.composition.vrmHumanoidBoneCount);
+  const vrmExpressionCount = normalizeNonNegativeInteger(runtime.composition.vrmExpressionCount);
+  const incompleteVrmModelMetadata = vrmModelLoadedCount > 0 && (vrmHumanoidBoneCount === 0 || vrmExpressionCount === 0);
   const incompleteVrmRendering =
     vrmSourceCount > 0 &&
-    (vrmRendererStatus !== "ready" || vrmRenderedSourceCount < vrmSourceCount || vrmRenderMissingCount > 0 || vrmRenderFailureCount > 0);
+    (vrmRendererStatus !== "ready" ||
+      vrmRenderedSourceCount < vrmSourceCount ||
+      vrmRenderMissingCount > 0 ||
+      vrmRenderFailureCount > 0 ||
+      incompleteVrmModelMetadata);
   const status: StreamSessionNativeRuntimeStatus = failed
     ? "fail"
     : stale || congested || pendingComposition || missingAssets || missingVrmPoses || incompleteVrmRendering
@@ -682,10 +693,13 @@ export const createNativeRuntimeSessionSummary = (
     vrmActivePoseCount: normalizeNonNegativeInteger(runtime.composition.vrmActivePoseCount),
     vrmMissingPoseCount: missingVrmPoseCount,
     vrmModelUriCount: normalizeNonNegativeInteger(runtime.composition.vrmModelUriCount),
+    vrmModelVersions: normalizeStringArray(runtime.composition.vrmModelVersions),
+    vrmHumanoidBoneCount,
+    vrmExpressionCount,
     vrmRuntimeStatuses: runtime.composition.vrmRuntimeStatuses ?? [],
     vrmRendererStatus,
     vrmRendererBackend: runtime.composition.vrmRendererBackend || "none",
-    vrmModelLoadedCount: normalizeNonNegativeInteger(runtime.composition.vrmModelLoadedCount),
+    vrmModelLoadedCount,
     vrmRenderedSourceCount,
     vrmRenderMissingCount,
     vrmRenderFailureCount,
@@ -730,6 +744,8 @@ export const createNativeRuntimeSessionSummary = (
               ? "Confirm App Group-copied PNGTuber/image assets load inside the iOS Broadcast Upload Extension before public streams."
               : missingVrmPoses
                 ? "Confirm VRM runtime pose payloads reach the native compositor before retaining production evidence."
+                : incompleteVrmModelMetadata
+                  ? "Use VRM/GLB files with humanoid bones and expression metadata before retaining production renderer evidence."
                 : incompleteVrmRendering
                   ? "Confirm the native VRM renderer loads and renders every visible VRM source before retaining production evidence."
                   : pendingComposition
@@ -961,6 +977,9 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     vrmActivePoseCount: normalizeNonNegativeInteger(value.vrmActivePoseCount),
     vrmMissingPoseCount: normalizeNonNegativeInteger(value.vrmMissingPoseCount),
     vrmModelUriCount: normalizeNonNegativeInteger(value.vrmModelUriCount),
+    vrmModelVersions: normalizeStringArray(value.vrmModelVersions),
+    vrmHumanoidBoneCount: normalizeNonNegativeInteger(value.vrmHumanoidBoneCount),
+    vrmExpressionCount: normalizeNonNegativeInteger(value.vrmExpressionCount),
     vrmRuntimeStatuses: Array.isArray(value.vrmRuntimeStatuses)
       ? value.vrmRuntimeStatuses.filter((status): status is string => typeof status === "string")
       : [],
@@ -1059,6 +1078,9 @@ const normalizeNonNegativeInteger = (value: unknown): number =>
 
 const normalizeNonNegativeNumber = (value: unknown): number =>
   Math.max(0, typeof value === "number" && Number.isFinite(value) ? value : 0);
+
+const normalizeStringArray = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
 const normalizeDateString = (value: unknown): string | null => {
   if (typeof value !== "string") {

@@ -80,6 +80,9 @@ describe("support bundle", () => {
           vrmActivePoseCount: 1,
           vrmMissingPoseCount: 0,
           vrmModelUriCount: 1,
+          vrmModelVersions: ["1.0"],
+          vrmHumanoidBoneCount: 55,
+          vrmExpressionCount: 8,
           vrmRuntimeStatuses: ["active"],
           vrmRendererStatus: "ready" as const,
           vrmRendererBackend: "native-test",
@@ -168,7 +171,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 29 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 30 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
@@ -300,7 +303,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("asset issues 1 / file-backed 0");
     expect(formatSupportBundle(bundle)).toContain("assets 1/1 loaded / 0 missing");
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
-    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / assets 1/1 loaded / 0 missing / vrm 1/1 active payloads 1 missing 0 / renderer ready native-test rendered 1/1 models 1 missing 0 failed 0 / congested yes / queue 64/120");
+    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / assets 1/1 loaded / 0 missing / vrm 1/1 active payloads 1 missing 0 / renderer ready native-test rendered 1/1 models 1 versions 1.0 bones 55 expressions 8 missing 0 failed 0 / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
     expect(formatSupportBundle(bundle)).toContain("Evidence fingerprint: sve1-");
     expect(formatSupportBundle(bundle)).toContain("Evidence run manifest: -");
@@ -377,6 +380,9 @@ describe("support bundle", () => {
           vrmActivePoseCount: 1,
           vrmMissingPoseCount: 0,
           vrmModelUriCount: 1,
+          vrmModelVersions: ["1.0"],
+          vrmHumanoidBoneCount: 55,
+          vrmExpressionCount: 8,
           vrmRuntimeStatuses: ["active"],
           vrmRendererStatus: "ready" as const,
           vrmRendererBackend: "native-test",
