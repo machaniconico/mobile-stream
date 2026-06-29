@@ -298,9 +298,24 @@ const sessionMetricLabel = (diagnostics: StreamDiagnostics): string =>
     ? `${diagnostics.session.lastSummary.outcome} / ${Math.round(diagnostics.session.lastSummary.durationSeconds)}s / ${diagnostics.session.lastSummary.eventCount} events${diagnostics.session.lastSummary.nativeRuntime ? ` / native ${diagnostics.session.lastSummary.nativeRuntime.status}` : ""}`
     : "No completed sessions yet";
 
+const nativeOverlayProofMetricLabel = ({
+  appliedCount,
+  skippedCount,
+  skippedKinds
+}: {
+  appliedCount: number;
+  skippedCount: number;
+  skippedKinds?: string[];
+}): string =>
+  `overlays applied ${appliedCount} skipped ${skippedCount}${skippedKinds && skippedKinds.length > 0 ? ` kinds ${skippedKinds.join("/")}` : ""}`;
+
 const sessionNativeRuntimeLabel = (summary: StreamSessionSummary): string =>
   summary.nativeRuntime
-    ? `${summary.nativeRuntime.status} / ${summary.nativeRuntime.platform} / ${summary.nativeRuntime.publisherState || "-"} / queue ${summary.nativeRuntime.queuedItems}/${summary.nativeRuntime.cacheSize} / vrm ${summary.nativeRuntime.vrmActivePoseCount}/${summary.nativeRuntime.vrmSourceCount} active payloads ${summary.nativeRuntime.vrmPosePayloadCount} renderer ${summary.nativeRuntime.vrmRendererStatus} ${summary.nativeRuntime.vrmRenderedSourceCount}/${summary.nativeRuntime.vrmSourceCount} models ${summary.nativeRuntime.vrmModelLoadedCount} bones ${summary.nativeRuntime.vrmHumanoidBoneCount} expressions ${summary.nativeRuntime.vrmExpressionCount} ${vrmRenderabilityMetricLabel(summary.nativeRuntime)} pose ${summary.nativeRuntime.vrmPoseBoneAppliedCount}/${summary.nativeRuntime.vrmPoseBoneCount} bones ${summary.nativeRuntime.vrmPoseExpressionAppliedCount}/${summary.nativeRuntime.vrmPoseExpressionCount} expressions / drops ${summary.nativeRuntime.droppedVideoFrames} video ${summary.nativeRuntime.droppedAudioFrames} audio`
+    ? `${summary.nativeRuntime.status} / ${summary.nativeRuntime.platform} / ${summary.nativeRuntime.publisherState || "-"} / queue ${summary.nativeRuntime.queuedItems}/${summary.nativeRuntime.cacheSize} / ${nativeOverlayProofMetricLabel({
+        appliedCount: summary.nativeRuntime.compositionAppliedCount,
+        skippedCount: summary.nativeRuntime.compositionSkippedCount,
+        skippedKinds: summary.nativeRuntime.compositionSkippedKinds
+      })} / vrm ${summary.nativeRuntime.vrmActivePoseCount}/${summary.nativeRuntime.vrmSourceCount} active payloads ${summary.nativeRuntime.vrmPosePayloadCount} renderer ${summary.nativeRuntime.vrmRendererStatus} ${summary.nativeRuntime.vrmRenderedSourceCount}/${summary.nativeRuntime.vrmSourceCount} models ${summary.nativeRuntime.vrmModelLoadedCount} bones ${summary.nativeRuntime.vrmHumanoidBoneCount} expressions ${summary.nativeRuntime.vrmExpressionCount} ${vrmRenderabilityMetricLabel(summary.nativeRuntime)} pose ${summary.nativeRuntime.vrmPoseBoneAppliedCount}/${summary.nativeRuntime.vrmPoseBoneCount} bones ${summary.nativeRuntime.vrmPoseExpressionAppliedCount}/${summary.nativeRuntime.vrmPoseExpressionCount} expressions / drops ${summary.nativeRuntime.droppedVideoFrames} video ${summary.nativeRuntime.droppedAudioFrames} audio`
     : "No native runtime evidence stored.";
 
 const sessionHistoryMetricLabel = (diagnostics: StreamDiagnostics): string =>
@@ -336,7 +351,11 @@ const nativeRuntimeMonitorMetricLabel = (diagnostics: StreamDiagnostics): string
 
 const nativeRuntimeMetricLabel = (diagnostics: StreamDiagnostics): string =>
   diagnostics.nativeRuntime
-    ? `${diagnostics.nativeRuntime.platform} / ${diagnostics.nativeRuntime.publisher.state || diagnostics.nativeRuntime.runtimeStatus} / ${diagnostics.nativeRuntime.composition.status} / assets ${diagnostics.nativeRuntime.composition.stillImageAssetLoadedCount ?? 0}/${diagnostics.nativeRuntime.composition.stillImageAssetCount ?? 0} / vrm ${diagnostics.nativeRuntime.composition.vrmActivePoseCount ?? 0}/${diagnostics.nativeRuntime.composition.vrmSourceCount ?? 0} active payloads ${diagnostics.nativeRuntime.composition.vrmPosePayloadCount ?? 0} renderer ${diagnostics.nativeRuntime.composition.vrmRendererStatus ?? ((diagnostics.nativeRuntime.composition.vrmSourceCount ?? 0) > 0 ? "unavailable" : "not-required")} ${diagnostics.nativeRuntime.composition.vrmRenderedSourceCount ?? 0}/${diagnostics.nativeRuntime.composition.vrmSourceCount ?? 0} models ${diagnostics.nativeRuntime.composition.vrmModelLoadedCount ?? 0} bones ${diagnostics.nativeRuntime.composition.vrmHumanoidBoneCount ?? 0} expressions ${diagnostics.nativeRuntime.composition.vrmExpressionCount ?? 0} ${vrmRenderabilityMetricLabel(diagnostics.nativeRuntime.composition)} pose ${(diagnostics.nativeRuntime.composition.vrmPoseBoneAppliedCount ?? 0)}/${diagnostics.nativeRuntime.composition.vrmPoseBoneCount ?? 0} bones ${(diagnostics.nativeRuntime.composition.vrmPoseExpressionAppliedCount ?? 0)}/${diagnostics.nativeRuntime.composition.vrmPoseExpressionCount ?? 0} expressions${diagnostics.nativeRuntime.audioProcessing?.micEffectsEnabled ? ` / mic fx ${diagnostics.nativeRuntime.audioProcessing.micEffectsPresetId} ${diagnostics.nativeRuntime.audioProcessing.micEffectsProcessedFrames}` : ""}${nativeRuntimeMonitorMetricLabel(diagnostics)}${diagnostics.nativeRuntime.stale ? " / stale" : ""}${diagnostics.nativeRuntime.publisher.congested ? " / congested" : ""}`
+    ? `${diagnostics.nativeRuntime.platform} / ${diagnostics.nativeRuntime.publisher.state || diagnostics.nativeRuntime.runtimeStatus} / ${diagnostics.nativeRuntime.composition.status} / ${nativeOverlayProofMetricLabel({
+        appliedCount: diagnostics.nativeRuntime.composition.appliedCount,
+        skippedCount: diagnostics.nativeRuntime.composition.skippedCount,
+        skippedKinds: diagnostics.nativeRuntime.composition.skippedKinds
+      })} / assets ${diagnostics.nativeRuntime.composition.stillImageAssetLoadedCount ?? 0}/${diagnostics.nativeRuntime.composition.stillImageAssetCount ?? 0} / vrm ${diagnostics.nativeRuntime.composition.vrmActivePoseCount ?? 0}/${diagnostics.nativeRuntime.composition.vrmSourceCount ?? 0} active payloads ${diagnostics.nativeRuntime.composition.vrmPosePayloadCount ?? 0} renderer ${diagnostics.nativeRuntime.composition.vrmRendererStatus ?? ((diagnostics.nativeRuntime.composition.vrmSourceCount ?? 0) > 0 ? "unavailable" : "not-required")} ${diagnostics.nativeRuntime.composition.vrmRenderedSourceCount ?? 0}/${diagnostics.nativeRuntime.composition.vrmSourceCount ?? 0} models ${diagnostics.nativeRuntime.composition.vrmModelLoadedCount ?? 0} bones ${diagnostics.nativeRuntime.composition.vrmHumanoidBoneCount ?? 0} expressions ${diagnostics.nativeRuntime.composition.vrmExpressionCount ?? 0} ${vrmRenderabilityMetricLabel(diagnostics.nativeRuntime.composition)} pose ${(diagnostics.nativeRuntime.composition.vrmPoseBoneAppliedCount ?? 0)}/${diagnostics.nativeRuntime.composition.vrmPoseBoneCount ?? 0} bones ${(diagnostics.nativeRuntime.composition.vrmPoseExpressionAppliedCount ?? 0)}/${diagnostics.nativeRuntime.composition.vrmPoseExpressionCount ?? 0} expressions${diagnostics.nativeRuntime.audioProcessing?.micEffectsEnabled ? ` / mic fx ${diagnostics.nativeRuntime.audioProcessing.micEffectsPresetId} ${diagnostics.nativeRuntime.audioProcessing.micEffectsProcessedFrames}` : ""}${nativeRuntimeMonitorMetricLabel(diagnostics)}${diagnostics.nativeRuntime.stale ? " / stale" : ""}${diagnostics.nativeRuntime.publisher.congested ? " / congested" : ""}`
     : "Not linked";
 
 const audioGuardMetricLabel = (diagnostics: StreamDiagnostics): string =>
@@ -1973,7 +1992,11 @@ const publicLaunchChecklistTone = (status: PublicLaunchChecklistItemStatus): "pa
 
 const validationRunNativeRuntimeLabel = (run: StreamValidationRun): string | null =>
   run.nativeRuntime
-    ? `native ${run.nativeRuntime.status} / ${run.nativeRuntime.platform} / publisher ${run.nativeRuntime.publisherState || "-"} / queue ${run.nativeRuntime.queuedItems}/${run.nativeRuntime.cacheSize} / vrm ${run.nativeRuntime.vrmActivePoseCount}/${run.nativeRuntime.vrmSourceCount} active payloads ${run.nativeRuntime.vrmPosePayloadCount} renderer ${run.nativeRuntime.vrmRendererStatus} ${run.nativeRuntime.vrmRenderedSourceCount}/${run.nativeRuntime.vrmSourceCount} models ${run.nativeRuntime.vrmModelLoadedCount} bones ${run.nativeRuntime.vrmHumanoidBoneCount} expressions ${run.nativeRuntime.vrmExpressionCount} ${vrmRenderabilityMetricLabel(run.nativeRuntime)} pose ${run.nativeRuntime.vrmPoseBoneAppliedCount}/${run.nativeRuntime.vrmPoseBoneCount} bones ${run.nativeRuntime.vrmPoseExpressionAppliedCount}/${run.nativeRuntime.vrmPoseExpressionCount} expressions`
+    ? `native ${run.nativeRuntime.status} / ${run.nativeRuntime.platform} / publisher ${run.nativeRuntime.publisherState || "-"} / queue ${run.nativeRuntime.queuedItems}/${run.nativeRuntime.cacheSize} / ${nativeOverlayProofMetricLabel({
+        appliedCount: run.nativeRuntime.compositionAppliedCount,
+        skippedCount: run.nativeRuntime.compositionSkippedCount,
+        skippedKinds: run.nativeRuntime.compositionSkippedKinds
+      })} / vrm ${run.nativeRuntime.vrmActivePoseCount}/${run.nativeRuntime.vrmSourceCount} active payloads ${run.nativeRuntime.vrmPosePayloadCount} renderer ${run.nativeRuntime.vrmRendererStatus} ${run.nativeRuntime.vrmRenderedSourceCount}/${run.nativeRuntime.vrmSourceCount} models ${run.nativeRuntime.vrmModelLoadedCount} bones ${run.nativeRuntime.vrmHumanoidBoneCount} expressions ${run.nativeRuntime.vrmExpressionCount} ${vrmRenderabilityMetricLabel(run.nativeRuntime)} pose ${run.nativeRuntime.vrmPoseBoneAppliedCount}/${run.nativeRuntime.vrmPoseBoneCount} bones ${run.nativeRuntime.vrmPoseExpressionAppliedCount}/${run.nativeRuntime.vrmPoseExpressionCount} expressions`
     : null;
 
 const validationRunMonitorHoldLabel = (run: StreamValidationRun): string | null =>
