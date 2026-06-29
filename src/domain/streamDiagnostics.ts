@@ -612,6 +612,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Rig: ${diagnostics.faceTracking.rigMode}`,
     `- Avatars: ${diagnostics.faceTracking.visibleAvatarCount} visible / ${diagnostics.faceTracking.preparedPngTuberCount} prepared PNGTuber / ${diagnostics.faceTracking.visibleVrmCount} VRM / native VRM renderer ${diagnostics.faceTracking.nativeVrmRendererReady ? "ready" : "not-ready"} / ${diagnostics.faceTracking.activeMotionCount} moving`,
     `- Rig quality: ${diagnostics.faceTracking.rigQualityScore}/100 ${diagnostics.faceTracking.rigQualityGrade}`,
+    `- Rig high fidelity: ${diagnostics.faceTracking.rigHighFidelityScore ?? 0}/100 ${diagnostics.faceTracking.rigHighFidelityGrade ?? "blocked"} / parts ${diagnostics.faceTracking.rigPartSeparationScore ?? 0}/100 / depth ${diagnostics.faceTracking.rigDepthContinuityScore ?? 0}/100`,
     `- Rig issues: ${diagnostics.faceTracking.rigIssueCount} / ${diagnostics.faceTracking.rigIssueSummary}`,
     `- Recommendation: ${diagnostics.faceTracking.recommendation}`,
     "",

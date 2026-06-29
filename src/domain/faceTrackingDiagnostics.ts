@@ -27,6 +27,10 @@ export interface FaceTrackingDiagnostics {
   rigIssueSummary: string;
   rigQualityScore: number;
   rigQualityGrade: FaceTrackingRigQualityGrade;
+  rigPartSeparationScore?: number;
+  rigDepthContinuityScore?: number;
+  rigHighFidelityScore?: number;
+  rigHighFidelityGrade?: FaceTrackingRigQualityGrade;
   summary: string;
   recommendation: string;
 }
@@ -60,10 +64,21 @@ export const createFaceTrackingDiagnostics = (
   const rigQualityScore = rigAnalyses.length === 0 && nativeVrmRendererReady ? 100 : stillImageRigQualityScore;
   const rigQualityGrade =
     rigAnalyses.length === 0 && nativeVrmRendererReady ? "ready" : createRigQualityGrade(rigQualityScore, rigIssues.length);
+  const rigPartSeparationScore = createAggregatedRigScore(rigAnalyses, nativeVrmRendererReady, "partSeparationScore");
+  const rigDepthContinuityScore = createAggregatedRigScore(rigAnalyses, nativeVrmRendererReady, "depthContinuityScore");
+  const rigHighFidelityScore = createAggregatedRigScore(rigAnalyses, nativeVrmRendererReady, "highFidelityScore");
+  const rigHighFidelityGrade =
+    rigAnalyses.length === 0 && nativeVrmRendererReady ? "ready" : createRigQualityGrade(rigHighFidelityScore, rigIssues.length);
+  const rigScoreSummary = {
+    rigPartSeparationScore,
+    rigDepthContinuityScore,
+    rigHighFidelityScore,
+    rigHighFidelityGrade
+  };
   const rigIssueSummary =
     rigIssues.length === 0
       ? "No still-image rig issues."
-      : `${rigIssues.length} still-image rig issue${rigIssues.length === 1 ? "" : "s"} (${rigQualityScore}/100 ${rigQualityGrade}): ${rigIssues[0]}`;
+      : `${rigIssues.length} still-image rig issue${rigIssues.length === 1 ? "" : "s"} (${rigQualityScore}/100 ${rigQualityGrade}, high fidelity ${rigHighFidelityScore}/100 ${rigHighFidelityGrade}): ${rigIssues[0]}`;
   const runtimeStatus = runtime?.status ?? "unavailable";
   const maxRuntimeAgeMs = Math.max(0, options.maxRuntimeAgeMs ?? faceTrackingRuntimeMaxAgeMs);
   const runtimeAgeMs = runtime ? runtimeAge(runtime, options.now) : null;
@@ -93,6 +108,7 @@ export const createFaceTrackingDiagnostics = (
       rigIssueSummary,
       rigQualityScore,
       rigQualityGrade,
+      ...rigScoreSummary,
       summary: "Face tracking is disabled.",
       recommendation: "Enable face tracking when validating VTuber avatar motion for production streams."
     };
@@ -113,6 +129,7 @@ export const createFaceTrackingDiagnostics = (
       rigIssueSummary,
       rigQualityScore,
       rigQualityGrade,
+      rigScoreSummary,
       runtimeAgeMs,
       runtimeFresh,
       faceLandmarkConfidence,
@@ -137,6 +154,7 @@ export const createFaceTrackingDiagnostics = (
       rigIssueSummary,
       rigQualityScore,
       rigQualityGrade,
+      rigScoreSummary,
       runtimeAgeMs,
       runtimeFresh,
       faceLandmarkConfidence,
@@ -165,6 +183,7 @@ export const createFaceTrackingDiagnostics = (
       rigIssueSummary,
       rigQualityScore,
       rigQualityGrade,
+      rigScoreSummary,
       runtimeAgeMs,
       runtimeFresh,
       faceLandmarkConfidence,
@@ -189,6 +208,7 @@ export const createFaceTrackingDiagnostics = (
       rigIssueSummary,
       rigQualityScore,
       rigQualityGrade,
+      rigScoreSummary,
       runtimeAgeMs,
       runtimeFresh,
       faceLandmarkConfidence,
@@ -213,6 +233,7 @@ export const createFaceTrackingDiagnostics = (
       rigIssueSummary,
       rigQualityScore,
       rigQualityGrade,
+      rigScoreSummary,
       runtimeAgeMs,
       runtimeFresh,
       faceLandmarkConfidence,
@@ -237,6 +258,7 @@ export const createFaceTrackingDiagnostics = (
       rigIssueSummary,
       rigQualityScore,
       rigQualityGrade,
+      rigScoreSummary,
       runtimeAgeMs,
       runtimeFresh,
       faceLandmarkConfidence,
@@ -261,6 +283,7 @@ export const createFaceTrackingDiagnostics = (
       rigIssueSummary,
       rigQualityScore,
       rigQualityGrade,
+      rigScoreSummary,
       runtimeAgeMs,
       runtimeFresh,
       faceLandmarkConfidence,
@@ -285,6 +308,7 @@ export const createFaceTrackingDiagnostics = (
       rigIssueSummary,
       rigQualityScore,
       rigQualityGrade,
+      rigScoreSummary,
       runtimeAgeMs,
       runtimeFresh,
       faceLandmarkConfidence,
@@ -309,6 +333,7 @@ export const createFaceTrackingDiagnostics = (
       rigIssueSummary,
       rigQualityScore,
       rigQualityGrade,
+      rigScoreSummary,
       runtimeAgeMs,
       runtimeFresh,
       faceLandmarkConfidence,
@@ -333,6 +358,7 @@ export const createFaceTrackingDiagnostics = (
       rigIssueSummary,
       rigQualityScore,
       rigQualityGrade,
+      rigScoreSummary,
       runtimeAgeMs,
       runtimeFresh,
       faceLandmarkConfidence,
@@ -363,6 +389,7 @@ export const createFaceTrackingDiagnostics = (
     rigIssueSummary,
     rigQualityScore,
     rigQualityGrade,
+    ...rigScoreSummary,
     summary: createReadySummary(preparedPngTubers.length, visibleVrms.length, nativeVrmRendererReady),
     recommendation: "Keep this tracker state with the next private iOS/Android validation run."
   };
@@ -382,6 +409,10 @@ const createWarning = (
   rigIssueSummary: string,
   rigQualityScore: number,
   rigQualityGrade: FaceTrackingRigQualityGrade,
+  rigScoreSummary: Pick<
+    FaceTrackingDiagnostics,
+    "rigPartSeparationScore" | "rigDepthContinuityScore" | "rigHighFidelityScore" | "rigHighFidelityGrade"
+  >,
   runtimeAgeMs: number | null,
   runtimeFresh: boolean,
   faceLandmarkConfidence: number,
@@ -409,6 +440,7 @@ const createWarning = (
   rigIssueSummary,
   rigQualityScore,
   rigQualityGrade,
+  ...rigScoreSummary,
   summary,
   recommendation
 });
@@ -494,7 +526,13 @@ const hasActiveMotion = (source: Extract<SceneSource, { kind: "pngtuber" | "live
 
 const createPngTuberRigAnalysis = (
   source: Extract<SceneSource, { kind: "pngtuber" }>
-): { issues: string[]; score: number } => {
+): {
+  issues: string[];
+  score: number;
+  partSeparationScore: number;
+  depthContinuityScore: number;
+  highFidelityScore: number;
+} => {
   const rig = source.illustrationRig;
   const issues: string[] = [];
   const tolerance = 0.01;
@@ -518,9 +556,15 @@ const createPngTuberRigAnalysis = (
     score -= 15;
   }
   const eyeMouthGap = rig.mouthLineY - rig.eyeLineY;
+  const partSeparationScore = scoreRigPartSeparation(rig, faceTop, faceBottom);
+  const depthContinuityScore = scoreRigDepthContinuity(rig, faceTop, faceBottom);
   if (eyeMouthGap < 0.1 || eyeMouthGap > 0.34) {
     issues.push("eye-to-mouth spacing should stay within 10-34% of the illustration height");
     score -= 12;
+  }
+  if (eyeMouthGap >= 0.1 && eyeMouthGap < 0.12) {
+    issues.push("eye and mouth lines need at least 12% separation for independent blink and mouth deformation");
+    score -= 8;
   }
   if (rig.shoulderLineY - rig.mouthLineY < 0.12) {
     issues.push("shoulder line should leave at least 12% body space below the mouth line");
@@ -548,13 +592,72 @@ const createPngTuberRigAnalysis = (
     issues.push("face range should leave deformation margin above eyes and below mouth");
     score -= 10;
   }
-  return { issues, score: Math.max(0, Math.min(100, Math.round(score))) };
+  const normalizedScore = Math.max(0, Math.min(100, Math.round(score)));
+  return {
+    issues,
+    score: normalizedScore,
+    partSeparationScore,
+    depthContinuityScore,
+    highFidelityScore: Math.min(normalizedScore, partSeparationScore, depthContinuityScore)
+  };
 };
 
 const isRigLineOrderValid = (rig: AvatarIllustrationRig, tolerance: number): boolean =>
   rig.hairLineY + tolerance < rig.eyeLineY &&
   rig.eyeLineY + tolerance < rig.mouthLineY &&
   rig.mouthLineY + tolerance < rig.shoulderLineY;
+
+const createAggregatedRigScore = (
+  analyses: ReturnType<typeof createPngTuberRigAnalysis>[],
+  nativeVrmRendererReady: boolean,
+  field: "partSeparationScore" | "depthContinuityScore" | "highFidelityScore"
+): number => {
+  if (analyses.length === 0) {
+    return nativeVrmRendererReady ? 100 : 0;
+  }
+  return Math.min(...analyses.map((analysis) => analysis[field]));
+};
+
+const scoreRigPartSeparation = (rig: AvatarIllustrationRig, faceTop: number, faceBottom: number): number => {
+  const eyeMouthGap = rig.mouthLineY - rig.eyeLineY;
+  const centerGap = Math.min(Math.abs(rig.faceCenterY - rig.eyeLineY), Math.abs(rig.mouthLineY - rig.faceCenterY));
+  return Math.round(
+    Math.min(
+      scoreBand(eyeMouthGap, 0.1, 0.12, 0.24, 0.34),
+      scoreBand(centerGap, 0.02, 0.04, 0.12, 0.28),
+      scoreBand(rig.eyeLineY - faceTop, 0.05, 0.07, 0.18, 0.4),
+      scoreBand(faceBottom - rig.mouthLineY, 0.045, 0.065, 0.18, 0.36)
+    )
+  );
+};
+
+const scoreRigDepthContinuity = (rig: AvatarIllustrationRig, faceTop: number, faceBottom: number): number => {
+  const hairEyeGap = rig.eyeLineY - rig.hairLineY;
+  const mouthShoulderGap = rig.shoulderLineY - rig.mouthLineY;
+  return Math.round(
+    Math.min(
+      scoreBand(hairEyeGap, 0.025, 0.03, 0.15, 0.24),
+      scoreBand(mouthShoulderGap, 0.12, 0.14, 0.3, 0.42),
+      scoreBand(rig.faceRange, 0.22, 0.3, 0.5, 0.64),
+      scoreBand(rig.eyeLineY - faceTop, 0.05, 0.07, 0.18, 0.4),
+      scoreBand(faceBottom - rig.mouthLineY, 0.045, 0.065, 0.18, 0.36),
+      rig.sliceCount >= 24 ? 100 : rig.sliceCount >= 20 ? 90 : Math.max(0, Math.round((rig.sliceCount / 20) * 80))
+    )
+  );
+};
+
+const scoreBand = (value: number, min: number, idealMin: number, idealMax: number, max: number): number => {
+  if (!Number.isFinite(value) || value <= min || value >= max) {
+    return 0;
+  }
+  if (value >= idealMin && value <= idealMax) {
+    return 100;
+  }
+  if (value < idealMin) {
+    return Math.round(70 + ((value - min) / Math.max(idealMin - min, Number.EPSILON)) * 30);
+  }
+  return Math.round(70 + ((max - value) / Math.max(max - idealMax, Number.EPSILON)) * 30);
+};
 
 const createRigQualityGrade = (score: number, issueCount: number): FaceTrackingRigQualityGrade => {
   if (score >= 90 && issueCount === 0) {

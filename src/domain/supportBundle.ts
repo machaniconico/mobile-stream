@@ -365,6 +365,10 @@ export interface SupportBundle {
     faceTrackingRigIssueSummary: string;
     faceTrackingRigQualityScore: number;
     faceTrackingRigQualityGrade: StreamDiagnostics["faceTracking"]["rigQualityGrade"];
+    faceTrackingRigPartSeparationScore: number;
+    faceTrackingRigDepthContinuityScore: number;
+    faceTrackingRigHighFidelityScore: number;
+    faceTrackingRigHighFidelityGrade: StreamDiagnostics["faceTracking"]["rigQualityGrade"];
     faceTrackingSummary: string;
     faceTrackingRecommendation: string;
     nativeCompositionStatus: StreamDiagnostics["nativeComposition"]["status"];
@@ -950,6 +954,10 @@ export const createSupportBundle = ({
       faceTrackingRigIssueSummary: diagnostics.faceTracking.rigIssueSummary,
       faceTrackingRigQualityScore: diagnostics.faceTracking.rigQualityScore,
       faceTrackingRigQualityGrade: diagnostics.faceTracking.rigQualityGrade,
+      faceTrackingRigPartSeparationScore: diagnostics.faceTracking.rigPartSeparationScore ?? 0,
+      faceTrackingRigDepthContinuityScore: diagnostics.faceTracking.rigDepthContinuityScore ?? 0,
+      faceTrackingRigHighFidelityScore: diagnostics.faceTracking.rigHighFidelityScore ?? 0,
+      faceTrackingRigHighFidelityGrade: diagnostics.faceTracking.rigHighFidelityGrade ?? "blocked",
       faceTrackingSummary: diagnostics.faceTracking.summary,
       faceTrackingRecommendation: diagnostics.faceTracking.recommendation,
       nativeCompositionStatus: diagnostics.nativeComposition.status,
@@ -1172,7 +1180,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Quality incidents: ${bundle.diagnostics.qualityIncidents.summary}`,
     `- Quality advisor: ${bundle.summary.qualityAdvisorAction} / ${bundle.summary.qualityAdvisorSeverity}`,
     `- Suggested quality: ${bundle.summary.suggestedQualityTarget ?? "-"}`,
-    `- Face tracking: ${bundle.summary.faceTrackingStatus} / runtime ${bundle.summary.faceTrackingRuntimeStatus} / age ${bundle.summary.faceTrackingRuntimeAgeMs === null ? "-" : `${bundle.summary.faceTrackingRuntimeAgeMs} ms`} / fresh ${bundle.summary.faceTrackingRuntimeFresh ? "yes" : "no"} / landmarks ${Math.round(bundle.summary.faceTrackingFaceLandmarkConfidence * 100)}% ${bundle.summary.faceTrackingFaceLandmarkReady ? "ready" : "not-ready"} / prepared PNGTuber ${bundle.summary.faceTrackingPreparedPngTuberCount} / VRM ${bundle.summary.faceTrackingVisibleVrmCount} renderer ${bundle.summary.faceTrackingNativeVrmRendererReady ? "ready" : "not-ready"} / moving ${bundle.summary.faceTrackingActiveMotionCount} / rig quality ${bundle.summary.faceTrackingRigQualityScore}/100 ${bundle.summary.faceTrackingRigQualityGrade} / rig issues ${bundle.summary.faceTrackingRigIssueCount}`,
+    `- Face tracking: ${bundle.summary.faceTrackingStatus} / runtime ${bundle.summary.faceTrackingRuntimeStatus} / age ${bundle.summary.faceTrackingRuntimeAgeMs === null ? "-" : `${bundle.summary.faceTrackingRuntimeAgeMs} ms`} / fresh ${bundle.summary.faceTrackingRuntimeFresh ? "yes" : "no"} / landmarks ${Math.round(bundle.summary.faceTrackingFaceLandmarkConfidence * 100)}% ${bundle.summary.faceTrackingFaceLandmarkReady ? "ready" : "not-ready"} / prepared PNGTuber ${bundle.summary.faceTrackingPreparedPngTuberCount} / VRM ${bundle.summary.faceTrackingVisibleVrmCount} renderer ${bundle.summary.faceTrackingNativeVrmRendererReady ? "ready" : "not-ready"} / moving ${bundle.summary.faceTrackingActiveMotionCount} / rig quality ${bundle.summary.faceTrackingRigQualityScore}/100 ${bundle.summary.faceTrackingRigQualityGrade} / rig high fidelity ${bundle.summary.faceTrackingRigHighFidelityScore}/100 ${bundle.summary.faceTrackingRigHighFidelityGrade} / parts ${bundle.summary.faceTrackingRigPartSeparationScore}/100 / depth ${bundle.summary.faceTrackingRigDepthContinuityScore}/100 / rig issues ${bundle.summary.faceTrackingRigIssueCount}`,
     `- Face tracking rig: ${bundle.summary.faceTrackingRigIssueSummary}`,
     `- Face tracking recommendation: ${bundle.summary.faceTrackingRecommendation}`,
     `- Recovery: ${bundle.diagnostics.recovery.mode} / ${bundle.diagnostics.recovery.recommendedAction}`,
