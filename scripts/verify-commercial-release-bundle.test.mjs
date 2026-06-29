@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v35.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v36.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -94,7 +94,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("fresh tracking runtime, active motion");
+    expect(result.stdout).toContain("fresh tracking runtime, ready native face landmarks");
   });
 
   it("blocks native runtime claims when retained manifests lack native frame proof", () => {
@@ -130,6 +130,30 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("loaded still-image assets");
+  });
+
+  it("blocks native runtime claims when retained VRM manifests lack renderer proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeVrmSourceCount: 1,
+            nativeRuntimeVrmPosePayloadCount: 1,
+            nativeRuntimeVrmActivePoseCount: 1,
+            nativeRuntimeVrmRendererStatus: "unavailable",
+            nativeRuntimeVrmModelLoadedCount: 1,
+            nativeRuntimeVrmRenderedSourceCount: 0,
+            nativeRuntimeVrmRenderMissingCount: 1
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("VRM renderer/model/pose proof");
   });
 
   it("blocks monitor-hold claims when retained manifests lack stable duration proof", () => {
@@ -261,7 +285,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("zero still-image rig issues");
+    expect(result.stdout).toContain("ready PNGTuber rig proof");
   });
 
   it("blocks avatar-motion claims when retained manifests keep low still-image rig quality", () => {
@@ -280,7 +304,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("ready still-image rig quality");
+    expect(result.stdout).toContain("ready PNGTuber rig proof");
   });
 
   it("blocks avatar-motion claims when retained manifests omit still-image rig quality proof", () => {
@@ -296,7 +320,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("zero still-image rig issues");
+    expect(result.stdout).toContain("ready PNGTuber rig proof");
   });
 
   it("blocks chat readout claims when retained manifests have no spoken chat success", () => {
@@ -646,7 +670,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 35
+      bundleVersion: 36
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -690,6 +714,43 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeStillImageAssetCount: 1,
   nativeRuntimeStillImageAssetLoadedCount: 1,
   nativeRuntimeStillImageAssetMissingCount: 0,
+  nativeRuntimeVrmSourceCount: 0,
+  nativeRuntimeVrmPosePayloadCount: 0,
+  nativeRuntimeVrmActivePoseCount: 0,
+  nativeRuntimeVrmMissingPoseCount: 0,
+  nativeRuntimeVrmRendererStatus: "not-required",
+  nativeRuntimeVrmRendererBackend: "none",
+  nativeRuntimeVrmModelLoadedCount: 0,
+  nativeRuntimeVrmModelVersions: [],
+  nativeRuntimeVrmHumanoidBoneCount: 0,
+  nativeRuntimeVrmExpressionCount: 0,
+  nativeRuntimeVrmMeshPrimitiveCount: 0,
+  nativeRuntimeVrmSkinnedMeshPrimitiveCount: 0,
+  nativeRuntimeVrmSkinJointCount: 0,
+  nativeRuntimeVrmPositionAccessorCount: 0,
+  nativeRuntimeVrmVertexCount: 0,
+  nativeRuntimeVrmIndexCount: 0,
+  nativeRuntimeVrmBoundsAccessorCount: 0,
+  nativeRuntimeVrmSkinningAttributePrimitiveCount: 0,
+  nativeRuntimeVrmTrianglePrimitiveCount: 0,
+  nativeRuntimeVrmUnsupportedPrimitiveModeCount: 0,
+  nativeRuntimeVrmNormalAccessorCount: 0,
+  nativeRuntimeVrmTexcoordAccessorCount: 0,
+  nativeRuntimeVrmMorphTargetCount: 0,
+  nativeRuntimeVrmMaterialCount: 0,
+  nativeRuntimeVrmTextureCount: 0,
+  nativeRuntimeVrmImageCount: 0,
+  nativeRuntimeVrmUnsupportedImageMimeCount: 0,
+  nativeRuntimeVrmTransparentMaterialCount: 0,
+  nativeRuntimeVrmPoseBoneCount: 0,
+  nativeRuntimeVrmPoseBoneAppliedCount: 0,
+  nativeRuntimeVrmPoseBoneUnsupportedCount: 0,
+  nativeRuntimeVrmPoseExpressionCount: 0,
+  nativeRuntimeVrmPoseExpressionAppliedCount: 0,
+  nativeRuntimeVrmPoseExpressionUnsupportedCount: 0,
+  nativeRuntimeVrmRenderedSourceCount: 0,
+  nativeRuntimeVrmRenderMissingCount: 0,
+  nativeRuntimeVrmRenderFailureCount: 0,
   monitorHoldStatus: "pass",
   monitorHoldSampleCount: 3,
   monitorHoldDurationSeconds: 65,
@@ -703,6 +764,11 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   faceTrackingStatus: "pass",
   faceTrackingRuntimeFresh: true,
   faceTrackingRuntimeAgeMs: 120,
+  faceTrackingFaceLandmarkConfidence: 0.82,
+  faceTrackingFaceLandmarkReady: true,
+  faceTrackingPreparedPngTuberCount: 1,
+  faceTrackingVisibleVrmCount: 0,
+  faceTrackingNativeVrmRendererReady: false,
   faceTrackingActiveMotionCount: 1,
   faceTrackingRigIssueCount: 0,
   faceTrackingRigQualityScore: 100,

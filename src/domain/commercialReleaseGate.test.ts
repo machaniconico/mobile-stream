@@ -316,6 +316,92 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks avatar-motion summary claims when the manifest lacks explicit PNGTuber or VRM avatar proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              faceTrackingPreparedPngTuberCount: 0,
+              faceTrackingVisibleVrmCount: 0,
+              faceTrackingNativeVrmRendererReady: false
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS avatar-motion proof")
+      })
+    );
+  });
+
+  it("allows avatar-motion summary claims when VRM-only manifest proof includes native renderer evidence", () => {
+    const vrmProof = {
+      faceTrackingPreparedPngTuberCount: 0,
+      faceTrackingVisibleVrmCount: 1,
+      faceTrackingNativeVrmRendererReady: true,
+      nativeRuntimeStillImageAssetCount: 0,
+      nativeRuntimeStillImageAssetLoadedCount: 0,
+      nativeRuntimeVrmSourceCount: 1,
+      nativeRuntimeVrmPosePayloadCount: 1,
+      nativeRuntimeVrmActivePoseCount: 1,
+      nativeRuntimeVrmMissingPoseCount: 0,
+      nativeRuntimeVrmRendererStatus: "ready" as const,
+      nativeRuntimeVrmRendererBackend: "metal",
+      nativeRuntimeVrmModelLoadedCount: 1,
+      nativeRuntimeVrmModelVersions: ["1.0"],
+      nativeRuntimeVrmHumanoidBoneCount: 54,
+      nativeRuntimeVrmExpressionCount: 12,
+      nativeRuntimeVrmMeshPrimitiveCount: 4,
+      nativeRuntimeVrmSkinnedMeshPrimitiveCount: 4,
+      nativeRuntimeVrmSkinJointCount: 54,
+      nativeRuntimeVrmPositionAccessorCount: 4,
+      nativeRuntimeVrmVertexCount: 24000,
+      nativeRuntimeVrmSkinningAttributePrimitiveCount: 4,
+      nativeRuntimeVrmTrianglePrimitiveCount: 4,
+      nativeRuntimeVrmUnsupportedPrimitiveModeCount: 0,
+      nativeRuntimeVrmTexcoordAccessorCount: 4,
+      nativeRuntimeVrmImageCount: 2,
+      nativeRuntimeVrmUnsupportedImageMimeCount: 0,
+      nativeRuntimeVrmPoseBoneCount: 54,
+      nativeRuntimeVrmPoseBoneAppliedCount: 54,
+      nativeRuntimeVrmPoseBoneUnsupportedCount: 0,
+      nativeRuntimeVrmPoseExpressionCount: 2,
+      nativeRuntimeVrmPoseExpressionAppliedCount: 2,
+      nativeRuntimeVrmPoseExpressionUnsupportedCount: 0,
+      nativeRuntimeVrmRenderedSourceCount: 1,
+      nativeRuntimeVrmRenderMissingCount: 0,
+      nativeRuntimeVrmRenderFailureCount: 0
+    };
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", ...vrmProof }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android", ...vrmProof })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.issues).not.toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity"
+      })
+    );
+    expect(gate.status).toBe("ready");
+  });
+
   it("blocks native-runtime summary claims when the manifest lacks native frame proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -941,7 +1027,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 35 as const
+    bundleVersion: 36 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1130,6 +1216,9 @@ const manifestRun = ({
   faceTrackingRuntimeAgeMs = 120,
   faceTrackingFaceLandmarkConfidence = 0.82,
   faceTrackingFaceLandmarkReady = true,
+  faceTrackingPreparedPngTuberCount = 1,
+  faceTrackingVisibleVrmCount = 0,
+  faceTrackingNativeVrmRendererReady = false,
   faceTrackingActiveMotionCount = 1,
   faceTrackingRigIssueCount = 0,
   faceTrackingRigQualityScore = 100,
@@ -1242,6 +1331,9 @@ const manifestRun = ({
   faceTrackingRuntimeAgeMs?: ValidationManifestRun["faceTrackingRuntimeAgeMs"];
   faceTrackingFaceLandmarkConfidence?: ValidationManifestRun["faceTrackingFaceLandmarkConfidence"];
   faceTrackingFaceLandmarkReady?: ValidationManifestRun["faceTrackingFaceLandmarkReady"];
+  faceTrackingPreparedPngTuberCount?: ValidationManifestRun["faceTrackingPreparedPngTuberCount"];
+  faceTrackingVisibleVrmCount?: ValidationManifestRun["faceTrackingVisibleVrmCount"];
+  faceTrackingNativeVrmRendererReady?: ValidationManifestRun["faceTrackingNativeVrmRendererReady"];
   faceTrackingActiveMotionCount?: ValidationManifestRun["faceTrackingActiveMotionCount"];
   faceTrackingRigIssueCount?: ValidationManifestRun["faceTrackingRigIssueCount"];
   faceTrackingRigQualityScore?: ValidationManifestRun["faceTrackingRigQualityScore"];
@@ -1360,6 +1452,9 @@ const manifestRun = ({
   faceTrackingRuntimeAgeMs,
   faceTrackingFaceLandmarkConfidence,
   faceTrackingFaceLandmarkReady,
+  faceTrackingPreparedPngTuberCount,
+  faceTrackingVisibleVrmCount,
+  faceTrackingNativeVrmRendererReady,
   faceTrackingActiveMotionCount,
   faceTrackingRigIssueCount,
   faceTrackingRigQualityScore,

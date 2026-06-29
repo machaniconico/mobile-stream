@@ -38,7 +38,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 35;
+const minimumSupportBundleVersion = 36;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -349,7 +349,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v35 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v36 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -843,9 +843,8 @@ const isManifestAvatarMotionPass = (run: ValidationEvidenceManifestRun | undefin
   isManifestFeaturePass(run?.faceTrackingStatus) &&
   run?.faceTrackingRuntimeFresh === true &&
   hasReadyManifestFaceLandmarks(run) &&
-  Number(run.faceTrackingActiveMotionCount) > 0 &&
-  hasZeroManifestRigIssues(run) &&
-  hasReadyManifestRigQuality(run);
+  isPositiveFiniteNumber(run?.faceTrackingActiveMotionCount) &&
+  (hasReadyManifestPngTuberMotionProof(run) || hasReadyManifestVrmMotionProof(run));
 
 const hasReadyManifestFaceLandmarks = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   run?.faceTrackingFaceLandmarkReady === true &&
@@ -863,6 +862,17 @@ const hasReadyManifestRigQuality = (run: ValidationEvidenceManifestRun | undefin
   typeof run.faceTrackingRigQualityScore === "number" &&
   Number.isFinite(run.faceTrackingRigQualityScore) &&
   run.faceTrackingRigQualityScore >= 90;
+
+const hasReadyManifestPngTuberMotionProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  isPositiveFiniteNumber(run?.faceTrackingPreparedPngTuberCount) &&
+  hasZeroManifestRigIssues(run) &&
+  hasReadyManifestRigQuality(run);
+
+const hasReadyManifestVrmMotionProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  isPositiveFiniteNumber(run?.faceTrackingVisibleVrmCount) &&
+  run?.faceTrackingNativeVrmRendererReady === true &&
+  isPositiveFiniteNumber(run?.nativeRuntimeVrmSourceCount) &&
+  hasManifestVrmReleaseProof(run);
 
 const isManifestChatReadoutPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.chatReadoutStatus) &&

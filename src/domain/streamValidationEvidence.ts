@@ -255,6 +255,9 @@ export interface StreamValidationEvidenceRunManifestItem {
   faceTrackingRuntimeAgeMs: number | null;
   faceTrackingFaceLandmarkConfidence: number;
   faceTrackingFaceLandmarkReady: boolean;
+  faceTrackingPreparedPngTuberCount: number;
+  faceTrackingVisibleVrmCount: number;
+  faceTrackingNativeVrmRendererReady: boolean;
   faceTrackingActiveMotionCount: number;
   faceTrackingRigIssueCount: number;
   faceTrackingRigQualityScore: number;
@@ -2347,6 +2350,9 @@ const createEvidenceRunManifestItem = (
     faceTrackingRuntimeAgeMs: run.faceTracking?.runtimeAgeMs ?? null,
     faceTrackingFaceLandmarkConfidence: run.faceTracking?.faceLandmarkConfidence ?? 0,
     faceTrackingFaceLandmarkReady: run.faceTracking?.faceLandmarkReady ?? false,
+    faceTrackingPreparedPngTuberCount: run.faceTracking?.preparedPngTuberCount ?? 0,
+    faceTrackingVisibleVrmCount: run.faceTracking?.visibleVrmCount ?? 0,
+    faceTrackingNativeVrmRendererReady: run.faceTracking?.nativeVrmRendererReady ?? false,
     faceTrackingActiveMotionCount: run.faceTracking?.activeMotionCount ?? 0,
     faceTrackingRigIssueCount: run.faceTracking?.rigIssueCount ?? 0,
     faceTrackingRigQualityScore: run.faceTracking?.rigQualityScore ?? 0,

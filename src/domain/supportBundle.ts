@@ -28,7 +28,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 35;
+    bundleVersion: 36;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -507,7 +507,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 35
+      bundleVersion: 36
     },
     summary: {
       status: diagnostics.status,
@@ -1136,7 +1136,7 @@ const formatValidationEvidenceRunManifest = (
         `${run.ageDays}d`,
         run.fingerprint,
         `native ${run.nativeRuntimeStatus ?? "-"} ${run.nativeRuntimePlatform ?? "-"} ${run.nativeRuntimeCompositionStatus ?? "-"} frames ${run.nativeRuntimeSentVideoFrames}/${run.nativeRuntimeSentAudioFrames} bytes ${run.nativeRuntimeBytesWritten} assets ${run.nativeRuntimeStillImageAssetLoadedCount}/${run.nativeRuntimeStillImageAssetCount} missing ${run.nativeRuntimeStillImageAssetMissingCount} vrm ${run.nativeRuntimeVrmActivePoseCount}/${run.nativeRuntimeVrmSourceCount} payloads ${run.nativeRuntimeVrmPosePayloadCount} missing ${run.nativeRuntimeVrmMissingPoseCount} renderer ${run.nativeRuntimeVrmRendererStatus ?? "-"} ${run.nativeRuntimeVrmRendererBackend ?? "-"} rendered ${run.nativeRuntimeVrmRenderedSourceCount}/${run.nativeRuntimeVrmSourceCount} models ${run.nativeRuntimeVrmModelLoadedCount} versions ${run.nativeRuntimeVrmModelVersions.join("/") || "-"} bones ${run.nativeRuntimeVrmHumanoidBoneCount} expressions ${run.nativeRuntimeVrmExpressionCount} mesh primitives ${run.nativeRuntimeVrmMeshPrimitiveCount} triangles ${run.nativeRuntimeVrmTrianglePrimitiveCount} unsupported modes ${run.nativeRuntimeVrmUnsupportedPrimitiveModeCount} skinned ${run.nativeRuntimeVrmSkinnedMeshPrimitiveCount} skin joints ${run.nativeRuntimeVrmSkinJointCount} position accessors ${run.nativeRuntimeVrmPositionAccessorCount} normals ${run.nativeRuntimeVrmNormalAccessorCount} uvs ${run.nativeRuntimeVrmTexcoordAccessorCount} vertices ${run.nativeRuntimeVrmVertexCount} indices ${run.nativeRuntimeVrmIndexCount} bounds ${run.nativeRuntimeVrmBoundsAccessorCount} skin attrs ${run.nativeRuntimeVrmSkinningAttributePrimitiveCount} morphs ${run.nativeRuntimeVrmMorphTargetCount} materials ${run.nativeRuntimeVrmMaterialCount} transparent materials ${run.nativeRuntimeVrmTransparentMaterialCount} textures ${run.nativeRuntimeVrmTextureCount} images ${run.nativeRuntimeVrmImageCount} unsupported image mimes ${run.nativeRuntimeVrmUnsupportedImageMimeCount} pose bones ${run.nativeRuntimeVrmPoseBoneAppliedCount}/${run.nativeRuntimeVrmPoseBoneCount} unsupported ${run.nativeRuntimeVrmPoseBoneUnsupportedCount} pose expressions ${run.nativeRuntimeVrmPoseExpressionAppliedCount}/${run.nativeRuntimeVrmPoseExpressionCount} unsupported ${run.nativeRuntimeVrmPoseExpressionUnsupportedCount} missing ${run.nativeRuntimeVrmRenderMissingCount} failed ${run.nativeRuntimeVrmRenderFailureCount}`,
-        `rig ${run.faceTrackingRigQualityScore}/100 ${run.faceTrackingRigQualityGrade ?? "blocked"}`,
+        `avatar prepared ${run.faceTrackingPreparedPngTuberCount} vrm ${run.faceTrackingVisibleVrmCount} renderer ${run.faceTrackingNativeVrmRendererReady ? "ready" : "not-ready"} moving ${run.faceTrackingActiveMotionCount} rig ${run.faceTrackingRigQualityScore}/100 ${run.faceTrackingRigQualityGrade ?? "blocked"}`,
         `hold ${run.monitorHoldStatus ?? "-"} samples ${run.monitorHoldSampleCount} duration ${run.monitorHoldDurationSeconds}s stability ${run.monitorHoldStability ?? "-"} bitrate ${run.monitorHoldAverageBitrateKbps}/${run.monitorHoldMinimumBitrateKbps} fps ${run.monitorHoldAverageFps}/${run.monitorHoldMinimumFps} drops ${run.monitorHoldDroppedFrameIncrease} reconnects ${run.monitorHoldObservedReconnectAttempts}`,
         `audio ${run.audioStatus ?? "-"} monitor frames ${run.audioNativeMonitorWrittenFrames}/${run.audioNativeMonitorDroppedFrames} buffers ${run.audioNativeMonitorWrittenBuffers}/${run.audioNativeMonitorDroppedBuffers} headphones ${run.audioNativeMonitorHeadphonesConnected ? "yes" : "no"} latency ${run.audioMonitorLatencyMs === null ? "-" : `${run.audioMonitorLatencyMs}ms`} ${run.audioMonitorLatencyStatus ?? "-"}`,
         `chat ${run.chatReadoutStatus ?? "-"} spoken ${run.chatReadoutSpokenMessageCount} failed ${run.chatReadoutSpeechFailureCount}`,

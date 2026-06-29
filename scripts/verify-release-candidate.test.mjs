@@ -477,7 +477,7 @@ function commercialSupportBundleFixture(patch = {}) {
   };
 
   return {
-    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 35 },
+    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 36 },
     generatedAt: new Date().toISOString(),
     fixture: true,
     ...patch,
@@ -529,6 +529,11 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     faceTrackingStatus: "pass",
     faceTrackingRuntimeFresh: true,
     faceTrackingRuntimeAgeMs: 120,
+    faceTrackingFaceLandmarkConfidence: 0.82,
+    faceTrackingFaceLandmarkReady: true,
+    faceTrackingPreparedPngTuberCount: 1,
+    faceTrackingVisibleVrmCount: 0,
+    faceTrackingNativeVrmRendererReady: false,
     faceTrackingActiveMotionCount: 1,
     faceTrackingRigIssueCount: 0,
     faceTrackingRigQualityScore: 100,

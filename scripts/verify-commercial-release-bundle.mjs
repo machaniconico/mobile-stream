@@ -3,7 +3,7 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
-const minimumSupportBundleVersion = 35;
+const minimumSupportBundleVersion = 36;
 const minimumValidationMonitorDurationSeconds = 60;
 const minimumValidationMonitorSampleCount = 3;
 const platformPublishingDashboardMaxAgeMinutes = 10;
@@ -420,7 +420,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v35 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v36 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -461,14 +461,7 @@ function validationManifestIssue(bundle) {
         (run) =>
           run?.eligible === true &&
           run?.result === "pass" &&
-          run?.nativeRuntimeStatus === "pass" &&
-          run?.nativeRuntimePlatform === run?.devicePlatform &&
-          isPositiveNumber(run?.nativeRuntimeSentVideoFrames) &&
-          isPositiveNumber(run?.nativeRuntimeSentAudioFrames) &&
-          isPositiveNumber(run?.nativeRuntimeBytesWritten) &&
-          (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
-          isZeroNumber(run?.nativeRuntimeStillImageAssetMissingCount) &&
-          hasLoadedAllNativeRuntimeAssets(run)
+          isManifestNativeRuntimePass(run)
       )
       .map((run) => run.devicePlatform)
   );
@@ -479,8 +472,8 @@ function validationManifestIssue(bundle) {
     return fail(
       "validation-evidence-manifest-native-runtime",
       "Validation evidence manifest",
-      "The manifest does not back claimed native runtime evidence with platform-matched video/audio frames, bytes written, compositor status, and loaded still-image assets.",
-      "Export a support bundle v35 or newer after retaining iOS and Android validation runs with native publisher/compositor telemetry from the current scene."
+      "The manifest does not back claimed native runtime evidence with platform-matched video/audio frames, bytes written, compositor status, loaded still-image assets, and VRM renderer/model/pose proof when VRM sources are present.",
+      "Export a support bundle v36 or newer after retaining iOS and Android validation runs with native publisher/compositor telemetry from the current scene."
     );
   }
   const eligibleMonitorHoldPlatforms = new Set(
@@ -506,7 +499,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-monitor-hold",
       "Validation evidence manifest",
       "The manifest does not back claimed monitor-hold evidence with stable duration, sample count, zero dropped frames, and zero reconnects.",
-      "Export a support bundle v35 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry."
+      "Export a support bundle v36 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry."
     );
   }
   const eligibleAudioPlatforms = new Set(
@@ -535,7 +528,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-audio-monitor",
       "Validation evidence manifest",
       "The manifest does not back claimed mic/headphone evidence with native monitor write/drop proof, headphone route proof, and measured monitor latency.",
-      "Export a support bundle v35 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones."
+      "Export a support bundle v36 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones."
     );
   }
   const eligibleAvatarPlatforms = new Set(
@@ -546,10 +539,9 @@ function validationManifestIssue(bundle) {
           run?.result === "pass" &&
           run?.faceTrackingStatus === "pass" &&
           run?.faceTrackingRuntimeFresh === true &&
-          number(run?.faceTrackingActiveMotionCount) > 0 &&
-          isZeroNumber(run?.faceTrackingRigIssueCount) &&
-          run?.faceTrackingRigQualityGrade === "ready" &&
-          number(run?.faceTrackingRigQualityScore) >= 90
+          hasReadyFaceLandmarks(run) &&
+          isPositiveNumber(run?.faceTrackingActiveMotionCount) &&
+          (hasReadyPngTuberMotionProof(run) || hasReadyVrmMotionProof(run))
       )
       .map((run) => run.devicePlatform)
   );
@@ -560,8 +552,8 @@ function validationManifestIssue(bundle) {
     return fail(
       "validation-evidence-manifest-avatar-motion",
       "Validation evidence manifest",
-      "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, active motion, zero still-image rig issues, and ready still-image rig quality.",
-      "Export a support bundle v35 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and ready PNGTuber rig quality."
+      "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, ready native face landmarks, active motion, and either ready PNGTuber rig proof or ready native-rendered VRM proof.",
+      "Export a support bundle v36 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and ready PNGTuber rig quality or native-rendered VRM proof."
     );
   }
   const eligibleChatReadoutPlatforms = new Set(
@@ -584,7 +576,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-chat-readout",
       "Validation evidence manifest",
       "The manifest does not back claimed chat readout evidence with spoken-message success and zero speech failures.",
-      "Export a support bundle v35 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
+      "Export a support bundle v36 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
     );
   }
   const eligiblePlatformDashboardPlatforms = new Set(
@@ -605,7 +597,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-platform-dashboard",
       "Validation evidence manifest",
       "The manifest does not back claimed platform dashboard evidence with fresh checked-at proof, YouTube identity/state proof, and Twitch dashboard status and Twitch title/category/language metadata.",
-      "Export a support bundle v35 or newer after retaining iOS and Android validation runs with fresh YouTube/Twitch dashboard status and Twitch title/category/language metadata from the destination receiving the stream."
+      "Export a support bundle v36 or newer after retaining iOS and Android validation runs with fresh YouTube/Twitch dashboard status and Twitch title/category/language metadata from the destination receiving the stream."
     );
   }
   const eligiblePlatformIngestPlatforms = new Set(
@@ -883,7 +875,66 @@ function isManifestNativeRuntimePass(run) {
     isPositiveNumber(run?.nativeRuntimeBytesWritten) &&
     (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
     isZeroNumber(run?.nativeRuntimeStillImageAssetMissingCount) &&
-    hasLoadedAllNativeRuntimeAssets(run)
+    hasLoadedAllNativeRuntimeAssets(run) &&
+    hasVrmReleaseProof(run)
+  );
+}
+
+function hasVrmReleaseProof(run) {
+  const vrmSourceCount = run?.nativeRuntimeVrmSourceCount;
+  if (typeof vrmSourceCount !== "number" || !Number.isFinite(vrmSourceCount) || vrmSourceCount <= 0) {
+    return true;
+  }
+
+  return (
+    run?.nativeRuntimeVrmRendererStatus === "ready" &&
+    isAtLeastNumber(run?.nativeRuntimeVrmRenderedSourceCount, vrmSourceCount) &&
+    isZeroNumber(run?.nativeRuntimeVrmRenderMissingCount) &&
+    isZeroNumber(run?.nativeRuntimeVrmRenderFailureCount) &&
+    isAtLeastNumber(run?.nativeRuntimeVrmActivePoseCount, vrmSourceCount) &&
+    isZeroNumber(run?.nativeRuntimeVrmMissingPoseCount) &&
+    isPositiveNumber(run?.nativeRuntimeVrmModelLoadedCount) &&
+    isPositiveNumber(run?.nativeRuntimeVrmHumanoidBoneCount) &&
+    isPositiveNumber(run?.nativeRuntimeVrmExpressionCount) &&
+    isPositiveNumber(run?.nativeRuntimeVrmMeshPrimitiveCount) &&
+    isPositiveNumber(run?.nativeRuntimeVrmSkinnedMeshPrimitiveCount) &&
+    isPositiveNumber(run?.nativeRuntimeVrmSkinJointCount) &&
+    isPositiveNumber(run?.nativeRuntimeVrmPositionAccessorCount) &&
+    isPositiveNumber(run?.nativeRuntimeVrmVertexCount) &&
+    isAtLeastNumber(run?.nativeRuntimeVrmSkinningAttributePrimitiveCount, run.nativeRuntimeVrmSkinnedMeshPrimitiveCount) &&
+    isAtLeastNumber(run?.nativeRuntimeVrmTrianglePrimitiveCount, run.nativeRuntimeVrmMeshPrimitiveCount) &&
+    isZeroNumber(run?.nativeRuntimeVrmUnsupportedPrimitiveModeCount) &&
+    isZeroNumber(run?.nativeRuntimeVrmUnsupportedImageMimeCount) &&
+    (run.nativeRuntimeVrmImageCount === 0 || isPositiveNumber(run?.nativeRuntimeVrmTexcoordAccessorCount)) &&
+    isZeroNumber(run?.nativeRuntimeVrmPoseBoneUnsupportedCount) &&
+    isZeroNumber(run?.nativeRuntimeVrmPoseExpressionUnsupportedCount)
+  );
+}
+
+function hasReadyFaceLandmarks(run) {
+  return (
+    run?.faceTrackingFaceLandmarkReady === true &&
+    typeof run.faceTrackingFaceLandmarkConfidence === "number" &&
+    Number.isFinite(run.faceTrackingFaceLandmarkConfidence) &&
+    run.faceTrackingFaceLandmarkConfidence >= 0.55
+  );
+}
+
+function hasReadyPngTuberMotionProof(run) {
+  return (
+    isPositiveNumber(run?.faceTrackingPreparedPngTuberCount) &&
+    isZeroNumber(run?.faceTrackingRigIssueCount) &&
+    run?.faceTrackingRigQualityGrade === "ready" &&
+    isAtLeastNumber(run?.faceTrackingRigQualityScore, 90)
+  );
+}
+
+function hasReadyVrmMotionProof(run) {
+  return (
+    isPositiveNumber(run?.faceTrackingVisibleVrmCount) &&
+    run?.faceTrackingNativeVrmRendererReady === true &&
+    isPositiveNumber(run?.nativeRuntimeVrmSourceCount) &&
+    hasVrmReleaseProof(run)
   );
 }
 

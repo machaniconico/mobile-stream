@@ -678,7 +678,7 @@ function commercialSupportBundleFixture(patch = {}) {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 35
+      bundleVersion: 36
     },
     generatedAt: new Date().toISOString(),
     fixture: true,
@@ -731,6 +731,11 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     faceTrackingStatus: "pass",
     faceTrackingRuntimeFresh: true,
     faceTrackingRuntimeAgeMs: 120,
+    faceTrackingFaceLandmarkConfidence: 0.82,
+    faceTrackingFaceLandmarkReady: true,
+    faceTrackingPreparedPngTuberCount: 1,
+    faceTrackingVisibleVrmCount: 0,
+    faceTrackingNativeVrmRendererReady: false,
     faceTrackingActiveMotionCount: 1,
     faceTrackingRigIssueCount: 0,
     faceTrackingRigQualityScore: 100,
