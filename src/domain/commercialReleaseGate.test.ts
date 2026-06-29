@@ -365,6 +365,38 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks native-runtime summary claims when the manifest lacks VRM renderer proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeVrmSourceCount: 1,
+              nativeRuntimeVrmPosePayloadCount: 1,
+              nativeRuntimeVrmActivePoseCount: 1,
+              nativeRuntimeVrmRendererStatus: "unavailable",
+              nativeRuntimeVrmModelLoadedCount: 1,
+              nativeRuntimeVrmRenderedSourceCount: 0,
+              nativeRuntimeVrmRenderMissingCount: 1
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS native runtime proof")
+      })
+    );
+  });
+
   it("blocks audio summary claims when the manifest lacks native monitor write proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({

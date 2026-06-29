@@ -842,6 +842,94 @@ describe("stream validation evidence", () => {
     expect(summary.nativeRuntimeIosPass).toBe(false);
   });
 
+  it("does not count retained native runtime evidence as ready when VRM renderer proof is incomplete", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const baseRun = createStreamValidationRun({
+      diagnostics: createStreamDiagnostics(
+        scene,
+        profile,
+        readiness,
+        {
+          state: { status: "idle" },
+          health: health(),
+          nativeRuntime: nativeMonitorRuntime("ios")
+        },
+        [],
+        stableMonitorSamples(),
+        [],
+        [],
+        null,
+        connectedChatOptions
+      ),
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const run = {
+      ...baseRun,
+      result: "pass" as const,
+      nativeRuntime: baseRun.nativeRuntime && {
+        ...baseRun.nativeRuntime,
+        status: "pass" as const,
+        vrmSourceCount: 1,
+        vrmPosePayloadCount: 1,
+        vrmActivePoseCount: 1,
+        vrmMissingPoseCount: 0,
+        vrmModelUriCount: 1,
+        vrmModelVersions: ["1.0"],
+        vrmHumanoidBoneCount: 55,
+        vrmExpressionCount: 8,
+        vrmMeshPrimitiveCount: 4,
+        vrmSkinnedMeshPrimitiveCount: 4,
+        vrmSkinJointCount: 55,
+        vrmPositionAccessorCount: 4,
+        vrmVertexCount: 12_480,
+        vrmIndexCount: 36_240,
+        vrmBoundsAccessorCount: 4,
+        vrmSkinningAttributePrimitiveCount: 4,
+        vrmTrianglePrimitiveCount: 4,
+        vrmUnsupportedPrimitiveModeCount: 0,
+        vrmNormalAccessorCount: 4,
+        vrmTexcoordAccessorCount: 4,
+        vrmMorphTargetCount: 8,
+        vrmMaterialCount: 3,
+        vrmTextureCount: 3,
+        vrmImageCount: 3,
+        vrmUnsupportedImageMimeCount: 0,
+        vrmTransparentMaterialCount: 1,
+        vrmPoseBoneCount: 7,
+        vrmPoseBoneAppliedCount: 7,
+        vrmPoseBoneUnsupportedCount: 0,
+        vrmPoseExpressionCount: 3,
+        vrmPoseExpressionAppliedCount: 3,
+        vrmPoseExpressionUnsupportedCount: 0,
+        vrmRuntimeStatuses: ["active"],
+        vrmRendererStatus: "unavailable" as const,
+        vrmRendererBackend: "none",
+        vrmModelLoadedCount: 1,
+        vrmRenderedSourceCount: 0,
+        vrmRenderMissingCount: 1,
+        vrmRenderFailureCount: 0
+      }
+    };
+
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(summary.nativeRuntimeReadyCount).toBe(0);
+    expect(summary.nativeRuntimeIosPass).toBe(false);
+    expect(summary.runManifest[0]).toMatchObject({
+      nativeRuntimeVrmSourceCount: 1,
+      nativeRuntimeVrmRendererStatus: "unavailable",
+      nativeRuntimeVrmRenderedSourceCount: 0,
+      nativeRuntimeVrmRenderMissingCount: 1
+    });
+    expect(summary.status).toBe("partial");
+  });
+
   it("requires native runtime proof to match the current scene overlay requirements", () => {
     const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");

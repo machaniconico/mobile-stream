@@ -754,7 +754,8 @@ const isManifestNativeRuntimePass = (run: ValidationEvidenceManifestRun | undefi
   isPositiveFiniteNumber(run?.nativeRuntimeBytesWritten) &&
   (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
   hasZeroManifestNativeRuntimeMissingAssets(run) &&
-  hasLoadedAllManifestNativeRuntimeAssets(run);
+  hasLoadedAllManifestNativeRuntimeAssets(run) &&
+  hasManifestVrmReleaseProof(run);
 
 const isManifestMonitorHoldPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.monitorHoldStatus) &&
@@ -788,6 +789,37 @@ const hasLoadedAllManifestNativeRuntimeAssets = (run: ValidationEvidenceManifest
   Number.isFinite(run.nativeRuntimeStillImageAssetLoadedCount) &&
   Number.isFinite(run.nativeRuntimeStillImageAssetCount) &&
   run.nativeRuntimeStillImageAssetLoadedCount >= run.nativeRuntimeStillImageAssetCount;
+
+const hasManifestVrmReleaseProof = (run: ValidationEvidenceManifestRun | undefined): boolean => {
+  const vrmSourceCount = run?.nativeRuntimeVrmSourceCount;
+  if (typeof vrmSourceCount !== "number" || !Number.isFinite(vrmSourceCount) || vrmSourceCount <= 0) {
+    return true;
+  }
+
+  return (
+    run?.nativeRuntimeVrmRendererStatus === "ready" &&
+    isAtLeastFiniteNumber(run.nativeRuntimeVrmRenderedSourceCount, vrmSourceCount) &&
+    isZeroFiniteNumber(run.nativeRuntimeVrmRenderMissingCount) &&
+    isZeroFiniteNumber(run.nativeRuntimeVrmRenderFailureCount) &&
+    isAtLeastFiniteNumber(run.nativeRuntimeVrmActivePoseCount, vrmSourceCount) &&
+    isZeroFiniteNumber(run.nativeRuntimeVrmMissingPoseCount) &&
+    isPositiveFiniteNumber(run.nativeRuntimeVrmModelLoadedCount) &&
+    isPositiveFiniteNumber(run.nativeRuntimeVrmHumanoidBoneCount) &&
+    isPositiveFiniteNumber(run.nativeRuntimeVrmExpressionCount) &&
+    isPositiveFiniteNumber(run.nativeRuntimeVrmMeshPrimitiveCount) &&
+    isPositiveFiniteNumber(run.nativeRuntimeVrmSkinnedMeshPrimitiveCount) &&
+    isPositiveFiniteNumber(run.nativeRuntimeVrmSkinJointCount) &&
+    isPositiveFiniteNumber(run.nativeRuntimeVrmPositionAccessorCount) &&
+    isPositiveFiniteNumber(run.nativeRuntimeVrmVertexCount) &&
+    isAtLeastFiniteNumber(run.nativeRuntimeVrmSkinningAttributePrimitiveCount, run.nativeRuntimeVrmSkinnedMeshPrimitiveCount) &&
+    isAtLeastFiniteNumber(run.nativeRuntimeVrmTrianglePrimitiveCount, run.nativeRuntimeVrmMeshPrimitiveCount) &&
+    isZeroFiniteNumber(run.nativeRuntimeVrmUnsupportedPrimitiveModeCount) &&
+    isZeroFiniteNumber(run.nativeRuntimeVrmUnsupportedImageMimeCount) &&
+    (run.nativeRuntimeVrmImageCount === 0 || isPositiveFiniteNumber(run.nativeRuntimeVrmTexcoordAccessorCount)) &&
+    isZeroFiniteNumber(run.nativeRuntimeVrmPoseBoneUnsupportedCount) &&
+    isZeroFiniteNumber(run.nativeRuntimeVrmPoseExpressionUnsupportedCount)
+  );
+};
 
 const isManifestAudioPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.audioStatus) &&

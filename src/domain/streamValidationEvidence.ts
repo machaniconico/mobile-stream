@@ -1175,7 +1175,40 @@ const isNativeRuntimeEvidencePass = (
   nativeRuntime.bytesWritten > 0 &&
   (nativeRuntime.compositionStatus === "applied" || nativeRuntime.compositionStatus === "screen-only") &&
   nativeRuntime.stillImageAssetMissingCount === 0 &&
-  nativeRuntime.stillImageAssetLoadedCount >= nativeRuntime.stillImageAssetCount;
+  nativeRuntime.stillImageAssetLoadedCount >= nativeRuntime.stillImageAssetCount &&
+  hasNativeRuntimeVrmReleaseProof(nativeRuntime);
+
+const hasNativeRuntimeVrmReleaseProof = (
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null | undefined
+): boolean => {
+  if (!nativeRuntime || nativeRuntime.vrmSourceCount <= 0) {
+    return true;
+  }
+
+  return (
+    nativeRuntime.vrmRendererStatus === "ready" &&
+    nativeRuntime.vrmRenderedSourceCount >= nativeRuntime.vrmSourceCount &&
+    nativeRuntime.vrmRenderMissingCount === 0 &&
+    nativeRuntime.vrmRenderFailureCount === 0 &&
+    nativeRuntime.vrmActivePoseCount >= nativeRuntime.vrmSourceCount &&
+    nativeRuntime.vrmMissingPoseCount === 0 &&
+    nativeRuntime.vrmModelLoadedCount > 0 &&
+    nativeRuntime.vrmHumanoidBoneCount > 0 &&
+    nativeRuntime.vrmExpressionCount > 0 &&
+    nativeRuntime.vrmMeshPrimitiveCount > 0 &&
+    nativeRuntime.vrmSkinnedMeshPrimitiveCount > 0 &&
+    nativeRuntime.vrmSkinJointCount > 0 &&
+    nativeRuntime.vrmPositionAccessorCount > 0 &&
+    nativeRuntime.vrmVertexCount > 0 &&
+    nativeRuntime.vrmSkinningAttributePrimitiveCount >= nativeRuntime.vrmSkinnedMeshPrimitiveCount &&
+    nativeRuntime.vrmTrianglePrimitiveCount >= nativeRuntime.vrmMeshPrimitiveCount &&
+    nativeRuntime.vrmUnsupportedPrimitiveModeCount === 0 &&
+    nativeRuntime.vrmUnsupportedImageMimeCount === 0 &&
+    (nativeRuntime.vrmImageCount === 0 || nativeRuntime.vrmTexcoordAccessorCount > 0) &&
+    nativeRuntime.vrmPoseBoneUnsupportedCount === 0 &&
+    nativeRuntime.vrmPoseExpressionUnsupportedCount === 0
+  );
+};
 
 const createValidationNativeRuntimeSummary = (
   diagnostics: StreamDiagnostics
