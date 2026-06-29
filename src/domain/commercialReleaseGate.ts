@@ -38,7 +38,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 36;
+const minimumSupportBundleVersion = 37;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -349,7 +349,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v36 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v37 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -509,7 +509,7 @@ const createValidationEvidenceFeatureIssue = (bundle: SupportBundle): Commercial
       ? "physical device identity"
       : "",
     !bundle.summary.validationEvidenceNativeRuntimeIosPass || !bundle.summary.validationEvidenceNativeRuntimeAndroidPass
-      ? "native publisher/compositor"
+      ? "native publisher/compositor overlay proof"
       : "",
     !bundle.summary.validationEvidenceMonitorHoldIosPass || !bundle.summary.validationEvidenceMonitorHoldAndroidPass
       ? "stable monitor hold"
@@ -753,8 +753,7 @@ const isManifestNativeRuntimePass = (run: ValidationEvidenceManifestRun | undefi
   isPositiveFiniteNumber(run?.nativeRuntimeSentAudioFrames) &&
   isPositiveFiniteNumber(run?.nativeRuntimeBytesWritten) &&
   (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
-  hasZeroManifestNativeRuntimeMissingAssets(run) &&
-  hasLoadedAllManifestNativeRuntimeAssets(run) &&
+  hasManifestStillImageOverlayProof(run) &&
   hasManifestVrmReleaseProof(run);
 
 const isManifestMonitorHoldPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
@@ -789,6 +788,20 @@ const hasLoadedAllManifestNativeRuntimeAssets = (run: ValidationEvidenceManifest
   Number.isFinite(run.nativeRuntimeStillImageAssetLoadedCount) &&
   Number.isFinite(run.nativeRuntimeStillImageAssetCount) &&
   run.nativeRuntimeStillImageAssetLoadedCount >= run.nativeRuntimeStillImageAssetCount;
+
+const hasManifestStillImageOverlayProof = (run: ValidationEvidenceManifestRun | undefined): boolean => {
+  if (!isPositiveFiniteNumber(run?.nativeRuntimeStillImageAssetCount)) {
+    return true;
+  }
+
+  return (
+    run?.nativeRuntimeCompositionStatus === "applied" &&
+    isAtLeastFiniteNumber(run.nativeRuntimeCompositionAppliedCount, run.nativeRuntimeStillImageAssetCount) &&
+    isZeroFiniteNumber(run.nativeRuntimeCompositionSkippedCount) &&
+    hasZeroManifestNativeRuntimeMissingAssets(run) &&
+    hasLoadedAllManifestNativeRuntimeAssets(run)
+  );
+};
 
 const hasManifestVrmReleaseProof = (run: ValidationEvidenceManifestRun | undefined): boolean => {
   const vrmSourceCount = run?.nativeRuntimeVrmSourceCount;

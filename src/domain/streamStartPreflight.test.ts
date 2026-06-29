@@ -80,6 +80,9 @@ const vrmRendererManifestRun = (
     result: "pass",
     nativeRuntimeStatus: "pass",
     nativeRuntimeCompositionStatus: "applied",
+    nativeRuntimeCompositionAppliedCount: 0,
+    nativeRuntimeCompositionSkippedCount: 0,
+    nativeRuntimeCompositionSkippedKinds: [],
     nativeRuntimeVrmSourceCount: 1,
     nativeRuntimeVrmPosePayloadCount: 1,
     nativeRuntimeVrmActivePoseCount: 1,
@@ -104,7 +107,7 @@ const vrmRendererManifestRun = (
     nativeRuntimeVrmRenderedSourceCount: 1,
     nativeRuntimeVrmRenderMissingCount: 0,
     nativeRuntimeVrmRenderFailureCount: 0
-  }) as StreamValidationEvidenceRunManifestItem;
+  }) as unknown as StreamValidationEvidenceRunManifestItem;
 
 const vrmRendererValidationEvidence = () => ({
   nativeRuntimeIosPass: true,

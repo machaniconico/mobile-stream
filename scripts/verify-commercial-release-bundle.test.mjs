@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v36.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v37.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -130,6 +130,28 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("loaded still-image assets");
+  });
+
+  it("blocks native runtime claims when retained manifests lack applied overlay proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeCompositionAppliedCount: 0,
+            nativeRuntimeCompositionSkippedCount: 0,
+            nativeRuntimeStillImageAssetCount: 1,
+            nativeRuntimeStillImageAssetLoadedCount: 1,
+            nativeRuntimeStillImageAssetMissingCount: 0
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("applied/skipped native overlay proof");
   });
 
   it("blocks native runtime claims when retained VRM manifests lack renderer proof", () => {
@@ -670,7 +692,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 36
+      bundleVersion: 37
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -708,6 +730,9 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimePlatform: devicePlatform,
   nativeRuntimeStatus: "pass",
   nativeRuntimeCompositionStatus: "applied",
+  nativeRuntimeCompositionAppliedCount: 1,
+  nativeRuntimeCompositionSkippedCount: 0,
+  nativeRuntimeCompositionSkippedKinds: [],
   nativeRuntimeSentVideoFrames: 120,
   nativeRuntimeSentAudioFrames: 190,
   nativeRuntimeBytesWritten: 2_200_000,

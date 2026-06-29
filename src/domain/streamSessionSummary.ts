@@ -34,6 +34,9 @@ export interface StreamSessionNativeRuntimeSummary {
   runtimeStatus: string;
   publisherState: string;
   compositionStatus: NativeRuntimeTelemetry["composition"]["status"];
+  compositionAppliedCount: number;
+  compositionSkippedCount: number;
+  compositionSkippedKinds: string[];
   stillImageAssetCount: number;
   stillImageAssetLoadedCount: number;
   stillImageAssetMissingCount: number;
@@ -753,10 +756,13 @@ export const createNativeRuntimeSessionSummary = (
     runtimeStatus: runtime.runtimeStatus,
     publisherState: runtime.publisher.state,
     compositionStatus: runtime.composition.status,
+    compositionAppliedCount: normalizeNonNegativeInteger(runtime.composition.appliedCount),
+    compositionSkippedCount: normalizeNonNegativeInteger(runtime.composition.skippedCount),
+    compositionSkippedKinds: normalizeStringArray(runtime.composition.skippedKinds),
     stillImageAssetCount: normalizeNonNegativeInteger(runtime.composition.stillImageAssetCount),
     stillImageAssetLoadedCount: normalizeNonNegativeInteger(runtime.composition.stillImageAssetLoadedCount),
     stillImageAssetMissingCount: missingAssetCount,
-    stillImageAssetMissingKinds: runtime.composition.stillImageAssetMissingKinds ?? [],
+    stillImageAssetMissingKinds: normalizeStringArray(runtime.composition.stillImageAssetMissingKinds),
     vrmSourceCount,
     vrmPosePayloadCount: normalizeNonNegativeInteger(runtime.composition.vrmPosePayloadCount),
     vrmActivePoseCount: normalizeNonNegativeInteger(runtime.composition.vrmActivePoseCount),
@@ -1063,12 +1069,13 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     runtimeStatus: typeof value.runtimeStatus === "string" ? value.runtimeStatus : "unknown",
     publisherState: typeof value.publisherState === "string" ? value.publisherState : "",
     compositionStatus,
+    compositionAppliedCount: normalizeNonNegativeInteger(value.compositionAppliedCount),
+    compositionSkippedCount: normalizeNonNegativeInteger(value.compositionSkippedCount),
+    compositionSkippedKinds: normalizeStringArray(value.compositionSkippedKinds),
     stillImageAssetCount: normalizeNonNegativeInteger(value.stillImageAssetCount),
     stillImageAssetLoadedCount: normalizeNonNegativeInteger(value.stillImageAssetLoadedCount),
     stillImageAssetMissingCount: normalizeNonNegativeInteger(value.stillImageAssetMissingCount),
-    stillImageAssetMissingKinds: Array.isArray(value.stillImageAssetMissingKinds)
-      ? value.stillImageAssetMissingKinds.filter((kind): kind is string => typeof kind === "string")
-      : [],
+    stillImageAssetMissingKinds: normalizeStringArray(value.stillImageAssetMissingKinds),
     vrmSourceCount: normalizeNonNegativeInteger(value.vrmSourceCount),
     vrmPosePayloadCount: normalizeNonNegativeInteger(value.vrmPosePayloadCount),
     vrmActivePoseCount: normalizeNonNegativeInteger(value.vrmActivePoseCount),

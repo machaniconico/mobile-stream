@@ -195,7 +195,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 36 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 37 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
@@ -357,12 +357,12 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("asset issues 1 / file-backed 0");
     expect(formatSupportBundle(bundle)).toContain("assets 1/1 loaded / 0 missing");
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
-    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / assets 1/1 loaded / 0 missing / vrm 1/1 active payloads 1 missing 0 / renderer ready native-test rendered 1/1 models 1 versions 1.0 bones 55 expressions 8 mesh primitives 4 triangles 4 unsupported modes 0 skinned 4 skin joints 55 position accessors 4 normals 4 uvs 4 vertices 12480 indices 36240 bounds 4 skin attrs 4 morphs 8 materials 3 transparent materials 1 textures 3 images 3 unsupported image mimes 0 pose bones 7/7 unsupported 0 pose expressions 3/3 unsupported 0 missing 0 failed 0 / congested yes / queue 64/120");
+    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / overlays applied 1 skipped 0 / assets 1/1 loaded / 0 missing / vrm 1/1 active payloads 1 missing 0 / renderer ready native-test rendered 1/1 models 1 versions 1.0 bones 55 expressions 8 mesh primitives 4 triangles 4 unsupported modes 0 skinned 4 skin joints 55 position accessors 4 normals 4 uvs 4 vertices 12480 indices 36240 bounds 4 skin attrs 4 morphs 8 materials 3 transparent materials 1 textures 3 images 3 unsupported image mimes 0 pose bones 7/7 unsupported 0 pose expressions 3/3 unsupported 0 missing 0 failed 0 / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
     expect(formatSupportBundle(bundle)).toContain("Evidence fingerprint: sve1-");
     expect(formatSupportBundle(bundle)).toContain("Evidence run manifest: -");
     expect(formatSupportBundle(bundle)).toContain("Evidence monitor hold: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - 0s 0 samples");
-    expect(formatSupportBundle(bundle)).toContain("Evidence native runtime: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - - / sent 0 video 0 audio / bytes 0");
+    expect(formatSupportBundle(bundle)).toContain("Evidence native runtime: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - - / sent 0 video 0 audio / bytes 0 / overlays applied 0 skipped 0");
     expect(formatSupportBundle(bundle)).toContain("Evidence face tracking: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("landmarks 0% not-ready");
     expect(formatSupportBundle(bundle)).toContain("rig quality 0/100 blocked");
@@ -594,7 +594,7 @@ describe("support bundle", () => {
     expect(text).toContain(`Evidence fingerprint: ${bundle.summary.validationEvidenceFingerprint} / latest ${latestRunFingerprint ?? "-"}`);
     expect(text).toContain("Evidence run manifest: ios warn eligible");
     expect(text).toContain(latestRunFingerprint ?? "-");
-    expect(text).toContain("Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / sent 0 video 0 audio / bytes 0");
+    expect(text).toContain("Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / sent 0 video 0 audio / bytes 0 / overlays applied 1 skipped 0");
     expect(text).toContain("latency missing warn / source - / budget 180ms");
     expect(text).toContain("Evidence quality automation: 1 retained / live 1 / next-start 0 / failed 0");
     expect(text).toContain("Evidence platform ingest: 1 retained / 0 ready / 1 warn / 0 fail / iOS missing / Android missing");

@@ -197,6 +197,9 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimePlatform: StreamSessionNativeRuntimeSummary["platform"] | null;
   nativeRuntimeStatus: StreamSessionNativeRuntimeSummary["status"] | null;
   nativeRuntimeCompositionStatus: StreamSessionNativeRuntimeSummary["compositionStatus"] | null;
+  nativeRuntimeCompositionAppliedCount: number;
+  nativeRuntimeCompositionSkippedCount: number;
+  nativeRuntimeCompositionSkippedKinds: string[];
   nativeRuntimeSentVideoFrames: number;
   nativeRuntimeSentAudioFrames: number;
   nativeRuntimeBytesWritten: number;
@@ -1188,9 +1191,24 @@ const isNativeRuntimeEvidencePass = (
   nativeRuntime.sentAudioFrames > 0 &&
   nativeRuntime.bytesWritten > 0 &&
   (nativeRuntime.compositionStatus === "applied" || nativeRuntime.compositionStatus === "screen-only") &&
-  nativeRuntime.stillImageAssetMissingCount === 0 &&
-  nativeRuntime.stillImageAssetLoadedCount >= nativeRuntime.stillImageAssetCount &&
+  hasNativeRuntimeStillImageOverlayProof(nativeRuntime) &&
   hasNativeRuntimeVrmReleaseProof(nativeRuntime);
+
+const hasNativeRuntimeStillImageOverlayProof = (
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null | undefined
+): boolean => {
+  if (!nativeRuntime || nativeRuntime.stillImageAssetCount <= 0) {
+    return true;
+  }
+
+  return (
+    nativeRuntime.compositionStatus === "applied" &&
+    nativeRuntime.compositionAppliedCount >= nativeRuntime.stillImageAssetCount &&
+    nativeRuntime.compositionSkippedCount === 0 &&
+    nativeRuntime.stillImageAssetMissingCount === 0 &&
+    nativeRuntime.stillImageAssetLoadedCount >= nativeRuntime.stillImageAssetCount
+  );
+};
 
 const hasNativeRuntimeVrmReleaseProof = (
   nativeRuntime: StreamSessionNativeRuntimeSummary | null | undefined
@@ -1264,18 +1282,26 @@ const alignNativeRuntimeWithComposition = (
 
   const expectedStillImageCount = nativeComposition.stillImageOverlayCount;
   const overlayApplied = nativeRuntime.compositionStatus === "applied";
+  const runtimeAppliedEnoughOverlays = nativeRuntime.compositionAppliedCount >= expectedStillImageCount;
+  const runtimeSkippedClean = nativeRuntime.compositionSkippedCount === 0;
   const runtimeDeclaredEnoughAssets = nativeRuntime.stillImageAssetCount >= expectedStillImageCount;
   const runtimeLoadedEnoughAssets = nativeRuntime.stillImageAssetLoadedCount >= expectedStillImageCount;
 
-  if (overlayApplied && runtimeDeclaredEnoughAssets && runtimeLoadedEnoughAssets) {
+  if (
+    overlayApplied &&
+    runtimeAppliedEnoughOverlays &&
+    runtimeSkippedClean &&
+    runtimeDeclaredEnoughAssets &&
+    runtimeLoadedEnoughAssets
+  ) {
     return nativeRuntime;
   }
 
   return addNativeRuntimeCompositionReview(
     nativeRuntime,
     "warn",
-    `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded.`,
-    "Repeat physical validation with the current scene and retain native compositor telemetry showing overlays applied and all required still-image assets loaded."
+    `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, applied ${nativeRuntime.compositionAppliedCount}/${expectedStillImageCount}, skipped ${nativeRuntime.compositionSkippedCount}, assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded.`,
+    "Repeat physical validation with the current scene and retain native compositor telemetry showing overlays applied, zero skipped overlays, and all required still-image assets loaded."
   );
 };
 
@@ -2292,6 +2318,9 @@ const createEvidenceRunManifestItem = (
     nativeRuntimePlatform: run.nativeRuntime?.platform ?? null,
     nativeRuntimeStatus: run.nativeRuntime?.status ?? null,
     nativeRuntimeCompositionStatus: run.nativeRuntime?.compositionStatus ?? null,
+    nativeRuntimeCompositionAppliedCount: run.nativeRuntime?.compositionAppliedCount ?? 0,
+    nativeRuntimeCompositionSkippedCount: run.nativeRuntime?.compositionSkippedCount ?? 0,
+    nativeRuntimeCompositionSkippedKinds: run.nativeRuntime?.compositionSkippedKinds ?? [],
     nativeRuntimeSentVideoFrames: run.nativeRuntime?.sentVideoFrames ?? 0,
     nativeRuntimeSentAudioFrames: run.nativeRuntime?.sentAudioFrames ?? 0,
     nativeRuntimeBytesWritten: run.nativeRuntime?.bytesWritten ?? 0,

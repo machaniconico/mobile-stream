@@ -451,6 +451,36 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks native-runtime summary claims when the manifest lacks applied overlay proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeCompositionAppliedCount: 0,
+              nativeRuntimeCompositionSkippedCount: 0,
+              nativeRuntimeStillImageAssetCount: 1,
+              nativeRuntimeStillImageAssetLoadedCount: 1,
+              nativeRuntimeStillImageAssetMissingCount: 0
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS native runtime proof")
+      })
+    );
+  });
+
   it("blocks native-runtime summary claims when the manifest lacks VRM renderer proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -1027,7 +1057,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 36 as const
+    bundleVersion: 37 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1158,6 +1188,9 @@ const manifestRun = ({
   nativeRuntimePlatform,
   nativeRuntimeStatus = "pass",
   nativeRuntimeCompositionStatus = "applied",
+  nativeRuntimeCompositionAppliedCount = 1,
+  nativeRuntimeCompositionSkippedCount = 0,
+  nativeRuntimeCompositionSkippedKinds = [],
   nativeRuntimeSentVideoFrames = 120,
   nativeRuntimeSentAudioFrames = 190,
   nativeRuntimeBytesWritten = 2_200_000,
@@ -1273,6 +1306,9 @@ const manifestRun = ({
   nativeRuntimePlatform?: ValidationManifestRun["nativeRuntimePlatform"];
   nativeRuntimeStatus?: ValidationManifestRun["nativeRuntimeStatus"];
   nativeRuntimeCompositionStatus?: ValidationManifestRun["nativeRuntimeCompositionStatus"];
+  nativeRuntimeCompositionAppliedCount?: ValidationManifestRun["nativeRuntimeCompositionAppliedCount"];
+  nativeRuntimeCompositionSkippedCount?: ValidationManifestRun["nativeRuntimeCompositionSkippedCount"];
+  nativeRuntimeCompositionSkippedKinds?: ValidationManifestRun["nativeRuntimeCompositionSkippedKinds"];
   nativeRuntimeSentVideoFrames?: ValidationManifestRun["nativeRuntimeSentVideoFrames"];
   nativeRuntimeSentAudioFrames?: ValidationManifestRun["nativeRuntimeSentAudioFrames"];
   nativeRuntimeBytesWritten?: ValidationManifestRun["nativeRuntimeBytesWritten"];
@@ -1394,6 +1430,9 @@ const manifestRun = ({
   nativeRuntimePlatform: nativeRuntimePlatform ?? devicePlatform,
   nativeRuntimeStatus,
   nativeRuntimeCompositionStatus,
+  nativeRuntimeCompositionAppliedCount,
+  nativeRuntimeCompositionSkippedCount,
+  nativeRuntimeCompositionSkippedKinds,
   nativeRuntimeSentVideoFrames,
   nativeRuntimeSentAudioFrames,
   nativeRuntimeBytesWritten,
