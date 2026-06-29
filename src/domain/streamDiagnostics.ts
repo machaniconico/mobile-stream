@@ -839,7 +839,7 @@ const formatValidationEvidenceRunManifest = (
         run.fingerprint,
         `native ${run.nativeRuntimeStatus ?? "-"} overlays applied ${run.nativeRuntimeCompositionAppliedCount} skipped ${run.nativeRuntimeCompositionSkippedCount}${formatKinds(run.nativeRuntimeCompositionSkippedKinds)}`,
         `landmarks ${Math.round(run.faceTrackingFaceLandmarkConfidence * 100)}% ${run.faceTrackingFaceLandmarkReady ? "ready" : "not-ready"}`,
-        `avatar prepared ${run.faceTrackingPreparedPngTuberCount} vrm ${run.faceTrackingVisibleVrmCount} renderer ${run.faceTrackingNativeVrmRendererReady ? "ready" : "not-ready"} moving ${run.faceTrackingActiveMotionCount} rig ${run.faceTrackingRigQualityScore}/100 ${run.faceTrackingRigQualityGrade ?? "blocked"}`,
+        `avatar prepared ${run.faceTrackingPreparedPngTuberCount} vrm ${run.faceTrackingVisibleVrmCount} renderer ${run.faceTrackingNativeVrmRendererReady ? "ready" : "not-ready"} moving ${run.faceTrackingActiveMotionCount} rig ${run.faceTrackingRigQualityScore}/100 ${run.faceTrackingRigQualityGrade ?? "blocked"} high fidelity ${run.faceTrackingRigHighFidelityScore}/100 ${run.faceTrackingRigHighFidelityGrade ?? "blocked"} parts ${run.faceTrackingRigPartSeparationScore}/100 depth ${run.faceTrackingRigDepthContinuityScore}/100`,
         `hold ${run.monitorHoldStatus ?? "-"}`,
         `audio ${run.audioStatus ?? "-"}`,
         `chat ${run.chatReadoutStatus ?? "-"}`,

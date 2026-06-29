@@ -41,6 +41,10 @@ export interface StreamValidationFaceTrackingSummary {
   rigIssueSummary: string;
   rigQualityScore: number;
   rigQualityGrade: StreamDiagnostics["faceTracking"]["rigQualityGrade"];
+  rigPartSeparationScore: number;
+  rigDepthContinuityScore: number;
+  rigHighFidelityScore: number;
+  rigHighFidelityGrade: StreamDiagnostics["faceTracking"]["rigQualityGrade"];
   summary: string;
   recommendation: string;
 }
@@ -280,6 +284,10 @@ export interface StreamValidationEvidenceRunManifestItem {
   faceTrackingRigIssueCount: number;
   faceTrackingRigQualityScore: number;
   faceTrackingRigQualityGrade: StreamValidationFaceTrackingSummary["rigQualityGrade"] | null;
+  faceTrackingRigPartSeparationScore: number;
+  faceTrackingRigDepthContinuityScore: number;
+  faceTrackingRigHighFidelityScore: number;
+  faceTrackingRigHighFidelityGrade: StreamValidationFaceTrackingSummary["rigQualityGrade"] | null;
   audioStatus: StreamValidationAudioSummary["status"] | null;
   audioMonitorHeadphonesOnly: boolean;
   audioNativeMonitorHeadphonesConnected: boolean;
@@ -1190,7 +1198,11 @@ const hasReadyPngTuberMotionEvidence = (faceTracking: StreamValidationFaceTracki
   faceTracking.preparedPngTuberCount > 0 &&
   faceTracking.rigIssueCount === 0 &&
   faceTracking.rigQualityGrade === "ready" &&
-  faceTracking.rigQualityScore >= 90;
+  faceTracking.rigQualityScore >= 90 &&
+  faceTracking.rigHighFidelityGrade === "ready" &&
+  faceTracking.rigHighFidelityScore >= 90 &&
+  faceTracking.rigPartSeparationScore >= 90 &&
+  faceTracking.rigDepthContinuityScore >= 90;
 
 const hasReadyVrmMotionEvidence = (faceTracking: StreamValidationFaceTrackingSummary): boolean =>
   faceTracking.visibleVrmCount > 0 && faceTracking.nativeVrmRendererReady;
@@ -1897,6 +1909,10 @@ const createFaceTrackingValidationSummary = (
   rigIssueSummary: sanitizeStoredText(faceTracking.rigIssueSummary, secrets),
   rigQualityScore: faceTracking.rigQualityScore,
   rigQualityGrade: faceTracking.rigQualityGrade,
+  rigPartSeparationScore: normalizeScore(faceTracking.rigPartSeparationScore ?? 0),
+  rigDepthContinuityScore: normalizeScore(faceTracking.rigDepthContinuityScore ?? 0),
+  rigHighFidelityScore: normalizeScore(faceTracking.rigHighFidelityScore ?? 0),
+  rigHighFidelityGrade: faceTracking.rigHighFidelityGrade ?? "blocked",
   summary: sanitizeStoredText(faceTracking.summary, secrets),
   recommendation: sanitizeStoredText(faceTracking.recommendation, secrets)
 });
@@ -2485,6 +2501,10 @@ const createEvidenceRunManifestItem = (
     faceTrackingRigIssueCount: run.faceTracking?.rigIssueCount ?? 0,
     faceTrackingRigQualityScore: run.faceTracking?.rigQualityScore ?? 0,
     faceTrackingRigQualityGrade: run.faceTracking?.rigQualityGrade ?? null,
+    faceTrackingRigPartSeparationScore: run.faceTracking?.rigPartSeparationScore ?? 0,
+    faceTrackingRigDepthContinuityScore: run.faceTracking?.rigDepthContinuityScore ?? 0,
+    faceTrackingRigHighFidelityScore: run.faceTracking?.rigHighFidelityScore ?? 0,
+    faceTrackingRigHighFidelityGrade: run.faceTracking?.rigHighFidelityGrade ?? null,
     audioStatus: run.audio?.status ?? null,
     audioMonitorHeadphonesOnly: run.audio?.monitorHeadphonesOnly ?? false,
     audioNativeMonitorHeadphonesConnected: run.audio?.nativeMonitorHeadphonesConnected ?? false,
@@ -2794,6 +2814,10 @@ const normalizeFaceTrackingValidationSummary = (value: unknown): StreamValidatio
     rigIssueSummary: normalizeText(value.rigIssueSummary, "No still-image rig issues."),
     rigQualityScore: normalizeScore(value.rigQualityScore),
     rigQualityGrade: normalizeFaceTrackingRigQualityGrade(value.rigQualityGrade),
+    rigPartSeparationScore: normalizeScore(value.rigPartSeparationScore),
+    rigDepthContinuityScore: normalizeScore(value.rigDepthContinuityScore),
+    rigHighFidelityScore: normalizeScore(value.rigHighFidelityScore),
+    rigHighFidelityGrade: normalizeFaceTrackingRigQualityGrade(value.rigHighFidelityGrade),
     summary: normalizeText(value.summary, "No face tracking validation evidence retained."),
     recommendation: normalizeText(value.recommendation, "Repeat face tracking validation on a physical mobile device.")
   };

@@ -1989,7 +1989,11 @@ describe("stream validation evidence", () => {
       faceTrackingActiveMotionCount: 1,
       faceTrackingRigIssueCount: 0,
       faceTrackingRigQualityScore: 100,
-      faceTrackingRigQualityGrade: "ready"
+      faceTrackingRigQualityGrade: "ready",
+      faceTrackingRigPartSeparationScore: 100,
+      faceTrackingRigDepthContinuityScore: 100,
+      faceTrackingRigHighFidelityScore: 100,
+      faceTrackingRigHighFidelityGrade: "ready"
     });
     expect(summary.audioIosPass).toBe(true);
     expect(summary.audioAndroidPass).toBe(true);
@@ -2137,7 +2141,9 @@ describe("stream validation evidence", () => {
       faceTrackingNativeVrmRendererReady: true,
       faceTrackingActiveMotionCount: 1,
       faceTrackingRigQualityScore: 100,
-      faceTrackingRigQualityGrade: "ready"
+      faceTrackingRigQualityGrade: "ready",
+      faceTrackingRigHighFidelityScore: 100,
+      faceTrackingRigHighFidelityGrade: "ready"
     });
     expect(summary.status).toBe("ready");
   });
@@ -2190,6 +2196,10 @@ describe("stream validation evidence", () => {
         rigIssueSummary: "No still-image rig issues.",
         rigQualityScore: 100,
         rigQualityGrade: "ready" as const,
+        rigPartSeparationScore: 100,
+        rigDepthContinuityScore: 100,
+        rigHighFidelityScore: 100,
+        rigHighFidelityGrade: "ready" as const,
         summary: "Legacy pass retained without motion count.",
         recommendation: "Repeat validation."
       }
@@ -2246,6 +2256,10 @@ describe("stream validation evidence", () => {
         rigIssueSummary: "No still-image rig issues.",
         rigQualityScore: 100,
         rigQualityGrade: "ready" as const,
+        rigPartSeparationScore: 100,
+        rigDepthContinuityScore: 100,
+        rigHighFidelityScore: 100,
+        rigHighFidelityGrade: "ready" as const,
         summary: "Avatar motion was retained with weak native landmarks.",
         recommendation: "Improve camera framing."
       }
@@ -2305,6 +2319,10 @@ describe("stream validation evidence", () => {
         rigIssueSummary: "1 still-image rig issue: rig lines must be ordered hair < eyes < mouth < shoulders",
         rigQualityScore: 55,
         rigQualityGrade: "blocked" as const,
+        rigPartSeparationScore: 55,
+        rigDepthContinuityScore: 55,
+        rigHighFidelityScore: 55,
+        rigHighFidelityGrade: "blocked" as const,
         summary: "Avatar motion was retained with a rig issue.",
         recommendation: "Run Auto rig."
       }
@@ -2317,6 +2335,8 @@ describe("stream validation evidence", () => {
     expect(summary.runManifest[0]?.faceTrackingRigIssueCount).toBe(1);
     expect(summary.runManifest[0]?.faceTrackingRigQualityScore).toBe(55);
     expect(summary.runManifest[0]?.faceTrackingRigQualityGrade).toBe("blocked");
+    expect(summary.runManifest[0]?.faceTrackingRigHighFidelityScore).toBe(55);
+    expect(summary.runManifest[0]?.faceTrackingRigHighFidelityGrade).toBe("blocked");
     expect(summary.status).toBe("partial");
   });
 

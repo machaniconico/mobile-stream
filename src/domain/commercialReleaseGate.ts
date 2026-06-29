@@ -38,7 +38,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 41;
+const minimumSupportBundleVersion = 42;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -349,7 +349,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v41 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v42 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -925,10 +925,23 @@ const hasReadyManifestRigQuality = (run: ValidationEvidenceManifestRun | undefin
   Number.isFinite(run.faceTrackingRigQualityScore) &&
   run.faceTrackingRigQualityScore >= 90;
 
+const hasReadyManifestRigHighFidelity = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  run?.faceTrackingRigHighFidelityGrade === "ready" &&
+  typeof run.faceTrackingRigHighFidelityScore === "number" &&
+  typeof run.faceTrackingRigPartSeparationScore === "number" &&
+  typeof run.faceTrackingRigDepthContinuityScore === "number" &&
+  Number.isFinite(run.faceTrackingRigHighFidelityScore) &&
+  Number.isFinite(run.faceTrackingRigPartSeparationScore) &&
+  Number.isFinite(run.faceTrackingRigDepthContinuityScore) &&
+  run.faceTrackingRigHighFidelityScore >= 90 &&
+  run.faceTrackingRigPartSeparationScore >= 90 &&
+  run.faceTrackingRigDepthContinuityScore >= 90;
+
 const hasReadyManifestPngTuberMotionProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isPositiveFiniteNumber(run?.faceTrackingPreparedPngTuberCount) &&
   hasZeroManifestRigIssues(run) &&
-  hasReadyManifestRigQuality(run);
+  hasReadyManifestRigQuality(run) &&
+  hasReadyManifestRigHighFidelity(run);
 
 const hasReadyManifestVrmMotionProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isPositiveFiniteNumber(run?.faceTrackingVisibleVrmCount) &&

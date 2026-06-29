@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v41.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v42.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -397,7 +397,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("ready PNGTuber rig proof");
+    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig proof");
   });
 
   it("blocks avatar-motion claims when retained manifests keep low still-image rig quality", () => {
@@ -416,7 +416,26 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("ready PNGTuber rig proof");
+    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig proof");
+  });
+
+  it("blocks avatar-motion claims when retained manifests keep low still-image high-fidelity rig proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            faceTrackingRigHighFidelityScore: 72,
+            faceTrackingRigHighFidelityGrade: "review"
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig proof");
   });
 
   it("blocks avatar-motion claims when retained manifests omit still-image rig quality proof", () => {
@@ -432,7 +451,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("ready PNGTuber rig proof");
+    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig proof");
   });
 
   it("blocks chat readout claims when retained manifests have no spoken chat success", () => {
@@ -782,7 +801,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 41
+      bundleVersion: 42
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -902,6 +921,10 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   faceTrackingRigIssueCount: 0,
   faceTrackingRigQualityScore: 100,
   faceTrackingRigQualityGrade: "ready",
+  faceTrackingRigPartSeparationScore: 100,
+  faceTrackingRigDepthContinuityScore: 100,
+  faceTrackingRigHighFidelityScore: 100,
+  faceTrackingRigHighFidelityGrade: "ready",
   audioStatus: "pass",
   audioMonitorHeadphonesOnly: true,
   audioNativeMonitorHeadphonesConnected: true,
@@ -953,6 +976,10 @@ const withoutRigQuality = (run) => {
   const {
     faceTrackingRigQualityScore: _faceTrackingRigQualityScore,
     faceTrackingRigQualityGrade: _faceTrackingRigQualityGrade,
+    faceTrackingRigPartSeparationScore: _faceTrackingRigPartSeparationScore,
+    faceTrackingRigDepthContinuityScore: _faceTrackingRigDepthContinuityScore,
+    faceTrackingRigHighFidelityScore: _faceTrackingRigHighFidelityScore,
+    faceTrackingRigHighFidelityGrade: _faceTrackingRigHighFidelityGrade,
     ...rest
   } = run;
   return rest;
