@@ -238,6 +238,7 @@ describe("stream start preflight", () => {
       smile: 0.4,
       browRaise: 0.2,
       confidence: 0.91,
+      faceLandmarkConfidence: 0.81,
       expression: "neutral",
       lastFrameAt: 1_000
     });

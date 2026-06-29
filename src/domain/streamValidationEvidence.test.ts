@@ -1199,6 +1199,7 @@ describe("stream validation evidence", () => {
         smile: 0.2,
         browRaise: 0.1,
         confidence: 0.92,
+        faceLandmarkConfidence: 0.82,
         expression: "neutral",
         lastFrameAt: Date.parse("2026-06-23T00:00:00.000Z")
       },
@@ -1304,6 +1305,7 @@ describe("stream validation evidence", () => {
       smile: 0.2,
       browRaise: 0.1,
       confidence: 0.92,
+      faceLandmarkConfidence: 0.82,
       expression: "neutral" as const,
       lastFrameAt: Date.parse("2026-06-23T00:00:00.000Z")
     };
@@ -1366,6 +1368,8 @@ describe("stream validation evidence", () => {
       monitorHoldObservedReconnectAttempts: 0,
       faceTrackingStatus: "pass",
       faceTrackingRuntimeFresh: true,
+      faceTrackingFaceLandmarkConfidence: 0.82,
+      faceTrackingFaceLandmarkReady: true,
       faceTrackingActiveMotionCount: 1,
       faceTrackingRigIssueCount: 0,
       faceTrackingRigQualityScore: 100,
@@ -1454,6 +1458,8 @@ describe("stream validation evidence", () => {
         runtimeStatus: "tracking" as const,
         runtimeAgeMs: 120,
         runtimeFresh: true,
+        faceLandmarkConfidence: 0.82,
+        faceLandmarkReady: true,
         visibleAvatarCount: 1,
         preparedPngTuberCount: 1,
         activeMotionCount: 0,
@@ -1478,6 +1484,55 @@ describe("stream validation evidence", () => {
     expect(summary.faceTrackingAndroidPass).toBe(false);
     expect(summary.status).toBe("partial");
     expect(summary.summary).toContain("avatar-motion evidence is incomplete");
+  });
+
+  it("does not treat retained avatar-motion evidence as ready when native face landmarks are weak", () => {
+    const scene = nativeReadyScene();
+    const profile = profileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const baseRun = createStreamValidationRun({
+      diagnostics: createStreamDiagnostics(scene, profile, readiness, {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: nativeMonitorRuntime("ios")
+      }, [], stableMonitorSamples()),
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const run = {
+      ...baseRun,
+      result: "pass" as const,
+      faceTracking: {
+        status: "pass" as const,
+        enabled: true,
+        inputMode: "native-camera" as const,
+        rigMode: "still-image-2d" as const,
+        runtimeStatus: "tracking" as const,
+        runtimeAgeMs: 120,
+        runtimeFresh: true,
+        faceLandmarkConfidence: 0.42,
+        faceLandmarkReady: false,
+        visibleAvatarCount: 1,
+        preparedPngTuberCount: 1,
+        activeMotionCount: 1,
+        rigIssueCount: 0,
+        rigIssueSummary: "No still-image rig issues.",
+        rigQualityScore: 100,
+        rigQualityGrade: "ready" as const,
+        summary: "Avatar motion was retained with weak native landmarks.",
+        recommendation: "Improve camera framing."
+      }
+    };
+
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(summary.faceTrackingReadyCount).toBe(0);
+    expect(summary.faceTrackingIosPass).toBe(false);
+    expect(summary.runManifest[0]?.faceTrackingFaceLandmarkConfidence).toBe(0.42);
+    expect(summary.runManifest[0]?.faceTrackingFaceLandmarkReady).toBe(false);
+    expect(summary.status).toBe("partial");
   });
 
   it("does not count retained avatar-motion evidence as ready when still-image rig issues remain", () => {
@@ -1514,6 +1569,8 @@ describe("stream validation evidence", () => {
         runtimeStatus: "tracking" as const,
         runtimeAgeMs: 120,
         runtimeFresh: true,
+        faceLandmarkConfidence: 0.82,
+        faceLandmarkReady: true,
         visibleAvatarCount: 1,
         preparedPngTuberCount: 1,
         activeMotionCount: 1,

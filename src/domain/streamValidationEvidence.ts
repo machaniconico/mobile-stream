@@ -30,6 +30,8 @@ export interface StreamValidationFaceTrackingSummary {
   runtimeStatus: StreamDiagnostics["faceTracking"]["runtimeStatus"];
   runtimeAgeMs: number | null;
   runtimeFresh: boolean;
+  faceLandmarkConfidence: number;
+  faceLandmarkReady: boolean;
   visibleAvatarCount: number;
   preparedPngTuberCount: number;
   activeMotionCount: number;
@@ -249,6 +251,8 @@ export interface StreamValidationEvidenceRunManifestItem {
   faceTrackingStatus: StreamValidationFaceTrackingSummary["status"] | null;
   faceTrackingRuntimeFresh: boolean | null;
   faceTrackingRuntimeAgeMs: number | null;
+  faceTrackingFaceLandmarkConfidence: number;
+  faceTrackingFaceLandmarkReady: boolean;
   faceTrackingActiveMotionCount: number;
   faceTrackingRigIssueCount: number;
   faceTrackingRigQualityScore: number;
@@ -1150,10 +1154,15 @@ const isPhysicalDeviceEvidencePass = (run: StreamValidationRun | null | undefine
 const isAvatarMotionEvidencePass = (faceTracking: StreamValidationFaceTrackingSummary | null | undefined): boolean =>
   faceTracking?.status === "pass" &&
   faceTracking.runtimeFresh &&
+  faceTracking.faceLandmarkReady &&
+  faceTracking.faceLandmarkConfidence >= 0.55 &&
   faceTracking.activeMotionCount > 0 &&
   faceTracking.rigIssueCount === 0 &&
   faceTracking.rigQualityGrade === "ready" &&
   faceTracking.rigQualityScore >= 90;
+
+const isAvatarMotionEvidenceIncomplete = (faceTracking: StreamValidationFaceTrackingSummary | null | undefined): boolean =>
+  Boolean(faceTracking && faceTracking.status !== "info" && !isAvatarMotionEvidencePass(faceTracking));
 
 const isNativeRuntimeEvidencePass = (
   nativeRuntime: StreamSessionNativeRuntimeSummary | null | undefined,
@@ -1536,6 +1545,7 @@ const createEffectiveValidationResult = (
     monitorHold?.status === "warn" ||
     monitorHold?.status === "pending" ||
     faceTracking?.status === "warn" ||
+    isAvatarMotionEvidenceIncomplete(faceTracking) ||
     !isAudioEvidencePass(audio) ||
     !isFeatureEvidencePass(chatReadout) ||
     platformPublishing?.status === "warn" ||
@@ -1610,6 +1620,9 @@ const createRunRecommendation = (
   }
   if (faceTracking?.status === "warn") {
     return faceTracking.recommendation;
+  }
+  if (faceTracking && faceTracking.status !== "info" && !isAvatarMotionEvidencePass(faceTracking)) {
+    return "Record fresh iOS and Android validation runs with native camera tracking, ready native face-landmark confidence, visible PNGTuber motion, and ready still-image rig quality.";
   }
   if (audio && audio.status !== "pass" && !isAudioLatencyOnlyWarning(audio)) {
     return audio.recommendation;
@@ -1739,6 +1752,8 @@ const createFaceTrackingValidationSummary = (
   runtimeStatus: faceTracking.runtimeStatus,
   runtimeAgeMs: faceTracking.runtimeAgeMs,
   runtimeFresh: faceTracking.runtimeFresh,
+  faceLandmarkConfidence: normalizeUnitInterval(faceTracking.faceLandmarkConfidence ?? 0),
+  faceLandmarkReady: faceTracking.faceLandmarkReady === true,
   visibleAvatarCount: faceTracking.visibleAvatarCount,
   preparedPngTuberCount: faceTracking.preparedPngTuberCount,
   activeMotionCount: faceTracking.activeMotionCount,
@@ -2284,6 +2299,8 @@ const createEvidenceRunManifestItem = (
     faceTrackingStatus: run.faceTracking?.status ?? null,
     faceTrackingRuntimeFresh: run.faceTracking?.runtimeFresh ?? null,
     faceTrackingRuntimeAgeMs: run.faceTracking?.runtimeAgeMs ?? null,
+    faceTrackingFaceLandmarkConfidence: run.faceTracking?.faceLandmarkConfidence ?? 0,
+    faceTrackingFaceLandmarkReady: run.faceTracking?.faceLandmarkReady ?? false,
     faceTrackingActiveMotionCount: run.faceTracking?.activeMotionCount ?? 0,
     faceTrackingRigIssueCount: run.faceTracking?.rigIssueCount ?? 0,
     faceTrackingRigQualityScore: run.faceTracking?.rigQualityScore ?? 0,
@@ -2523,6 +2540,9 @@ const normalizeCount = (value: unknown): number =>
 const normalizeNullableCount = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : null;
 
+const normalizeUnitInterval = (value: unknown): number =>
+  typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+
 const normalizeFiniteNumber = (value: unknown, fallback: number, min: number, max: number): number =>
   typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
 
@@ -2581,6 +2601,8 @@ const normalizeFaceTrackingValidationSummary = (value: unknown): StreamValidatio
     runtimeStatus: normalizeFaceTrackingRuntimeStatus(value.runtimeStatus),
     runtimeAgeMs: normalizeNullableCount(value.runtimeAgeMs),
     runtimeFresh: value.runtimeFresh === true,
+    faceLandmarkConfidence: normalizeUnitInterval(value.faceLandmarkConfidence),
+    faceLandmarkReady: value.faceLandmarkReady === true,
     visibleAvatarCount: normalizeCount(value.visibleAvatarCount),
     preparedPngTuberCount: normalizeCount(value.preparedPngTuberCount),
     activeMotionCount: normalizeCount(value.activeMotionCount),

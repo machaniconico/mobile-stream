@@ -1424,6 +1424,8 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     faceTrackingStatus: "pass",
     faceTrackingRuntimeFresh: true,
     faceTrackingRuntimeAgeMs: 120,
+    faceTrackingFaceLandmarkConfidence: 0.82,
+    faceTrackingFaceLandmarkReady: true,
     faceTrackingActiveMotionCount: 1,
     faceTrackingRigIssueCount: 0,
     faceTrackingRigQualityScore: 100,

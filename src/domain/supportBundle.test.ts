@@ -274,6 +274,8 @@ describe("support bundle", () => {
     expect(bundle.summary.faceTrackingRigIssueSummary).toBe("No still-image rig issues.");
     expect(bundle.summary.faceTrackingRigQualityScore).toBe(100);
     expect(bundle.summary.faceTrackingRigQualityGrade).toBe("ready");
+    expect(bundle.summary.validationEvidenceLatestFaceTrackingFaceLandmarkConfidence).toBe(0);
+    expect(bundle.summary.validationEvidenceLatestFaceTrackingFaceLandmarkReady).toBe(false);
     expect(bundle.summary.nativeCompositionStatus).toBe("warn");
     expect(bundle.summary.nativeCompositionCoverage).toBe("preview-only-overlays");
     expect(bundle.summary.nativeCompositionPreviewOnlySourceCount).toBeGreaterThan(0);
@@ -362,6 +364,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Evidence monitor hold: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - 0s 0 samples");
     expect(formatSupportBundle(bundle)).toContain("Evidence native runtime: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - - / sent 0 video 0 audio / bytes 0");
     expect(formatSupportBundle(bundle)).toContain("Evidence face tracking: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
+    expect(formatSupportBundle(bundle)).toContain("landmarks 0% not-ready");
     expect(formatSupportBundle(bundle)).toContain("rig quality 0/100 blocked");
     expect(formatSupportBundle(bundle)).toContain("Evidence audio: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence chat readout: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");

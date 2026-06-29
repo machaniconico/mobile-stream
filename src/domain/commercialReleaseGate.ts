@@ -810,9 +810,16 @@ const hasZeroManifestAudioDrops = (run: ValidationEvidenceManifestRun | undefine
 const isManifestAvatarMotionPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.faceTrackingStatus) &&
   run?.faceTrackingRuntimeFresh === true &&
+  hasReadyManifestFaceLandmarks(run) &&
   Number(run.faceTrackingActiveMotionCount) > 0 &&
   hasZeroManifestRigIssues(run) &&
   hasReadyManifestRigQuality(run);
+
+const hasReadyManifestFaceLandmarks = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  run?.faceTrackingFaceLandmarkReady === true &&
+  typeof run.faceTrackingFaceLandmarkConfidence === "number" &&
+  Number.isFinite(run.faceTrackingFaceLandmarkConfidence) &&
+  run.faceTrackingFaceLandmarkConfidence >= 0.55;
 
 const hasZeroManifestRigIssues = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   typeof run?.faceTrackingRigIssueCount === "number" &&

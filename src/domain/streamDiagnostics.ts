@@ -831,6 +831,7 @@ const formatValidationEvidenceRunManifest = (
         `${run.ageDays}d`,
         run.fingerprint,
         `native ${run.nativeRuntimeStatus ?? "-"}`,
+        `landmarks ${Math.round(run.faceTrackingFaceLandmarkConfidence * 100)}% ${run.faceTrackingFaceLandmarkReady ? "ready" : "not-ready"}`,
         `rig ${run.faceTrackingRigQualityScore}/100 ${run.faceTrackingRigQualityGrade ?? "blocked"}`,
         `hold ${run.monitorHoldStatus ?? "-"}`,
         `audio ${run.audioStatus ?? "-"}`,
@@ -852,7 +853,7 @@ const formatValidationMonitorHold = (diagnostics: StreamDiagnostics): string =>
     : "-";
 
 const formatValidationFaceTracking = (diagnostics: StreamDiagnostics): string =>
-  `${diagnostics.validationEvidence.faceTrackingRunCount} retained / ${diagnostics.validationEvidence.faceTrackingReadyCount} ready / ${diagnostics.validationEvidence.faceTrackingWarningCount} warn / iOS ${diagnostics.validationEvidence.faceTrackingIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestFaceTracking?.status ?? "-"} ${diagnostics.validationEvidence.latestFaceTracking?.runtimeStatus ?? "-"} / prepared ${diagnostics.validationEvidence.latestFaceTracking?.preparedPngTuberCount ?? 0} / moving ${diagnostics.validationEvidence.latestFaceTracking?.activeMotionCount ?? 0} / rig quality ${diagnostics.validationEvidence.latestFaceTracking?.rigQualityScore ?? 0}/100 ${diagnostics.validationEvidence.latestFaceTracking?.rigQualityGrade ?? "blocked"}`;
+  `${diagnostics.validationEvidence.faceTrackingRunCount} retained / ${diagnostics.validationEvidence.faceTrackingReadyCount} ready / ${diagnostics.validationEvidence.faceTrackingWarningCount} warn / iOS ${diagnostics.validationEvidence.faceTrackingIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestFaceTracking?.status ?? "-"} ${diagnostics.validationEvidence.latestFaceTracking?.runtimeStatus ?? "-"} / landmarks ${Math.round((diagnostics.validationEvidence.latestFaceTracking?.faceLandmarkConfidence ?? 0) * 100)}% ${diagnostics.validationEvidence.latestFaceTracking?.faceLandmarkReady ? "ready" : "not-ready"} / prepared ${diagnostics.validationEvidence.latestFaceTracking?.preparedPngTuberCount ?? 0} / moving ${diagnostics.validationEvidence.latestFaceTracking?.activeMotionCount ?? 0} / rig quality ${diagnostics.validationEvidence.latestFaceTracking?.rigQualityScore ?? 0}/100 ${diagnostics.validationEvidence.latestFaceTracking?.rigQualityGrade ?? "blocked"}`;
 
 const formatValidationAudio = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestAudio

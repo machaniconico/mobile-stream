@@ -77,6 +77,45 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.faceLandmarkReady).toBe(true);
   });
 
+  it("warns when native camera tracking has weak face landmark confidence", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const
+      }
+    };
+    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...source,
+            imageUri: "file:///shared/avatar.png",
+            motion: { ...source.motion, headYaw: 0.2, confidence: 0.92 }
+          }
+        : source
+    );
+
+    const diagnostics = createFaceTrackingDiagnostics(scene, profile, {
+      status: "tracking",
+      yaw: 0.2,
+      pitch: 0.1,
+      roll: 0,
+      mouthOpen: 0.4,
+      blink: 0,
+      smile: 0.4,
+      browRaise: 0.2,
+      confidence: 0.92,
+      faceLandmarkConfidence: 0.42,
+      expression: "neutral",
+      lastFrameAt: 1_000
+    });
+
+    expect(diagnostics.status).toBe("warn");
+    expect(diagnostics.faceLandmarkReady).toBe(false);
+    expect(diagnostics.summary).toContain("landmark confidence is 42%");
+  });
+
   it("warns when prepared PNGTuber rig lines are not production-safe", () => {
     const profile = {
       ...createDefaultStudioProfile(),
@@ -114,6 +153,7 @@ describe("face tracking diagnostics", () => {
       smile: 0.4,
       browRaise: 0.2,
       confidence: 0.92,
+      faceLandmarkConfidence: 0.81,
       expression: "neutral",
       lastFrameAt: 1_000
     });
@@ -193,6 +233,7 @@ describe("face tracking diagnostics", () => {
       smile: 0.4,
       browRaise: 0.2,
       confidence: 0.92,
+      faceLandmarkConfidence: 0.81,
       expression: "neutral",
       lastFrameAt: 1_000
     });

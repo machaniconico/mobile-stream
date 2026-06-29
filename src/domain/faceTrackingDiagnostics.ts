@@ -264,6 +264,28 @@ export const createFaceTrackingDiagnostics = (
     );
   }
 
+  if (!faceLandmarkReady) {
+    return createWarning(
+      faceTracking,
+      runtimeStatus,
+      visibleAvatars.length,
+      visiblePngTubers.length,
+      visibleLive2D.length,
+      preparedPngTubers.length,
+      activeMotionCount,
+      rigIssues.length,
+      rigIssueSummary,
+      rigQualityScore,
+      rigQualityGrade,
+      runtimeAgeMs,
+      runtimeFresh,
+      faceLandmarkConfidence,
+      faceLandmarkReady,
+      `Native face tracking is reading, but landmark confidence is ${Math.round(faceLandmarkConfidence * 100)}%.`,
+      "Improve camera framing/lighting and repeat validation until native face landmark confidence is ready."
+    );
+  }
+
   if (activeMotionCount === 0) {
     return createWarning(
       faceTracking,

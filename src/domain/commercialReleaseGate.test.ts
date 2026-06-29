@@ -267,6 +267,55 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks avatar-motion summary claims when the manifest lacks native face landmark proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRunWithoutFaceLandmarkProof({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS avatar-motion proof")
+      })
+    );
+  });
+
+  it("blocks avatar-motion summary claims when the manifest has weak native face landmarks", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              faceTrackingFaceLandmarkConfidence: 0.4,
+              faceTrackingFaceLandmarkReady: false
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS avatar-motion proof")
+      })
+    );
+  });
+
   it("blocks native-runtime summary claims when the manifest lacks native frame proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -965,6 +1014,17 @@ const manifestRunWithoutRigQuality = (
   return run as ValidationManifestRun;
 };
 
+const manifestRunWithoutFaceLandmarkProof = (
+  patch: Parameters<typeof manifestRun>[0]
+): ValidationManifestRun => {
+  const {
+    faceTrackingFaceLandmarkConfidence: _faceTrackingFaceLandmarkConfidence,
+    faceTrackingFaceLandmarkReady: _faceTrackingFaceLandmarkReady,
+    ...run
+  } = manifestRun(patch);
+  return run as ValidationManifestRun;
+};
+
 const manifestRun = ({
   devicePlatform,
   fingerprint,
@@ -1036,6 +1096,8 @@ const manifestRun = ({
   faceTrackingStatus = "pass",
   faceTrackingRuntimeFresh = true,
   faceTrackingRuntimeAgeMs = 120,
+  faceTrackingFaceLandmarkConfidence = 0.82,
+  faceTrackingFaceLandmarkReady = true,
   faceTrackingActiveMotionCount = 1,
   faceTrackingRigIssueCount = 0,
   faceTrackingRigQualityScore = 100,
@@ -1146,6 +1208,8 @@ const manifestRun = ({
   faceTrackingStatus?: ValidationManifestRun["faceTrackingStatus"];
   faceTrackingRuntimeFresh?: ValidationManifestRun["faceTrackingRuntimeFresh"];
   faceTrackingRuntimeAgeMs?: ValidationManifestRun["faceTrackingRuntimeAgeMs"];
+  faceTrackingFaceLandmarkConfidence?: ValidationManifestRun["faceTrackingFaceLandmarkConfidence"];
+  faceTrackingFaceLandmarkReady?: ValidationManifestRun["faceTrackingFaceLandmarkReady"];
   faceTrackingActiveMotionCount?: ValidationManifestRun["faceTrackingActiveMotionCount"];
   faceTrackingRigIssueCount?: ValidationManifestRun["faceTrackingRigIssueCount"];
   faceTrackingRigQualityScore?: ValidationManifestRun["faceTrackingRigQualityScore"];
@@ -1262,6 +1326,8 @@ const manifestRun = ({
   faceTrackingStatus,
   faceTrackingRuntimeFresh,
   faceTrackingRuntimeAgeMs,
+  faceTrackingFaceLandmarkConfidence,
+  faceTrackingFaceLandmarkReady,
   faceTrackingActiveMotionCount,
   faceTrackingRigIssueCount,
   faceTrackingRigQualityScore,
