@@ -11,6 +11,7 @@ import type { ReadinessReport } from "./readiness";
 import type { SceneDocument, SceneSource, SourceKind, Transform } from "./scene";
 import type { StreamDiagnostics } from "./streamDiagnostics";
 import type { StreamStartPreflightReport } from "./streamStartPreflight";
+import { createVrmRuntimePose } from "./vrmRuntime";
 
 export interface SupportBundleSourceSummary {
   id: string;
@@ -899,8 +900,16 @@ const sourcePayloadSummary = (source: SceneSource): Record<string, string | numb
       return { avatarId: source.avatarId, expression: source.expression, hasImageUri: Boolean(source.imageUri.trim()) };
     case "live2d":
       return { modelId: source.modelId, expression: source.expression, hasModelJsonUri: Boolean(source.modelJsonUri.trim()) };
-    case "vrm":
-      return { modelId: source.modelId, expression: source.expression, hasModelUri: Boolean(source.modelUri.trim()) };
+    case "vrm": {
+      const pose = createVrmRuntimePose(source);
+      return {
+        modelId: source.modelId,
+        expression: source.expression,
+        hasModelUri: Boolean(source.modelUri.trim()),
+        runtimePoseStatus: pose.status,
+        trackingConfidence: pose.confidence
+      };
+    }
     case "image":
       return { hasUri: Boolean(source.uri.trim()) };
     case "solid":

@@ -588,7 +588,8 @@ describe("support bundle", () => {
     const scene = addSource(createDefaultScene(), {
       ...vrm,
       modelId: "vroid-avatar",
-      modelUri: "file:///private/var/mobile/Containers/Shared/AppGroup/ABCDEF/avatar.vrm"
+      modelUri: "file:///private/var/mobile/Containers/Shared/AppGroup/ABCDEF/avatar.vrm",
+      motion: { ...vrm.motion, headYaw: 0.2, confidence: 0.7 }
     });
     const profile = createDefaultStudioProfile();
     const readiness = createReadinessReport(scene, profile);
@@ -608,7 +609,9 @@ describe("support bundle", () => {
     expect(vrmSummary?.payload).toEqual({
       modelId: "vroid-avatar",
       expression: "neutral",
-      hasModelUri: true
+      hasModelUri: true,
+      runtimePoseStatus: "active",
+      trackingConfidence: 0.7
     });
     expect(serializeSupportBundle(bundle)).not.toContain("avatar.vrm");
   });

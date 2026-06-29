@@ -218,7 +218,16 @@ describe("scene document", () => {
     expect(vrmNode?.payload).toMatchObject({
       modelUri: "file:///models/vroid/avatar.vrm",
       headYaw: 0.31,
-      trackingConfidence: 0.88
+      trackingConfidence: 0.88,
+      vrmRuntimeStatus: "active",
+      vrmLookAtYaw: 0.31
+    });
+    expect(JSON.parse(String(vrmNode?.payload.vrmRuntimePoseJson))).toMatchObject({
+      status: "active",
+      confidence: 0.88,
+      expressions: {
+        neutral: 0
+      }
     });
   });
 

@@ -1,5 +1,6 @@
 import { normalizeLive2DModelJsonUri } from "./live2dModel";
 import { normalizeVrmModelUri } from "./vrmModel";
+import { createVrmRuntimePose, serializeVrmRuntimePose } from "./vrmRuntime";
 
 export type SourceKind = "screen" | "pngtuber" | "live2d" | "vrm" | "image" | "solid" | "text" | "chat";
 
@@ -852,6 +853,7 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
     }
     case "vrm": {
       const vrmMotion = source.motion ?? defaultAvatarMotion();
+      const vrmRuntimePose = createVrmRuntimePose(source);
       return {
         modelId: source.modelId,
         modelUri: source.modelUri,
@@ -872,7 +874,14 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
         mouthDeform: vrmMotion.mouthDeform,
         hairSway: vrmMotion.hairSway,
         shoulderSway: vrmMotion.shoulderSway,
-        trackingConfidence: vrmMotion.confidence
+        trackingConfidence: vrmMotion.confidence,
+        vrmRuntimeStatus: vrmRuntimePose.status,
+        vrmRuntimePoseJson: serializeVrmRuntimePose(vrmRuntimePose),
+        vrmLookAtYaw: vrmRuntimePose.lookAt.yaw,
+        vrmLookAtPitch: vrmRuntimePose.lookAt.pitch,
+        vrmRootOffsetX: vrmRuntimePose.rootOffset.x,
+        vrmRootOffsetY: vrmRuntimePose.rootOffset.y,
+        vrmRootOffsetZ: vrmRuntimePose.rootOffset.z
       };
     }
     case "image":

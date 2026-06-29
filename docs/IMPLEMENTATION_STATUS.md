@@ -98,6 +98,7 @@
 - Avatar runtime model for PNGTuber/Live2D/VRM expression, lip sync, and auto blink.
 - Live2D source records now persist Cubism `model3.json` URIs, expose them in Web/React Native inspectors, warn on missing/remote/relative/unsupported model-package URIs, and include a shared `model3.json` manifest validator for Moc, textures, expressions, motions, physics, and unsafe package references.
 - VRM/VRoid source records now persist VRM/GLB model URIs, expose them in Web/React Native inspectors, warn on missing/remote/relative/unsupported or non-model URIs, and include a shared binary GLB header validator for VRM 1.0/0.x extensions, humanoid bone mappings, and expression/blendshape metadata.
+- VRM/VRoid runtime pose mapping converts shared avatar motion into native-consumable humanoid bone rotations, expression/blendshape weights, look-at values, root offsets, render-graph payloads, and support-bundle pose summaries.
 - Still-image VTuber face tracking runtime with native-camera frames on mobile, simulated frames on web, neutral calibration, dead-zone filtering, jump limiting, lost-face return tuning, image-aspect-aware geometry rig inference, production rig-line diagnostics, iOS/Android native compositor 2.5D motion scaling, tunable illustration rig regions, lightweight pseudo mesh deformation, hair/body follow-through, and eye/mouth deformation.
 - Stream state machine for idle, preparing, live, reconnecting, stopping, and failed states.
 - Mock live engine for UI development without native capture.
