@@ -1094,6 +1094,12 @@ final class LiveCasterNative: RCTEventEmitter {
                 "vrmRuntimeStatuses": sceneComposition.stringArrayValue("vrmRuntimeStatuses").map {
                     redactSensitiveText($0, streamKey: streamKey, publishURL: publishURL)
                 },
+                "vrmRendererStatus": sceneComposition.stringValue("vrmRendererStatus", fallback: sceneComposition.intValue("vrmSourceCount") > 0 ? "unavailable" : "not-required"),
+                "vrmRendererBackend": sceneComposition.stringValue("vrmRendererBackend", fallback: "none"),
+                "vrmModelLoadedCount": sceneComposition.intValue("vrmModelLoadedCount"),
+                "vrmRenderedSourceCount": sceneComposition.intValue("vrmRenderedSourceCount"),
+                "vrmRenderMissingCount": sceneComposition.intValue("vrmRenderMissingCount"),
+                "vrmRenderFailureCount": sceneComposition.intValue("vrmRenderFailureCount"),
                 "message": redactSensitiveText(sceneComposition.stringValue("message"), streamKey: streamKey, publishURL: publishURL)
             ],
             "audioProcessing": [

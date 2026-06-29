@@ -27,6 +27,12 @@ data class NativeRuntimeComposition(
     val vrmMissingPoseCount: Int = 0,
     val vrmModelUriCount: Int = 0,
     val vrmRuntimeStatuses: List<String> = emptyList(),
+    val vrmRendererStatus: String = "not-required",
+    val vrmRendererBackend: String = "none",
+    val vrmModelLoadedCount: Int = 0,
+    val vrmRenderedSourceCount: Int = 0,
+    val vrmRenderMissingCount: Int = 0,
+    val vrmRenderFailureCount: Int = 0,
     val message: String = ""
 ) {
     fun asWritableMap(): WritableMap = Arguments.createMap().apply {
@@ -40,6 +46,12 @@ data class NativeRuntimeComposition(
         putInt("vrmMissingPoseCount", vrmMissingPoseCount)
         putInt("vrmModelUriCount", vrmModelUriCount)
         putArray("vrmRuntimeStatuses", vrmRuntimeStatuses.toWritableArray())
+        putString("vrmRendererStatus", vrmRendererStatus)
+        putString("vrmRendererBackend", vrmRendererBackend)
+        putInt("vrmModelLoadedCount", vrmModelLoadedCount)
+        putInt("vrmRenderedSourceCount", vrmRenderedSourceCount)
+        putInt("vrmRenderMissingCount", vrmRenderMissingCount)
+        putInt("vrmRenderFailureCount", vrmRenderFailureCount)
         putString("message", message)
     }
 }
@@ -67,6 +79,12 @@ private fun AndroidCompositionResult.toNativeRuntimeComposition(): NativeRuntime
         vrmMissingPoseCount = vrmPoseSummary.missingPoseCount,
         vrmModelUriCount = vrmPoseSummary.modelUriCount,
         vrmRuntimeStatuses = vrmPoseSummary.runtimeStatuses.toList().sorted(),
+        vrmRendererStatus = vrmPoseSummary.rendererStatus,
+        vrmRendererBackend = vrmPoseSummary.rendererBackend,
+        vrmModelLoadedCount = vrmPoseSummary.modelLoadedCount,
+        vrmRenderedSourceCount = vrmPoseSummary.renderedSourceCount,
+        vrmRenderMissingCount = vrmPoseSummary.renderMissingCount,
+        vrmRenderFailureCount = vrmPoseSummary.renderFailureCount,
         message = summary
     )
 }

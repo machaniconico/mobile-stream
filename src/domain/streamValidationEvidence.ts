@@ -201,6 +201,12 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeVrmPosePayloadCount: number;
   nativeRuntimeVrmActivePoseCount: number;
   nativeRuntimeVrmMissingPoseCount: number;
+  nativeRuntimeVrmRendererStatus: NonNullable<StreamSessionNativeRuntimeSummary["vrmRendererStatus"]> | null;
+  nativeRuntimeVrmRendererBackend: string | null;
+  nativeRuntimeVrmModelLoadedCount: number;
+  nativeRuntimeVrmRenderedSourceCount: number;
+  nativeRuntimeVrmRenderMissingCount: number;
+  nativeRuntimeVrmRenderFailureCount: number;
   monitorHoldStatus: StreamValidationMonitorHoldSummary["status"] | null;
   monitorHoldSampleCount: number;
   monitorHoldDurationSeconds: number;
@@ -2197,6 +2203,12 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeVrmPosePayloadCount: run.nativeRuntime?.vrmPosePayloadCount ?? 0,
     nativeRuntimeVrmActivePoseCount: run.nativeRuntime?.vrmActivePoseCount ?? 0,
     nativeRuntimeVrmMissingPoseCount: run.nativeRuntime?.vrmMissingPoseCount ?? 0,
+    nativeRuntimeVrmRendererStatus: run.nativeRuntime?.vrmRendererStatus ?? null,
+    nativeRuntimeVrmRendererBackend: run.nativeRuntime?.vrmRendererBackend ?? null,
+    nativeRuntimeVrmModelLoadedCount: run.nativeRuntime?.vrmModelLoadedCount ?? 0,
+    nativeRuntimeVrmRenderedSourceCount: run.nativeRuntime?.vrmRenderedSourceCount ?? 0,
+    nativeRuntimeVrmRenderMissingCount: run.nativeRuntime?.vrmRenderMissingCount ?? 0,
+    nativeRuntimeVrmRenderFailureCount: run.nativeRuntime?.vrmRenderFailureCount ?? 0,
     monitorHoldStatus: run.monitorHold?.status ?? null,
     monitorHoldSampleCount: run.monitorHold?.sampleCount ?? 0,
     monitorHoldDurationSeconds: run.monitorHold?.durationSeconds ?? 0,

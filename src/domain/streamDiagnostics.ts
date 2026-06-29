@@ -566,6 +566,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Composition: ${diagnostics.nativeRuntime?.composition.status ?? "-"} / ${diagnostics.nativeRuntime?.composition.message || "-"}`,
     `- Composition assets: ${diagnostics.nativeRuntime?.composition.stillImageAssetLoadedCount ?? 0}/${diagnostics.nativeRuntime?.composition.stillImageAssetCount ?? 0} loaded / ${diagnostics.nativeRuntime?.composition.stillImageAssetMissingCount ?? 0} missing`,
     `- Composition VRM: ${diagnostics.nativeRuntime?.composition.vrmActivePoseCount ?? 0}/${diagnostics.nativeRuntime?.composition.vrmSourceCount ?? 0} active / payloads ${diagnostics.nativeRuntime?.composition.vrmPosePayloadCount ?? 0} / missing ${diagnostics.nativeRuntime?.composition.vrmMissingPoseCount ?? 0}`,
+    `- Composition VRM renderer: ${diagnostics.nativeRuntime?.composition.vrmRendererStatus ?? ((diagnostics.nativeRuntime?.composition.vrmSourceCount ?? 0) > 0 ? "unavailable" : "-")} / ${diagnostics.nativeRuntime?.composition.vrmRendererBackend ?? "-"} / rendered ${diagnostics.nativeRuntime?.composition.vrmRenderedSourceCount ?? 0}/${diagnostics.nativeRuntime?.composition.vrmSourceCount ?? 0} / models ${diagnostics.nativeRuntime?.composition.vrmModelLoadedCount ?? 0}/${diagnostics.nativeRuntime?.composition.vrmModelUriCount ?? 0} / missing ${diagnostics.nativeRuntime?.composition.vrmRenderMissingCount ?? Math.max(0, (diagnostics.nativeRuntime?.composition.vrmSourceCount ?? 0) - (diagnostics.nativeRuntime?.composition.vrmRenderedSourceCount ?? 0))} / failed ${diagnostics.nativeRuntime?.composition.vrmRenderFailureCount ?? 0}`,
     `- Native frames: ${diagnostics.nativeRuntime?.videoFrames ?? 0} video / ${diagnostics.nativeRuntime?.publisher.sentAudioFrames ?? 0} audio sent`,
     `- Native encoded bytes: ${diagnostics.nativeRuntime?.encodedBytes ?? 0}`,
     `- Native drops: ${diagnostics.nativeRuntime?.droppedFrames ?? 0} video / ${diagnostics.nativeRuntime?.publisher.droppedAudioFrames ?? 0} audio`,
@@ -783,7 +784,7 @@ const formatSessionAudioLevel = (summary: StreamSessionSummary): string =>
 
 const formatSessionNativeRuntime = (summary: StreamSessionSummary): string =>
   summary.nativeRuntime
-    ? `${summary.nativeRuntime.status} / ${summary.nativeRuntime.platform} / ${summary.nativeRuntime.publisherState || "-"} / queue ${summary.nativeRuntime.queuedItems}/${summary.nativeRuntime.cacheSize} / assets ${summary.nativeRuntime.stillImageAssetLoadedCount}/${summary.nativeRuntime.stillImageAssetCount} loaded / ${summary.nativeRuntime.stillImageAssetMissingCount} missing / vrm ${summary.nativeRuntime.vrmActivePoseCount}/${summary.nativeRuntime.vrmSourceCount} active payloads ${summary.nativeRuntime.vrmPosePayloadCount} missing ${summary.nativeRuntime.vrmMissingPoseCount} / drops ${summary.nativeRuntime.droppedVideoFrames} video ${summary.nativeRuntime.droppedAudioFrames} audio`
+    ? `${summary.nativeRuntime.status} / ${summary.nativeRuntime.platform} / ${summary.nativeRuntime.publisherState || "-"} / queue ${summary.nativeRuntime.queuedItems}/${summary.nativeRuntime.cacheSize} / assets ${summary.nativeRuntime.stillImageAssetLoadedCount}/${summary.nativeRuntime.stillImageAssetCount} loaded / ${summary.nativeRuntime.stillImageAssetMissingCount} missing / vrm ${summary.nativeRuntime.vrmActivePoseCount}/${summary.nativeRuntime.vrmSourceCount} active payloads ${summary.nativeRuntime.vrmPosePayloadCount} missing ${summary.nativeRuntime.vrmMissingPoseCount} renderer ${summary.nativeRuntime.vrmRendererStatus} ${summary.nativeRuntime.vrmRenderedSourceCount}/${summary.nativeRuntime.vrmSourceCount} / drops ${summary.nativeRuntime.droppedVideoFrames} video ${summary.nativeRuntime.droppedAudioFrames} audio`
     : "-";
 
 const formatValidationEvidenceRunManifest = (
@@ -815,7 +816,7 @@ const formatValidationEvidenceRunManifest = (
 
 const formatValidationNativeRuntime = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestNativeRuntime
-    ? `${diagnostics.validationEvidence.nativeRuntimeRunCount} retained / ${diagnostics.validationEvidence.nativeRuntimeReadyCount} ready / ${diagnostics.validationEvidence.nativeRuntimeWarningCount} warn / ${diagnostics.validationEvidence.nativeRuntimeFailureCount} fail / iOS ${diagnostics.validationEvidence.nativeRuntimeIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.nativeRuntimeAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestNativeRuntime.status} ${diagnostics.validationEvidence.latestNativeRuntime.platform} / sent ${diagnostics.validationEvidence.latestNativeRuntime.sentVideoFrames} video ${diagnostics.validationEvidence.latestNativeRuntime.sentAudioFrames} audio / bytes ${diagnostics.validationEvidence.latestNativeRuntime.bytesWritten} / queue ${diagnostics.validationEvidence.latestNativeRuntime.queuedItems}/${diagnostics.validationEvidence.latestNativeRuntime.cacheSize} / assets ${diagnostics.validationEvidence.latestNativeRuntime.stillImageAssetLoadedCount}/${diagnostics.validationEvidence.latestNativeRuntime.stillImageAssetCount} loaded / ${diagnostics.validationEvidence.latestNativeRuntime.stillImageAssetMissingCount} missing / vrm ${diagnostics.validationEvidence.latestNativeRuntime.vrmActivePoseCount}/${diagnostics.validationEvidence.latestNativeRuntime.vrmSourceCount} active payloads ${diagnostics.validationEvidence.latestNativeRuntime.vrmPosePayloadCount} missing ${diagnostics.validationEvidence.latestNativeRuntime.vrmMissingPoseCount}`
+    ? `${diagnostics.validationEvidence.nativeRuntimeRunCount} retained / ${diagnostics.validationEvidence.nativeRuntimeReadyCount} ready / ${diagnostics.validationEvidence.nativeRuntimeWarningCount} warn / ${diagnostics.validationEvidence.nativeRuntimeFailureCount} fail / iOS ${diagnostics.validationEvidence.nativeRuntimeIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.nativeRuntimeAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestNativeRuntime.status} ${diagnostics.validationEvidence.latestNativeRuntime.platform} / sent ${diagnostics.validationEvidence.latestNativeRuntime.sentVideoFrames} video ${diagnostics.validationEvidence.latestNativeRuntime.sentAudioFrames} audio / bytes ${diagnostics.validationEvidence.latestNativeRuntime.bytesWritten} / queue ${diagnostics.validationEvidence.latestNativeRuntime.queuedItems}/${diagnostics.validationEvidence.latestNativeRuntime.cacheSize} / assets ${diagnostics.validationEvidence.latestNativeRuntime.stillImageAssetLoadedCount}/${diagnostics.validationEvidence.latestNativeRuntime.stillImageAssetCount} loaded / ${diagnostics.validationEvidence.latestNativeRuntime.stillImageAssetMissingCount} missing / vrm ${diagnostics.validationEvidence.latestNativeRuntime.vrmActivePoseCount}/${diagnostics.validationEvidence.latestNativeRuntime.vrmSourceCount} active payloads ${diagnostics.validationEvidence.latestNativeRuntime.vrmPosePayloadCount} missing ${diagnostics.validationEvidence.latestNativeRuntime.vrmMissingPoseCount} renderer ${diagnostics.validationEvidence.latestNativeRuntime.vrmRendererStatus} ${diagnostics.validationEvidence.latestNativeRuntime.vrmRenderedSourceCount}/${diagnostics.validationEvidence.latestNativeRuntime.vrmSourceCount}`
     : "-";
 
 const formatValidationMonitorHold = (diagnostics: StreamDiagnostics): string =>
@@ -1580,11 +1581,20 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
   }
   const missingAssetCount = runtime.composition.stillImageAssetMissingCount ?? 0;
   const missingVrmPoseCount = runtime.composition.vrmMissingPoseCount ?? 0;
+  const vrmSourceCount = runtime.composition.vrmSourceCount ?? 0;
+  const vrmRendererStatus = runtime.composition.vrmRendererStatus ?? (vrmSourceCount > 0 ? "unavailable" : "not-required");
+  const vrmRenderedSourceCount = runtime.composition.vrmRenderedSourceCount ?? 0;
+  const vrmRenderMissingCount = runtime.composition.vrmRenderMissingCount ?? Math.max(0, vrmSourceCount - vrmRenderedSourceCount);
+  const vrmRenderFailureCount = runtime.composition.vrmRenderFailureCount ?? 0;
+  const incompleteVrmRendering =
+    vrmSourceCount > 0 &&
+    (vrmRendererStatus !== "ready" || vrmRenderedSourceCount < vrmSourceCount || vrmRenderMissingCount > 0 || vrmRenderFailureCount > 0);
   if (
     runtime.composition.status === "pending" ||
     runtime.composition.status === "failed" ||
     missingAssetCount > 0 ||
-    missingVrmPoseCount > 0
+    missingVrmPoseCount > 0 ||
+    incompleteVrmRendering
   ) {
     return {
       code: `native-runtime-composition-${runtime.composition.status}`,
@@ -1596,7 +1606,9 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
           ? `Native compositor could not load ${missingAssetCount} still-image asset${missingAssetCount === 1 ? "" : "s"}.`
           : missingVrmPoseCount > 0
             ? `Native compositor is missing ${missingVrmPoseCount} VRM pose payload${missingVrmPoseCount === 1 ? "" : "s"}.`
-          : "Native compositor has pending or failed sources.")
+            : incompleteVrmRendering
+              ? `Native VRM renderer is ${vrmRendererStatus} (${vrmRenderedSourceCount}/${vrmSourceCount} rendered).`
+              : "Native compositor has pending or failed sources.")
     };
   }
   return {

@@ -44,6 +44,12 @@ export interface StreamSessionNativeRuntimeSummary {
   vrmMissingPoseCount: number;
   vrmModelUriCount: number;
   vrmRuntimeStatuses: string[];
+  vrmRendererStatus: NonNullable<NativeRuntimeTelemetry["composition"]["vrmRendererStatus"]>;
+  vrmRendererBackend: string;
+  vrmModelLoadedCount: number;
+  vrmRenderedSourceCount: number;
+  vrmRenderMissingCount: number;
+  vrmRenderFailureCount: number;
   stale: boolean;
   congested: boolean;
   queuedItems: number;
@@ -639,13 +645,26 @@ export const createNativeRuntimeSessionSummary = (
   const missingAssetCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetMissingCount);
   const missingAssets = missingAssetCount > 0;
   const missingVrmPoseCount = normalizeNonNegativeInteger(runtime.composition.vrmMissingPoseCount);
-  const missingVrmPoses = missingVrmPoseCount > 0 && normalizeNonNegativeInteger(runtime.composition.vrmSourceCount) > 0;
+  const vrmSourceCount = normalizeNonNegativeInteger(runtime.composition.vrmSourceCount);
+  const missingVrmPoses = missingVrmPoseCount > 0 && vrmSourceCount > 0;
+  const vrmRendererStatus = normalizeVrmRendererStatus(
+    runtime.composition.vrmRendererStatus,
+    vrmSourceCount
+  );
+  const vrmRenderedSourceCount = normalizeNonNegativeInteger(runtime.composition.vrmRenderedSourceCount);
+  const vrmRenderMissingCount = normalizeNonNegativeInteger(
+    runtime.composition.vrmRenderMissingCount ?? Math.max(0, vrmSourceCount - vrmRenderedSourceCount)
+  );
+  const vrmRenderFailureCount = normalizeNonNegativeInteger(runtime.composition.vrmRenderFailureCount);
+  const incompleteVrmRendering =
+    vrmSourceCount > 0 &&
+    (vrmRendererStatus !== "ready" || vrmRenderedSourceCount < vrmSourceCount || vrmRenderMissingCount > 0 || vrmRenderFailureCount > 0);
   const status: StreamSessionNativeRuntimeStatus = failed
     ? "fail"
-    : stale || congested || pendingComposition || missingAssets || missingVrmPoses
+    : stale || congested || pendingComposition || missingAssets || missingVrmPoses || incompleteVrmRendering
       ? "warn"
       : "pass";
-  const issueCount = [failed, stale, congested, pendingComposition, missingAssets, missingVrmPoses].filter(Boolean).length;
+  const issueCount = [failed, stale, congested, pendingComposition, missingAssets, missingVrmPoses, incompleteVrmRendering].filter(Boolean).length;
   const queue = `${runtime.publisher.itemsInCache}/${runtime.publisher.cacheSize}`;
 
   return {
@@ -658,12 +677,18 @@ export const createNativeRuntimeSessionSummary = (
     stillImageAssetLoadedCount: normalizeNonNegativeInteger(runtime.composition.stillImageAssetLoadedCount),
     stillImageAssetMissingCount: missingAssetCount,
     stillImageAssetMissingKinds: runtime.composition.stillImageAssetMissingKinds ?? [],
-    vrmSourceCount: normalizeNonNegativeInteger(runtime.composition.vrmSourceCount),
+    vrmSourceCount,
     vrmPosePayloadCount: normalizeNonNegativeInteger(runtime.composition.vrmPosePayloadCount),
     vrmActivePoseCount: normalizeNonNegativeInteger(runtime.composition.vrmActivePoseCount),
     vrmMissingPoseCount: missingVrmPoseCount,
     vrmModelUriCount: normalizeNonNegativeInteger(runtime.composition.vrmModelUriCount),
     vrmRuntimeStatuses: runtime.composition.vrmRuntimeStatuses ?? [],
+    vrmRendererStatus,
+    vrmRendererBackend: runtime.composition.vrmRendererBackend || "none",
+    vrmModelLoadedCount: normalizeNonNegativeInteger(runtime.composition.vrmModelLoadedCount),
+    vrmRenderedSourceCount,
+    vrmRenderMissingCount,
+    vrmRenderFailureCount,
     stale,
     congested,
     queuedItems: normalizeNonNegativeInteger(runtime.publisher.itemsInCache),
@@ -705,9 +730,11 @@ export const createNativeRuntimeSessionSummary = (
               ? "Confirm App Group-copied PNGTuber/image assets load inside the iOS Broadcast Upload Extension before public streams."
               : missingVrmPoses
                 ? "Confirm VRM runtime pose payloads reach the native compositor before retaining production evidence."
-                : pendingComposition
-                  ? "Review native compositor coverage before treating this scene as production-ready."
-                  : "Keep this native runtime result as supporting evidence for the destination."
+                : incompleteVrmRendering
+                  ? "Confirm the native VRM renderer loads and renders every visible VRM source before retaining production evidence."
+                  : pendingComposition
+                    ? "Review native compositor coverage before treating this scene as production-ready."
+                    : "Keep this native runtime result as supporting evidence for the destination."
   };
 };
 
@@ -937,6 +964,12 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     vrmRuntimeStatuses: Array.isArray(value.vrmRuntimeStatuses)
       ? value.vrmRuntimeStatuses.filter((status): status is string => typeof status === "string")
       : [],
+    vrmRendererStatus: normalizeVrmRendererStatus(value.vrmRendererStatus, normalizeNonNegativeInteger(value.vrmSourceCount)),
+    vrmRendererBackend: typeof value.vrmRendererBackend === "string" ? value.vrmRendererBackend : "none",
+    vrmModelLoadedCount: normalizeNonNegativeInteger(value.vrmModelLoadedCount),
+    vrmRenderedSourceCount: normalizeNonNegativeInteger(value.vrmRenderedSourceCount),
+    vrmRenderMissingCount: normalizeNonNegativeInteger(value.vrmRenderMissingCount),
+    vrmRenderFailureCount: normalizeNonNegativeInteger(value.vrmRenderFailureCount),
     stale: value.stale === true,
     congested: value.congested === true,
     queuedItems: normalizeNonNegativeInteger(value.queuedItems),
@@ -1007,6 +1040,16 @@ const normalizeCompositionStatus = (
   value === "unknown" || value === "screen-only" || value === "applied" || value === "pending" || value === "failed"
     ? value
     : null;
+
+const normalizeVrmRendererStatus = (
+  value: unknown,
+  sourceCount: number
+): NonNullable<NativeRuntimeTelemetry["composition"]["vrmRendererStatus"]> =>
+  value === "not-required" || value === "unavailable" || value === "loading" || value === "ready" || value === "failed"
+    ? value
+    : sourceCount > 0
+      ? "unavailable"
+      : "not-required";
 
 const normalizeStability = (value: unknown): StreamHealthHistorySummary["stability"] | null =>
   value === "unknown" || value === "stable" || value === "watch" || value === "unstable" ? value : null;

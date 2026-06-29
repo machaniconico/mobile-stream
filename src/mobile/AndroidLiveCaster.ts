@@ -189,6 +189,14 @@ const normalizeNativeRuntime = (
           vrmMissingPoseCount: runtime.composition?.vrmMissingPoseCount ?? 0,
           vrmModelUriCount: runtime.composition?.vrmModelUriCount ?? 0,
           vrmRuntimeStatuses: runtime.composition?.vrmRuntimeStatuses ?? [],
+          vrmRendererStatus:
+            runtime.composition?.vrmRendererStatus ??
+            ((runtime.composition?.vrmSourceCount ?? 0) > 0 ? "unavailable" : "not-required"),
+          vrmRendererBackend: runtime.composition?.vrmRendererBackend ?? "none",
+          vrmModelLoadedCount: runtime.composition?.vrmModelLoadedCount ?? 0,
+          vrmRenderedSourceCount: runtime.composition?.vrmRenderedSourceCount ?? 0,
+          vrmRenderMissingCount: runtime.composition?.vrmRenderMissingCount ?? 0,
+          vrmRenderFailureCount: runtime.composition?.vrmRenderFailureCount ?? 0,
           message: runtime.composition?.message ?? ""
         },
         audioProcessing: {

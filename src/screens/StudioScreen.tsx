@@ -272,7 +272,7 @@ const sessionMetricLabel = (diagnostics: StreamDiagnostics): string =>
 
 const sessionNativeRuntimeLabel = (summary: StreamSessionSummary): string =>
   summary.nativeRuntime
-    ? `${summary.nativeRuntime.status} / ${summary.nativeRuntime.platform} / ${summary.nativeRuntime.publisherState || "-"} / queue ${summary.nativeRuntime.queuedItems}/${summary.nativeRuntime.cacheSize} / vrm ${summary.nativeRuntime.vrmActivePoseCount}/${summary.nativeRuntime.vrmSourceCount} active payloads ${summary.nativeRuntime.vrmPosePayloadCount} / drops ${summary.nativeRuntime.droppedVideoFrames} video ${summary.nativeRuntime.droppedAudioFrames} audio`
+    ? `${summary.nativeRuntime.status} / ${summary.nativeRuntime.platform} / ${summary.nativeRuntime.publisherState || "-"} / queue ${summary.nativeRuntime.queuedItems}/${summary.nativeRuntime.cacheSize} / vrm ${summary.nativeRuntime.vrmActivePoseCount}/${summary.nativeRuntime.vrmSourceCount} active payloads ${summary.nativeRuntime.vrmPosePayloadCount} renderer ${summary.nativeRuntime.vrmRendererStatus} ${summary.nativeRuntime.vrmRenderedSourceCount}/${summary.nativeRuntime.vrmSourceCount} / drops ${summary.nativeRuntime.droppedVideoFrames} video ${summary.nativeRuntime.droppedAudioFrames} audio`
     : "No native runtime evidence stored.";
 
 const sessionHistoryMetricLabel = (diagnostics: StreamDiagnostics): string =>
@@ -308,7 +308,7 @@ const nativeRuntimeMonitorMetricLabel = (diagnostics: StreamDiagnostics): string
 
 const nativeRuntimeMetricLabel = (diagnostics: StreamDiagnostics): string =>
   diagnostics.nativeRuntime
-    ? `${diagnostics.nativeRuntime.platform} / ${diagnostics.nativeRuntime.publisher.state || diagnostics.nativeRuntime.runtimeStatus} / ${diagnostics.nativeRuntime.composition.status} / assets ${diagnostics.nativeRuntime.composition.stillImageAssetLoadedCount ?? 0}/${diagnostics.nativeRuntime.composition.stillImageAssetCount ?? 0} / vrm ${diagnostics.nativeRuntime.composition.vrmActivePoseCount ?? 0}/${diagnostics.nativeRuntime.composition.vrmSourceCount ?? 0} active payloads ${diagnostics.nativeRuntime.composition.vrmPosePayloadCount ?? 0}${diagnostics.nativeRuntime.audioProcessing?.micEffectsEnabled ? ` / mic fx ${diagnostics.nativeRuntime.audioProcessing.micEffectsPresetId} ${diagnostics.nativeRuntime.audioProcessing.micEffectsProcessedFrames}` : ""}${nativeRuntimeMonitorMetricLabel(diagnostics)}${diagnostics.nativeRuntime.stale ? " / stale" : ""}${diagnostics.nativeRuntime.publisher.congested ? " / congested" : ""}`
+    ? `${diagnostics.nativeRuntime.platform} / ${diagnostics.nativeRuntime.publisher.state || diagnostics.nativeRuntime.runtimeStatus} / ${diagnostics.nativeRuntime.composition.status} / assets ${diagnostics.nativeRuntime.composition.stillImageAssetLoadedCount ?? 0}/${diagnostics.nativeRuntime.composition.stillImageAssetCount ?? 0} / vrm ${diagnostics.nativeRuntime.composition.vrmActivePoseCount ?? 0}/${diagnostics.nativeRuntime.composition.vrmSourceCount ?? 0} active payloads ${diagnostics.nativeRuntime.composition.vrmPosePayloadCount ?? 0} renderer ${diagnostics.nativeRuntime.composition.vrmRendererStatus ?? ((diagnostics.nativeRuntime.composition.vrmSourceCount ?? 0) > 0 ? "unavailable" : "not-required")} ${diagnostics.nativeRuntime.composition.vrmRenderedSourceCount ?? 0}/${diagnostics.nativeRuntime.composition.vrmSourceCount ?? 0}${diagnostics.nativeRuntime.audioProcessing?.micEffectsEnabled ? ` / mic fx ${diagnostics.nativeRuntime.audioProcessing.micEffectsPresetId} ${diagnostics.nativeRuntime.audioProcessing.micEffectsProcessedFrames}` : ""}${nativeRuntimeMonitorMetricLabel(diagnostics)}${diagnostics.nativeRuntime.stale ? " / stale" : ""}${diagnostics.nativeRuntime.publisher.congested ? " / congested" : ""}`
     : "Not linked";
 
 const audioGuardMetricLabel = (diagnostics: StreamDiagnostics): string =>
@@ -1951,7 +1951,7 @@ const publicLaunchChecklistTone = (status: PublicLaunchChecklistItemStatus): "pa
 
 const validationRunNativeRuntimeLabel = (run: StreamValidationRun): string | null =>
   run.nativeRuntime
-    ? `native ${run.nativeRuntime.status} / ${run.nativeRuntime.platform} / publisher ${run.nativeRuntime.publisherState || "-"} / queue ${run.nativeRuntime.queuedItems}/${run.nativeRuntime.cacheSize} / vrm ${run.nativeRuntime.vrmActivePoseCount}/${run.nativeRuntime.vrmSourceCount} active payloads ${run.nativeRuntime.vrmPosePayloadCount}`
+    ? `native ${run.nativeRuntime.status} / ${run.nativeRuntime.platform} / publisher ${run.nativeRuntime.publisherState || "-"} / queue ${run.nativeRuntime.queuedItems}/${run.nativeRuntime.cacheSize} / vrm ${run.nativeRuntime.vrmActivePoseCount}/${run.nativeRuntime.vrmSourceCount} active payloads ${run.nativeRuntime.vrmPosePayloadCount} renderer ${run.nativeRuntime.vrmRendererStatus} ${run.nativeRuntime.vrmRenderedSourceCount}/${run.nativeRuntime.vrmSourceCount}`
     : null;
 
 const validationRunMonitorHoldLabel = (run: StreamValidationRun): string | null =>

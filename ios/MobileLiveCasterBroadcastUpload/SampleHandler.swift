@@ -3134,6 +3134,12 @@ struct BroadcastSceneCompositionSummary: Equatable {
             "vrmMissingPoseCount": vrmPoseSummary.missingPoseCount,
             "vrmModelUriCount": vrmPoseSummary.modelUriCount,
             "vrmRuntimeStatuses": vrmPoseSummary.runtimeStatuses,
+            "vrmRendererStatus": vrmPoseSummary.rendererStatus,
+            "vrmRendererBackend": vrmPoseSummary.rendererBackend,
+            "vrmModelLoadedCount": vrmPoseSummary.modelLoadedCount,
+            "vrmRenderedSourceCount": vrmPoseSummary.renderedSourceCount,
+            "vrmRenderMissingCount": vrmPoseSummary.renderMissingCount,
+            "vrmRenderFailureCount": vrmPoseSummary.renderFailureCount,
             "message": message
         ]
     }
@@ -3146,6 +3152,12 @@ struct BroadcastVrmPoseSummary: Equatable {
     let missingPoseCount: Int
     let modelUriCount: Int
     let runtimeStatuses: [String]
+    let rendererStatus: String
+    let rendererBackend: String
+    let modelLoadedCount: Int
+    let renderedSourceCount: Int
+    let renderMissingCount: Int
+    let renderFailureCount: Int
 
     static let empty = BroadcastVrmPoseSummary(
         sourceCount: 0,
@@ -3153,7 +3165,13 @@ struct BroadcastVrmPoseSummary: Equatable {
         activePoseCount: 0,
         missingPoseCount: 0,
         modelUriCount: 0,
-        runtimeStatuses: []
+        runtimeStatuses: [],
+        rendererStatus: "not-required",
+        rendererBackend: "none",
+        modelLoadedCount: 0,
+        renderedSourceCount: 0,
+        renderMissingCount: 0,
+        renderFailureCount: 0
     )
 
     var evidenceMessage: String? {
@@ -3161,7 +3179,7 @@ struct BroadcastVrmPoseSummary: Equatable {
             return nil
         }
         let statusSuffix = runtimeStatuses.isEmpty ? "" : ", statuses \(runtimeStatuses.joined(separator: "/"))"
-        return "VRM poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix)"
+        return "VRM poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix), renderer \(rendererStatus) \(rendererBackend), rendered \(renderedSourceCount)/\(sourceCount)"
     }
 }
 
@@ -3861,7 +3879,13 @@ final class BroadcastSceneCompositor {
             activePoseCount: activePoseCount,
             missingPoseCount: missingPoseCount,
             modelUriCount: modelUriCount,
-            runtimeStatuses: runtimeStatuses.sorted()
+            runtimeStatuses: runtimeStatuses.sorted(),
+            rendererStatus: "unavailable",
+            rendererBackend: "none",
+            modelLoadedCount: 0,
+            renderedSourceCount: 0,
+            renderMissingCount: vrmNodes.count,
+            renderFailureCount: 0
         )
     }
 

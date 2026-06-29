@@ -15,6 +15,12 @@ export interface NativeRuntimeComposition {
   vrmMissingPoseCount?: number;
   vrmModelUriCount?: number;
   vrmRuntimeStatuses?: string[];
+  vrmRendererStatus?: "not-required" | "unavailable" | "loading" | "ready" | "failed";
+  vrmRendererBackend?: string;
+  vrmModelLoadedCount?: number;
+  vrmRenderedSourceCount?: number;
+  vrmRenderMissingCount?: number;
+  vrmRenderFailureCount?: number;
   message: string;
 }
 

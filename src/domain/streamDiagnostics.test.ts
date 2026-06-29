@@ -782,6 +782,12 @@ describe("stream diagnostics", () => {
           vrmMissingPoseCount: 0,
           vrmModelUriCount: 1,
           vrmRuntimeStatuses: ["active"],
+          vrmRendererStatus: "ready",
+          vrmRendererBackend: "native-test",
+          vrmModelLoadedCount: 1,
+          vrmRenderedSourceCount: 1,
+          vrmRenderMissingCount: 0,
+          vrmRenderFailureCount: 0,
           message: `Native overlays applied for ${demoStreamKey}`
         },
         message: `iOS extension live for ${demoStreamKey}`
@@ -855,6 +861,71 @@ describe("stream diagnostics", () => {
     expect(nativeCheck?.message).toContain("missing 1 VRM pose payload");
     expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
       "Composition VRM: 0/1 active / payloads 0 / missing 1"
+    );
+  });
+
+  it("warns when VRM poses arrive but the native VRM renderer has not rendered the source", () => {
+    const scene = createDefaultScene();
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3200, fps: 30, message: "Live" }),
+      nativeRuntime: {
+        platform: "ios",
+        runtimeStatus: "live",
+        updatedAt: Date.now(),
+        stale: false,
+        elapsedSeconds: 12,
+        videoFrames: 330,
+        encodedBytes: 4_400_000,
+        droppedFrames: 0,
+        publisher: {
+          state: "published",
+          reconnectAttempts: 0,
+          sentVideoFrames: 330,
+          sentAudioFrames: 500,
+          droppedVideoFrames: 0,
+          droppedAudioFrames: 0,
+          bytesWritten: 4_400_000,
+          cacheSize: 100,
+          itemsInCache: 0,
+          congested: false,
+          lastError: ""
+        },
+        composition: {
+          status: "applied",
+          appliedCount: 1,
+          skippedCount: 0,
+          skippedKinds: [],
+          stillImageAssetCount: 0,
+          stillImageAssetLoadedCount: 0,
+          stillImageAssetMissingCount: 0,
+          stillImageAssetMissingKinds: [],
+          vrmSourceCount: 1,
+          vrmPosePayloadCount: 1,
+          vrmActivePoseCount: 1,
+          vrmMissingPoseCount: 0,
+          vrmModelUriCount: 1,
+          vrmRuntimeStatuses: ["active"],
+          vrmRendererStatus: "unavailable",
+          vrmRendererBackend: "none",
+          vrmModelLoadedCount: 0,
+          vrmRenderedSourceCount: 0,
+          vrmRenderMissingCount: 1,
+          vrmRenderFailureCount: 0,
+          message: ""
+        },
+        message: "iOS runtime live"
+      }
+    });
+
+    const nativeCheck = diagnostics.checks.find((check) => check.code === "native-runtime-composition-applied");
+    expect(nativeCheck?.status).toBe("warn");
+    expect(nativeCheck?.message).toContain("Native VRM renderer is unavailable");
+    expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
+      "Composition VRM renderer: unavailable / none / rendered 0/1 / models 0/1 / missing 1 / failed 0"
     );
   });
 

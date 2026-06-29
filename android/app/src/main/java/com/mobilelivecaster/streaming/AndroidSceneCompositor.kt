@@ -24,7 +24,13 @@ data class AndroidVrmPoseSummary(
     val activePoseCount: Int = 0,
     val missingPoseCount: Int = 0,
     val modelUriCount: Int = 0,
-    val runtimeStatuses: Set<String> = emptySet()
+    val runtimeStatuses: Set<String> = emptySet(),
+    val rendererStatus: String = "not-required",
+    val rendererBackend: String = "none",
+    val modelLoadedCount: Int = 0,
+    val renderedSourceCount: Int = 0,
+    val renderMissingCount: Int = 0,
+    val renderFailureCount: Int = 0
 )
 
 data class AndroidCompositionResult(
@@ -44,7 +50,7 @@ data class AndroidCompositionResult(
                 else -> "Native overlays applied: $appliedCount, pending: ${skippedKinds.joinToString("/")}"
             }
             return if (vrmPoseSummary.sourceCount > 0) {
-                "$base; VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}"
+                "$base; VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}; VRM renderer ${vrmPoseSummary.rendererStatus} ${vrmPoseSummary.rendererBackend}, rendered ${vrmPoseSummary.renderedSourceCount}/${vrmPoseSummary.sourceCount}"
             } else {
                 base
             }
@@ -411,7 +417,13 @@ object AndroidSceneCompositor {
             activePoseCount = activePoseCount,
             missingPoseCount = missingPoseCount,
             modelUriCount = modelUriCount,
-            runtimeStatuses = runtimeStatuses
+            runtimeStatuses = runtimeStatuses,
+            rendererStatus = "unavailable",
+            rendererBackend = "none",
+            modelLoadedCount = 0,
+            renderedSourceCount = 0,
+            renderMissingCount = vrmNodes.size,
+            renderFailureCount = 0
         )
     }
 

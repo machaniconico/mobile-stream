@@ -488,12 +488,22 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
 
   const missingAssets = nativeRuntime.composition.stillImageAssetMissingCount ?? 0;
   const missingVrmPoses = nativeRuntime.composition.vrmMissingPoseCount ?? 0;
+  const vrmSourceCount = nativeRuntime.composition.vrmSourceCount ?? 0;
+  const vrmRendererStatus = nativeRuntime.composition.vrmRendererStatus ?? (vrmSourceCount > 0 ? "unavailable" : "not-required");
+  const vrmRenderedSourceCount = nativeRuntime.composition.vrmRenderedSourceCount ?? 0;
+  const missingVrmRenders =
+    vrmSourceCount > 0 &&
+    (vrmRendererStatus !== "ready" ||
+      vrmRenderedSourceCount < vrmSourceCount ||
+      (nativeRuntime.composition.vrmRenderMissingCount ?? 0) > 0 ||
+      (nativeRuntime.composition.vrmRenderFailureCount ?? 0) > 0);
   if (
     nativeRuntime.stale ||
     nativeRuntime.publisher.congested ||
     nativeRuntime.composition.status === "pending" ||
     missingAssets > 0 ||
-    missingVrmPoses > 0
+    missingVrmPoses > 0 ||
+    missingVrmRenders
   ) {
     return {
       id: "runbook-native-runtime-review",
@@ -506,7 +516,9 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
           ? "Prepare App Group/native-readable still-image assets again, then repeat the iOS compositor validation."
           : missingVrmPoses > 0
             ? "Confirm VRM runtime pose payloads are included in the render graph before recording a pass."
-          : "Review native runtime congestion, stale telemetry, or pending compositor state before recording a pass."
+            : missingVrmRenders
+              ? "Integrate or enable the native VRM renderer, then repeat validation until every visible VRM source is rendered."
+              : "Review native runtime congestion, stale telemetry, or pending compositor state before recording a pass."
     };
   }
 

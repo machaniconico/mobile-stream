@@ -860,7 +860,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 28 as const
+    bundleVersion: 29 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -986,6 +986,12 @@ const manifestRun = ({
   nativeRuntimeVrmPosePayloadCount = 0,
   nativeRuntimeVrmActivePoseCount = 0,
   nativeRuntimeVrmMissingPoseCount = 0,
+  nativeRuntimeVrmRendererStatus = "not-required",
+  nativeRuntimeVrmRendererBackend = "none",
+  nativeRuntimeVrmModelLoadedCount = 0,
+  nativeRuntimeVrmRenderedSourceCount = 0,
+  nativeRuntimeVrmRenderMissingCount = 0,
+  nativeRuntimeVrmRenderFailureCount = 0,
   monitorHoldStatus = "pass",
   monitorHoldSampleCount = 3,
   monitorHoldDurationSeconds = 65,
@@ -1061,6 +1067,12 @@ const manifestRun = ({
   nativeRuntimeVrmPosePayloadCount?: ValidationManifestRun["nativeRuntimeVrmPosePayloadCount"];
   nativeRuntimeVrmActivePoseCount?: ValidationManifestRun["nativeRuntimeVrmActivePoseCount"];
   nativeRuntimeVrmMissingPoseCount?: ValidationManifestRun["nativeRuntimeVrmMissingPoseCount"];
+  nativeRuntimeVrmRendererStatus?: ValidationManifestRun["nativeRuntimeVrmRendererStatus"];
+  nativeRuntimeVrmRendererBackend?: ValidationManifestRun["nativeRuntimeVrmRendererBackend"];
+  nativeRuntimeVrmModelLoadedCount?: ValidationManifestRun["nativeRuntimeVrmModelLoadedCount"];
+  nativeRuntimeVrmRenderedSourceCount?: ValidationManifestRun["nativeRuntimeVrmRenderedSourceCount"];
+  nativeRuntimeVrmRenderMissingCount?: ValidationManifestRun["nativeRuntimeVrmRenderMissingCount"];
+  nativeRuntimeVrmRenderFailureCount?: ValidationManifestRun["nativeRuntimeVrmRenderFailureCount"];
   monitorHoldStatus?: ValidationManifestRun["monitorHoldStatus"];
   monitorHoldSampleCount?: ValidationManifestRun["monitorHoldSampleCount"];
   monitorHoldDurationSeconds?: ValidationManifestRun["monitorHoldDurationSeconds"];
@@ -1142,6 +1154,12 @@ const manifestRun = ({
   nativeRuntimeVrmPosePayloadCount,
   nativeRuntimeVrmActivePoseCount,
   nativeRuntimeVrmMissingPoseCount,
+  nativeRuntimeVrmRendererStatus,
+  nativeRuntimeVrmRendererBackend,
+  nativeRuntimeVrmModelLoadedCount,
+  nativeRuntimeVrmRenderedSourceCount,
+  nativeRuntimeVrmRenderMissingCount,
+  nativeRuntimeVrmRenderFailureCount,
   monitorHoldStatus,
   monitorHoldSampleCount,
   monitorHoldDurationSeconds,
