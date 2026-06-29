@@ -59,6 +59,24 @@ export interface AvatarIllustrationImageAnalysis {
   confidence: number;
 }
 
+export interface AvatarIllustrationLandmarkPoint {
+  /** Normalized horizontal position. Values outside 0-1 are retained for detector diagnostics but ignored by rig inference. */
+  x: number;
+  /** Normalized vertical position in the still-image coordinate space, from top 0 to bottom 1. */
+  y: number;
+  confidence?: number;
+}
+
+export interface AvatarIllustrationLandmarkAnalysis {
+  confidence: number;
+  faceCenter?: AvatarIllustrationLandmarkPoint | null;
+  leftEye?: AvatarIllustrationLandmarkPoint | null;
+  rightEye?: AvatarIllustrationLandmarkPoint | null;
+  mouthCenter?: AvatarIllustrationLandmarkPoint | null;
+  hairLineY?: number | null;
+  shoulderLineY?: number | null;
+}
+
 export interface AvatarIllustrationAlphaMaskInput {
   width: number;
   height: number;
@@ -202,6 +220,7 @@ export interface AvatarIllustrationRigInferenceInput {
   transform?: Partial<Transform> | null;
   imageAspectRatio?: number | null;
   imageAnalysis?: AvatarIllustrationImageAnalysis | null;
+  landmarkAnalysis?: AvatarIllustrationLandmarkAnalysis | null;
 }
 
 export interface RenderNode {
@@ -345,6 +364,7 @@ export const inferAvatarIllustrationRig = (
   const transformHeight = clampRange(input.transform?.height ?? 0.45, 0.03, 1);
   const imageAspectRatio = finiteNumber(input.imageAspectRatio, 0);
   const analysisRig = inferAvatarIllustrationRigFromImageAnalysis(input.imageAnalysis ?? null);
+  const landmarkRig = inferAvatarIllustrationRigFromLandmarks(input.landmarkAnalysis ?? null, input.imageAnalysis ?? null);
   const renderAspect =
     input.imageAnalysis?.imageAspectRatio && input.imageAnalysis.imageAspectRatio > 0
       ? input.imageAnalysis.imageAspectRatio
@@ -383,7 +403,75 @@ export const inferAvatarIllustrationRig = (
           sliceCount: 24
         };
 
-  return defaultAvatarIllustrationRig({ ...inferred, ...analysisRig, ...overrides });
+  return defaultAvatarIllustrationRig({ ...inferred, ...analysisRig, ...landmarkRig, ...overrides });
+};
+
+const inferAvatarIllustrationRigFromLandmarks = (
+  landmarks: AvatarIllustrationLandmarkAnalysis | null,
+  imageAnalysis: AvatarIllustrationImageAnalysis | null
+): Partial<AvatarIllustrationRig> => {
+  if (!landmarks || clamp01(finiteNumber(landmarks.confidence, 0)) < 0.55) {
+    return {};
+  }
+  const leftEye = normalizedPoint(landmarks.leftEye);
+  const rightEye = normalizedPoint(landmarks.rightEye);
+  const mouth = normalizedPoint(landmarks.mouthCenter);
+  if (!mouth || (!leftEye && !rightEye)) {
+    return {};
+  }
+  const eyeLineY = averageNumbers([leftEye?.y, rightEye?.y]);
+  if (eyeLineY === null) {
+    return {};
+  }
+  const faceCenter = normalizedPoint(landmarks.faceCenter);
+  const foregroundBounds = imageAnalysis?.foregroundBounds;
+  const topLimit = foregroundBounds?.top ?? 0;
+  const bottomLimit = foregroundBounds?.bottom ?? 1;
+  const eyeMouthGap = Math.max(0.08, mouth.y - eyeLineY);
+  const measuredHairLineY = normalizedY(landmarks.hairLineY);
+  const measuredShoulderLineY = normalizedY(landmarks.shoulderLineY);
+  const hairLineY = Math.min(
+    measuredHairLineY ?? clampRange(eyeLineY - eyeMouthGap * 0.85, topLimit, eyeLineY - 0.03),
+    eyeLineY - 0.03
+  );
+  const mouthLineY = Math.max(mouth.y, eyeLineY + 0.11);
+  const shoulderLineY = Math.max(
+    measuredShoulderLineY ?? clampRange(mouthLineY + eyeMouthGap * 1.45, mouthLineY + 0.12, bottomLimit),
+    mouthLineY + 0.12
+  );
+  const inferredFaceCenterY = faceCenter?.y ?? clampRange(eyeLineY + eyeMouthGap * 0.42, topLimit + 0.08, bottomLimit - 0.08);
+  const lowerFaceReach = Math.max(mouthLineY - hairLineY, eyeMouthGap * 1.6);
+  const faceRange = clampRange(lowerFaceReach * 1.15, 0.22, 0.64);
+  const confidence = clamp01(finiteNumber(landmarks.confidence, 0));
+  return {
+    faceCenterY: inferredFaceCenterY,
+    faceRange,
+    hairLineY,
+    shoulderLineY,
+    eyeLineY,
+    mouthLineY,
+    sliceCount: confidence >= 0.82 ? 36 : 32
+  };
+};
+
+const normalizedPoint = (point: AvatarIllustrationLandmarkPoint | null | undefined): AvatarIllustrationLandmarkPoint | null => {
+  if (!point) {
+    return null;
+  }
+  const y = normalizedY(point.y);
+  const confidence = point.confidence === undefined ? 1 : clamp01(finiteNumber(point.confidence, 0));
+  return y === null || confidence < 0.35 ? null : { x: clamp01(finiteNumber(point.x, 0.5)), y, confidence };
+};
+
+const normalizedY = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1 ? value : null;
+
+const averageNumbers = (values: Array<number | null | undefined>): number | null => {
+  const finiteValues = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  if (finiteValues.length === 0) {
+    return null;
+  }
+  return finiteValues.reduce((sum, value) => sum + value, 0) / finiteValues.length;
 };
 
 const inferAvatarIllustrationRigFromImageAnalysis = (
@@ -905,7 +993,7 @@ export const applyInferredAvatarIllustrationRig = (
   scene: SceneDocument,
   sourceId: string,
   overrides: Partial<AvatarIllustrationRig> = {},
-  input: Pick<AvatarIllustrationRigInferenceInput, "imageAspectRatio" | "imageAnalysis"> = {}
+  input: Pick<AvatarIllustrationRigInferenceInput, "imageAspectRatio" | "imageAnalysis" | "landmarkAnalysis"> = {}
 ): SceneDocument =>
   updateSource(scene, sourceId, (source) =>
     source.kind === "pngtuber"

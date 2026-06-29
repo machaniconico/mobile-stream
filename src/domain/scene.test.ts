@@ -348,6 +348,65 @@ describe("scene document", () => {
     });
   });
 
+  it("uses semantic face landmarks over alpha geometry when auto-rigging", () => {
+    const scene = createDefaultScene();
+    const avatar = scene.sources.find((source) => source.kind === "pngtuber");
+    expect(avatar).toBeDefined();
+    const imageAnalysis = analyzeAvatarIllustrationAlphaMask({
+      width: 100,
+      height: 100,
+      data: new Uint8ClampedArray(100 * 100 * 4).fill(255),
+      sampleStep: 1
+    });
+    const rigged = applyInferredAvatarIllustrationRig(scene, avatar!.id, {}, {
+      imageAnalysis,
+      landmarkAnalysis: {
+        confidence: 0.9,
+        faceCenter: { x: 0.5, y: 0.4, confidence: 0.92 },
+        leftEye: { x: 0.42, y: 0.31, confidence: 0.88 },
+        rightEye: { x: 0.58, y: 0.33, confidence: 0.88 },
+        mouthCenter: { x: 0.5, y: 0.49, confidence: 0.9 },
+        hairLineY: 0.19,
+        shoulderLineY: 0.68
+      }
+    });
+    const riggedAvatar = rigged.sources.find((source) => source.kind === "pngtuber");
+
+    expect(riggedAvatar?.kind).toBe("pngtuber");
+    expect(riggedAvatar?.illustrationRig.faceCenterY).toBeCloseTo(0.4, 3);
+    expect(riggedAvatar?.illustrationRig.eyeLineY).toBeCloseTo(0.32, 3);
+    expect(riggedAvatar?.illustrationRig.mouthLineY).toBeCloseTo(0.49, 3);
+    expect(riggedAvatar?.illustrationRig.hairLineY).toBeCloseTo(0.19, 3);
+    expect(riggedAvatar?.illustrationRig.shoulderLineY).toBeCloseTo(0.68, 3);
+    expect(riggedAvatar?.illustrationRig.faceRange).toBeCloseTo(0.345, 3);
+    expect(riggedAvatar?.illustrationRig.sliceCount).toBe(36);
+  });
+
+  it("keeps landmark auto-rig output ordered when optional landmarks are noisy", () => {
+    const scene = createDefaultScene();
+    const avatar = scene.sources.find((source) => source.kind === "pngtuber");
+    expect(avatar).toBeDefined();
+    const rigged = applyInferredAvatarIllustrationRig(scene, avatar!.id, {}, {
+      landmarkAnalysis: {
+        confidence: 0.9,
+        leftEye: { x: -12, y: 0.32, confidence: 0.88 },
+        mouthCenter: { x: 12, y: 0.34, confidence: 0.9 },
+        hairLineY: 0.4,
+        shoulderLineY: 0.35
+      }
+    });
+    const riggedAvatar = rigged.sources.find((source) => source.kind === "pngtuber");
+
+    expect(riggedAvatar?.kind).toBe("pngtuber");
+    const rig = riggedAvatar?.kind === "pngtuber" ? riggedAvatar.illustrationRig : null;
+    expect(rig).not.toBeNull();
+    expect(rig!.hairLineY).toBeLessThan(rig!.eyeLineY);
+    expect(rig!.mouthLineY).toBeGreaterThan(rig!.eyeLineY);
+    expect(rig!.shoulderLineY).toBeGreaterThan(rig!.mouthLineY);
+    expect(rig!.mouthLineY - rig!.eyeLineY).toBeGreaterThan(0.1);
+    expect(rig!.shoulderLineY - rig!.mouthLineY).toBeGreaterThanOrEqual(0.12);
+  });
+
   it("builds transparent chat overlay payloads from runtime comments without persisting message text", () => {
     const scene = createDefaultScene();
     const graph = toRenderGraph(scene, {
