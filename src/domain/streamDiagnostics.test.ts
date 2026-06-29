@@ -603,6 +603,9 @@ describe("stream diagnostics", () => {
     expect(report).toContain(
       "Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / sent 0 video 0 audio / bytes 0"
     );
+    expect(report).toContain(
+      "primitives 0 triangles 0 unsupported modes 0 skinned 0 joints 0 position accessors 0 normals 0 uvs 0 vertices 0 indices 0 bounds 0 skin attrs 0 morphs 0 materials 0 transparent materials 0 textures 0 images 0 unsupported image mimes 0 pose bones 0/0 pose expressions 0/0"
+    );
   });
 
   it("reports blocking checks when the stream key is missing", () => {
