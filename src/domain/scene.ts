@@ -43,6 +43,32 @@ export interface AvatarIllustrationRig {
   sliceCount: number;
 }
 
+export interface AvatarIllustrationForegroundBounds {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  width: number;
+  height: number;
+}
+
+export interface AvatarIllustrationImageAnalysis {
+  imageAspectRatio: number;
+  foregroundBounds: AvatarIllustrationForegroundBounds | null;
+  foregroundCoverage: number;
+  confidence: number;
+}
+
+export interface AvatarIllustrationAlphaMaskInput {
+  width: number;
+  height: number;
+  data: ArrayLike<number>;
+  pixelStride?: number;
+  alphaOffset?: number;
+  alphaThreshold?: number;
+  sampleStep?: number;
+}
+
 export interface BaseSource {
   id: string;
   kind: SourceKind;
@@ -175,6 +201,7 @@ export interface AvatarIllustrationRigInferenceInput {
   canvas?: Partial<SceneDocument["canvas"]> | null;
   transform?: Partial<Transform> | null;
   imageAspectRatio?: number | null;
+  imageAnalysis?: AvatarIllustrationImageAnalysis | null;
 }
 
 export interface RenderNode {
@@ -238,6 +265,76 @@ export const defaultAvatarIllustrationRig = (overrides: Partial<AvatarIllustrati
   sliceCount: Math.round(clampRange(overrides.sliceCount ?? 24, 12, 40))
 });
 
+export const analyzeAvatarIllustrationAlphaMask = (
+  input: AvatarIllustrationAlphaMaskInput
+): AvatarIllustrationImageAnalysis | null => {
+  const width = Math.floor(finiteNumber(input.width, 0));
+  const height = Math.floor(finiteNumber(input.height, 0));
+  const pixelStride = Math.max(1, Math.floor(finiteNumber(input.pixelStride, 4)));
+  const alphaOffset = Math.max(0, Math.floor(finiteNumber(input.alphaOffset, 3)));
+  const alphaThreshold = clampRange(finiteNumber(input.alphaThreshold, 16), 0, 255);
+  const sampleStep = Math.max(
+    1,
+    Math.floor(finiteNumber(input.sampleStep, Math.ceil(Math.max(width, height) / 512)))
+  );
+  const expectedLength = width * height * pixelStride;
+  if (width <= 0 || height <= 0 || input.data.length < expectedLength || alphaOffset >= pixelStride) {
+    return null;
+  }
+
+  let minX = width;
+  let maxX = -1;
+  let minY = height;
+  let maxY = -1;
+  let foregroundSamples = 0;
+  let totalSamples = 0;
+  for (let y = 0; y < height; y += sampleStep) {
+    for (let x = 0; x < width; x += sampleStep) {
+      totalSamples += 1;
+      const alpha = input.data[(y * width + x) * pixelStride + alphaOffset] ?? 0;
+      if (alpha <= alphaThreshold) {
+        continue;
+      }
+      foregroundSamples += 1;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+  }
+
+  const imageAspectRatio = width / height;
+  if (foregroundSamples === 0 || totalSamples === 0) {
+    return {
+      imageAspectRatio,
+      foregroundBounds: null,
+      foregroundCoverage: 0,
+      confidence: 0
+    };
+  }
+
+  const left = minX / width;
+  const right = Math.min(1, (maxX + sampleStep) / width);
+  const top = minY / height;
+  const bottom = Math.min(1, (maxY + sampleStep) / height);
+  const foregroundCoverage = foregroundSamples / totalSamples;
+  const bounds = {
+    left,
+    right,
+    top,
+    bottom,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top)
+  };
+
+  return {
+    imageAspectRatio,
+    foregroundBounds: bounds,
+    foregroundCoverage,
+    confidence: clamp01(bounds.width * bounds.height > 0 ? foregroundCoverage / Math.max(bounds.width * bounds.height, 0.01) : 0)
+  };
+};
+
 export const inferAvatarIllustrationRig = (
   input: AvatarIllustrationRigInferenceInput = {},
   overrides: Partial<AvatarIllustrationRig> = {}
@@ -247,8 +344,13 @@ export const inferAvatarIllustrationRig = (
   const transformWidth = clampRange(input.transform?.width ?? 0.3, 0.03, 1);
   const transformHeight = clampRange(input.transform?.height ?? 0.45, 0.03, 1);
   const imageAspectRatio = finiteNumber(input.imageAspectRatio, 0);
+  const analysisRig = inferAvatarIllustrationRigFromImageAnalysis(input.imageAnalysis ?? null);
   const renderAspect =
-    imageAspectRatio > 0 ? imageAspectRatio : (transformWidth * canvasWidth) / Math.max(transformHeight * canvasHeight, 1);
+    input.imageAnalysis?.imageAspectRatio && input.imageAnalysis.imageAspectRatio > 0
+      ? input.imageAnalysis.imageAspectRatio
+      : imageAspectRatio > 0
+        ? imageAspectRatio
+        : (transformWidth * canvasWidth) / Math.max(transformHeight * canvasHeight, 1);
   const tallOrLarge = transformHeight >= 0.58 || renderAspect < 0.74;
   const closeUp = transformHeight <= 0.28 || renderAspect > 1.32;
   const inferred = tallOrLarge
@@ -281,7 +383,61 @@ export const inferAvatarIllustrationRig = (
           sliceCount: 24
         };
 
-  return defaultAvatarIllustrationRig({ ...inferred, ...overrides });
+  return defaultAvatarIllustrationRig({ ...inferred, ...analysisRig, ...overrides });
+};
+
+const inferAvatarIllustrationRigFromImageAnalysis = (
+  analysis: AvatarIllustrationImageAnalysis | null
+): Partial<AvatarIllustrationRig> => {
+  const bounds = analysis?.foregroundBounds;
+  if (!bounds || analysis.confidence < 0.25 || bounds.height < 0.18 || bounds.width < 0.08) {
+    return {};
+  }
+  if (bounds.width > 0.96 && bounds.height > 0.96 && analysis.foregroundCoverage > 0.9) {
+    return {};
+  }
+  const foregroundAspectRatio = bounds.width / Math.max(bounds.height, 0.01);
+  const fullBody = foregroundAspectRatio < 0.46 || bounds.height > 0.78;
+  const closeUp = foregroundAspectRatio > 1.15 || bounds.height < 0.38;
+  const preset = fullBody
+    ? {
+        faceCenterY: 0.32,
+        faceRange: 0.24,
+        hairLineY: 0.23,
+        shoulderLineY: 0.54,
+        eyeLineY: 0.28,
+        mouthLineY: 0.39,
+        sliceCount: 32
+      }
+    : closeUp
+      ? {
+          faceCenterY: 0.46,
+          faceRange: 0.48,
+          hairLineY: 0.26,
+          shoulderLineY: 0.82,
+          eyeLineY: 0.4,
+          mouthLineY: 0.58,
+          sliceCount: 24
+        }
+      : {
+          faceCenterY: 0.39,
+          faceRange: 0.34,
+          hairLineY: 0.31,
+          shoulderLineY: 0.63,
+          eyeLineY: 0.34,
+          mouthLineY: 0.49,
+          sliceCount: 28
+        };
+  const mapY = (value: number) => bounds.top + value * bounds.height;
+  return {
+    faceCenterY: mapY(preset.faceCenterY),
+    faceRange: preset.faceRange * bounds.height,
+    hairLineY: mapY(preset.hairLineY),
+    shoulderLineY: mapY(preset.shoulderLineY),
+    eyeLineY: mapY(preset.eyeLineY),
+    mouthLineY: mapY(preset.mouthLineY),
+    sliceCount: analysis.confidence >= 0.65 ? preset.sliceCount : Math.max(20, preset.sliceCount - 4)
+  };
 };
 
 export const defaultTransform = (overrides: Partial<Transform> = {}): Transform =>
@@ -749,7 +905,7 @@ export const applyInferredAvatarIllustrationRig = (
   scene: SceneDocument,
   sourceId: string,
   overrides: Partial<AvatarIllustrationRig> = {},
-  input: Pick<AvatarIllustrationRigInferenceInput, "imageAspectRatio"> = {}
+  input: Pick<AvatarIllustrationRigInferenceInput, "imageAspectRatio" | "imageAnalysis"> = {}
 ): SceneDocument =>
   updateSource(scene, sourceId, (source) =>
     source.kind === "pngtuber"

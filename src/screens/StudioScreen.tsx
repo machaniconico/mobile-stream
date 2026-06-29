@@ -65,6 +65,7 @@ import {
 import type { ReadinessReport } from "../domain/readiness";
 import {
   addSource,
+  analyzeAvatarIllustrationAlphaMask,
   applyInferredAvatarIllustrationRig,
   createSource,
   defaultAvatarIllustrationRig,
@@ -77,6 +78,7 @@ import {
   updateTransform,
   type SceneDocument,
   type AvatarIllustrationRig,
+  type AvatarIllustrationRigInferenceInput,
   type RenderNode,
   type SceneSource,
   type SceneTemplateId,
@@ -573,15 +575,8 @@ export const StudioScreen = ({
     if (setupLocked || selectedSource.kind !== "pngtuber") {
       return;
     }
-    const imageAspectRatio = await resolveBrowserImageAspectRatio(selectedSource.imageUri);
-    onSceneChange(
-      applyInferredAvatarIllustrationRig(
-        scene,
-        selectedSource.id,
-        {},
-        imageAspectRatio === null ? {} : { imageAspectRatio }
-      )
-    );
+    const rigInput = await resolveBrowserAvatarRigInferenceInput(selectedSource.imageUri);
+    onSceneChange(applyInferredAvatarIllustrationRig(scene, selectedSource.id, {}, rigInput));
   };
 
   return (
@@ -2370,20 +2365,87 @@ const ChatReaderPanel = ({
   );
 };
 
-const resolveBrowserImageAspectRatio = (uri: string): Promise<number | null> => {
+const resolveBrowserAvatarRigInferenceInput = (
+  uri: string
+): Promise<Pick<AvatarIllustrationRigInferenceInput, "imageAspectRatio" | "imageAnalysis">> => {
   const trimmedUri = uri.trim();
   if (!trimmedUri || typeof window === "undefined" || typeof window.Image !== "function") {
-    return Promise.resolve(null);
+    return Promise.resolve({});
   }
 
-  return new Promise((resolve) => {
-    const image = new window.Image();
-    image.onload = () => {
-      resolve(image.naturalWidth > 0 && image.naturalHeight > 0 ? image.naturalWidth / image.naturalHeight : null);
-    };
-    image.onerror = () => resolve(null);
-    image.src = trimmedUri;
+  return loadBrowserAvatarRigInferenceInput(trimmedUri, false).then((result) => {
+    if (result.analysisReadable || !isCrossOriginHttpUri(trimmedUri)) {
+      return result.input;
+    }
+    return loadBrowserAvatarRigInferenceInput(trimmedUri, true).then((retry) =>
+      retry.analysisReadable ? retry.input : result.input
+    );
   });
+};
+
+const loadBrowserAvatarRigInferenceInput = (
+  uri: string,
+  anonymousCors: boolean
+): Promise<{
+  input: Pick<AvatarIllustrationRigInferenceInput, "imageAspectRatio" | "imageAnalysis">;
+  analysisReadable: boolean;
+}> =>
+  new Promise((resolve) => {
+    const image = new window.Image();
+    if (anonymousCors) {
+      image.crossOrigin = "anonymous";
+    }
+    image.onload = () => {
+      const imageAspectRatio = image.naturalWidth > 0 && image.naturalHeight > 0 ? image.naturalWidth / image.naturalHeight : null;
+      if (!imageAspectRatio || typeof document === "undefined") {
+        resolve({
+          input: imageAspectRatio === null ? {} : { imageAspectRatio },
+          analysisReadable: false
+        });
+        return;
+      }
+      try {
+        const maxAnalysisSize = 512;
+        const scale = Math.min(1, maxAnalysisSize / Math.max(image.naturalWidth, image.naturalHeight));
+        const width = Math.max(1, Math.round(image.naturalWidth * scale));
+        const height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        if (!context) {
+          resolve({ input: { imageAspectRatio }, analysisReadable: false });
+          return;
+        }
+        context.drawImage(image, 0, 0, width, height);
+        const imageData = context.getImageData(0, 0, width, height);
+        const imageAnalysis = analyzeAvatarIllustrationAlphaMask({
+          width,
+          height,
+          data: imageData.data
+        });
+        resolve({
+          input: imageAnalysis ? { imageAspectRatio, imageAnalysis } : { imageAspectRatio },
+          analysisReadable: true
+        });
+      } catch {
+        resolve({ input: { imageAspectRatio }, analysisReadable: false });
+      }
+    };
+    image.onerror = () => resolve({ input: {}, analysisReadable: false });
+    image.src = uri;
+  });
+
+const isCrossOriginHttpUri = (uri: string): boolean => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  try {
+    const parsed = new URL(uri, window.location.href);
+    return (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.origin !== window.location.origin;
+  } catch {
+    return false;
+  }
 };
 
 interface ProgramPreviewProps {

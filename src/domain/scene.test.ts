@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addSource,
+  analyzeAvatarIllustrationAlphaMask,
   applyInferredAvatarIllustrationRig,
   addSceneToCollection,
   activatePrivacyShieldScene,
@@ -276,6 +277,74 @@ describe("scene document", () => {
       faceRange: 0.24,
       shoulderLineY: 0.54,
       sliceCount: 32
+    });
+  });
+
+  it("uses alpha-mask foreground analysis when auto-rigging a padded still image", () => {
+    const scene = createDefaultScene();
+    const avatar = scene.sources.find((source) => source.kind === "pngtuber");
+    expect(avatar).toBeDefined();
+    const width = 100;
+    const height = 100;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    for (let y = 10; y < 96; y += 1) {
+      for (let x = 38; x < 62; x += 1) {
+        pixels[(y * width + x) * 4 + 3] = 255;
+      }
+    }
+
+    const imageAnalysis = analyzeAvatarIllustrationAlphaMask({
+      width,
+      height,
+      data: pixels,
+      sampleStep: 1
+    });
+    const rigged = applyInferredAvatarIllustrationRig(scene, avatar!.id, {}, { imageAnalysis });
+    const riggedAvatar = rigged.sources.find((source) => source.kind === "pngtuber");
+
+    expect(imageAnalysis?.foregroundBounds).toMatchObject({
+      top: 0.1,
+      bottom: 0.96
+    });
+    expect(riggedAvatar?.kind).toBe("pngtuber");
+    expect(riggedAvatar?.illustrationRig.faceCenterY).toBeCloseTo(0.375, 2);
+    expect(riggedAvatar?.illustrationRig.eyeLineY).toBeCloseTo(0.341, 2);
+    expect(riggedAvatar?.illustrationRig.mouthLineY).toBeCloseTo(0.435, 2);
+    expect(riggedAvatar?.illustrationRig.shoulderLineY).toBeCloseTo(0.564, 2);
+    expect(riggedAvatar?.illustrationRig.sliceCount).toBe(32);
+  });
+
+  it("falls back to aspect geometry when alpha analysis only finds a full opaque canvas", () => {
+    const scene = createDefaultScene();
+    const avatar = scene.sources.find((source) => source.kind === "pngtuber");
+    expect(avatar).toBeDefined();
+    const closeUpByFrame = updateTransform(scene, avatar!.id, { width: 0.62, height: 0.24 });
+    const width = 80;
+    const height = 80;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    for (let index = 3; index < pixels.length; index += 4) {
+      pixels[index] = 255;
+    }
+
+    const imageAnalysis = analyzeAvatarIllustrationAlphaMask({
+      width,
+      height,
+      data: pixels,
+      sampleStep: 1
+    });
+    const rigged = applyInferredAvatarIllustrationRig(closeUpByFrame, avatar!.id, {}, { imageAnalysis });
+    const riggedAvatar = rigged.sources.find((source) => source.kind === "pngtuber");
+
+    expect(imageAnalysis?.foregroundBounds).toMatchObject({
+      top: 0,
+      bottom: 1
+    });
+    expect(riggedAvatar?.kind).toBe("pngtuber");
+    expect(riggedAvatar?.illustrationRig).toMatchObject({
+      faceCenterY: 0.46,
+      faceRange: 0.48,
+      shoulderLineY: 0.82,
+      sliceCount: 20
     });
   });
 
