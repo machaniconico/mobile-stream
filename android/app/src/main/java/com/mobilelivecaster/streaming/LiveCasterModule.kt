@@ -21,6 +21,12 @@ data class NativeRuntimeComposition(
     val appliedCount: Int = 0,
     val skippedCount: Int = 0,
     val skippedKinds: List<String> = emptyList(),
+    val stillImageAssetCount: Int = 0,
+    val stillImageAssetLoadedCount: Int = 0,
+    val stillImageAssetMissingCount: Int = 0,
+    val stillImageAssetMissingKinds: List<String> = emptyList(),
+    val stillImageAssetDecodedCount: Int = 0,
+    val stillImageAssetDecodedPixelCount: Long = 0,
     val vrmSourceCount: Int = 0,
     val vrmPosePayloadCount: Int = 0,
     val vrmActivePoseCount: Int = 0,
@@ -67,6 +73,12 @@ data class NativeRuntimeComposition(
         putInt("appliedCount", appliedCount)
         putInt("skippedCount", skippedCount)
         putArray("skippedKinds", skippedKinds.toWritableArray())
+        putInt("stillImageAssetCount", stillImageAssetCount)
+        putInt("stillImageAssetLoadedCount", stillImageAssetLoadedCount)
+        putInt("stillImageAssetMissingCount", stillImageAssetMissingCount)
+        putArray("stillImageAssetMissingKinds", stillImageAssetMissingKinds.toWritableArray())
+        putInt("stillImageAssetDecodedCount", stillImageAssetDecodedCount)
+        putDouble("stillImageAssetDecodedPixelCount", stillImageAssetDecodedPixelCount.toDouble())
         putInt("vrmSourceCount", vrmSourceCount)
         putInt("vrmPosePayloadCount", vrmPosePayloadCount)
         putInt("vrmActivePoseCount", vrmActivePoseCount)
@@ -127,6 +139,12 @@ private fun AndroidCompositionResult.toNativeRuntimeComposition(): NativeRuntime
         appliedCount = appliedCount,
         skippedCount = skippedCount,
         skippedKinds = skippedKinds.toList().sorted(),
+        stillImageAssetCount = stillImageAssetCount,
+        stillImageAssetLoadedCount = stillImageAssetLoadedCount,
+        stillImageAssetMissingCount = stillImageAssetMissingCount,
+        stillImageAssetMissingKinds = stillImageAssetMissingKinds.toList().sorted(),
+        stillImageAssetDecodedCount = stillImageAssetDecodedCount,
+        stillImageAssetDecodedPixelCount = stillImageAssetDecodedPixelCount,
         vrmSourceCount = vrmPoseSummary.sourceCount,
         vrmPosePayloadCount = vrmPoseSummary.posePayloadCount,
         vrmActivePoseCount = vrmPoseSummary.activePoseCount,

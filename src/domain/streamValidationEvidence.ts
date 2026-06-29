@@ -207,6 +207,8 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeStillImageAssetCount: number;
   nativeRuntimeStillImageAssetLoadedCount: number;
   nativeRuntimeStillImageAssetMissingCount: number;
+  nativeRuntimeStillImageAssetDecodedCount: number;
+  nativeRuntimeStillImageAssetDecodedPixelCount: number;
   nativeRuntimeVrmSourceCount: number;
   nativeRuntimeVrmPosePayloadCount: number;
   nativeRuntimeVrmActivePoseCount: number;
@@ -1209,7 +1211,9 @@ const hasNativeRuntimeStillImageOverlayProof = (
     nativeRuntime.compositionAppliedCount >= nativeRuntime.stillImageAssetCount &&
     nativeRuntime.compositionSkippedCount === 0 &&
     nativeRuntime.stillImageAssetMissingCount === 0 &&
-    nativeRuntime.stillImageAssetLoadedCount >= nativeRuntime.stillImageAssetCount
+    nativeRuntime.stillImageAssetLoadedCount >= nativeRuntime.stillImageAssetCount &&
+    nativeRuntime.stillImageAssetDecodedCount >= nativeRuntime.stillImageAssetCount &&
+    nativeRuntime.stillImageAssetDecodedPixelCount > 0
   );
 };
 
@@ -1289,13 +1293,17 @@ const alignNativeRuntimeWithComposition = (
   const runtimeSkippedClean = nativeRuntime.compositionSkippedCount === 0;
   const runtimeDeclaredEnoughAssets = nativeRuntime.stillImageAssetCount >= expectedStillImageCount;
   const runtimeLoadedEnoughAssets = nativeRuntime.stillImageAssetLoadedCount >= expectedStillImageCount;
+  const runtimeDecodedEnoughAssets = nativeRuntime.stillImageAssetDecodedCount >= expectedStillImageCount;
+  const runtimeDecodedPixelProof = nativeRuntime.stillImageAssetDecodedPixelCount > 0;
 
   if (
     overlayApplied &&
     runtimeAppliedEnoughOverlays &&
     runtimeSkippedClean &&
     runtimeDeclaredEnoughAssets &&
-    runtimeLoadedEnoughAssets
+    runtimeLoadedEnoughAssets &&
+    runtimeDecodedEnoughAssets &&
+    runtimeDecodedPixelProof
   ) {
     return nativeRuntime;
   }
@@ -1303,8 +1311,8 @@ const alignNativeRuntimeWithComposition = (
   return addNativeRuntimeCompositionReview(
     nativeRuntime,
     "warn",
-    `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, applied ${nativeRuntime.compositionAppliedCount}/${expectedStillImageCount}, skipped ${nativeRuntime.compositionSkippedCount}, assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded.`,
-    "Repeat physical validation with the current scene and retain native compositor telemetry showing overlays applied, zero skipped overlays, and all required still-image assets loaded."
+    `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, applied ${nativeRuntime.compositionAppliedCount}/${expectedStillImageCount}, skipped ${nativeRuntime.compositionSkippedCount}, assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded, decoded ${nativeRuntime.stillImageAssetDecodedCount}/${expectedStillImageCount}, pixels ${nativeRuntime.stillImageAssetDecodedPixelCount}.`,
+    "Repeat physical validation with the current scene and retain native compositor telemetry showing overlays applied, zero skipped overlays, and all required still-image assets decoded to non-zero pixels."
   );
 };
 
@@ -2354,6 +2362,8 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeStillImageAssetCount: run.nativeRuntime?.stillImageAssetCount ?? 0,
     nativeRuntimeStillImageAssetLoadedCount: run.nativeRuntime?.stillImageAssetLoadedCount ?? 0,
     nativeRuntimeStillImageAssetMissingCount: run.nativeRuntime?.stillImageAssetMissingCount ?? 0,
+    nativeRuntimeStillImageAssetDecodedCount: run.nativeRuntime?.stillImageAssetDecodedCount ?? 0,
+    nativeRuntimeStillImageAssetDecodedPixelCount: run.nativeRuntime?.stillImageAssetDecodedPixelCount ?? 0,
     nativeRuntimeVrmSourceCount: run.nativeRuntime?.vrmSourceCount ?? 0,
     nativeRuntimeVrmPosePayloadCount: run.nativeRuntime?.vrmPosePayloadCount ?? 0,
     nativeRuntimeVrmActivePoseCount: run.nativeRuntime?.vrmActivePoseCount ?? 0,

@@ -3072,6 +3072,8 @@ struct BroadcastSceneCompositionSummary: Equatable {
     let stillImageAssetLoadedCount: Int
     let stillImageAssetMissingCount: Int
     let stillImageAssetMissingKinds: [String]
+    let stillImageAssetDecodedCount: Int
+    let stillImageAssetDecodedPixelCount: Int
     let vrmPoseSummary: BroadcastVrmPoseSummary
 
     static let screenOnly = BroadcastSceneCompositionSummary(
@@ -3083,6 +3085,8 @@ struct BroadcastSceneCompositionSummary: Equatable {
         stillImageAssetLoadedCount: 0,
         stillImageAssetMissingCount: 0,
         stillImageAssetMissingKinds: [],
+        stillImageAssetDecodedCount: 0,
+        stillImageAssetDecodedPixelCount: 0,
         vrmPoseSummary: .empty
     )
 
@@ -3111,7 +3115,7 @@ struct BroadcastSceneCompositionSummary: Equatable {
         guard stillImageAssetCount > 0 else {
             return nil
         }
-        let assetSummary = "image assets \(stillImageAssetLoadedCount)/\(stillImageAssetCount)"
+        let assetSummary = "image assets \(stillImageAssetLoadedCount)/\(stillImageAssetCount), decoded \(stillImageAssetDecodedCount), pixels \(stillImageAssetDecodedPixelCount)"
         if stillImageAssetMissingCount > 0 {
             return "\(assetSummary), missing \(stillImageAssetMissingCount): \(stillImageAssetMissingKinds.joined(separator: "/"))"
         }
@@ -3128,6 +3132,8 @@ struct BroadcastSceneCompositionSummary: Equatable {
             "stillImageAssetLoadedCount": stillImageAssetLoadedCount,
             "stillImageAssetMissingCount": stillImageAssetMissingCount,
             "stillImageAssetMissingKinds": stillImageAssetMissingKinds,
+            "stillImageAssetDecodedCount": stillImageAssetDecodedCount,
+            "stillImageAssetDecodedPixelCount": stillImageAssetDecodedPixelCount,
             "vrmSourceCount": vrmPoseSummary.sourceCount,
             "vrmPosePayloadCount": vrmPoseSummary.posePayloadCount,
             "vrmActivePoseCount": vrmPoseSummary.activePoseCount,
@@ -3420,6 +3426,11 @@ private struct BroadcastPngTuberRig {
     }
 }
 
+private struct BroadcastStillImageAssetResult: Equatable {
+    let loaded: Bool
+    let pixelCount: Int
+}
+
 final class BroadcastSceneCompositor {
     private let ciContext = CIContext(options: nil)
     private let targetWidth: Int
@@ -3431,12 +3442,14 @@ final class BroadcastSceneCompositor {
     private let vrmPoseSummary: BroadcastVrmPoseSummary
     private var cachedImages: [String: UIImage] = [:]
     private var cachedRiggedImages: [String: UIImage] = [:]
-    private var stillImageAssetResults: [String: Bool] = [:]
+    private var stillImageAssetResults: [String: BroadcastStillImageAssetResult] = [:]
 
     var summary: BroadcastSceneCompositionSummary {
         let stillImageNodes = overlayNodes.filter(Self.requiresStillImageAsset)
-        let loadedCount = stillImageAssetResults.values.filter { $0 }.count
-        let missingNodes = stillImageNodes.filter { stillImageAssetResults[Self.assetEvidenceKey(for: $0)] == false }
+        let loadedCount = stillImageAssetResults.values.filter { $0.loaded }.count
+        let decodedCount = stillImageAssetResults.values.filter { $0.loaded && $0.pixelCount > 0 }.count
+        let decodedPixelCount = stillImageAssetResults.values.reduce(0) { $0 + $1.pixelCount }
+        let missingNodes = stillImageNodes.filter { stillImageAssetResults[Self.assetEvidenceKey(for: $0)]?.loaded != true }
         return BroadcastSceneCompositionSummary(
             appliedCount: overlayNodes.count,
             skippedCount: skippedCount,
@@ -3446,6 +3459,8 @@ final class BroadcastSceneCompositor {
             stillImageAssetLoadedCount: loadedCount,
             stillImageAssetMissingCount: missingNodes.count,
             stillImageAssetMissingKinds: Array(Set(missingNodes.map(\.kind))).sorted(),
+            stillImageAssetDecodedCount: decodedCount,
+            stillImageAssetDecodedPixelCount: decodedPixelCount,
             vrmPoseSummary: vrmPoseSummary
         )
     }
@@ -3874,11 +3889,11 @@ final class BroadcastSceneCompositor {
     private func image(for rawURI: String, node: BroadcastRenderNode) -> UIImage? {
         let trimmedURI = rawURI.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedURI.isEmpty else {
-            recordStillImageAssetResult(for: node, loaded: false)
+            recordStillImageAssetResult(for: node, image: nil)
             return nil
         }
         if let cachedImage = cachedImages[trimmedURI] {
-            recordStillImageAssetResult(for: node, loaded: true)
+            recordStillImageAssetResult(for: node, image: cachedImage)
             return cachedImage
         }
 
@@ -3894,15 +3909,18 @@ final class BroadcastSceneCompositor {
         if let image {
             cachedImages[trimmedURI] = image
         }
-        recordStillImageAssetResult(for: node, loaded: image != nil)
+        recordStillImageAssetResult(for: node, image: image)
         return image
     }
 
-    private func recordStillImageAssetResult(for node: BroadcastRenderNode, loaded: Bool) {
+    private func recordStillImageAssetResult(for node: BroadcastRenderNode, image: UIImage?) {
         guard Self.requiresStillImageAsset(node) else {
             return
         }
-        stillImageAssetResults[Self.assetEvidenceKey(for: node)] = loaded
+        stillImageAssetResults[Self.assetEvidenceKey(for: node)] = BroadcastStillImageAssetResult(
+            loaded: image != nil,
+            pixelCount: Self.pixelCount(for: image)
+        )
     }
 
     private static func requiresStillImageAsset(_ node: BroadcastRenderNode) -> Bool {
@@ -3911,6 +3929,18 @@ final class BroadcastSceneCompositor {
 
     private static func assetEvidenceKey(for node: BroadcastRenderNode) -> String {
         "\(node.kind):\(node.id)"
+    }
+
+    private static func pixelCount(for image: UIImage?) -> Int {
+        guard let image else {
+            return 0
+        }
+        if let cgImage = image.cgImage {
+            return max(0, cgImage.width) * max(0, cgImage.height)
+        }
+        let width = max(0, Int((image.size.width * image.scale).rounded()))
+        let height = max(0, Int((image.size.height * image.scale).rounded()))
+        return width * height
     }
 
     private static func summarizeVrmPosePayloads(_ nodes: [BroadcastRenderNode]) -> BroadcastVrmPoseSummary {

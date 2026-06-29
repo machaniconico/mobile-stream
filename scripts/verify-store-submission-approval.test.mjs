@@ -387,7 +387,7 @@ function writeSupportBundleFixture() {
     ".artifacts/store-approval-test/support-bundle.json",
     JSON.stringify(
       {
-        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 37 },
+        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 38 },
         generatedAt: new Date().toISOString(),
         summary: {
           preflightStatus: "ready",
@@ -480,6 +480,8 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     nativeRuntimeStillImageAssetCount: 1,
     nativeRuntimeStillImageAssetLoadedCount: 1,
     nativeRuntimeStillImageAssetMissingCount: 0,
+    nativeRuntimeStillImageAssetDecodedCount: 1,
+    nativeRuntimeStillImageAssetDecodedPixelCount: 921_600,
     monitorHoldStatus: "pass",
     monitorHoldSampleCount: 3,
     monitorHoldDurationSeconds: 65,

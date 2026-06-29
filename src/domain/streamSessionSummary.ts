@@ -41,6 +41,8 @@ export interface StreamSessionNativeRuntimeSummary {
   stillImageAssetLoadedCount: number;
   stillImageAssetMissingCount: number;
   stillImageAssetMissingKinds: string[];
+  stillImageAssetDecodedCount: number;
+  stillImageAssetDecodedPixelCount: number;
   vrmSourceCount: number;
   vrmPosePayloadCount: number;
   vrmActivePoseCount: number;
@@ -672,8 +674,15 @@ export const createNativeRuntimeSessionSummary = (
   const stale = runtime.stale;
   const congested = runtime.publisher.congested;
   const pendingComposition = runtime.composition.status === "pending";
+  const stillImageAssetCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetCount);
+  const stillImageAssetLoadedCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetLoadedCount);
   const missingAssetCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetMissingCount);
   const missingAssets = missingAssetCount > 0;
+  const stillImageAssetDecodedCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetDecodedCount);
+  const stillImageAssetDecodedPixelCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetDecodedPixelCount);
+  const missingDecodedStillImageAssets =
+    stillImageAssetCount > 0 &&
+    (stillImageAssetDecodedCount < stillImageAssetCount || stillImageAssetDecodedPixelCount <= 0);
   const missingVrmPoseCount = normalizeNonNegativeInteger(runtime.composition.vrmMissingPoseCount);
   const vrmSourceCount = normalizeNonNegativeInteger(runtime.composition.vrmSourceCount);
   const missingVrmPoses = missingVrmPoseCount > 0 && vrmSourceCount > 0;
@@ -744,10 +753,25 @@ export const createNativeRuntimeSessionSummary = (
       incompleteVrmPoseMapping);
   const status: StreamSessionNativeRuntimeStatus = failed
     ? "fail"
-    : stale || congested || pendingComposition || missingAssets || missingVrmPoses || incompleteVrmRendering
+    : stale ||
+        congested ||
+        pendingComposition ||
+        missingAssets ||
+        missingDecodedStillImageAssets ||
+        missingVrmPoses ||
+        incompleteVrmRendering
       ? "warn"
       : "pass";
-  const issueCount = [failed, stale, congested, pendingComposition, missingAssets, missingVrmPoses, incompleteVrmRendering].filter(Boolean).length;
+  const issueCount = [
+    failed,
+    stale,
+    congested,
+    pendingComposition,
+    missingAssets,
+    missingDecodedStillImageAssets,
+    missingVrmPoses,
+    incompleteVrmRendering
+  ].filter(Boolean).length;
   const queue = `${runtime.publisher.itemsInCache}/${runtime.publisher.cacheSize}`;
 
   return {
@@ -759,10 +783,12 @@ export const createNativeRuntimeSessionSummary = (
     compositionAppliedCount: normalizeNonNegativeInteger(runtime.composition.appliedCount),
     compositionSkippedCount: normalizeNonNegativeInteger(runtime.composition.skippedCount),
     compositionSkippedKinds: normalizeStringArray(runtime.composition.skippedKinds),
-    stillImageAssetCount: normalizeNonNegativeInteger(runtime.composition.stillImageAssetCount),
-    stillImageAssetLoadedCount: normalizeNonNegativeInteger(runtime.composition.stillImageAssetLoadedCount),
+    stillImageAssetCount,
+    stillImageAssetLoadedCount,
     stillImageAssetMissingCount: missingAssetCount,
     stillImageAssetMissingKinds: normalizeStringArray(runtime.composition.stillImageAssetMissingKinds),
+    stillImageAssetDecodedCount,
+    stillImageAssetDecodedPixelCount,
     vrmSourceCount,
     vrmPosePayloadCount: normalizeNonNegativeInteger(runtime.composition.vrmPosePayloadCount),
     vrmActivePoseCount: normalizeNonNegativeInteger(runtime.composition.vrmActivePoseCount),
@@ -841,19 +867,21 @@ export const createNativeRuntimeSessionSummary = (
             ? "Confirm the native runtime is still reporting current telemetry during device validation."
             : missingAssets
               ? "Confirm App Group-copied PNGTuber/image assets load inside the iOS Broadcast Upload Extension before public streams."
-              : missingVrmPoses
-                ? "Confirm VRM runtime pose payloads reach the native compositor before retaining production evidence."
-                : incompleteVrmModelMetadata
-                  ? "Use VRM/GLB files with humanoid bones and expression metadata before retaining production renderer evidence."
-                  : incompleteVrmRenderability
-                    ? "Use VRM/GLB files with triangle primitives, POSITION vertices, UVs for textured models, supported PNG/JPEG images, skinned meshes, skin joints, and JOINTS_0/WEIGHTS_0 attributes before retaining production renderer evidence."
-                    : incompleteVrmPoseMapping
-                      ? "Confirm VRM pose bones and expression weights map to the imported model before retaining production evidence."
-                      : incompleteVrmRendering
-                        ? "Confirm the native VRM renderer loads and renders every visible VRM source before retaining production evidence."
-                        : pendingComposition
-                    ? "Review native compositor coverage before treating this scene as production-ready."
-                    : "Keep this native runtime result as supporting evidence for the destination."
+              : missingDecodedStillImageAssets
+                ? "Confirm PNGTuber/image assets decode to non-zero pixels inside the native compositor before retaining production evidence."
+                : missingVrmPoses
+                  ? "Confirm VRM runtime pose payloads reach the native compositor before retaining production evidence."
+                  : incompleteVrmModelMetadata
+                    ? "Use VRM/GLB files with humanoid bones and expression metadata before retaining production renderer evidence."
+                    : incompleteVrmRenderability
+                      ? "Use VRM/GLB files with triangle primitives, POSITION vertices, UVs for textured models, supported PNG/JPEG images, skinned meshes, skin joints, and JOINTS_0/WEIGHTS_0 attributes before retaining production renderer evidence."
+                      : incompleteVrmPoseMapping
+                        ? "Confirm VRM pose bones and expression weights map to the imported model before retaining production evidence."
+                        : incompleteVrmRendering
+                          ? "Confirm the native VRM renderer loads and renders every visible VRM source before retaining production evidence."
+                          : pendingComposition
+                            ? "Review native compositor coverage before treating this scene as production-ready."
+                            : "Keep this native runtime result as supporting evidence for the destination."
   };
 };
 
@@ -1076,6 +1104,8 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     stillImageAssetLoadedCount: normalizeNonNegativeInteger(value.stillImageAssetLoadedCount),
     stillImageAssetMissingCount: normalizeNonNegativeInteger(value.stillImageAssetMissingCount),
     stillImageAssetMissingKinds: normalizeStringArray(value.stillImageAssetMissingKinds),
+    stillImageAssetDecodedCount: normalizeNonNegativeInteger(value.stillImageAssetDecodedCount),
+    stillImageAssetDecodedPixelCount: normalizeNonNegativeInteger(value.stillImageAssetDecodedPixelCount),
     vrmSourceCount: normalizeNonNegativeInteger(value.vrmSourceCount),
     vrmPosePayloadCount: normalizeNonNegativeInteger(value.vrmPosePayloadCount),
     vrmActivePoseCount: normalizeNonNegativeInteger(value.vrmActivePoseCount),

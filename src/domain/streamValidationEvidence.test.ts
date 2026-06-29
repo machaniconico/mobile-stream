@@ -143,6 +143,8 @@ const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
     stillImageAssetLoadedCount: 1,
     stillImageAssetMissingCount: 0,
     stillImageAssetMissingKinds: [],
+    stillImageAssetDecodedCount: 1,
+    stillImageAssetDecodedPixelCount: 921_600,
     message: "Native overlays applied"
   },
   audioProcessing: {
@@ -1119,6 +1121,8 @@ describe("stream validation evidence", () => {
             appliedCount: 0,
             stillImageAssetCount: 0,
             stillImageAssetLoadedCount: 0,
+            stillImageAssetDecodedCount: 0,
+            stillImageAssetDecodedPixelCount: 0,
             message: "Screen-only native output"
           }
         }
@@ -1175,7 +1179,9 @@ describe("stream validation evidence", () => {
             skippedCount: 0,
             stillImageAssetCount: 1,
             stillImageAssetLoadedCount: 1,
-            stillImageAssetMissingCount: 0
+            stillImageAssetMissingCount: 0,
+            stillImageAssetDecodedCount: 1,
+            stillImageAssetDecodedPixelCount: 921_600
           }
         }
       },
@@ -1206,6 +1212,65 @@ describe("stream validation evidence", () => {
       stillImageAssetLoadedCount: 1
     });
     expect(run.nativeRuntime?.summary).toContain("applied 0/1");
+    expect(summary.nativeRuntimeReadyCount).toBe(0);
+    expect(summary.nativeRuntimeIosPass).toBe(false);
+  });
+
+  it("requires native runtime still-image proof to include decoded pixels", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntime("ios");
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: {
+          ...runtime,
+          composition: {
+            ...runtime.composition,
+            status: "applied" as const,
+            appliedCount: 1,
+            skippedCount: 0,
+            stillImageAssetCount: 1,
+            stillImageAssetLoadedCount: 1,
+            stillImageAssetMissingCount: 0,
+            stillImageAssetDecodedCount: 0,
+            stillImageAssetDecodedPixelCount: 0
+          }
+        }
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.nativeRuntime).toMatchObject({
+      status: "warn",
+      compositionStatus: "applied",
+      stillImageAssetCount: 1,
+      stillImageAssetLoadedCount: 1,
+      stillImageAssetDecodedCount: 0,
+      stillImageAssetDecodedPixelCount: 0
+    });
+    expect(run.nativeRuntime?.summary).toContain("decoded 0/1");
     expect(summary.nativeRuntimeReadyCount).toBe(0);
     expect(summary.nativeRuntimeIosPass).toBe(false);
   });
@@ -1678,6 +1743,8 @@ describe("stream validation evidence", () => {
       nativeRuntimeStillImageAssetCount: 1,
       nativeRuntimeStillImageAssetLoadedCount: 1,
       nativeRuntimeStillImageAssetMissingCount: 0,
+      nativeRuntimeStillImageAssetDecodedCount: 1,
+      nativeRuntimeStillImageAssetDecodedPixelCount: 921_600,
       monitorHoldStatus: "pass",
       monitorHoldSampleCount: 3,
       monitorHoldDurationSeconds: 65,

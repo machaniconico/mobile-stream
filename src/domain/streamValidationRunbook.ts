@@ -487,6 +487,12 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
   }
 
   const missingAssets = nativeRuntime.composition.stillImageAssetMissingCount ?? 0;
+  const stillImageAssetCount = nativeRuntime.composition.stillImageAssetCount ?? 0;
+  const decodedStillImageAssetCount = nativeRuntime.composition.stillImageAssetDecodedCount ?? 0;
+  const decodedStillImageAssetPixels = nativeRuntime.composition.stillImageAssetDecodedPixelCount ?? 0;
+  const missingDecodedAssets =
+    stillImageAssetCount > 0 &&
+    (decodedStillImageAssetCount < stillImageAssetCount || decodedStillImageAssetPixels <= 0);
   const missingVrmPoses = nativeRuntime.composition.vrmMissingPoseCount ?? 0;
   const vrmSourceCount = nativeRuntime.composition.vrmSourceCount ?? 0;
   const vrmRendererStatus = nativeRuntime.composition.vrmRendererStatus ?? (vrmSourceCount > 0 ? "unavailable" : "not-required");
@@ -527,6 +533,7 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
     nativeRuntime.publisher.congested ||
     nativeRuntime.composition.status === "pending" ||
     missingAssets > 0 ||
+    missingDecodedAssets ||
     missingVrmPoses > 0 ||
     missingVrmRenders
   ) {
@@ -539,17 +546,19 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
       action:
         missingAssets > 0
           ? "Prepare App Group/native-readable still-image assets again, then repeat the iOS compositor validation."
-          : missingVrmPoses > 0
-            ? "Confirm VRM runtime pose payloads are included in the render graph before recording a pass."
-            : missingVrmModelMetadata
-              ? "Prepare a VRM/GLB model with humanoid bones and expression metadata before recording a pass."
-        : missingVrmRenderability
-          ? "Prepare a VRM/GLB model with triangle primitives, POSITION vertices, UVs for textured models, supported PNG/JPEG images, skinned meshes, skin joints, and JOINTS_0/WEIGHTS_0 attributes before recording a pass."
-                : missingVrmPoseMapping
-                  ? "Confirm the delivered VRM pose bones and expression weights are supported by the imported model before recording a pass."
-                  : missingVrmRenders
-                    ? "Integrate or enable the native VRM renderer, then repeat validation until every visible VRM source is rendered."
-                    : "Review native runtime congestion, stale telemetry, or pending compositor state before recording a pass."
+          : missingDecodedAssets
+            ? "Repeat native compositor validation until every still-image asset decodes to non-zero pixels."
+            : missingVrmPoses > 0
+              ? "Confirm VRM runtime pose payloads are included in the render graph before recording a pass."
+              : missingVrmModelMetadata
+                ? "Prepare a VRM/GLB model with humanoid bones and expression metadata before recording a pass."
+                : missingVrmRenderability
+                  ? "Prepare a VRM/GLB model with triangle primitives, POSITION vertices, UVs for textured models, supported PNG/JPEG images, skinned meshes, skin joints, and JOINTS_0/WEIGHTS_0 attributes before recording a pass."
+                  : missingVrmPoseMapping
+                    ? "Confirm the delivered VRM pose bones and expression weights are supported by the imported model before recording a pass."
+                    : missingVrmRenders
+                      ? "Integrate or enable the native VRM renderer, then repeat validation until every visible VRM source is rendered."
+                      : "Review native runtime congestion, stale telemetry, or pending compositor state before recording a pass."
     };
   }
 

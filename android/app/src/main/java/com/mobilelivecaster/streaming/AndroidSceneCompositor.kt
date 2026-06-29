@@ -65,11 +65,22 @@ data class AndroidVrmPoseSummary(
     val renderFailureCount: Int = 0
 )
 
+data class AndroidStillImageAssetEvidence(
+    val loaded: Boolean = false,
+    val decodedPixelCount: Long = 0
+)
+
 data class AndroidCompositionResult(
     val appliedCount: Int,
     val skippedCount: Int,
     val skippedKinds: Set<String>,
     val parseFailed: Boolean = false,
+    val stillImageAssetCount: Int = 0,
+    val stillImageAssetLoadedCount: Int = 0,
+    val stillImageAssetMissingCount: Int = 0,
+    val stillImageAssetMissingKinds: Set<String> = emptySet(),
+    val stillImageAssetDecodedCount: Int = 0,
+    val stillImageAssetDecodedPixelCount: Long = 0,
     val vrmPoseSummary: AndroidVrmPoseSummary = AndroidVrmPoseSummary()
 ) {
     val summary: String
@@ -81,11 +92,19 @@ data class AndroidCompositionResult(
                 appliedCount == 0 -> "Native overlays pending: ${skippedKinds.joinToString("/")}"
                 else -> "Native overlays applied: $appliedCount, pending: ${skippedKinds.joinToString("/")}"
             }
-            return if (vrmPoseSummary.sourceCount > 0) {
-                "$base; VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}; VRM renderer ${vrmPoseSummary.rendererStatus} ${vrmPoseSummary.rendererBackend}, rendered ${vrmPoseSummary.renderedSourceCount}/${vrmPoseSummary.sourceCount}, models ${vrmPoseSummary.modelLoadedCount}/${vrmPoseSummary.modelUriCount}, bones ${vrmPoseSummary.humanoidBoneCount}, expressions ${vrmPoseSummary.expressionCount}, primitives ${vrmPoseSummary.meshPrimitiveCount}, triangles ${vrmPoseSummary.trianglePrimitiveCount}, unsupported modes ${vrmPoseSummary.unsupportedPrimitiveModeCount}, skinned ${vrmPoseSummary.skinnedMeshPrimitiveCount}, joints ${vrmPoseSummary.skinJointCount}, position accessors ${vrmPoseSummary.positionAccessorCount}, normals ${vrmPoseSummary.normalAccessorCount}, uvs ${vrmPoseSummary.texcoordAccessorCount}, vertices ${vrmPoseSummary.vertexCount}, indices ${vrmPoseSummary.indexCount}, bounds ${vrmPoseSummary.boundsAccessorCount}, skin attrs ${vrmPoseSummary.skinningAttributePrimitiveCount}, morphs ${vrmPoseSummary.morphTargetCount}, materials ${vrmPoseSummary.materialCount}, transparent materials ${vrmPoseSummary.transparentMaterialCount}, textures ${vrmPoseSummary.textureCount}, images ${vrmPoseSummary.imageCount}, unsupported image mimes ${vrmPoseSummary.unsupportedImageMimeCount}, pose bones ${vrmPoseSummary.poseBoneAppliedCount}/${vrmPoseSummary.poseBoneCount}, pose expressions ${vrmPoseSummary.poseExpressionAppliedCount}/${vrmPoseSummary.poseExpressionCount}, failed ${vrmPoseSummary.renderFailureCount}"
-            } else {
-                base
+            val evidenceMessages = mutableListOf<String>()
+            if (stillImageAssetCount > 0) {
+                val missingSuffix = if (stillImageAssetMissingCount > 0) {
+                    ", missing $stillImageAssetMissingCount: ${stillImageAssetMissingKinds.joinToString("/")}"
+                } else {
+                    ""
+                }
+                evidenceMessages.add("image assets $stillImageAssetLoadedCount/$stillImageAssetCount, decoded $stillImageAssetDecodedCount, pixels $stillImageAssetDecodedPixelCount$missingSuffix")
             }
+            if (vrmPoseSummary.sourceCount > 0) {
+                evidenceMessages.add("VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}; VRM renderer ${vrmPoseSummary.rendererStatus} ${vrmPoseSummary.rendererBackend}, rendered ${vrmPoseSummary.renderedSourceCount}/${vrmPoseSummary.sourceCount}, models ${vrmPoseSummary.modelLoadedCount}/${vrmPoseSummary.modelUriCount}, bones ${vrmPoseSummary.humanoidBoneCount}, expressions ${vrmPoseSummary.expressionCount}, primitives ${vrmPoseSummary.meshPrimitiveCount}, triangles ${vrmPoseSummary.trianglePrimitiveCount}, unsupported modes ${vrmPoseSummary.unsupportedPrimitiveModeCount}, skinned ${vrmPoseSummary.skinnedMeshPrimitiveCount}, joints ${vrmPoseSummary.skinJointCount}, position accessors ${vrmPoseSummary.positionAccessorCount}, normals ${vrmPoseSummary.normalAccessorCount}, uvs ${vrmPoseSummary.texcoordAccessorCount}, vertices ${vrmPoseSummary.vertexCount}, indices ${vrmPoseSummary.indexCount}, bounds ${vrmPoseSummary.boundsAccessorCount}, skin attrs ${vrmPoseSummary.skinningAttributePrimitiveCount}, morphs ${vrmPoseSummary.morphTargetCount}, materials ${vrmPoseSummary.materialCount}, transparent materials ${vrmPoseSummary.transparentMaterialCount}, textures ${vrmPoseSummary.textureCount}, images ${vrmPoseSummary.imageCount}, unsupported image mimes ${vrmPoseSummary.unsupportedImageMimeCount}, pose bones ${vrmPoseSummary.poseBoneAppliedCount}/${vrmPoseSummary.poseBoneCount}, pose expressions ${vrmPoseSummary.poseExpressionAppliedCount}/${vrmPoseSummary.poseExpressionCount}, failed ${vrmPoseSummary.renderFailureCount}")
+            }
+            return if (evidenceMessages.isEmpty()) base else "$base; ${evidenceMessages.joinToString("; ")}"
         }
 }
 
@@ -109,9 +128,11 @@ object AndroidSceneCompositor {
         var appliedCount = 0
         var skippedCount = underlays.size
         val skippedKinds = underlays.mapTo(linkedSetOf()) { node -> node.kind }
+        val stillImageNodes = overlays.filter(::requiresStillImageAsset)
+        val stillImageEvidence = linkedMapOf<String, AndroidStillImageAssetEvidence>()
 
         overlays.forEach { node ->
-            val filter = createFilter(context, node)
+            val filter = createFilter(context, node, stillImageEvidence)
             if (filter == null) {
                 skippedCount += 1
                 skippedKinds.add(node.kind)
@@ -122,34 +143,53 @@ object AndroidSceneCompositor {
             stream.getGlInterface().addFilter(filter)
             appliedCount += 1
         }
+        val missingStillImageNodes = stillImageNodes.filter { node ->
+            stillImageEvidence[assetEvidenceKey(node)]?.loaded != true
+        }
 
         return AndroidCompositionResult(
             appliedCount = appliedCount,
             skippedCount = skippedCount,
             skippedKinds = skippedKinds,
+            stillImageAssetCount = stillImageNodes.size,
+            stillImageAssetLoadedCount = stillImageEvidence.values.count { evidence -> evidence.loaded },
+            stillImageAssetMissingCount = missingStillImageNodes.size,
+            stillImageAssetMissingKinds = missingStillImageNodes.mapTo(linkedSetOf()) { node -> node.kind },
+            stillImageAssetDecodedCount = stillImageEvidence.values.count { evidence -> evidence.loaded && evidence.decodedPixelCount > 0 },
+            stillImageAssetDecodedPixelCount = stillImageEvidence.values.sumOf { evidence -> evidence.decodedPixelCount },
             vrmPoseSummary = vrmPoseSummary
         )
     }
 
-    private fun createFilter(context: Context, node: RenderGraphNode): BaseObjectFilterRender? {
+    private fun createFilter(
+        context: Context,
+        node: RenderGraphNode,
+        stillImageEvidence: MutableMap<String, AndroidStillImageAssetEvidence>
+    ): BaseObjectFilterRender? {
         return when (node.kind) {
-            "pngtuber" -> createPngTuberFilter(context, node)
+            "pngtuber" -> createPngTuberFilter(context, node, stillImageEvidence)
             "text" -> createTextFilter(node)
             "chat" -> createChatFilter(node)
             "solid" -> createSolidFilter(node)
-            "image" -> createImageFilter(context, node)
+            "image" -> createImageFilter(context, node, stillImageEvidence)
             else -> null
         }
     }
 
-    private fun createPngTuberFilter(context: Context, node: RenderGraphNode): ImageObjectFilterRender {
+    private fun createPngTuberFilter(
+        context: Context,
+        node: RenderGraphNode,
+        stillImageEvidence: MutableMap<String, AndroidStillImageAssetEvidence>
+    ): ImageObjectFilterRender {
         val imageUri = node.payload.optString("imageUri").trim()
         val motion = parsePngTuberMotion(node)
-        val sourceBitmap = if (imageUri.isNotEmpty()) {
+        val loadedBitmap = if (imageUri.isNotEmpty()) {
             loadBitmap(context, imageUri)
         } else {
             null
-        } ?: createFallbackPngTuberBitmap(node)
+        }
+        recordStillImageAssetEvidence(stillImageEvidence, node, loadedBitmap)
+        val sourceBitmap = loadedBitmap ?: createFallbackPngTuberBitmap(node)
         val bitmap = createIllustrationRigBitmap(sourceBitmap, motion)
 
         return ImageObjectFilterRender().apply {
@@ -220,13 +260,22 @@ object AndroidSceneCompositor {
         }
     }
 
-    private fun createImageFilter(context: Context, node: RenderGraphNode): ImageObjectFilterRender? {
+    private fun createImageFilter(
+        context: Context,
+        node: RenderGraphNode,
+        stillImageEvidence: MutableMap<String, AndroidStillImageAssetEvidence>
+    ): ImageObjectFilterRender? {
         val uri = node.payload.optString("uri").trim()
         if (uri.isEmpty()) {
+            recordStillImageAssetEvidence(stillImageEvidence, node, null)
             return null
         }
 
-        val bitmap = loadBitmap(context, uri) ?: return null
+        val bitmap = loadBitmap(context, uri)
+        recordStillImageAssetEvidence(stillImageEvidence, node, bitmap)
+        if (bitmap == null) {
+            return null
+        }
         return ImageObjectFilterRender().apply {
             setImage(bitmap)
         }
@@ -934,6 +983,25 @@ object AndroidSceneCompositor {
         } catch (_: Throwable) {
             null
         }
+    }
+
+    private fun requiresStillImageAsset(node: RenderGraphNode): Boolean =
+        node.kind == "pngtuber" || node.kind == "image"
+
+    private fun assetEvidenceKey(node: RenderGraphNode): String = "${node.kind}:${node.id}"
+
+    private fun recordStillImageAssetEvidence(
+        stillImageEvidence: MutableMap<String, AndroidStillImageAssetEvidence>,
+        node: RenderGraphNode,
+        bitmap: Bitmap?
+    ) {
+        if (!requiresStillImageAsset(node)) {
+            return
+        }
+        stillImageEvidence[assetEvidenceKey(node)] = AndroidStillImageAssetEvidence(
+            loaded = bitmap != null,
+            decodedPixelCount = bitmap?.let { image -> image.width.toLong() * image.height.toLong() } ?: 0L
+        )
     }
 
     private fun parseColor(value: String, fallback: Int): Int {

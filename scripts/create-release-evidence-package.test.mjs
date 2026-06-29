@@ -1323,7 +1323,7 @@ function commercialSupportBundleFixture() {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 37
+      bundleVersion: 38
     },
     generatedAt: capturedAt,
     fixture: true,
@@ -1414,6 +1414,8 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     nativeRuntimeStillImageAssetCount: 1,
     nativeRuntimeStillImageAssetLoadedCount: 1,
     nativeRuntimeStillImageAssetMissingCount: 0,
+    nativeRuntimeStillImageAssetDecodedCount: 1,
+    nativeRuntimeStillImageAssetDecodedPixelCount: 921_600,
     monitorHoldStatus: "pass",
     monitorHoldSampleCount: 3,
     monitorHoldDurationSeconds: 65,

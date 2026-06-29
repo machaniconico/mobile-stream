@@ -65,6 +65,8 @@ const nativeRuntimeWithAudioProcessing = (
     stillImageAssetLoadedCount: 1,
     stillImageAssetMissingCount: 0,
     stillImageAssetMissingKinds: [],
+    stillImageAssetDecodedCount: 1,
+    stillImageAssetDecodedPixelCount: 921_600,
     message: "Native overlays applied"
   },
   audioProcessing,
@@ -565,6 +567,8 @@ describe("stream diagnostics", () => {
         stillImageAssetLoadedCount: 1,
         stillImageAssetMissingCount: 0,
         stillImageAssetMissingKinds: [],
+        stillImageAssetDecodedCount: 1,
+        stillImageAssetDecodedPixelCount: 921_600,
         message: "Native overlays applied"
       },
       message: "Native runtime live"
@@ -781,6 +785,8 @@ describe("stream diagnostics", () => {
           stillImageAssetLoadedCount: 2,
           stillImageAssetMissingCount: 0,
           stillImageAssetMissingKinds: [],
+          stillImageAssetDecodedCount: 2,
+          stillImageAssetDecodedPixelCount: 1_843_200,
           vrmSourceCount: 1,
           vrmPosePayloadCount: 1,
           vrmActivePoseCount: 1,
@@ -833,7 +839,7 @@ describe("stream diagnostics", () => {
     expect(diagnostics.checks.find((check) => check.code === "native-runtime-ios")?.status).toBe("pass");
     const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics));
     expect(report).toContain("Native Runtime");
-    expect(report).toContain("Composition assets: 2/2 loaded / 0 missing");
+    expect(report).toContain("Composition assets: 2/2 loaded / 2 decoded / pixels 1843200 / 0 missing");
     expect(report).toContain("Composition VRM: 1/1 active / payloads 1 / missing 0");
   });
 
@@ -876,6 +882,8 @@ describe("stream diagnostics", () => {
           stillImageAssetLoadedCount: 0,
           stillImageAssetMissingCount: 0,
           stillImageAssetMissingKinds: [],
+          stillImageAssetDecodedCount: 0,
+          stillImageAssetDecodedPixelCount: 0,
           vrmSourceCount: 1,
           vrmPosePayloadCount: 0,
           vrmActivePoseCount: 0,
@@ -935,6 +943,8 @@ describe("stream diagnostics", () => {
           stillImageAssetLoadedCount: 0,
           stillImageAssetMissingCount: 0,
           stillImageAssetMissingKinds: [],
+          stillImageAssetDecodedCount: 0,
+          stillImageAssetDecodedPixelCount: 0,
           vrmSourceCount: 1,
           vrmPosePayloadCount: 1,
           vrmActivePoseCount: 1,
@@ -1006,6 +1016,8 @@ describe("stream diagnostics", () => {
           stillImageAssetLoadedCount: 1,
           stillImageAssetMissingCount: 1,
           stillImageAssetMissingKinds: ["pngtuber"],
+          stillImageAssetDecodedCount: 1,
+          stillImageAssetDecodedPixelCount: 921_600,
           message: "Native overlays applied: 2; image assets 1/2, missing 1: pngtuber"
         },
         message: "iOS extension live"
@@ -1015,7 +1027,9 @@ describe("stream diagnostics", () => {
     const nativeCheck = diagnostics.checks.find((check) => check.code === "native-runtime-composition-pending");
     expect(nativeCheck?.status).toBe("warn");
     expect(nativeCheck?.message).toContain("missing 1");
-    expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain("Composition assets: 1/2 loaded / 1 missing");
+    expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
+      "Composition assets: 1/2 loaded / 1 decoded / pixels 921600 / 1 missing"
+    );
   });
 
   it("keeps native runtime failures blocking even when telemetry is stale", () => {

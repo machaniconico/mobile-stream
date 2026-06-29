@@ -172,6 +172,8 @@ const normalizeNativeRuntime = (
           stillImageAssetLoadedCount: runtime.composition?.stillImageAssetLoadedCount ?? 0,
           stillImageAssetMissingCount: runtime.composition?.stillImageAssetMissingCount ?? 0,
           stillImageAssetMissingKinds: runtime.composition?.stillImageAssetMissingKinds ?? [],
+          stillImageAssetDecodedCount: runtime.composition?.stillImageAssetDecodedCount ?? 0,
+          stillImageAssetDecodedPixelCount: runtime.composition?.stillImageAssetDecodedPixelCount ?? 0,
           vrmSourceCount: runtime.composition?.vrmSourceCount ?? 0,
           vrmPosePayloadCount: runtime.composition?.vrmPosePayloadCount ?? 0,
           vrmActivePoseCount: runtime.composition?.vrmActivePoseCount ?? 0,

@@ -389,6 +389,8 @@ describe("stream session summary", () => {
           stillImageAssetLoadedCount: 1,
           stillImageAssetMissingCount: 1,
           stillImageAssetMissingKinds: ["pngtuber"],
+          stillImageAssetDecodedCount: 1,
+          stillImageAssetDecodedPixelCount: 921_600,
           message: "Native overlays applied: 2; image assets 1/2, missing 1: pngtuber"
         },
         message: "Live"
@@ -401,6 +403,8 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.stillImageAssetLoadedCount).toBe(1);
     expect(summary?.nativeRuntime?.stillImageAssetMissingCount).toBe(1);
     expect(summary?.nativeRuntime?.stillImageAssetMissingKinds).toEqual(["pngtuber"]);
+    expect(summary?.nativeRuntime?.stillImageAssetDecodedCount).toBe(1);
+    expect(summary?.nativeRuntime?.stillImageAssetDecodedPixelCount).toBe(921_600);
     expect(summary?.nativeRuntime?.recommendation).toContain("App Group-copied");
   });
 
@@ -516,6 +520,8 @@ describe("stream session summary", () => {
           stillImageAssetLoadedCount: 1,
           stillImageAssetMissingCount: 1,
           stillImageAssetMissingKinds: ["image"],
+          stillImageAssetDecodedCount: 1,
+          stillImageAssetDecodedPixelCount: 921_600,
           stale: false,
           congested: true,
           queuedItems: 8,
@@ -534,6 +540,8 @@ describe("stream session summary", () => {
     expect(normalized[0]?.nativeRuntime?.status).toBe("warn");
     expect(normalized[0]?.nativeRuntime?.sentVideoFrames).toBe(120);
     expect(normalized[0]?.nativeRuntime?.stillImageAssetMissingKinds).toEqual(["image"]);
+    expect(normalized[0]?.nativeRuntime?.stillImageAssetDecodedCount).toBe(1);
+    expect(normalized[0]?.nativeRuntime?.stillImageAssetDecodedPixelCount).toBe(921_600);
     expect(normalized[0]?.nativeRuntime?.summary).toContain("Native runtime warn");
   });
 
