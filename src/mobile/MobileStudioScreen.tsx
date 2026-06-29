@@ -2,6 +2,10 @@ import { Alert, Image, Platform, Pressable, ScrollView, Share, StyleSheet, Text,
 import { useEffect, useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { AvatarExpression, AvatarRuntimeState } from "../domain/avatar";
+import {
+  createAvatarIllustrationRigTuningSummary,
+  type AvatarIllustrationRigQualityGrade
+} from "../domain/avatarIllustrationRigQuality";
 import type { AudioRouteState } from "../domain/audioRoute";
 import {
   normalizeMutedWordsInput,
@@ -971,6 +975,7 @@ export const MobileStudioScreen = ({
           {selectedSource.kind === "pngtuber" ? (
             <>
               <ActionButton label="Auto rig" disabled={setupLocked} onPress={autoRigSelectedAvatar} />
+              <MobileAvatarRigQualityPanel rig={selectedSource.illustrationRig} />
               <NumberStepper
                 label="Face Y"
                 value={selectedSource.illustrationRig.faceCenterY}
@@ -1804,6 +1809,61 @@ export const MobileStudioScreen = ({
     </SafeAreaView>
   );
 };
+
+const MobileAvatarRigQualityPanel = ({ rig }: { rig: AvatarIllustrationRig }) => {
+  const summary = createAvatarIllustrationRigTuningSummary(rig);
+  const sliceScore = scoreAvatarRigSlices(rig.sliceCount);
+  const primaryIssue = summary.issues[0] ?? "Ready for retained proof.";
+  return (
+    <View style={[styles.rigQualityPanel, rigQualityPanelStyle(summary.grade)]}>
+      <View style={styles.rigQualityHeader}>
+        <View style={styles.rigQualityTitleBlock}>
+          <Text style={styles.rigQualityTitle}>Rig quality</Text>
+          <Text style={styles.rigQualityMeta}>grade {summary.grade}</Text>
+        </View>
+        <Text style={[styles.rigQualityScore, rigQualityScoreTextStyle(summary.grade)]}>
+          {summary.highFidelityScore}/100
+        </Text>
+      </View>
+      <View style={styles.rigQualityRows}>
+        <MobileRigScoreRow label="Parts" score={summary.partSeparationScore} />
+        <MobileRigScoreRow label="Depth" score={summary.depthContinuityScore} />
+        <MobileRigScoreRow label="Slices" score={sliceScore} />
+      </View>
+      <View style={styles.rigLineGrid}>
+        <MobileRigLineValue label="Hair" value={rig.hairLineY} />
+        <MobileRigLineValue label="Eye" value={rig.eyeLineY} />
+        <MobileRigLineValue label="Mouth" value={rig.mouthLineY} />
+        <MobileRigLineValue label="Shoulder" value={rig.shoulderLineY} />
+        <MobileRigLineValue label="Face" value={rig.faceRange} />
+      </View>
+      <Text style={[styles.rigQualityMessage, rigQualityMessageTextStyle(summary.grade)]} numberOfLines={2}>
+        {primaryIssue}
+      </Text>
+    </View>
+  );
+};
+
+const MobileRigScoreRow = ({ label, score }: { label: string; score: number }) => {
+  const normalizedScore = clampRigScore(score);
+  return (
+    <View style={styles.rigScoreRow}>
+      <Text style={styles.rigScoreLabel}>{label}</Text>
+      <View style={styles.rigScoreTrack}>
+        <View style={[styles.rigScoreFill, rigScoreFillStyle(normalizedScore), { flex: Math.max(0.001, normalizedScore) }]} />
+        <View style={{ flex: Math.max(0.001, 100 - normalizedScore) }} />
+      </View>
+      <Text style={styles.rigScoreValue}>{Math.round(normalizedScore)}</Text>
+    </View>
+  );
+};
+
+const MobileRigLineValue = ({ label, value }: { label: string; value: number }) => (
+  <View style={styles.rigLineChip}>
+    <Text style={styles.rigLineLabel}>{label}</Text>
+    <Text style={styles.rigLineValue}>{formatRigPercent(value)}</Text>
+  </View>
+);
 
 const StreamDiagnosticsPanel = ({
   scene,
@@ -3161,6 +3221,41 @@ const NumberStepper = ({
   );
 };
 
+const clampRigScore = (score: number): number => Math.max(0, Math.min(100, Number.isFinite(score) ? score : 0));
+
+const scoreAvatarRigSlices = (sliceCount: number): number =>
+  sliceCount >= 24 ? 100 : sliceCount >= 20 ? 90 : Math.max(0, Math.round((sliceCount / 20) * 80));
+
+const formatRigPercent = (value: number): string => `${Math.round(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)) * 100)}%`;
+
+const rigQualityPanelStyle = (grade: AvatarIllustrationRigQualityGrade) => {
+  switch (grade) {
+    case "ready":
+      return styles.rigQualityReady;
+    case "review":
+      return styles.rigQualityReview;
+    case "blocked":
+      return styles.rigQualityBlocked;
+  }
+};
+
+const rigQualityScoreTextStyle = (grade: AvatarIllustrationRigQualityGrade) => {
+  switch (grade) {
+    case "ready":
+      return styles.rigQualityReadyText;
+    case "review":
+      return styles.rigQualityReviewText;
+    case "blocked":
+      return styles.rigQualityBlockedText;
+  }
+};
+
+const rigQualityMessageTextStyle = (grade: AvatarIllustrationRigQualityGrade) =>
+  grade === "ready" ? styles.rigQualityReadyText : grade === "blocked" ? styles.rigQualityBlockedText : styles.rigQualityReviewText;
+
+const rigScoreFillStyle = (score: number) =>
+  score >= 90 ? styles.rigScoreFillReady : score >= 70 ? styles.rigScoreFillReview : styles.rigScoreFillBlocked;
+
 const diagnosticSummaryStyle = (status: StreamDiagnostics["status"]) => {
   switch (status) {
     case "pass":
@@ -3698,6 +3793,136 @@ const styles = StyleSheet.create({
   sourceMeta: {
     color: "#a1a1aa",
     fontSize: 12
+  },
+  rigQualityPanel: {
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: "#101015",
+    gap: 8
+  },
+  rigQualityReady: {
+    borderColor: "rgba(34, 197, 94, 0.46)"
+  },
+  rigQualityReview: {
+    borderColor: "rgba(245, 158, 11, 0.58)"
+  },
+  rigQualityBlocked: {
+    borderColor: "rgba(251, 113, 133, 0.64)"
+  },
+  rigQualityHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10
+  },
+  rigQualityTitleBlock: {
+    flex: 1,
+    gap: 2
+  },
+  rigQualityTitle: {
+    color: "#f8fafc",
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  rigQualityMeta: {
+    color: "#a1a1aa",
+    fontSize: 11,
+    fontWeight: "800"
+  },
+  rigQualityScore: {
+    minWidth: 72,
+    color: "#f8fafc",
+    fontSize: 18,
+    fontWeight: "900",
+    textAlign: "right"
+  },
+  rigQualityReadyText: {
+    color: "#bbf7d0"
+  },
+  rigQualityReviewText: {
+    color: "#fcd34d"
+  },
+  rigQualityBlockedText: {
+    color: "#fecdd3"
+  },
+  rigQualityRows: {
+    gap: 6
+  },
+  rigScoreRow: {
+    minHeight: 22,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+  rigScoreLabel: {
+    width: 46,
+    color: "#a1a1aa",
+    fontSize: 11,
+    fontWeight: "900"
+  },
+  rigScoreTrack: {
+    flex: 1,
+    flexDirection: "row",
+    height: 8,
+    overflow: "hidden",
+    borderRadius: 99,
+    borderWidth: 1,
+    borderColor: "#343442",
+    backgroundColor: "#18181f"
+  },
+  rigScoreFill: {
+    height: "100%"
+  },
+  rigScoreFillReady: {
+    backgroundColor: "#22c55e"
+  },
+  rigScoreFillReview: {
+    backgroundColor: "#f59e0b"
+  },
+  rigScoreFillBlocked: {
+    backgroundColor: "#fb7185"
+  },
+  rigScoreValue: {
+    width: 34,
+    color: "#f8fafc",
+    fontSize: 11,
+    fontWeight: "900",
+    textAlign: "right"
+  },
+  rigLineGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6
+  },
+  rigLineChip: {
+    minWidth: 74,
+    flexGrow: 1,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: "#18181f"
+  },
+  rigLineLabel: {
+    color: "#a1a1aa",
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  rigLineValue: {
+    marginTop: 2,
+    color: "#f8fafc",
+    fontSize: 12,
+    fontWeight: "900"
+  },
+  rigQualityMessage: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    lineHeight: 17
   },
   grid2: {
     flexDirection: "row",
