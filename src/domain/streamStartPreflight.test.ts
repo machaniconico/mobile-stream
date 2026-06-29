@@ -189,6 +189,23 @@ const createPreparedTrackedAvatarScene = (): SceneDocument =>
         : source
   );
 
+const createShallowDepthTrackedAvatarScene = (): SceneDocument =>
+  updateSource(createPreparedTrackedAvatarScene(), "source-avatar", (source) =>
+    source.kind === "pngtuber"
+      ? {
+          ...source,
+          illustrationRig: {
+            ...source.illustrationRig,
+            hairLineY: 0.31,
+            eyeLineY: 0.34,
+            mouthLineY: 0.49,
+            shoulderLineY: 0.611,
+            sliceCount: 24
+          }
+        }
+      : source
+  );
+
 describe("stream start preflight", () => {
   it("blocks start when readiness has errors", () => {
     const report = createStreamStartPreflightReport({
@@ -317,6 +334,50 @@ describe("stream start preflight", () => {
     expect(report.status).toBe("ready");
     expect(report.issues.map((issue) => issue.code)).not.toContain("readiness-face-tracking-not-production-ready");
     expect(report.issues.map((issue) => issue.area)).not.toContain("avatar");
+  });
+
+  it("warns before start when a PNGTuber rig lacks high-fidelity pseudo-depth continuity", () => {
+    const profile = {
+      ...validProfile(),
+      faceTracking: {
+        ...validProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const
+      }
+    };
+    const scene = createShallowDepthTrackedAvatarScene();
+    const faceTracking = createFaceTrackingDiagnostics(scene, profile, {
+      status: "tracking",
+      yaw: 0.2,
+      pitch: 0.1,
+      roll: 0,
+      mouthOpen: 0.4,
+      blink: 0,
+      smile: 0.4,
+      browRaise: 0.2,
+      confidence: 0.91,
+      faceLandmarkConfidence: 0.81,
+      expression: "neutral",
+      lastFrameAt: 1_000
+    });
+
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(scene, profile),
+      streamStatus: "idle",
+      profile,
+      faceTracking
+    });
+
+    expect(faceTracking.status).toBe("warn");
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("warning");
+    expect(report.warnings).toContainEqual(
+      expect.objectContaining({
+        code: "avatar-face-tracking-not-production-ready",
+        area: "avatar",
+        message: expect.stringContaining("high-fidelity score")
+      })
+    );
   });
 
   it("warns when a visible avatar has face tracking disabled", () => {

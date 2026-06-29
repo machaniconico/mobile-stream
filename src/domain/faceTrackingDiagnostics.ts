@@ -219,6 +219,31 @@ export const createFaceTrackingDiagnostics = (
     );
   }
 
+  if (rigAnalyses.length > 0 && rigHighFidelityGrade !== "ready") {
+    return createWarning(
+      faceTracking,
+      runtimeStatus,
+      visibleAvatars.length,
+      visiblePngTubers.length,
+      visibleLive2D.length,
+      visibleVrms.length,
+      nativeVrmRendererReady,
+      preparedPngTubers.length,
+      activeMotionCount,
+      rigIssues.length,
+      rigIssueSummary,
+      rigQualityScore,
+      rigQualityGrade,
+      rigScoreSummary,
+      runtimeAgeMs,
+      runtimeFresh,
+      faceLandmarkConfidence,
+      faceLandmarkReady,
+      `Still-image avatar rig high-fidelity score is ${rigHighFidelityScore}/100 ${rigHighFidelityGrade}.`,
+      "Tune hair, eye, mouth, shoulder, face range, and slice count until parts and pseudo-depth continuity both reach production-ready scores."
+    );
+  }
+
   if (faceTracking.inputMode === "simulated") {
     return createWarning(
       faceTracking,

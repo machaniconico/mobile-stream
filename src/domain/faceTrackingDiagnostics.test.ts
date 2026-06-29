@@ -322,7 +322,7 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.rigHighFidelityGrade).toBe("review");
   });
 
-  it("keeps a production-safe still-image rig passable while exposing shallow pseudo-depth continuity", () => {
+  it("warns when a production-safe still-image rig still has shallow pseudo-depth continuity", () => {
     const profile = {
       ...createDefaultStudioProfile(),
       faceTracking: {
@@ -364,7 +364,8 @@ describe("face tracking diagnostics", () => {
       lastFrameAt: 1_000
     });
 
-    expect(diagnostics.status).toBe("pass");
+    expect(diagnostics.status).toBe("warn");
+    expect(diagnostics.summary).toContain("high-fidelity score");
     expect(diagnostics.rigIssueCount).toBe(0);
     expect(diagnostics.rigDepthContinuityScore).toBeLessThan(80);
     expect(diagnostics.rigHighFidelityGrade).toBe("review");
