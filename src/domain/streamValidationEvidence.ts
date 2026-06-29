@@ -34,6 +34,8 @@ export interface StreamValidationFaceTrackingSummary {
   faceLandmarkReady: boolean;
   visibleAvatarCount: number;
   preparedPngTuberCount: number;
+  visibleVrmCount: number;
+  nativeVrmRendererReady: boolean;
   activeMotionCount: number;
   rigIssueCount: number;
   rigIssueSummary: string;
@@ -1152,14 +1154,23 @@ const isPhysicalDeviceEvidencePass = (run: StreamValidationRun | null | undefine
   run?.physicalDeviceStatus === "pass" && run.physicalDevice;
 
 const isAvatarMotionEvidencePass = (faceTracking: StreamValidationFaceTrackingSummary | null | undefined): boolean =>
-  faceTracking?.status === "pass" &&
-  faceTracking.runtimeFresh &&
-  faceTracking.faceLandmarkReady &&
-  faceTracking.faceLandmarkConfidence >= 0.55 &&
-  faceTracking.activeMotionCount > 0 &&
+  Boolean(
+    faceTracking?.status === "pass" &&
+      faceTracking.runtimeFresh &&
+      faceTracking.faceLandmarkReady &&
+      faceTracking.faceLandmarkConfidence >= 0.55 &&
+      faceTracking.activeMotionCount > 0 &&
+      (hasReadyPngTuberMotionEvidence(faceTracking) || hasReadyVrmMotionEvidence(faceTracking))
+  );
+
+const hasReadyPngTuberMotionEvidence = (faceTracking: StreamValidationFaceTrackingSummary): boolean =>
+  faceTracking.preparedPngTuberCount > 0 &&
   faceTracking.rigIssueCount === 0 &&
   faceTracking.rigQualityGrade === "ready" &&
   faceTracking.rigQualityScore >= 90;
+
+const hasReadyVrmMotionEvidence = (faceTracking: StreamValidationFaceTrackingSummary): boolean =>
+  faceTracking.visibleVrmCount > 0 && faceTracking.nativeVrmRendererReady;
 
 const isAvatarMotionEvidenceIncomplete = (faceTracking: StreamValidationFaceTrackingSummary | null | undefined): boolean =>
   Boolean(faceTracking && faceTracking.status !== "info" && !isAvatarMotionEvidencePass(faceTracking));
@@ -1789,6 +1800,8 @@ const createFaceTrackingValidationSummary = (
   faceLandmarkReady: faceTracking.faceLandmarkReady === true,
   visibleAvatarCount: faceTracking.visibleAvatarCount,
   preparedPngTuberCount: faceTracking.preparedPngTuberCount,
+  visibleVrmCount: faceTracking.visibleVrmCount,
+  nativeVrmRendererReady: faceTracking.nativeVrmRendererReady,
   activeMotionCount: faceTracking.activeMotionCount,
   rigIssueCount: faceTracking.rigIssueCount,
   rigIssueSummary: sanitizeStoredText(faceTracking.rigIssueSummary, secrets),
@@ -2638,6 +2651,8 @@ const normalizeFaceTrackingValidationSummary = (value: unknown): StreamValidatio
     faceLandmarkReady: value.faceLandmarkReady === true,
     visibleAvatarCount: normalizeCount(value.visibleAvatarCount),
     preparedPngTuberCount: normalizeCount(value.preparedPngTuberCount),
+    visibleVrmCount: normalizeCount(value.visibleVrmCount),
+    nativeVrmRendererReady: value.nativeVrmRendererReady === true,
     activeMotionCount: normalizeCount(value.activeMotionCount),
     rigIssueCount: normalizeCount(value.rigIssueCount),
     rigIssueSummary: normalizeText(value.rigIssueSummary, "No still-image rig issues."),

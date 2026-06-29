@@ -477,6 +477,7 @@ export const StudioScreen = ({
     operationStatus,
     profile,
     validation: diagnostics.validation,
+    validationEvidence: diagnostics.validationEvidence,
     chatReader: chatReader.settings,
     platformChatAuth,
     platformChatOAuthCredentials,

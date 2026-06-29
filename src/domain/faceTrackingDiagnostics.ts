@@ -1,4 +1,5 @@
 import type { FaceTrackingRuntimeState } from "./faceTracking";
+import type { NativeRuntimeComposition } from "./nativeRuntime";
 import type { StudioProfile } from "./profiles";
 import type { AvatarIllustrationRig, SceneDocument, SceneSource } from "./scene";
 
@@ -18,6 +19,8 @@ export interface FaceTrackingDiagnostics {
   visibleAvatarCount: number;
   visiblePngTuberCount: number;
   visibleLive2DCount: number;
+  visibleVrmCount: number;
+  nativeVrmRendererReady: boolean;
   preparedPngTuberCount: number;
   activeMotionCount: number;
   rigIssueCount: number;
@@ -31,6 +34,7 @@ export interface FaceTrackingDiagnostics {
 export interface FaceTrackingDiagnosticsOptions {
   now?: number | Date;
   maxRuntimeAgeMs?: number;
+  nativeRuntimeComposition?: NativeRuntimeComposition | null;
 }
 
 export const faceTrackingRuntimeMaxAgeMs = 1500;
@@ -46,12 +50,16 @@ export const createFaceTrackingDiagnostics = (
   const visibleAvatars = scene.sources.filter(isVisibleAvatarSource);
   const visiblePngTubers = visibleAvatars.filter((source) => source.kind === "pngtuber");
   const visibleLive2D = visibleAvatars.filter((source) => source.kind === "live2d");
+  const visibleVrms = visibleAvatars.filter((source) => source.kind === "vrm");
   const preparedPngTubers = visiblePngTubers.filter((source) => source.imageUri.trim());
+  const nativeVrmRendererReady = hasReadyNativeVrmRenderer(options.nativeRuntimeComposition, visibleVrms.length);
   const activeMotionCount = visibleAvatars.filter(hasActiveMotion).length;
   const rigAnalyses = visiblePngTubers.map(createPngTuberRigAnalysis);
   const rigIssues = rigAnalyses.flatMap((analysis) => analysis.issues);
-  const rigQualityScore = rigAnalyses.length > 0 ? Math.min(...rigAnalyses.map((analysis) => analysis.score)) : 0;
-  const rigQualityGrade = createRigQualityGrade(rigQualityScore, rigIssues.length);
+  const stillImageRigQualityScore = rigAnalyses.length > 0 ? Math.min(...rigAnalyses.map((analysis) => analysis.score)) : 0;
+  const rigQualityScore = rigAnalyses.length === 0 && nativeVrmRendererReady ? 100 : stillImageRigQualityScore;
+  const rigQualityGrade =
+    rigAnalyses.length === 0 && nativeVrmRendererReady ? "ready" : createRigQualityGrade(rigQualityScore, rigIssues.length);
   const rigIssueSummary =
     rigIssues.length === 0
       ? "No still-image rig issues."
@@ -77,6 +85,8 @@ export const createFaceTrackingDiagnostics = (
       visibleAvatarCount: visibleAvatars.length,
       visiblePngTuberCount: visiblePngTubers.length,
       visibleLive2DCount: visibleLive2D.length,
+      visibleVrmCount: visibleVrms.length,
+      nativeVrmRendererReady,
       preparedPngTuberCount: preparedPngTubers.length,
       activeMotionCount,
       rigIssueCount: rigIssues.length,
@@ -95,6 +105,8 @@ export const createFaceTrackingDiagnostics = (
       visibleAvatars.length,
       visiblePngTubers.length,
       visibleLive2D.length,
+      visibleVrms.length,
+      nativeVrmRendererReady,
       preparedPngTubers.length,
       activeMotionCount,
       rigIssues.length,
@@ -110,13 +122,15 @@ export const createFaceTrackingDiagnostics = (
     );
   }
 
-  if (visiblePngTubers.length === 0 && visibleAvatars.length > 0) {
+  if (visiblePngTubers.length === 0 && visibleAvatars.length > 0 && (visibleLive2D.length > 0 || !nativeVrmRendererReady)) {
     return createWarning(
       faceTracking,
       runtimeStatus,
       visibleAvatars.length,
       visiblePngTubers.length,
       visibleLive2D.length,
+      visibleVrms.length,
+      nativeVrmRendererReady,
       preparedPngTubers.length,
       activeMotionCount,
       rigIssues.length,
@@ -127,8 +141,12 @@ export const createFaceTrackingDiagnostics = (
       runtimeFresh,
       faceLandmarkConfidence,
       faceLandmarkReady,
-      "Face tracking is targeting Live2D/VRM only, but native Live2D/VRM rendering is not production-ready yet.",
-      "Use a prepared PNGTuber still image for production validation until native Cubism or VRM rendering lands."
+      visibleLive2D.length > 0
+        ? "Face tracking is targeting Live2D, but native Cubism rendering is not production-ready yet."
+        : "Face tracking is targeting VRM/VRoid, but native VRM renderer proof is not ready yet.",
+      visibleLive2D.length > 0
+        ? "Use a prepared PNGTuber still image for production validation until native Cubism rendering lands."
+        : "Run a physical iOS/Android validation with the VRM renderer loaded, model rendered, and pose payload applied."
     );
   }
 
@@ -139,6 +157,8 @@ export const createFaceTrackingDiagnostics = (
       visibleAvatars.length,
       visiblePngTubers.length,
       visibleLive2D.length,
+      visibleVrms.length,
+      nativeVrmRendererReady,
       preparedPngTubers.length,
       activeMotionCount,
       rigIssues.length,
@@ -161,6 +181,8 @@ export const createFaceTrackingDiagnostics = (
       visibleAvatars.length,
       visiblePngTubers.length,
       visibleLive2D.length,
+      visibleVrms.length,
+      nativeVrmRendererReady,
       preparedPngTubers.length,
       activeMotionCount,
       rigIssues.length,
@@ -183,6 +205,8 @@ export const createFaceTrackingDiagnostics = (
       visibleAvatars.length,
       visiblePngTubers.length,
       visibleLive2D.length,
+      visibleVrms.length,
+      nativeVrmRendererReady,
       preparedPngTubers.length,
       activeMotionCount,
       rigIssues.length,
@@ -205,6 +229,8 @@ export const createFaceTrackingDiagnostics = (
       visibleAvatars.length,
       visiblePngTubers.length,
       visibleLive2D.length,
+      visibleVrms.length,
+      nativeVrmRendererReady,
       preparedPngTubers.length,
       activeMotionCount,
       rigIssues.length,
@@ -227,6 +253,8 @@ export const createFaceTrackingDiagnostics = (
       visibleAvatars.length,
       visiblePngTubers.length,
       visibleLive2D.length,
+      visibleVrms.length,
+      nativeVrmRendererReady,
       preparedPngTubers.length,
       activeMotionCount,
       rigIssues.length,
@@ -249,6 +277,8 @@ export const createFaceTrackingDiagnostics = (
       visibleAvatars.length,
       visiblePngTubers.length,
       visibleLive2D.length,
+      visibleVrms.length,
+      nativeVrmRendererReady,
       preparedPngTubers.length,
       activeMotionCount,
       rigIssues.length,
@@ -271,6 +301,8 @@ export const createFaceTrackingDiagnostics = (
       visibleAvatars.length,
       visiblePngTubers.length,
       visibleLive2D.length,
+      visibleVrms.length,
+      nativeVrmRendererReady,
       preparedPngTubers.length,
       activeMotionCount,
       rigIssues.length,
@@ -293,6 +325,8 @@ export const createFaceTrackingDiagnostics = (
       visibleAvatars.length,
       visiblePngTubers.length,
       visibleLive2D.length,
+      visibleVrms.length,
+      nativeVrmRendererReady,
       preparedPngTubers.length,
       activeMotionCount,
       rigIssues.length,
@@ -321,13 +355,15 @@ export const createFaceTrackingDiagnostics = (
     visibleAvatarCount: visibleAvatars.length,
     visiblePngTuberCount: visiblePngTubers.length,
     visibleLive2DCount: visibleLive2D.length,
+    visibleVrmCount: visibleVrms.length,
+    nativeVrmRendererReady,
     preparedPngTuberCount: preparedPngTubers.length,
     activeMotionCount,
     rigIssueCount: rigIssues.length,
     rigIssueSummary,
     rigQualityScore,
     rigQualityGrade,
-    summary: `Face tracking is ready with ${preparedPngTubers.length} prepared PNGTuber source${preparedPngTubers.length === 1 ? "" : "s"}.`,
+    summary: createReadySummary(preparedPngTubers.length, visibleVrms.length, nativeVrmRendererReady),
     recommendation: "Keep this tracker state with the next private iOS/Android validation run."
   };
 };
@@ -338,6 +374,8 @@ const createWarning = (
   visibleAvatarCount: number,
   visiblePngTuberCount: number,
   visibleLive2DCount: number,
+  visibleVrmCount: number,
+  nativeVrmRendererReady: boolean,
   preparedPngTuberCount: number,
   activeMotionCount: number,
   rigIssueCount: number,
@@ -363,6 +401,8 @@ const createWarning = (
   visibleAvatarCount,
   visiblePngTuberCount,
   visibleLive2DCount,
+  visibleVrmCount,
+  nativeVrmRendererReady,
   preparedPngTuberCount,
   activeMotionCount,
   rigIssueCount,
@@ -372,6 +412,54 @@ const createWarning = (
   summary,
   recommendation
 });
+
+const hasReadyNativeVrmRenderer = (
+  composition: NativeRuntimeComposition | null | undefined,
+  visibleVrmCount: number
+): boolean => {
+  if (visibleVrmCount <= 0 || !composition || (composition.vrmSourceCount ?? 0) <= 0) {
+    return false;
+  }
+
+  return (
+    composition.vrmRendererStatus === "ready" &&
+    (composition.vrmSourceCount ?? 0) >= visibleVrmCount &&
+    (composition.vrmRenderedSourceCount ?? 0) >= visibleVrmCount &&
+    (composition.vrmRenderMissingCount ?? 0) === 0 &&
+    (composition.vrmRenderFailureCount ?? 0) === 0 &&
+    (composition.vrmActivePoseCount ?? 0) >= visibleVrmCount &&
+    (composition.vrmMissingPoseCount ?? 0) === 0 &&
+    (composition.vrmModelLoadedCount ?? 0) > 0 &&
+    (composition.vrmHumanoidBoneCount ?? 0) > 0 &&
+    (composition.vrmExpressionCount ?? 0) > 0 &&
+    (composition.vrmMeshPrimitiveCount ?? 0) > 0 &&
+    (composition.vrmSkinnedMeshPrimitiveCount ?? 0) > 0 &&
+    (composition.vrmSkinJointCount ?? 0) > 0 &&
+    (composition.vrmPositionAccessorCount ?? 0) > 0 &&
+    (composition.vrmVertexCount ?? 0) > 0 &&
+    (composition.vrmSkinningAttributePrimitiveCount ?? 0) >= (composition.vrmSkinnedMeshPrimitiveCount ?? 0) &&
+    (composition.vrmTrianglePrimitiveCount ?? 0) >= (composition.vrmMeshPrimitiveCount ?? 0) &&
+    (composition.vrmUnsupportedPrimitiveModeCount ?? 0) === 0 &&
+    (composition.vrmUnsupportedImageMimeCount ?? 0) === 0 &&
+    ((composition.vrmImageCount ?? 0) === 0 || (composition.vrmTexcoordAccessorCount ?? 0) > 0) &&
+    (composition.vrmPoseBoneUnsupportedCount ?? 0) === 0 &&
+    (composition.vrmPoseExpressionUnsupportedCount ?? 0) === 0
+  );
+};
+
+const createReadySummary = (
+  preparedPngTuberCount: number,
+  visibleVrmCount: number,
+  nativeVrmRendererReady: boolean
+): string => {
+  if (preparedPngTuberCount > 0) {
+    return `Face tracking is ready with ${preparedPngTuberCount} prepared PNGTuber source${preparedPngTuberCount === 1 ? "" : "s"}.`;
+  }
+  if (visibleVrmCount > 0 && nativeVrmRendererReady) {
+    return `Face tracking is ready with ${visibleVrmCount} native-rendered VRM/VRoid source${visibleVrmCount === 1 ? "" : "s"}.`;
+  }
+  return "Face tracking is ready.";
+};
 
 const isVisibleAvatarSource = (
   source: SceneSource

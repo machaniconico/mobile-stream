@@ -492,8 +492,8 @@ const createAvatarMotionItem = (
       area: "avatar",
       status: "pass",
       title: "VTuber avatar motion",
-      detail: `${faceTracking.preparedPngTuberCount} prepared PNGTuber source${faceTracking.preparedPngTuberCount === 1 ? "" : "s"} with ${faceTracking.runtimeStatus} tracking and retained iOS/Android avatar-motion evidence.`,
-      action: "Keep the prepared avatar asset and tracker state with the release-candidate validation run."
+      detail: `${avatarMotionSourceLabel(faceTracking)} with ${faceTracking.runtimeStatus} tracking and retained iOS/Android avatar-motion evidence.`,
+      action: "Keep the prepared avatar asset, renderer proof, and tracker state with the release-candidate validation run."
     };
   }
 
@@ -516,6 +516,16 @@ const createAvatarMotionItem = (
     detail: "Face tracking is not enabled for this validation profile.",
     action: "Enable face tracking and validate a prepared PNGTuber source when shipping VTuber mode."
   };
+};
+
+const avatarMotionSourceLabel = (faceTracking: FaceTrackingDiagnostics): string => {
+  if (faceTracking.preparedPngTuberCount > 0) {
+    return `${faceTracking.preparedPngTuberCount} prepared PNGTuber source${faceTracking.preparedPngTuberCount === 1 ? "" : "s"}`;
+  }
+  if (faceTracking.visibleVrmCount > 0 && faceTracking.nativeVrmRendererReady) {
+    return `${faceTracking.visibleVrmCount} native-rendered VRM/VRoid source${faceTracking.visibleVrmCount === 1 ? "" : "s"}`;
+  }
+  return `${faceTracking.visibleAvatarCount} visible avatar source${faceTracking.visibleAvatarCount === 1 ? "" : "s"}`;
 };
 
 const createSessionBaselineItem = (

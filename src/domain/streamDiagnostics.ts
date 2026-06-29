@@ -288,7 +288,8 @@ export const createStreamDiagnostics = (
     recovery: recoveryStatus
   });
   const faceTracking = createFaceTrackingDiagnostics(scene, profile, faceTrackingRuntime, {
-    now: options.now ?? Date.now()
+    now: options.now ?? Date.now(),
+    nativeRuntimeComposition: nativeRuntime?.composition ?? null
   });
   const nativeComposition = sanitizeNativeCompositionReport(createNativeCompositionReport(scene), destination.streamKey);
   const platformPublishing = createPlatformPublishingDiagnostics(destination.platform, profile.platformPublishing);
@@ -302,8 +303,10 @@ export const createStreamDiagnostics = (
     streamStatus: snapshot.state.status,
     elapsedSeconds: snapshot.health.elapsedSeconds
   });
+  const effectiveReadiness = createEffectiveReadiness(readiness, faceTracking);
+  const effectiveNativeComposition = createEffectiveNativeComposition(nativeComposition, faceTracking);
   const checks = [
-    ...readiness.issues.map<DiagnosticCheck>((issue) => ({
+    ...effectiveReadiness.issues.map<DiagnosticCheck>((issue) => ({
       code: `readiness-${issue.code}`,
       status: issue.severity === "error" ? "fail" : "warn",
       label: issue.field,
@@ -322,7 +325,7 @@ export const createStreamDiagnostics = (
     createQualityIncidentCheck(qualityIncidents),
     createQualityAdvisorCheck(qualityAdvisor),
     createFaceTrackingCheck(faceTracking),
-    createNativeCompositionCheck(nativeComposition),
+    createNativeCompositionCheck(effectiveNativeComposition),
     createBroadcastMixerCheck(broadcastMixer),
     createBroadcastAudioGuardCheck(audioGuard),
     createBroadcastAudioSilenceGuardCheck(audioSilenceGuard),
@@ -338,7 +341,7 @@ export const createStreamDiagnostics = (
     requiredTransport: destination.protocol
   });
   const validation = createStreamValidationChecklist({
-    readiness,
+    readiness: effectiveReadiness,
     diagnosticStatus: status,
     target: {
       platform: targetPlatform,
@@ -408,7 +411,7 @@ export const createStreamDiagnostics = (
       lastOutcome: sessionSummaries[0]?.outcome ?? null
     },
     nativeRuntime,
-    nativeComposition,
+    nativeComposition: effectiveNativeComposition,
     faceTracking,
     audio,
     chatReadout,
@@ -473,7 +476,7 @@ export const createStreamDiagnostics = (
     },
     qualityAdvisor,
     faceTracking,
-    nativeComposition,
+    nativeComposition: effectiveNativeComposition,
     audio,
     audioRoute,
     chatReadout,
@@ -606,7 +609,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Runtime age: ${diagnostics.faceTracking.runtimeAgeMs === null ? "-" : `${diagnostics.faceTracking.runtimeAgeMs} ms`} / fresh ${diagnostics.faceTracking.runtimeFresh ? "yes" : "no"}`,
     `- Native landmarks: ${Math.round((diagnostics.faceTracking.faceLandmarkConfidence ?? 0) * 100)}% / ready ${diagnostics.faceTracking.faceLandmarkReady ? "yes" : "no"}`,
     `- Rig: ${diagnostics.faceTracking.rigMode}`,
-    `- Avatars: ${diagnostics.faceTracking.visibleAvatarCount} visible / ${diagnostics.faceTracking.preparedPngTuberCount} prepared PNGTuber / ${diagnostics.faceTracking.activeMotionCount} moving`,
+    `- Avatars: ${diagnostics.faceTracking.visibleAvatarCount} visible / ${diagnostics.faceTracking.preparedPngTuberCount} prepared PNGTuber / ${diagnostics.faceTracking.visibleVrmCount} VRM / native VRM renderer ${diagnostics.faceTracking.nativeVrmRendererReady ? "ready" : "not-ready"} / ${diagnostics.faceTracking.activeMotionCount} moving`,
     `- Rig quality: ${diagnostics.faceTracking.rigQualityScore}/100 ${diagnostics.faceTracking.rigQualityGrade}`,
     `- Rig issues: ${diagnostics.faceTracking.rigIssueCount} / ${diagnostics.faceTracking.rigIssueSummary}`,
     `- Recommendation: ${diagnostics.faceTracking.recommendation}`,
@@ -853,7 +856,7 @@ const formatValidationMonitorHold = (diagnostics: StreamDiagnostics): string =>
     : "-";
 
 const formatValidationFaceTracking = (diagnostics: StreamDiagnostics): string =>
-  `${diagnostics.validationEvidence.faceTrackingRunCount} retained / ${diagnostics.validationEvidence.faceTrackingReadyCount} ready / ${diagnostics.validationEvidence.faceTrackingWarningCount} warn / iOS ${diagnostics.validationEvidence.faceTrackingIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestFaceTracking?.status ?? "-"} ${diagnostics.validationEvidence.latestFaceTracking?.runtimeStatus ?? "-"} / landmarks ${Math.round((diagnostics.validationEvidence.latestFaceTracking?.faceLandmarkConfidence ?? 0) * 100)}% ${diagnostics.validationEvidence.latestFaceTracking?.faceLandmarkReady ? "ready" : "not-ready"} / prepared ${diagnostics.validationEvidence.latestFaceTracking?.preparedPngTuberCount ?? 0} / moving ${diagnostics.validationEvidence.latestFaceTracking?.activeMotionCount ?? 0} / rig quality ${diagnostics.validationEvidence.latestFaceTracking?.rigQualityScore ?? 0}/100 ${diagnostics.validationEvidence.latestFaceTracking?.rigQualityGrade ?? "blocked"}`;
+  `${diagnostics.validationEvidence.faceTrackingRunCount} retained / ${diagnostics.validationEvidence.faceTrackingReadyCount} ready / ${diagnostics.validationEvidence.faceTrackingWarningCount} warn / iOS ${diagnostics.validationEvidence.faceTrackingIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.faceTrackingAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestFaceTracking?.status ?? "-"} ${diagnostics.validationEvidence.latestFaceTracking?.runtimeStatus ?? "-"} / landmarks ${Math.round((diagnostics.validationEvidence.latestFaceTracking?.faceLandmarkConfidence ?? 0) * 100)}% ${diagnostics.validationEvidence.latestFaceTracking?.faceLandmarkReady ? "ready" : "not-ready"} / prepared ${diagnostics.validationEvidence.latestFaceTracking?.preparedPngTuberCount ?? 0} / vrm ${diagnostics.validationEvidence.latestFaceTracking?.visibleVrmCount ?? 0} renderer ${diagnostics.validationEvidence.latestFaceTracking?.nativeVrmRendererReady ? "ready" : "not-ready"} / moving ${diagnostics.validationEvidence.latestFaceTracking?.activeMotionCount ?? 0} / rig quality ${diagnostics.validationEvidence.latestFaceTracking?.rigQualityScore ?? 0}/100 ${diagnostics.validationEvidence.latestFaceTracking?.rigQualityGrade ?? "blocked"}`;
 
 const formatValidationAudio = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestAudio
@@ -1511,6 +1514,59 @@ const createFaceTrackingCheck = (faceTracking: FaceTrackingDiagnostics): Diagnos
   label: "Face tracking",
   message: faceTracking.summary
 });
+
+const createEffectiveReadiness = (
+  readiness: ReadinessReport,
+  faceTracking: FaceTrackingDiagnostics
+): ReadinessReport => {
+  const issues = readiness.issues.filter(
+    (issue) =>
+      !(
+        (issue.code === "scene-vrm-preview" || issue.code === "scene-native-composition-preview-only-overlays") &&
+        faceTracking.nativeVrmRendererReady &&
+        !readiness.issues.some((candidate) => candidate.code.startsWith("scene-vrm-model-"))
+      )
+  );
+
+  if (issues.length === readiness.issues.length) {
+    return readiness;
+  }
+
+  const errorCount = issues.filter((issue) => issue.severity === "error").length;
+  return {
+    ...readiness,
+    issues,
+    errorCount,
+    warningCount: issues.length - errorCount,
+    canStart: errorCount === 0
+  };
+};
+
+const createEffectiveNativeComposition = (
+  composition: NativeCompositionReport,
+  faceTracking: FaceTrackingDiagnostics
+): NativeCompositionReport => {
+  if (
+    composition.coverage !== "preview-only-overlays" ||
+    !faceTracking.nativeVrmRendererReady ||
+    composition.assetIssueCount > 0 ||
+    composition.unsupportedSourceKinds.some((kind) => kind !== "vrm")
+  ) {
+    return composition;
+  }
+
+  return {
+    ...composition,
+    status: "pass",
+    coverage: "native-overlays",
+    summary: `${faceTracking.visibleVrmCount} visible VRM/VRoid source${faceTracking.visibleVrmCount === 1 ? "" : "s"} are covered by retained native renderer proof.`,
+    recommendedNextStep: "Keep the native VRM renderer proof with the release-candidate validation run.",
+    previewOnlySourceCount: 0,
+    requiresNativeCompositor: false,
+    unsupportedSourceKinds: [],
+    issues: composition.issues.filter((issue) => issue.sourceKind !== "vrm")
+  };
+};
 
 const createNativeCompositionCheck = (composition: NativeCompositionReport): DiagnosticCheck => ({
   code: `native-composition-${composition.coverage}`,

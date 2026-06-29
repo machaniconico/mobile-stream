@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyDestinationPreset, createDefaultStudioProfile, type StudioProfile } from "./profiles";
 import { createReadinessReport } from "./readiness";
-import { createDefaultScene, defaultAvatarMotion, setVisibility, updateSource } from "./scene";
+import { createDefaultScene, createSource, defaultAvatarMotion, setVisibility, updateSource } from "./scene";
 import { createStreamDiagnostics } from "./streamDiagnostics";
 import { createStreamSessionSummary } from "./streamSessionSummary";
 import {
@@ -169,6 +169,56 @@ const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
   },
   message: "Live"
 });
+const nativeVrmMonitorRuntime = (platform: "ios" | "android" = "ios") => {
+  const runtime = nativeMonitorRuntime(platform);
+  return {
+    ...runtime,
+    composition: {
+      ...runtime.composition,
+      appliedCount: 1,
+      vrmSourceCount: 1,
+      vrmPosePayloadCount: 1,
+      vrmActivePoseCount: 1,
+      vrmMissingPoseCount: 0,
+      vrmModelUriCount: 1,
+      vrmModelVersions: ["1.0"],
+      vrmHumanoidBoneCount: 55,
+      vrmExpressionCount: 8,
+      vrmMeshPrimitiveCount: 4,
+      vrmSkinnedMeshPrimitiveCount: 4,
+      vrmSkinJointCount: 55,
+      vrmPositionAccessorCount: 4,
+      vrmVertexCount: 12_480,
+      vrmIndexCount: 36_240,
+      vrmBoundsAccessorCount: 4,
+      vrmSkinningAttributePrimitiveCount: 4,
+      vrmTrianglePrimitiveCount: 4,
+      vrmUnsupportedPrimitiveModeCount: 0,
+      vrmNormalAccessorCount: 4,
+      vrmTexcoordAccessorCount: 4,
+      vrmMorphTargetCount: 8,
+      vrmMaterialCount: 3,
+      vrmTextureCount: 3,
+      vrmImageCount: 3,
+      vrmUnsupportedImageMimeCount: 0,
+      vrmTransparentMaterialCount: 1,
+      vrmPoseBoneCount: 7,
+      vrmPoseBoneAppliedCount: 7,
+      vrmPoseBoneUnsupportedCount: 0,
+      vrmPoseExpressionCount: 3,
+      vrmPoseExpressionAppliedCount: 3,
+      vrmPoseExpressionUnsupportedCount: 0,
+      vrmRuntimeStatuses: ["active"],
+      vrmRendererStatus: "ready" as const,
+      vrmRendererBackend: platform === "ios" ? "metal-scene-kit" : "opengl-es",
+      vrmModelLoadedCount: 1,
+      vrmRenderedSourceCount: 1,
+      vrmRenderMissingCount: 0,
+      vrmRenderFailureCount: 0,
+      message: "Native VRM renderer applied"
+    }
+  };
+};
 const nativeMonitorRuntimeWithLatency = (
   platform: "ios" | "android" = "ios",
   latencyMs = 96,
@@ -194,6 +244,22 @@ const nativeReadyScene = () =>
         }
       : source
   );
+const nativeReadyVrmScene = () =>
+  updateSource(setVisibility(createDefaultScene(), "source-background", false), "source-avatar", (source) => {
+    const vrm = createSource("vrm");
+    if (source.kind !== "pngtuber" || vrm.kind !== "vrm") {
+      return source;
+    }
+    return {
+      ...vrm,
+      id: source.id,
+      name: "Production VRoid",
+      visible: true,
+      transform: source.transform,
+      modelUri: "file:///private/var/mobile/Containers/Shared/AppGroup/ABCDEF/avatar.vrm",
+      motion: { ...source.motion, headYaw: 0.18, mouthDeform: 0.22, confidence: 0.9 }
+    };
+  });
 
 const physicalDeviceMeta = (platform: "ios" | "android") =>
   platform === "ios"
@@ -1353,7 +1419,9 @@ describe("stream validation evidence", () => {
       rigMode: "still-image-2d",
       runtimeStatus: "unavailable",
       visibleAvatarCount: 1,
-      preparedPngTuberCount: 1
+      preparedPngTuberCount: 1,
+      visibleVrmCount: 0,
+      nativeVrmRendererReady: false
     });
     expect(run.summary).toContain("Native face tracking has not reported runtime status yet");
     expect(run.recommendation).toContain("Open this scene");
@@ -1509,6 +1577,108 @@ describe("stream validation evidence", () => {
     expect(summary.status).toBe("ready");
   });
 
+  it("treats native-rendered VRM avatar motion as retained iOS and Android evidence", () => {
+    const scene = nativeReadyVrmScene();
+    const profile = {
+      ...commercialProfileWithKey("validation-key"),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const,
+        rigMode: "still-image-2d" as const
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const faceTrackingRuntime = {
+      status: "tracking" as const,
+      yaw: 0.16,
+      pitch: 0.04,
+      roll: 0.02,
+      mouthOpen: 0.42,
+      blink: 0,
+      smile: 0.24,
+      browRaise: 0.1,
+      confidence: 0.9,
+      faceLandmarkConfidence: 0.82,
+      expression: "neutral" as const,
+      lastFrameAt: Date.parse("2026-06-23T00:00:00.000Z")
+    };
+    const diagnosticsFor = (platform: "ios" | "android") =>
+      createStreamDiagnostics(
+        scene,
+        profile,
+        readiness,
+        {
+          state: { status: "live" },
+          health: health({ bitrateKbps: 3500, fps: 30 }),
+          nativeRuntime: nativeVrmMonitorRuntime(platform)
+        },
+        [],
+        stableMonitorSamples(),
+        [spokenChatSessionSummary()],
+        [],
+        faceTrackingRuntime,
+        { ...connectedChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
+      );
+    const iosRun = createStreamValidationRun({
+      diagnostics: diagnosticsFor("ios"),
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const androidRun = createStreamValidationRun({
+      diagnostics: diagnosticsFor("android"),
+      devicePlatform: "android",
+      ...physicalDeviceMeta("android"),
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:01:00.000Z")
+    });
+
+    const summary = summarizeStreamValidationEvidence([androidRun, iosRun], { now: validationNow });
+
+    expect(iosRun.nativeRuntime?.status).toBe("pass");
+    expect(androidRun.nativeRuntime?.status).toBe("pass");
+    expect(iosRun.monitorHold?.status).toBe("pass");
+    expect(iosRun.faceTracking?.status).toBe("pass");
+    expect(iosRun.audio?.status).toBe("pass");
+    expect(iosRun.chatReadout?.status).toBe("pass");
+    expect(iosRun.platformPublishing?.status).toBe("pass");
+    expect(iosRun.platformPublishingFreshness?.status).toBe("fresh");
+    expect(iosRun.result).toBe("pass");
+    expect(androidRun.result).toBe("pass");
+    expect(iosRun.faceTracking).toMatchObject({
+      status: "pass",
+      preparedPngTuberCount: 0,
+      visibleVrmCount: 1,
+      nativeVrmRendererReady: true,
+      activeMotionCount: 1,
+      rigQualityScore: 100,
+      rigQualityGrade: "ready"
+    });
+    expect(summary.faceTrackingIosPass).toBe(true);
+    expect(summary.faceTrackingAndroidPass).toBe(true);
+    expect(summary.nativeRuntimeIosPass).toBe(true);
+    expect(summary.nativeRuntimeAndroidPass).toBe(true);
+    expect(summary.latestFaceTracking).toMatchObject({
+      visibleVrmCount: 1,
+      nativeVrmRendererReady: true
+    });
+    expect(summary.runManifest.find((run) => run.devicePlatform === "ios")).toMatchObject({
+      nativeRuntimeVrmSourceCount: 1,
+      nativeRuntimeVrmRendererStatus: "ready",
+      nativeRuntimeVrmRenderedSourceCount: 1,
+      nativeRuntimeVrmRenderMissingCount: 0,
+      faceTrackingStatus: "pass",
+      faceTrackingActiveMotionCount: 1,
+      faceTrackingRigQualityScore: 100,
+      faceTrackingRigQualityGrade: "ready"
+    });
+    expect(summary.status).toBe("ready");
+  });
+
   it("does not treat retained face tracking pass as avatar evidence when motion count is zero", () => {
     const scene = nativeReadyScene();
     const profile = profileWithKey("validation-key");
@@ -1550,6 +1720,8 @@ describe("stream validation evidence", () => {
         faceLandmarkReady: true,
         visibleAvatarCount: 1,
         preparedPngTuberCount: 1,
+        visibleVrmCount: 0,
+        nativeVrmRendererReady: false,
         activeMotionCount: 0,
         rigIssueCount: 0,
         rigIssueSummary: "No still-image rig issues.",
@@ -1604,6 +1776,8 @@ describe("stream validation evidence", () => {
         faceLandmarkReady: false,
         visibleAvatarCount: 1,
         preparedPngTuberCount: 1,
+        visibleVrmCount: 0,
+        nativeVrmRendererReady: false,
         activeMotionCount: 1,
         rigIssueCount: 0,
         rigIssueSummary: "No still-image rig issues.",
@@ -1661,6 +1835,8 @@ describe("stream validation evidence", () => {
         faceLandmarkReady: true,
         visibleAvatarCount: 1,
         preparedPngTuberCount: 1,
+        visibleVrmCount: 0,
+        nativeVrmRendererReady: false,
         activeMotionCount: 1,
         rigIssueCount: 1,
         rigIssueSummary: "1 still-image rig issue: rig lines must be ordered hair < eyes < mouth < shoulders",

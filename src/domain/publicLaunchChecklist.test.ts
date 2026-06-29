@@ -99,6 +99,8 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
     visibleAvatarCount: 1,
     visiblePngTuberCount: 1,
     visibleLive2DCount: 0,
+    visibleVrmCount: 0,
+    nativeVrmRendererReady: false,
     preparedPngTuberCount: 1,
     activeMotionCount: 1,
     rigIssueCount: 0,

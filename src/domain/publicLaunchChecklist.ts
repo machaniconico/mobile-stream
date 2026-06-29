@@ -198,8 +198,8 @@ const createAvatarTrackingItem = (
       id: "avatar-tracking",
       status: "pass",
       label: "Avatar tracking",
-      detail: `${tracking.preparedPngTuberCount} prepared PNGTuber source${tracking.preparedPngTuberCount === 1 ? "" : "s"} with ${tracking.runtimeStatus} tracking and ${tracking.activeMotionCount} moving avatar source${tracking.activeMotionCount === 1 ? "" : "s"}.`,
-      action: "Keep native camera tracking, calibration, and prepared still-image assets unchanged for launch."
+      detail: `${avatarTrackingSourceLabel(tracking)} with ${tracking.runtimeStatus} tracking and ${tracking.activeMotionCount} moving avatar source${tracking.activeMotionCount === 1 ? "" : "s"}.`,
+      action: "Keep native camera tracking, calibration, prepared avatar assets, and renderer proof unchanged for launch."
     };
   }
 
@@ -230,6 +230,16 @@ const createAvatarTrackingItem = (
     detail: "No visible avatar source is active in this scene.",
     action: "Add a prepared PNGTuber source and enable native camera tracking before shipping VTuber mode."
   };
+};
+
+const avatarTrackingSourceLabel = (tracking: PublicLaunchChecklistInput["diagnostics"]["faceTracking"]): string => {
+  if (tracking.preparedPngTuberCount > 0) {
+    return `${tracking.preparedPngTuberCount} prepared PNGTuber source${tracking.preparedPngTuberCount === 1 ? "" : "s"}`;
+  }
+  if (tracking.visibleVrmCount > 0 && tracking.nativeVrmRendererReady) {
+    return `${tracking.visibleVrmCount} native-rendered VRM/VRoid source${tracking.visibleVrmCount === 1 ? "" : "s"}`;
+  }
+  return `${tracking.visibleAvatarCount} visible avatar source${tracking.visibleAvatarCount === 1 ? "" : "s"}`;
 };
 
 const createChatReadoutItem = (

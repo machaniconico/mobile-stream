@@ -26,6 +26,10 @@ import { broadcastMixerChannels, type StudioProfile } from "./profiles";
 import type { StreamOperationStatus } from "./streamOperation";
 import type { StreamStatus } from "./streamState";
 import type { StreamValidationChecklist } from "./streamValidationChecklist";
+import type {
+  StreamValidationEvidenceRunManifestItem,
+  StreamValidationEvidenceSummary
+} from "./streamValidationEvidence";
 
 export type StreamStartPreflightStatus = "ready" | "warning" | "blocked";
 export type StreamStartPreflightSeverity = "block" | "warning";
@@ -83,6 +87,10 @@ export interface StreamStartPreflightInput {
   platformChatConnection?: Pick<PlatformChatConnectionState, "phase" | "message"> | null;
   audioRoute?: AudioRouteState | null;
   faceTracking?: FaceTrackingDiagnostics | null;
+  validationEvidence?: Pick<
+    StreamValidationEvidenceSummary,
+    "nativeRuntimeIosPass" | "nativeRuntimeAndroidPass" | "runManifest"
+  > | null;
   now?: Date;
 }
 
@@ -102,11 +110,13 @@ export const createStreamStartPreflightReport = ({
   platformChatConnection = null,
   audioRoute = null,
   faceTracking = null,
+  validationEvidence = null,
   now = new Date()
 }: StreamStartPreflightInput): StreamStartPreflightReport => {
   const issues = [
     ...readiness.issues
       .filter((issue) => !shouldReplaceReadinessFaceTrackingIssue(issue, faceTracking))
+      .filter((issue) => !shouldSuppressValidatedVrmPreviewIssue(issue, readiness.issues, validationEvidence, faceTracking))
       .map((issue) => toPreflightIssue(issue, profile)),
     ...createFaceTrackingIssues(faceTracking),
     ...createBroadcastMixerIssues(profile),
@@ -160,6 +170,70 @@ const shouldReplaceReadinessFaceTrackingIssue = (
   issue: ReadinessIssue,
   faceTracking: FaceTrackingDiagnostics | null
 ): boolean => issue.field === "faceTracking" && faceTracking !== null;
+
+const shouldSuppressValidatedVrmPreviewIssue = (
+  issue: ReadinessIssue,
+  readinessIssues: ReadinessIssue[],
+  validationEvidence: StreamStartPreflightInput["validationEvidence"],
+  faceTracking: FaceTrackingDiagnostics | null
+): boolean =>
+  (issue.code === "scene-vrm-preview" ||
+    (issue.code === "scene-native-composition-preview-only-overlays" &&
+      faceTracking?.nativeVrmRendererReady === true &&
+      faceTracking.visibleVrmCount > 0)) &&
+  !readinessIssues.some((candidate) => candidate.code.startsWith("scene-vrm-model-")) &&
+  hasRetainedVrmRendererProof(validationEvidence);
+
+const hasRetainedVrmRendererProof = (
+  validationEvidence: StreamStartPreflightInput["validationEvidence"]
+): boolean => {
+  if (!validationEvidence?.nativeRuntimeIosPass || !validationEvidence.nativeRuntimeAndroidPass) {
+    return false;
+  }
+
+  return (
+    hasPlatformVrmRendererProof(validationEvidence.runManifest, "ios") &&
+    hasPlatformVrmRendererProof(validationEvidence.runManifest, "android")
+  );
+};
+
+const hasPlatformVrmRendererProof = (
+  runManifest: StreamValidationEvidenceRunManifestItem[],
+  platform: StreamValidationEvidenceRunManifestItem["devicePlatform"]
+): boolean =>
+  runManifest.some(
+    (run) =>
+      run.eligible &&
+      run.devicePlatform === platform &&
+      run.result === "pass" &&
+      run.nativeRuntimeStatus === "pass" &&
+      run.nativeRuntimeCompositionStatus === "applied" &&
+      hasManifestVrmRendererProof(run)
+  );
+
+const hasManifestVrmRendererProof = (run: StreamValidationEvidenceRunManifestItem): boolean =>
+  run.nativeRuntimeVrmSourceCount > 0 &&
+  run.nativeRuntimeVrmRendererStatus === "ready" &&
+  run.nativeRuntimeVrmRenderedSourceCount >= run.nativeRuntimeVrmSourceCount &&
+  run.nativeRuntimeVrmRenderMissingCount === 0 &&
+  run.nativeRuntimeVrmRenderFailureCount === 0 &&
+  run.nativeRuntimeVrmActivePoseCount >= run.nativeRuntimeVrmSourceCount &&
+  run.nativeRuntimeVrmMissingPoseCount === 0 &&
+  run.nativeRuntimeVrmModelLoadedCount > 0 &&
+  run.nativeRuntimeVrmHumanoidBoneCount > 0 &&
+  run.nativeRuntimeVrmExpressionCount > 0 &&
+  run.nativeRuntimeVrmMeshPrimitiveCount > 0 &&
+  run.nativeRuntimeVrmSkinnedMeshPrimitiveCount > 0 &&
+  run.nativeRuntimeVrmSkinJointCount > 0 &&
+  run.nativeRuntimeVrmPositionAccessorCount > 0 &&
+  run.nativeRuntimeVrmVertexCount > 0 &&
+  run.nativeRuntimeVrmSkinningAttributePrimitiveCount >= run.nativeRuntimeVrmSkinnedMeshPrimitiveCount &&
+  run.nativeRuntimeVrmTrianglePrimitiveCount >= run.nativeRuntimeVrmMeshPrimitiveCount &&
+  run.nativeRuntimeVrmUnsupportedPrimitiveModeCount === 0 &&
+  run.nativeRuntimeVrmUnsupportedImageMimeCount === 0 &&
+  (run.nativeRuntimeVrmImageCount === 0 || run.nativeRuntimeVrmTexcoordAccessorCount > 0) &&
+  run.nativeRuntimeVrmPoseBoneUnsupportedCount === 0 &&
+  run.nativeRuntimeVrmPoseExpressionUnsupportedCount === 0;
 
 const createFaceTrackingIssues = (
   faceTracking: FaceTrackingDiagnostics | null

@@ -1,7 +1,55 @@
 import { describe, expect, it } from "vitest";
+import type { NativeRuntimeComposition } from "./nativeRuntime";
 import { createDefaultStudioProfile } from "./profiles";
-import { createDefaultScene, updateSource } from "./scene";
+import { createDefaultScene, createSource, updateSource } from "./scene";
 import { createFaceTrackingDiagnostics } from "./faceTrackingDiagnostics";
+
+const readyVrmComposition = (): NativeRuntimeComposition => ({
+  status: "applied",
+  appliedCount: 1,
+  skippedCount: 0,
+  skippedKinds: [],
+  vrmSourceCount: 1,
+  vrmPosePayloadCount: 1,
+  vrmActivePoseCount: 1,
+  vrmMissingPoseCount: 0,
+  vrmModelUriCount: 1,
+  vrmModelVersions: ["1.0"],
+  vrmHumanoidBoneCount: 55,
+  vrmExpressionCount: 8,
+  vrmMeshPrimitiveCount: 4,
+  vrmSkinnedMeshPrimitiveCount: 4,
+  vrmSkinJointCount: 55,
+  vrmPositionAccessorCount: 4,
+  vrmVertexCount: 12_480,
+  vrmIndexCount: 36_240,
+  vrmBoundsAccessorCount: 4,
+  vrmSkinningAttributePrimitiveCount: 4,
+  vrmTrianglePrimitiveCount: 4,
+  vrmUnsupportedPrimitiveModeCount: 0,
+  vrmNormalAccessorCount: 4,
+  vrmTexcoordAccessorCount: 4,
+  vrmMorphTargetCount: 8,
+  vrmMaterialCount: 3,
+  vrmTextureCount: 3,
+  vrmImageCount: 3,
+  vrmUnsupportedImageMimeCount: 0,
+  vrmTransparentMaterialCount: 1,
+  vrmPoseBoneCount: 7,
+  vrmPoseBoneAppliedCount: 7,
+  vrmPoseBoneUnsupportedCount: 0,
+  vrmPoseExpressionCount: 3,
+  vrmPoseExpressionAppliedCount: 3,
+  vrmPoseExpressionUnsupportedCount: 0,
+  vrmRuntimeStatuses: ["active"],
+  vrmRendererStatus: "ready",
+  vrmRendererBackend: "metal-scene-kit",
+  vrmModelLoadedCount: 1,
+  vrmRenderedSourceCount: 1,
+  vrmRenderMissingCount: 0,
+  vrmRenderFailureCount: 0,
+  message: "Native VRM renderer applied"
+});
 
 describe("face tracking diagnostics", () => {
   it("stays informational when face tracking is disabled", () => {
@@ -75,6 +123,61 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.rigQualityGrade).toBe("ready");
     expect(diagnostics.faceLandmarkConfidence).toBeCloseTo(0.81, 3);
     expect(diagnostics.faceLandmarkReady).toBe(true);
+  });
+
+  it("passes for VRM-only avatar motion when native VRM renderer proof is ready", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const
+      }
+    };
+    const vrm = createSource("vrm");
+    if (vrm.kind !== "vrm") {
+      throw new Error("Expected VRM source.");
+    }
+    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...vrm,
+            id: source.id,
+            transform: source.transform,
+            modelUri: "file:///shared/avatar.vrm",
+            motion: { ...source.motion, headYaw: 0.22, mouthDeform: 0.31, confidence: 0.91 }
+          }
+        : source
+    );
+
+    const diagnostics = createFaceTrackingDiagnostics(
+      scene,
+      profile,
+      {
+        status: "tracking",
+        yaw: 0.2,
+        pitch: 0.1,
+        roll: 0,
+        mouthOpen: 0.4,
+        blink: 0,
+        smile: 0.4,
+        browRaise: 0.2,
+        confidence: 0.92,
+        faceLandmarkConfidence: 0.81,
+        expression: "neutral",
+        lastFrameAt: 1_000
+      },
+      { nativeRuntimeComposition: readyVrmComposition() }
+    );
+
+    expect(diagnostics.status).toBe("pass");
+    expect(diagnostics.visiblePngTuberCount).toBe(0);
+    expect(diagnostics.visibleVrmCount).toBe(1);
+    expect(diagnostics.nativeVrmRendererReady).toBe(true);
+    expect(diagnostics.preparedPngTuberCount).toBe(0);
+    expect(diagnostics.rigQualityScore).toBe(100);
+    expect(diagnostics.rigQualityGrade).toBe("ready");
+    expect(diagnostics.summary).toContain("native-rendered VRM/VRoid");
   });
 
   it("warns when native camera tracking has weak face landmark confidence", () => {

@@ -14,6 +14,7 @@ import {
   createStreamStartPreflightReport,
   formatStreamStartPreflightBlockMessage
 } from "./streamStartPreflight";
+import type { StreamValidationEvidenceRunManifestItem } from "./streamValidationEvidence";
 
 const validReadiness = () =>
   createReadinessReport(createScreenOnlyScene(), validProfile());
@@ -64,6 +65,53 @@ const twitchCredential = (scopes: string[] = [TWITCH_CHAT_SCOPE, TWITCH_CHANNEL_
   redirectUri: "mobilelivecaster://oauth/twitch"
 });
 
+const vrmRendererManifestRun = (
+  devicePlatform: StreamValidationEvidenceRunManifestItem["devicePlatform"]
+): StreamValidationEvidenceRunManifestItem =>
+  ({
+    id: `svr1-${devicePlatform}`,
+    fingerprint: `svr1-${devicePlatform}`,
+    createdAt: "2026-06-23T00:00:00.000Z",
+    ageDays: 0,
+    fresh: true,
+    matchesScope: true,
+    eligible: true,
+    devicePlatform,
+    result: "pass",
+    nativeRuntimeStatus: "pass",
+    nativeRuntimeCompositionStatus: "applied",
+    nativeRuntimeVrmSourceCount: 1,
+    nativeRuntimeVrmPosePayloadCount: 1,
+    nativeRuntimeVrmActivePoseCount: 1,
+    nativeRuntimeVrmMissingPoseCount: 0,
+    nativeRuntimeVrmRendererStatus: "ready",
+    nativeRuntimeVrmModelLoadedCount: 1,
+    nativeRuntimeVrmHumanoidBoneCount: 55,
+    nativeRuntimeVrmExpressionCount: 8,
+    nativeRuntimeVrmMeshPrimitiveCount: 4,
+    nativeRuntimeVrmSkinnedMeshPrimitiveCount: 4,
+    nativeRuntimeVrmSkinJointCount: 55,
+    nativeRuntimeVrmPositionAccessorCount: 4,
+    nativeRuntimeVrmVertexCount: 12_480,
+    nativeRuntimeVrmSkinningAttributePrimitiveCount: 4,
+    nativeRuntimeVrmTrianglePrimitiveCount: 4,
+    nativeRuntimeVrmUnsupportedPrimitiveModeCount: 0,
+    nativeRuntimeVrmTexcoordAccessorCount: 4,
+    nativeRuntimeVrmImageCount: 3,
+    nativeRuntimeVrmUnsupportedImageMimeCount: 0,
+    nativeRuntimeVrmPoseBoneUnsupportedCount: 0,
+    nativeRuntimeVrmPoseExpressionUnsupportedCount: 0,
+    nativeRuntimeVrmRenderedSourceCount: 1,
+    nativeRuntimeVrmRenderMissingCount: 0,
+    nativeRuntimeVrmRenderFailureCount: 0
+  }) as StreamValidationEvidenceRunManifestItem;
+
+const vrmRendererValidationEvidence = () => ({
+  nativeRuntimeIosPass: true,
+  nativeRuntimeAndroidPass: true,
+  runManifest: [vrmRendererManifestRun("ios"), vrmRendererManifestRun("android")]
+});
+
 const createScreenOnlyScene = (): SceneDocument =>
   createDefaultScene().sources
     .filter((source) => source.kind !== "screen")
@@ -99,6 +147,16 @@ const createVrmScene = (): SceneDocument =>
             transform: source.transform
           }
         : source
+  );
+
+const createRenderableVrmScene = (): SceneDocument =>
+  updateSource(createVrmScene(), "source-avatar", (source) =>
+    source.kind === "vrm"
+      ? {
+          ...source,
+          modelUri: "file:///private/var/mobile/Containers/Shared/AppGroup/ABCDEF/avatar.vrm"
+        }
+      : source
   );
 
 const createHostSandboxAvatarScene = (): SceneDocument =>
@@ -510,6 +568,60 @@ describe("stream start preflight", () => {
     expect(report.blocks.map((issue) => issue.code)).toEqual(
       expect.arrayContaining(["readiness-scene-vrm-preview", "readiness-scene-vrm-model-missing"])
     );
+  });
+
+  it("allows public YouTube preflight scene checks for VRM with retained native renderer proof", () => {
+    const profile = {
+      ...validProfile(),
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "public" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "stream-id",
+        youtubeBroadcastStatus: "testing",
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createRenderableVrmScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      validationEvidence: vrmRendererValidationEvidence(),
+      faceTracking: {
+        status: "pass",
+        enabled: true,
+        inputMode: "native-camera",
+        rigMode: "still-image-2d",
+        runtimeStatus: "tracking",
+        runtimeAgeMs: 120,
+        runtimeFresh: true,
+        faceLandmarkConfidence: 0.82,
+        faceLandmarkReady: true,
+        visibleAvatarCount: 1,
+        visiblePngTuberCount: 0,
+        visibleLive2DCount: 0,
+        visibleVrmCount: 1,
+        nativeVrmRendererReady: true,
+        preparedPngTuberCount: 0,
+        activeMotionCount: 1,
+        rigIssueCount: 0,
+        rigIssueSummary: "No still-image rig issues.",
+        rigQualityScore: 100,
+        rigQualityGrade: "ready",
+        summary: "Face tracking is ready with 1 native-rendered VRM/VRoid source.",
+        recommendation: "Keep this tracker state with the next private iOS/Android validation run."
+      },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.blocks.map((issue) => issue.code)).not.toContain("readiness-scene-vrm-preview");
+    expect(report.issues.map((issue) => issue.code)).not.toContain("readiness-scene-vrm-preview");
+    expect(report.canStart).toBe(true);
   });
 
   it("keeps private VRM validation starts as warnings", () => {
