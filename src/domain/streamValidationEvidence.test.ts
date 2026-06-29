@@ -234,6 +234,22 @@ const nativeMonitorRuntimeWithLatency = (
     }
   };
 };
+const nativeBluetoothMonitorRuntimeWithLatency = (
+  platform: "ios" | "android" = "android",
+  latencyMs = 142,
+  source = `${platform}-bluetooth-monitor-estimate`
+) => {
+  const runtime = nativeMonitorRuntimeWithLatency(platform, latencyMs, source);
+  return {
+    ...runtime,
+    audioProcessing: {
+      ...runtime.audioProcessing,
+      monitorRoute: "bluetooth-a2dp",
+      monitorOutputName: "Bluetooth headphones",
+      monitorHeadphonesConnected: true
+    }
+  };
+};
 const nativeReadyAvatarUri = "file:///private/var/mobile/Containers/Shared/AppGroup/ABCDEF/avatar.png";
 const nativeReadyScene = () =>
   updateSource(setVisibility(createDefaultScene(), "source-background", false), "source-avatar", (source) =>
@@ -535,6 +551,93 @@ describe("stream validation evidence", () => {
       monitorLatencySource: "android-audiotrack-buffer"
     });
     expect(formatStreamValidationRunAudioLabel(run)).toContain("104ms pass/180ms android-audiotrack-buffer");
+  });
+
+  it("requires an explicit Bluetooth route tuning note before audio evidence can pass", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: nativeBluetoothMonitorRuntimeWithLatency("android", 142, "android-audiotrack-buffer")
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      { ...connectedChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+
+    expect(run.result).toBe("warn");
+    expect(run.audio).toMatchObject({
+      status: "warn",
+      monitorLatencyMs: 142,
+      monitorLatencyStatus: "warn",
+      monitorLatencyBudgetMs: 250,
+      monitorLatencySource: "android-audiotrack-buffer",
+      bluetoothRoute: true,
+      bluetoothTuningReviewed: false,
+      monitorTuningNote: ""
+    });
+    expect(run.audio?.recommendation).toContain("Bluetooth route tuning note");
+  });
+
+  it("passes Bluetooth audio evidence when latency is within budget and route tuning is reviewed", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: nativeBluetoothMonitorRuntimeWithLatency("android", 142, "android-audiotrack-buffer")
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      { ...connectedChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      audioMonitorTuning: {
+        measuredLatencyMs: 142,
+        note: "Pixel Buds A2DP route reviewed; delay is acceptable for self-monitoring"
+      },
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+
+    expect(run.audio).toMatchObject({
+      status: "pass",
+      monitorLatencyMs: 142,
+      monitorLatencyStatus: "pass",
+      monitorLatencyBudgetMs: 250,
+      monitorLatencySource: "manual",
+      bluetoothRoute: true,
+      bluetoothTuningReviewed: true,
+      monitorTuningNote: "Pixel Buds A2DP route reviewed; delay is acceptable for self-monitoring"
+    });
+    expect(run.audio?.status).toBe("pass");
   });
 
   it("rejects simulator or emulator validation identities as physical-device proof", () => {

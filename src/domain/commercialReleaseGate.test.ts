@@ -562,6 +562,33 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks audio summary claims when Bluetooth monitor evidence lacks a tuning review", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              audioBluetoothRoute: true,
+              audioBluetoothTuningReviewed: false
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS mic/headphone proof")
+      })
+    );
+  });
+
   it("blocks avatar-motion summary claims when the manifest retains still-image rig issues", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -1265,6 +1292,8 @@ const manifestRun = ({
   audioNativeMonitorDroppedBuffers = 0,
   audioMonitorLatencyStatus = "pass",
   audioMonitorLatencyMs = 92,
+  audioBluetoothRoute = false,
+  audioBluetoothTuningReviewed = false,
   chatReadoutStatus = "pass",
   chatReadoutSpokenMessageCount = 1,
   chatReadoutSpeechFailureCount = 0,
@@ -1383,6 +1412,8 @@ const manifestRun = ({
   audioNativeMonitorDroppedBuffers?: ValidationManifestRun["audioNativeMonitorDroppedBuffers"];
   audioMonitorLatencyStatus?: ValidationManifestRun["audioMonitorLatencyStatus"];
   audioMonitorLatencyMs?: ValidationManifestRun["audioMonitorLatencyMs"];
+  audioBluetoothRoute?: ValidationManifestRun["audioBluetoothRoute"];
+  audioBluetoothTuningReviewed?: ValidationManifestRun["audioBluetoothTuningReviewed"];
   chatReadoutStatus?: ValidationManifestRun["chatReadoutStatus"];
   chatReadoutSpokenMessageCount?: ValidationManifestRun["chatReadoutSpokenMessageCount"];
   chatReadoutSpeechFailureCount?: ValidationManifestRun["chatReadoutSpeechFailureCount"];
@@ -1507,6 +1538,8 @@ const manifestRun = ({
   audioNativeMonitorDroppedBuffers,
   audioMonitorLatencyStatus,
   audioMonitorLatencyMs,
+  audioBluetoothRoute,
+  audioBluetoothTuningReviewed,
   chatReadoutStatus,
   chatReadoutSpokenMessageCount,
   chatReadoutSpeechFailureCount,

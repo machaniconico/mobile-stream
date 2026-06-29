@@ -294,6 +294,25 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("headphone route proof");
   });
 
+  it("blocks audio claims when Bluetooth monitor evidence lacks tuning review", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            audioBluetoothRoute: true,
+            audioBluetoothTuningReviewed: false
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("mic/headphone evidence");
+  });
+
   it("blocks avatar-motion claims when retained manifests keep still-image rig issues", () => {
     writeBundle({
       summary: {
@@ -807,6 +826,8 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   audioNativeMonitorDroppedBuffers: 0,
   audioMonitorLatencyStatus: "pass",
   audioMonitorLatencyMs: 92,
+  audioBluetoothRoute: false,
+  audioBluetoothTuningReviewed: false,
   chatReadoutStatus: "pass",
   chatReadoutSpokenMessageCount: 1,
   chatReadoutSpeechFailureCount: 0,

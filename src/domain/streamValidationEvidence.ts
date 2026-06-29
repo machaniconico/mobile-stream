@@ -74,6 +74,7 @@ export interface StreamValidationAudioSummary {
   monitorLatencyStatus: StreamValidationFeatureStatus;
   monitorLatencySource: string;
   bluetoothRoute: boolean;
+  bluetoothTuningReviewed: boolean;
   monitorTuningNote: string;
   levelSampleCount: number;
   averageLevel: number;
@@ -274,6 +275,8 @@ export interface StreamValidationEvidenceRunManifestItem {
   audioNativeMonitorDroppedBuffers: number;
   audioMonitorLatencyStatus: StreamValidationAudioSummary["monitorLatencyStatus"] | null;
   audioMonitorLatencyMs: number | null;
+  audioBluetoothRoute: boolean;
+  audioBluetoothTuningReviewed: boolean;
   chatReadoutStatus: StreamValidationChatReadoutSummary["status"] | null;
   chatReadoutSpokenMessageCount: number;
   chatReadoutSpeechFailureCount: number;
@@ -1890,6 +1893,7 @@ const createAudioValidationSummary = (
     monitorLatencyStatus: monitorTuning.monitorLatencyStatus,
     monitorLatencySource: monitorTuning.monitorLatencySource,
     bluetoothRoute: monitorTuning.bluetoothRoute,
+    bluetoothTuningReviewed: monitorTuning.bluetoothTuningReviewed,
     monitorTuningNote: monitorTuning.monitorTuningNote,
     levelSampleCount: audioLevel?.sampleCount ?? 0,
     averageLevel: audioLevel?.averageLevel ?? 0,
@@ -1943,6 +1947,7 @@ const createMonitorLatencyEvidence = (
   | "monitorLatencyStatus"
   | "monitorLatencySource"
   | "bluetoothRoute"
+  | "bluetoothTuningReviewed"
   | "monitorTuningNote"
 > & {
   summary: string;
@@ -1954,11 +1959,14 @@ const createMonitorLatencyEvidence = (
   const nativeLatency = resolveNativeMonitorLatencyEvidence(diagnostics);
   const manualLatencyMs = normalizeNullableCount(audioMonitorTuning?.measuredLatencyMs);
   const measuredLatencyMs = manualLatencyMs ?? nativeLatency.monitorLatencyMs;
+  const monitorTuningNote = sanitizeStoredText(audioMonitorTuning?.note ?? "", secrets);
+  const bluetoothTuningReviewed = !bluetoothRoute || monitorTuningNote.length > 0;
   const monitorLatencyBudgetMs = bluetoothRoute ? bluetoothMonitorLatencyBudgetMs : defaultMonitorLatencyBudgetMs;
   const failureLimitMs = bluetoothRoute ? bluetoothMonitorLatencyFailureLimitMs : defaultMonitorLatencyFailureLimitMs;
-  const monitorLatencyStatus = createMonitorLatencyStatus(measuredLatencyMs, monitorLatencyBudgetMs, failureLimitMs);
+  const measuredLatencyStatus = createMonitorLatencyStatus(measuredLatencyMs, monitorLatencyBudgetMs, failureLimitMs);
+  const monitorLatencyStatus =
+    measuredLatencyStatus === "pass" && !bluetoothTuningReviewed ? "warn" : measuredLatencyStatus;
   const monitorLatencySource = manualLatencyMs !== null ? "manual" : nativeLatency.monitorLatencySource;
-  const monitorTuningNote = sanitizeStoredText(audioMonitorTuning?.note ?? "", secrets);
   const routeLabel = bluetoothRoute ? "Bluetooth" : diagnostics.audio.monitorSafety.outputName;
 
   return {
@@ -1967,6 +1975,7 @@ const createMonitorLatencyEvidence = (
     monitorLatencyStatus,
     monitorLatencySource,
     bluetoothRoute,
+    bluetoothTuningReviewed,
     monitorTuningNote,
     summary: sanitizeStoredText(
       createMonitorLatencySummary(
@@ -1975,12 +1984,20 @@ const createMonitorLatencyEvidence = (
         monitorLatencyBudgetMs,
         routeLabel,
         monitorTuningNote,
-        monitorLatencySource
+        monitorLatencySource,
+        bluetoothRoute,
+        bluetoothTuningReviewed
       ),
       secrets
     ),
     recommendation: sanitizeStoredText(
-      createMonitorLatencyRecommendation(measuredLatencyMs, monitorLatencyStatus, monitorLatencyBudgetMs, bluetoothRoute),
+      createMonitorLatencyRecommendation(
+        measuredLatencyMs,
+        monitorLatencyStatus,
+        monitorLatencyBudgetMs,
+        bluetoothRoute,
+        bluetoothTuningReviewed
+      ),
       secrets
     )
   };
@@ -2006,9 +2023,15 @@ const createMonitorLatencySummary = (
   budgetMs: number,
   routeLabel: string,
   note: string,
-  source: string
+  source: string,
+  bluetoothRoute: boolean,
+  bluetoothTuningReviewed: boolean
 ): string => {
-  const suffix = note ? ` Note: ${note}` : "";
+  const suffix = note
+    ? ` Note: ${note}`
+    : bluetoothRoute && !bluetoothTuningReviewed
+      ? " Bluetooth route review note is missing."
+      : "";
   const sourceLabel = source ? ` (${source})` : "";
   if (measuredLatencyMs === null) {
     return `Monitor latency was not measured for ${routeLabel}; budget is ${budgetMs}ms.${suffix}`;
@@ -2020,10 +2043,14 @@ const createMonitorLatencyRecommendation = (
   measuredLatencyMs: number | null,
   status: StreamValidationFeatureStatus,
   budgetMs: number,
-  bluetoothRoute: boolean
+  bluetoothRoute: boolean,
+  bluetoothTuningReviewed: boolean
 ): string => {
   if (status === "pass") {
     return "Keep this monitor-latency baseline with the release-candidate validation run.";
+  }
+  if (bluetoothRoute && !bluetoothTuningReviewed && measuredLatencyMs !== null && measuredLatencyMs <= budgetMs) {
+    return "Add a Bluetooth route tuning note that confirms the tested device, codec/route, and acceptable self-monitor delay before release.";
   }
   if (measuredLatencyMs === null) {
     return `Measure processed mic self-monitor latency during the physical validation run and keep it at or below ${budgetMs}ms.`;
@@ -2395,6 +2422,8 @@ const createEvidenceRunManifestItem = (
     audioNativeMonitorDroppedBuffers: run.audio?.nativeMonitorDroppedBuffers ?? 0,
     audioMonitorLatencyStatus: run.audio?.monitorLatencyStatus ?? null,
     audioMonitorLatencyMs: run.audio?.monitorLatencyMs ?? null,
+    audioBluetoothRoute: run.audio?.bluetoothRoute ?? false,
+    audioBluetoothTuningReviewed: run.audio?.bluetoothTuningReviewed ?? false,
     chatReadoutStatus: run.chatReadout?.status ?? null,
     chatReadoutSpokenMessageCount: run.chatReadout?.spokenMessageCount ?? 0,
     chatReadoutSpeechFailureCount: run.chatReadout?.speechFailureCount ?? 0,
@@ -2748,6 +2777,7 @@ const normalizeAudioValidationSummary = (value: unknown): StreamValidationAudioS
     monitorLatencyStatus: normalizeFeatureStatus(value.monitorLatencyStatus),
     monitorLatencySource: normalizeOptionalText(value.monitorLatencySource),
     bluetoothRoute,
+    bluetoothTuningReviewed: value.bluetoothTuningReviewed === true || (bluetoothRoute === false && value.bluetoothTuningReviewed !== false),
     monitorTuningNote: normalizeOptionalText(value.monitorTuningNote),
     levelSampleCount: normalizeCount(value.levelSampleCount),
     averageLevel: normalizeFiniteNumber(value.averageLevel, 0, 0, 1),

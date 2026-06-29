@@ -516,6 +516,7 @@ function validationManifestIssue(bundle) {
           run?.audioMonitorLatencyStatus === "pass" &&
           typeof run.audioMonitorLatencyMs === "number" &&
           Number.isFinite(run.audioMonitorLatencyMs) &&
+          (run.audioBluetoothRoute !== true || run.audioBluetoothTuningReviewed === true) &&
           (!run.audioMonitorHeadphonesOnly || run.audioNativeMonitorHeadphonesConnected === true)
       )
       .map((run) => run.devicePlatform)
