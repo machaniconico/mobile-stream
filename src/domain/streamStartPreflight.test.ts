@@ -470,6 +470,34 @@ describe("stream start preflight", () => {
     expect(report.issues.map((issue) => issue.code)).not.toContain("validation-youtube-public-not-ready");
   });
 
+  it("blocks public YouTube launches when broadcast-management OAuth is not stored", () => {
+    const profile = {
+      ...validProfile(),
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "public" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "stream-id",
+        youtubeBroadcastStatus: "testing",
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.status).toBe("blocked");
+    expect(report.blocks.map((issue) => issue.code)).toContain("publishing-youtube-oauth-missing-credential");
+  });
+
   it("blocks YouTube starts when dashboard privacy differs from the app setting", () => {
     const profile = {
       ...validProfile(),
@@ -1189,6 +1217,45 @@ describe("stream start preflight", () => {
     expect(report.blocks.map((issue) => issue.code)).toContain("publishing-twitch-status-unchecked");
   });
 
+  it("blocks Twitch starts when channel-management OAuth is not stored", () => {
+    const baseProfile = applyDestinationPreset(validProfile(), "twitch-auto");
+    const profile = {
+      ...baseProfile,
+      destination: {
+        ...baseProfile.destination,
+        streamKey: "placeholder-twitch-key"
+      },
+      platformPublishing: {
+        ...baseProfile.platformPublishing,
+        title: "App title",
+        twitchCategory: "Just Chatting",
+        twitchCategoryId: "509658",
+        twitchLanguage: "ja",
+        twitchChannelTitle: "App title",
+        twitchChannelCategory: "Just Chatting",
+        twitchChannelCategoryId: "509658",
+        twitchChannelLanguage: "ja",
+        twitchLiveStatus: "offline",
+        twitchStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      enginePlatform: "android",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.status).toBe("blocked");
+    expect(report.blocks.map((issue) => issue.code)).toContain("publishing-twitch-oauth-missing-credential");
+  });
+
   it("keeps stale unlisted YouTube dashboard status as a validation warning", () => {
     const profile = {
       ...validProfile(),
@@ -1216,6 +1283,34 @@ describe("stream start preflight", () => {
     expect(report.canStart).toBe(true);
     expect(report.status).toBe("warning");
     expect(report.warnings.map((issue) => issue.code)).toContain("publishing-youtube-status-stale");
+  });
+
+  it("keeps missing unlisted YouTube broadcast-management OAuth as a validation warning", () => {
+    const profile = {
+      ...validProfile(),
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "unlisted" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "stream-id",
+        youtubeBroadcastStatus: "testing",
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("warning");
+    expect(report.warnings.map((issue) => issue.code)).toContain("publishing-youtube-oauth-missing-credential");
   });
 
   it("warns for unlisted YouTube launches before commercial validation is ready", () => {

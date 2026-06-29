@@ -586,6 +586,8 @@ const createYouTubePublishingIssues = (
     return issues;
   }
 
+  const publishingOAuthSeverity: StreamStartPreflightSeverity =
+    settings.privacyStatus === "public" ? "block" : "warning";
   const oauthIssue = createOAuthScopeIssue({
     credential: resolvePreflightCredential(platformChatOAuthCredentials, platformChatOAuthCredential, "youtube"),
     platform: "youtube",
@@ -594,8 +596,8 @@ const createYouTubePublishingIssues = (
     codePrefix: "publishing-youtube-oauth",
     area: "publishing",
     label: "YouTube OAuth",
-    missingCredentialSeverity: "warning",
-    unknownScopesSeverity: "warning",
+    missingCredentialSeverity: publishingOAuthSeverity,
+    unknownScopesSeverity: publishingOAuthSeverity,
     now
   });
   if (oauthIssue) {
@@ -712,8 +714,8 @@ const createTwitchPublishingIssues = (
     codePrefix: "publishing-twitch-oauth",
     area: "publishing",
     label: "Twitch OAuth",
-    missingCredentialSeverity: "warning",
-    unknownScopesSeverity: "warning",
+    missingCredentialSeverity: "block",
+    unknownScopesSeverity: "block",
     now
   });
   if (oauthIssue) {
