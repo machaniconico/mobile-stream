@@ -1,4 +1,5 @@
 import type { AvatarExpression } from "./avatar";
+import { createAvatarIllustrationRigQuality } from "./avatarIllustrationRigQuality";
 import {
   type AvatarIllustrationLandmarkAnalysis,
   defaultAvatarIllustrationRig,
@@ -271,6 +272,10 @@ const runtimeToMotion = (
   const lowerBodyInfluence = clamp01((rig.shoulderLineY - 0.45) / 0.5);
   const hairInfluence = clamp01((0.55 - rig.hairLineY) / 0.5);
   const mouthEyeSeparation = clamp01((rig.mouthLineY - rig.eyeLineY) / 0.45);
+  const rigQuality = createAvatarIllustrationRigQuality(rig);
+  const partSeparationMotionScale = 0.45 + rigQuality.partSeparationFactor * 0.55;
+  const depthContinuityMotionScale = 0.5 + rigQuality.depthContinuityFactor * 0.5;
+  const highFidelityMotionScale = 0.45 + rigQuality.highFidelityFactor * 0.55;
   const faceMotionScale = 0.84 + faceInfluence * 0.34;
   const bodyMotionScale = 0.74 + lowerBodyInfluence * 0.36;
   const hairMotionScale = 0.72 + hairInfluence * 0.46;
@@ -284,12 +289,42 @@ const runtimeToMotion = (
     bodyLean: clamp(runtime.roll * profile.bodyRange * lostMultiplier * bodyMotionScale, -1, 1),
     bodyBounce: Math.abs(runtime.mouthOpen - 0.3) * 0.02 * profile.bodyRange,
     breathing: (0.5 + runtime.smile * 0.5) * 0.018 * profile.bodyRange,
-    depthTilt: clamp01((Math.abs(runtime.yaw) * 0.68 + Math.abs(runtime.pitch) * 0.42) * illustrationStrength * faceMotionScale),
-    meshWarp: clamp((runtime.yaw + runtime.roll * profile.bodyRange * 0.18) * illustrationStrength * faceMotionScale, -1, 1),
-    eyeSquint: clamp01(runtime.blink * profile.eyeDeform * illustrationRigMultiplier),
-    mouthDeform: clamp01(runtime.mouthOpen * profile.mouthDeform * illustrationRigMultiplier * mouthMotionScale),
-    hairSway: clamp((-runtime.yaw * 0.72 + runtime.roll * 0.32) * profile.hairSway * illustrationRigMultiplier * hairMotionScale, -1, 1),
-    shoulderSway: clamp((runtime.roll * 0.62 + runtime.yaw * 0.2) * profile.bodyRange * illustrationRigMultiplier * bodyMotionScale, -1, 1),
+    depthTilt: clamp01(
+      (Math.abs(runtime.yaw) * 0.68 + Math.abs(runtime.pitch) * 0.42) *
+        illustrationStrength *
+        faceMotionScale *
+        depthContinuityMotionScale
+    ),
+    meshWarp: clamp(
+      (runtime.yaw + runtime.roll * profile.bodyRange * 0.18) *
+        illustrationStrength *
+        faceMotionScale *
+        highFidelityMotionScale,
+      -1,
+      1
+    ),
+    eyeSquint: clamp01(runtime.blink * profile.eyeDeform * illustrationRigMultiplier * partSeparationMotionScale),
+    mouthDeform: clamp01(
+      runtime.mouthOpen * profile.mouthDeform * illustrationRigMultiplier * mouthMotionScale * partSeparationMotionScale
+    ),
+    hairSway: clamp(
+      (-runtime.yaw * 0.72 + runtime.roll * 0.32) *
+        profile.hairSway *
+        illustrationRigMultiplier *
+        hairMotionScale *
+        depthContinuityMotionScale,
+      -1,
+      1
+    ),
+    shoulderSway: clamp(
+      (runtime.roll * 0.62 + runtime.yaw * 0.2) *
+        profile.bodyRange *
+        illustrationRigMultiplier *
+        bodyMotionScale *
+        depthContinuityMotionScale,
+      -1,
+      1
+    ),
     confidence: runtime.confidence
   };
 };

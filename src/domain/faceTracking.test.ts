@@ -346,6 +346,86 @@ describe("face tracking", () => {
     expect(closeUpAvatar?.motion.mouthDeform).toBeGreaterThan(fullBodyAvatar?.motion.mouthDeform ?? 0);
   });
 
+  it("attenuates still-image deformation when rig part separation and depth continuity are poor", () => {
+    const profile = {
+      ...defaultFaceTrackingProfile,
+      enabled: true,
+      headRange: 1,
+      bodyRange: 1,
+      illustrationDeform: 1,
+      hairSway: 1,
+      eyeDeform: 1,
+      mouthDeform: 1
+    };
+    const runtime = {
+      ...createFaceTrackingRuntimeState(2_000),
+      status: "tracking" as const,
+      yaw: 0.5,
+      pitch: -0.25,
+      roll: 0.42,
+      mouthOpen: 0.74,
+      blink: 0.8,
+      confidence: 0.96
+    };
+    const scene = createDefaultScene();
+    const readyRigScene = {
+      ...scene,
+      sources: scene.sources.map((source) =>
+        source.kind === "pngtuber"
+          ? {
+              ...source,
+              illustrationRig: {
+                ...source.illustrationRig,
+                faceCenterY: 0.46,
+                faceRange: 0.34,
+                hairLineY: 0.22,
+                eyeLineY: 0.35,
+                mouthLineY: 0.52,
+                shoulderLineY: 0.78,
+                sliceCount: 24
+              }
+            }
+          : source
+      )
+    };
+    const poorRigScene = {
+      ...scene,
+      sources: scene.sources.map((source) =>
+        source.kind === "pngtuber"
+          ? {
+              ...source,
+              illustrationRig: {
+                ...source.illustrationRig,
+                faceCenterY: 0.46,
+                faceRange: 0.34,
+                hairLineY: 0.345,
+                eyeLineY: 0.35,
+                mouthLineY: 0.43,
+                shoulderLineY: 0.5,
+                sliceCount: 12
+              }
+            }
+          : source
+      )
+    };
+
+    const readyAvatar = applyFaceTrackingRuntime(readyRigScene, runtime, profile).sources.find(
+      (source) => source.kind === "pngtuber"
+    );
+    const poorAvatar = applyFaceTrackingRuntime(poorRigScene, runtime, profile).sources.find(
+      (source) => source.kind === "pngtuber"
+    );
+
+    expect(readyAvatar?.motion.depthTilt).toBeGreaterThan(poorAvatar?.motion.depthTilt ?? 0);
+    expect(Math.abs(readyAvatar?.motion.meshWarp ?? 0)).toBeGreaterThan(Math.abs(poorAvatar?.motion.meshWarp ?? 0));
+    expect(readyAvatar?.motion.eyeSquint).toBeGreaterThan(poorAvatar?.motion.eyeSquint ?? 0);
+    expect(readyAvatar?.motion.mouthDeform).toBeGreaterThan(poorAvatar?.motion.mouthDeform ?? 0);
+    expect(Math.abs(readyAvatar?.motion.hairSway ?? 0)).toBeGreaterThan(Math.abs(poorAvatar?.motion.hairSway ?? 0));
+    expect(Math.abs(readyAvatar?.motion.shoulderSway ?? 0)).toBeGreaterThan(
+      Math.abs(poorAvatar?.motion.shoulderSway ?? 0)
+    );
+  });
+
   it("calibrates neutral pose from the current runtime offset", () => {
     const calibrated = calibrateFaceTrackingProfile(defaultFaceTrackingProfile, {
       ...createFaceTrackingRuntimeState(3_000),
