@@ -67,6 +67,7 @@ import {
   addSource,
   analyzeAvatarIllustrationAlphaMask,
   applyInferredAvatarIllustrationRig,
+  createAvatarIllustrationLandmarkAnalysisFromDetector,
   createSource,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
@@ -76,6 +77,7 @@ import {
   toRenderGraph,
   updateSource,
   updateTransform,
+  type AvatarIllustrationDetectorFace,
   type SceneDocument,
   type AvatarIllustrationRig,
   type AvatarIllustrationRigInferenceInput,
@@ -2365,9 +2367,12 @@ const ChatReaderPanel = ({
   );
 };
 
-const resolveBrowserAvatarRigInferenceInput = (
-  uri: string
-): Promise<Pick<AvatarIllustrationRigInferenceInput, "imageAspectRatio" | "imageAnalysis">> => {
+type BrowserAvatarRigInferenceInput = Pick<
+  AvatarIllustrationRigInferenceInput,
+  "imageAspectRatio" | "imageAnalysis" | "landmarkAnalysis"
+>;
+
+const resolveBrowserAvatarRigInferenceInput = (uri: string): Promise<BrowserAvatarRigInferenceInput> => {
   const trimmedUri = uri.trim();
   if (!trimmedUri || typeof window === "undefined" || typeof window.Image !== "function") {
     return Promise.resolve({});
@@ -2387,7 +2392,7 @@ const loadBrowserAvatarRigInferenceInput = (
   uri: string,
   anonymousCors: boolean
 ): Promise<{
-  input: Pick<AvatarIllustrationRigInferenceInput, "imageAspectRatio" | "imageAnalysis">;
+  input: BrowserAvatarRigInferenceInput;
   analysisReadable: boolean;
 }> =>
   new Promise((resolve) => {
@@ -2418,16 +2423,42 @@ const loadBrowserAvatarRigInferenceInput = (
           return;
         }
         context.drawImage(image, 0, 0, width, height);
-        const imageData = context.getImageData(0, 0, width, height);
-        const imageAnalysis = analyzeAvatarIllustrationAlphaMask({
-          width,
-          height,
-          data: imageData.data
-        });
-        resolve({
-          input: imageAnalysis ? { imageAspectRatio, imageAnalysis } : { imageAspectRatio },
-          analysisReadable: true
-        });
+        detectBrowserAvatarLandmarkAnalysis(canvas, width, height)
+          .then((landmarkAnalysis) => {
+            try {
+              const imageData = context.getImageData(0, 0, width, height);
+              const imageAnalysis = analyzeAvatarIllustrationAlphaMask({
+                width,
+                height,
+                data: imageData.data
+              });
+              resolve({
+                input: createBrowserAvatarRigInferenceInput(imageAspectRatio, imageAnalysis, landmarkAnalysis),
+                analysisReadable: true
+              });
+            } catch {
+              resolve({
+                input: createBrowserAvatarRigInferenceInput(imageAspectRatio, null, landmarkAnalysis),
+                analysisReadable: Boolean(landmarkAnalysis)
+              });
+            }
+          })
+          .catch(() => {
+            try {
+              const imageData = context.getImageData(0, 0, width, height);
+              const imageAnalysis = analyzeAvatarIllustrationAlphaMask({
+                width,
+                height,
+                data: imageData.data
+              });
+              resolve({
+                input: createBrowserAvatarRigInferenceInput(imageAspectRatio, imageAnalysis, null),
+                analysisReadable: true
+              });
+            } catch {
+              resolve({ input: { imageAspectRatio }, analysisReadable: false });
+            }
+          });
       } catch {
         resolve({ input: { imageAspectRatio }, analysisReadable: false });
       }
@@ -2435,6 +2466,105 @@ const loadBrowserAvatarRigInferenceInput = (
     image.onerror = () => resolve({ input: {}, analysisReadable: false });
     image.src = uri;
   });
+
+const createBrowserAvatarRigInferenceInput = (
+  imageAspectRatio: number,
+  imageAnalysis: BrowserAvatarRigInferenceInput["imageAnalysis"],
+  landmarkAnalysis: BrowserAvatarRigInferenceInput["landmarkAnalysis"]
+): BrowserAvatarRigInferenceInput => ({
+  imageAspectRatio,
+  ...(imageAnalysis ? { imageAnalysis } : {}),
+  ...(landmarkAnalysis ? { landmarkAnalysis } : {})
+});
+
+interface BrowserFaceDetector {
+  detect(image: HTMLCanvasElement): Promise<BrowserDetectedFace[]>;
+}
+
+interface BrowserFaceDetectorConstructor {
+  new (options?: { fastMode?: boolean; maxDetectedFaces?: number }): BrowserFaceDetector;
+}
+
+interface BrowserDetectedFace {
+  boundingBox: {
+    x?: number;
+    y?: number;
+    left?: number;
+    top?: number;
+    width?: number;
+    height?: number;
+  };
+  landmarks?: BrowserDetectedFaceLandmark[] | null;
+}
+
+interface BrowserDetectedFaceLandmark {
+  type?: string;
+  locations?: BrowserDetectedFacePoint[] | null;
+}
+
+interface BrowserDetectedFacePoint {
+  x?: number;
+  y?: number;
+}
+
+let browserFaceDetector: BrowserFaceDetector | null = null;
+let browserFaceDetectorInitialized = false;
+
+const detectBrowserAvatarLandmarkAnalysis = async (
+  canvas: HTMLCanvasElement,
+  width: number,
+  height: number
+): Promise<BrowserAvatarRigInferenceInput["landmarkAnalysis"]> => {
+  const detector = getBrowserFaceDetector();
+  if (!detector) {
+    return null;
+  }
+  try {
+    const faces = await detector.detect(canvas);
+    const detectorFaces = faces.map((face): AvatarIllustrationDetectorFace => ({
+      boundingBox: {
+        x: finiteBrowserNumber(face.boundingBox.x, finiteBrowserNumber(face.boundingBox.left, 0)),
+        y: finiteBrowserNumber(face.boundingBox.y, finiteBrowserNumber(face.boundingBox.top, 0)),
+        width: finiteBrowserNumber(face.boundingBox.width, 0),
+        height: finiteBrowserNumber(face.boundingBox.height, 0)
+      },
+      landmarks: (face.landmarks ?? []).map((landmark) => ({
+        type: landmark.type ?? "unknown",
+        locations: (landmark.locations ?? []).map((point) => ({
+          x: finiteBrowserNumber(point.x, Number.NaN),
+          y: finiteBrowserNumber(point.y, Number.NaN),
+          confidence: 0.82
+        }))
+      }))
+    }));
+    return createAvatarIllustrationLandmarkAnalysisFromDetector({ width, height, faces: detectorFaces });
+  } catch {
+    return null;
+  }
+};
+
+const getBrowserFaceDetector = (): BrowserFaceDetector | null => {
+  if (browserFaceDetectorInitialized) {
+    return browserFaceDetector;
+  }
+  browserFaceDetectorInitialized = true;
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const FaceDetector = (window as Window & typeof globalThis & { FaceDetector?: BrowserFaceDetectorConstructor }).FaceDetector;
+  if (typeof FaceDetector !== "function") {
+    return null;
+  }
+  try {
+    browserFaceDetector = new FaceDetector({ fastMode: false, maxDetectedFaces: 1 });
+  } catch {
+    browserFaceDetector = null;
+  }
+  return browserFaceDetector;
+};
+
+const finiteBrowserNumber = (value: unknown, fallback: number): number =>
+  typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
 const isCrossOriginHttpUri = (uri: string): boolean => {
   if (typeof window === "undefined") {

@@ -77,6 +77,31 @@ export interface AvatarIllustrationLandmarkAnalysis {
   shoulderLineY?: number | null;
 }
 
+export type AvatarIllustrationDetectorLandmarkType = "eye" | "mouth" | "nose";
+
+export interface AvatarIllustrationDetectorLandmark {
+  type: AvatarIllustrationDetectorLandmarkType | string;
+  locations: AvatarIllustrationLandmarkPoint[];
+  confidence?: number;
+}
+
+export interface AvatarIllustrationDetectorFace {
+  boundingBox: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  confidence?: number;
+  landmarks?: AvatarIllustrationDetectorLandmark[] | null;
+}
+
+export interface AvatarIllustrationDetectorInput {
+  width: number;
+  height: number;
+  faces: AvatarIllustrationDetectorFace[];
+}
+
 export interface AvatarIllustrationAlphaMaskInput {
   width: number;
   height: number;
@@ -354,6 +379,77 @@ export const analyzeAvatarIllustrationAlphaMask = (
   };
 };
 
+export const createAvatarIllustrationLandmarkAnalysisFromDetector = (
+  input: AvatarIllustrationDetectorInput
+): AvatarIllustrationLandmarkAnalysis | null => {
+  const width = finiteNumber(input.width, 0);
+  const height = finiteNumber(input.height, 0);
+  if (width <= 0 || height <= 0 || input.faces.length === 0) {
+    return null;
+  }
+
+  const face = input.faces
+    .map((candidate) => normalizeDetectorFace(candidate, width, height))
+    .filter((candidate): candidate is NormalizedDetectorFace => candidate !== null)
+    .sort((left, right) => right.area * right.confidence - left.area * left.confidence)[0];
+  if (!face) {
+    return null;
+  }
+
+  const eyes = face.landmarks
+    .filter((landmark) => landmark.type === "eye")
+    .map((landmark) => averageLandmarkLocations(landmark.locations, landmark.confidence))
+    .filter((point): point is AvatarIllustrationLandmarkPoint => point !== null)
+    .sort((left, right) => left.x - right.x);
+  const mouth = face.landmarks
+    .filter((landmark) => landmark.type === "mouth")
+    .map((landmark) => averageLandmarkLocations(landmark.locations, landmark.confidence))
+    .filter((point): point is AvatarIllustrationLandmarkPoint => point !== null)
+    .sort((left, right) => (right.confidence ?? 0) - (left.confidence ?? 0))[0];
+  const hasDetectorLandmarks = eyes.length > 0 || Boolean(mouth);
+  const fallbackConfidence = hasDetectorLandmarks ? 0.78 : 0.62;
+  const confidence = clamp01(Math.max(fallbackConfidence, face.confidence));
+  const eyeConfidence = hasDetectorLandmarks ? confidence : confidence * 0.72;
+  const mouthConfidence = mouth ? (mouth.confidence ?? confidence) : confidence * 0.7;
+  const box = face.boundingBox;
+  const leftEye =
+    eyes.length >= 2
+      ? eyes[0]
+      : eyes[0] ?? {
+          x: clamp01(box.x + box.width * 0.34),
+          y: clamp01(box.y + box.height * 0.42),
+          confidence: eyeConfidence
+        };
+  const rightEye =
+    eyes.length >= 2
+      ? eyes[eyes.length - 1]
+      : eyes[0]
+        ? null
+        : {
+            x: clamp01(box.x + box.width * 0.66),
+            y: clamp01(box.y + box.height * 0.42),
+            confidence: eyeConfidence
+          };
+
+  return {
+    confidence,
+    faceCenter: {
+      x: clamp01(box.x + box.width / 2),
+      y: clamp01(box.y + box.height * 0.54),
+      confidence
+    },
+    leftEye,
+    rightEye,
+    mouthCenter: mouth ?? {
+      x: clamp01(box.x + box.width / 2),
+      y: clamp01(box.y + box.height * 0.74),
+      confidence: mouthConfidence
+    },
+    hairLineY: clamp01(box.y - box.height * 0.18),
+    shoulderLineY: clamp01(box.y + box.height * 1.58)
+  };
+};
+
 export const inferAvatarIllustrationRig = (
   input: AvatarIllustrationRigInferenceInput = {},
   overrides: Partial<AvatarIllustrationRig> = {}
@@ -472,6 +568,73 @@ const averageNumbers = (values: Array<number | null | undefined>): number | null
     return null;
   }
   return finiteValues.reduce((sum, value) => sum + value, 0) / finiteValues.length;
+};
+
+interface NormalizedDetectorFace {
+  boundingBox: AvatarIllustrationDetectorFace["boundingBox"];
+  confidence: number;
+  landmarks: AvatarIllustrationDetectorLandmark[];
+  area: number;
+}
+
+const normalizeDetectorFace = (
+  face: AvatarIllustrationDetectorFace,
+  frameWidth: number,
+  frameHeight: number
+): NormalizedDetectorFace | null => {
+  const x = finiteNumber(face.boundingBox.x, Number.NaN) / frameWidth;
+  const y = finiteNumber(face.boundingBox.y, Number.NaN) / frameHeight;
+  const width = finiteNumber(face.boundingBox.width, Number.NaN) / frameWidth;
+  const height = finiteNumber(face.boundingBox.height, Number.NaN) / frameHeight;
+  if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) {
+    return null;
+  }
+  const left = clamp01(x);
+  const top = clamp01(y);
+  const right = clamp01(x + width);
+  const bottom = clamp01(y + height);
+  const boundingBox = {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top
+  };
+  if (boundingBox.width <= 0 || boundingBox.height <= 0) {
+    return null;
+  }
+  return {
+    boundingBox,
+    confidence: clamp01(finiteNumber(face.confidence, 0.74)),
+    landmarks: (face.landmarks ?? []).map((landmark) => ({
+      type: landmark.type,
+      confidence: landmark.confidence,
+      locations: landmark.locations
+        .map((point) => ({
+          x: finiteNumber(point.x, Number.NaN) / frameWidth,
+          y: finiteNumber(point.y, Number.NaN) / frameHeight,
+          confidence: point.confidence
+        }))
+        .filter((point) => normalizedPoint(point) !== null)
+    })),
+    area: boundingBox.width * boundingBox.height
+  };
+};
+
+const averageLandmarkLocations = (
+  locations: AvatarIllustrationLandmarkPoint[],
+  confidence: number | undefined
+): AvatarIllustrationLandmarkPoint | null => {
+  const points = locations
+    .map((point) => normalizedPoint(point))
+    .filter((point): point is AvatarIllustrationLandmarkPoint => point !== null);
+  if (points.length === 0) {
+    return null;
+  }
+  return {
+    x: averageNumbers(points.map((point) => point.x)) ?? 0.5,
+    y: averageNumbers(points.map((point) => point.y)) ?? 0.5,
+    confidence: clamp01(finiteNumber(confidence, averageNumbers(points.map((point) => point.confidence)) ?? 0.72))
+  };
 };
 
 const inferAvatarIllustrationRigFromImageAnalysis = (

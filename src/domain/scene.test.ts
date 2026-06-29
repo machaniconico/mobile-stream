@@ -5,6 +5,7 @@ import {
   applyInferredAvatarIllustrationRig,
   addSceneToCollection,
   activatePrivacyShieldScene,
+  createAvatarIllustrationLandmarkAnalysisFromDetector,
   createDefaultSceneCollection,
   createDefaultScene,
   createSceneFromTemplate,
@@ -380,6 +381,63 @@ describe("scene document", () => {
     expect(riggedAvatar?.illustrationRig.shoulderLineY).toBeCloseTo(0.68, 3);
     expect(riggedAvatar?.illustrationRig.faceRange).toBeCloseTo(0.345, 3);
     expect(riggedAvatar?.illustrationRig.sliceCount).toBe(36);
+  });
+
+  it("maps detector face landmarks into semantic auto-rig input", () => {
+    const analysis = createAvatarIllustrationLandmarkAnalysisFromDetector({
+      width: 200,
+      height: 100,
+      faces: [
+        {
+          boundingBox: { x: 60, y: 10, width: 80, height: 70 },
+          confidence: 0.86,
+          landmarks: [
+            { type: "eye", locations: [{ x: 88, y: 36 }] },
+            { type: "mouth", locations: [{ x: 100, y: 60 }], confidence: 0.9 },
+            { type: "eye", locations: [{ x: 112, y: 38 }] }
+          ]
+        }
+      ]
+    });
+
+    expect(analysis).not.toBeNull();
+    expect(analysis?.confidence).toBeCloseTo(0.86, 3);
+    expect(analysis?.leftEye?.x).toBeCloseTo(0.44, 3);
+    expect(analysis?.leftEye?.y).toBeCloseTo(0.36, 3);
+    expect(analysis?.rightEye?.x).toBeCloseTo(0.56, 3);
+    expect(analysis?.rightEye?.y).toBeCloseTo(0.38, 3);
+    expect(analysis?.mouthCenter?.x).toBeCloseTo(0.5, 3);
+    expect(analysis?.mouthCenter?.y).toBeCloseTo(0.6, 3);
+    expect(analysis?.faceCenter?.y).toBeCloseTo(0.478, 3);
+    expect(analysis?.hairLineY).toBe(0);
+    expect(analysis?.shoulderLineY).toBe(1);
+  });
+
+  it("synthesizes conservative landmarks from a detector face box", () => {
+    const scene = createDefaultScene();
+    const avatar = scene.sources.find((source) => source.kind === "pngtuber");
+    expect(avatar).toBeDefined();
+    const landmarkAnalysis = createAvatarIllustrationLandmarkAnalysisFromDetector({
+      width: 200,
+      height: 100,
+      faces: [
+        {
+          boundingBox: { x: 50, y: 20, width: 100, height: 50 },
+          confidence: 0.4
+        }
+      ]
+    });
+    const rigged = applyInferredAvatarIllustrationRig(scene, avatar!.id, {}, { landmarkAnalysis });
+    const riggedAvatar = rigged.sources.find((source) => source.kind === "pngtuber");
+
+    expect(landmarkAnalysis?.confidence).toBeCloseTo(0.62, 3);
+    expect(landmarkAnalysis?.leftEye?.y).toBeCloseTo(0.41, 3);
+    expect(landmarkAnalysis?.rightEye?.y).toBeCloseTo(0.41, 3);
+    expect(landmarkAnalysis?.mouthCenter?.y).toBeCloseTo(0.57, 3);
+    expect(riggedAvatar?.kind).toBe("pngtuber");
+    expect(riggedAvatar?.illustrationRig.eyeLineY).toBeCloseTo(0.41, 3);
+    expect(riggedAvatar?.illustrationRig.mouthLineY).toBeCloseTo(0.57, 3);
+    expect(riggedAvatar?.illustrationRig.sliceCount).toBe(32);
   });
 
   it("keeps landmark auto-rig output ordered when optional landmarks are noisy", () => {
