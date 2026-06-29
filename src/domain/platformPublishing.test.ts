@@ -368,6 +368,10 @@ describe("platformPublishing", () => {
       broadcaster_language: "ja"
     });
     expect(result.profile.platformPublishing.twitchCategoryId).toBe("509660");
+    expect(result.profile.platformPublishing.twitchChannelTitle).toBe("Drawing stream");
+    expect(result.profile.platformPublishing.twitchChannelCategory).toBe("Art");
+    expect(result.profile.platformPublishing.twitchChannelCategoryId).toBe("509660");
+    expect(result.profile.platformPublishing.twitchChannelLanguage).toBe("ja");
   });
 
   it("refreshes Twitch channel metadata and live stream status", async () => {
@@ -439,10 +443,14 @@ describe("platformPublishing", () => {
         "Client-Id": "twitch-client"
       }
     });
-    expect(result.profile.platformPublishing.title).toBe("Drawing stream");
-    expect(result.profile.platformPublishing.twitchCategory).toBe("Art");
-    expect(result.profile.platformPublishing.twitchCategoryId).toBe("509660");
-    expect(result.profile.platformPublishing.twitchLanguage).toBe("ja");
+    expect(result.profile.platformPublishing.title).toBe("Old title");
+    expect(result.profile.platformPublishing.twitchCategory).toBe("Just Chatting");
+    expect(result.profile.platformPublishing.twitchCategoryId).toBe("509658");
+    expect(result.profile.platformPublishing.twitchLanguage).toBe("en");
+    expect(result.profile.platformPublishing.twitchChannelTitle).toBe("Drawing stream");
+    expect(result.profile.platformPublishing.twitchChannelCategory).toBe("Art");
+    expect(result.profile.platformPublishing.twitchChannelCategoryId).toBe("509660");
+    expect(result.profile.platformPublishing.twitchChannelLanguage).toBe("en");
     expect(result.profile.platformPublishing.twitchLiveStatus).toBe("live");
     expect(result.profile.platformPublishing.twitchViewerCount).toBe(1234);
     expect(result.profile.platformPublishing.twitchStartedAt).toBe("2026-06-22T12:00:00Z");
@@ -479,7 +487,11 @@ describe("platformPublishing", () => {
 
     const result = await refreshTwitchChannelStatus(profile, twitchCredential(), fetcher, Date.parse("2026-06-23T00:02:00.000Z"));
 
-    expect(result.profile.platformPublishing.title).toBe("Offline setup");
+    expect(result.profile.platformPublishing.title).toBe("MobileLiveCaster Live");
+    expect(result.profile.platformPublishing.twitchChannelTitle).toBe("Offline setup");
+    expect(result.profile.platformPublishing.twitchChannelCategory).toBe("Just Chatting");
+    expect(result.profile.platformPublishing.twitchChannelCategoryId).toBe("509658");
+    expect(result.profile.platformPublishing.twitchChannelLanguage).toBe("ja");
     expect(result.profile.platformPublishing.twitchLiveStatus).toBe("offline");
     expect(result.profile.platformPublishing.twitchViewerCount).toBe(0);
     expect(result.profile.platformPublishing.twitchStartedAt).toBe("");

@@ -101,6 +101,10 @@ export interface PlatformPublishingDiagnostics {
     hasCategory: boolean;
     hasCategoryId: boolean;
     language: string;
+    channelTitle: string;
+    channelCategory: string;
+    channelCategoryId: string;
+    channelLanguage: string;
     startedAt: string;
     statusCheckedAt: string;
   } | null;
@@ -1031,8 +1035,62 @@ const createTwitchPublishingDiagnostics = (
   settings: StudioProfile["platformPublishing"]
 ): PlatformPublishingDiagnostics => {
   const liveStatus = settings.twitchLiveStatus || "";
-  const hasDashboardData = Boolean(liveStatus || settings.twitchStartedAt || settings.twitchViewerCount > 0);
-  const status: DiagnosticStatus = !hasDashboardData ? "info" : liveStatus.toLowerCase() === "live" ? "pass" : "warn";
+  const channelTitle = settings.twitchChannelTitle || "";
+  const channelCategory = settings.twitchChannelCategory || "";
+  const channelCategoryId = settings.twitchChannelCategoryId || "";
+  const channelLanguage = settings.twitchChannelLanguage || "";
+  const hasMetadataSnapshot = Boolean(
+    settings.twitchStatusCheckedAt ||
+      channelTitle ||
+      channelCategory ||
+      channelCategoryId ||
+      channelLanguage
+  );
+  const titleMismatch = Boolean(
+    hasMetadataSnapshot &&
+      settings.title &&
+      normalizeTwitchDiagnosticDisplay(channelTitle) !== normalizeTwitchDiagnosticDisplay(settings.title)
+  );
+  const categoryIdMismatch = Boolean(
+    hasMetadataSnapshot &&
+      settings.twitchCategoryId &&
+      (!channelCategoryId ||
+        normalizeTwitchDiagnosticComparable(channelCategoryId) !== normalizeTwitchDiagnosticComparable(settings.twitchCategoryId))
+  );
+  const matchingCategoryIds = Boolean(
+    channelCategoryId &&
+      settings.twitchCategoryId &&
+      normalizeTwitchDiagnosticComparable(channelCategoryId) === normalizeTwitchDiagnosticComparable(settings.twitchCategoryId)
+  );
+  const categoryNameMismatch = Boolean(
+    hasMetadataSnapshot &&
+    !categoryIdMismatch &&
+      !matchingCategoryIds &&
+      settings.twitchCategory &&
+      normalizeTwitchDiagnosticComparable(channelCategory) !== normalizeTwitchDiagnosticComparable(settings.twitchCategory)
+  );
+  const languageMismatch = Boolean(
+    hasMetadataSnapshot &&
+      settings.twitchLanguage &&
+      normalizeTwitchDiagnosticComparable(channelLanguage) !== normalizeTwitchDiagnosticComparable(settings.twitchLanguage)
+  );
+  const metadataMismatch = titleMismatch || categoryIdMismatch || categoryNameMismatch || languageMismatch;
+  const hasDashboardData = Boolean(
+    liveStatus ||
+      settings.twitchStartedAt ||
+      settings.twitchViewerCount > 0 ||
+      channelTitle ||
+      channelCategory ||
+      channelCategoryId ||
+      channelLanguage
+  );
+  const status: DiagnosticStatus = !hasDashboardData
+    ? "info"
+    : metadataMismatch
+      ? "fail"
+      : liveStatus.toLowerCase() === "live"
+        ? "pass"
+        : "warn";
 
   return {
     platform: "twitch",
@@ -1040,10 +1098,12 @@ const createTwitchPublishingDiagnostics = (
     summary:
       status === "info"
         ? "No Twitch live-status snapshot has been captured yet."
-        : `Twitch dashboard: ${liveStatus || "unknown"}, viewers ${settings.twitchViewerCount}, started ${settings.twitchStartedAt || "not reported"}, checked ${settings.twitchStatusCheckedAt || "not recorded"}.`,
+        : `Twitch dashboard: ${liveStatus || "unknown"}, title ${channelTitle || "unknown"} (app ${settings.title || "unknown"}), category ${channelCategory || "unknown"}${channelCategoryId ? ` (${channelCategoryId})` : ""} (app ${settings.twitchCategory || "unknown"}${settings.twitchCategoryId ? ` (${settings.twitchCategoryId})` : ""}), language ${channelLanguage || "unknown"} (app ${settings.twitchLanguage || "unknown"}), viewers ${settings.twitchViewerCount}, started ${settings.twitchStartedAt || "not reported"}, checked ${settings.twitchStatusCheckedAt || "not recorded"}.`,
     recommendation:
       status === "pass"
         ? "Keep the Twitch live-status snapshot with this release-candidate validation run."
+        : status === "fail"
+          ? "Apply Twitch metadata and refresh dashboard status so the Twitch dashboard title, category, and language match the app settings."
         : status === "warn"
           ? "Refresh Twitch live status after confirming the channel is receiving ingest."
           : "Refresh Twitch live status during the next private validation run.",
@@ -1054,11 +1114,19 @@ const createTwitchPublishingDiagnostics = (
       hasCategory: Boolean(settings.twitchCategory.trim()),
       hasCategoryId: Boolean(settings.twitchCategoryId.trim()),
       language: settings.twitchLanguage,
+      channelTitle,
+      channelCategory,
+      channelCategoryId,
+      channelLanguage,
       startedAt: settings.twitchStartedAt,
       statusCheckedAt: settings.twitchStatusCheckedAt
     }
   };
 };
+
+const normalizeTwitchDiagnosticDisplay = (value: string): string => value.trim().replace(/\s+/g, " ");
+
+const normalizeTwitchDiagnosticComparable = (value: string): string => normalizeTwitchDiagnosticDisplay(value).toLowerCase();
 
 const sanitizeNativeCompositionReport = (
   report: NativeCompositionReport,

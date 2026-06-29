@@ -63,6 +63,10 @@ describe("studio profiles", () => {
         twitchCategory: " Just Chatting ",
         twitchCategoryId: " 509658 ",
         twitchLanguage: " JA ",
+        twitchChannelTitle: " Dashboard title ",
+        twitchChannelCategory: " Art ",
+        twitchChannelCategoryId: " 509660 ",
+        twitchChannelLanguage: " EN ",
         twitchLiveStatus: " live ",
         twitchViewerCount: 12.6,
         twitchStartedAt: " 2026-06-22T12:00:00Z ",
@@ -83,6 +87,10 @@ describe("studio profiles", () => {
     expect(profile.platformPublishing.youtubeStatusCheckedAt).toBe("2026-06-23T12:34:56.000Z");
     expect(profile.platformPublishing.twitchCategoryId).toBe("509658");
     expect(profile.platformPublishing.twitchLanguage).toBe("ja");
+    expect(profile.platformPublishing.twitchChannelTitle).toBe("Dashboard title");
+    expect(profile.platformPublishing.twitchChannelCategory).toBe("Art");
+    expect(profile.platformPublishing.twitchChannelCategoryId).toBe("509660");
+    expect(profile.platformPublishing.twitchChannelLanguage).toBe("en");
     expect(profile.platformPublishing.twitchLiveStatus).toBe("live");
     expect(profile.platformPublishing.twitchViewerCount).toBe(13);
     expect(profile.platformPublishing.twitchStartedAt).toBe("2026-06-22T12:00:00Z");

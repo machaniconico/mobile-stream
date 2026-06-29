@@ -102,6 +102,10 @@ export interface PlatformPublishingSettings {
   twitchCategory: string;
   twitchCategoryId: string;
   twitchLanguage: string;
+  twitchChannelTitle: string;
+  twitchChannelCategory: string;
+  twitchChannelCategoryId: string;
+  twitchChannelLanguage: string;
   twitchLiveStatus: string;
   twitchViewerCount: number;
   twitchStartedAt: string;
@@ -498,6 +502,10 @@ export const defaultPlatformPublishingSettings: PlatformPublishingSettings = {
   twitchCategory: "Just Chatting",
   twitchCategoryId: "",
   twitchLanguage: "ja",
+  twitchChannelTitle: "",
+  twitchChannelCategory: "",
+  twitchChannelCategoryId: "",
+  twitchChannelLanguage: "",
   twitchLiveStatus: "",
   twitchViewerCount: 0,
   twitchStartedAt: "",
@@ -644,6 +652,10 @@ export const normalizePlatformPublishingSettings = (
     twitchCategory: normalizeSingleLine(settings?.twitchCategory || fallback.twitchCategory).slice(0, 140),
     twitchCategoryId: normalizeSingleLine(settings?.twitchCategoryId).slice(0, 80),
     twitchLanguage: normalizeSingleLine(settings?.twitchLanguage || fallback.twitchLanguage).slice(0, 12).toLowerCase(),
+    twitchChannelTitle: normalizeSingleLine(settings?.twitchChannelTitle).slice(0, 100),
+    twitchChannelCategory: normalizeSingleLine(settings?.twitchChannelCategory).slice(0, 140),
+    twitchChannelCategoryId: normalizeSingleLine(settings?.twitchChannelCategoryId).slice(0, 80),
+    twitchChannelLanguage: normalizeSingleLine(settings?.twitchChannelLanguage).slice(0, 12).toLowerCase(),
     twitchLiveStatus: normalizeSingleLine(settings?.twitchLiveStatus).slice(0, 40),
     twitchViewerCount: Math.round(clampNumber(settings?.twitchViewerCount ?? fallback.twitchViewerCount, 0, 10_000_000)),
     twitchStartedAt: normalizeSingleLine(settings?.twitchStartedAt).slice(0, 80),

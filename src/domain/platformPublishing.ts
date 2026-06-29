@@ -442,19 +442,19 @@ export const refreshTwitchChannelStatus = async (
   const stream = streamPayload.data?.[0];
   const channelTitle = normalizeSingleLine(channel.title);
   const streamTitle = normalizeSingleLine(stream?.title);
-  const categoryId = normalizeSingleLine(channel.game_id || stream?.game_id || settings.twitchCategoryId);
-  const categoryName = normalizeSingleLine(channel.game_name || stream?.game_name || settings.twitchCategory);
-  const language = normalizeSingleLine(stream?.language || channel.broadcaster_language || settings.twitchLanguage).toLowerCase();
+  const categoryId = normalizeSingleLine(channel.game_id || stream?.game_id);
+  const categoryName = normalizeSingleLine(channel.game_name || stream?.game_name);
+  const language = normalizeSingleLine(channel.broadcaster_language || stream?.language).toLowerCase();
   const liveStatus = stream ? normalizeSingleLine(stream.type) || "live" : "offline";
   const viewerCount = stream ? normalizeViewerCount(stream.viewer_count) : 0;
   const startedAt = stream ? normalizeSingleLine(stream.started_at) : "";
 
   const nextPublishing: PlatformPublishingSettings = normalizePlatformPublishingSettings({
     ...settings,
-    title: channelTitle || streamTitle || settings.title,
-    twitchCategory: categoryName || settings.twitchCategory,
-    twitchCategoryId: categoryId || settings.twitchCategoryId,
-    twitchLanguage: language || settings.twitchLanguage,
+    twitchChannelTitle: channelTitle || streamTitle,
+    twitchChannelCategory: categoryName,
+    twitchChannelCategoryId: categoryId,
+    twitchChannelLanguage: language,
     twitchLiveStatus: liveStatus,
     twitchViewerCount: viewerCount,
     twitchStartedAt: startedAt,
@@ -526,11 +526,15 @@ export const applyTwitchChannelMetadata = async (
   return {
     profile: {
       ...profile,
-      platformPublishing: {
+      platformPublishing: normalizePlatformPublishingSettings({
         ...settings,
         twitchCategory: category.name || settings.twitchCategory,
-        twitchCategoryId: category.id || settings.twitchCategoryId
-      }
+        twitchCategoryId: category.id || settings.twitchCategoryId,
+        twitchChannelTitle: settings.title,
+        twitchChannelCategory: category.name || settings.twitchCategory,
+        twitchChannelCategoryId: category.id || settings.twitchCategoryId,
+        twitchChannelLanguage: settings.twitchLanguage
+      })
     },
     message: `Twitch channel metadata updated${category.name ? ` for ${category.name}` : ""}.`
   };

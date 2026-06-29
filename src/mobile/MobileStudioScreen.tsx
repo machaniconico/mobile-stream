@@ -1566,6 +1566,22 @@ export const MobileStudioScreen = ({
                   Status {profile.platformPublishing.twitchLiveStatus || "unknown"}
                 </Text>
                 <Text style={styles.statusCell} numberOfLines={1}>
+                  Title {profile.platformPublishing.twitchChannelTitle || "unknown"} / app{" "}
+                  {profile.platformPublishing.title || "unknown"}
+                </Text>
+                <Text style={styles.statusCell} numberOfLines={1}>
+                  Category {profile.platformPublishing.twitchChannelCategory || "unknown"}{" "}
+                  {profile.platformPublishing.twitchChannelCategoryId
+                    ? `(${profile.platformPublishing.twitchChannelCategoryId})`
+                    : "(no id)"}{" "}
+                  / app {profile.platformPublishing.twitchCategory || "unknown"}{" "}
+                  {profile.platformPublishing.twitchCategoryId ? `(${profile.platformPublishing.twitchCategoryId})` : "(no id)"}
+                </Text>
+                <Text style={styles.statusCell} numberOfLines={1}>
+                  Language {profile.platformPublishing.twitchChannelLanguage || "unknown"} / app{" "}
+                  {profile.platformPublishing.twitchLanguage || "unknown"}
+                </Text>
+                <Text style={styles.statusCell} numberOfLines={1}>
                   Viewers {profile.platformPublishing.twitchViewerCount.toLocaleString()}
                 </Text>
                 <Text style={styles.statusCell} numberOfLines={1}>

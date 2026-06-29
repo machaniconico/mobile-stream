@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assessPlatformPublishingFreshness } from "./platformPublishingFreshness";
-import { createDefaultStudioProfile, redactStreamKey } from "./profiles";
+import { applyDestinationPreset, createDefaultStudioProfile, redactStreamKey } from "./profiles";
 import { createPublicLaunchChecklist } from "./publicLaunchChecklist";
 import { createReadinessReport } from "./readiness";
 import { createDefaultScene, setVisibility, updateSource } from "./scene";
@@ -448,6 +448,80 @@ describe("stream diagnostics", () => {
     expect(diagnostics.platformPublishing.status).toBe("fail");
     expect(diagnostics.platformPublishing.summary).toContain("bound stream bound-stream (app saved-stream)");
     expect(diagnostics.platformPublishing.recommendation).toContain("bound stream matches");
+  });
+
+  it("fails Twitch dashboard diagnostics when channel metadata differs from app settings", () => {
+    const scene = createDefaultScene();
+    const baseProfile = applyDestinationPreset(createDefaultStudioProfile(), "twitch-auto");
+    const profile = {
+      ...baseProfile,
+      destination: {
+        ...baseProfile.destination,
+        streamKey: demoStreamKey
+      },
+      platformPublishing: {
+        ...baseProfile.platformPublishing,
+        title: "App title",
+        twitchCategory: "Just Chatting",
+        twitchCategoryId: "509658",
+        twitchLanguage: "ja",
+        twitchChannelTitle: "Dashboard title",
+        twitchChannelCategory: "Art",
+        twitchChannelCategoryId: "509660",
+        twitchChannelLanguage: "en",
+        twitchLiveStatus: "offline",
+        twitchViewerCount: 0,
+        twitchStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health({ bitrateKbps: 3500, fps: 30 })
+    });
+
+    expect(diagnostics.platformPublishing.status).toBe("fail");
+    expect(diagnostics.platformPublishing.twitch?.channelCategoryId).toBe("509660");
+    expect(diagnostics.platformPublishing.summary).toContain("title Dashboard title (app App title)");
+    expect(diagnostics.platformPublishing.summary).toContain("category Art (509660) (app Just Chatting (509658))");
+    expect(diagnostics.platformPublishing.summary).toContain("language en (app ja)");
+    expect(diagnostics.platformPublishing.recommendation).toContain("Apply Twitch metadata");
+  });
+
+  it("does not fail Twitch dashboard diagnostics when matching category IDs have different display names", () => {
+    const scene = createDefaultScene();
+    const baseProfile = applyDestinationPreset(createDefaultStudioProfile(), "twitch-auto");
+    const profile = {
+      ...baseProfile,
+      destination: {
+        ...baseProfile.destination,
+        streamKey: demoStreamKey
+      },
+      platformPublishing: {
+        ...baseProfile.platformPublishing,
+        title: "App title",
+        twitchCategory: "Stale local category name",
+        twitchCategoryId: "509660",
+        twitchLanguage: "ja",
+        twitchChannelTitle: "App title",
+        twitchChannelCategory: "Art",
+        twitchChannelCategoryId: "509660",
+        twitchChannelLanguage: "ja",
+        twitchLiveStatus: "offline",
+        twitchViewerCount: 0,
+        twitchStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health({ bitrateKbps: 3500, fps: 30 })
+    });
+
+    expect(diagnostics.platformPublishing.status).toBe("warn");
+    expect(diagnostics.platformPublishing.recommendation).not.toContain("Apply Twitch metadata");
   });
 
   it("exports retained native runtime proof frame and byte counts in validation evidence", () => {

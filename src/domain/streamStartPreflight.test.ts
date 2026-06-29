@@ -474,6 +474,10 @@ describe("stream start preflight", () => {
       },
       platformPublishing: {
         ...baseProfile.platformPublishing,
+        twitchChannelTitle: baseProfile.platformPublishing.title,
+        twitchChannelCategory: baseProfile.platformPublishing.twitchCategory,
+        twitchChannelCategoryId: baseProfile.platformPublishing.twitchCategoryId,
+        twitchChannelLanguage: baseProfile.platformPublishing.twitchLanguage,
         twitchLiveStatus: "offline",
         twitchStatusCheckedAt: "2026-06-23T00:00:00.000Z"
       }
@@ -586,6 +590,10 @@ describe("stream start preflight", () => {
       },
       platformPublishing: {
         ...baseProfile.platformPublishing,
+        twitchChannelTitle: baseProfile.platformPublishing.title,
+        twitchChannelCategory: baseProfile.platformPublishing.twitchCategory,
+        twitchChannelCategoryId: baseProfile.platformPublishing.twitchCategoryId,
+        twitchChannelLanguage: baseProfile.platformPublishing.twitchLanguage,
         twitchLiveStatus: "offline",
         twitchStatusCheckedAt: "2026-06-23T00:00:00.000Z"
       }
@@ -786,6 +794,133 @@ describe("stream start preflight", () => {
 
     expect(report.canStart).toBe(false);
     expect(report.blocks.map((issue) => issue.code)).toContain("publishing-twitch-already-live");
+  });
+
+  it("blocks Twitch launches when dashboard metadata differs from the app settings", () => {
+    const baseProfile = applyDestinationPreset(validProfile(), "twitch-auto");
+    const profile = {
+      ...baseProfile,
+      destination: {
+        ...baseProfile.destination,
+        streamKey: "placeholder-twitch-key"
+      },
+      platformPublishing: {
+        ...baseProfile.platformPublishing,
+        title: "App title",
+        twitchCategory: "Just Chatting",
+        twitchCategoryId: "509658",
+        twitchLanguage: "ja",
+        twitchChannelTitle: "Dashboard title",
+        twitchChannelCategory: "Art",
+        twitchChannelCategoryId: "509660",
+        twitchChannelLanguage: "en",
+        twitchLiveStatus: "offline",
+        twitchStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: twitchCredential([TWITCH_CHANNEL_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining([
+        "publishing-twitch-title-mismatch",
+        "publishing-twitch-category-mismatch",
+        "publishing-twitch-language-mismatch"
+      ])
+    );
+  });
+
+  it("blocks Twitch launches when refreshed dashboard metadata is empty", () => {
+    const baseProfile = applyDestinationPreset(validProfile(), "twitch-auto");
+    const profile = {
+      ...baseProfile,
+      destination: {
+        ...baseProfile.destination,
+        streamKey: "placeholder-twitch-key"
+      },
+      platformPublishing: {
+        ...baseProfile.platformPublishing,
+        title: "App title",
+        twitchCategory: "Just Chatting",
+        twitchCategoryId: "",
+        twitchLanguage: "ja",
+        twitchChannelTitle: "",
+        twitchChannelCategory: "",
+        twitchChannelCategoryId: "",
+        twitchChannelLanguage: "",
+        twitchLiveStatus: "offline",
+        twitchStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: twitchCredential([TWITCH_CHANNEL_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining([
+        "publishing-twitch-title-mismatch",
+        "publishing-twitch-category-mismatch",
+        "publishing-twitch-language-mismatch"
+      ])
+    );
+  });
+
+  it("does not block Twitch launches when category IDs match but display names differ", () => {
+    const baseProfile = applyDestinationPreset(validProfile(), "twitch-auto");
+    const profile = {
+      ...baseProfile,
+      destination: {
+        ...baseProfile.destination,
+        streamKey: "placeholder-twitch-key"
+      },
+      platformPublishing: {
+        ...baseProfile.platformPublishing,
+        title: "App title",
+        twitchCategory: "Stale local category name",
+        twitchCategoryId: "509660",
+        twitchLanguage: "ja",
+        twitchChannelTitle: "App title",
+        twitchChannelCategory: "Art",
+        twitchChannelCategoryId: "509660",
+        twitchChannelLanguage: "ja",
+        twitchLiveStatus: "offline",
+        twitchStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      enginePlatform: "android",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: twitchCredential([TWITCH_CHANNEL_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.blocks.map((issue) => issue.code)).not.toContain("publishing-twitch-category-mismatch");
+    expect(report.canStart).toBe(true);
   });
 
   it("warns when Twitch status has never been refreshed before launch", () => {

@@ -616,7 +616,7 @@ const createTwitchPublishingIssues = (
   platformChatOAuthCredential: StreamStartPreflightInput["platformChatOAuthCredential"]
 ): StreamStartPreflightIssue[] => {
   const freshnessIssue = createStatusFreshnessIssue("twitch", profile.platformPublishing.twitchStatusCheckedAt, now);
-  const issues: StreamStartPreflightIssue[] = [];
+  const issues: StreamStartPreflightIssue[] = createTwitchMetadataMismatchIssues(profile);
   const oauthIssue = createOAuthScopeIssue({
     credential: resolvePreflightCredential(platformChatOAuthCredentials, platformChatOAuthCredential, "twitch"),
     platform: "twitch",
@@ -652,6 +652,77 @@ const createTwitchPublishingIssues = (
     }
   ];
 };
+
+const createTwitchMetadataMismatchIssues = (
+  profile: NonNullable<StreamStartPreflightInput["profile"]>
+): StreamStartPreflightIssue[] => {
+  const settings = profile.platformPublishing;
+  const issues: StreamStartPreflightIssue[] = [];
+  const appTitle = normalizeTwitchDisplayValue(settings.title);
+  const channelTitle = normalizeTwitchDisplayValue(settings.twitchChannelTitle);
+  const appCategory = normalizeTwitchComparableValue(settings.twitchCategory);
+  const channelCategory = normalizeTwitchComparableValue(settings.twitchChannelCategory);
+  const appCategoryId = normalizeTwitchComparableValue(settings.twitchCategoryId);
+  const channelCategoryId = normalizeTwitchComparableValue(settings.twitchChannelCategoryId);
+  const appLanguage = normalizeTwitchComparableValue(settings.twitchLanguage);
+  const channelLanguage = normalizeTwitchComparableValue(settings.twitchChannelLanguage);
+  const hasMetadataSnapshot = Boolean(
+    settings.twitchStatusCheckedAt.trim() ||
+      channelTitle ||
+      channelCategory ||
+      channelCategoryId ||
+      channelLanguage
+  );
+  const categoryIdMismatch = Boolean(
+    hasMetadataSnapshot && appCategoryId && (!channelCategoryId || channelCategoryId !== appCategoryId)
+  );
+  const matchingCategoryIds = Boolean(channelCategoryId && appCategoryId && channelCategoryId === appCategoryId);
+  const categoryNameMismatch = Boolean(
+    hasMetadataSnapshot && !categoryIdMismatch && !matchingCategoryIds && appCategory && channelCategory !== appCategory
+  );
+
+  if (hasMetadataSnapshot && appTitle && channelTitle !== appTitle) {
+    issues.push({
+      code: "publishing-twitch-title-mismatch",
+      severity: "block",
+      area: "publishing",
+      label: "Twitch title",
+      message: `Twitch dashboard title is "${settings.twitchChannelTitle}", but the app is configured for "${settings.title}".`,
+      recommendation: "Apply Twitch metadata or update the app title so both match before starting."
+    });
+  }
+
+  if (categoryIdMismatch || categoryNameMismatch) {
+    issues.push({
+      code: "publishing-twitch-category-mismatch",
+      severity: "block",
+      area: "publishing",
+      label: "Twitch category",
+      message: `Twitch dashboard category is ${formatTwitchCategoryForMessage(settings.twitchChannelCategory, settings.twitchChannelCategoryId)}, but the app is configured for ${formatTwitchCategoryForMessage(settings.twitchCategory, settings.twitchCategoryId)}.`,
+      recommendation: "Apply Twitch metadata or refresh the dashboard status after changing the category."
+    });
+  }
+
+  if (hasMetadataSnapshot && appLanguage && channelLanguage !== appLanguage) {
+    issues.push({
+      code: "publishing-twitch-language-mismatch",
+      severity: "block",
+      area: "publishing",
+      label: "Twitch language",
+      message: `Twitch dashboard language is ${settings.twitchChannelLanguage}, but the app is configured for ${settings.twitchLanguage}.`,
+      recommendation: "Apply Twitch metadata or update the app language so both match before starting."
+    });
+  }
+
+  return issues;
+};
+
+const normalizeTwitchDisplayValue = (value: string): string => value.trim().replace(/\s+/g, " ");
+
+const normalizeTwitchComparableValue = (value: string): string => normalizeTwitchDisplayValue(value).toLowerCase();
+
+const formatTwitchCategoryForMessage = (category: string, categoryId: string): string =>
+  `${category || "unknown"}${categoryId ? ` (${categoryId})` : ""}`;
 
 const createStatusFreshnessIssue = (
   platform: "youtube" | "twitch",

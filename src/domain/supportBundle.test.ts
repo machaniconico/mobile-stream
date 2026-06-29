@@ -166,6 +166,9 @@ describe("support bundle", () => {
     expect(bundle.scene.sourceCounts.pngtuber).toBe(1);
     expect(bundle.profile.destination.streamKeyPreview).toBe(redactStreamKey(streamKey));
     expect(bundle.profile.platformPublishing.titleLength).toBe(profile.platformPublishing.title.length);
+    expect(bundle.profile.platformPublishing.twitchChannelTitle).toBe("");
+    expect(bundle.profile.platformPublishing.twitchChannelCategoryId).toBe("");
+    expect(bundle.profile.platformPublishing.twitchChannelLanguage).toBe("");
     expect(bundle.summary.sessionPlatformApiEventCount).toBe(1);
     expect(bundle.summary.sessionPlatformApiFailureCount).toBe(0);
     expect(bundle.summary.lastSessionPlatformApiEventCount).toBe(1);

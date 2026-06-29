@@ -2723,6 +2723,10 @@ const normalizeTwitchPublishingDiagnostics = (
     hasCategory: value.hasCategory === true,
     hasCategoryId: value.hasCategoryId === true,
     language: normalizeText(value.language, ""),
+    channelTitle: normalizeText(value.channelTitle, ""),
+    channelCategory: normalizeText(value.channelCategory, ""),
+    channelCategoryId: normalizeText(value.channelCategoryId, ""),
+    channelLanguage: normalizeText(value.channelLanguage, ""),
     startedAt: normalizeText(value.startedAt, ""),
     statusCheckedAt: normalizeDateString(value.statusCheckedAt) ?? ""
   };

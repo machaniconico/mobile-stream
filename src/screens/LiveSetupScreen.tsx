@@ -339,6 +339,22 @@ export const LiveSetupScreen = ({
           </label>
           <div className="platform-status-grid">
             <span>Status {profile.platformPublishing.twitchLiveStatus || "unknown"}</span>
+            <span>
+              Title {profile.platformPublishing.twitchChannelTitle || "unknown"} / app{" "}
+              {profile.platformPublishing.title || "unknown"}
+            </span>
+            <span>
+              Category {profile.platformPublishing.twitchChannelCategory || "unknown"}{" "}
+              {profile.platformPublishing.twitchChannelCategoryId
+                ? `(${profile.platformPublishing.twitchChannelCategoryId})`
+                : "(no id)"}{" "}
+              / app {profile.platformPublishing.twitchCategory || "unknown"}{" "}
+              {profile.platformPublishing.twitchCategoryId ? `(${profile.platformPublishing.twitchCategoryId})` : "(no id)"}
+            </span>
+            <span>
+              Language {profile.platformPublishing.twitchChannelLanguage || "unknown"} / app{" "}
+              {profile.platformPublishing.twitchLanguage || "unknown"}
+            </span>
             <span>Viewers {profile.platformPublishing.twitchViewerCount.toLocaleString()}</span>
             <span>Started {profile.platformPublishing.twitchStartedAt || "offline"}</span>
             <span>Checked {formatStatusCheckedAt(profile.platformPublishing.twitchStatusCheckedAt)}</span>

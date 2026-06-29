@@ -327,7 +327,12 @@ export interface SupportBundle {
       youtubeStreamHealthIssueCount: number;
       youtubeStatusCheckedAt: string;
       twitchCategory: string;
+      twitchCategoryId: string;
       twitchLanguage: string;
+      twitchChannelTitle: string;
+      twitchChannelCategory: string;
+      twitchChannelCategoryId: string;
+      twitchChannelLanguage: string;
       twitchLiveStatus: string;
       twitchViewerCount: number;
       twitchStatusCheckedAt: string;
@@ -677,7 +682,12 @@ export const createSupportBundle = ({
         youtubeStreamHealthIssueCount: profile.platformPublishing.youtubeStreamHealthIssues.length,
         youtubeStatusCheckedAt: profile.platformPublishing.youtubeStatusCheckedAt,
         twitchCategory: profile.platformPublishing.twitchCategory,
+        twitchCategoryId: profile.platformPublishing.twitchCategoryId,
         twitchLanguage: profile.platformPublishing.twitchLanguage,
+        twitchChannelTitle: profile.platformPublishing.twitchChannelTitle,
+        twitchChannelCategory: profile.platformPublishing.twitchChannelCategory,
+        twitchChannelCategoryId: profile.platformPublishing.twitchChannelCategoryId,
+        twitchChannelLanguage: profile.platformPublishing.twitchChannelLanguage,
         twitchLiveStatus: profile.platformPublishing.twitchLiveStatus,
         twitchViewerCount: profile.platformPublishing.twitchViewerCount,
         twitchStatusCheckedAt: profile.platformPublishing.twitchStatusCheckedAt
