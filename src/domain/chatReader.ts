@@ -1,3 +1,5 @@
+import { redactSensitiveText } from "./sensitiveText";
+
 export interface ChatMessage {
   id: string;
   source: "manual" | "youtube" | "twitch" | "mock";
@@ -76,8 +78,8 @@ export const createDefaultChatReaderState = (): ChatReaderState => ({
 });
 
 export const createChatMessage = ({ id, source = "manual", author, body, receivedAt = Date.now() }: ChatMessageInput): ChatMessage => {
-  const cleanAuthor = normalizeWhitespace(author) || "viewer";
-  const cleanBody = normalizeWhitespace(body);
+  const cleanAuthor = sanitizeChatText(author) || "viewer";
+  const cleanBody = sanitizeChatText(body);
   const stableId = normalizeWhitespace(id ?? "");
   return {
     id: stableId ? `chat-${source}-${hashMessage(stableId)}` : `chat-${receivedAt}-${hashMessage(`${source}:${cleanAuthor}:${cleanBody}`)}`,
@@ -309,6 +311,8 @@ const truncateForSpeech = (value: string, maxLength: number): string => {
   }
   return `${clean.slice(0, Math.max(0, maxLength - 1)).trim()}...`;
 };
+
+const sanitizeChatText = (value: string): string => normalizeWhitespace(redactSensitiveText(value));
 
 const normalizeWhitespace = (value: string): string => value.replace(/\s+/g, " ").trim();
 

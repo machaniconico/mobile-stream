@@ -95,6 +95,39 @@ describe("chatReader", () => {
     ]);
   });
 
+  it("redacts OAuth and authorization secrets before storing, overlaying, or reading chat", () => {
+    const state = updateChatReaderSettings(createDefaultChatReaderState(), {
+      redactUrls: false
+    });
+    const message = createChatMessage({
+      source: "twitch",
+      author: "Bearer author-secret-token-12345",
+      body:
+        "Authorization: Bearer body-secret-token-12345 mobilelivecaster://oauth/youtube?code=oauth-code-secret&access_token=access-token-secret",
+      receivedAt: 3
+    });
+    const next = enqueueChatMessage(state, message);
+
+    expect(JSON.stringify(next)).not.toContain("author-secret-token-12345");
+    expect(JSON.stringify(next)).not.toContain("body-secret-token-12345");
+    expect(JSON.stringify(next)).not.toContain("oauth-code-secret");
+    expect(JSON.stringify(next)).not.toContain("access-token-secret");
+    expect(next.history[0]).toMatchObject({
+      author: "Bearer [redacted]",
+      body:
+        "Authorization: Bearer [redacted] mobilelivecaster://oauth/youtube?code=[redacted]&access_token=[redacted]"
+    });
+    expect(selectChatOverlayMessages(next)[0]).toMatchObject({
+      author: "Bearer [redacted]",
+      body:
+        "Authorization: Bearer [redacted] mobilelivecaster://oauth/youtube?code=[redacted]&access_token=[redacted]",
+      source: "twitch"
+    });
+    expect(createSpeechText(next.queue[0], next.settings)).toBe(
+      "Bearer [redacted] says Authorization: Bearer [redacted] mobilelivecaster://oauth/youtube?code=[redacted]&access_token=[redacted]"
+    );
+  });
+
   it("blocks link comments from speech and overlay when link blocking is enabled", () => {
     const state = updateChatReaderSettings(createDefaultChatReaderState(), {
       blockLinkMessages: true

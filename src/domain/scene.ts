@@ -1,6 +1,7 @@
 import { normalizeLive2DModelJsonUri } from "./live2dModel";
 import { normalizeVrmModelUri } from "./vrmModel";
 import { createVrmRuntimePose, serializeVrmRuntimePose } from "./vrmRuntime";
+import { redactSensitiveText } from "./sensitiveText";
 
 export type SourceKind = "screen" | "pngtuber" | "live2d" | "vrm" | "image" | "solid" | "text" | "chat";
 
@@ -1868,7 +1869,7 @@ const formatChatOverlayLine = (message: ChatOverlayMessage, showAuthor: boolean)
   showAuthor ? `${message.author}: ${message.body}` : message.body;
 
 const normalizeOverlayText = (value: string): string =>
-  value
+  redactSensitiveText(value)
     .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e]/g, " ")
     .replace(/\s+/g, " ")
     .trim();

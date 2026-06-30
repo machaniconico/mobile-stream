@@ -24,6 +24,7 @@ import {
   stripTransientSceneCollectionRuntime,
   stripTransientSceneRuntime,
   toRenderGraph,
+  updateSource,
   updateSceneTransition,
   updateTransform
 } from "./scene";
@@ -569,6 +570,39 @@ describe("scene document", () => {
     expect(String(chatNode?.payload.messagesJson)).not.toContain("example.com");
     expect(String(chatNode?.payload.messagesJson)).not.toContain("\u202e");
     expect(JSON.stringify(persistedChat)).not.toContain("first comment");
+  });
+
+  it("redacts sensitive runtime chat overlay payloads even when URL redaction is disabled", () => {
+    const scene = updateSource(createDefaultScene(), "source-chat", (source) =>
+      source.kind === "chat"
+        ? {
+            ...source,
+            redactUrls: false
+          }
+        : source
+    );
+    const graph = toRenderGraph(scene, {
+      chatMessages: [
+        {
+          author: "Bearer author-secret-token-12345",
+          body:
+            "Authorization: Bearer body-secret-token-12345 mobilelivecaster://oauth/youtube?code=oauth-code-secret&access_token=access-token-secret",
+          source: "youtube"
+        }
+      ]
+    });
+
+    const chatNode = graph.find((node) => node.kind === "chat");
+    const payloadText = String(chatNode?.payload.text);
+    const messagesJson = String(chatNode?.payload.messagesJson);
+
+    expect(payloadText).toContain("Bearer [redacted]: Authorization: Bearer [redacted]");
+    expect(messagesJson).toContain("code=[redacted]");
+    expect(messagesJson).toContain("access_token=[redacted]");
+    expect(`${payloadText}\n${messagesJson}`).not.toContain("author-secret-token-12345");
+    expect(`${payloadText}\n${messagesJson}`).not.toContain("body-secret-token-12345");
+    expect(`${payloadText}\n${messagesJson}`).not.toContain("oauth-code-secret");
+    expect(`${payloadText}\n${messagesJson}`).not.toContain("access-token-secret");
   });
 
   it("normalizes persisted scene data into safe renderable sources", () => {
