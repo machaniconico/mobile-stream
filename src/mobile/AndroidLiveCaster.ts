@@ -180,6 +180,7 @@ const normalizeNativeRuntime = (
           congested: runtime.publisher?.congested ?? false,
           lastError: runtime.publisher?.lastError ?? ""
         },
+        encoderProbe: normalizeEncoderProbe(runtime.encoderProbe),
         composition: {
           status: runtime.composition?.status ?? "unknown",
           appliedCount: runtime.composition?.appliedCount ?? 0,
@@ -271,5 +272,36 @@ const normalizeNativeRuntime = (
           broadcastChatReadoutMuted: runtime.audioProcessing?.broadcastChatReadoutMuted ?? false
         },
         message: runtime.message ?? ""
+      }
+    : null;
+
+type NativeRuntimeEncoderProbe = NonNullable<NativeRuntimeTelemetry["encoderProbe"]>;
+
+const normalizeEncoderProbe = (
+  encoderProbe: Partial<NativeRuntimeEncoderProbe> | null | undefined
+): NativeRuntimeEncoderProbe | null =>
+  encoderProbe
+    ? {
+        status:
+          encoderProbe.status === "pass" || encoderProbe.status === "warn" || encoderProbe.status === "fail"
+            ? encoderProbe.status
+            : "unknown",
+        checkedAt: encoderProbe.checkedAt ?? 0,
+        videoBackend: encoderProbe.videoBackend ?? "none",
+        audioBackend: encoderProbe.audioBackend ?? "none",
+        videoCodecName: encoderProbe.videoCodecName ?? "",
+        audioCodecName: encoderProbe.audioCodecName ?? "",
+        videoMime: encoderProbe.videoMime ?? "",
+        audioMime: encoderProbe.audioMime ?? "",
+        videoConfigured: encoderProbe.videoConfigured ?? false,
+        audioConfigured: encoderProbe.audioConfigured ?? false,
+        videoColorFormat: encoderProbe.videoColorFormat ?? "",
+        videoBitrateMode: encoderProbe.videoBitrateMode ?? "",
+        videoWidth: encoderProbe.videoWidth ?? 0,
+        videoHeight: encoderProbe.videoHeight ?? 0,
+        videoFps: encoderProbe.videoFps ?? 0,
+        audioSampleRate: encoderProbe.audioSampleRate ?? 0,
+        audioChannelCount: encoderProbe.audioChannelCount ?? 0,
+        message: encoderProbe.message ?? ""
       }
     : null;

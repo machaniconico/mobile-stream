@@ -15,6 +15,8 @@ export type StreamSessionEndReason = "stopped" | "failed";
 export type StreamSessionOutcome = "clean" | "warn" | "fail";
 export type StreamSessionNativeRuntimeStatus = "pass" | "warn" | "fail";
 export type StreamAudioLevelSource = "manual" | "face-tracking";
+type StreamSessionNativeRuntimeEncoderProbeStatus =
+  NonNullable<NativeRuntimeTelemetry["encoderProbe"]>["status"] | "missing";
 
 export interface StreamAudioLevelSample {
   at: string;
@@ -40,6 +42,10 @@ export interface StreamSessionNativeRuntimeSummary {
   publisherState: string;
   videoEncoderBackend: string;
   audioEncoderBackend: string;
+  encoderProbeStatus: StreamSessionNativeRuntimeEncoderProbeStatus;
+  encoderProbeVideoBackend: string;
+  encoderProbeAudioBackend: string;
+  encoderProbeMessage: string;
   compositionStatus: NativeRuntimeTelemetry["composition"]["status"];
   compositionAppliedCount: number;
   compositionSkippedCount: number;
@@ -694,6 +700,10 @@ export const createNativeRuntimeSessionSummary = (
   const congested = runtime.publisher.congested;
   const videoEncoderBackend = runtime.publisher.videoEncoderBackend || "none";
   const audioEncoderBackend = runtime.publisher.audioEncoderBackend || "none";
+  const encoderProbeStatus = runtime.encoderProbe?.status ?? "missing";
+  const encoderProbeVideoBackend = runtime.encoderProbe?.videoBackend || "none";
+  const encoderProbeAudioBackend = runtime.encoderProbe?.audioBackend || "none";
+  const encoderProbeMessage = runtime.encoderProbe?.message || "";
   const invalidNativeEncoderBackends =
     !isProductionNativeVideoEncoderBackend(runtime.platform, videoEncoderBackend) ||
     !isProductionNativeAudioEncoderBackend(runtime.platform, audioEncoderBackend);
@@ -840,6 +850,10 @@ export const createNativeRuntimeSessionSummary = (
     publisherState: runtime.publisher.state,
     videoEncoderBackend,
     audioEncoderBackend,
+    encoderProbeStatus,
+    encoderProbeVideoBackend,
+    encoderProbeAudioBackend,
+    encoderProbeMessage,
     compositionStatus: runtime.composition.status,
     compositionAppliedCount: normalizeNonNegativeInteger(runtime.composition.appliedCount),
     compositionSkippedCount: normalizeNonNegativeInteger(runtime.composition.skippedCount),
@@ -1179,6 +1193,16 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     publisherState: typeof value.publisherState === "string" ? value.publisherState : "",
     videoEncoderBackend: typeof value.videoEncoderBackend === "string" ? value.videoEncoderBackend : "none",
     audioEncoderBackend: typeof value.audioEncoderBackend === "string" ? value.audioEncoderBackend : "none",
+    encoderProbeStatus:
+      value.encoderProbeStatus === "pass" ||
+      value.encoderProbeStatus === "warn" ||
+      value.encoderProbeStatus === "fail" ||
+      value.encoderProbeStatus === "unknown"
+        ? value.encoderProbeStatus
+        : "missing",
+    encoderProbeVideoBackend: typeof value.encoderProbeVideoBackend === "string" ? value.encoderProbeVideoBackend : "none",
+    encoderProbeAudioBackend: typeof value.encoderProbeAudioBackend === "string" ? value.encoderProbeAudioBackend : "none",
+    encoderProbeMessage: typeof value.encoderProbeMessage === "string" ? value.encoderProbeMessage : "",
     compositionStatus,
     compositionAppliedCount: normalizeNonNegativeInteger(value.compositionAppliedCount),
     compositionSkippedCount: normalizeNonNegativeInteger(value.compositionSkippedCount),

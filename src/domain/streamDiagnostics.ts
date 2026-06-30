@@ -1676,11 +1676,17 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
     !isProductionNativeVideoEncoderBackend(runtime.platform, runtime.publisher.videoEncoderBackend) ||
     !isProductionNativeAudioEncoderBackend(runtime.platform, runtime.publisher.audioEncoderBackend);
   if (invalidNativeEncoderBackends) {
+    const encoderProbeMessage =
+      runtime.encoderProbe?.status === "pass"
+        ? ` MediaCodec configure probe passed with ${runtime.encoderProbe.videoCodecName || "video"}/${runtime.encoderProbe.audioCodecName || "audio"}, but active publisher still reports ${runtime.publisher.videoEncoderBackend || "none"}/${runtime.publisher.audioEncoderBackend || "none"}.`
+        : runtime.encoderProbe?.status === "fail"
+          ? ` MediaCodec configure probe failed: ${runtime.encoderProbe.message}`
+          : "";
     return {
       code: "native-runtime-encoder-backend",
       status: "warn",
       label: "Native runtime",
-      message: `Native encoder backend ${runtime.publisher.videoEncoderBackend || "none"}/${runtime.publisher.audioEncoderBackend || "none"} is not accepted as production evidence for ${runtime.platform}.`
+      message: `Native encoder backend ${runtime.publisher.videoEncoderBackend || "none"}/${runtime.publisher.audioEncoderBackend || "none"} is not accepted as production evidence for ${runtime.platform}.${encoderProbeMessage}`
     };
   }
   const missingAssetCount = runtime.composition.stillImageAssetMissingCount ?? 0;

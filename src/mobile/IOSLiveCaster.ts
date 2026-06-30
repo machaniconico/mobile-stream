@@ -169,6 +169,7 @@ const normalizeNativeRuntime = (
           congested: runtime.publisher?.congested ?? false,
           lastError: runtime.publisher?.lastError ?? ""
         },
+        encoderProbe: runtime.encoderProbe ?? null,
         composition: {
           status: runtime.composition?.status ?? "unknown",
           appliedCount: runtime.composition?.appliedCount ?? 0,

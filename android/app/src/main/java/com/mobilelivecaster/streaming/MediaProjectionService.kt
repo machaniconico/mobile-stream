@@ -89,6 +89,12 @@ class MediaProjectionService : Service(), ConnectChecker {
                 resetNativeRuntimeCounters()
             }
             startForegroundCompat()
+            val encoderProbe = AndroidMediaCodecProbe.inspect(profile)
+            LiveCasterSession.updateNativeRuntime(
+                publisherState = "preparing",
+                encoderProbe = encoderProbe,
+                message = encoderProbe.message
+            )
             val projection = mediaProjectionManager.getMediaProjection(resultCode, captureData)
                 ?: throw IllegalStateException("Could not create MediaProjection")
             mediaProjection?.stop()

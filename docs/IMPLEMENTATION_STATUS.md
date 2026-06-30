@@ -150,6 +150,7 @@
 - Android MediaProjection consent flow from React Native.
 - Android foreground streaming service with `mediaProjection|microphone` service type.
 - Android RTMP/RTMPS publishing path through RootEncoder, using screen capture and microphone input.
+- Android first-party `MediaCodecList` / `MediaCodec.configure` probe for requested H.264 surface-input and AAC encoder settings, surfaced separately from the active RootEncoder publisher backend in native runtime, validation-run manifest, and support-bundle evidence.
 - Android publish endpoint assembly from the app's server URL and stream key fields.
 - Android native GL overlay compositor for PNGTuber still-image, text, chat, image, and solid scene sources on top of MediaProjection capture, with applied/pending overlay status plus still-image asset load/miss/decode pixel evidence in stream health/native runtime telemetry.
 - Android mobile still-image asset picker/preparation copies selected content/file/path PNGTuber/image source assets into app-internal storage and stores a stable `file://` URI for native GL overlay rendering.
@@ -205,7 +206,7 @@
 - Android physical-device tuning for mic monitor latency and Bluetooth route behavior using the retained in-app latency evidence.
 - iOS physical-device tuning for mic monitor latency and Bluetooth route behavior using the retained in-app latency evidence.
 - iOS physical-device execution of the v48 App Group still-image render-proof run against real devices and real ingest endpoints.
-- First-party VideoToolbox/MediaCodec encoder implementations outside RootEncoder.
+- Full active first-party Android MediaCodec publisher implementation outside RootEncoder.
 - Native Live2D Cubism SDK rendering integration and physical-device validation. Shared Cubism `model3.json` package validation, local URI checks, packaged-reference safety checks, texture format readiness checks, expression/motion coverage checks, and duplicate-reference warnings are now in place as renderer prerequisites.
 - Native VRM/VRoid 3D renderer integration, actual humanoid bone/expression rendering from the delivered pose telemetry, and physical-device validation. Native `.vrm`/`.glb` model selection, storage, GLB/VRM header-load telemetry, VRM version telemetry, unsupported required-extension and self-contained binary-buffer checks, humanoid-bone counts, expression/blendshape counts, mesh/skinned-mesh/triangle-mode/POSITION/NORMAL/TEXCOORD_0 vertex/index/bounds/skinning-attribute/skin-joint/morph/material/texture/image-mime/transparent-material renderability and renderer-compatibility counts, and pose-to-model compatibility telemetry are now in place as renderer prerequisites.
 - IRIAM-style high-fidelity single-illustration auto-rigging beyond the current image-aspect-aware geometry plus alpha-mask foreground, browser FaceDetector handoff, semantic face-landmark lightweight still-image 2.5D deformation, and face-part/pseudo-depth/semantic-segment quality scoring, including semantic image-segmentation-based face/body part inference, true mesh/depth rigging, explicit eye/mouth part segmentation, and physical-device tuning against native-camera tracking.

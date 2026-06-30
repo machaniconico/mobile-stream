@@ -1646,6 +1646,9 @@ const manifestRun = ({
   nativeRuntimeStatus = "pass",
   nativeRuntimeVideoEncoderBackend = devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
   nativeRuntimeAudioEncoderBackend = devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
+  nativeRuntimeEncoderProbeStatus = "missing",
+  nativeRuntimeEncoderProbeVideoBackend = "none",
+  nativeRuntimeEncoderProbeAudioBackend = "none",
   nativeRuntimeCompositionStatus = "applied",
   nativeRuntimeCompositionAppliedCount = 1,
   nativeRuntimeCompositionSkippedCount = 0,
@@ -1791,6 +1794,9 @@ const manifestRun = ({
   nativeRuntimeStatus?: ValidationManifestRun["nativeRuntimeStatus"];
   nativeRuntimeVideoEncoderBackend?: ValidationManifestRun["nativeRuntimeVideoEncoderBackend"];
   nativeRuntimeAudioEncoderBackend?: ValidationManifestRun["nativeRuntimeAudioEncoderBackend"];
+  nativeRuntimeEncoderProbeStatus?: ValidationManifestRun["nativeRuntimeEncoderProbeStatus"];
+  nativeRuntimeEncoderProbeVideoBackend?: ValidationManifestRun["nativeRuntimeEncoderProbeVideoBackend"];
+  nativeRuntimeEncoderProbeAudioBackend?: ValidationManifestRun["nativeRuntimeEncoderProbeAudioBackend"];
   nativeRuntimeCompositionStatus?: ValidationManifestRun["nativeRuntimeCompositionStatus"];
   nativeRuntimeCompositionAppliedCount?: ValidationManifestRun["nativeRuntimeCompositionAppliedCount"];
   nativeRuntimeCompositionSkippedCount?: ValidationManifestRun["nativeRuntimeCompositionSkippedCount"];
@@ -1942,6 +1948,9 @@ const manifestRun = ({
   nativeRuntimeStatus,
   nativeRuntimeVideoEncoderBackend,
   nativeRuntimeAudioEncoderBackend,
+  nativeRuntimeEncoderProbeStatus,
+  nativeRuntimeEncoderProbeVideoBackend,
+  nativeRuntimeEncoderProbeAudioBackend,
   nativeRuntimeCompositionStatus,
   nativeRuntimeCompositionAppliedCount,
   nativeRuntimeCompositionSkippedCount,

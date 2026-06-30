@@ -304,6 +304,26 @@ describe("stream session summary", () => {
           congested: true,
           lastError: ""
         },
+        encoderProbe: {
+          status: "pass",
+          checkedAt: Date.parse("2026-06-23T00:00:01.000Z"),
+          videoBackend: "mediacodec-h264",
+          audioBackend: "mediacodec-aac",
+          videoCodecName: "c2.android.avc.encoder",
+          audioCodecName: "c2.android.aac.encoder",
+          videoMime: "video/avc",
+          audioMime: "audio/mp4a-latm",
+          videoConfigured: true,
+          audioConfigured: true,
+          videoColorFormat: "surface",
+          videoBitrateMode: "cbr",
+          videoWidth: 1280,
+          videoHeight: 720,
+          videoFps: 30,
+          audioSampleRate: 44100,
+          audioChannelCount: 2,
+          message: "Configured first-party MediaCodec H.264/AAC encoders for the requested stream profile."
+        },
         composition: {
           status: "applied",
           appliedCount: 1,
@@ -349,6 +369,8 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.monitorDroppedFrames).toBe(0);
     expect(summary?.nativeRuntime?.monitorEstimatedLatencyMs).toBe(142);
     expect(summary?.nativeRuntime?.monitorLatencySource).toBe("android-audiotrack-buffer");
+    expect(summary?.nativeRuntime?.encoderProbeStatus).toBe("pass");
+    expect(summary?.nativeRuntime?.encoderProbeVideoBackend).toBe("mediacodec-h264");
     expect(summary?.summary).toContain("Native runtime needs review");
     expect(summary?.recommendation).toContain("Lower bitrate");
   });

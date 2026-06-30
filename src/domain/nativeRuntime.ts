@@ -133,6 +133,29 @@ export interface NativeRuntimePublisher {
   lastError: string;
 }
 
+export type NativeRuntimeEncoderProbeStatus = "unknown" | "pass" | "warn" | "fail";
+
+export interface NativeRuntimeEncoderProbe {
+  status: NativeRuntimeEncoderProbeStatus;
+  checkedAt: number;
+  videoBackend: string;
+  audioBackend: string;
+  videoCodecName: string;
+  audioCodecName: string;
+  videoMime: string;
+  audioMime: string;
+  videoConfigured: boolean;
+  audioConfigured: boolean;
+  videoColorFormat: string;
+  videoBitrateMode: string;
+  videoWidth: number;
+  videoHeight: number;
+  videoFps: number;
+  audioSampleRate: number;
+  audioChannelCount: number;
+  message: string;
+}
+
 export interface NativeRuntimeAudioProcessing {
   micEffectsEnabled: boolean;
   micEffectsPresetId: string;
@@ -172,6 +195,7 @@ export interface NativeRuntimeTelemetry {
   encodedBytes: number;
   droppedFrames: number;
   publisher: NativeRuntimePublisher;
+  encoderProbe?: NativeRuntimeEncoderProbe | null;
   composition: NativeRuntimeComposition;
   audioProcessing?: NativeRuntimeAudioProcessing;
   message: string;

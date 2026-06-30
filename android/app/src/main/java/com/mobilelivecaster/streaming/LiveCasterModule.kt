@@ -246,6 +246,48 @@ data class NativeRuntimePublisher(
     }
 }
 
+data class NativeRuntimeEncoderProbe(
+    val status: String = "unknown",
+    val checkedAt: Long = 0,
+    val videoBackend: String = "none",
+    val audioBackend: String = "none",
+    val videoCodecName: String = "",
+    val audioCodecName: String = "",
+    val videoMime: String = "",
+    val audioMime: String = "",
+    val videoConfigured: Boolean = false,
+    val audioConfigured: Boolean = false,
+    val videoColorFormat: String = "",
+    val videoBitrateMode: String = "",
+    val videoWidth: Int = 0,
+    val videoHeight: Int = 0,
+    val videoFps: Int = 0,
+    val audioSampleRate: Int = 0,
+    val audioChannelCount: Int = 0,
+    val message: String = ""
+) {
+    fun asWritableMap(): WritableMap = Arguments.createMap().apply {
+        putString("status", status)
+        putDouble("checkedAt", checkedAt.toDouble())
+        putString("videoBackend", videoBackend)
+        putString("audioBackend", audioBackend)
+        putString("videoCodecName", videoCodecName)
+        putString("audioCodecName", audioCodecName)
+        putString("videoMime", videoMime)
+        putString("audioMime", audioMime)
+        putBoolean("videoConfigured", videoConfigured)
+        putBoolean("audioConfigured", audioConfigured)
+        putString("videoColorFormat", videoColorFormat)
+        putString("videoBitrateMode", videoBitrateMode)
+        putInt("videoWidth", videoWidth)
+        putInt("videoHeight", videoHeight)
+        putInt("videoFps", videoFps)
+        putInt("audioSampleRate", audioSampleRate)
+        putInt("audioChannelCount", audioChannelCount)
+        putString("message", message)
+    }
+}
+
 data class NativeRuntimeAudioProcessing(
     val micEffectsEnabled: Boolean = false,
     val micEffectsPresetId: String = "clean",
@@ -314,6 +356,7 @@ data class NativeRuntimeTelemetry(
     val encodedBytes: Long = 0,
     val droppedFrames: Long = 0,
     val publisher: NativeRuntimePublisher = NativeRuntimePublisher(),
+    val encoderProbe: NativeRuntimeEncoderProbe? = null,
     val composition: NativeRuntimeComposition = NativeRuntimeComposition(),
     val audioProcessing: NativeRuntimeAudioProcessing? = null,
     val message: String = ""
@@ -328,6 +371,7 @@ data class NativeRuntimeTelemetry(
         putDouble("encodedBytes", encodedBytes.toDouble())
         putDouble("droppedFrames", droppedFrames.toDouble())
         putMap("publisher", publisher.asWritableMap())
+        encoderProbe?.let { putMap("encoderProbe", it.asWritableMap()) }
         putMap("composition", composition.asWritableMap())
         audioProcessing?.let { putMap("audioProcessing", it.asWritableMap()) }
         putString("message", message)
@@ -503,6 +547,7 @@ object LiveCasterSession {
                     reconnectAttempts = health.reconnectAttempts,
                     lastError = safeMessage
                 ),
+                encoderProbe = current.encoderProbe,
                 composition = current.composition,
                 audioProcessing = current.audioProcessing,
                 message = safeMessage
@@ -520,6 +565,7 @@ object LiveCasterSession {
         sentAudioFrames: Long? = null,
         videoEncoderBackend: String? = null,
         audioEncoderBackend: String? = null,
+        encoderProbe: NativeRuntimeEncoderProbe? = null,
         droppedVideoFrames: Long? = null,
         droppedAudioFrames: Long? = null,
         bytesWritten: Long? = null,
@@ -565,6 +611,7 @@ object LiveCasterSession {
             encodedBytes = encodedBytes ?: current?.encodedBytes ?: 0,
             droppedFrames = droppedVideoFrames ?: current?.droppedFrames ?: health.droppedFrames.toLong(),
             publisher = nextPublisher,
+            encoderProbe = encoderProbe ?: current?.encoderProbe,
             composition = composition,
             audioProcessing = audioProcessing ?: current?.audioProcessing,
             message = redactSensitiveText(message)

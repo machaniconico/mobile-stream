@@ -878,6 +878,54 @@ describe("stream diagnostics", () => {
     expect(report).toContain("Composition VRM: 1/1 active / payloads 1 / missing 0");
   });
 
+  it("keeps MediaCodec configure probe separate from the active Android publisher backend", () => {
+    const scene = createDefaultScene();
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+    const baseRuntime = nativeRuntimeWithAudioProcessing(undefined);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30, message: "Live" }),
+      nativeRuntime: {
+        ...baseRuntime,
+        platform: "android",
+        publisher: {
+          ...baseRuntime.publisher,
+          videoEncoderBackend: "rootencoder",
+          audioEncoderBackend: "rootencoder"
+        },
+        encoderProbe: {
+          status: "pass",
+          checkedAt: Date.parse("2026-06-23T00:00:01.000Z"),
+          videoBackend: "mediacodec-h264",
+          audioBackend: "mediacodec-aac",
+          videoCodecName: "c2.android.avc.encoder",
+          audioCodecName: "c2.android.aac.encoder",
+          videoMime: "video/avc",
+          audioMime: "audio/mp4a-latm",
+          videoConfigured: true,
+          audioConfigured: true,
+          videoColorFormat: "surface",
+          videoBitrateMode: "cbr",
+          videoWidth: 1280,
+          videoHeight: 720,
+          videoFps: 30,
+          audioSampleRate: 44100,
+          audioChannelCount: 2,
+          message: "Configured first-party MediaCodec H.264/AAC encoders for the requested stream profile."
+        }
+      }
+    });
+
+    const nativeCheck = diagnostics.checks.find((check) => check.code === "native-runtime-encoder-backend");
+
+    expect(diagnostics.nativeRuntime?.encoderProbe?.status).toBe("pass");
+    expect(nativeCheck?.status).toBe("warn");
+    expect(nativeCheck?.message).toContain("MediaCodec configure probe passed");
+    expect(nativeCheck?.message).toContain("active publisher still reports rootencoder/rootencoder");
+  });
+
   it("warns when the native runtime is missing VRM pose payloads", () => {
     const scene = createDefaultScene();
     const profile = createDefaultStudioProfile();
