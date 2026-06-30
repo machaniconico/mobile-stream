@@ -63,6 +63,7 @@ import {
   updateSource,
   updateTransform,
   type AvatarIllustrationRig,
+  type AvatarIllustrationRigInferenceInput,
   type SceneDocument,
   type RenderNode,
   type SceneSource,
@@ -101,6 +102,7 @@ import {
   formatSupportBundle
 } from "../domain/supportBundle";
 import {
+  analyzeStillImageAsset,
   pickStillImageAsset,
   pickVrmModelAsset,
   prepareStillImageAsset,
@@ -412,13 +414,13 @@ export const MobileStudioScreen = ({
     if (setupLocked || selectedSource.kind !== "pngtuber") {
       return;
     }
-    const imageAspectRatio = await resolveNativeImageAspectRatio(selectedSource.imageUri);
+    const rigInput = await resolveNativeAvatarRigInferenceInput(selectedSource.imageUri);
     onSceneChange(
       applyInferredAvatarIllustrationRig(
         scene,
         selectedSource.id,
         {},
-        imageAspectRatio === null ? {} : { imageAspectRatio }
+        rigInput
       )
     );
   };
@@ -2766,6 +2768,21 @@ const ChatReaderPanel = ({
       </View>
     </Panel>
   );
+};
+
+const resolveNativeAvatarRigInferenceInput = async (
+  uri: string
+): Promise<Pick<AvatarIllustrationRigInferenceInput, "imageAspectRatio" | "imageAnalysis" | "landmarkAnalysis">> => {
+  const trimmedUri = uri.trim();
+  if (!trimmedUri) {
+    return {};
+  }
+  const nativeAnalysis = await analyzeStillImageAsset(trimmedUri);
+  if (nativeAnalysis.imageAnalysis || nativeAnalysis.landmarkAnalysis || nativeAnalysis.imageAspectRatio) {
+    return nativeAnalysis;
+  }
+  const imageAspectRatio = await resolveNativeImageAspectRatio(trimmedUri);
+  return imageAspectRatio === null ? {} : { imageAspectRatio };
 };
 
 const resolveNativeImageAspectRatio = (uri: string): Promise<number | null> => {
