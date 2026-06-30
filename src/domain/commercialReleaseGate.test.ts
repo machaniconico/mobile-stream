@@ -90,6 +90,32 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks iOS native runtime claims without ReplayKit compositor frame proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeCompositorBackend: "none",
+              nativeRuntimeCompositedFrameCount: 0
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity"
+      })
+    );
+  });
+
   it("blocks stale bundles and incomplete physical validation proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -1667,7 +1693,8 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetDecodedPixelCount = 921_600,
   nativeRuntimeStillImageAssetCompositedCount = 1,
   nativeRuntimeStillImageAssetCompositedPixelCount = 921_600,
-  nativeRuntimeCompositorBackend = devicePlatform === "android" ? "android-canvas-mediacodec" : "none",
+  nativeRuntimeCompositorBackend =
+    devicePlatform === "android" ? "android-canvas-mediacodec" : "ios-replaykit-coregraphics",
   nativeRuntimeCompositedFrameCount = 120,
   nativeRuntimeDroppedFrameCount = 0,
   nativeRuntimeCompositionFailureCount = 0,

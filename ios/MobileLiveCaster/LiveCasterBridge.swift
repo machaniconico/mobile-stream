@@ -1081,6 +1081,10 @@ final class LiveCasterNative: RCTEventEmitter {
             ],
             "composition": [
                 "status": compositionStatus,
+                "runtimeCompositorBackend": sceneComposition.stringValue("runtimeCompositorBackend", fallback: "none"),
+                "runtimeCompositedFrameCount": sceneComposition.intValue("runtimeCompositedFrameCount"),
+                "runtimeDroppedFrameCount": sceneComposition.intValue("runtimeDroppedFrameCount"),
+                "runtimeCompositionFailureCount": sceneComposition.intValue("runtimeCompositionFailureCount"),
                 "appliedCount": appliedCount,
                 "skippedCount": skippedCount,
                 "skippedKinds": sceneComposition.stringArrayValue("skippedKinds").map {

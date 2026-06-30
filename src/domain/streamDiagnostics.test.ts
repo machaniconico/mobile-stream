@@ -71,6 +71,10 @@ const nativeRuntimeWithAudioProcessing = (
     stillImageAssetDecodedPixelCount: 921_600,
     stillImageAssetCompositedCount: 1,
     stillImageAssetCompositedPixelCount: 921_600,
+    runtimeCompositorBackend: "ios-replaykit-coregraphics",
+    runtimeCompositedFrameCount: 300,
+    runtimeDroppedFrameCount: 0,
+    runtimeCompositionFailureCount: 0,
     stillImageAssetAppGroupCount: 1,
     stillImageAssetAppGroupLoadedCount: 1,
     stillImageAssetAppGroupDecodedCount: 1,
@@ -583,6 +587,10 @@ describe("stream diagnostics", () => {
         stillImageAssetDecodedPixelCount: 921_600,
         stillImageAssetCompositedCount: 1,
         stillImageAssetCompositedPixelCount: 921_600,
+        runtimeCompositorBackend: "ios-replaykit-coregraphics",
+        runtimeCompositedFrameCount: 45,
+        runtimeDroppedFrameCount: 0,
+        runtimeCompositionFailureCount: 0,
         stillImageAssetAppGroupCount: 1,
         stillImageAssetAppGroupLoadedCount: 1,
         stillImageAssetAppGroupDecodedCount: 1,
@@ -814,6 +822,10 @@ describe("stream diagnostics", () => {
           stillImageAssetDecodedPixelCount: 1_843_200,
           stillImageAssetCompositedCount: 2,
           stillImageAssetCompositedPixelCount: 1_843_200,
+          runtimeCompositorBackend: "ios-replaykit-coregraphics",
+          runtimeCompositedFrameCount: 600,
+          runtimeDroppedFrameCount: 0,
+          runtimeCompositionFailureCount: 0,
           stillImageAssetAppGroupCount: 0,
           stillImageAssetAppGroupLoadedCount: 0,
           stillImageAssetAppGroupDecodedCount: 0,
@@ -873,7 +885,7 @@ describe("stream diagnostics", () => {
     const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics));
     expect(report).toContain("Native Runtime");
     expect(report).toContain(
-      "Composition assets: 2/2 loaded / 2 decoded / decoded pixels 1843200 / 2 composited / composited pixels 1843200 / runtime none 0 frames 0 dropped 0 failures / 0 missing"
+      "Composition assets: 2/2 loaded / 2 decoded / decoded pixels 1843200 / 2 composited / composited pixels 1843200 / runtime ios-replaykit-coregraphics 600 frames 0 dropped 0 failures / 0 missing"
     );
     expect(report).toContain("Composition VRM: 1/1 active / payloads 1 / missing 0");
   });
@@ -1038,8 +1050,12 @@ describe("stream diagnostics", () => {
           stillImageAssetMissingKinds: [],
           stillImageAssetDecodedCount: 0,
           stillImageAssetDecodedPixelCount: 0,
-            stillImageAssetCompositedCount: 0,
-            stillImageAssetCompositedPixelCount: 0,
+          stillImageAssetCompositedCount: 0,
+          stillImageAssetCompositedPixelCount: 0,
+          runtimeCompositorBackend: "ios-replaykit-coregraphics",
+          runtimeCompositedFrameCount: 330,
+          runtimeDroppedFrameCount: 0,
+          runtimeCompositionFailureCount: 0,
           vrmSourceCount: 1,
           vrmPosePayloadCount: 1,
           vrmActivePoseCount: 1,

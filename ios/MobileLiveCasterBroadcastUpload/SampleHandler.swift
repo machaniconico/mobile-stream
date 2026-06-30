@@ -3104,6 +3104,10 @@ final class BroadcastVideoEncoder {
 }
 
 struct BroadcastSceneCompositionSummary: Equatable {
+    let runtimeCompositorBackend: String
+    let runtimeCompositedFrameCount: Int
+    let runtimeDroppedFrameCount: Int
+    let runtimeCompositionFailureCount: Int
     let appliedCount: Int
     let skippedCount: Int
     let skippedKinds: [String]
@@ -3125,6 +3129,10 @@ struct BroadcastSceneCompositionSummary: Equatable {
     let vrmPoseSummary: BroadcastVrmPoseSummary
 
     static let screenOnly = BroadcastSceneCompositionSummary(
+        runtimeCompositorBackend: "none",
+        runtimeCompositedFrameCount: 0,
+        runtimeDroppedFrameCount: 0,
+        runtimeCompositionFailureCount: 0,
         appliedCount: 0,
         skippedCount: 0,
         skippedKinds: [],
@@ -3186,6 +3194,10 @@ struct BroadcastSceneCompositionSummary: Equatable {
 
     func asDictionary() -> [String: Any] {
         [
+            "runtimeCompositorBackend": runtimeCompositorBackend,
+            "runtimeCompositedFrameCount": runtimeCompositedFrameCount,
+            "runtimeDroppedFrameCount": runtimeDroppedFrameCount,
+            "runtimeCompositionFailureCount": runtimeCompositionFailureCount,
             "appliedCount": appliedCount,
             "skippedCount": skippedCount,
             "skippedKinds": skippedKinds,
@@ -3504,6 +3516,7 @@ private struct BroadcastStillImageAssetResult: Equatable {
 }
 
 final class BroadcastSceneCompositor {
+    private static let runtimeCompositorBackend = "ios-replaykit-coregraphics"
     private let ciContext = CIContext(options: nil)
     private let targetWidth: Int
     private let targetHeight: Int
@@ -3515,6 +3528,9 @@ final class BroadcastSceneCompositor {
     private var cachedImages: [String: UIImage] = [:]
     private var cachedRiggedImages: [String: UIImage] = [:]
     private var stillImageAssetResults: [String: BroadcastStillImageAssetResult] = [:]
+    private var runtimeCompositedFrameCount = 0
+    private var runtimeDroppedFrameCount = 0
+    private var runtimeCompositionFailureCount = 0
 
     var summary: BroadcastSceneCompositionSummary {
         let stillImageNodes = overlayNodes.filter(Self.requiresStillImageAsset)
@@ -3531,6 +3547,10 @@ final class BroadcastSceneCompositor {
         let appGroupCompositedPixelCount = appGroupResults.reduce(0) { $0 + $1.compositedPixelCount }
         let missingNodes = stillImageNodes.filter { stillImageAssetResults[Self.assetEvidenceKey(for: $0)]?.loaded != true }
         return BroadcastSceneCompositionSummary(
+            runtimeCompositorBackend: overlayNodes.isEmpty ? "none" : Self.runtimeCompositorBackend,
+            runtimeCompositedFrameCount: runtimeCompositedFrameCount,
+            runtimeDroppedFrameCount: runtimeDroppedFrameCount,
+            runtimeCompositionFailureCount: runtimeCompositionFailureCount,
             appliedCount: overlayNodes.count,
             skippedCount: skippedCount,
             skippedKinds: skippedKinds,
@@ -3599,18 +3619,29 @@ final class BroadcastSceneCompositor {
     }
 
     func compose(_ sampleBuffer: CMSampleBuffer) -> CMSampleBuffer {
-        guard !overlayNodes.isEmpty, let inputPixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+        guard !overlayNodes.isEmpty else {
+            return sampleBuffer
+        }
+        guard let inputPixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+            runtimeDroppedFrameCount += 1
             return sampleBuffer
         }
         guard let outputPixelBuffer = Self.makePixelBuffer(width: targetWidth, height: targetHeight) else {
+            runtimeDroppedFrameCount += 1
             return sampleBuffer
         }
 
         renderInput(inputPixelBuffer, to: outputPixelBuffer)
         guard drawOverlays(to: outputPixelBuffer) else {
+            runtimeCompositionFailureCount += 1
             return sampleBuffer
         }
-        return Self.makeSampleBuffer(pixelBuffer: outputPixelBuffer, sourceSampleBuffer: sampleBuffer) ?? sampleBuffer
+        guard let composedSampleBuffer = Self.makeSampleBuffer(pixelBuffer: outputPixelBuffer, sourceSampleBuffer: sampleBuffer) else {
+            runtimeCompositionFailureCount += 1
+            return sampleBuffer
+        }
+        runtimeCompositedFrameCount += 1
+        return composedSampleBuffer
     }
 
     private func renderInput(_ inputPixelBuffer: CVPixelBuffer, to outputPixelBuffer: CVPixelBuffer) {

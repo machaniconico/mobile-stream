@@ -509,6 +509,12 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
     ((nativeRuntime.composition.runtimeCompositorBackend ?? "none") !== "android-canvas-mediacodec" ||
       (nativeRuntime.composition.runtimeCompositedFrameCount ?? 0) <= 0 ||
       (nativeRuntime.composition.runtimeCompositionFailureCount ?? 0) > 0);
+  const missingIosReplayKitCompositorProof =
+    nativeRuntime.platform === "ios" &&
+    (nativeRuntime.composition.appliedCount ?? 0) > 0 &&
+    ((nativeRuntime.composition.runtimeCompositorBackend ?? "none") !== "ios-replaykit-coregraphics" ||
+      (nativeRuntime.composition.runtimeCompositedFrameCount ?? 0) <= 0 ||
+      (nativeRuntime.composition.runtimeCompositionFailureCount ?? 0) > 0);
   const missingVrmPoses = nativeRuntime.composition.vrmMissingPoseCount ?? 0;
   const invalidNativeEncoderBackends =
     !isProductionNativeVideoEncoderBackend(nativeRuntime.platform, nativeRuntime.publisher.videoEncoderBackend) ||
@@ -562,6 +568,7 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
     missingDecodedAssets ||
     missingCompositedAssets ||
     missingAndroidMediaCodecCompositorProof ||
+    missingIosReplayKitCompositorProof ||
     invalidNativeEncoderBackends ||
     missingVrmPoses > 0 ||
     missingVrmRenders
@@ -581,9 +588,11 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
                 ? "Repeat native compositor validation until every still-image asset is composited with non-zero pixel proof."
                 : missingAndroidMediaCodecCompositorProof
                   ? "Repeat Android direct MediaCodec validation until runtime telemetry reports android-canvas-mediacodec, non-zero composited frames, and zero composition failures."
-                  : invalidNativeEncoderBackends
-                    ? "Use VideoToolbox/AudioToolbox on iOS and first-party MediaCodec video/audio encoders on Android before recording a pass."
-                    : missingVrmPoses > 0
+                  : missingIosReplayKitCompositorProof
+                    ? "Repeat iOS ReplayKit validation until runtime telemetry reports ios-replaykit-coregraphics, non-zero composited frames, and zero composition failures."
+                    : invalidNativeEncoderBackends
+                      ? "Use VideoToolbox/AudioToolbox on iOS and first-party MediaCodec video/audio encoders on Android before recording a pass."
+                      : missingVrmPoses > 0
                     ? "Confirm VRM runtime pose payloads are included in the render graph before recording a pass."
                     : missingVrmModelMetadata
                       ? "Prepare a VRM/GLB model with humanoid bones and expression metadata before recording a pass."

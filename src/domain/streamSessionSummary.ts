@@ -736,6 +736,12 @@ export const createNativeRuntimeSessionSummary = (
     (runtimeCompositorBackend !== "android-canvas-mediacodec" ||
       runtimeCompositedFrameCount <= 0 ||
       runtimeCompositionFailureCount > 0);
+  const missingIosReplayKitCompositorProof =
+    runtime.platform === "ios" &&
+    normalizeNonNegativeInteger(runtime.composition.appliedCount) > 0 &&
+    (runtimeCompositorBackend !== "ios-replaykit-coregraphics" ||
+      runtimeCompositedFrameCount <= 0 ||
+      runtimeCompositionFailureCount > 0);
   const stillImageAssetAppGroupCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetAppGroupCount);
   const stillImageAssetAppGroupLoadedCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetAppGroupLoadedCount);
   const stillImageAssetAppGroupDecodedCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetAppGroupDecodedCount);
@@ -837,6 +843,7 @@ export const createNativeRuntimeSessionSummary = (
         missingDecodedStillImageAssets ||
         missingCompositedStillImageAssets ||
         missingAndroidMediaCodecCompositorProof ||
+        missingIosReplayKitCompositorProof ||
         missingIosAppGroupStillImageProof ||
         invalidNativeEncoderBackends ||
         missingVrmPoses ||
@@ -852,6 +859,7 @@ export const createNativeRuntimeSessionSummary = (
     missingDecodedStillImageAssets,
     missingCompositedStillImageAssets,
     missingAndroidMediaCodecCompositorProof,
+    missingIosReplayKitCompositorProof,
     missingIosAppGroupStillImageProof,
     invalidNativeEncoderBackends,
     missingVrmPoses,
@@ -982,9 +990,11 @@ export const createNativeRuntimeSessionSummary = (
                     ? "Confirm PNGTuber/image assets are composited by the native overlay pipeline before retaining production evidence."
                     : missingAndroidMediaCodecCompositorProof
                       ? "Repeat Android direct MediaCodec validation until runtime telemetry reports the android-canvas-mediacodec compositor backend, non-zero composited frames, and zero composition failures."
-                      : missingIosAppGroupStillImageProof
-                        ? "Confirm App Group-copied PNGTuber/image assets load and render inside the iOS Broadcast Upload Extension before public streams."
-                        : missingVrmPoses
+                      : missingIosReplayKitCompositorProof
+                        ? "Repeat iOS ReplayKit validation until runtime telemetry reports the ios-replaykit-coregraphics compositor backend, non-zero composited frames, and zero composition failures."
+                        : missingIosAppGroupStillImageProof
+                          ? "Confirm App Group-copied PNGTuber/image assets load and render inside the iOS Broadcast Upload Extension before public streams."
+                          : missingVrmPoses
                           ? "Confirm VRM runtime pose payloads reach the native compositor before retaining production evidence."
                           : incompleteVrmModelMetadata
                             ? "Use VRM/GLB files with humanoid bones and expression metadata before retaining production renderer evidence."

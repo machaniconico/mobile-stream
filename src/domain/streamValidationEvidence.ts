@@ -1245,6 +1245,7 @@ const isNativeRuntimeEvidencePass = (
   isProductionNativeAudioEncoderBackend(nativeRuntime.platform, nativeRuntime.audioEncoderBackend) &&
   hasNativeRuntimeVideoFrameIntervalProof(nativeRuntime) &&
   hasNativeRuntimeAndroidMediaCodecCompositorProof(nativeRuntime) &&
+  hasNativeRuntimeIosReplayKitCompositorProof(nativeRuntime) &&
   (nativeRuntime.compositionStatus === "applied" || nativeRuntime.compositionStatus === "screen-only") &&
   hasNativeRuntimeStillImageOverlayProof(nativeRuntime) &&
   hasNativeRuntimeIosAppGroupStillImageProof(nativeRuntime, expectedPlatform) &&
@@ -1295,6 +1296,20 @@ const hasNativeRuntimeAndroidMediaCodecCompositorProof = (
 
   return (
     nativeRuntime.runtimeCompositorBackend === "android-canvas-mediacodec" &&
+    nativeRuntime.runtimeCompositedFrameCount > 0 &&
+    nativeRuntime.runtimeCompositionFailureCount === 0
+  );
+};
+
+const hasNativeRuntimeIosReplayKitCompositorProof = (
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null | undefined
+): boolean => {
+  if (!nativeRuntime || nativeRuntime.platform !== "ios" || nativeRuntime.compositionAppliedCount <= 0) {
+    return true;
+  }
+
+  return (
+    nativeRuntime.runtimeCompositorBackend === "ios-replaykit-coregraphics" &&
     nativeRuntime.runtimeCompositedFrameCount > 0 &&
     nativeRuntime.runtimeCompositionFailureCount === 0
   );
@@ -1390,21 +1405,26 @@ const alignNativeRuntimeWithComposition = (
   }
 
   const expectedStillImageCount = nativeComposition.stillImageOverlayCount;
+  const requiresStillImageProof = expectedStillImageCount > 0;
   const overlayApplied = nativeRuntime.compositionStatus === "applied";
   const runtimeAppliedEnoughOverlays = nativeRuntime.compositionAppliedCount >= expectedStillImageCount;
   const runtimeSkippedClean = nativeRuntime.compositionSkippedCount === 0;
   const runtimeDeclaredEnoughAssets = nativeRuntime.stillImageAssetCount >= expectedStillImageCount;
   const runtimeLoadedEnoughAssets = nativeRuntime.stillImageAssetLoadedCount >= expectedStillImageCount;
   const runtimeDecodedEnoughAssets = nativeRuntime.stillImageAssetDecodedCount >= expectedStillImageCount;
-  const runtimeDecodedPixelProof = nativeRuntime.stillImageAssetDecodedPixelCount > 0;
+  const runtimeDecodedPixelProof = !requiresStillImageProof || nativeRuntime.stillImageAssetDecodedPixelCount > 0;
   const runtimeCompositedEnoughAssets = nativeRuntime.stillImageAssetCompositedCount >= expectedStillImageCount;
-  const runtimeCompositedPixelProof = nativeRuntime.stillImageAssetCompositedPixelCount > 0;
+  const runtimeCompositedPixelProof = !requiresStillImageProof || nativeRuntime.stillImageAssetCompositedPixelCount > 0;
   const runtimeFrameProof =
-    nativeRuntime.platform !== "android" ||
-    !isProductionNativeVideoEncoderBackend(nativeRuntime.platform, nativeRuntime.videoEncoderBackend) ||
-    (nativeRuntime.runtimeCompositorBackend === "android-canvas-mediacodec" &&
-      nativeRuntime.runtimeCompositedFrameCount > 0 &&
-      nativeRuntime.runtimeCompositionFailureCount === 0);
+    nativeRuntime.platform === "ios"
+      ? nativeRuntime.runtimeCompositorBackend === "ios-replaykit-coregraphics" &&
+        nativeRuntime.runtimeCompositedFrameCount > 0 &&
+        nativeRuntime.runtimeCompositionFailureCount === 0
+      : nativeRuntime.platform !== "android" ||
+        !isProductionNativeVideoEncoderBackend(nativeRuntime.platform, nativeRuntime.videoEncoderBackend) ||
+        (nativeRuntime.runtimeCompositorBackend === "android-canvas-mediacodec" &&
+          nativeRuntime.runtimeCompositedFrameCount > 0 &&
+          nativeRuntime.runtimeCompositionFailureCount === 0);
 
   if (
     overlayApplied &&
@@ -1425,7 +1445,7 @@ const alignNativeRuntimeWithComposition = (
     nativeRuntime,
     "warn",
     `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, applied ${nativeRuntime.compositionAppliedCount}/${expectedStillImageCount}, skipped ${nativeRuntime.compositionSkippedCount}, assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded, decoded ${nativeRuntime.stillImageAssetDecodedCount}/${expectedStillImageCount}, decoded pixels ${nativeRuntime.stillImageAssetDecodedPixelCount}, composited ${nativeRuntime.stillImageAssetCompositedCount}/${expectedStillImageCount}, composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount}, frame compositor ${nativeRuntime.runtimeCompositorBackend}, composited frames ${nativeRuntime.runtimeCompositedFrameCount}, composition failures ${nativeRuntime.runtimeCompositionFailureCount}.`,
-    "Repeat physical validation with the current scene and retain native compositor telemetry showing overlays applied, zero skipped overlays, all required still-image assets decoded/composited to non-zero pixels, and Android direct MediaCodec Canvas composited frames above zero with zero composition failures."
+    "Repeat physical validation with the current scene and retain native compositor telemetry showing overlays applied, zero skipped overlays, all required still-image assets decoded/composited to non-zero pixels, iOS ReplayKit/CoreGraphics composited frames above zero when iOS overlays are active, and Android direct MediaCodec Canvas composited frames above zero with zero composition failures."
   );
 };
 

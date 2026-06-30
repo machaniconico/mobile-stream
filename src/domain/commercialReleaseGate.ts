@@ -792,6 +792,7 @@ const isManifestNativeRuntimePass = (run: ValidationEvidenceManifestRun | undefi
   isProductionNativeAudioEncoderBackend(run?.devicePlatform, run?.nativeRuntimeAudioEncoderBackend) &&
   hasManifestNativeRuntimeVideoFrameIntervalProof(run) &&
   hasManifestAndroidMediaCodecCompositorProof(run) &&
+  hasManifestIosReplayKitCompositorProof(run) &&
   (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
   hasManifestStillImageOverlayProof(run) &&
   hasManifestIosAppGroupStillImageProof(run) &&
@@ -813,6 +814,18 @@ const hasManifestAndroidMediaCodecCompositorProof = (run: ValidationEvidenceMani
 
   return (
     run.nativeRuntimeCompositorBackend === "android-canvas-mediacodec" &&
+    isPositiveFiniteNumber(run.nativeRuntimeCompositedFrameCount) &&
+    isZeroFiniteNumber(run.nativeRuntimeCompositionFailureCount)
+  );
+};
+
+const hasManifestIosReplayKitCompositorProof = (run: ValidationEvidenceManifestRun | undefined): boolean => {
+  if (run?.devicePlatform !== "ios" || !isPositiveFiniteNumber(run.nativeRuntimeCompositionAppliedCount)) {
+    return true;
+  }
+
+  return (
+    run.nativeRuntimeCompositorBackend === "ios-replaykit-coregraphics" &&
     isPositiveFiniteNumber(run.nativeRuntimeCompositedFrameCount) &&
     isZeroFiniteNumber(run.nativeRuntimeCompositionFailureCount)
   );

@@ -1707,6 +1707,12 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
     ((runtime.composition.runtimeCompositorBackend ?? "none") !== "android-canvas-mediacodec" ||
       (runtime.composition.runtimeCompositedFrameCount ?? 0) <= 0 ||
       (runtime.composition.runtimeCompositionFailureCount ?? 0) > 0);
+  const missingIosReplayKitCompositorProof =
+    runtime.platform === "ios" &&
+    (runtime.composition.appliedCount ?? 0) > 0 &&
+    ((runtime.composition.runtimeCompositorBackend ?? "none") !== "ios-replaykit-coregraphics" ||
+      (runtime.composition.runtimeCompositedFrameCount ?? 0) <= 0 ||
+      (runtime.composition.runtimeCompositionFailureCount ?? 0) > 0);
   const missingVrmPoseCount = runtime.composition.vrmMissingPoseCount ?? 0;
   const vrmSourceCount = runtime.composition.vrmSourceCount ?? 0;
   const vrmRendererStatus = runtime.composition.vrmRendererStatus ?? (vrmSourceCount > 0 ? "unavailable" : "not-required");
@@ -1756,6 +1762,7 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
     missingDecodedStillImageAssets ||
     missingCompositedStillImageAssets ||
     missingAndroidMediaCodecCompositorProof ||
+    missingIosReplayKitCompositorProof ||
     missingVrmPoseCount > 0 ||
     incompleteVrmRendering
   ) {
@@ -1773,7 +1780,9 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
               ? `Native compositor composited ${compositedStillImageAssetCount}/${stillImageAssetCount} still-image assets with ${compositedStillImageAssetPixels} pixels.`
               : missingAndroidMediaCodecCompositorProof
                 ? `Android MediaCodec compositor proof is incomplete: backend ${runtime.composition.runtimeCompositorBackend || "none"}, frames ${runtime.composition.runtimeCompositedFrameCount ?? 0}, failures ${runtime.composition.runtimeCompositionFailureCount ?? 0}.`
-              : missingVrmPoseCount > 0
+                : missingIosReplayKitCompositorProof
+                  ? `iOS ReplayKit compositor proof is incomplete: backend ${runtime.composition.runtimeCompositorBackend || "none"}, frames ${runtime.composition.runtimeCompositedFrameCount ?? 0}, failures ${runtime.composition.runtimeCompositionFailureCount ?? 0}.`
+                  : missingVrmPoseCount > 0
               ? `Native compositor is missing ${missingVrmPoseCount} VRM pose payload${missingVrmPoseCount === 1 ? "" : "s"}.`
               : incompleteVrmModelMetadata
                 ? "Native VRM model metadata is missing humanoid bones or expressions."
