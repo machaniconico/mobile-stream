@@ -238,6 +238,37 @@ describe("stream readiness", () => {
     );
   });
 
+  it("warns when a visible chat overlay can display raw comment URLs", () => {
+    const scene = updateSource(createDefaultScene(), "source-chat", (source) =>
+      source.kind === "chat"
+        ? {
+            ...source,
+            redactUrls: false
+          }
+        : source
+    );
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "dummy-stream-value"
+      }
+    };
+
+    const report = createReadinessReport(scene, profile);
+
+    expect(report.canStart).toBe(true);
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        code: "scene-chat-overlay-url-redaction-disabled",
+        field: "scene",
+        severity: "warning",
+        message: expect.stringContaining("raw comment URLs")
+      })
+    );
+  });
+
   it("allows the default lower-third subtitle backdrop without a dominant overlay warning", () => {
     const profile = {
       ...createDefaultStudioProfile(),

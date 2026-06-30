@@ -364,6 +364,19 @@ const validateScene = (scene: SceneDocument, profile: StudioProfile): ReadinessI
     });
   }
 
+  const unredactedChatOverlays = visibleSources.filter(
+    (source): source is ChatOverlaySource => source.kind === "chat" && source.redactUrls === false
+  );
+  if (unredactedChatOverlays.length > 0) {
+    const names = unredactedChatOverlays.map((source) => source.name).join(", ");
+    issues.push({
+      code: "scene-chat-overlay-url-redaction-disabled",
+      severity: "warning",
+      field: "scene",
+      message: `${names} can display raw comment URLs on the stream overlay.`
+    });
+  }
+
   const dominantTextOverlays = visibleSources.filter(
     (source): source is TextSource => source.kind === "text" && isDominantTextOverlay(source)
   );

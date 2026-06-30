@@ -18,6 +18,7 @@ import {
 } from "./verify-physical-devices.mjs";
 import { validateStoreSubmissionApproval } from "./verify-store-submission-approval.mjs";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
+import { acquireReleaseTestLock } from "./release-test-lock.mjs";
 
 const generatedFiles = [
   "dist/index.html",
@@ -47,6 +48,7 @@ const generatedFiles = [
   ".artifacts/store-approval-test/release-report.json"
 ];
 const fileBackups = new Map();
+let releaseTestUnlock = () => {};
 const tinyPngBytes = createRgbaPngFixture(1, 1);
 const pngBytes = pngWithDimensions(1179, 2556);
 const dashboardPngBytes = pngWithDimensions(1440, 900);
@@ -59,12 +61,18 @@ const physicalDevicePreflightPath = ".artifacts/store-approval-test/physical-dev
 
 describe("store submission approval verifier", () => {
   beforeAll(() => {
+    releaseTestUnlock = acquireReleaseTestLock();
     snapshotFiles(generatedFiles);
     writeFixtureFiles();
   });
 
   afterAll(() => {
-    restoreFiles();
+    try {
+      restoreFiles();
+    } finally {
+      releaseTestUnlock();
+      releaseTestUnlock = () => {};
+    }
   });
 
   it("accepts a passed RC report with final real-device store-submission evidence captured", () => {

@@ -8,6 +8,7 @@ import { createDashboardEvidenceManifest, dashboardEvidenceManifestPath } from "
 import { createStoreSubmissionChecklist, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import { createPhysicalDevicePreflightReport, writePhysicalDevicePreflightReport } from "./verify-physical-devices.mjs";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
+import { acquireReleaseTestLock } from "./release-test-lock.mjs";
 
 const fixtureRoot = ".artifacts/verify-release-candidate-test";
 const supportBundlePath = `${fixtureRoot}/support-bundle.json`;
@@ -32,6 +33,7 @@ const managedArtifactPaths = [
   ".artifacts/ui-verification.json"
 ];
 let artifactBackups = new Map();
+let releaseTestUnlock = () => {};
 const tinyPngBytes = createRgbaPngFixture(1, 1);
 const minimumDistributionArtifactBytes = 1_048_576;
 const pngBytes = pngWithDimensions(1179, 2556);
@@ -39,6 +41,7 @@ const appBuild = "1.0.0 (1)";
 
 describe("release candidate verifier", () => {
   beforeEach(() => {
+    releaseTestUnlock = acquireReleaseTestLock();
     artifactBackups = new Map(
       managedArtifactPaths.map((path) => [path, existsSync(path) ? readFileSync(path) : null])
     );
@@ -50,8 +53,13 @@ describe("release candidate verifier", () => {
   });
 
   afterEach(() => {
-    rmSync(fixtureRoot, { recursive: true, force: true });
-    restoreManagedArtifacts();
+    try {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+      restoreManagedArtifacts();
+    } finally {
+      releaseTestUnlock();
+      releaseTestUnlock = () => {};
+    }
   });
 
   it("fails before expensive source gates when store-submission evidence exists without handoff evidence", () => {

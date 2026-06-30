@@ -18,6 +18,7 @@ import {
 } from "./verify-physical-devices.mjs";
 import { validateReport } from "./verify-release-report.mjs";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
+import { acquireReleaseTestLock } from "./release-test-lock.mjs";
 
 const generatedFiles = [
   "dist/index.html",
@@ -47,6 +48,7 @@ const generatedFiles = [
   ".artifacts/release-report-test/ui-evidence.json"
 ];
 const fileBackups = new Map();
+let releaseTestUnlock = () => {};
 const tinyPngBytes = createRgbaPngFixture(1, 1);
 const minimumDistributionArtifactBytes = 1_048_576;
 const pngBytes = pngWithDimensions(1179, 2556);
@@ -56,12 +58,18 @@ const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Se
 
 describe("release report verifier", () => {
   beforeAll(() => {
+    releaseTestUnlock = acquireReleaseTestLock();
     snapshotFiles(generatedFiles);
     writeFixtureFiles();
   });
 
   afterAll(() => {
-    restoreFiles();
+    try {
+      restoreFiles();
+    } finally {
+      releaseTestUnlock();
+      releaseTestUnlock = () => {};
+    }
   });
 
   it("accepts a complete release report with matching support, UI, and artifact hashes", () => {

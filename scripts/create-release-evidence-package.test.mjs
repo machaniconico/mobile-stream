@@ -20,6 +20,7 @@ import {
   validateReleaseEvidencePackage
 } from "./create-release-evidence-package.mjs";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
+import { acquireReleaseTestLock } from "./release-test-lock.mjs";
 
 const fixtureRoot = ".artifacts/release-evidence-package-test";
 const packageDir = `${fixtureRoot}/package`;
@@ -53,6 +54,7 @@ const generatedFiles = [
   ".artifacts/release-evidence-package-test/physical-device-preflight.json"
 ];
 const fileBackups = new Map();
+let releaseTestUnlock = () => {};
 const pngBytes = createRgbaPngFixture(1, 1);
 const storePngBytes = pngWithDimensions(1179, 2556);
 const dashboardPngBytes = pngWithDimensions(1440, 900);
@@ -62,12 +64,18 @@ const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Se
 
 describe("release evidence package creator", () => {
   beforeAll(() => {
+    releaseTestUnlock = acquireReleaseTestLock();
     snapshotFiles(generatedFiles);
     writeFixtureFiles();
   });
 
   afterAll(() => {
-    restoreFiles();
+    try {
+      restoreFiles();
+    } finally {
+      releaseTestUnlock();
+      releaseTestUnlock = () => {};
+    }
   });
 
   it("creates and verifies a standalone release evidence package from a passed RC report", () => {

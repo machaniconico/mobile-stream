@@ -264,6 +264,106 @@ describe("stream start preflight", () => {
     );
   });
 
+  it("warns before validation starts when a visible chat overlay can show raw URLs", () => {
+    const profile = validProfile();
+    const scene = updateSource(createScreenOnlyScene(), "source-chat", (source) =>
+      source.kind === "chat"
+        ? {
+            ...source,
+            visible: true,
+            redactUrls: false
+          }
+        : source
+    );
+
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(scene, profile),
+      streamStatus: "idle",
+      profile
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("warning");
+    expect(report.warnings).toContainEqual(
+      expect.objectContaining({
+        code: "readiness-scene-chat-overlay-url-redaction-disabled",
+        recommendation: expect.stringContaining("Turn chat overlay URL redaction on")
+      })
+    );
+  });
+
+  it("blocks public YouTube starts when a visible chat overlay can show raw URLs", () => {
+    const presetProfile = applyDestinationPreset(validProfile(), "youtube-live-rtmps");
+    const profile: StudioProfile = {
+      ...presetProfile,
+      destination: {
+        ...presetProfile.destination,
+        streamKey: "dummy-stream-value"
+      },
+      platformPublishing: {
+        ...presetProfile.platformPublishing,
+        privacyStatus: "public"
+      }
+    };
+    const scene = updateSource(createScreenOnlyScene(), "source-chat", (source) =>
+      source.kind === "chat"
+        ? {
+            ...source,
+            visible: true,
+            redactUrls: false
+          }
+        : source
+    );
+
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(scene, profile),
+      streamStatus: "idle",
+      profile
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks).toContainEqual(
+      expect.objectContaining({
+        code: "readiness-scene-chat-overlay-url-redaction-disabled",
+        area: "scene"
+      })
+    );
+  });
+
+  it("blocks Twitch starts when a visible chat overlay can show raw URLs", () => {
+    const presetProfile = applyDestinationPreset(validProfile(), "twitch-auto");
+    const profile: StudioProfile = {
+      ...presetProfile,
+      destination: {
+        ...presetProfile.destination,
+        streamKey: "live_user_dummy"
+      }
+    };
+    const scene = updateSource(createScreenOnlyScene(), "source-chat", (source) =>
+      source.kind === "chat"
+        ? {
+            ...source,
+            visible: true,
+            redactUrls: false
+          }
+        : source
+    );
+
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(scene, profile),
+      streamStatus: "idle",
+      profile
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks).toContainEqual(
+      expect.objectContaining({
+        code: "readiness-scene-chat-overlay-url-redaction-disabled",
+        area: "scene"
+      })
+    );
+  });
+
   it("warns before start when a large text overlay backdrop can hide the program", () => {
     const profile = validProfile();
     const scene = updateSource(createScreenOnlyScene(), "source-subtitle", (source) =>

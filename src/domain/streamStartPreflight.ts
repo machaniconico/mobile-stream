@@ -291,6 +291,7 @@ const isReleaseCriticalSceneReadinessIssue = (issue: ReadinessIssue): boolean =>
   issue.code.startsWith("scene-live2d-model-json-") ||
   issue.code === "scene-vrm-preview" ||
   issue.code.startsWith("scene-vrm-model-") ||
+  issue.code === "scene-chat-overlay-url-redaction-disabled" ||
   issue.code === "scene-native-composition-preview-only-overlays" ||
   issue.code === "scene-native-composition-native-overlays" ||
   issue.code === "scene-native-composition-no-screen-capture";
@@ -361,6 +362,9 @@ const readinessRecommendation = (issue: ReadinessIssue): string => {
   }
   if (issue.code === "scene-chat-overlay-background-opaque") {
     return "Keep chat overlay background opacity at 0 for transparent comment overlays unless an intentional lower-third design has been validated on device.";
+  }
+  if (issue.code === "scene-chat-overlay-url-redaction-disabled") {
+    return "Turn chat overlay URL redaction on before public streams so viewer-posted links are not displayed raw on the broadcast.";
   }
   if (issue.code === "scene-text-overlay-background-dominant") {
     return "Reduce the text backdrop opacity or size, or keep the text as a validated lower-third so gameplay and avatar motion remain visible on device.";
