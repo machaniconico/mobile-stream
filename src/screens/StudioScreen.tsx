@@ -1834,7 +1834,8 @@ const StreamValidationRecorder = ({
           {diagnostics.validationEvidence.androidPass ? "pass" : "missing"} / build{" "}
           {diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")} / physical iOS{" "}
           {diagnostics.validationEvidence.physicalDeviceIosPass ? "pass" : "missing"} / Android{" "}
-          {diagnostics.validationEvidence.physicalDeviceAndroidPass ? "pass" : "missing"} / native iOS{" "}
+          {diagnostics.validationEvidence.physicalDeviceAndroidPass ? "pass" : "missing"} / publisher Android{" "}
+          {diagnostics.validationEvidence.androidPublisherModeAndroidPass ? "pass" : "missing"} / native iOS{" "}
           {diagnostics.validationEvidence.nativeRuntimeIosPass ? "pass" : "missing"} / Android{" "}
           {diagnostics.validationEvidence.nativeRuntimeAndroidPass ? "pass" : "missing"} / hold iOS{" "}
           {diagnostics.validationEvidence.monitorHoldIosPass ? "pass" : "missing"} / Android{" "}

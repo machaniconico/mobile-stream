@@ -371,6 +371,7 @@ export interface StreamValidationEvidenceSummary {
   physicalDeviceFailureCount: number;
   physicalDeviceIosPass: boolean;
   physicalDeviceAndroidPass: boolean;
+  androidPublisherModeAndroidPass: boolean;
   nativeRuntimeRunCount: number;
   nativeRuntimeReadyCount: number;
   nativeRuntimeWarningCount: number;
@@ -504,6 +505,7 @@ export const createStreamValidationRun = ({
   const effectiveResult = createEffectiveValidationResult(
     result,
     devicePlatform,
+    diagnostics.target.androidPublisherMode,
     physicalDevice.physicalDeviceStatus,
     nativeRuntime,
     monitorHold,
@@ -576,6 +578,8 @@ export const createStreamValidationRun = ({
     recommendation: createRunRecommendation(
       effectiveResult,
       diagnostics.validation.recommendedNextStep,
+      devicePlatform,
+      diagnostics.target.androidPublisherMode,
       physicalDevice,
       nativeRuntime,
       monitorHold,
@@ -788,6 +792,7 @@ export const summarizeStreamValidationEvidence = (
   const androidPass = androidLatestRun?.result === "pass";
   const physicalDeviceIosPass = iosPass && isPhysicalDeviceEvidencePass(iosLatestRun);
   const physicalDeviceAndroidPass = androidPass && isPhysicalDeviceEvidencePass(androidLatestRun);
+  const androidPublisherModeAndroidPass = androidPass && androidLatestRun?.androidPublisherMode === "mediacodec";
   const nativeRuntimeIosPass = iosPass && isNativeRuntimeEvidencePass(iosLatestRun?.nativeRuntime, "ios");
   const nativeRuntimeAndroidPass = androidPass && isNativeRuntimeEvidencePass(androidLatestRun?.nativeRuntime, "android");
   const monitorHoldIosPass = iosPass && isMonitorHoldEvidencePass(iosLatestRun?.monitorHold);
@@ -824,6 +829,7 @@ export const summarizeStreamValidationEvidence = (
     appBuildMismatch,
     physicalDeviceIosPass,
     physicalDeviceAndroidPass,
+    androidPublisherModeAndroidPass,
     nativeRuntimeIosPass,
     nativeRuntimeAndroidPass,
     monitorHoldIosPass,
@@ -855,6 +861,7 @@ export const summarizeStreamValidationEvidence = (
     physicalDeviceFailureCount,
     physicalDeviceIosPass,
     physicalDeviceAndroidPass,
+    androidPublisherModeAndroidPass,
     nativeRuntimeRunCount,
     nativeRuntimeReadyCount,
     nativeRuntimeWarningCount,
@@ -930,6 +937,7 @@ export const summarizeStreamValidationEvidence = (
       androidPass,
       physicalDeviceIosPass,
       physicalDeviceAndroidPass,
+      androidPublisherModeAndroidPass,
       nativeRuntimeIosPass,
       nativeRuntimeAndroidPass,
       monitorHoldIosPass,
@@ -957,6 +965,7 @@ export const summarizeStreamValidationEvidence = (
       androidPass,
       physicalDeviceIosPass,
       physicalDeviceAndroidPass,
+      androidPublisherModeAndroidPass,
       nativeRuntimeIosPass,
       nativeRuntimeAndroidPass,
       monitorHoldIosPass,
@@ -1079,6 +1088,8 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
       createRunRecommendation(
         result,
         "Run another private validation pass.",
+        devicePlatform,
+        androidPublisherMode,
         physicalDevice,
         nativeRuntime,
         monitorHold,
@@ -1108,6 +1119,7 @@ const createEvidenceStatus = ({
   appBuildMismatch,
   physicalDeviceIosPass,
   physicalDeviceAndroidPass,
+  androidPublisherModeAndroidPass,
   nativeRuntimeIosPass,
   nativeRuntimeAndroidPass,
   monitorHoldIosPass,
@@ -1132,6 +1144,7 @@ const createEvidenceStatus = ({
   appBuildMismatch: boolean;
   physicalDeviceIosPass: boolean;
   physicalDeviceAndroidPass: boolean;
+  androidPublisherModeAndroidPass: boolean;
   nativeRuntimeIosPass: boolean;
   nativeRuntimeAndroidPass: boolean;
   monitorHoldIosPass: boolean;
@@ -1162,6 +1175,7 @@ const createEvidenceStatus = ({
     !appBuildMismatch &&
     physicalDeviceIosPass &&
     physicalDeviceAndroidPass &&
+    androidPublisherModeAndroidPass &&
     nativeRuntimeIosPass &&
     nativeRuntimeAndroidPass &&
     monitorHoldIosPass &&
@@ -1635,6 +1649,7 @@ const createEvidenceSummary = (
     androidPass: boolean;
     physicalDeviceIosPass: boolean;
     physicalDeviceAndroidPass: boolean;
+    androidPublisherModeAndroidPass: boolean;
     nativeRuntimeIosPass: boolean;
     nativeRuntimeAndroidPass: boolean;
     monitorHoldIosPass: boolean;
@@ -1674,6 +1689,9 @@ const createEvidenceSummary = (
   if (counts.iosPass && counts.androidPass && (!counts.physicalDeviceIosPass || !counts.physicalDeviceAndroidPass)) {
     return `Physical validation is partial: iOS and Android passed, but retained device identity is incomplete: iOS ${counts.physicalDeviceIosPass ? "pass" : "missing physical-device proof"} / Android ${counts.physicalDeviceAndroidPass ? "pass" : "missing physical-device proof"}.`;
   }
+  if (counts.iosPass && counts.androidPass && !counts.androidPublisherModeAndroidPass) {
+    return "Physical validation is partial: Android passed, but the retained Android run did not use the direct MediaCodec publisher path.";
+  }
   if (counts.iosPass && counts.androidPass && (!counts.nativeRuntimeIosPass || !counts.nativeRuntimeAndroidPass)) {
     return `Physical validation is partial: iOS and Android passed, but retained native publisher/compositor evidence is incomplete: iOS ${counts.nativeRuntimeIosPass ? "pass" : "missing native runtime proof"} / Android ${counts.nativeRuntimeAndroidPass ? "pass" : "missing native runtime proof"}.`;
   }
@@ -1711,6 +1729,7 @@ const createEvidenceRecommendation = (
     androidPass: boolean;
     physicalDeviceIosPass: boolean;
     physicalDeviceAndroidPass: boolean;
+    androidPublisherModeAndroidPass: boolean;
     nativeRuntimeIosPass: boolean;
     nativeRuntimeAndroidPass: boolean;
     monitorHoldIosPass: boolean;
@@ -1738,6 +1757,9 @@ const createEvidenceRecommendation = (
   }
   if (context.iosPass && context.androidPass && (!context.physicalDeviceIosPass || !context.physicalDeviceAndroidPass)) {
     return "Record fresh iOS and Android validation runs with explicit real device model/name and OS version, not Simulator, Emulator, browser, or generic test-device labels.";
+  }
+  if (context.iosPass && context.androidPass && !context.androidPublisherModeAndroidPass) {
+    return "Switch Android publisher mode to direct MediaCodec and repeat the Android physical validation run before release approval.";
   }
   if (context.iosPass && context.androidPass && (!context.nativeRuntimeIosPass || !context.nativeRuntimeAndroidPass)) {
     return "Record fresh iOS and Android validation runs with native publisher/compositor telemetry showing sent video/audio frames, bytes written, clean compositor state, and all still-image assets loaded.";
@@ -1772,6 +1794,7 @@ const createEvidenceRecommendation = (
 const createEffectiveValidationResult = (
   result: StreamValidationRunResult,
   devicePlatform: StreamValidationDevicePlatform,
+  androidPublisherMode: StreamValidationRun["androidPublisherMode"],
   physicalDeviceStatus: StreamValidationFeatureStatus,
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
   monitorHold: StreamValidationMonitorHoldSummary | null,
@@ -1794,6 +1817,7 @@ const createEffectiveValidationResult = (
   }
   if (
     result === "warn" ||
+    (devicePlatform === "android" && androidPublisherMode !== "mediacodec") ||
     physicalDeviceStatus !== "pass" ||
     !isNativeRuntimeEvidencePass(nativeRuntime, devicePlatform) ||
     !isMonitorHoldEvidencePass(monitorHold) ||
@@ -1834,6 +1858,8 @@ const createRunSummary = (
 const createRunRecommendation = (
   result: StreamValidationRunResult,
   fallbackRecommendation: string,
+  devicePlatform: StreamValidationDevicePlatform,
+  androidPublisherMode: StreamValidationRun["androidPublisherMode"],
   physicalDevice: Pick<StreamValidationRun, "physicalDeviceStatus" | "physicalDeviceRecommendation">,
   nativeRuntime: StreamSessionNativeRuntimeSummary | null,
   monitorHold: StreamValidationMonitorHoldSummary | null,
@@ -1864,6 +1890,9 @@ const createRunRecommendation = (
   }
   if (platformPublishing?.status === "fail") {
     return platformPublishing.recommendation;
+  }
+  if (devicePlatform === "android" && androidPublisherMode !== "mediacodec") {
+    return "Switch Android publisher mode to direct MediaCodec and repeat this Android validation run before release approval.";
   }
   if (result === "pass") {
     return "Keep this run as release-candidate evidence and repeat on the other mobile platform.";

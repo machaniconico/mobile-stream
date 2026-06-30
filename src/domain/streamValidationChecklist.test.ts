@@ -383,6 +383,7 @@ const readyEvidence = (overrides: Partial<StreamValidationEvidenceSummary> = {})
   physicalDeviceFailureCount: 0,
   physicalDeviceIosPass: true,
   physicalDeviceAndroidPass: true,
+  androidPublisherModeAndroidPass: true,
   nativeRuntimeRunCount: 2,
   nativeRuntimeReadyCount: 2,
   nativeRuntimeWarningCount: 0,

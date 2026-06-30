@@ -147,6 +147,7 @@ const checks = [
     expectIncludes(files.supportBundleDomain, "bundleVersion: 51");
     expectIncludes(files.supportBundleDomain, "androidPublisherMode: StudioProfile");
     expectIncludes(files.streamValidationEvidenceDomain, "androidPublisherMode: StreamDiagnostics");
+    expectIncludes(files.streamValidationEvidenceDomain, "androidPublisherModeAndroidPass");
     expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 51");
     expectIncludes(files.commercialReleaseGateDomain, "android-publisher-mode-not-commercial");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");

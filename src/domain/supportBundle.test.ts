@@ -374,6 +374,7 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceEligibleRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceStaleRunCount).toBe(0);
+    expect(bundle.summary.validationEvidenceAndroidPublisherModeAndroidPass).toBe(false);
     expect(bundle.summary.validationEvidenceNativeRuntimeRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeStatus).toBeNull();
     expect(bundle.summary.validationEvidenceFaceTrackingRunCount).toBe(0);
@@ -424,6 +425,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
     expect(formatSupportBundle(bundle)).toContain("Evidence fingerprint: sve1-");
     expect(formatSupportBundle(bundle)).toContain("Evidence run manifest: -");
+    expect(formatSupportBundle(bundle)).toContain("Evidence physical devices: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / Android publisher missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence monitor hold: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - 0s 0 samples");
     expect(formatSupportBundle(bundle)).toContain(
       "Evidence native runtime: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - - / encoders none/none / MediaCodec probe missing none/none / sent 0 video 0 audio / bytes 0 / frame interval 0 samples avg 0ms max 0ms jitter 0ms / overlays applied 0 skipped 0 / assets 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0"

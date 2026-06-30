@@ -41,6 +41,7 @@ const profileWithKey = (streamKey: string): StudioProfile => ({
 });
 const commercialProfileWithKey = (streamKey: string): StudioProfile => ({
   ...profileWithKey(streamKey),
+  androidPublisherMode: "mediacodec",
   micEffects: {
     ...createDefaultStudioProfile().micEffects,
     enabled: true,
@@ -1207,6 +1208,78 @@ describe("stream validation evidence", () => {
     expect(summary.nativeRuntimeAndroidPass).toBe(false);
   });
 
+  it("requires Android validation runs to use direct MediaCodec publisher mode", () => {
+    const scene = nativeReadyScene();
+    const androidProfile = {
+      ...commercialProfileWithKey("validation-key"),
+      androidPublisherMode: "rootencoder" as const
+    };
+    const iosProfile = commercialProfileWithKey("validation-key");
+    const androidReadiness = createReadinessReport(scene, androidProfile);
+    const iosReadiness = createReadinessReport(scene, iosProfile);
+    const faceTrackingRuntime = {
+      status: "tracking" as const,
+      yaw: 0.1,
+      pitch: 0,
+      roll: 0,
+      mouthOpen: 0.4,
+      blink: 0,
+      smile: 0.2,
+      browRaise: 0.1,
+      confidence: 0.92,
+      faceLandmarkConfidence: 0.82,
+      expression: "neutral" as const,
+      lastFrameAt: Date.parse("2026-06-23T00:00:00.000Z")
+    };
+    const diagnosticsFor = (platform: "ios" | "android") =>
+      createStreamDiagnostics(
+        scene,
+        platform === "android" ? androidProfile : iosProfile,
+        platform === "android" ? androidReadiness : iosReadiness,
+        {
+          state: { status: "live" },
+          health: health({ bitrateKbps: 3500, fps: 30 }),
+          nativeRuntime: nativeMonitorRuntime(platform)
+        },
+        [],
+        stableMonitorSamples(),
+        [spokenChatSessionSummary()],
+        [],
+        faceTrackingRuntime,
+        { ...connectedChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
+      );
+    const iosRun = createStreamValidationRun({
+      diagnostics: diagnosticsFor("ios"),
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const androidRun = createStreamValidationRun({
+      diagnostics: diagnosticsFor("android"),
+      devicePlatform: "android",
+      ...physicalDeviceMeta("android"),
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:01:00.000Z")
+    });
+    const retainedLegacyAndroidRun = {
+      ...androidRun,
+      result: "pass" as const
+    };
+    const summary = summarizeStreamValidationEvidence([retainedLegacyAndroidRun, iosRun], { now: validationNow });
+
+    expect(androidRun.result).toBe("warn");
+    expect(androidRun.androidPublisherMode).toBe("rootencoder");
+    expect(androidRun.nativeRuntime?.status).toBe("pass");
+    expect(androidRun.recommendation).toContain("direct MediaCodec");
+    expect(summary.status).toBe("partial");
+    expect(summary.androidPublisherModeAndroidPass).toBe(false);
+    expect(summary.summary).toContain("direct MediaCodec publisher path");
+    expect(summary.recommendation).toContain("Switch Android publisher mode");
+  });
+
   it("does not accept omitted iOS native encoder backend proof", () => {
     const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
@@ -2205,6 +2278,7 @@ describe("stream validation evidence", () => {
     expect(summary.platformIngestFailureCount).toBe(0);
     expect(summary.platformIngestIosPass).toBe(true);
     expect(summary.platformIngestAndroidPass).toBe(true);
+    expect(summary.androidPublisherModeAndroidPass).toBe(true);
     expect(summary.runManifest.find((run) => run.devicePlatform === "ios")).toMatchObject({
       platformPublishingPlatform: "youtube-live",
       platformPublishingStatus: "pass",
@@ -2318,6 +2392,7 @@ describe("stream validation evidence", () => {
     expect(summary.faceTrackingAndroidPass).toBe(true);
     expect(summary.nativeRuntimeIosPass).toBe(true);
     expect(summary.nativeRuntimeAndroidPass).toBe(true);
+    expect(summary.androidPublisherModeAndroidPass).toBe(true);
     expect(summary.latestFaceTracking).toMatchObject({
       visibleVrmCount: 1,
       nativeVrmRendererReady: true
@@ -2408,7 +2483,7 @@ describe("stream validation evidence", () => {
 
   it("does not treat retained face tracking pass as avatar evidence when motion count is zero", () => {
     const scene = nativeReadyScene();
-    const profile = profileWithKey("validation-key");
+    const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
     const iosBaseRun = createStreamValidationRun({
       diagnostics: createStreamDiagnostics(scene, profile, readiness, {
