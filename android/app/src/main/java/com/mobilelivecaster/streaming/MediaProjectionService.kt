@@ -28,6 +28,7 @@ class MediaProjectionService : Service(), ConnectChecker {
         const val ACTION_STOP_STREAM = "com.mobilelivecaster.streaming.STOP_STREAM"
         const val ACTION_RECONNECT_STREAM = "com.mobilelivecaster.streaming.RECONNECT_STREAM"
         const val ACTION_UPDATE_QUALITY = "com.mobilelivecaster.streaming.UPDATE_QUALITY"
+        const val ACTION_UPDATE_SCENE = "com.mobilelivecaster.streaming.UPDATE_SCENE"
         private const val CHANNEL_ID = "mobile_live_caster_stream"
         private const val NOTIFICATION_ID = 4309
         private const val MAX_RECONNECT_ATTEMPTS = 5
@@ -61,6 +62,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             ACTION_STOP_STREAM -> stopStream()
             ACTION_RECONNECT_STREAM -> reconnectStream()
             ACTION_UPDATE_QUALITY -> updateStreamQuality()
+            ACTION_UPDATE_SCENE -> updateStreamScene()
         }
         return START_STICKY
     }
@@ -176,7 +178,8 @@ class MediaProjectionService : Service(), ConnectChecker {
         genericStream = null
         micProcessingEffect?.release()
         micProcessingEffect = null
-        nativeCompositionResult = AndroidCompositionResult(appliedCount = 0, skippedCount = 0, skippedKinds = emptySet())
+        val directComposition = AndroidSceneCompositor.prepareCanvas(applicationContext, LiveCasterSession.renderGraphJson)
+        nativeCompositionResult = directComposition.result
         val directStream = AndroidMediaCodecDirectStream(applicationContext, this)
         directMediaCodecStream?.stop()
         directMediaCodecStream = directStream
@@ -186,7 +189,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             compositionResult = nativeCompositionResult,
             message = liveMessage("Preparing direct MediaCodec stream")
         )
-        directStream.start(projection, profile)
+        directStream.start(projection, profile, directComposition)
         if (LiveCasterSession.status == LiveCasterStatus.Reconnecting) {
             LiveCasterSession.updateHealth(
                 reconnectAttempts = reconnectAttempts,
@@ -196,6 +199,37 @@ class MediaProjectionService : Service(), ConnectChecker {
             LiveCasterSession.markLive(liveMessage("Connecting"))
         }
         updateNativeRuntimeFromDirectStream(publisherState = "connecting", message = LiveCasterSession.health.message)
+    }
+
+    private fun updateStreamScene() {
+        val directStream = directMediaCodecStream
+        if (directStream != null) {
+            val composition = AndroidSceneCompositor.prepareCanvas(applicationContext, LiveCasterSession.renderGraphJson)
+            nativeCompositionResult = composition.result
+            directStream.updateComposition(composition)
+            val message = liveMessage("Live scene updated")
+            LiveCasterSession.updateHealth(message = message)
+            updateNativeRuntimeFromDirectStream(
+                publisherState = directStream.snapshot().publisherState,
+                compositionResult = nativeCompositionResult,
+                message = message
+            )
+            return
+        }
+
+        val stream = genericStream ?: return
+        nativeCompositionResult = AndroidSceneCompositor.apply(
+            applicationContext,
+            stream,
+            LiveCasterSession.renderGraphJson
+        )
+        val message = liveMessage("Live scene updated")
+        LiveCasterSession.updateHealth(message = message)
+        updateNativeRuntimeFromStream(
+            publisherState = if (stream.isStreaming) "published" else null,
+            compositionResult = nativeCompositionResult,
+            message = message
+        )
     }
 
     private fun reconnectStream() {

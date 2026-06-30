@@ -199,6 +199,12 @@ class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) 
     @ReactMethod
     fun updateScene(renderGraphJson: String, promise: Promise) {
         LiveCasterSession.updateScene(renderGraphJson)
+        if (LiveCasterSession.status == LiveCasterStatus.Live || LiveCasterSession.status == LiveCasterStatus.Reconnecting) {
+            val serviceIntent = Intent(reactContext, MediaProjectionService::class.java).apply {
+                action = MediaProjectionService.ACTION_UPDATE_SCENE
+            }
+            ContextCompat.startForegroundService(reactContext, serviceIntent)
+        }
         promise.resolve(LiveCasterSession.snapshot())
     }
 

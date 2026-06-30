@@ -2,10 +2,16 @@ package com.mobilelivecaster.streaming
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.AudioFormat
 import android.media.AudioRecord
+import android.media.Image
+import android.media.ImageReader
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -42,6 +48,11 @@ class AndroidMediaCodecDirectStream(
     private var audioEncoder: MediaCodec? = null
     private var audioRecord: AudioRecord? = null
     private var videoInputSurface: Surface? = null
+    private var screenImageReader: ImageReader? = null
+    private var screenBitmap: Bitmap? = null
+    private val screenSourceRect = Rect()
+    @Volatile
+    private var canvasComposition: AndroidSceneCompositor.CanvasComposition? = null
     private var videoThread: Thread? = null
     private var audioThread: Thread? = null
     private var micProcessingEffect: MicProcessingEffect? = null
@@ -55,11 +66,16 @@ class AndroidMediaCodecDirectStream(
     private var lastError = ""
 
     @SuppressLint("MissingPermission")
-    fun start(mediaProjection: MediaProjection, nextProfile: LiveCasterProfile) {
+    fun start(
+        mediaProjection: MediaProjection,
+        nextProfile: LiveCasterProfile,
+        composition: AndroidSceneCompositor.CanvasComposition
+    ) {
         if (!running.compareAndSet(false, true)) {
             return
         }
         profile = nextProfile
+        canvasComposition = composition
         publisherConfigured = false
         videoFrames = 0L
         audioFrames = 0L
@@ -82,20 +98,27 @@ class AndroidMediaCodecDirectStream(
             videoEncoder = encoder
             videoInputSurface = surface
             encoder.start()
+            val imageReader = ImageReader.newInstance(
+                nextProfile.width,
+                nextProfile.height,
+                PixelFormat.RGBA_8888,
+                2
+            )
+            screenImageReader = imageReader
             virtualDisplay = mediaProjection.createVirtualDisplay(
                 "MobileLiveCasterMediaCodec",
                 nextProfile.width,
                 nextProfile.height,
                 appContext.resources.displayMetrics.densityDpi,
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                surface,
+                imageReader.surface,
                 null,
                 null
             )
 
             audioEncoder = createAudioEncoder(nextProfile).also { it.start() }
             audioRecord = createAudioRecord().also { it.startRecording() }
-            videoThread = Thread({ runEncoderThread { drainVideoEncoder() } }, "MLC-MediaCodec-Video").also { it.start() }
+            videoThread = Thread({ runEncoderThread { runVideoCompositorAndEncoder() } }, "MLC-MediaCodec-Video").also { it.start() }
             audioThread = Thread({ runEncoderThread { runAudioEncoder() } }, "MLC-MediaCodec-Audio").also { it.start() }
         }.onFailure { error ->
             lastError = safeMessage(error)
@@ -112,6 +135,10 @@ class AndroidMediaCodecDirectStream(
         audioThread = null
         virtualDisplay?.release()
         virtualDisplay = null
+        screenImageReader?.close()
+        screenImageReader = null
+        screenBitmap?.recycle()
+        screenBitmap = null
         videoInputSurface?.release()
         videoInputSurface = null
         audioRecord?.runCatchingStopAndRelease()
@@ -123,7 +150,12 @@ class AndroidMediaCodecDirectStream(
         publisher.disconnect()
         micProcessingEffect?.release()
         micProcessingEffect = null
+        canvasComposition = null
         publisherConfigured = false
+    }
+
+    fun updateComposition(composition: AndroidSceneCompositor.CanvasComposition) {
+        canvasComposition = composition
     }
 
     fun updateProfile(nextProfile: LiveCasterProfile) {
@@ -229,28 +261,99 @@ class AndroidMediaCodecDirectStream(
         return max(minSize.coerceAtLeast(0), AUDIO_SAMPLE_RATE / 5 * AUDIO_CHANNEL_COUNT * 2)
     }
 
-    private fun drainVideoEncoder() {
+    private fun runVideoCompositorAndEncoder() {
         val info = MediaCodec.BufferInfo()
         while (running.get()) {
-            val encoder = videoEncoder ?: break
-            when (val outputIndex = encoder.dequeueOutputBuffer(info, VIDEO_DRAIN_TIMEOUT_US)) {
-                MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> configurePublisherFromVideoFormat(encoder.outputFormat)
-                MediaCodec.INFO_TRY_AGAIN_LATER -> Unit
-                else -> if (outputIndex >= 0) {
-                    val outputBuffer = encoder.getOutputBuffer(outputIndex)
-                    if (outputBuffer != null && info.size > 0) {
-                        val frameBytes = info.size.toLong()
-                        if (publisherConfigured) {
-                            publisher.sendVideo(outputBuffer, info)
-                            videoFrames += 1
-                            encodedBytes += frameBytes
-                        } else {
-                            droppedVideoFrames += 1
-                        }
-                    }
-                    encoder.releaseOutputBuffer(outputIndex, false)
-                }
+            val renderedFrame = renderLatestScreenFrame()
+            drainVideoEncoderOutput(info, if (renderedFrame) 0L else VIDEO_DRAIN_TIMEOUT_US)
+            if (!renderedFrame) {
+                runCatching { Thread.sleep(5) }
             }
+        }
+        drainVideoEncoderOutput(info, 0L)
+    }
+
+    private fun renderLatestScreenFrame(): Boolean {
+        val reader = screenImageReader ?: return false
+        val image = reader.acquireLatestImage() ?: return false
+        return try {
+            val bitmap = copyScreenImageToBitmap(image)
+            if (bitmap == null) {
+                droppedVideoFrames += 1
+                false
+            } else {
+                renderCompositeFrame(bitmap)
+                true
+            }
+        } finally {
+            image.close()
+        }
+    }
+
+    private fun copyScreenImageToBitmap(image: Image): Bitmap? {
+        val plane = image.planes.firstOrNull() ?: return null
+        val pixelStride = plane.pixelStride
+        val rowStride = plane.rowStride
+        if (pixelStride <= 0 || rowStride <= 0) {
+            return null
+        }
+        val bitmapWidth = (rowStride / pixelStride).coerceAtLeast(image.width)
+        val currentBitmap = screenBitmap
+        val reusableBitmap = if (currentBitmap == null || currentBitmap.width != bitmapWidth || currentBitmap.height != image.height) {
+            currentBitmap?.recycle()
+            Bitmap.createBitmap(bitmapWidth, image.height, Bitmap.Config.ARGB_8888).also { screenBitmap = it }
+        } else {
+            currentBitmap
+        }
+        val buffer = plane.buffer
+        buffer.rewind()
+        reusableBitmap.copyPixelsFromBuffer(buffer)
+        screenSourceRect.set(0, 0, image.width, image.height)
+        return reusableBitmap
+    }
+
+    private fun renderCompositeFrame(screenBitmap: Bitmap) {
+        val surface = videoInputSurface ?: return
+        val currentProfile = profile ?: return
+        val composition = canvasComposition ?: return
+        val canvas: Canvas = surface.lockCanvas(null)
+        try {
+            composition.draw(
+                canvas,
+                screenBitmap,
+                screenSourceRect,
+                currentProfile.width,
+                currentProfile.height
+            )
+        } finally {
+            surface.unlockCanvasAndPost(canvas)
+        }
+    }
+
+    private fun drainVideoEncoderOutput(info: MediaCodec.BufferInfo, timeoutUs: Long) {
+        val encoder = videoEncoder ?: return
+        var outputIndex = encoder.dequeueOutputBuffer(info, timeoutUs)
+        while (outputIndex != MediaCodec.INFO_TRY_AGAIN_LATER) {
+            if (outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                configurePublisherFromVideoFormat(encoder.outputFormat)
+                outputIndex = encoder.dequeueOutputBuffer(info, 0)
+                continue
+            }
+            if (outputIndex >= 0) {
+                val outputBuffer = encoder.getOutputBuffer(outputIndex)
+                if (outputBuffer != null && info.size > 0) {
+                    val frameBytes = info.size.toLong()
+                    if (publisherConfigured) {
+                        publisher.sendVideo(outputBuffer, info)
+                        videoFrames += 1
+                        encodedBytes += frameBytes
+                    } else {
+                        droppedVideoFrames += 1
+                    }
+                }
+                encoder.releaseOutputBuffer(outputIndex, false)
+            }
+            outputIndex = encoder.dequeueOutputBuffer(info, 0)
         }
     }
 

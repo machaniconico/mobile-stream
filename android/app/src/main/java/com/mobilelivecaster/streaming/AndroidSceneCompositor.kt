@@ -112,6 +112,65 @@ data class AndroidCompositionResult(
 }
 
 object AndroidSceneCompositor {
+    fun prepareCanvas(context: Context, renderGraphJson: String): CanvasComposition {
+        val renderNodes = parseRenderGraph(renderGraphJson)
+            ?: return CanvasComposition(
+                result = AndroidCompositionResult(appliedCount = 0, skippedCount = 0, skippedKinds = emptySet(), parseFailed = true),
+                overlays = emptyList()
+            )
+        val vrmPoseSummary = summarizeVrmPosePayloads(context, renderNodes)
+
+        val primaryScreenOrder = renderNodes
+            .filter { node -> node.kind == "screen" }
+            .minOfOrNull { node -> node.order }
+        val underlays = renderNodes
+            .filter { node -> node.kind != "screen" && primaryScreenOrder != null && node.order <= primaryScreenOrder }
+        val overlays = renderNodes
+            .filter { node -> node.kind != "screen" && (primaryScreenOrder == null || node.order > primaryScreenOrder) }
+            .sortedBy { node -> node.order }
+
+        var appliedCount = 0
+        var skippedCount = underlays.size
+        val skippedKinds = underlays.mapTo(linkedSetOf()) { node -> node.kind }
+        val stillImageNodes = overlays.filter(::requiresStillImageAsset)
+        val stillImageEvidence = linkedMapOf<String, AndroidStillImageAssetEvidence>()
+        val canvasOverlays = mutableListOf<CanvasOverlayItem>()
+
+        overlays.forEach { node ->
+            val bitmap = createCanvasBitmap(context, node, stillImageEvidence)
+            if (bitmap == null) {
+                skippedCount += 1
+                skippedKinds.add(node.kind)
+                return@forEach
+            }
+
+            recordStillImageAssetComposited(stillImageEvidence, node)
+            canvasOverlays.add(CanvasOverlayItem(bitmap, resolveOverlayTransform(node)))
+            appliedCount += 1
+        }
+        val missingStillImageNodes = stillImageNodes.filter { node ->
+            stillImageEvidence[assetEvidenceKey(node)]?.loaded != true
+        }
+
+        return CanvasComposition(
+            result = AndroidCompositionResult(
+                appliedCount = appliedCount,
+                skippedCount = skippedCount,
+                skippedKinds = skippedKinds,
+                stillImageAssetCount = stillImageNodes.size,
+                stillImageAssetLoadedCount = stillImageEvidence.values.count { evidence -> evidence.loaded },
+                stillImageAssetMissingCount = missingStillImageNodes.size,
+                stillImageAssetMissingKinds = missingStillImageNodes.mapTo(linkedSetOf()) { node -> node.kind },
+                stillImageAssetDecodedCount = stillImageEvidence.values.count { evidence -> evidence.loaded && evidence.decodedPixelCount > 0 },
+                stillImageAssetDecodedPixelCount = stillImageEvidence.values.sumOf { evidence -> evidence.decodedPixelCount },
+                stillImageAssetCompositedCount = stillImageEvidence.values.count { evidence -> evidence.loaded && evidence.compositedPixelCount > 0 },
+                stillImageAssetCompositedPixelCount = stillImageEvidence.values.sumOf { evidence -> evidence.compositedPixelCount },
+                vrmPoseSummary = vrmPoseSummary
+            ),
+            overlays = canvasOverlays
+        )
+    }
+
     fun apply(context: Context, stream: GenericStream, renderGraphJson: String): AndroidCompositionResult {
         val renderNodes = parseRenderGraph(renderGraphJson)
             ?: return AndroidCompositionResult(appliedCount = 0, skippedCount = 0, skippedKinds = emptySet(), parseFailed = true)
@@ -187,6 +246,17 @@ object AndroidSceneCompositor {
         node: RenderGraphNode,
         stillImageEvidence: MutableMap<String, AndroidStillImageAssetEvidence>
     ): ImageObjectFilterRender {
+        val bitmap = createPngTuberBitmap(context, node, stillImageEvidence)
+        return ImageObjectFilterRender().apply {
+            setImage(bitmap)
+        }
+    }
+
+    private fun createPngTuberBitmap(
+        context: Context,
+        node: RenderGraphNode,
+        stillImageEvidence: MutableMap<String, AndroidStillImageAssetEvidence>
+    ): Bitmap {
         val imageUri = node.payload.optString("imageUri").trim()
         val motion = parsePngTuberMotion(node)
         val loadedBitmap = if (imageUri.isNotEmpty()) {
@@ -196,11 +266,7 @@ object AndroidSceneCompositor {
         }
         recordStillImageAssetEvidence(stillImageEvidence, node, loadedBitmap)
         val sourceBitmap = loadedBitmap ?: createFallbackPngTuberBitmap(node)
-        val bitmap = createIllustrationRigBitmap(sourceBitmap, motion)
-
-        return ImageObjectFilterRender().apply {
-            setImage(bitmap)
-        }
+        return createIllustrationRigBitmap(sourceBitmap, motion)
     }
 
     private fun createTextFilter(node: RenderGraphNode): TextObjectFilterRender? {
@@ -217,6 +283,13 @@ object AndroidSceneCompositor {
     }
 
     private fun createChatFilter(node: RenderGraphNode): ImageObjectFilterRender? {
+        val bitmap = createChatBitmap(node) ?: return null
+        return ImageObjectFilterRender().apply {
+            setImage(bitmap)
+        }
+    }
+
+    private fun createChatBitmap(node: RenderGraphNode): Bitmap? {
         val text = node.payload.optString("text").trim()
         if (text.isEmpty()) {
             return null
@@ -251,18 +324,20 @@ object AndroidSceneCompositor {
             baseline += lineHeight
         }
 
+        return bitmap
+    }
+
+    private fun createSolidFilter(node: RenderGraphNode): ImageObjectFilterRender {
+        val bitmap = createSolidBitmap(node)
         return ImageObjectFilterRender().apply {
             setImage(bitmap)
         }
     }
 
-    private fun createSolidFilter(node: RenderGraphNode): ImageObjectFilterRender {
+    private fun createSolidBitmap(node: RenderGraphNode): Bitmap {
         val color = parseColor(node.payload.optString("color"), Color.TRANSPARENT)
-        val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888).apply {
+        return Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888).apply {
             eraseColor(color)
-        }
-        return ImageObjectFilterRender().apply {
-            setImage(bitmap)
         }
     }
 
@@ -271,6 +346,17 @@ object AndroidSceneCompositor {
         node: RenderGraphNode,
         stillImageEvidence: MutableMap<String, AndroidStillImageAssetEvidence>
     ): ImageObjectFilterRender? {
+        val bitmap = createImageBitmap(context, node, stillImageEvidence) ?: return null
+        return ImageObjectFilterRender().apply {
+            setImage(bitmap)
+        }
+    }
+
+    private fun createImageBitmap(
+        context: Context,
+        node: RenderGraphNode,
+        stillImageEvidence: MutableMap<String, AndroidStillImageAssetEvidence>
+    ): Bitmap? {
         val uri = node.payload.optString("uri").trim()
         if (uri.isEmpty()) {
             recordStillImageAssetEvidence(stillImageEvidence, node, null)
@@ -282,12 +368,56 @@ object AndroidSceneCompositor {
         if (bitmap == null) {
             return null
         }
-        return ImageObjectFilterRender().apply {
-            setImage(bitmap)
-        }
+        return bitmap
     }
 
     private fun applyTransform(filter: BaseObjectFilterRender, node: RenderGraphNode) {
+        val resolved = resolveOverlayTransform(node)
+        filter.setScale(
+            resolved.width * 100f,
+            resolved.height * 100f
+        )
+        filter.setPosition(
+            resolved.x * 100f,
+            resolved.y * 100f
+        )
+        filter.setRotation(resolved.rotation.roundToInt())
+        filter.setAlpha(resolved.opacity)
+    }
+
+    private fun createCanvasBitmap(
+        context: Context,
+        node: RenderGraphNode,
+        stillImageEvidence: MutableMap<String, AndroidStillImageAssetEvidence>
+    ): Bitmap? =
+        when (node.kind) {
+            "pngtuber" -> createPngTuberBitmap(context, node, stillImageEvidence)
+            "text" -> createTextBitmap(node)
+            "chat" -> createChatBitmap(node)
+            "solid" -> createSolidBitmap(node)
+            "image" -> createImageBitmap(context, node, stillImageEvidence)
+            else -> null
+        }
+
+    private fun createTextBitmap(node: RenderGraphNode): Bitmap? {
+        val text = node.payload.optString("text").trim()
+        if (text.isEmpty()) {
+            return null
+        }
+
+        val bitmap = Bitmap.createBitmap(960, 240, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.color = parseColor(node.payload.optString("color"), Color.WHITE)
+        paint.textSize = node.payload.optDouble("fontSize", 36.0).toFloat().coerceIn(8f, 220f)
+        paint.isFakeBoldText = true
+        paint.setShadowLayer(6f, 0f, 3f, Color.argb(210, 0, 0, 0))
+        val baseline = 120f - (paint.descent() + paint.ascent()) * 0.5f
+        canvas.drawText(ellipsize(text.take(240), paint, 900f), 30f, baseline, paint)
+        return bitmap
+    }
+
+    private fun resolveOverlayTransform(node: RenderGraphNode): ResolvedOverlayTransform {
         val transform = node.transform
         val isPngTuber = node.kind == "pngtuber"
         val motion = if (isPngTuber) parsePngTuberMotion(node) else PngTuberMotion()
@@ -298,16 +428,56 @@ object AndroidSceneCompositor {
         val centeredX = transform.x + motion.offsetX + (width - scaledWidth) * 0.5f
         val centeredY = transform.y + motion.offsetY + (height - scaledHeight) * 0.5f
 
-        filter.setScale(
-            scaledWidth * 100f,
-            scaledHeight * 100f
+        return ResolvedOverlayTransform(
+            x = centeredX.coerceIn(0f, 1f),
+            y = centeredY.coerceIn(0f, 1f),
+            width = scaledWidth,
+            height = scaledHeight,
+            rotation = (transform.rotation + motion.rotation).coerceIn(-180f, 180f),
+            opacity = transform.opacity.coerceIn(0f, 1f)
         )
-        filter.setPosition(
-            centeredX.coerceIn(0f, 1f) * 100f,
-            centeredY.coerceIn(0f, 1f) * 100f
-        )
-        filter.setRotation((transform.rotation + motion.rotation).coerceIn(-180f, 180f).roundToInt())
-        filter.setAlpha(transform.opacity.coerceIn(0f, 1f))
+    }
+
+    class CanvasComposition internal constructor(
+        val result: AndroidCompositionResult,
+        private val overlays: List<CanvasOverlayItem>
+    ) {
+        private val screenPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
+        private val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
+
+        fun draw(
+            canvas: Canvas,
+            screenBitmap: Bitmap?,
+            screenSource: Rect?,
+            targetWidth: Int,
+            targetHeight: Int
+        ) {
+            canvas.drawColor(Color.BLACK)
+            if (screenBitmap != null) {
+                val source = screenSource ?: Rect(0, 0, screenBitmap.width, screenBitmap.height)
+                canvas.drawBitmap(
+                    screenBitmap,
+                    source,
+                    RectF(0f, 0f, targetWidth.toFloat(), targetHeight.toFloat()),
+                    screenPaint
+                )
+            }
+
+            overlays.forEach { overlay ->
+                val transform = overlay.transform
+                val left = transform.x * targetWidth
+                val top = transform.y * targetHeight
+                val right = left + transform.width * targetWidth
+                val bottom = top + transform.height * targetHeight
+                val destination = RectF(left, top, right, bottom)
+                overlayPaint.alpha = (transform.opacity * 255f).roundToInt().coerceIn(0, 255)
+                canvas.save()
+                canvas.rotate(transform.rotation, destination.centerX(), destination.centerY())
+                canvas.drawBitmap(overlay.bitmap, null, destination, overlayPaint)
+                canvas.restore()
+            }
+            overlayPaint.alpha = 255
+        }
     }
 
     private fun parsePngTuberMotion(node: RenderGraphNode): PngTuberMotion {
@@ -1108,6 +1278,20 @@ private data class RenderTransform(
     val height: Float = 1f,
     val rotation: Float = 0f,
     val opacity: Float = 1f
+)
+
+internal data class CanvasOverlayItem(
+    val bitmap: Bitmap,
+    val transform: ResolvedOverlayTransform
+)
+
+internal data class ResolvedOverlayTransform(
+    val x: Float,
+    val y: Float,
+    val width: Float,
+    val height: Float,
+    val rotation: Float,
+    val opacity: Float
 )
 
 private data class PngTuberMotion(
