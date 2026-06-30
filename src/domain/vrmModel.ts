@@ -35,6 +35,11 @@ export interface VrmGlbHeaderReport {
   externalImageUriCount: number;
   dataImageUriCount: number;
   unsupportedImageMimeCount: number;
+  meshCount: number;
+  meshPrimitiveCount: number;
+  skinnedMeshPrimitiveCount: number;
+  materialCount: number;
+  textureCount: number;
   issueCount: number;
   issues: VrmModelAssetIssue[];
   summary: string;
@@ -46,6 +51,12 @@ const remoteOrInlineSchemes = new Set(["http", "https", "data"]);
 const glbMagic = 0x46546c67;
 const glbJsonChunkType = 0x4e4f534a;
 const glbBinChunkType = 0x004e4942;
+const mobileVrmMaxBytes = 80 * 1024 * 1024;
+const mobileVrmMaxMeshPrimitives = 64;
+const mobileVrmMaxSkinnedMeshPrimitives = 48;
+const mobileVrmMaxMaterials = 64;
+const mobileVrmMaxTextures = 48;
+const mobileVrmMaxImages = 48;
 const recognizedRequiredExtensions = new Set([
   "VRM",
   "VRMC_vrm",
@@ -161,6 +172,12 @@ export const createVrmGlbHeaderReport = (value: ArrayBuffer | ArrayLike<number>)
       severity: "fail",
       message: "GLB declared length does not match the file length."
     });
+  } else if (declaredLength > mobileVrmMaxBytes) {
+    issues.push({
+      code: "vrm-glb-size-large",
+      severity: "warn",
+      message: "VRM file is large for mobile live compositing; validate frame time and memory pressure on physical devices."
+    });
   }
 
   const jsonChunkLength = view.getUint32(12, true);
@@ -274,6 +291,12 @@ export const createVrmGlbHeaderReport = (value: ArrayBuffer | ArrayLike<number>)
   const dataImageUriCount = imageUris.filter(isDataUri).length;
   const externalImageUriCount = imageUris.length - dataImageUriCount;
   const unsupportedImageMimeCount = images.filter(hasUnsupportedImageMimeOrUri).length;
+  const meshes = recordArray(parsed.meshes);
+  const meshPrimitiveCounts = meshes.map((mesh) => recordArray(mesh.primitives).length);
+  const meshPrimitiveCount = meshPrimitiveCounts.reduce((total, count) => total + count, 0);
+  const skinnedMeshPrimitiveCount = countSkinnedMeshPrimitives(parsed.nodes, meshPrimitiveCounts);
+  const materialCount = recordArray(parsed.materials).length;
+  const textureCount = recordArray(parsed.textures).length;
   if (externalImageUriCount > 0) {
     issues.push({
       code: "vrm-image-external-uri",
@@ -286,6 +309,34 @@ export const createVrmGlbHeaderReport = (value: ArrayBuffer | ArrayLike<number>)
       code: "vrm-image-mime-unsupported",
       severity: "warn",
       message: "VRM image textures must be PNG or JPEG for the native renderer compatibility path."
+    });
+  }
+  if (meshPrimitiveCount > mobileVrmMaxMeshPrimitives) {
+    issues.push({
+      code: "vrm-mesh-primitive-budget",
+      severity: "warn",
+      message: `VRM model has ${meshPrimitiveCount} mesh primitives; reduce mesh splits/material slots before mobile physical validation.`
+    });
+  }
+  if (skinnedMeshPrimitiveCount > mobileVrmMaxSkinnedMeshPrimitives) {
+    issues.push({
+      code: "vrm-skinned-mesh-budget",
+      severity: "warn",
+      message: `VRM model has ${skinnedMeshPrimitiveCount} skinned mesh primitives; validate avatar frame time on target devices.`
+    });
+  }
+  if (materialCount > mobileVrmMaxMaterials) {
+    issues.push({
+      code: "vrm-material-budget",
+      severity: "warn",
+      message: `VRM model has ${materialCount} materials; reduce material count for mobile live compositing stability.`
+    });
+  }
+  if (textureCount > mobileVrmMaxTextures || images.length > mobileVrmMaxImages) {
+    issues.push({
+      code: "vrm-texture-budget",
+      severity: "warn",
+      message: `VRM model has ${textureCount} textures and ${images.length} images; reduce texture count before release validation.`
     });
   }
 
@@ -307,6 +358,11 @@ export const createVrmGlbHeaderReport = (value: ArrayBuffer | ArrayLike<number>)
     externalImageUriCount,
     dataImageUriCount,
     unsupportedImageMimeCount,
+    meshCount: meshes.length,
+    meshPrimitiveCount,
+    skinnedMeshPrimitiveCount,
+    materialCount,
+    textureCount,
     issues
   });
 };
@@ -329,6 +385,11 @@ const glbReport = ({
   externalImageUriCount = 0,
   dataImageUriCount = 0,
   unsupportedImageMimeCount = 0,
+  meshCount = 0,
+  meshPrimitiveCount = 0,
+  skinnedMeshPrimitiveCount = 0,
+  materialCount = 0,
+  textureCount = 0,
   issues
 }: Partial<Omit<VrmGlbHeaderReport, "status" | "summary" | "issueCount">> & {
   issues: VrmModelAssetIssue[];
@@ -353,11 +414,16 @@ const glbReport = ({
     externalImageUriCount,
     dataImageUriCount,
     unsupportedImageMimeCount,
+    meshCount,
+    meshPrimitiveCount,
+    skinnedMeshPrimitiveCount,
+    materialCount,
+    textureCount,
     issueCount: issues.length,
     issues,
     summary:
       status === "pass"
-        ? `VRM GLB header is ready: VRM ${vrmExtensionVersion}, ${humanoidBoneCount} humanoid bone${humanoidBoneCount === 1 ? "" : "s"}, ${expressionCount} expression${expressionCount === 1 ? "" : "s"}, ${imageCount} image${imageCount === 1 ? "" : "s"}.`
+        ? `VRM GLB header is ready: VRM ${vrmExtensionVersion}, ${humanoidBoneCount} humanoid bone${humanoidBoneCount === 1 ? "" : "s"}, ${expressionCount} expression${expressionCount === 1 ? "" : "s"}, ${meshPrimitiveCount} mesh primitive${meshPrimitiveCount === 1 ? "" : "s"}, ${imageCount} image${imageCount === 1 ? "" : "s"}.`
         : `VRM GLB header needs review: ${issues.length} issue${issues.length === 1 ? "" : "s"}.`
   };
 };
@@ -482,6 +548,18 @@ const countExpressions = (vrm1: Record<string, unknown> | null, vrm0: Record<str
   }
   return 0;
 };
+
+const countSkinnedMeshPrimitives = (nodesValue: unknown, meshPrimitiveCounts: number[]): number =>
+  recordArray(nodesValue).reduce((total, node) => {
+    const meshIndex = integerValue(node.mesh);
+    if (meshIndex === null || integerValue(node.skin) === null) {
+      return total;
+    }
+    return total + (meshPrimitiveCounts[meshIndex] ?? 0);
+  }, 0);
+
+const integerValue = (value: unknown): number | null =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
 
 const align4 = (value: number): number => Math.ceil(value / 4) * 4;
 

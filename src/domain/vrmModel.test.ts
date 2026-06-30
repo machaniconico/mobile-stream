@@ -144,8 +144,74 @@ describe("VRM model assets", () => {
       imageCount: 1,
       imageUriCount: 0,
       externalImageUriCount: 0,
+      meshPrimitiveCount: 0,
+      skinnedMeshPrimitiveCount: 0,
+      materialCount: 0,
+      textureCount: 0,
       unsupportedImageMimeCount: 0
     });
+  });
+
+  it("warns when VRoid-style GLB assets exceed mobile render budgets", () => {
+    const report = createVrmGlbHeaderReport(
+      createGlb(
+        {
+          asset: { version: "2.0" },
+          extensionsUsed: ["VRMC_vrm"],
+          extensionsRequired: ["VRMC_vrm"],
+          extensions: {
+            VRMC_vrm: {
+              humanoid: {
+                humanBones: {
+                  hips: { node: 1 },
+                  head: { node: 2 }
+                }
+              },
+              expressions: {
+                preset: {
+                  happy: {}
+                }
+              }
+            }
+          },
+          buffers: [{ byteLength: 32 }],
+          meshes: [
+            {
+              primitives: Array.from({ length: 70 }, () => ({
+                attributes: {
+                  POSITION: 0,
+                  NORMAL: 1,
+                  TEXCOORD_0: 2
+                },
+                material: 0
+              }))
+            }
+          ],
+          nodes: [{ mesh: 0, skin: 0 }],
+          skins: [{ joints: [1, 2] }],
+          materials: Array.from({ length: 65 }, () => ({})),
+          textures: Array.from({ length: 49 }, (_value, index) => ({ source: index })),
+          images: Array.from({ length: 49 }, () => ({ bufferView: 0, mimeType: "image/png" }))
+        },
+        32
+      )
+    );
+
+    expect(report).toMatchObject({
+      status: "warn",
+      meshCount: 1,
+      meshPrimitiveCount: 70,
+      skinnedMeshPrimitiveCount: 70,
+      materialCount: 65,
+      textureCount: 49,
+      imageCount: 49
+    });
+    expect(report.issues.map((issue) => issue.code)).toEqual([
+      "vrm-mesh-primitive-budget",
+      "vrm-skinned-mesh-budget",
+      "vrm-material-budget",
+      "vrm-texture-budget"
+    ]);
   });
 
   it("validates VRM 0.x GLB headers with warnings for incomplete metadata", () => {
