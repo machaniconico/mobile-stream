@@ -791,6 +791,7 @@ const isManifestNativeRuntimePass = (run: ValidationEvidenceManifestRun | undefi
   isProductionNativeVideoEncoderBackend(run?.devicePlatform, run?.nativeRuntimeVideoEncoderBackend) &&
   isProductionNativeAudioEncoderBackend(run?.devicePlatform, run?.nativeRuntimeAudioEncoderBackend) &&
   hasManifestNativeRuntimeVideoFrameIntervalProof(run) &&
+  hasManifestAndroidMediaCodecCompositorProof(run) &&
   (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
   hasManifestStillImageOverlayProof(run) &&
   hasManifestIosAppGroupStillImageProof(run) &&
@@ -801,6 +802,21 @@ const hasManifestNativeRuntimeVideoFrameIntervalProof = (run: ValidationEvidence
   isPositiveFiniteNumber(run?.nativeRuntimeVideoFrameIntervalAverageMs) &&
   isPositiveFiniteNumber(run?.nativeRuntimeVideoFrameIntervalMaxMs) &&
   isNonNegativeFiniteNumber(run?.nativeRuntimeVideoFrameIntervalJitterMs);
+
+const hasManifestAndroidMediaCodecCompositorProof = (run: ValidationEvidenceManifestRun | undefined): boolean => {
+  if (
+    run?.devicePlatform !== "android" ||
+    !isProductionNativeVideoEncoderBackend(run.devicePlatform, run.nativeRuntimeVideoEncoderBackend)
+  ) {
+    return true;
+  }
+
+  return (
+    run.nativeRuntimeCompositorBackend === "android-canvas-mediacodec" &&
+    isPositiveFiniteNumber(run.nativeRuntimeCompositedFrameCount) &&
+    isZeroFiniteNumber(run.nativeRuntimeCompositionFailureCount)
+  );
+};
 
 const isManifestMonitorHoldPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.monitorHoldStatus) &&

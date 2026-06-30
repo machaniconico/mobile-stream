@@ -873,7 +873,7 @@ describe("stream diagnostics", () => {
     const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics));
     expect(report).toContain("Native Runtime");
     expect(report).toContain(
-      "Composition assets: 2/2 loaded / 2 decoded / decoded pixels 1843200 / 2 composited / composited pixels 1843200 / 0 missing"
+      "Composition assets: 2/2 loaded / 2 decoded / decoded pixels 1843200 / 2 composited / composited pixels 1843200 / runtime none 0 frames 0 dropped 0 failures / 0 missing"
     );
     expect(report).toContain("Composition VRM: 1/1 active / payloads 1 / missing 0");
   });
@@ -969,8 +969,12 @@ describe("stream diagnostics", () => {
           stillImageAssetMissingKinds: [],
           stillImageAssetDecodedCount: 0,
           stillImageAssetDecodedPixelCount: 0,
-            stillImageAssetCompositedCount: 0,
-            stillImageAssetCompositedPixelCount: 0,
+          stillImageAssetCompositedCount: 0,
+          stillImageAssetCompositedPixelCount: 0,
+          runtimeCompositorBackend: "android-canvas-mediacodec",
+          runtimeCompositedFrameCount: 330,
+          runtimeDroppedFrameCount: 0,
+          runtimeCompositionFailureCount: 0,
           vrmSourceCount: 1,
           vrmPosePayloadCount: 0,
           vrmActivePoseCount: 0,
@@ -1129,7 +1133,7 @@ describe("stream diagnostics", () => {
     expect(nativeCheck?.status).toBe("warn");
     expect(nativeCheck?.message).toContain("missing 1");
     expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
-      "Composition assets: 1/2 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / 1 missing"
+      "Composition assets: 1/2 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / runtime none 0 frames 0 dropped 0 failures / 1 missing"
     );
   });
 
@@ -1180,6 +1184,10 @@ describe("stream diagnostics", () => {
           appliedCount: 1,
           skippedCount: 0,
           skippedKinds: [],
+          runtimeCompositorBackend: "android-canvas-mediacodec",
+          runtimeCompositedFrameCount: 540,
+          runtimeDroppedFrameCount: 2,
+          runtimeCompositionFailureCount: 0,
           message: "Native screen capture ready"
         },
         message: "Android native runtime failed"

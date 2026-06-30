@@ -37,6 +37,7 @@ class AndroidMediaCodecDirectStream(
         private const val AUDIO_READ_TIMEOUT_US = 10_000L
         private const val VIDEO_DRAIN_TIMEOUT_US = 10_000L
         private const val I_FRAME_INTERVAL_SECONDS = 2
+        private const val COMPOSITOR_BACKEND = "android-canvas-mediacodec"
     }
 
     private val appContext = context.applicationContext
@@ -61,6 +62,9 @@ class AndroidMediaCodecDirectStream(
     private var audioFrames = 0L
     private var encodedBytes = 0L
     private var audioSubmittedFrames = 0L
+    private var compositedVideoFrames = 0L
+    private var compositionDroppedFrames = 0L
+    private var compositionFailures = 0L
     private var droppedVideoFrames = 0L
     private var droppedAudioFrames = 0L
     private var lastError = ""
@@ -81,6 +85,9 @@ class AndroidMediaCodecDirectStream(
         audioFrames = 0L
         encodedBytes = 0L
         audioSubmittedFrames = 0L
+        compositedVideoFrames = 0L
+        compositionDroppedFrames = 0L
+        compositionFailures = 0L
         droppedVideoFrames = 0L
         droppedAudioFrames = 0L
         lastError = ""
@@ -198,9 +205,13 @@ class AndroidMediaCodecDirectStream(
             videoFrames = videoFrames,
             audioFrames = audioFrames,
             encodedBytes = encodedBytes,
+            runtimeCompositorBackend = COMPOSITOR_BACKEND,
+            runtimeCompositedFrameCount = compositedVideoFrames,
+            runtimeDroppedFrameCount = compositionDroppedFrames,
+            runtimeCompositionFailureCount = compositionFailures,
             sentVideoFrames = publisherSnapshot.sentVideoFrames,
             sentAudioFrames = publisherSnapshot.sentAudioFrames,
-            droppedVideoFrames = droppedVideoFrames + publisherSnapshot.droppedVideoFrames,
+            droppedVideoFrames = droppedVideoFrames + compositionDroppedFrames + publisherSnapshot.droppedVideoFrames,
             droppedAudioFrames = droppedAudioFrames + publisherSnapshot.droppedAudioFrames,
             cacheSize = publisherSnapshot.cacheSize,
             itemsInCache = publisherSnapshot.itemsInCache,
@@ -279,11 +290,14 @@ class AndroidMediaCodecDirectStream(
         return try {
             val bitmap = copyScreenImageToBitmap(image)
             if (bitmap == null) {
-                droppedVideoFrames += 1
+                compositionDroppedFrames += 1
                 false
             } else {
-                renderCompositeFrame(bitmap)
-                true
+                renderCompositeFrame(bitmap).also { rendered ->
+                    if (!rendered) {
+                        compositionDroppedFrames += 1
+                    }
+                }
             }
         } finally {
             image.close()
@@ -312,21 +326,30 @@ class AndroidMediaCodecDirectStream(
         return reusableBitmap
     }
 
-    private fun renderCompositeFrame(screenBitmap: Bitmap) {
-        val surface = videoInputSurface ?: return
-        val currentProfile = profile ?: return
-        val composition = canvasComposition ?: return
-        val canvas: Canvas = surface.lockCanvas(null)
-        try {
-            composition.draw(
-                canvas,
-                screenBitmap,
-                screenSourceRect,
-                currentProfile.width,
-                currentProfile.height
-            )
-        } finally {
-            surface.unlockCanvasAndPost(canvas)
+    private fun renderCompositeFrame(screenBitmap: Bitmap): Boolean {
+        val surface = videoInputSurface ?: return false
+        val currentProfile = profile ?: return false
+        val composition = canvasComposition ?: return false
+        return try {
+            val canvas: Canvas = surface.lockCanvas(null)
+            try {
+                composition.draw(
+                    canvas,
+                    screenBitmap,
+                    screenSourceRect,
+                    currentProfile.width,
+                    currentProfile.height
+                )
+                compositedVideoFrames += 1
+                true
+            } finally {
+                surface.unlockCanvasAndPost(canvas)
+            }
+        } catch (error: Throwable) {
+            compositionFailures += 1
+            lastError = safeMessage(error)
+            running.set(false)
+            false
         }
     }
 
@@ -480,6 +503,10 @@ data class AndroidMediaCodecDirectStreamSnapshot(
     val videoFrames: Long,
     val audioFrames: Long,
     val encodedBytes: Long,
+    val runtimeCompositorBackend: String,
+    val runtimeCompositedFrameCount: Long,
+    val runtimeDroppedFrameCount: Long,
+    val runtimeCompositionFailureCount: Long,
     val sentVideoFrames: Long,
     val sentAudioFrames: Long,
     val droppedVideoFrames: Long,

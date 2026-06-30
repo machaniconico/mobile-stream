@@ -329,6 +329,10 @@ describe("stream session summary", () => {
           appliedCount: 1,
           skippedCount: 0,
           skippedKinds: [],
+          runtimeCompositorBackend: "android-canvas-mediacodec",
+          runtimeCompositedFrameCount: 92,
+          runtimeDroppedFrameCount: 2,
+          runtimeCompositionFailureCount: 0,
           message: "Native overlays applied"
         },
         audioProcessing: {
@@ -373,6 +377,54 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.encoderProbeVideoBackend).toBe("mediacodec-h264");
     expect(summary?.summary).toContain("Native runtime needs review");
     expect(summary?.recommendation).toContain("Lower bitrate");
+  });
+
+  it("requires Android MediaCodec native runtime evidence to include direct compositor frame proof", () => {
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z"),
+      nativeRuntime: {
+        platform: "android",
+        runtimeStatus: "live",
+        updatedAt: Date.now(),
+        stale: false,
+        elapsedSeconds: 4,
+        videoFrames: 92,
+        encodedBytes: 1_900_000,
+        droppedFrames: 0,
+        publisher: {
+          state: "published",
+          videoEncoderBackend: "mediacodec-h264",
+          audioEncoderBackend: "mediacodec-aac",
+          reconnectAttempts: 0,
+          sentVideoFrames: 92,
+          sentAudioFrames: 180,
+          droppedVideoFrames: 0,
+          droppedAudioFrames: 0,
+          bytesWritten: 1_900_000,
+          cacheSize: 120,
+          itemsInCache: 0,
+          congested: false,
+          lastError: ""
+        },
+        composition: {
+          status: "applied",
+          appliedCount: 1,
+          skippedCount: 0,
+          skippedKinds: [],
+          message: "Native overlays applied"
+        },
+        message: "Live"
+      }
+    });
+
+    expect(summary?.nativeRuntime?.status).toBe("warn");
+    expect(summary?.nativeRuntime?.runtimeCompositorBackend).toBe("none");
+    expect(summary?.nativeRuntime?.runtimeCompositedFrameCount).toBe(0);
+    expect(summary?.nativeRuntime?.recommendation).toContain("Android direct MediaCodec validation");
   });
 
   it("keeps iOS still-image asset misses in completed native runtime evidence", () => {

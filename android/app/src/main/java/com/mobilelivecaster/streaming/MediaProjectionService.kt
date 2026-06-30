@@ -395,6 +395,10 @@ class MediaProjectionService : Service(), ConnectChecker {
         LiveCasterSession.updateNativeRuntime(
             publisherState = publisherState ?: snapshot?.publisherState,
             compositionResult = compositionResult ?: nativeCompositionResult,
+            runtimeCompositorBackend = snapshot?.runtimeCompositorBackend,
+            runtimeCompositedFrameCount = snapshot?.runtimeCompositedFrameCount,
+            runtimeDroppedFrameCount = snapshot?.runtimeDroppedFrameCount,
+            runtimeCompositionFailureCount = snapshot?.runtimeCompositionFailureCount,
             videoFrames = snapshot?.videoFrames,
             encodedBytes = encodedBytes ?: snapshot?.encodedBytes,
             sentVideoFrames = snapshot?.sentVideoFrames,
@@ -435,6 +439,10 @@ class MediaProjectionService : Service(), ConnectChecker {
         LiveCasterSession.updateNativeRuntime(
             publisherState = publisherState,
             compositionResult = compositionResult,
+            runtimeCompositorBackend = "rootencoder-gl",
+            runtimeCompositedFrameCount = sentVideoFrames,
+            runtimeDroppedFrameCount = droppedVideoFrames,
+            runtimeCompositionFailureCount = 0L,
             videoFrames = sentVideoFrames,
             encodedBytes = encodedBytes ?: estimatedBytes,
             sentVideoFrames = sentVideoFrames,

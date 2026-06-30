@@ -231,6 +231,10 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeStillImageAssetDecodedPixelCount: number;
   nativeRuntimeStillImageAssetCompositedCount: number;
   nativeRuntimeStillImageAssetCompositedPixelCount: number;
+  nativeRuntimeCompositorBackend: string | null;
+  nativeRuntimeCompositedFrameCount: number;
+  nativeRuntimeDroppedFrameCount: number;
+  nativeRuntimeCompositionFailureCount: number;
   nativeRuntimeStillImageAssetAppGroupCount: number;
   nativeRuntimeStillImageAssetAppGroupLoadedCount: number;
   nativeRuntimeStillImageAssetAppGroupDecodedCount: number;
@@ -1240,6 +1244,7 @@ const isNativeRuntimeEvidencePass = (
   isProductionNativeVideoEncoderBackend(nativeRuntime.platform, nativeRuntime.videoEncoderBackend) &&
   isProductionNativeAudioEncoderBackend(nativeRuntime.platform, nativeRuntime.audioEncoderBackend) &&
   hasNativeRuntimeVideoFrameIntervalProof(nativeRuntime) &&
+  hasNativeRuntimeAndroidMediaCodecCompositorProof(nativeRuntime) &&
   (nativeRuntime.compositionStatus === "applied" || nativeRuntime.compositionStatus === "screen-only") &&
   hasNativeRuntimeStillImageOverlayProof(nativeRuntime) &&
   hasNativeRuntimeIosAppGroupStillImageProof(nativeRuntime, expectedPlatform) &&
@@ -1274,6 +1279,24 @@ const hasNativeRuntimeStillImageOverlayProof = (
     nativeRuntime.stillImageAssetDecodedPixelCount > 0 &&
     nativeRuntime.stillImageAssetCompositedCount >= nativeRuntime.stillImageAssetCount &&
     nativeRuntime.stillImageAssetCompositedPixelCount > 0
+  );
+};
+
+const hasNativeRuntimeAndroidMediaCodecCompositorProof = (
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null | undefined
+): boolean => {
+  if (
+    !nativeRuntime ||
+    nativeRuntime.platform !== "android" ||
+    !isProductionNativeVideoEncoderBackend(nativeRuntime.platform, nativeRuntime.videoEncoderBackend)
+  ) {
+    return true;
+  }
+
+  return (
+    nativeRuntime.runtimeCompositorBackend === "android-canvas-mediacodec" &&
+    nativeRuntime.runtimeCompositedFrameCount > 0 &&
+    nativeRuntime.runtimeCompositionFailureCount === 0
   );
 };
 
@@ -1376,6 +1399,12 @@ const alignNativeRuntimeWithComposition = (
   const runtimeDecodedPixelProof = nativeRuntime.stillImageAssetDecodedPixelCount > 0;
   const runtimeCompositedEnoughAssets = nativeRuntime.stillImageAssetCompositedCount >= expectedStillImageCount;
   const runtimeCompositedPixelProof = nativeRuntime.stillImageAssetCompositedPixelCount > 0;
+  const runtimeFrameProof =
+    nativeRuntime.platform !== "android" ||
+    !isProductionNativeVideoEncoderBackend(nativeRuntime.platform, nativeRuntime.videoEncoderBackend) ||
+    (nativeRuntime.runtimeCompositorBackend === "android-canvas-mediacodec" &&
+      nativeRuntime.runtimeCompositedFrameCount > 0 &&
+      nativeRuntime.runtimeCompositionFailureCount === 0);
 
   if (
     overlayApplied &&
@@ -1386,7 +1415,8 @@ const alignNativeRuntimeWithComposition = (
     runtimeDecodedEnoughAssets &&
     runtimeDecodedPixelProof &&
     runtimeCompositedEnoughAssets &&
-    runtimeCompositedPixelProof
+    runtimeCompositedPixelProof &&
+    runtimeFrameProof
   ) {
     return nativeRuntime;
   }
@@ -1394,8 +1424,8 @@ const alignNativeRuntimeWithComposition = (
   return addNativeRuntimeCompositionReview(
     nativeRuntime,
     "warn",
-    `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, applied ${nativeRuntime.compositionAppliedCount}/${expectedStillImageCount}, skipped ${nativeRuntime.compositionSkippedCount}, assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded, decoded ${nativeRuntime.stillImageAssetDecodedCount}/${expectedStillImageCount}, decoded pixels ${nativeRuntime.stillImageAssetDecodedPixelCount}, composited ${nativeRuntime.stillImageAssetCompositedCount}/${expectedStillImageCount}, composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount}.`,
-    "Repeat physical validation with the current scene and retain native compositor telemetry showing overlays applied, zero skipped overlays, and all required still-image assets decoded and composited to non-zero pixels."
+    `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, applied ${nativeRuntime.compositionAppliedCount}/${expectedStillImageCount}, skipped ${nativeRuntime.compositionSkippedCount}, assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded, decoded ${nativeRuntime.stillImageAssetDecodedCount}/${expectedStillImageCount}, decoded pixels ${nativeRuntime.stillImageAssetDecodedPixelCount}, composited ${nativeRuntime.stillImageAssetCompositedCount}/${expectedStillImageCount}, composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount}, frame compositor ${nativeRuntime.runtimeCompositorBackend}, composited frames ${nativeRuntime.runtimeCompositedFrameCount}, composition failures ${nativeRuntime.runtimeCompositionFailureCount}.`,
+    "Repeat physical validation with the current scene and retain native compositor telemetry showing overlays applied, zero skipped overlays, all required still-image assets decoded/composited to non-zero pixels, and Android direct MediaCodec Canvas composited frames above zero with zero composition failures."
   );
 };
 
@@ -2495,6 +2525,10 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeStillImageAssetDecodedPixelCount: run.nativeRuntime?.stillImageAssetDecodedPixelCount ?? 0,
     nativeRuntimeStillImageAssetCompositedCount: run.nativeRuntime?.stillImageAssetCompositedCount ?? 0,
     nativeRuntimeStillImageAssetCompositedPixelCount: run.nativeRuntime?.stillImageAssetCompositedPixelCount ?? 0,
+    nativeRuntimeCompositorBackend: run.nativeRuntime?.runtimeCompositorBackend ?? null,
+    nativeRuntimeCompositedFrameCount: run.nativeRuntime?.runtimeCompositedFrameCount ?? 0,
+    nativeRuntimeDroppedFrameCount: run.nativeRuntime?.runtimeDroppedFrameCount ?? 0,
+    nativeRuntimeCompositionFailureCount: run.nativeRuntime?.runtimeCompositionFailureCount ?? 0,
     nativeRuntimeStillImageAssetAppGroupCount: run.nativeRuntime?.stillImageAssetAppGroupCount ?? 0,
     nativeRuntimeStillImageAssetAppGroupLoadedCount: run.nativeRuntime?.stillImageAssetAppGroupLoadedCount ?? 0,
     nativeRuntimeStillImageAssetAppGroupDecodedCount: run.nativeRuntime?.stillImageAssetAppGroupDecodedCount ?? 0,

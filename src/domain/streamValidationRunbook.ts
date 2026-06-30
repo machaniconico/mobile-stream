@@ -503,6 +503,12 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
   const missingCompositedAssets =
     stillImageAssetCount > 0 &&
     (compositedStillImageAssetCount < stillImageAssetCount || compositedStillImageAssetPixels <= 0);
+  const missingAndroidMediaCodecCompositorProof =
+    nativeRuntime.platform === "android" &&
+    isProductionNativeVideoEncoderBackend(nativeRuntime.platform, nativeRuntime.publisher.videoEncoderBackend) &&
+    ((nativeRuntime.composition.runtimeCompositorBackend ?? "none") !== "android-canvas-mediacodec" ||
+      (nativeRuntime.composition.runtimeCompositedFrameCount ?? 0) <= 0 ||
+      (nativeRuntime.composition.runtimeCompositionFailureCount ?? 0) > 0);
   const missingVrmPoses = nativeRuntime.composition.vrmMissingPoseCount ?? 0;
   const invalidNativeEncoderBackends =
     !isProductionNativeVideoEncoderBackend(nativeRuntime.platform, nativeRuntime.publisher.videoEncoderBackend) ||
@@ -555,6 +561,7 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
     missingAssets > 0 ||
     missingDecodedAssets ||
     missingCompositedAssets ||
+    missingAndroidMediaCodecCompositorProof ||
     invalidNativeEncoderBackends ||
     missingVrmPoses > 0 ||
     missingVrmRenders
@@ -570,23 +577,25 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
           ? "Prepare App Group/native-readable still-image assets again, then repeat the iOS compositor validation."
           : missingDecodedAssets
             ? "Repeat native compositor validation until every still-image asset decodes to non-zero pixels."
-            : missingCompositedAssets
-              ? "Repeat native compositor validation until every still-image asset is composited with non-zero pixel proof."
-              : invalidNativeEncoderBackends
-                ? "Use VideoToolbox/AudioToolbox on iOS and first-party MediaCodec video/audio encoders on Android before recording a pass."
-              : missingVrmPoses > 0
-              ? "Confirm VRM runtime pose payloads are included in the render graph before recording a pass."
-              : missingVrmModelMetadata
-                ? "Prepare a VRM/GLB model with humanoid bones and expression metadata before recording a pass."
-                : missingVrmRenderability
-                  ? "Prepare a VRM/GLB model with triangle primitives, POSITION vertices, UVs for textured models, supported PNG/JPEG images, skinned meshes, skin joints, and JOINTS_0/WEIGHTS_0 attributes before recording a pass."
-                  : missingVrmPoseMapping
-                    ? "Confirm the delivered VRM pose bones and expression weights are supported by the imported model before recording a pass."
-                    : invalidProductionVrmRendererBackend
-                      ? "Use a production VRM renderer backend for this platform before recording a pass."
-                    : missingVrmRenders
-                      ? "Integrate or enable the native VRM renderer, then repeat validation until every visible VRM source is rendered."
-                      : "Review native runtime congestion, stale telemetry, or pending compositor state before recording a pass."
+              : missingCompositedAssets
+                ? "Repeat native compositor validation until every still-image asset is composited with non-zero pixel proof."
+                : missingAndroidMediaCodecCompositorProof
+                  ? "Repeat Android direct MediaCodec validation until runtime telemetry reports android-canvas-mediacodec, non-zero composited frames, and zero composition failures."
+                  : invalidNativeEncoderBackends
+                    ? "Use VideoToolbox/AudioToolbox on iOS and first-party MediaCodec video/audio encoders on Android before recording a pass."
+                    : missingVrmPoses > 0
+                    ? "Confirm VRM runtime pose payloads are included in the render graph before recording a pass."
+                    : missingVrmModelMetadata
+                      ? "Prepare a VRM/GLB model with humanoid bones and expression metadata before recording a pass."
+                      : missingVrmRenderability
+                        ? "Prepare a VRM/GLB model with triangle primitives, POSITION vertices, UVs for textured models, supported PNG/JPEG images, skinned meshes, skin joints, and JOINTS_0/WEIGHTS_0 attributes before recording a pass."
+                        : missingVrmPoseMapping
+                          ? "Confirm the delivered VRM pose bones and expression weights are supported by the imported model before recording a pass."
+                          : invalidProductionVrmRendererBackend
+                            ? "Use a production VRM renderer backend for this platform before recording a pass."
+                          : missingVrmRenders
+                            ? "Integrate or enable the native VRM renderer, then repeat validation until every visible VRM source is rendered."
+                            : "Review native runtime congestion, stale telemetry, or pending compositor state before recording a pass."
     };
   }
 

@@ -29,6 +29,10 @@ data class NativeRuntimeComposition(
     val stillImageAssetDecodedPixelCount: Long = 0,
     val stillImageAssetCompositedCount: Int = 0,
     val stillImageAssetCompositedPixelCount: Long = 0,
+    val runtimeCompositorBackend: String = "none",
+    val runtimeCompositedFrameCount: Long = 0,
+    val runtimeDroppedFrameCount: Long = 0,
+    val runtimeCompositionFailureCount: Long = 0,
     val stillImageAssetAppGroupCount: Int = 0,
     val stillImageAssetAppGroupLoadedCount: Int = 0,
     val stillImageAssetAppGroupDecodedCount: Int = 0,
@@ -89,6 +93,10 @@ data class NativeRuntimeComposition(
         putDouble("stillImageAssetDecodedPixelCount", stillImageAssetDecodedPixelCount.toDouble())
         putInt("stillImageAssetCompositedCount", stillImageAssetCompositedCount)
         putDouble("stillImageAssetCompositedPixelCount", stillImageAssetCompositedPixelCount.toDouble())
+        putString("runtimeCompositorBackend", runtimeCompositorBackend)
+        putDouble("runtimeCompositedFrameCount", runtimeCompositedFrameCount.toDouble())
+        putDouble("runtimeDroppedFrameCount", runtimeDroppedFrameCount.toDouble())
+        putDouble("runtimeCompositionFailureCount", runtimeCompositionFailureCount.toDouble())
         putInt("stillImageAssetAppGroupCount", stillImageAssetAppGroupCount)
         putInt("stillImageAssetAppGroupLoadedCount", stillImageAssetAppGroupLoadedCount)
         putInt("stillImageAssetAppGroupDecodedCount", stillImageAssetAppGroupDecodedCount)
@@ -560,6 +568,10 @@ object LiveCasterSession {
     fun updateNativeRuntime(
         publisherState: String? = null,
         compositionResult: AndroidCompositionResult? = null,
+        runtimeCompositorBackend: String? = null,
+        runtimeCompositedFrameCount: Long? = null,
+        runtimeDroppedFrameCount: Long? = null,
+        runtimeCompositionFailureCount: Long? = null,
         videoFrames: Long? = null,
         encodedBytes: Long? = null,
         sentVideoFrames: Long? = null,
@@ -585,6 +597,12 @@ object LiveCasterSession {
         val composition = compositionResult?.toNativeRuntimeComposition()
             ?: current?.composition
             ?: NativeRuntimeComposition()
+        val nextComposition = composition.copy(
+            runtimeCompositorBackend = runtimeCompositorBackend ?: composition.runtimeCompositorBackend,
+            runtimeCompositedFrameCount = runtimeCompositedFrameCount ?: composition.runtimeCompositedFrameCount,
+            runtimeDroppedFrameCount = runtimeDroppedFrameCount ?: composition.runtimeDroppedFrameCount,
+            runtimeCompositionFailureCount = runtimeCompositionFailureCount ?: composition.runtimeCompositionFailureCount
+        )
         val publisher = current?.publisher ?: NativeRuntimePublisher()
         val nextPublisher = publisher.copy(
             state = publisherState ?: publisher.state,
@@ -613,7 +631,7 @@ object LiveCasterSession {
             droppedFrames = droppedVideoFrames ?: current?.droppedFrames ?: health.droppedFrames.toLong(),
             publisher = nextPublisher,
             encoderProbe = encoderProbe ?: current?.encoderProbe,
-            composition = composition,
+            composition = nextComposition,
             audioProcessing = audioProcessing ?: current?.audioProcessing,
             message = redactSensitiveText(message)
         )

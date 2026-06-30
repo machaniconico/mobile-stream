@@ -1667,6 +1667,10 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetDecodedPixelCount = 921_600,
   nativeRuntimeStillImageAssetCompositedCount = 1,
   nativeRuntimeStillImageAssetCompositedPixelCount = 921_600,
+  nativeRuntimeCompositorBackend = devicePlatform === "android" ? "android-canvas-mediacodec" : "none",
+  nativeRuntimeCompositedFrameCount = 120,
+  nativeRuntimeDroppedFrameCount = 0,
+  nativeRuntimeCompositionFailureCount = 0,
   nativeRuntimeStillImageAssetAppGroupCount = devicePlatform === "ios" ? 1 : 0,
   nativeRuntimeStillImageAssetAppGroupLoadedCount = devicePlatform === "ios" ? 1 : 0,
   nativeRuntimeStillImageAssetAppGroupDecodedCount = devicePlatform === "ios" ? 1 : 0,
@@ -1815,6 +1819,10 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetDecodedPixelCount?: ValidationManifestRun["nativeRuntimeStillImageAssetDecodedPixelCount"];
   nativeRuntimeStillImageAssetCompositedCount?: ValidationManifestRun["nativeRuntimeStillImageAssetCompositedCount"];
   nativeRuntimeStillImageAssetCompositedPixelCount?: ValidationManifestRun["nativeRuntimeStillImageAssetCompositedPixelCount"];
+  nativeRuntimeCompositorBackend?: ValidationManifestRun["nativeRuntimeCompositorBackend"];
+  nativeRuntimeCompositedFrameCount?: ValidationManifestRun["nativeRuntimeCompositedFrameCount"];
+  nativeRuntimeDroppedFrameCount?: ValidationManifestRun["nativeRuntimeDroppedFrameCount"];
+  nativeRuntimeCompositionFailureCount?: ValidationManifestRun["nativeRuntimeCompositionFailureCount"];
   nativeRuntimeStillImageAssetAppGroupCount?: ValidationManifestRun["nativeRuntimeStillImageAssetAppGroupCount"];
   nativeRuntimeStillImageAssetAppGroupLoadedCount?: ValidationManifestRun["nativeRuntimeStillImageAssetAppGroupLoadedCount"];
   nativeRuntimeStillImageAssetAppGroupDecodedCount?: ValidationManifestRun["nativeRuntimeStillImageAssetAppGroupDecodedCount"];
@@ -1969,6 +1977,10 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetDecodedPixelCount,
   nativeRuntimeStillImageAssetCompositedCount,
   nativeRuntimeStillImageAssetCompositedPixelCount,
+  nativeRuntimeCompositorBackend,
+  nativeRuntimeCompositedFrameCount,
+  nativeRuntimeDroppedFrameCount,
+  nativeRuntimeCompositionFailureCount,
   nativeRuntimeStillImageAssetAppGroupCount,
   nativeRuntimeStillImageAssetAppGroupLoadedCount,
   nativeRuntimeStillImageAssetAppGroupDecodedCount,

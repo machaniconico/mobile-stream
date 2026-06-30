@@ -58,6 +58,10 @@ export interface StreamSessionNativeRuntimeSummary {
   stillImageAssetDecodedPixelCount: number;
   stillImageAssetCompositedCount: number;
   stillImageAssetCompositedPixelCount: number;
+  runtimeCompositorBackend: string;
+  runtimeCompositedFrameCount: number;
+  runtimeDroppedFrameCount: number;
+  runtimeCompositionFailureCount: number;
   stillImageAssetAppGroupCount: number;
   stillImageAssetAppGroupLoadedCount: number;
   stillImageAssetAppGroupDecodedCount: number;
@@ -722,6 +726,16 @@ export const createNativeRuntimeSessionSummary = (
   const missingCompositedStillImageAssets =
     stillImageAssetCount > 0 &&
     (stillImageAssetCompositedCount < stillImageAssetCount || stillImageAssetCompositedPixelCount <= 0);
+  const runtimeCompositorBackend = runtime.composition.runtimeCompositorBackend || "none";
+  const runtimeCompositedFrameCount = normalizeNonNegativeInteger(runtime.composition.runtimeCompositedFrameCount);
+  const runtimeDroppedFrameCount = normalizeNonNegativeInteger(runtime.composition.runtimeDroppedFrameCount);
+  const runtimeCompositionFailureCount = normalizeNonNegativeInteger(runtime.composition.runtimeCompositionFailureCount);
+  const missingAndroidMediaCodecCompositorProof =
+    runtime.platform === "android" &&
+    isProductionNativeVideoEncoderBackend(runtime.platform, videoEncoderBackend) &&
+    (runtimeCompositorBackend !== "android-canvas-mediacodec" ||
+      runtimeCompositedFrameCount <= 0 ||
+      runtimeCompositionFailureCount > 0);
   const stillImageAssetAppGroupCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetAppGroupCount);
   const stillImageAssetAppGroupLoadedCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetAppGroupLoadedCount);
   const stillImageAssetAppGroupDecodedCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetAppGroupDecodedCount);
@@ -822,6 +836,7 @@ export const createNativeRuntimeSessionSummary = (
         missingAssets ||
         missingDecodedStillImageAssets ||
         missingCompositedStillImageAssets ||
+        missingAndroidMediaCodecCompositorProof ||
         missingIosAppGroupStillImageProof ||
         invalidNativeEncoderBackends ||
         missingVrmPoses ||
@@ -836,6 +851,7 @@ export const createNativeRuntimeSessionSummary = (
     missingAssets,
     missingDecodedStillImageAssets,
     missingCompositedStillImageAssets,
+    missingAndroidMediaCodecCompositorProof,
     missingIosAppGroupStillImageProof,
     invalidNativeEncoderBackends,
     missingVrmPoses,
@@ -866,6 +882,10 @@ export const createNativeRuntimeSessionSummary = (
     stillImageAssetDecodedPixelCount,
     stillImageAssetCompositedCount,
     stillImageAssetCompositedPixelCount,
+    runtimeCompositorBackend,
+    runtimeCompositedFrameCount,
+    runtimeDroppedFrameCount,
+    runtimeCompositionFailureCount,
     stillImageAssetAppGroupCount,
     stillImageAssetAppGroupLoadedCount,
     stillImageAssetAppGroupDecodedCount,
@@ -958,25 +978,27 @@ export const createNativeRuntimeSessionSummary = (
             ? "Confirm App Group-copied PNGTuber/image assets load inside the iOS Broadcast Upload Extension before public streams."
               : missingDecodedStillImageAssets
                 ? "Confirm PNGTuber/image assets decode to non-zero pixels inside the native compositor before retaining production evidence."
-                : missingCompositedStillImageAssets
-                  ? "Confirm PNGTuber/image assets are composited by the native overlay pipeline before retaining production evidence."
-                  : missingIosAppGroupStillImageProof
-                    ? "Confirm App Group-copied PNGTuber/image assets load and render inside the iOS Broadcast Upload Extension before public streams."
-                    : missingVrmPoses
-                      ? "Confirm VRM runtime pose payloads reach the native compositor before retaining production evidence."
-                      : incompleteVrmModelMetadata
-                        ? "Use VRM/GLB files with humanoid bones and expression metadata before retaining production renderer evidence."
-                        : incompleteVrmRenderability
-                          ? "Use VRM/GLB files with triangle primitives, POSITION vertices, UVs for textured models, supported PNG/JPEG images, skinned meshes, skin joints, and JOINTS_0/WEIGHTS_0 attributes before retaining production renderer evidence."
-                          : incompleteVrmPoseMapping
-                            ? "Confirm VRM pose bones and expression weights map to the imported model before retaining production evidence."
-                            : invalidProductionVrmRendererBackend
-                              ? "Use a production VRM renderer backend for this platform before retaining production evidence."
-                            : incompleteVrmRendering
-                              ? "Confirm the native VRM renderer loads and renders every visible VRM source before retaining production evidence."
-                              : pendingComposition
-                                ? "Review native compositor coverage before treating this scene as production-ready."
-                                : "Keep this native runtime result as supporting evidence for the destination."
+                  : missingCompositedStillImageAssets
+                    ? "Confirm PNGTuber/image assets are composited by the native overlay pipeline before retaining production evidence."
+                    : missingAndroidMediaCodecCompositorProof
+                      ? "Repeat Android direct MediaCodec validation until runtime telemetry reports the android-canvas-mediacodec compositor backend, non-zero composited frames, and zero composition failures."
+                      : missingIosAppGroupStillImageProof
+                        ? "Confirm App Group-copied PNGTuber/image assets load and render inside the iOS Broadcast Upload Extension before public streams."
+                        : missingVrmPoses
+                          ? "Confirm VRM runtime pose payloads reach the native compositor before retaining production evidence."
+                          : incompleteVrmModelMetadata
+                            ? "Use VRM/GLB files with humanoid bones and expression metadata before retaining production renderer evidence."
+                            : incompleteVrmRenderability
+                              ? "Use VRM/GLB files with triangle primitives, POSITION vertices, UVs for textured models, supported PNG/JPEG images, skinned meshes, skin joints, and JOINTS_0/WEIGHTS_0 attributes before retaining production renderer evidence."
+                              : incompleteVrmPoseMapping
+                                ? "Confirm VRM pose bones and expression weights map to the imported model before retaining production evidence."
+                                : invalidProductionVrmRendererBackend
+                                  ? "Use a production VRM renderer backend for this platform before retaining production evidence."
+                                : incompleteVrmRendering
+                                  ? "Confirm the native VRM renderer loads and renders every visible VRM source before retaining production evidence."
+                                  : pendingComposition
+                                    ? "Review native compositor coverage before treating this scene as production-ready."
+                                    : "Keep this native runtime result as supporting evidence for the destination."
   };
 };
 
@@ -1215,6 +1237,10 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     stillImageAssetDecodedPixelCount: normalizeNonNegativeInteger(value.stillImageAssetDecodedPixelCount),
     stillImageAssetCompositedCount: normalizeNonNegativeInteger(value.stillImageAssetCompositedCount),
     stillImageAssetCompositedPixelCount: normalizeNonNegativeInteger(value.stillImageAssetCompositedPixelCount),
+    runtimeCompositorBackend: typeof value.runtimeCompositorBackend === "string" ? value.runtimeCompositorBackend : "none",
+    runtimeCompositedFrameCount: normalizeNonNegativeInteger(value.runtimeCompositedFrameCount),
+    runtimeDroppedFrameCount: normalizeNonNegativeInteger(value.runtimeDroppedFrameCount),
+    runtimeCompositionFailureCount: normalizeNonNegativeInteger(value.runtimeCompositionFailureCount),
     stillImageAssetAppGroupCount: normalizeNonNegativeInteger(value.stillImageAssetAppGroupCount),
     stillImageAssetAppGroupLoadedCount: normalizeNonNegativeInteger(value.stillImageAssetAppGroupLoadedCount),
     stillImageAssetAppGroupDecodedCount: normalizeNonNegativeInteger(value.stillImageAssetAppGroupDecodedCount),

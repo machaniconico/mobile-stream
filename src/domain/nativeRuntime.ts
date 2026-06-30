@@ -65,6 +65,10 @@ export interface NativeRuntimeComposition {
   stillImageAssetDecodedPixelCount?: number;
   stillImageAssetCompositedCount?: number;
   stillImageAssetCompositedPixelCount?: number;
+  runtimeCompositorBackend?: string;
+  runtimeCompositedFrameCount?: number;
+  runtimeDroppedFrameCount?: number;
+  runtimeCompositionFailureCount?: number;
   stillImageAssetAppGroupCount?: number;
   stillImageAssetAppGroupLoadedCount?: number;
   stillImageAssetAppGroupDecodedCount?: number;
