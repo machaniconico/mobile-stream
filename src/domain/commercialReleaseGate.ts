@@ -43,7 +43,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 48;
+const minimumSupportBundleVersion = 49;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -246,7 +246,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v48 or newer so retained public launch confirmation events, audio latency source/tuning proof, semantic avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
+      "Export a support bundle v49 or newer so retained public launch confirmation events, audio route-match/latency source/tuning proof, semantic avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
     );
   }
 
@@ -385,7 +385,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v48 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v49 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -955,6 +955,9 @@ const isManifestAudioPass = (run: ValidationEvidenceManifestRun | undefined): bo
   isPositiveFiniteNumber(run?.audioNativeMonitorWrittenFrames) &&
   isPositiveFiniteNumber(run?.audioNativeMonitorWrittenBuffers) &&
   hasZeroManifestAudioDrops(run) &&
+  Boolean(nonEmptyText(run?.audioOutputRoute)) &&
+  Boolean(nonEmptyText(run?.audioNativeMonitorRoute)) &&
+  run?.audioNativeMonitorRouteMatchesOutput === true &&
   run?.audioMonitorLatencyStatus === "pass" &&
   typeof run.audioMonitorLatencyMs === "number" &&
   Number.isFinite(run.audioMonitorLatencyMs) &&

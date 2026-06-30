@@ -822,6 +822,34 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks audio summary claims when the app output route and native monitor route do not match", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              audioOutputRoute: "wired-headphones",
+              audioNativeMonitorRoute: "bluetooth-a2dp",
+              audioNativeMonitorRouteMatchesOutput: false
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS mic/headphone proof")
+      })
+    );
+  });
+
   it("blocks audio summary claims when Bluetooth monitor evidence lacks a tuning review", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -1531,7 +1559,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 48 as const
+    bundleVersion: 49 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1769,7 +1797,10 @@ const manifestRun = ({
   faceTrackingRigHighFidelityScore = 100,
   faceTrackingRigHighFidelityGrade = "ready",
   audioStatus = "pass",
+  audioOutputRoute = "wired-headphones",
   audioMonitorHeadphonesOnly = true,
+  audioNativeMonitorRoute = "wired-headphones",
+  audioNativeMonitorRouteMatchesOutput = true,
   audioNativeMonitorHeadphonesConnected = true,
   audioNativeMonitorWrittenFrames = 24_576,
   audioNativeMonitorDroppedFrames = 0,
@@ -1921,7 +1952,10 @@ const manifestRun = ({
   faceTrackingRigHighFidelityScore?: ValidationManifestRun["faceTrackingRigHighFidelityScore"];
   faceTrackingRigHighFidelityGrade?: ValidationManifestRun["faceTrackingRigHighFidelityGrade"];
   audioStatus?: ValidationManifestRun["audioStatus"];
+  audioOutputRoute?: ValidationManifestRun["audioOutputRoute"];
   audioMonitorHeadphonesOnly?: ValidationManifestRun["audioMonitorHeadphonesOnly"];
+  audioNativeMonitorRoute?: ValidationManifestRun["audioNativeMonitorRoute"];
+  audioNativeMonitorRouteMatchesOutput?: ValidationManifestRun["audioNativeMonitorRouteMatchesOutput"];
   audioNativeMonitorHeadphonesConnected?: ValidationManifestRun["audioNativeMonitorHeadphonesConnected"];
   audioNativeMonitorWrittenFrames?: ValidationManifestRun["audioNativeMonitorWrittenFrames"];
   audioNativeMonitorDroppedFrames?: ValidationManifestRun["audioNativeMonitorDroppedFrames"];
@@ -2079,7 +2113,10 @@ const manifestRun = ({
   faceTrackingRigHighFidelityScore,
   faceTrackingRigHighFidelityGrade,
   audioStatus,
+  audioOutputRoute,
   audioMonitorHeadphonesOnly,
+  audioNativeMonitorRoute,
+  audioNativeMonitorRouteMatchesOutput,
   audioNativeMonitorHeadphonesConnected,
   audioNativeMonitorWrittenFrames,
   audioNativeMonitorDroppedFrames,

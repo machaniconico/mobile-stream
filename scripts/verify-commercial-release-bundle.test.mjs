@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v48.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v49.");
   });
 
   it("blocks support bundles without public launch confirmation summary evidence", () => {
@@ -989,7 +989,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 48
+      bundleVersion: 49
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -1117,7 +1117,10 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   faceTrackingRigHighFidelityScore: 100,
   faceTrackingRigHighFidelityGrade: "ready",
   audioStatus: "pass",
+  audioOutputRoute: "wired-headphones",
   audioMonitorHeadphonesOnly: true,
+  audioNativeMonitorRoute: "wired-headphones",
+  audioNativeMonitorRouteMatchesOutput: true,
   audioNativeMonitorHeadphonesConnected: true,
   audioNativeMonitorWrittenFrames: 24576,
   audioNativeMonitorDroppedFrames: 0,

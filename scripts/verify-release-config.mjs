@@ -144,9 +144,9 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 48");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 48");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 48");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 49");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 49");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 49");
     expectIncludes(files.commercialReleaseGateDomain, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseBundleScript, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scope");
@@ -172,12 +172,15 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "isManifestMonitorHoldPass");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-monitor-hold");
     expectIncludes(files.streamValidationEvidenceDomain, "audioNativeMonitorWrittenFrames");
+    expectIncludes(files.streamValidationEvidenceDomain, "audioNativeMonitorRouteMatchesOutput");
     expectIncludes(files.streamValidationEvidenceDomain, "audioMonitorLatencyStatus");
     expectIncludes(files.streamValidationEvidenceDomain, "audioMonitorLatencyBudgetMs");
     expectIncludes(files.streamValidationEvidenceDomain, "audioMonitorLatencySource");
     expectIncludes(files.streamValidationEvidenceDomain, "audioMonitorTuningNote");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestAudioPass");
+    expectIncludes(files.commercialReleaseGateDomain, "audioNativeMonitorRouteMatchesOutput");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-audio-monitor");
+    expectIncludes(files.commercialReleaseBundleScript, "audioNativeMonitorRouteMatchesOutput");
     expectIncludes(files.streamValidationEvidenceDomain, "faceTrackingRigSemanticSegmentScore");
     expectIncludes(files.commercialReleaseGateDomain, "faceTrackingRigSemanticSegmentScore");
     expectIncludes(files.commercialReleaseBundleScript, "faceTrackingRigSemanticSegmentScore");

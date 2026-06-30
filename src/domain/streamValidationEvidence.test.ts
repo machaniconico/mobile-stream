@@ -85,6 +85,19 @@ const connectedChatOptions = {
   },
   audioRoute: headphoneAudioRoute
 };
+const bluetoothAudioRoute = {
+  route: "bluetooth-a2dp" as const,
+  outputName: "Bluetooth headphones",
+  headphonesConnected: true,
+  checkedAt: "2026-06-23T00:00:00.000Z",
+  stale: false,
+  summary: "Bluetooth headphones route is active; headphones connected.",
+  recommendation: "Keep Bluetooth headphones connected while self-monitoring is enabled."
+};
+const bluetoothChatOptions = {
+  ...connectedChatOptions,
+  audioRoute: bluetoothAudioRoute
+};
 const spokenChatSessionSummary = () => {
   const summary = createStreamSessionSummary({
     events: [
@@ -483,7 +496,7 @@ describe("stream validation evidence", () => {
       activeLevelPercent: 100
     });
     expect(formatStreamValidationRunAudioLabel(run)).toBe(
-      "audio pass / broadcast / monitor on / headphones-only yes / route pass Wired headphones / headphones yes / stale no / native monitor running 24576/0 frames Wired headphones / latency 92ms pass/180ms manual / samples 2 / peak 80%"
+      "audio pass / broadcast / monitor on / headphones-only yes / route pass Wired headphones / headphones yes / stale no / native monitor running 24576/0 frames Wired headphones route-match yes / latency 92ms pass/180ms manual / samples 2 / peak 80%"
     );
     expect(run.chatReadout).toMatchObject({
       spokenMessageCount: 1,
@@ -573,6 +586,58 @@ describe("stream validation evidence", () => {
     expect(formatStreamValidationRunAudioLabel(run)).toContain("104ms pass/180ms android-audiotrack-buffer");
   });
 
+  it("warns when the app output route and native monitor route do not match", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntimeWithLatency("android", 104, "android-audiotrack-buffer");
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: {
+          ...runtime,
+          audioProcessing: {
+            ...runtime.audioProcessing,
+            monitorRoute: "usb-headset",
+            monitorOutputName: "USB headset",
+            monitorHeadphonesConnected: true
+          }
+        }
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      { ...connectedChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+
+    expect(run.result).toBe("warn");
+    expect(run.audio).toMatchObject({
+      status: "warn",
+      outputRoute: "wired-headphones",
+      nativeMonitorRoute: "usb-headset",
+      nativeMonitorOutputName: "USB headset",
+      nativeMonitorRouteMatchesOutput: false,
+      monitorLatencyMs: 104,
+      monitorLatencyStatus: "pass"
+    });
+    expect(run.audio?.summary).toContain("route does not match app output Wired headphones");
+    expect(run.audio?.recommendation).toContain("matches the native self-monitor route");
+    expect(formatStreamValidationRunAudioLabel(run)).toContain("route-match no");
+  });
+
   it("requires an explicit Bluetooth route tuning note before audio evidence can pass", () => {
     const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
@@ -591,7 +656,7 @@ describe("stream validation evidence", () => {
       [],
       [],
       null,
-      { ...connectedChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
+      { ...bluetoothChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
     );
 
     const run = createStreamValidationRun({
@@ -633,7 +698,7 @@ describe("stream validation evidence", () => {
       [],
       [],
       null,
-      { ...connectedChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
+      { ...bluetoothChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
     );
 
     const run = createStreamValidationRun({

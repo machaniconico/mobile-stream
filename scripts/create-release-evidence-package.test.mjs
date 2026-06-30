@@ -1323,7 +1323,7 @@ function commercialSupportBundleFixture() {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 48
+      bundleVersion: 49
     },
     generatedAt: capturedAt,
     fixture: true,
@@ -1462,7 +1462,10 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     faceTrackingRigHighFidelityScore: 100,
     faceTrackingRigHighFidelityGrade: "ready",
     audioStatus: "pass",
+    audioOutputRoute: "wired-headphones",
     audioMonitorHeadphonesOnly: true,
+    audioNativeMonitorRoute: "wired-headphones",
+    audioNativeMonitorRouteMatchesOutput: true,
     audioNativeMonitorHeadphonesConnected: true,
     audioNativeMonitorWrittenFrames: 24576,
     audioNativeMonitorDroppedFrames: 0,

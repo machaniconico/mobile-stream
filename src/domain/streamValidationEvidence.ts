@@ -75,6 +75,7 @@ export interface StreamValidationAudioSummary {
   nativeMonitorRunning: boolean;
   nativeMonitorRoute: string;
   nativeMonitorOutputName: string;
+  nativeMonitorRouteMatchesOutput: boolean;
   nativeMonitorHeadphonesConnected: boolean;
   nativeMonitorWrittenFrames: number;
   nativeMonitorDroppedFrames: number;
@@ -306,7 +307,10 @@ export interface StreamValidationEvidenceRunManifestItem {
   faceTrackingRigHighFidelityScore: number;
   faceTrackingRigHighFidelityGrade: StreamValidationFaceTrackingSummary["rigQualityGrade"] | null;
   audioStatus: StreamValidationAudioSummary["status"] | null;
+  audioOutputRoute: StreamValidationAudioSummary["outputRoute"] | null;
   audioMonitorHeadphonesOnly: boolean;
+  audioNativeMonitorRoute: string;
+  audioNativeMonitorRouteMatchesOutput: boolean;
   audioNativeMonitorHeadphonesConnected: boolean;
   audioNativeMonitorWrittenFrames: number;
   audioNativeMonitorDroppedFrames: number;
@@ -455,7 +459,7 @@ export const formatStreamValidationRunAudioLabel = (run: StreamValidationRun): s
 
   const audio = run.audio;
   const nativeMonitor = audio.nativeMonitorReported
-    ? ` / native monitor ${audio.nativeMonitorRunning ? "running" : "reported"} ${audio.nativeMonitorWrittenFrames}/${audio.nativeMonitorDroppedFrames} frames ${audio.nativeMonitorOutputName}`
+    ? ` / native monitor ${audio.nativeMonitorRunning ? "running" : "reported"} ${audio.nativeMonitorWrittenFrames}/${audio.nativeMonitorDroppedFrames} frames ${audio.nativeMonitorOutputName} route-match ${audio.nativeMonitorRouteMatchesOutput ? "yes" : "no"}`
     : "";
   const latency = ` / latency ${audio.monitorLatencyMs === null ? "missing" : `${audio.monitorLatencyMs}ms`} ${
     audio.monitorLatencyStatus
@@ -1499,6 +1503,7 @@ const isAudioEvidencePass = (audio: StreamValidationAudioSummary | null | undefi
   audio.nativeMonitorWrittenBuffers > 0 &&
   audio.nativeMonitorDroppedFrames === 0 &&
   audio.nativeMonitorDroppedBuffers === 0 &&
+  audio.nativeMonitorRouteMatchesOutput &&
   audio.monitorLatencyStatus === "pass" &&
   audio.monitorLatencyMs !== null &&
   (!audio.monitorHeadphonesOnly || audio.nativeMonitorHeadphonesConnected);
@@ -1905,7 +1910,7 @@ const isAudioLatencyOnlyWarning = (audio: StreamValidationAudioSummary): boolean
   audio.micEffectsEnabled &&
   audio.monitorEnabled &&
   audio.monitorRouteStatus === "pass" &&
-  isNativeMonitorProofPass(audio, audio.monitorHeadphonesOnly);
+  isNativeMonitorProofPass(audio, audio.monitorHeadphonesOnly, audio.nativeMonitorRouteMatchesOutput);
 
 const createMonitorHoldValidationSummary = (
   diagnostics: StreamDiagnostics,
@@ -2027,17 +2032,35 @@ const createAudioValidationSummary = (
   const nativeMonitor = createNativeMonitorEvidence(diagnostics);
   const monitorTuning = createMonitorLatencyEvidence(diagnostics, audioMonitorTuning, secrets);
   const baseStatus = item?.status ?? "pending";
-  const nativeMonitorPass = isNativeMonitorProofPass(nativeMonitor, diagnostics.audio.monitorHeadphonesOnly);
+  const nativeMonitorRouteMatchesOutput = createNativeMonitorRouteMatch(
+    diagnostics.audio.monitorSafety.route,
+    nativeMonitor
+  );
+  const nativeMonitorRouteMismatch = nativeMonitor.nativeMonitorReported && !nativeMonitorRouteMatchesOutput;
+  const nativeMonitorPass = isNativeMonitorProofPass(
+    nativeMonitor,
+    diagnostics.audio.monitorHeadphonesOnly,
+    nativeMonitorRouteMatchesOutput
+  );
   const status = combineAudioValidationStatus(baseStatus, nativeMonitorPass, monitorTuning.monitorLatencyStatus);
-  const nativeMonitorSummary = createNativeMonitorProofSummary(nativeMonitor);
+  const nativeMonitorSummary = createNativeMonitorProofSummary(
+    nativeMonitor,
+    diagnostics.audio.monitorSafety.outputName,
+    nativeMonitorRouteMatchesOutput
+  );
   const audioRecommendation =
     baseStatus !== "pass"
       ? item?.action ?? "Repeat validation with mic effects and headphone monitoring checked."
       : baseStatus === "pass" && !nativeMonitorPass
-        ? "Repeat validation until native self-monitoring reports written frames, zero drops, and headphone route proof."
+        ? nativeMonitorRouteMismatch
+          ? "Refresh audio route detection until the app output route matches the native self-monitor route."
+          : "Repeat validation until native self-monitoring reports written frames, zero drops, and headphone route proof."
         : monitorTuning.monitorLatencyStatus !== "pass"
           ? monitorTuning.recommendation
           : null;
+  const nativeMonitorRouteMismatchSummary = nativeMonitorRouteMismatch
+    ? `Native monitor route does not match app output ${diagnostics.audio.monitorSafety.outputName}. `
+    : "";
   return {
     status,
     micEffectsEnabled: diagnostics.audio.micEffectsEnabled,
@@ -2057,6 +2080,7 @@ const createAudioValidationSummary = (
     nativeMonitorRunning: nativeMonitor.nativeMonitorRunning,
     nativeMonitorRoute: nativeMonitor.nativeMonitorRoute,
     nativeMonitorOutputName: nativeMonitor.nativeMonitorOutputName,
+    nativeMonitorRouteMatchesOutput,
     nativeMonitorHeadphonesConnected: nativeMonitor.nativeMonitorHeadphonesConnected,
     nativeMonitorWrittenFrames: nativeMonitor.nativeMonitorWrittenFrames,
     nativeMonitorDroppedFrames: nativeMonitor.nativeMonitorDroppedFrames,
@@ -2075,7 +2099,7 @@ const createAudioValidationSummary = (
     activeLevelPercent: audioLevel?.activePercent ?? 0,
     clippedLevelCount: audioLevel?.clippedSampleCount ?? 0,
     summary: sanitizeStoredText(
-      `${audioLevel && audioLevel.sampleCount > 0 ? `${audioLevel.summary} ` : ""}${
+      `${nativeMonitorRouteMismatchSummary}${audioLevel && audioLevel.sampleCount > 0 ? `${audioLevel.summary} ` : ""}${
         item?.detail ?? "No mic FX/headphone monitor validation retained."
       } ${nativeMonitorSummary} ${monitorTuning.summary}`,
       secrets
@@ -2242,6 +2266,59 @@ const createMonitorLatencyRecommendation = (
 const isBluetoothMonitorRoute = (route: AudioOutputRouteKind): boolean =>
   route === "bluetooth-a2dp" || route === "bluetooth-sco";
 
+const createNativeMonitorRouteMatch = (
+  outputRoute: AudioOutputRouteKind,
+  nativeMonitor: Pick<StreamValidationAudioSummary, "nativeMonitorReported" | "nativeMonitorRoute">
+): boolean => {
+  if (!nativeMonitor.nativeMonitorReported) {
+    return false;
+  }
+
+  const outputFamily = getMonitorRouteFamily(outputRoute);
+  const nativeFamily = getMonitorRouteFamily(normalizeAudioOutputRouteKind(nativeMonitor.nativeMonitorRoute));
+  return outputFamily !== "unknown" && nativeFamily !== "unknown" && outputFamily === nativeFamily;
+};
+
+const getMonitorRouteFamily = (
+  route: AudioOutputRouteKind
+): "unknown" | "speaker" | "receiver" | "wired" | "usb" | "bluetooth" | "airplay" | "hdmi" | "other" => {
+  if (route === "wired-headphones" || route === "wired-headset") {
+    return "wired";
+  }
+  if (route === "usb-headset") {
+    return "usb";
+  }
+  if (isBluetoothMonitorRoute(route)) {
+    return "bluetooth";
+  }
+  switch (route) {
+    case "unknown":
+    case "speaker":
+    case "receiver":
+    case "airplay":
+    case "hdmi":
+    case "other":
+      return route;
+    default:
+      return "unknown";
+  }
+};
+
+const normalizeAudioOutputRouteKind = (value: unknown): AudioOutputRouteKind =>
+  value === "speaker" ||
+  value === "receiver" ||
+  value === "wired-headphones" ||
+  value === "wired-headset" ||
+  value === "usb-headset" ||
+  value === "bluetooth-a2dp" ||
+  value === "bluetooth-sco" ||
+  value === "airplay" ||
+  value === "hdmi" ||
+  value === "other" ||
+  value === "unknown"
+    ? value
+    : "unknown";
+
 const resolveNativeMonitorLatencyEvidence = (
   diagnostics: StreamDiagnostics
 ): Pick<StreamValidationAudioSummary, "monitorLatencyMs" | "monitorLatencySource"> => {
@@ -2279,13 +2356,15 @@ const isNativeMonitorProofPass = (
     | "nativeMonitorWrittenBuffers"
     | "nativeMonitorDroppedBuffers"
   >,
-  headphonesOnly: boolean
+  headphonesOnly: boolean,
+  nativeMonitorRouteMatchesOutput: boolean
 ): boolean =>
   nativeMonitor.nativeMonitorReported &&
   nativeMonitor.nativeMonitorWrittenFrames > 0 &&
   nativeMonitor.nativeMonitorWrittenBuffers > 0 &&
   nativeMonitor.nativeMonitorDroppedFrames === 0 &&
   nativeMonitor.nativeMonitorDroppedBuffers === 0 &&
+  nativeMonitorRouteMatchesOutput &&
   (!headphonesOnly || nativeMonitor.nativeMonitorHeadphonesConnected);
 
 const createNativeMonitorProofSummary = (
@@ -2299,10 +2378,12 @@ const createNativeMonitorProofSummary = (
     | "nativeMonitorWrittenBuffers"
     | "nativeMonitorDroppedBuffers"
     | "nativeMonitorOutputName"
-  >
+  >,
+  outputName: string,
+  nativeMonitorRouteMatchesOutput: boolean
 ): string =>
   nativeMonitor.nativeMonitorReported
-    ? `Native monitor ${nativeMonitor.nativeMonitorRunning ? "running" : "reported"}: wrote ${nativeMonitor.nativeMonitorWrittenFrames} frame${nativeMonitor.nativeMonitorWrittenFrames === 1 ? "" : "s"} across ${nativeMonitor.nativeMonitorWrittenBuffers} buffer${nativeMonitor.nativeMonitorWrittenBuffers === 1 ? "" : "s"} with ${nativeMonitor.nativeMonitorDroppedFrames} dropped frame${nativeMonitor.nativeMonitorDroppedFrames === 1 ? "" : "s"} and ${nativeMonitor.nativeMonitorDroppedBuffers} dropped buffer${nativeMonitor.nativeMonitorDroppedBuffers === 1 ? "" : "s"} on ${nativeMonitor.nativeMonitorOutputName}; headphones ${nativeMonitor.nativeMonitorHeadphonesConnected ? "yes" : "no"}.`
+    ? `Native monitor ${nativeMonitor.nativeMonitorRunning ? "running" : "reported"}: wrote ${nativeMonitor.nativeMonitorWrittenFrames} frame${nativeMonitor.nativeMonitorWrittenFrames === 1 ? "" : "s"} across ${nativeMonitor.nativeMonitorWrittenBuffers} buffer${nativeMonitor.nativeMonitorWrittenBuffers === 1 ? "" : "s"} with ${nativeMonitor.nativeMonitorDroppedFrames} dropped frame${nativeMonitor.nativeMonitorDroppedFrames === 1 ? "" : "s"} and ${nativeMonitor.nativeMonitorDroppedBuffers} dropped buffer${nativeMonitor.nativeMonitorDroppedBuffers === 1 ? "" : "s"} on ${nativeMonitor.nativeMonitorOutputName}; headphones ${nativeMonitor.nativeMonitorHeadphonesConnected ? "yes" : "no"}; route ${nativeMonitorRouteMatchesOutput ? "matches" : "does not match"} app output ${outputName}.`
     : "Native monitor write/drop proof is missing.";
 
 const createNativeMonitorEvidence = (
@@ -2620,7 +2701,10 @@ const createEvidenceRunManifestItem = (
     faceTrackingRigHighFidelityScore: run.faceTracking?.rigHighFidelityScore ?? 0,
     faceTrackingRigHighFidelityGrade: run.faceTracking?.rigHighFidelityGrade ?? null,
     audioStatus: run.audio?.status ?? null,
+    audioOutputRoute: run.audio?.outputRoute ?? null,
     audioMonitorHeadphonesOnly: run.audio?.monitorHeadphonesOnly ?? false,
+    audioNativeMonitorRoute: run.audio?.nativeMonitorRoute ?? "",
+    audioNativeMonitorRouteMatchesOutput: run.audio?.nativeMonitorRouteMatchesOutput ?? false,
     audioNativeMonitorHeadphonesConnected: run.audio?.nativeMonitorHeadphonesConnected ?? false,
     audioNativeMonitorWrittenFrames: run.audio?.nativeMonitorWrittenFrames ?? 0,
     audioNativeMonitorDroppedFrames: run.audio?.nativeMonitorDroppedFrames ?? 0,
@@ -2959,6 +3043,15 @@ const normalizeAudioValidationSummary = (value: unknown): StreamValidationAudioS
     return null;
   }
   const outputRoute = normalizeAudioOutputRoute(value.outputRoute);
+  const nativeMonitorReported = value.nativeMonitorReported === true;
+  const nativeMonitorRoute = normalizeText(value.nativeMonitorRoute, "unknown");
+  const nativeMonitorRouteMatchesOutput =
+    value.nativeMonitorRouteMatchesOutput === true ||
+    (value.nativeMonitorRouteMatchesOutput !== false &&
+      createNativeMonitorRouteMatch(outputRoute, {
+        nativeMonitorReported,
+        nativeMonitorRoute
+      }));
   const bluetoothRoute = value.bluetoothRoute === true || isBluetoothMonitorRoute(outputRoute);
   const monitorLatencyMs = normalizeNullableCount(value.monitorLatencyMs);
   const monitorLatencyBudgetMs =
@@ -2978,10 +3071,11 @@ const normalizeAudioValidationSummary = (value: unknown): StreamValidationAudioS
     headphonesConnected: value.headphonesConnected === true,
     routeCheckedAt: normalizeDateString(value.routeCheckedAt),
     routeStale: value.routeStale === true,
-    nativeMonitorReported: value.nativeMonitorReported === true,
+    nativeMonitorReported,
     nativeMonitorRunning: value.nativeMonitorRunning === true,
-    nativeMonitorRoute: normalizeText(value.nativeMonitorRoute, "unknown"),
+    nativeMonitorRoute,
     nativeMonitorOutputName: normalizeText(value.nativeMonitorOutputName, "Unknown"),
+    nativeMonitorRouteMatchesOutput,
     nativeMonitorHeadphonesConnected: value.nativeMonitorHeadphonesConnected === true,
     nativeMonitorWrittenFrames: normalizeCount(value.nativeMonitorWrittenFrames),
     nativeMonitorDroppedFrames: normalizeCount(value.nativeMonitorDroppedFrames),
