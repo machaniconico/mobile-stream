@@ -1019,6 +1019,33 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks same-run platform ingest claims when dashboard timing does not match the retained run", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              platformPublishingCheckedAt: "2026-06-23T10:30:00.000Z",
+              platformPublishingFreshnessAgeMinutes: 1
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS same-run platform ingest proof")
+      })
+    );
+  });
+
   it("blocks bundles whose retained runs are not physical-device evidence", () => {
     const bundle = supportBundle({
       summary: {

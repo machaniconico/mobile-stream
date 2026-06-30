@@ -899,7 +899,27 @@ function isManifestPlatformIngestPass(run) {
   if (!isManifestPlatformIngestProofRequired(run)) {
     return true;
   }
-  return isManifestNativeRuntimePass(run) && isManifestPlatformPublishingPass(run);
+  return (
+    isManifestNativeRuntimePass(run) &&
+    isManifestPlatformPublishingPass(run) &&
+    isManifestPlatformPublishingTimestampConsistent(run)
+  );
+}
+
+function isManifestPlatformPublishingTimestampConsistent(run) {
+  const createdAtMs = Date.parse(String(run.createdAt));
+  const checkedAtMs = Date.parse(String(run.platformPublishingCheckedAt));
+  if (!Number.isFinite(createdAtMs) || !Number.isFinite(checkedAtMs)) {
+    return false;
+  }
+  const observedAgeMinutes = Math.floor((createdAtMs - checkedAtMs) / 60_000);
+  return (
+    observedAgeMinutes >= 0 &&
+    observedAgeMinutes <= platformPublishingDashboardMaxAgeMinutes &&
+    typeof run.platformPublishingFreshnessAgeMinutes === "number" &&
+    Number.isFinite(run.platformPublishingFreshnessAgeMinutes) &&
+    Math.abs(observedAgeMinutes - run.platformPublishingFreshnessAgeMinutes) <= 1
+  );
 }
 
 function isManifestNativeRuntimePass(run) {

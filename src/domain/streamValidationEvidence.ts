@@ -3,6 +3,7 @@ import type { AudioOutputRouteKind, AudioRouteMonitorStatus } from "./audioRoute
 import {
   assessPlatformPublishingFreshness,
   isPlatformPublishingFreshEnoughForRelease,
+  platformPublishingDashboardMaxAgeMinutes,
   resolvePlatformPublishingFreshnessPlatform,
   type PlatformPublishingFreshness,
   type PlatformPublishingFreshnessStatus
@@ -1487,7 +1488,28 @@ const isPlatformIngestRunEvidencePass = (run: StreamValidationRun | null | undef
   if (!isPlatformIngestProofRequired(run)) {
     return true;
   }
-  return isNativeRuntimeEvidencePass(run.nativeRuntime, run.devicePlatform) && isPlatformPublishingRunEvidencePass(run);
+  return (
+    isNativeRuntimeEvidencePass(run.nativeRuntime, run.devicePlatform) &&
+    isPlatformPublishingRunEvidencePass(run) &&
+    isPlatformPublishingRunTimestampConsistent(run)
+  );
+};
+
+const isPlatformPublishingRunTimestampConsistent = (run: StreamValidationRun): boolean => {
+  const freshness = getRunPlatformPublishingFreshness(run);
+  const createdAtMs = Date.parse(run.createdAt);
+  const checkedAtMs = Date.parse(freshness.checkedAt);
+  if (!Number.isFinite(createdAtMs) || !Number.isFinite(checkedAtMs)) {
+    return false;
+  }
+  const observedAgeMinutes = Math.floor((createdAtMs - checkedAtMs) / 60_000);
+  return (
+    observedAgeMinutes >= 0 &&
+    observedAgeMinutes <= platformPublishingDashboardMaxAgeMinutes &&
+    typeof freshness.ageMinutes === "number" &&
+    Number.isFinite(freshness.ageMinutes) &&
+    Math.abs(observedAgeMinutes - freshness.ageMinutes) <= 1
+  );
 };
 
 const getPlatformIngestEvidenceStatus = (

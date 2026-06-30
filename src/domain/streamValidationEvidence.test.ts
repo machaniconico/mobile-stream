@@ -2039,6 +2039,17 @@ describe("stream validation evidence", () => {
       platformPublishingYoutubeHealthIssueCount: 0
     });
     expect(summary.status).toBe("ready");
+
+    const inconsistentDashboardRun = {
+      ...iosRun,
+      platformPublishingFreshness: iosRun.platformPublishingFreshness
+        ? { ...iosRun.platformPublishingFreshness, ageMinutes: 10 }
+        : null
+    };
+    const inconsistentSummary = summarizeStreamValidationEvidence([androidRun, inconsistentDashboardRun], { now: validationNow });
+    expect(inconsistentSummary.platformPublishingIosPass).toBe(true);
+    expect(inconsistentSummary.platformIngestIosPass).toBe(false);
+    expect(inconsistentSummary.platformIngestWarningCount).toBe(1);
   });
 
   it("treats native-rendered VRM avatar motion as retained iOS and Android evidence", () => {

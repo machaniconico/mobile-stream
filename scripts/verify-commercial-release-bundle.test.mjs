@@ -619,6 +619,25 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("same-run native send telemetry");
   });
 
+  it("blocks same-run platform ingest claims when dashboard timing does not match the retained run", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            platformPublishingCheckedAt: "2026-06-23T10:30:00.000Z",
+            platformPublishingFreshnessAgeMinutes: 1
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("same-run native send telemetry");
+  });
+
   it("blocks release when the launch rehearsal is not ready", () => {
     writeBundle({
       summary: {
@@ -838,7 +857,7 @@ const createBundle = (patch = {}) => {
 const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   id: `validation-${devicePlatform}`,
   fingerprint,
-  createdAt: new Date().toISOString(),
+  createdAt: "2026-06-23T11:00:00.000Z",
   ageDays: 0,
   fresh: true,
   matchesScope: true,
