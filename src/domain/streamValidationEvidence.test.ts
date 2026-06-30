@@ -2006,7 +2006,8 @@ describe("stream validation evidence", () => {
       audioNativeMonitorWrittenBuffers: 48,
       audioNativeMonitorDroppedBuffers: 0,
       audioMonitorLatencyStatus: "pass",
-      audioMonitorLatencyMs: 92
+      audioMonitorLatencyMs: 92,
+      audioMonitorLatencyBudgetMs: 180
     });
     expect(summary.chatReadoutIosPass).toBe(true);
     expect(summary.chatReadoutAndroidPass).toBe(true);

@@ -298,6 +298,7 @@ export interface StreamValidationEvidenceRunManifestItem {
   audioNativeMonitorDroppedBuffers: number;
   audioMonitorLatencyStatus: StreamValidationAudioSummary["monitorLatencyStatus"] | null;
   audioMonitorLatencyMs: number | null;
+  audioMonitorLatencyBudgetMs: number;
   audioBluetoothRoute: boolean;
   audioBluetoothTuningReviewed: boolean;
   chatReadoutStatus: StreamValidationChatReadoutSummary["status"] | null;
@@ -2548,6 +2549,7 @@ const createEvidenceRunManifestItem = (
     audioNativeMonitorDroppedBuffers: run.audio?.nativeMonitorDroppedBuffers ?? 0,
     audioMonitorLatencyStatus: run.audio?.monitorLatencyStatus ?? null,
     audioMonitorLatencyMs: run.audio?.monitorLatencyMs ?? null,
+    audioMonitorLatencyBudgetMs: run.audio?.monitorLatencyBudgetMs ?? 0,
     audioBluetoothRoute: run.audio?.bluetoothRoute ?? false,
     audioBluetoothTuningReviewed: run.audio?.bluetoothTuningReviewed ?? false,
     chatReadoutStatus: run.chatReadout?.status ?? null,

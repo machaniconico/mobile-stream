@@ -387,7 +387,7 @@ function writeSupportBundleFixture() {
     ".artifacts/store-approval-test/support-bundle.json",
     JSON.stringify(
       {
-        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 44 },
+        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 45 },
         generatedAt: new Date().toISOString(),
         summary: {
           preflightStatus: "ready",
@@ -534,6 +534,7 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     audioNativeMonitorDroppedBuffers: 0,
     audioMonitorLatencyStatus: "pass",
     audioMonitorLatencyMs: 92,
+    audioMonitorLatencyBudgetMs: 180,
     chatReadoutStatus: "pass",
     chatReadoutSpokenMessageCount: 1,
     chatReadoutSpeechFailureCount: 0,

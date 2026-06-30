@@ -38,7 +38,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 44;
+const minimumSupportBundleVersion = 45;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -241,7 +241,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v44 or newer so retained public launch confirmation events and same-run ingest timing proof are summarized."
+      "Export a support bundle v45 or newer so retained public launch confirmation events, audio latency budgets, and same-run ingest timing proof are summarized."
     );
   }
 
@@ -380,7 +380,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v44 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v45 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -921,6 +921,8 @@ const isManifestAudioPass = (run: ValidationEvidenceManifestRun | undefined): bo
   run?.audioMonitorLatencyStatus === "pass" &&
   typeof run.audioMonitorLatencyMs === "number" &&
   Number.isFinite(run.audioMonitorLatencyMs) &&
+  isPositiveFiniteNumber(run.audioMonitorLatencyBudgetMs) &&
+  run.audioMonitorLatencyMs <= run.audioMonitorLatencyBudgetMs &&
   (run.audioBluetoothRoute !== true || run.audioBluetoothTuningReviewed === true) &&
   (!run.audioMonitorHeadphonesOnly || run.audioNativeMonitorHeadphonesConnected === true);
 

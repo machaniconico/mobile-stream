@@ -3,7 +3,7 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
-const minimumSupportBundleVersion = 44;
+const minimumSupportBundleVersion = 45;
 const minimumValidationMonitorDurationSeconds = 60;
 const minimumValidationMonitorSampleCount = 3;
 const platformPublishingDashboardMaxAgeMinutes = 10;
@@ -321,7 +321,7 @@ function publicLaunchConfirmationEvidenceIssue(bundle) {
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v44 or newer so retained public launch confirmation events and same-run ingest timing proof are summarized."
+      "Export a support bundle v45 or newer so retained public launch confirmation events, audio latency budgets, and same-run ingest timing proof are summarized."
     );
   }
 
@@ -451,7 +451,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v44 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v45 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -504,7 +504,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-native-runtime",
       "Validation evidence manifest",
       "The manifest does not back claimed native runtime evidence with platform-matched video/audio frames, bytes written, compositor status, applied/skipped native overlay proof, loaded, decoded, and composited still-image assets, and VRM renderer/model/pose proof when VRM sources are present.",
-      "Export a support bundle v44 or newer after retaining iOS and Android validation runs with native publisher/compositor overlay telemetry from the current scene."
+      "Export a support bundle v45 or newer after retaining iOS and Android validation runs with native publisher/compositor overlay telemetry from the current scene."
     );
   }
   const eligibleMonitorHoldPlatforms = new Set(
@@ -530,7 +530,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-monitor-hold",
       "Validation evidence manifest",
       "The manifest does not back claimed monitor-hold evidence with stable duration, sample count, zero dropped frames, and zero reconnects.",
-      "Export a support bundle v44 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry."
+      "Export a support bundle v45 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry."
     );
   }
   const eligibleAudioPlatforms = new Set(
@@ -547,6 +547,8 @@ function validationManifestIssue(bundle) {
           run?.audioMonitorLatencyStatus === "pass" &&
           typeof run.audioMonitorLatencyMs === "number" &&
           Number.isFinite(run.audioMonitorLatencyMs) &&
+          isPositiveNumber(run.audioMonitorLatencyBudgetMs) &&
+          run.audioMonitorLatencyMs <= run.audioMonitorLatencyBudgetMs &&
           (run.audioBluetoothRoute !== true || run.audioBluetoothTuningReviewed === true) &&
           (!run.audioMonitorHeadphonesOnly || run.audioNativeMonitorHeadphonesConnected === true)
       )
@@ -559,8 +561,8 @@ function validationManifestIssue(bundle) {
     return fail(
       "validation-evidence-manifest-audio-monitor",
       "Validation evidence manifest",
-      "The manifest does not back claimed mic/headphone evidence with native monitor write/drop proof, headphone route proof, and measured monitor latency.",
-      "Export a support bundle v44 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones."
+      "The manifest does not back claimed mic/headphone evidence with native monitor write/drop proof, headphone route proof, and measured monitor latency budget proof.",
+      "Export a support bundle v45 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones and retained route latency budgets."
     );
   }
   const eligibleAvatarPlatforms = new Set(
@@ -585,7 +587,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-avatar-motion",
       "Validation evidence manifest",
       "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, ready native face landmarks, active motion, and either ready high-fidelity PNGTuber rig proof or ready native-rendered VRM proof.",
-      "Export a support bundle v44 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and ready PNGTuber rig quality/high-fidelity proof or native-rendered VRM proof."
+      "Export a support bundle v45 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and ready PNGTuber rig quality/high-fidelity proof or native-rendered VRM proof."
     );
   }
   const eligibleChatReadoutPlatforms = new Set(
@@ -608,7 +610,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-chat-readout",
       "Validation evidence manifest",
       "The manifest does not back claimed chat readout evidence with spoken-message success and zero speech failures.",
-      "Export a support bundle v44 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
+      "Export a support bundle v45 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
     );
   }
   const eligiblePlatformDashboardPlatforms = new Set(
@@ -629,7 +631,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-platform-dashboard",
       "Validation evidence manifest",
       "The manifest does not back claimed platform dashboard evidence with fresh checked-at proof, YouTube identity/state proof, and Twitch dashboard status and Twitch title/category/language metadata.",
-      "Export a support bundle v44 or newer after retaining iOS and Android validation runs with fresh YouTube/Twitch dashboard status and Twitch title/category/language metadata from the destination receiving the stream."
+      "Export a support bundle v45 or newer after retaining iOS and Android validation runs with fresh YouTube/Twitch dashboard status and Twitch title/category/language metadata from the destination receiving the stream."
     );
   }
   const eligiblePlatformIngestPlatforms = new Set(

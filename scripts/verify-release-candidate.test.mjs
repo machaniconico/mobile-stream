@@ -481,7 +481,7 @@ function commercialSupportBundleFixture(patch = {}) {
   };
 
   return {
-    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 44 },
+    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 45 },
     generatedAt: new Date().toISOString(),
     fixture: true,
     ...patch,
@@ -573,6 +573,7 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     audioNativeMonitorDroppedBuffers: 0,
     audioMonitorLatencyStatus: "pass",
     audioMonitorLatencyMs: 92,
+    audioMonitorLatencyBudgetMs: 180,
     chatReadoutStatus: "pass",
     chatReadoutSpokenMessageCount: 1,
     chatReadoutSpeechFailureCount: 0,

@@ -727,6 +727,33 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks audio summary claims when retained monitor latency exceeds the route budget", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              audioMonitorLatencyMs: 260,
+              audioMonitorLatencyBudgetMs: 180
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS mic/headphone proof")
+      })
+    );
+  });
+
   it("blocks avatar-motion summary claims when the manifest retains still-image rig issues", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -1302,7 +1329,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 44 as const
+    bundleVersion: 45 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1536,6 +1563,7 @@ const manifestRun = ({
   audioNativeMonitorDroppedBuffers = 0,
   audioMonitorLatencyStatus = "pass",
   audioMonitorLatencyMs = 92,
+  audioMonitorLatencyBudgetMs = 180,
   audioBluetoothRoute = false,
   audioBluetoothTuningReviewed = false,
   chatReadoutStatus = "pass",
@@ -1675,6 +1703,7 @@ const manifestRun = ({
   audioNativeMonitorDroppedBuffers?: ValidationManifestRun["audioNativeMonitorDroppedBuffers"];
   audioMonitorLatencyStatus?: ValidationManifestRun["audioMonitorLatencyStatus"];
   audioMonitorLatencyMs?: ValidationManifestRun["audioMonitorLatencyMs"];
+  audioMonitorLatencyBudgetMs?: ValidationManifestRun["audioMonitorLatencyBudgetMs"];
   audioBluetoothRoute?: ValidationManifestRun["audioBluetoothRoute"];
   audioBluetoothTuningReviewed?: ValidationManifestRun["audioBluetoothTuningReviewed"];
   chatReadoutStatus?: ValidationManifestRun["chatReadoutStatus"];
@@ -1820,6 +1849,7 @@ const manifestRun = ({
   audioNativeMonitorDroppedBuffers,
   audioMonitorLatencyStatus,
   audioMonitorLatencyMs,
+  audioMonitorLatencyBudgetMs,
   audioBluetoothRoute,
   audioBluetoothTuningReviewed,
   chatReadoutStatus,

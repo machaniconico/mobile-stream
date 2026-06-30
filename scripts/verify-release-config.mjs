@@ -144,9 +144,9 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 44");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 44");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 44");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 45");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 45");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 45");
     expectIncludes(files.commercialReleaseGateDomain, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseBundleScript, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scope");
@@ -166,6 +166,7 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-monitor-hold");
     expectIncludes(files.streamValidationEvidenceDomain, "audioNativeMonitorWrittenFrames");
     expectIncludes(files.streamValidationEvidenceDomain, "audioMonitorLatencyStatus");
+    expectIncludes(files.streamValidationEvidenceDomain, "audioMonitorLatencyBudgetMs");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestAudioPass");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-audio-monitor");
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpokenMessageCount");
