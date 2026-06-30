@@ -710,6 +710,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Evidence freshness: ${diagnostics.validationEvidence.latestRunAgeDays === null ? "-" : `${diagnostics.validationEvidence.latestRunAgeDays} days old`} / max ${diagnostics.validationEvidence.maxAgeDays} days`,
     `- Evidence build: ${diagnostics.validationEvidence.consistentAppBuild ?? (diagnostics.validationEvidence.appBuildMismatch ? "mismatch" : "-")}`,
     `- Evidence physical devices: ${diagnostics.validationEvidence.physicalDeviceRunCount} retained / ${diagnostics.validationEvidence.physicalDeviceReadyCount} ready / ${diagnostics.validationEvidence.physicalDeviceWarningCount} warn / ${diagnostics.validationEvidence.physicalDeviceFailureCount} fail / iOS ${diagnostics.validationEvidence.physicalDeviceIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.physicalDeviceAndroidPass ? "pass" : "missing"}`,
+    `- Evidence Android publisher mode: ${diagnostics.validationEvidence.androidPublisherModeAndroidPass ? "pass" : "missing"}`,
     `- Evidence monitor hold: ${formatValidationMonitorHold(diagnostics)}`,
     `- Evidence native runtime: ${formatValidationNativeRuntime(diagnostics)}`,
     `- Evidence face tracking: ${formatValidationFaceTracking(diagnostics)}`,
@@ -840,6 +841,7 @@ const formatValidationEvidenceRunManifest = (
       return [
         `${run.devicePlatform} ${run.result} ${scopeStatus}`,
         `device ${run.physicalDevice ? "physical" : run.physicalDeviceStatus}`,
+        `android publisher ${run.devicePlatform === "android" ? run.androidPublisherMode ?? "-" : "-"}`,
         `build ${run.appBuild}`,
         `${run.targetPlatform}/${run.transport}`,
         `${run.ageDays}d`,

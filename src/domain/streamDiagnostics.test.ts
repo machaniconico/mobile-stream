@@ -629,6 +629,8 @@ describe("stream diagnostics", () => {
 
     expect(diagnostics.validationEvidence.nativeRuntimeRunCount).toBe(1);
     expect(diagnostics.validationEvidence.nativeRuntimeReadyCount).toBe(0);
+    expect(report).toContain("Evidence Android publisher mode: missing");
+    expect(report).toContain("android publisher -");
     expect(report).toContain(
       "Evidence monitor hold: 1 retained / 0 ready / 1 warn / 0 fail / iOS missing / Android missing / latest warn 0s 0 samples"
     );
@@ -638,6 +640,52 @@ describe("stream diagnostics", () => {
     expect(report).toContain(
       "primitives 0 triangles 0 unsupported modes 0 skinned 0 joints 0 position accessors 0 normals 0 uvs 0 vertices 0 indices 0 bounds 0 skin attrs 0 morphs 0 materials 0 transparent materials 0 textures 0 images 0 unsupported image mimes 0 pose bones 0/0 pose expressions 0/0"
     );
+  });
+
+  it("exports retained Android direct MediaCodec publisher proof in diagnostic reports", () => {
+    const scene = nativeReadyScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      androidPublisherMode: "mediacodec" as const,
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const baseDiagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health()
+    });
+    const run = {
+      ...createStreamValidationRun({
+        diagnostics: baseDiagnostics,
+        devicePlatform: "android",
+        deviceName: "Pixel 8 Pro",
+        osVersion: "Android 15",
+        result: "pass",
+        now: new Date("2026-06-23T00:01:00.000Z")
+      }),
+      result: "pass" as const
+    };
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health()
+      },
+      [],
+      [],
+      [],
+      [run]
+    );
+    const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics, new Date("2026-06-23T00:05:00.000Z")));
+
+    expect(diagnostics.validationEvidence.androidPublisherModeAndroidPass).toBe(true);
+    expect(report).toContain("Evidence Android publisher mode: pass");
+    expect(report).toContain("android publisher mediacodec");
   });
 
   it("reports blocking checks when the stream key is missing", () => {

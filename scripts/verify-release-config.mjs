@@ -43,6 +43,7 @@ const files = {
   storeSubmissionApprovalScript: read("scripts/verify-store-submission-approval.mjs"),
   supportBundleDomain: read("src/domain/supportBundle.ts"),
   commercialReleaseGateDomain: read("src/domain/commercialReleaseGate.ts"),
+  streamDiagnosticsDomain: read("src/domain/streamDiagnostics.ts"),
   streamValidationEvidenceDomain: read("src/domain/streamValidationEvidence.ts"),
   liveCasterBridge: read("ios/MobileLiveCaster/LiveCasterBridge.swift"),
   broadcastHandler: read("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift")
@@ -146,6 +147,7 @@ const checks = [
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
     expectIncludes(files.supportBundleDomain, "bundleVersion: 51");
     expectIncludes(files.supportBundleDomain, "androidPublisherMode: StudioProfile");
+    expectIncludes(files.streamDiagnosticsDomain, "Evidence Android publisher mode");
     expectIncludes(files.streamValidationEvidenceDomain, "androidPublisherMode: StreamDiagnostics");
     expectIncludes(files.streamValidationEvidenceDomain, "androidPublisherModeAndroidPass");
     expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 51");
