@@ -156,10 +156,13 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetDecodedPixelCount");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetCompositedPixelCount");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetAppGroupCompositedPixelCount");
+    expectIncludes(files.streamValidationEvidenceDomain, "isProductionVrmRendererBackend");
     expectIncludes(files.commercialReleaseGateDomain, "hasManifestIosAppGroupStillImageProof");
     expectIncludes(files.commercialReleaseBundleScript, "hasIosAppGroupStillImageProof");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestNativeRuntimePass");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-native-runtime");
+    expectIncludes(files.commercialReleaseGateDomain, "isProductionVrmRendererBackend");
+    expectIncludes(files.commercialReleaseBundleScript, "isProductionVrmRendererBackend");
     expectIncludes(files.streamValidationEvidenceDomain, "monitorHoldSampleCount");
     expectIncludes(files.streamValidationEvidenceDomain, "monitorHoldDroppedFrameIncrease");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestMonitorHoldPass");

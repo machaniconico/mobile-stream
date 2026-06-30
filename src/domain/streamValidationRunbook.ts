@@ -1,7 +1,7 @@
 import type { FaceTrackingDiagnostics } from "./faceTrackingDiagnostics";
 import type { AudioMonitorSafetyStatus } from "./audioRoute";
 import type { NativeCompositionReport } from "./nativeComposition";
-import type { NativeRuntimeTelemetry } from "./nativeRuntime";
+import { isProductionVrmRendererBackend, type NativeRuntimeTelemetry } from "./nativeRuntime";
 import {
   assessPlatformPublishingFreshness,
   isPlatformPublishingFreshEnoughForRelease,
@@ -501,6 +501,12 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
   const missingVrmPoses = nativeRuntime.composition.vrmMissingPoseCount ?? 0;
   const vrmSourceCount = nativeRuntime.composition.vrmSourceCount ?? 0;
   const vrmRendererStatus = nativeRuntime.composition.vrmRendererStatus ?? (vrmSourceCount > 0 ? "unavailable" : "not-required");
+  const hasProductionVrmRendererBackend = isProductionVrmRendererBackend(
+    nativeRuntime.platform,
+    nativeRuntime.composition.vrmRendererBackend
+  );
+  const invalidProductionVrmRendererBackend =
+    vrmSourceCount > 0 && vrmRendererStatus === "ready" && !hasProductionVrmRendererBackend;
   const vrmRenderedSourceCount = nativeRuntime.composition.vrmRenderedSourceCount ?? 0;
   const missingVrmModelMetadata =
     (nativeRuntime.composition.vrmModelLoadedCount ?? 0) > 0 &&
@@ -527,6 +533,7 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
   const missingVrmRenders =
     vrmSourceCount > 0 &&
     (vrmRendererStatus !== "ready" ||
+      invalidProductionVrmRendererBackend ||
       vrmRenderedSourceCount < vrmSourceCount ||
       (nativeRuntime.composition.vrmRenderMissingCount ?? 0) > 0 ||
       (nativeRuntime.composition.vrmRenderFailureCount ?? 0) > 0 ||
@@ -564,6 +571,8 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
                   ? "Prepare a VRM/GLB model with triangle primitives, POSITION vertices, UVs for textured models, supported PNG/JPEG images, skinned meshes, skin joints, and JOINTS_0/WEIGHTS_0 attributes before recording a pass."
                   : missingVrmPoseMapping
                     ? "Confirm the delivered VRM pose bones and expression weights are supported by the imported model before recording a pass."
+                    : invalidProductionVrmRendererBackend
+                      ? "Use a production VRM renderer backend for this platform before recording a pass."
                     : missingVrmRenders
                       ? "Integrate or enable the native VRM renderer, then repeat validation until every visible VRM source is rendered."
                       : "Review native runtime congestion, stale telemetry, or pending compositor state before recording a pass."

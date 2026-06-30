@@ -3,7 +3,7 @@ import {
   type StreamHealthHistorySummary,
   type StreamHealthSample
 } from "./streamHealthHistory";
-import type { NativeRuntimeTelemetry } from "./nativeRuntime";
+import { isProductionVrmRendererBackend, type NativeRuntimeTelemetry } from "./nativeRuntime";
 import type { StreamSessionEvent } from "./streamSessionLog";
 
 export type StreamSessionEndReason = "stopped" | "failed";
@@ -776,9 +776,16 @@ export const createNativeRuntimeSessionSummary = (
       (vrmImageCount > 0 && vrmTexcoordAccessorCount === 0));
   const incompleteVrmPoseMapping =
     vrmModelLoadedCount > 0 && (vrmPoseBoneUnsupportedCount > 0 || vrmPoseExpressionUnsupportedCount > 0);
+  const hasProductionVrmRendererBackend = isProductionVrmRendererBackend(
+    runtime.platform,
+    runtime.composition.vrmRendererBackend
+  );
+  const invalidProductionVrmRendererBackend =
+    vrmSourceCount > 0 && vrmRendererStatus === "ready" && !hasProductionVrmRendererBackend;
   const incompleteVrmRendering =
     vrmSourceCount > 0 &&
     (vrmRendererStatus !== "ready" ||
+      invalidProductionVrmRendererBackend ||
       vrmRenderedSourceCount < vrmSourceCount ||
       vrmRenderMissingCount > 0 ||
       vrmRenderFailureCount > 0 ||
@@ -931,6 +938,8 @@ export const createNativeRuntimeSessionSummary = (
                           ? "Use VRM/GLB files with triangle primitives, POSITION vertices, UVs for textured models, supported PNG/JPEG images, skinned meshes, skin joints, and JOINTS_0/WEIGHTS_0 attributes before retaining production renderer evidence."
                           : incompleteVrmPoseMapping
                             ? "Confirm VRM pose bones and expression weights map to the imported model before retaining production evidence."
+                            : invalidProductionVrmRendererBackend
+                              ? "Use a production VRM renderer backend for this platform before retaining production evidence."
                             : incompleteVrmRendering
                               ? "Confirm the native VRM renderer loads and renders every visible VRM source before retaining production evidence."
                               : pendingComposition

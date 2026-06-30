@@ -88,6 +88,7 @@ const vrmRendererManifestRun = (
     nativeRuntimeVrmActivePoseCount: 1,
     nativeRuntimeVrmMissingPoseCount: 0,
     nativeRuntimeVrmRendererStatus: "ready",
+    nativeRuntimeVrmRendererBackend: devicePlatform === "ios" ? "metal-scene-kit" : "opengl-es",
     nativeRuntimeVrmModelLoadedCount: 1,
     nativeRuntimeVrmHumanoidBoneCount: 55,
     nativeRuntimeVrmExpressionCount: 8,

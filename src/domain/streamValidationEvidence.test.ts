@@ -2164,6 +2164,72 @@ describe("stream validation evidence", () => {
     expect(summary.status).toBe("ready");
   });
 
+  it("does not treat VRM avatar motion as retained evidence with a non-production renderer backend", () => {
+    const scene = nativeReadyVrmScene();
+    const profile = {
+      ...commercialProfileWithKey("validation-key"),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const,
+        rigMode: "still-image-2d" as const
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeVrmMonitorRuntime("ios");
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "live" },
+        health: health({ bitrateKbps: 3500, fps: 30 }),
+        nativeRuntime: {
+          ...runtime,
+          composition: {
+            ...runtime.composition,
+            vrmRendererBackend: "native-test"
+          }
+        }
+      },
+      [],
+      stableMonitorSamples(),
+      [spokenChatSessionSummary()],
+      [],
+      {
+        status: "tracking" as const,
+        yaw: 0.16,
+        pitch: 0.04,
+        roll: 0.02,
+        mouthOpen: 0.42,
+        blink: 0,
+        smile: 0.24,
+        browRaise: 0.1,
+        confidence: 0.9,
+        faceLandmarkConfidence: 0.82,
+        expression: "neutral" as const,
+        lastFrameAt: Date.parse("2026-06-23T00:00:00.000Z")
+      },
+      { ...connectedChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
+    );
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.nativeRuntime?.status).toBe("warn");
+    expect(run.nativeRuntime?.summary).toContain("needs review");
+    expect(run.faceTracking?.nativeVrmRendererReady).toBe(false);
+    expect(summary.nativeRuntimeIosPass).toBe(false);
+    expect(summary.faceTrackingIosPass).toBe(false);
+    expect(summary.runManifest[0]?.nativeRuntimeVrmRendererBackend).toBe("native-test");
+  });
+
   it("does not treat retained face tracking pass as avatar evidence when motion count is zero", () => {
     const scene = nativeReadyScene();
     const profile = profileWithKey("validation-key");

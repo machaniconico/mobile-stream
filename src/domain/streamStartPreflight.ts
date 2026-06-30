@@ -30,6 +30,7 @@ import type {
   StreamValidationEvidenceRunManifestItem,
   StreamValidationEvidenceSummary
 } from "./streamValidationEvidence";
+import { isProductionVrmRendererBackend } from "./nativeRuntime";
 
 export type StreamStartPreflightStatus = "ready" | "warning" | "blocked";
 export type StreamStartPreflightSeverity = "block" | "warning";
@@ -214,6 +215,7 @@ const hasPlatformVrmRendererProof = (
 const hasManifestVrmRendererProof = (run: StreamValidationEvidenceRunManifestItem): boolean =>
   run.nativeRuntimeVrmSourceCount > 0 &&
   run.nativeRuntimeVrmRendererStatus === "ready" &&
+  isProductionVrmRendererBackend(run.devicePlatform, run.nativeRuntimeVrmRendererBackend) &&
   run.nativeRuntimeVrmRenderedSourceCount >= run.nativeRuntimeVrmSourceCount &&
   run.nativeRuntimeVrmRenderMissingCount === 0 &&
   run.nativeRuntimeVrmRenderFailureCount === 0 &&

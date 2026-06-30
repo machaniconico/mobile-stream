@@ -259,7 +259,49 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("VRM renderer/model/pose proof");
+    expect(result.stdout).toContain("production VRM renderer/backend/model/pose proof");
+  });
+
+  it("blocks native runtime claims when retained VRM manifests use a non-production renderer backend", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeVrmSourceCount: 1,
+            nativeRuntimeVrmPosePayloadCount: 1,
+            nativeRuntimeVrmActivePoseCount: 1,
+            nativeRuntimeVrmMissingPoseCount: 0,
+            nativeRuntimeVrmRendererStatus: "ready",
+            nativeRuntimeVrmRendererBackend: "native-test",
+            nativeRuntimeVrmModelLoadedCount: 1,
+            nativeRuntimeVrmHumanoidBoneCount: 55,
+            nativeRuntimeVrmExpressionCount: 8,
+            nativeRuntimeVrmMeshPrimitiveCount: 4,
+            nativeRuntimeVrmSkinnedMeshPrimitiveCount: 4,
+            nativeRuntimeVrmSkinJointCount: 55,
+            nativeRuntimeVrmPositionAccessorCount: 4,
+            nativeRuntimeVrmVertexCount: 12_480,
+            nativeRuntimeVrmSkinningAttributePrimitiveCount: 4,
+            nativeRuntimeVrmTrianglePrimitiveCount: 4,
+            nativeRuntimeVrmUnsupportedPrimitiveModeCount: 0,
+            nativeRuntimeVrmTexcoordAccessorCount: 4,
+            nativeRuntimeVrmImageCount: 3,
+            nativeRuntimeVrmUnsupportedImageMimeCount: 0,
+            nativeRuntimeVrmPoseBoneUnsupportedCount: 0,
+            nativeRuntimeVrmPoseExpressionUnsupportedCount: 0,
+            nativeRuntimeVrmRenderedSourceCount: 1,
+            nativeRuntimeVrmRenderMissingCount: 0,
+            nativeRuntimeVrmRenderFailureCount: 0
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("production VRM renderer/backend/model/pose proof");
   });
 
   it("blocks monitor-hold claims when retained manifests lack stable duration proof", () => {

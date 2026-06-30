@@ -848,7 +848,7 @@ describe("stream diagnostics", () => {
           vrmPoseExpressionUnsupportedCount: 0,
           vrmRuntimeStatuses: ["active"],
           vrmRendererStatus: "ready",
-          vrmRendererBackend: "native-test",
+          vrmRendererBackend: "metal-scene-kit",
           vrmModelLoadedCount: 1,
           vrmRenderedSourceCount: 1,
           vrmRenderMissingCount: 0,

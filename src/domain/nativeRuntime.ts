@@ -1,4 +1,23 @@
 export type NativeRuntimeCompositionStatus = "unknown" | "screen-only" | "applied" | "pending" | "failed";
+export type NativeRuntimePlatform = "ios" | "android";
+
+const productionVrmRendererBackendsByPlatform: Record<NativeRuntimePlatform, Set<string>> = {
+  ios: new Set(["metal", "metal-scene-kit", "scene-kit"]),
+  android: new Set(["opengl-es", "opengl-es-3", "filament-opengl-es"])
+};
+
+export const normalizeVrmRendererBackend = (backend: string | null | undefined): string =>
+  typeof backend === "string" ? backend.trim().toLowerCase() : "";
+
+export const isProductionVrmRendererBackend = (
+  platform: NativeRuntimePlatform | string | null | undefined,
+  backend: string | null | undefined
+): boolean => {
+  if (platform !== "ios" && platform !== "android") {
+    return false;
+  }
+  return productionVrmRendererBackendsByPlatform[platform].has(normalizeVrmRendererBackend(backend));
+};
 
 export interface NativeRuntimeComposition {
   status: NativeRuntimeCompositionStatus;
@@ -109,7 +128,7 @@ export interface NativeRuntimeAudioProcessing {
 }
 
 export interface NativeRuntimeTelemetry {
-  platform: "ios" | "android";
+  platform: NativeRuntimePlatform;
   runtimeStatus: string;
   updatedAt: number;
   stale: boolean;

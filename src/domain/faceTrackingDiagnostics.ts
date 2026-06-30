@@ -1,6 +1,6 @@
 import type { FaceTrackingRuntimeState } from "./faceTracking";
 import { createAvatarIllustrationRigQuality } from "./avatarIllustrationRigQuality";
-import type { NativeRuntimeComposition } from "./nativeRuntime";
+import { isProductionVrmRendererBackend, type NativeRuntimeComposition } from "./nativeRuntime";
 import type { StudioProfile } from "./profiles";
 import type { AvatarIllustrationRig, SceneDocument, SceneSource } from "./scene";
 
@@ -488,6 +488,8 @@ const hasReadyNativeVrmRenderer = (
 
   return (
     composition.vrmRendererStatus === "ready" &&
+    (isProductionVrmRendererBackend("ios", composition.vrmRendererBackend) ||
+      isProductionVrmRendererBackend("android", composition.vrmRendererBackend)) &&
     (composition.vrmSourceCount ?? 0) >= visibleVrmCount &&
     (composition.vrmRenderedSourceCount ?? 0) >= visibleVrmCount &&
     (composition.vrmRenderMissingCount ?? 0) === 0 &&

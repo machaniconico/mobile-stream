@@ -4,6 +4,7 @@ import {
   minimumValidationMonitorSampleCount
 } from "./streamValidationThresholds";
 import { platformPublishingDashboardMaxAgeMinutes } from "./platformPublishingFreshness";
+import { isProductionVrmRendererBackend } from "./nativeRuntime";
 
 export type CommercialReleaseGateStatus = "ready" | "warning" | "blocked";
 export type CommercialReleaseGateIssueSeverity = "warn" | "fail";
@@ -890,6 +891,7 @@ const hasManifestVrmReleaseProof = (run: ValidationEvidenceManifestRun | undefin
 
   return (
     run?.nativeRuntimeVrmRendererStatus === "ready" &&
+    isProductionVrmRendererBackend(run.devicePlatform, run.nativeRuntimeVrmRendererBackend) &&
     isAtLeastFiniteNumber(run.nativeRuntimeVrmRenderedSourceCount, vrmSourceCount) &&
     isZeroFiniteNumber(run.nativeRuntimeVrmRenderMissingCount) &&
     isZeroFiniteNumber(run.nativeRuntimeVrmRenderFailureCount) &&

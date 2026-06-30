@@ -18,6 +18,7 @@ import {
   minimumValidationMonitorDurationSeconds,
   minimumValidationMonitorSampleCount
 } from "./streamValidationThresholds";
+import { isProductionVrmRendererBackend } from "./nativeRuntime";
 
 export type StreamValidationDevicePlatform = "ios" | "android";
 export type StreamValidationRunResult = "pass" | "warn" | "fail";
@@ -1292,6 +1293,7 @@ const hasNativeRuntimeVrmReleaseProof = (
 
   return (
     nativeRuntime.vrmRendererStatus === "ready" &&
+    isProductionVrmRendererBackend(nativeRuntime.platform, nativeRuntime.vrmRendererBackend) &&
     nativeRuntime.vrmRenderedSourceCount >= nativeRuntime.vrmSourceCount &&
     nativeRuntime.vrmRenderMissingCount === 0 &&
     nativeRuntime.vrmRenderFailureCount === 0 &&

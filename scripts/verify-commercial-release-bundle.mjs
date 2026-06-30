@@ -13,6 +13,10 @@ const destinationTargetPlatformLabels = {
   twitch: "Twitch",
   custom: "Custom"
 };
+const productionVrmRendererBackendsByPlatform = {
+  ios: new Set(["metal", "metal-scene-kit", "scene-kit"]),
+  android: new Set(["opengl-es", "opengl-es-3", "filament-opengl-es"])
+};
 const redactedMarker = "[redacted]";
 const sensitivePropertyNames = new Set([
   "accesstoken",
@@ -503,7 +507,7 @@ function validationManifestIssue(bundle) {
     return fail(
       "validation-evidence-manifest-native-runtime",
       "Validation evidence manifest",
-      "The manifest does not back claimed native runtime evidence with platform-matched video/audio frames, bytes written, compositor status, applied/skipped native overlay proof, loaded, decoded, and composited still-image assets, and VRM renderer/model/pose proof when VRM sources are present.",
+      "The manifest does not back claimed native runtime evidence with platform-matched video/audio frames, bytes written, compositor status, applied/skipped native overlay proof, loaded, decoded, and composited still-image assets, and accepted production VRM renderer/backend/model/pose proof when VRM sources are present.",
       "Export a support bundle v47 or newer after retaining iOS and Android validation runs with native publisher/compositor overlay telemetry from the current scene."
     );
   }
@@ -992,6 +996,7 @@ function hasVrmReleaseProof(run) {
 
   return (
     run?.nativeRuntimeVrmRendererStatus === "ready" &&
+    isProductionVrmRendererBackend(run?.devicePlatform, run?.nativeRuntimeVrmRendererBackend) &&
     isAtLeastNumber(run?.nativeRuntimeVrmRenderedSourceCount, vrmSourceCount) &&
     isZeroNumber(run?.nativeRuntimeVrmRenderMissingCount) &&
     isZeroNumber(run?.nativeRuntimeVrmRenderFailureCount) &&
@@ -1013,6 +1018,13 @@ function hasVrmReleaseProof(run) {
     isZeroNumber(run?.nativeRuntimeVrmPoseBoneUnsupportedCount) &&
     isZeroNumber(run?.nativeRuntimeVrmPoseExpressionUnsupportedCount)
   );
+}
+
+function isProductionVrmRendererBackend(platform, backend) {
+  const normalized = typeof backend === "string" ? backend.trim().toLowerCase() : "";
+  return platform === "ios" || platform === "android"
+    ? productionVrmRendererBackendsByPlatform[platform].has(normalized)
+    : false;
 }
 
 function hasReadyFaceLandmarks(run) {

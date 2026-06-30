@@ -21,7 +21,7 @@ import {
 import { createNativeCompositionReport, type NativeCompositionReport } from "./nativeComposition";
 import { assessPlatformPublishingFreshness } from "./platformPublishingFreshness";
 import type { PublicLaunchChecklist } from "./publicLaunchChecklist";
-import type { NativeRuntimeTelemetry } from "./nativeRuntime";
+import { isProductionVrmRendererBackend, type NativeRuntimeTelemetry } from "./nativeRuntime";
 import type { ReadinessReport } from "./readiness";
 import type { SceneDocument } from "./scene";
 import { redactSensitiveText } from "./sensitiveText";
@@ -1682,6 +1682,12 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
   const missingVrmPoseCount = runtime.composition.vrmMissingPoseCount ?? 0;
   const vrmSourceCount = runtime.composition.vrmSourceCount ?? 0;
   const vrmRendererStatus = runtime.composition.vrmRendererStatus ?? (vrmSourceCount > 0 ? "unavailable" : "not-required");
+  const hasProductionVrmRendererBackend = isProductionVrmRendererBackend(
+    runtime.platform,
+    runtime.composition.vrmRendererBackend
+  );
+  const invalidProductionVrmRendererBackend =
+    vrmSourceCount > 0 && vrmRendererStatus === "ready" && !hasProductionVrmRendererBackend;
   const vrmRenderedSourceCount = runtime.composition.vrmRenderedSourceCount ?? 0;
   const vrmRenderMissingCount = runtime.composition.vrmRenderMissingCount ?? Math.max(0, vrmSourceCount - vrmRenderedSourceCount);
   const vrmRenderFailureCount = runtime.composition.vrmRenderFailureCount ?? 0;
@@ -1708,6 +1714,7 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
   const incompleteVrmRendering =
     vrmSourceCount > 0 &&
     (vrmRendererStatus !== "ready" ||
+      invalidProductionVrmRendererBackend ||
       vrmRenderedSourceCount < vrmSourceCount ||
       vrmRenderMissingCount > 0 ||
       vrmRenderFailureCount > 0 ||
@@ -1743,6 +1750,8 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
                   ? "Native VRM model metadata is missing triangle primitives, POSITION vertices, textured UVs, supported PNG/JPEG images, skinned meshes, skin joints, or skinning attributes."
                   : incompleteVrmPoseMapping
                     ? "Native VRM pose payload has bones or expressions unsupported by the loaded model."
+                    : invalidProductionVrmRendererBackend
+                      ? `Native VRM renderer backend ${runtime.composition.vrmRendererBackend || "none"} is not accepted as production evidence for ${runtime.platform}.`
                     : incompleteVrmRendering
                       ? `Native VRM renderer is ${vrmRendererStatus} (${vrmRenderedSourceCount}/${vrmSourceCount} rendered).`
                       : "Native compositor has pending or failed sources.")
