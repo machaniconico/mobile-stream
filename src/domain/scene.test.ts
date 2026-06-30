@@ -6,6 +6,7 @@ import {
   addSceneToCollection,
   activatePrivacyShieldScene,
   createAvatarIllustrationLandmarkAnalysisFromDetector,
+  createAvatarIllustrationLandmarkAnalysisFromPixelFeatures,
   createDefaultSceneCollection,
   createDefaultScene,
   createSceneFromTemplate,
@@ -315,6 +316,55 @@ describe("scene document", () => {
     expect(riggedAvatar?.illustrationRig.sliceCount).toBe(32);
   });
 
+  it("uses dark eye and mouth pixel features when auto-rigging a still illustration", () => {
+    const scene = createDefaultScene();
+    const avatar = scene.sources.find((source) => source.kind === "pngtuber");
+    expect(avatar).toBeDefined();
+    const width = 100;
+    const height = 100;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    const paint = (left: number, top: number, right: number, bottom: number, color: [number, number, number, number]) => {
+      for (let y = top; y < bottom; y += 1) {
+        for (let x = left; x < right; x += 1) {
+          const offset = (y * width + x) * 4;
+          pixels[offset] = color[0];
+          pixels[offset + 1] = color[1];
+          pixels[offset + 2] = color[2];
+          pixels[offset + 3] = color[3];
+        }
+      }
+    };
+    paint(24, 8, 76, 92, [238, 204, 184, 255]);
+    paint(34, 32, 46, 34, [24, 20, 28, 255]);
+    paint(54, 32, 66, 34, [24, 20, 28, 255]);
+    paint(44, 52, 58, 54, [36, 18, 24, 255]);
+
+    const imageAnalysis = analyzeAvatarIllustrationAlphaMask({
+      width,
+      height,
+      data: pixels,
+      sampleStep: 1
+    });
+    const landmarkAnalysis = createAvatarIllustrationLandmarkAnalysisFromPixelFeatures({
+      width,
+      height,
+      data: pixels,
+      foregroundBounds: imageAnalysis?.foregroundBounds ?? null,
+      sampleStep: 1
+    });
+    const rigged = applyInferredAvatarIllustrationRig(scene, avatar!.id, {}, { imageAnalysis, landmarkAnalysis });
+    const riggedAvatar = rigged.sources.find((source) => source.kind === "pngtuber");
+
+    expect(landmarkAnalysis?.confidence).toBeGreaterThan(0.65);
+    expect(landmarkAnalysis?.leftEye?.y).toBeCloseTo(0.33, 2);
+    expect(landmarkAnalysis?.rightEye?.y).toBeCloseTo(0.33, 2);
+    expect(landmarkAnalysis?.mouthCenter?.y).toBeCloseTo(0.53, 2);
+    expect(riggedAvatar?.kind).toBe("pngtuber");
+    expect(riggedAvatar?.illustrationRig.eyeLineY).toBeCloseTo(0.33, 2);
+    expect(riggedAvatar?.illustrationRig.mouthLineY).toBeCloseTo(0.53, 2);
+    expect(riggedAvatar?.illustrationRig.sliceCount).toBe(36);
+  });
+
   it("falls back to aspect geometry when alpha analysis only finds a full opaque canvas", () => {
     const scene = createDefaultScene();
     const avatar = scene.sources.find((source) => source.kind === "pngtuber");
@@ -411,6 +461,28 @@ describe("scene document", () => {
     expect(analysis?.faceCenter?.y).toBeCloseTo(0.478, 3);
     expect(analysis?.hairLineY).toBe(0);
     expect(analysis?.shoulderLineY).toBe(1);
+  });
+
+  it("treats explicit detector eye and mouth landmarks as high-confidence rig input", () => {
+    const analysis = createAvatarIllustrationLandmarkAnalysisFromDetector({
+      width: 200,
+      height: 100,
+      faces: [
+        {
+          boundingBox: { x: 60, y: 10, width: 80, height: 70 },
+          landmarks: [
+            { type: "eye", locations: [{ x: 88, y: 36 }] },
+            { type: "mouth", locations: [{ x: 100, y: 60 }] },
+            { type: "eye", locations: [{ x: 112, y: 38 }] }
+          ]
+        }
+      ]
+    });
+
+    expect(analysis?.confidence).toBeGreaterThanOrEqual(0.86);
+    expect(analysis?.leftEye?.y).toBeCloseTo(0.36, 3);
+    expect(analysis?.rightEye?.y).toBeCloseTo(0.38, 3);
+    expect(analysis?.mouthCenter?.y).toBeCloseTo(0.6, 3);
   });
 
   it("synthesizes conservative landmarks from a detector face box", () => {

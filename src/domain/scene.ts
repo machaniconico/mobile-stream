@@ -112,6 +112,11 @@ export interface AvatarIllustrationAlphaMaskInput {
   sampleStep?: number;
 }
 
+export interface AvatarIllustrationPixelFeatureInput extends AvatarIllustrationAlphaMaskInput {
+  foregroundBounds?: AvatarIllustrationForegroundBounds | null;
+  lumaThreshold?: number;
+}
+
 export interface BaseSource {
   id: string;
   kind: SourceKind;
@@ -379,6 +384,122 @@ export const analyzeAvatarIllustrationAlphaMask = (
   };
 };
 
+export const createAvatarIllustrationLandmarkAnalysisFromPixelFeatures = (
+  input: AvatarIllustrationPixelFeatureInput
+): AvatarIllustrationLandmarkAnalysis | null => {
+  const width = Math.floor(finiteNumber(input.width, 0));
+  const height = Math.floor(finiteNumber(input.height, 0));
+  const pixelStride = Math.max(1, Math.floor(finiteNumber(input.pixelStride, 4)));
+  const alphaOffset = Math.max(0, Math.floor(finiteNumber(input.alphaOffset, 3)));
+  const alphaThreshold = clampRange(finiteNumber(input.alphaThreshold, 16), 0, 255);
+  const lumaThreshold = clampRange(finiteNumber(input.lumaThreshold, 112), 0, 255);
+  const sampleStep = Math.max(
+    1,
+    Math.floor(finiteNumber(input.sampleStep, Math.ceil(Math.max(width, height) / 512)))
+  );
+  const expectedLength = width * height * pixelStride;
+  if (width <= 0 || height <= 0 || input.data.length < expectedLength || alphaOffset >= pixelStride) {
+    return null;
+  }
+
+  const foregroundBounds = normalizeAvatarIllustrationForegroundBounds(input.foregroundBounds);
+  const bounds = foregroundBounds ?? {
+    left: 0,
+    right: 1,
+    top: 0,
+    bottom: 1,
+    width: 1,
+    height: 1
+  };
+  if (bounds.width < 0.08 || bounds.height < 0.18) {
+    return null;
+  }
+
+  const candidates: AvatarIllustrationPixelFeatureCandidate[] = [];
+  const minX = Math.max(0, Math.floor(bounds.left * width));
+  const maxX = Math.min(width - 1, Math.ceil(bounds.right * width));
+  const minY = Math.max(0, Math.floor((bounds.top + bounds.height * 0.12) * height));
+  const maxY = Math.min(height - 1, Math.ceil((bounds.top + bounds.height * 0.78) * height));
+  let foregroundSamples = 0;
+  let darkSamples = 0;
+
+  for (let y = minY; y <= maxY; y += sampleStep) {
+    for (let x = minX; x <= maxX; x += sampleStep) {
+      const offset = (y * width + x) * pixelStride;
+      const alpha = input.data[offset + alphaOffset] ?? 0;
+      if (alpha <= alphaThreshold) {
+        continue;
+      }
+      foregroundSamples += 1;
+      const red = input.data[offset] ?? 0;
+      const green = input.data[offset + 1] ?? red;
+      const blue = input.data[offset + 2] ?? red;
+      const luma = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+      const saturation = createRgbSaturation(red, green, blue);
+      const darkStroke = luma <= lumaThreshold;
+      const saturatedStroke = saturation >= 0.36 && luma <= lumaThreshold + 42;
+      if (!darkStroke && !saturatedStroke) {
+        continue;
+      }
+      darkSamples += 1;
+      candidates.push({
+        x: clamp01((x + sampleStep / 2) / width),
+        y: clamp01((y + sampleStep / 2) / height),
+        weight: clamp01((255 - luma) / 255 + saturation * 0.18)
+      });
+    }
+  }
+
+  if (foregroundSamples === 0 || candidates.length < 8 || darkSamples / foregroundSamples > 0.42) {
+    return null;
+  }
+
+  const eyeSearchTop = bounds.top + bounds.height * 0.16;
+  const eyeSearchBottom = bounds.top + bounds.height * 0.52;
+  const eyeLine = findAvatarIllustrationFeatureLine(candidates, eyeSearchTop, eyeSearchBottom, height, sampleStep);
+  if (!eyeLine) {
+    return null;
+  }
+  const mouthSearchTop = Math.max(bounds.top + bounds.height * 0.36, eyeLine.y + Math.max(0.08, bounds.height * 0.12));
+  const mouthSearchBottom = bounds.top + bounds.height * 0.76;
+  const mouthLine = findAvatarIllustrationFeatureLine(candidates, mouthSearchTop, mouthSearchBottom, height, sampleStep);
+  if (!mouthLine) {
+    return null;
+  }
+
+  const eyeMouthGap = mouthLine.y - eyeLine.y;
+  if (eyeMouthGap < 0.1 || eyeMouthGap > 0.34) {
+    return null;
+  }
+
+  const centerX = bounds.left + bounds.width / 2;
+  const leftEye = createFeaturePoint(eyeLine.candidates.filter((candidate) => candidate.x <= centerX));
+  const rightEye = createFeaturePoint(eyeLine.candidates.filter((candidate) => candidate.x > centerX));
+  const mouthCenter = createFeaturePoint(mouthLine.candidates);
+  if (!mouthCenter || (!leftEye && !rightEye)) {
+    return null;
+  }
+
+  const eyePairSpread =
+    leftEye && rightEye ? clamp01((rightEye.x - leftEye.x) / Math.max(bounds.width * 0.28, Number.EPSILON)) : 0.45;
+  const lineStrength = clamp01((eyeLine.weight + mouthLine.weight) / Math.max(candidates.length * 0.34, 1));
+  const confidence = clamp01(0.56 + lineStrength * 0.24 + eyePairSpread * 0.12 + clamp01(eyeMouthGap / 0.2) * 0.08);
+
+  return {
+    confidence,
+    faceCenter: {
+      x: mouthCenter.x,
+      y: clampRange(eyeLine.y + eyeMouthGap * 0.44, bounds.top + 0.08, bounds.bottom - 0.08),
+      confidence
+    },
+    leftEye: leftEye ? { ...leftEye, confidence } : null,
+    rightEye: rightEye ? { ...rightEye, confidence } : null,
+    mouthCenter: { ...mouthCenter, confidence },
+    hairLineY: clamp01(Math.max(bounds.top, eyeLine.y - eyeMouthGap * 0.85)),
+    shoulderLineY: clamp01(Math.min(bounds.bottom, mouthLine.y + eyeMouthGap * 1.45))
+  };
+};
+
 export const createAvatarIllustrationLandmarkAnalysisFromDetector = (
   input: AvatarIllustrationDetectorInput
 ): AvatarIllustrationLandmarkAnalysis | null => {
@@ -406,8 +527,10 @@ export const createAvatarIllustrationLandmarkAnalysisFromDetector = (
     .map((landmark) => averageLandmarkLocations(landmark.locations, landmark.confidence))
     .filter((point): point is AvatarIllustrationLandmarkPoint => point !== null)
     .sort((left, right) => (right.confidence ?? 0) - (left.confidence ?? 0))[0];
-  const hasDetectorLandmarks = eyes.length > 0 || Boolean(mouth);
-  const fallbackConfidence = hasDetectorLandmarks ? 0.78 : 0.62;
+  const hasEyeLandmark = eyes.length > 0;
+  const hasMouthLandmark = Boolean(mouth);
+  const hasDetectorLandmarks = hasEyeLandmark || hasMouthLandmark;
+  const fallbackConfidence = hasEyeLandmark && hasMouthLandmark ? 0.86 : hasDetectorLandmarks ? 0.78 : 0.62;
   const confidence = clamp01(Math.max(fallbackConfidence, face.confidence));
   const eyeConfidence = hasDetectorLandmarks ? confidence : confidence * 0.72;
   const mouthConfidence = mouth ? (mouth.confidence ?? confidence) : confidence * 0.7;
@@ -568,6 +691,103 @@ const averageNumbers = (values: Array<number | null | undefined>): number | null
     return null;
   }
   return finiteValues.reduce((sum, value) => sum + value, 0) / finiteValues.length;
+};
+
+interface AvatarIllustrationPixelFeatureCandidate {
+  x: number;
+  y: number;
+  weight: number;
+}
+
+interface AvatarIllustrationFeatureLine {
+  y: number;
+  weight: number;
+  candidates: AvatarIllustrationPixelFeatureCandidate[];
+}
+
+const normalizeAvatarIllustrationForegroundBounds = (
+  bounds: AvatarIllustrationForegroundBounds | null | undefined
+): AvatarIllustrationForegroundBounds | null => {
+  if (!bounds) {
+    return null;
+  }
+  const left = clamp01(finiteNumber(bounds.left, 0));
+  const right = clamp01(finiteNumber(bounds.right, 1));
+  const top = clamp01(finiteNumber(bounds.top, 0));
+  const bottom = clamp01(finiteNumber(bounds.bottom, 1));
+  if (right <= left || bottom <= top) {
+    return null;
+  }
+  return {
+    left,
+    right,
+    top,
+    bottom,
+    width: right - left,
+    height: bottom - top
+  };
+};
+
+const createRgbSaturation = (red: number, green: number, blue: number): number => {
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  return max <= 0 ? 0 : clamp01((max - min) / max);
+};
+
+const findAvatarIllustrationFeatureLine = (
+  candidates: AvatarIllustrationPixelFeatureCandidate[],
+  minY: number,
+  maxY: number,
+  imageHeight: number,
+  sampleStep: number
+): AvatarIllustrationFeatureLine | null => {
+  const rows = new Map<number, { y: number; weight: number; count: number }>();
+  for (const candidate of candidates) {
+    if (candidate.y < minY || candidate.y > maxY) {
+      continue;
+    }
+    const rowKey = Math.round((candidate.y * imageHeight) / Math.max(1, sampleStep));
+    const row = rows.get(rowKey) ?? { y: candidate.y, weight: 0, count: 0 };
+    row.y = (row.y * row.count + candidate.y) / (row.count + 1);
+    row.weight += candidate.weight;
+    row.count += 1;
+    rows.set(rowKey, row);
+  }
+  if (rows.size === 0) {
+    return null;
+  }
+  const sortedRows = [...rows.values()].sort((left, right) => right.weight - left.weight);
+  const peak = sortedRows[0];
+  const searchedRowCount = Math.max(1, Math.ceil(((maxY - minY) * imageHeight) / Math.max(1, sampleStep)));
+  const averageWeight = sortedRows.reduce((sum, row) => sum + row.weight, 0) / searchedRowCount;
+  if (!peak || peak.count < 2 || peak.weight < averageWeight * 1.45) {
+    return null;
+  }
+  const band = Math.max(0.012, (sampleStep / Math.max(imageHeight, 1)) * 2.5);
+  const lineCandidates = candidates.filter((candidate) => Math.abs(candidate.y - peak.y) <= band);
+  const lineWeight = lineCandidates.reduce((sum, candidate) => sum + candidate.weight, 0);
+  if (lineCandidates.length < 2 || lineWeight <= 0) {
+    return null;
+  }
+  return {
+    y: lineCandidates.reduce((sum, candidate) => sum + candidate.y * candidate.weight, 0) / lineWeight,
+    weight: lineWeight,
+    candidates: lineCandidates
+  };
+};
+
+const createFeaturePoint = (
+  candidates: AvatarIllustrationPixelFeatureCandidate[]
+): AvatarIllustrationLandmarkPoint | null => {
+  const weight = candidates.reduce((sum, candidate) => sum + candidate.weight, 0);
+  if (candidates.length === 0 || weight <= 0) {
+    return null;
+  }
+  return {
+    x: clamp01(candidates.reduce((sum, candidate) => sum + candidate.x * candidate.weight, 0) / weight),
+    y: clamp01(candidates.reduce((sum, candidate) => sum + candidate.y * candidate.weight, 0) / weight),
+    confidence: clamp01(0.55 + Math.min(0.4, weight / 18))
+  };
 };
 
 interface NormalizedDetectorFace {

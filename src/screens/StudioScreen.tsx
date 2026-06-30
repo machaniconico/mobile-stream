@@ -68,6 +68,7 @@ import {
   addSource,
   analyzeAvatarIllustrationAlphaMask,
   applyInferredAvatarIllustrationRig,
+  createAvatarIllustrationLandmarkAnalysisFromPixelFeatures,
   createAvatarIllustrationLandmarkAnalysisFromDetector,
   createSource,
   defaultAvatarIllustrationRig,
@@ -2459,8 +2460,18 @@ const loadBrowserAvatarRigInferenceInput = (
                 height,
                 data: imageData.data
               });
+              const pixelLandmarkAnalysis = createAvatarIllustrationLandmarkAnalysisFromPixelFeatures({
+                width,
+                height,
+                data: imageData.data,
+                foregroundBounds: imageAnalysis?.foregroundBounds ?? null
+              });
               resolve({
-                input: createBrowserAvatarRigInferenceInput(imageAspectRatio, imageAnalysis, landmarkAnalysis),
+                input: createBrowserAvatarRigInferenceInput(
+                  imageAspectRatio,
+                  imageAnalysis,
+                  selectBrowserAvatarRigLandmarkAnalysis(landmarkAnalysis, pixelLandmarkAnalysis)
+                ),
                 analysisReadable: true
               });
             } catch {
@@ -2478,8 +2489,14 @@ const loadBrowserAvatarRigInferenceInput = (
                 height,
                 data: imageData.data
               });
+              const pixelLandmarkAnalysis = createAvatarIllustrationLandmarkAnalysisFromPixelFeatures({
+                width,
+                height,
+                data: imageData.data,
+                foregroundBounds: imageAnalysis?.foregroundBounds ?? null
+              });
               resolve({
-                input: createBrowserAvatarRigInferenceInput(imageAspectRatio, imageAnalysis, null),
+                input: createBrowserAvatarRigInferenceInput(imageAspectRatio, imageAnalysis, pixelLandmarkAnalysis),
                 analysisReadable: true
               });
             } catch {
@@ -2503,6 +2520,19 @@ const createBrowserAvatarRigInferenceInput = (
   ...(imageAnalysis ? { imageAnalysis } : {}),
   ...(landmarkAnalysis ? { landmarkAnalysis } : {})
 });
+
+const selectBrowserAvatarRigLandmarkAnalysis = (
+  detectorAnalysis: BrowserAvatarRigInferenceInput["landmarkAnalysis"],
+  pixelAnalysis: BrowserAvatarRigInferenceInput["landmarkAnalysis"]
+): BrowserAvatarRigInferenceInput["landmarkAnalysis"] => {
+  if (!detectorAnalysis) {
+    return pixelAnalysis;
+  }
+  if (!pixelAnalysis || detectorAnalysis.confidence >= 0.82) {
+    return detectorAnalysis;
+  }
+  return pixelAnalysis.confidence > detectorAnalysis.confidence ? pixelAnalysis : detectorAnalysis;
+};
 
 interface BrowserFaceDetector {
   detect(image: HTMLCanvasElement): Promise<BrowserDetectedFace[]>;
