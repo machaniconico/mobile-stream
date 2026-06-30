@@ -24,6 +24,7 @@ const files = {
   broadcastEntitlements: read("ios/MobileLiveCasterBroadcastUpload/MobileLiveCasterBroadcastUpload.entitlements"),
   xcodeProject: read("ios/MobileLiveCaster.xcodeproj/project.pbxproj"),
   storeReleaseBuildScript: read("scripts/release-store-build.mjs"),
+  physicalDevicesScript: read("scripts/verify-physical-devices.mjs"),
   storeSubmissionDraftScript: read("scripts/create-store-submission-draft.mjs"),
   storeRealDeviceScreenshotsScript: read("scripts/import-store-real-device-screenshots.mjs"),
   releaseCandidateScript: read("scripts/verify-release-candidate.mjs"),
@@ -73,6 +74,7 @@ const checks = [
     expectIncludes(files.androidGradle, "Android release signing is not configured");
     expectIncludes(files.androidGradle, "signingConfig signingConfigs.release");
     expectNotIncludes(releaseBlock(files.androidGradle), "signingConfigs.debug");
+    expectIncludes(files.packageJson, '"verify:physical-devices": "node scripts/verify-physical-devices.mjs"');
     expectIncludes(files.packageJson, '"verify:store-release-env": "node scripts/verify-store-release-env.mjs"');
     expectIncludes(files.packageJson, '"verify:distribution-artifacts": "node scripts/verify-distribution-artifacts.mjs --verify"');
     expectIncludes(files.packageJson, '"verify:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --verify"');
@@ -93,6 +95,16 @@ const checks = [
     expectIncludes(files.storeReleaseEnvScript, "MLC_RELEASE_KEY_ALIAS");
     expectIncludes(files.storeReleaseEnvScript, "must point outside the repository");
     expectIncludes(files.storeReleaseEnvScript, "not committed");
+    expectIncludes(files.physicalDevicesScript, "physical-device-preflight");
+    expectIncludes(files.physicalDevicesScript, "adb");
+    expectIncludes(files.physicalDevicesScript, "xcrun");
+    expectIncludes(files.physicalDevicesScript, "xctrace");
+    expectIncludes(files.physicalDevicesScript, "ro.kernel.qemu");
+    expectIncludes(files.physicalDevicesScript, "ro.boot.qemu");
+    expectIncludes(files.physicalDevicesScript, "ro.hardware");
+    expectIncludes(files.physicalDevicesScript, "emulator or generic Android system image");
+    expectIncludes(files.physicalDevicesScript, "iOS Simulator");
+    expectIncludes(files.physicalDevicesScript, "must not be a symbolic link");
     expectIncludes(files.distributionArtifactsScript, "androidAab");
     expectIncludes(files.distributionArtifactsScript, ".aab");
     expectIncludes(files.distributionArtifactsScript, "sha256");
