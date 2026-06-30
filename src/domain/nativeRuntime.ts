@@ -6,6 +6,16 @@ const productionVrmRendererBackendsByPlatform: Record<NativeRuntimePlatform, Set
   android: new Set(["opengl-es", "opengl-es-3", "filament-opengl-es"])
 };
 
+const productionVideoEncoderBackendsByPlatform: Record<NativeRuntimePlatform, Set<string>> = {
+  ios: new Set(["videotoolbox", "videotoolbox-h264"]),
+  android: new Set(["mediacodec", "mediacodec-h264"])
+};
+
+const productionAudioEncoderBackendsByPlatform: Record<NativeRuntimePlatform, Set<string>> = {
+  ios: new Set(["audiotoolbox", "audiotoolbox-aac"]),
+  android: new Set(["mediacodec", "mediacodec-aac"])
+};
+
 export const normalizeVrmRendererBackend = (backend: string | null | undefined): string =>
   typeof backend === "string" ? backend.trim().toLowerCase() : "";
 
@@ -17,6 +27,29 @@ export const isProductionVrmRendererBackend = (
     return false;
   }
   return productionVrmRendererBackendsByPlatform[platform].has(normalizeVrmRendererBackend(backend));
+};
+
+export const normalizeNativeEncoderBackend = (backend: string | null | undefined): string =>
+  typeof backend === "string" ? backend.trim().toLowerCase() : "";
+
+export const isProductionNativeVideoEncoderBackend = (
+  platform: NativeRuntimePlatform | string | null | undefined,
+  backend: string | null | undefined
+): boolean => {
+  if (platform !== "ios" && platform !== "android") {
+    return false;
+  }
+  return productionVideoEncoderBackendsByPlatform[platform].has(normalizeNativeEncoderBackend(backend));
+};
+
+export const isProductionNativeAudioEncoderBackend = (
+  platform: NativeRuntimePlatform | string | null | undefined,
+  backend: string | null | undefined
+): boolean => {
+  if (platform !== "ios" && platform !== "android") {
+    return false;
+  }
+  return productionAudioEncoderBackendsByPlatform[platform].has(normalizeNativeEncoderBackend(backend));
 };
 
 export interface NativeRuntimeComposition {
@@ -82,6 +115,8 @@ export interface NativeRuntimeComposition {
 
 export interface NativeRuntimePublisher {
   state: string;
+  videoEncoderBackend?: string;
+  audioEncoderBackend?: string;
   reconnectAttempts: number;
   sentVideoFrames: number;
   sentAudioFrames: number;

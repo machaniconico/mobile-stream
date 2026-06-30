@@ -45,6 +45,8 @@ const nativeRuntimeWithAudioProcessing = (
   droppedFrames: 0,
   publisher: {
     state: "published",
+    videoEncoderBackend: "videotoolbox-h264",
+    audioEncoderBackend: "audiotoolbox-aac",
     reconnectAttempts: 0,
     sentVideoFrames: 300,
     sentAudioFrames: 470,
@@ -555,6 +557,8 @@ describe("stream diagnostics", () => {
       droppedFrames: 0,
       publisher: {
         state: "published" as const,
+        videoEncoderBackend: "videotoolbox-h264",
+        audioEncoderBackend: "audiotoolbox-aac",
         reconnectAttempts: 0,
         sentVideoFrames: 0,
         sentAudioFrames: 0,
@@ -784,6 +788,8 @@ describe("stream diagnostics", () => {
         droppedFrames: 0,
         publisher: {
           state: "published",
+          videoEncoderBackend: "videotoolbox-h264",
+          audioEncoderBackend: "audiotoolbox-aac",
           reconnectAttempts: 0,
           sentVideoFrames: 600,
           sentAudioFrames: 940,
@@ -891,6 +897,8 @@ describe("stream diagnostics", () => {
         droppedFrames: 0,
         publisher: {
           state: "published",
+          videoEncoderBackend: "mediacodec-h264",
+          audioEncoderBackend: "mediacodec-aac",
           reconnectAttempts: 0,
           sentVideoFrames: 330,
           sentAudioFrames: 500,
@@ -954,6 +962,8 @@ describe("stream diagnostics", () => {
         droppedFrames: 0,
         publisher: {
           state: "published",
+          videoEncoderBackend: "videotoolbox-h264",
+          audioEncoderBackend: "audiotoolbox-aac",
           reconnectAttempts: 0,
           sentVideoFrames: 330,
           sentAudioFrames: 500,
@@ -1029,6 +1039,8 @@ describe("stream diagnostics", () => {
         droppedFrames: 0,
         publisher: {
           state: "published",
+          videoEncoderBackend: "videotoolbox-h264",
+          audioEncoderBackend: "audiotoolbox-aac",
           reconnectAttempts: 0,
           sentVideoFrames: 330,
           sentAudioFrames: 500,
@@ -1102,6 +1114,8 @@ describe("stream diagnostics", () => {
         droppedFrames: 0,
         publisher: {
           state: "failed",
+          videoEncoderBackend: "mediacodec-h264",
+          audioEncoderBackend: "mediacodec-aac",
           reconnectAttempts: 0,
           sentVideoFrames: 0,
           sentAudioFrames: 0,
@@ -1161,6 +1175,8 @@ describe("stream diagnostics", () => {
         droppedFrames: 2,
         publisher: {
           state: "published",
+          videoEncoderBackend: "mediacodec-h264",
+          audioEncoderBackend: "mediacodec-aac",
           reconnectAttempts: 0,
           sentVideoFrames: 540,
           sentAudioFrames: 910,

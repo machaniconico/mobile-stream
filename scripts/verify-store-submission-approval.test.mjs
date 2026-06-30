@@ -387,7 +387,7 @@ function writeSupportBundleFixture() {
     ".artifacts/store-approval-test/support-bundle.json",
     JSON.stringify(
       {
-        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 47 },
+        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 48 },
         generatedAt: new Date().toISOString(),
         summary: {
           preflightStatus: "ready",
@@ -475,6 +475,8 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     result: "pass",
     nativeRuntimePlatform: devicePlatform,
     nativeRuntimeStatus: "pass",
+    nativeRuntimeVideoEncoderBackend: devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
+    nativeRuntimeAudioEncoderBackend: devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
     nativeRuntimeCompositionStatus: "applied",
     nativeRuntimeCompositionAppliedCount: 1,
     nativeRuntimeCompositionSkippedCount: 0,

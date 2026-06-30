@@ -1,7 +1,12 @@
 import type { FaceTrackingDiagnostics } from "./faceTrackingDiagnostics";
 import type { AudioMonitorSafetyStatus } from "./audioRoute";
 import type { NativeCompositionReport } from "./nativeComposition";
-import { isProductionVrmRendererBackend, type NativeRuntimeTelemetry } from "./nativeRuntime";
+import {
+  isProductionNativeAudioEncoderBackend,
+  isProductionNativeVideoEncoderBackend,
+  isProductionVrmRendererBackend,
+  type NativeRuntimeTelemetry
+} from "./nativeRuntime";
 import {
   assessPlatformPublishingFreshness,
   isPlatformPublishingFreshEnoughForRelease,
@@ -499,6 +504,9 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
     stillImageAssetCount > 0 &&
     (compositedStillImageAssetCount < stillImageAssetCount || compositedStillImageAssetPixels <= 0);
   const missingVrmPoses = nativeRuntime.composition.vrmMissingPoseCount ?? 0;
+  const invalidNativeEncoderBackends =
+    !isProductionNativeVideoEncoderBackend(nativeRuntime.platform, nativeRuntime.publisher.videoEncoderBackend) ||
+    !isProductionNativeAudioEncoderBackend(nativeRuntime.platform, nativeRuntime.publisher.audioEncoderBackend);
   const vrmSourceCount = nativeRuntime.composition.vrmSourceCount ?? 0;
   const vrmRendererStatus = nativeRuntime.composition.vrmRendererStatus ?? (vrmSourceCount > 0 ? "unavailable" : "not-required");
   const hasProductionVrmRendererBackend = isProductionVrmRendererBackend(
@@ -547,6 +555,7 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
     missingAssets > 0 ||
     missingDecodedAssets ||
     missingCompositedAssets ||
+    invalidNativeEncoderBackends ||
     missingVrmPoses > 0 ||
     missingVrmRenders
   ) {
@@ -563,6 +572,8 @@ const createNativeRuntimeItem = ({ nativeRuntime }: StreamValidationRunbookInput
             ? "Repeat native compositor validation until every still-image asset decodes to non-zero pixels."
             : missingCompositedAssets
               ? "Repeat native compositor validation until every still-image asset is composited with non-zero pixel proof."
+              : invalidNativeEncoderBackends
+                ? "Use VideoToolbox/AudioToolbox on iOS and first-party MediaCodec video/audio encoders on Android before recording a pass."
               : missingVrmPoses > 0
               ? "Confirm VRM runtime pose payloads are included in the render graph before recording a pass."
               : missingVrmModelMetadata

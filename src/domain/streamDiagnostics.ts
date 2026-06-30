@@ -21,7 +21,12 @@ import {
 import { createNativeCompositionReport, type NativeCompositionReport } from "./nativeComposition";
 import { assessPlatformPublishingFreshness } from "./platformPublishingFreshness";
 import type { PublicLaunchChecklist } from "./publicLaunchChecklist";
-import { isProductionVrmRendererBackend, type NativeRuntimeTelemetry } from "./nativeRuntime";
+import {
+  isProductionNativeAudioEncoderBackend,
+  isProductionNativeVideoEncoderBackend,
+  isProductionVrmRendererBackend,
+  type NativeRuntimeTelemetry
+} from "./nativeRuntime";
 import type { ReadinessReport } from "./readiness";
 import type { SceneDocument } from "./scene";
 import { redactSensitiveText } from "./sensitiveText";
@@ -1665,6 +1670,17 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
       status: "warn",
       label: "Native runtime",
       message: `Native publisher is congested with ${runtime.publisher.itemsInCache}/${runtime.publisher.cacheSize} queued items.`
+    };
+  }
+  const invalidNativeEncoderBackends =
+    !isProductionNativeVideoEncoderBackend(runtime.platform, runtime.publisher.videoEncoderBackend) ||
+    !isProductionNativeAudioEncoderBackend(runtime.platform, runtime.publisher.audioEncoderBackend);
+  if (invalidNativeEncoderBackends) {
+    return {
+      code: "native-runtime-encoder-backend",
+      status: "warn",
+      label: "Native runtime",
+      message: `Native encoder backend ${runtime.publisher.videoEncoderBackend || "none"}/${runtime.publisher.audioEncoderBackend || "none"} is not accepted as production evidence for ${runtime.platform}.`
     };
   }
   const missingAssetCount = runtime.composition.stillImageAssetMissingCount ?? 0;

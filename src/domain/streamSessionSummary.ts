@@ -3,7 +3,12 @@ import {
   type StreamHealthHistorySummary,
   type StreamHealthSample
 } from "./streamHealthHistory";
-import { isProductionVrmRendererBackend, type NativeRuntimeTelemetry } from "./nativeRuntime";
+import {
+  isProductionNativeAudioEncoderBackend,
+  isProductionNativeVideoEncoderBackend,
+  isProductionVrmRendererBackend,
+  type NativeRuntimeTelemetry
+} from "./nativeRuntime";
 import type { StreamSessionEvent } from "./streamSessionLog";
 
 export type StreamSessionEndReason = "stopped" | "failed";
@@ -33,6 +38,8 @@ export interface StreamSessionNativeRuntimeSummary {
   status: StreamSessionNativeRuntimeStatus;
   runtimeStatus: string;
   publisherState: string;
+  videoEncoderBackend: string;
+  audioEncoderBackend: string;
   compositionStatus: NativeRuntimeTelemetry["composition"]["status"];
   compositionAppliedCount: number;
   compositionSkippedCount: number;
@@ -685,6 +692,11 @@ export const createNativeRuntimeSessionSummary = (
   );
   const stale = runtime.stale;
   const congested = runtime.publisher.congested;
+  const videoEncoderBackend = runtime.publisher.videoEncoderBackend || "none";
+  const audioEncoderBackend = runtime.publisher.audioEncoderBackend || "none";
+  const invalidNativeEncoderBackends =
+    !isProductionNativeVideoEncoderBackend(runtime.platform, videoEncoderBackend) ||
+    !isProductionNativeAudioEncoderBackend(runtime.platform, audioEncoderBackend);
   const pendingComposition = runtime.composition.status === "pending";
   const stillImageAssetCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetCount);
   const stillImageAssetLoadedCount = normalizeNonNegativeInteger(runtime.composition.stillImageAssetLoadedCount);
@@ -801,6 +813,7 @@ export const createNativeRuntimeSessionSummary = (
         missingDecodedStillImageAssets ||
         missingCompositedStillImageAssets ||
         missingIosAppGroupStillImageProof ||
+        invalidNativeEncoderBackends ||
         missingVrmPoses ||
         incompleteVrmRendering
       ? "warn"
@@ -814,6 +827,7 @@ export const createNativeRuntimeSessionSummary = (
     missingDecodedStillImageAssets,
     missingCompositedStillImageAssets,
     missingIosAppGroupStillImageProof,
+    invalidNativeEncoderBackends,
     missingVrmPoses,
     incompleteVrmRendering
   ].filter(Boolean).length;
@@ -824,6 +838,8 @@ export const createNativeRuntimeSessionSummary = (
     status,
     runtimeStatus: runtime.runtimeStatus,
     publisherState: runtime.publisher.state,
+    videoEncoderBackend,
+    audioEncoderBackend,
     compositionStatus: runtime.composition.status,
     compositionAppliedCount: normalizeNonNegativeInteger(runtime.composition.appliedCount),
     compositionSkippedCount: normalizeNonNegativeInteger(runtime.composition.skippedCount),
@@ -921,9 +937,11 @@ export const createNativeRuntimeSessionSummary = (
         : congested
           ? "Lower bitrate/FPS or improve network stability before a long public stream."
           : stale
-            ? "Confirm the native runtime is still reporting current telemetry during device validation."
-            : missingAssets
-              ? "Confirm App Group-copied PNGTuber/image assets load inside the iOS Broadcast Upload Extension before public streams."
+          ? "Confirm the native runtime is still reporting current telemetry during device validation."
+          : invalidNativeEncoderBackends
+            ? "Retain native runtime evidence only after iOS uses VideoToolbox/AudioToolbox and Android uses first-party MediaCodec video/audio encoders."
+          : missingAssets
+            ? "Confirm App Group-copied PNGTuber/image assets load inside the iOS Broadcast Upload Extension before public streams."
               : missingDecodedStillImageAssets
                 ? "Confirm PNGTuber/image assets decode to non-zero pixels inside the native compositor before retaining production evidence."
                 : missingCompositedStillImageAssets
@@ -1159,6 +1177,8 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     status,
     runtimeStatus: typeof value.runtimeStatus === "string" ? value.runtimeStatus : "unknown",
     publisherState: typeof value.publisherState === "string" ? value.publisherState : "",
+    videoEncoderBackend: typeof value.videoEncoderBackend === "string" ? value.videoEncoderBackend : "none",
+    audioEncoderBackend: typeof value.audioEncoderBackend === "string" ? value.audioEncoderBackend : "none",
     compositionStatus,
     compositionAppliedCount: normalizeNonNegativeInteger(value.compositionAppliedCount),
     compositionSkippedCount: normalizeNonNegativeInteger(value.compositionSkippedCount),

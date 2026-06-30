@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v47.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v48.");
   });
 
   it("blocks support bundles without public launch confirmation summary evidence", () => {
@@ -123,7 +123,26 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("platform-matched video/audio frames");
+    expect(result.stdout).toContain("production video/audio encoder backends");
+  });
+
+  it("blocks native runtime claims when retained manifests use non-production encoder backends", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("android", "svr1-android", {
+            nativeRuntimeVideoEncoderBackend: "rootencoder",
+            nativeRuntimeAudioEncoderBackend: "rootencoder"
+          }),
+          manifestRun("ios", "svr1-ios")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("production video/audio encoder backends");
   });
 
   it("blocks native runtime claims when retained manifests have missing compositor assets", () => {
@@ -970,7 +989,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 47
+      bundleVersion: 48
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -1007,6 +1026,8 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   result: "pass",
   nativeRuntimePlatform: devicePlatform,
   nativeRuntimeStatus: "pass",
+  nativeRuntimeVideoEncoderBackend: devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
+  nativeRuntimeAudioEncoderBackend: devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
   nativeRuntimeCompositionStatus: "applied",
   nativeRuntimeCompositionAppliedCount: 1,
   nativeRuntimeCompositionSkippedCount: 0,

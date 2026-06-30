@@ -818,6 +818,7 @@ struct BroadcastVideoEncoderStats: Equatable {
 
     func asDictionary() -> [String: Any] {
         [
+            "backend": "videotoolbox-h264",
             "encodedFrames": encodedFrames,
             "keyframes": keyframes,
             "encodedBytes": encodedBytes,
@@ -955,6 +956,7 @@ struct BroadcastAudioEncoderStats: Equatable {
 
     func asDictionary() -> [String: Any] {
         [
+            "backend": "audiotoolbox-aac",
             "encodedFrames": encodedFrames,
             "appFrames": appFrames,
             "microphoneFrames": microphoneFrames,

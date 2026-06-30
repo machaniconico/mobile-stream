@@ -56,6 +56,8 @@ describe("support bundle", () => {
         droppedFrames: 1,
         publisher: {
           state: "published",
+          videoEncoderBackend: "mediacodec-h264",
+          audioEncoderBackend: "mediacodec-aac",
           reconnectAttempts: 0,
           sentVideoFrames: 144,
           sentAudioFrames: 240,
@@ -222,7 +224,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 47 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 48 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
@@ -262,6 +264,8 @@ describe("support bundle", () => {
     expect(bundle.summary.lastSessionQualityUpdateFailureCount).toBe(0);
     expect(bundle.summary.lastSessionNativeRuntimeStatus).toBe("warn");
     expect(bundle.summary.lastSessionNativeRuntimePlatform).toBe("android");
+    expect(bundle.summary.lastSessionNativeRuntimeVideoEncoderBackend).toBe("mediacodec-h264");
+    expect(bundle.summary.lastSessionNativeRuntimeAudioEncoderBackend).toBe("mediacodec-aac");
     expect(bundle.summary.lastSessionNativeRuntimeCongested).toBe(true);
     expect(bundle.summary.lastSessionNativeRuntimeStillImageAssetCount).toBe(1);
     expect(bundle.summary.lastSessionNativeRuntimeStillImageAssetLoadedCount).toBe(1);
@@ -319,6 +323,8 @@ describe("support bundle", () => {
     expect(bundle.summary.nativeCompositionFileBackedAssetIssueCount).toBe(0);
     expect(bundle.summary.nativeCompositionRequiresCompositor).toBe(true);
     expect(bundle.summary.nativeRuntimePlatform).toBe("android");
+    expect(bundle.summary.nativeRuntimeVideoEncoderBackend).toBe("mediacodec-h264");
+    expect(bundle.summary.nativeRuntimeAudioEncoderBackend).toBe("mediacodec-aac");
     expect(bundle.summary.nativeRuntimeCongested).toBe(true);
     expect(bundle.summary.nativeRuntimeQueuedItems).toBe(64);
     expect(bundle.summary.nativeRuntimeCacheSize).toBe(120);
@@ -409,13 +415,13 @@ describe("support bundle", () => {
       "assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing"
     );
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
-    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / overlays applied 1 skipped 0 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing / vrm 1/1 active payloads 1 missing 0 / renderer ready opengl-es rendered 1/1 models 1 versions 1.0 bones 55 expressions 8 mesh primitives 4 triangles 4 unsupported modes 0 skinned 4 skin joints 55 position accessors 4 normals 4 uvs 4 vertices 12480 indices 36240 bounds 4 skin attrs 4 morphs 8 materials 3 transparent materials 1 textures 3 images 3 unsupported image mimes 0 pose bones 7/7 unsupported 0 pose expressions 3/3 unsupported 0 missing 0 failed 0 / congested yes / queue 64/120");
+    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / encoders mediacodec-h264/mediacodec-aac / overlays applied 1 skipped 0 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing / vrm 1/1 active payloads 1 missing 0 / renderer ready opengl-es rendered 1/1 models 1 versions 1.0 bones 55 expressions 8 mesh primitives 4 triangles 4 unsupported modes 0 skinned 4 skin joints 55 position accessors 4 normals 4 uvs 4 vertices 12480 indices 36240 bounds 4 skin attrs 4 morphs 8 materials 3 transparent materials 1 textures 3 images 3 unsupported image mimes 0 pose bones 7/7 unsupported 0 pose expressions 3/3 unsupported 0 missing 0 failed 0 / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
     expect(formatSupportBundle(bundle)).toContain("Evidence fingerprint: sve1-");
     expect(formatSupportBundle(bundle)).toContain("Evidence run manifest: -");
     expect(formatSupportBundle(bundle)).toContain("Evidence monitor hold: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - 0s 0 samples");
     expect(formatSupportBundle(bundle)).toContain(
-      "Evidence native runtime: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - - / sent 0 video 0 audio / bytes 0 / frame interval 0 samples avg 0ms max 0ms jitter 0ms / overlays applied 0 skipped 0 / assets 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0"
+      "Evidence native runtime: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - - / encoders none/none / sent 0 video 0 audio / bytes 0 / frame interval 0 samples avg 0ms max 0ms jitter 0ms / overlays applied 0 skipped 0 / assets 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0"
     );
     expect(formatSupportBundle(bundle)).toContain("Evidence face tracking: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("landmarks 0% not-ready");
@@ -465,6 +471,8 @@ describe("support bundle", () => {
         droppedFrames: 0,
         publisher: {
           state: "published",
+          videoEncoderBackend: "videotoolbox-h264",
+          audioEncoderBackend: "audiotoolbox-aac",
           reconnectAttempts: 0,
           sentVideoFrames: 0,
           sentAudioFrames: 0,
@@ -640,6 +648,8 @@ describe("support bundle", () => {
       matchesScope: true,
       eligible: true,
       nativeRuntimeStatus: "pass",
+      nativeRuntimeVideoEncoderBackend: "videotoolbox-h264",
+      nativeRuntimeAudioEncoderBackend: "audiotoolbox-aac",
       nativeRuntimeStillImageAssetAppGroupCount: 1,
       nativeRuntimeStillImageAssetAppGroupLoadedCount: 1,
       nativeRuntimeStillImageAssetAppGroupDecodedCount: 1,
@@ -675,7 +685,7 @@ describe("support bundle", () => {
     expect(text).toContain("Evidence run manifest: ios warn eligible");
     expect(text).toContain(latestRunFingerprint ?? "-");
     expect(text).toContain(
-      "Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / sent 0 video 0 audio / bytes 0 / frame interval 119 samples avg 33.3ms max 42ms jitter 8.7ms / overlays applied 1 skipped 0 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / 0 missing / app-group 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600"
+      "Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / encoders videotoolbox-h264/audiotoolbox-aac / sent 0 video 0 audio / bytes 0 / frame interval 119 samples avg 33.3ms max 42ms jitter 8.7ms / overlays applied 1 skipped 0 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / 0 missing / app-group 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600"
     );
     expect(text).toContain("latency missing warn / source - / budget 180ms");
     expect(text).toContain("Evidence quality automation: 1 retained / live 1 / next-start 0 / failed 0");

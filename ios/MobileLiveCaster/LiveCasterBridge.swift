@@ -1058,6 +1058,8 @@ final class LiveCasterNative: RCTEventEmitter {
             "droppedFrames": stats.intValue("droppedSamples") + publisher.intValue("droppedVideoFrames"),
             "publisher": [
                 "state": publisherState,
+                "videoEncoderBackend": videoEncoder.stringValue("backend", fallback: "none"),
+                "audioEncoderBackend": audioEncoder.stringValue("backend", fallback: "none"),
                 "reconnectAttempts": publisher.intValue("reconnectAttempts"),
                 "sentVideoFrames": publisher.intValue("videoMessagesSent"),
                 "sentAudioFrames": publisher.intValue("audioMessagesSent"),

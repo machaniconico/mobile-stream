@@ -123,6 +123,8 @@ const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
   droppedFrames: 0,
   publisher: {
     state: "published",
+    videoEncoderBackend: platform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
+    audioEncoderBackend: platform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
     reconnectAttempts: 0,
     sentVideoFrames: 120,
     sentAudioFrames: 190,
@@ -1084,6 +1086,108 @@ describe("stream validation evidence", () => {
     expect(summary.nativeRuntimeIosPass).toBe(false);
   });
 
+  it("requires native runtime production encoder backend proof", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntime("android");
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: {
+          ...runtime,
+          publisher: {
+            ...runtime.publisher,
+            videoEncoderBackend: "rootencoder",
+            audioEncoderBackend: "rootencoder"
+          }
+        }
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      ...physicalDeviceMeta("android"),
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.nativeRuntime).toMatchObject({
+      status: "warn",
+      videoEncoderBackend: "rootencoder",
+      audioEncoderBackend: "rootencoder"
+    });
+    expect(run.recommendation).toContain("first-party MediaCodec");
+    expect(summary.nativeRuntimeRunCount).toBe(1);
+    expect(summary.nativeRuntimeReadyCount).toBe(0);
+    expect(summary.nativeRuntimeAndroidPass).toBe(false);
+  });
+
+  it("does not accept omitted iOS native encoder backend proof", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntime("ios");
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: {
+          ...runtime,
+          publisher: {
+            ...runtime.publisher,
+            videoEncoderBackend: "",
+            audioEncoderBackend: ""
+          }
+        }
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.nativeRuntime).toMatchObject({
+      status: "warn",
+      videoEncoderBackend: "none",
+      audioEncoderBackend: "none"
+    });
+    expect(run.recommendation).toContain("VideoToolbox/AudioToolbox");
+    expect(summary.nativeRuntimeRunCount).toBe(1);
+    expect(summary.nativeRuntimeReadyCount).toBe(0);
+    expect(summary.nativeRuntimeIosPass).toBe(false);
+  });
+
   it("does not count retained native runtime evidence as ready when VRM renderer proof is incomplete", () => {
     const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
@@ -1949,6 +2053,8 @@ describe("stream validation evidence", () => {
     expect(summary.runManifest.find((run) => run.devicePlatform === "ios")).toMatchObject({
       nativeRuntimePlatform: "ios",
       nativeRuntimeStatus: "pass",
+      nativeRuntimeVideoEncoderBackend: "videotoolbox-h264",
+      nativeRuntimeAudioEncoderBackend: "audiotoolbox-aac",
       nativeRuntimeCompositionStatus: "applied",
       nativeRuntimeCompositionAppliedCount: 1,
       nativeRuntimeCompositionSkippedCount: 0,

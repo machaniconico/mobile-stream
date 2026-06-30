@@ -208,6 +208,8 @@ private fun AndroidCompositionResult.toNativeRuntimeComposition(): NativeRuntime
 
 data class NativeRuntimePublisher(
     val state: String = "",
+    val videoEncoderBackend: String = "",
+    val audioEncoderBackend: String = "",
     val reconnectAttempts: Int = 0,
     val sentVideoFrames: Long = 0,
     val sentAudioFrames: Long = 0,
@@ -225,6 +227,8 @@ data class NativeRuntimePublisher(
 ) {
     fun asWritableMap(): WritableMap = Arguments.createMap().apply {
         putString("state", state)
+        putString("videoEncoderBackend", videoEncoderBackend)
+        putString("audioEncoderBackend", audioEncoderBackend)
         putInt("reconnectAttempts", reconnectAttempts)
         putDouble("sentVideoFrames", sentVideoFrames.toDouble())
         putDouble("sentAudioFrames", sentAudioFrames.toDouble())
@@ -514,6 +518,8 @@ object LiveCasterSession {
         encodedBytes: Long? = null,
         sentVideoFrames: Long? = null,
         sentAudioFrames: Long? = null,
+        videoEncoderBackend: String? = null,
+        audioEncoderBackend: String? = null,
         droppedVideoFrames: Long? = null,
         droppedAudioFrames: Long? = null,
         bytesWritten: Long? = null,
@@ -535,6 +541,8 @@ object LiveCasterSession {
         val publisher = current?.publisher ?: NativeRuntimePublisher()
         val nextPublisher = publisher.copy(
             state = publisherState ?: publisher.state,
+            videoEncoderBackend = videoEncoderBackend ?: publisher.videoEncoderBackend,
+            audioEncoderBackend = audioEncoderBackend ?: publisher.audioEncoderBackend,
             reconnectAttempts = health.reconnectAttempts,
             sentVideoFrames = sentVideoFrames ?: publisher.sentVideoFrames,
             sentAudioFrames = sentAudioFrames ?: publisher.sentAudioFrames,

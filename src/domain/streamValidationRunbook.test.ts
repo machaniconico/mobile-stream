@@ -84,6 +84,8 @@ const nativeRuntime: NativeRuntimeTelemetry = {
   droppedFrames: 0,
   publisher: {
     state: "published",
+    videoEncoderBackend: "videotoolbox-h264",
+    audioEncoderBackend: "audiotoolbox-aac",
     reconnectAttempts: 0,
     sentVideoFrames: 2700,
     sentAudioFrames: 4300,

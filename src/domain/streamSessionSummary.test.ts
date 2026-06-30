@@ -291,6 +291,8 @@ describe("stream session summary", () => {
         droppedFrames: 2,
         publisher: {
           state: "published",
+          videoEncoderBackend: "mediacodec-h264",
+          audioEncoderBackend: "mediacodec-aac",
           reconnectAttempts: 0,
           sentVideoFrames: 92,
           sentAudioFrames: 180,
@@ -369,6 +371,8 @@ describe("stream session summary", () => {
         droppedFrames: 0,
         publisher: {
           state: "published",
+          videoEncoderBackend: "videotoolbox-h264",
+          audioEncoderBackend: "audiotoolbox-aac",
           reconnectAttempts: 0,
           sentVideoFrames: 92,
           sentAudioFrames: 180,
@@ -434,6 +438,8 @@ describe("stream session summary", () => {
         droppedFrames: 0,
         publisher: {
           state: "published",
+          videoEncoderBackend: "videotoolbox-h264",
+          audioEncoderBackend: "audiotoolbox-aac",
           reconnectAttempts: 0,
           sentVideoFrames: 92,
           sentAudioFrames: 180,
@@ -494,6 +500,8 @@ describe("stream session summary", () => {
         droppedFrames: 0,
         publisher: {
           state: "published",
+          videoEncoderBackend: "videotoolbox-h264",
+          audioEncoderBackend: "audiotoolbox-aac",
           reconnectAttempts: 0,
           sentVideoFrames: 92,
           sentAudioFrames: 180,
@@ -555,6 +563,8 @@ describe("stream session summary", () => {
         droppedFrames: 0,
         publisher: {
           state: "failed",
+          videoEncoderBackend: "videotoolbox-h264",
+          audioEncoderBackend: "audiotoolbox-aac",
           reconnectAttempts: 1,
           sentVideoFrames: 40,
           sentAudioFrames: 80,
@@ -644,6 +654,8 @@ describe("stream session summary", () => {
           status: "warn",
           runtimeStatus: "live",
           publisherState: "published",
+          videoEncoderBackend: "mediacodec-h264",
+          audioEncoderBackend: "mediacodec-aac",
           compositionStatus: "applied",
           stillImageAssetCount: 2,
           stillImageAssetLoadedCount: 1,

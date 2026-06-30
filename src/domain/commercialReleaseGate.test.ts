@@ -567,6 +567,33 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks native-runtime summary claims when the manifest uses non-production encoder backends", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "android",
+              fingerprint: "svr1-android",
+              nativeRuntimeVideoEncoderBackend: "rootencoder",
+              nativeRuntimeAudioEncoderBackend: "rootencoder"
+            }),
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("Android native runtime proof")
+      })
+    );
+  });
+
   it("blocks native-runtime summary claims when the manifest has missing compositor assets", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -1478,7 +1505,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 47 as const
+    bundleVersion: 48 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1617,6 +1644,8 @@ const manifestRun = ({
   transport = "rtmps",
   nativeRuntimePlatform,
   nativeRuntimeStatus = "pass",
+  nativeRuntimeVideoEncoderBackend = devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
+  nativeRuntimeAudioEncoderBackend = devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
   nativeRuntimeCompositionStatus = "applied",
   nativeRuntimeCompositionAppliedCount = 1,
   nativeRuntimeCompositionSkippedCount = 0,
@@ -1760,6 +1789,8 @@ const manifestRun = ({
   transport?: ValidationManifestRun["transport"];
   nativeRuntimePlatform?: ValidationManifestRun["nativeRuntimePlatform"];
   nativeRuntimeStatus?: ValidationManifestRun["nativeRuntimeStatus"];
+  nativeRuntimeVideoEncoderBackend?: ValidationManifestRun["nativeRuntimeVideoEncoderBackend"];
+  nativeRuntimeAudioEncoderBackend?: ValidationManifestRun["nativeRuntimeAudioEncoderBackend"];
   nativeRuntimeCompositionStatus?: ValidationManifestRun["nativeRuntimeCompositionStatus"];
   nativeRuntimeCompositionAppliedCount?: ValidationManifestRun["nativeRuntimeCompositionAppliedCount"];
   nativeRuntimeCompositionSkippedCount?: ValidationManifestRun["nativeRuntimeCompositionSkippedCount"];
@@ -1909,6 +1940,8 @@ const manifestRun = ({
   result,
   nativeRuntimePlatform: nativeRuntimePlatform ?? devicePlatform,
   nativeRuntimeStatus,
+  nativeRuntimeVideoEncoderBackend,
+  nativeRuntimeAudioEncoderBackend,
   nativeRuntimeCompositionStatus,
   nativeRuntimeCompositionAppliedCount,
   nativeRuntimeCompositionSkippedCount,

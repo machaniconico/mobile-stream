@@ -18,7 +18,11 @@ import {
   minimumValidationMonitorDurationSeconds,
   minimumValidationMonitorSampleCount
 } from "./streamValidationThresholds";
-import { isProductionVrmRendererBackend } from "./nativeRuntime";
+import {
+  isProductionNativeAudioEncoderBackend,
+  isProductionNativeVideoEncoderBackend,
+  isProductionVrmRendererBackend
+} from "./nativeRuntime";
 
 export type StreamValidationDevicePlatform = "ios" | "android";
 export type StreamValidationRunResult = "pass" | "warn" | "fail";
@@ -204,6 +208,8 @@ export interface StreamValidationEvidenceRunManifestItem {
   result: StreamValidationRunResult;
   nativeRuntimePlatform: StreamSessionNativeRuntimeSummary["platform"] | null;
   nativeRuntimeStatus: StreamSessionNativeRuntimeSummary["status"] | null;
+  nativeRuntimeVideoEncoderBackend: string | null;
+  nativeRuntimeAudioEncoderBackend: string | null;
   nativeRuntimeCompositionStatus: StreamSessionNativeRuntimeSummary["compositionStatus"] | null;
   nativeRuntimeCompositionAppliedCount: number;
   nativeRuntimeCompositionSkippedCount: number;
@@ -1228,6 +1234,8 @@ const isNativeRuntimeEvidencePass = (
   nativeRuntime.sentVideoFrames > 0 &&
   nativeRuntime.sentAudioFrames > 0 &&
   nativeRuntime.bytesWritten > 0 &&
+  isProductionNativeVideoEncoderBackend(nativeRuntime.platform, nativeRuntime.videoEncoderBackend) &&
+  isProductionNativeAudioEncoderBackend(nativeRuntime.platform, nativeRuntime.audioEncoderBackend) &&
   hasNativeRuntimeVideoFrameIntervalProof(nativeRuntime) &&
   (nativeRuntime.compositionStatus === "applied" || nativeRuntime.compositionStatus === "screen-only") &&
   hasNativeRuntimeStillImageOverlayProof(nativeRuntime) &&
@@ -2461,6 +2469,8 @@ const createEvidenceRunManifestItem = (
     result: run.result,
     nativeRuntimePlatform: run.nativeRuntime?.platform ?? null,
     nativeRuntimeStatus: run.nativeRuntime?.status ?? null,
+    nativeRuntimeVideoEncoderBackend: run.nativeRuntime?.videoEncoderBackend ?? null,
+    nativeRuntimeAudioEncoderBackend: run.nativeRuntime?.audioEncoderBackend ?? null,
     nativeRuntimeCompositionStatus: run.nativeRuntime?.compositionStatus ?? null,
     nativeRuntimeCompositionAppliedCount: run.nativeRuntime?.compositionAppliedCount ?? 0,
     nativeRuntimeCompositionSkippedCount: run.nativeRuntime?.compositionSkippedCount ?? 0,

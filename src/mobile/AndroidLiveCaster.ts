@@ -163,6 +163,8 @@ const normalizeNativeRuntime = (
         droppedFrames: runtime.droppedFrames ?? 0,
         publisher: {
           state: runtime.publisher?.state ?? "",
+          videoEncoderBackend: runtime.publisher?.videoEncoderBackend ?? "",
+          audioEncoderBackend: runtime.publisher?.audioEncoderBackend ?? "",
           reconnectAttempts: runtime.publisher?.reconnectAttempts ?? 0,
           sentVideoFrames: runtime.publisher?.sentVideoFrames ?? 0,
           sentAudioFrames: runtime.publisher?.sentAudioFrames ?? 0,

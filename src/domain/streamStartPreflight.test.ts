@@ -79,6 +79,8 @@ const vrmRendererManifestRun = (
     devicePlatform,
     result: "pass",
     nativeRuntimeStatus: "pass",
+    nativeRuntimeVideoEncoderBackend: devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
+    nativeRuntimeAudioEncoderBackend: devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
     nativeRuntimeCompositionStatus: "applied",
     nativeRuntimeCompositionAppliedCount: 0,
     nativeRuntimeCompositionSkippedCount: 0,

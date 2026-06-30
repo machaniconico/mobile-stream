@@ -280,6 +280,8 @@ class MediaProjectionService : Service(), ConnectChecker {
             encodedBytes = encodedBytes ?: estimatedBytes,
             sentVideoFrames = sentVideoFrames,
             sentAudioFrames = sentAudioFrames,
+            videoEncoderBackend = "rootencoder",
+            audioEncoderBackend = "rootencoder",
             droppedVideoFrames = droppedVideoFrames,
             droppedAudioFrames = droppedAudioFrames,
             bytesWritten = bytesWritten ?: estimatedBytes,

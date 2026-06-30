@@ -144,14 +144,16 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 47");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 47");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 47");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 48");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 48");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 48");
     expectIncludes(files.commercialReleaseGateDomain, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseBundleScript, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scope");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-scope");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeSentVideoFrames");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeVideoEncoderBackend");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeAudioEncoderBackend");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetLoadedCount");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetDecodedPixelCount");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetCompositedPixelCount");
@@ -160,6 +162,8 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "hasManifestIosAppGroupStillImageProof");
     expectIncludes(files.commercialReleaseBundleScript, "hasIosAppGroupStillImageProof");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestNativeRuntimePass");
+    expectIncludes(files.commercialReleaseGateDomain, "isProductionNativeVideoEncoderBackend");
+    expectIncludes(files.commercialReleaseBundleScript, "isProductionNativeAudioEncoderBackend");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-native-runtime");
     expectIncludes(files.commercialReleaseGateDomain, "isProductionVrmRendererBackend");
     expectIncludes(files.commercialReleaseBundleScript, "isProductionVrmRendererBackend");
