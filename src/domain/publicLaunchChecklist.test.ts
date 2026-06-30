@@ -32,6 +32,7 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
     platform: "YouTube Live",
     presetName: "YouTube Live",
     protocol: "rtmps",
+    androidPublisherMode: "mediacodec",
     host: "a.rtmp.youtube.com",
     application: "live2",
     publishUrlPreview: "rtmps://a.rtmp.youtube.com/live2",

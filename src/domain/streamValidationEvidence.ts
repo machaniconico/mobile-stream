@@ -139,6 +139,7 @@ export interface StreamValidationRun {
   fingerprint: string;
   createdAt: string;
   devicePlatform: StreamValidationDevicePlatform;
+  androidPublisherMode: StreamDiagnostics["target"]["androidPublisherMode"] | null;
   deviceName: string;
   osVersion: string;
   physicalDevice: boolean;
@@ -198,6 +199,7 @@ export interface StreamValidationEvidenceRunManifestItem {
   matchesScope: boolean;
   eligible: boolean;
   devicePlatform: StreamValidationDevicePlatform;
+  androidPublisherMode: StreamValidationRun["androidPublisherMode"];
   deviceName: string;
   osVersion: string;
   physicalDevice: boolean;
@@ -514,6 +516,7 @@ export const createStreamValidationRun = ({
   const runBase = {
     createdAt,
     devicePlatform,
+    androidPublisherMode: diagnostics.target.androidPublisherMode,
     deviceName: sanitizedDeviceName,
     physicalDevice: physicalDevice.physicalDevice,
     physicalDeviceStatus: physicalDevice.physicalDeviceStatus,
@@ -526,6 +529,7 @@ export const createStreamValidationRun = ({
     id: createValidationRunId(runBase),
     createdAt,
     devicePlatform,
+    androidPublisherMode: diagnostics.target.androidPublisherMode,
     deviceName: sanitizedDeviceName,
     osVersion: sanitizedOsVersion,
     physicalDevice: physicalDevice.physicalDevice,
@@ -995,6 +999,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
 
   const targetPlatform = normalizeText(value.targetPlatform, "Unknown target");
   const transport = normalizeText(value.transport, "RTMP");
+  const androidPublisherMode = normalizeAndroidPublisherMode(value.androidPublisherMode);
   const deviceName = normalizeText(value.deviceName, defaultDeviceName(devicePlatform));
   const osVersion = normalizeText(value.osVersion, "-");
   const physicalDevice = normalizePhysicalDeviceEvidence(value, devicePlatform, deviceName, osVersion);
@@ -1025,6 +1030,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
     })),
     createdAt,
     devicePlatform,
+    androidPublisherMode,
     deviceName,
     osVersion,
     physicalDevice: physicalDevice.physicalDevice,
@@ -2592,6 +2598,7 @@ const createEvidenceRunManifestItem = (
     matchesScope,
     eligible: matchesScope && fresh,
     devicePlatform: run.devicePlatform,
+    androidPublisherMode: run.androidPublisherMode,
     deviceName: run.deviceName,
     osVersion: run.osVersion,
     physicalDevice: run.physicalDevice,
@@ -2753,6 +2760,7 @@ const toEvidenceFingerprintRunRef = (run: StreamValidationRun) => ({
   appBuild: run.appBuild,
   createdAt: run.createdAt,
   devicePlatform: run.devicePlatform,
+  androidPublisherMode: run.androidPublisherMode,
   fingerprint: run.fingerprint,
   id: run.id,
   physicalDevice: run.physicalDevice,
@@ -2980,6 +2988,9 @@ const ageInDays = (createdAt: string, now: Date): number => {
 
 const normalizeDevicePlatform = (value: unknown): StreamValidationDevicePlatform | null =>
   value === "ios" || value === "android" ? value : null;
+
+const normalizeAndroidPublisherMode = (value: unknown): StreamValidationRun["androidPublisherMode"] =>
+  value === "mediacodec" || value === "rootencoder" ? value : null;
 
 const normalizeResult = (value: unknown): StreamValidationRunResult | null =>
   value === "pass" || value === "warn" || value === "fail" ? value : null;

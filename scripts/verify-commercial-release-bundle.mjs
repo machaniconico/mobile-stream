@@ -3,7 +3,7 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
-const minimumSupportBundleVersion = 50;
+const minimumSupportBundleVersion = 51;
 const minimumValidationMonitorDurationSeconds = 60;
 const minimumValidationMonitorSampleCount = 3;
 const platformPublishingDashboardMaxAgeMinutes = 10;
@@ -347,7 +347,7 @@ function publicLaunchConfirmationEvidenceIssue(bundle) {
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v50 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, semantic avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
+      "Export a support bundle v51 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, semantic avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
     );
   }
 
@@ -477,7 +477,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v50 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v51 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -512,6 +512,15 @@ function validationManifestIssue(bundle) {
       "Record and retain passing physical-device validation runs for both iOS and Android on the current build."
     );
   }
+  const latestAndroidRun = latestEligibleRuns.find((run) => run?.devicePlatform === "android");
+  if (latestAndroidRun?.androidPublisherMode !== "mediacodec") {
+    return fail(
+      "validation-evidence-manifest-android-publisher-mode",
+      "Validation evidence manifest",
+      `The latest Android validation manifest row used ${text(latestAndroidRun?.androidPublisherMode) || "missing"} publisher mode.`,
+      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v51 or newer."
+    );
+  }
   const eligibleNativeRuntimePlatforms = new Set(
     latestEligibleRuns
       .filter(
@@ -530,7 +539,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-native-runtime",
       "Validation evidence manifest",
       "The manifest does not back claimed native runtime evidence with platform-matched production video/audio encoder backends, video/audio frames, bytes written, compositor status, applied/skipped native overlay proof, loaded, decoded, and composited still-image assets, and accepted production VRM renderer/backend/model/pose proof when VRM sources are present.",
-      "Export a support bundle v50 or newer after retaining iOS and Android validation runs with native publisher/compositor overlay telemetry from the current scene and platform-accepted production encoder backends."
+      "Export a support bundle v51 or newer after retaining iOS and Android validation runs with native publisher/compositor overlay telemetry from the current scene and platform-accepted production encoder backends."
     );
   }
   const eligibleMonitorHoldPlatforms = new Set(
@@ -556,7 +565,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-monitor-hold",
       "Validation evidence manifest",
       "The manifest does not back claimed monitor-hold evidence with stable duration, sample count, zero dropped frames, and zero reconnects.",
-      "Export a support bundle v50 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry."
+      "Export a support bundle v51 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry."
     );
   }
   const eligibleAudioPlatforms = new Set(
@@ -592,7 +601,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-audio-monitor",
       "Validation evidence manifest",
       "The manifest does not back claimed mic/headphone evidence with native monitor write/drop proof, headphone route proof, measured monitor latency source/budget proof, and Bluetooth tuning notes when applicable.",
-      "Export a support bundle v50 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones and retained route-match latency source/budget/tuning proof."
+      "Export a support bundle v51 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones and retained route-match latency source/budget/tuning proof."
     );
   }
   const eligibleAvatarPlatforms = new Set(
@@ -617,7 +626,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-avatar-motion",
       "Validation evidence manifest",
       "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, ready native face landmarks, active motion, and either ready high-fidelity PNGTuber rig plus semantic-segment proof or ready native-rendered VRM proof.",
-      "Export a support bundle v50 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and ready PNGTuber rig quality/high-fidelity/semantic-segment proof or native-rendered VRM proof."
+      "Export a support bundle v51 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and ready PNGTuber rig quality/high-fidelity/semantic-segment proof or native-rendered VRM proof."
     );
   }
   const eligibleChatReadoutPlatforms = new Set(
@@ -640,7 +649,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-chat-readout",
       "Validation evidence manifest",
       "The manifest does not back claimed chat readout evidence with spoken-message success and zero speech failures.",
-      "Export a support bundle v50 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
+      "Export a support bundle v51 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
     );
   }
   const eligiblePlatformDashboardPlatforms = new Set(
@@ -661,7 +670,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-platform-dashboard",
       "Validation evidence manifest",
       "The manifest does not back claimed platform dashboard evidence with fresh checked-at proof, YouTube identity/state proof, and Twitch dashboard status and Twitch title/category/language metadata.",
-      "Export a support bundle v50 or newer after retaining iOS and Android validation runs with fresh YouTube/Twitch dashboard status and Twitch title/category/language metadata from the destination receiving the stream."
+      "Export a support bundle v51 or newer after retaining iOS and Android validation runs with fresh YouTube/Twitch dashboard status and Twitch title/category/language metadata from the destination receiving the stream."
     );
   }
   const eligiblePlatformIngestPlatforms = new Set(
@@ -968,6 +977,8 @@ function isManifestNativeRuntimePass(run) {
     isProductionNativeVideoEncoderBackend(run?.devicePlatform, run?.nativeRuntimeVideoEncoderBackend) &&
     isProductionNativeAudioEncoderBackend(run?.devicePlatform, run?.nativeRuntimeAudioEncoderBackend) &&
     hasNativeRuntimeVideoFrameIntervalProof(run) &&
+    hasAndroidMediaCodecCompositorProof(run) &&
+    hasIosReplayKitCompositorProof(run) &&
     (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
     hasStillImageOverlayProof(run) &&
     hasIosAppGroupStillImageProof(run) &&
@@ -981,6 +992,33 @@ function hasNativeRuntimeVideoFrameIntervalProof(run) {
     isPositiveNumber(run?.nativeRuntimeVideoFrameIntervalAverageMs) &&
     isPositiveNumber(run?.nativeRuntimeVideoFrameIntervalMaxMs) &&
     isNonNegativeNumber(run?.nativeRuntimeVideoFrameIntervalJitterMs)
+  );
+}
+
+function hasAndroidMediaCodecCompositorProof(run) {
+  if (
+    run?.devicePlatform !== "android" ||
+    !isProductionNativeVideoEncoderBackend(run?.devicePlatform, run?.nativeRuntimeVideoEncoderBackend)
+  ) {
+    return true;
+  }
+
+  return (
+    run.nativeRuntimeCompositorBackend === "android-canvas-mediacodec" &&
+    isPositiveNumber(run.nativeRuntimeCompositedFrameCount) &&
+    isZeroNumber(run.nativeRuntimeCompositionFailureCount)
+  );
+}
+
+function hasIosReplayKitCompositorProof(run) {
+  if (run?.devicePlatform !== "ios" || !isPositiveNumber(run?.nativeRuntimeCompositionAppliedCount)) {
+    return true;
+  }
+
+  return (
+    run.nativeRuntimeCompositorBackend === "ios-replaykit-coregraphics" &&
+    isPositiveNumber(run.nativeRuntimeCompositedFrameCount) &&
+    isZeroNumber(run.nativeRuntimeCompositionFailureCount)
   );
 }
 

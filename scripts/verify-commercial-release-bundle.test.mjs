@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v50.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v51.");
   });
 
   it("blocks support bundles without public launch confirmation summary evidence", () => {
@@ -725,6 +725,23 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("rootencoder");
   });
 
+  it("blocks support bundles whose Android validation manifest used the RootEncoder compatibility publisher", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios"),
+          manifestRun("android", "svr1-android", { androidPublisherMode: "rootencoder" })
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Android validation manifest row");
+    expect(result.stdout).toContain("rootencoder");
+  });
+
   it("blocks platform dashboard claims when retained manifests keep unhealthy destination state", () => {
     writeBundle({
       summary: {
@@ -772,6 +789,22 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("same-run native send telemetry");
+  });
+
+  it("blocks same-run platform ingest claims when Android compositor proof is missing", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios"),
+          manifestRun("android", "svr1-android", { nativeRuntimeCompositorBackend: "none" })
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("native publisher/compositor overlay telemetry");
   });
 
   it("blocks same-run platform ingest claims when dashboard timing does not match the retained run", () => {
@@ -1008,7 +1041,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 50
+      bundleVersion: 51
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -1035,6 +1068,7 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   matchesScope: true,
   eligible: true,
   devicePlatform,
+  androidPublisherMode: devicePlatform === "android" ? "mediacodec" : null,
   deviceName: devicePlatform === "ios" ? "iPhone 15 Pro" : "Pixel 8 Pro",
   osVersion: devicePlatform === "ios" ? "iOS 18.5" : "Android 15",
   physicalDevice: true,
@@ -1064,14 +1098,18 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeStillImageAssetMissingCount: 0,
   nativeRuntimeStillImageAssetDecodedCount: 1,
   nativeRuntimeStillImageAssetDecodedPixelCount: 921_600,
-    nativeRuntimeStillImageAssetCompositedCount: 1,
-    nativeRuntimeStillImageAssetCompositedPixelCount: 921_600,
-    nativeRuntimeStillImageAssetAppGroupCount: devicePlatform === "ios" ? 1 : 0,
-    nativeRuntimeStillImageAssetAppGroupLoadedCount: devicePlatform === "ios" ? 1 : 0,
-    nativeRuntimeStillImageAssetAppGroupDecodedCount: devicePlatform === "ios" ? 1 : 0,
-    nativeRuntimeStillImageAssetAppGroupDecodedPixelCount: devicePlatform === "ios" ? 921_600 : 0,
-    nativeRuntimeStillImageAssetAppGroupCompositedCount: devicePlatform === "ios" ? 1 : 0,
-    nativeRuntimeStillImageAssetAppGroupCompositedPixelCount: devicePlatform === "ios" ? 921_600 : 0,
+  nativeRuntimeStillImageAssetCompositedCount: 1,
+  nativeRuntimeStillImageAssetCompositedPixelCount: 921_600,
+  nativeRuntimeCompositorBackend: devicePlatform === "android" ? "android-canvas-mediacodec" : "ios-replaykit-coregraphics",
+  nativeRuntimeCompositedFrameCount: 120,
+  nativeRuntimeDroppedFrameCount: 0,
+  nativeRuntimeCompositionFailureCount: 0,
+  nativeRuntimeStillImageAssetAppGroupCount: devicePlatform === "ios" ? 1 : 0,
+  nativeRuntimeStillImageAssetAppGroupLoadedCount: devicePlatform === "ios" ? 1 : 0,
+  nativeRuntimeStillImageAssetAppGroupDecodedCount: devicePlatform === "ios" ? 1 : 0,
+  nativeRuntimeStillImageAssetAppGroupDecodedPixelCount: devicePlatform === "ios" ? 921_600 : 0,
+  nativeRuntimeStillImageAssetAppGroupCompositedCount: devicePlatform === "ios" ? 1 : 0,
+  nativeRuntimeStillImageAssetAppGroupCompositedPixelCount: devicePlatform === "ios" ? 921_600 : 0,
   nativeRuntimeVrmSourceCount: 0,
   nativeRuntimeVrmPosePayloadCount: 0,
   nativeRuntimeVrmActivePoseCount: 0,

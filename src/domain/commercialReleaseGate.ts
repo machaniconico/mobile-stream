@@ -43,7 +43,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 50;
+const minimumSupportBundleVersion = 51;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -257,7 +257,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v50 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, semantic avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
+      "Export a support bundle v51 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, semantic avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
     );
   }
 
@@ -396,7 +396,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v50 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v51 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -418,6 +418,14 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "Validation evidence manifest",
       "The manifest does not include fresh in-scope passing physical-device iOS and Android runs.",
       "Record and retain passing physical-device validation runs for both iOS and Android on the current build."
+    );
+  }
+  if (latestRuns.get("android")?.androidPublisherMode !== "mediacodec") {
+    return failIssue(
+      "validation-evidence-manifest-android-publisher-mode",
+      "Validation evidence manifest",
+      `The latest Android validation manifest row used ${latestRuns.get("android")?.androidPublisherMode || "missing"} publisher mode.`,
+      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v51 or newer."
     );
   }
   if (manifest.length !== bundle.summary.validationEvidenceRunCount) {

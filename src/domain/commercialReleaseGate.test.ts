@@ -238,6 +238,28 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks commercial release when Android validation manifest lacks direct MediaCodec publisher proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android", androidPublisherMode: "rootencoder" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-android-publisher-mode",
+        detail: expect.stringContaining("rootencoder")
+      })
+    );
+  });
+
   it("blocks v20 support bundles that do not carry monitor-hold manifest proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -1574,7 +1596,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 50 as const
+    bundleVersion: 51 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1715,6 +1737,7 @@ const manifestRun = ({
   targetPlatform = "YouTube Live",
   transport = "rtmps",
   nativeRuntimePlatform,
+  androidPublisherMode = devicePlatform === "android" ? "mediacodec" : null,
   nativeRuntimeStatus = "pass",
   nativeRuntimeVideoEncoderBackend = devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
   nativeRuntimeAudioEncoderBackend = devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
@@ -1871,6 +1894,7 @@ const manifestRun = ({
   targetPlatform?: ValidationManifestRun["targetPlatform"];
   transport?: ValidationManifestRun["transport"];
   nativeRuntimePlatform?: ValidationManifestRun["nativeRuntimePlatform"];
+  androidPublisherMode?: ValidationManifestRun["androidPublisherMode"];
   nativeRuntimeStatus?: ValidationManifestRun["nativeRuntimeStatus"];
   nativeRuntimeVideoEncoderBackend?: ValidationManifestRun["nativeRuntimeVideoEncoderBackend"];
   nativeRuntimeAudioEncoderBackend?: ValidationManifestRun["nativeRuntimeAudioEncoderBackend"];
@@ -2022,6 +2046,7 @@ const manifestRun = ({
   matchesScope,
   eligible,
   devicePlatform,
+  androidPublisherMode,
   deviceName: devicePlatform === "ios" ? "iPhone 15 Pro" : "Pixel 8 Pro",
   osVersion: devicePlatform === "ios" ? "iOS 18.5" : "Android 15",
   physicalDevice,

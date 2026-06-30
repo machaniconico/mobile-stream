@@ -140,6 +140,7 @@ export interface StreamDiagnostics {
     platform: string;
     presetName: string;
     protocol: string;
+    androidPublisherMode: StudioProfile["androidPublisherMode"];
     host: string;
     application: string;
     publishUrlPreview: string;
@@ -447,6 +448,7 @@ export const createStreamDiagnostics = (
       platform: platformLabels[destination.platform],
       presetName: getDestinationPreset(destination.presetId)?.name ?? destination.name,
       protocol: destination.protocol.toUpperCase(),
+      androidPublisherMode: readiness.sanitizedProfile.androidPublisherMode,
       host: redactedEndpoint.host || "Invalid endpoint",
       application: redactedEndpoint.application || "-",
       publishUrlPreview: redactPublishUrl(buildPublishUrl(destination), destination.streamKey),

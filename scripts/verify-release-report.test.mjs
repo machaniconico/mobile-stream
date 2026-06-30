@@ -682,7 +682,7 @@ function commercialSupportBundleFixture(patch = {}) {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 50
+      bundleVersion: 51
     },
     generatedAt: new Date().toISOString(),
     fixture: true,
@@ -708,6 +708,7 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     matchesScope: true,
     eligible: true,
     devicePlatform,
+    androidPublisherMode: devicePlatform === "android" ? "mediacodec" : null,
     deviceName: devicePlatform === "ios" ? "iPhone 15 Pro" : "Pixel 8 Pro",
     osVersion: devicePlatform === "ios" ? "iOS 18.5" : "Android 15",
     physicalDevice: true,
@@ -739,6 +740,10 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     nativeRuntimeStillImageAssetDecodedPixelCount: 921_600,
     nativeRuntimeStillImageAssetCompositedCount: 1,
     nativeRuntimeStillImageAssetCompositedPixelCount: 921_600,
+    nativeRuntimeCompositorBackend: devicePlatform === "android" ? "android-canvas-mediacodec" : "ios-replaykit-coregraphics",
+    nativeRuntimeCompositedFrameCount: 120,
+    nativeRuntimeDroppedFrameCount: 0,
+    nativeRuntimeCompositionFailureCount: 0,
     nativeRuntimeStillImageAssetAppGroupCount: devicePlatform === "ios" ? 1 : 0,
     nativeRuntimeStillImageAssetAppGroupLoadedCount: devicePlatform === "ios" ? 1 : 0,
     nativeRuntimeStillImageAssetAppGroupDecodedCount: devicePlatform === "ios" ? 1 : 0,

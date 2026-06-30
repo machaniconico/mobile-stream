@@ -228,7 +228,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 50 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 51 });
     expect(bundle.profile.androidPublisherMode).toBe(profile.androidPublisherMode);
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
@@ -653,6 +653,7 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceRunManifest[0]).toMatchObject({
       fingerprint: latestRunFingerprint,
       devicePlatform: "ios",
+      androidPublisherMode: profile.androidPublisherMode,
       result: "warn",
       matchesScope: true,
       eligible: true,

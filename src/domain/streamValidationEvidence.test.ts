@@ -350,6 +350,7 @@ describe("stream validation evidence", () => {
     expect(JSON.stringify(run)).not.toContain(streamKey);
     expect(run.fingerprint).toMatch(/^svr1-[0-9a-f]{8}-[0-9a-z]+$/);
     expect(run.targetPlatform).toBe("YouTube Live");
+    expect(run.androidPublisherMode).toBe(profile.androidPublisherMode);
     expect(run.checklistStatus).toBe("needs-test");
     expect(run.recommendation).toContain("Enable a mic effect preset");
 
