@@ -144,9 +144,9 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 46");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 46");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 46");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 47");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 47");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 47");
     expectIncludes(files.commercialReleaseGateDomain, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseBundleScript, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scope");
@@ -171,6 +171,9 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "audioMonitorTuningNote");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestAudioPass");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-audio-monitor");
+    expectIncludes(files.streamValidationEvidenceDomain, "faceTrackingRigSemanticSegmentScore");
+    expectIncludes(files.commercialReleaseGateDomain, "faceTrackingRigSemanticSegmentScore");
+    expectIncludes(files.commercialReleaseBundleScript, "faceTrackingRigSemanticSegmentScore");
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpokenMessageCount");
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpeechFailureCount");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestChatReadoutPass");

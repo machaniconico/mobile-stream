@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v46.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v47.");
   });
 
   it("blocks support bundles without public launch confirmation summary evidence", () => {
@@ -467,7 +467,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig proof");
+    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig plus semantic-segment proof");
   });
 
   it("blocks avatar-motion claims when retained manifests keep low still-image rig quality", () => {
@@ -486,7 +486,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig proof");
+    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig plus semantic-segment proof");
   });
 
   it("blocks avatar-motion claims when retained manifests keep low still-image high-fidelity rig proof", () => {
@@ -505,7 +505,25 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig proof");
+    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig plus semantic-segment proof");
+  });
+
+  it("blocks avatar-motion claims when retained manifests keep low semantic segment proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            faceTrackingRigSemanticSegmentScore: 72
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("semantic-segment proof");
   });
 
   it("blocks avatar-motion claims when retained manifests omit still-image rig quality proof", () => {
@@ -521,7 +539,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig proof");
+    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig plus semantic-segment proof");
   });
 
   it("blocks chat readout claims when retained manifests have no spoken chat success", () => {
@@ -910,7 +928,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 46
+      bundleVersion: 47
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -1032,6 +1050,7 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   faceTrackingRigQualityGrade: "ready",
   faceTrackingRigPartSeparationScore: 100,
   faceTrackingRigDepthContinuityScore: 100,
+  faceTrackingRigSemanticSegmentScore: 100,
   faceTrackingRigHighFidelityScore: 100,
   faceTrackingRigHighFidelityGrade: "ready",
   audioStatus: "pass",
@@ -1091,6 +1110,7 @@ const withoutRigQuality = (run) => {
     faceTrackingRigQualityGrade: _faceTrackingRigQualityGrade,
     faceTrackingRigPartSeparationScore: _faceTrackingRigPartSeparationScore,
     faceTrackingRigDepthContinuityScore: _faceTrackingRigDepthContinuityScore,
+    faceTrackingRigSemanticSegmentScore: _faceTrackingRigSemanticSegmentScore,
     faceTrackingRigHighFidelityScore: _faceTrackingRigHighFidelityScore,
     faceTrackingRigHighFidelityGrade: _faceTrackingRigHighFidelityGrade,
     ...rest

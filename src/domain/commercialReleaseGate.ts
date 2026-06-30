@@ -38,7 +38,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 46;
+const minimumSupportBundleVersion = 47;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -241,7 +241,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v46 or newer so retained public launch confirmation events, audio latency source/tuning proof, and same-run ingest timing proof are summarized."
+      "Export a support bundle v47 or newer so retained public launch confirmation events, audio latency source/tuning proof, semantic avatar segment proof, and same-run ingest timing proof are summarized."
     );
   }
 
@@ -380,7 +380,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v46 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v47 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -965,12 +965,15 @@ const hasReadyManifestRigHighFidelity = (run: ValidationEvidenceManifestRun | un
   typeof run.faceTrackingRigHighFidelityScore === "number" &&
   typeof run.faceTrackingRigPartSeparationScore === "number" &&
   typeof run.faceTrackingRigDepthContinuityScore === "number" &&
+  typeof run.faceTrackingRigSemanticSegmentScore === "number" &&
   Number.isFinite(run.faceTrackingRigHighFidelityScore) &&
   Number.isFinite(run.faceTrackingRigPartSeparationScore) &&
   Number.isFinite(run.faceTrackingRigDepthContinuityScore) &&
+  Number.isFinite(run.faceTrackingRigSemanticSegmentScore) &&
   run.faceTrackingRigHighFidelityScore >= 90 &&
   run.faceTrackingRigPartSeparationScore >= 90 &&
-  run.faceTrackingRigDepthContinuityScore >= 90;
+  run.faceTrackingRigDepthContinuityScore >= 90 &&
+  run.faceTrackingRigSemanticSegmentScore >= 90;
 
 const hasReadyManifestPngTuberMotionProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isPositiveFiniteNumber(run?.faceTrackingPreparedPngTuberCount) &&

@@ -222,7 +222,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 46 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 47 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
@@ -307,6 +307,7 @@ describe("support bundle", () => {
     expect(bundle.summary.faceTrackingRigQualityGrade).toBe("ready");
     expect(bundle.summary.faceTrackingRigPartSeparationScore).toBe(100);
     expect(bundle.summary.faceTrackingRigDepthContinuityScore).toBe(100);
+    expect(bundle.summary.faceTrackingRigSemanticSegmentScore).toBe(100);
     expect(bundle.summary.faceTrackingRigHighFidelityScore).toBe(100);
     expect(bundle.summary.faceTrackingRigHighFidelityGrade).toBe("ready");
     expect(bundle.summary.validationEvidenceLatestFaceTrackingFaceLandmarkConfidence).toBe(0);

@@ -123,6 +123,7 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.rigQualityGrade).toBe("ready");
     expect(diagnostics.rigPartSeparationScore).toBe(100);
     expect(diagnostics.rigDepthContinuityScore).toBe(100);
+    expect(diagnostics.rigSemanticSegmentScore).toBe(100);
     expect(diagnostics.rigHighFidelityScore).toBe(100);
     expect(diagnostics.rigHighFidelityGrade).toBe("ready");
     expect(diagnostics.faceLandmarkConfidence).toBeCloseTo(0.81, 3);
@@ -272,6 +273,7 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.summary).toContain("Still-image avatar rig needs review");
     expect(diagnostics.rigIssueSummary).toContain("rig lines");
     expect(diagnostics.rigHighFidelityScore).toBeLessThan(90);
+    expect(diagnostics.rigSemanticSegmentScore).toBeLessThan(90);
   });
 
   it("warns when a still-image rig cannot separate blink and mouth deformation like an IRIAM-style avatar", () => {
@@ -319,6 +321,7 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.status).toBe("warn");
     expect(diagnostics.rigIssueSummary).toContain("independent blink and mouth deformation");
     expect(diagnostics.rigPartSeparationScore).toBeLessThan(90);
+    expect(diagnostics.rigSemanticSegmentScore).toBeLessThan(90);
     expect(diagnostics.rigHighFidelityGrade).toBe("review");
   });
 
@@ -369,6 +372,55 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.rigIssueCount).toBe(0);
     expect(diagnostics.rigDepthContinuityScore).toBeLessThan(80);
     expect(diagnostics.rigHighFidelityGrade).toBe("review");
+  });
+
+  it("warns when semantic face/body segments are too compressed for single-image tracking", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      faceTracking: {
+        ...createDefaultStudioProfile().faceTracking,
+        enabled: true,
+        inputMode: "native-camera" as const
+      }
+    };
+    const scene = updateSource(createDefaultScene(), "source-avatar", (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...source,
+            imageUri: "file:///shared/avatar.png",
+            illustrationRig: {
+              ...source.illustrationRig,
+              faceCenterY: 0.45,
+              faceRange: 0.23,
+              hairLineY: 0.31,
+              eyeLineY: 0.34,
+              mouthLineY: 0.46,
+              shoulderLineY: 0.58,
+              sliceCount: 24
+            },
+            motion: { ...source.motion, headYaw: 0.2, confidence: 0.92 }
+          }
+        : source
+    );
+
+    const diagnostics = createFaceTrackingDiagnostics(scene, profile, {
+      status: "tracking",
+      yaw: 0.2,
+      pitch: 0.1,
+      roll: 0,
+      mouthOpen: 0.4,
+      blink: 0,
+      smile: 0.4,
+      browRaise: 0.2,
+      confidence: 0.92,
+      faceLandmarkConfidence: 0.81,
+      expression: "neutral",
+      lastFrameAt: 1_000
+    });
+
+    expect(diagnostics.status).toBe("warn");
+    expect(diagnostics.rigSemanticSegmentScore).toBeLessThan(70);
+    expect(diagnostics.rigIssueSummary).toContain("semantic face, eye, mouth, and body segments");
   });
 
   it("warns when a still-image rig lacks headroom for high-fidelity blink and hair motion", () => {
@@ -463,7 +515,8 @@ describe("face tracking diagnostics", () => {
     });
 
     expect(diagnostics.status).toBe("warn");
-    expect(diagnostics.rigQualityScore).toBe(88);
+    expect(diagnostics.rigQualityScore).toBe(78);
+    expect(diagnostics.rigSemanticSegmentScore).toBeLessThan(70);
     expect(diagnostics.rigIssueSummary).toContain("face center");
   });
 

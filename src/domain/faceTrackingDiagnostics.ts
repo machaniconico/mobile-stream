@@ -30,6 +30,7 @@ export interface FaceTrackingDiagnostics {
   rigQualityGrade: FaceTrackingRigQualityGrade;
   rigPartSeparationScore?: number;
   rigDepthContinuityScore?: number;
+  rigSemanticSegmentScore?: number;
   rigHighFidelityScore?: number;
   rigHighFidelityGrade?: FaceTrackingRigQualityGrade;
   summary: string;
@@ -67,19 +68,21 @@ export const createFaceTrackingDiagnostics = (
     rigAnalyses.length === 0 && nativeVrmRendererReady ? "ready" : createRigQualityGrade(rigQualityScore, rigIssues.length);
   const rigPartSeparationScore = createAggregatedRigScore(rigAnalyses, nativeVrmRendererReady, "partSeparationScore");
   const rigDepthContinuityScore = createAggregatedRigScore(rigAnalyses, nativeVrmRendererReady, "depthContinuityScore");
+  const rigSemanticSegmentScore = createAggregatedRigScore(rigAnalyses, nativeVrmRendererReady, "semanticSegmentScore");
   const rigHighFidelityScore = createAggregatedRigScore(rigAnalyses, nativeVrmRendererReady, "highFidelityScore");
   const rigHighFidelityGrade =
     rigAnalyses.length === 0 && nativeVrmRendererReady ? "ready" : createRigQualityGrade(rigHighFidelityScore, rigIssues.length);
   const rigScoreSummary = {
     rigPartSeparationScore,
     rigDepthContinuityScore,
+    rigSemanticSegmentScore,
     rigHighFidelityScore,
     rigHighFidelityGrade
   };
   const rigIssueSummary =
     rigIssues.length === 0
       ? "No still-image rig issues."
-      : `${rigIssues.length} still-image rig issue${rigIssues.length === 1 ? "" : "s"} (${rigQualityScore}/100 ${rigQualityGrade}, high fidelity ${rigHighFidelityScore}/100 ${rigHighFidelityGrade}): ${rigIssues[0]}`;
+      : `${rigIssues.length} still-image rig issue${rigIssues.length === 1 ? "" : "s"} (${rigQualityScore}/100 ${rigQualityGrade}, high fidelity ${rigHighFidelityScore}/100 ${rigHighFidelityGrade}, semantic segments ${rigSemanticSegmentScore}/100): ${rigIssues.join("; ")}`;
   const runtimeStatus = runtime?.status ?? "unavailable";
   const maxRuntimeAgeMs = Math.max(0, options.maxRuntimeAgeMs ?? faceTrackingRuntimeMaxAgeMs);
   const runtimeAgeMs = runtime ? runtimeAge(runtime, options.now) : null;
@@ -240,7 +243,7 @@ export const createFaceTrackingDiagnostics = (
       faceLandmarkConfidence,
       faceLandmarkReady,
       `Still-image avatar rig high-fidelity score is ${rigHighFidelityScore}/100 ${rigHighFidelityGrade}.`,
-      "Tune hair, eye, mouth, shoulder, face range, and slice count until parts and pseudo-depth continuity both reach production-ready scores."
+      "Tune hair, eye, mouth, shoulder, face range, semantic face/body segment coverage, and slice count until parts, pseudo-depth continuity, and semantic segments reach production-ready scores."
     );
   }
 
@@ -437,7 +440,11 @@ const createWarning = (
   rigQualityGrade: FaceTrackingRigQualityGrade,
   rigScoreSummary: Pick<
     FaceTrackingDiagnostics,
-    "rigPartSeparationScore" | "rigDepthContinuityScore" | "rigHighFidelityScore" | "rigHighFidelityGrade"
+    | "rigPartSeparationScore"
+    | "rigDepthContinuityScore"
+    | "rigSemanticSegmentScore"
+    | "rigHighFidelityScore"
+    | "rigHighFidelityGrade"
   >,
   runtimeAgeMs: number | null,
   runtimeFresh: boolean,
@@ -557,6 +564,7 @@ const createPngTuberRigAnalysis = (
   score: number;
   partSeparationScore: number;
   depthContinuityScore: number;
+  semanticSegmentScore: number;
   highFidelityScore: number;
 } => {
   const rig = source.illustrationRig;
@@ -585,6 +593,7 @@ const createPngTuberRigAnalysis = (
   const rigQuality = createAvatarIllustrationRigQuality(rig);
   const partSeparationScore = rigQuality.partSeparationScore;
   const depthContinuityScore = rigQuality.depthContinuityScore;
+  const semanticSegmentScore = rigQuality.semanticSegmentScore;
   if (eyeMouthGap < 0.1 || eyeMouthGap > 0.34) {
     issues.push("eye-to-mouth spacing should stay within 10-34% of the illustration height");
     score -= 12;
@@ -619,13 +628,18 @@ const createPngTuberRigAnalysis = (
     issues.push("face range should leave deformation margin above eyes and below mouth");
     score -= 10;
   }
+  if (semanticSegmentScore < 70) {
+    issues.push("semantic face, eye, mouth, and body segments need clearer vertical coverage for IRIAM-style auto-rigging");
+    score -= 10;
+  }
   const normalizedScore = Math.max(0, Math.min(100, Math.round(score)));
   return {
     issues,
     score: normalizedScore,
     partSeparationScore,
     depthContinuityScore,
-    highFidelityScore: Math.min(normalizedScore, partSeparationScore, depthContinuityScore)
+    semanticSegmentScore,
+    highFidelityScore: Math.min(normalizedScore, partSeparationScore, depthContinuityScore, semanticSegmentScore)
   };
 };
 
@@ -637,7 +651,7 @@ const isRigLineOrderValid = (rig: AvatarIllustrationRig, tolerance: number): boo
 const createAggregatedRigScore = (
   analyses: ReturnType<typeof createPngTuberRigAnalysis>[],
   nativeVrmRendererReady: boolean,
-  field: "partSeparationScore" | "depthContinuityScore" | "highFidelityScore"
+  field: "partSeparationScore" | "depthContinuityScore" | "semanticSegmentScore" | "highFidelityScore"
 ): number => {
   if (analyses.length === 0) {
     return nativeVrmRendererReady ? 100 : 0;

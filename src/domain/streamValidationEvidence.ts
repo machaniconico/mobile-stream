@@ -44,6 +44,7 @@ export interface StreamValidationFaceTrackingSummary {
   rigQualityGrade: StreamDiagnostics["faceTracking"]["rigQualityGrade"];
   rigPartSeparationScore: number;
   rigDepthContinuityScore: number;
+  rigSemanticSegmentScore: number;
   rigHighFidelityScore: number;
   rigHighFidelityGrade: StreamDiagnostics["faceTracking"]["rigQualityGrade"];
   summary: string;
@@ -287,6 +288,7 @@ export interface StreamValidationEvidenceRunManifestItem {
   faceTrackingRigQualityGrade: StreamValidationFaceTrackingSummary["rigQualityGrade"] | null;
   faceTrackingRigPartSeparationScore: number;
   faceTrackingRigDepthContinuityScore: number;
+  faceTrackingRigSemanticSegmentScore: number;
   faceTrackingRigHighFidelityScore: number;
   faceTrackingRigHighFidelityGrade: StreamValidationFaceTrackingSummary["rigQualityGrade"] | null;
   audioStatus: StreamValidationAudioSummary["status"] | null;
@@ -1207,7 +1209,8 @@ const hasReadyPngTuberMotionEvidence = (faceTracking: StreamValidationFaceTracki
   faceTracking.rigHighFidelityGrade === "ready" &&
   faceTracking.rigHighFidelityScore >= 90 &&
   faceTracking.rigPartSeparationScore >= 90 &&
-  faceTracking.rigDepthContinuityScore >= 90;
+  faceTracking.rigDepthContinuityScore >= 90 &&
+  faceTracking.rigSemanticSegmentScore >= 90;
 
 const hasReadyVrmMotionEvidence = (faceTracking: StreamValidationFaceTrackingSummary): boolean =>
   faceTracking.visibleVrmCount > 0 && faceTracking.nativeVrmRendererReady;
@@ -1944,6 +1947,7 @@ const createFaceTrackingValidationSummary = (
   rigQualityGrade: faceTracking.rigQualityGrade,
   rigPartSeparationScore: normalizeScore(faceTracking.rigPartSeparationScore ?? 0),
   rigDepthContinuityScore: normalizeScore(faceTracking.rigDepthContinuityScore ?? 0),
+  rigSemanticSegmentScore: normalizeScore(faceTracking.rigSemanticSegmentScore ?? 0),
   rigHighFidelityScore: normalizeScore(faceTracking.rigHighFidelityScore ?? 0),
   rigHighFidelityGrade: faceTracking.rigHighFidelityGrade ?? "blocked",
   summary: sanitizeStoredText(faceTracking.summary, secrets),
@@ -2540,6 +2544,7 @@ const createEvidenceRunManifestItem = (
     faceTrackingRigQualityGrade: run.faceTracking?.rigQualityGrade ?? null,
     faceTrackingRigPartSeparationScore: run.faceTracking?.rigPartSeparationScore ?? 0,
     faceTrackingRigDepthContinuityScore: run.faceTracking?.rigDepthContinuityScore ?? 0,
+    faceTrackingRigSemanticSegmentScore: run.faceTracking?.rigSemanticSegmentScore ?? 0,
     faceTrackingRigHighFidelityScore: run.faceTracking?.rigHighFidelityScore ?? 0,
     faceTrackingRigHighFidelityGrade: run.faceTracking?.rigHighFidelityGrade ?? null,
     audioStatus: run.audio?.status ?? null,
@@ -2857,6 +2862,7 @@ const normalizeFaceTrackingValidationSummary = (value: unknown): StreamValidatio
     rigQualityGrade: normalizeFaceTrackingRigQualityGrade(value.rigQualityGrade),
     rigPartSeparationScore: normalizeScore(value.rigPartSeparationScore),
     rigDepthContinuityScore: normalizeScore(value.rigDepthContinuityScore),
+    rigSemanticSegmentScore: normalizeScore(value.rigSemanticSegmentScore),
     rigHighFidelityScore: normalizeScore(value.rigHighFidelityScore),
     rigHighFidelityGrade: normalizeFaceTrackingRigQualityGrade(value.rigHighFidelityGrade),
     summary: normalizeText(value.summary, "No face tracking validation evidence retained."),
