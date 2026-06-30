@@ -390,6 +390,7 @@ enum class LiveCasterStatus(val jsValue: String) {
 data class LiveCasterProfile(
     val endpoint: String,
     val streamKey: String,
+    val androidPublisherMode: String,
     val width: Int,
     val height: Int,
     val fps: Int,
@@ -690,6 +691,7 @@ object LiveCasterSession {
         return LiveCasterProfile(
             endpoint = endpointParts.endpoint,
             streamKey = endpointParts.streamKey,
+            androidPublisherMode = normalizeAndroidPublisherMode(root.optString("androidPublisherMode", "rootencoder")),
             width = quality.getInt("width"),
             height = quality.getInt("height"),
             fps = quality.getInt("fps"),
@@ -699,6 +701,9 @@ object LiveCasterSession {
             broadcastMixer = broadcastMixer
         )
     }
+
+    private fun normalizeAndroidPublisherMode(mode: String): String =
+        if (mode.trim().equals("mediacodec", ignoreCase = true)) "mediacodec" else "rootencoder"
 
     private fun parseMicEffects(micEffects: JSONObject?): MicEffectsProfile {
         if (micEffects == null) {

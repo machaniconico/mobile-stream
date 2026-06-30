@@ -12,8 +12,6 @@ class AndroidMediaCodecRtmpPublisher(connectChecker: ConnectChecker) {
         const val VIDEO_BACKEND = "mediacodec-h264"
         const val AUDIO_BACKEND = "mediacodec-aac"
         const val TRANSPORT_BACKEND = "rtmp-client-low-level"
-        private const val AUDIO_SAMPLE_RATE = 44_100
-        private const val AUDIO_STEREO = true
     }
 
     private val client = RtmpClient(connectChecker).apply {
@@ -27,7 +25,7 @@ class AndroidMediaCodecRtmpPublisher(connectChecker: ConnectChecker) {
     private var configuredFps = 0
     private var lastError = ""
 
-    fun configure(profile: LiveCasterProfile, sps: ByteBuffer, pps: ByteBuffer) {
+    fun configure(profile: LiveCasterProfile, sps: ByteBuffer, pps: ByteBuffer, audioSampleRate: Int, audioStereo: Boolean) {
         require(sps.remaining() > 0) { "H.264 SPS is required before RTMP publishing" }
         require(pps.remaining() > 0) { "H.264 PPS is required before RTMP publishing" }
         configuredWidth = profile.width
@@ -37,7 +35,7 @@ class AndroidMediaCodecRtmpPublisher(connectChecker: ConnectChecker) {
         client.setAudioCodec(AudioCodec.AAC)
         client.setVideoResolution(profile.width, profile.height)
         client.setFps(profile.fps)
-        client.setAudioInfo(AUDIO_SAMPLE_RATE, AUDIO_STEREO)
+        client.setAudioInfo(audioSampleRate, audioStereo)
         client.setVideoInfo(sps.asReadOnlyBuffer(), pps.asReadOnlyBuffer(), null)
         configured = true
         lastError = ""

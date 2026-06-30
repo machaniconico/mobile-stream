@@ -7,6 +7,7 @@ import {
 
 export type StreamProtocol = "rtmp" | "rtmps";
 export type StreamPlatform = "custom" | "youtube-live" | "twitch";
+export type AndroidPublisherMode = "rootencoder" | "mediacodec";
 export type MicEffectPresetId = "clean" | "broadcast" | "bright" | "robot";
 export type BroadcastMixerChannelId = "mic" | "appAudio" | "chatReadout";
 export type YouTubePrivacyStatus = "private" | "unlisted" | "public";
@@ -115,6 +116,7 @@ export interface PlatformPublishingSettings {
 export interface StudioProfile {
   destination: DestinationProfile;
   quality: QualityProfile;
+  androidPublisherMode: AndroidPublisherMode;
   avatar: AvatarProfile;
   micEffects: MicEffectsProfile;
   broadcastMixer: BroadcastMixerProfile;
@@ -547,6 +549,7 @@ export const applyEmergencyBroadcastMute = (profile: StudioProfile): StudioProfi
 export const createDefaultStudioProfile = (): StudioProfile => ({
   destination: { ...defaultDestinationProfile },
   quality: qualityProfiles[0],
+  androidPublisherMode: "rootencoder",
   avatar: { ...defaultAvatarProfile },
   micEffects: { ...defaultMicEffectsProfile },
   broadcastMixer: cloneBroadcastMixerProfile(defaultBroadcastMixerProfile),
@@ -591,6 +594,7 @@ export const normalizeStudioProfile = (profile: Partial<StudioProfile> | null | 
   return {
     destination,
     quality,
+    androidPublisherMode: normalizeAndroidPublisherMode(profile?.androidPublisherMode),
     avatar: {
       ...fallback.avatar,
       ...profile?.avatar
@@ -610,6 +614,9 @@ export const normalizeBroadcastMixerProfile = (
   appAudio: normalizeBroadcastMixerChannel(mixer?.appAudio, defaultBroadcastMixerProfile.appAudio),
   chatReadout: normalizeBroadcastMixerChannel(mixer?.chatReadout, defaultBroadcastMixerProfile.chatReadout)
 });
+
+const normalizeAndroidPublisherMode = (mode: unknown): AndroidPublisherMode =>
+  mode === "mediacodec" ? "mediacodec" : "rootencoder";
 
 export const normalizePlatformPublishingSettings = (
   settings: Partial<PlatformPublishingSettings> | null | undefined

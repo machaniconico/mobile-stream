@@ -82,7 +82,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - Android MediaProjection service skeleton.
 - React Native host app scaffold with standard `ios/` and `android/` projects.
 - React Native mobile Studio screen using the shared domain model and mock engine.
-- Android native bridge for MediaProjection consent, foreground service streaming, H.264/AAC encoding, and RTMP/RTMPS publishing through RootEncoder, plus a first-party MediaCodec H.264/AAC configure probe and low-level MediaCodec-to-RTMP publisher adapter.
+- Android native bridge for MediaProjection consent, foreground service streaming, H.264/AAC encoding, and RTMP/RTMPS publishing through RootEncoder, plus a selectable direct MediaCodec screen/mic encoder pipeline backed by the low-level MediaCodec-to-RTMP publisher adapter.
 - Android publish URLs are assembled from the selected server URL plus the stored stream key at start time.
 - Android native GL overlay compositor for visible PNGTuber still-image, text, chat, image, and solid scene sources on top of MediaProjection capture.
 - iOS ReplayKit Broadcast Upload Extension compositor for visible PNGTuber still-image, text, chat, image, and solid overlays on top of captured frames, with runtime still-image asset load/miss evidence.
@@ -182,7 +182,7 @@ GitHub Actions runs the required `test` status check on pull requests and `main`
 
 - iOS screen capture: ReplayKit Broadcast Upload Extension.
 - Android screen capture: MediaProjection foreground service.
-- Encoding: VideoToolbox/AudioToolbox on iOS; Android now records a first-party MediaCodec H.264/AAC configure probe and has a low-level MediaCodec-to-RTMP publisher adapter, but active RTMP publishing still reports RootEncoder until screen/mic capture are wired into that direct path for commercial release approval.
+- Encoding: VideoToolbox/AudioToolbox on iOS; Android records a first-party MediaCodec H.264/AAC configure probe and can run a selectable direct MediaCodec screen/mic RTMP path, while the RootEncoder path remains the compatibility default until the direct path's native overlay compositor and physical-device evidence are release-ready.
 - Streaming: RTMP/RTMPS publisher behind `src/native/LiveCasterNative.ts`.
 - Go Live readiness: fail closed before native capture starts, with UI-visible blocking reasons.
 - Stream diagnostics: endpoint, transport security, stream key presence, scene visibility, avatar tracking readiness/motion/runtime-freshness and native face-landmark proof, bitrate/FPS/drop/reconnect telemetry, stable monitor-hold proof, mic FX/headphone monitor route readiness, native publisher/compositor proof, native self-monitor write/drop proof, measured/native-estimated monitor latency evidence, audio-meter sample evidence, live audio-silence guard evidence, chat readout connection/readiness, spoken-chat success/failure evidence, native still-image asset loaded/missing evidence, private validation runbook state, estimated upload target, post-stream session evidence, physical validation audio/chat/avatar evidence, physical validation native-runtime evidence, platform dashboard evidence, and sanitized export/share reports are available before, during, and after live sessions.

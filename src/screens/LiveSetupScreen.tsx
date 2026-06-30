@@ -7,6 +7,7 @@ import {
   qualityProfiles,
   redactStreamKey,
   serverUrlWithProtocol,
+  type AndroidPublisherMode,
   type DestinationPresetId,
   type StudioProfile,
   type StreamProtocol
@@ -107,6 +108,15 @@ export const LiveSetupScreen = ({
         ...profile.platformPublishing,
         ...update
       }
+    });
+  };
+  const updateAndroidPublisherMode = (androidPublisherMode: AndroidPublisherMode) => {
+    if (locked) {
+      return;
+    }
+    onProfileChange({
+      ...profile,
+      androidPublisherMode
     });
   };
 
@@ -404,6 +414,25 @@ export const LiveSetupScreen = ({
         <span>{profile.quality.width}x{profile.quality.height}</span>
         <span>{profile.quality.fps}fps</span>
         <span>{profile.quality.videoBitrateKbps} kbps</span>
+      </div>
+
+      <div className="segmented-control">
+        <button
+          className={`segmented-button ${profile.androidPublisherMode !== "mediacodec" ? "active" : ""}`}
+          type="button"
+          disabled={locked}
+          onClick={() => updateAndroidPublisherMode("rootencoder")}
+        >
+          RootEncoder
+        </button>
+        <button
+          className={`segmented-button ${profile.androidPublisherMode === "mediacodec" ? "active" : ""}`}
+          type="button"
+          disabled={locked}
+          onClick={() => updateAndroidPublisherMode("mediacodec")}
+        >
+          MediaCodec
+        </button>
       </div>
 
       <div className={`readiness-card ${readiness.canStart ? "ready" : "blocked"}`}>

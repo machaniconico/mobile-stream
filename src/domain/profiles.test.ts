@@ -27,6 +27,7 @@ describe("studio profiles", () => {
     expect(profile.destination.presetId).toBe("youtube-live-rtmps");
     expect(profile.destination.streamKey).toBe("");
     expect(profile.quality.id).toBe("quality-balanced");
+    expect(profile.androidPublisherMode).toBe("rootencoder");
     expect(profile.avatar.id).toBe("avatar-default");
     expect(profile.micEffects.presetId).toBe("clean");
     expect(profile.micEffects.monitorHeadphonesOnly).toBe(true);
@@ -38,6 +39,11 @@ describe("studio profiles", () => {
     expect(profile.platformChat.platform).toBe("youtube");
     expect(profile.platformPublishing.title).toBe("MobileLiveCaster Live");
     expect(profile.platformPublishing.privacyStatus).toBe("private");
+  });
+
+  it("normalizes Android publisher mode with RootEncoder as the compatibility default", () => {
+    expect(normalizeStudioProfile({ androidPublisherMode: "mediacodec" }).androidPublisherMode).toBe("mediacodec");
+    expect(normalizeStudioProfile({ androidPublisherMode: "invalid" as never }).androidPublisherMode).toBe("rootencoder");
   });
 
   it("normalizes platform publishing settings for API limits", () => {
