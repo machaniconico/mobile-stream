@@ -11,6 +11,11 @@ import { distributionArtifactManifestPath } from "./verify-distribution-artifact
 import { dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
 import { storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
+import {
+  createPhysicalDevicePreflightReport,
+  physicalDevicePreflightArtifactGroup,
+  writePhysicalDevicePreflightReport
+} from "./verify-physical-devices.mjs";
 import { validateReport } from "./verify-release-report.mjs";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 
@@ -37,6 +42,7 @@ const generatedFiles = [
   ".artifacts/release-report-test/submission-review.md",
   ".artifacts/release-report-test/ios-store.png",
   ".artifacts/release-report-test/android-store.png",
+  ".artifacts/release-report-test/physical-device-preflight.json",
   ".artifacts/release-report-test/support-bundle.json",
   ".artifacts/release-report-test/ui-evidence.json"
 ];
@@ -45,7 +51,8 @@ const tinyPngBytes = createRgbaPngFixture(1, 1);
 const minimumDistributionArtifactBytes = 1_048_576;
 const pngBytes = pngWithDimensions(1179, 2556);
 const capturedAt = "2026-06-25T00:00:00.000Z";
-const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality"];
+const physicalDevicePreflightPath = ".artifacts/release-report-test/physical-device-preflight.json";
+const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality", "Subtitle"];
 
 describe("release report verifier", () => {
   beforeAll(() => {
@@ -428,6 +435,18 @@ describe("release report verifier", () => {
     expect(failures).toEqual([]);
   });
 
+  it("rejects store-submission release reports without physical-device preflight evidence", () => {
+    restoreUiScreenshots();
+    const report = createReport({ includeStoreSubmission: true });
+    report.artifacts.files = report.artifacts.files.filter(
+      (artifact) => artifact.group !== physicalDevicePreflightArtifactGroup
+    );
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain("Store-submission release reports must include physical-device preflight evidence.");
+  });
+
   it("rejects release reports missing store submission artifacts referenced by the checklist", () => {
     restoreUiScreenshots();
     const report = createReport({ includeStoreSubmission: true });
@@ -507,6 +526,7 @@ function createReport({
   }
   if (includeStoreSubmission) {
     writeStoreSubmissionFixture();
+    writePhysicalDevicePreflightFixture();
   }
   if (includeStoreRelease) {
     writeStoreReleaseFixture({ status: storeReleaseStatus, finishedAt: storeReleaseFinishedAt });
@@ -525,6 +545,7 @@ function createReport({
     ...(shouldIncludeDistribution ? distributionArtifactRecords() : []),
     ...(includeDashboardEvidence ? dashboardEvidenceRecords() : []),
     ...(includeStoreSubmission ? storeSubmissionRecords() : []),
+    ...(includeStoreSubmission ? physicalDevicePreflightRecords() : []),
     ...(includeStoreRelease ? storeReleaseArtifactRecords() : [])
   ];
 
@@ -995,6 +1016,29 @@ function writeStoreSubmissionFixture() {
   );
 }
 
+function writePhysicalDevicePreflightFixture(patch = {}) {
+  const report = createPhysicalDevicePreflightReport({
+    androidAdbOutput: `List of devices attached
+R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
+`,
+    androidRuntimeProperties: {
+      R58M123456B: `[ro.kernel.qemu]: [0]
+[ro.boot.qemu]: [0]
+[ro.hardware]: [qcom]
+`
+    },
+    androidRuntimeCommands: {
+      R58M123456B: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" }
+    },
+    iosXctraceOutput: `== Devices ==
+Release iPhone (17.5.1) (00008110-001234560E91801E)
+== Simulators ==
+iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
+`
+  });
+  writePhysicalDevicePreflightReport({ ...report, ...patch }, physicalDevicePreflightPath);
+}
+
 function writeStoreReleaseFixture({ status = "passed", finishedAt = new Date().toISOString() } = {}) {
   const startedAt = new Date(Date.parse(finishedAt) - 1_000).toISOString();
   writeFile(
@@ -1161,6 +1205,10 @@ function storeSubmissionRecords() {
     artifactRecord("store-submission", ".artifacts/release-report-test/ios-store.png"),
     artifactRecord("store-submission", ".artifacts/release-report-test/android-store.png")
   ];
+}
+
+function physicalDevicePreflightRecords() {
+  return [artifactRecord(physicalDevicePreflightArtifactGroup, physicalDevicePreflightPath)];
 }
 
 function dashboardStatusJsonRecord(platform, path) {

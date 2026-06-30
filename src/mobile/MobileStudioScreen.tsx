@@ -53,6 +53,7 @@ import type { ReadinessIssue, ReadinessReport } from "../domain/readiness";
 import {
   addSource,
   applyInferredAvatarIllustrationRig,
+  createSubtitleTextSource,
   createSource,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
@@ -71,6 +72,8 @@ import {
   type SceneTransitionKind,
   type SceneTransitionPreview,
   type SceneTransitionSettings,
+  type TextSourceAlign,
+  type TextSourceMode,
   type SourceKind
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
@@ -190,6 +193,12 @@ const sourceLabels: Record<SourceKind, string> = {
 };
 
 const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "vrm", "chat", "text", "image", "solid"];
+const textSourceModes: Array<{ mode: TextSourceMode; label: string }> = [
+  { mode: "label", label: "Label" },
+  { mode: "subtitle", label: "Subtitle" },
+  { mode: "ticker", label: "Ticker" }
+];
+const textSourceAlignments: TextSourceAlign[] = ["left", "center", "right"];
 const sceneTransitionKinds: Array<{ kind: SceneTransitionKind; label: string }> = [
   { kind: "cut", label: "Cut" },
   { kind: "fade", label: "Fade" }
@@ -578,6 +587,15 @@ export const MobileStudioScreen = ({
     onSelectSource(source.id);
   };
 
+  const addSubtitleSource = () => {
+    if (setupLocked) {
+      return;
+    }
+    const source = createSubtitleTextSource();
+    onSceneChange(addSource(scene, source));
+    onSelectSource(source.id);
+  };
+
   const prepareSelectedStillImageAsset = async () => {
     if (setupLocked || (selectedSource.kind !== "pngtuber" && selectedSource.kind !== "image")) {
       return;
@@ -784,6 +802,7 @@ export const MobileStudioScreen = ({
           ))}
 
           <View style={styles.grid2}>
+            <ActionButton label="+ Subtitle" disabled={setupLocked} onPress={addSubtitleSource} />
             {sourceKinds.map((kind) => (
               <ActionButton key={kind} label={`+ ${sourceLabels[kind]}`} disabled={setupLocked} onPress={() => addNewSource(kind)} />
             ))}
@@ -972,6 +991,156 @@ export const MobileStudioScreen = ({
                   {assetPrepareStatus.message}
                 </Text>
               ) : null}
+            </>
+          ) : null}
+          {selectedSource.kind === "text" ? (
+            <>
+              <Label text="Text" />
+              <TextInput
+                value={selectedSource.text}
+                onChangeText={(text) =>
+                  onSceneChange(
+                    updateSource(scene, selectedSource.id, (source) => (source.kind === "text" ? { ...source, text } : source))
+                  )
+                }
+                style={[styles.input, styles.multilineInput]}
+                editable={!setupLocked}
+                multiline
+                numberOfLines={selectedSource.mode === "subtitle" ? 3 : 2}
+                placeholder="Overlay text"
+                placeholderTextColor="#71717a"
+              />
+              <View style={styles.grid3}>
+                {textSourceModes.map((mode) => (
+                  <ActionButton
+                    key={mode.mode}
+                    label={mode.label}
+                    variant={selectedSource.mode === mode.mode ? "active" : "default"}
+                    disabled={setupLocked}
+                    onPress={() =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "text" ? { ...source, mode: mode.mode } : source
+                        )
+                      )
+                    }
+                  />
+                ))}
+              </View>
+              <View style={styles.grid3}>
+                {textSourceAlignments.map((align) => (
+                  <ActionButton
+                    key={align}
+                    label={align}
+                    variant={selectedSource.align === align ? "active" : "default"}
+                    disabled={setupLocked}
+                    onPress={() =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "text" ? { ...source, align } : source
+                        )
+                      )
+                    }
+                  />
+                ))}
+              </View>
+              <NumberStepper
+                label="Font"
+                value={selectedSource.fontSize}
+                min={10}
+                max={180}
+                step={2}
+                disabled={setupLocked}
+                onChange={(fontSize) =>
+                  onSceneChange(updateSource(scene, selectedSource.id, (source) => (source.kind === "text" ? { ...source, fontSize } : source)))
+                }
+              />
+              <NumberStepper
+                label="Lines"
+                value={selectedSource.maxLines}
+                min={1}
+                max={4}
+                step={1}
+                disabled={setupLocked}
+                onChange={(maxLines) =>
+                  onSceneChange(
+                    updateSource(scene, selectedSource.id, (source) =>
+                      source.kind === "text" ? { ...source, maxLines: Math.round(maxLines) } : source
+                    )
+                  )
+                }
+              />
+              <Label text="Text color" />
+              <TextInput
+                value={selectedSource.color}
+                onChangeText={(color) =>
+                  onSceneChange(updateSource(scene, selectedSource.id, (source) => (source.kind === "text" ? { ...source, color } : source)))
+                }
+                style={styles.input}
+                editable={!setupLocked}
+                placeholder="#f8fafc"
+                placeholderTextColor="#71717a"
+              />
+              <Label text="Backdrop color" />
+              <TextInput
+                value={selectedSource.backgroundColor}
+                onChangeText={(backgroundColor) =>
+                  onSceneChange(
+                    updateSource(scene, selectedSource.id, (source) =>
+                      source.kind === "text" ? { ...source, backgroundColor } : source
+                    )
+                  )
+                }
+                style={styles.input}
+                editable={!setupLocked}
+                placeholder="#000000"
+                placeholderTextColor="#71717a"
+              />
+              <NumberStepper
+                label="Backdrop"
+                value={selectedSource.backgroundOpacity}
+                min={0}
+                max={1}
+                step={0.05}
+                disabled={setupLocked}
+                onChange={(backgroundOpacity) =>
+                  onSceneChange(
+                    updateSource(scene, selectedSource.id, (source) =>
+                      source.kind === "text" ? { ...source, backgroundOpacity } : source
+                    )
+                  )
+                }
+              />
+              <Label text="Outline color" />
+              <TextInput
+                value={selectedSource.outlineColor}
+                onChangeText={(outlineColor) =>
+                  onSceneChange(
+                    updateSource(scene, selectedSource.id, (source) =>
+                      source.kind === "text" ? { ...source, outlineColor } : source
+                    )
+                  )
+                }
+                style={styles.input}
+                editable={!setupLocked}
+                placeholder="#000000"
+                placeholderTextColor="#71717a"
+              />
+              <NumberStepper
+                label="Outline"
+                value={selectedSource.outlineWidth}
+                min={0}
+                max={12}
+                step={1}
+                disabled={setupLocked}
+                onChange={(outlineWidth) =>
+                  onSceneChange(
+                    updateSource(scene, selectedSource.id, (source) =>
+                      source.kind === "text" ? { ...source, outlineWidth } : source
+                    )
+                  )
+                }
+              />
             </>
           ) : null}
           {selectedSource.kind === "pngtuber" ? (
@@ -2990,9 +3159,23 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
 
   if (source.kind === "text") {
     return (
-      <Text style={[styles.textSource, { color: source.color, fontSize: fontSizeForTextSource(source) }]} numberOfLines={1}>
-        {source.text}
-      </Text>
+      <View style={[styles.textSourceFrame, { backgroundColor: rgbaFromHex(source.backgroundColor, source.backgroundOpacity) }]}>
+        <Text
+          style={[
+            styles.textSource,
+            {
+              color: source.color,
+              fontSize: fontSizeForTextSource(source),
+              textAlign: source.align,
+              textShadowColor: source.outlineWidth > 0 ? source.outlineColor : "transparent",
+              textShadowRadius: source.outlineWidth > 0 ? Math.max(1, source.outlineWidth) : 0
+            }
+          ]}
+          numberOfLines={source.mode === "subtitle" ? source.maxLines : 1}
+        >
+          {source.text}
+        </Text>
+      </View>
     );
   }
 
@@ -3640,8 +3823,12 @@ const expressionStyle = (expression: string) => {
   }
 };
 
-const fontSizeForTextSource = (source: Extract<SceneSource, { kind: "text" }>) =>
-  Math.max(9, Math.min(source.fontSize / 2, source.transform.width * 42, source.transform.height * 150));
+const fontSizeForTextSource = (source: Extract<SceneSource, { kind: "text" }>) => {
+  const lineFactor = source.mode === "subtitle" ? Math.max(1, source.maxLines) : 1;
+  const widthBudget = source.transform.width * (source.mode === "ticker" ? 34 : 48);
+  const heightBudget = (source.transform.height * 160) / lineFactor;
+  return Math.max(9, Math.min(source.fontSize / 2, widthBudget, heightBudget));
+};
 
 const fontSizeForChatSource = (source: Extract<SceneSource, { kind: "chat" }>) =>
   Math.max(9, Math.min(source.fontSize / 2, source.transform.width * 52, source.transform.height * 132));
@@ -4134,11 +4321,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "900"
   },
+  textSourceFrame: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6
+  },
   textSource: {
     width: "100%",
     color: "#f8fafc",
-    fontWeight: "900",
-    textAlign: "center"
+    fontWeight: "900"
   },
   chatOverlaySource: {
     width: "100%",

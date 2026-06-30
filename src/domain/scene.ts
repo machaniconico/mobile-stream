@@ -173,11 +173,21 @@ export interface SolidSource extends BaseSource {
   color: string;
 }
 
+export type TextSourceMode = "label" | "subtitle" | "ticker";
+export type TextSourceAlign = "left" | "center" | "right";
+
 export interface TextSource extends BaseSource {
   kind: "text";
   text: string;
+  mode: TextSourceMode;
+  align: TextSourceAlign;
   color: string;
   fontSize: number;
+  backgroundColor: string;
+  backgroundOpacity: number;
+  outlineColor: string;
+  outlineWidth: number;
+  maxLines: number;
 }
 
 export interface ChatOverlaySource extends BaseSource {
@@ -266,6 +276,8 @@ const clampRange = (value: number, min: number, max: number) => Math.max(min, Ma
 const sourceKinds: readonly SourceKind[] = ["screen", "pngtuber", "live2d", "vrm", "image", "solid", "text", "chat"];
 const blendModes: readonly BlendMode[] = ["normal", "multiply", "screen"];
 const sceneTransitionKinds: readonly SceneTransitionKind[] = ["cut", "fade"];
+const textSourceModes: readonly TextSourceMode[] = ["label", "subtitle", "ticker"];
+const textSourceAlignments: readonly TextSourceAlign[] = ["left", "center", "right"];
 
 const clampTransform = (transform: Transform): Transform => ({
   x: clamp01(transform.x),
@@ -980,9 +992,35 @@ export const createDefaultScene = (): SceneDocument => {
       locked: false,
       blendMode: "normal",
       text: "MobileLiveCaster",
+      mode: "label",
+      align: "left",
       color: "#f8fafc",
       fontSize: 44,
+      backgroundColor: "#000000",
+      backgroundOpacity: 0,
+      outlineColor: "#000000",
+      outlineWidth: 3,
+      maxLines: 1,
       transform: defaultTransform({ x: 0.04, y: 0.05, width: 0.55, height: 0.14 })
+    },
+    {
+      id: "source-subtitle",
+      kind: "text",
+      name: "Subtitle",
+      visible: true,
+      locked: false,
+      blendMode: "normal",
+      text: "字幕テキスト",
+      mode: "subtitle",
+      align: "center",
+      color: "#f8fafc",
+      fontSize: 54,
+      backgroundColor: "#000000",
+      backgroundOpacity: 0.46,
+      outlineColor: "#000000",
+      outlineWidth: 5,
+      maxLines: 2,
+      transform: defaultTransform({ x: 0.16, y: 0.77, width: 0.68, height: 0.16 })
     },
     {
       id: "source-chat",
@@ -1055,8 +1093,12 @@ export const createSceneFromTemplate = (templateId: SceneTemplateId): SceneDocum
           id: "source-privacy-shield-label",
           name: "Privacy Label",
           text: "Privacy Shield",
+          mode: "label",
+          align: "center",
           color: "#f8fafc",
           fontSize: 72,
+          backgroundOpacity: 0,
+          maxLines: 1,
           transform: defaultTransform({ x: 0.16, y: 0.38, width: 0.68, height: 0.16 })
         }
       ]
@@ -1080,7 +1122,11 @@ export const createSceneFromTemplate = (templateId: SceneTemplateId): SceneDocum
         id: `source-${templateId}-label`,
         name: isBreak ? "Break Label" : "Waiting Label",
         text: isBreak ? "Be right back" : "Starting soon",
+        mode: "label",
+        align: "center",
         fontSize: isBreak ? 70 : 76,
+        backgroundOpacity: 0,
+        maxLines: 1,
         transform: defaultTransform({ x: 0.08, y: 0.18, width: 0.72, height: 0.18 })
       },
       {
@@ -1169,7 +1215,20 @@ export const createSource = (kind: SourceKind): SceneSource => {
     case "solid":
       return { ...base, kind, color: "#27272a" };
     case "text":
-      return { ...base, kind, text: "Text", color: "#f8fafc", fontSize: 36 };
+      return {
+        ...base,
+        kind,
+        text: "Text",
+        mode: "label",
+        align: "center",
+        color: "#f8fafc",
+        fontSize: 36,
+        backgroundColor: "#000000",
+        backgroundOpacity: 0,
+        outlineColor: "#000000",
+        outlineWidth: 3,
+        maxLines: 1
+      };
     case "chat":
       return {
         ...base,
@@ -1186,6 +1245,21 @@ export const createSource = (kind: SourceKind): SceneSource => {
       };
   }
 };
+
+export const createSubtitleTextSource = (): TextSource => ({
+  ...(createSource("text") as TextSource),
+  name: "Subtitle",
+  text: "字幕テキスト",
+  mode: "subtitle",
+  align: "center",
+  fontSize: 54,
+  backgroundColor: "#000000",
+  backgroundOpacity: 0.46,
+  outlineColor: "#000000",
+  outlineWidth: 5,
+  maxLines: 2,
+  transform: defaultTransform({ x: 0.16, y: 0.77, width: 0.68, height: 0.16 })
+});
 
 export const normalizeSceneDocument = (value: unknown): SceneDocument => {
   const fallback = createDefaultScene();
@@ -1516,7 +1590,18 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
     case "solid":
       return { color: source.color };
     case "text":
-      return { text: source.text, color: source.color, fontSize: source.fontSize };
+      return {
+        text: source.text,
+        mode: source.mode,
+        align: source.align,
+        color: source.color,
+        fontSize: source.fontSize,
+        backgroundColor: source.backgroundColor,
+        backgroundOpacity: source.backgroundOpacity,
+        outlineColor: source.outlineColor,
+        outlineWidth: source.outlineWidth,
+        maxLines: source.maxLines
+      };
     case "chat": {
       const messages = serializeChatOverlayMessages(runtime.chatMessages ?? [], source);
       return {
@@ -1726,8 +1811,17 @@ const normalizeSceneSource = (value: unknown, canvas: SceneDocument["canvas"] = 
         ...base,
         kind: "text",
         text: typeof value.text === "string" ? value.text : sourceFallback.text,
+        mode: textSourceModes.includes(value.mode as TextSourceMode) ? (value.mode as TextSourceMode) : sourceFallback.mode,
+        align: textSourceAlignments.includes(value.align as TextSourceAlign)
+          ? (value.align as TextSourceAlign)
+          : sourceFallback.align,
         color: stringValue(value.color, sourceFallback.color),
-        fontSize: clampedNumber(value.fontSize, sourceFallback.fontSize, 8, 180)
+        fontSize: clampedNumber(value.fontSize, sourceFallback.fontSize, 8, 180),
+        backgroundColor: stringValue(value.backgroundColor, sourceFallback.backgroundColor),
+        backgroundOpacity: clampedNumber(value.backgroundOpacity, sourceFallback.backgroundOpacity, 0, 1),
+        outlineColor: stringValue(value.outlineColor, sourceFallback.outlineColor),
+        outlineWidth: clampedNumber(value.outlineWidth, sourceFallback.outlineWidth, 0, 12),
+        maxLines: Math.round(clampedNumber(value.maxLines, sourceFallback.maxLines, 1, 4))
       };
     }
     case "chat": {

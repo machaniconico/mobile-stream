@@ -11,6 +11,11 @@ import { distributionArtifactManifestPath } from "./verify-distribution-artifact
 import { dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
 import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
 import { storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
+import {
+  createPhysicalDevicePreflightReport,
+  physicalDevicePreflightArtifactGroup,
+  writePhysicalDevicePreflightReport
+} from "./verify-physical-devices.mjs";
 import { validateStoreSubmissionApproval } from "./verify-store-submission-approval.mjs";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 
@@ -36,6 +41,7 @@ const generatedFiles = [
   ".artifacts/store-approval-test/submission-review.md",
   ".artifacts/store-approval-test/ios-store.png",
   ".artifacts/store-approval-test/android-store.png",
+  ".artifacts/store-approval-test/physical-device-preflight.json",
   ".artifacts/store-approval-test/support-bundle.json",
   ".artifacts/store-approval-test/ui-evidence.json",
   ".artifacts/store-approval-test/release-report.json"
@@ -49,6 +55,7 @@ const capturedAt = new Date().toISOString();
 const appBuild = "rc-1";
 const storeReleaseReportPath = ".artifacts/store-approval-test/store-release-report.json";
 const approvalReportPath = ".artifacts/store-approval-test/release-report.json";
+const physicalDevicePreflightPath = ".artifacts/store-approval-test/physical-device-preflight.json";
 
 describe("store submission approval verifier", () => {
   beforeAll(() => {
@@ -312,7 +319,8 @@ function createReport() {
         artifactRecord("store-submission", ".artifacts/store-approval-test/submission-metadata.json"),
         artifactRecord("store-submission", ".artifacts/store-approval-test/submission-review.md"),
         artifactRecord("store-submission", ".artifacts/store-approval-test/ios-store.png"),
-        artifactRecord("store-submission", ".artifacts/store-approval-test/android-store.png")
+        artifactRecord("store-submission", ".artifacts/store-approval-test/android-store.png"),
+        artifactRecord(physicalDevicePreflightArtifactGroup, physicalDevicePreflightPath)
       ]
     },
     gates: [
@@ -379,6 +387,7 @@ function writeFixtureFiles() {
   writeDashboardEvidenceFixture();
   writeSupportBundleFixture();
   writeStoreSubmissionFixture();
+  writePhysicalDevicePreflightFixture();
   writeUiEvidenceFile();
 }
 
@@ -453,6 +462,41 @@ function writeSupportBundleFixture() {
       null,
       2
     )
+  );
+}
+
+function writePhysicalDevicePreflightFixture(patch = {}) {
+  const report = createPhysicalDevicePreflightReport({
+    androidAdbOutput: `List of devices attached
+R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
+`,
+    androidRuntimeProperties: {
+      R58M123456B: `[ro.kernel.qemu]: [0]
+[ro.boot.qemu]: [0]
+[ro.hardware]: [qcom]
+`
+    },
+    androidRuntimeCommands: {
+      R58M123456B: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" }
+    },
+    iosXctraceOutput: `== Devices ==
+Release iPhone (17.5.1) (00008110-001234560E91801E)
+== Simulators ==
+iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
+`
+  });
+  writePhysicalDevicePreflightReport(
+    {
+      ...report,
+      git: {
+        commit: currentCommit(),
+        branch: "main",
+        dirty: false,
+        statusShort: ""
+      },
+      ...patch
+    },
+    physicalDevicePreflightPath
   );
 }
 
@@ -1090,7 +1134,7 @@ function artifactRecord(group, path) {
 }
 
 function requiredTextChecks() {
-  return ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality"].map(
+  return ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality", "Subtitle"].map(
     (text) => ({ text, count: 1 })
   );
 }

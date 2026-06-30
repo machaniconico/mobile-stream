@@ -6,11 +6,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDistributionManifest, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
 import { createDashboardEvidenceManifest, dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
 import { createStoreSubmissionChecklist, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
+import { createPhysicalDevicePreflightReport, writePhysicalDevicePreflightReport } from "./verify-physical-devices.mjs";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 
 const fixtureRoot = ".artifacts/verify-release-candidate-test";
 const supportBundlePath = `${fixtureRoot}/support-bundle.json`;
 const reportPath = `${fixtureRoot}/release-candidate-report.json`;
+const physicalDevicePreflightPath = `${fixtureRoot}/physical-device-preflight.json`;
 const managedArtifactPaths = [
   storeSubmissionChecklistPath,
   distributionArtifactManifestPath,
@@ -25,6 +27,8 @@ const managedArtifactPaths = [
   `${fixtureRoot}/android-store.png`,
   `${fixtureRoot}/submission-metadata.json`,
   `${fixtureRoot}/submission-review.md`,
+  physicalDevicePreflightPath,
+  ".artifacts/physical-device-preflight.json",
   ".artifacts/ui-verification.json"
 ];
 let artifactBackups = new Map();
@@ -65,6 +69,9 @@ describe("release candidate verifier", () => {
     expect(result.stderr).toContain(
       `Store release orchestration report is required when ${storeSubmissionChecklistPath} exists.`
     );
+    expect(result.stderr).toContain(
+      `Physical device preflight report is required when ${storeSubmissionChecklistPath} exists.`
+    );
     expect(result.stdout).not.toContain("==> Run unit tests");
 
     const gate = readRequirementGate();
@@ -76,7 +83,9 @@ describe("release candidate verifier", () => {
         distributionArtifactManifestPresent: false,
         dashboardEvidenceManifestPresent: false,
         storeReleaseReportRequired: true,
-        storeReleaseReportSupplied: false
+        storeReleaseReportSupplied: false,
+        physicalDevicePreflightRequired: true,
+        physicalDevicePreflightSupplied: false
       }
     });
   });
@@ -254,8 +263,9 @@ describe("release candidate verifier", () => {
     writeStoreSubmissionChecklist();
     writeFile(distributionArtifactManifestPath, JSON.stringify({ type: "distribution-artifact-manifest" }));
     writeFile(dashboardEvidenceManifestPath, JSON.stringify({ type: "platform-dashboard-evidence-manifest" }));
+    writePhysicalDevicePreflightFixture();
 
-    const result = runVerifier();
+    const result = runVerifier([`--physical-device-preflight-json=${physicalDevicePreflightPath}`]);
 
     expect(result.status).toBe(1);
     expect(result.stderr).not.toContain("Distribution artifact manifest is required");
@@ -263,6 +273,7 @@ describe("release candidate verifier", () => {
     expect(result.stderr).toContain(
       `Store release orchestration report is required when ${storeSubmissionChecklistPath} exists.`
     );
+    expect(result.stderr).not.toContain("Physical device preflight report is required");
 
     const gate = readRequirementGate();
     expect(gate).toMatchObject({
@@ -273,7 +284,9 @@ describe("release candidate verifier", () => {
         distributionArtifactManifestPresent: true,
         dashboardEvidenceManifestPresent: true,
         storeReleaseReportRequired: true,
-        storeReleaseReportSupplied: false
+        storeReleaseReportSupplied: false,
+        physicalDevicePreflightRequired: true,
+        physicalDevicePreflightSupplied: true
       }
     });
   });
@@ -313,8 +326,12 @@ describe("release candidate verifier", () => {
     writeValidHandoffEvidence({
       dashboardCheckedAt: new Date(Date.now() - 49 * 3_600_000).toISOString()
     });
+    writePhysicalDevicePreflightFixture();
 
-    const result = runVerifier([`--store-release-report-json=${fixtureRoot}/missing-store-release-report.json`]);
+    const result = runVerifier([
+      `--store-release-report-json=${fixtureRoot}/missing-store-release-report.json`,
+      `--physical-device-preflight-json=${physicalDevicePreflightPath}`
+    ]);
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(
@@ -336,8 +353,12 @@ describe("release candidate verifier", () => {
 
   it("passes handoff integrity before validating the supplied store-release report", () => {
     writeValidHandoffEvidence();
+    writePhysicalDevicePreflightFixture();
 
-    const result = runVerifier([`--store-release-report-json=${fixtureRoot}/missing-store-release-report.json`]);
+    const result = runVerifier([
+      `--store-release-report-json=${fixtureRoot}/missing-store-release-report.json`,
+      `--physical-device-preflight-json=${physicalDevicePreflightPath}`
+    ]);
 
     expect(result.status).toBe(2);
     expect(result.stderr).toContain(`Could not read store release orchestration report at ${fixtureRoot}/missing-store-release-report.json`);
@@ -366,6 +387,53 @@ describe("release candidate verifier", () => {
       status: "failed",
       exitCode: 2
     });
+  });
+
+  it("rejects blocked physical-device preflight reports before expensive source gates", () => {
+    writeSupportBundleFixture({ summary: { validationEvidenceStatus: "blocked" } });
+    writePhysicalDevicePreflightFixture({ status: "blocked" });
+
+    const result = runVerifier([`--physical-device-preflight-json=${physicalDevicePreflightPath}`]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Physical device preflight status must be ready");
+    expect(result.stdout).not.toContain("==> Run unit tests");
+
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    const gate = report.gates.find((entry) => entry.label === "Verify physical device preflight");
+    expect(gate).toMatchObject({
+      status: "failed",
+      exitCode: 1
+    });
+  });
+
+  it("records a passing physical-device preflight gate and artifact", () => {
+    writeSupportBundleFixture({ summary: { validationEvidenceStatus: "blocked" } });
+    writePhysicalDevicePreflightFixture();
+
+    const result = runVerifier([`--physical-device-preflight-json=${physicalDevicePreflightPath}`]);
+
+    expect(result.status).toBe(1);
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    const gate = report.gates.find((entry) => entry.label === "Verify physical device preflight");
+    expect(gate).toMatchObject({
+      status: "passed",
+      exitCode: 0,
+      evidence: {
+        path: physicalDevicePreflightPath,
+        mode: "all",
+        androidDeviceCount: 1,
+        iosDeviceCount: 1
+      }
+    });
+    expect(report.artifacts.files).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          group: "physical-device-preflight",
+          path: physicalDevicePreflightPath
+        })
+      ])
+    );
   });
 
   it("fails invalid support bundles before expensive source gates", () => {
@@ -415,6 +483,29 @@ function writeStoreSubmissionChecklist() {
       type: "store-submission-checklist-manifest"
     })
   );
+}
+
+function writePhysicalDevicePreflightFixture(patch = {}) {
+  const report = createPhysicalDevicePreflightReport({
+    androidAdbOutput: `List of devices attached
+R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
+`,
+    androidRuntimeProperties: {
+      R58M123456B: `[ro.kernel.qemu]: [0]
+[ro.boot.qemu]: [0]
+[ro.hardware]: [qcom]
+`
+    },
+    androidRuntimeCommands: {
+      R58M123456B: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" }
+    },
+    iosXctraceOutput: `== Devices ==
+Release iPhone (17.5.1) (00008110-001234560E91801E)
+== Simulators ==
+iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
+`
+  });
+  writePhysicalDevicePreflightReport({ ...report, ...patch }, physicalDevicePreflightPath);
 }
 
 function writeSupportBundleFixture(patch = {}) {
@@ -758,7 +849,7 @@ function uiViewportEvidence(name, path) {
   return {
     name,
     horizontalOverflow: false,
-    requiredTextChecks: ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality"].map(
+    requiredTextChecks: ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality", "Subtitle"].map(
       (text) => ({ text, count: 1 })
     ),
     screenshot: fileRecord(path)

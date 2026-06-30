@@ -2,10 +2,12 @@ import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "nod
 import { describe, expect, it, afterEach } from "vitest";
 import {
   createPhysicalDevicePreflightReport,
+  collectPhysicalDevicePreflightArtifactRecords,
   parseAndroidAdbDevices,
   parseAndroidGetprop,
   parseIosXctraceDevices,
   physicalDevicePreflightType,
+  validatePhysicalDevicePreflightReport,
   writePhysicalDevicePreflightReport
 } from "./verify-physical-devices.mjs";
 
@@ -195,5 +197,42 @@ R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
     expect(() => writePhysicalDevicePreflightReport(report, `${linkedDir}/report.json`)).toThrow(
       `Physical device preflight report path parent must not be a symbolic link: ${linkedDir}`
     );
+  });
+
+  it("validates and collects commercial physical-device preflight artifacts", () => {
+    const report = createPhysicalDevicePreflightReport({
+      androidAdbOutput: `List of devices attached
+R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
+`,
+      androidRuntimeProperties: {
+        R58M123456B: `[ro.kernel.qemu]: [0]
+[ro.hardware]: [qcom]
+`
+      },
+      androidRuntimeCommands: {
+        R58M123456B: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" }
+      },
+      iosXctraceOutput: `== Devices ==
+Release iPhone (17.5.1) (00008110-001234560E91801E)
+`
+    });
+    const reportPath = `${fixtureRoot}/physical-device-preflight.json`;
+    writePhysicalDevicePreflightReport(report, reportPath);
+
+    expect(
+      validatePhysicalDevicePreflightReport(report, {
+        reportPath,
+        currentCommit: report.git.commit,
+        allowDirty: true
+      })
+    ).toEqual([]);
+    expect(collectPhysicalDevicePreflightArtifactRecords({ reportPath })).toEqual([
+      expect.objectContaining({
+        group: "physical-device-preflight",
+        path: reportPath,
+        bytes: expect.any(Number),
+        sha256: expect.stringMatching(/^[a-f0-9]{64}$/)
+      })
+    ]);
   });
 });

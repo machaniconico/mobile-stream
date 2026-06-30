@@ -22,6 +22,7 @@ import {
   validateStoreSubmissionMetadataReferences
 } from "./verify-store-submission-checklist.mjs";
 import { createCommercialReleaseGate } from "./verify-commercial-release-bundle.mjs";
+import { physicalDevicePreflightArtifactGroup, validatePhysicalDevicePreflightReport } from "./verify-physical-devices.mjs";
 import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
 import { readPngEvidence } from "./png-evidence.mjs";
 import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
@@ -36,7 +37,7 @@ const virtualStoreDevicePattern =
 const dashboardScreenshotMinimumShortEdge = 720;
 const dashboardScreenshotMinimumLongEdge = 1280;
 const requiredUiViewportNames = ["desktop", "mobile"];
-const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality"];
+const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality", "Subtitle"];
 const badDashboardIdentityMarkers = new Set(["-", "mock", "n/a", "na", "none", "null", "placeholder", "test", "unknown"]);
 const badYoutubeBroadcastStatuses = new Set(["complete", "failed", "revoked"]);
 const badYoutubeStreamStatuses = new Set(["inactive", "error"]);
@@ -416,7 +417,7 @@ function validatePackagedSupportBundleGate(supportBundle, releaseReport, maxAgeH
 function validateRequiredCommercialPackageArtifacts(report, manifest, reportArtifacts, packagedArtifacts, failures) {
   const reportGroups = new Set((report.artifacts?.files || []).map((artifact) => artifact.group));
   const packageGroups = new Set((manifest.artifacts || []).map((artifact) => artifact.group));
-  for (const group of [distributionArtifactGroup, dashboardEvidenceArtifactGroup, storeSubmissionArtifactGroup]) {
+  for (const group of [distributionArtifactGroup, dashboardEvidenceArtifactGroup, storeSubmissionArtifactGroup, physicalDevicePreflightArtifactGroup]) {
     if (!reportGroups.has(group)) {
       failures.push(`Packaged release report is missing required commercial artifact group ${group}.`);
     }
@@ -480,6 +481,24 @@ function validatePackagedCommercialManifests(packageDir, packagedArtifacts, fail
       maxAgeHours,
       supportBundle
     });
+  }
+
+  const preflightArtifact = Array.from(packagedArtifacts.values()).find(
+    (artifact) => artifact?.group === physicalDevicePreflightArtifactGroup
+  );
+  if (!preflightArtifact) {
+    failures.push(`Package is missing physical-device preflight artifact group ${physicalDevicePreflightArtifactGroup}.`);
+    return;
+  }
+  const preflight = readPackagedJsonEntry(preflightArtifact, packageDir, "physical device preflight", failures);
+  if (preflight) {
+    failures.push(
+      ...validatePhysicalDevicePreflightReport(preflight, {
+        currentCommit: String(releaseReport.git?.commit || ""),
+        allowDirty: Boolean(releaseReport.options?.allowDirty),
+        maxAgeHours
+      }).map((failure) => `Package ${failure}`)
+    );
   }
 }
 

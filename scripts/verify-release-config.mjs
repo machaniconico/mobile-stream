@@ -124,7 +124,9 @@ const checks = [
     expectIncludes(files.storeReleaseBuildScript, "validateStoreReleaseReport");
     expectIncludes(files.storeReleaseBuildScript, "collectStoreReleaseArtifactRecords");
     expectIncludes(files.releaseCandidateScript, "--store-release-report-json");
+    expectIncludes(files.releaseCandidateScript, "--physical-device-preflight-json");
     expectIncludes(files.releaseCandidateScript, "Verify store release orchestration report");
+    expectIncludes(files.releaseCandidateScript, "Verify physical device preflight");
     expectIncludes(files.releaseCandidateScript, "Verify store submission evidence requirements");
     expectIncludes(files.releaseCandidateScript, "Verify store submission handoff evidence integrity");
     expectIncludes(files.releaseCandidateScript, "storeSubmissionChecklistPath");
@@ -136,10 +138,15 @@ const checks = [
     expectIncludes(files.releaseCandidateScript, "validateManifestGitProvenance");
     expectIncludes(files.releaseCandidateScript, "requireRealDeviceScreenshots: true");
     expectIncludes(files.releaseCandidateScript, "Store release orchestration report is required");
+    expectIncludes(files.releaseCandidateScript, "Physical device preflight report is required");
+    expectIncludes(files.releaseCandidateScript, "collectPhysicalDevicePreflightArtifactRecords");
+    expectIncludes(files.releaseCandidateScript, "validatePhysicalDevicePreflightReport");
     expectIncludes(files.releaseCandidateScript, "isLoopbackHttpUrl");
     expectIncludes(files.releaseCandidateScript, "--ui-url must be a loopback http(s) URL");
     expectIncludes(files.releaseCandidateScript, "UI evidence target must be a loopback http(s) URL.");
     expectIncludes(files.releaseReportScript, "Browser UI evidence target must be a loopback http(s) URL.");
+    expectIncludes(files.releaseReportScript, "validatePhysicalDevicePreflightReport");
+    expectIncludes(files.releaseReportScript, "physicalDevicePreflightArtifactGroup");
     expectIncludes(files.releaseReportScript, "validateManifestGitProvenance");
     expectIncludes(files.releaseReportScript, "Browser UI evidence");
     expectIncludes(files.releaseReportScript, "Browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");
@@ -153,6 +160,7 @@ const checks = [
     expectIncludes(files.releaseUrlPolicyScript, "127.0.0.1");
     expectIncludes(files.releaseUrlPolicyScript, "[::1]");
     expectIncludes(files.releaseArtifactPolicyScript, "scripts/release-url-policy.mjs");
+    expectIncludes(files.releaseArtifactPolicyScript, "scripts/verify-physical-devices.mjs");
     expectIncludes(files.releaseArtifactPolicyScript, "productionNativeSourcePaths");
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");

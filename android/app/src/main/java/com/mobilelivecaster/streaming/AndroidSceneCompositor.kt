@@ -11,7 +11,6 @@ import android.graphics.RectF
 import android.net.Uri
 import com.pedro.encoder.input.gl.render.filters.`object`.BaseObjectFilterRender
 import com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRender
-import com.pedro.encoder.input.gl.render.filters.`object`.TextObjectFilterRender
 import com.pedro.library.generic.GenericStream
 import org.json.JSONArray
 import org.json.JSONObject
@@ -269,16 +268,10 @@ object AndroidSceneCompositor {
         return createIllustrationRigBitmap(sourceBitmap, motion)
     }
 
-    private fun createTextFilter(node: RenderGraphNode): TextObjectFilterRender? {
-        val text = node.payload.optString("text").trim()
-        if (text.isEmpty()) {
-            return null
-        }
-
-        val color = parseColor(node.payload.optString("color"), Color.WHITE)
-        val fontSize = node.payload.optDouble("fontSize", 36.0).toFloat().coerceIn(8f, 220f)
-        return TextObjectFilterRender().apply {
-            setText(text.take(240), fontSize, color)
+    private fun createTextFilter(node: RenderGraphNode): ImageObjectFilterRender? {
+        val bitmap = createTextBitmap(node) ?: return null
+        return ImageObjectFilterRender().apply {
+            setImage(bitmap)
         }
     }
 
@@ -405,15 +398,64 @@ object AndroidSceneCompositor {
             return null
         }
 
-        val bitmap = Bitmap.createBitmap(960, 240, Bitmap.Config.ARGB_8888)
+        val mode = node.payload.optString("mode", "label")
+        val maxLines = node.payload.optInt("maxLines", if (mode == "subtitle") 2 else 1).coerceIn(1, 4)
+        val bitmapHeight = if (mode == "subtitle") 280 else 220
+        val bitmap = Bitmap.createBitmap(960, bitmapHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.color = parseColor(node.payload.optString("color"), Color.WHITE)
+        val backgroundOpacity = node.payload.optDouble("backgroundOpacity", 0.0).toFloat().coerceIn(0f, 1f)
+        if (backgroundOpacity > 0f) {
+            val backgroundColor = parseColor(node.payload.optString("backgroundColor"), Color.BLACK)
+            paint.color = Color.argb(
+                (backgroundOpacity * 255f).roundToInt(),
+                Color.red(backgroundColor),
+                Color.green(backgroundColor),
+                Color.blue(backgroundColor)
+            )
+            canvas.drawRoundRect(RectF(0f, 0f, 960f, bitmapHeight.toFloat()), 28f, 28f, paint)
+        }
+
         paint.textSize = node.payload.optDouble("fontSize", 36.0).toFloat().coerceIn(8f, 220f)
         paint.isFakeBoldText = true
         paint.setShadowLayer(6f, 0f, 3f, Color.argb(210, 0, 0, 0))
-        val baseline = 120f - (paint.descent() + paint.ascent()) * 0.5f
-        canvas.drawText(ellipsize(text.take(240), paint, 900f), 30f, baseline, paint)
+        val align = node.payload.optString("align", "center")
+        paint.textAlign = when (align) {
+            "left" -> Paint.Align.LEFT
+            "right" -> Paint.Align.RIGHT
+            else -> Paint.Align.CENTER
+        }
+        val x = when (paint.textAlign) {
+            Paint.Align.LEFT -> 30f
+            Paint.Align.RIGHT -> 930f
+            else -> 480f
+        }
+        val maxWidth = 900f
+        val lines = text
+            .split("\n")
+            .map { line -> line.trim() }
+            .filter { line -> line.isNotEmpty() }
+            .flatMap { line -> wrapTextLine(line, paint, maxWidth) }
+            .take(maxLines)
+            .ifEmpty { listOf(text.take(240)) }
+        val lineHeight = paint.textSize * 1.16f
+        var baseline = (bitmapHeight - lineHeight * (lines.size - 1)) * 0.5f - (paint.descent() + paint.ascent()) * 0.5f
+        val fillColor = parseColor(node.payload.optString("color"), Color.WHITE)
+        val outlineWidth = node.payload.optDouble("outlineWidth", 0.0).toFloat().coerceIn(0f, 12f)
+        lines.forEach { line ->
+            val displayLine = ellipsize(line.take(240), paint, maxWidth)
+            if (outlineWidth > 0f) {
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = outlineWidth
+                paint.color = parseColor(node.payload.optString("outlineColor"), Color.BLACK)
+                canvas.drawText(displayLine, x, baseline, paint)
+            }
+            paint.style = Paint.Style.FILL
+            paint.strokeWidth = 0f
+            paint.color = fillColor
+            canvas.drawText(displayLine, x, baseline, paint)
+            baseline += lineHeight
+        }
         return bitmap
     }
 
@@ -1213,6 +1255,51 @@ object AndroidSceneCompositor {
             candidate = candidate.dropLast(1)
         }
         return if (candidate.isEmpty()) "..." else "$candidate..."
+    }
+
+    private fun wrapTextLine(value: String, paint: Paint, maxWidth: Float): List<String> {
+        if (paint.measureText(value) <= maxWidth) {
+            return listOf(value)
+        }
+        val words = value.split(Regex("\\s+")).filter { word -> word.isNotBlank() }
+        if (words.size <= 1) {
+            return wrapTextByCharacters(value, paint, maxWidth)
+        }
+        val lines = mutableListOf<String>()
+        var current = ""
+        words.forEach { word ->
+            val candidate = if (current.isBlank()) word else "$current $word"
+            if (paint.measureText(candidate) <= maxWidth) {
+                current = candidate
+            } else {
+                if (current.isNotBlank()) {
+                    lines.add(current)
+                }
+                current = word
+            }
+        }
+        if (current.isNotBlank()) {
+            lines.add(current)
+        }
+        return lines
+    }
+
+    private fun wrapTextByCharacters(value: String, paint: Paint, maxWidth: Float): List<String> {
+        val lines = mutableListOf<String>()
+        var current = ""
+        value.forEach { character ->
+            val candidate = current + character
+            if (current.isNotEmpty() && paint.measureText(candidate) > maxWidth) {
+                lines.add(current)
+                current = character.toString()
+            } else {
+                current = candidate
+            }
+        }
+        if (current.isNotEmpty()) {
+            lines.add(current)
+        }
+        return lines.ifEmpty { listOf(ellipsize(value, paint, maxWidth)) }
     }
 }
 

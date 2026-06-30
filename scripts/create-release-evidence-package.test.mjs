@@ -9,6 +9,11 @@ import { dashboardEvidenceArtifactGroup, dashboardEvidenceManifestPath } from ".
 import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
 import { storeSubmissionArtifactGroup, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import {
+  createPhysicalDevicePreflightReport,
+  physicalDevicePreflightArtifactGroup,
+  writePhysicalDevicePreflightReport
+} from "./verify-physical-devices.mjs";
+import {
   createReleaseEvidencePackage,
   releaseEvidencePackageManifestName,
   releaseEvidencePackageType,
@@ -21,6 +26,7 @@ const packageDir = `${fixtureRoot}/package`;
 const reportPath = `${fixtureRoot}/release-report.json`;
 const supportBundlePath = `${fixtureRoot}/support-bundle.json`;
 const storeReleaseReportPath = `${fixtureRoot}/store-release-report.json`;
+const physicalDevicePreflightPath = `${fixtureRoot}/physical-device-preflight.json`;
 const generatedFiles = [
   "dist/index.html",
   "dist/assets/release-evidence-package-test.js",
@@ -43,7 +49,8 @@ const generatedFiles = [
   ".artifacts/release-evidence-package-test/submission-metadata.json",
   ".artifacts/release-evidence-package-test/submission-review.md",
   ".artifacts/release-evidence-package-test/ios-store.png",
-  ".artifacts/release-evidence-package-test/android-store.png"
+  ".artifacts/release-evidence-package-test/android-store.png",
+  ".artifacts/release-evidence-package-test/physical-device-preflight.json"
 ];
 const fileBackups = new Map();
 const pngBytes = createRgbaPngFixture(1, 1);
@@ -51,7 +58,7 @@ const storePngBytes = pngWithDimensions(1179, 2556);
 const dashboardPngBytes = pngWithDimensions(1440, 900);
 const minimumDistributionArtifactBytes = 1_048_576;
 const capturedAt = new Date().toISOString();
-const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality"];
+const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality", "Subtitle"];
 
 describe("release evidence package creator", () => {
   beforeAll(() => {
@@ -413,6 +420,23 @@ describe("release evidence package creator", () => {
 
     expect(failures).toContain("Packaged release report is missing required commercial artifact group dashboard.");
     expect(failures).toContain("Packaged release report is missing dashboard evidence manifest .artifacts/platform-dashboard-evidence.json.");
+  });
+
+  it("rejects packages missing physical-device preflight evidence", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.artifacts = manifest.artifacts.filter((artifact) => artifact.group !== physicalDevicePreflightArtifactGroup);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      `Package is missing physical-device preflight artifact group ${physicalDevicePreflightArtifactGroup}.`
+    );
   });
 
   it("rejects packages missing artifacts referenced by a packaged commercial manifest", () => {
@@ -1315,6 +1339,7 @@ function writeFixtureFiles() {
   writeStoreReleaseFixture();
   writeDashboardEvidenceFixture();
   writeStoreSubmissionFixture();
+  writePhysicalDevicePreflightFixture();
   writeUiEvidenceFile();
 }
 
@@ -1529,7 +1554,8 @@ function writeReportFixture({ skipUi = true, uiEvidencePath = ".artifacts/releas
     ...distributionArtifactRecords(),
     ...storeReleaseRecords(),
     ...dashboardEvidenceRecords(),
-    ...storeSubmissionRecords()
+    ...storeSubmissionRecords(),
+    ...physicalDevicePreflightRecords()
   ];
 
   writeFile(
@@ -1845,6 +1871,41 @@ function writeStoreSubmissionFixture() {
   );
 }
 
+function writePhysicalDevicePreflightFixture(patch = {}) {
+  const report = createPhysicalDevicePreflightReport({
+    androidAdbOutput: `List of devices attached
+R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
+`,
+    androidRuntimeProperties: {
+      R58M123456B: `[ro.kernel.qemu]: [0]
+[ro.boot.qemu]: [0]
+[ro.hardware]: [qcom]
+`
+    },
+    androidRuntimeCommands: {
+      R58M123456B: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" }
+    },
+    iosXctraceOutput: `== Devices ==
+Release iPhone (17.5.1) (00008110-001234560E91801E)
+== Simulators ==
+iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
+`
+  });
+  writePhysicalDevicePreflightReport(
+    {
+      ...report,
+      git: {
+        commit: currentCommit(),
+        branch: "main",
+        dirty: false,
+        statusShort: ""
+      },
+      ...patch
+    },
+    physicalDevicePreflightPath
+  );
+}
+
 function distributionArtifactRecords() {
   return [
     artifactRecord("distribution", distributionArtifactManifestPath),
@@ -1875,6 +1936,10 @@ function storeSubmissionRecords() {
     artifactRecord("store-submission", ".artifacts/release-evidence-package-test/ios-store.png"),
     artifactRecord("store-submission", ".artifacts/release-evidence-package-test/android-store.png")
   ];
+}
+
+function physicalDevicePreflightRecords() {
+  return [artifactRecord(physicalDevicePreflightArtifactGroup, physicalDevicePreflightPath)];
 }
 
 function distributionManifestRecord(platform, kind, path) {

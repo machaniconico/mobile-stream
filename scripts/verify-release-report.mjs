@@ -11,15 +11,16 @@ import {
 } from "./release-artifact-policy.mjs";
 import { validateDistributionArtifactsInReport } from "./verify-distribution-artifacts.mjs";
 import { validateDashboardEvidenceInReport } from "./verify-platform-dashboard-evidence.mjs";
-import { validateStoreSubmissionInReport } from "./verify-store-submission-checklist.mjs";
+import { storeSubmissionArtifactGroup, validateStoreSubmissionInReport } from "./verify-store-submission-checklist.mjs";
 import { validateStoreReleaseReportInReleaseReport } from "./release-store-build.mjs";
+import { physicalDevicePreflightArtifactGroup, validatePhysicalDevicePreflightReport } from "./verify-physical-devices.mjs";
 import { createCommercialReleaseGate } from "./verify-commercial-release-bundle.mjs";
 import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
 import { readPngEvidence } from "./png-evidence.mjs";
 import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 
 const requiredUiViewportNames = ["desktop", "mobile"];
-const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality"];
+const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality", "Subtitle"];
 const defaultBrowserUiEvidencePath = ".artifacts/ui-verification.json";
 const requiredReactNativeArtifacts = [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"];
 const requiredUiArtifacts = [".artifacts/mobile-live-caster-desktop.png", ".artifacts/mobile-live-caster-mobile.png"];
@@ -285,6 +286,42 @@ function validateArtifacts(report, options, fail) {
     allowCommitMismatch: options.allowCommitMismatch,
     maxAgeHours: options.maxAgeHours
   });
+  validatePhysicalDevicePreflightInReport(report, artifacts, options, fail);
+}
+
+function validatePhysicalDevicePreflightInReport(report, artifacts, options, fail) {
+  const hasStoreSubmissionEvidence = artifacts.some((artifact) => artifact?.group === storeSubmissionArtifactGroup);
+  const preflightArtifact = artifacts.find((artifact) => artifact?.group === physicalDevicePreflightArtifactGroup);
+  if (hasStoreSubmissionEvidence && !preflightArtifact) {
+    fail("Store-submission release reports must include physical-device preflight evidence.");
+    return;
+  }
+  if (report?.options?.physicalDevicePreflightJson && !preflightArtifact) {
+    fail("Report options include physical-device preflight evidence but artifacts are missing the physical-device-preflight group.");
+    return;
+  }
+  if (!preflightArtifact) {
+    return;
+  }
+  if (!preflightArtifact.path) {
+    fail("Physical device preflight artifact is missing its path.");
+    return;
+  }
+  let preflight;
+  try {
+    preflight = readJsonFile(preflightArtifact.path, "physical device preflight");
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+    return;
+  }
+  for (const failure of validatePhysicalDevicePreflightReport(preflight, {
+    reportPath: preflightArtifact.path,
+    currentCommit: stringValue(report?.git?.commit),
+    allowDirty: options.allowDirty,
+    maxAgeHours: options.maxAgeHours
+  })) {
+    fail(failure);
+  }
 }
 
 function validateArtifactRecord(artifact, fail) {

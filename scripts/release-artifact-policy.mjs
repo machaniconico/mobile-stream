@@ -20,6 +20,7 @@ const staticReleaseConfigArtifactPaths = [
   "scripts/verify-release-candidate.mjs",
   "scripts/verify-release-config.mjs",
   "scripts/verify-commercial-release-bundle.mjs",
+  "scripts/verify-physical-devices.mjs",
   "scripts/verify-store-release-env.mjs",
   "scripts/verify-distribution-artifacts.mjs",
   "scripts/verify-platform-dashboard-evidence.mjs",

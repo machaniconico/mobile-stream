@@ -3928,20 +3928,51 @@ final class BroadcastSceneCompositor {
         guard !text.isEmpty else {
             return
         }
+
+        let backgroundOpacity = min(max(node.payload.cgFloatValue("backgroundOpacity"), 0), 1)
+        if backgroundOpacity > 0 {
+            context.setFillColor(Self.color(node.payload.stringValue("backgroundColor"), fallback: .black).withAlphaComponent(backgroundOpacity).cgColor)
+            context.addPath(CGPath(roundedRect: rect, cornerWidth: min(rect.width, rect.height) * 0.08, cornerHeight: min(rect.width, rect.height) * 0.08, transform: nil))
+            context.fillPath()
+        }
+
         UIGraphicsPushContext(context)
+        let mode = node.payload.stringValue("mode", fallback: "label")
+        let maxLines = max(1, min(Int(node.payload.cgFloatValue("maxLines", fallback: mode == "subtitle" ? 2 : 1)), 4))
+        let lines = text
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .prefix(maxLines)
+        let displayText = String(lines.joined(separator: "\n").prefix(320))
+        let fontSize = min(max(node.payload.cgFloatValue("fontSize", fallback: 36), 8), 220)
+        let textRect = rect.insetBy(dx: max(6, fontSize * 0.18), dy: max(4, fontSize * 0.12))
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = .left
-        paragraphStyle.lineBreakMode = .byTruncatingTail
-        NSString(string: String(text.prefix(240))).draw(
-            in: rect,
-            withAttributes: [
-                .font: UIFont.systemFont(
-                    ofSize: min(max(node.payload.cgFloatValue("fontSize", fallback: 36), 8), 220),
-                    weight: .semibold
-                ),
-                .foregroundColor: Self.color(node.payload.stringValue("color"), fallback: .white),
-                .paragraphStyle: paragraphStyle
-            ]
+        switch node.payload.stringValue("align", fallback: "center") {
+        case "left":
+            paragraphStyle.alignment = .left
+        case "right":
+            paragraphStyle.alignment = .right
+        default:
+            paragraphStyle.alignment = .center
+        }
+        paragraphStyle.lineBreakMode = mode == "subtitle" ? .byWordWrapping : .byTruncatingTail
+        let baseAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: fontSize, weight: mode == "subtitle" ? .bold : .semibold),
+            .foregroundColor: Self.color(node.payload.stringValue("color"), fallback: .white),
+            .paragraphStyle: paragraphStyle,
+            .shadow: Self.chatTextShadow()
+        ]
+        let outlineWidth = min(max(node.payload.cgFloatValue("outlineWidth"), 0), 12)
+        if outlineWidth > 0 {
+            var outlineAttributes = baseAttributes
+            outlineAttributes[.strokeColor] = Self.color(node.payload.stringValue("outlineColor"), fallback: .black)
+            outlineAttributes[.strokeWidth] = outlineWidth
+            NSString(string: displayText).draw(in: textRect, withAttributes: outlineAttributes)
+        }
+        NSString(string: displayText).draw(
+            in: textRect,
+            withAttributes: baseAttributes
         )
         UIGraphicsPopContext()
     }

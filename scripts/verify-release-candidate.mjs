@@ -23,6 +23,11 @@ import {
   validateStoreSubmissionChecklist
 } from "./verify-store-submission-checklist.mjs";
 import { collectStoreReleaseArtifactRecords, validateStoreReleaseReport } from "./release-store-build.mjs";
+import {
+  collectPhysicalDevicePreflightArtifactRecords,
+  physicalDevicePreflightDefaultPath,
+  validatePhysicalDevicePreflightReport
+} from "./verify-physical-devices.mjs";
 import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
 import { readPngEvidence } from "./png-evidence.mjs";
 import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
@@ -30,7 +35,7 @@ import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 const defaultUiUrl = "http://127.0.0.1:5173/";
 const devServerTimeoutMs = 30_000;
 const defaultReportPath = ".artifacts/release-candidate-verification.json";
-const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality"];
+const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality", "Subtitle"];
 const requiredUiViewportNames = ["desktop", "mobile"];
 const sourceGates = [
   ["Verify release automation scripts", ["run", "verify:scripts"]],
@@ -85,6 +90,7 @@ async function main() {
   console.log(`Dirty worktree accepted: ${options.allowDirty ? "yes" : "no"}`);
   console.log(`Report: ${options.reportJsonPath}`);
   console.log(`Store release report: ${options.storeReleaseReportJsonPath || "not supplied"}`);
+  console.log(`Physical device preflight: ${options.physicalDevicePreflightJsonPath || "not supplied"}`);
   console.log(
     `UI verification: ${
       options.skipUi
@@ -105,6 +111,9 @@ async function main() {
     }
     if (options.storeReleaseReportJsonPath) {
       runStoreReleaseReportGate(report, options);
+    }
+    if (options.physicalDevicePreflightJsonPath) {
+      runPhysicalDevicePreflightGate(report, options);
     }
 
     runCommercialSupportBundleGate(report, options);
@@ -292,6 +301,53 @@ function runStoreReleaseReportGate(report, options) {
   }
 }
 
+function runPhysicalDevicePreflightGate(report, options) {
+  const gate = {
+    label: "Verify physical device preflight",
+    command: `read ${options.physicalDevicePreflightJsonPath}`,
+    status: "running",
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    durationMs: null,
+    exitCode: null,
+    error: null,
+    evidence: null
+  };
+  const startedAt = Date.now();
+  report.gates.push(gate);
+
+  try {
+    const preflight = readJsonFile(options.physicalDevicePreflightJsonPath, "physical device preflight");
+    const failures = validatePhysicalDevicePreflightReport(preflight, {
+      reportPath: options.physicalDevicePreflightJsonPath,
+      currentCommit: report.git.commit,
+      allowDirty: options.allowDirty,
+      maxAgeHours: options.maxAgeHours
+    });
+    if (failures.length > 0) {
+      throw new GateError(failures.join("\n"), 1);
+    }
+    gate.status = "passed";
+    gate.exitCode = 0;
+    gate.evidence = {
+      path: options.physicalDevicePreflightJsonPath,
+      sha256: fileSha256(options.physicalDevicePreflightJsonPath),
+      generatedAt: preflight.generatedAt,
+      mode: preflight.mode,
+      androidDeviceCount: preflight.platforms?.android?.devices?.length || 0,
+      iosDeviceCount: preflight.platforms?.ios?.devices?.length || 0
+    };
+  } catch (error) {
+    gate.status = "failed";
+    gate.exitCode = error instanceof GateError ? error.exitCode : 1;
+    gate.error = error instanceof Error ? error.message : String(error);
+    throw error instanceof GateError ? error : new GateError(gate.error, gate.exitCode);
+  } finally {
+    gate.finishedAt = new Date().toISOString();
+    gate.durationMs = Date.now() - startedAt;
+  }
+}
+
 function runStoreSubmissionEvidenceRequirementGate(report, options) {
   const now = new Date().toISOString();
   const checklistExists = existsSync(storeSubmissionChecklistPath);
@@ -314,7 +370,9 @@ function runStoreSubmissionEvidenceRequirementGate(report, options) {
       dashboardEvidenceManifestPath,
       dashboardEvidenceManifestPresent: dashboardManifestExists,
       storeReleaseReportRequired: checklistExists,
-      storeReleaseReportSupplied: Boolean(options.storeReleaseReportJsonPath)
+      storeReleaseReportSupplied: Boolean(options.storeReleaseReportJsonPath),
+      physicalDevicePreflightRequired: checklistExists,
+      physicalDevicePreflightSupplied: Boolean(options.physicalDevicePreflightJsonPath)
     }
   };
   report.gates.push(gate);
@@ -337,6 +395,11 @@ function runStoreSubmissionEvidenceRequirementGate(report, options) {
   if (!options.storeReleaseReportJsonPath) {
     failures.push(
       `Store release orchestration report is required when ${storeSubmissionChecklistPath} exists. Run \`npm run release:store -- --report-json <path>\` and pass --store-release-report-json=<path>.`
+    );
+  }
+  if (!options.physicalDevicePreflightJsonPath) {
+    failures.push(
+      `Physical device preflight report is required when ${storeSubmissionChecklistPath} exists. Run \`npm run verify:physical-devices -- --report-json ${physicalDevicePreflightDefaultPath}\` and pass --physical-device-preflight-json=${physicalDevicePreflightDefaultPath}.`
     );
   }
 
@@ -623,6 +686,7 @@ function parseArgs(args) {
     uiUrl: "",
     uiEvidenceJsonPath: "",
     storeReleaseReportJsonPath: "",
+    physicalDevicePreflightJsonPath: "",
     reportJsonPath: defaultReportPath,
     help: false
   };
@@ -645,6 +709,12 @@ function parseArgs(args) {
       if (!parsed.storeReleaseReportJsonPath.trim()) {
         printUsage();
         throw new GateError("\n--store-release-report-json must not be empty.", 2);
+      }
+    } else if (arg.startsWith("--physical-device-preflight-json=")) {
+      parsed.physicalDevicePreflightJsonPath = arg.slice("--physical-device-preflight-json=".length);
+      if (!parsed.physicalDevicePreflightJsonPath.trim()) {
+        printUsage();
+        throw new GateError("\n--physical-device-preflight-json must not be empty.", 2);
       }
     } else if (arg.startsWith("--report-json=")) {
       parsed.reportJsonPath = arg.slice("--report-json=".length);
@@ -675,6 +745,10 @@ function parseArgs(args) {
   if (parsed.storeReleaseReportJsonPath && !parsed.storeReleaseReportJsonPath.trim()) {
     printUsage();
     throw new GateError("\n--store-release-report-json must not be empty.", 2);
+  }
+  if (parsed.physicalDevicePreflightJsonPath && !parsed.physicalDevicePreflightJsonPath.trim()) {
+    printUsage();
+    throw new GateError("\n--physical-device-preflight-json must not be empty.", 2);
   }
 
   return parsed;
@@ -842,7 +916,8 @@ function createReport(options, supportBundle) {
       skipUi: options.skipUi,
       uiUrl: options.uiUrl || null,
       uiEvidenceJson: options.uiEvidenceJsonPath || null,
-      storeReleaseReportJson: options.storeReleaseReportJsonPath || null
+      storeReleaseReportJson: options.storeReleaseReportJsonPath || null,
+      physicalDevicePreflightJson: options.physicalDevicePreflightJsonPath || null
     },
     supportBundle,
     artifacts: {
@@ -861,7 +936,8 @@ function finishReport(report, status, error = null) {
   report.artifacts = {
     generatedAt: report.finishedAt,
     files: collectReleaseArtifacts({
-      storeReleaseReportJsonPath: report.options.storeReleaseReportJson || ""
+      storeReleaseReportJsonPath: report.options.storeReleaseReportJson || "",
+      physicalDevicePreflightJsonPath: report.options.physicalDevicePreflightJson || ""
     })
   };
   report.error = error ? (error instanceof Error ? error.message : String(error)) : null;
@@ -885,7 +961,7 @@ function commandOutput(command, args) {
   return result.stdout.trim();
 }
 
-function collectReleaseArtifacts({ storeReleaseReportJsonPath = "" } = {}) {
+function collectReleaseArtifacts({ storeReleaseReportJsonPath = "", physicalDevicePreflightJsonPath = "" } = {}) {
   return [
     ...collectFiles("release-config", releaseConfigArtifactPaths),
     ...collectFiles("web", ["dist/index.html"]),
@@ -895,6 +971,7 @@ function collectReleaseArtifacts({ storeReleaseReportJsonPath = "" } = {}) {
     ...collectDashboardEvidenceArtifactRecords(),
     ...collectStoreSubmissionArtifactRecords(),
     ...collectStoreReleaseArtifactRecords({ reportPath: storeReleaseReportJsonPath }),
+    ...collectPhysicalDevicePreflightArtifactRecords({ reportPath: physicalDevicePreflightJsonPath }),
     ...collectFiles("ui", [
       ".artifacts/ui-verification.json",
       ".artifacts/mobile-live-caster-desktop.png",
@@ -1016,14 +1093,15 @@ function printUsage() {
   console.log(
     [
       "Usage:",
-      "  npm run verify:release-candidate -- <support-bundle.json> [--max-age-hours=24] [--allow-warnings] [--allow-dirty] [--report-json=.artifacts/release-candidate-verification.json] [--ui-url=http://127.0.0.1:5173/] [--skip-ui --ui-evidence-json=.artifacts/ui-verification.json] [--store-release-report-json=.artifacts/store-release-orchestration.json]",
+      "  npm run verify:release-candidate -- <support-bundle.json> [--max-age-hours=24] [--allow-warnings] [--allow-dirty] [--report-json=.artifacts/release-candidate-verification.json] [--ui-url=http://127.0.0.1:5173/] [--skip-ui --ui-evidence-json=.artifacts/ui-verification.json] [--store-release-report-json=.artifacts/store-release-orchestration.json] [--physical-device-preflight-json=.artifacts/physical-device-preflight.json]",
       "",
       "Runs source release gates, browser UI verification, React Native bundle verification, and the commercial support-bundle gate.",
       "Writes a JSON evidence report for release approval audit trails.",
       "Fails on uncommitted source changes unless --allow-dirty is provided for development-only evidence.",
       "Use --ui-url when a preview server is already running.",
       "The --ui-url value and skipped UI evidence target must be loopback preview URLs: localhost, 127.0.0.1, or [::1].",
-      "Use --skip-ui only when Chrome is unavailable and pass --ui-evidence-json from a separate passing `npm run verify:ui` run."
+      "Use --skip-ui only when Chrome is unavailable and pass --ui-evidence-json from a separate passing `npm run verify:ui` run.",
+      "Use --physical-device-preflight-json with a passing `npm run verify:physical-devices -- --report-json <path>` report for commercial store-submission evidence."
     ].join("\n")
   );
 }

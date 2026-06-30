@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { lstatSync, mkdirSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit, platform } from "node:process";
 
 export const physicalDevicePreflightDefaultPath = ".artifacts/physical-device-preflight.json";
+export const physicalDevicePreflightArtifactGroup = "physical-device-preflight";
 export const physicalDevicePreflightType = "physical-device-preflight";
 
 const modes = new Set(["all", "ios", "android"]);
@@ -45,6 +46,7 @@ export function createPhysicalDevicePreflightReport({
     app: "MobileLiveCaster",
     type: physicalDevicePreflightType,
     generatedAt: new Date().toISOString(),
+    git: gitSnapshot(),
     status: checks.every((check) => check.status === "pass") ? "ready" : "blocked",
     mode,
     checks,
@@ -192,6 +194,58 @@ export function writePhysicalDevicePreflightReport(report, reportPath, { root = 
   return artifactPath;
 }
 
+export function collectPhysicalDevicePreflightArtifactRecords({ reportPath = "" } = {}) {
+  if (!reportPath || !lstatExisting(reportPath)) {
+    return [];
+  }
+  return [createArtifactRecord(physicalDevicePreflightArtifactGroup, reportPath)];
+}
+
+export function validatePhysicalDevicePreflightReport(report, { reportPath, currentCommit = "", allowDirty = false, maxAgeHours = 24 } = {}) {
+  const failures = [];
+  if (report?.app !== "MobileLiveCaster" || report?.type !== physicalDevicePreflightType || report?.reportVersion !== 1) {
+    failures.push("Physical device preflight is not a MobileLiveCaster physical-device-preflight reportVersion 1 file.");
+    return failures;
+  }
+  if (report.status !== "ready") {
+    failures.push(`Physical device preflight status must be ready, got ${JSON.stringify(report.status)}.`);
+  }
+  if (report.mode !== "all") {
+    failures.push(`Physical device preflight mode must be all for commercial release evidence, got ${JSON.stringify(report.mode)}.`);
+  }
+  const ageHours = ageInHours(report.generatedAt, new Date());
+  if (ageHours === null) {
+    failures.push("Physical device preflight generatedAt timestamp is missing or invalid.");
+  } else if (ageHours > maxAgeHours) {
+    failures.push(`Physical device preflight is ${ageHours}h old, above the ${maxAgeHours}h release gate.`);
+  }
+  validatePreflightGit(report.git, { label: "Physical device preflight", currentCommit, allowDirty }, failures);
+  failures.push(...unsafeIdentityFieldFailures(report));
+  for (const platformName of ["android", "ios"]) {
+    const platformSummary = report.platforms?.[platformName];
+    const devices = Array.isArray(platformSummary?.devices) ? platformSummary.devices : [];
+    if (devices.length === 0) {
+      failures.push(`Physical device preflight is missing ready ${platformName} physical-device proof.`);
+    }
+  }
+  if (reportPath) {
+    const reportRecordPath = workspaceRelativePath(reportPath, cwd());
+    if (!reportRecordPath) {
+      failures.push(`Physical device preflight artifact path must be workspace-relative: ${reportPath}.`);
+    } else {
+      try {
+        const artifacts = collectPhysicalDevicePreflightArtifactRecords({ reportPath });
+        if (artifacts.length === 0) {
+          failures.push(`Physical device preflight artifact file does not exist: ${reportPath}.`);
+        }
+      } catch (error) {
+        failures.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+  }
+  return failures;
+}
+
 function validateAndroidPhysicalDevices(output, command, { runtimeProperties = {}, runtimeCommands = {} } = {}) {
   if (!command.ok) {
     return {
@@ -317,6 +371,22 @@ function runCommand(command, args) {
   return commandPass(command, result.stdout);
 }
 
+function createArtifactRecord(group, path) {
+  const recordPath = workspaceRelativePath(path, cwd());
+  if (!recordPath) {
+    throw new Error(`Physical device preflight artifact path must be workspace-relative: ${path}.`);
+  }
+  assertRegularSourceFile(path, "Physical device preflight artifact");
+  const absolutePath = resolve(recordPath);
+  const content = readFileSync(absolutePath);
+  return {
+    group,
+    path: recordPath,
+    bytes: content.byteLength,
+    sha256: createHash("sha256").update(content).digest("hex")
+  };
+}
+
 function commandPass(tool = "", stdout = "") {
   return { ok: true, tool, stdout, detail: "command succeeded" };
 }
@@ -392,6 +462,38 @@ function rejectedDeviceDetail(rejected) {
     .join(", ");
 }
 
+function unsafeIdentityFieldFailures(report) {
+  const failures = [];
+  const unsafeKeyPattern = /^(rawid|raw[_-]?id|serial|identifier|udid|deviceid|device[_-]?id|name)$/i;
+  const visit = (value, path) => {
+    if (!value || typeof value !== "object") {
+      return;
+    }
+    for (const [key, nested] of Object.entries(value)) {
+      const nextPath = path ? `${path}.${key}` : key;
+      if (unsafeKeyPattern.test(key)) {
+        failures.push(`Physical device preflight contains unsafe raw identity field ${nextPath}.`);
+      }
+      visit(nested, nextPath);
+    }
+  };
+  visit(report?.platforms, "platforms");
+  for (const platformName of ["android", "ios"]) {
+    for (const collectionName of ["devices", "rejected"]) {
+      const entries = report?.platforms?.[platformName]?.[collectionName];
+      if (!Array.isArray(entries)) {
+        continue;
+      }
+      for (const [index, entry] of entries.entries()) {
+        if (!/^[a-f0-9]{12}$/i.test(String(entry?.idHash || ""))) {
+          failures.push(`Physical device preflight ${platformName}.${collectionName}[${index}] is missing a safe 12-character idHash.`);
+        }
+      }
+    }
+  }
+  return failures;
+}
+
 function hashDeviceId(value) {
   return createHash("sha256").update(String(value)).digest("hex").slice(0, 12);
 }
@@ -416,6 +518,20 @@ function assertWritableReportPath(path, root) {
   }
   if (stat?.isDirectory()) {
     throw new Error(`Physical device preflight report must not be a directory: ${relativePath}`);
+  }
+}
+
+function assertRegularSourceFile(path, label) {
+  assertNoSymlinkedParentDirectories(path, label, cwd());
+  const stat = lstatExisting(path);
+  if (!stat) {
+    throw new Error(`${label} does not exist: ${path}`);
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} must not be a symbolic link: ${path}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} must point to a file: ${path}`);
   }
 }
 
@@ -458,6 +574,55 @@ function lstatExisting(path) {
       return null;
     }
     throw error;
+  }
+}
+
+function ageInHours(value, now) {
+  const timestamp = Date.parse(String(value));
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+  const ageMs = now.getTime() - timestamp;
+  if (ageMs < 0) {
+    return null;
+  }
+  return Math.floor(ageMs / 3_600_000);
+}
+
+function gitSnapshot() {
+  const statusShort = commandOutput("git", ["status", "--short"]);
+  return {
+    commit: commandOutput("git", ["rev-parse", "HEAD"]) || null,
+    branch: commandOutput("git", ["branch", "--show-current"]) || null,
+    dirty: Boolean(statusShort),
+    statusShort
+  };
+}
+
+function commandOutput(command, args) {
+  const result = spawnSync(command, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"]
+  });
+  if (result.status !== 0 || result.error) {
+    return "";
+  }
+  return result.stdout.trim();
+}
+
+function validatePreflightGit(git, { label, currentCommit, allowDirty }, failures) {
+  const commit = typeof git?.commit === "string" ? git.commit.trim() : "";
+  if (!commit) {
+    failures.push(`${label} git commit is missing.`);
+  } else if (!/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i.test(commit)) {
+    failures.push(`${label} git commit must be a full 40- or 64-character hexadecimal object id.`);
+  } else if (currentCommit && commit !== currentCommit) {
+    failures.push(`${label} commit ${commit} does not match current commit ${currentCommit}.`);
+  }
+  if (git?.dirty !== true && git?.dirty !== false) {
+    failures.push(`${label} git dirty state is missing.`);
+  } else if (git.dirty && !allowDirty) {
+    failures.push(`${label} was generated from a dirty worktree.`);
   }
 }
 

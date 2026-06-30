@@ -1455,7 +1455,16 @@ const sourcePayloadSummary = (source: SceneSource): Record<string, string | numb
     case "solid":
       return { color: source.color };
     case "text":
-      return { textLength: source.text.length, color: source.color, fontSize: source.fontSize };
+      return {
+        textLength: source.text.length,
+        mode: source.mode,
+        align: source.align,
+        color: source.color,
+        fontSize: source.fontSize,
+        backgroundOpacity: source.backgroundOpacity,
+        outlineWidth: source.outlineWidth,
+        maxLines: source.maxLines
+      };
     case "chat":
       return {
         maxMessages: source.maxMessages,

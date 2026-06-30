@@ -70,6 +70,7 @@ import {
   applyInferredAvatarIllustrationRig,
   createAvatarIllustrationLandmarkAnalysisFromPixelFeatures,
   createAvatarIllustrationLandmarkAnalysisFromDetector,
+  createSubtitleTextSource,
   createSource,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
@@ -89,6 +90,8 @@ import {
   type SceneTransitionKind,
   type SceneTransitionPreview,
   type SceneTransitionSettings,
+  type TextSourceAlign,
+  type TextSourceMode,
   type SourceKind
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
@@ -202,6 +205,12 @@ const sourceLabels: Record<SourceKind, string> = {
 };
 
 const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "vrm", "chat", "text", "image", "solid"];
+const textSourceModes: Array<{ mode: TextSourceMode; label: string }> = [
+  { mode: "label", label: "Label" },
+  { mode: "subtitle", label: "Subtitle" },
+  { mode: "ticker", label: "Ticker" }
+];
+const textSourceAlignments: TextSourceAlign[] = ["left", "center", "right"];
 const sceneTransitionKinds: Array<{ kind: SceneTransitionKind; label: string }> = [
   { kind: "cut", label: "Cut" },
   { kind: "fade", label: "Fade" }
@@ -571,6 +580,15 @@ export const StudioScreen = ({
     onSelectSource(source.id);
   };
 
+  const addSubtitleSource = () => {
+    if (setupLocked) {
+      return;
+    }
+    const source = createSubtitleTextSource();
+    onSceneChange(addSource(scene, source));
+    onSelectSource(source.id);
+  };
+
   const updateSelectedTransform = (key: keyof SceneSource["transform"], value: number) => {
     onSceneChange(updateTransform(scene, selectedSource.id, { [key]: value }));
   };
@@ -709,6 +727,10 @@ export const StudioScreen = ({
           </div>
 
           <div className="button-grid">
+            <button className="tool-button" type="button" disabled={setupLocked} onClick={addSubtitleSource}>
+              <Plus size={16} />
+              <span>Subtitle</span>
+            </button>
             {sourceKinds.map((kind) => (
               <button key={kind} className="tool-button" type="button" disabled={setupLocked} onClick={() => addNewSource(kind)}>
                 <Plus size={16} />
@@ -894,6 +916,167 @@ export const StudioScreen = ({
                     }
                   />
                 </label>
+              </>
+            ) : null}
+            {selectedSource.kind === "text" ? (
+              <>
+                <label className="field">
+                  <span>Text</span>
+                  <textarea
+                    value={selectedSource.text}
+                    disabled={setupLocked}
+                    rows={selectedSource.mode === "subtitle" ? 3 : 2}
+                    onChange={(event) =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "text" ? { ...source, text: event.target.value } : source
+                        )
+                      )
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>Mode</span>
+                  <select
+                    value={selectedSource.mode}
+                    disabled={setupLocked}
+                    onChange={(event) =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "text" ? { ...source, mode: event.target.value as TextSourceMode } : source
+                        )
+                      )
+                    }
+                  >
+                    {textSourceModes.map((mode) => (
+                      <option key={mode.mode} value={mode.mode}>
+                        {mode.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Align</span>
+                  <select
+                    value={selectedSource.align}
+                    disabled={setupLocked}
+                    onChange={(event) =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "text" ? { ...source, align: event.target.value as TextSourceAlign } : source
+                        )
+                      )
+                    }
+                  >
+                    {textSourceAlignments.map((align) => (
+                      <option key={align} value={align}>
+                        {align}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <SpeechSlider
+                  label="Font"
+                  value={selectedSource.fontSize}
+                  min={10}
+                  max={180}
+                  step={2}
+                  disabled={setupLocked}
+                  onChange={(fontSize) =>
+                    onSceneChange(
+                      updateSource(scene, selectedSource.id, (source) =>
+                        source.kind === "text" ? { ...source, fontSize } : source
+                      )
+                    )
+                  }
+                />
+                <SpeechSlider
+                  label="Lines"
+                  value={selectedSource.maxLines}
+                  min={1}
+                  max={4}
+                  step={1}
+                  disabled={setupLocked}
+                  onChange={(maxLines) =>
+                    onSceneChange(
+                      updateSource(scene, selectedSource.id, (source) =>
+                        source.kind === "text" ? { ...source, maxLines: Math.round(maxLines) } : source
+                      )
+                    )
+                  }
+                />
+                <label className="field">
+                  <span>Text color</span>
+                  <input
+                    value={selectedSource.color}
+                    disabled={setupLocked}
+                    onChange={(event) =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "text" ? { ...source, color: event.target.value } : source
+                        )
+                      )
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>Backdrop color</span>
+                  <input
+                    value={selectedSource.backgroundColor}
+                    disabled={setupLocked}
+                    onChange={(event) =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "text" ? { ...source, backgroundColor: event.target.value } : source
+                        )
+                      )
+                    }
+                  />
+                </label>
+                <SpeechSlider
+                  label="Backdrop"
+                  value={selectedSource.backgroundOpacity}
+                  min={0}
+                  max={1}
+                  step={0.02}
+                  disabled={setupLocked}
+                  onChange={(backgroundOpacity) =>
+                    onSceneChange(
+                      updateSource(scene, selectedSource.id, (source) =>
+                        source.kind === "text" ? { ...source, backgroundOpacity } : source
+                      )
+                    )
+                  }
+                />
+                <label className="field">
+                  <span>Outline color</span>
+                  <input
+                    value={selectedSource.outlineColor}
+                    disabled={setupLocked}
+                    onChange={(event) =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "text" ? { ...source, outlineColor: event.target.value } : source
+                        )
+                      )
+                    }
+                  />
+                </label>
+                <SpeechSlider
+                  label="Outline"
+                  value={selectedSource.outlineWidth}
+                  min={0}
+                  max={12}
+                  step={1}
+                  disabled={setupLocked}
+                  onChange={(outlineWidth) =>
+                    onSceneChange(
+                      updateSource(scene, selectedSource.id, (source) =>
+                        source.kind === "text" ? { ...source, outlineWidth } : source
+                      )
+                    )
+                  }
+                />
               </>
             ) : null}
             {selectedSource.kind === "pngtuber" ? (
@@ -2787,9 +2970,22 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
   }
 
   if (source.kind === "text") {
+    const textStyle: CSSProperties = {
+      color: source.color,
+      fontSize: `${fontSizeForTextSource(source)}px`,
+      justifyContent: textSourceJustifyContent(source.align),
+      textAlign: source.align,
+      backgroundColor: rgbaFromHex(source.backgroundColor, source.backgroundOpacity),
+      WebkitTextStroke: source.outlineWidth > 0 ? `${Math.max(1, source.outlineWidth / 2)}px ${source.outlineColor}` : undefined
+    };
+    const textCopyStyle: CSSProperties = {
+      WebkitLineClamp: source.maxLines
+    };
     return (
-      <span className="text-visual" style={{ color: source.color, fontSize: `${fontSizeForTextSource(source)}px` }}>
-        {source.text}
+      <span className={`text-visual ${source.mode}`} style={textStyle}>
+        <span className="text-visual-copy" style={textCopyStyle}>
+          {source.text}
+        </span>
       </span>
     );
   }
@@ -2974,10 +3170,14 @@ const formatElapsed = (seconds: number): string => {
 };
 
 const fontSizeForTextSource = (source: Extract<SceneSource, { kind: "text" }>): number => {
-  const sourceWidthBudget = source.transform.width * 42;
-  const sourceHeightBudget = source.transform.height * 150;
+  const lineFactor = source.mode === "subtitle" ? Math.max(1, source.maxLines) : 1;
+  const sourceWidthBudget = source.transform.width * (source.mode === "ticker" ? 34 : 48);
+  const sourceHeightBudget = (source.transform.height * 160) / lineFactor;
   return Math.max(10, Math.min(source.fontSize / 2, sourceWidthBudget, sourceHeightBudget));
 };
+
+const textSourceJustifyContent = (align: TextSourceAlign): CSSProperties["justifyContent"] =>
+  align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center";
 
 const fontSizeForChatSource = (source: Extract<SceneSource, { kind: "chat" }>): number => {
   const lineBudget = source.transform.height * 132;

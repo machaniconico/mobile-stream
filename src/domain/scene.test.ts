@@ -10,6 +10,7 @@ import {
   createDefaultSceneCollection,
   createDefaultScene,
   createSceneFromTemplate,
+  createSubtitleTextSource,
   createSource,
   duplicateActiveScene,
   inferAvatarIllustrationRig,
@@ -32,8 +33,15 @@ describe("scene document", () => {
     const scene = createDefaultScene();
     const graph = toRenderGraph(scene);
 
-    expect(scene.sources).toHaveLength(5);
-    expect(graph.map((node) => node.kind)).toEqual(["solid", "screen", "pngtuber", "text", "chat"]);
+    expect(scene.sources).toHaveLength(6);
+    expect(graph.map((node) => node.kind)).toEqual(["solid", "screen", "pngtuber", "text", "text", "chat"]);
+    expect(graph.find((node) => node.id === "source-subtitle")?.payload).toMatchObject({
+      mode: "subtitle",
+      align: "center",
+      backgroundOpacity: 0.46,
+      outlineWidth: 5,
+      maxLines: 2
+    });
   });
 
   it("creates an OBS-like scene collection with live-switchable presets", () => {
@@ -635,6 +643,11 @@ describe("scene document", () => {
       kind: "text",
       blendMode: "normal",
       fontSize: 180,
+      mode: "label",
+      align: "center",
+      backgroundOpacity: 0,
+      outlineWidth: 3,
+      maxLines: 1,
       transform: { x: 1, y: 0, width: 1, height: 0, rotation: 180, opacity: 1 }
     });
     expect(scene.sources[1]).toMatchObject({
@@ -661,6 +674,29 @@ describe("scene document", () => {
       redactUrls: false,
       fontSize: 120,
       backgroundOpacity: 1
+    });
+  });
+
+  it("creates subtitle text sources with readable lower-third defaults", () => {
+    const subtitle = createSubtitleTextSource();
+    const graph = toRenderGraph(addSource(createDefaultScene(), subtitle));
+    const node = graph.find((candidate) => candidate.id === subtitle.id);
+
+    expect(subtitle).toMatchObject({
+      kind: "text",
+      name: "Subtitle",
+      mode: "subtitle",
+      align: "center",
+      backgroundOpacity: 0.46,
+      outlineWidth: 5,
+      maxLines: 2,
+      transform: { x: 0.16, y: 0.77, width: 0.68, height: 0.16 }
+    });
+    expect(node?.payload).toMatchObject({
+      mode: "subtitle",
+      align: "center",
+      backgroundColor: "#000000",
+      outlineColor: "#000000"
     });
   });
 
