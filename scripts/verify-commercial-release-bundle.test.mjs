@@ -39,7 +39,20 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v42.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v43.");
+  });
+
+  it("blocks support bundles without public launch confirmation summary evidence", () => {
+    writeBundle({
+      summary: {
+        publicLaunchConfirmationEventCount: undefined
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Public launch confirmation audit");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -747,6 +760,10 @@ const createBundle = (patch = {}) => {
     publicLaunchStartLockBlocked: false,
     publicLaunchStartLockSummary: "Public start lock is clear.",
     publicLaunchStartLockAction: "Go Live while dashboard freshness remains current.",
+    publicLaunchConfirmationEventCount: 0,
+    publicLaunchLastConfirmationStatus: "none",
+    publicLaunchLastConfirmationAt: null,
+    publicLaunchLastConfirmationMessage: "",
     launchBlockCount: 0,
     launchWarningCount: 0,
     validationStatus: "ready",
@@ -801,7 +818,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 42
+      bundleVersion: 43
     },
     generatedAt: new Date().toISOString(),
     profile: {

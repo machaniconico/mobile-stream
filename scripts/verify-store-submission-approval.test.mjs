@@ -387,7 +387,7 @@ function writeSupportBundleFixture() {
     ".artifacts/store-approval-test/support-bundle.json",
     JSON.stringify(
       {
-        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 42 },
+        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 43 },
         generatedAt: new Date().toISOString(),
         summary: {
           preflightStatus: "ready",
@@ -398,6 +398,10 @@ function writeSupportBundleFixture() {
           publicLaunchStartLockBlocked: false,
           publicLaunchStartLockSummary: "Public start lock is clear.",
           publicLaunchStartLockAction: "Go Live while dashboard freshness remains current.",
+          publicLaunchConfirmationEventCount: 0,
+          publicLaunchLastConfirmationStatus: "none",
+          publicLaunchLastConfirmationAt: null,
+          publicLaunchLastConfirmationMessage: "",
           launchBlockCount: 0,
           launchWarningCount: 0,
           validationStatus: "ready",

@@ -20,6 +20,19 @@ describe("commercial release gate", () => {
     expect(formatCommercialReleaseGate(gate)).toContain("Can release: yes");
   });
 
+  it("blocks support bundles without public launch confirmation summary evidence", () => {
+    const bundle = supportBundle();
+    delete (bundle.summary as Partial<SupportBundle["summary"]>).publicLaunchConfirmationEventCount;
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "public-launch-confirmation-evidence"
+      })
+    );
+  });
+
   it("blocks native runtime claims without video frame interval proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -1236,7 +1249,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 42 as const
+    bundleVersion: 43 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1272,6 +1285,10 @@ const supportBundle = ({
       publicLaunchStartLockBlocked: false,
       publicLaunchStartLockSummary: "Public start lock is clear.",
       publicLaunchStartLockAction: "Go Live while dashboard freshness remains current.",
+      publicLaunchConfirmationEventCount: 0,
+      publicLaunchLastConfirmationStatus: "none",
+      publicLaunchLastConfirmationAt: null,
+      publicLaunchLastConfirmationMessage: "",
       launchBlockCount: 0,
       launchWarningCount: 0,
       validationStatus: "ready",

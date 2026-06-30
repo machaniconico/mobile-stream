@@ -10,6 +10,7 @@ import {
 import type { ReadinessReport } from "./readiness";
 import type { SceneDocument, SceneSource, SourceKind, Transform } from "./scene";
 import type { StreamDiagnostics } from "./streamDiagnostics";
+import type { StreamSessionEvent } from "./streamSessionLog";
 import type { StreamStartPreflightReport } from "./streamStartPreflight";
 import { createVrmRuntimePose } from "./vrmRuntime";
 
@@ -28,7 +29,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 42;
+    bundleVersion: 43;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -42,6 +43,10 @@ export interface SupportBundle {
     publicLaunchStartLockBlocked: boolean;
     publicLaunchStartLockSummary: string;
     publicLaunchStartLockAction: string;
+    publicLaunchConfirmationEventCount: number;
+    publicLaunchLastConfirmationStatus: "confirmed" | "cancelled" | "none";
+    publicLaunchLastConfirmationAt: string | null;
+    publicLaunchLastConfirmationMessage: string;
     diagnosticStatus: StreamDiagnostics["status"];
     launchBlockCount: number;
     launchWarningCount: number;
@@ -549,13 +554,14 @@ export const createSupportBundle = ({
     nativeRuntimeComposition?.vrmRendererStatus ?? (nativeRuntimeVrmSourceCount > 0 ? "unavailable" : "not-required");
   const nativeRuntimeVrmRenderMissingCount =
     nativeRuntimeComposition?.vrmRenderMissingCount ?? Math.max(0, nativeRuntimeVrmSourceCount - nativeRuntimeVrmRenderedSourceCount);
+  const publicLaunchConfirmationEvidence = summarizePublicLaunchConfirmationEvents(diagnostics.session.events);
 
   return {
     generatedAt: now.toISOString(),
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 42
+      bundleVersion: 43
     },
     summary: {
       status: diagnostics.status,
@@ -569,6 +575,10 @@ export const createSupportBundle = ({
       publicLaunchStartLockBlocked: publicLaunchChecklist.startLock.blocked,
       publicLaunchStartLockSummary: publicLaunchChecklist.startLock.summary,
       publicLaunchStartLockAction: publicLaunchChecklist.startLock.action,
+      publicLaunchConfirmationEventCount: publicLaunchConfirmationEvidence.count,
+      publicLaunchLastConfirmationStatus: publicLaunchConfirmationEvidence.lastStatus,
+      publicLaunchLastConfirmationAt: publicLaunchConfirmationEvidence.lastAt,
+      publicLaunchLastConfirmationMessage: publicLaunchConfirmationEvidence.lastMessage,
       diagnosticStatus: diagnostics.status,
       launchBlockCount: preflight.blocks.length,
       launchWarningCount: preflight.warnings.length,
@@ -1147,6 +1157,8 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Status: ${bundle.publicLaunchChecklist.status}`,
     `- Can start: ${bundle.publicLaunchChecklist.canStart ? "yes" : "no"}`,
     `- Start lock: ${bundle.publicLaunchChecklist.startLock.applies ? "on" : "off"} / blocked ${bundle.publicLaunchChecklist.startLock.blocked ? "yes" : "no"}`,
+    `- Confirmation events: ${bundle.summary.publicLaunchConfirmationEventCount} / last ${bundle.summary.publicLaunchLastConfirmationStatus}${bundle.summary.publicLaunchLastConfirmationAt ? ` at ${bundle.summary.publicLaunchLastConfirmationAt}` : ""}`,
+    `- Last confirmation evidence: ${bundle.summary.publicLaunchLastConfirmationMessage || "-"}`,
     `- Lock summary: ${bundle.publicLaunchChecklist.startLock.summary}`,
     `- Lock action: ${bundle.publicLaunchChecklist.startLock.action}`,
     `- Counts: ${bundle.publicLaunchChecklist.passCount} pass / ${bundle.publicLaunchChecklist.warningCount} warn / ${bundle.publicLaunchChecklist.failCount} fail`,
@@ -1275,6 +1287,35 @@ const formatValidationEvidenceRunManifest = (
       ].join(" ");
     })
     .join(" | ");
+};
+
+const summarizePublicLaunchConfirmationEvents = (
+  events: StreamSessionEvent[]
+): {
+  count: number;
+  lastStatus: "confirmed" | "cancelled" | "none";
+  lastAt: string | null;
+  lastMessage: string;
+} => {
+  const confirmationEvents = events.filter(
+    (event) => event.kind === "safety" && (event.title === "Public launch confirmed" || event.title === "Public launch cancelled")
+  );
+  const lastEvent = confirmationEvents[confirmationEvents.length - 1];
+  if (!lastEvent) {
+    return {
+      count: 0,
+      lastStatus: "none",
+      lastAt: null,
+      lastMessage: ""
+    };
+  }
+
+  return {
+    count: confirmationEvents.length,
+    lastStatus: lastEvent.title === "Public launch confirmed" ? "confirmed" : "cancelled",
+    lastAt: lastEvent.at,
+    lastMessage: lastEvent.message
+  };
 };
 
 const countSources = (sources: SceneSource[]): Record<SourceKind, number> => {

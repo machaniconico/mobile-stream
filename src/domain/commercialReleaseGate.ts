@@ -38,7 +38,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 42;
+const minimumSupportBundleVersion = 43;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -61,6 +61,7 @@ export const createCommercialReleaseGate = (
     createBundleAgeIssue(bundle, now, maxBundleAgeHours),
     createPreflightIssue(bundle),
     createPublicLaunchIssue(bundle),
+    createPublicLaunchConfirmationEvidenceIssue(bundle),
     createPlatformPublishingFreshnessIssue(bundle),
     createValidationIssue(bundle),
     createValidationRunbookIssue(bundle),
@@ -217,6 +218,36 @@ const createPublicLaunchIssue = (bundle: SupportBundle): CommercialReleaseGateIs
   return null;
 };
 
+const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+  const summary = bundle.summary as Partial<SupportBundle["summary"]>;
+  const count = summary.publicLaunchConfirmationEventCount;
+  const status = summary.publicLaunchLastConfirmationStatus;
+  const lastAt = summary.publicLaunchLastConfirmationAt;
+  const lastMessage = summary.publicLaunchLastConfirmationMessage;
+  const hasValidCount = typeof count === "number" && Number.isInteger(count) && count >= 0;
+  const hasValidStatus = status === "confirmed" || status === "cancelled" || status === "none";
+  const hasNoConfirmation = count === 0 && status === "none" && lastAt === null && typeof lastMessage === "string";
+  const hasConfirmation =
+    typeof count === "number" &&
+    count > 0 &&
+    (status === "confirmed" || status === "cancelled") &&
+    typeof lastAt === "string" &&
+    Number.isFinite(Date.parse(lastAt)) &&
+    typeof lastMessage === "string" &&
+    lastMessage.trim().length > 0;
+
+  if (!hasValidCount || !hasValidStatus || (!hasNoConfirmation && !hasConfirmation)) {
+    return failIssue(
+      "public-launch-confirmation-evidence",
+      "Public launch confirmation audit",
+      "The support bundle is missing valid public launch confirmation summary evidence.",
+      "Export a support bundle v43 or newer so retained public launch confirmation events are summarized."
+    );
+  }
+
+  return null;
+};
+
 const createPlatformPublishingFreshnessIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
   const status = bundle.summary.platformPublishingFreshnessStatus;
   if (status === "fresh" || status === "not-applicable") {
@@ -349,7 +380,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v42 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v43 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);

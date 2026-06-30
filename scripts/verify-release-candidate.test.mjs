@@ -431,6 +431,10 @@ function commercialSupportBundleFixture(patch = {}) {
     publicLaunchStartLockBlocked: false,
     publicLaunchStartLockSummary: "Public start lock is clear.",
     publicLaunchStartLockAction: "Go Live while dashboard freshness remains current.",
+    publicLaunchConfirmationEventCount: 0,
+    publicLaunchLastConfirmationStatus: "none",
+    publicLaunchLastConfirmationAt: null,
+    publicLaunchLastConfirmationMessage: "",
     launchBlockCount: 0,
     launchWarningCount: 0,
     validationStatus: "ready",
@@ -477,7 +481,7 @@ function commercialSupportBundleFixture(patch = {}) {
   };
 
   return {
-    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 42 },
+    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 43 },
     generatedAt: new Date().toISOString(),
     fixture: true,
     ...patch,

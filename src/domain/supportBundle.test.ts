@@ -11,6 +11,7 @@ import {
   formatSupportBundle,
   serializeSupportBundle
 } from "./supportBundle";
+import { createStreamSafetyEvent } from "./streamSessionLog";
 import { initialStreamState, type StreamHealth } from "./streamState";
 
 const health = (update: Partial<StreamHealth> = {}): StreamHealth => ({
@@ -186,12 +187,24 @@ describe("support bundle", () => {
       endedAt: new Date("2026-06-23T00:00:06.000Z"),
       nativeRuntime: snapshot.nativeRuntime
     });
+    const publicLaunchEvents = [
+      createStreamSafetyEvent(
+        "public-launch-confirmed",
+        "YouTube Public launch confirmation was accepted by the operator. Target: YouTube Live, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status ready. Checklist: 7 pass / 0 warn / 0 fail.",
+        new Date("2026-06-23T00:00:02.500Z")
+      ),
+      createStreamSafetyEvent(
+        "public-launch-cancelled",
+        "YouTube Public launch confirmation was cancelled by the operator. Target: YouTube Live, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status ready. Checklist: 7 pass / 0 warn / 0 fail.",
+        new Date("2026-06-23T00:00:03.500Z")
+      )
+    ];
     const diagnostics = createStreamDiagnostics(
       scene,
       profile,
       readiness,
       snapshot,
-      [],
+      publicLaunchEvents,
       healthSamples,
       sessionSummary ? [sessionSummary] : []
     );
@@ -209,12 +222,16 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 42 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 43 });
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
     expect(bundle.summary.publicLaunchCanStart).toBe(bundle.publicLaunchChecklist.canStart);
     expect(bundle.summary.publicLaunchStartLockBlocked).toBe(bundle.publicLaunchChecklist.startLock.blocked);
+    expect(bundle.summary.publicLaunchConfirmationEventCount).toBe(2);
+    expect(bundle.summary.publicLaunchLastConfirmationStatus).toBe("cancelled");
+    expect(bundle.summary.publicLaunchLastConfirmationAt).toBe("2026-06-23T00:00:03.500Z");
+    expect(bundle.summary.publicLaunchLastConfirmationMessage).toContain("Checklist: 7 pass / 0 warn / 0 fail");
     expect(bundle.publicLaunchChecklist.items.map((item) => item.id)).toContain("platform-dashboard");
     expect(bundle.scene.sourceCounts.pngtuber).toBe(1);
     expect(bundle.profile.destination.streamKeyPreview).toBe(redactStreamKey(streamKey));
@@ -370,6 +387,9 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Public Launch Checklist");
     expect(formatSupportBundle(bundle)).toContain("Public launch:");
     expect(formatSupportBundle(bundle)).toContain("Start lock:");
+    expect(formatSupportBundle(bundle)).toContain("Confirmation events: 2 / last cancelled at 2026-06-23T00:00:03.500Z");
+    expect(formatSupportBundle(bundle)).toContain("Last confirmation evidence: YouTube Public launch confirmation was cancelled");
+    expect(formatSupportBundle(bundle)).not.toContain(streamKey);
     expect(formatSupportBundle(bundle)).toContain("Clean rate: 0%");
     expect(formatSupportBundle(bundle)).toContain("Platform API history: 1 events / 0 failed");
     expect(formatSupportBundle(bundle)).toContain("Last platform API: 1 events / 0 failed");
