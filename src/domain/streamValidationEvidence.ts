@@ -299,6 +299,8 @@ export interface StreamValidationEvidenceRunManifestItem {
   audioMonitorLatencyStatus: StreamValidationAudioSummary["monitorLatencyStatus"] | null;
   audioMonitorLatencyMs: number | null;
   audioMonitorLatencyBudgetMs: number;
+  audioMonitorLatencySource: string;
+  audioMonitorTuningNote: string;
   audioBluetoothRoute: boolean;
   audioBluetoothTuningReviewed: boolean;
   chatReadoutStatus: StreamValidationChatReadoutSummary["status"] | null;
@@ -2550,6 +2552,8 @@ const createEvidenceRunManifestItem = (
     audioMonitorLatencyStatus: run.audio?.monitorLatencyStatus ?? null,
     audioMonitorLatencyMs: run.audio?.monitorLatencyMs ?? null,
     audioMonitorLatencyBudgetMs: run.audio?.monitorLatencyBudgetMs ?? 0,
+    audioMonitorLatencySource: run.audio?.monitorLatencySource ?? "",
+    audioMonitorTuningNote: run.audio?.monitorTuningNote ?? "",
     audioBluetoothRoute: run.audio?.bluetoothRoute ?? false,
     audioBluetoothTuningReviewed: run.audio?.bluetoothTuningReviewed ?? false,
     chatReadoutStatus: run.chatReadout?.status ?? null,

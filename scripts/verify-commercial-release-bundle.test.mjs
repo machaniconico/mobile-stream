@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v45.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v46.");
   });
 
   it("blocks support bundles without public launch confirmation summary evidence", () => {
@@ -397,6 +397,44 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("mic/headphone evidence");
   });
 
+  it("blocks audio claims when retained monitor latency lacks a measurement source", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            audioMonitorLatencySource: ""
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("latency source");
+  });
+
+  it("blocks Bluetooth audio claims when retained tuning note is missing", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            audioBluetoothRoute: true,
+            audioBluetoothTuningReviewed: true,
+            audioMonitorTuningNote: ""
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Bluetooth tuning notes");
+  });
+
   it("blocks audio claims when retained monitor latency exceeds the route budget", () => {
     writeBundle({
       summary: {
@@ -413,7 +451,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("latency budget");
+    expect(result.stdout).toContain("latency source/budget");
   });
 
   it("blocks avatar-motion claims when retained manifests keep still-image rig issues", () => {
@@ -872,7 +910,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 45
+      bundleVersion: 46
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -1006,6 +1044,8 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   audioMonitorLatencyStatus: "pass",
   audioMonitorLatencyMs: 92,
   audioMonitorLatencyBudgetMs: 180,
+  audioMonitorLatencySource: "native-route-monitor",
+  audioMonitorTuningNote: "Wired monitor route measured under release load.",
   audioBluetoothRoute: false,
   audioBluetoothTuningReviewed: false,
   chatReadoutStatus: "pass",

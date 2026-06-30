@@ -727,6 +727,60 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks audio summary claims when retained monitor latency lacks a measurement source", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              audioMonitorLatencySource: ""
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS mic/headphone proof")
+      })
+    );
+  });
+
+  it("blocks Bluetooth audio summary claims when retained tuning note is missing", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              audioBluetoothRoute: true,
+              audioBluetoothTuningReviewed: true,
+              audioMonitorTuningNote: ""
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS mic/headphone proof")
+      })
+    );
+  });
+
   it("blocks audio summary claims when retained monitor latency exceeds the route budget", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -1329,7 +1383,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 45 as const
+    bundleVersion: 46 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1564,6 +1618,8 @@ const manifestRun = ({
   audioMonitorLatencyStatus = "pass",
   audioMonitorLatencyMs = 92,
   audioMonitorLatencyBudgetMs = 180,
+  audioMonitorLatencySource = "native-route-monitor",
+  audioMonitorTuningNote = "Wired monitor route measured under release load.",
   audioBluetoothRoute = false,
   audioBluetoothTuningReviewed = false,
   chatReadoutStatus = "pass",
@@ -1704,6 +1760,8 @@ const manifestRun = ({
   audioMonitorLatencyStatus?: ValidationManifestRun["audioMonitorLatencyStatus"];
   audioMonitorLatencyMs?: ValidationManifestRun["audioMonitorLatencyMs"];
   audioMonitorLatencyBudgetMs?: ValidationManifestRun["audioMonitorLatencyBudgetMs"];
+  audioMonitorLatencySource?: ValidationManifestRun["audioMonitorLatencySource"];
+  audioMonitorTuningNote?: ValidationManifestRun["audioMonitorTuningNote"];
   audioBluetoothRoute?: ValidationManifestRun["audioBluetoothRoute"];
   audioBluetoothTuningReviewed?: ValidationManifestRun["audioBluetoothTuningReviewed"];
   chatReadoutStatus?: ValidationManifestRun["chatReadoutStatus"];
@@ -1850,6 +1908,8 @@ const manifestRun = ({
   audioMonitorLatencyStatus,
   audioMonitorLatencyMs,
   audioMonitorLatencyBudgetMs,
+  audioMonitorLatencySource,
+  audioMonitorTuningNote,
   audioBluetoothRoute,
   audioBluetoothTuningReviewed,
   chatReadoutStatus,
