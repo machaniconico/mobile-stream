@@ -317,6 +317,7 @@ describe("support bundle", () => {
     expect(bundle.summary.faceTrackingRigPartSeparationScore).toBe(100);
     expect(bundle.summary.faceTrackingRigDepthContinuityScore).toBe(100);
     expect(bundle.summary.faceTrackingRigSemanticSegmentScore).toBe(100);
+    expect(bundle.summary.faceTrackingRigEyeMouthSegmentScore).toBe(100);
     expect(bundle.summary.faceTrackingRigHighFidelityScore).toBe(100);
     expect(bundle.summary.faceTrackingRigHighFidelityGrade).toBe("ready");
     expect(bundle.summary.validationEvidenceLatestFaceTrackingFaceLandmarkConfidence).toBe(0);
@@ -412,7 +413,9 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Last quality automation: 1 events / 1 live updates / 0 next-start targets / 0 failed");
     expect(formatSupportBundle(bundle)).toContain("Quality advisor: maintain / pass");
     expect(formatSupportBundle(bundle)).toContain("Face tracking: info / runtime unavailable");
-    expect(formatSupportBundle(bundle)).toContain("rig high fidelity 100/100 ready / parts 100/100 / depth 100/100");
+    expect(formatSupportBundle(bundle)).toContain(
+      "rig high fidelity 100/100 ready / parts 100/100 / depth 100/100 / semantic 100/100 / eye-mouth 100/100"
+    );
     expect(formatSupportBundle(bundle)).toContain("Commercial Validation");
     expect(formatSupportBundle(bundle)).toContain("Runbook: running");
     expect(formatSupportBundle(bundle)).toContain("Native composition: warn / preview-only-overlays");

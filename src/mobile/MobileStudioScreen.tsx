@@ -1828,6 +1828,8 @@ const MobileAvatarRigQualityPanel = ({ rig }: { rig: AvatarIllustrationRig }) =>
       <View style={styles.rigQualityRows}>
         <MobileRigScoreRow label="Parts" score={summary.partSeparationScore} />
         <MobileRigScoreRow label="Depth" score={summary.depthContinuityScore} />
+        <MobileRigScoreRow label="Semantic" score={summary.semanticSegmentScore} />
+        <MobileRigScoreRow label="Eye/Mouth" score={summary.eyeMouthSegmentScore} />
         <MobileRigScoreRow label="Slices" score={sliceScore} />
       </View>
       <View style={styles.rigLineGrid}>

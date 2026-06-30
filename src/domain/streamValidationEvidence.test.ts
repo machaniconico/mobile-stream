@@ -2242,6 +2242,7 @@ describe("stream validation evidence", () => {
       faceTrackingRigPartSeparationScore: 100,
       faceTrackingRigDepthContinuityScore: 100,
       faceTrackingRigSemanticSegmentScore: 100,
+      faceTrackingRigEyeMouthSegmentScore: 100,
       faceTrackingRigHighFidelityScore: 100,
       faceTrackingRigHighFidelityGrade: "ready"
     });
@@ -2532,6 +2533,7 @@ describe("stream validation evidence", () => {
         rigPartSeparationScore: 100,
         rigDepthContinuityScore: 100,
         rigSemanticSegmentScore: 100,
+        rigEyeMouthSegmentScore: 100,
         rigHighFidelityScore: 100,
         rigHighFidelityGrade: "ready" as const,
         summary: "Legacy pass retained without motion count.",
@@ -2593,6 +2595,7 @@ describe("stream validation evidence", () => {
         rigPartSeparationScore: 100,
         rigDepthContinuityScore: 100,
         rigSemanticSegmentScore: 100,
+        rigEyeMouthSegmentScore: 100,
         rigHighFidelityScore: 100,
         rigHighFidelityGrade: "ready" as const,
         summary: "Avatar motion was retained with weak native landmarks.",
@@ -2657,6 +2660,7 @@ describe("stream validation evidence", () => {
         rigPartSeparationScore: 55,
         rigDepthContinuityScore: 55,
         rigSemanticSegmentScore: 55,
+        rigEyeMouthSegmentScore: 55,
         rigHighFidelityScore: 55,
         rigHighFidelityGrade: "blocked" as const,
         summary: "Avatar motion was retained with a rig issue.",
@@ -2673,6 +2677,7 @@ describe("stream validation evidence", () => {
     expect(summary.runManifest[0]?.faceTrackingRigQualityGrade).toBe("blocked");
     expect(summary.runManifest[0]?.faceTrackingRigHighFidelityScore).toBe(55);
     expect(summary.runManifest[0]?.faceTrackingRigSemanticSegmentScore).toBe(55);
+    expect(summary.runManifest[0]?.faceTrackingRigEyeMouthSegmentScore).toBe(55);
     expect(summary.runManifest[0]?.faceTrackingRigHighFidelityGrade).toBe("blocked");
     expect(summary.status).toBe("partial");
   });

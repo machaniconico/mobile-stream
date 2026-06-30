@@ -6,9 +6,11 @@ export interface AvatarIllustrationRigQuality {
   partSeparationScore: number;
   depthContinuityScore: number;
   semanticSegmentScore: number;
+  eyeMouthSegmentScore: number;
   partSeparationFactor: number;
   depthContinuityFactor: number;
   semanticSegmentFactor: number;
+  eyeMouthSegmentFactor: number;
   highFidelityFactor: number;
 }
 
@@ -26,19 +28,23 @@ export const createAvatarIllustrationRigQuality = (rig: AvatarIllustrationRig): 
   const partSeparationScore = scoreAvatarIllustrationRigPartSeparation(rig, faceTop, faceBottom);
   const depthContinuityScore = scoreAvatarIllustrationRigDepthContinuity(rig, faceTop, faceBottom);
   const semanticSegmentScore = scoreAvatarIllustrationRigSemanticSegments(rig, faceTop, faceBottom);
+  const eyeMouthSegmentScore = scoreAvatarIllustrationRigEyeMouthSegments(rig, faceTop, faceBottom);
   const partSeparationFactor = partSeparationScore / 100;
   const depthContinuityFactor = depthContinuityScore / 100;
   const semanticSegmentFactor = semanticSegmentScore / 100;
+  const eyeMouthSegmentFactor = eyeMouthSegmentScore / 100;
   return {
     faceTop,
     faceBottom,
     partSeparationScore,
     depthContinuityScore,
     semanticSegmentScore,
+    eyeMouthSegmentScore,
     partSeparationFactor,
     depthContinuityFactor,
     semanticSegmentFactor,
-    highFidelityFactor: Math.min(partSeparationFactor, depthContinuityFactor, semanticSegmentFactor)
+    eyeMouthSegmentFactor,
+    highFidelityFactor: Math.min(partSeparationFactor, depthContinuityFactor, semanticSegmentFactor, eyeMouthSegmentFactor)
   };
 };
 
@@ -50,7 +56,8 @@ export const createAvatarIllustrationRigTuningSummary = (
   const highFidelityScore = Math.min(
     quality.partSeparationScore,
     quality.depthContinuityScore,
-    quality.semanticSegmentScore
+    quality.semanticSegmentScore,
+    quality.eyeMouthSegmentScore
   );
   return {
     ...quality,
@@ -122,6 +129,29 @@ export const scoreAvatarIllustrationRigSemanticSegments = (
   );
 };
 
+export const scoreAvatarIllustrationRigEyeMouthSegments = (
+  rig: AvatarIllustrationRig,
+  faceTop: number,
+  faceBottom: number
+): number => {
+  const eyeMouthGap = rig.mouthLineY - rig.eyeLineY;
+  const eyeToFaceCenter = rig.faceCenterY - rig.eyeLineY;
+  const faceCenterToMouth = rig.mouthLineY - rig.faceCenterY;
+  const eyeFaceMargin = rig.eyeLineY - faceTop;
+  const mouthFaceMargin = faceBottom - rig.mouthLineY;
+  const eyeMouthBalance = Math.abs(eyeToFaceCenter - faceCenterToMouth);
+  return Math.round(
+    Math.min(
+      scoreBand(eyeMouthGap, 0.1, 0.12, 0.24, 0.34),
+      scoreBand(eyeToFaceCenter, 0.025, 0.05, 0.14, 0.22),
+      scoreBand(faceCenterToMouth, 0.025, 0.05, 0.14, 0.22),
+      scoreBand(eyeFaceMargin, 0.05, 0.07, 0.2, 0.4),
+      scoreBand(mouthFaceMargin, 0.045, 0.065, 0.2, 0.36),
+      scoreBand(eyeMouthBalance, -0.001, 0, 0.09, 0.2)
+    )
+  );
+};
+
 const createAvatarIllustrationRigTuningIssues = (
   rig: AvatarIllustrationRig,
   quality: AvatarIllustrationRigQuality
@@ -153,6 +183,9 @@ const createAvatarIllustrationRigTuningIssues = (
   }
   if (quality.semanticSegmentScore < 70) {
     issues.push("Semantic face, eye, mouth, and body regions need clearer separation for single-image tracking.");
+  }
+  if (quality.eyeMouthSegmentScore < 70) {
+    issues.push("Eye and mouth part segments need clearer independent deformation bands for blink and lip-sync.");
   }
   return issues;
 };

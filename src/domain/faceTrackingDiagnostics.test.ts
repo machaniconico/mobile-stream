@@ -124,6 +124,7 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.rigPartSeparationScore).toBe(100);
     expect(diagnostics.rigDepthContinuityScore).toBe(100);
     expect(diagnostics.rigSemanticSegmentScore).toBe(100);
+    expect(diagnostics.rigEyeMouthSegmentScore).toBe(100);
     expect(diagnostics.rigHighFidelityScore).toBe(100);
     expect(diagnostics.rigHighFidelityGrade).toBe("ready");
     expect(diagnostics.faceLandmarkConfidence).toBeCloseTo(0.81, 3);
@@ -182,6 +183,7 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.preparedPngTuberCount).toBe(0);
     expect(diagnostics.rigQualityScore).toBe(100);
     expect(diagnostics.rigQualityGrade).toBe("ready");
+    expect(diagnostics.rigEyeMouthSegmentScore).toBe(100);
     expect(diagnostics.summary).toContain("native-rendered VRM/VRoid");
   });
 
@@ -274,6 +276,7 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.rigIssueSummary).toContain("rig lines");
     expect(diagnostics.rigHighFidelityScore).toBeLessThan(90);
     expect(diagnostics.rigSemanticSegmentScore).toBeLessThan(90);
+    expect(diagnostics.rigEyeMouthSegmentScore).toBeLessThan(90);
   });
 
   it("warns when a still-image rig cannot separate blink and mouth deformation like an IRIAM-style avatar", () => {
@@ -322,6 +325,7 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.rigIssueSummary).toContain("independent blink and mouth deformation");
     expect(diagnostics.rigPartSeparationScore).toBeLessThan(90);
     expect(diagnostics.rigSemanticSegmentScore).toBeLessThan(90);
+    expect(diagnostics.rigEyeMouthSegmentScore).toBeLessThan(90);
     expect(diagnostics.rigHighFidelityGrade).toBe("review");
   });
 
@@ -420,7 +424,9 @@ describe("face tracking diagnostics", () => {
 
     expect(diagnostics.status).toBe("warn");
     expect(diagnostics.rigSemanticSegmentScore).toBeLessThan(70);
+    expect(diagnostics.rigEyeMouthSegmentScore).toBeLessThan(70);
     expect(diagnostics.rigIssueSummary).toContain("semantic face, eye, mouth, and body segments");
+    expect(diagnostics.rigIssueSummary).toContain("eye and mouth part segments");
   });
 
   it("warns when a still-image rig lacks headroom for high-fidelity blink and hair motion", () => {
@@ -515,8 +521,9 @@ describe("face tracking diagnostics", () => {
     });
 
     expect(diagnostics.status).toBe("warn");
-    expect(diagnostics.rigQualityScore).toBe(78);
+    expect(diagnostics.rigQualityScore).toBe(68);
     expect(diagnostics.rigSemanticSegmentScore).toBeLessThan(70);
+    expect(diagnostics.rigEyeMouthSegmentScore).toBeLessThan(70);
     expect(diagnostics.rigIssueSummary).toContain("face center");
   });
 

@@ -20,6 +20,7 @@ describe("avatar illustration rig quality", () => {
     expect(summary.partSeparationScore).toBe(100);
     expect(summary.depthContinuityScore).toBe(100);
     expect(summary.semanticSegmentScore).toBe(100);
+    expect(summary.eyeMouthSegmentScore).toBe(100);
     expect(summary.highFidelityScore).toBe(100);
     expect(summary.issues).toEqual([]);
   });
@@ -41,6 +42,7 @@ describe("avatar illustration rig quality", () => {
     expect(summary.partSeparationScore).toBe(0);
     expect(summary.depthContinuityScore).toBe(0);
     expect(summary.semanticSegmentScore).toBe(0);
+    expect(summary.eyeMouthSegmentScore).toBe(0);
     expect(summary.highFidelityScore).toBe(0);
     expect(summary.issues).toEqual(
       expect.arrayContaining([
@@ -48,7 +50,8 @@ describe("avatar illustration rig quality", () => {
         "Hair line should leave 3-24% headroom above the eyes.",
         "Shoulder line should stay 14-42% below the mouth.",
         "Rig should use at least 20 slices for production deformation.",
-        "Semantic face, eye, mouth, and body regions need clearer separation for single-image tracking."
+        "Semantic face, eye, mouth, and body regions need clearer separation for single-image tracking.",
+        "Eye and mouth part segments need clearer independent deformation bands for blink and lip-sync."
       ])
     );
   });

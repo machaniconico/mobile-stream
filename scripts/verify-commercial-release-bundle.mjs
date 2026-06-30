@@ -347,7 +347,7 @@ function publicLaunchConfirmationEvidenceIssue(bundle) {
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v51 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, semantic avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
+      "Export a support bundle v51 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, semantic and eye-mouth avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
     );
   }
 
@@ -625,8 +625,8 @@ function validationManifestIssue(bundle) {
     return fail(
       "validation-evidence-manifest-avatar-motion",
       "Validation evidence manifest",
-      "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, ready native face landmarks, active motion, and either ready high-fidelity PNGTuber rig plus semantic-segment proof or ready native-rendered VRM proof.",
-      "Export a support bundle v51 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and ready PNGTuber rig quality/high-fidelity/semantic-segment proof or native-rendered VRM proof."
+      "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, ready native face landmarks, active motion, and either ready high-fidelity PNGTuber rig plus semantic/eye-mouth segment proof or ready native-rendered VRM proof.",
+      "Export a support bundle v51 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and ready PNGTuber rig quality/high-fidelity/semantic/eye-mouth segment proof or native-rendered VRM proof."
     );
   }
   const eligibleChatReadoutPlatforms = new Set(
@@ -1125,7 +1125,8 @@ function hasReadyPngTuberMotionProof(run) {
     isAtLeastNumber(run?.faceTrackingRigHighFidelityScore, 90) &&
     isAtLeastNumber(run?.faceTrackingRigPartSeparationScore, 90) &&
     isAtLeastNumber(run?.faceTrackingRigDepthContinuityScore, 90) &&
-    isAtLeastNumber(run?.faceTrackingRigSemanticSegmentScore, 90)
+    isAtLeastNumber(run?.faceTrackingRigSemanticSegmentScore, 90) &&
+    isAtLeastNumber(run?.faceTrackingRigEyeMouthSegmentScore, 90)
   );
 }
 

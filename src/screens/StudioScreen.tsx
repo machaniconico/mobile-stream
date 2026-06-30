@@ -2829,6 +2829,8 @@ const AvatarRigQualityPanel = ({ rig }: { rig: AvatarIllustrationRig }) => {
         <div className="rig-score-list">
           <RigScoreBar label="Parts" score={summary.partSeparationScore} />
           <RigScoreBar label="Depth" score={summary.depthContinuityScore} />
+          <RigScoreBar label="Semantic" score={summary.semanticSegmentScore} />
+          <RigScoreBar label="Eye/Mouth" score={summary.eyeMouthSegmentScore} />
           <RigScoreBar label="Slices" score={rig.sliceCount >= 24 ? 100 : rig.sliceCount >= 20 ? 90 : 0} />
         </div>
       </div>

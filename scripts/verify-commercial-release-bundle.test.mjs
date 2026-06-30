@@ -528,7 +528,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig plus semantic-segment proof");
+    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig plus semantic/eye-mouth segment proof");
   });
 
   it("blocks avatar-motion claims when retained manifests keep low still-image rig quality", () => {
@@ -547,7 +547,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig plus semantic-segment proof");
+    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig plus semantic/eye-mouth segment proof");
   });
 
   it("blocks avatar-motion claims when retained manifests keep low still-image high-fidelity rig proof", () => {
@@ -566,7 +566,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig plus semantic-segment proof");
+    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig plus semantic/eye-mouth segment proof");
   });
 
   it("blocks avatar-motion claims when retained manifests keep low semantic segment proof", () => {
@@ -584,7 +584,25 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("semantic-segment proof");
+    expect(result.stdout).toContain("semantic/eye-mouth segment proof");
+  });
+
+  it("blocks avatar-motion claims when retained manifests keep low eye-mouth segment proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            faceTrackingRigEyeMouthSegmentScore: 72
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("semantic/eye-mouth segment proof");
   });
 
   it("blocks avatar-motion claims when retained manifests omit still-image rig quality proof", () => {
@@ -600,7 +618,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig plus semantic-segment proof");
+    expect(result.stdout).toContain("ready high-fidelity PNGTuber rig plus semantic/eye-mouth segment proof");
   });
 
   it("blocks chat readout claims when retained manifests have no spoken chat success", () => {
@@ -1172,6 +1190,7 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   faceTrackingRigPartSeparationScore: 100,
   faceTrackingRigDepthContinuityScore: 100,
   faceTrackingRigSemanticSegmentScore: 100,
+  faceTrackingRigEyeMouthSegmentScore: 100,
   faceTrackingRigHighFidelityScore: 100,
   faceTrackingRigHighFidelityGrade: "ready",
   audioStatus: "pass",
@@ -1235,6 +1254,7 @@ const withoutRigQuality = (run) => {
     faceTrackingRigPartSeparationScore: _faceTrackingRigPartSeparationScore,
     faceTrackingRigDepthContinuityScore: _faceTrackingRigDepthContinuityScore,
     faceTrackingRigSemanticSegmentScore: _faceTrackingRigSemanticSegmentScore,
+    faceTrackingRigEyeMouthSegmentScore: _faceTrackingRigEyeMouthSegmentScore,
     faceTrackingRigHighFidelityScore: _faceTrackingRigHighFidelityScore,
     faceTrackingRigHighFidelityGrade: _faceTrackingRigHighFidelityGrade,
     ...rest
