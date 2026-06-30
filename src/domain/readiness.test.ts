@@ -238,6 +238,59 @@ describe("stream readiness", () => {
     );
   });
 
+  it("allows the default lower-third subtitle backdrop without a dominant overlay warning", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "dummy-stream-value"
+      }
+    };
+
+    const report = createReadinessReport(createDefaultScene(), profile);
+
+    expect(report.issues.map((issue) => issue.code)).not.toContain("scene-text-overlay-background-dominant");
+  });
+
+  it("warns when a visible text overlay has a large opaque backdrop", () => {
+    const scene = updateSource(createDefaultScene(), "source-subtitle", (source) =>
+      source.kind === "text"
+        ? {
+            ...source,
+            backgroundOpacity: 0.72,
+            transform: {
+              ...source.transform,
+              x: 0.05,
+              y: 0.2,
+              width: 0.9,
+              height: 0.24
+            }
+          }
+        : source
+    );
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "dummy-stream-value"
+      }
+    };
+
+    const report = createReadinessReport(scene, profile);
+
+    expect(report.canStart).toBe(true);
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        code: "scene-text-overlay-background-dominant",
+        field: "scene",
+        severity: "warning",
+        message: expect.stringContaining("large opaque text backdrop")
+      })
+    );
+  });
+
   it("warns when face tracking is enabled but not production-ready", () => {
     const profile = {
       ...createDefaultStudioProfile(),

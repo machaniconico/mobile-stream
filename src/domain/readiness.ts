@@ -1,4 +1,4 @@
-import type { ChatOverlaySource, SceneDocument } from "./scene";
+import type { ChatOverlaySource, SceneDocument, TextSource } from "./scene";
 import type { StudioProfile, StreamProtocol } from "./profiles";
 import { normalizeStudioProfile } from "./profiles";
 import { createNativeCompositionReport } from "./nativeComposition";
@@ -25,6 +25,10 @@ export interface ReadinessReport {
 
 const supportedProtocols = new Set(["rtmp:", "rtmps:"]);
 const chatOverlayBackgroundOpacityWarningThreshold = 0.05;
+const textOverlayBackgroundOpacityWarningThreshold = 0.35;
+const textOverlayDominantAreaWarningThreshold = 0.18;
+const textOverlayVeryOpaqueWarningThreshold = 0.65;
+const textOverlayVeryOpaqueAreaWarningThreshold = 0.1;
 
 export const createReadinessReport = (scene: SceneDocument, profile: StudioProfile): ReadinessReport => {
   const sanitizedProfile = sanitizeStudioProfile(profile);
@@ -359,6 +363,19 @@ const validateScene = (scene: SceneDocument): ReadinessIssue[] => {
     });
   }
 
+  const dominantTextOverlays = visibleSources.filter(
+    (source): source is TextSource => source.kind === "text" && isDominantTextOverlay(source)
+  );
+  if (dominantTextOverlays.length > 0) {
+    const names = dominantTextOverlays.map((source) => source.name).join(", ");
+    issues.push({
+      code: "scene-text-overlay-background-dominant",
+      severity: "warning",
+      field: "scene",
+      message: `${names} uses a large opaque text backdrop that can hide gameplay, avatar motion, or platform safety UI.`
+    });
+  }
+
   if (nativeComposition.status === "warn") {
     issues.push({
       code: `scene-native-composition-${nativeComposition.coverage}`,
@@ -369,6 +386,14 @@ const validateScene = (scene: SceneDocument): ReadinessIssue[] => {
   }
 
   return issues;
+};
+
+const isDominantTextOverlay = (source: TextSource): boolean => {
+  const area = source.transform.width * source.transform.height;
+  if (source.backgroundOpacity >= textOverlayVeryOpaqueWarningThreshold && area >= textOverlayVeryOpaqueAreaWarningThreshold) {
+    return true;
+  }
+  return source.backgroundOpacity >= textOverlayBackgroundOpacityWarningThreshold && area >= textOverlayDominantAreaWarningThreshold;
 };
 
 const validateFaceTracking = (scene: SceneDocument, profile: StudioProfile): ReadinessIssue[] => {

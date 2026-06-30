@@ -264,6 +264,41 @@ describe("stream start preflight", () => {
     );
   });
 
+  it("warns before start when a large text overlay backdrop can hide the program", () => {
+    const profile = validProfile();
+    const scene = updateSource(createScreenOnlyScene(), "source-subtitle", (source) =>
+      source.kind === "text"
+        ? {
+            ...source,
+            visible: true,
+            backgroundOpacity: 0.7,
+            transform: {
+              ...source.transform,
+              x: 0.04,
+              y: 0.2,
+              width: 0.9,
+              height: 0.24
+            }
+          }
+        : source
+    );
+
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(scene, profile),
+      streamStatus: "idle",
+      profile
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.status).toBe("warning");
+    expect(report.warnings).toContainEqual(
+      expect.objectContaining({
+        code: "readiness-scene-text-overlay-background-dominant",
+        recommendation: expect.stringContaining("Reduce the text backdrop opacity or size")
+      })
+    );
+  });
+
   it("blocks start when every broadcast mixer channel is silent", () => {
     const profile: StudioProfile = {
       ...validProfile(),

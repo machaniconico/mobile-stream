@@ -362,6 +362,9 @@ const readinessRecommendation = (issue: ReadinessIssue): string => {
   if (issue.code === "scene-chat-overlay-background-opaque") {
     return "Keep chat overlay background opacity at 0 for transparent comment overlays unless an intentional lower-third design has been validated on device.";
   }
+  if (issue.code === "scene-text-overlay-background-dominant") {
+    return "Reduce the text backdrop opacity or size, or keep the text as a validated lower-third so gameplay and avatar motion remain visible on device.";
+  }
   switch (issue.field) {
     case "serverUrl":
       return "Set a valid YouTube Live, Twitch, or custom RTMP(S) ingest endpoint.";
