@@ -682,10 +682,13 @@ function commercialSupportBundleFixture(patch = {}) {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 49
+      bundleVersion: 50
     },
     generatedAt: new Date().toISOString(),
     fixture: true,
+    profile: {
+      androidPublisherMode: "mediacodec"
+    },
     ...patch,
     summary: {
       ...summary,

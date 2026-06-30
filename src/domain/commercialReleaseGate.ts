@@ -43,7 +43,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 49;
+const minimumSupportBundleVersion = 50;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -65,6 +65,7 @@ export const createCommercialReleaseGate = (
     createSupportBundleRedactionIssue(bundle),
     createBundleAgeIssue(bundle, now, maxBundleAgeHours),
     createPreflightIssue(bundle),
+    createAndroidPublisherModeIssue(bundle),
     createPublicLaunchIssue(bundle),
     createPublicLaunchConfirmationEvidenceIssue(bundle),
     createPlatformPublishingFreshnessIssue(bundle),
@@ -198,6 +199,16 @@ const createPreflightIssue = (bundle: SupportBundle): CommercialReleaseGateIssue
   return null;
 };
 
+const createAndroidPublisherModeIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null =>
+  bundle.profile?.androidPublisherMode === "mediacodec"
+    ? null
+    : failIssue(
+        "android-publisher-mode-not-commercial",
+        "Android publisher mode",
+        `Android publisher mode is ${bundle.profile?.androidPublisherMode || "missing"}; commercial release requires the direct MediaCodec path.`,
+        "Switch Android publisher mode to direct MediaCodec and retain passing Android physical validation evidence before release approval."
+      );
+
 const createPublicLaunchIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
   if (
     !bundle.summary.publicLaunchCanStart ||
@@ -246,7 +257,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v49 or newer so retained public launch confirmation events, audio route-match/latency source/tuning proof, semantic avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
+      "Export a support bundle v50 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, semantic avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
     );
   }
 
@@ -385,7 +396,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v49 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v50 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);

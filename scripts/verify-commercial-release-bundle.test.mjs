@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v49.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v50.");
   });
 
   it("blocks support bundles without public launch confirmation summary evidence", () => {
@@ -673,6 +673,7 @@ describe("commercial release bundle verifier CLI", () => {
   it("blocks Twitch platform dashboard claims when retained manifests lack channel metadata proof", () => {
     writeBundle({
       profile: {
+        androidPublisherMode: "mediacodec",
         destination: {
           platform: "twitch",
           protocol: "rtmps"
@@ -704,6 +705,24 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Twitch dashboard status and Twitch title/category/language metadata");
+  });
+
+  it("blocks support bundles that still select the RootEncoder compatibility publisher", () => {
+    writeBundle({
+      profile: {
+        androidPublisherMode: "rootencoder",
+        destination: {
+          platform: "youtube-live",
+          protocol: "rtmps"
+        }
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Android publisher mode");
+    expect(result.stdout).toContain("rootencoder");
   });
 
   it("blocks platform dashboard claims when retained manifests keep unhealthy destination state", () => {
@@ -989,10 +1008,11 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 49
+      bundleVersion: 50
     },
     generatedAt: new Date().toISOString(),
     profile: {
+      androidPublisherMode: "mediacodec",
       destination: {
         platform: "youtube-live",
         protocol: "rtmps"

@@ -1323,10 +1323,13 @@ function commercialSupportBundleFixture() {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 49
+      bundleVersion: 50
     },
     generatedAt: capturedAt,
     fixture: true,
+    profile: {
+      androidPublisherMode: "mediacodec"
+    },
     summary: {
       preflightStatus: "ready",
       publicLaunchStatus: "ready",

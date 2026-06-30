@@ -223,6 +223,21 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks commercial release when Android direct MediaCodec mode is not selected", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({ androidPublisherMode: "rootencoder" }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "android-publisher-mode-not-commercial",
+        detail: expect.stringContaining("rootencoder")
+      })
+    );
+  });
+
   it("blocks v20 support bundles that do not carry monitor-hold manifest proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -1559,13 +1574,14 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 49 as const
+    bundleVersion: 50 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
     platform: "youtube-live" as const,
     protocol: "rtmps"
   },
+  androidPublisherMode = "mediacodec" as const,
   summary = {}
 }: {
   app?: {
@@ -1578,12 +1594,14 @@ const supportBundle = ({
     platform: SupportBundle["profile"]["destination"]["platform"];
     protocol: SupportBundle["profile"]["destination"]["protocol"];
   };
+  androidPublisherMode?: SupportBundle["profile"]["androidPublisherMode"];
   summary?: Partial<SupportBundle["summary"]>;
 } = {}): SupportBundle =>
   ({
     app,
     generatedAt,
     profile: {
+      androidPublisherMode,
       destination
     },
     summary: {

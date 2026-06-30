@@ -387,8 +387,11 @@ function writeSupportBundleFixture() {
     ".artifacts/store-approval-test/support-bundle.json",
     JSON.stringify(
       {
-        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 49 },
+        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 50 },
         generatedAt: new Date().toISOString(),
+        profile: {
+          androidPublisherMode: "mediacodec"
+        },
         summary: {
           preflightStatus: "ready",
           publicLaunchStatus: "ready",

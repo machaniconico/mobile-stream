@@ -29,7 +29,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 49;
+    bundleVersion: 50;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -495,6 +495,7 @@ export interface SupportBundle {
     sources: SupportBundleSourceSummary[];
   };
   profile: {
+    androidPublisherMode: StudioProfile["androidPublisherMode"];
     destination: {
       platform: StudioProfile["destination"]["platform"];
       presetId: StudioProfile["destination"]["presetId"];
@@ -589,7 +590,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 49
+      bundleVersion: 50
     },
     summary: {
       status: diagnostics.status,
@@ -1138,6 +1139,7 @@ export const createSupportBundle = ({
       sources: scene.sources.map(toSourceSummary)
     },
     profile: {
+      androidPublisherMode: profile.androidPublisherMode,
       destination: {
         platform: profile.destination.platform,
         presetId: profile.destination.presetId,
@@ -1308,6 +1310,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     ),
     "",
     "Profile",
+    `- Android publisher: ${bundle.profile.androidPublisherMode ?? "unknown"}`,
     `- Mic effects: ${bundle.profile.micEffects.enabled ? bundle.profile.micEffects.presetId : "off"}`,
     `- Broadcast mix: ${formatBroadcastMixerSummary(bundle.profile.broadcastMixer)}`,
     `- Audio peak guard: ${bundle.diagnostics.audio.audioGuard.status} / ${bundle.diagnostics.audio.audioGuard.summary}`,
