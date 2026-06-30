@@ -1323,7 +1323,7 @@ function commercialSupportBundleFixture() {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 43
+      bundleVersion: 44
     },
     generatedAt: capturedAt,
     fixture: true,
@@ -1479,6 +1479,7 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     platformPublishingFreshnessStatus: "fresh",
     platformPublishingCheckedAt: capturedAt,
     platformPublishingFreshnessAgeMinutes: 0,
+    platformPublishingObservedAgeMinutes: 0,
     platformPublishingYoutubeHasBroadcastId: true,
     platformPublishingYoutubeHasStreamId: true,
     platformPublishingYoutubeBroadcastStatus: "live",

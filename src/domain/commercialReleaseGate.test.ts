@@ -1046,6 +1046,32 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks same-run platform ingest claims when retained observed dashboard age is inconsistent", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              platformPublishingObservedAgeMinutes: 7
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS same-run platform ingest proof")
+      })
+    );
+  });
+
   it("blocks bundles whose retained runs are not physical-device evidence", () => {
     const bundle = supportBundle({
       summary: {
@@ -1276,7 +1302,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 43 as const
+    bundleVersion: 44 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1524,6 +1550,7 @@ const manifestRun = ({
   platformPublishingFreshnessStatus = "fresh",
   platformPublishingCheckedAt = "2026-06-23T10:59:00.000Z",
   platformPublishingFreshnessAgeMinutes = 1,
+  platformPublishingObservedAgeMinutes = 1,
   platformPublishingYoutubeHasBroadcastId = true,
   platformPublishingYoutubeHasStreamId = true,
   platformPublishingYoutubeBroadcastStatus = "live",
@@ -1662,6 +1689,7 @@ const manifestRun = ({
   platformPublishingFreshnessStatus?: ValidationManifestRun["platformPublishingFreshnessStatus"];
   platformPublishingCheckedAt?: ValidationManifestRun["platformPublishingCheckedAt"];
   platformPublishingFreshnessAgeMinutes?: ValidationManifestRun["platformPublishingFreshnessAgeMinutes"];
+  platformPublishingObservedAgeMinutes?: ValidationManifestRun["platformPublishingObservedAgeMinutes"];
   platformPublishingYoutubeHasBroadcastId?: ValidationManifestRun["platformPublishingYoutubeHasBroadcastId"];
   platformPublishingYoutubeHasStreamId?: ValidationManifestRun["platformPublishingYoutubeHasStreamId"];
   platformPublishingYoutubeBroadcastStatus?: ValidationManifestRun["platformPublishingYoutubeBroadcastStatus"];
@@ -1806,6 +1834,7 @@ const manifestRun = ({
   platformPublishingFreshnessStatus,
   platformPublishingCheckedAt,
   platformPublishingFreshnessAgeMinutes,
+  platformPublishingObservedAgeMinutes,
   platformPublishingYoutubeHasBroadcastId,
   platformPublishingYoutubeHasStreamId,
   platformPublishingYoutubeBroadcastStatus,

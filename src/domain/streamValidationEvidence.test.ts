@@ -2031,6 +2031,7 @@ describe("stream validation evidence", () => {
       platformPublishingFreshnessStatus: "fresh",
       platformPublishingCheckedAt: "2026-06-23T00:00:00.000Z",
       platformPublishingFreshnessAgeMinutes: 0,
+      platformPublishingObservedAgeMinutes: 0,
       platformPublishingYoutubeHasBroadcastId: true,
       platformPublishingYoutubeHasStreamId: true,
       platformPublishingYoutubeBroadcastStatus: "live",

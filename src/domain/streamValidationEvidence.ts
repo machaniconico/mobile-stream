@@ -312,6 +312,7 @@ export interface StreamValidationEvidenceRunManifestItem {
   platformPublishingFreshnessStatus: PlatformPublishingFreshnessStatus | null;
   platformPublishingCheckedAt: string;
   platformPublishingFreshnessAgeMinutes: number | null;
+  platformPublishingObservedAgeMinutes: number | null;
   platformPublishingYoutubeHasBroadcastId: boolean;
   platformPublishingYoutubeHasStreamId: boolean;
   platformPublishingYoutubeBroadcastStatus: string;
@@ -1457,6 +1458,15 @@ const getRunPlatformPublishingFreshness = (run: StreamValidationRun | null | und
     run?.createdAt ? new Date(run.createdAt) : new Date(0)
   );
 
+const getPlatformPublishingObservedAgeMinutes = (createdAt: string, checkedAt: string): number | null => {
+  const createdAtMs = Date.parse(createdAt);
+  const checkedAtMs = Date.parse(checkedAt);
+  if (!Number.isFinite(createdAtMs) || !Number.isFinite(checkedAtMs)) {
+    return null;
+  }
+  return Math.floor((createdAtMs - checkedAtMs) / 60_000);
+};
+
 const isPlatformPublishingFreshnessRequired = (freshness: PlatformPublishingFreshness): boolean =>
   freshness.status !== "not-applicable";
 
@@ -1497,12 +1507,10 @@ const isPlatformIngestRunEvidencePass = (run: StreamValidationRun | null | undef
 
 const isPlatformPublishingRunTimestampConsistent = (run: StreamValidationRun): boolean => {
   const freshness = getRunPlatformPublishingFreshness(run);
-  const createdAtMs = Date.parse(run.createdAt);
-  const checkedAtMs = Date.parse(freshness.checkedAt);
-  if (!Number.isFinite(createdAtMs) || !Number.isFinite(checkedAtMs)) {
+  const observedAgeMinutes = getPlatformPublishingObservedAgeMinutes(run.createdAt, freshness.checkedAt);
+  if (observedAgeMinutes === null) {
     return false;
   }
-  const observedAgeMinutes = Math.floor((createdAtMs - checkedAtMs) / 60_000);
   return (
     observedAgeMinutes >= 0 &&
     observedAgeMinutes <= platformPublishingDashboardMaxAgeMinutes &&
@@ -2420,6 +2428,10 @@ const createEvidenceRunManifestItem = (
   }
 ): StreamValidationEvidenceRunManifestItem => {
   const platformPublishingFreshness = getRunPlatformPublishingFreshness(run);
+  const platformPublishingObservedAgeMinutes = getPlatformPublishingObservedAgeMinutes(
+    run.createdAt,
+    platformPublishingFreshness.checkedAt
+  );
   return {
     id: run.id,
     fingerprint: run.fingerprint,
@@ -2550,6 +2562,7 @@ const createEvidenceRunManifestItem = (
     platformPublishingFreshnessStatus: platformPublishingFreshness.status,
     platformPublishingCheckedAt: platformPublishingFreshness.checkedAt,
     platformPublishingFreshnessAgeMinutes: platformPublishingFreshness.ageMinutes,
+    platformPublishingObservedAgeMinutes,
     platformPublishingYoutubeHasBroadcastId: run.platformPublishing?.youtube?.hasBroadcastId ?? false,
     platformPublishingYoutubeHasStreamId: run.platformPublishing?.youtube?.hasStreamId ?? false,
     platformPublishingYoutubeBroadcastStatus: run.platformPublishing?.youtube?.broadcastStatus ?? "",

@@ -38,7 +38,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 43;
+const minimumSupportBundleVersion = 44;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -241,7 +241,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v43 or newer so retained public launch confirmation events are summarized."
+      "Export a support bundle v44 or newer so retained public launch confirmation events and same-run ingest timing proof are summarized."
     );
   }
 
@@ -380,7 +380,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v43 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v44 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -1024,9 +1024,13 @@ const isManifestPlatformPublishingTimestampConsistent = (run: ValidationEvidence
     return false;
   }
   const observedAgeMinutes = Math.floor((createdAtMs - checkedAtMs) / 60_000);
+  const retainedObservedAgeMinutes = run.platformPublishingObservedAgeMinutes;
   return (
     observedAgeMinutes >= 0 &&
     observedAgeMinutes <= platformPublishingDashboardMaxAgeMinutes &&
+    typeof retainedObservedAgeMinutes === "number" &&
+    Number.isFinite(retainedObservedAgeMinutes) &&
+    Math.abs(observedAgeMinutes - retainedObservedAgeMinutes) <= 1 &&
     typeof run.platformPublishingFreshnessAgeMinutes === "number" &&
     Number.isFinite(run.platformPublishingFreshnessAgeMinutes) &&
     Math.abs(observedAgeMinutes - run.platformPublishingFreshnessAgeMinutes) <= 1

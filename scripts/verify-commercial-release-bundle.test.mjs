@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v43.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v44.");
   });
 
   it("blocks support bundles without public launch confirmation summary evidence", () => {
@@ -638,6 +638,22 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("same-run native send telemetry");
   });
 
+  it("blocks same-run platform ingest claims when retained observed dashboard age is inconsistent", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { platformPublishingObservedAgeMinutes: 7 }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("same-run native send telemetry");
+  });
+
   it("blocks release when the launch rehearsal is not ready", () => {
     writeBundle({
       summary: {
@@ -837,7 +853,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 43
+      bundleVersion: 44
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -984,6 +1000,7 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   platformPublishingFreshnessStatus: "fresh",
   platformPublishingCheckedAt: "2026-06-23T10:59:00.000Z",
   platformPublishingFreshnessAgeMinutes: 1,
+  platformPublishingObservedAgeMinutes: 1,
   platformPublishingYoutubeHasBroadcastId: true,
   platformPublishingYoutubeHasStreamId: true,
   platformPublishingYoutubeBroadcastStatus: "live",

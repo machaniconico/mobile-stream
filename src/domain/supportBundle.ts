@@ -29,7 +29,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 43;
+    bundleVersion: 44;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -561,7 +561,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 43
+      bundleVersion: 44
     },
     summary: {
       status: diagnostics.status,
@@ -1283,7 +1283,7 @@ const formatValidationEvidenceRunManifest = (
         `audio ${run.audioStatus ?? "-"} monitor frames ${run.audioNativeMonitorWrittenFrames}/${run.audioNativeMonitorDroppedFrames} buffers ${run.audioNativeMonitorWrittenBuffers}/${run.audioNativeMonitorDroppedBuffers} headphones ${run.audioNativeMonitorHeadphonesConnected ? "yes" : "no"} latency ${run.audioMonitorLatencyMs === null ? "-" : `${run.audioMonitorLatencyMs}ms`} ${run.audioMonitorLatencyStatus ?? "-"} bluetooth ${run.audioBluetoothRoute ? "yes" : "no"} reviewed ${run.audioBluetoothTuningReviewed ? "yes" : "no"}`,
         `chat ${run.chatReadoutStatus ?? "-"} spoken ${run.chatReadoutSpokenMessageCount} failed ${run.chatReadoutSpeechFailureCount}`,
         `quality ${run.qualityAutomationStatus ?? "-"} live ${run.qualityAutomationLiveUpdateCount} next ${run.qualityAutomationNextTargetCount} failed ${run.qualityAutomationFailureCount}`,
-        `dashboard ${run.platformPublishingPlatform ?? "-"} ${run.platformPublishingStatus ?? "-"}/${run.platformPublishingFreshnessStatus ?? "-"} checked ${run.platformPublishingCheckedAt || "-"} age ${run.platformPublishingFreshnessAgeMinutes ?? "-"}m youtube broadcast ${run.platformPublishingYoutubeHasBroadcastId ? "yes" : "no"} ${run.platformPublishingYoutubeBroadcastStatus || "-"} stream ${run.platformPublishingYoutubeHasStreamId ? "yes" : "no"} ${run.platformPublishingYoutubeStreamStatus || "-"} health ${run.platformPublishingYoutubeHealthStatus || "-"} issues ${run.platformPublishingYoutubeHealthIssueCount} twitch ${run.platformPublishingTwitchLiveStatus || "-"} started ${run.platformPublishingTwitchStartedAt || "-"} category ${run.platformPublishingTwitchHasCategoryId ? "yes" : "no"} ${run.platformPublishingTwitchChannelCategory || "-"} (${run.platformPublishingTwitchChannelCategoryId || "-"}) title ${run.platformPublishingTwitchChannelTitle || "-"} language ${run.platformPublishingTwitchChannelLanguage || "-"} viewers ${run.platformPublishingTwitchViewerCount}`
+        `dashboard ${run.platformPublishingPlatform ?? "-"} ${run.platformPublishingStatus ?? "-"}/${run.platformPublishingFreshnessStatus ?? "-"} checked ${run.platformPublishingCheckedAt || "-"} age ${run.platformPublishingFreshnessAgeMinutes ?? "-"}m observed ${run.platformPublishingObservedAgeMinutes ?? "-"}m youtube broadcast ${run.platformPublishingYoutubeHasBroadcastId ? "yes" : "no"} ${run.platformPublishingYoutubeBroadcastStatus || "-"} stream ${run.platformPublishingYoutubeHasStreamId ? "yes" : "no"} ${run.platformPublishingYoutubeStreamStatus || "-"} health ${run.platformPublishingYoutubeHealthStatus || "-"} issues ${run.platformPublishingYoutubeHealthIssueCount} twitch ${run.platformPublishingTwitchLiveStatus || "-"} started ${run.platformPublishingTwitchStartedAt || "-"} category ${run.platformPublishingTwitchHasCategoryId ? "yes" : "no"} ${run.platformPublishingTwitchChannelCategory || "-"} (${run.platformPublishingTwitchChannelCategoryId || "-"}) title ${run.platformPublishingTwitchChannelTitle || "-"} language ${run.platformPublishingTwitchChannelLanguage || "-"} viewers ${run.platformPublishingTwitchViewerCount}`
       ].join(" ");
     })
     .join(" | ");

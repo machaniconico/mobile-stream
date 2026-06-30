@@ -387,7 +387,7 @@ function writeSupportBundleFixture() {
     ".artifacts/store-approval-test/support-bundle.json",
     JSON.stringify(
       {
-        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 43 },
+        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 44 },
         generatedAt: new Date().toISOString(),
         summary: {
           preflightStatus: "ready",
@@ -454,10 +454,11 @@ function writeSupportBundleFixture() {
 }
 
 function supportBundleManifestRun(devicePlatform, fingerprint) {
+  const capturedAt = new Date().toISOString();
   return {
     id: `validation-${devicePlatform}`,
     fingerprint,
-    createdAt: new Date().toISOString(),
+    createdAt: capturedAt,
     ageDays: 0,
     fresh: true,
     matchesScope: true,
@@ -543,8 +544,9 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     platformPublishingPlatform: "youtube-live",
     platformPublishingStatus: "pass",
     platformPublishingFreshnessStatus: "fresh",
-    platformPublishingCheckedAt: new Date().toISOString(),
+    platformPublishingCheckedAt: capturedAt,
     platformPublishingFreshnessAgeMinutes: 0,
+    platformPublishingObservedAgeMinutes: 0,
     platformPublishingYoutubeHasBroadcastId: true,
     platformPublishingYoutubeHasStreamId: true,
     platformPublishingYoutubeBroadcastStatus: "live",
