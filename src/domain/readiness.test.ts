@@ -291,6 +291,62 @@ describe("stream readiness", () => {
     );
   });
 
+  it("blocks visible text overlays that would expose stream keys or OAuth credentials", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "secret-stream-key-123456"
+      }
+    };
+    const scene = updateSource(createDefaultScene(), "source-subtitle", (source) =>
+      source.kind === "text"
+        ? {
+            ...source,
+            text: "Starting soon secret-stream-key-123456"
+          }
+        : source
+    );
+
+    const report = createReadinessReport(scene, profile);
+
+    expect(report.canStart).toBe(false);
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        code: "scene-text-overlay-sensitive-content",
+        field: "security",
+        severity: "error",
+        message: "Subtitle appears to contain a stream key, OAuth token, or API credential."
+      })
+    );
+    expect(JSON.stringify(report.issues)).not.toContain("secret-stream-key-123456");
+  });
+
+  it("ignores sensitive-looking text overlays that are hidden", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "secret-stream-key-123456"
+      }
+    };
+    const scene = updateSource(createDefaultScene(), "source-subtitle", (source) =>
+      source.kind === "text"
+        ? {
+            ...source,
+            visible: false,
+            text: "Authorization: Bearer hidden-token-secret"
+          }
+        : source
+    );
+
+    const report = createReadinessReport(scene, profile);
+
+    expect(report.issues.map((issue) => issue.code)).not.toContain("scene-text-overlay-sensitive-content");
+  });
+
   it("warns when face tracking is enabled but not production-ready", () => {
     const profile = {
       ...createDefaultStudioProfile(),

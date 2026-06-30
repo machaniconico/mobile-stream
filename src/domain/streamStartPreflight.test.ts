@@ -299,6 +299,42 @@ describe("stream start preflight", () => {
     );
   });
 
+  it("blocks start when a visible text overlay exposes stream secrets", () => {
+    const profile: StudioProfile = {
+      ...validProfile(),
+      destination: {
+        ...validProfile().destination,
+        streamKey: "secret-stream-key-123456"
+      }
+    };
+    const scene = updateSource(createScreenOnlyScene(), "source-subtitle", (source) =>
+      source.kind === "text"
+        ? {
+            ...source,
+            visible: true,
+            text: "BRB secret-stream-key-123456"
+          }
+        : source
+    );
+
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(scene, profile),
+      streamStatus: "idle",
+      profile
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.status).toBe("blocked");
+    expect(report.blocks).toContainEqual(
+      expect.objectContaining({
+        code: "readiness-scene-text-overlay-sensitive-content",
+        area: "security",
+        recommendation: expect.stringContaining("Remove stream keys")
+      })
+    );
+    expect(formatStreamStartPreflightBlockMessage(report)).not.toContain("secret-stream-key-123456");
+  });
+
   it("blocks start when every broadcast mixer channel is silent", () => {
     const profile: StudioProfile = {
       ...validProfile(),

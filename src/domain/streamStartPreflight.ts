@@ -365,6 +365,9 @@ const readinessRecommendation = (issue: ReadinessIssue): string => {
   if (issue.code === "scene-text-overlay-background-dominant") {
     return "Reduce the text backdrop opacity or size, or keep the text as a validated lower-third so gameplay and avatar motion remain visible on device.";
   }
+  if (issue.code === "scene-text-overlay-sensitive-content") {
+    return "Remove stream keys, OAuth tokens, callback URLs, and API credentials from visible text or subtitle overlays before starting.";
+  }
   switch (issue.field) {
     case "serverUrl":
       return "Set a valid YouTube Live, Twitch, or custom RTMP(S) ingest endpoint.";

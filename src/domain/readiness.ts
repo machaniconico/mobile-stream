@@ -5,6 +5,7 @@ import { createNativeCompositionReport } from "./nativeComposition";
 import { createFaceTrackingDiagnostics } from "./faceTrackingDiagnostics";
 import { createLive2DModelAssetReport } from "./live2dModel";
 import { createVrmModelAssetReport } from "./vrmModel";
+import { redactSecretsFromText } from "./persistencePrivacy";
 
 export type ReadinessSeverity = "error" | "warning";
 
@@ -37,7 +38,7 @@ export const createReadinessReport = (scene: SceneDocument, profile: StudioProfi
     ...validateQuality(sanitizedProfile),
     ...validateMicEffects(sanitizedProfile),
     ...validateFaceTracking(scene, sanitizedProfile),
-    ...validateScene(scene)
+    ...validateScene(scene, sanitizedProfile)
   ];
   const errorCount = issues.filter((issue) => issue.severity === "error").length;
   const warningCount = issues.length - errorCount;
@@ -273,7 +274,7 @@ const validateQuality = (profile: StudioProfile): ReadinessIssue[] => {
   return issues;
 };
 
-const validateScene = (scene: SceneDocument): ReadinessIssue[] => {
+const validateScene = (scene: SceneDocument, profile: StudioProfile): ReadinessIssue[] => {
   const issues: ReadinessIssue[] = [];
   const visibleSources = scene.sources.filter((source) => source.visible);
   const nativeComposition = createNativeCompositionReport(scene);
@@ -376,6 +377,19 @@ const validateScene = (scene: SceneDocument): ReadinessIssue[] => {
     });
   }
 
+  const sensitiveTextOverlays = visibleSources.filter(
+    (source): source is TextSource => source.kind === "text" && hasSensitiveOverlayText(source, profile)
+  );
+  if (sensitiveTextOverlays.length > 0) {
+    const names = sensitiveTextOverlays.map((source) => source.name).join(", ");
+    issues.push({
+      code: "scene-text-overlay-sensitive-content",
+      severity: "error",
+      field: "security",
+      message: `${names} appears to contain a stream key, OAuth token, or API credential.`
+    });
+  }
+
   if (nativeComposition.status === "warn") {
     issues.push({
       code: `scene-native-composition-${nativeComposition.coverage}`,
@@ -395,6 +409,9 @@ const isDominantTextOverlay = (source: TextSource): boolean => {
   }
   return source.backgroundOpacity >= textOverlayBackgroundOpacityWarningThreshold && area >= textOverlayDominantAreaWarningThreshold;
 };
+
+const hasSensitiveOverlayText = (source: TextSource, profile: StudioProfile): boolean =>
+  source.text.length > 0 && redactSecretsFromText(source.text, [profile.destination.streamKey]) !== source.text;
 
 const validateFaceTracking = (scene: SceneDocument, profile: StudioProfile): ReadinessIssue[] => {
   const diagnostics = createFaceTrackingDiagnostics(scene, profile);
