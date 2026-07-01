@@ -7,6 +7,7 @@ import {
   parseAndroidGetprop,
   parseIosXctraceDevices,
   physicalDevicePreflightType,
+  runPhysicalDevicePreflight,
   validatePhysicalDevicePreflightReport,
   writePhysicalDevicePreflightReport
 } from "./verify-physical-devices.mjs";
@@ -98,6 +99,31 @@ iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
 
     expect(report.type).toBe(physicalDevicePreflightType);
     expect(report.status).toBe("ready");
+    expect(report.host).toMatchObject({
+      platform: expect.any(String),
+      arch: expect.any(String),
+      nodeVersion: expect.stringMatching(/^v/)
+    });
+    expect(report.toolEvidence).toMatchObject({
+      android: {
+        deviceList: {
+          invocation: "adb devices -l",
+          ok: true
+        },
+        version: {
+          invocation: "adb version"
+        }
+      },
+      ios: {
+        deviceList: {
+          invocation: "xcrun xctrace list devices",
+          ok: true
+        },
+        version: {
+          invocation: "xcrun xctrace version"
+        }
+      }
+    });
     expect(report.checks).toEqual([
       {
         label: "Android physical device",
@@ -234,5 +260,96 @@ Release iPhone (17.5.1) (00008110-001234560E91801E)
         sha256: expect.stringMatching(/^[a-f0-9]{64}$/)
       })
     ]);
+  });
+
+  it("records sanitized host and tool-version evidence when run through device tools", () => {
+    const report = runPhysicalDevicePreflight({
+      hostPlatform: "darwin",
+      commandRunner: (command, args) => {
+        const invocation = [command, ...args].join(" ");
+        if (invocation === "adb version") {
+          return {
+            ok: true,
+            tool: "adb",
+            stdout:
+              "Android Debug Bridge version 1.0.41\nVersion 37.0.0-14910828\nInstalled as /Users/macha/Library/Android/sdk/platform-tools/adb\n",
+            detail: "command succeeded"
+          };
+        }
+        if (invocation === "adb devices -l") {
+          return {
+            ok: true,
+            tool: "adb",
+            stdout: "List of devices attached\nR58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4\n",
+            detail: "command succeeded"
+          };
+        }
+        if (invocation === "adb -s R58M123456B shell getprop") {
+          return {
+            ok: true,
+            tool: "adb",
+            stdout: "[ro.kernel.qemu]: [0]\n[ro.boot.qemu]: [0]\n[ro.hardware]: [qcom]\n",
+            detail: "command succeeded"
+          };
+        }
+        if (invocation === "xcrun xctrace list devices") {
+          return {
+            ok: true,
+            tool: "xcrun",
+            stdout: "== Devices ==\nRelease iPhone (17.5.1) (00008110-001234560E91801E)\n",
+            detail: "command succeeded"
+          };
+        }
+        if (invocation === "xcrun xctrace version") {
+          return {
+            ok: true,
+            tool: "xcrun",
+            stdout: "xctrace version 16.0 (17F42)\n",
+            detail: "command succeeded"
+          };
+        }
+        return { ok: false, tool: command, stdout: "", detail: `unexpected ${invocation}` };
+      }
+    });
+
+    expect(report.status).toBe("ready");
+    expect(report.toolEvidence.android.version).toMatchObject({
+      ok: true,
+      version: "Android Debug Bridge version 1.0.41 / Version 37.0.0-14910828"
+    });
+    expect(JSON.stringify(report.toolEvidence.android.version)).not.toContain("/Users/macha");
+    expect(report.toolEvidence.ios.version).toMatchObject({
+      ok: true,
+      version: "xctrace version 16.0 (17F42)"
+    });
+  });
+
+  it("rejects commercial preflight reports without host and tool evidence", () => {
+    const report = createPhysicalDevicePreflightReport({
+      androidAdbOutput: `List of devices attached
+R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
+`,
+      androidRuntimeProperties: {
+        R58M123456B: `[ro.kernel.qemu]: [0]
+[ro.boot.qemu]: [0]
+[ro.hardware]: [qcom]
+`
+      },
+      androidRuntimeCommands: {
+        R58M123456B: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" }
+      },
+      iosXctraceOutput: `== Devices ==
+Release iPhone (17.5.1) (00008110-001234560E91801E)
+`
+    });
+    delete report.host;
+    delete report.toolEvidence;
+
+    expect(validatePhysicalDevicePreflightReport(report, { currentCommit: report.git.commit, allowDirty: true })).toEqual(
+      expect.arrayContaining([
+        "Physical device preflight host evidence is missing.",
+        "Physical device preflight tool evidence is missing."
+      ])
+    );
   });
 });

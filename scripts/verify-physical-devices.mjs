@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { argv, cwd, exit, platform } from "node:process";
+import { arch, argv, cwd, exit, platform, version as nodeVersion } from "node:process";
 
 export const physicalDevicePreflightDefaultPath = ".artifacts/physical-device-preflight.json";
 export const physicalDevicePreflightArtifactGroup = "physical-device-preflight";
@@ -17,7 +17,9 @@ export function createPhysicalDevicePreflightReport({
   androidRuntimeProperties = {},
   androidRuntimeCommands = {},
   iosXctraceOutput = "",
-  iosCommand = commandPass()
+  iosCommand = commandPass(),
+  host = createHostEvidence(),
+  toolEvidence = createToolEvidence({ mode, androidCommand, iosCommand })
 } = {}) {
   if (!modes.has(mode)) {
     throw new Error(`Unsupported physical device preflight mode: ${mode}`);
@@ -47,6 +49,8 @@ export function createPhysicalDevicePreflightReport({
     type: physicalDevicePreflightType,
     generatedAt: new Date().toISOString(),
     git: gitSnapshot(),
+    host,
+    toolEvidence,
     status: checks.every((check) => check.status === "pass") ? "ready" : "blocked",
     mode,
     checks,
@@ -54,7 +58,9 @@ export function createPhysicalDevicePreflightReport({
   };
 }
 
-export function runPhysicalDevicePreflight({ mode = "all", commandRunner = runCommand } = {}) {
+export function runPhysicalDevicePreflight({ mode = "all", commandRunner = runCommand, hostPlatform = platform } = {}) {
+  const androidVersionResult =
+    mode === "all" || mode === "android" ? commandRunner("adb", ["version"]) : commandPass();
   const androidResult =
     mode === "all" || mode === "android" ? commandRunner("adb", ["devices", "-l"]) : commandPass();
   const androidRuntimeProperties = {};
@@ -68,8 +74,14 @@ export function runPhysicalDevicePreflight({ mode = "all", commandRunner = runCo
   }
   const iosResult =
     mode === "all" || mode === "ios"
-      ? platform === "darwin"
+      ? hostPlatform === "darwin"
         ? commandRunner("xcrun", ["xctrace", "list", "devices"])
+        : commandFail("xcrun is only available on macOS hosts.")
+      : commandPass();
+  const iosVersionResult =
+    mode === "all" || mode === "ios"
+      ? hostPlatform === "darwin"
+        ? commandRunner("xcrun", ["xctrace", "version"])
         : commandFail("xcrun is only available on macOS hosts.")
       : commandPass();
 
@@ -80,7 +92,14 @@ export function runPhysicalDevicePreflight({ mode = "all", commandRunner = runCo
     androidRuntimeProperties,
     androidRuntimeCommands,
     iosXctraceOutput: iosResult.stdout,
-    iosCommand: iosResult
+    iosCommand: iosResult,
+    toolEvidence: createToolEvidence({
+      mode,
+      androidCommand: androidResult,
+      androidVersionCommand: androidVersionResult,
+      iosCommand: iosResult,
+      iosVersionCommand: iosVersionResult
+    })
   });
 }
 
@@ -213,6 +232,8 @@ export function validatePhysicalDevicePreflightReport(report, { reportPath, curr
   if (report.mode !== "all") {
     failures.push(`Physical device preflight mode must be all for commercial release evidence, got ${JSON.stringify(report.mode)}.`);
   }
+  validatePreflightHostEvidence(report.host, failures);
+  validatePreflightToolEvidence(report.toolEvidence, report.mode, failures);
   const ageHours = ageInHours(report.generatedAt, new Date());
   if (ageHours === null) {
     failures.push("Physical device preflight generatedAt timestamp is missing or invalid.");
@@ -371,6 +392,79 @@ function runCommand(command, args) {
   return commandPass(command, result.stdout);
 }
 
+function createHostEvidence() {
+  return {
+    platform,
+    arch,
+    nodeVersion,
+    osKernel: commandOutput("uname", ["-s"]),
+    osRelease: commandOutput("uname", ["-r"]),
+    osMachine: commandOutput("uname", ["-m"]),
+    macosProductVersion: platform === "darwin" ? commandOutput("sw_vers", ["-productVersion"]) : ""
+  };
+}
+
+function createToolEvidence({
+  mode,
+  androidCommand,
+  androidVersionCommand = null,
+  iosCommand,
+  iosVersionCommand = null
+}) {
+  const evidence = {};
+  if (mode === "all" || mode === "android") {
+    evidence.android = {
+      deviceList: commandStatusEvidence(androidCommand, "adb devices -l"),
+      version: commandVersionEvidence(androidVersionCommand, "adb version")
+    };
+  }
+  if (mode === "all" || mode === "ios") {
+    evidence.ios = {
+      deviceList: commandStatusEvidence(iosCommand, "xcrun xctrace list devices"),
+      version: commandVersionEvidence(iosVersionCommand, "xcrun xctrace version")
+    };
+  }
+  return evidence;
+}
+
+function commandStatusEvidence(command, invocation) {
+  return {
+    invocation,
+    tool: command?.tool || "",
+    ok: command?.ok === true,
+    detail: sanitizeCommandDetail(command?.detail || "")
+  };
+}
+
+function commandVersionEvidence(command, invocation) {
+  return {
+    invocation,
+    tool: command?.tool || invocation.split(/\s+/)[0] || "",
+    ok: command?.ok === true,
+    detail: command ? sanitizeCommandDetail(command.detail || "") : "not collected",
+    version: command?.ok ? sanitizeToolVersion(command.stdout || "") : ""
+  };
+}
+
+function sanitizeToolVersion(output) {
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !/^Installed as\b/i.test(line))
+    .slice(0, 3)
+    .join(" / ")
+    .replace(/\/Users\/[^/\s]+/g, "/Users/[redacted]")
+    .slice(0, 240);
+}
+
+function sanitizeCommandDetail(value) {
+  return String(value)
+    .replace(/\/Users\/[^/\s]+/g, "/Users/[redacted]")
+    .replace(/[0-9A-Fa-f]{24,}/g, "[redacted-id]")
+    .trim()
+    .slice(0, 240);
+}
+
 function createArtifactRecord(group, path) {
   const recordPath = workspaceRelativePath(path, cwd());
   if (!recordPath) {
@@ -492,6 +586,50 @@ function unsafeIdentityFieldFailures(report) {
     }
   }
   return failures;
+}
+
+function validatePreflightHostEvidence(host, failures) {
+  if (!host || typeof host !== "object") {
+    failures.push("Physical device preflight host evidence is missing.");
+    return;
+  }
+  for (const key of ["platform", "arch", "nodeVersion"]) {
+    if (typeof host[key] !== "string" || host[key].trim().length === 0) {
+      failures.push(`Physical device preflight host evidence is missing ${key}.`);
+    }
+  }
+}
+
+function validatePreflightToolEvidence(toolEvidence, mode, failures) {
+  if (!toolEvidence || typeof toolEvidence !== "object") {
+    failures.push("Physical device preflight tool evidence is missing.");
+    return;
+  }
+  for (const platformName of ["android", "ios"]) {
+    if (mode !== "all" && mode !== platformName) {
+      continue;
+    }
+    const evidence = toolEvidence[platformName];
+    if (!evidence || typeof evidence !== "object") {
+      failures.push(`Physical device preflight tool evidence is missing ${platformName}.`);
+      continue;
+    }
+    const deviceList = evidence.deviceList;
+    if (!deviceList || typeof deviceList !== "object") {
+      failures.push(`Physical device preflight tool evidence is missing ${platformName}.deviceList.`);
+    } else {
+      if (typeof deviceList.invocation !== "string" || deviceList.invocation.trim().length === 0) {
+        failures.push(`Physical device preflight tool evidence is missing ${platformName}.deviceList invocation.`);
+      }
+      if (deviceList.ok !== true) {
+        failures.push(`Physical device preflight tool evidence has failed ${platformName}.deviceList command.`);
+      }
+    }
+    const version = evidence.version;
+    if (!version || typeof version !== "object") {
+      failures.push(`Physical device preflight tool evidence is missing ${platformName}.version.`);
+    }
+  }
 }
 
 function hashDeviceId(value) {

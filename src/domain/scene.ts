@@ -177,7 +177,14 @@ export interface SolidSource extends BaseSource {
 export type TextSourceMode = "label" | "subtitle" | "ticker" | "caption";
 export type TextSourceAlign = "left" | "center" | "right";
 export type TextSourceContentSource = "manual" | "runtime-caption";
-export type TextOverlayPresetId = "subtitle" | "lower-third" | "ticker" | "live-caption";
+export type TextOverlayPresetId =
+  | "subtitle"
+  | "lower-third"
+  | "ticker"
+  | "live-caption"
+  | "title"
+  | "notice"
+  | "badge";
 
 export interface TextSource extends BaseSource {
   kind: "text";
@@ -1272,6 +1279,23 @@ export const createSource = (kind: SourceKind): SceneSource => {
 export const createTextOverlayPresetSource = (presetId: TextOverlayPresetId): TextSource => {
   const base = createSource("text") as TextSource;
   switch (presetId) {
+    case "title":
+      return {
+        ...base,
+        name: "Title Text",
+        text: "配信タイトル",
+        mode: "label",
+        contentSource: "manual",
+        align: "center",
+        showCaptionSpeaker: true,
+        fontSize: 64,
+        backgroundColor: "#000000",
+        backgroundOpacity: 0,
+        outlineColor: "#000000",
+        outlineWidth: 5,
+        maxLines: 1,
+        transform: defaultTransform({ x: 0.12, y: 0.05, width: 0.76, height: 0.14 })
+      };
     case "subtitle":
       return {
         ...base,
@@ -1306,6 +1330,23 @@ export const createTextOverlayPresetSource = (presetId: TextOverlayPresetId): Te
         maxLines: 2,
         transform: defaultTransform({ x: 0.05, y: 0.72, width: 0.52, height: 0.18 })
       };
+    case "notice":
+      return {
+        ...base,
+        name: "Center Notice",
+        text: "少しお待ちください",
+        mode: "label",
+        contentSource: "manual",
+        align: "center",
+        showCaptionSpeaker: true,
+        fontSize: 58,
+        backgroundColor: "#000000",
+        backgroundOpacity: 0.44,
+        outlineColor: "#000000",
+        outlineWidth: 5,
+        maxLines: 2,
+        transform: defaultTransform({ x: 0.18, y: 0.4, width: 0.64, height: 0.18 })
+      };
     case "ticker":
       return {
         ...base,
@@ -1322,6 +1363,24 @@ export const createTextOverlayPresetSource = (presetId: TextOverlayPresetId): Te
         outlineWidth: 3,
         maxLines: 1,
         transform: defaultTransform({ x: 0, y: 0.91, width: 1, height: 0.09 })
+      };
+    case "badge":
+      return {
+        ...base,
+        name: "Corner Badge",
+        text: "LIVE",
+        mode: "label",
+        contentSource: "manual",
+        align: "center",
+        showCaptionSpeaker: true,
+        color: "#ffffff",
+        fontSize: 38,
+        backgroundColor: "#dc2626",
+        backgroundOpacity: 0.78,
+        outlineColor: "#7f1d1d",
+        outlineWidth: 2,
+        maxLines: 1,
+        transform: defaultTransform({ x: 0.79, y: 0.06, width: 0.16, height: 0.08 })
       };
     case "live-caption":
       return {
@@ -1341,6 +1400,18 @@ export const createTextOverlayPresetSource = (presetId: TextOverlayPresetId): Te
         transform: defaultTransform({ x: 0.14, y: 0.72, width: 0.72, height: 0.2 })
       };
   }
+};
+
+export const applyTextOverlayPresetStyle = (source: TextSource, presetId: TextOverlayPresetId): TextSource => {
+  const preset = createTextOverlayPresetSource(presetId);
+  return {
+    ...preset,
+    id: source.id,
+    visible: source.visible,
+    locked: source.locked,
+    blendMode: source.blendMode,
+    text: source.text.trim() ? source.text : preset.text
+  };
 };
 
 export const createSubtitleTextSource = (): TextSource => createTextOverlayPresetSource("subtitle");

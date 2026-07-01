@@ -3,6 +3,7 @@ import {
   addSource,
   analyzeAvatarIllustrationAlphaMask,
   applyInferredAvatarIllustrationRig,
+  applyTextOverlayPresetStyle,
   addSceneToCollection,
   activatePrivacyShieldScene,
   createAvatarIllustrationLandmarkAnalysisFromDetector,
@@ -855,14 +856,28 @@ describe("scene document", () => {
     });
   });
 
-  it("creates OBS-style text overlay presets for manual copy, tickers, and live captions", () => {
+  it("creates OBS-style text overlay presets for manual copy, status text, tickers, and live captions", () => {
+    const title = createTextOverlayPresetSource("title");
     const lowerThird = createTextOverlayPresetSource("lower-third");
+    const notice = createTextOverlayPresetSource("notice");
     const ticker = createTextOverlayPresetSource("ticker");
+    const badge = createTextOverlayPresetSource("badge");
     const liveCaption = createTextOverlayPresetSource("live-caption");
-    const graph = toRenderGraph(addSource(addSource(addSource(createDefaultScene(), lowerThird), ticker), liveCaption), {
+    const scene = [title, lowerThird, notice, ticker, badge, liveCaption].reduce(addSource, createDefaultScene());
+    const graph = toRenderGraph(scene, {
       captions: [{ speaker: "Host", text: "ライブ字幕テスト" }]
     });
 
+    expect(title).toMatchObject({
+      kind: "text",
+      name: "Title Text",
+      mode: "label",
+      contentSource: "manual",
+      align: "center",
+      maxLines: 1,
+      backgroundOpacity: 0,
+      transform: { x: 0.12, y: 0.05, width: 0.76, height: 0.14 }
+    });
     expect(lowerThird).toMatchObject({
       kind: "text",
       name: "Lower Third",
@@ -873,6 +888,16 @@ describe("scene document", () => {
       backgroundOpacity: 0.36,
       transform: { x: 0.05, y: 0.72, width: 0.52, height: 0.18 }
     });
+    expect(notice).toMatchObject({
+      kind: "text",
+      name: "Center Notice",
+      mode: "label",
+      contentSource: "manual",
+      align: "center",
+      maxLines: 2,
+      backgroundOpacity: 0.44,
+      transform: { x: 0.18, y: 0.4, width: 0.64, height: 0.18 }
+    });
     expect(ticker).toMatchObject({
       kind: "text",
       name: "Ticker",
@@ -882,6 +907,17 @@ describe("scene document", () => {
       backgroundOpacity: 0.52,
       transform: { x: 0, y: 0.91, width: 1, height: 0.09 }
     });
+    expect(badge).toMatchObject({
+      kind: "text",
+      name: "Corner Badge",
+      mode: "label",
+      contentSource: "manual",
+      align: "center",
+      maxLines: 1,
+      backgroundColor: "#dc2626",
+      backgroundOpacity: 0.78,
+      transform: { x: 0.79, y: 0.06, width: 0.16, height: 0.08 }
+    });
     expect(liveCaption).toMatchObject({
       kind: "text",
       mode: "caption",
@@ -889,9 +925,36 @@ describe("scene document", () => {
       showCaptionSpeaker: false,
       maxLines: 3
     });
+    expect(graph.find((node) => node.id === title.id)?.payload.text).toBe("配信タイトル");
     expect(graph.find((node) => node.id === lowerThird.id)?.payload.text).toBe("配信タイトル / 告知テキスト");
+    expect(graph.find((node) => node.id === notice.id)?.payload.text).toBe("少しお待ちください");
     expect(graph.find((node) => node.id === ticker.id)?.payload.mode).toBe("ticker");
+    expect(graph.find((node) => node.id === badge.id)?.payload.text).toBe("LIVE");
     expect(graph.find((node) => node.id === liveCaption.id)?.payload.text).toBe("ライブ字幕テスト");
+  });
+
+  it("applies text overlay preset styling without replacing the current text source identity or copy", () => {
+    const source = {
+      ...createSubtitleTextSource(),
+      id: "selected-text",
+      name: "Custom Text",
+      text: "現在の告知",
+      visible: false,
+      locked: true
+    };
+    const styled = applyTextOverlayPresetStyle(source, "badge");
+
+    expect(styled).toMatchObject({
+      id: "selected-text",
+      name: "Corner Badge",
+      text: "現在の告知",
+      visible: false,
+      locked: true,
+      mode: "label",
+      align: "center",
+      backgroundColor: "#dc2626",
+      transform: { x: 0.79, y: 0.06, width: 0.16, height: 0.08 }
+    });
   });
 
   it("strips transient avatar runtime before scene persistence", () => {

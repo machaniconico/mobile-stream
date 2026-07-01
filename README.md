@@ -8,7 +8,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 
 - OBS-like multi-scene/source stack with Main, Starting Soon, Break, and Privacy Shield scene presets, live scene switching, and cut/fade transition settings.
 - Screen, PNGTuber, Live2D, VRM/VRoid, image, solid, and text source records, including Live2D Cubism `model3.json` and VRM/GLB URI persistence for model-package preparation.
-- OBS-style text display presets for subtitles, lower-third captions, ticker announcements, and live captions, with editable copy, alignment, transparency, outline, line limits, and native compositor output.
+- OBS-style text display presets for top titles, subtitles, lower-third captions, center notices, ticker announcements, corner badges, and live captions, with one-tap preset styling, editable copy, alignment, transparency, outline, line limits, and native compositor output.
 - Layer visibility, lock, ordering, and transform controls.
 - RTMP/RTMPS destination profiles with YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - OAuth/API-backed platform stream key controls: YouTube can create a new reusable Live Stream and apply its RTMPS key; Twitch can sync the current Helix stream key.
@@ -108,6 +108,7 @@ npm run verify:rn
 npm run verify:android-native
 npm run verify:ios-native
 npm run verify:release-config
+npm run verify:physical-devices -- --report-json .artifacts/physical-device-preflight.json
 npm run verify:store-release-env
 npm run verify:distribution-artifacts
 npm run verify:dashboard-evidence
@@ -148,6 +149,8 @@ npm run release:evidence-package -- /path/to/release-candidate-verification.json
 `npm run verify:repo-automation` audits GitHub Actions release gates and checks that CI keeps restricted token permissions, Java/Android SDK provisioning, release automation script verification, native release checks, tests, build, bundle-size, RN bundle coverage, Android native build coverage, the macOS iOS native workflow, and PR auto-merge remains explicit opt-in through the `automerge` label.
 
 `npm run verify:web-bundle-size` checks the built web assets in `dist/assets` and fails if the studio shell loses code-splitting or any JavaScript chunk exceeds the release limit. Run `npm run build` first.
+
+`npm run verify:physical-devices -- --report-json .artifacts/physical-device-preflight.json` checks connected Android and iOS physical devices before release rehearsal. It rejects emulators, simulators, unavailable/offline/unauthorized devices, redacts raw identifiers into stable hashes, records host and device-tool evidence such as sanitized `adb version` and `xcrun xctrace version`, and writes the preflight artifact used by store-submission release-candidate gates.
 
 `npm run verify:store-release-env` checks the local store-distribution environment without building or printing secret values. It validates iOS team/profile/App Store Connect API-key inputs, Android release keystore inputs, absolute signing-file paths, rejects symlinked signing material, and keeps signing material outside the repository even after resolving real paths. Use `npm run ios:verify-release-env` or `npm run android:verify-release-env` for platform-specific checks.
 

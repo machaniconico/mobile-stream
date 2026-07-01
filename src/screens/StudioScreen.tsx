@@ -69,6 +69,7 @@ import {
   addSource,
   analyzeAvatarIllustrationAlphaMask,
   applyInferredAvatarIllustrationRig,
+  applyTextOverlayPresetStyle,
   createAvatarIllustrationLandmarkAnalysisFromPixelFeatures,
   createAvatarIllustrationLandmarkAnalysisFromDetector,
   createSource,
@@ -225,9 +226,12 @@ const textSourceContentSources: Array<{ contentSource: TextSourceContentSource; 
   { contentSource: "runtime-caption", label: "Live caption" }
 ];
 const textOverlayPresets: Array<{ presetId: TextOverlayPresetId; label: string }> = [
+  { presetId: "title", label: "Title" },
   { presetId: "subtitle", label: "Subtitle" },
   { presetId: "lower-third", label: "Lower Third" },
+  { presetId: "notice", label: "Notice" },
   { presetId: "ticker", label: "Ticker" },
+  { presetId: "badge", label: "Badge" },
   { presetId: "live-caption", label: "Live Caption" }
 ];
 const textSourceAlignments: TextSourceAlign[] = ["left", "center", "right"];
@@ -954,6 +958,32 @@ export const StudioScreen = ({
             ) : null}
             {selectedSource.kind === "text" ? (
               <>
+                <label className="field">
+                  <span>Preset style</span>
+                  <select
+                    value=""
+                    disabled={setupLocked}
+                    onChange={(event) => {
+                      const presetId = event.target.value as TextOverlayPresetId;
+                      if (!presetId) {
+                        return;
+                      }
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "text" ? applyTextOverlayPresetStyle(source, presetId) : source
+                        )
+                      );
+                      event.currentTarget.value = "";
+                    }}
+                  >
+                    <option value="">Apply preset...</option>
+                    {textOverlayPresets.map((preset) => (
+                      <option key={preset.presetId} value={preset.presetId}>
+                        {preset.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label className="field">
                   <span>{selectedSource.contentSource === "runtime-caption" ? "Fallback text" : "Text"}</span>
                   <textarea

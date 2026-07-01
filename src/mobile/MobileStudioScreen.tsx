@@ -54,6 +54,7 @@ import type { ReadinessIssue, ReadinessReport } from "../domain/readiness";
 import {
   addSource,
   applyInferredAvatarIllustrationRig,
+  applyTextOverlayPresetStyle,
   createSource,
   createTextOverlayPresetSource,
   defaultAvatarIllustrationRig,
@@ -213,9 +214,12 @@ const textSourceContentSources: Array<{ contentSource: TextSourceContentSource; 
   { contentSource: "runtime-caption", label: "Live caption" }
 ];
 const textOverlayPresets: Array<{ presetId: TextOverlayPresetId; label: string }> = [
+  { presetId: "title", label: "Title" },
   { presetId: "subtitle", label: "Subtitle" },
   { presetId: "lower-third", label: "Lower Third" },
+  { presetId: "notice", label: "Notice" },
   { presetId: "ticker", label: "Ticker" },
+  { presetId: "badge", label: "Badge" },
   { presetId: "live-caption", label: "Live Caption" }
 ];
 const textSourceAlignments: TextSourceAlign[] = ["left", "center", "right"];
@@ -1028,6 +1032,23 @@ export const MobileStudioScreen = ({
           ) : null}
           {selectedSource.kind === "text" ? (
             <>
+              <Label text="Preset style" />
+              <View style={styles.grid3}>
+                {textOverlayPresets.map((preset) => (
+                  <ActionButton
+                    key={preset.presetId}
+                    label={preset.label}
+                    disabled={setupLocked}
+                    onPress={() =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "text" ? applyTextOverlayPresetStyle(source, preset.presetId) : source
+                        )
+                      )
+                    }
+                  />
+                ))}
+              </View>
               <Label text={selectedSource.contentSource === "runtime-caption" ? "Fallback text" : "Text"} />
               <TextInput
                 value={selectedSource.text}
