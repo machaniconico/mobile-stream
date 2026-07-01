@@ -6,6 +6,7 @@ import { createFaceTrackingDiagnostics } from "./faceTrackingDiagnostics";
 import { createLive2DModelAssetReport } from "./live2dModel";
 import { createVrmModelAssetReport } from "./vrmModel";
 import { redactSecretsFromText } from "./persistencePrivacy";
+import { redactSensitiveText } from "./sensitiveText";
 
 type SceneSource = SceneDocument["sources"][number];
 type AvatarSceneSource = Extract<SceneSource, { kind: "pngtuber" | "live2d" | "vrm" }>;
@@ -544,7 +545,7 @@ const validateScene = (scene: SceneDocument, profile: StudioProfile): ReadinessI
       code: "scene-text-overlay-sensitive-content",
       severity: "error",
       field: "security",
-      message: `${names} appears to contain a stream key, OAuth token, or API credential.`
+      message: `${names} appears to contain a stream key, OAuth token, API credential, contact detail, or invite link.`
     });
   }
 
@@ -654,8 +655,15 @@ const transformOverlapRatio = (
   return smallerArea > 0 ? intersectionArea / smallerArea : 0;
 };
 
-const hasSensitiveOverlayText = (source: TextSource, profile: StudioProfile): boolean =>
-  source.text.length > 0 && redactSecretsFromText(source.text, [profile.destination.streamKey]) !== source.text;
+const hasSensitiveOverlayText = (source: TextSource, profile: StudioProfile): boolean => {
+  if (source.text.length === 0) {
+    return false;
+  }
+  return (
+    redactSecretsFromText(source.text, [profile.destination.streamKey]) !== source.text ||
+    redactSensitiveText(source.text) !== source.text
+  );
+};
 
 const validateFaceTracking = (scene: SceneDocument, profile: StudioProfile): ReadinessIssue[] => {
   const diagnostics = createFaceTrackingDiagnostics(scene, profile);

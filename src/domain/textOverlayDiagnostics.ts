@@ -176,7 +176,7 @@ const createTextOverlaySummary = ({
   sensitiveContentIssueCount: number;
 }): string => {
   if (sensitiveContentIssueCount > 0) {
-    return `${sensitiveContentIssueCount} visible text overlay${sensitiveContentIssueCount === 1 ? "" : "s"} may expose credentials.`;
+    return `${sensitiveContentIssueCount} visible text overlay${sensitiveContentIssueCount === 1 ? "" : "s"} may expose credentials or contact details.`;
   }
   if (dominantBackdropIssueCount > 0) {
     return `${dominantBackdropIssueCount} visible text overlay${dominantBackdropIssueCount === 1 ? "" : "s"} use large opaque backdrops.`;
@@ -224,7 +224,7 @@ const createTextOverlayRecommendation = ({
   sensitiveContentIssueCount: number;
 }): string => {
   if (sensitiveContentIssueCount > 0) {
-    return "Remove stream keys, OAuth tokens, callback URLs, and API credentials from visible text overlays before launch.";
+    return "Remove stream keys, OAuth tokens, callback URLs, API credentials, contact details, and invite links from visible text overlays before launch.";
   }
   if (dominantBackdropIssueCount > 0) {
     return "Reduce text backdrop opacity or size, then confirm the game screen and avatar remain visible on device.";

@@ -60,8 +60,29 @@ describe("textOverlayDiagnostics", () => {
 
     expect(diagnostics.status).toBe("fail");
     expect(diagnostics.sensitiveContentIssueCount).toBe(1);
-    expect(diagnostics.summary).toBe("1 visible text overlay may expose credentials.");
+    expect(diagnostics.summary).toBe("1 visible text overlay may expose credentials or contact details.");
     expect(diagnostics.recommendation).not.toContain("secret-stream-key-123456");
+  });
+
+  it("fails when readiness found contact details in visible text overlay content", () => {
+    const scene = updateSource(createDefaultScene(), "source-subtitle", (source) =>
+      source.kind === "text"
+        ? {
+            ...source,
+            text: "Contact viewer@example.com 090-1234-5678 discord.gg/privateRoom"
+          }
+        : source
+    );
+    const readiness = createReadinessReport(scene, createDefaultStudioProfile());
+
+    const diagnostics = createTextOverlayDiagnostics(scene, readiness);
+
+    expect(diagnostics.status).toBe("fail");
+    expect(diagnostics.sensitiveContentIssueCount).toBe(1);
+    expect(diagnostics.summary).toContain("credentials or contact details");
+    expect(diagnostics.recommendation).toContain("contact details");
+    expect(diagnostics.recommendation).toContain("invite links");
+    expect(diagnostics.recommendation).not.toContain("viewer@example.com");
   });
 
   it("warns when readiness found text over avatar overlap", () => {

@@ -641,10 +641,44 @@ describe("stream readiness", () => {
         code: "scene-text-overlay-sensitive-content",
         field: "security",
         severity: "error",
-        message: "Subtitle appears to contain a stream key, OAuth token, or API credential."
+        message: "Subtitle appears to contain a stream key, OAuth token, API credential, contact detail, or invite link."
       })
     );
     expect(JSON.stringify(report.issues)).not.toContain("secret-stream-key-123456");
+  });
+
+  it("blocks visible text overlays that would expose contact details or invite links", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "valid-stream-key"
+      }
+    };
+    const scene = updateSource(createDefaultScene(), "source-subtitle", (source) =>
+      source.kind === "text"
+        ? {
+            ...source,
+            text: "Contact viewer@example.com / 090-1234-5678 / discord.gg/privateRoom"
+          }
+        : source
+    );
+
+    const report = createReadinessReport(scene, profile);
+
+    expect(report.canStart).toBe(false);
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        code: "scene-text-overlay-sensitive-content",
+        field: "security",
+        severity: "error",
+        message: "Subtitle appears to contain a stream key, OAuth token, API credential, contact detail, or invite link."
+      })
+    );
+    expect(JSON.stringify(report.issues)).not.toContain("viewer@example.com");
+    expect(JSON.stringify(report.issues)).not.toContain("090-1234-5678");
+    expect(JSON.stringify(report.issues)).not.toContain("discord.gg/privateRoom");
   });
 
   it("ignores sensitive-looking text overlays that are hidden", () => {
