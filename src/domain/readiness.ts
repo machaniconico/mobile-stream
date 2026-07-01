@@ -30,6 +30,9 @@ const textOverlayBackgroundOpacityWarningThreshold = 0.35;
 const textOverlayDominantAreaWarningThreshold = 0.18;
 const textOverlayVeryOpaqueWarningThreshold = 0.65;
 const textOverlayVeryOpaqueAreaWarningThreshold = 0.1;
+const textOverlayMinimumReadableFontRatio = 0.022;
+const textOverlayMinimumReadableFontSize = 18;
+const textOverlayLineHeightRatio = 1.22;
 const sceneTotalSourceWarningThreshold = 24;
 const sceneVisibleSourceWarningThreshold = 12;
 const sceneVisibleOverlayWarningThreshold = 9;
@@ -443,6 +446,19 @@ const validateScene = (scene: SceneDocument, profile: StudioProfile): ReadinessI
     });
   }
 
+  const layoutRiskTextOverlays = visibleSources.filter(
+    (source): source is TextSource => source.kind === "text" && isTextOverlayLayoutRisk(source, scene)
+  );
+  if (layoutRiskTextOverlays.length > 0) {
+    const names = layoutRiskTextOverlays.map((source) => source.name).join(", ");
+    issues.push({
+      code: "scene-text-overlay-layout-risk",
+      severity: "warning",
+      field: "scene",
+      message: `${names} may clip or render unreadable text on mobile output.`
+    });
+  }
+
   const sensitiveTextOverlays = visibleSources.filter(
     (source): source is TextSource => source.kind === "text" && hasSensitiveOverlayText(source, profile)
   );
@@ -474,6 +490,22 @@ const isDominantTextOverlay = (source: TextSource): boolean => {
     return true;
   }
   return source.backgroundOpacity >= textOverlayBackgroundOpacityWarningThreshold && area >= textOverlayDominantAreaWarningThreshold;
+};
+
+const isTextOverlayLayoutRisk = (source: TextSource, scene: SceneDocument): boolean => {
+  const minReadableFontSize = Math.max(textOverlayMinimumReadableFontSize, scene.canvas.height * textOverlayMinimumReadableFontRatio);
+  if (source.fontSize < minReadableFontSize) {
+    return true;
+  }
+
+  const boxHeight = Math.max(1, source.transform.height * scene.canvas.height);
+  const boxWidth = Math.max(1, source.transform.width * scene.canvas.width);
+  const lineLimit = source.mode === "ticker" ? 1 : source.maxLines;
+  const lineHeight = source.fontSize * textOverlayLineHeightRatio;
+  const verticalSafetyPadding = Math.max(source.fontSize * 0.18, source.outlineWidth * 2);
+  const requiredHeight = lineLimit * lineHeight + verticalSafetyPadding;
+
+  return requiredHeight > boxHeight || boxWidth < source.fontSize * 4;
 };
 
 const hasSensitiveOverlayText = (source: TextSource, profile: StudioProfile): boolean =>

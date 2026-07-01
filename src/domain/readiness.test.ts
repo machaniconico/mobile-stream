@@ -322,6 +322,43 @@ describe("stream readiness", () => {
     );
   });
 
+  it("warns when a visible text overlay may clip or render unreadably on mobile output", () => {
+    const scene = updateSource(createDefaultScene(), "source-subtitle", (source) =>
+      source.kind === "text"
+        ? {
+            ...source,
+            fontSize: 82,
+            maxLines: 3,
+            transform: {
+              ...source.transform,
+              width: 0.2,
+              height: 0.08
+            }
+          }
+        : source
+    );
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "dummy-stream-value"
+      }
+    };
+
+    const report = createReadinessReport(scene, profile);
+
+    expect(report.canStart).toBe(true);
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        code: "scene-text-overlay-layout-risk",
+        field: "scene",
+        severity: "warning",
+        message: expect.stringContaining("may clip or render unreadable")
+      })
+    );
+  });
+
   it("warns when a mobile production scene has too many visible overlays", () => {
     const profile = {
       ...createDefaultStudioProfile(),

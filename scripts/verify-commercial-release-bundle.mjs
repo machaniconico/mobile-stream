@@ -421,6 +421,7 @@ function textOverlayEvidenceIssue(bundle) {
     isNonNegativeInteger(summary.textOverlayEmptyVisibleManualSourceCount) &&
     isNonNegativeInteger(summary.textOverlaySensitiveContentIssueCount) &&
     isNonNegativeInteger(summary.textOverlayDominantBackdropIssueCount) &&
+    isNonNegativeInteger(summary.textOverlayLayoutRiskIssueCount) &&
     typeof summary.textOverlaySummary === "string" &&
     summary.textOverlaySummary.trim().length > 0 &&
     typeof summary.textOverlayRecommendation === "string" &&
@@ -447,7 +448,8 @@ function textOverlayEvidenceIssue(bundle) {
   if (
     status === "warn" ||
     number(summary.textOverlayEmptyVisibleManualSourceCount) > 0 ||
-    number(summary.textOverlayDominantBackdropIssueCount) > 0
+    number(summary.textOverlayDominantBackdropIssueCount) > 0 ||
+    number(summary.textOverlayLayoutRiskIssueCount) > 0
   ) {
     return warn(
       "text-overlay-evidence-warning",

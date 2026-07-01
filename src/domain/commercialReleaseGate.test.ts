@@ -1800,6 +1800,7 @@ const supportBundle = ({
       textOverlayTransparentVisibleSourceCount: 1,
       textOverlaySensitiveContentIssueCount: 0,
       textOverlayDominantBackdropIssueCount: 0,
+      textOverlayLayoutRiskIssueCount: 0,
       textOverlayLabelSourceCount: 1,
       textOverlaySubtitleSourceCount: 1,
       textOverlayTickerSourceCount: 0,

@@ -413,6 +413,7 @@ export interface SupportBundle {
     textOverlayTransparentVisibleSourceCount: number;
     textOverlaySensitiveContentIssueCount: number;
     textOverlayDominantBackdropIssueCount: number;
+    textOverlayLayoutRiskIssueCount: number;
     textOverlayLabelSourceCount: number;
     textOverlaySubtitleSourceCount: number;
     textOverlayTickerSourceCount: number;
@@ -1088,6 +1089,7 @@ export const createSupportBundle = ({
       textOverlayTransparentVisibleSourceCount: diagnostics.textOverlay.transparentVisibleSourceCount,
       textOverlaySensitiveContentIssueCount: diagnostics.textOverlay.sensitiveContentIssueCount,
       textOverlayDominantBackdropIssueCount: diagnostics.textOverlay.dominantBackdropIssueCount,
+      textOverlayLayoutRiskIssueCount: diagnostics.textOverlay.layoutRiskIssueCount,
       textOverlayLabelSourceCount: diagnostics.textOverlay.modeCounts.label,
       textOverlaySubtitleSourceCount: diagnostics.textOverlay.modeCounts.subtitle,
       textOverlayTickerSourceCount: diagnostics.textOverlay.modeCounts.ticker,
@@ -1343,7 +1345,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Face tracking: ${bundle.summary.faceTrackingStatus} / runtime ${bundle.summary.faceTrackingRuntimeStatus} / age ${bundle.summary.faceTrackingRuntimeAgeMs === null ? "-" : `${bundle.summary.faceTrackingRuntimeAgeMs} ms`} / fresh ${bundle.summary.faceTrackingRuntimeFresh ? "yes" : "no"} / landmarks ${Math.round(bundle.summary.faceTrackingFaceLandmarkConfidence * 100)}% ${bundle.summary.faceTrackingFaceLandmarkReady ? "ready" : "not-ready"} / prepared PNGTuber ${bundle.summary.faceTrackingPreparedPngTuberCount} / VRM ${bundle.summary.faceTrackingVisibleVrmCount} renderer ${bundle.summary.faceTrackingNativeVrmRendererReady ? "ready" : "not-ready"} / moving ${bundle.summary.faceTrackingActiveMotionCount} / rig quality ${bundle.summary.faceTrackingRigQualityScore}/100 ${bundle.summary.faceTrackingRigQualityGrade} / rig high fidelity ${bundle.summary.faceTrackingRigHighFidelityScore}/100 ${bundle.summary.faceTrackingRigHighFidelityGrade} / parts ${bundle.summary.faceTrackingRigPartSeparationScore}/100 / depth ${bundle.summary.faceTrackingRigDepthContinuityScore}/100 / semantic ${bundle.summary.faceTrackingRigSemanticSegmentScore}/100 / eye-mouth ${bundle.summary.faceTrackingRigEyeMouthSegmentScore}/100 / rig issues ${bundle.summary.faceTrackingRigIssueCount}`,
     `- Face tracking rig: ${bundle.summary.faceTrackingRigIssueSummary}`,
     `- Face tracking recommendation: ${bundle.summary.faceTrackingRecommendation}`,
-    `- Text overlays: ${bundle.summary.textOverlayStatus} / visible ${bundle.summary.textOverlayVisibleSourceCount}/${bundle.summary.textOverlaySourceCount} / manual ${bundle.summary.textOverlayVisibleManualSourceCount}/${bundle.summary.textOverlayManualSourceCount} / live-caption ${bundle.summary.textOverlayVisibleRuntimeCaptionSourceCount}/${bundle.summary.textOverlayRuntimeCaptionSourceCount} / transparent ${bundle.summary.textOverlayTransparentVisibleSourceCount} / empty manual ${bundle.summary.textOverlayEmptyVisibleManualSourceCount} / sensitive ${bundle.summary.textOverlaySensitiveContentIssueCount} / dominant backdrop ${bundle.summary.textOverlayDominantBackdropIssueCount}`,
+    `- Text overlays: ${bundle.summary.textOverlayStatus} / visible ${bundle.summary.textOverlayVisibleSourceCount}/${bundle.summary.textOverlaySourceCount} / manual ${bundle.summary.textOverlayVisibleManualSourceCount}/${bundle.summary.textOverlayManualSourceCount} / live-caption ${bundle.summary.textOverlayVisibleRuntimeCaptionSourceCount}/${bundle.summary.textOverlayRuntimeCaptionSourceCount} / transparent ${bundle.summary.textOverlayTransparentVisibleSourceCount} / empty manual ${bundle.summary.textOverlayEmptyVisibleManualSourceCount} / sensitive ${bundle.summary.textOverlaySensitiveContentIssueCount} / dominant backdrop ${bundle.summary.textOverlayDominantBackdropIssueCount} / layout risk ${bundle.summary.textOverlayLayoutRiskIssueCount}`,
     `- Text overlay modes: label ${bundle.summary.textOverlayLabelSourceCount} / subtitle ${bundle.summary.textOverlaySubtitleSourceCount} / ticker ${bundle.summary.textOverlayTickerSourceCount} / caption ${bundle.summary.textOverlayCaptionSourceCount}`,
     `- Text overlay summary: ${bundle.summary.textOverlaySummary}`,
     `- Text overlay recommendation: ${bundle.summary.textOverlayRecommendation}`,

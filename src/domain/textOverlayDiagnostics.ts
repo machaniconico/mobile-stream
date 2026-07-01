@@ -14,6 +14,7 @@ export interface TextOverlayDiagnostics {
   emptyVisibleManualSourceCount: number;
   transparentVisibleSourceCount: number;
   dominantBackdropIssueCount: number;
+  layoutRiskIssueCount: number;
   sensitiveContentIssueCount: number;
   modeCounts: Record<TextSourceMode, number>;
   summary: string;
@@ -35,6 +36,9 @@ export const createTextOverlayDiagnostics = (
   const dominantBackdropIssueCount = readiness.issues.filter(
     (issue) => issue.code === "scene-text-overlay-background-dominant"
   ).length;
+  const layoutRiskIssueCount = readiness.issues.filter(
+    (issue) => issue.code === "scene-text-overlay-layout-risk"
+  ).length;
   const sensitiveContentIssueCount = readiness.issues.filter(
     (issue) => issue.code === "scene-text-overlay-sensitive-content"
   ).length;
@@ -54,6 +58,7 @@ export const createTextOverlayDiagnostics = (
     visibleSourceCount: visibleTextSources.length,
     emptyVisibleManualSourceCount: emptyVisibleManualSources.length,
     dominantBackdropIssueCount,
+    layoutRiskIssueCount,
     sensitiveContentIssueCount
   });
 
@@ -68,6 +73,7 @@ export const createTextOverlayDiagnostics = (
     emptyVisibleManualSourceCount: emptyVisibleManualSources.length,
     transparentVisibleSourceCount: transparentVisibleSources.length,
     dominantBackdropIssueCount,
+    layoutRiskIssueCount,
     sensitiveContentIssueCount,
     modeCounts,
     summary: createTextOverlaySummary({
@@ -78,6 +84,7 @@ export const createTextOverlayDiagnostics = (
       visibleRuntimeCaptionSourceCount: visibleRuntimeCaptionSources.length,
       emptyVisibleManualSourceCount: emptyVisibleManualSources.length,
       dominantBackdropIssueCount,
+      layoutRiskIssueCount,
       sensitiveContentIssueCount
     }),
     recommendation: createTextOverlayRecommendation({
@@ -86,6 +93,7 @@ export const createTextOverlayDiagnostics = (
       visibleSourceCount: visibleTextSources.length,
       emptyVisibleManualSourceCount: emptyVisibleManualSources.length,
       dominantBackdropIssueCount,
+      layoutRiskIssueCount,
       sensitiveContentIssueCount
     })
   };
@@ -95,17 +103,19 @@ const createTextOverlayStatus = ({
   visibleSourceCount,
   emptyVisibleManualSourceCount,
   dominantBackdropIssueCount,
+  layoutRiskIssueCount,
   sensitiveContentIssueCount
 }: {
   visibleSourceCount: number;
   emptyVisibleManualSourceCount: number;
   dominantBackdropIssueCount: number;
+  layoutRiskIssueCount: number;
   sensitiveContentIssueCount: number;
 }): TextOverlayDiagnosticStatus => {
   if (sensitiveContentIssueCount > 0) {
     return "fail";
   }
-  if (dominantBackdropIssueCount > 0 || emptyVisibleManualSourceCount > 0) {
+  if (dominantBackdropIssueCount > 0 || layoutRiskIssueCount > 0 || emptyVisibleManualSourceCount > 0) {
     return "warn";
   }
   if (visibleSourceCount > 0) {
@@ -122,6 +132,7 @@ const createTextOverlaySummary = ({
   visibleRuntimeCaptionSourceCount,
   emptyVisibleManualSourceCount,
   dominantBackdropIssueCount,
+  layoutRiskIssueCount,
   sensitiveContentIssueCount
 }: {
   status: TextOverlayDiagnosticStatus;
@@ -131,6 +142,7 @@ const createTextOverlaySummary = ({
   visibleRuntimeCaptionSourceCount: number;
   emptyVisibleManualSourceCount: number;
   dominantBackdropIssueCount: number;
+  layoutRiskIssueCount: number;
   sensitiveContentIssueCount: number;
 }): string => {
   if (sensitiveContentIssueCount > 0) {
@@ -138,6 +150,9 @@ const createTextOverlaySummary = ({
   }
   if (dominantBackdropIssueCount > 0) {
     return `${dominantBackdropIssueCount} visible text overlay${dominantBackdropIssueCount === 1 ? "" : "s"} use large opaque backdrops.`;
+  }
+  if (layoutRiskIssueCount > 0) {
+    return `${layoutRiskIssueCount} visible text overlay${layoutRiskIssueCount === 1 ? "" : "s"} may clip or be unreadable on mobile output.`;
   }
   if (emptyVisibleManualSourceCount > 0) {
     return `${emptyVisibleManualSourceCount} visible manual text overlay${emptyVisibleManualSourceCount === 1 ? "" : "s"} are empty.`;
@@ -157,6 +172,7 @@ const createTextOverlayRecommendation = ({
   visibleSourceCount,
   emptyVisibleManualSourceCount,
   dominantBackdropIssueCount,
+  layoutRiskIssueCount,
   sensitiveContentIssueCount
 }: {
   status: TextOverlayDiagnosticStatus;
@@ -164,6 +180,7 @@ const createTextOverlayRecommendation = ({
   visibleSourceCount: number;
   emptyVisibleManualSourceCount: number;
   dominantBackdropIssueCount: number;
+  layoutRiskIssueCount: number;
   sensitiveContentIssueCount: number;
 }): string => {
   if (sensitiveContentIssueCount > 0) {
@@ -171,6 +188,9 @@ const createTextOverlayRecommendation = ({
   }
   if (dominantBackdropIssueCount > 0) {
     return "Reduce text backdrop opacity or size, then confirm the game screen and avatar remain visible on device.";
+  }
+  if (layoutRiskIssueCount > 0) {
+    return "Increase the text box, reduce font size or max lines, then verify subtitles and labels on a target phone screen.";
   }
   if (emptyVisibleManualSourceCount > 0) {
     return "Fill or hide empty manual text overlays before exporting launch evidence.";

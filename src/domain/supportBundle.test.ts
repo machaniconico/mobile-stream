@@ -395,6 +395,7 @@ describe("support bundle", () => {
     expect(bundle.summary.textOverlayVisibleManualSourceCount).toBe(2);
     expect(bundle.summary.textOverlayEmptyVisibleManualSourceCount).toBe(0);
     expect(bundle.summary.textOverlaySensitiveContentIssueCount).toBe(0);
+    expect(bundle.summary.textOverlayLayoutRiskIssueCount).toBe(0);
     expect(bundle.summary.textOverlaySubtitleSourceCount).toBe(1);
     expect(bundle.summary.liveCaptionStatus).toBe("info");
     expect(bundle.summary.liveCaptionEnabled).toBe(false);
@@ -433,7 +434,7 @@ describe("support bundle", () => {
       "rig high fidelity 100/100 ready / parts 100/100 / depth 100/100 / semantic 100/100 / eye-mouth 100/100"
     );
     expect(formatSupportBundle(bundle)).toContain(
-      "Text overlays: pass / visible 2/2 / manual 2/2 / live-caption 0/0 / transparent 1 / empty manual 0 / sensitive 0 / dominant backdrop 0"
+      "Text overlays: pass / visible 2/2 / manual 2/2 / live-caption 0/0 / transparent 1 / empty manual 0 / sensitive 0 / dominant backdrop 0 / layout risk 0"
     );
     expect(formatSupportBundle(bundle)).toContain("Text overlay modes: label 1 / subtitle 1 / ticker 0 / caption 0");
     expect(formatSupportBundle(bundle)).toContain(

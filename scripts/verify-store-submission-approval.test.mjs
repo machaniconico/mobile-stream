@@ -437,6 +437,7 @@ function writeSupportBundleFixture() {
           textOverlayTransparentVisibleSourceCount: 1,
           textOverlaySensitiveContentIssueCount: 0,
           textOverlayDominantBackdropIssueCount: 0,
+          textOverlayLayoutRiskIssueCount: 0,
           textOverlaySummary: "2/2 text overlays visible.",
           textOverlayRecommendation: "Keep text overlays unchanged.",
           liveCaptionStatus: "info",

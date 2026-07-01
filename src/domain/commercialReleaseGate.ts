@@ -312,6 +312,7 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
     isNonNegativeInteger(summary.textOverlayEmptyVisibleManualSourceCount) &&
     isNonNegativeInteger(summary.textOverlaySensitiveContentIssueCount) &&
     isNonNegativeInteger(summary.textOverlayDominantBackdropIssueCount) &&
+    isNonNegativeInteger(summary.textOverlayLayoutRiskIssueCount) &&
     typeof summary.textOverlaySummary === "string" &&
     summary.textOverlaySummary.trim().length > 0 &&
     typeof summary.textOverlayRecommendation === "string" &&
@@ -338,7 +339,8 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
   if (
     status === "warn" ||
     (summary.textOverlayEmptyVisibleManualSourceCount ?? 0) > 0 ||
-    (summary.textOverlayDominantBackdropIssueCount ?? 0) > 0
+    (summary.textOverlayDominantBackdropIssueCount ?? 0) > 0 ||
+    (summary.textOverlayLayoutRiskIssueCount ?? 0) > 0
   ) {
     return warnIssue(
       "text-overlay-evidence-warning",
