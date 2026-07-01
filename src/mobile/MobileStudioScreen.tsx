@@ -62,6 +62,7 @@ import {
   defaultAvatarMotion,
   hideTextOverlays,
   quickTextOverlayPresetGroups,
+  queueTimedTextOverlay,
   reorderSource,
   setLocked,
   setVisibility,
@@ -491,6 +492,7 @@ export const MobileStudioScreen = ({
   const [textOverlayClock, setTextOverlayClock] = useState(() => Date.now());
   const [quickSubtitleText, setQuickSubtitleText] = useState("");
   const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
+  const canQueueQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canPinQuickText = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canHideManualTextOverlay =
     !quickSubtitleLocked &&
@@ -512,6 +514,22 @@ export const MobileStudioScreen = ({
     const nowMs = Date.now();
     onSceneChange(
       showTimedTextOverlay(scene, {
+        sourceId: selectedManualTextSourceId,
+        text: quickSubtitleText,
+        durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
+        nowMs
+      })
+    );
+    setQuickSubtitleText("");
+    setTextOverlayClock(nowMs);
+  };
+  const queueQuickSubtitle = () => {
+    if (!canQueueQuickSubtitle) {
+      return;
+    }
+    const nowMs = Date.now();
+    onSceneChange(
+      queueTimedTextOverlay(scene, {
         sourceId: selectedManualTextSourceId,
         text: quickSubtitleText,
         durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
@@ -998,6 +1016,7 @@ export const MobileStudioScreen = ({
             </View>
             <View style={styles.quickSubtitleActions}>
               <ActionButton label="Show subtitle" disabled={!canShowQuickSubtitle} onPress={showQuickSubtitle} />
+              <ActionButton label="Queue subtitle" disabled={!canQueueQuickSubtitle} onPress={queueQuickSubtitle} />
               <ActionButton label="Pin text" disabled={!canPinQuickText} onPress={pinQuickText} />
               <ActionButton label="Hide text" disabled={!canHideManualTextOverlay} onPress={hideManualTextOverlay} />
             </View>

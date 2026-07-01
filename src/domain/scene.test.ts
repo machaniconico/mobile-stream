@@ -25,6 +25,7 @@ import {
   normalizeSceneDocument,
   quickTextOverlayPresets,
   quickTextOverlayPresetGroups,
+  queueTimedTextOverlay,
   reorderSource,
   selectQuickTextOverlayPreset,
   selectActiveScene,
@@ -691,11 +692,13 @@ describe("scene document", () => {
     const scene = addSource(createDefaultScene(), text);
     const inactiveGraph = toRenderGraph(scene, { nowMs });
     const activeScene = activateTimedTextSource(scene, text.id, nowMs);
+    const futureGraph = toRenderGraph(activeScene, { nowMs: nowMs - 1000 });
     const activeGraph = toRenderGraph(activeScene, { nowMs: nowMs + 3000 });
     const expiredGraph = toRenderGraph(activeScene, { nowMs: nowMs + 6000 });
     const activeNode = activeGraph.find((node) => node.id === text.id);
 
     expect(inactiveGraph.some((node) => node.id === text.id)).toBe(false);
+    expect(futureGraph.some((node) => node.id === text.id)).toBe(false);
     expect(activeNode?.payload).toMatchObject({
       visibilityMode: "timed",
       displayDurationMs: 5000,
@@ -736,6 +739,85 @@ describe("scene document", () => {
       remainingMs: 2000
     });
     expect(toRenderGraph(nextScene, { nowMs: nowMs + 4000 }).some((node) => node.id === quickSubtitle?.id)).toBe(false);
+  });
+
+  it("queues timed subtitles after the current timed text window", () => {
+    const nowMs = 92000;
+    const sceneWithActiveSubtitle = showTimedTextOverlay(createDefaultScene(), {
+      text: "first subtitle",
+      durationMs: 4000,
+      nowMs
+    });
+    const queuedScene = queueTimedTextOverlay(sceneWithActiveSubtitle, {
+      text: "second subtitle",
+      durationMs: 3000,
+      nowMs: nowMs + 1000
+    });
+    const quickSubtitle = queuedScene.sources.find((source) => source.kind === "text" && source.name === "Quick Subtitle");
+    const queuedSubtitle = queuedScene.sources.find((source) => source.kind === "text" && source.name === "Queued Subtitle");
+    const beforeQueuedGraph = toRenderGraph(queuedScene, { nowMs: nowMs + 3500 });
+    const queuedGraph = toRenderGraph(queuedScene, { nowMs: nowMs + 5000 });
+    const expiredGraph = toRenderGraph(queuedScene, { nowMs: nowMs + 7200 });
+    const queuedNode = queuedGraph.find((node) => node.id === queuedSubtitle?.id);
+
+    expect(queuedSubtitle).toMatchObject({
+      kind: "text",
+      name: "Queued Subtitle",
+      text: "second subtitle",
+      visibilityMode: "timed",
+      displayDurationMs: 3000,
+      activatedAtMs: nowMs + 4000
+    });
+    expect(beforeQueuedGraph.some((node) => node.id === quickSubtitle?.id)).toBe(true);
+    expect(beforeQueuedGraph.some((node) => node.id === queuedSubtitle?.id)).toBe(false);
+    expect(queuedGraph.some((node) => node.id === quickSubtitle?.id)).toBe(false);
+    expect(queuedNode?.payload).toMatchObject({
+      text: "second subtitle",
+      remainingMs: 2000
+    });
+    expect(expiredGraph.some((node) => node.id === queuedSubtitle?.id)).toBe(false);
+  });
+
+  it("chains multiple queued subtitles and omits queued runtime text from persistence", () => {
+    const nowMs = 93000;
+    const first = showTimedTextOverlay(createDefaultScene(), {
+      text: "first subtitle",
+      durationMs: 2000,
+      nowMs
+    });
+    const second = queueTimedTextOverlay(first, {
+      text: "second subtitle",
+      durationMs: 3000,
+      nowMs: nowMs + 500
+    });
+    const third = queueTimedTextOverlay(second, {
+      text: "third subtitle",
+      durationMs: 4000,
+      nowMs: nowMs + 1000
+    });
+    const queuedSubtitles = third.sources.flatMap((source) =>
+      source.kind === "text" && source.name === "Queued Subtitle" ? [source] : []
+    );
+    const thirdNode = toRenderGraph(third, { nowMs: nowMs + 5600 }).find((node) => node.id === queuedSubtitles[1]?.id);
+    const manuallyNamedQueuedText = {
+      ...createTextOverlayPresetSource("notice"),
+      id: "manual-queued-name",
+      name: "Queued Subtitle",
+      visibilityMode: "timed" as const,
+      activatedAtMs: nowMs + 1200
+    };
+    const persisted = stripTransientSceneRuntime(addSource(third, manuallyNamedQueuedText));
+
+    expect(queuedSubtitles.map((source) => source.activatedAtMs)).toEqual([nowMs + 2000, nowMs + 5000]);
+    expect(thirdNode?.payload).toMatchObject({
+      text: "third subtitle",
+      remainingMs: 3400
+    });
+    expect(persisted.sources.some((source) => source.id.startsWith("source-queued-subtitle-"))).toBe(false);
+    expect(persisted.sources.find((source) => source.id === "manual-queued-name")).toMatchObject({
+      name: "Queued Subtitle",
+      activatedAtMs: 0
+    });
   });
 
   it("reuses the quick subtitle source and redacts sensitive quick text in render output", () => {

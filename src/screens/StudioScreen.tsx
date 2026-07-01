@@ -79,6 +79,7 @@ import {
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
   quickTextOverlayPresetGroups,
+  queueTimedTextOverlay,
   reorderSource,
   setLocked,
   setVisibility,
@@ -543,6 +544,7 @@ export const StudioScreen = ({
   const [quickSubtitleText, setQuickSubtitleText] = useState("");
   const quickSubtitleLocked = isBusy || operationBusy || platformApiBusy;
   const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
+  const canQueueQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canPinQuickText = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canHideManualTextOverlay =
     !quickSubtitleLocked &&
@@ -572,6 +574,22 @@ export const StudioScreen = ({
     const nowMs = Date.now();
     onSceneChange(
       showTimedTextOverlay(scene, {
+        sourceId: selectedManualTextSourceId,
+        text: quickSubtitleText,
+        durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
+        nowMs
+      })
+    );
+    setQuickSubtitleText("");
+    setTextOverlayClock(nowMs);
+  };
+  const queueQuickSubtitle = () => {
+    if (!canQueueQuickSubtitle) {
+      return;
+    }
+    const nowMs = Date.now();
+    onSceneChange(
+      queueTimedTextOverlay(scene, {
         sourceId: selectedManualTextSourceId,
         text: quickSubtitleText,
         durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
@@ -976,6 +994,10 @@ export const StudioScreen = ({
               <button className="secondary-action" type="button" disabled={!canShowQuickSubtitle} onClick={showQuickSubtitle}>
                 <MessageCircle size={18} />
                 <span>Show subtitle</span>
+              </button>
+              <button className="secondary-action" type="button" disabled={!canQueueQuickSubtitle} onClick={queueQuickSubtitle}>
+                <Plus size={18} />
+                <span>Queue subtitle</span>
               </button>
               <button className="secondary-action" type="button" disabled={!canPinQuickText} onClick={pinQuickText}>
                 <Pin size={18} />

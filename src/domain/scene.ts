@@ -364,6 +364,7 @@ const textOverlayMinimumDisplayDurationMs = 1000;
 const textOverlayMaximumDisplayDurationMs = 60000;
 const textOverlayDefaultDisplayDurationMs = 5000;
 const quickSubtitleSourceName = "Quick Subtitle";
+const queuedSubtitleSourceName = "Queued Subtitle";
 const pinnedTextSourceName = "Pinned Text";
 
 export const quickTextOverlayPresets: readonly QuickTextOverlayPreset[] = [
@@ -1682,6 +1683,49 @@ export const showQuickTextOverlayPreset = (
   });
 };
 
+export const queueTimedTextOverlay = (
+  scene: SceneDocument,
+  request: TimedTextOverlayRequest
+): SceneDocument => {
+  const text = serializeTextOverlayLines(request.text, 4).join("\n");
+  if (!text) {
+    return scene;
+  }
+
+  const nowMs = Math.max(0, Math.round(finiteNumber(request.nowMs, Date.now())));
+  const displayDurationMs = Math.round(
+    clampRange(
+      finiteNumber(request.durationMs, textOverlayDefaultDisplayDurationMs),
+      textOverlayMinimumDisplayDurationMs,
+      textOverlayMaximumDisplayDurationMs
+    )
+  );
+  const requestedSource = request.sourceId
+    ? scene.sources.find((source): source is TextSource => source.kind === "text" && source.id === request.sourceId)
+    : null;
+  const baseSource =
+    requestedSource?.contentSource === "manual"
+      ? request.presetId
+        ? applyTextOverlayPresetStyle(requestedSource, request.presetId)
+        : requestedSource
+      : createTextOverlayPresetSource(request.presetId ?? "subtitle");
+  const activatedAtMs = selectNextQueuedTextOverlayStartMs(scene, nowMs);
+  const source: TextSource = {
+    ...baseSource,
+    id: makeId("source-queued-subtitle"),
+    name: queuedSubtitleSourceName,
+    text,
+    visible: true,
+    locked: false,
+    contentSource: "manual",
+    visibilityMode: "timed",
+    displayDurationMs,
+    activatedAtMs
+  };
+
+  return addSource(scene, source);
+};
+
 export const showPersistentTextOverlay = (
   scene: SceneDocument,
   request: PersistentTextOverlayRequest
@@ -1866,7 +1910,7 @@ export const normalizeSceneCollection = (value: unknown): SceneCollection => {
 
 export const stripTransientSceneRuntime = (scene: SceneDocument): SceneDocument => ({
   ...scene,
-  sources: scene.sources.map((source) => {
+  sources: scene.sources.filter((source) => !isQueuedTextOverlaySource(source)).map((source) => {
     if (source.kind === "text") {
       return source.activatedAtMs > 0 ? { ...source, activatedAtMs: 0 } : source;
     }
@@ -2489,9 +2533,27 @@ const textSourceRemainingMs = (source: TextSource, nowMs: number): number => {
   if (source.activatedAtMs <= 0) {
     return 0;
   }
+  if (nowMs < source.activatedAtMs) {
+    return 0;
+  }
   const endMs = source.activatedAtMs + source.displayDurationMs;
   return Math.max(0, Math.round(endMs - nowMs));
 };
+
+const selectNextQueuedTextOverlayStartMs = (scene: SceneDocument, nowMs: number): number => {
+  const activeOrQueuedEndMs = scene.sources
+    .filter((source): source is TextSource => source.kind === "text")
+    .filter((source) => source.visible && source.contentSource === "manual" && source.visibilityMode === "timed")
+    .map((source) =>
+      source.activatedAtMs > 0 ? source.activatedAtMs + Math.max(0, Math.round(source.displayDurationMs)) : 0
+    )
+    .filter((endMs) => endMs > nowMs);
+
+  return activeOrQueuedEndMs.length > 0 ? Math.max(...activeOrQueuedEndMs) : nowMs;
+};
+
+const isQueuedTextOverlaySource = (source: SceneSource): boolean =>
+  source.kind === "text" && source.id.startsWith("source-queued-subtitle-");
 
 const serializeTextOverlayLines = (value: string, maxLines: number): string[] => {
   const lineLimit = Math.round(clampRange(finiteNumber(maxLines, 1), 1, 4));
