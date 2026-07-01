@@ -1380,6 +1380,35 @@ describe("stream start preflight", () => {
     expect(report.blocks.map((issue) => issue.code)).toContain("publishing-youtube-status-stale");
   });
 
+  it("blocks public YouTube starts when dashboard status timestamp is too far in the future", () => {
+    const profile = {
+      ...validProfile(),
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "public" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "stream-id",
+        youtubeBroadcastStatus: "testing",
+        youtubeStatusCheckedAt: "2026-06-23T01:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.status).toBe("blocked");
+    expect(report.blocks.map((issue) => issue.code)).toContain("publishing-youtube-status-invalid");
+  });
+
   it("blocks platform-visible YouTube launches without a bound broadcast after validation is ready", () => {
     const profile = {
       ...validProfile(),

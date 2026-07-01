@@ -99,6 +99,7 @@ export interface StreamStartPreflightInput {
 }
 
 export const platformPublishingStatusMaxAgeMinutes = 10;
+const platformPublishingStatusFutureSkewToleranceMs = 2 * 60 * 1000;
 
 export const createStreamStartPreflightReport = ({
   readiness,
@@ -896,6 +897,16 @@ const createStatusFreshnessIssue = (
   const checkedTimestamp = Date.parse(checkedAt);
   const nowTimestamp = now.getTime();
   if (!Number.isFinite(checkedTimestamp) || !Number.isFinite(nowTimestamp)) {
+    return {
+      code: `publishing-${platform}-status-invalid`,
+      severity,
+      area: "publishing",
+      label,
+      message: `${platformName} dashboard status timestamp is invalid.`,
+      recommendation: `Refresh ${platformName} status before starting a production stream.`
+    };
+  }
+  if (checkedTimestamp - nowTimestamp > platformPublishingStatusFutureSkewToleranceMs) {
     return {
       code: `publishing-${platform}-status-invalid`,
       severity,
