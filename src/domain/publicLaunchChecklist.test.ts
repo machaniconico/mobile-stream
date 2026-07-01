@@ -118,6 +118,19 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
     connectionLabel: "YouTube Live chat",
     connectionMessage: "YouTube Live chat is connected."
   },
+  liveCaption: {
+    status: "pass",
+    enabled: true,
+    recognitionStatus: "listening",
+    language: "ja-JP",
+    runtimeSourceCount: 1,
+    visibleRuntimeSourceCount: 1,
+    activeCueCount: 1,
+    finalCueCount: 1,
+    transcriptCount: 1,
+    summary: "1 final live caption cue is active in the program overlay.",
+    recommendation: "Keep the live caption source visible and verify captions again during private rehearsal."
+  },
   platformPublishing: {
     platform: "youtube-live",
     status: "pass",
@@ -194,7 +207,7 @@ describe("public launch checklist", () => {
     expect(checklist.status).toBe("ready");
     expect(checklist.canStart).toBe(true);
     expect(checklist.startLock).toMatchObject({ applies: true, blocked: false });
-    expect(checklist.passCount).toBe(7);
+    expect(checklist.passCount).toBe(8);
     expect(checklist.summary).toBe("Public launch checklist is ready.");
   });
 
@@ -277,6 +290,80 @@ describe("public launch checklist", () => {
     expect(checklist.items.find((item) => item.id === "chat-readout")).toMatchObject({
       status: "warn",
       detail: "Chat readout URL redaction is turned off."
+    });
+  });
+
+  it("surfaces live caption issues as a dedicated public checklist item", () => {
+    const liveCaptionWarning: StreamStartPreflightReport["warnings"][number] = {
+      code: "live-caption-warn",
+      severity: "warning",
+      area: "scene",
+      label: "Live captions",
+      message: "Live captions are listening, but no final caption cue has been confirmed in this session.",
+      recommendation: "Speak a short test phrase before public launch."
+    };
+    const diagnostics = readyDiagnostics();
+    const checklist = createPublicLaunchChecklist({
+      preflight: {
+        ...readyPreflight,
+        status: "warning",
+        warnings: [liveCaptionWarning],
+        issues: [liveCaptionWarning]
+      },
+      diagnostics: {
+        ...diagnostics,
+        liveCaption: {
+          ...diagnostics.liveCaption,
+          status: "warn",
+          finalCueCount: 0,
+          transcriptCount: 0,
+          summary: liveCaptionWarning.message,
+          recommendation: liveCaptionWarning.recommendation
+        }
+      },
+      platformPublishingFreshness: freshDashboard,
+      profile: youtubePublicProfile()
+    });
+
+    expect(checklist.status).toBe("warning");
+    expect(checklist.canStart).toBe(false);
+    expect(checklist.items.find((item) => item.id === "destination")).toMatchObject({
+      status: "pass"
+    });
+    expect(checklist.items.find((item) => item.id === "live-captions")).toMatchObject({
+      status: "warn",
+      detail: liveCaptionWarning.message,
+      action: "Speak a short test phrase before public launch."
+    });
+  });
+
+  it("does not warn public launches when live captions are intentionally disabled", () => {
+    const diagnostics = readyDiagnostics();
+    const checklist = createPublicLaunchChecklist({
+      preflight: readyPreflight,
+      diagnostics: {
+        ...diagnostics,
+        liveCaption: {
+          ...diagnostics.liveCaption,
+          status: "info",
+          enabled: false,
+          recognitionStatus: "idle",
+          activeCueCount: 0,
+          finalCueCount: 0,
+          transcriptCount: 0,
+          summary: "Live captions are disabled.",
+          recommendation: "Enable live captions and add a Live Caption text source when subtitles are part of the launch plan."
+        }
+      },
+      platformPublishingFreshness: freshDashboard,
+      profile: youtubePublicProfile()
+    });
+
+    expect(checklist.status).toBe("ready");
+    expect(checklist.canStart).toBe(true);
+    expect(checklist.items.find((item) => item.id === "live-captions")).toMatchObject({
+      status: "pass",
+      detail: "Live captions are disabled."
     });
   });
 

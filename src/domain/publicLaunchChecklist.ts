@@ -14,6 +14,7 @@ export type PublicLaunchChecklistItemId =
   | "avatar-tracking"
   | "platform-dashboard"
   | "chat-readout"
+  | "live-captions"
   | "mic-monitor"
   | "commercial-evidence"
   | "engine";
@@ -52,6 +53,7 @@ export interface PublicLaunchChecklistInput {
     | "audio"
     | "faceTracking"
     | "chatReadout"
+    | "liveCaption"
     | "platformPublishing"
     | "validation"
     | "validationRunbook"
@@ -71,6 +73,7 @@ export const createPublicLaunchChecklist = ({
     createAvatarTrackingItem(preflight, diagnostics),
     createPlatformDashboardItem(preflight, diagnostics, platformPublishingFreshness),
     createChatReadoutItem(preflight, diagnostics),
+    createLiveCaptionItem(preflight, diagnostics),
     createMicMonitorItem(preflight, diagnostics),
     createCommercialEvidenceItem(preflight, diagnostics),
     createEngineItem(preflight, diagnostics, profile)
@@ -130,7 +133,11 @@ const createDestinationItem = (
   preflight: StreamStartPreflightReport,
   diagnostics: PublicLaunchChecklistInput["diagnostics"]
 ): PublicLaunchChecklistItem => {
-  const issue = findMostSevereIssue(preflight, ["destination", "security", "quality", "scene"]);
+  const issue = findMostSevereIssue(
+    preflight,
+    ["destination", "security", "quality", "scene"],
+    (candidate) => !isLiveCaptionIssue(candidate)
+  );
   if (issue) {
     return issueItem("destination", "Destination and scene", issue);
   }
@@ -141,6 +148,55 @@ const createDestinationItem = (
     label: "Destination and scene",
     detail: `${diagnostics.target.platform} is set to ${diagnostics.target.protocol.toUpperCase()} at ${diagnostics.target.publishUrlPreview}.`,
     action: "Keep the destination, stream key, quality target, and visible scene unchanged before launch."
+  };
+};
+
+const createLiveCaptionItem = (
+  preflight: StreamStartPreflightReport,
+  diagnostics: PublicLaunchChecklistInput["diagnostics"]
+): PublicLaunchChecklistItem => {
+  const issue = findMostSevereIssue(preflight, ["scene"], isLiveCaptionIssue);
+  if (issue) {
+    return issueItem("live-captions", "Live captions", issue);
+  }
+
+  const captions = diagnostics.liveCaption;
+  if (!captions.enabled || captions.status === "info") {
+    return {
+      id: "live-captions",
+      status: "pass",
+      label: "Live captions",
+      detail: captions.summary,
+      action: captions.recommendation
+    };
+  }
+
+  if (captions.status === "fail") {
+    return {
+      id: "live-captions",
+      status: "fail",
+      label: "Live captions",
+      detail: captions.summary,
+      action: captions.recommendation
+    };
+  }
+
+  if (captions.status === "warn") {
+    return {
+      id: "live-captions",
+      status: "warn",
+      label: "Live captions",
+      detail: captions.summary,
+      action: captions.recommendation
+    };
+  }
+
+  return {
+    id: "live-captions",
+    status: "pass",
+    label: "Live captions",
+    detail: `${captions.finalCueCount} final caption cue${captions.finalCueCount === 1 ? "" : "s"} visible through ${captions.visibleRuntimeSourceCount}/${captions.runtimeSourceCount} Live Caption source${captions.runtimeSourceCount === 1 ? "" : "s"}.`,
+    action: "Keep the Live Caption source visible and retain a caption test cue with launch evidence."
   };
 };
 
@@ -452,10 +508,13 @@ const isNativeEnginePlatform = (platform: string): boolean => platform === "ios"
 
 const findMostSevereIssue = (
   preflight: StreamStartPreflightReport,
-  areas: StreamStartPreflightArea[]
+  areas: StreamStartPreflightArea[],
+  predicate: (issue: StreamStartPreflightIssue) => boolean = () => true
 ): StreamStartPreflightIssue | undefined =>
-  preflight.blocks.find((issue) => areas.includes(issue.area)) ??
-  preflight.warnings.find((issue) => areas.includes(issue.area));
+  preflight.blocks.find((issue) => areas.includes(issue.area) && predicate(issue)) ??
+  preflight.warnings.find((issue) => areas.includes(issue.area) && predicate(issue));
+
+const isLiveCaptionIssue = (issue: StreamStartPreflightIssue): boolean => issue.code.startsWith("live-caption-");
 
 const issueItem = (
   id: PublicLaunchChecklistItemId,

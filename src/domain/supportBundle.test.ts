@@ -240,6 +240,7 @@ describe("support bundle", () => {
     expect(bundle.summary.publicLaunchLastConfirmationAt).toBe("2026-06-23T00:00:03.500Z");
     expect(bundle.summary.publicLaunchLastConfirmationMessage).toContain("Checklist: 7 pass / 0 warn / 0 fail");
     expect(bundle.publicLaunchChecklist.items.map((item) => item.id)).toContain("platform-dashboard");
+    expect(bundle.publicLaunchChecklist.items.map((item) => item.id)).toContain("live-captions");
     expect(bundle.scene.sourceCounts.pngtuber).toBe(1);
     expect(bundle.profile.destination.streamKeyPreview).toBe(redactStreamKey(streamKey));
     expect(bundle.profile.platformPublishing.titleLength).toBe(profile.platformPublishing.title.length);
@@ -387,6 +388,12 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceChatReadoutRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceChatReadoutIosPass).toBe(false);
     expect(bundle.summary.validationEvidenceChatReadoutAndroidPass).toBe(false);
+    expect(bundle.summary.liveCaptionStatus).toBe("info");
+    expect(bundle.summary.liveCaptionEnabled).toBe(false);
+    expect(bundle.summary.liveCaptionRecognitionStatus).toBe("unavailable");
+    expect(bundle.summary.liveCaptionVisibleRuntimeSourceCount).toBe(0);
+    expect(bundle.summary.liveCaptionRuntimeSourceCount).toBe(0);
+    expect(bundle.summary.liveCaptionFinalCueCount).toBe(0);
     expect(bundle.summary.validationEvidenceQualityAutomationRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceQualityAutomationLiveUpdateCount).toBe(0);
     expect(bundle.summary.validationEvidenceLatestQualityAutomationStatus).toBeNull();
@@ -416,6 +423,10 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain(
       "rig high fidelity 100/100 ready / parts 100/100 / depth 100/100 / semantic 100/100 / eye-mouth 100/100"
     );
+    expect(formatSupportBundle(bundle)).toContain(
+      "Live captions: info / enabled no / recognition unavailable / language - / sources 0/0 visible / cues 0 final 0 active / transcripts 0"
+    );
+    expect(formatSupportBundle(bundle)).toContain("Live captions summary: Live caption session state is not available.");
     expect(formatSupportBundle(bundle)).toContain("Commercial Validation");
     expect(formatSupportBundle(bundle)).toContain("Runbook: running");
     expect(formatSupportBundle(bundle)).toContain("Native composition: warn / preview-only-overlays");
