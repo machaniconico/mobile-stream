@@ -276,6 +276,8 @@ const runtimeToMotion = (
   const partSeparationMotionScale = 0.45 + rigQuality.partSeparationFactor * 0.55;
   const depthContinuityMotionScale = 0.5 + rigQuality.depthContinuityFactor * 0.5;
   const horizontalAnchorMotionScale = 0.35 + rigQuality.horizontalAnchorFactor * 0.65;
+  const landmarkMotionScale =
+    profile.inputMode === "native-camera" ? 0.4 + clamp01(runtime.faceLandmarkConfidence ?? 0) * 0.6 : 1;
   const highFidelityMotionScale = 0.45 + rigQuality.highFidelityFactor * 0.55;
   const faceMotionScale = 0.84 + faceInfluence * 0.34;
   const bodyMotionScale = 0.74 + lowerBodyInfluence * 0.36;
@@ -285,28 +287,45 @@ const runtimeToMotion = (
     headYaw: clamp(runtime.yaw * profile.headRange * lostMultiplier * faceMotionScale, -1, 1),
     headPitch: clamp(runtime.pitch * profile.headRange * lostMultiplier * faceMotionScale, -1, 1),
     headRoll: clamp(runtime.roll * profile.headRange * lostMultiplier * faceMotionScale, -1, 1),
-    headX: clamp(runtime.yaw * 0.035 * profile.headRange * lostMultiplier * faceMotionScale * horizontalAnchorMotionScale, -1, 1),
-    headY: clamp(runtime.pitch * 0.03 * profile.headRange * lostMultiplier * faceMotionScale, -1, 1),
+    headX: clamp(
+      runtime.yaw *
+        0.035 *
+        profile.headRange *
+        lostMultiplier *
+        faceMotionScale *
+        horizontalAnchorMotionScale *
+        landmarkMotionScale,
+      -1,
+      1
+    ),
+    headY: clamp(runtime.pitch * 0.03 * profile.headRange * lostMultiplier * faceMotionScale * landmarkMotionScale, -1, 1),
     bodyLean: clamp(runtime.roll * profile.bodyRange * lostMultiplier * bodyMotionScale, -1, 1),
-    bodyBounce: Math.abs(runtime.mouthOpen - 0.3) * 0.02 * profile.bodyRange,
+    bodyBounce: Math.abs(runtime.mouthOpen - 0.3) * 0.02 * profile.bodyRange * landmarkMotionScale,
     breathing: (0.5 + runtime.smile * 0.5) * 0.018 * profile.bodyRange,
     depthTilt: clamp01(
       (Math.abs(runtime.yaw) * 0.68 + Math.abs(runtime.pitch) * 0.42) *
         illustrationStrength *
         faceMotionScale *
-        depthContinuityMotionScale
+        depthContinuityMotionScale *
+        landmarkMotionScale
     ),
     meshWarp: clamp(
       (runtime.yaw + runtime.roll * profile.bodyRange * 0.18) *
         illustrationStrength *
         faceMotionScale *
         highFidelityMotionScale *
-        horizontalAnchorMotionScale,
+        horizontalAnchorMotionScale *
+        landmarkMotionScale,
       -1,
       1
     ),
     eyeSquint: clamp01(
-      runtime.blink * profile.eyeDeform * illustrationRigMultiplier * partSeparationMotionScale * horizontalAnchorMotionScale
+      runtime.blink *
+        profile.eyeDeform *
+        illustrationRigMultiplier *
+        partSeparationMotionScale *
+        horizontalAnchorMotionScale *
+        landmarkMotionScale
     ),
     mouthDeform: clamp01(
       runtime.mouthOpen *
@@ -314,14 +333,16 @@ const runtimeToMotion = (
         illustrationRigMultiplier *
         mouthMotionScale *
         partSeparationMotionScale *
-        horizontalAnchorMotionScale
+        horizontalAnchorMotionScale *
+        landmarkMotionScale
     ),
     hairSway: clamp(
       (-runtime.yaw * 0.72 + runtime.roll * 0.32) *
         profile.hairSway *
         illustrationRigMultiplier *
         hairMotionScale *
-        depthContinuityMotionScale,
+        depthContinuityMotionScale *
+        landmarkMotionScale,
       -1,
       1
     ),
@@ -330,7 +351,8 @@ const runtimeToMotion = (
         profile.bodyRange *
         illustrationRigMultiplier *
         bodyMotionScale *
-        depthContinuityMotionScale,
+        depthContinuityMotionScale *
+        landmarkMotionScale,
       -1,
       1
     ),

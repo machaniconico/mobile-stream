@@ -510,6 +510,60 @@ describe("face tracking", () => {
     expect(readyAvatar?.motion.mouthDeform).toBeGreaterThan(unbalancedAvatar?.motion.mouthDeform ?? 0);
   });
 
+  it("attenuates localized still-image deformation when native landmarks have low confidence", () => {
+    const profile = {
+      ...defaultFaceTrackingProfile,
+      enabled: true,
+      inputMode: "native-camera" as const,
+      headRange: 1,
+      bodyRange: 1,
+      illustrationDeform: 1,
+      hairSway: 1,
+      eyeDeform: 1,
+      mouthDeform: 1
+    };
+    const highConfidenceRuntime = {
+      ...createFaceTrackingRuntimeState(2_000),
+      status: "tracking" as const,
+      yaw: 0.52,
+      pitch: -0.2,
+      roll: 0.26,
+      mouthOpen: 0.72,
+      blink: 0.7,
+      smile: 0.4,
+      confidence: 0.96,
+      faceLandmarkConfidence: 0.92
+    };
+    const lowConfidenceRuntime = {
+      ...highConfidenceRuntime,
+      faceLandmarkConfidence: 0.18
+    };
+    const scene = createDefaultScene();
+
+    const highConfidenceAvatar = applyFaceTrackingRuntime(scene, highConfidenceRuntime, profile).sources.find(
+      (source) => source.kind === "pngtuber"
+    );
+    const lowConfidenceAvatar = applyFaceTrackingRuntime(scene, lowConfidenceRuntime, profile).sources.find(
+      (source) => source.kind === "pngtuber"
+    );
+
+    expect(Math.abs(highConfidenceAvatar?.motion.headYaw ?? 0)).toBeCloseTo(
+      Math.abs(lowConfidenceAvatar?.motion.headYaw ?? 0)
+    );
+    expect(Math.abs(highConfidenceAvatar?.motion.headX ?? 0)).toBeGreaterThan(
+      Math.abs(lowConfidenceAvatar?.motion.headX ?? 0)
+    );
+    expect(highConfidenceAvatar?.motion.depthTilt).toBeGreaterThan(lowConfidenceAvatar?.motion.depthTilt ?? 0);
+    expect(Math.abs(highConfidenceAvatar?.motion.meshWarp ?? 0)).toBeGreaterThan(
+      Math.abs(lowConfidenceAvatar?.motion.meshWarp ?? 0)
+    );
+    expect(highConfidenceAvatar?.motion.eyeSquint).toBeGreaterThan(lowConfidenceAvatar?.motion.eyeSquint ?? 0);
+    expect(highConfidenceAvatar?.motion.mouthDeform).toBeGreaterThan(lowConfidenceAvatar?.motion.mouthDeform ?? 0);
+    expect(Math.abs(highConfidenceAvatar?.motion.hairSway ?? 0)).toBeGreaterThan(
+      Math.abs(lowConfidenceAvatar?.motion.hairSway ?? 0)
+    );
+  });
+
   it("calibrates neutral pose from the current runtime offset", () => {
     const calibrated = calibrateFaceTrackingProfile(defaultFaceTrackingProfile, {
       ...createFaceTrackingRuntimeState(3_000),
