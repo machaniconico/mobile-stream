@@ -705,6 +705,18 @@ select:focus-visible {
   color: var(--text);
 }
 
+.quick-subtitle-actions {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quick-subtitle-actions .secondary-action {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
 .quick-text-preset-row {
   display: flex;
   flex: 1 1 100%;

@@ -258,6 +258,18 @@ export interface TimedTextOverlayRequest {
   nowMs?: number;
 }
 
+export interface PersistentTextOverlayRequest {
+  text: string;
+  sourceId?: string;
+  presetId?: TextOverlayPresetId;
+  nowMs?: number;
+}
+
+export interface HideTextOverlayRequest {
+  sourceId?: string;
+  includeRuntimeCaptions?: boolean;
+}
+
 export type QuickTextOverlayPresetId =
   | "welcome"
   | "reading-chat"
@@ -352,6 +364,7 @@ const textOverlayMinimumDisplayDurationMs = 1000;
 const textOverlayMaximumDisplayDurationMs = 60000;
 const textOverlayDefaultDisplayDurationMs = 5000;
 const quickSubtitleSourceName = "Quick Subtitle";
+const pinnedTextSourceName = "Pinned Text";
 
 export const quickTextOverlayPresets: readonly QuickTextOverlayPreset[] = [
   {
@@ -1668,6 +1681,79 @@ export const showQuickTextOverlayPreset = (
     durationMs: request.durationMs ?? preset.durationMs
   });
 };
+
+export const showPersistentTextOverlay = (
+  scene: SceneDocument,
+  request: PersistentTextOverlayRequest
+): SceneDocument => {
+  const text = serializeTextOverlayLines(request.text, 4).join("\n");
+  if (!text) {
+    return scene;
+  }
+
+  const requestedSource = request.sourceId
+    ? scene.sources.find((source): source is TextSource => source.kind === "text" && source.id === request.sourceId)
+    : null;
+  const existingPinnedText = scene.sources.find(
+    (source): source is TextSource =>
+      source.kind === "text" &&
+      source.contentSource === "manual" &&
+      source.name.trim().toLowerCase() === pinnedTextSourceName.toLowerCase()
+  );
+  const targetSource = requestedSource?.contentSource === "manual" ? requestedSource : existingPinnedText;
+
+  if (targetSource) {
+    return updateSource(scene, targetSource.id, (source) =>
+      source.kind === "text"
+        ? {
+            ...(request.presetId ? applyTextOverlayPresetStyle(source, request.presetId) : source),
+            name: source.name,
+            text,
+            contentSource: "manual",
+            visible: true,
+            visibilityMode: "always",
+            activatedAtMs: Math.max(0, Math.round(finiteNumber(request.nowMs, 0)))
+          }
+        : source
+    );
+  }
+
+  const source: TextSource = {
+    ...createTextOverlayPresetSource(request.presetId ?? "subtitle"),
+    id: makeId("source-pinned-text"),
+    name: pinnedTextSourceName,
+    text,
+    visible: true,
+    contentSource: "manual",
+    visibilityMode: "always" as const,
+    activatedAtMs: Math.max(0, Math.round(finiteNumber(request.nowMs, 0)))
+  };
+
+  return addSource(scene, source);
+};
+
+export const hideTextOverlays = (
+  scene: SceneDocument,
+  request: HideTextOverlayRequest = {}
+): SceneDocument => ({
+  ...scene,
+  sources: scene.sources.map((source) => {
+    if (source.kind !== "text") {
+      return source;
+    }
+    if (request.sourceId && source.id !== request.sourceId) {
+      return source;
+    }
+    if (!request.includeRuntimeCaptions && source.contentSource !== "manual") {
+      return source;
+    }
+    return {
+      ...source,
+      visible: false,
+      activatedAtMs: 0
+    };
+  })
+});
 
 export const activateTimedTextSource = (
   scene: SceneDocument,

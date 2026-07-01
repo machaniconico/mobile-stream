@@ -19,6 +19,7 @@ import {
   duplicateActiveScene,
   ensureLiveCaptionTextSource,
   hideLiveCaptionTextSources,
+  hideTextOverlays,
   inferAvatarIllustrationRig,
   normalizeSceneCollection,
   normalizeSceneDocument,
@@ -31,6 +32,7 @@ import {
   setActiveScene,
   setLocked,
   setVisibility,
+  showPersistentTextOverlay,
   showQuickTextOverlayPreset,
   showTimedTextOverlay,
   stripTransientSceneCollectionRuntime,
@@ -877,6 +879,64 @@ describe("scene document", () => {
       visibilityMode: "timed",
       displayDurationMs: 2600,
       activatedAtMs: nowMs
+    });
+  });
+
+  it("pins persistent subtitle and text overlays for program display", () => {
+    const nowMs = 112000;
+    const nextScene = showPersistentTextOverlay(createDefaultScene(), {
+      text: "  固定表示するテキスト  ",
+      presetId: "lower-third",
+      nowMs
+    });
+    const pinned = nextScene.sources.find((source) => source.kind === "text" && source.name === "Pinned Text");
+    const node = toRenderGraph(nextScene, { nowMs: nowMs + 10000 }).find((item) => item.id === pinned?.id);
+
+    expect(pinned).toMatchObject({
+      kind: "text",
+      mode: "label",
+      contentSource: "manual",
+      text: "固定表示するテキスト",
+      visibilityMode: "always",
+      visible: true,
+      activatedAtMs: nowMs,
+      transform: { x: 0.05, y: 0.72, width: 0.52, height: 0.18 }
+    });
+    expect(node?.payload).toMatchObject({
+      text: "固定表示するテキスト",
+      visibilityMode: "always"
+    });
+  });
+
+  it("updates selected manual text sources when pinning persistent text", () => {
+    const scene = createDefaultScene();
+    const nextScene = showPersistentTextOverlay(scene, {
+      sourceId: "source-subtitle",
+      text: "選択中の字幕を固定",
+      presetId: "notice",
+      nowMs: 114000
+    });
+    const subtitle = nextScene.sources.find((source) => source.id === "source-subtitle");
+
+    expect(nextScene.sources.filter((source) => source.kind === "text" && source.name === "Pinned Text")).toHaveLength(0);
+    expect(subtitle).toMatchObject({
+      name: "Subtitle",
+      text: "選択中の字幕を固定",
+      mode: "label",
+      visibilityMode: "always",
+      visible: true,
+      activatedAtMs: 114000,
+      transform: { x: 0.18, y: 0.4, width: 0.64, height: 0.18 }
+    });
+  });
+
+  it("hides manual text overlays without disabling runtime live captions", () => {
+    const scene = addSource(showPersistentTextOverlay(createDefaultScene(), { text: "固定テキスト" }), createLiveCaptionTextSource());
+    const hidden = hideTextOverlays(scene);
+
+    expect(hidden.sources.filter((source) => source.kind === "text" && source.contentSource === "manual" && source.visible)).toHaveLength(0);
+    expect(hidden.sources.find((source) => source.kind === "text" && source.contentSource === "runtime-caption")).toMatchObject({
+      visible: true
     });
   });
 

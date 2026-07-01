@@ -14,6 +14,7 @@ import {
   MessageCircle,
   Mic,
   MonitorSmartphone,
+  Pin,
   Play,
   Plus,
   Radio,
@@ -81,6 +82,8 @@ import {
   reorderSource,
   setLocked,
   setVisibility,
+  hideTextOverlays,
+  showPersistentTextOverlay,
   showQuickTextOverlayPreset,
   showTimedTextOverlay,
   toRenderGraph,
@@ -532,6 +535,10 @@ export const StudioScreen = ({
   const [quickSubtitleText, setQuickSubtitleText] = useState("");
   const quickSubtitleLocked = isBusy || operationBusy || platformApiBusy;
   const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
+  const canPinQuickText = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
+  const canHideManualTextOverlay =
+    !quickSubtitleLocked &&
+    scene.sources.some((source) => source.kind === "text" && source.contentSource === "manual" && source.visible);
   const hasActiveTimedTextOverlays = scene.sources.some(
     (source) =>
       source.kind === "text" &&
@@ -548,6 +555,8 @@ export const StudioScreen = ({
     const timer = window.setInterval(() => setTextOverlayClock(Date.now()), 500);
     return () => window.clearInterval(timer);
   }, [hasActiveTimedTextOverlays]);
+  const selectedManualTextSourceId =
+    selectedSource.kind === "text" && selectedSource.contentSource === "manual" ? selectedSource.id : undefined;
   const showQuickSubtitle = () => {
     if (!canShowQuickSubtitle) {
       return;
@@ -555,7 +564,7 @@ export const StudioScreen = ({
     const nowMs = Date.now();
     onSceneChange(
       showTimedTextOverlay(scene, {
-        sourceId: selectedSource.kind === "text" && selectedSource.contentSource === "manual" ? selectedSource.id : undefined,
+        sourceId: selectedManualTextSourceId,
         text: quickSubtitleText,
         durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
         nowMs
@@ -563,6 +572,30 @@ export const StudioScreen = ({
     );
     setQuickSubtitleText("");
     setTextOverlayClock(nowMs);
+  };
+  const pinQuickText = () => {
+    if (!canPinQuickText) {
+      return;
+    }
+    const nowMs = Date.now();
+    onSceneChange(
+      showPersistentTextOverlay(scene, {
+        sourceId: selectedManualTextSourceId,
+        text: quickSubtitleText,
+        presetId: selectedManualTextSourceId ? undefined : "subtitle",
+        nowMs
+      })
+    );
+    setQuickSubtitleText("");
+    setTextOverlayClock(nowMs);
+  };
+  const hideManualTextOverlay = () => {
+    if (!canHideManualTextOverlay) {
+      return;
+    }
+    const targetSourceId = selectedManualTextSourceId && selectedSource.visible ? selectedManualTextSourceId : undefined;
+    onSceneChange(hideTextOverlays(scene, { sourceId: targetSourceId }));
+    setTextOverlayClock(Date.now());
   };
   const showQuickTextPreset = (presetId: QuickTextOverlayPresetId) => {
     if (quickSubtitleLocked) {
@@ -931,10 +964,20 @@ export const StudioScreen = ({
                 }}
               />
             </label>
-            <button className="secondary-action" type="button" disabled={!canShowQuickSubtitle} onClick={showQuickSubtitle}>
-              <MessageCircle size={18} />
-              <span>Show subtitle</span>
-            </button>
+            <div className="quick-subtitle-actions">
+              <button className="secondary-action" type="button" disabled={!canShowQuickSubtitle} onClick={showQuickSubtitle}>
+                <MessageCircle size={18} />
+                <span>Show subtitle</span>
+              </button>
+              <button className="secondary-action" type="button" disabled={!canPinQuickText} onClick={pinQuickText}>
+                <Pin size={18} />
+                <span>Pin text</span>
+              </button>
+              <button className="secondary-action" type="button" disabled={!canHideManualTextOverlay} onClick={hideManualTextOverlay}>
+                <EyeOff size={18} />
+                <span>Hide text</span>
+              </button>
+            </div>
             <div className="quick-text-preset-row" aria-label="quick text overlay presets">
               {quickTextOverlayPresetGroups.map((group) => (
                 <div key={group.category} className="quick-text-preset-group">
