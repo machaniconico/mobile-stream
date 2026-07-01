@@ -130,6 +130,64 @@ describe("scene document", () => {
     expect(collection.activeSceneId).toBe("scene-main");
   });
 
+  it("duplicates active scenes from stripped runtime sources", () => {
+    const nowMs = 1000;
+    const sceneWithActiveText = showTimedTextOverlay(createDefaultScene(), {
+      text: "Live now",
+      nowMs,
+      durationMs: 5000
+    });
+    const sceneWithQueuedText = queueTimedTextOverlay(sceneWithActiveText, {
+      text: "Queued next",
+      nowMs,
+      durationMs: 5000
+    });
+    const sceneWithAvatarRuntime = updateSource(sceneWithQueuedText, "source-avatar", (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...source,
+            mouthOpen: 0.8,
+            blink: 0.5,
+            motion: { ...source.motion, headYaw: 0.4, confidence: 0.9 }
+          }
+        : source
+    );
+    const duplicated = duplicateActiveScene({
+      version: 1,
+      activeSceneId: sceneWithAvatarRuntime.id,
+      transition: { kind: "fade", durationMs: 300 },
+      scenes: [sceneWithAvatarRuntime]
+    });
+    const duplicate = selectActiveScene(duplicated);
+    const duplicateAvatar = duplicate.sources.find((source) => source.kind === "pngtuber");
+
+    expect(duplicate.sources.some((source) => source.kind === "text" && source.id.startsWith("source-queued-subtitle-"))).toBe(false);
+    expect(duplicateAvatar).toMatchObject({
+      mouthOpen: 0,
+      blink: 0,
+      motion: expect.objectContaining({ headYaw: 0, confidence: 0 })
+    });
+  });
+
+  it("normalizes duplicate source ids within a scene before updates", () => {
+    const first = { ...createSource("text"), id: "duplicate-source", text: "First" };
+    const second = { ...createSource("text"), id: "duplicate-source", text: "Second" };
+    const normalized = normalizeSceneDocument({
+      ...createDefaultScene(),
+      sources: [first, second]
+    });
+    const ids = normalized.sources.map((source) => source.id);
+    const updated = updateSource(normalized, normalized.sources[0].id, (source) =>
+      source.kind === "text" ? { ...source, text: "Changed" } : source
+    );
+
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids[0]).toBe("duplicate-source");
+    expect(ids[1]).toBe("duplicate-source-2");
+    expect(updated.sources.filter((source) => source.kind === "text" && source.text === "Changed")).toHaveLength(1);
+    expect(updated.sources.find((source) => source.id === "duplicate-source-2")).toMatchObject({ text: "Second" });
+  });
+
   it("activates or creates the privacy shield scene for emergency blackout use", () => {
     const collection = createDefaultSceneCollection();
     const activated = activatePrivacyShieldScene(collection);
