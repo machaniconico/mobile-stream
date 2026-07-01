@@ -18,9 +18,9 @@ import { createCommercialReleaseGate } from "./verify-commercial-release-bundle.
 import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
 import { readPngEvidence } from "./png-evidence.mjs";
 import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
+import { requiredBrowserUiTextChecks } from "./browser-ui-required-text.mjs";
 
 const requiredUiViewportNames = ["desktop", "mobile"];
-const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality", "Subtitle"];
 const defaultBrowserUiEvidencePath = ".artifacts/ui-verification.json";
 const requiredReactNativeArtifacts = [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"];
 const requiredUiArtifacts = [".artifacts/mobile-live-caster-desktop.png", ".artifacts/mobile-live-caster-mobile.png"];
@@ -489,7 +489,7 @@ function browserUiEvidenceArtifact(report) {
 
 function validateEvidenceTextChecks(viewport, fail) {
   const checks = Array.isArray(viewport.requiredTextChecks) ? viewport.requiredTextChecks : [];
-  for (const text of requiredUiTextChecks) {
+  for (const text of requiredBrowserUiTextChecks) {
     const check = checks.find((candidate) => candidate?.text === text);
     if (!check || !Number.isFinite(check.count) || check.count <= 0) {
       fail(`Browser UI evidence for ${viewport.name} is missing text ${JSON.stringify(text)}.`);

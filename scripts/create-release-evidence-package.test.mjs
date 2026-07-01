@@ -21,6 +21,7 @@ import {
 } from "./create-release-evidence-package.mjs";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 import { acquireReleaseTestLock } from "./release-test-lock.mjs";
+import { requiredBrowserUiTextChecks } from "./browser-ui-required-text.mjs";
 
 const fixtureRoot = ".artifacts/release-evidence-package-test";
 const packageDir = `${fixtureRoot}/package`;
@@ -60,8 +61,6 @@ const storePngBytes = pngWithDimensions(1179, 2556);
 const dashboardPngBytes = pngWithDimensions(1440, 900);
 const minimumDistributionArtifactBytes = 1_048_576;
 const capturedAt = new Date().toISOString();
-const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality", "Subtitle"];
-
 describe("release evidence package creator", () => {
   beforeAll(() => {
     releaseTestUnlock = acquireReleaseTestLock();
@@ -2631,7 +2630,7 @@ function uiViewport(name, screenshotPath) {
   return {
     name,
     horizontalOverflow: false,
-    requiredTextChecks: requiredUiTextChecks.map((text) => ({ text, count: 1 })),
+    requiredTextChecks: requiredBrowserUiTextChecks.map((text) => ({ text, count: 1 })),
     screenshot: {
       path: screenshotPath,
       bytes: content.byteLength,

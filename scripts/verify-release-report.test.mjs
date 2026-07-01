@@ -19,6 +19,7 @@ import {
 import { validateReport } from "./verify-release-report.mjs";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 import { acquireReleaseTestLock } from "./release-test-lock.mjs";
+import { requiredBrowserUiTextChecks } from "./browser-ui-required-text.mjs";
 
 const generatedFiles = [
   "dist/index.html",
@@ -54,8 +55,6 @@ const minimumDistributionArtifactBytes = 1_048_576;
 const pngBytes = pngWithDimensions(1179, 2556);
 const capturedAt = "2026-06-25T00:00:00.000Z";
 const physicalDevicePreflightPath = ".artifacts/release-report-test/physical-device-preflight.json";
-const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality", "Subtitle"];
-
 describe("release report verifier", () => {
   beforeAll(() => {
     releaseTestUnlock = acquireReleaseTestLock();
@@ -1443,7 +1442,7 @@ function viewportEvidence(name, path) {
   return {
     name,
     horizontalOverflow: false,
-    requiredTextChecks: requiredUiTextChecks.map((text) => ({ text, count: 1 })),
+    requiredTextChecks: requiredBrowserUiTextChecks.map((text) => ({ text, count: 1 })),
     screenshot: artifactRecord("ui", path)
   };
 }

@@ -19,6 +19,7 @@ import {
 import { validateStoreSubmissionApproval } from "./verify-store-submission-approval.mjs";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 import { acquireReleaseTestLock } from "./release-test-lock.mjs";
+import { requiredBrowserUiTextChecks } from "./browser-ui-required-text.mjs";
 
 const generatedFiles = [
   "dist/index.html",
@@ -1262,9 +1263,7 @@ function artifactRecord(group, path) {
 }
 
 function requiredTextChecks() {
-  return ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality", "Subtitle"].map(
-    (text) => ({ text, count: 1 })
-  );
+  return requiredBrowserUiTextChecks.map((text) => ({ text, count: 1 }));
 }
 
 function fileSha256(path) {

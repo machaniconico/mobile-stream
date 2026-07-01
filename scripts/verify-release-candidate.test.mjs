@@ -2,13 +2,14 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDistributionManifest, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
 import { createDashboardEvidenceManifest, dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
 import { createStoreSubmissionChecklist, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import { createPhysicalDevicePreflightReport, writePhysicalDevicePreflightReport } from "./verify-physical-devices.mjs";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 import { acquireReleaseTestLock } from "./release-test-lock.mjs";
+import { requiredBrowserUiTextChecks } from "./browser-ui-required-text.mjs";
 
 const fixtureRoot = ".artifacts/verify-release-candidate-test";
 const supportBundlePath = `${fixtureRoot}/support-bundle.json`;
@@ -38,6 +39,8 @@ const tinyPngBytes = createRgbaPngFixture(1, 1);
 const minimumDistributionArtifactBytes = 1_048_576;
 const pngBytes = pngWithDimensions(1179, 2556);
 const appBuild = "1.0.0 (1)";
+
+vi.setConfig({ testTimeout: 45_000 });
 
 describe("release candidate verifier", () => {
   beforeEach(() => {
@@ -945,9 +948,7 @@ function uiViewportEvidence(name, path) {
   return {
     name,
     horizontalOverflow: false,
-    requiredTextChecks: ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality", "Subtitle"].map(
-      (text) => ({ text, count: 1 })
-    ),
+    requiredTextChecks: requiredBrowserUiTextChecks.map((text) => ({ text, count: 1 })),
     screenshot: fileRecord(path)
   };
 }

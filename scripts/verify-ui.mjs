@@ -6,13 +6,12 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, env, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import { chromium } from "playwright-core";
+import { requiredBrowserUiTextChecks } from "./browser-ui-required-text.mjs";
 
 const viewports = [
   { name: "desktop", width: 1440, height: 1000 },
   { name: "mobile", width: 390, height: 900 }
 ];
-const requiredTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality", "Subtitle"];
-
 if (isDirectRun()) {
   exit(await run());
 }
@@ -85,7 +84,7 @@ export async function verifyUi({
 
       const checks = [];
 
-      for (const text of requiredTextChecks) {
+      for (const text of requiredBrowserUiTextChecks) {
         await waitForRequiredText(page, text, viewport.name);
         const count = await page.getByText(text, { exact: false }).count();
         if (count === 0) {

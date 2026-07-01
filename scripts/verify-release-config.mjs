@@ -30,6 +30,8 @@ const files = {
   releaseCandidateScript: read("scripts/verify-release-candidate.mjs"),
   releaseReportScript: read("scripts/verify-release-report.mjs"),
   releaseEvidencePackageScript: read("scripts/create-release-evidence-package.mjs"),
+  browserUiRequiredTextScript: read("scripts/browser-ui-required-text.mjs"),
+  verifyUiScript: read("scripts/verify-ui.mjs"),
   commercialReleaseBundleScript: read("scripts/verify-commercial-release-bundle.mjs"),
   releaseUrlPolicyScript: read("scripts/release-url-policy.mjs"),
   iosReleaseConfigScript: read("scripts/ios-release-config.mjs"),
@@ -168,7 +170,16 @@ const checks = [
     expectIncludes(files.releaseReportScript, "Browser UI evidence for ${viewport.name} is missing text");
     expectIncludes(files.releaseReportScript, "Browser UI verification is missing evidence artifact");
     expectIncludes(files.releaseReportScript, "defaultBrowserUiEvidencePath");
-    expectIncludes(files.releaseReportScript, "requiredUiTextChecks");
+    expectIncludes(files.releaseReportScript, "requiredBrowserUiTextChecks");
+    expectIncludes(files.releaseCandidateScript, "requiredBrowserUiTextChecks");
+    expectIncludes(files.releaseEvidencePackageScript, "requiredBrowserUiTextChecks");
+    expectIncludes(files.verifyUiScript, "requiredBrowserUiTextChecks");
+    expectIncludes(files.browserUiRequiredTextScript, "requiredBrowserUiTextChecks");
+    expectIncludes(files.browserUiRequiredTextScript, '"Quick text"');
+    expectIncludes(files.browserUiRequiredTextScript, '"Preset action"');
+    expectIncludes(files.browserUiRequiredTextScript, '"Queue text"');
+    expectIncludes(files.browserUiRequiredTextScript, '"Pin text"');
+    expectIncludes(files.browserUiRequiredTextScript, '"Hide text"');
     expectIncludes(files.releaseUrlPolicyScript, "isLoopbackHttpUrl");
     expectIncludes(files.releaseUrlPolicyScript, "localhost");
     expectIncludes(files.releaseUrlPolicyScript, "127.0.0.1");
@@ -339,6 +350,7 @@ const checks = [
     expectIncludes(files.storeSubmissionApprovalScript, "dashboardEvidenceManifestPath");
     expectIncludes(files.storeSubmissionApprovalScript, "storeReleaseReportArtifactGroup");
     expectIncludes(files.storeSubmissionApprovalScript, "validateStoreReleaseReportInReleaseReport");
+    expectIncludes(files.storeSubmissionApprovalScript, "for (const failure of validateReport(report, options))");
     expectIncludes(files.storeSubmissionApprovalScript, "allowDirty: false");
     expectIncludes(files.storeSubmissionApprovalScript, "allowCommitMismatch: false");
     expectIncludes(files.storeSubmissionApprovalScript, "validateCommercialApprovableReleaseReport");

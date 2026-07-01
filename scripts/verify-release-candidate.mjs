@@ -31,11 +31,11 @@ import {
 import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
 import { readPngEvidence } from "./png-evidence.mjs";
 import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
+import { requiredBrowserUiTextChecks } from "./browser-ui-required-text.mjs";
 
 const defaultUiUrl = "http://127.0.0.1:5173/";
 const devServerTimeoutMs = 30_000;
 const defaultReportPath = ".artifacts/release-candidate-verification.json";
-const requiredUiTextChecks = ["MobileLiveCaster", "Sources", "Go Live", "Live Setup", "PNGTuber", "RTMPS", "Face input", "Head range", "Rig quality", "Subtitle"];
 const requiredUiViewportNames = ["desktop", "mobile"];
 const sourceGates = [
   ["Verify release automation scripts", ["run", "verify:scripts"]],
@@ -859,7 +859,7 @@ function validateUiEvidence(evidence, { currentCommit, allowDirty, maxAgeHours }
 
 function validateUiTextChecks(viewport) {
   const checks = Array.isArray(viewport.requiredTextChecks) ? viewport.requiredTextChecks : [];
-  for (const text of requiredUiTextChecks) {
+  for (const text of requiredBrowserUiTextChecks) {
     const check = checks.find((candidate) => candidate?.text === text);
     if (!check || !Number.isFinite(check.count) || check.count <= 0) {
       throw new GateError(`UI evidence for ${viewport.name} is missing text ${JSON.stringify(text)}.`, 1);
