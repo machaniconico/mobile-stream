@@ -531,6 +531,8 @@ describe("stream session summary", () => {
           runtimeCompositedFrameCount: 92,
           runtimeDroppedFrameCount: 0,
           runtimeCompositionFailureCount: 0,
+          liveRenderGraphReloadCount: 2,
+          liveRenderGraphRejectedUpdateCount: 1,
           stillImageAssetAppGroupCount: 1,
           stillImageAssetAppGroupLoadedCount: 1,
           stillImageAssetAppGroupDecodedCount: 1,
@@ -551,6 +553,8 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.stillImageAssetMissingKinds).toEqual(["pngtuber"]);
     expect(summary?.nativeRuntime?.stillImageAssetDecodedCount).toBe(1);
     expect(summary?.nativeRuntime?.stillImageAssetDecodedPixelCount).toBe(921_600);
+    expect(summary?.nativeRuntime?.liveRenderGraphReloadCount).toBe(2);
+    expect(summary?.nativeRuntime?.liveRenderGraphRejectedUpdateCount).toBe(1);
     expect(summary?.nativeRuntime?.recommendation).toContain("App Group-copied");
   });
 

@@ -27,9 +27,21 @@ describe("native text overlay rendering", () => {
 
     expect(bridge).toContain('"renderGraphUpdatedAt": now');
     expect(handler).toContain("private var activeRenderGraphJSON: String?");
+    expect(handler).toContain("private var liveRenderGraphReloadCount = 0");
+    expect(handler).toContain("private var liveRenderGraphRejectedUpdateCount = 0");
+    expect(handler).toContain("private var lastRejectedRenderGraphUpdateKey: String?");
     expect(handler).toContain("refreshSceneCompositorIfNeeded()");
     expect(handler).toContain("BroadcastSharedStore.loadConfigurationSetupInfo()");
     expect(handler).toContain("nextConfiguration.renderGraphUpdatedAt != activeRenderGraphUpdatedAt || nextRenderGraphJSON != currentRenderGraphJSON");
+    expect(handler).toContain("lastRejectedRenderGraphUpdateKey != nextRenderGraphUpdateKey");
+    expect(handler).toContain("liveRenderGraphRejectedUpdateCount += 1");
+    expect(handler).toContain("liveRenderGraphReloadCount += 1");
+    expect(handler).toContain("saveRuntimeState(sceneCompositionSummary: finalSceneCompositionSummary)");
+    expect(handler).toContain("saveRuntimeState()");
+    expect(handler).toContain('"liveRenderGraphReloadCount": liveRenderGraphReloadCount');
+    expect(handler).toContain('"liveRenderGraphRejectedUpdateCount": liveRenderGraphRejectedUpdateCount');
+    expect(bridge).toContain('"liveRenderGraphReloadCount": sceneComposition.intValue("liveRenderGraphReloadCount")');
+    expect(bridge).toContain('"liveRenderGraphRejectedUpdateCount": sceneComposition.intValue("liveRenderGraphRejectedUpdateCount")');
     expect(handler).toContain("sceneCompositor = nextSceneCompositor");
   });
 });

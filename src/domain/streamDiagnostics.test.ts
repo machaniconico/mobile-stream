@@ -1006,7 +1006,7 @@ describe("stream diagnostics", () => {
     const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics));
     expect(report).toContain("Native Runtime");
     expect(report).toContain(
-      "Composition assets: 2/2 loaded / 2 decoded / decoded pixels 1843200 / 2 composited / composited pixels 1843200 / runtime ios-replaykit-coregraphics 600 frames 0 dropped 0 failures / 0 missing"
+      "Composition assets: 2/2 loaded / 2 decoded / decoded pixels 1843200 / 2 composited / composited pixels 1843200 / runtime ios-replaykit-coregraphics 600 frames 0 dropped 0 failures live reloads 0 rejected 0 / 0 missing"
     );
     expect(report).toContain("Composition VRM: 1/1 active / payloads 1 / missing 0");
   });
@@ -1270,7 +1270,7 @@ describe("stream diagnostics", () => {
     expect(nativeCheck?.status).toBe("warn");
     expect(nativeCheck?.message).toContain("missing 1");
     expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
-      "Composition assets: 1/2 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / runtime none 0 frames 0 dropped 0 failures / 1 missing"
+      "Composition assets: 1/2 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / runtime none 0 frames 0 dropped 0 failures live reloads 0 rejected 0 / 1 missing"
     );
   });
 

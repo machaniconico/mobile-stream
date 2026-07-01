@@ -3118,6 +3118,8 @@ struct BroadcastSceneCompositionSummary: Equatable {
     let runtimeCompositedFrameCount: Int
     let runtimeDroppedFrameCount: Int
     let runtimeCompositionFailureCount: Int
+    let liveRenderGraphReloadCount: Int
+    let liveRenderGraphRejectedUpdateCount: Int
     let appliedCount: Int
     let appliedKinds: [String]
     let skippedCount: Int
@@ -3144,6 +3146,8 @@ struct BroadcastSceneCompositionSummary: Equatable {
         runtimeCompositedFrameCount: 0,
         runtimeDroppedFrameCount: 0,
         runtimeCompositionFailureCount: 0,
+        liveRenderGraphReloadCount: 0,
+        liveRenderGraphRejectedUpdateCount: 0,
         appliedCount: 0,
         appliedKinds: [],
         skippedCount: 0,
@@ -3184,7 +3188,14 @@ struct BroadcastSceneCompositionSummary: Equatable {
     }
 
     private var evidenceMessages: [String] {
-        [assetEvidenceMessage, vrmPoseSummary.evidenceMessage].compactMap { $0 }
+        [assetEvidenceMessage, liveRenderGraphUpdateEvidenceMessage, vrmPoseSummary.evidenceMessage].compactMap { $0 }
+    }
+
+    private var liveRenderGraphUpdateEvidenceMessage: String? {
+        guard liveRenderGraphReloadCount > 0 || liveRenderGraphRejectedUpdateCount > 0 else {
+            return nil
+        }
+        return "live render graph reloads \(liveRenderGraphReloadCount), rejected \(liveRenderGraphRejectedUpdateCount)"
     }
 
     private var assetEvidenceMessage: String? {
@@ -3210,6 +3221,8 @@ struct BroadcastSceneCompositionSummary: Equatable {
             "runtimeCompositedFrameCount": runtimeCompositedFrameCount,
             "runtimeDroppedFrameCount": runtimeDroppedFrameCount,
             "runtimeCompositionFailureCount": runtimeCompositionFailureCount,
+            "liveRenderGraphReloadCount": liveRenderGraphReloadCount,
+            "liveRenderGraphRejectedUpdateCount": liveRenderGraphRejectedUpdateCount,
             "appliedCount": appliedCount,
             "appliedKinds": appliedKinds,
             "skippedCount": skippedCount,
@@ -3564,6 +3577,8 @@ final class BroadcastSceneCompositor {
             runtimeCompositedFrameCount: runtimeCompositedFrameCount,
             runtimeDroppedFrameCount: runtimeDroppedFrameCount,
             runtimeCompositionFailureCount: runtimeCompositionFailureCount,
+            liveRenderGraphReloadCount: 0,
+            liveRenderGraphRejectedUpdateCount: 0,
             appliedCount: overlayNodes.count,
             appliedKinds: overlayNodes.map(Self.appliedKind).sorted(),
             skippedCount: skippedCount,
@@ -4845,6 +4860,9 @@ final class BroadcastUploadPipeline {
     private var activeRenderGraphJSON: String?
     private var activeRenderGraphUpdatedAt: Double = 0
     private var lastSceneConfigurationCheckAt: TimeInterval = 0
+    private var liveRenderGraphReloadCount = 0
+    private var liveRenderGraphRejectedUpdateCount = 0
+    private var lastRejectedRenderGraphUpdateKey: String?
 
     var isRunning: Bool {
         state.acceptsSamples
@@ -4891,6 +4909,9 @@ final class BroadcastUploadPipeline {
             activeRenderGraphJSON = Self.normalizedRenderGraphJSON(nextConfiguration.renderGraphJSON)
             activeRenderGraphUpdatedAt = nextConfiguration.renderGraphUpdatedAt
             lastSceneConfigurationCheckAt = 0
+            liveRenderGraphReloadCount = 0
+            liveRenderGraphRejectedUpdateCount = 0
+            lastRejectedRenderGraphUpdateKey = nil
             stats.start()
             state = .running
             nextPublisher.start()
@@ -4911,6 +4932,9 @@ final class BroadcastUploadPipeline {
             activeRenderGraphJSON = nil
             activeRenderGraphUpdatedAt = 0
             lastSceneConfigurationCheckAt = 0
+            liveRenderGraphReloadCount = 0
+            liveRenderGraphRejectedUpdateCount = 0
+            lastRejectedRenderGraphUpdateKey = nil
             configuration = nil
             state = .failed(message)
             logger.error("Broadcast upload failed to start: \(message, privacy: .public)")
@@ -4944,6 +4968,7 @@ final class BroadcastUploadPipeline {
             return
         }
 
+        let finalSceneCompositionSummary = sceneCompositionSummary()
         stats.stop()
         videoEncoder?.finish()
         videoEncoder = nil
@@ -4953,11 +4978,14 @@ final class BroadcastUploadPipeline {
         activeRenderGraphJSON = nil
         activeRenderGraphUpdatedAt = 0
         lastSceneConfigurationCheckAt = 0
+        liveRenderGraphReloadCount = 0
+        liveRenderGraphRejectedUpdateCount = 0
+        lastRejectedRenderGraphUpdateKey = nil
         publisher?.stop()
         publisher = nil
         state = .stopped
         logger.info("Broadcast upload stopped frames=\(self.stats.videoFrames) dropped=\(self.stats.droppedSamples)")
-        saveRuntimeState()
+        saveRuntimeState(sceneCompositionSummary: finalSceneCompositionSummary)
     }
 
     func consumeVideo(_ sampleBuffer: CMSampleBuffer) {
@@ -5008,7 +5036,7 @@ final class BroadcastUploadPipeline {
         saveRuntimeState()
     }
 
-    private func saveRuntimeState() {
+    private func saveRuntimeState(sceneCompositionSummary snapshotSceneCompositionSummary: BroadcastSceneCompositionSummary? = nil) {
         BroadcastSharedStore.saveRuntimeState(
             state: state,
             configuration: configuration,
@@ -5016,7 +5044,41 @@ final class BroadcastUploadPipeline {
             videoEncoderStats: videoEncoder?.stats,
             audioEncoderStats: audioEncoder?.stats,
             publisherStats: publisher?.stats,
-            sceneCompositionSummary: sceneCompositor?.summary
+            sceneCompositionSummary: snapshotSceneCompositionSummary ?? sceneCompositionSummary()
+        )
+    }
+
+    private func sceneCompositionSummary() -> BroadcastSceneCompositionSummary? {
+        guard let summary = sceneCompositor?.summary else {
+            return nil
+        }
+        return BroadcastSceneCompositionSummary(
+            runtimeCompositorBackend: summary.runtimeCompositorBackend,
+            runtimeCompositedFrameCount: summary.runtimeCompositedFrameCount,
+            runtimeDroppedFrameCount: summary.runtimeDroppedFrameCount,
+            runtimeCompositionFailureCount: summary.runtimeCompositionFailureCount,
+            liveRenderGraphReloadCount: liveRenderGraphReloadCount,
+            liveRenderGraphRejectedUpdateCount: liveRenderGraphRejectedUpdateCount,
+            appliedCount: summary.appliedCount,
+            appliedKinds: summary.appliedKinds,
+            skippedCount: summary.skippedCount,
+            skippedKinds: summary.skippedKinds,
+            parseFailed: summary.parseFailed,
+            stillImageAssetCount: summary.stillImageAssetCount,
+            stillImageAssetLoadedCount: summary.stillImageAssetLoadedCount,
+            stillImageAssetMissingCount: summary.stillImageAssetMissingCount,
+            stillImageAssetMissingKinds: summary.stillImageAssetMissingKinds,
+            stillImageAssetDecodedCount: summary.stillImageAssetDecodedCount,
+            stillImageAssetDecodedPixelCount: summary.stillImageAssetDecodedPixelCount,
+            stillImageAssetCompositedCount: summary.stillImageAssetCompositedCount,
+            stillImageAssetCompositedPixelCount: summary.stillImageAssetCompositedPixelCount,
+            stillImageAssetAppGroupCount: summary.stillImageAssetAppGroupCount,
+            stillImageAssetAppGroupLoadedCount: summary.stillImageAssetAppGroupLoadedCount,
+            stillImageAssetAppGroupDecodedCount: summary.stillImageAssetAppGroupDecodedCount,
+            stillImageAssetAppGroupDecodedPixelCount: summary.stillImageAssetAppGroupDecodedPixelCount,
+            stillImageAssetAppGroupCompositedCount: summary.stillImageAssetAppGroupCompositedCount,
+            stillImageAssetAppGroupCompositedPixelCount: summary.stillImageAssetAppGroupCompositedPixelCount,
+            vrmPoseSummary: summary.vrmPoseSummary
         )
     }
 
@@ -5042,7 +5104,16 @@ final class BroadcastUploadPipeline {
         guard nextConfiguration.renderGraphUpdatedAt != activeRenderGraphUpdatedAt || nextRenderGraphJSON != currentRenderGraphJSON else {
             return
         }
+        let nextRenderGraphUpdateKey = Self.renderGraphUpdateKey(
+            updatedAt: nextConfiguration.renderGraphUpdatedAt,
+            json: nextRenderGraphJSON
+        )
         guard Self.canRefreshSceneCompositor(from: currentConfiguration, to: nextConfiguration) else {
+            if lastRejectedRenderGraphUpdateKey != nextRenderGraphUpdateKey {
+                liveRenderGraphRejectedUpdateCount += 1
+                lastRejectedRenderGraphUpdateKey = nextRenderGraphUpdateKey
+                saveRuntimeState()
+            }
             logger.info("Ignoring live scene update because encoder or RTMP destination settings changed")
             return
         }
@@ -5052,7 +5123,10 @@ final class BroadcastUploadPipeline {
         sceneCompositor = nextSceneCompositor
         activeRenderGraphJSON = nextRenderGraphJSON
         activeRenderGraphUpdatedAt = nextConfiguration.renderGraphUpdatedAt
+        liveRenderGraphReloadCount += 1
+        lastRejectedRenderGraphUpdateKey = nil
         logger.info("Reloaded live scene compositor composition=\(nextSceneCompositor.summary.message, privacy: .public)")
+        saveRuntimeState()
     }
 
     private static func canRefreshSceneCompositor(
@@ -5069,6 +5143,10 @@ final class BroadcastUploadPipeline {
 
     private static func normalizedRenderGraphJSON(_ value: String?) -> String {
         value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    private static func renderGraphUpdateKey(updatedAt: Double, json: String) -> String {
+        "\(updatedAt)|\(json)"
     }
 
     private func sanitizeError(_ message: String) -> String {

@@ -242,6 +242,8 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeCompositedFrameCount: number;
   nativeRuntimeDroppedFrameCount: number;
   nativeRuntimeCompositionFailureCount: number;
+  nativeRuntimeLiveRenderGraphReloadCount: number;
+  nativeRuntimeLiveRenderGraphRejectedUpdateCount: number;
   nativeRuntimeStillImageAssetAppGroupCount: number;
   nativeRuntimeStillImageAssetAppGroupLoadedCount: number;
   nativeRuntimeStillImageAssetAppGroupDecodedCount: number;
@@ -2702,6 +2704,8 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeCompositedFrameCount: run.nativeRuntime?.runtimeCompositedFrameCount ?? 0,
     nativeRuntimeDroppedFrameCount: run.nativeRuntime?.runtimeDroppedFrameCount ?? 0,
     nativeRuntimeCompositionFailureCount: run.nativeRuntime?.runtimeCompositionFailureCount ?? 0,
+    nativeRuntimeLiveRenderGraphReloadCount: run.nativeRuntime?.liveRenderGraphReloadCount ?? 0,
+    nativeRuntimeLiveRenderGraphRejectedUpdateCount: run.nativeRuntime?.liveRenderGraphRejectedUpdateCount ?? 0,
     nativeRuntimeStillImageAssetAppGroupCount: run.nativeRuntime?.stillImageAssetAppGroupCount ?? 0,
     nativeRuntimeStillImageAssetAppGroupLoadedCount: run.nativeRuntime?.stillImageAssetAppGroupLoadedCount ?? 0,
     nativeRuntimeStillImageAssetAppGroupDecodedCount: run.nativeRuntime?.stillImageAssetAppGroupDecodedCount ?? 0,

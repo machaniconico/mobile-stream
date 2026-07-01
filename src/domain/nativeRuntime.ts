@@ -70,6 +70,8 @@ export interface NativeRuntimeComposition {
   runtimeCompositedFrameCount?: number;
   runtimeDroppedFrameCount?: number;
   runtimeCompositionFailureCount?: number;
+  liveRenderGraphReloadCount?: number;
+  liveRenderGraphRejectedUpdateCount?: number;
   stillImageAssetAppGroupCount?: number;
   stillImageAssetAppGroupLoadedCount?: number;
   stillImageAssetAppGroupDecodedCount?: number;

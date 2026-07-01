@@ -63,6 +63,8 @@ export interface StreamSessionNativeRuntimeSummary {
   runtimeCompositedFrameCount: number;
   runtimeDroppedFrameCount: number;
   runtimeCompositionFailureCount: number;
+  liveRenderGraphReloadCount: number;
+  liveRenderGraphRejectedUpdateCount: number;
   stillImageAssetAppGroupCount: number;
   stillImageAssetAppGroupLoadedCount: number;
   stillImageAssetAppGroupDecodedCount: number;
@@ -731,6 +733,8 @@ export const createNativeRuntimeSessionSummary = (
   const runtimeCompositedFrameCount = normalizeNonNegativeInteger(runtime.composition.runtimeCompositedFrameCount);
   const runtimeDroppedFrameCount = normalizeNonNegativeInteger(runtime.composition.runtimeDroppedFrameCount);
   const runtimeCompositionFailureCount = normalizeNonNegativeInteger(runtime.composition.runtimeCompositionFailureCount);
+  const liveRenderGraphReloadCount = normalizeNonNegativeInteger(runtime.composition.liveRenderGraphReloadCount);
+  const liveRenderGraphRejectedUpdateCount = normalizeNonNegativeInteger(runtime.composition.liveRenderGraphRejectedUpdateCount);
   const missingAndroidMediaCodecCompositorProof =
     runtime.platform === "android" &&
     isProductionNativeVideoEncoderBackend(runtime.platform, videoEncoderBackend) &&
@@ -896,6 +900,8 @@ export const createNativeRuntimeSessionSummary = (
     runtimeCompositedFrameCount,
     runtimeDroppedFrameCount,
     runtimeCompositionFailureCount,
+    liveRenderGraphReloadCount,
+    liveRenderGraphRejectedUpdateCount,
     stillImageAssetAppGroupCount,
     stillImageAssetAppGroupLoadedCount,
     stillImageAssetAppGroupDecodedCount,
@@ -1254,6 +1260,8 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     runtimeCompositedFrameCount: normalizeNonNegativeInteger(value.runtimeCompositedFrameCount),
     runtimeDroppedFrameCount: normalizeNonNegativeInteger(value.runtimeDroppedFrameCount),
     runtimeCompositionFailureCount: normalizeNonNegativeInteger(value.runtimeCompositionFailureCount),
+    liveRenderGraphReloadCount: normalizeNonNegativeInteger(value.liveRenderGraphReloadCount),
+    liveRenderGraphRejectedUpdateCount: normalizeNonNegativeInteger(value.liveRenderGraphRejectedUpdateCount),
     stillImageAssetAppGroupCount: normalizeNonNegativeInteger(value.stillImageAssetAppGroupCount),
     stillImageAssetAppGroupLoadedCount: normalizeNonNegativeInteger(value.stillImageAssetAppGroupLoadedCount),
     stillImageAssetAppGroupDecodedCount: normalizeNonNegativeInteger(value.stillImageAssetAppGroupDecodedCount),
