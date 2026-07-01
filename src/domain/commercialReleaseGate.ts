@@ -1409,6 +1409,9 @@ const sensitiveJsonPattern =
   /["']([A-Za-z0-9_.-]*(?:access_token|refresh_token|id_token|code_verifier|device_code|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|clientSecret|streamKey|oauthToken|authToken|bearerToken|apiKey|authorization|secret))["']\s*:\s*["']([^"']+)["']/gi;
 const authorizationHeaderPattern = /\bAuthorization\s*:\s*(Bearer|OAuth)\s+([^\s,;]+)/gi;
 const bearerTokenPattern = /\b(Bearer|OAuth)\s+([A-Za-z0-9._~+/=-]{12,})/g;
+const emailAddressPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const inviteLinkPattern = /\b(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/[A-Za-z0-9-]{2,}\b/gi;
+const phoneLikePattern = /(^|[^\w+])(\+?\d[\d\s().-]{7,}\d)(?=$|[^\w])/g;
 
 const findSensitiveBundleFindings = (value: unknown): SensitiveBundleFinding[] => {
   const findings: SensitiveBundleFinding[] = [];
@@ -1454,10 +1457,17 @@ const findSensitiveBundleFindings = (value: unknown): SensitiveBundleFinding[] =
 };
 
 const findSensitiveStringFindings = (value: string, path: string): SensitiveBundleFinding[] => {
-  if (!value || !hasSensitiveTextLeak(value)) {
-    return [];
+  const findings: SensitiveBundleFinding[] = [];
+  if (!value) {
+    return findings;
   }
-  return [{ path, reason: "contains an unredacted token pattern" }];
+  if (hasSensitiveTextLeak(value)) {
+    findings.push({ path, reason: "contains an unredacted token pattern" });
+  }
+  if (hasUnredactedContactTextLeak(value)) {
+    findings.push({ path, reason: "contains an unredacted contact pattern" });
+  }
+  return findings;
 };
 
 const hasSensitiveTextLeak = (value: string): boolean =>
@@ -1475,6 +1485,32 @@ const hasUnredactedMatch = (value: string, pattern: RegExp): boolean => {
     }
   }
   return false;
+};
+
+const hasUnredactedContactTextLeak = (value: string): boolean =>
+  hasPatternMatch(value, emailAddressPattern) ||
+  hasPatternMatch(value, inviteLinkPattern) ||
+  hasUnredactedPhoneMatch(value);
+
+const hasPatternMatch = (value: string, pattern: RegExp): boolean => {
+  pattern.lastIndex = 0;
+  return pattern.test(value);
+};
+
+const hasUnredactedPhoneMatch = (value: string): boolean => {
+  phoneLikePattern.lastIndex = 0;
+  for (const match of value.matchAll(phoneLikePattern)) {
+    if (isUnredactedPhoneCandidate(match[2] ?? "")) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const isUnredactedPhoneCandidate = (value: string): boolean => {
+  const digits = value.replace(/\D/g, "");
+  const normalized = value.trim();
+  return digits.length >= 10 && digits.length <= 15 && !/^20\d{2}[-./\s]/.test(normalized);
 };
 
 const isSafeSensitiveValue = (value: string): boolean => {

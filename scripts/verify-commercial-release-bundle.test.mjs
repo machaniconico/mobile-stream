@@ -121,6 +121,22 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("unredacted sensitive value");
   });
 
+  it("blocks unredacted contact details in release support bundles", () => {
+    writeBundle({
+      diagnostics: {
+        chat: {
+          lastOverlayText: "email viewer@example.com phone 090-1234-5678 invite discord.gg/privateRoom"
+        }
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Support bundle privacy");
+    expect(result.stdout).toContain("unredacted contact pattern");
+  });
+
   it("blocks retained validation runs without physical-device proof", () => {
     writeBundle({
       summary: {

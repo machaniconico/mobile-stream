@@ -1774,6 +1774,35 @@ describe("commercial release gate", () => {
     expect(gate.canRelease).toBe(true);
     expect(gate.issues.map((issue) => issue.code)).not.toContain("support-bundle-sensitive-data");
   });
+
+  it("blocks support bundles that contain unredacted contact details", () => {
+    const bundle = supportBundle();
+    const mutableBundle = bundle as unknown as {
+      diagnostics: {
+        chat: {
+          lastOverlayText: string;
+        };
+      };
+    };
+    mutableBundle.diagnostics = {
+      chat: {
+        lastOverlayText: "email viewer@example.com phone 090-1234-5678 invite discord.gg/privateRoom"
+      }
+    };
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "support-bundle-sensitive-data",
+          detail: expect.stringContaining("unredacted contact pattern")
+        })
+      ])
+    );
+  });
 });
 
 const supportBundle = ({
