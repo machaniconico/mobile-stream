@@ -54,7 +54,8 @@ export function createPhysicalDevicePreflightReport({
     status: checks.every((check) => check.status === "pass") ? "ready" : "blocked",
     mode,
     checks,
-    platforms
+    platforms,
+    runbook: createPhysicalDeviceValidationRunbook({ mode, platforms })
   };
 }
 
@@ -234,6 +235,7 @@ export function validatePhysicalDevicePreflightReport(report, { reportPath, curr
   }
   validatePreflightHostEvidence(report.host, failures);
   validatePreflightToolEvidence(report.toolEvidence, report.mode, failures);
+  validatePhysicalDeviceValidationRunbook(report.runbook, report.mode, failures);
   const ageHours = ageInHours(report.generatedAt, new Date());
   if (ageHours === null) {
     failures.push("Physical device preflight generatedAt timestamp is missing or invalid.");
@@ -378,6 +380,125 @@ function validateIosPhysicalDevices(output, command) {
       tool: command.tool
     }
   };
+}
+
+function createPhysicalDeviceValidationRunbook({ mode, platforms }) {
+  const androidReady = (platforms.android?.devices || []).length > 0;
+  const iosReady = (platforms.ios?.devices || []).length > 0;
+  const steps = [];
+
+  if (mode === "all" || mode === "android") {
+    steps.push(
+      validationRunbookStep({
+        id: "android-private-rtmps",
+        platform: "android",
+        deviceReady: androidReady,
+        title: "Android private RTMPS validation",
+        action:
+          "Run the React Native app on a connected physical Android device, start a private RTMPS stream, and record in-app validation evidence from that same run.",
+        requiredEvidence:
+          "Retained validation run with physical Android identity, stable monitor hold, non-zero native sent video/audio frames, bytes written, and zero publisher drops."
+      }),
+      validationRunbookStep({
+        id: "android-mediacodec-compositor",
+        platform: "android",
+        deviceReady: androidReady,
+        title: "Android direct MediaCodec compositor proof",
+        action:
+          "Select the Android direct MediaCodec publisher mode before the private stream and keep the current scene active while overlay telemetry is retained.",
+        requiredEvidence:
+          "nativeRuntimeCompositorBackend android-canvas-mediacodec, runtimeCompositedFrameCount above zero, runtimeCompositionFailureCount zero, and required overlay kinds applied."
+      }),
+      validationRunbookStep({
+        id: "android-monitor-latency",
+        platform: "android",
+        deviceReady: androidReady,
+        title: "Android monitor latency tuning",
+        action:
+          "Validate wired and Bluetooth headphone monitoring on the physical Android device and enter the measured latency plus Bluetooth tuning note before saving evidence.",
+        requiredEvidence:
+          "Mic FX monitor route-match proof, native monitor write/drop counters, route-specific latency inside budget, and Bluetooth tuning-reviewed note when Bluetooth is used."
+      })
+    );
+  }
+
+  if (mode === "all" || mode === "ios") {
+    steps.push(
+      validationRunbookStep({
+        id: "ios-private-rtmps",
+        platform: "ios",
+        deviceReady: iosReady,
+        title: "iOS private RTMPS validation",
+        action:
+          "Run the app and ReplayKit Broadcast Upload Extension on a connected physical iPhone/iPad, start a private RTMPS stream, and record in-app validation evidence from that same run.",
+        requiredEvidence:
+          "Retained validation run with physical iOS identity, stable monitor hold, non-zero native sent video/audio frames, bytes written, and zero publisher drops."
+      }),
+      validationRunbookStep({
+        id: "ios-app-group-still-image",
+        platform: "ios",
+        deviceReady: iosReady,
+        title: "iOS App Group still-image render proof",
+        action:
+          "Prepare PNGTuber/image assets into App Group storage, start ReplayKit capture, and keep the current avatar/overlay scene visible during validation.",
+        requiredEvidence:
+          "ios-replaykit-coregraphics composited frames above zero, composition failures zero, App Group still-image loaded/decoded/composited counts covering required assets, and non-zero decoded/composited pixels."
+      }),
+      validationRunbookStep({
+        id: "ios-monitor-latency",
+        platform: "ios",
+        deviceReady: iosReady,
+        title: "iOS monitor latency tuning",
+        action:
+          "Validate wired and Bluetooth headphone monitoring on the physical iOS device and enter the measured latency plus Bluetooth tuning note before saving evidence.",
+        requiredEvidence:
+          "Mic FX monitor route-match proof, native monitor write/drop counters, route-specific latency inside budget, and Bluetooth tuning-reviewed note when Bluetooth is used."
+      })
+    );
+  }
+
+  steps.push(
+    validationRunbookStep({
+      id: "youtube-twitch-ingest",
+      platform: "all",
+      deviceReady:
+        mode === "all" ? androidReady && iosReady : mode === "android" ? androidReady : iosReady,
+      title: "YouTube Live and Twitch ingest validation",
+      action:
+        "After private endpoint validation passes, repeat platform-visible validation with real YouTube Live and Twitch stream keys and fresh dashboard status checks.",
+      requiredEvidence:
+        "Same-run platform ingest proof with fresh checked-at timestamps, YouTube broadcast/stream identity, Twitch title/category/language identity, and retained validation evidence for both iOS and Android before commercial approval."
+    })
+  );
+
+  return {
+    summary: createRunbookSummary({ mode, androidReady, iosReady, stepCount: steps.length }),
+    steps
+  };
+}
+
+function validationRunbookStep({ id, platform, deviceReady, title, action, requiredEvidence }) {
+  return {
+    id,
+    platform,
+    deviceReady,
+    status: deviceReady ? "ready-to-run" : "waiting-for-device",
+    title,
+    action,
+    requiredEvidence
+  };
+}
+
+function createRunbookSummary({ mode, androidReady, iosReady, stepCount }) {
+  const readiness =
+    mode === "all"
+      ? androidReady && iosReady
+      : mode === "android"
+        ? androidReady
+        : iosReady;
+  return readiness
+    ? `${stepCount} commercial physical-device validation step(s) are ready to execute for ${mode} mode.`
+    : `${stepCount} commercial physical-device validation step(s) are waiting for connected ${mode} physical-device proof.`;
 }
 
 function runCommand(command, args) {
@@ -632,6 +753,63 @@ function validatePreflightToolEvidence(toolEvidence, mode, failures) {
   }
 }
 
+function validatePhysicalDeviceValidationRunbook(runbook, mode, failures) {
+  if (!runbook || typeof runbook !== "object") {
+    failures.push("Physical device preflight validation runbook is missing.");
+    return;
+  }
+  if (typeof runbook.summary !== "string" || runbook.summary.trim().length === 0) {
+    failures.push("Physical device preflight validation runbook summary is missing.");
+  }
+  const steps = Array.isArray(runbook.steps) ? runbook.steps : [];
+  if (steps.length === 0) {
+    failures.push("Physical device preflight validation runbook steps are missing.");
+    return;
+  }
+
+  const requiredStepIds =
+    mode === "all"
+      ? [
+          "android-private-rtmps",
+          "android-mediacodec-compositor",
+          "android-monitor-latency",
+          "ios-private-rtmps",
+          "ios-app-group-still-image",
+          "ios-monitor-latency",
+          "youtube-twitch-ingest"
+        ]
+      : mode === "android"
+        ? ["android-private-rtmps", "android-mediacodec-compositor", "android-monitor-latency", "youtube-twitch-ingest"]
+        : ["ios-private-rtmps", "ios-app-group-still-image", "ios-monitor-latency", "youtube-twitch-ingest"];
+
+  for (const id of requiredStepIds) {
+    if (!steps.some((step) => step?.id === id)) {
+      failures.push(`Physical device preflight validation runbook is missing required step ${id}.`);
+    }
+  }
+
+  for (const [index, step] of steps.entries()) {
+    const prefix = `Physical device preflight validation runbook step ${index}`;
+    if (typeof step?.id !== "string" || step.id.trim().length === 0) {
+      failures.push(`${prefix} is missing id.`);
+    }
+    if (!["android", "ios", "all"].includes(step?.platform)) {
+      failures.push(`${prefix} has unsupported platform ${JSON.stringify(step?.platform)}.`);
+    }
+    if (step?.status !== "ready-to-run" && step?.status !== "waiting-for-device") {
+      failures.push(`${prefix} has unsupported status ${JSON.stringify(step?.status)}.`);
+    }
+    if (step?.deviceReady !== true) {
+      failures.push(`${prefix} is not ready for commercial physical-device validation.`);
+    }
+    for (const key of ["title", "action", "requiredEvidence"]) {
+      if (typeof step?.[key] !== "string" || step[key].trim().length < 12) {
+        failures.push(`${prefix} is missing ${key}.`);
+      }
+    }
+  }
+}
+
 function hashDeviceId(value) {
   return createHash("sha256").update(String(value)).digest("hex").slice(0, 12);
 }
@@ -805,6 +983,12 @@ function printTextReport(report) {
     for (const device of platformSummary.devices) {
       const label = name === "android" ? device.model || device.product || "Android device" : device.family || "iOS device";
       console.log(`  ${name}: ${label} (${device.idHash})`);
+    }
+  }
+  if (report.runbook?.summary) {
+    console.log(`Runbook: ${report.runbook.summary}`);
+    for (const step of report.runbook.steps || []) {
+      console.log(`- ${step.status}: ${step.id} - ${step.title}`);
     }
   }
 }

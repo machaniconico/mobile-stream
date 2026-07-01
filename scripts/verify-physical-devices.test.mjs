@@ -136,6 +136,55 @@ iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
         detail: "1 connected physical iOS device(s) ready."
       }
     ]);
+    expect(report.runbook).toMatchObject({
+      summary: "7 commercial physical-device validation step(s) are ready to execute for all mode.",
+      steps: [
+        {
+          id: "android-private-rtmps",
+          platform: "android",
+          status: "ready-to-run",
+          deviceReady: true
+        },
+        {
+          id: "android-mediacodec-compositor",
+          platform: "android",
+          status: "ready-to-run",
+          deviceReady: true
+        },
+        {
+          id: "android-monitor-latency",
+          platform: "android",
+          status: "ready-to-run",
+          deviceReady: true
+        },
+        {
+          id: "ios-private-rtmps",
+          platform: "ios",
+          status: "ready-to-run",
+          deviceReady: true
+        },
+        {
+          id: "ios-app-group-still-image",
+          platform: "ios",
+          status: "ready-to-run",
+          deviceReady: true
+        },
+        {
+          id: "ios-monitor-latency",
+          platform: "ios",
+          status: "ready-to-run",
+          deviceReady: true
+        },
+        {
+          id: "youtube-twitch-ingest",
+          platform: "all",
+          status: "ready-to-run",
+          deviceReady: true
+        }
+      ]
+    });
+    expect(report.runbook.steps[1].requiredEvidence).toContain("android-canvas-mediacodec");
+    expect(report.runbook.steps[4].requiredEvidence).toContain("ios-replaykit-coregraphics");
   });
 
   it("blocks Android candidates when runtime qemu proof is missing or reports emulator hardware", () => {
@@ -350,6 +399,31 @@ Release iPhone (17.5.1) (00008110-001234560E91801E)
         "Physical device preflight host evidence is missing.",
         "Physical device preflight tool evidence is missing."
       ])
+    );
+  });
+
+  it("rejects commercial preflight reports without validation runbook evidence", () => {
+    const report = createPhysicalDevicePreflightReport({
+      androidAdbOutput: `List of devices attached
+R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
+`,
+      androidRuntimeProperties: {
+        R58M123456B: `[ro.kernel.qemu]: [0]
+[ro.boot.qemu]: [0]
+[ro.hardware]: [qcom]
+`
+      },
+      androidRuntimeCommands: {
+        R58M123456B: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" }
+      },
+      iosXctraceOutput: `== Devices ==
+Release iPhone (17.5.1) (00008110-001234560E91801E)
+`
+    });
+    delete report.runbook;
+
+    expect(validatePhysicalDevicePreflightReport(report, { currentCommit: report.git.commit, allowDirty: true })).toEqual(
+      expect.arrayContaining(["Physical device preflight validation runbook is missing."])
     );
   });
 });

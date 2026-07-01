@@ -105,6 +105,11 @@ const checks = [
     expectIncludes(files.physicalDevicesScript, "emulator or generic Android system image");
     expectIncludes(files.physicalDevicesScript, "iOS Simulator");
     expectIncludes(files.physicalDevicesScript, "must not be a symbolic link");
+    expectIncludes(files.physicalDevicesScript, "createPhysicalDeviceValidationRunbook");
+    expectIncludes(files.physicalDevicesScript, "validatePhysicalDeviceValidationRunbook");
+    expectIncludes(files.physicalDevicesScript, "android-canvas-mediacodec");
+    expectIncludes(files.physicalDevicesScript, "ios-replaykit-coregraphics");
+    expectIncludes(files.physicalDevicesScript, "YouTube Live and Twitch ingest validation");
     expectIncludes(files.distributionArtifactsScript, "androidAab");
     expectIncludes(files.distributionArtifactsScript, ".aab");
     expectIncludes(files.distributionArtifactsScript, "sha256");
