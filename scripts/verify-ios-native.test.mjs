@@ -7,6 +7,8 @@ import { createIosNativeVerificationReport, createIosSimulatorBuildArgs } from "
 const fixtureRoot = ".artifacts/verify-ios-native-test";
 const derivedDataPath = `${fixtureRoot}/DerivedData`;
 const appPath = `${derivedDataPath}/Build/Products/Debug-iphonesimulator/MobileLiveCaster.app`;
+const embeddedExtensionPath = `${appPath}/PlugIns/MobileLiveCasterBroadcastUpload.appex`;
+const standaloneExtensionPath = `${derivedDataPath}/Build/Products/Debug-iphonesimulator/MobileLiveCasterBroadcastUpload.appex`;
 
 describe("iOS native verifier", () => {
   afterEach(() => {
@@ -65,6 +67,34 @@ describe("iOS native verifier", () => {
           bytes: 17,
           sha256: sha256("executable-bytes\n")
         }
+      },
+      broadcastUploadExtension: {
+        embedded: {
+          path: embeddedExtensionPath,
+          infoPlist: {
+            path: join(embeddedExtensionPath, "Info.plist"),
+            bytes: 16,
+            sha256: sha256("extension-plist\n")
+          },
+          executable: {
+            path: join(embeddedExtensionPath, "MobileLiveCasterBroadcastUpload"),
+            bytes: 21,
+            sha256: sha256("extension-executable\n")
+          }
+        },
+        standalone: {
+          path: standaloneExtensionPath,
+          infoPlist: {
+            path: join(standaloneExtensionPath, "Info.plist"),
+            bytes: 16,
+            sha256: sha256("extension-plist\n")
+          },
+          executable: {
+            path: join(standaloneExtensionPath, "MobileLiveCasterBroadcastUpload"),
+            bytes: 21,
+            sha256: sha256("extension-executable\n")
+          }
+        }
       }
     });
   });
@@ -82,12 +112,36 @@ describe("iOS native verifier", () => {
       })
     ).toThrow(`iOS simulator app executable was not created: ${resolve(join(appPath, "MobileLiveCaster"))}`);
   });
+
+  it("fails when the embedded ReplayKit Broadcast Upload Extension is missing", () => {
+    mkdirSync(appPath, { recursive: true });
+    writeFileSync(join(appPath, "Info.plist"), "plist-bytes\n");
+    writeFileSync(join(appPath, "MobileLiveCaster"), "executable-bytes\n");
+    writeBroadcastExtensionFixture(standaloneExtensionPath);
+
+    expect(() =>
+      createIosNativeVerificationReport({
+        derivedDataPath,
+        command: "xcodebuild ...",
+        startedAt: "2026-07-01T00:00:00.000Z",
+        finishedAt: "2026-07-01T00:00:03.000Z"
+      })
+    ).toThrow(`embedded ReplayKit Broadcast Upload Extension was not created: ${resolve(embeddedExtensionPath)}`);
+  });
 });
 
 function writeBuiltAppFixture() {
   mkdirSync(appPath, { recursive: true });
   writeFileSync(join(appPath, "Info.plist"), "plist-bytes\n");
   writeFileSync(join(appPath, "MobileLiveCaster"), "executable-bytes\n");
+  writeBroadcastExtensionFixture(embeddedExtensionPath);
+  writeBroadcastExtensionFixture(standaloneExtensionPath);
+}
+
+function writeBroadcastExtensionFixture(path) {
+  mkdirSync(path, { recursive: true });
+  writeFileSync(join(path, "Info.plist"), "extension-plist\n");
+  writeFileSync(join(path, "MobileLiveCasterBroadcastUpload"), "extension-executable\n");
 }
 
 function sha256(value) {

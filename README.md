@@ -141,7 +141,7 @@ npm run release:evidence-package -- /path/to/release-candidate-verification.json
 
 `npm run verify:android-native` builds the Android debug APK through Gradle. It validates the native Android bridge, Kotlin/Java sources, Android resources, CMake/native-library wiring, and React Native Android integration without requiring a physical device.
 
-`npm run verify:ios-native` builds the iOS simulator app through Xcode and writes `.artifacts/ios-native-verification.json` with app bundle, Info.plist, executable hash, Xcode version, timing, and derived-data path evidence. It requires macOS with Xcode.
+`npm run verify:ios-native` builds the iOS simulator app through Xcode and writes `.artifacts/ios-native-verification.json` with app bundle, embedded ReplayKit Broadcast Upload Extension, standalone extension build product, Info.plist, executable hashes, Xcode version, timing, and derived-data path evidence. It requires macOS with Xcode.
 
 `npm run verify:scripts` syntax-checks the release automation `.mjs` scripts that CI and the release-candidate gate depend on.
 

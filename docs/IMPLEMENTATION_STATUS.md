@@ -199,7 +199,7 @@
 - Android `assembleDebug` build succeeds.
 - Android App Bundle release task is exposed through `npm run android:bundleRelease` and guarded by the store-release environment verifier.
 - iOS `pod install` succeeds and generated `MobileLiveCaster.xcworkspace`.
-- iOS Simulator Debug build succeeds through `npm run verify:ios-native`, with `.artifacts/ios-native-verification.json` retaining app bundle, Info.plist, executable hash, Xcode version, timing, and derived-data path evidence.
+- iOS Simulator Debug build succeeds through `npm run verify:ios-native`, with `.artifacts/ios-native-verification.json` retaining host app bundle evidence, embedded ReplayKit Broadcast Upload Extension evidence, standalone extension build-product evidence, Info.plist/executable hashes, Xcode version, timing, and derived-data path evidence.
 - iOS production archive/export helper scripts generate App Store Connect export options from environment variables, require explicit provisioning profiles for both the host app and ReplayKit Broadcast Upload Extension, archive with Apple Distribution signing, and are covered by native release-configuration audit checks.
 
 ## Not Implemented Yet

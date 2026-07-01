@@ -10,6 +10,8 @@ const defaultDerivedDataPath = ".artifacts/ios/simulator-build/DerivedData";
 const defaultReportPath = ".artifacts/ios-native-verification.json";
 const appBundleName = "MobileLiveCaster.app";
 const executableName = "MobileLiveCaster";
+const broadcastExtensionBundleName = "MobileLiveCasterBroadcastUpload.appex";
+const broadcastExtensionExecutableName = "MobileLiveCasterBroadcastUpload";
 
 if (isDirectRun()) {
   exit(run(argv.slice(2)));
@@ -90,14 +92,20 @@ export function createIosNativeVerificationReport({
   xcodeVersion = ""
 }) {
   const appPath = join(resolve(derivedDataPath), "Build/Products/Debug-iphonesimulator", appBundleName);
+  const buildProductsPath = join(resolve(derivedDataPath), "Build/Products/Debug-iphonesimulator");
   const infoPlistPath = join(appPath, "Info.plist");
   const executablePath = join(appPath, executableName);
+  const embeddedExtensionPath = join(appPath, "PlugIns", broadcastExtensionBundleName);
+  const standaloneExtensionPath = join(buildProductsPath, broadcastExtensionBundleName);
   assertBuiltAppArtifact(appPath, "iOS simulator app bundle", "directory");
   assertBuiltAppArtifact(infoPlistPath, "iOS simulator app Info.plist", "file");
   assertBuiltAppArtifact(executablePath, "iOS simulator app executable", "file");
+  assertBroadcastExtensionBundle(embeddedExtensionPath, "embedded ReplayKit Broadcast Upload Extension");
+  assertBroadcastExtensionBundle(standaloneExtensionPath, "standalone ReplayKit Broadcast Upload Extension build product");
 
   const startedMs = Date.parse(startedAt);
   const finishedMs = Date.parse(finishedAt);
+  const embeddedExtensionInfoPlistPath = join(embeddedExtensionPath, "Info.plist");
   return {
     type: "ios-native-verification",
     appName: "MobileLiveCaster",
@@ -116,6 +124,14 @@ export function createIosNativeVerificationReport({
       bytes: directoryEntrySize(appPath),
       infoPlist: fileRecord(infoPlistPath),
       executable: fileRecord(executablePath)
+    },
+    broadcastUploadExtension: {
+      embedded: extensionBundleRecord(embeddedExtensionPath),
+      standalone: extensionBundleRecord(standaloneExtensionPath),
+      bundleIdentifier: readPlistValue(embeddedExtensionInfoPlistPath, "CFBundleIdentifier"),
+      extensionPointIdentifier: readPlistValue(embeddedExtensionInfoPlistPath, "NSExtension.NSExtensionPointIdentifier"),
+      principalClass: readPlistValue(embeddedExtensionInfoPlistPath, "NSExtension.NSExtensionPrincipalClass"),
+      processMode: readPlistValue(embeddedExtensionInfoPlistPath, "NSExtension.RPBroadcastProcessMode")
     }
   };
 }
@@ -153,8 +169,25 @@ function assertBuiltAppArtifact(path, label, expectedType) {
   }
 }
 
+function assertBroadcastExtensionBundle(path, label) {
+  const infoPlistPath = join(path, "Info.plist");
+  const executablePath = join(path, broadcastExtensionExecutableName);
+  assertBuiltAppArtifact(path, label, "directory");
+  assertBuiltAppArtifact(infoPlistPath, `${label} Info.plist`, "file");
+  assertBuiltAppArtifact(executablePath, `${label} executable`, "file");
+}
+
 function directoryEntrySize(path) {
   return statSync(path).size;
+}
+
+function extensionBundleRecord(path) {
+  return {
+    path: relative(cwd(), path),
+    bytes: directoryEntrySize(path),
+    infoPlist: fileRecord(join(path, "Info.plist")),
+    executable: fileRecord(join(path, broadcastExtensionExecutableName))
+  };
 }
 
 function fileRecord(path) {
@@ -164,6 +197,10 @@ function fileRecord(path) {
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex")
   };
+}
+
+function readPlistValue(plistPath, keyPath) {
+  return commandOutput("plutil", ["-extract", keyPath, "raw", "-o", "-", plistPath]);
 }
 
 function commandOutput(command, args) {
