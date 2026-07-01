@@ -438,6 +438,27 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks Go Live preflight warnings even when warnings are allowed", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          preflightStatus: "warning",
+          launchWarningCount: 1
+        }
+      }),
+      { now, allowWarnings: true }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "preflight-incomplete",
+        severity: "fail"
+      })
+    );
+  });
+
   it("blocks old support bundle schema versions without retained-run manifests", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({

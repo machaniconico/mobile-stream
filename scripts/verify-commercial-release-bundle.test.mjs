@@ -212,6 +212,23 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("release warning");
   });
 
+  it("blocks Go Live preflight warnings even when warnings are allowed", () => {
+    writeBundle({
+      summary: {
+        preflightStatus: "warning",
+        launchWarningCount: 1
+      }
+    });
+
+    const result = runVerifierAllowWarnings();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[FAIL] Go Live preflight");
+    expect(result.stdout).toContain("clean preflight");
+    expect(result.stdout).toContain("Can release: no");
+    expect(result.stdout).not.toContain("release warning");
+  });
+
   it("blocks prefix-named token and API key leaks", () => {
     writeBundle({
       diagnostics: {

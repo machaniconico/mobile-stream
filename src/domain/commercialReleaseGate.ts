@@ -198,11 +198,11 @@ const createPreflightIssue = (bundle: SupportBundle): CommercialReleaseGateIssue
     );
   }
   if (bundle.summary.preflightStatus === "warning" || bundle.summary.launchWarningCount > 0) {
-    return warnIssue(
-      "preflight-warning",
+    return failIssue(
+      "preflight-incomplete",
       "Go Live preflight",
       `${bundle.summary.launchWarningCount} launch warning${bundle.summary.launchWarningCount === 1 ? "" : "s"} remain.`,
-      "Review preflight warnings and either resolve them or approve release with warnings explicitly."
+      "Resolve Go Live preflight warnings before approving release; platform-visible starts must have a clean preflight."
     );
   }
   return null;

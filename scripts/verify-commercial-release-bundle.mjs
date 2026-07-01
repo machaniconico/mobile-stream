@@ -300,11 +300,11 @@ function preflightIssue(bundle) {
     );
   }
   if (summary.preflightStatus === "warning" || number(summary.launchWarningCount) > 0) {
-    return warn(
-      "preflight-warning",
+    return fail(
+      "preflight-incomplete",
       "Go Live preflight",
       `${number(summary.launchWarningCount)} launch warning(s) remain.`,
-      "Review preflight warnings and either resolve them or approve release with warnings explicitly."
+      "Resolve Go Live preflight warnings before approving release; platform-visible starts must have a clean preflight."
     );
   }
   return null;
