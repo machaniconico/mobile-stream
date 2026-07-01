@@ -339,7 +339,7 @@ describe("release evidence package creator", () => {
     expect(failures.join("\n")).toContain("Package support bundle validation-evidence-not-ready");
   });
 
-  it("rejects packaged support bundle warnings unless the RC report accepted warnings", () => {
+  it("rejects packaged stale retained validation runs", () => {
     resetPackageDir();
     writeReportFixture();
     createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
@@ -352,11 +352,11 @@ describe("release evidence package creator", () => {
 
     const failures = validateReleaseEvidencePackage({ packageDir });
 
-    expect(failures.join("\n")).toContain("Package support bundle commercial release gate must be ready, got warning:");
+    expect(failures.join("\n")).toContain("Package support bundle commercial release gate must be ready, got blocked:");
     expect(failures.join("\n")).toContain("Package support bundle validation-evidence-stale-retained-runs");
   });
 
-  it("allows packaged support bundle warnings when the RC report accepted warnings", () => {
+  it("keeps packaged stale retained validation runs blocking when the RC report accepted warnings", () => {
     resetPackageDir();
     writeReportFixture();
     createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
@@ -373,7 +373,10 @@ describe("release evidence package creator", () => {
     writeFileSync(packagedReportPath, JSON.stringify(releaseReport, null, 2));
     refreshPackagedSourceReportEvidence();
 
-    expect(validateReleaseEvidencePackage({ packageDir })).toEqual([]);
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain("Package support bundle commercial release gate must be ready, got blocked:");
+    expect(failures.join("\n")).toContain("Package support bundle validation-evidence-stale-retained-runs");
   });
 
   it("rejects tampered packaged artifact files", () => {

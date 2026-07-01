@@ -737,6 +737,29 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("release warning");
   });
 
+  it("blocks stale retained validation runs even when warnings are allowed", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunCount: 3,
+        validationEvidenceEligibleRunCount: 2,
+        validationEvidenceStaleRunCount: 1,
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios"),
+          manifestRun("android", "svr1-android"),
+          manifestRun("ios", "svr1-ios-stale", { eligible: false, fresh: false })
+        ]
+      }
+    });
+
+    const result = runVerifierAllowWarnings();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[FAIL] Physical validation evidence");
+    expect(result.stdout).toContain("1 stale retained validation run(s) remain in the bundle.");
+    expect(result.stdout).toContain("Can release: no");
+    expect(result.stdout).not.toContain("release warning");
+  });
+
   it("keeps monitor-hold manifest failures blocking when manifest count mismatches are present", () => {
     writeBundle({
       summary: {

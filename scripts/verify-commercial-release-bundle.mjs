@@ -1028,11 +1028,11 @@ function staleEvidenceIssue(bundle) {
   if (staleRunCount <= 0) {
     return null;
   }
-  return warn(
+  return fail(
     "validation-evidence-stale-retained-runs",
     "Physical validation evidence",
     `${staleRunCount} stale retained validation run(s) remain in the bundle.`,
-    "Clear old retained validation evidence after exporting any support records that still need it."
+    "Clear old retained validation evidence and export a fresh support bundle before release approval."
   );
 }
 
@@ -1067,10 +1067,6 @@ function gateSummary(status, canRelease, warningCount, failureCount) {
 
 function fail(code, label, detail, action) {
   return { code, severity: "fail", label, detail, action };
-}
-
-function warn(code, label, detail, action) {
-  return { code, severity: "warn", label, detail, action };
 }
 
 function ageInHours(value, now) {

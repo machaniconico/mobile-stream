@@ -130,7 +130,7 @@ describe("release report verifier", () => {
     }
   });
 
-  it("rejects support bundle warnings unless the RC report accepted warnings", () => {
+  it("rejects stale retained validation runs in the support bundle", () => {
     const report = createReport({
       supportBundlePatch: {
         summary: {
@@ -141,11 +141,11 @@ describe("release report verifier", () => {
 
     const failures = validateReport(report, reportOptions());
 
-    expect(failures.join("\n")).toContain("Release report support bundle commercial release gate must be ready, got warning:");
+    expect(failures.join("\n")).toContain("Release report support bundle commercial release gate must be ready, got blocked:");
     expect(failures.join("\n")).toContain("Release report support bundle validation-evidence-stale-retained-runs");
   });
 
-  it("allows support bundle warnings when the RC report accepted warnings", () => {
+  it("keeps stale retained validation runs blocking when the RC report accepted warnings", () => {
     const failures = validateReport(
       createReport({
         allowWarnings: true,
@@ -158,7 +158,8 @@ describe("release report verifier", () => {
       reportOptions()
     );
 
-    expect(failures).toEqual([]);
+    expect(failures.join("\n")).toContain("Release report support bundle commercial release gate must be ready, got blocked:");
+    expect(failures.join("\n")).toContain("Release report support bundle validation-evidence-stale-retained-runs");
   });
 
   it("rejects release reports when an artifact hash no longer matches the workspace file", () => {

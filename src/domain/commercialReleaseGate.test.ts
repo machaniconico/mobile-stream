@@ -391,7 +391,7 @@ describe("commercial release gate", () => {
     expect(formatCommercialReleaseGate(gate)).toContain("Refresh YouTube status within 10 minutes");
   });
 
-  it("requires explicit approval before releasing with warnings", () => {
+  it("blocks stale retained validation runs even when warnings are allowed", () => {
     const bundle = supportBundle({
       summary: {
         validationEvidenceRunCount: 3,
@@ -404,17 +404,17 @@ describe("commercial release gate", () => {
       }
     });
 
-    const warningGate = createCommercialReleaseGate(bundle, { now });
-    expect(warningGate.status).toBe("warning");
-    expect(warningGate.canRelease).toBe(false);
-    expect(warningGate.issues.map((issue) => issue.code)).toEqual(
-      expect.arrayContaining(["validation-evidence-stale-retained-runs"])
-    );
+    const gate = createCommercialReleaseGate(bundle, { now, allowWarnings: true });
 
-    const approvedGate = createCommercialReleaseGate(bundle, { now, allowWarnings: true });
-    expect(approvedGate.status).toBe("warning");
-    expect(approvedGate.canRelease).toBe(true);
-    expect(approvedGate.summary).toContain("accepted");
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-stale-retained-runs",
+        severity: "fail"
+      })
+    );
+    expect(gate.primaryAction).toContain("Clear old retained validation evidence");
   });
 
   it("blocks public launch checklist warnings even when warnings are allowed", () => {
