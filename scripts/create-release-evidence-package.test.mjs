@@ -215,6 +215,21 @@ describe("release evidence package creator", () => {
     ).toThrow("Release report cannot be used for a commercial evidence package:");
   });
 
+  it("rejects release reports generated with warning approval", () => {
+    writeReportFixture();
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    report.options.allowWarnings = true;
+    writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    expect(() =>
+      createReleaseEvidencePackage({
+        reportPath,
+        outputDir: `${fixtureRoot}/warning-package`,
+        allowDirty: true
+      })
+    ).toThrow("--allow-warnings");
+  });
+
   it("rejects packaged release reports that were later marked development-only", () => {
     resetPackageDir();
     writeReportFixture();
@@ -242,6 +257,24 @@ describe("release evidence package creator", () => {
       "Packaged release report was generated with --allow-commit-mismatch and cannot be used as commercial package evidence."
     );
     expect(failures).toContain("Packaged release report clean git worktree gate must be passed for commercial package evidence.");
+  });
+
+  it("rejects packaged release reports that were later marked warning-approved", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    packagedReport.options.allowWarnings = true;
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+    refreshPackagedSourceReportEvidence();
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Packaged release report was generated with --allow-warnings and cannot be used as commercial package evidence."
+    );
   });
 
   it("rejects packages whose manifest git dirty-state provenance is missing", () => {

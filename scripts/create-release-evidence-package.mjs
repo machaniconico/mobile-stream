@@ -359,6 +359,9 @@ function validateCommercialPackageableReleaseReport(report, label = "Release rep
   if (report?.options?.allowCommitMismatch) {
     failures.push(`${label} was generated with --allow-commit-mismatch and cannot be used as commercial package evidence.`);
   }
+  if (report?.options?.allowWarnings) {
+    failures.push(`${label} was generated with --allow-warnings and cannot be used as commercial package evidence.`);
+  }
   const cleanGitGate = Array.isArray(report?.gates)
     ? report.gates.find((gate) => gate?.label === "Verify clean git worktree")
     : null;
@@ -401,7 +404,7 @@ function validatePackagedSupportBundleGate(supportBundle, releaseReport, maxAgeH
   const gate = createCommercialReleaseGate(supportBundle, {
     now: new Date(releaseFinishedAt),
     maxBundleAgeHours: maxAgeHours,
-    allowWarnings: Boolean(releaseReport?.options?.allowWarnings)
+    allowWarnings: false
   });
   if (gate.canRelease) {
     return;

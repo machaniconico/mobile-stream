@@ -332,10 +332,10 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "validatePackagedStoreSubmissionScreenshots");
     expectIncludes(files.releaseEvidencePackageScript, "validationEvidenceConsistentAppBuild");
     expectIncludes(files.releaseEvidencePackageScript, "createCommercialReleaseGate");
-    expectIncludes(files.releaseEvidencePackageScript, "releaseReport?.options?.allowWarnings");
+    expectIncludes(files.releaseEvidencePackageScript, "allowWarnings: false");
     expectIncludes(files.releaseEvidencePackageScript, "Package support bundle commercial release gate");
     expectIncludes(files.releaseReportScript, "createCommercialReleaseGate");
-    expectIncludes(files.releaseReportScript, "report?.options?.allowWarnings");
+    expectIncludes(files.releaseReportScript, "allowWarnings: false");
     expectIncludes(files.releaseReportScript, "Release report support bundle commercial release gate");
     expectIncludes(files.releaseEvidencePackageScript, "dashboardScreenshotStatusMaxSkewMinutes");
     expectIncludes(files.releaseEvidencePackageScript, "Package ${label} references artifact not present in package");

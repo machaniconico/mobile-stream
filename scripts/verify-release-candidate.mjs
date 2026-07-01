@@ -88,7 +88,7 @@ async function main() {
   console.log(`Support bundle: ${options.supportBundlePath}`);
   console.log(`Support bundle SHA-256: ${supportBundle.sha256}`);
   console.log(`Bundle age limit: ${options.maxAgeHours}h`);
-  console.log(`Warnings accepted: ${options.allowWarnings ? "yes" : "no"}`);
+  console.log("Warnings accepted: no");
   console.log(`Dirty worktree accepted: ${options.allowDirty ? "yes" : "no"}`);
   console.log(`Report: ${options.reportJsonPath}`);
   console.log(`Store release report: ${options.storeReleaseReportJsonPath || "not supplied"}`);
@@ -147,7 +147,6 @@ function runCommercialSupportBundleGate(report, options) {
     "--",
     options.supportBundlePath,
     `--max-age-hours=${options.maxAgeHours}`,
-    ...(options.allowWarnings ? ["--allow-warnings"] : [])
   ]);
 }
 
@@ -697,7 +696,11 @@ function parseArgs(args) {
     if (arg === "--help" || arg === "-h") {
       parsed.help = true;
     } else if (arg === "--allow-warnings") {
-      parsed.allowWarnings = true;
+      printUsage();
+      throw new GateError(
+        "\n--allow-warnings is not supported for commercial release-candidate reports. Resolve support-bundle warnings first.",
+        2
+      );
     } else if (arg === "--allow-dirty") {
       parsed.allowDirty = true;
     } else if (arg === "--skip-ui") {
@@ -1097,7 +1100,7 @@ function printUsage() {
   console.log(
     [
       "Usage:",
-      "  npm run verify:release-candidate -- <support-bundle.json> [--max-age-hours=24] [--allow-warnings] [--allow-dirty] [--report-json=.artifacts/release-candidate-verification.json] [--ui-url=http://127.0.0.1:5173/] [--skip-ui --ui-evidence-json=.artifacts/ui-verification.json] [--store-release-report-json=.artifacts/store-release-orchestration.json] [--physical-device-preflight-json=.artifacts/physical-device-preflight.json]",
+      "  npm run verify:release-candidate -- <support-bundle.json> [--max-age-hours=24] [--allow-dirty] [--report-json=.artifacts/release-candidate-verification.json] [--ui-url=http://127.0.0.1:5173/] [--skip-ui --ui-evidence-json=.artifacts/ui-verification.json] [--store-release-report-json=.artifacts/store-release-orchestration.json] [--physical-device-preflight-json=.artifacts/physical-device-preflight.json]",
       "",
       "Runs source release gates, browser UI verification, React Native bundle verification, Android/iOS native build verification, and the commercial support-bundle gate.",
       "Writes a JSON evidence report for release approval audit trails.",

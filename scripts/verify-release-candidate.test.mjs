@@ -107,6 +107,16 @@ describe("release candidate verifier", () => {
     expect(result.stdout).not.toContain("==> Run unit tests");
   });
 
+  it("rejects warning-approved release candidate reports before running source gates", () => {
+    const result = runVerifier(["--allow-warnings"]);
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("Usage:");
+    expect(result.stderr).toContain("--allow-warnings is not supported for commercial release-candidate reports.");
+    expect(result.stdout).not.toContain("==> Run unit tests");
+    expect(existsSync(reportPath)).toBe(false);
+  });
+
   it("rejects symlinked support bundles before creating release candidate reports", () => {
     const outsideSupportBundle = `${fixtureRoot}/outside-support-bundle.json`;
     writeFile(outsideSupportBundle, readFileSync(supportBundlePath));

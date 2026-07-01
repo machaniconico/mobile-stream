@@ -113,6 +113,9 @@ export function validateReport(report, options) {
   if (report?.status !== "passed") {
     fail(`Report status must be passed, got ${JSON.stringify(report?.status)}.`);
   }
+  if (report?.options?.allowWarnings) {
+    fail("Report was generated with --allow-warnings and cannot be used for commercial approval.");
+  }
 
   validateReportAge(report, options, fail);
   validateGitState(report, options, fail);
@@ -222,7 +225,7 @@ function validateSupportBundle(report, options, fail) {
   const gate = createCommercialReleaseGate(supportBundle, {
     now: new Date(releaseFinishedAt),
     maxBundleAgeHours: options.maxAgeHours,
-    allowWarnings: Boolean(report?.options?.allowWarnings)
+    allowWarnings: false
   });
   if (gate.canRelease) {
     return;

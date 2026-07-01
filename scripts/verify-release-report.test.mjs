@@ -162,6 +162,12 @@ describe("release report verifier", () => {
     expect(failures.join("\n")).toContain("Release report support bundle validation-evidence-stale-retained-runs");
   });
 
+  it("rejects release reports generated with warning approval", () => {
+    const failures = validateReport(createReport({ allowWarnings: true }), reportOptions());
+
+    expect(failures).toContain("Report was generated with --allow-warnings and cannot be used for commercial approval.");
+  });
+
   it("rejects release reports when an artifact hash no longer matches the workspace file", () => {
     const report = createReport();
     report.artifacts.files[0].sha256 = "0".repeat(64);
