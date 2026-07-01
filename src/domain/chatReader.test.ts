@@ -128,6 +128,36 @@ describe("chatReader", () => {
     );
   });
 
+  it("redacts personal contact details before storing, overlaying, or reading chat", () => {
+    const state = updateChatReaderSettings(createDefaultChatReaderState(), {
+      redactUrls: false
+    });
+    const message = createChatMessage({
+      source: "youtube",
+      author: "viewer@example.com",
+      body: "call 090-1234-5678 or join discord.gg/privateRoom",
+      receivedAt: 4
+    });
+    const next = enqueueChatMessage(state, message);
+    const serialized = JSON.stringify(next);
+
+    expect(serialized).not.toContain("viewer@example.com");
+    expect(serialized).not.toContain("090-1234-5678");
+    expect(serialized).not.toContain("discord.gg/privateRoom");
+    expect(next.history[0]).toMatchObject({
+      author: "[email redacted]",
+      body: "call [phone redacted] or join [invite redacted]"
+    });
+    expect(selectChatOverlayMessages(next)[0]).toMatchObject({
+      author: "[email redacted]",
+      body: "call [phone redacted] or join [invite redacted]",
+      source: "youtube"
+    });
+    expect(createSpeechText(next.queue[0], next.settings)).toBe(
+      "[email redacted] says call [phone redacted] or join [invite redacted]"
+    );
+  });
+
   it("blocks link comments from speech and overlay when link blocking is enabled", () => {
     const state = updateChatReaderSettings(createDefaultChatReaderState(), {
       blockLinkMessages: true

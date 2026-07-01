@@ -16,6 +16,10 @@ describe("sensitive text redaction", () => {
     expect(redacted).not.toContain("yt-refresh-secret");
   });
 
+  it("prioritizes OAuth key redaction before phone-like number redaction", () => {
+    expect(redactSensitiveText("access_token=1234567890123")).toBe("access_token=[redacted]");
+  });
+
   it("redacts authorization headers and token payload fields", () => {
     const text =
       'Authorization: Bearer abcdefghijklmnop, next Authorization: OAuth oauthsecretvalue123 {"access_token":"json-token-secret"}';
@@ -28,6 +32,26 @@ describe("sensitive text redaction", () => {
     expect(redacted).not.toContain("abcdefghijklmnop");
     expect(redacted).not.toContain("oauthsecretvalue123");
     expect(redacted).not.toContain("json-token-secret");
+  });
+
+  it("redacts personal contact details and invite links", () => {
+    const text =
+      "mail me@example.com, phone 090-1234-5678, intl +1 415 555 2671, discord.gg/privateRoom";
+
+    const redacted = redactSensitiveText(text);
+
+    expect(redacted).toContain("mail [email redacted]");
+    expect(redacted).toContain("phone [phone redacted]");
+    expect(redacted).toContain("intl [phone redacted]");
+    expect(redacted).toContain("[invite redacted]");
+    expect(redacted).not.toContain("me@example.com");
+    expect(redacted).not.toContain("090-1234-5678");
+    expect(redacted).not.toContain("+1 415 555 2671");
+    expect(redacted).not.toContain("discord.gg/privateRoom");
+  });
+
+  it("does not redact date-like numbers as phone contacts", () => {
+    expect(redactSensitiveText("build window 2026-07-01 12:30 JST")).toBe("build window 2026-07-01 12:30 JST");
   });
 
   it("normalizes unknown errors with a fallback", () => {
