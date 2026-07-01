@@ -112,9 +112,11 @@ import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { StreamAudioLevelSample, StreamSessionSummary } from "../domain/streamSessionSummary";
 import {
   createStreamValidationAudioMonitorPreview,
+  createStreamValidationNativeRuntimePreview,
   createStreamValidationRun,
   formatStreamValidationRunAudioLabel,
   type StreamValidationDevicePlatform,
+  type StreamValidationFeatureStatus,
   type StreamValidationRun,
   type StreamValidationRunResult
 } from "../domain/streamValidationEvidence";
@@ -2668,6 +2670,7 @@ const StreamValidationRecorder = ({
   const [result, setResult] = useState<StreamValidationRunResult>(() => validationRunResultFromDiagnostics(diagnostics));
   const latestRun = diagnostics.validationEvidence.latestRun;
   const latestRunAudioLabel = latestRun ? formatStreamValidationRunAudioLabel(latestRun) : null;
+  const nativeRuntimePreview = createStreamValidationNativeRuntimePreview(diagnostics, devicePlatform);
   const audioMonitorPreview = createStreamValidationAudioMonitorPreview(
     diagnostics,
     {
@@ -2782,6 +2785,11 @@ const StreamValidationRecorder = ({
         <Text style={styles.diagnosticIncidentTitle}>Monitor latency preview</Text>
         <Text style={styles.diagnosticIncidentText}>{audioMonitorPreview.summary}</Text>
         <Text style={styles.diagnosticIncidentRecommendation}>{audioMonitorPreview.recommendation}</Text>
+      </View>
+      <View style={[styles.diagnosticIncident, diagnosticValidationItemStyle(nativeRuntimePreview.status)]}>
+        <Text style={styles.diagnosticIncidentTitle}>Native runtime preview</Text>
+        <Text style={styles.diagnosticIncidentText}>{nativeRuntimePreview.summary}</Text>
+        <Text style={styles.diagnosticIncidentRecommendation}>{nativeRuntimePreview.recommendation}</Text>
       </View>
       {latestRun ? (
         <View style={[styles.diagnosticIncident, diagnosticValidationRunStyle(latestRun.result)]}>
@@ -4152,7 +4160,9 @@ const diagnosticValidationStyle = (diagnostics: StreamDiagnostics) =>
       ? styles.diagnosticCheckWarn
       : null;
 
-const diagnosticValidationItemStyle = (status: StreamDiagnostics["validation"]["items"][number]["status"]) =>
+const diagnosticValidationItemStyle = (
+  status: StreamDiagnostics["validation"]["items"][number]["status"] | StreamValidationFeatureStatus
+) =>
   status === "fail" ? styles.diagnosticCheckFail : status === "pass" ? null : styles.diagnosticCheckWarn;
 
 const diagnosticValidationEvidenceSummaryStyle = (diagnostics: StreamDiagnostics) => {

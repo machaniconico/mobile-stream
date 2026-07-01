@@ -131,9 +131,11 @@ import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { StreamAudioLevelSample, StreamSessionSummary } from "../domain/streamSessionSummary";
 import {
   createStreamValidationAudioMonitorPreview,
+  createStreamValidationNativeRuntimePreview,
   createStreamValidationRun,
   formatStreamValidationRunAudioLabel,
   type StreamValidationDevicePlatform,
+  type StreamValidationFeatureStatus,
   type StreamValidationRun,
   type StreamValidationRunResult
 } from "../domain/streamValidationEvidence";
@@ -478,7 +480,9 @@ const sessionHistoryTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "
 const validationTone = (diagnostics: StreamDiagnostics): "pass" | "warn" | "fail" =>
   diagnostics.validation.status === "ready" ? "pass" : diagnostics.validation.status === "blocked" ? "fail" : "warn";
 
-const validationItemTone = (status: StreamDiagnostics["validation"]["items"][number]["status"]): "pass" | "warn" | "fail" =>
+const validationItemTone = (
+  status: StreamDiagnostics["validation"]["items"][number]["status"] | StreamValidationFeatureStatus
+): "pass" | "warn" | "fail" =>
   status === "fail" ? "fail" : status === "pass" ? "pass" : "warn";
 
 export const StudioScreen = ({
@@ -2386,6 +2390,7 @@ const StreamValidationRecorder = ({
   const [result, setResult] = useState<StreamValidationRunResult>(() => validationRunResultFromDiagnostics(diagnostics));
   const latestRun = diagnostics.validationEvidence.latestRun;
   const latestRunAudioLabel = latestRun ? formatStreamValidationRunAudioLabel(latestRun) : null;
+  const nativeRuntimePreview = createStreamValidationNativeRuntimePreview(diagnostics, devicePlatform);
   const audioMonitorPreview = createStreamValidationAudioMonitorPreview(
     diagnostics,
     {
@@ -2483,6 +2488,11 @@ const StreamValidationRecorder = ({
         <strong>Monitor latency preview</strong>
         <span>{audioMonitorPreview.summary}</span>
         <em>{audioMonitorPreview.recommendation}</em>
+      </div>
+      <div className={`diagnostic-incident ${validationItemTone(nativeRuntimePreview.status)}`}>
+        <strong>Native runtime preview</strong>
+        <span>{nativeRuntimePreview.summary}</span>
+        <em>{nativeRuntimePreview.recommendation}</em>
       </div>
       {latestRun ? (
         <div className={`diagnostic-incident ${validationRunTone(latestRun.result)}`}>

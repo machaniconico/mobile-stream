@@ -7,6 +7,7 @@ import { createStreamSessionSummary } from "./streamSessionSummary";
 import {
   appendStreamValidationRun,
   createStreamValidationAudioMonitorPreview,
+  createStreamValidationNativeRuntimePreview,
   createStreamValidationRun,
   formatStreamValidationRunAudioLabel,
   mergeStreamValidationRuns,
@@ -805,6 +806,128 @@ describe("stream validation evidence", () => {
     expect(reviewed.monitorLatencyStatus).toBe("pass");
     expect(reviewed.monitorLatencySource).toBe("manual");
     expect(reviewed.bluetoothTuningReviewed).toBe(true);
+  });
+
+  it("previews missing native runtime proof before recording validation evidence", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health()
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const preview = createStreamValidationNativeRuntimePreview(diagnostics, "ios");
+
+    expect(preview).toMatchObject({
+      status: "pending",
+      expectedPlatform: "ios",
+      runtimePlatform: null,
+      publisherReady: false,
+      compositorReady: false
+    });
+    expect(preview.summary).toContain("No native runtime proof");
+    expect(preview.recommendation).toContain("Start a native private RTMP/RTMPS stream");
+  });
+
+  it("previews native runtime proof readiness for the selected validation platform", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "live" },
+        health: health({ bitrateKbps: 3500, fps: 30, message: "Live" }),
+        nativeRuntime: nativeMonitorRuntime("android")
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const androidPreview = createStreamValidationNativeRuntimePreview(diagnostics, "android");
+    const iosPreview = createStreamValidationNativeRuntimePreview(diagnostics, "ios");
+
+    expect(androidPreview).toMatchObject({
+      status: "pass",
+      runtimePlatform: "android",
+      publisherReady: true,
+      encoderReady: true,
+      videoFrameIntervalReady: true,
+      compositorReady: true,
+      stillImageOverlayReady: true
+    });
+    expect(androidPreview.summary).toContain("android-canvas-mediacodec");
+    expect(androidPreview.recommendation).toContain("ready for this validation recording");
+    expect(iosPreview).toMatchObject({
+      status: "warn",
+      runtimePlatform: "android"
+    });
+    expect(iosPreview.recommendation).toContain("rerun the private stream on ios");
+  });
+
+  it("previews iOS App Group still-image proof gaps before validation recording", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntime("ios");
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "live" },
+        health: health({ bitrateKbps: 3500, fps: 30, message: "Live" }),
+        nativeRuntime: {
+          ...runtime,
+          composition: {
+            ...runtime.composition,
+            stillImageAssetAppGroupLoadedCount: 0,
+            stillImageAssetAppGroupDecodedCount: 0,
+            stillImageAssetAppGroupDecodedPixelCount: 0,
+            stillImageAssetAppGroupCompositedCount: 0,
+            stillImageAssetAppGroupCompositedPixelCount: 0
+          }
+        }
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const preview = createStreamValidationNativeRuntimePreview(diagnostics, "ios");
+
+    expect(preview).toMatchObject({
+      status: "warn",
+      expectedPlatform: "ios",
+      runtimePlatform: "ios",
+      publisherReady: true,
+      compositorReady: true,
+      stillImageOverlayReady: true,
+      iosAppGroupStillImageReady: false
+    });
+    expect(preview.summary).toContain("app-group 0/1");
+    expect(preview.recommendation).toContain("App Group storage");
   });
 
   it("rejects simulator or emulator validation identities as physical-device proof", () => {

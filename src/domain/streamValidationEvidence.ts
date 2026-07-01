@@ -515,11 +515,103 @@ export type StreamValidationAudioMonitorPreview = Pick<
   recommendation: string;
 };
 
+export interface StreamValidationNativeRuntimePreview {
+  status: StreamValidationFeatureStatus;
+  expectedPlatform: StreamValidationDevicePlatform;
+  runtimePlatform: StreamSessionNativeRuntimeSummary["platform"] | null;
+  runtimeStatus: StreamSessionNativeRuntimeSummary["status"] | null;
+  publisherReady: boolean;
+  encoderReady: boolean;
+  videoFrameIntervalReady: boolean;
+  compositorReady: boolean;
+  stillImageOverlayReady: boolean;
+  iosAppGroupStillImageReady: boolean;
+  live2dPoseReady: boolean;
+  vrmRendererReady: boolean;
+  summary: string;
+  recommendation: string;
+}
+
 export const createStreamValidationAudioMonitorPreview = (
   diagnostics: StreamDiagnostics,
   audioMonitorTuning: StreamValidationAudioMonitorTuningInput | null | undefined = null,
   secrets: string[] = []
 ): StreamValidationAudioMonitorPreview => createMonitorLatencyEvidence(diagnostics, audioMonitorTuning, secrets);
+
+export const createStreamValidationNativeRuntimePreview = (
+  diagnostics: StreamDiagnostics,
+  expectedPlatform: StreamValidationDevicePlatform
+): StreamValidationNativeRuntimePreview => {
+  const nativeRuntime = createValidationNativeRuntimeSummary(diagnostics);
+  if (!nativeRuntime) {
+    return {
+      status: "pending",
+      expectedPlatform,
+      runtimePlatform: null,
+      runtimeStatus: null,
+      publisherReady: false,
+      encoderReady: false,
+      videoFrameIntervalReady: false,
+      compositorReady: false,
+      stillImageOverlayReady: false,
+      iosAppGroupStillImageReady: expectedPlatform !== "ios",
+      live2dPoseReady: false,
+      vrmRendererReady: false,
+      summary: `No native runtime proof is available for ${expectedPlatform} validation.`,
+      recommendation:
+        "Start a native private RTMP/RTMPS stream on the selected device, keep the current scene live long enough to send video/audio frames, then record validation evidence after publisher and compositor telemetry appears."
+    };
+  }
+
+  const platformMatches = nativeRuntime.platform === expectedPlatform;
+  const publisherReady =
+    nativeRuntime.sentVideoFrames > 0 && nativeRuntime.sentAudioFrames > 0 && nativeRuntime.bytesWritten > 0;
+  const encoderReady =
+    isProductionNativeVideoEncoderBackend(nativeRuntime.platform, nativeRuntime.videoEncoderBackend) &&
+    isProductionNativeAudioEncoderBackend(nativeRuntime.platform, nativeRuntime.audioEncoderBackend);
+  const videoFrameIntervalReady = hasNativeRuntimeVideoFrameIntervalProof(nativeRuntime);
+  const compositorReady =
+    hasNativeRuntimeAndroidMediaCodecCompositorProof(nativeRuntime) &&
+    hasNativeRuntimeIosReplayKitCompositorProof(nativeRuntime);
+  const stillImageOverlayReady = hasNativeRuntimeStillImageOverlayProof(nativeRuntime);
+  const iosAppGroupStillImageReady = hasNativeRuntimeIosAppGroupStillImageProof(nativeRuntime, expectedPlatform);
+  const live2dPoseReady = hasNativeRuntimeLive2DPoseProof(nativeRuntime);
+  const vrmRendererReady = hasNativeRuntimeVrmReleaseProof(nativeRuntime);
+  const pass = isNativeRuntimeEvidencePass(nativeRuntime, expectedPlatform);
+  const status: StreamValidationFeatureStatus = pass
+    ? "pass"
+    : nativeRuntime.status === "fail"
+      ? "fail"
+      : "warn";
+
+  return {
+    status,
+    expectedPlatform,
+    runtimePlatform: nativeRuntime.platform,
+    runtimeStatus: nativeRuntime.status,
+    publisherReady,
+    encoderReady,
+    videoFrameIntervalReady,
+    compositorReady,
+    stillImageOverlayReady,
+    iosAppGroupStillImageReady,
+    live2dPoseReady,
+    vrmRendererReady,
+    summary: createNativeRuntimePreviewSummary(nativeRuntime, expectedPlatform, platformMatches, status),
+    recommendation: createNativeRuntimePreviewRecommendation(nativeRuntime, expectedPlatform, {
+      platformMatches,
+      publisherReady,
+      encoderReady,
+      videoFrameIntervalReady,
+      compositorReady,
+      stillImageOverlayReady,
+      iosAppGroupStillImageReady,
+      live2dPoseReady,
+      vrmRendererReady,
+      pass
+    })
+  };
+};
 
 export const createStreamValidationRun = ({
   diagnostics,
@@ -1458,6 +1550,72 @@ const hasNativeRuntimeVrmReleaseProof = (
     nativeRuntime.vrmPoseBoneUnsupportedCount === 0 &&
     nativeRuntime.vrmPoseExpressionUnsupportedCount === 0
   );
+};
+
+interface NativeRuntimePreviewReadiness {
+  platformMatches: boolean;
+  publisherReady: boolean;
+  encoderReady: boolean;
+  videoFrameIntervalReady: boolean;
+  compositorReady: boolean;
+  stillImageOverlayReady: boolean;
+  iosAppGroupStillImageReady: boolean;
+  live2dPoseReady: boolean;
+  vrmRendererReady: boolean;
+  pass: boolean;
+}
+
+const createNativeRuntimePreviewSummary = (
+  nativeRuntime: StreamSessionNativeRuntimeSummary,
+  expectedPlatform: StreamValidationDevicePlatform,
+  platformMatches: boolean,
+  status: StreamValidationFeatureStatus
+): string => {
+  const platform = platformMatches ? nativeRuntime.platform : `${nativeRuntime.platform} for ${expectedPlatform}`;
+  return `Native runtime ${status}: ${platform} / publisher ${nativeRuntime.publisherState || nativeRuntime.runtimeStatus || "-"} / encoders ${nativeRuntime.videoEncoderBackend}/${nativeRuntime.audioEncoderBackend} / sent ${nativeRuntime.sentVideoFrames} video ${nativeRuntime.sentAudioFrames} audio / bytes ${nativeRuntime.bytesWritten} / compositor ${nativeRuntime.runtimeCompositorBackend} ${nativeRuntime.runtimeCompositedFrameCount} frames ${nativeRuntime.runtimeCompositionFailureCount} failures / overlays ${nativeRuntime.compositionAppliedCount} applied ${nativeRuntime.compositionSkippedCount} skipped / still-image ${nativeRuntime.stillImageAssetCompositedCount}/${nativeRuntime.stillImageAssetCount} composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount} / app-group ${nativeRuntime.stillImageAssetAppGroupCompositedCount}/${nativeRuntime.stillImageAssetAppGroupCount} composited pixels ${nativeRuntime.stillImageAssetAppGroupCompositedPixelCount} / video interval ${nativeRuntime.videoFrameIntervalSampleCount} samples.`;
+};
+
+const createNativeRuntimePreviewRecommendation = (
+  nativeRuntime: StreamSessionNativeRuntimeSummary,
+  expectedPlatform: StreamValidationDevicePlatform,
+  readiness: NativeRuntimePreviewReadiness
+): string => {
+  if (readiness.pass) {
+    return "Native publisher and compositor proof is ready for this validation recording. Keep the same device, scene, destination, and private ingest while recording evidence.";
+  }
+  if (!readiness.platformMatches) {
+    return `The latest native runtime proof is from ${nativeRuntime.platform}; select ${nativeRuntime.platform} in the recorder or rerun the private stream on ${expectedPlatform} before recording evidence.`;
+  }
+  if (nativeRuntime.status === "fail") {
+    return nativeRuntime.recommendation;
+  }
+  if (!readiness.publisherReady) {
+    return "Keep the native private stream running until publisher telemetry shows non-zero sent video frames, sent audio frames, and bytes written.";
+  }
+  if (!readiness.encoderReady) {
+    return "Use the production native encoder path before recording evidence: VideoToolbox/AudioToolbox on iOS or MediaCodec H.264/AAC on Android.";
+  }
+  if (!readiness.videoFrameIntervalReady) {
+    return "Wait for native video frame interval samples so average, max, and jitter proof are retained with the validation run.";
+  }
+  if (!readiness.compositorReady) {
+    return expectedPlatform === "android"
+      ? "Use Android direct MediaCodec Canvas mode and repeat validation until android-canvas-mediacodec reports composited frames above zero with zero composition failures."
+      : "Repeat iOS ReplayKit validation until ios-replaykit-coregraphics reports composited frames above zero with zero composition failures.";
+  }
+  if (!readiness.stillImageOverlayReady) {
+    return "Repeat validation with the current scene until every required still-image/avatar asset is loaded, decoded, composited, and has non-zero composited pixel proof.";
+  }
+  if (!readiness.iosAppGroupStillImageReady) {
+    return "Prepare iOS still-image/avatar assets into App Group storage and repeat ReplayKit validation until App Group loaded, decoded, composited, and pixel counters are non-zero.";
+  }
+  if (!readiness.live2dPoseReady) {
+    return "Repeat validation after the native runtime reports active Live2D pose payloads for every visible Live2D source.";
+  }
+  if (!readiness.vrmRendererReady) {
+    return "Repeat validation after the native VRM renderer reports loaded models, rendered sources, production renderer backend, and compatible bone/expression pose application.";
+  }
+  return nativeRuntime.recommendation;
 };
 
 const createValidationNativeRuntimeSummary = (
