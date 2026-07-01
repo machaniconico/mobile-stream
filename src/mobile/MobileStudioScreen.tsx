@@ -1437,6 +1437,15 @@ export const MobileStudioScreen = ({
               <ActionButton label="Auto rig" disabled={setupLocked} onPress={autoRigSelectedAvatar} />
               <MobileAvatarRigQualityPanel rig={selectedSource.illustrationRig} />
               <NumberStepper
+                label="Face X"
+                value={selectedSource.illustrationRig.faceCenterX}
+                min={0.05}
+                max={0.95}
+                step={0.05}
+                disabled={setupLocked}
+                onChange={(faceCenterX) => updateSelectedIllustrationRig("faceCenterX", faceCenterX)}
+              />
+              <NumberStepper
                 label="Face Y"
                 value={selectedSource.illustrationRig.faceCenterY}
                 min={0.15}
@@ -1473,6 +1482,24 @@ export const MobileStudioScreen = ({
                 onChange={(shoulderLineY) => updateSelectedIllustrationRig("shoulderLineY", shoulderLineY)}
               />
               <NumberStepper
+                label="Left eye X"
+                value={selectedSource.illustrationRig.leftEyeX}
+                min={0.05}
+                max={0.95}
+                step={0.05}
+                disabled={setupLocked}
+                onChange={(leftEyeX) => updateSelectedIllustrationRig("leftEyeX", leftEyeX)}
+              />
+              <NumberStepper
+                label="Right eye X"
+                value={selectedSource.illustrationRig.rightEyeX}
+                min={0.05}
+                max={0.95}
+                step={0.05}
+                disabled={setupLocked}
+                onChange={(rightEyeX) => updateSelectedIllustrationRig("rightEyeX", rightEyeX)}
+              />
+              <NumberStepper
                 label="Eye line"
                 value={selectedSource.illustrationRig.eyeLineY}
                 min={0.12}
@@ -1480,6 +1507,15 @@ export const MobileStudioScreen = ({
                 step={0.05}
                 disabled={setupLocked}
                 onChange={(eyeLineY) => updateSelectedIllustrationRig("eyeLineY", eyeLineY)}
+              />
+              <NumberStepper
+                label="Mouth X"
+                value={selectedSource.illustrationRig.mouthCenterX}
+                min={0.05}
+                max={0.95}
+                step={0.05}
+                disabled={setupLocked}
+                onChange={(mouthCenterX) => updateSelectedIllustrationRig("mouthCenterX", mouthCenterX)}
               />
               <NumberStepper
                 label="Mouth line"
@@ -2298,9 +2334,12 @@ const MobileAvatarRigQualityPanel = ({ rig }: { rig: AvatarIllustrationRig }) =>
         <MobileRigScoreRow label="Depth" score={summary.depthContinuityScore} />
         <MobileRigScoreRow label="Semantic" score={summary.semanticSegmentScore} />
         <MobileRigScoreRow label="Eye/Mouth" score={summary.eyeMouthSegmentScore} />
+        <MobileRigScoreRow label="Anchors" score={summary.horizontalAnchorScore} />
         <MobileRigScoreRow label="Slices" score={sliceScore} />
       </View>
       <View style={styles.rigLineGrid}>
+        <MobileRigLineValue label="Face X" value={rig.faceCenterX} />
+        <MobileRigLineValue label="Mouth X" value={rig.mouthCenterX} />
         <MobileRigLineValue label="Hair" value={rig.hairLineY} />
         <MobileRigLineValue label="Eye" value={rig.eyeLineY} />
         <MobileRigLineValue label="Mouth" value={rig.mouthLineY} />

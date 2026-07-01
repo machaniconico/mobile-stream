@@ -35,11 +35,15 @@ export interface AvatarMotion {
 }
 
 export interface AvatarIllustrationRig {
+  faceCenterX: number;
   faceCenterY: number;
   faceRange: number;
   hairLineY: number;
   shoulderLineY: number;
+  leftEyeX: number;
+  rightEyeX: number;
   eyeLineY: number;
+  mouthCenterX: number;
   mouthLineY: number;
   sliceCount: number;
 }
@@ -512,15 +516,26 @@ export const defaultAvatarMotion = (overrides: Partial<AvatarMotion> = {}): Avat
   ...overrides
 });
 
-export const defaultAvatarIllustrationRig = (overrides: Partial<AvatarIllustrationRig> = {}): AvatarIllustrationRig => ({
-  faceCenterY: clampRange(overrides.faceCenterY ?? 0.42, 0.15, 0.85),
-  faceRange: clampRange(overrides.faceRange ?? 0.34, 0.08, 0.6),
-  hairLineY: clampRange(overrides.hairLineY ?? 0.34, 0.05, 0.55),
-  shoulderLineY: clampRange(overrides.shoulderLineY ?? 0.62, 0.45, 0.95),
-  eyeLineY: clampRange(overrides.eyeLineY ?? 0.35, 0.12, 0.65),
-  mouthLineY: clampRange(overrides.mouthLineY ?? 0.5, 0.25, 0.85),
-  sliceCount: Math.round(clampRange(overrides.sliceCount ?? 24, 12, 40))
-});
+export const defaultAvatarIllustrationRig = (overrides: Partial<AvatarIllustrationRig> = {}): AvatarIllustrationRig => {
+  const rawLeftEyeX = clampRange(overrides.leftEyeX ?? 0.42, 0.05, 0.95);
+  const rawRightEyeX = clampRange(overrides.rightEyeX ?? 0.58, 0.05, 0.95);
+  const eyeCenterX = clampRange((rawLeftEyeX + rawRightEyeX) / 2, 0.06, 0.94);
+  const leftEyeX = rawRightEyeX - rawLeftEyeX >= 0.02 ? rawLeftEyeX : Math.max(0.05, eyeCenterX - 0.01);
+  const rightEyeX = rawRightEyeX - rawLeftEyeX >= 0.02 ? rawRightEyeX : Math.min(0.95, eyeCenterX + 0.01);
+  return {
+    faceCenterX: clampRange(overrides.faceCenterX ?? 0.5, 0.05, 0.95),
+    faceCenterY: clampRange(overrides.faceCenterY ?? 0.42, 0.15, 0.85),
+    faceRange: clampRange(overrides.faceRange ?? 0.34, 0.08, 0.6),
+    hairLineY: clampRange(overrides.hairLineY ?? 0.34, 0.05, 0.55),
+    shoulderLineY: clampRange(overrides.shoulderLineY ?? 0.62, 0.45, 0.95),
+    leftEyeX,
+    rightEyeX,
+    eyeLineY: clampRange(overrides.eyeLineY ?? 0.35, 0.12, 0.65),
+    mouthCenterX: clampRange(overrides.mouthCenterX ?? 0.5, 0.05, 0.95),
+    mouthLineY: clampRange(overrides.mouthLineY ?? 0.5, 0.25, 0.85),
+    sliceCount: Math.round(clampRange(overrides.sliceCount ?? 24, 12, 40))
+  };
+};
 
 export const analyzeAvatarIllustrationAlphaMask = (
   input: AvatarIllustrationAlphaMaskInput
@@ -850,6 +865,7 @@ const inferAvatarIllustrationRigFromLandmarks = (
   if (eyeLineY === null) {
     return {};
   }
+  const eyeCenterX = averageNumbers([leftEye?.x, rightEye?.x]) ?? mouth.x;
   const faceCenter = normalizedPoint(landmarks.faceCenter);
   const foregroundBounds = imageAnalysis?.foregroundBounds;
   const topLimit = foregroundBounds?.top ?? 0;
@@ -871,11 +887,15 @@ const inferAvatarIllustrationRigFromLandmarks = (
   const faceRange = clampRange(lowerFaceReach * 1.15, 0.22, 0.64);
   const confidence = clamp01(finiteNumber(landmarks.confidence, 0));
   return {
+    faceCenterX: faceCenter?.x ?? eyeCenterX,
     faceCenterY: inferredFaceCenterY,
     faceRange,
     hairLineY,
     shoulderLineY,
+    leftEyeX: leftEye?.x ?? clampRange(eyeCenterX - 0.08, 0.05, 0.95),
+    rightEyeX: rightEye?.x ?? clampRange(eyeCenterX + 0.08, 0.05, 0.95),
     eyeLineY,
+    mouthCenterX: mouth.x,
     mouthLineY,
     sliceCount: confidence >= 0.82 ? 36 : 32
   };
@@ -1108,12 +1128,18 @@ const inferAvatarIllustrationRigFromImageAnalysis = (
           sliceCount: 28
         };
   const mapY = (value: number) => bounds.top + value * bounds.height;
+  const centerX = bounds.left + bounds.width / 2;
+  const eyeHalfSpread = Math.max(0.06, Math.min(0.14, bounds.width * 0.18));
   return {
+    faceCenterX: centerX,
     faceCenterY: mapY(preset.faceCenterY),
     faceRange: preset.faceRange * bounds.height,
     hairLineY: mapY(preset.hairLineY),
     shoulderLineY: mapY(preset.shoulderLineY),
+    leftEyeX: clampRange(centerX - eyeHalfSpread, 0.05, 0.95),
+    rightEyeX: clampRange(centerX + eyeHalfSpread, 0.05, 0.95),
     eyeLineY: mapY(preset.eyeLineY),
+    mouthCenterX: centerX,
     mouthLineY: mapY(preset.mouthLineY),
     sliceCount: analysis.confidence >= 0.65 ? preset.sliceCount : Math.max(20, preset.sliceCount - 4)
   };
@@ -2104,11 +2130,15 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
       return {
         avatarId: source.avatarId,
         imageUri: source.imageUri,
+        rigFaceCenterX: rig.faceCenterX,
         rigFaceCenterY: rig.faceCenterY,
         rigFaceRange: rig.faceRange,
         rigHairLineY: rig.hairLineY,
         rigShoulderLineY: rig.shoulderLineY,
+        rigLeftEyeX: rig.leftEyeX,
+        rigRightEyeX: rig.rightEyeX,
         rigEyeLineY: rig.eyeLineY,
+        rigMouthCenterX: rig.mouthCenterX,
         rigMouthLineY: rig.mouthLineY,
         rigSliceCount: rig.sliceCount,
         expression: source.expression,
@@ -2341,11 +2371,15 @@ const normalizeIllustrationRigValue = (
     return inferAvatarIllustrationRig({ canvas, transform });
   }
   return defaultAvatarIllustrationRig({
+    faceCenterX: clampedNumber(value.faceCenterX, 0.5, 0.05, 0.95),
     faceCenterY: clampedNumber(value.faceCenterY, 0.42, 0.15, 0.85),
     faceRange: clampedNumber(value.faceRange, 0.34, 0.08, 0.6),
     hairLineY: clampedNumber(value.hairLineY, 0.34, 0.05, 0.55),
     shoulderLineY: clampedNumber(value.shoulderLineY, 0.62, 0.45, 0.95),
+    leftEyeX: clampedNumber(value.leftEyeX, 0.42, 0.05, 0.95),
+    rightEyeX: clampedNumber(value.rightEyeX, 0.58, 0.05, 0.95),
     eyeLineY: clampedNumber(value.eyeLineY, 0.35, 0.12, 0.65),
+    mouthCenterX: clampedNumber(value.mouthCenterX, 0.5, 0.05, 0.95),
     mouthLineY: clampedNumber(value.mouthLineY, 0.5, 0.25, 0.85),
     sliceCount: Math.round(clampedNumber(value.sliceCount, 24, 12, 40))
   });

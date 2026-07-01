@@ -1775,6 +1775,32 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks avatar-motion summary claims when the manifest has low horizontal anchor proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              faceTrackingRigHorizontalAnchorScore: 78
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS avatar-motion proof")
+      })
+    );
+  });
+
   it("blocks chat-readout summary claims when the manifest has no spoken chat success", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -2543,6 +2569,7 @@ const manifestRunWithoutRigQuality = (
     faceTrackingRigDepthContinuityScore: _faceTrackingRigDepthContinuityScore,
     faceTrackingRigSemanticSegmentScore: _faceTrackingRigSemanticSegmentScore,
     faceTrackingRigEyeMouthSegmentScore: _faceTrackingRigEyeMouthSegmentScore,
+    faceTrackingRigHorizontalAnchorScore: _faceTrackingRigHorizontalAnchorScore,
     faceTrackingRigHighFidelityScore: _faceTrackingRigHighFidelityScore,
     faceTrackingRigHighFidelityGrade: _faceTrackingRigHighFidelityGrade,
     ...run
@@ -2682,6 +2709,7 @@ const manifestRun = ({
   faceTrackingRigDepthContinuityScore = 100,
   faceTrackingRigSemanticSegmentScore = 100,
   faceTrackingRigEyeMouthSegmentScore = 100,
+  faceTrackingRigHorizontalAnchorScore = 100,
   faceTrackingRigHighFidelityScore = 100,
   faceTrackingRigHighFidelityGrade = "ready",
   audioStatus = "pass",
@@ -2847,6 +2875,7 @@ const manifestRun = ({
   faceTrackingRigDepthContinuityScore?: ValidationManifestRun["faceTrackingRigDepthContinuityScore"];
   faceTrackingRigSemanticSegmentScore?: ValidationManifestRun["faceTrackingRigSemanticSegmentScore"];
   faceTrackingRigEyeMouthSegmentScore?: ValidationManifestRun["faceTrackingRigEyeMouthSegmentScore"];
+  faceTrackingRigHorizontalAnchorScore?: ValidationManifestRun["faceTrackingRigHorizontalAnchorScore"];
   faceTrackingRigHighFidelityScore?: ValidationManifestRun["faceTrackingRigHighFidelityScore"];
   faceTrackingRigHighFidelityGrade?: ValidationManifestRun["faceTrackingRigHighFidelityGrade"];
   audioStatus?: ValidationManifestRun["audioStatus"];
@@ -3020,6 +3049,7 @@ const manifestRun = ({
   faceTrackingRigDepthContinuityScore,
   faceTrackingRigSemanticSegmentScore,
   faceTrackingRigEyeMouthSegmentScore,
+  faceTrackingRigHorizontalAnchorScore,
   faceTrackingRigHighFidelityScore,
   faceTrackingRigHighFidelityGrade,
   audioStatus,

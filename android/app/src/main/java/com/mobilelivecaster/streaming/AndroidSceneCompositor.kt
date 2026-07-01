@@ -563,11 +563,15 @@ object AndroidSceneCompositor {
 
     private fun parsePngTuberRig(node: RenderGraphNode): PngTuberRig =
         PngTuberRig(
+            faceCenterX = node.payload.optDouble("rigFaceCenterX", 0.5).toFloat().coerceIn(0.05f, 0.95f),
             faceCenterY = node.payload.optDouble("rigFaceCenterY", 0.42).toFloat().coerceIn(0.15f, 0.85f),
             faceRange = node.payload.optDouble("rigFaceRange", 0.34).toFloat().coerceIn(0.08f, 0.6f),
             hairLineY = node.payload.optDouble("rigHairLineY", 0.34).toFloat().coerceIn(0.05f, 0.55f),
             shoulderLineY = node.payload.optDouble("rigShoulderLineY", 0.62).toFloat().coerceIn(0.45f, 0.95f),
+            leftEyeX = node.payload.optDouble("rigLeftEyeX", 0.42).toFloat().coerceIn(0.05f, 0.95f),
+            rightEyeX = node.payload.optDouble("rigRightEyeX", 0.58).toFloat().coerceIn(0.05f, 0.95f),
             eyeLineY = node.payload.optDouble("rigEyeLineY", 0.35).toFloat().coerceIn(0.12f, 0.65f),
+            mouthCenterX = node.payload.optDouble("rigMouthCenterX", 0.5).toFloat().coerceIn(0.05f, 0.95f),
             mouthLineY = node.payload.optDouble("rigMouthLineY", 0.5).toFloat().coerceIn(0.25f, 0.85f),
             sliceCount = node.payload.optInt("rigSliceCount", 24).coerceIn(12, 40)
         )
@@ -601,13 +605,19 @@ object AndroidSceneCompositor {
         paint.color = Color.rgb(248, 250, 252)
         val eyeClose = if (blink > eyeSquint) blink else eyeSquint
         val eyeHeight = (42f * (1f - eyeClose)).coerceAtLeast(5f)
-        canvas.drawOval(RectF(255f, 330f, 305f, 330f + eyeHeight), paint)
-        canvas.drawOval(RectF(415f, 330f, 465f, 330f + eyeHeight), paint)
+        val rig = parsePngTuberRig(node)
+        val leftEyeCenterX = 720f * rig.leftEyeX
+        val rightEyeCenterX = 720f * rig.rightEyeX
+        val eyeCenterY = 960f * rig.eyeLineY
+        canvas.drawOval(RectF(leftEyeCenterX - 25f, eyeCenterY - eyeHeight / 2f, leftEyeCenterX + 25f, eyeCenterY + eyeHeight / 2f), paint)
+        canvas.drawOval(RectF(rightEyeCenterX - 25f, eyeCenterY - eyeHeight / 2f, rightEyeCenterX + 25f, eyeCenterY + eyeHeight / 2f), paint)
 
         paint.color = Color.rgb(24, 24, 31)
         val mouthLevel = if (mouthOpen > mouthDeform) mouthOpen else mouthDeform
         val mouthHeight = 18f + mouthLevel * 86f
-        canvas.drawOval(RectF(320f, 442f, 400f, 442f + mouthHeight), paint)
+        val mouthCenterX = 720f * rig.mouthCenterX
+        val mouthCenterY = 960f * rig.mouthLineY
+        canvas.drawOval(RectF(mouthCenterX - 40f, mouthCenterY - mouthHeight / 2f, mouthCenterX + 40f, mouthCenterY + mouthHeight / 2f), paint)
 
         paint.color = Color.argb(210, 248, 250, 252)
         paint.textAlign = Paint.Align.CENTER
@@ -641,10 +651,17 @@ object AndroidSceneCompositor {
             }
             val eyeFalloff = (1f - abs(centerY - rig.eyeLineY) / 0.045f).coerceIn(0f, 1f)
             val mouthFalloff = (1f - abs(centerY - rig.mouthLineY) / 0.06f).coerceIn(0f, 1f)
+            val eyeCenterX = (rig.leftEyeX + rig.rightEyeX) * 0.5f
+            val faceAnchorShift = (rig.faceCenterX - 0.5f) * motion.depthTilt * 0.012f * faceFalloff
+            val eyeAnchorShift = (eyeCenterX - 0.5f) * motion.eyeSquint * 0.014f * eyeFalloff
+            val mouthAnchorShift = (rig.mouthCenterX - 0.5f) * motion.mouthDeform * 0.018f * mouthFalloff
             val shiftX = bitmap.width * (
                 motion.meshWarp * 0.026f * faceFalloff +
                     motion.hairSway * 0.024f * hairFalloff +
-                    motion.shoulderSway * 0.018f * shoulderFalloff
+                    motion.shoulderSway * 0.018f * shoulderFalloff +
+                    faceAnchorShift +
+                    eyeAnchorShift +
+                    mouthAnchorShift
                 )
             val depthInset = bitmap.width * motion.depthTilt * 0.015f * faceFalloff
             val expressionInset = bitmap.width * (motion.eyeSquint * 0.012f * eyeFalloff - motion.mouthDeform * 0.01f * mouthFalloff)
@@ -1419,11 +1436,15 @@ private data class PngTuberMotion(
 )
 
 private data class PngTuberRig(
+    val faceCenterX: Float = 0.5f,
     val faceCenterY: Float = 0.42f,
     val faceRange: Float = 0.34f,
     val hairLineY: Float = 0.34f,
     val shoulderLineY: Float = 0.62f,
+    val leftEyeX: Float = 0.42f,
+    val rightEyeX: Float = 0.58f,
     val eyeLineY: Float = 0.35f,
+    val mouthCenterX: Float = 0.5f,
     val mouthLineY: Float = 0.5f,
     val sliceCount: Int = 24
 )

@@ -264,7 +264,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v55 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, text overlay proof, live caption proof, native caption overlay kind proof, semantic and eye-mouth avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
+      "Export a support bundle v55 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, text overlay proof, live caption proof, native caption overlay kind proof, semantic, eye-mouth, and horizontal-anchor avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
     );
   }
 
@@ -1324,16 +1324,19 @@ const hasReadyManifestRigHighFidelity = (run: ValidationEvidenceManifestRun | un
   typeof run.faceTrackingRigDepthContinuityScore === "number" &&
   typeof run.faceTrackingRigSemanticSegmentScore === "number" &&
   typeof run.faceTrackingRigEyeMouthSegmentScore === "number" &&
+  typeof run.faceTrackingRigHorizontalAnchorScore === "number" &&
   Number.isFinite(run.faceTrackingRigHighFidelityScore) &&
   Number.isFinite(run.faceTrackingRigPartSeparationScore) &&
   Number.isFinite(run.faceTrackingRigDepthContinuityScore) &&
   Number.isFinite(run.faceTrackingRigSemanticSegmentScore) &&
   Number.isFinite(run.faceTrackingRigEyeMouthSegmentScore) &&
+  Number.isFinite(run.faceTrackingRigHorizontalAnchorScore) &&
   run.faceTrackingRigHighFidelityScore >= 90 &&
   run.faceTrackingRigPartSeparationScore >= 90 &&
   run.faceTrackingRigDepthContinuityScore >= 90 &&
   run.faceTrackingRigSemanticSegmentScore >= 90 &&
-  run.faceTrackingRigEyeMouthSegmentScore >= 90;
+  run.faceTrackingRigEyeMouthSegmentScore >= 90 &&
+  run.faceTrackingRigHorizontalAnchorScore >= 90;
 
 const hasReadyManifestPngTuberMotionProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isPositiveFiniteNumber(run?.faceTrackingPreparedPngTuberCount) &&

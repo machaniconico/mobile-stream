@@ -1476,6 +1476,22 @@ select:focus-visible {
   font-size: 9px;
 }
 
+.rig-map-anchor {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(251, 191, 36, 0.78);
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.82);
+  color: var(--text);
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 16px;
+  text-align: center;
+  z-index: 1;
+}
+
 .rig-score-list {
   display: grid;
   align-content: center;

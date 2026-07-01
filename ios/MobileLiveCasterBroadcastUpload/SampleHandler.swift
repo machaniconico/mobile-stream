@@ -3493,11 +3493,15 @@ private struct BroadcastPngTuberMotion {
             meshWarp,
             hairSway,
             shoulderSway,
+            rig.faceCenterX,
             rig.faceCenterY,
             rig.faceRange,
             rig.hairLineY,
             rig.shoulderLineY,
+            rig.leftEyeX,
+            rig.rightEyeX,
             rig.eyeLineY,
+            rig.mouthCenterX,
             rig.mouthLineY,
             CGFloat(rig.sliceCount)
         ]
@@ -3507,28 +3511,40 @@ private struct BroadcastPngTuberMotion {
 }
 
 private struct BroadcastPngTuberRig {
+    let faceCenterX: CGFloat
     let faceCenterY: CGFloat
     let faceRange: CGFloat
     let hairLineY: CGFloat
     let shoulderLineY: CGFloat
+    let leftEyeX: CGFloat
+    let rightEyeX: CGFloat
     let eyeLineY: CGFloat
+    let mouthCenterX: CGFloat
     let mouthLineY: CGFloat
     let sliceCount: Int
 
     init(
+        faceCenterX: CGFloat = 0.5,
         faceCenterY: CGFloat = 0.42,
         faceRange: CGFloat = 0.34,
         hairLineY: CGFloat = 0.34,
         shoulderLineY: CGFloat = 0.62,
+        leftEyeX: CGFloat = 0.42,
+        rightEyeX: CGFloat = 0.58,
         eyeLineY: CGFloat = 0.35,
+        mouthCenterX: CGFloat = 0.5,
         mouthLineY: CGFloat = 0.5,
         sliceCount: Int = 24
     ) {
+        self.faceCenterX = faceCenterX
         self.faceCenterY = faceCenterY
         self.faceRange = faceRange
         self.hairLineY = hairLineY
         self.shoulderLineY = shoulderLineY
+        self.leftEyeX = leftEyeX
+        self.rightEyeX = rightEyeX
         self.eyeLineY = eyeLineY
+        self.mouthCenterX = mouthCenterX
         self.mouthLineY = mouthLineY
         self.sliceCount = sliceCount
     }
@@ -3802,11 +3818,15 @@ final class BroadcastSceneCompositor {
 
     private func pngTuberRig(for node: BroadcastRenderNode) -> BroadcastPngTuberRig {
         BroadcastPngTuberRig(
+            faceCenterX: min(max(node.payload.cgFloatValue("rigFaceCenterX", fallback: 0.5), 0.05), 0.95),
             faceCenterY: min(max(node.payload.cgFloatValue("rigFaceCenterY", fallback: 0.42), 0.15), 0.85),
             faceRange: min(max(node.payload.cgFloatValue("rigFaceRange", fallback: 0.34), 0.08), 0.6),
             hairLineY: min(max(node.payload.cgFloatValue("rigHairLineY", fallback: 0.34), 0.05), 0.55),
             shoulderLineY: min(max(node.payload.cgFloatValue("rigShoulderLineY", fallback: 0.62), 0.45), 0.95),
+            leftEyeX: min(max(node.payload.cgFloatValue("rigLeftEyeX", fallback: 0.42), 0.05), 0.95),
+            rightEyeX: min(max(node.payload.cgFloatValue("rigRightEyeX", fallback: 0.58), 0.05), 0.95),
             eyeLineY: min(max(node.payload.cgFloatValue("rigEyeLineY", fallback: 0.35), 0.12), 0.65),
+            mouthCenterX: min(max(node.payload.cgFloatValue("rigMouthCenterX", fallback: 0.5), 0.05), 0.95),
             mouthLineY: min(max(node.payload.cgFloatValue("rigMouthLineY", fallback: 0.5), 0.25), 0.85),
             sliceCount: min(max(Int(node.payload.cgFloatValue("rigSliceCount", fallback: 24).rounded()), 12), 40)
         )
@@ -3856,14 +3876,20 @@ final class BroadcastSceneCompositor {
 
         context.setFillColor(UIColor(white: 0.98, alpha: 1).cgColor)
         let eyeHeight = max(42 * (1 - eyeClose), 5)
-        context.addPath(CGPath(ellipseIn: mapBlueprintRect(CGRect(x: 255, y: 330, width: 50, height: eyeHeight), into: rect), transform: nil))
+        let rig = motion.rig
+        let leftEyeCenterX = 720 * rig.leftEyeX
+        let rightEyeCenterX = 720 * rig.rightEyeX
+        let eyeCenterY = 960 * rig.eyeLineY
+        context.addPath(CGPath(ellipseIn: mapBlueprintRect(CGRect(x: leftEyeCenterX - 25, y: eyeCenterY - eyeHeight / 2, width: 50, height: eyeHeight), into: rect), transform: nil))
         context.fillPath()
-        context.addPath(CGPath(ellipseIn: mapBlueprintRect(CGRect(x: 415, y: 330, width: 50, height: eyeHeight), into: rect), transform: nil))
+        context.addPath(CGPath(ellipseIn: mapBlueprintRect(CGRect(x: rightEyeCenterX - 25, y: eyeCenterY - eyeHeight / 2, width: 50, height: eyeHeight), into: rect), transform: nil))
         context.fillPath()
 
         context.setFillColor(UIColor(red: 24 / 255, green: 24 / 255, blue: 31 / 255, alpha: 1).cgColor)
         let mouthHeight = 18 + mouthLevel * 86
-        context.addPath(CGPath(ellipseIn: mapBlueprintRect(CGRect(x: 320, y: 442, width: 80, height: mouthHeight), into: rect), transform: nil))
+        let mouthCenterX = 720 * rig.mouthCenterX
+        let mouthCenterY = 960 * rig.mouthLineY
+        context.addPath(CGPath(ellipseIn: mapBlueprintRect(CGRect(x: mouthCenterX - 40, y: mouthCenterY - mouthHeight / 2, width: 80, height: mouthHeight), into: rect), transform: nil))
         context.fillPath()
 
         UIGraphicsPushContext(context)
@@ -3921,10 +3947,17 @@ final class BroadcastSceneCompositor {
                 }
                 let eyeFalloff = min(max(1 - abs(centerY - rig.eyeLineY) / 0.045, 0), 1)
                 let mouthFalloff = min(max(1 - abs(centerY - rig.mouthLineY) / 0.06, 0), 1)
+                let eyeCenterX = (rig.leftEyeX + rig.rightEyeX) * 0.5
+                let faceAnchorShift = (rig.faceCenterX - 0.5) * motion.depthTilt * 0.012 * faceFalloff
+                let eyeAnchorShift = (eyeCenterX - 0.5) * motion.eyeSquint * 0.014 * eyeFalloff
+                let mouthAnchorShift = (rig.mouthCenterX - 0.5) * motion.mouthDeform * 0.018 * mouthFalloff
                 let shiftX = rect.width * (
                     motion.meshWarp * 0.026 * faceFalloff +
                         motion.hairSway * 0.024 * hairFalloff +
-                        motion.shoulderSway * 0.018 * shoulderFalloff
+                        motion.shoulderSway * 0.018 * shoulderFalloff +
+                        faceAnchorShift +
+                        eyeAnchorShift +
+                        mouthAnchorShift
                     )
                 let depthInset = rect.width * motion.depthTilt * 0.015 * faceFalloff
                 let expressionInset = rect.width * (motion.eyeSquint * 0.012 * eyeFalloff - motion.mouthDeform * 0.01 * mouthFalloff)

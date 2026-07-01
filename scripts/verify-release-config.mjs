@@ -225,8 +225,11 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "faceTrackingRigSemanticSegmentScore");
     expectIncludes(files.commercialReleaseBundleScript, "faceTrackingRigSemanticSegmentScore");
     expectIncludes(files.streamValidationEvidenceDomain, "faceTrackingRigEyeMouthSegmentScore");
+    expectIncludes(files.streamValidationEvidenceDomain, "faceTrackingRigHorizontalAnchorScore");
     expectIncludes(files.commercialReleaseGateDomain, "faceTrackingRigEyeMouthSegmentScore");
+    expectIncludes(files.commercialReleaseGateDomain, "faceTrackingRigHorizontalAnchorScore");
     expectIncludes(files.commercialReleaseBundleScript, "faceTrackingRigEyeMouthSegmentScore");
+    expectIncludes(files.commercialReleaseBundleScript, "faceTrackingRigHorizontalAnchorScore");
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpokenMessageCount");
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpeechFailureCount");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestChatReadoutPass");

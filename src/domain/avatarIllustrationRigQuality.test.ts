@@ -21,6 +21,7 @@ describe("avatar illustration rig quality", () => {
     expect(summary.depthContinuityScore).toBe(100);
     expect(summary.semanticSegmentScore).toBe(100);
     expect(summary.eyeMouthSegmentScore).toBe(100);
+    expect(summary.horizontalAnchorScore).toBe(100);
     expect(summary.highFidelityScore).toBe(100);
     expect(summary.issues).toEqual([]);
   });
@@ -43,6 +44,7 @@ describe("avatar illustration rig quality", () => {
     expect(summary.depthContinuityScore).toBe(0);
     expect(summary.semanticSegmentScore).toBe(0);
     expect(summary.eyeMouthSegmentScore).toBe(0);
+    expect(summary.horizontalAnchorScore).toBe(100);
     expect(summary.highFidelityScore).toBe(0);
     expect(summary.issues).toEqual(
       expect.arrayContaining([
@@ -53,6 +55,31 @@ describe("avatar illustration rig quality", () => {
         "Semantic face, eye, mouth, and body regions need clearer separation for single-image tracking.",
         "Eye and mouth part segments need clearer independent deformation bands for blink and lip-sync."
       ])
+    );
+  });
+
+  it("blocks rigs whose eye and mouth anchors are horizontally unbalanced", () => {
+    const summary = createAvatarIllustrationRigTuningSummary(
+      defaultAvatarIllustrationRig({
+        faceCenterX: 0.78,
+        faceCenterY: 0.47,
+        faceRange: 0.38,
+        hairLineY: 0.22,
+        leftEyeX: 0.47,
+        rightEyeX: 0.53,
+        eyeLineY: 0.35,
+        mouthCenterX: 0.84,
+        mouthLineY: 0.52,
+        shoulderLineY: 0.78,
+        sliceCount: 24
+      })
+    );
+
+    expect(summary.grade).toBe("blocked");
+    expect(summary.horizontalAnchorScore).toBe(0);
+    expect(summary.highFidelityScore).toBe(0);
+    expect(summary.issues).toContain(
+      "Face, eye, and mouth horizontal anchors need balanced spacing for localized single-image deformation."
     );
   });
 });

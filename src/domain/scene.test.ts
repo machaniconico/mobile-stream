@@ -196,7 +196,11 @@ describe("scene document", () => {
     expect(avatarNode?.payload.headYaw).toBe(0);
     expect(avatarNode?.payload.meshWarp).toBe(0);
     expect(avatarNode?.payload.eyeSquint).toBe(0);
+    expect(avatarNode?.payload.rigFaceCenterX).toBe(0.5);
     expect(avatarNode?.payload.rigFaceCenterY).toBe(0.39);
+    expect(avatarNode?.payload.rigLeftEyeX).toBe(0.42);
+    expect(avatarNode?.payload.rigRightEyeX).toBe(0.58);
+    expect(avatarNode?.payload.rigMouthCenterX).toBe(0.5);
     expect(avatarNode?.payload.rigSliceCount).toBe(24);
     expect(avatarNode?.payload.imageUri).toBe("");
   });
@@ -381,10 +385,16 @@ describe("scene document", () => {
     const riggedAvatar = rigged.sources.find((source) => source.kind === "pngtuber");
 
     expect(landmarkAnalysis?.confidence).toBeGreaterThan(0.65);
+    expect(landmarkAnalysis?.leftEye?.x).toBeCloseTo(0.4, 2);
     expect(landmarkAnalysis?.leftEye?.y).toBeCloseTo(0.33, 2);
+    expect(landmarkAnalysis?.rightEye?.x).toBeCloseTo(0.6, 2);
     expect(landmarkAnalysis?.rightEye?.y).toBeCloseTo(0.33, 2);
+    expect(landmarkAnalysis?.mouthCenter?.x).toBeCloseTo(0.51, 2);
     expect(landmarkAnalysis?.mouthCenter?.y).toBeCloseTo(0.53, 2);
     expect(riggedAvatar?.kind).toBe("pngtuber");
+    expect(riggedAvatar?.illustrationRig.leftEyeX).toBeCloseTo(0.4, 2);
+    expect(riggedAvatar?.illustrationRig.rightEyeX).toBeCloseTo(0.6, 2);
+    expect(riggedAvatar?.illustrationRig.mouthCenterX).toBeCloseTo(0.51, 2);
     expect(riggedAvatar?.illustrationRig.eyeLineY).toBeCloseTo(0.33, 2);
     expect(riggedAvatar?.illustrationRig.mouthLineY).toBeCloseTo(0.53, 2);
     expect(riggedAvatar?.illustrationRig.sliceCount).toBe(36);
@@ -449,8 +459,12 @@ describe("scene document", () => {
     const riggedAvatar = rigged.sources.find((source) => source.kind === "pngtuber");
 
     expect(riggedAvatar?.kind).toBe("pngtuber");
+    expect(riggedAvatar?.illustrationRig.faceCenterX).toBeCloseTo(0.5, 3);
     expect(riggedAvatar?.illustrationRig.faceCenterY).toBeCloseTo(0.4, 3);
+    expect(riggedAvatar?.illustrationRig.leftEyeX).toBeCloseTo(0.42, 3);
+    expect(riggedAvatar?.illustrationRig.rightEyeX).toBeCloseTo(0.58, 3);
     expect(riggedAvatar?.illustrationRig.eyeLineY).toBeCloseTo(0.32, 3);
+    expect(riggedAvatar?.illustrationRig.mouthCenterX).toBeCloseTo(0.5, 3);
     expect(riggedAvatar?.illustrationRig.mouthLineY).toBeCloseTo(0.49, 3);
     expect(riggedAvatar?.illustrationRig.hairLineY).toBeCloseTo(0.19, 3);
     expect(riggedAvatar?.illustrationRig.shoulderLineY).toBeCloseTo(0.68, 3);

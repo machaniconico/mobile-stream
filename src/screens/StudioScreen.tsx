@@ -1416,6 +1416,15 @@ export const StudioScreen = ({
                 </button>
                 <AvatarRigQualityPanel rig={selectedSource.illustrationRig} />
                 <SpeechSlider
+                  label="Face X"
+                  value={selectedSource.illustrationRig.faceCenterX}
+                  min={0.05}
+                  max={0.95}
+                  step={0.01}
+                  disabled={setupLocked}
+                  onChange={(faceCenterX) => updateSelectedIllustrationRig("faceCenterX", faceCenterX)}
+                />
+                <SpeechSlider
                   label="Face Y"
                   value={selectedSource.illustrationRig.faceCenterY}
                   min={0.15}
@@ -1452,6 +1461,24 @@ export const StudioScreen = ({
                   onChange={(shoulderLineY) => updateSelectedIllustrationRig("shoulderLineY", shoulderLineY)}
                 />
                 <SpeechSlider
+                  label="Left eye X"
+                  value={selectedSource.illustrationRig.leftEyeX}
+                  min={0.05}
+                  max={0.95}
+                  step={0.01}
+                  disabled={setupLocked}
+                  onChange={(leftEyeX) => updateSelectedIllustrationRig("leftEyeX", leftEyeX)}
+                />
+                <SpeechSlider
+                  label="Right eye X"
+                  value={selectedSource.illustrationRig.rightEyeX}
+                  min={0.05}
+                  max={0.95}
+                  step={0.01}
+                  disabled={setupLocked}
+                  onChange={(rightEyeX) => updateSelectedIllustrationRig("rightEyeX", rightEyeX)}
+                />
+                <SpeechSlider
                   label="Eye line"
                   value={selectedSource.illustrationRig.eyeLineY}
                   min={0.12}
@@ -1459,6 +1486,15 @@ export const StudioScreen = ({
                   step={0.01}
                   disabled={setupLocked}
                   onChange={(eyeLineY) => updateSelectedIllustrationRig("eyeLineY", eyeLineY)}
+                />
+                <SpeechSlider
+                  label="Mouth X"
+                  value={selectedSource.illustrationRig.mouthCenterX}
+                  min={0.05}
+                  max={0.95}
+                  step={0.01}
+                  disabled={setupLocked}
+                  onChange={(mouthCenterX) => updateSelectedIllustrationRig("mouthCenterX", mouthCenterX)}
                 />
                 <SpeechSlider
                   label="Mouth line"
@@ -3394,7 +3430,10 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
       return (
         <div
           className="avatar-visual still-image"
-          style={{ transform: `${bodyTransform} ${headTransform}`, transformOrigin: `50% ${Math.round(rig.shoulderLineY * 100)}%` }}
+          style={{
+            transform: `${bodyTransform} ${headTransform}`,
+            transformOrigin: `${Math.round(rig.faceCenterX * 100)}% ${Math.round(rig.faceCenterY * 100)}%`
+          }}
         >
           <img src={source.imageUri} alt="" />
         </div>
@@ -3493,6 +3532,10 @@ const AvatarRigQualityPanel = ({ rig }: { rig: AvatarIllustrationRig }) => {
       <div className="rig-quality-body">
         <div className="rig-map" aria-hidden="true">
           <span className="rig-face-band" style={faceBandStyle} />
+          <RigMapAnchor label="Face" x={rig.faceCenterX} y={rig.faceCenterY} />
+          <RigMapAnchor label="L" x={rig.leftEyeX} y={rig.eyeLineY} />
+          <RigMapAnchor label="R" x={rig.rightEyeX} y={rig.eyeLineY} />
+          <RigMapAnchor label="M" x={rig.mouthCenterX} y={rig.mouthLineY} />
           <RigMapLine label="Hair" value={rig.hairLineY} />
           <RigMapLine label="Eye" value={rig.eyeLineY} />
           <RigMapLine label="Mouth" value={rig.mouthLineY} />
@@ -3503,6 +3546,7 @@ const AvatarRigQualityPanel = ({ rig }: { rig: AvatarIllustrationRig }) => {
           <RigScoreBar label="Depth" score={summary.depthContinuityScore} />
           <RigScoreBar label="Semantic" score={summary.semanticSegmentScore} />
           <RigScoreBar label="Eye/Mouth" score={summary.eyeMouthSegmentScore} />
+          <RigScoreBar label="Anchors" score={summary.horizontalAnchorScore} />
           <RigScoreBar label="Slices" score={rig.sliceCount >= 24 ? 100 : rig.sliceCount >= 20 ? 90 : 0} />
         </div>
       </div>
@@ -3515,6 +3559,12 @@ const RigMapLine = ({ label, value }: { label: string; value: number }) => (
   <span className="rig-map-line" style={{ top: `${clampRigPercent(value)}%` }}>
     <i />
     <b>{label}</b>
+  </span>
+);
+
+const RigMapAnchor = ({ label, x, y }: { label: string; x: number; y: number }) => (
+  <span className="rig-map-anchor" style={{ left: `${clampRigPercent(x)}%`, top: `${clampRigPercent(y)}%` }}>
+    {label}
   </span>
 );
 

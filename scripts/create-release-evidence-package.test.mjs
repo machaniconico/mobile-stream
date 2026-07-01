@@ -1657,6 +1657,7 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     faceTrackingRigDepthContinuityScore: 100,
     faceTrackingRigSemanticSegmentScore: 100,
     faceTrackingRigEyeMouthSegmentScore: 100,
+    faceTrackingRigHorizontalAnchorScore: 100,
     faceTrackingRigHighFidelityScore: 100,
     faceTrackingRigHighFidelityGrade: "ready",
     audioStatus: "pass",
