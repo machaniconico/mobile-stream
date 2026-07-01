@@ -70,6 +70,7 @@ import {
   applyInferredAvatarIllustrationRig,
   createAvatarIllustrationLandmarkAnalysisFromPixelFeatures,
   createAvatarIllustrationLandmarkAnalysisFromDetector,
+  createLiveCaptionTextSource,
   createSubtitleTextSource,
   createSource,
   defaultAvatarIllustrationRig,
@@ -91,6 +92,7 @@ import {
   type SceneTransitionPreview,
   type SceneTransitionSettings,
   type TextSourceAlign,
+  type TextSourceContentSource,
   type TextSourceMode,
   type SourceKind
 } from "../domain/scene";
@@ -208,7 +210,12 @@ const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "vrm", "chat", "text", 
 const textSourceModes: Array<{ mode: TextSourceMode; label: string }> = [
   { mode: "label", label: "Label" },
   { mode: "subtitle", label: "Subtitle" },
-  { mode: "ticker", label: "Ticker" }
+  { mode: "ticker", label: "Ticker" },
+  { mode: "caption", label: "Caption" }
+];
+const textSourceContentSources: Array<{ contentSource: TextSourceContentSource; label: string }> = [
+  { contentSource: "manual", label: "Manual" },
+  { contentSource: "runtime-caption", label: "Live caption" }
 ];
 const textSourceAlignments: TextSourceAlign[] = ["left", "center", "right"];
 const sceneTransitionKinds: Array<{ kind: SceneTransitionKind; label: string }> = [
@@ -589,6 +596,15 @@ export const StudioScreen = ({
     onSelectSource(source.id);
   };
 
+  const addLiveCaptionSource = () => {
+    if (setupLocked) {
+      return;
+    }
+    const source = createLiveCaptionTextSource();
+    onSceneChange(addSource(scene, source));
+    onSelectSource(source.id);
+  };
+
   const updateSelectedTransform = (key: keyof SceneSource["transform"], value: number) => {
     onSceneChange(updateTransform(scene, selectedSource.id, { [key]: value }));
   };
@@ -730,6 +746,10 @@ export const StudioScreen = ({
             <button className="tool-button" type="button" disabled={setupLocked} onClick={addSubtitleSource}>
               <Plus size={16} />
               <span>Subtitle</span>
+            </button>
+            <button className="tool-button" type="button" disabled={setupLocked} onClick={addLiveCaptionSource}>
+              <Plus size={16} />
+              <span>Live Caption</span>
             </button>
             {sourceKinds.map((kind) => (
               <button key={kind} className="tool-button" type="button" disabled={setupLocked} onClick={() => addNewSource(kind)}>
@@ -921,11 +941,11 @@ export const StudioScreen = ({
             {selectedSource.kind === "text" ? (
               <>
                 <label className="field">
-                  <span>Text</span>
+                  <span>{selectedSource.contentSource === "runtime-caption" ? "Fallback text" : "Text"}</span>
                   <textarea
                     value={selectedSource.text}
                     disabled={setupLocked}
-                    rows={selectedSource.mode === "subtitle" ? 3 : 2}
+                    rows={selectedSource.mode === "subtitle" || selectedSource.mode === "caption" ? 3 : 2}
                     onChange={(event) =>
                       onSceneChange(
                         updateSource(scene, selectedSource.id, (source) =>
@@ -955,6 +975,45 @@ export const StudioScreen = ({
                     ))}
                   </select>
                 </label>
+                <label className="field">
+                  <span>Source</span>
+                  <select
+                    value={selectedSource.contentSource}
+                    disabled={setupLocked}
+                    onChange={(event) =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "text"
+                            ? { ...source, contentSource: event.target.value as TextSourceContentSource }
+                            : source
+                        )
+                      )
+                    }
+                  >
+                    {textSourceContentSources.map((source) => (
+                      <option key={source.contentSource} value={source.contentSource}>
+                        {source.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {selectedSource.contentSource === "runtime-caption" ? (
+                  <label className="check-row">
+                    <input
+                      type="checkbox"
+                      checked={selectedSource.showCaptionSpeaker}
+                      disabled={setupLocked}
+                      onChange={(event) =>
+                        onSceneChange(
+                          updateSource(scene, selectedSource.id, (source) =>
+                            source.kind === "text" ? { ...source, showCaptionSpeaker: event.target.checked } : source
+                          )
+                        )
+                      }
+                    />
+                    <span>Show speaker name</span>
+                  </label>
+                ) : null}
                 <label className="field">
                   <span>Align</span>
                   <select
@@ -2970,6 +3029,7 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
   }
 
   if (source.kind === "text") {
+    const text = typeof node?.payload.text === "string" ? node.payload.text : source.text;
     const textStyle: CSSProperties = {
       color: source.color,
       fontSize: `${fontSizeForTextSource(source)}px`,
@@ -2984,7 +3044,7 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
     return (
       <span className={`text-visual ${source.mode}`} style={textStyle}>
         <span className="text-visual-copy" style={textCopyStyle}>
-          {source.text}
+          {text}
         </span>
       </span>
     );

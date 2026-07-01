@@ -9,6 +9,7 @@ import {
   createAvatarIllustrationLandmarkAnalysisFromPixelFeatures,
   createDefaultSceneCollection,
   createDefaultScene,
+  createLiveCaptionTextSource,
   createSceneFromTemplate,
   createSubtitleTextSource,
   createSource,
@@ -605,6 +606,63 @@ describe("scene document", () => {
     expect(`${payloadText}\n${messagesJson}`).not.toContain("access-token-secret");
   });
 
+  it("builds live caption overlay payloads from runtime cues without persisting caption text", () => {
+    const liveCaption = createLiveCaptionTextSource();
+    const scene = addSource(createDefaultScene(), liveCaption);
+    const graph = toRenderGraph(scene, {
+      captions: [
+        {
+          speaker: "Macha",
+          text: "older cue",
+          language: "ja-JP",
+          confidence: 0.8,
+          isFinal: true,
+          timestampMs: 1000
+        },
+        {
+          speaker: "Bearer caption-speaker-secret",
+          text:
+            "current caption https://example.com/private Authorization: Bearer caption-body-secret",
+          language: "ja-JP",
+          confidence: 2,
+          isFinal: false,
+          timestampMs: 2000
+        }
+      ]
+    });
+
+    const captionNode = graph.find((node) => node.id === liveCaption.id);
+    const payloadText = String(captionNode?.payload.text);
+    const captionCuesJson = String(captionNode?.payload.captionCuesJson);
+    const persisted = stripTransientSceneRuntime(scene);
+
+    expect(captionNode?.payload).toMatchObject({
+      mode: "caption",
+      contentSource: "runtime-caption",
+      showCaptionSpeaker: false,
+      maxLines: 3
+    });
+    expect(payloadText).toBe("older cue\ncurrent caption [link] Authorization: Bearer [redacted]");
+    expect(captionCuesJson).toContain("\"confidence\":1");
+    expect(captionCuesJson).not.toContain("example.com");
+    expect(captionCuesJson).not.toContain("caption-speaker-secret");
+    expect(captionCuesJson).not.toContain("caption-body-secret");
+    expect(JSON.stringify(persisted)).not.toContain("current caption");
+  });
+
+  it("can show speaker names for live caption overlays", () => {
+    const liveCaption = {
+      ...createLiveCaptionTextSource(),
+      showCaptionSpeaker: true
+    };
+    const graph = toRenderGraph(addSource(createDefaultScene(), liveCaption), {
+      captions: [{ speaker: "Host", text: "字幕テスト" }]
+    });
+    const captionNode = graph.find((node) => node.id === liveCaption.id);
+
+    expect(captionNode?.payload.text).toBe("Host: 字幕テスト");
+  });
+
   it("normalizes persisted scene data into safe renderable sources", () => {
     const scene = normalizeSceneDocument({
       version: 1,
@@ -678,7 +736,9 @@ describe("scene document", () => {
       blendMode: "normal",
       fontSize: 180,
       mode: "label",
+      contentSource: "manual",
       align: "center",
+      showCaptionSpeaker: true,
       backgroundOpacity: 0,
       outlineWidth: 3,
       maxLines: 1,
@@ -720,7 +780,9 @@ describe("scene document", () => {
       kind: "text",
       name: "Subtitle",
       mode: "subtitle",
+      contentSource: "manual",
       align: "center",
+      showCaptionSpeaker: true,
       backgroundOpacity: 0.46,
       outlineWidth: 5,
       maxLines: 2,
@@ -728,6 +790,7 @@ describe("scene document", () => {
     });
     expect(node?.payload).toMatchObject({
       mode: "subtitle",
+      contentSource: "manual",
       align: "center",
       backgroundColor: "#000000",
       outlineColor: "#000000"

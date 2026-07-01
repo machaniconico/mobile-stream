@@ -53,6 +53,7 @@ import type { ReadinessIssue, ReadinessReport } from "../domain/readiness";
 import {
   addSource,
   applyInferredAvatarIllustrationRig,
+  createLiveCaptionTextSource,
   createSubtitleTextSource,
   createSource,
   defaultAvatarIllustrationRig,
@@ -73,6 +74,7 @@ import {
   type SceneTransitionPreview,
   type SceneTransitionSettings,
   type TextSourceAlign,
+  type TextSourceContentSource,
   type TextSourceMode,
   type SourceKind
 } from "../domain/scene";
@@ -196,7 +198,12 @@ const sourceKinds: SourceKind[] = ["pngtuber", "live2d", "vrm", "chat", "text", 
 const textSourceModes: Array<{ mode: TextSourceMode; label: string }> = [
   { mode: "label", label: "Label" },
   { mode: "subtitle", label: "Subtitle" },
-  { mode: "ticker", label: "Ticker" }
+  { mode: "ticker", label: "Ticker" },
+  { mode: "caption", label: "Caption" }
+];
+const textSourceContentSources: Array<{ contentSource: TextSourceContentSource; label: string }> = [
+  { contentSource: "manual", label: "Manual" },
+  { contentSource: "runtime-caption", label: "Live caption" }
 ];
 const textSourceAlignments: TextSourceAlign[] = ["left", "center", "right"];
 const sceneTransitionKinds: Array<{ kind: SceneTransitionKind; label: string }> = [
@@ -596,6 +603,15 @@ export const MobileStudioScreen = ({
     onSelectSource(source.id);
   };
 
+  const addLiveCaptionSource = () => {
+    if (setupLocked) {
+      return;
+    }
+    const source = createLiveCaptionTextSource();
+    onSceneChange(addSource(scene, source));
+    onSelectSource(source.id);
+  };
+
   const prepareSelectedStillImageAsset = async () => {
     if (setupLocked || (selectedSource.kind !== "pngtuber" && selectedSource.kind !== "image")) {
       return;
@@ -803,6 +819,7 @@ export const MobileStudioScreen = ({
 
           <View style={styles.grid2}>
             <ActionButton label="+ Subtitle" disabled={setupLocked} onPress={addSubtitleSource} />
+            <ActionButton label="+ Live Caption" disabled={setupLocked} onPress={addLiveCaptionSource} />
             {sourceKinds.map((kind) => (
               <ActionButton key={kind} label={`+ ${sourceLabels[kind]}`} disabled={setupLocked} onPress={() => addNewSource(kind)} />
             ))}
@@ -995,7 +1012,7 @@ export const MobileStudioScreen = ({
           ) : null}
           {selectedSource.kind === "text" ? (
             <>
-              <Label text="Text" />
+              <Label text={selectedSource.contentSource === "runtime-caption" ? "Fallback text" : "Text"} />
               <TextInput
                 value={selectedSource.text}
                 onChangeText={(text) =>
@@ -1006,7 +1023,7 @@ export const MobileStudioScreen = ({
                 style={[styles.input, styles.multilineInput]}
                 editable={!setupLocked}
                 multiline
-                numberOfLines={selectedSource.mode === "subtitle" ? 3 : 2}
+                numberOfLines={selectedSource.mode === "subtitle" || selectedSource.mode === "caption" ? 3 : 2}
                 placeholder="Overlay text"
                 placeholderTextColor="#71717a"
               />
@@ -1027,6 +1044,37 @@ export const MobileStudioScreen = ({
                   />
                 ))}
               </View>
+              <View style={styles.grid2}>
+                {textSourceContentSources.map((source) => (
+                  <ActionButton
+                    key={source.contentSource}
+                    label={source.label}
+                    variant={selectedSource.contentSource === source.contentSource ? "active" : "default"}
+                    disabled={setupLocked}
+                    onPress={() =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (current) =>
+                          current.kind === "text" ? { ...current, contentSource: source.contentSource } : current
+                        )
+                      )
+                    }
+                  />
+                ))}
+              </View>
+              {selectedSource.contentSource === "runtime-caption" ? (
+                <ActionButton
+                  label={selectedSource.showCaptionSpeaker ? "Speaker On" : "Speaker Off"}
+                  variant={selectedSource.showCaptionSpeaker ? "active" : "default"}
+                  disabled={setupLocked}
+                  onPress={() =>
+                    onSceneChange(
+                      updateSource(scene, selectedSource.id, (source) =>
+                        source.kind === "text" ? { ...source, showCaptionSpeaker: !source.showCaptionSpeaker } : source
+                      )
+                    )
+                  }
+                />
+              ) : null}
               <View style={styles.grid3}>
                 {textSourceAlignments.map((align) => (
                   <ActionButton
@@ -3158,6 +3206,7 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
   }
 
   if (source.kind === "text") {
+    const text = typeof node?.payload.text === "string" ? node.payload.text : source.text;
     return (
       <View style={[styles.textSourceFrame, { backgroundColor: rgbaFromHex(source.backgroundColor, source.backgroundOpacity) }]}>
         <Text
@@ -3171,9 +3220,9 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
               textShadowRadius: source.outlineWidth > 0 ? Math.max(1, source.outlineWidth) : 0
             }
           ]}
-          numberOfLines={source.mode === "subtitle" ? source.maxLines : 1}
+          numberOfLines={source.mode === "subtitle" || source.mode === "caption" ? source.maxLines : 1}
         >
-          {source.text}
+          {text}
         </Text>
       </View>
     );

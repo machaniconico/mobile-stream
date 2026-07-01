@@ -174,14 +174,17 @@ export interface SolidSource extends BaseSource {
   color: string;
 }
 
-export type TextSourceMode = "label" | "subtitle" | "ticker";
+export type TextSourceMode = "label" | "subtitle" | "ticker" | "caption";
 export type TextSourceAlign = "left" | "center" | "right";
+export type TextSourceContentSource = "manual" | "runtime-caption";
 
 export interface TextSource extends BaseSource {
   kind: "text";
   text: string;
   mode: TextSourceMode;
+  contentSource: TextSourceContentSource;
   align: TextSourceAlign;
+  showCaptionSpeaker: boolean;
   color: string;
   fontSize: number;
   backgroundColor: string;
@@ -219,8 +222,18 @@ export interface ChatOverlayMessage {
   source?: string;
 }
 
+export interface CaptionOverlayCue {
+  text: string;
+  speaker?: string;
+  language?: string;
+  confidence?: number;
+  isFinal?: boolean;
+  timestampMs?: number;
+}
+
 export interface RenderGraphRuntime {
   chatMessages?: ChatOverlayMessage[];
+  captions?: CaptionOverlayCue[];
 }
 
 export interface SceneDocument {
@@ -277,8 +290,9 @@ const clampRange = (value: number, min: number, max: number) => Math.max(min, Ma
 const sourceKinds: readonly SourceKind[] = ["screen", "pngtuber", "live2d", "vrm", "image", "solid", "text", "chat"];
 const blendModes: readonly BlendMode[] = ["normal", "multiply", "screen"];
 const sceneTransitionKinds: readonly SceneTransitionKind[] = ["cut", "fade"];
-const textSourceModes: readonly TextSourceMode[] = ["label", "subtitle", "ticker"];
+const textSourceModes: readonly TextSourceMode[] = ["label", "subtitle", "ticker", "caption"];
 const textSourceAlignments: readonly TextSourceAlign[] = ["left", "center", "right"];
+const textSourceContentSources: readonly TextSourceContentSource[] = ["manual", "runtime-caption"];
 
 const clampTransform = (transform: Transform): Transform => ({
   x: clamp01(transform.x),
@@ -994,7 +1008,9 @@ export const createDefaultScene = (): SceneDocument => {
       blendMode: "normal",
       text: "MobileLiveCaster",
       mode: "label",
+      contentSource: "manual",
       align: "left",
+      showCaptionSpeaker: true,
       color: "#f8fafc",
       fontSize: 44,
       backgroundColor: "#000000",
@@ -1013,7 +1029,9 @@ export const createDefaultScene = (): SceneDocument => {
       blendMode: "normal",
       text: "字幕テキスト",
       mode: "subtitle",
+      contentSource: "manual",
       align: "center",
+      showCaptionSpeaker: true,
       color: "#f8fafc",
       fontSize: 54,
       backgroundColor: "#000000",
@@ -1221,7 +1239,9 @@ export const createSource = (kind: SourceKind): SceneSource => {
         kind,
         text: "Text",
         mode: "label",
+        contentSource: "manual",
         align: "center",
+        showCaptionSpeaker: true,
         color: "#f8fafc",
         fontSize: 36,
         backgroundColor: "#000000",
@@ -1252,7 +1272,9 @@ export const createSubtitleTextSource = (): TextSource => ({
   name: "Subtitle",
   text: "字幕テキスト",
   mode: "subtitle",
+  contentSource: "manual",
   align: "center",
+  showCaptionSpeaker: true,
   fontSize: 54,
   backgroundColor: "#000000",
   backgroundOpacity: 0.46,
@@ -1260,6 +1282,23 @@ export const createSubtitleTextSource = (): TextSource => ({
   outlineWidth: 5,
   maxLines: 2,
   transform: defaultTransform({ x: 0.16, y: 0.77, width: 0.68, height: 0.16 })
+});
+
+export const createLiveCaptionTextSource = (): TextSource => ({
+  ...(createSource("text") as TextSource),
+  name: "Live Captions",
+  text: "Live captions",
+  mode: "caption",
+  contentSource: "runtime-caption",
+  align: "center",
+  showCaptionSpeaker: false,
+  fontSize: 48,
+  backgroundColor: "#000000",
+  backgroundOpacity: 0.42,
+  outlineColor: "#000000",
+  outlineWidth: 4,
+  maxLines: 3,
+  transform: defaultTransform({ x: 0.14, y: 0.72, width: 0.72, height: 0.2 })
 });
 
 export const normalizeSceneDocument = (value: unknown): SceneDocument => {
@@ -1590,11 +1629,16 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
       return { uri: source.uri };
     case "solid":
       return { color: source.color };
-    case "text":
+    case "text": {
+      const captionCues =
+        source.contentSource === "runtime-caption" ? serializeCaptionOverlayCues(runtime.captions ?? [], source) : [];
       return {
-        text: source.text,
+        text: resolveTextSourceText(source, captionCues),
         mode: source.mode,
+        contentSource: source.contentSource,
         align: source.align,
+        showCaptionSpeaker: source.showCaptionSpeaker,
+        captionCuesJson: JSON.stringify(captionCues),
         color: source.color,
         fontSize: source.fontSize,
         backgroundColor: source.backgroundColor,
@@ -1603,6 +1647,7 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
         outlineWidth: source.outlineWidth,
         maxLines: source.maxLines
       };
+    }
     case "chat": {
       const messages = serializeChatOverlayMessages(runtime.chatMessages ?? [], source);
       return {
@@ -1813,9 +1858,13 @@ const normalizeSceneSource = (value: unknown, canvas: SceneDocument["canvas"] = 
         kind: "text",
         text: typeof value.text === "string" ? value.text : sourceFallback.text,
         mode: textSourceModes.includes(value.mode as TextSourceMode) ? (value.mode as TextSourceMode) : sourceFallback.mode,
+        contentSource: textSourceContentSources.includes(value.contentSource as TextSourceContentSource)
+          ? (value.contentSource as TextSourceContentSource)
+          : sourceFallback.contentSource,
         align: textSourceAlignments.includes(value.align as TextSourceAlign)
           ? (value.align as TextSourceAlign)
           : sourceFallback.align,
+        showCaptionSpeaker: booleanValue(value.showCaptionSpeaker, sourceFallback.showCaptionSpeaker),
         color: stringValue(value.color, sourceFallback.color),
         fontSize: clampedNumber(value.fontSize, sourceFallback.fontSize, 8, 180),
         backgroundColor: stringValue(value.backgroundColor, sourceFallback.backgroundColor),
@@ -1867,6 +1916,30 @@ const serializeChatOverlayMessages = (messages: ChatOverlayMessage[], source: Ch
 
 const formatChatOverlayLine = (message: ChatOverlayMessage, showAuthor: boolean): string =>
   showAuthor ? `${message.author}: ${message.body}` : message.body;
+
+const serializeCaptionOverlayCues = (captions: CaptionOverlayCue[], source: TextSource): CaptionOverlayCue[] =>
+  captions
+    .map((cue) => ({
+      text: truncateOverlayText(redactOverlayUrls(cue.text), 220),
+      speaker: normalizeOverlayText(cue.speaker ?? "").slice(0, 48),
+      language: normalizeOverlayText(cue.language ?? "").slice(0, 16),
+      confidence: clamp01(finiteNumber(cue.confidence, 1)),
+      isFinal: cue.isFinal !== false,
+      timestampMs: Math.max(0, Math.round(finiteNumber(cue.timestampMs, 0)))
+    }))
+    .filter((cue) => cue.text.length > 0)
+    .slice(-source.maxLines);
+
+const resolveTextSourceText = (source: TextSource, captionCues: CaptionOverlayCue[]): string => {
+  if (source.contentSource !== "runtime-caption") {
+    return source.text;
+  }
+  const captionText = captionCues.map((cue) => formatCaptionOverlayLine(cue, source.showCaptionSpeaker)).join("\n");
+  return captionText || source.text;
+};
+
+const formatCaptionOverlayLine = (cue: CaptionOverlayCue, showSpeaker: boolean): string =>
+  showSpeaker && cue.speaker ? `${cue.speaker}: ${cue.text}` : cue.text;
 
 const normalizeOverlayText = (value: string): string =>
   redactSensitiveText(value)

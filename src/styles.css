@@ -984,6 +984,21 @@ select:focus-visible {
   resize: vertical;
 }
 
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.check-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
 .secret-tools {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

@@ -1458,7 +1458,9 @@ const sourcePayloadSummary = (source: SceneSource): Record<string, string | numb
       return {
         textLength: source.text.length,
         mode: source.mode,
+        contentSource: source.contentSource,
         align: source.align,
+        showCaptionSpeaker: source.showCaptionSpeaker,
         color: source.color,
         fontSize: source.fontSize,
         backgroundOpacity: source.backgroundOpacity,
