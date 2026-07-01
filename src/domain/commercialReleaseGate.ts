@@ -631,7 +631,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
     );
   }
   if (manifest.length !== bundle.summary.validationEvidenceRunCount) {
-    return warnIssue(
+    return failIssue(
       "validation-evidence-manifest-count-mismatch",
       "Validation evidence manifest",
       `Manifest has ${manifest.length} run(s), but the summary reports ${bundle.summary.validationEvidenceRunCount}.`,

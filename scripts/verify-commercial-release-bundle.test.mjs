@@ -715,7 +715,29 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("stable duration, sample count");
   });
 
-  it("keeps monitor-hold manifest failures blocking when manifest count warnings are allowed", () => {
+  it("blocks manifest count mismatches even when warnings are allowed", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunCount: 2,
+        validationEvidenceEligibleRunCount: 3,
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios-older", { createdAt: "2026-06-23T09:00:00.000Z", eligible: false, fresh: false }),
+          manifestRun("ios", "svr1-ios-latest"),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifierAllowWarnings();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[FAIL] Validation evidence manifest");
+    expect(result.stdout).toContain("Manifest has 3 run(s), but the summary reports 2.");
+    expect(result.stdout).toContain("Can release: no");
+    expect(result.stdout).not.toContain("release warning");
+  });
+
+  it("keeps monitor-hold manifest failures blocking when manifest count mismatches are present", () => {
     writeBundle({
       summary: {
         validationEvidenceRunCount: 2,

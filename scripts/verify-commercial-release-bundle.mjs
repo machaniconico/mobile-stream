@@ -921,7 +921,7 @@ function validationManifestIssue(bundle) {
     );
   }
   if (manifest.length !== number(summary.validationEvidenceRunCount)) {
-    return warn(
+    return fail(
       "validation-evidence-manifest-count-mismatch",
       "Validation evidence manifest",
       `Manifest has ${manifest.length} run(s), but the summary reports ${number(summary.validationEvidenceRunCount)}.`,

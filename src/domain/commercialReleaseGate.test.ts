@@ -502,6 +502,32 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks retained manifest count mismatches even when warnings are allowed", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunCount: 2,
+          validationEvidenceEligibleRunCount: 3,
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" }),
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios-extra", eligible: false, fresh: false })
+          ]
+        }
+      }),
+      { now, allowWarnings: true }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-count-mismatch",
+        severity: "fail"
+      })
+    );
+  });
+
   it("blocks old support bundle schema versions without retained-run manifests", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
