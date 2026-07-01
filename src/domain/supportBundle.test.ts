@@ -479,7 +479,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Evidence physical devices: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / Android publisher missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence monitor hold: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - 0s 0 samples");
     expect(formatSupportBundle(bundle)).toContain(
-      "Evidence native runtime: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - - / encoders none/none / MediaCodec probe missing none/none / sent 0 video 0 audio / bytes 0 / frame interval 0 samples avg 0ms max 0ms jitter 0ms / overlays applied 0 skipped 0 / assets 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0"
+      "Evidence native runtime: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest - - / encoders none/none / MediaCodec probe missing none/none / sent 0 video 0 audio / bytes 0 / frame interval 0 samples avg 0ms max 0ms jitter 0ms / overlays applied 0 skipped 0 / live reloads 0 rejected 0 / assets 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0"
     );
     expect(formatSupportBundle(bundle)).toContain("Evidence face tracking: 0 retained / 0 ready / 0 warn / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("landmarks 0% not-ready");
@@ -564,6 +564,8 @@ describe("support bundle", () => {
           runtimeCompositedFrameCount: 45,
           runtimeDroppedFrameCount: 0,
           runtimeCompositionFailureCount: 0,
+          liveRenderGraphReloadCount: 2,
+          liveRenderGraphRejectedUpdateCount: 1,
           stillImageAssetAppGroupCount: 1,
           stillImageAssetAppGroupLoadedCount: 1,
           stillImageAssetAppGroupDecodedCount: 1,
@@ -677,6 +679,8 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeSentVideoFrames).toBe(0);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeSentAudioFrames).toBe(0);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeBytesWritten).toBe(0);
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeLiveRenderGraphReloadCount).toBe(2);
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeLiveRenderGraphRejectedUpdateCount).toBe(1);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetAppGroupCount).toBe(1);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetAppGroupLoadedCount).toBe(1);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetAppGroupDecodedCount).toBe(1);
@@ -756,7 +760,7 @@ describe("support bundle", () => {
     expect(text).toContain("Evidence run manifest: ios warn eligible");
     expect(text).toContain(latestRunFingerprint ?? "-");
     expect(text).toContain(
-      "Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / encoders videotoolbox-h264/audiotoolbox-aac / MediaCodec probe missing none/none / sent 0 video 0 audio / bytes 0 / frame interval 119 samples avg 33.3ms max 42ms jitter 8.7ms / overlays applied 4 kinds caption/chat/pngtuber/text skipped 0 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / 0 missing / app-group 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600"
+      "Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / encoders videotoolbox-h264/audiotoolbox-aac / MediaCodec probe missing none/none / sent 0 video 0 audio / bytes 0 / frame interval 119 samples avg 33.3ms max 42ms jitter 8.7ms / overlays applied 4 kinds caption/chat/pngtuber/text skipped 0 / live reloads 2 rejected 1 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / 0 missing / app-group 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600"
     );
     expect(text).toContain("latency missing warn / source - / budget 180ms");
     expect(text).toContain("Evidence quality automation: 1 retained / live 1 / next-start 0 / failed 0");
