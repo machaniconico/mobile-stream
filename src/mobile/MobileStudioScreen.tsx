@@ -866,6 +866,7 @@ export const MobileStudioScreen = ({
             selectedSourceId={selectedSource.id}
             chatMessages={chatOverlayMessages}
             captions={liveCaptionCues}
+            captionsEnabled={liveCaption.settings.enabled}
             transitionPreview={sceneTransitionPreview}
             onSelectSource={onSelectSource}
           />
@@ -3141,6 +3142,7 @@ const ProgramPreview = ({
   selectedSourceId,
   chatMessages,
   captions,
+  captionsEnabled,
   transitionPreview,
   onSelectSource
 }: {
@@ -3148,6 +3150,7 @@ const ProgramPreview = ({
   selectedSourceId: string;
   chatMessages: ReturnType<typeof selectChatOverlayMessages>;
   captions: CaptionOverlayCue[];
+  captionsEnabled: boolean;
   transitionPreview: SceneTransitionPreview | null;
   onSelectSource(sourceId: string): void;
 }) => {
@@ -3159,11 +3162,12 @@ const ProgramPreview = ({
         selectedSourceId={selectedSourceId}
         chatMessages={chatMessages}
         captions={captions}
+        captionsEnabled={captionsEnabled}
         onSelectSource={onSelectSource}
       />
       {transitionPreview && transitionOpacity > 0 ? (
         <View style={[styles.previewTransitionLayer, { opacity: transitionOpacity }]} pointerEvents="none">
-          <ScenePreviewLayer scene={transitionPreview.scene} chatMessages={chatMessages} captions={captions} />
+          <ScenePreviewLayer scene={transitionPreview.scene} chatMessages={chatMessages} captions={captions} captionsEnabled={captionsEnabled} />
         </View>
       ) : null}
     </View>
@@ -3175,16 +3179,18 @@ const ScenePreviewLayer = ({
   selectedSourceId = "",
   chatMessages,
   captions,
+  captionsEnabled,
   onSelectSource
 }: {
   scene: SceneDocument;
   selectedSourceId?: string;
   chatMessages: ReturnType<typeof selectChatOverlayMessages>;
   captions: CaptionOverlayCue[];
+  captionsEnabled: boolean;
   onSelectSource?(sourceId: string): void;
 }) => (
   <>
-    {toRenderGraph(scene, { chatMessages, captions }).map((node) => {
+    {toRenderGraph(scene, { chatMessages, captions, captionsEnabled }).map((node) => {
       const source = scene.sources.find((item) => item.id === node.id);
       if (!source) {
         return null;

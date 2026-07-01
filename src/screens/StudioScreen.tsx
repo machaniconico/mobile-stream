@@ -822,6 +822,7 @@ export const StudioScreen = ({
             selectedSourceId={selectedSource.id}
             chatMessages={chatOverlayMessages}
             captions={liveCaptionCues}
+            captionsEnabled={liveCaption.settings.enabled}
             transitionPreview={sceneTransitionPreview}
             onSelectSource={onSelectSource}
           />
@@ -3011,11 +3012,12 @@ interface ProgramPreviewProps {
   selectedSourceId: string;
   chatMessages: ReturnType<typeof selectChatOverlayMessages>;
   captions: CaptionOverlayCue[];
+  captionsEnabled: boolean;
   transitionPreview: SceneTransitionPreview | null;
   onSelectSource(sourceId: string): void;
 }
 
-const ProgramPreview = ({ scene, selectedSourceId, chatMessages, captions, transitionPreview, onSelectSource }: ProgramPreviewProps) => {
+const ProgramPreview = ({ scene, selectedSourceId, chatMessages, captions, captionsEnabled, transitionPreview, onSelectSource }: ProgramPreviewProps) => {
   const transitionOpacity = useSceneTransitionOpacity(transitionPreview);
   return (
     <div className="program-preview">
@@ -3031,12 +3033,13 @@ const ProgramPreview = ({ scene, selectedSourceId, chatMessages, captions, trans
           selectedSourceId={selectedSourceId}
           chatMessages={chatMessages}
           captions={captions}
+          captionsEnabled={captionsEnabled}
           interactive
           onSelectSource={onSelectSource}
         />
         {transitionPreview && transitionOpacity > 0 ? (
           <div className="program-transition-layer" style={{ opacity: transitionOpacity }} aria-hidden="true">
-            <ScenePreviewLayer scene={transitionPreview.scene} chatMessages={chatMessages} captions={captions} />
+            <ScenePreviewLayer scene={transitionPreview.scene} chatMessages={chatMessages} captions={captions} captionsEnabled={captionsEnabled} />
           </div>
         ) : null}
       </div>
@@ -3049,6 +3052,7 @@ const ScenePreviewLayer = ({
   selectedSourceId = "",
   chatMessages,
   captions,
+  captionsEnabled,
   interactive = false,
   onSelectSource
 }: {
@@ -3056,11 +3060,12 @@ const ScenePreviewLayer = ({
   selectedSourceId?: string;
   chatMessages: ReturnType<typeof selectChatOverlayMessages>;
   captions: CaptionOverlayCue[];
+  captionsEnabled: boolean;
   interactive?: boolean;
   onSelectSource?(sourceId: string): void;
 }) => (
   <>
-    {toRenderGraph(scene, { chatMessages, captions }).map((node) => {
+    {toRenderGraph(scene, { chatMessages, captions, captionsEnabled }).map((node) => {
       const source = scene.sources.find((item) => item.id === node.id);
       if (!source) {
         return null;

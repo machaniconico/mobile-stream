@@ -242,6 +242,7 @@ export interface CaptionOverlayCue {
 export interface RenderGraphRuntime {
   chatMessages?: ChatOverlayMessage[];
   captions?: CaptionOverlayCue[];
+  captionsEnabled?: boolean;
 }
 
 export interface SceneDocument {
@@ -1675,7 +1676,7 @@ export const reorderSource = (scene: SceneDocument, sourceId: string, direction:
 
 export const toRenderGraph = (scene: SceneDocument, runtime: RenderGraphRuntime = {}): RenderNode[] =>
   scene.sources
-    .filter((source) => source.visible)
+    .filter((source) => isRenderableSource(source, runtime))
     .map((source, order) => ({
       id: source.id,
       kind: source.kind,
@@ -1683,6 +1684,13 @@ export const toRenderGraph = (scene: SceneDocument, runtime: RenderGraphRuntime 
       transform: source.transform,
       payload: sourcePayload(source, runtime)
     }));
+
+const isRenderableSource = (source: SceneSource, runtime: RenderGraphRuntime): boolean => {
+  if (!source.visible) {
+    return false;
+  }
+  return !(source.kind === "text" && source.contentSource === "runtime-caption" && runtime.captionsEnabled === false);
+};
 
 const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record<string, string | number | boolean> => {
   switch (source.kind) {

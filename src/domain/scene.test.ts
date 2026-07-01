@@ -772,6 +772,23 @@ describe("scene document", () => {
     });
   });
 
+  it("omits visible runtime-caption sources from render graphs when live captions are disabled", () => {
+    const liveCaption = createLiveCaptionTextSource();
+    const scene = addSource(createDefaultScene(), liveCaption);
+    const disabledGraph = toRenderGraph(scene, {
+      captionsEnabled: false,
+      captions: [{ text: "should not render", isFinal: true }]
+    });
+    const enabledGraph = toRenderGraph(scene, {
+      captionsEnabled: true,
+      captions: [{ text: "should render", isFinal: true }]
+    });
+
+    expect(disabledGraph.find((node) => node.id === liveCaption.id)).toBeUndefined();
+    expect(disabledGraph.find((node) => node.id === "source-subtitle")).toBeDefined();
+    expect(enabledGraph.find((node) => node.id === liveCaption.id)?.payload.text).toBe("should render");
+  });
+
   it("can show speaker names for live caption overlays", () => {
     const liveCaption = {
       ...createLiveCaptionTextSource(),

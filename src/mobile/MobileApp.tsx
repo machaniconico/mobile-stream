@@ -251,6 +251,14 @@ export const MobileApp = () => {
     () => selectLiveCaptionCues(liveCaption, liveCaptionClock),
     [liveCaption, liveCaptionClock]
   );
+  const renderGraphRuntime = useMemo(
+    () => ({
+      chatMessages: chatOverlayMessages,
+      captions: liveCaptionCues,
+      captionsEnabled: liveCaption.settings.enabled
+    }),
+    [chatOverlayMessages, liveCaption.settings.enabled, liveCaptionCues]
+  );
   const { events: streamSessionEvents, recordEvent: recordStreamSessionEvent } = useStreamSessionLog(snapshot);
   const recordAudioLevelSample = useCallback((level: number, source: StreamAudioLevelSource) => {
     audioLevelSamplesRef.current = appendStreamAudioLevelSample(
@@ -798,8 +806,8 @@ export const MobileApp = () => {
     if (!shouldPushSceneToEngine(snapshot.state.status)) {
       return;
     }
-    void engine.updateScene(scene, { chatMessages: chatOverlayMessages, captions: liveCaptionCues });
-  }, [chatOverlayMessages, engine, liveCaptionCues, scene, snapshot.state.status]);
+    void engine.updateScene(scene, renderGraphRuntime);
+  }, [engine, renderGraphRuntime, scene, snapshot.state.status]);
 
   useEffect(() => {
     if (!profileLoaded) {
@@ -959,7 +967,7 @@ export const MobileApp = () => {
           createStreamSafetyEvent("public-launch-confirmed", formatPublicLaunchConfirmationEventMessage(publicLaunchConfirmation))
         );
       }
-      await engine.prepare(scene, readiness.sanitizedProfile, { chatMessages: chatOverlayMessages, captions: liveCaptionCues });
+      await engine.prepare(scene, readiness.sanitizedProfile, renderGraphRuntime);
       await engine.start();
       const chatPlan = platformChatConnection.ensureConnected(chatReader.settings.enabled);
       if (chatPlan.reason !== "platform-chat-disabled") {
@@ -1251,7 +1259,7 @@ export const MobileApp = () => {
     }
 
     try {
-      await engine.updateScene(nextScene, { chatMessages: [], captions: [] });
+      await engine.updateScene(nextScene, { chatMessages: [], captions: [], captionsEnabled: false });
       await engine.updateQuality(nextProfile);
     } catch (error) {
       const safeMessage = errorToSafeMessage(error, "Privacy Shield native update failed.");
