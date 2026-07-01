@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultScene, createSource, updateSource } from "./scene";
+import { addSource, createDefaultScene, createSource, createTextOverlayPresetSource, updateSource } from "./scene";
 import { applyDestinationPreset, createDefaultStudioProfile, legacyCustomDestinationProfile } from "./profiles";
 import { createReadinessReport } from "./readiness";
 
@@ -318,6 +318,64 @@ describe("stream readiness", () => {
         field: "scene",
         severity: "warning",
         message: expect.stringContaining("large opaque text backdrop")
+      })
+    );
+  });
+
+  it("warns when a mobile production scene has too many visible overlays", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "dummy-stream-value"
+      }
+    };
+    const scene = (["title", "lower-third", "notice", "ticker", "badge"] as const).reduce(
+      (currentScene, presetId) => addSource(currentScene, createTextOverlayPresetSource(presetId)),
+      createDefaultScene()
+    );
+
+    const report = createReadinessReport(scene, profile);
+    const issueCodes = report.issues.map((issue) => issue.code);
+
+    expect(report.canStart).toBe(true);
+    expect(issueCodes).toContain("scene-complexity-visible-overlay-count");
+    expect(issueCodes).toContain("scene-complexity-text-overlay-count");
+    expect(report.issues.find((issue) => issue.code === "scene-complexity-visible-overlay-count")?.message).toContain(
+      "physical-device evidence"
+    );
+  });
+
+  it("warns when retained scene documents exceed the mobile source count budget", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "dummy-stream-value"
+      }
+    };
+    let scene = createDefaultScene();
+    for (const index of Array.from({ length: 25 }, (_item, itemIndex) => itemIndex)) {
+      const source = createSource("solid");
+      scene = addSource(scene, {
+        ...source,
+        id: `hidden-solid-${index}`,
+        name: `Hidden Solid ${index}`,
+        visible: false
+      });
+    }
+
+    const report = createReadinessReport(scene, profile);
+
+    expect(report.canStart).toBe(true);
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        code: "scene-complexity-total-source-count",
+        field: "scene",
+        severity: "warning",
+        message: expect.stringContaining("sources or fewer")
       })
     );
   });

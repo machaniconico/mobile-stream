@@ -30,6 +30,11 @@ const textOverlayBackgroundOpacityWarningThreshold = 0.35;
 const textOverlayDominantAreaWarningThreshold = 0.18;
 const textOverlayVeryOpaqueWarningThreshold = 0.65;
 const textOverlayVeryOpaqueAreaWarningThreshold = 0.1;
+const sceneTotalSourceWarningThreshold = 24;
+const sceneVisibleSourceWarningThreshold = 12;
+const sceneVisibleOverlayWarningThreshold = 9;
+const sceneVisibleTextOverlayWarningThreshold = 6;
+const sceneVisibleChatOverlayWarningThreshold = 2;
 
 export const createReadinessReport = (scene: SceneDocument, profile: StudioProfile): ReadinessReport => {
   const sanitizedProfile = sanitizeStudioProfile(profile);
@@ -277,6 +282,9 @@ const validateQuality = (profile: StudioProfile): ReadinessIssue[] => {
 const validateScene = (scene: SceneDocument, profile: StudioProfile): ReadinessIssue[] => {
   const issues: ReadinessIssue[] = [];
   const visibleSources = scene.sources.filter((source) => source.visible);
+  const visibleOverlaySources = visibleSources.filter((source) => source.kind !== "screen");
+  const visibleTextSources = visibleSources.filter((source) => source.kind === "text");
+  const visibleChatSources = visibleSources.filter((source) => source.kind === "chat");
   const nativeComposition = createNativeCompositionReport(scene);
 
   if (visibleSources.length === 0) {
@@ -294,6 +302,51 @@ const validateScene = (scene: SceneDocument, profile: StudioProfile): ReadinessI
       severity: "warning",
       field: "scene",
       message: "No visible screen capture source is enabled."
+    });
+  }
+
+  if (scene.sources.length > sceneTotalSourceWarningThreshold) {
+    issues.push({
+      code: "scene-complexity-total-source-count",
+      severity: "warning",
+      field: "scene",
+      message: `${scene.sources.length} scene sources are configured. Keep mobile production scenes at ${sceneTotalSourceWarningThreshold} sources or fewer unless physical validation proves the target devices remain stable.`
+    });
+  }
+
+  if (visibleSources.length > sceneVisibleSourceWarningThreshold) {
+    issues.push({
+      code: "scene-complexity-visible-source-count",
+      severity: "warning",
+      field: "scene",
+      message: `${visibleSources.length} visible sources are enabled. Reduce visible layers before public launch or retain physical-device evidence for this exact scene complexity.`
+    });
+  }
+
+  if (visibleOverlaySources.length > sceneVisibleOverlayWarningThreshold) {
+    issues.push({
+      code: "scene-complexity-visible-overlay-count",
+      severity: "warning",
+      field: "scene",
+      message: `${visibleOverlaySources.length} visible overlay sources are stacked above or around screen capture. Mobile native compositors should stay at ${sceneVisibleOverlayWarningThreshold} overlays or fewer for release-critical streams unless retained physical-device evidence proves this exact composition is stable.`
+    });
+  }
+
+  if (visibleTextSources.length > sceneVisibleTextOverlayWarningThreshold) {
+    issues.push({
+      code: "scene-complexity-text-overlay-count",
+      severity: "warning",
+      field: "scene",
+      message: `${visibleTextSources.length} visible text overlays are enabled. Consolidate titles, subtitles, badges, and tickers before public launch to reduce layout and thermal risk.`
+    });
+  }
+
+  if (visibleChatSources.length > sceneVisibleChatOverlayWarningThreshold) {
+    issues.push({
+      code: "scene-complexity-chat-overlay-count",
+      severity: "warning",
+      field: "scene",
+      message: `${visibleChatSources.length} visible chat overlays are enabled. Use one primary chat source for public streams unless the duplicate overlays are physically validated.`
     });
   }
 

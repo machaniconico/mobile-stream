@@ -7,6 +7,7 @@
 - Persisted scene collection normalization with transition settings, clamped canvas/source/transform/avatar runtime values, and legacy single-scene migration.
 - Stream profile model for RTMP and RTMPS destinations, including YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
+- Mobile scene complexity readiness checks warn before public launch when total sources, visible layers, native overlays, text overlays, or duplicate chat overlays exceed conservative phone-safe budgets without retained physical-device evidence for that exact composition.
 - RTMP/RTMPS destination normalization for pasted YouTube/Twitch full publish URLs across shared profile handling and native endpoint assembly.
 - Shared Go Live preflight model for launch blocking, warning surfacing, engine-state duplicate-start protection, and failed-start operation logging.
 - Go Live platform-state preflight for platform-visible YouTube streams, requiring a bound broadcast/stream before launch after commercial validation, blocking completed broadcasts, warning on already-live broadcasts, blocking YouTube Public and Twitch starts when dashboard status is stale or unchecked or platform publishing OAuth evidence is missing/unknown while keeping unlisted validation starts as warnings, and blocking Twitch starts when the channel status is already live.
