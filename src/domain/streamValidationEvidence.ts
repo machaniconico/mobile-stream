@@ -1447,13 +1447,16 @@ const alignNativeRuntimeWithComposition = (
   const expectedNativeOverlayCount = nativeComposition.nativeOverlayCount;
   const expectedStillImageCount = nativeComposition.stillImageOverlayCount;
   const expectedTextOverlayCount = nativeComposition.textOverlayCount;
+  const expectedCaptionOverlayCount = nativeComposition.captionOverlayCount;
   const expectedChatOverlayCount = nativeComposition.chatOverlayCount;
-  const appliedTextOverlayCount = countKind(nativeRuntime.compositionAppliedKinds, "text");
+  const appliedCaptionOverlayCount = countKind(nativeRuntime.compositionAppliedKinds, "caption");
+  const appliedTextOverlayCount = countKind(nativeRuntime.compositionAppliedKinds, "text") + appliedCaptionOverlayCount;
   const appliedChatOverlayCount = countKind(nativeRuntime.compositionAppliedKinds, "chat");
   const requiresStillImageProof = expectedStillImageCount > 0;
   const overlayApplied = nativeRuntime.compositionStatus === "applied";
   const runtimeAppliedEnoughOverlays = nativeRuntime.compositionAppliedCount >= expectedNativeOverlayCount;
   const runtimeAppliedTextOverlays = appliedTextOverlayCount >= expectedTextOverlayCount;
+  const runtimeAppliedCaptionOverlays = appliedCaptionOverlayCount >= expectedCaptionOverlayCount;
   const runtimeAppliedChatOverlays = appliedChatOverlayCount >= expectedChatOverlayCount;
   const runtimeSkippedClean = nativeRuntime.compositionSkippedCount === 0;
   const runtimeDeclaredEnoughAssets = nativeRuntime.stillImageAssetCount >= expectedStillImageCount;
@@ -1477,6 +1480,7 @@ const alignNativeRuntimeWithComposition = (
     overlayApplied &&
     runtimeAppliedEnoughOverlays &&
     runtimeAppliedTextOverlays &&
+    runtimeAppliedCaptionOverlays &&
     runtimeAppliedChatOverlays &&
     runtimeSkippedClean &&
     runtimeDeclaredEnoughAssets &&
@@ -1493,8 +1497,8 @@ const alignNativeRuntimeWithComposition = (
   return addNativeRuntimeCompositionReview(
     nativeRuntime,
     "warn",
-    `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, applied ${nativeRuntime.compositionAppliedCount}/${expectedNativeOverlayCount} overlays, text ${appliedTextOverlayCount}/${expectedTextOverlayCount}, chat ${appliedChatOverlayCount}/${expectedChatOverlayCount}, skipped ${nativeRuntime.compositionSkippedCount}, still-image assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded, decoded ${nativeRuntime.stillImageAssetDecodedCount}/${expectedStillImageCount}, decoded pixels ${nativeRuntime.stillImageAssetDecodedPixelCount}, composited ${nativeRuntime.stillImageAssetCompositedCount}/${expectedStillImageCount}, composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount}, frame compositor ${nativeRuntime.runtimeCompositorBackend}, composited frames ${nativeRuntime.runtimeCompositedFrameCount}, composition failures ${nativeRuntime.runtimeCompositionFailureCount}.`,
-    "Repeat physical validation with the current scene and retain native compositor telemetry showing every native overlay kind applied, including all text and chat overlays, zero skipped overlays, all required still-image assets decoded/composited to non-zero pixels, iOS ReplayKit/CoreGraphics composited frames above zero when iOS overlays are active, and Android direct MediaCodec Canvas composited frames above zero with zero composition failures."
+    `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, applied ${nativeRuntime.compositionAppliedCount}/${expectedNativeOverlayCount} overlays, text ${appliedTextOverlayCount}/${expectedTextOverlayCount}, caption ${appliedCaptionOverlayCount}/${expectedCaptionOverlayCount}, chat ${appliedChatOverlayCount}/${expectedChatOverlayCount}, skipped ${nativeRuntime.compositionSkippedCount}, still-image assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded, decoded ${nativeRuntime.stillImageAssetDecodedCount}/${expectedStillImageCount}, decoded pixels ${nativeRuntime.stillImageAssetDecodedPixelCount}, composited ${nativeRuntime.stillImageAssetCompositedCount}/${expectedStillImageCount}, composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount}, frame compositor ${nativeRuntime.runtimeCompositorBackend}, composited frames ${nativeRuntime.runtimeCompositedFrameCount}, composition failures ${nativeRuntime.runtimeCompositionFailureCount}.`,
+    "Repeat physical validation with the current scene and retain native compositor telemetry showing every native overlay kind applied, including all text, caption, and chat overlays, zero skipped overlays, all required still-image assets decoded/composited to non-zero pixels, iOS ReplayKit/CoreGraphics composited frames above zero when iOS overlays are active, and Android direct MediaCodec Canvas composited frames above zero with zero composition failures."
   );
 };
 

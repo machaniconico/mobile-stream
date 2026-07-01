@@ -42,6 +42,7 @@ const nativeComposition: NativeCompositionReport = {
   nativeOverlayCount: 3,
   stillImageOverlayCount: 1,
   textOverlayCount: 1,
+  captionOverlayCount: 0,
   chatOverlayCount: 1,
   previewOnlySourceCount: 0,
   assetIssueCount: 0,

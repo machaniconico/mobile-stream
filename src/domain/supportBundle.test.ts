@@ -76,7 +76,7 @@ describe("support bundle", () => {
         composition: {
           status: "applied" as const,
           appliedCount: 4,
-          appliedKinds: ["chat", "pngtuber", "text", "text"],
+          appliedKinds: ["caption", "chat", "pngtuber", "text"],
           skippedCount: 0,
           skippedKinds: [],
           stillImageAssetCount: 1,
@@ -331,6 +331,7 @@ describe("support bundle", () => {
     expect(bundle.summary.nativeCompositionNativeOverlayCount).toBe(4);
     expect(bundle.summary.nativeCompositionStillImageOverlayCount).toBe(1);
     expect(bundle.summary.nativeCompositionTextOverlayCount).toBe(2);
+    expect(bundle.summary.nativeCompositionCaptionOverlayCount).toBe(1);
     expect(bundle.summary.nativeCompositionChatOverlayCount).toBe(1);
     expect(bundle.summary.nativeCompositionPreviewOnlySourceCount).toBeGreaterThan(0);
     expect(bundle.summary.nativeCompositionAssetIssueCount).toBe(1);
@@ -349,7 +350,7 @@ describe("support bundle", () => {
     expect(bundle.summary.nativeRuntimeStillImageAssetDecodedPixelCount).toBe(921_600);
     expect(bundle.summary.nativeRuntimeStillImageAssetCompositedCount).toBe(1);
     expect(bundle.summary.nativeRuntimeStillImageAssetCompositedPixelCount).toBe(921_600);
-    expect(bundle.summary.nativeRuntimeCompositionAppliedKinds).toEqual(["chat", "pngtuber", "text", "text"]);
+    expect(bundle.summary.nativeRuntimeCompositionAppliedKinds).toEqual(["caption", "chat", "pngtuber", "text"]);
     expect(bundle.summary.nativeRuntimeStillImageAssetAppGroupCount).toBe(0);
     expect(bundle.summary.nativeRuntimeStillImageAssetAppGroupLoadedCount).toBe(0);
     expect(bundle.summary.nativeRuntimeStillImageAssetAppGroupDecodedCount).toBe(0);
@@ -462,14 +463,14 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Commercial Validation");
     expect(formatSupportBundle(bundle)).toContain("Runbook: running");
     expect(formatSupportBundle(bundle)).toContain(
-      "Native composition: warn / preview-only-overlays / overlays 4 / still-image 1 / text 2 / chat 1"
+      "Native composition: warn / preview-only-overlays / overlays 4 / still-image 1 / text 2 / caption 1 / chat 1"
     );
     expect(formatSupportBundle(bundle)).toContain("asset issues 1 / file-backed 0");
     expect(formatSupportBundle(bundle)).toContain(
       "assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / runtime android-canvas-mediacodec 144 frames 1 dropped 0 failures / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing"
     );
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
-    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / encoders mediacodec-h264/mediacodec-aac / MediaCodec probe missing none/none / overlays applied 4 kinds chat/pngtuber/text/text skipped 0 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / runtime android-canvas-mediacodec 144 frames 1 dropped 0 failures / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing / vrm 1/1 active payloads 1 missing 0 / renderer ready opengl-es rendered 1/1 models 1 versions 1.0 bones 55 expressions 8 mesh primitives 4 triangles 4 unsupported modes 0 skinned 4 skin joints 55 position accessors 4 normals 4 uvs 4 vertices 12480 indices 36240 bounds 4 skin attrs 4 morphs 8 materials 3 transparent materials 1 textures 3 images 3 unsupported image mimes 0 pose bones 7/7 unsupported 0 pose expressions 3/3 unsupported 0 missing 0 failed 0 / congested yes / queue 64/120");
+    expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / encoders mediacodec-h264/mediacodec-aac / MediaCodec probe missing none/none / overlays applied 4 kinds caption/chat/pngtuber/text skipped 0 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / runtime android-canvas-mediacodec 144 frames 1 dropped 0 failures / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing / vrm 1/1 active payloads 1 missing 0 / renderer ready opengl-es rendered 1/1 models 1 versions 1.0 bones 55 expressions 8 mesh primitives 4 triangles 4 unsupported modes 0 skinned 4 skin joints 55 position accessors 4 normals 4 uvs 4 vertices 12480 indices 36240 bounds 4 skin attrs 4 morphs 8 materials 3 transparent materials 1 textures 3 images 3 unsupported image mimes 0 pose bones 7/7 unsupported 0 pose expressions 3/3 unsupported 0 missing 0 failed 0 / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
     expect(formatSupportBundle(bundle)).toContain("Evidence fingerprint: sve1-");
     expect(formatSupportBundle(bundle)).toContain("Evidence run manifest: -");
@@ -546,7 +547,7 @@ describe("support bundle", () => {
         composition: {
           status: "applied",
           appliedCount: 4,
-          appliedKinds: ["chat", "pngtuber", "text", "text"],
+          appliedKinds: ["caption", "chat", "pngtuber", "text"],
           skippedCount: 0,
           skippedKinds: [],
           stillImageAssetCount: 1,
@@ -753,7 +754,7 @@ describe("support bundle", () => {
     expect(text).toContain("Evidence run manifest: ios warn eligible");
     expect(text).toContain(latestRunFingerprint ?? "-");
     expect(text).toContain(
-      "Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / encoders videotoolbox-h264/audiotoolbox-aac / MediaCodec probe missing none/none / sent 0 video 0 audio / bytes 0 / frame interval 119 samples avg 33.3ms max 42ms jitter 8.7ms / overlays applied 4 kinds chat/pngtuber/text/text skipped 0 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / 0 missing / app-group 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600"
+      "Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / encoders videotoolbox-h264/audiotoolbox-aac / MediaCodec probe missing none/none / sent 0 video 0 audio / bytes 0 / frame interval 119 samples avg 33.3ms max 42ms jitter 8.7ms / overlays applied 4 kinds caption/chat/pngtuber/text skipped 0 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / 0 missing / app-group 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600"
     );
     expect(text).toContain("latency missing warn / source - / budget 180ms");
     expect(text).toContain("Evidence quality automation: 1 retained / live 1 / next-start 0 / failed 0");

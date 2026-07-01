@@ -1115,14 +1115,16 @@ const isZeroFiniteNumber = (value: unknown): boolean => typeof value === "number
 interface NativeOverlayProofRequirements {
   total: number;
   text: number;
+  caption: number;
   chat: number;
 }
 
-const emptyNativeOverlayProofRequirements: NativeOverlayProofRequirements = { total: 0, text: 0, chat: 0 };
+const emptyNativeOverlayProofRequirements: NativeOverlayProofRequirements = { total: 0, text: 0, caption: 0, chat: 0 };
 
 const nativeCompositionOverlayProofRequirements = (summary: SupportBundle["summary"]): NativeOverlayProofRequirements => ({
   total: nonNegativeSummaryCount(summary.nativeCompositionNativeOverlayCount),
   text: nonNegativeSummaryCount(summary.nativeCompositionTextOverlayCount),
+  caption: nonNegativeSummaryCount(summary.nativeCompositionCaptionOverlayCount),
   chat: nonNegativeSummaryCount(summary.nativeCompositionChatOverlayCount)
 });
 
@@ -1138,10 +1140,13 @@ const hasManifestNativeOverlayProof = (
   }
 
   const appliedKinds = run?.nativeRuntimeCompositionAppliedKinds ?? [];
+  const appliedCaptionOverlayCount = countKind(appliedKinds, "caption");
+  const appliedTextOverlayCount = countKind(appliedKinds, "text") + appliedCaptionOverlayCount;
   return (
     run?.nativeRuntimeCompositionStatus === "applied" &&
     isAtLeastFiniteNumber(run.nativeRuntimeCompositionAppliedCount, expectedNativeOverlays.total) &&
-    countKind(appliedKinds, "text") >= expectedNativeOverlays.text &&
+    appliedTextOverlayCount >= expectedNativeOverlays.text &&
+    appliedCaptionOverlayCount >= expectedNativeOverlays.caption &&
     countKind(appliedKinds, "chat") >= expectedNativeOverlays.chat &&
     isZeroFiniteNumber(run.nativeRuntimeCompositionSkippedCount)
   );

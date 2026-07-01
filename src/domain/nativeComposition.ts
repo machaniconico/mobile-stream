@@ -29,6 +29,7 @@ export interface NativeCompositionReport {
   nativeOverlayCount: number;
   stillImageOverlayCount: number;
   textOverlayCount: number;
+  captionOverlayCount: number;
   chatOverlayCount: number;
   previewOnlySourceCount: number;
   assetIssueCount: number;
@@ -56,6 +57,7 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
   const nativeOverlayCount = nativeOverlaySources.length;
   const stillImageOverlayCount = nativeOverlaySources.filter((source) => nativeStillImageKinds.has(source.kind)).length;
   const textOverlayCount = nativeOverlaySources.filter((source) => source.kind === "text").length;
+  const captionOverlayCount = nativeOverlaySources.filter((source) => isCaptionLikeTextSource(source)).length;
   const chatOverlayCount = nativeOverlaySources.filter((source) => source.kind === "chat").length;
   const unsupportedOverlaySources = overlaySources.filter((source) => !nativeOverlayKinds.has(source.kind));
   const previewOnlySources = [...underlaySources, ...unsupportedOverlaySources];
@@ -80,6 +82,7 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       nativeOverlayCount: 0,
       stillImageOverlayCount: 0,
       textOverlayCount: 0,
+      captionOverlayCount: 0,
       chatOverlayCount: 0,
       previewOnlySourceCount: 0,
       assetIssueCount: 0,
@@ -103,6 +106,7 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       nativeOverlayCount,
       stillImageOverlayCount,
       textOverlayCount,
+      captionOverlayCount,
       chatOverlayCount,
       previewOnlySourceCount: visibleNonScreenSources.length,
       assetIssueCount: assetIssues.length,
@@ -125,6 +129,7 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       nativeOverlayCount,
       stillImageOverlayCount,
       textOverlayCount,
+      captionOverlayCount,
       chatOverlayCount,
       previewOnlySourceCount: previewOnlySources.length,
       assetIssueCount: assetIssues.length,
@@ -148,6 +153,7 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
         nativeOverlayCount,
         stillImageOverlayCount,
         textOverlayCount,
+        captionOverlayCount,
         chatOverlayCount,
         previewOnlySourceCount: 0,
         assetIssueCount: assetIssues.length,
@@ -169,6 +175,7 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       nativeOverlayCount,
       stillImageOverlayCount,
       textOverlayCount,
+      captionOverlayCount,
       chatOverlayCount,
       previewOnlySourceCount: 0,
       assetIssueCount: 0,
@@ -190,6 +197,7 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
     nativeOverlayCount: 0,
     stillImageOverlayCount: 0,
     textOverlayCount: 0,
+    captionOverlayCount: 0,
     chatOverlayCount: 0,
     previewOnlySourceCount: 0,
     assetIssueCount: 0,
@@ -199,6 +207,10 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
     issues: []
   };
 };
+
+const isCaptionLikeTextSource = (source: SceneSource): boolean =>
+  source.kind === "text" &&
+  (source.mode === "subtitle" || source.mode === "caption" || source.contentSource === "runtime-caption");
 
 const createNativeStillImageAssetIssue = (source: SceneSource): NativeCompositionIssue[] => {
   if (!nativeStillImageKinds.has(source.kind)) {

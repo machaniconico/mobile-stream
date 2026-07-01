@@ -3555,7 +3555,7 @@ final class BroadcastSceneCompositor {
             runtimeDroppedFrameCount: runtimeDroppedFrameCount,
             runtimeCompositionFailureCount: runtimeCompositionFailureCount,
             appliedCount: overlayNodes.count,
-            appliedKinds: overlayNodes.map(\.kind).sorted(),
+            appliedKinds: overlayNodes.map(Self.appliedKind).sorted(),
             skippedCount: skippedCount,
             skippedKinds: skippedKinds,
             parseFailed: parseFailed,
@@ -4105,6 +4105,15 @@ final class BroadcastSceneCompositor {
 
     private static func requiresStillImageAsset(_ node: BroadcastRenderNode) -> Bool {
         node.kind == "pngtuber" || node.kind == "image"
+    }
+
+    private static func appliedKind(for node: BroadcastRenderNode) -> String {
+        guard node.kind == "text" else {
+            return node.kind
+        }
+        let mode = node.payload["mode"] as? String ?? ""
+        let contentSource = node.payload["contentSource"] as? String ?? ""
+        return mode == "subtitle" || mode == "caption" || contentSource == "runtime-caption" ? "caption" : "text"
     }
 
     private static func stillImageAssetURI(for node: BroadcastRenderNode) -> String {

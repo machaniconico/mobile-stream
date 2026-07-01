@@ -148,7 +148,7 @@ object AndroidSceneCompositor {
             recordStillImageAssetComposited(stillImageEvidence, node)
             canvasOverlays.add(CanvasOverlayItem(bitmap, resolveOverlayTransform(node)))
             appliedCount += 1
-            appliedKinds.add(node.kind)
+            appliedKinds.add(resolveAppliedKind(node))
         }
         val missingStillImageNodes = stillImageNodes.filter { node ->
             stillImageEvidence[assetEvidenceKey(node)]?.loaded != true
@@ -209,7 +209,7 @@ object AndroidSceneCompositor {
             stream.getGlInterface().addFilter(filter)
             recordStillImageAssetComposited(stillImageEvidence, node)
             appliedCount += 1
-            appliedKinds.add(node.kind)
+            appliedKinds.add(resolveAppliedKind(node))
         }
         val missingStillImageNodes = stillImageNodes.filter { node ->
             stillImageEvidence[assetEvidenceKey(node)]?.loaded != true
@@ -674,6 +674,19 @@ object AndroidSceneCompositor {
             }
         } catch (_: Throwable) {
             null
+        }
+    }
+
+    private fun resolveAppliedKind(node: RenderGraphNode): String {
+        if (node.kind != "text") {
+            return node.kind
+        }
+        val mode = node.payload.optString("mode", "")
+        val contentSource = node.payload.optString("contentSource", "")
+        return if (mode == "subtitle" || mode == "caption" || contentSource == "runtime-caption") {
+            "caption"
+        } else {
+            "text"
         }
     }
 

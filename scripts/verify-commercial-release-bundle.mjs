@@ -26,7 +26,7 @@ const productionAudioEncoderBackendsByPlatform = {
   android: new Set(["mediacodec", "mediacodec-aac"])
 };
 const redactedMarker = "[redacted]";
-const emptyNativeOverlayProofRequirements = { total: 0, text: 0, chat: 0 };
+const emptyNativeOverlayProofRequirements = { total: 0, text: 0, caption: 0, chat: 0 };
 const sensitivePropertyNames = new Set([
   "accesstoken",
   "refreshtoken",
@@ -1270,6 +1270,7 @@ function nativeCompositionOverlayProofRequirements(summary) {
   return {
     total: nonNegativeSummaryCount(summary?.nativeCompositionNativeOverlayCount),
     text: nonNegativeSummaryCount(summary?.nativeCompositionTextOverlayCount),
+    caption: nonNegativeSummaryCount(summary?.nativeCompositionCaptionOverlayCount),
     chat: nonNegativeSummaryCount(summary?.nativeCompositionChatOverlayCount)
   };
 }
@@ -1286,10 +1287,13 @@ function hasNativeOverlayProof(run, expectedNativeOverlays) {
   const appliedKinds = Array.isArray(run?.nativeRuntimeCompositionAppliedKinds)
     ? run.nativeRuntimeCompositionAppliedKinds
     : [];
+  const appliedCaptionOverlayCount = countKind(appliedKinds, "caption");
+  const appliedTextOverlayCount = countKind(appliedKinds, "text") + appliedCaptionOverlayCount;
   return (
     run?.nativeRuntimeCompositionStatus === "applied" &&
     isAtLeastNumber(run?.nativeRuntimeCompositionAppliedCount, expectedNativeOverlays.total) &&
-    countKind(appliedKinds, "text") >= expectedNativeOverlays.text &&
+    appliedTextOverlayCount >= expectedNativeOverlays.text &&
+    appliedCaptionOverlayCount >= expectedNativeOverlays.caption &&
     countKind(appliedKinds, "chat") >= expectedNativeOverlays.chat &&
     isZeroNumber(run?.nativeRuntimeCompositionSkippedCount)
   );

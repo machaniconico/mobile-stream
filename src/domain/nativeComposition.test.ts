@@ -16,6 +16,7 @@ describe("native composition report", () => {
     expect(report.nativeOverlayCount).toBe(4);
     expect(report.stillImageOverlayCount).toBe(1);
     expect(report.textOverlayCount).toBe(2);
+    expect(report.captionOverlayCount).toBe(1);
     expect(report.chatOverlayCount).toBe(1);
     expect(report.previewOnlySourceCount).toBe(1);
     expect(report.unsupportedSourceKinds).toEqual(["solid"]);
@@ -39,6 +40,7 @@ describe("native composition report", () => {
     expect(report.nativeOverlayCount).toBe(4);
     expect(report.stillImageOverlayCount).toBe(1);
     expect(report.textOverlayCount).toBe(2);
+    expect(report.captionOverlayCount).toBe(1);
     expect(report.chatOverlayCount).toBe(1);
     expect(report.previewOnlySourceCount).toBe(0);
     expect(report.assetIssueCount).toBe(0);
@@ -146,6 +148,7 @@ describe("native composition report", () => {
     expect(report.requiresNativeCompositor).toBe(false);
     expect(report.nativeOverlayCount).toBe(0);
     expect(report.textOverlayCount).toBe(0);
+    expect(report.captionOverlayCount).toBe(0);
     expect(report.chatOverlayCount).toBe(0);
     expect(report.previewOnlySourceCount).toBe(0);
     expect(report.issues).toHaveLength(0);
@@ -161,6 +164,7 @@ describe("native composition report", () => {
     expect(report.screenSourceCount).toBe(0);
     expect(report.nativeOverlayCount).toBe(5);
     expect(report.textOverlayCount).toBe(2);
+    expect(report.captionOverlayCount).toBe(1);
     expect(report.chatOverlayCount).toBe(1);
     expect(report.requiresNativeCompositor).toBe(true);
   });

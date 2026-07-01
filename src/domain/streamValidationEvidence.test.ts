@@ -157,7 +157,7 @@ const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
   composition: {
     status: "applied" as const,
     appliedCount: 4,
-    appliedKinds: ["chat", "pngtuber", "text", "text"],
+    appliedKinds: ["caption", "chat", "pngtuber", "text"],
     skippedCount: 0,
     skippedKinds: [],
     stillImageAssetCount: 1,
@@ -211,7 +211,7 @@ const nativeVrmMonitorRuntime = (platform: "ios" | "android" = "ios") => {
     composition: {
       ...runtime.composition,
       appliedCount: 3,
-      appliedKinds: ["chat", "text", "text"],
+      appliedKinds: ["caption", "chat", "text"],
       vrmSourceCount: 1,
       vrmPosePayloadCount: 1,
       vrmActivePoseCount: 1,
@@ -1602,7 +1602,7 @@ describe("stream validation evidence", () => {
     expect(summary.nativeRuntimeIosPass).toBe(false);
   });
 
-  it("does not accept native proof that omits text and chat overlay kinds", () => {
+  it("does not accept native proof that omits text, caption, and chat overlay kinds", () => {
     const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
@@ -1645,8 +1645,58 @@ describe("stream validation evidence", () => {
 
     expect(run.result).toBe("warn");
     expect(run.nativeRuntime?.summary).toContain("text 0/2");
+    expect(run.nativeRuntime?.summary).toContain("caption 0/1");
     expect(run.nativeRuntime?.summary).toContain("chat 0/1");
-    expect(run.recommendation).toContain("including all text and chat overlays");
+    expect(run.recommendation).toContain("including all text, caption, and chat overlays");
+    expect(summary.nativeRuntimeReadyCount).toBe(0);
+    expect(summary.nativeRuntimeIosPass).toBe(false);
+  });
+
+  it("does not accept native proof that reports subtitle overlays as generic text", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntime("ios");
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: {
+          ...runtime,
+          composition: {
+            ...runtime.composition,
+            status: "applied" as const,
+            appliedCount: 4,
+            appliedKinds: ["chat", "pngtuber", "text", "text"],
+            skippedCount: 0
+          }
+        }
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.nativeRuntime?.summary).toContain("text 2/2");
+    expect(run.nativeRuntime?.summary).toContain("caption 0/1");
+    expect(run.nativeRuntime?.summary).toContain("chat 1/1");
     expect(summary.nativeRuntimeReadyCount).toBe(0);
     expect(summary.nativeRuntimeIosPass).toBe(false);
   });
@@ -2313,7 +2363,7 @@ describe("stream validation evidence", () => {
       nativeRuntimeAudioEncoderBackend: "audiotoolbox-aac",
       nativeRuntimeCompositionStatus: "applied",
       nativeRuntimeCompositionAppliedCount: 4,
-      nativeRuntimeCompositionAppliedKinds: ["chat", "pngtuber", "text", "text"],
+      nativeRuntimeCompositionAppliedKinds: ["caption", "chat", "pngtuber", "text"],
       nativeRuntimeCompositionSkippedCount: 0,
       nativeRuntimeCompositionSkippedKinds: [],
       nativeRuntimeSentVideoFrames: 120,
