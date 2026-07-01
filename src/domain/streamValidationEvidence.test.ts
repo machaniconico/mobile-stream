@@ -6,6 +6,7 @@ import { createStreamDiagnostics } from "./streamDiagnostics";
 import { createStreamSessionSummary } from "./streamSessionSummary";
 import {
   appendStreamValidationRun,
+  createStreamValidationAudioMonitorPreview,
   createStreamValidationRun,
   formatStreamValidationRunAudioLabel,
   mergeStreamValidationRuns,
@@ -767,6 +768,43 @@ describe("stream validation evidence", () => {
       monitorTuningNote: "Pixel Buds A2DP route reviewed; delay is acceptable for self-monitoring"
     });
     expect(run.audio?.status).toBe("pass");
+  });
+
+  it("previews Bluetooth monitor latency review requirements before recording evidence", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: nativeBluetoothMonitorRuntimeWithLatency("android", 142, "android-audiotrack-buffer")
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      { ...bluetoothChatOptions, now: new Date("2026-06-23T00:00:00.500Z") }
+    );
+
+    const missingNote = createStreamValidationAudioMonitorPreview(diagnostics, null);
+    const reviewed = createStreamValidationAudioMonitorPreview(diagnostics, {
+      measuredLatencyMs: 142,
+      note: "Pixel Buds A2DP route reviewed"
+    });
+
+    expect(missingNote.monitorLatencyStatus).toBe("warn");
+    expect(missingNote.bluetoothRoute).toBe(true);
+    expect(missingNote.bluetoothTuningReviewed).toBe(false);
+    expect(missingNote.summary).toContain("Monitor latency warn: 142ms on Bluetooth");
+    expect(missingNote.recommendation).toContain("Bluetooth route tuning note");
+    expect(reviewed.monitorLatencyStatus).toBe("pass");
+    expect(reviewed.monitorLatencySource).toBe("manual");
+    expect(reviewed.bluetoothTuningReviewed).toBe(true);
   });
 
   it("rejects simulator or emulator validation identities as physical-device proof", () => {

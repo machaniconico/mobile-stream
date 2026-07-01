@@ -128,6 +128,7 @@ import type { StreamQualityAutomationDecision } from "../domain/streamQualityAut
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { StreamAudioLevelSample, StreamSessionSummary } from "../domain/streamSessionSummary";
 import {
+  createStreamValidationAudioMonitorPreview,
   createStreamValidationRun,
   formatStreamValidationRunAudioLabel,
   type StreamValidationDevicePlatform,
@@ -2366,6 +2367,14 @@ const StreamValidationRecorder = ({
   const [result, setResult] = useState<StreamValidationRunResult>(() => validationRunResultFromDiagnostics(diagnostics));
   const latestRun = diagnostics.validationEvidence.latestRun;
   const latestRunAudioLabel = latestRun ? formatStreamValidationRunAudioLabel(latestRun) : null;
+  const audioMonitorPreview = createStreamValidationAudioMonitorPreview(
+    diagnostics,
+    {
+      measuredLatencyMs: parseOptionalLatencyMs(monitorLatencyMs),
+      note: monitorTuningNote
+    },
+    [profile.destination.streamKey]
+  );
   const latestDashboardFreshness =
     diagnostics.validationEvidence.latestPlatformPublishingFreshness ??
     (diagnostics.validationEvidence.latestPlatformPublishing
@@ -2451,6 +2460,11 @@ const StreamValidationRecorder = ({
           <em>{latestDashboardFreshness.recommendation}</em>
         </div>
       ) : null}
+      <div className={`diagnostic-incident ${validationItemTone(audioMonitorPreview.monitorLatencyStatus)}`}>
+        <strong>Monitor latency preview</strong>
+        <span>{audioMonitorPreview.summary}</span>
+        <em>{audioMonitorPreview.recommendation}</em>
+      </div>
       {latestRun ? (
         <div className={`diagnostic-incident ${validationRunTone(latestRun.result)}`}>
           <strong>Latest validation run</strong>

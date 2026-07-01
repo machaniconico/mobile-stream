@@ -501,6 +501,26 @@ export const formatStreamValidationRunAudioLabel = (run: StreamValidationRun): s
   }${nativeMonitor}${latency} / samples ${audio.levelSampleCount} / peak ${Math.round(audio.peakLevel * 100)}%`;
 };
 
+export type StreamValidationAudioMonitorPreview = Pick<
+  StreamValidationAudioSummary,
+  | "monitorLatencyMs"
+  | "monitorLatencyBudgetMs"
+  | "monitorLatencyStatus"
+  | "monitorLatencySource"
+  | "bluetoothRoute"
+  | "bluetoothTuningReviewed"
+  | "monitorTuningNote"
+> & {
+  summary: string;
+  recommendation: string;
+};
+
+export const createStreamValidationAudioMonitorPreview = (
+  diagnostics: StreamDiagnostics,
+  audioMonitorTuning: StreamValidationAudioMonitorTuningInput | null | undefined = null,
+  secrets: string[] = []
+): StreamValidationAudioMonitorPreview => createMonitorLatencyEvidence(diagnostics, audioMonitorTuning, secrets);
+
 export const createStreamValidationRun = ({
   diagnostics,
   devicePlatform,

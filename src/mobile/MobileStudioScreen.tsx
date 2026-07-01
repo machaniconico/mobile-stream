@@ -109,6 +109,7 @@ import type { StreamQualityAutomationDecision } from "../domain/streamQualityAut
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
 import type { StreamAudioLevelSample, StreamSessionSummary } from "../domain/streamSessionSummary";
 import {
+  createStreamValidationAudioMonitorPreview,
   createStreamValidationRun,
   formatStreamValidationRunAudioLabel,
   type StreamValidationDevicePlatform,
@@ -2648,6 +2649,14 @@ const StreamValidationRecorder = ({
   const [result, setResult] = useState<StreamValidationRunResult>(() => validationRunResultFromDiagnostics(diagnostics));
   const latestRun = diagnostics.validationEvidence.latestRun;
   const latestRunAudioLabel = latestRun ? formatStreamValidationRunAudioLabel(latestRun) : null;
+  const audioMonitorPreview = createStreamValidationAudioMonitorPreview(
+    diagnostics,
+    {
+      measuredLatencyMs: parseOptionalLatencyMs(monitorLatencyMs),
+      note: monitorTuningNote
+    },
+    [profile.destination.streamKey]
+  );
   const latestDashboardFreshness =
     diagnostics.validationEvidence.latestPlatformPublishingFreshness ??
     (diagnostics.validationEvidence.latestPlatformPublishing
@@ -2750,6 +2759,11 @@ const StreamValidationRecorder = ({
           <Text style={styles.diagnosticIncidentRecommendation}>{latestDashboardFreshness.recommendation}</Text>
         </View>
       ) : null}
+      <View style={[styles.diagnosticIncident, diagnosticValidationItemStyle(audioMonitorPreview.monitorLatencyStatus)]}>
+        <Text style={styles.diagnosticIncidentTitle}>Monitor latency preview</Text>
+        <Text style={styles.diagnosticIncidentText}>{audioMonitorPreview.summary}</Text>
+        <Text style={styles.diagnosticIncidentRecommendation}>{audioMonitorPreview.recommendation}</Text>
+      </View>
       {latestRun ? (
         <View style={[styles.diagnosticIncident, diagnosticValidationRunStyle(latestRun.result)]}>
           <Text style={styles.diagnosticIncidentTitle}>Latest validation run</Text>
