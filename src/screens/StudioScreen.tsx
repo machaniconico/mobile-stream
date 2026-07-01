@@ -79,7 +79,9 @@ import {
   createTextOverlayRuntimeStatus,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
+  applyQuickTextOverlayPreset,
   quickTextOverlayDurationPresets,
+  quickTextOverlayPresetActions,
   quickTextOverlayPresetGroups,
   manualTextOverlayPresets,
   queueTimedTextOverlay,
@@ -88,7 +90,6 @@ import {
   setVisibility,
   hideTextOverlays,
   showPersistentTextOverlay,
-  showQuickTextOverlayPreset,
   showTimedTextOverlay,
   toRenderGraph,
   updateSource,
@@ -104,6 +105,7 @@ import {
   type SceneTransitionKind,
   type SceneTransitionPreview,
   type SceneTransitionSettings,
+  type QuickTextOverlayPresetAction,
   type QuickTextOverlayPresetId,
   type ManualTextOverlayPresetId,
   type TextSourceAlign,
@@ -570,6 +572,7 @@ export const StudioScreen = ({
   const [quickSubtitleText, setQuickSubtitleText] = useState("");
   const [quickTextPresetId, setQuickTextPresetId] = useState<ManualTextOverlayPresetId>("subtitle");
   const [quickTextDurationMs, setQuickTextDurationMs] = useState(() => quickTextOverlayDurationPresets[1]?.durationMs ?? 5000);
+  const [quickTextPresetAction, setQuickTextPresetAction] = useState<QuickTextOverlayPresetAction>("show");
   const quickSubtitleLocked = isBusy || operationBusy || platformApiBusy;
   const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canQueueQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
@@ -663,7 +666,7 @@ export const StudioScreen = ({
       return;
     }
     const nowMs = Date.now();
-    onSceneChange(showQuickTextOverlayPreset(scene, presetId, { durationMs: quickTextDurationMs, nowMs }));
+    onSceneChange(applyQuickTextOverlayPreset(scene, presetId, quickTextPresetAction, { durationMs: quickTextDurationMs, nowMs }));
     setTextOverlayClock(nowMs);
   };
   const diagnostics = createStreamDiagnostics(
@@ -1052,6 +1055,23 @@ export const StudioScreen = ({
                     onClick={() => setQuickTextDurationMs(preset.durationMs)}
                   >
                     {preset.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset className="quick-text-duration-field">
+              <legend>Preset action</legend>
+              <div className="quick-text-duration-buttons quick-text-action-buttons">
+                {quickTextOverlayPresetActions.map((option) => (
+                  <button
+                    key={option.action}
+                    className={`quick-text-duration-button${quickTextPresetAction === option.action ? " active" : ""}`}
+                    type="button"
+                    disabled={quickSubtitleLocked}
+                    aria-pressed={quickTextPresetAction === option.action}
+                    onClick={() => setQuickTextPresetAction(option.action)}
+                  >
+                    {option.label}
                   </button>
                 ))}
               </div>

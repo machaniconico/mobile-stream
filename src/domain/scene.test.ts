@@ -3,6 +3,7 @@ import {
   addSource,
   analyzeAvatarIllustrationAlphaMask,
   activateTimedTextSource,
+  applyQuickTextOverlayPreset,
   applyInferredAvatarIllustrationRig,
   applyTextOverlayPresetStyle,
   addSceneToCollection,
@@ -24,10 +25,14 @@ import {
   inferAvatarIllustrationRig,
   manualTextOverlayPresets,
   quickTextOverlayDurationPresets,
+  quickTextOverlayPresetActions,
   normalizeSceneCollection,
   normalizeSceneDocument,
   quickTextOverlayPresets,
   quickTextOverlayPresetGroups,
+  pinQuickTextOverlayPreset,
+  type QuickTextOverlayPresetId,
+  queueQuickTextOverlayPreset,
   queueTimedTextOverlay,
   reorderSource,
   selectQuickTextOverlayPreset,
@@ -1035,6 +1040,57 @@ describe("scene document", () => {
       text: "少しお待ちください",
       remainingMs: 5500
     });
+  });
+
+  it("queues and pins quick text presets for scripted subtitle operation", () => {
+    const nowMs = 104500;
+    const scene = showQuickTextOverlayPreset(createDefaultScene(), "welcome", { nowMs, durationMs: 3000 });
+    const queued = queueQuickTextOverlayPreset(scene, "ending-soon", { nowMs: nowMs + 500, durationMs: 8000 });
+    const pinned = pinQuickTextOverlayPreset(queued, "stream-trouble", { nowMs: nowMs + 1000 });
+    const queuedSource = pinned.sources.find((source) => source.kind === "text" && source.name === "Queued Subtitle");
+    const pinnedSource = pinned.sources.find((source) => source.kind === "text" && source.name === "Pinned Text");
+
+    expect(quickTextOverlayPresetActions.map((option) => option.action)).toEqual(["show", "queue", "pin"]);
+    expect(queuedSource).toMatchObject({
+      text: "まもなく配信を終了します",
+      mode: "label",
+      visibilityMode: "timed",
+      displayDurationMs: 8000,
+      activatedAtMs: nowMs + 3000
+    });
+    expect(pinnedSource).toMatchObject({
+      text: "配信が不安定なため調整中です",
+      mode: "label",
+      visibilityMode: "always",
+      activatedAtMs: nowMs + 1000
+    });
+    expect(toRenderGraph(pinned, { nowMs: nowMs + 3400 }).find((node) => node.id === queuedSource?.id)?.payload).toMatchObject({
+      text: "まもなく配信を終了します",
+      remainingMs: 7600
+    });
+  });
+
+  it("applies quick text preset actions through a shared action API", () => {
+    const nowMs = 105000;
+    const shown = applyQuickTextOverlayPreset(createDefaultScene(), "mic-check", "show", { nowMs });
+    const queued = applyQuickTextOverlayPreset(shown, "please-wait", "queue", { nowMs: nowMs + 500 });
+    const pinned = applyQuickTextOverlayPreset(queued, "spoiler-alert", "pin", { nowMs: nowMs + 1000 });
+
+    expect(shown.sources.find((source) => source.kind === "text" && source.name === "Quick Subtitle")).toMatchObject({
+      text: "マイク音量を確認中です",
+      displayDurationMs: 6000
+    });
+    expect(queued.sources.find((source) => source.kind === "text" && source.name === "Queued Subtitle")).toMatchObject({
+      text: "少しお待ちください",
+      displayDurationMs: 7000,
+      activatedAtMs: nowMs + 6000
+    });
+    expect(pinned.sources.find((source) => source.kind === "text" && source.name === "Pinned Text")).toMatchObject({
+      text: "ここからネタバレ注意",
+      backgroundColor: "#dc2626",
+      visibilityMode: "always"
+    });
+    expect(applyQuickTextOverlayPreset(pinned, "missing" as QuickTextOverlayPresetId, "show")).toBe(pinned);
   });
 
   it("restyles the reusable quick overlay when a different quick text preset is shown", () => {

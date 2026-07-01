@@ -735,6 +735,10 @@ select:focus-visible {
   min-height: 38px;
 }
 
+.quick-text-action-buttons {
+  grid-template-columns: repeat(3, minmax(42px, 1fr));
+}
+
 .quick-text-duration-button {
   min-width: 0;
   border: 1px solid var(--line);

@@ -54,6 +54,7 @@ import type { ReadinessIssue, ReadinessReport } from "../domain/readiness";
 import {
   addSource,
   activateTimedTextSource,
+  applyQuickTextOverlayPreset,
   applyInferredAvatarIllustrationRig,
   applyTextOverlayPresetStyle,
   createSource,
@@ -64,13 +65,13 @@ import {
   hideTextOverlays,
   manualTextOverlayPresets,
   quickTextOverlayDurationPresets,
+  quickTextOverlayPresetActions,
   quickTextOverlayPresetGroups,
   queueTimedTextOverlay,
   reorderSource,
   setLocked,
   setVisibility,
   showPersistentTextOverlay,
-  showQuickTextOverlayPreset,
   showTimedTextOverlay,
   toRenderGraph,
   updateSource,
@@ -79,6 +80,7 @@ import {
   type AvatarIllustrationRigInferenceInput,
   type CaptionOverlayCue,
   type ManualTextOverlayPresetId,
+  type QuickTextOverlayPresetAction,
   type QuickTextOverlayPresetId,
   type SceneDocument,
   type RenderNode,
@@ -517,6 +519,7 @@ export const MobileStudioScreen = ({
   const [quickSubtitleText, setQuickSubtitleText] = useState("");
   const [quickTextPresetId, setQuickTextPresetId] = useState<ManualTextOverlayPresetId>("subtitle");
   const [quickTextDurationMs, setQuickTextDurationMs] = useState(() => quickTextOverlayDurationPresets[1]?.durationMs ?? 5000);
+  const [quickTextPresetAction, setQuickTextPresetAction] = useState<QuickTextOverlayPresetAction>("show");
   const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canQueueQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canPinQuickText = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
@@ -601,7 +604,7 @@ export const MobileStudioScreen = ({
       return;
     }
     const nowMs = Date.now();
-    onSceneChange(showQuickTextOverlayPreset(scene, presetId, { durationMs: quickTextDurationMs, nowMs }));
+    onSceneChange(applyQuickTextOverlayPreset(scene, presetId, quickTextPresetAction, { durationMs: quickTextDurationMs, nowMs }));
     setTextOverlayClock(nowMs);
   };
   const diagnostics = createStreamDiagnostics(
@@ -1071,6 +1074,20 @@ export const MobileStudioScreen = ({
                     variant={quickTextDurationMs === preset.durationMs ? "active" : "default"}
                     disabled={quickSubtitleLocked}
                     onPress={() => setQuickTextDurationMs(preset.durationMs)}
+                  />
+                ))}
+              </View>
+            </View>
+            <View style={styles.quickTextDurationPicker}>
+              <Label text="Preset action" />
+              <View style={styles.quickTextDurationButtons}>
+                {quickTextOverlayPresetActions.map((option) => (
+                  <ActionButton
+                    key={option.action}
+                    label={option.label}
+                    variant={quickTextPresetAction === option.action ? "active" : "default"}
+                    disabled={quickSubtitleLocked}
+                    onPress={() => setQuickTextPresetAction(option.action)}
                   />
                 ))}
               </View>

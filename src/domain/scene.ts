@@ -313,11 +313,17 @@ export interface QuickTextOverlayPresetGroup {
 }
 
 export type QuickTextOverlayDurationPresetId = "short" | "standard" | "long" | "extended";
+export type QuickTextOverlayPresetAction = "show" | "queue" | "pin";
 
 export interface QuickTextOverlayDurationPreset {
   id: QuickTextOverlayDurationPresetId;
   label: string;
   durationMs: number;
+}
+
+export interface QuickTextOverlayPresetActionOption {
+  action: QuickTextOverlayPresetAction;
+  label: string;
 }
 
 export interface TextOverlayRuntimeStatus {
@@ -415,6 +421,12 @@ export const quickTextOverlayDurationPresets: readonly QuickTextOverlayDurationP
   { id: "standard", label: "5s", durationMs: 5000 },
   { id: "long", label: "8s", durationMs: 8000 },
   { id: "extended", label: "12s", durationMs: 12000 }
+];
+
+export const quickTextOverlayPresetActions: readonly QuickTextOverlayPresetActionOption[] = [
+  { action: "show", label: "表示" },
+  { action: "queue", label: "キュー" },
+  { action: "pin", label: "固定" }
 ];
 
 export const quickTextOverlayPresets: readonly QuickTextOverlayPreset[] = [
@@ -1795,6 +1807,24 @@ export const queueTimedTextOverlay = (
   return addSource(scene, source);
 };
 
+export const queueQuickTextOverlayPreset = (
+  scene: SceneDocument,
+  presetId: QuickTextOverlayPresetId,
+  request: Omit<Partial<TimedTextOverlayRequest>, "text" | "presetId"> = {}
+): SceneDocument => {
+  const preset = selectQuickTextOverlayPreset(presetId);
+  if (!preset) {
+    return scene;
+  }
+
+  return queueTimedTextOverlay(scene, {
+    ...request,
+    text: preset.text,
+    presetId: preset.presetId,
+    durationMs: request.durationMs ?? preset.durationMs
+  });
+};
+
 export const showPersistentTextOverlay = (
   scene: SceneDocument,
   request: PersistentTextOverlayRequest
@@ -1843,6 +1873,39 @@ export const showPersistentTextOverlay = (
   };
 
   return addSource(scene, source);
+};
+
+export const pinQuickTextOverlayPreset = (
+  scene: SceneDocument,
+  presetId: QuickTextOverlayPresetId,
+  request: Omit<Partial<PersistentTextOverlayRequest>, "text" | "presetId"> = {}
+): SceneDocument => {
+  const preset = selectQuickTextOverlayPreset(presetId);
+  if (!preset) {
+    return scene;
+  }
+
+  return showPersistentTextOverlay(scene, {
+    ...request,
+    text: preset.text,
+    presetId: preset.presetId
+  });
+};
+
+export const applyQuickTextOverlayPreset = (
+  scene: SceneDocument,
+  presetId: QuickTextOverlayPresetId,
+  action: QuickTextOverlayPresetAction,
+  request: Omit<Partial<TimedTextOverlayRequest>, "text" | "presetId"> = {}
+): SceneDocument => {
+  switch (action) {
+    case "queue":
+      return queueQuickTextOverlayPreset(scene, presetId, request);
+    case "pin":
+      return pinQuickTextOverlayPreset(scene, presetId, request);
+    case "show":
+      return showQuickTextOverlayPreset(scene, presetId, request);
+  }
 };
 
 export const hideTextOverlays = (
