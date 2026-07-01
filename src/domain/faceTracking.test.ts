@@ -562,6 +562,8 @@ describe("face tracking", () => {
     expect(Math.abs(highConfidenceAvatar?.motion.hairSway ?? 0)).toBeGreaterThan(
       Math.abs(lowConfidenceAvatar?.motion.hairSway ?? 0)
     );
+    expect(highConfidenceAvatar?.mouthOpen).toBeGreaterThan(lowConfidenceAvatar?.mouthOpen ?? 0);
+    expect(highConfidenceAvatar?.blink).toBeGreaterThan(lowConfidenceAvatar?.blink ?? 0);
   });
 
   it("calibrates neutral pose from the current runtime offset", () => {

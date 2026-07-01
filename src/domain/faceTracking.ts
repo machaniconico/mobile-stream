@@ -244,11 +244,12 @@ export const applyFaceTrackingRuntime = (
       }
       const rig = current.kind === "pngtuber" ? current.illustrationRig : defaultAvatarIllustrationRig();
       const motion = profile.enabled ? runtimeToMotion(runtime, profile, rig) : defaultAvatarMotion();
+      const controlScale = profile.enabled ? runtimeFaceControlScale(runtime, profile) : 1;
       return {
         ...current,
         expression: profile.enabled && profile.autoExpression ? runtime.expression : current.expression,
-        mouthOpen: profile.enabled ? runtime.mouthOpen : current.mouthOpen,
-        blink: profile.enabled ? runtime.blink : current.blink,
+        mouthOpen: profile.enabled ? clamp01(runtime.mouthOpen * controlScale) : current.mouthOpen,
+        blink: profile.enabled ? clamp01(runtime.blink * controlScale) : current.blink,
         motion
       };
     });
@@ -276,8 +277,7 @@ const runtimeToMotion = (
   const partSeparationMotionScale = 0.45 + rigQuality.partSeparationFactor * 0.55;
   const depthContinuityMotionScale = 0.5 + rigQuality.depthContinuityFactor * 0.5;
   const horizontalAnchorMotionScale = 0.35 + rigQuality.horizontalAnchorFactor * 0.65;
-  const landmarkMotionScale =
-    profile.inputMode === "native-camera" ? 0.4 + clamp01(runtime.faceLandmarkConfidence ?? 0) * 0.6 : 1;
+  const landmarkMotionScale = nativeLandmarkMotionScale(runtime, profile);
   const highFidelityMotionScale = 0.45 + rigQuality.highFidelityFactor * 0.55;
   const faceMotionScale = 0.84 + faceInfluence * 0.34;
   const bodyMotionScale = 0.74 + lowerBodyInfluence * 0.36;
@@ -359,6 +359,12 @@ const runtimeToMotion = (
     confidence: runtime.confidence
   };
 };
+
+const runtimeFaceControlScale = (runtime: FaceTrackingRuntimeState, profile: FaceTrackingProfile): number =>
+  (runtime.status === "tracking" ? 1 : 0.35) * nativeLandmarkMotionScale(runtime, profile);
+
+const nativeLandmarkMotionScale = (runtime: FaceTrackingRuntimeState, profile: FaceTrackingProfile): number =>
+  profile.inputMode === "native-camera" ? 0.4 + clamp01(runtime.faceLandmarkConfidence ?? 0) * 0.6 : 1;
 
 const inferExpression = (runtime: FaceTrackingRuntimeState, profile: FaceTrackingProfile): AvatarExpression => {
   const sensitivity = profile.expressionSensitivity;
