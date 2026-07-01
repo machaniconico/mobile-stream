@@ -87,6 +87,7 @@ import {
   createDefaultSceneCollection,
   createSceneFromTemplate,
   duplicateActiveScene,
+  ensureLiveCaptionTextSource,
   selectActiveScene,
   setActiveScene,
   stripTransientSceneCollectionRuntime,
@@ -851,6 +852,11 @@ export const App = () => {
   };
 
   const updateLiveCaptionSettings = (settings: Partial<LiveCaptionSettings>) => {
+    if (settings.enabled === true) {
+      setSceneCollection((currentCollection) =>
+        updateActiveScene(currentCollection, ensureLiveCaptionTextSource(selectActiveScene(currentCollection)))
+      );
+    }
     setLiveCaption((current) => updateLiveCaptionSettingsDomain(current, settings));
   };
 

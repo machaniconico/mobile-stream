@@ -149,6 +149,7 @@ export interface StreamValidationRun {
   physicalDeviceRecommendation: string;
   appBuild: string;
   networkProfile: string;
+  sceneFingerprint: string;
   targetPlatform: string;
   transport: string;
   result: StreamValidationRunResult;
@@ -207,6 +208,7 @@ export interface StreamValidationEvidenceRunManifestItem {
   physicalDeviceStatus: StreamValidationFeatureStatus;
   appBuild: string;
   networkProfile: string;
+  sceneFingerprint: string;
   targetPlatform: string;
   transport: string;
   result: StreamValidationRunResult;
@@ -361,6 +363,7 @@ export interface StreamValidationEvidenceRunManifestItem {
 export interface StreamValidationEvidenceSummary {
   fingerprint: string;
   runManifest: StreamValidationEvidenceRunManifestItem[];
+  requiredSceneFingerprint: string;
   totalRuns: number;
   eligibleRunCount: number;
   staleRunCount: number;
@@ -448,6 +451,7 @@ export interface StreamValidationEvidenceOptions {
   requiredTargetPlatform?: string;
   requiredTransport?: string;
   requiredAppBuild?: string;
+  requiredSceneFingerprint?: string;
 }
 
 export const maxStreamValidationRuns = 20;
@@ -542,6 +546,7 @@ export const createStreamValidationRun = ({
     physicalDeviceRecommendation: physicalDevice.physicalDeviceRecommendation,
     appBuild: sanitizedAppBuild,
     networkProfile: sanitizedNetworkProfile,
+    sceneFingerprint: diagnostics.scene.fingerprint,
     targetPlatform: diagnostics.target.platform,
     transport: diagnostics.target.protocol,
     result: effectiveResult,
@@ -659,6 +664,7 @@ export const summarizeStreamValidationEvidence = (
   const requiredTargetPlatform = normalizeRequirement(options.requiredTargetPlatform);
   const requiredTransport = normalizeRequirement(options.requiredTransport).toUpperCase();
   const requiredAppBuild = normalizeRequirement(options.requiredAppBuild);
+  const requiredSceneFingerprint = normalizeRequirement(options.requiredSceneFingerprint);
   const scopedRuns = normalized.filter((run) => {
     if (requiredTargetPlatform && run.targetPlatform !== requiredTargetPlatform) {
       return false;
@@ -667,6 +673,9 @@ export const summarizeStreamValidationEvidence = (
       return false;
     }
     if (requiredAppBuild && run.appBuild !== requiredAppBuild) {
+      return false;
+    }
+    if (requiredSceneFingerprint && run.sceneFingerprint !== requiredSceneFingerprint) {
       return false;
     }
     return true;
@@ -686,6 +695,7 @@ export const summarizeStreamValidationEvidence = (
   const fingerprint = createStreamValidationEvidenceFingerprint(normalized, scopedRuns, {
     maxAgeDays,
     requiredAppBuild,
+    requiredSceneFingerprint,
     requiredTargetPlatform,
     requiredTransport
   });
@@ -851,6 +861,7 @@ export const summarizeStreamValidationEvidence = (
   return {
     fingerprint,
     runManifest,
+    requiredSceneFingerprint,
     totalRuns,
     eligibleRunCount,
     staleRunCount,
@@ -1050,6 +1061,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
     physicalDeviceRecommendation: physicalDevice.physicalDeviceRecommendation,
     appBuild: normalizeText(value.appBuild, "-"),
     networkProfile: normalizeText(value.networkProfile, "private test"),
+    sceneFingerprint: normalizeText(value.sceneFingerprint, ""),
     targetPlatform,
     transport,
     result,
@@ -2595,6 +2607,7 @@ const createStreamValidationEvidenceFingerprint = (
   options: {
     maxAgeDays: number;
     requiredAppBuild: string;
+    requiredSceneFingerprint: string;
     requiredTargetPlatform: string;
     requiredTransport: string;
   }
@@ -2638,6 +2651,7 @@ const createEvidenceRunManifestItem = (
     physicalDeviceStatus: run.physicalDeviceStatus,
     appBuild: run.appBuild,
     networkProfile: run.networkProfile,
+    sceneFingerprint: run.sceneFingerprint,
     targetPlatform: run.targetPlatform,
     transport: run.transport,
     result: run.result,
@@ -2800,6 +2814,7 @@ const toEvidenceFingerprintRunRef = (run: StreamValidationRun) => ({
   physicalDevice: run.physicalDevice,
   physicalDeviceStatus: run.physicalDeviceStatus,
   result: run.result,
+  sceneFingerprint: run.sceneFingerprint,
   targetPlatform: run.targetPlatform,
   transport: run.transport
 });

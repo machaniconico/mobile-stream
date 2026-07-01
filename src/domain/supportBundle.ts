@@ -9,10 +9,13 @@ import {
 } from "./publicLaunchChecklist";
 import type { ReadinessReport } from "./readiness";
 import type { SceneDocument, SceneSource, SourceKind, Transform } from "./scene";
+import {
+  createSceneCompositionFingerprint,
+  createSceneCompositionSourcePayloadSummary
+} from "./sceneFingerprint";
 import type { StreamDiagnostics } from "./streamDiagnostics";
 import type { StreamSessionEvent } from "./streamSessionLog";
 import type { StreamStartPreflightReport } from "./streamStartPreflight";
-import { createVrmRuntimePose } from "./vrmRuntime";
 
 export interface SupportBundleSourceSummary {
   id: string;
@@ -30,7 +33,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 53;
+    bundleVersion: 54;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -599,7 +602,7 @@ export const createSupportBundle = ({
   const visibleSourceCount = scene.sources.filter((source) => source.visible).length;
   const lockedSourceCount = scene.sources.filter((source) => source.locked).length;
   const sourceSummaries = scene.sources.map(toSourceSummary);
-  const sceneFingerprint = createSceneFingerprint(scene, sourceSummaries);
+  const sceneFingerprint = createSceneCompositionFingerprint(scene);
   const platformPublishingFreshness = assessPlatformPublishingFreshness(diagnostics.platformPublishing, now);
   const publicLaunchChecklist = createPublicLaunchChecklist({
     preflight,
@@ -626,7 +629,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 53
+      bundleVersion: 54
     },
     summary: {
       status: diagnostics.status,
@@ -1430,6 +1433,7 @@ const formatValidationEvidenceRunManifest = (
         `${run.targetPlatform}/${run.transport}`,
         `${run.ageDays}d`,
         run.fingerprint,
+        `scene ${run.sceneFingerprint || "-"}`,
         `native ${run.nativeRuntimeStatus ?? "-"} ${run.nativeRuntimePlatform ?? "-"} ${run.nativeRuntimeCompositionStatus ?? "-"} encoders ${run.nativeRuntimeVideoEncoderBackend ?? "-"}/${run.nativeRuntimeAudioEncoderBackend ?? "-"} probe ${run.nativeRuntimeEncoderProbeStatus ?? "-"} ${run.nativeRuntimeEncoderProbeVideoBackend ?? "-"}/${run.nativeRuntimeEncoderProbeAudioBackend ?? "-"} frames ${run.nativeRuntimeSentVideoFrames}/${run.nativeRuntimeSentAudioFrames} bytes ${run.nativeRuntimeBytesWritten} frame interval ${run.nativeRuntimeVideoFrameIntervalSampleCount} avg ${run.nativeRuntimeVideoFrameIntervalAverageMs}ms max ${run.nativeRuntimeVideoFrameIntervalMaxMs}ms jitter ${run.nativeRuntimeVideoFrameIntervalJitterMs}ms overlays applied ${run.nativeRuntimeCompositionAppliedCount} skipped ${run.nativeRuntimeCompositionSkippedCount}${formatKinds(run.nativeRuntimeCompositionSkippedKinds)} assets ${run.nativeRuntimeStillImageAssetLoadedCount}/${run.nativeRuntimeStillImageAssetCount} decoded ${run.nativeRuntimeStillImageAssetDecodedCount} decoded pixels ${run.nativeRuntimeStillImageAssetDecodedPixelCount} composited ${run.nativeRuntimeStillImageAssetCompositedCount} composited pixels ${run.nativeRuntimeStillImageAssetCompositedPixelCount} runtime ${run.nativeRuntimeCompositorBackend ?? "-"} ${run.nativeRuntimeCompositedFrameCount} frames ${run.nativeRuntimeDroppedFrameCount} dropped ${run.nativeRuntimeCompositionFailureCount} failures app-group ${run.nativeRuntimeStillImageAssetAppGroupLoadedCount}/${run.nativeRuntimeStillImageAssetAppGroupCount} loaded ${run.nativeRuntimeStillImageAssetAppGroupDecodedCount} decoded pixels ${run.nativeRuntimeStillImageAssetAppGroupDecodedPixelCount} ${run.nativeRuntimeStillImageAssetAppGroupCompositedCount} composited pixels ${run.nativeRuntimeStillImageAssetAppGroupCompositedPixelCount} missing ${run.nativeRuntimeStillImageAssetMissingCount} vrm ${run.nativeRuntimeVrmActivePoseCount}/${run.nativeRuntimeVrmSourceCount} payloads ${run.nativeRuntimeVrmPosePayloadCount} missing ${run.nativeRuntimeVrmMissingPoseCount} renderer ${run.nativeRuntimeVrmRendererStatus ?? "-"} ${run.nativeRuntimeVrmRendererBackend ?? "-"} rendered ${run.nativeRuntimeVrmRenderedSourceCount}/${run.nativeRuntimeVrmSourceCount} models ${run.nativeRuntimeVrmModelLoadedCount} versions ${run.nativeRuntimeVrmModelVersions.join("/") || "-"} bones ${run.nativeRuntimeVrmHumanoidBoneCount} expressions ${run.nativeRuntimeVrmExpressionCount} mesh primitives ${run.nativeRuntimeVrmMeshPrimitiveCount} triangles ${run.nativeRuntimeVrmTrianglePrimitiveCount} unsupported modes ${run.nativeRuntimeVrmUnsupportedPrimitiveModeCount} skinned ${run.nativeRuntimeVrmSkinnedMeshPrimitiveCount} skin joints ${run.nativeRuntimeVrmSkinJointCount} position accessors ${run.nativeRuntimeVrmPositionAccessorCount} normals ${run.nativeRuntimeVrmNormalAccessorCount} uvs ${run.nativeRuntimeVrmTexcoordAccessorCount} vertices ${run.nativeRuntimeVrmVertexCount} indices ${run.nativeRuntimeVrmIndexCount} bounds ${run.nativeRuntimeVrmBoundsAccessorCount} skin attrs ${run.nativeRuntimeVrmSkinningAttributePrimitiveCount} morphs ${run.nativeRuntimeVrmMorphTargetCount} materials ${run.nativeRuntimeVrmMaterialCount} transparent materials ${run.nativeRuntimeVrmTransparentMaterialCount} textures ${run.nativeRuntimeVrmTextureCount} images ${run.nativeRuntimeVrmImageCount} unsupported image mimes ${run.nativeRuntimeVrmUnsupportedImageMimeCount} pose bones ${run.nativeRuntimeVrmPoseBoneAppliedCount}/${run.nativeRuntimeVrmPoseBoneCount} unsupported ${run.nativeRuntimeVrmPoseBoneUnsupportedCount} pose expressions ${run.nativeRuntimeVrmPoseExpressionAppliedCount}/${run.nativeRuntimeVrmPoseExpressionCount} unsupported ${run.nativeRuntimeVrmPoseExpressionUnsupportedCount} missing ${run.nativeRuntimeVrmRenderMissingCount} failed ${run.nativeRuntimeVrmRenderFailureCount}`,
         `avatar prepared ${run.faceTrackingPreparedPngTuberCount} vrm ${run.faceTrackingVisibleVrmCount} renderer ${run.faceTrackingNativeVrmRendererReady ? "ready" : "not-ready"} moving ${run.faceTrackingActiveMotionCount} rig ${run.faceTrackingRigQualityScore}/100 ${run.faceTrackingRigQualityGrade ?? "blocked"} high fidelity ${run.faceTrackingRigHighFidelityScore}/100 ${run.faceTrackingRigHighFidelityGrade ?? "blocked"} parts ${run.faceTrackingRigPartSeparationScore}/100 depth ${run.faceTrackingRigDepthContinuityScore}/100 semantic ${run.faceTrackingRigSemanticSegmentScore}/100 eye-mouth ${run.faceTrackingRigEyeMouthSegmentScore}/100`,
         `hold ${run.monitorHoldStatus ?? "-"} samples ${run.monitorHoldSampleCount} duration ${run.monitorHoldDurationSeconds}s stability ${run.monitorHoldStability ?? "-"} bitrate ${run.monitorHoldAverageBitrateKbps}/${run.monitorHoldMinimumBitrateKbps} fps ${run.monitorHoldAverageFps}/${run.monitorHoldMinimumFps} drops ${run.monitorHoldDroppedFrameIncrease} reconnects ${run.monitorHoldObservedReconnectAttempts}`,
@@ -1501,105 +1505,10 @@ const toSourceSummary = (source: SceneSource): SupportBundleSourceSummary => ({
   locked: source.locked,
   blendMode: source.blendMode,
   transform: source.transform,
-  payload: sourcePayloadSummary(source)
+  payload: createSceneCompositionSourcePayloadSummary(source)
 });
-
-const createSceneFingerprint = (scene: SceneDocument, sources: SupportBundleSourceSummary[]): string =>
-  createStableFingerprint("scene1", {
-    id: scene.id,
-    name: scene.name,
-    canvas: scene.canvas,
-    sources: sources.map((source, order) => ({
-      order,
-      ...source
-    }))
-  });
-
-const sourcePayloadSummary = (source: SceneSource): Record<string, string | number | boolean> => {
-  switch (source.kind) {
-    case "screen":
-      return { captureMode: source.captureMode };
-    case "pngtuber":
-      return { avatarId: source.avatarId, expression: source.expression, hasImageUri: Boolean(source.imageUri.trim()) };
-    case "live2d":
-      return { modelId: source.modelId, expression: source.expression, hasModelJsonUri: Boolean(source.modelJsonUri.trim()) };
-    case "vrm": {
-      const pose = createVrmRuntimePose(source);
-      return {
-        modelId: source.modelId,
-        expression: source.expression,
-        hasModelUri: Boolean(source.modelUri.trim()),
-        runtimePoseStatus: pose.status,
-        trackingConfidence: pose.confidence
-      };
-    }
-    case "image":
-      return { hasUri: Boolean(source.uri.trim()) };
-    case "solid":
-      return { color: source.color };
-    case "text":
-      return {
-        textLength: source.text.length,
-        mode: source.mode,
-        contentSource: source.contentSource,
-        align: source.align,
-        showCaptionSpeaker: source.showCaptionSpeaker,
-        color: source.color,
-        fontSize: source.fontSize,
-        backgroundColor: source.backgroundColor,
-        backgroundOpacity: source.backgroundOpacity,
-        outlineColor: source.outlineColor,
-        outlineWidth: source.outlineWidth,
-        maxLines: source.maxLines
-      };
-    case "chat":
-      return {
-        maxMessages: source.maxMessages,
-        maxMessageLength: source.maxMessageLength,
-        showAuthor: source.showAuthor,
-        redactUrls: source.redactUrls,
-        color: source.color,
-        fontSize: source.fontSize,
-        backgroundColor: source.backgroundColor,
-        backgroundOpacity: source.backgroundOpacity
-      };
-  }
-};
 
 const formatSourceCounts = (sourceCounts: Record<SourceKind, number>): string =>
   Object.entries(sourceCounts)
     .map(([kind, count]) => `${kind} ${count}`)
     .join(", ");
-
-type CanonicalJson = string | number | boolean | null | CanonicalJson[] | { [key: string]: CanonicalJson };
-
-const createStableFingerprint = (prefix: string, value: unknown): string => {
-  const canonical = JSON.stringify(canonicalize(value));
-  return `${prefix}-${hashString(canonical)}-${canonical.length.toString(36)}`;
-};
-
-const canonicalize = (value: unknown): CanonicalJson => {
-  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return value;
-  }
-  if (Array.isArray(value)) {
-    return value.map(canonicalize);
-  }
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, nestedValue]) => [key, canonicalize(nestedValue)])
-    );
-  }
-  return null;
-};
-
-const hashString = (value: string): string => {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash.toString(16).padStart(8, "0");
-};

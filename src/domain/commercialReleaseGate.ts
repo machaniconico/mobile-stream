@@ -44,7 +44,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 53;
+const minimumSupportBundleVersion = 54;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -79,6 +79,7 @@ export const createCommercialReleaseGate = (
     createValidationEvidenceIssue(bundle),
     createValidationEvidenceCoverageIssue(bundle),
     createValidationEvidenceManifestIssue(bundle),
+    createValidationEvidenceSceneManifestIssue(bundle),
     createValidationEvidenceManifestIntegrityIssue(bundle),
     createValidationEvidenceQualityAutomationIssue(bundle),
     createValidationEvidenceFeatureIssue(bundle),
@@ -263,7 +264,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v53 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, text overlay proof, live caption proof, semantic and eye-mouth avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
+      "Export a support bundle v54 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, text overlay proof, live caption proof, semantic and eye-mouth avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
     );
   }
 
@@ -282,7 +283,7 @@ const createSceneFingerprintIssue = (bundle: SupportBundle): CommercialReleaseGa
     return failIssue(
       "scene-fingerprint-missing",
       "Scene fingerprint",
-      "Support bundle v53 is missing scene composition fingerprint evidence.",
+      "Support bundle v54 is missing scene composition fingerprint evidence.",
       "Export a fresh support bundle from the exact scene/profile intended for release."
     );
   }
@@ -321,7 +322,7 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "text-overlay-evidence-missing",
       "Text overlay evidence",
       "The support bundle is missing text overlay launch evidence.",
-      "Export a support bundle v53 or newer so visible manual text, subtitle, ticker, and live-caption overlay evidence is summarized."
+      "Export a support bundle v54 or newer so visible manual text, subtitle, ticker, and live-caption overlay evidence is summarized."
     );
   }
 
@@ -372,7 +373,7 @@ const createLiveCaptionEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "live-caption-evidence-missing",
       "Live caption evidence",
       "The support bundle is missing live caption launch evidence.",
-      "Export a support bundle v53 or newer so live caption enablement, recognition state, source visibility, and cue proof are summarized."
+      "Export a support bundle v54 or newer so live caption enablement, recognition state, source visibility, and cue proof are summarized."
     );
   }
 
@@ -529,7 +530,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v53 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v54 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -558,7 +559,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-android-publisher-mode",
       "Validation evidence manifest",
       `The latest Android validation manifest row used ${latestRuns.get("android")?.androidPublisherMode || "missing"} publisher mode.`,
-      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v53 or newer."
+      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v54 or newer."
     );
   }
   if (manifest.length !== bundle.summary.validationEvidenceRunCount) {
@@ -570,6 +571,32 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
     );
   }
   return null;
+};
+
+const createValidationEvidenceSceneManifestIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+  if (bundle.app.bundleVersion < 54) {
+    return null;
+  }
+  const sceneFingerprint = nonEmptyText(bundle.summary.sceneFingerprint) ?? nonEmptyText(bundle.scene?.fingerprint);
+  if (!sceneFingerprint) {
+    return null;
+  }
+  const manifest = bundle.summary.validationEvidenceRunManifest;
+  if (!Array.isArray(manifest) || manifest.length === 0) {
+    return null;
+  }
+  const mismatchedRuns = manifest.filter(
+    (run) => isManifestRunFreshAndScopeClaimed(run) && nonEmptyText(run.sceneFingerprint) !== sceneFingerprint
+  );
+  if (mismatchedRuns.length === 0) {
+    return null;
+  }
+  return failIssue(
+    "validation-evidence-manifest-scene-fingerprint",
+    "Validation evidence manifest",
+    `${mismatchedRuns.length} fresh retained validation run(s) do not match the current scene fingerprint ${sceneFingerprint}.`,
+    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v54 support bundle."
+  );
 };
 
 const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
@@ -598,7 +625,7 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): 
 
   const eligibilityFlagMismatchCount = manifest.filter((run) => run.eligible !== isManifestRunFreshInScope(run, manifestScope)).length;
   if (eligibilityFlagMismatchCount > 0) {
-    mismatches.push(`${eligibilityFlagMismatchCount} manifest eligible flag(s) do not match fresh destination-scope state`);
+    mismatches.push(`${eligibilityFlagMismatchCount} manifest eligible flag(s) do not match fresh destination/protocol/scene scope state`);
   }
 
   const expectedBuild = nonEmptyText(summary.validationEvidenceConsistentAppBuild);
@@ -859,6 +886,7 @@ type ValidationEvidenceManifestRun = SupportBundle["summary"]["validationEvidenc
 interface ExpectedManifestScope {
   targetPlatform: string | null;
   transport: string | null;
+  sceneFingerprint: string | null;
 }
 
 const latestEligibleManifestRunsByPlatform = (
@@ -880,12 +908,14 @@ const latestEligibleManifestRunsByPlatform = (
 
 const emptyExpectedManifestScope: ExpectedManifestScope = {
   targetPlatform: null,
-  transport: null
+  transport: null,
+  sceneFingerprint: null
 };
 
 const createExpectedManifestScope = (bundle: SupportBundle): ExpectedManifestScope => ({
   targetPlatform: expectedTargetPlatformForBundle(bundle),
-  transport: expectedTransportForBundle(bundle)
+  transport: expectedTransportForBundle(bundle),
+  sceneFingerprint: nonEmptyText(bundle.summary?.sceneFingerprint) ?? nonEmptyText(bundle.scene?.fingerprint)
 });
 
 const expectedTargetPlatformForBundle = (bundle: SupportBundle): string | null => {
@@ -912,7 +942,7 @@ const isManifestRunFreshInScope = (
 
 const isManifestRunDestinationScopePass = (
   run: ValidationEvidenceManifestRun,
-  { targetPlatform, transport }: ExpectedManifestScope
+  { targetPlatform, transport, sceneFingerprint }: ExpectedManifestScope
 ): boolean => {
   const expectedTarget = normalizeTargetPlatformLabel(targetPlatform);
   if (expectedTarget && normalizeTargetPlatformLabel(run.targetPlatform) !== expectedTarget) {
@@ -922,11 +952,15 @@ const isManifestRunDestinationScopePass = (
   if (expectedTransport && normalizeTransportLabel(run.transport) !== expectedTransport) {
     return false;
   }
+  const expectedSceneFingerprint = nonEmptyText(sceneFingerprint);
+  if (expectedSceneFingerprint && nonEmptyText(run.sceneFingerprint) !== expectedSceneFingerprint) {
+    return false;
+  }
   return true;
 };
 
-const formatManifestScope = ({ targetPlatform, transport }: ExpectedManifestScope): string =>
-  `${targetPlatform ?? "unknown target"}/${transport ?? "unknown transport"}`;
+const formatManifestScope = ({ targetPlatform, transport, sceneFingerprint }: ExpectedManifestScope): string =>
+  `${targetPlatform ?? "unknown target"}/${transport ?? "unknown transport"}/${sceneFingerprint ?? "unknown scene"}`;
 
 const normalizeTargetPlatformLabel = (value: unknown): string => (typeof value === "string" ? value.trim().toLowerCase() : "");
 

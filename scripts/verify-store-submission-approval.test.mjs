@@ -404,7 +404,7 @@ function writeSupportBundleFixture() {
     ".artifacts/store-approval-test/support-bundle.json",
     JSON.stringify(
       {
-        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 53 },
+        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 54 },
         generatedAt: new Date().toISOString(),
         profile: {
           androidPublisherMode: "mediacodec"
@@ -553,6 +553,7 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     physicalDeviceStatus: "pass",
     appBuild,
     networkProfile: "private test",
+    sceneFingerprint: "scene1-ready",
     targetPlatform: "YouTube Live",
     transport: "rtmps",
     result: "pass",

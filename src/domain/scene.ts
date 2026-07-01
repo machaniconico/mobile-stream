@@ -1418,6 +1418,25 @@ export const createSubtitleTextSource = (): TextSource => createTextOverlayPrese
 
 export const createLiveCaptionTextSource = (): TextSource => createTextOverlayPresetSource("live-caption");
 
+export const selectLiveCaptionTextSource = (scene: SceneDocument): TextSource | null =>
+  scene.sources.find(
+    (source): source is TextSource =>
+      source.kind === "text" && source.contentSource === "runtime-caption"
+  ) ?? null;
+
+export const ensureLiveCaptionTextSource = (scene: SceneDocument): SceneDocument => {
+  const liveCaptionSource = selectLiveCaptionTextSource(scene);
+  if (!liveCaptionSource) {
+    return addSource(scene, createLiveCaptionTextSource());
+  }
+  if (liveCaptionSource.visible) {
+    return scene;
+  }
+  return updateSource(scene, liveCaptionSource.id, (source) =>
+    source.kind === "text" && source.contentSource === "runtime-caption" ? { ...source, visible: true } : source
+  );
+};
+
 export const normalizeSceneDocument = (value: unknown): SceneDocument => {
   const fallback = createDefaultScene();
   if (!isRecord(value)) {

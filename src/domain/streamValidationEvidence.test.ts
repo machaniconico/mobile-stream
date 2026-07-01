@@ -2923,4 +2923,80 @@ describe("stream validation evidence", () => {
     expect(stale.eligibleRunCount).toBe(0);
     expect(stale.staleRunCount).toBe(2);
   });
+
+  it("marks retained validation runs from a different scene as out of scope", () => {
+    const profile = commercialProfileWithKey("validation-key");
+    const baseScene = nativeReadyScene();
+    const changedScene = updateSource(baseScene, "source-avatar", (source) =>
+      source.kind === "pngtuber"
+        ? {
+            ...source,
+            transform: {
+              ...source.transform,
+              x: source.transform.x + 24
+            }
+          }
+        : source
+    );
+    const diagnosticsForScene = (scene: typeof baseScene, platform: "ios" | "android") => {
+      const readiness = createReadinessReport(scene, profile);
+      return createStreamDiagnostics(
+        scene,
+        profile,
+        readiness,
+        {
+          state: { status: "idle" },
+          health: health(),
+          nativeRuntime: nativeMonitorRuntime(platform)
+        },
+        [],
+        stableMonitorSamples(),
+        [],
+        [],
+        null,
+        connectedChatOptions
+      );
+    };
+    const iosDiagnostics = diagnosticsForScene(baseScene, "ios");
+    const androidDiagnostics = diagnosticsForScene(changedScene, "android");
+    const iosRun = createStreamValidationRun({
+      diagnostics: iosDiagnostics,
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      appBuild: "rc-1",
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const androidRun = createStreamValidationRun({
+      diagnostics: androidDiagnostics,
+      devicePlatform: "android",
+      ...physicalDeviceMeta("android"),
+      appBuild: "rc-1",
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:01:00.000Z")
+    });
+
+    const summary = summarizeStreamValidationEvidence([androidRun, iosRun], {
+      now: validationNow,
+      requiredSceneFingerprint: iosDiagnostics.scene.fingerprint
+    });
+
+    expect(iosRun.sceneFingerprint).toBe(iosDiagnostics.scene.fingerprint);
+    expect(androidRun.sceneFingerprint).toBe(androidDiagnostics.scene.fingerprint);
+    expect(androidRun.sceneFingerprint).not.toBe(iosRun.sceneFingerprint);
+    expect(summary.status).toBe("partial");
+    expect(summary.requiredSceneFingerprint).toBe(iosDiagnostics.scene.fingerprint);
+    expect(summary.runManifest.find((item) => item.id === iosRun.id)).toMatchObject({
+      sceneFingerprint: iosRun.sceneFingerprint,
+      matchesScope: true,
+      eligible: true
+    });
+    expect(summary.runManifest.find((item) => item.id === androidRun.id)).toMatchObject({
+      sceneFingerprint: androidRun.sceneFingerprint,
+      matchesScope: false,
+      eligible: false
+    });
+  });
 });

@@ -35,7 +35,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v53 support bundles without scene fingerprint evidence", () => {
+  it("blocks v54 support bundles without scene fingerprint evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).sceneFingerprint;
     delete (bundle.scene as Partial<SupportBundle["scene"]>).fingerprint;
@@ -49,7 +49,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v53 support bundles with mismatched scene fingerprints", () => {
+  it("blocks v54 support bundles with mismatched scene fingerprints", () => {
     const bundle = supportBundle({
       summary: {
         sceneFingerprint: "scene1-summary"
@@ -66,7 +66,26 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v53 text overlay evidence", () => {
+  it("blocks v54 support bundles when retained validation runs are from another scene", () => {
+    const bundle = supportBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", sceneFingerprint: "scene1-other" }),
+          manifestRun({ devicePlatform: "android", fingerprint: "svr1-android", sceneFingerprint: "scene1-other" })
+        ]
+      }
+    });
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-scene-fingerprint"
+      })
+    );
+  });
+
+  it("blocks support bundles without v54 text overlay evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).textOverlayStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -79,7 +98,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v53 live caption evidence", () => {
+  it("blocks support bundles without v54 live caption evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).liveCaptionStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -1726,7 +1745,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 53 as const
+    bundleVersion: 54 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1897,6 +1916,7 @@ const manifestRun = ({
   fresh = true,
   matchesScope = true,
   appBuild = "rc-1",
+  sceneFingerprint = "scene1-ready",
   targetPlatform = "YouTube Live",
   transport = "rtmps",
   nativeRuntimePlatform,
@@ -2202,6 +2222,7 @@ const manifestRun = ({
   platformPublishingTwitchChannelCategoryId?: ValidationManifestRun["platformPublishingTwitchChannelCategoryId"];
   platformPublishingTwitchChannelLanguage?: ValidationManifestRun["platformPublishingTwitchChannelLanguage"];
   platformPublishingTwitchViewerCount?: ValidationManifestRun["platformPublishingTwitchViewerCount"];
+  sceneFingerprint?: ValidationManifestRun["sceneFingerprint"];
 }): ValidationManifestRun => ({
   id: `validation-${devicePlatform}`,
   fingerprint,
@@ -2218,6 +2239,7 @@ const manifestRun = ({
   physicalDeviceStatus,
   appBuild,
   networkProfile: "private test",
+  sceneFingerprint,
   targetPlatform,
   transport,
   result,

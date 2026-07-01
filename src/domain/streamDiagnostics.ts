@@ -38,6 +38,7 @@ import {
 } from "./nativeRuntime";
 import type { ReadinessReport } from "./readiness";
 import type { SceneDocument } from "./scene";
+import { createSceneCompositionFingerprint } from "./sceneFingerprint";
 import { redactSensitiveText } from "./sensitiveText";
 import {
   createDefaultStreamRecoveryPolicy,
@@ -162,6 +163,13 @@ export interface StreamDiagnostics {
     targetVideoBitrateKbps: number;
     targetAudioBitrateKbps: number;
     estimatedUploadKbps: number;
+  };
+  scene: {
+    id: string;
+    name: string;
+    fingerprint: string;
+    sourceCount: number;
+    visibleSourceCount: number;
   };
   telemetry: {
     enginePlatform: string;
@@ -358,9 +366,11 @@ export const createStreamDiagnostics = (
   const status = summaryStatus(checks);
   const sessionHistorySummary = createStreamSessionHistorySummary(sessionSummaries);
   const targetPlatform = platformLabels[destination.platform];
+  const sceneFingerprint = createSceneCompositionFingerprint(scene);
   const validationEvidence = summarizeStreamValidationEvidence(validationRuns, {
     requiredTargetPlatform: targetPlatform,
-    requiredTransport: destination.protocol
+    requiredTransport: destination.protocol,
+    requiredSceneFingerprint: sceneFingerprint
   });
   const validation = createStreamValidationChecklist({
     readiness: effectiveReadiness,
@@ -478,6 +488,13 @@ export const createStreamDiagnostics = (
       targetAudioBitrateKbps,
       estimatedUploadKbps
     },
+    scene: {
+      id: scene.id,
+      name: scene.name,
+      fingerprint: sceneFingerprint,
+      sourceCount: scene.sources.length,
+      visibleSourceCount: scene.sources.filter((source) => source.visible).length
+    },
     telemetry: {
       enginePlatform: snapshot.platform ?? "unknown",
       streamStatus: snapshot.state.status,
@@ -570,6 +587,10 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Protocol: ${diagnostics.target.protocol}`,
     `- Endpoint: ${diagnostics.target.host}/${diagnostics.target.application}`,
     `- Publish URL: ${diagnostics.target.publishUrlPreview}`,
+    "",
+    "Scene",
+    `- Fingerprint: ${diagnostics.scene.fingerprint}`,
+    `- Sources: ${diagnostics.scene.sourceCount} total / ${diagnostics.scene.visibleSourceCount} visible`,
     "",
     "Quality",
     `- Resolution: ${diagnostics.quality.resolution}`,
@@ -883,6 +904,7 @@ const formatValidationEvidenceRunManifest = (
         `${run.targetPlatform}/${run.transport}`,
         `${run.ageDays}d`,
         run.fingerprint,
+        `scene ${run.sceneFingerprint || "-"}`,
         `native ${run.nativeRuntimeStatus ?? "-"} overlays applied ${run.nativeRuntimeCompositionAppliedCount} skipped ${run.nativeRuntimeCompositionSkippedCount}${formatKinds(run.nativeRuntimeCompositionSkippedKinds)}`,
         `landmarks ${Math.round(run.faceTrackingFaceLandmarkConfidence * 100)}% ${run.faceTrackingFaceLandmarkReady ? "ready" : "not-ready"}`,
         `avatar prepared ${run.faceTrackingPreparedPngTuberCount} vrm ${run.faceTrackingVisibleVrmCount} renderer ${run.faceTrackingNativeVrmRendererReady ? "ready" : "not-ready"} moving ${run.faceTrackingActiveMotionCount} rig ${run.faceTrackingRigQualityScore}/100 ${run.faceTrackingRigQualityGrade ?? "blocked"} high fidelity ${run.faceTrackingRigHighFidelityScore}/100 ${run.faceTrackingRigHighFidelityGrade ?? "blocked"} parts ${run.faceTrackingRigPartSeparationScore}/100 depth ${run.faceTrackingRigDepthContinuityScore}/100 semantic ${run.faceTrackingRigSemanticSegmentScore}/100 eye-mouth ${run.faceTrackingRigEyeMouthSegmentScore}/100`,

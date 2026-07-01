@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v53.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v54.");
   });
 
   it("blocks support bundles without public launch confirmation summary evidence", () => {
@@ -55,7 +55,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Public launch confirmation audit");
   });
 
-  it("blocks v53 support bundles without scene fingerprint evidence", () => {
+  it("blocks v54 support bundles without scene fingerprint evidence", () => {
     writeBundle({
       summary: {
         sceneFingerprint: undefined
@@ -67,10 +67,10 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Scene fingerprint");
-    expect(result.stdout).toContain("Support bundle v53 is missing scene composition fingerprint evidence.");
+    expect(result.stdout).toContain("Support bundle v54 is missing scene composition fingerprint evidence.");
   });
 
-  it("blocks v53 support bundles with mismatched scene fingerprints", () => {
+  it("blocks v54 support bundles with mismatched scene fingerprints", () => {
     writeBundle({
       summary: {
         sceneFingerprint: "scene1-summary"
@@ -84,6 +84,23 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Summary and scene fingerprint values do not match.");
+  });
+
+  it("blocks v54 support bundles when retained validation runs are from another scene", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { sceneFingerprint: "scene1-other" }),
+          manifestRun("android", "svr1-android", { sceneFingerprint: "scene1-other" })
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Validation evidence manifest");
+    expect(result.stdout).toContain("do not match the current scene fingerprint scene1-ready");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -1114,7 +1131,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 53
+      bundleVersion: 54
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -1151,6 +1168,7 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   physicalDeviceStatus: "pass",
   appBuild: "rc-1",
   networkProfile: "private test",
+  sceneFingerprint: "scene1-ready",
   targetPlatform: "YouTube Live",
   transport: "rtmps",
   result: "pass",

@@ -16,11 +16,13 @@ import {
   createSource,
   createTextOverlayPresetSource,
   duplicateActiveScene,
+  ensureLiveCaptionTextSource,
   inferAvatarIllustrationRig,
   normalizeSceneCollection,
   normalizeSceneDocument,
   reorderSource,
   selectActiveScene,
+  selectLiveCaptionTextSource,
   setActiveScene,
   setLocked,
   setVisibility,
@@ -684,6 +686,42 @@ describe("scene document", () => {
     expect(captionCuesJson).not.toContain("caption-speaker-secret");
     expect(captionCuesJson).not.toContain("caption-body-secret");
     expect(JSON.stringify(persisted)).not.toContain("current caption");
+  });
+
+  it("ensures a visible live caption text overlay without duplicating existing sources", () => {
+    const scene = createDefaultScene();
+    const withLiveCaption = ensureLiveCaptionTextSource(scene);
+    const liveCaption = selectLiveCaptionTextSource(withLiveCaption);
+
+    expect(liveCaption).toMatchObject({
+      kind: "text",
+      name: "Live Captions",
+      visible: true,
+      mode: "caption",
+      contentSource: "runtime-caption"
+    });
+    expect(withLiveCaption.sources.filter((source) => source.kind === "text" && source.contentSource === "runtime-caption")).toHaveLength(1);
+
+    const unchanged = ensureLiveCaptionTextSource(withLiveCaption);
+    expect(unchanged.sources.filter((source) => source.kind === "text" && source.contentSource === "runtime-caption")).toHaveLength(1);
+  });
+
+  it("re-shows a hidden live caption text overlay when captions are enabled", () => {
+    const hiddenCaption = {
+      ...createLiveCaptionTextSource(),
+      visible: false,
+      transform: { x: 0.22, y: 0.66, width: 0.5, height: 0.2, rotation: 0, opacity: 1 }
+    };
+    const scene = addSource(createDefaultScene(), hiddenCaption);
+    const updated = ensureLiveCaptionTextSource(scene);
+    const liveCaption = selectLiveCaptionTextSource(updated);
+
+    expect(liveCaption).toMatchObject({
+      id: hiddenCaption.id,
+      visible: true,
+      transform: hiddenCaption.transform
+    });
+    expect(updated.sources.filter((source) => source.kind === "text" && source.contentSource === "runtime-caption")).toHaveLength(1);
   });
 
   it("can show speaker names for live caption overlays", () => {

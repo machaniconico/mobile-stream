@@ -735,7 +735,7 @@ function commercialSupportBundleFixture(patch = {}) {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 53
+      bundleVersion: 54
     },
     generatedAt: new Date().toISOString(),
     fixture: true,
@@ -771,6 +771,7 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     physicalDeviceStatus: "pass",
     appBuild: "rc-1",
     networkProfile: "private test",
+    sceneFingerprint: "scene1-ready",
     targetPlatform: "YouTube Live",
     transport: "rtmps",
     result: "pass",
