@@ -2703,6 +2703,8 @@ const manifestRun = ({
   faceTrackingRuntimeAgeMs = 120,
   faceTrackingFaceLandmarkConfidence = 0.82,
   faceTrackingFaceLandmarkReady = true,
+  faceTrackingLandmarkMotionScale = 0.892,
+  faceTrackingFaceControlScale = 0.892,
   faceTrackingPreparedPngTuberCount = 1,
   faceTrackingVisibleVrmCount = 0,
   faceTrackingNativeVrmRendererReady = false,
@@ -2874,6 +2876,8 @@ const manifestRun = ({
   faceTrackingRuntimeAgeMs?: ValidationManifestRun["faceTrackingRuntimeAgeMs"];
   faceTrackingFaceLandmarkConfidence?: ValidationManifestRun["faceTrackingFaceLandmarkConfidence"];
   faceTrackingFaceLandmarkReady?: ValidationManifestRun["faceTrackingFaceLandmarkReady"];
+  faceTrackingLandmarkMotionScale?: ValidationManifestRun["faceTrackingLandmarkMotionScale"];
+  faceTrackingFaceControlScale?: ValidationManifestRun["faceTrackingFaceControlScale"];
   faceTrackingPreparedPngTuberCount?: ValidationManifestRun["faceTrackingPreparedPngTuberCount"];
   faceTrackingVisibleVrmCount?: ValidationManifestRun["faceTrackingVisibleVrmCount"];
   faceTrackingNativeVrmRendererReady?: ValidationManifestRun["faceTrackingNativeVrmRendererReady"];
@@ -3053,6 +3057,8 @@ const manifestRun = ({
   faceTrackingRuntimeAgeMs,
   faceTrackingFaceLandmarkConfidence,
   faceTrackingFaceLandmarkReady,
+  faceTrackingLandmarkMotionScale,
+  faceTrackingFaceControlScale,
   faceTrackingPreparedPngTuberCount,
   faceTrackingVisibleVrmCount,
   faceTrackingNativeVrmRendererReady,

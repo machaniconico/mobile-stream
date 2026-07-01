@@ -129,6 +129,8 @@ describe("face tracking diagnostics", () => {
     expect(diagnostics.rigHighFidelityGrade).toBe("ready");
     expect(diagnostics.faceLandmarkConfidence).toBeCloseTo(0.81, 3);
     expect(diagnostics.faceLandmarkReady).toBe(true);
+    expect(diagnostics.landmarkMotionScale).toBeCloseTo(0.886, 3);
+    expect(diagnostics.faceControlScale).toBeCloseTo(0.886, 3);
   });
 
   it("passes for VRM-only avatar motion when native VRM renderer proof is ready", () => {

@@ -837,6 +837,7 @@ describe("stream diagnostics", () => {
     expect(report).toContain("- Runtime: tracking");
     expect(report).toContain("- Runtime age: 200 ms / fresh yes");
     expect(report).toContain("- Native landmarks: 78% / ready yes");
+    expect(report).toContain("- Motion attenuation: motion 87% / controls 87%");
     expect(report).toContain(
       "- Rig high fidelity: 100/100 ready / parts 100/100 / depth 100/100 / semantic segments 100/100 / eye-mouth segments 100/100"
     );

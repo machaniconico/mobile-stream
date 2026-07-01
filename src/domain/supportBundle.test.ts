@@ -315,6 +315,8 @@ describe("support bundle", () => {
     expect(bundle.summary.faceTrackingRuntimeStatus).toBe("unavailable");
     expect(bundle.summary.faceTrackingFaceLandmarkConfidence).toBe(0);
     expect(bundle.summary.faceTrackingFaceLandmarkReady).toBe(false);
+    expect(bundle.summary.faceTrackingLandmarkMotionScale).toBe(1);
+    expect(bundle.summary.faceTrackingFaceControlScale).toBe(0);
     expect(bundle.summary.faceTrackingPreparedPngTuberCount).toBe(0);
     expect(bundle.summary.faceTrackingRigIssueCount).toBe(0);
     expect(bundle.summary.faceTrackingRigIssueSummary).toBe("No still-image rig issues.");
@@ -329,6 +331,8 @@ describe("support bundle", () => {
     expect(bundle.summary.faceTrackingRigHighFidelityGrade).toBe("ready");
     expect(bundle.summary.validationEvidenceLatestFaceTrackingFaceLandmarkConfidence).toBe(0);
     expect(bundle.summary.validationEvidenceLatestFaceTrackingFaceLandmarkReady).toBe(false);
+    expect(bundle.summary.validationEvidenceLatestFaceTrackingLandmarkMotionScale).toBe(1);
+    expect(bundle.summary.validationEvidenceLatestFaceTrackingFaceControlScale).toBe(0);
     expect(bundle.summary.nativeCompositionStatus).toBe("warn");
     expect(bundle.summary.nativeCompositionCoverage).toBe("preview-only-overlays");
     expect(bundle.summary.nativeCompositionNativeOverlayCount).toBe(4);

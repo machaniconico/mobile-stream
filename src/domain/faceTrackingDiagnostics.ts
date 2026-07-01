@@ -17,6 +17,8 @@ export interface FaceTrackingDiagnostics {
   runtimeFresh: boolean;
   faceLandmarkConfidence?: number;
   faceLandmarkReady?: boolean;
+  landmarkMotionScale: number;
+  faceControlScale: number;
   visibleAvatarCount: number;
   visiblePngTuberCount: number;
   visibleLive2DCount: number;
@@ -95,6 +97,8 @@ export const createFaceTrackingDiagnostics = (
   const runtimeFresh = runtimeAgeMs === null || runtimeAgeMs <= maxRuntimeAgeMs;
   const faceLandmarkConfidence = clamp01(runtime?.faceLandmarkConfidence ?? 0);
   const faceLandmarkReady = faceLandmarkConfidence >= 0.55;
+  const landmarkMotionScale = createLandmarkMotionScale(faceTracking, faceLandmarkConfidence);
+  const faceControlScale = createFaceControlScale(faceTracking, runtimeStatus, faceLandmarkConfidence);
 
   if (!faceTracking.enabled) {
     return {
@@ -107,6 +111,8 @@ export const createFaceTrackingDiagnostics = (
       runtimeFresh,
       faceLandmarkConfidence,
       faceLandmarkReady,
+      landmarkMotionScale,
+      faceControlScale: 0,
       visibleAvatarCount: visibleAvatars.length,
       visiblePngTuberCount: visiblePngTubers.length,
       visibleLive2DCount: visibleLive2D.length,
@@ -413,6 +419,8 @@ export const createFaceTrackingDiagnostics = (
     runtimeFresh,
     faceLandmarkConfidence,
     faceLandmarkReady,
+    landmarkMotionScale,
+    faceControlScale,
     visibleAvatarCount: visibleAvatars.length,
     visiblePngTuberCount: visiblePngTubers.length,
     visibleLive2DCount: visibleLive2D.length,
@@ -470,6 +478,8 @@ const createWarning = (
   runtimeFresh,
   faceLandmarkConfidence,
   faceLandmarkReady,
+  landmarkMotionScale: createLandmarkMotionScale(faceTracking, faceLandmarkConfidence),
+  faceControlScale: createFaceControlScale(faceTracking, runtimeStatus, faceLandmarkConfidence),
   visibleAvatarCount,
   visiblePngTuberCount,
   visibleLive2DCount,
@@ -551,6 +561,20 @@ const runtimeAge = (runtime: FaceTrackingRuntimeState, now: FaceTrackingDiagnost
   }
   return Math.max(0, Math.round(nowMs - runtime.lastFrameAt));
 };
+
+const createLandmarkMotionScale = (
+  faceTracking: StudioProfile["faceTracking"],
+  faceLandmarkConfidence: number
+): number => (faceTracking.inputMode === "native-camera" ? 0.4 + clamp01(faceLandmarkConfidence) * 0.6 : 1);
+
+const createFaceControlScale = (
+  faceTracking: StudioProfile["faceTracking"],
+  runtimeStatus: FaceTrackingDiagnostics["runtimeStatus"],
+  faceLandmarkConfidence: number
+): number =>
+  faceTracking.enabled
+    ? (runtimeStatus === "tracking" ? 1 : 0.35) * createLandmarkMotionScale(faceTracking, faceLandmarkConfidence)
+    : 0;
 
 const hasActiveMotion = (source: Extract<SceneSource, { kind: "pngtuber" | "live2d" | "vrm" }>): boolean => {
   const motion = source.motion;

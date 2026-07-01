@@ -97,6 +97,8 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
     runtimeStatus: "tracking",
     runtimeAgeMs: 120,
     runtimeFresh: true,
+    landmarkMotionScale: 1,
+    faceControlScale: 1,
     visibleAvatarCount: 1,
     visiblePngTuberCount: 1,
     visibleLive2DCount: 0,

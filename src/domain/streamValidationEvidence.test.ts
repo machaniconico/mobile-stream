@@ -2456,6 +2456,14 @@ describe("stream validation evidence", () => {
       faceTrackingRigHighFidelityScore: 100,
       faceTrackingRigHighFidelityGrade: "ready"
     });
+    expect(summary.runManifest.find((run) => run.devicePlatform === "ios")?.faceTrackingLandmarkMotionScale).toBeCloseTo(
+      0.892,
+      3
+    );
+    expect(summary.runManifest.find((run) => run.devicePlatform === "ios")?.faceTrackingFaceControlScale).toBeCloseTo(
+      0.892,
+      3
+    );
     expect(summary.audioIosPass).toBe(true);
     expect(summary.audioAndroidPass).toBe(true);
     expect(summary.runManifest.find((run) => run.devicePlatform === "ios")).toMatchObject({
@@ -2731,6 +2739,8 @@ describe("stream validation evidence", () => {
         runtimeFresh: true,
         faceLandmarkConfidence: 0.82,
         faceLandmarkReady: true,
+        landmarkMotionScale: 0.892,
+        faceControlScale: 0.892,
         visibleAvatarCount: 1,
         preparedPngTuberCount: 1,
         visibleVrmCount: 0,
@@ -2794,6 +2804,8 @@ describe("stream validation evidence", () => {
         runtimeFresh: true,
         faceLandmarkConfidence: 0.42,
         faceLandmarkReady: false,
+        landmarkMotionScale: 0.652,
+        faceControlScale: 0.652,
         visibleAvatarCount: 1,
         preparedPngTuberCount: 1,
         visibleVrmCount: 0,
@@ -2821,6 +2833,8 @@ describe("stream validation evidence", () => {
     expect(summary.faceTrackingIosPass).toBe(false);
     expect(summary.runManifest[0]?.faceTrackingFaceLandmarkConfidence).toBe(0.42);
     expect(summary.runManifest[0]?.faceTrackingFaceLandmarkReady).toBe(false);
+    expect(summary.runManifest[0]?.faceTrackingLandmarkMotionScale).toBeCloseTo(0.652, 3);
+    expect(summary.runManifest[0]?.faceTrackingFaceControlScale).toBeCloseTo(0.652, 3);
     expect(summary.status).toBe("partial");
   });
 
@@ -2860,6 +2874,8 @@ describe("stream validation evidence", () => {
         runtimeFresh: true,
         faceLandmarkConfidence: 0.82,
         faceLandmarkReady: true,
+        landmarkMotionScale: 0.892,
+        faceControlScale: 0.892,
         visibleAvatarCount: 1,
         preparedPngTuberCount: 1,
         visibleVrmCount: 0,

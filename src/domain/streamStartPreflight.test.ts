@@ -1114,6 +1114,8 @@ describe("stream start preflight", () => {
         runtimeFresh: true,
         faceLandmarkConfidence: 0.82,
         faceLandmarkReady: true,
+        landmarkMotionScale: 0.892,
+        faceControlScale: 0.892,
         visibleAvatarCount: 1,
         visiblePngTuberCount: 0,
         visibleLive2DCount: 0,

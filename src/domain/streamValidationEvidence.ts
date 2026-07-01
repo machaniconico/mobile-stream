@@ -38,6 +38,8 @@ export interface StreamValidationFaceTrackingSummary {
   runtimeFresh: boolean;
   faceLandmarkConfidence: number;
   faceLandmarkReady: boolean;
+  landmarkMotionScale: number;
+  faceControlScale: number;
   visibleAvatarCount: number;
   preparedPngTuberCount: number;
   visibleVrmCount: number;
@@ -313,6 +315,8 @@ export interface StreamValidationEvidenceRunManifestItem {
   faceTrackingRuntimeAgeMs: number | null;
   faceTrackingFaceLandmarkConfidence: number;
   faceTrackingFaceLandmarkReady: boolean;
+  faceTrackingLandmarkMotionScale: number;
+  faceTrackingFaceControlScale: number;
   faceTrackingPreparedPngTuberCount: number;
   faceTrackingVisibleVrmCount: number;
   faceTrackingNativeVrmRendererReady: boolean;
@@ -2101,6 +2105,8 @@ const createFaceTrackingValidationSummary = (
   runtimeFresh: faceTracking.runtimeFresh,
   faceLandmarkConfidence: normalizeUnitInterval(faceTracking.faceLandmarkConfidence ?? 0),
   faceLandmarkReady: faceTracking.faceLandmarkReady === true,
+  landmarkMotionScale: normalizeUnitInterval(faceTracking.landmarkMotionScale ?? 1),
+  faceControlScale: normalizeUnitInterval(faceTracking.faceControlScale ?? 0),
   visibleAvatarCount: faceTracking.visibleAvatarCount,
   preparedPngTuberCount: faceTracking.preparedPngTuberCount,
   visibleVrmCount: faceTracking.visibleVrmCount,
@@ -2803,6 +2809,8 @@ const createEvidenceRunManifestItem = (
     faceTrackingRuntimeAgeMs: run.faceTracking?.runtimeAgeMs ?? null,
     faceTrackingFaceLandmarkConfidence: run.faceTracking?.faceLandmarkConfidence ?? 0,
     faceTrackingFaceLandmarkReady: run.faceTracking?.faceLandmarkReady ?? false,
+    faceTrackingLandmarkMotionScale: run.faceTracking?.landmarkMotionScale ?? 1,
+    faceTrackingFaceControlScale: run.faceTracking?.faceControlScale ?? 0,
     faceTrackingPreparedPngTuberCount: run.faceTracking?.preparedPngTuberCount ?? 0,
     faceTrackingVisibleVrmCount: run.faceTracking?.visibleVrmCount ?? 0,
     faceTrackingNativeVrmRendererReady: run.faceTracking?.nativeVrmRendererReady ?? false,
@@ -3129,6 +3137,8 @@ const normalizeFaceTrackingValidationSummary = (value: unknown): StreamValidatio
     runtimeFresh: value.runtimeFresh === true,
     faceLandmarkConfidence: normalizeUnitInterval(value.faceLandmarkConfidence),
     faceLandmarkReady: value.faceLandmarkReady === true,
+    landmarkMotionScale: normalizeUnitInterval(value.landmarkMotionScale ?? 1),
+    faceControlScale: normalizeUnitInterval(value.faceControlScale ?? 0),
     visibleAvatarCount: normalizeCount(value.visibleAvatarCount),
     preparedPngTuberCount: normalizeCount(value.preparedPngTuberCount),
     visibleVrmCount: normalizeCount(value.visibleVrmCount),
