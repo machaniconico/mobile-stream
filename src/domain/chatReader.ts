@@ -291,9 +291,26 @@ const isDuplicateRecentMessage = (message: ChatMessage, history: ChatMessage[], 
 const messageSignature = (message: ChatMessage): string =>
   `${message.source}:${normalizeWhitespace(message.author).toLowerCase()}:${normalizeWhitespace(message.body).toLowerCase()}`;
 
-const containsUrl = (value: string): boolean => /https?:\/\/\S+/i.test(value);
+const containsUrl = (value: string): boolean =>
+  /\bhttps?:\/\/[^\s<>"']+/i.test(value) ||
+  /\bwww\.[^\s<>"']+/i.test(value) ||
+  /(^|[^\w@.])((?:[a-z0-9-]+\.)+(?:ai|app|co|com|dev|gg|io|jp|link|live|ly|me|net|org|site|stream|tv|xyz)(?:\/[^\s<>"']*)?)/i.test(
+    value
+  );
 
-const stripUrls = (value: string): string => value.replace(/https?:\/\/\S+/gi, "link omitted");
+const stripUrls = (value: string): string =>
+  value
+    .replace(/\bhttps?:\/\/[^\s<>"']+/gi, omitUrlToken)
+    .replace(/\bwww\.[^\s<>"']+/gi, omitUrlToken)
+    .replace(
+      /(^|[^\w@.])((?:[a-z0-9-]+\.)+(?:ai|app|co|com|dev|gg|io|jp|link|live|ly|me|net|org|site|stream|tv|xyz)(?:\/[^\s<>"']*)?)/gi,
+      (_match, prefix: string, token: string) => `${prefix}${omitUrlToken(token)}`
+    );
+
+const omitUrlToken = (token: string): string => {
+  const trailing = token.match(/[),.;:!?]+$/)?.[0] ?? "";
+  return `link omitted${trailing}`;
+};
 
 const hasExcessiveCaps = (value: string): boolean => {
   const letters = value.replace(/[^a-z]/gi, "");

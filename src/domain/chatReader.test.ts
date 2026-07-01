@@ -80,19 +80,22 @@ describe("chatReader", () => {
     const state = createDefaultChatReaderState();
     const message = createChatMessage({
       source: "youtube",
-      author: "viewer",
-      body: "open https://example.com/private",
+      author: "viewer@example.com",
+      body: "open https://example.com/private, then www.example.org/room and example.tv/show",
       receivedAt: 2
     });
     const next = enqueueChatMessage(state, message);
 
     expect(selectChatOverlayMessages(next)).toEqual([
       {
-        author: "viewer",
-        body: "open link omitted",
+        author: "[email redacted]",
+        body: "open link omitted, then link omitted and link omitted",
         source: "youtube"
       }
     ]);
+    expect(JSON.stringify(selectChatOverlayMessages(next))).not.toContain("example.com");
+    expect(JSON.stringify(selectChatOverlayMessages(next))).not.toContain("example.org");
+    expect(JSON.stringify(selectChatOverlayMessages(next))).not.toContain("example.tv");
   });
 
   it("redacts OAuth and authorization secrets before storing, overlaying, or reading chat", () => {
@@ -166,6 +169,25 @@ describe("chatReader", () => {
       source: "twitch",
       author: "viewer",
       body: "watch https://example.com now",
+      receivedAt: 2
+    });
+
+    const next = enqueueChatMessage(state, message);
+
+    expect(next.queue).toHaveLength(0);
+    expect(next.history).toHaveLength(0);
+    expect(next.skippedCount).toBe(1);
+    expect(selectChatOverlayMessages(next)).toHaveLength(0);
+  });
+
+  it("blocks protocol-less link comments when link blocking is enabled", () => {
+    const state = updateChatReaderSettings(createDefaultChatReaderState(), {
+      blockLinkMessages: true
+    });
+    const message = createChatMessage({
+      source: "youtube",
+      author: "viewer",
+      body: "watch www.example.com now",
       receivedAt: 2
     });
 
@@ -360,7 +382,7 @@ describe("chatReader", () => {
     });
     const message = createChatMessage({
       author: "viewer",
-      body: "please open https://example.com/secret and read this long text",
+      body: "please open www.example.com/secret and read this long text",
       receivedAt: 4
     });
 
