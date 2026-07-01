@@ -49,6 +49,8 @@
 	<string>Camera access is used to track your face and animate the VTuber avatar.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Microphone access is used for stream audio, voice effects, monitoring, and VTuber lip sync.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Speech recognition is used to generate optional live captions from your microphone audio.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
