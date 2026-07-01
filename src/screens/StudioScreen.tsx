@@ -36,6 +36,7 @@ import {
   type ChatReaderState
 } from "../domain/chatReader";
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
+import type { LiveCaptionSettings, LiveCaptionState } from "../domain/liveCaption";
 import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../domain/platformChat";
 import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
 import type {
@@ -82,6 +83,7 @@ import {
   updateSource,
   updateTransform,
   type AvatarIllustrationDetectorFace,
+  type CaptionOverlayCue,
   type SceneDocument,
   type AvatarIllustrationRig,
   type AvatarIllustrationRigInferenceInput,
@@ -144,6 +146,8 @@ interface StudioScreenProps {
   qualityAutomationDecision: StreamQualityAutomationDecision;
   operationStatus: StreamOperationStatus | null;
   readiness: ReadinessReport;
+  liveCaption: LiveCaptionState;
+  liveCaptionCues: CaptionOverlayCue[];
   chatReader: ChatReaderState;
   platformChat: PlatformChatSettings;
   platformChatAuth: PlatformChatAuthSession;
@@ -174,6 +178,9 @@ interface StudioScreenProps {
   onChatCommentSubmit(author: string, body: string): void;
   onChatReaderSettingsChange(settings: Partial<ChatReaderSettings>): void;
   onChatCommentsClear(): void;
+  onLiveCaptionSettingsChange(settings: Partial<LiveCaptionSettings>): void;
+  onLiveCaptionClear(): void;
+  onLiveCaptionTestCue(): void;
   onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
   onPlatformChatAuthChange(settings: Partial<PlatformChatAuthSession>): void;
   onPlatformChatOAuthChange(settings: Partial<PlatformChatOAuthSettings>): void;
@@ -433,6 +440,8 @@ export const StudioScreen = ({
   qualityAutomationDecision,
   operationStatus,
   readiness,
+  liveCaption,
+  liveCaptionCues,
   chatReader,
   platformChat,
   platformChatAuth,
@@ -463,6 +472,9 @@ export const StudioScreen = ({
   onChatCommentSubmit,
   onChatReaderSettingsChange,
   onChatCommentsClear,
+  onLiveCaptionSettingsChange,
+  onLiveCaptionClear,
+  onLiveCaptionTestCue,
   onPlatformChatSettingsChange,
   onPlatformChatAuthChange,
   onPlatformChatOAuthChange,
@@ -804,6 +816,7 @@ export const StudioScreen = ({
             scene={scene}
             selectedSourceId={selectedSource.id}
             chatMessages={chatOverlayMessages}
+            captions={liveCaptionCues}
             transitionPreview={sceneTransitionPreview}
             onSelectSource={onSelectSource}
           />
@@ -1648,32 +1661,40 @@ export const StudioScreen = ({
             </div>
           </section>
 
+          <LiveCaptionPanel
+            liveCaption={liveCaption}
+            cues={liveCaptionCues}
+            onSettingsChange={onLiveCaptionSettingsChange}
+            onClear={onLiveCaptionClear}
+            onTestCue={onLiveCaptionTestCue}
+          />
+
           <ChatReaderPanel
-        chatReader={chatReader}
-        platformChat={platformChat}
-        platformChatAuth={platformChatAuth}
-        platformChatOAuth={platformChatOAuth}
-        platformChatOAuthFlow={platformChatOAuthFlow}
-        twitchDeviceOAuthFlow={twitchDeviceOAuthFlow}
-        platformChatOAuthStatus={platformChatOAuthStatus}
-        platformStreamKeyStatus={platformStreamKeyStatus}
-        platformApiOperationLabel={platformApiOperationLabel}
-        platformChatConnection={platformChatConnection}
-        onSubmit={onChatCommentSubmit}
-        onSettingsChange={onChatReaderSettingsChange}
-        onClearComments={onChatCommentsClear}
-        onPlatformChatSettingsChange={onPlatformChatSettingsChange}
-        onPlatformChatAuthChange={onPlatformChatAuthChange}
-        onPlatformChatOAuthChange={onPlatformChatOAuthChange}
-        onPlatformChatOAuthStart={onPlatformChatOAuthStart}
-        onTwitchDeviceOAuthStart={onTwitchDeviceOAuthStart}
-        onTwitchDeviceOAuthPoll={onTwitchDeviceOAuthPoll}
-        onPlatformChatOAuthCallbackApply={onPlatformChatOAuthCallbackApply}
-        onPlatformStreamKeyApply={onPlatformStreamKeyApply}
-        onPlatformChatConnect={onPlatformChatConnect}
-        onPlatformChatDisconnect={onPlatformChatDisconnect}
-        onPlatformChatSampleIngest={onPlatformChatSampleIngest}
-      />
+            chatReader={chatReader}
+            platformChat={platformChat}
+            platformChatAuth={platformChatAuth}
+            platformChatOAuth={platformChatOAuth}
+            platformChatOAuthFlow={platformChatOAuthFlow}
+            twitchDeviceOAuthFlow={twitchDeviceOAuthFlow}
+            platformChatOAuthStatus={platformChatOAuthStatus}
+            platformStreamKeyStatus={platformStreamKeyStatus}
+            platformApiOperationLabel={platformApiOperationLabel}
+            platformChatConnection={platformChatConnection}
+            onSubmit={onChatCommentSubmit}
+            onSettingsChange={onChatReaderSettingsChange}
+            onClearComments={onChatCommentsClear}
+            onPlatformChatSettingsChange={onPlatformChatSettingsChange}
+            onPlatformChatAuthChange={onPlatformChatAuthChange}
+            onPlatformChatOAuthChange={onPlatformChatOAuthChange}
+            onPlatformChatOAuthStart={onPlatformChatOAuthStart}
+            onTwitchDeviceOAuthStart={onTwitchDeviceOAuthStart}
+            onTwitchDeviceOAuthPoll={onTwitchDeviceOAuthPoll}
+            onPlatformChatOAuthCallbackApply={onPlatformChatOAuthCallbackApply}
+            onPlatformStreamKeyApply={onPlatformStreamKeyApply}
+            onPlatformChatConnect={onPlatformChatConnect}
+            onPlatformChatDisconnect={onPlatformChatDisconnect}
+            onPlatformChatSampleIngest={onPlatformChatSampleIngest}
+          />
 
           <LiveSetupScreen
             profile={profile}
@@ -2275,6 +2296,83 @@ const validationRunPlatformPublishingLabel = (run: StreamValidationRun): string 
     : run.platformPublishingFreshness && run.platformPublishingFreshness.status !== "not-applicable"
       ? `dashboard freshness ${run.platformPublishingFreshness.status} / ${run.platformPublishingFreshness.summary}`
       : null;
+
+const LiveCaptionPanel = ({
+  liveCaption,
+  cues,
+  onSettingsChange,
+  onClear,
+  onTestCue
+}: {
+  liveCaption: LiveCaptionState;
+  cues: CaptionOverlayCue[];
+  onSettingsChange(settings: Partial<LiveCaptionSettings>): void;
+  onClear(): void;
+  onTestCue(): void;
+}) => {
+  const latestCue = cues.at(-1);
+  return (
+    <section className="panel">
+      <PanelTitle icon={<Mic size={18} />} title="Live Captions" />
+      <div className="segmented">
+        <button
+          className={`segmented-button ${liveCaption.settings.enabled ? "active" : ""}`}
+          type="button"
+          onClick={() => onSettingsChange({ enabled: !liveCaption.settings.enabled })}
+        >
+          <span>{liveCaption.settings.enabled ? "Captions On" : "Captions Off"}</span>
+        </button>
+        <span className={`chat-source-status ${liveCaption.status}`}>{liveCaption.status}</span>
+      </div>
+      <label className="field">
+        <span>Language</span>
+        <input value={liveCaption.settings.language} onChange={(event) => onSettingsChange({ language: event.target.value })} />
+      </label>
+      <SpeechSlider
+        label="Caption Length"
+        value={liveCaption.settings.maxCueLength}
+        min={40}
+        max={320}
+        step={10}
+        onChange={(maxCueLength) => onSettingsChange({ maxCueLength })}
+      />
+      <SpeechSlider
+        label="Hold Seconds"
+        value={Math.round(liveCaption.settings.staleCueMillis / 1000)}
+        min={2}
+        max={30}
+        step={1}
+        onChange={(seconds) => onSettingsChange({ staleCueMillis: seconds * 1000 })}
+      />
+      <div className="segmented">
+        <button
+          className={`segmented-button ${liveCaption.settings.interimResults ? "active" : ""}`}
+          type="button"
+          onClick={() => onSettingsChange({ interimResults: !liveCaption.settings.interimResults })}
+        >
+          <span>{liveCaption.settings.interimResults ? "Interim On" : "Interim Off"}</span>
+        </button>
+        <button className="segmented-button" type="button" disabled={!liveCaption.settings.enabled} onClick={onTestCue}>
+          <span>Test Caption</span>
+        </button>
+        <button className="segmented-button" type="button" disabled={liveCaption.cues.length === 0} onClick={onClear}>
+          <span>Clear</span>
+        </button>
+      </div>
+      {liveCaption.errorMessage ? <span className="chat-network-message">{liveCaption.errorMessage}</span> : null}
+      <div className="chat-history">
+        {latestCue ? (
+          <div className="chat-history-row">
+            <strong>{latestCue.speaker || "Caption"}</strong>
+            <span>{latestCue.text}</span>
+          </div>
+        ) : (
+          <span className="muted">No caption cues</span>
+        )}
+      </div>
+    </section>
+  );
+};
 
 const ChatReaderPanel = ({
   chatReader,
@@ -2881,11 +2979,12 @@ interface ProgramPreviewProps {
   scene: SceneDocument;
   selectedSourceId: string;
   chatMessages: ReturnType<typeof selectChatOverlayMessages>;
+  captions: CaptionOverlayCue[];
   transitionPreview: SceneTransitionPreview | null;
   onSelectSource(sourceId: string): void;
 }
 
-const ProgramPreview = ({ scene, selectedSourceId, chatMessages, transitionPreview, onSelectSource }: ProgramPreviewProps) => {
+const ProgramPreview = ({ scene, selectedSourceId, chatMessages, captions, transitionPreview, onSelectSource }: ProgramPreviewProps) => {
   const transitionOpacity = useSceneTransitionOpacity(transitionPreview);
   return (
     <div className="program-preview">
@@ -2900,12 +2999,13 @@ const ProgramPreview = ({ scene, selectedSourceId, chatMessages, transitionPrevi
           scene={scene}
           selectedSourceId={selectedSourceId}
           chatMessages={chatMessages}
+          captions={captions}
           interactive
           onSelectSource={onSelectSource}
         />
         {transitionPreview && transitionOpacity > 0 ? (
           <div className="program-transition-layer" style={{ opacity: transitionOpacity }} aria-hidden="true">
-            <ScenePreviewLayer scene={transitionPreview.scene} chatMessages={chatMessages} />
+            <ScenePreviewLayer scene={transitionPreview.scene} chatMessages={chatMessages} captions={captions} />
           </div>
         ) : null}
       </div>
@@ -2917,17 +3017,19 @@ const ScenePreviewLayer = ({
   scene,
   selectedSourceId = "",
   chatMessages,
+  captions,
   interactive = false,
   onSelectSource
 }: {
   scene: SceneDocument;
   selectedSourceId?: string;
   chatMessages: ReturnType<typeof selectChatOverlayMessages>;
+  captions: CaptionOverlayCue[];
   interactive?: boolean;
   onSelectSource?(sourceId: string): void;
 }) => (
   <>
-    {toRenderGraph(scene, { chatMessages }).map((node) => {
+    {toRenderGraph(scene, { chatMessages, captions }).map((node) => {
       const source = scene.sources.find((item) => item.id === node.id);
       if (!source) {
         return null;

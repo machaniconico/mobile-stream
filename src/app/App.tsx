@@ -18,6 +18,15 @@ import {
   updateFaceTrackingRuntime
 } from "../domain/faceTracking";
 import {
+  clearLiveCaptionCues,
+  createDefaultLiveCaptionState,
+  ingestLiveCaptionCue,
+  selectLiveCaptionCues,
+  setLiveCaptionStatus,
+  updateLiveCaptionSettings as updateLiveCaptionSettingsDomain,
+  type LiveCaptionSettings
+} from "../domain/liveCaption";
+import {
   createPlatformChatSample,
   normalizePlatformChatSettings,
   type PlatformChatSettings
@@ -156,6 +165,7 @@ import {
   saveStreamValidationRuns
 } from "../storage/localStore";
 import { WebChatSpeechEngine } from "./WebChatSpeechEngine";
+import { WebLiveCaptionEngine } from "./WebLiveCaptionEngine";
 
 const StudioScreen = lazy(() => import("../screens/StudioScreen").then((module) => ({ default: module.StudioScreen })));
 
@@ -166,10 +176,13 @@ export const App = () => {
   const engine = useMemo(() => new MockLiveCaster(), []);
   const platformApiOperationGate = useMemo(() => createPlatformApiOperationGate(), []);
   const chatSpeechEngine = useMemo(() => new WebChatSpeechEngine(), []);
+  const liveCaptionEngine = useMemo(() => new WebLiveCaptionEngine(), []);
   const [sceneCollection, setSceneCollection] = useState<SceneCollection>(() => loadSceneCollection() ?? createDefaultSceneCollection());
   const scene = useMemo(() => selectActiveScene(sceneCollection), [sceneCollection]);
   const [profile, setProfile] = useState<StudioProfile>(() => loadProfile() ?? createDefaultStudioProfile());
   const [chatReader, setChatReader] = useState(() => createDefaultChatReaderState());
+  const [liveCaption, setLiveCaption] = useState(() => createDefaultLiveCaptionState());
+  const [liveCaptionClock, setLiveCaptionClock] = useState(() => Date.now());
   const [platformChatAuth, setPlatformChatAuth] = useState<PlatformChatAuthSession>(() => createDefaultPlatformChatAuthSession());
   const [platformChatOAuth, setPlatformChatOAuth] = useState<PlatformChatOAuthSettings>(() => createDefaultPlatformChatOAuthSettings());
   const [platformChatOAuthFlow, setPlatformChatOAuthFlow] = useState<PlatformChatOAuthFlow | null>(null);
@@ -197,6 +210,10 @@ export const App = () => {
   const chatOverlayMessages = useMemo(
     () => selectChatOverlayMessages(chatReader),
     [chatReader.history, chatReader.settings]
+  );
+  const liveCaptionCues = useMemo(
+    () => selectLiveCaptionCues(liveCaption, liveCaptionClock),
+    [liveCaption, liveCaptionClock]
   );
   const initialStreamSessionSummaries = useMemo(() => loadStreamSessionSummaries(), []);
   const initialStreamValidationRuns = useMemo(() => loadStreamValidationRuns(), []);
@@ -266,6 +283,62 @@ export const App = () => {
 
   useEffect(() => engine.subscribe(setSnapshot), [engine]);
   useChatSpeechQueue(chatReader, setChatReader, chatSpeechEngine, { onSpeechEvent: recordChatSpeechEvent });
+
+  useEffect(() => {
+    if (!liveCaption.settings.enabled) {
+      setLiveCaptionClock(Date.now());
+      return undefined;
+    }
+    const timer = window.setInterval(() => setLiveCaptionClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [liveCaption.settings.enabled]);
+
+  useEffect(() => {
+    let active = true;
+    if (!liveCaption.settings.enabled) {
+      void liveCaptionEngine.stop();
+      setLiveCaption((current) => setLiveCaptionStatus(current, "idle"));
+      return () => {
+        active = false;
+      };
+    }
+
+    if (!liveCaptionEngine.isSupported()) {
+      setLiveCaption((current) =>
+        setLiveCaptionStatus(current, "unsupported", "Speech recognition is not available in this browser.")
+      );
+      return () => {
+        active = false;
+      };
+    }
+
+    setLiveCaption((current) => setLiveCaptionStatus(current, "listening"));
+    void liveCaptionEngine
+      .start({
+        language: liveCaption.settings.language,
+        interimResults: liveCaption.settings.interimResults,
+        onCue: (cue) => {
+          if (active) {
+            setLiveCaption((current) => ingestLiveCaptionCue(current, cue));
+          }
+        },
+        onStatus: (status, message) => {
+          if (active) {
+            setLiveCaption((current) => setLiveCaptionStatus(current, status, message));
+          }
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          setLiveCaption((current) => setLiveCaptionStatus(current, "error", errorToSafeMessage(error, "Speech recognition failed.")));
+        }
+      });
+
+    return () => {
+      active = false;
+      void liveCaptionEngine.stop();
+    };
+  }, [liveCaption.settings.enabled, liveCaption.settings.interimResults, liveCaption.settings.language, liveCaptionEngine]);
 
   useEffect(() => {
     saveSceneCollection(JSON.parse(persistableSceneCollectionJson) as SceneCollection);
@@ -349,8 +422,8 @@ export const App = () => {
     if (!shouldPushSceneToEngine(snapshot.state.status)) {
       return;
     }
-    void engine.updateScene(scene, { chatMessages: chatOverlayMessages });
-  }, [chatOverlayMessages, engine, scene, snapshot.state.status]);
+    void engine.updateScene(scene, { chatMessages: chatOverlayMessages, captions: liveCaptionCues });
+  }, [chatOverlayMessages, engine, liveCaptionCues, scene, snapshot.state.status]);
 
   useEffect(() => {
     saveProfile(profile);
@@ -428,6 +501,11 @@ export const App = () => {
     setChatReader(clearChatReaderSession);
   }, [chatSpeechEngine]);
 
+  const clearLiveCaptions = useCallback(() => {
+    void liveCaptionEngine.stop().catch((error) => console.warn("Live caption stop failed", error));
+    setLiveCaption((current) => setLiveCaptionStatus(clearLiveCaptionCues(current), "idle"));
+  }, [liveCaptionEngine]);
+
   const startStream = async () => {
     await runStreamOperation("start", async () => {
       const engineSnapshot = engine.getSnapshot();
@@ -484,7 +562,7 @@ export const App = () => {
           createStreamSafetyEvent("public-launch-confirmed", formatPublicLaunchConfirmationEventMessage(publicLaunchConfirmation))
         );
       }
-      await engine.prepare(scene, readiness.sanitizedProfile, { chatMessages: chatOverlayMessages });
+      await engine.prepare(scene, readiness.sanitizedProfile, { chatMessages: chatOverlayMessages, captions: liveCaptionCues });
       await engine.start();
       const chatPlan = platformChatConnection.ensureConnected(chatReader.settings.enabled);
       if (chatPlan.reason !== "platform-chat-disabled") {
@@ -765,6 +843,23 @@ export const App = () => {
     clearChatReadout();
   };
 
+  const updateLiveCaptionSettings = (settings: Partial<LiveCaptionSettings>) => {
+    setLiveCaption((current) => updateLiveCaptionSettingsDomain(current, settings));
+  };
+
+  const submitTestLiveCaptionCue = () => {
+    setLiveCaption((current) =>
+      ingestLiveCaptionCue(current, {
+        speaker: "Host",
+        text: "ライブ字幕テスト",
+        language: current.settings.language,
+        confidence: 1,
+        isFinal: true,
+        timestampMs: Date.now()
+      })
+    );
+  };
+
   const activatePrivacyShield = useCallback(async () => {
     const fromScene = selectActiveScene(sceneCollection);
     const nextCollection = activatePrivacyShieldScene(sceneCollection);
@@ -777,6 +872,7 @@ export const App = () => {
     setSceneCollection(nextCollection);
     setProfile(nextProfile);
     clearChatReadout();
+    clearLiveCaptions();
     recordStreamSessionEvent(
       createStreamSafetyEvent(
         "privacy-shield-armed",
@@ -789,7 +885,7 @@ export const App = () => {
     }
 
     try {
-      await engine.updateScene(nextScene, { chatMessages: [] });
+      await engine.updateScene(nextScene, { chatMessages: [], captions: [] });
       await engine.updateQuality(nextProfile);
     } catch (error) {
       const safeMessage = errorToSafeMessage(error, "Privacy Shield native update failed.");
@@ -797,6 +893,7 @@ export const App = () => {
     }
   }, [
     clearChatReadout,
+    clearLiveCaptions,
     engine,
     profile,
     recordStreamSessionEvent,
@@ -1085,6 +1182,8 @@ export const App = () => {
         qualityAutomationDecision={qualityAutomationDecision}
         operationStatus={operationStatus}
         readiness={readiness}
+        liveCaption={liveCaption}
+        liveCaptionCues={liveCaptionCues}
         chatReader={chatReader}
         platformChat={profile.platformChat}
         platformChatAuth={platformChatAuth}
@@ -1115,6 +1214,9 @@ export const App = () => {
         onChatCommentSubmit={submitChatComment}
         onChatReaderSettingsChange={updateChatSettings}
         onChatCommentsClear={clearChatComments}
+        onLiveCaptionSettingsChange={updateLiveCaptionSettings}
+        onLiveCaptionClear={clearLiveCaptions}
+        onLiveCaptionTestCue={submitTestLiveCaptionCue}
         onPlatformChatSettingsChange={updatePlatformChatSettings}
         onPlatformChatAuthChange={updatePlatformChatAuth}
         onPlatformChatOAuthChange={updatePlatformChatOAuth}
