@@ -312,6 +312,14 @@ export interface QuickTextOverlayPresetGroup {
   presets: readonly QuickTextOverlayPreset[];
 }
 
+export type QuickTextOverlayDurationPresetId = "short" | "standard" | "long" | "extended";
+
+export interface QuickTextOverlayDurationPreset {
+  id: QuickTextOverlayDurationPresetId;
+  label: string;
+  durationMs: number;
+}
+
 export interface TextOverlayRuntimeStatus {
   sourceCount: number;
   visibleSourceCount: number;
@@ -392,6 +400,22 @@ const textOverlayDefaultDisplayDurationMs = 5000;
 const quickSubtitleSourceName = "Quick Subtitle";
 const queuedSubtitleSourceName = "Queued Subtitle";
 const pinnedTextSourceName = "Pinned Text";
+
+const normalizeTextOverlayDisplayDurationMs = (durationMs: number | undefined): number =>
+  Math.round(
+    clampRange(
+      finiteNumber(durationMs, textOverlayDefaultDisplayDurationMs),
+      textOverlayMinimumDisplayDurationMs,
+      textOverlayMaximumDisplayDurationMs
+    )
+  );
+
+export const quickTextOverlayDurationPresets: readonly QuickTextOverlayDurationPreset[] = [
+  { id: "short", label: "3s", durationMs: 3000 },
+  { id: "standard", label: "5s", durationMs: 5000 },
+  { id: "long", label: "8s", durationMs: 8000 },
+  { id: "extended", label: "12s", durationMs: 12000 }
+];
 
 export const quickTextOverlayPresets: readonly QuickTextOverlayPreset[] = [
   {
@@ -1669,13 +1693,7 @@ export const showTimedTextOverlay = (
   }
 
   const nowMs = Math.max(0, Math.round(finiteNumber(request.nowMs, Date.now())));
-  const displayDurationMs = Math.round(
-    clampRange(
-      finiteNumber(request.durationMs, textOverlayDefaultDisplayDurationMs),
-      textOverlayMinimumDisplayDurationMs,
-      textOverlayMaximumDisplayDurationMs
-    )
-  );
+  const displayDurationMs = normalizeTextOverlayDisplayDurationMs(request.durationMs);
   const requestedSource = request.sourceId
     ? scene.sources.find((source): source is TextSource => source.kind === "text" && source.id === request.sourceId)
     : null;
@@ -1750,13 +1768,7 @@ export const queueTimedTextOverlay = (
   }
 
   const nowMs = Math.max(0, Math.round(finiteNumber(request.nowMs, Date.now())));
-  const displayDurationMs = Math.round(
-    clampRange(
-      finiteNumber(request.durationMs, textOverlayDefaultDisplayDurationMs),
-      textOverlayMinimumDisplayDurationMs,
-      textOverlayMaximumDisplayDurationMs
-    )
-  );
+  const displayDurationMs = normalizeTextOverlayDisplayDurationMs(request.durationMs);
   const requestedSource = request.sourceId
     ? scene.sources.find((source): source is TextSource => source.kind === "text" && source.id === request.sourceId)
     : null;

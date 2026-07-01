@@ -710,6 +710,48 @@ select:focus-visible {
   flex: 0 1 160px;
 }
 
+.quick-text-duration-field {
+  display: grid;
+  flex: 0 1 188px;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.quick-text-duration-field legend {
+  margin: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quick-text-duration-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(36px, 1fr));
+  gap: 4px;
+  min-height: 38px;
+}
+
+.quick-text-duration-button {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 6px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.quick-text-duration-button.active {
+  border-color: var(--teal);
+  background: rgba(45, 212, 191, 0.16);
+  color: var(--text);
+}
+
 .quick-subtitle-actions {
   display: flex;
   flex: 0 1 auto;

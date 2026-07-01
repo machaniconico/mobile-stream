@@ -63,6 +63,7 @@ import {
   defaultAvatarMotion,
   hideTextOverlays,
   manualTextOverlayPresets,
+  quickTextOverlayDurationPresets,
   quickTextOverlayPresetGroups,
   queueTimedTextOverlay,
   reorderSource,
@@ -515,6 +516,7 @@ export const MobileStudioScreen = ({
   const [textOverlayClock, setTextOverlayClock] = useState(() => Date.now());
   const [quickSubtitleText, setQuickSubtitleText] = useState("");
   const [quickTextPresetId, setQuickTextPresetId] = useState<ManualTextOverlayPresetId>("subtitle");
+  const [quickTextDurationMs, setQuickTextDurationMs] = useState(() => quickTextOverlayDurationPresets[1]?.durationMs ?? 5000);
   const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canQueueQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canPinQuickText = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
@@ -546,7 +548,7 @@ export const MobileStudioScreen = ({
         sourceId: selectedManualTextSourceId,
         text: quickSubtitleText,
         presetId: quickTextPresetId,
-        durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
+        durationMs: quickTextDurationMs,
         nowMs
       })
     );
@@ -563,7 +565,7 @@ export const MobileStudioScreen = ({
         sourceId: selectedManualTextSourceId,
         text: quickSubtitleText,
         presetId: quickTextPresetId,
-        durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
+        durationMs: quickTextDurationMs,
         nowMs
       })
     );
@@ -599,7 +601,7 @@ export const MobileStudioScreen = ({
       return;
     }
     const nowMs = Date.now();
-    onSceneChange(showQuickTextOverlayPreset(scene, presetId, { nowMs }));
+    onSceneChange(showQuickTextOverlayPreset(scene, presetId, { durationMs: quickTextDurationMs, nowMs }));
     setTextOverlayClock(nowMs);
   };
   const diagnostics = createStreamDiagnostics(
@@ -1055,6 +1057,20 @@ export const MobileStudioScreen = ({
                     variant={quickTextPresetId === preset.presetId ? "active" : "default"}
                     disabled={quickSubtitleLocked}
                     onPress={() => setQuickTextPresetId(preset.presetId)}
+                  />
+                ))}
+              </View>
+            </View>
+            <View style={styles.quickTextDurationPicker}>
+              <Label text="Hold" />
+              <View style={styles.quickTextDurationButtons}>
+                {quickTextOverlayDurationPresets.map((preset) => (
+                  <ActionButton
+                    key={preset.id}
+                    label={preset.label}
+                    variant={quickTextDurationMs === preset.durationMs ? "active" : "default"}
+                    disabled={quickSubtitleLocked}
+                    onPress={() => setQuickTextDurationMs(preset.durationMs)}
                   />
                 ))}
               </View>
@@ -4951,6 +4967,17 @@ const styles = StyleSheet.create({
     gap: 6
   },
   quickTextStyleButtons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6
+  },
+  quickTextDurationPicker: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 180,
+    gap: 6
+  },
+  quickTextDurationButtons: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6

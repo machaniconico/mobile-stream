@@ -23,6 +23,7 @@ import {
   hideTextOverlays,
   inferAvatarIllustrationRig,
   manualTextOverlayPresets,
+  quickTextOverlayDurationPresets,
   normalizeSceneCollection,
   normalizeSceneDocument,
   quickTextOverlayPresets,
@@ -784,6 +785,15 @@ describe("scene document", () => {
       "ticker",
       "badge",
       "title"
+    ]);
+  });
+
+  it("exposes shared quick subtitle hold-time presets for web and mobile controls", () => {
+    expect(quickTextOverlayDurationPresets).toEqual([
+      { id: "short", label: "3s", durationMs: 3000 },
+      { id: "standard", label: "5s", durationMs: 5000 },
+      { id: "long", label: "8s", durationMs: 8000 },
+      { id: "extended", label: "12s", durationMs: 12000 }
     ]);
   });
 

@@ -79,6 +79,7 @@ import {
   createTextOverlayRuntimeStatus,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
+  quickTextOverlayDurationPresets,
   quickTextOverlayPresetGroups,
   manualTextOverlayPresets,
   queueTimedTextOverlay,
@@ -568,6 +569,7 @@ export const StudioScreen = ({
   const [textOverlayClock, setTextOverlayClock] = useState(() => Date.now());
   const [quickSubtitleText, setQuickSubtitleText] = useState("");
   const [quickTextPresetId, setQuickTextPresetId] = useState<ManualTextOverlayPresetId>("subtitle");
+  const [quickTextDurationMs, setQuickTextDurationMs] = useState(() => quickTextOverlayDurationPresets[1]?.durationMs ?? 5000);
   const quickSubtitleLocked = isBusy || operationBusy || platformApiBusy;
   const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canQueueQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
@@ -608,7 +610,7 @@ export const StudioScreen = ({
         sourceId: selectedManualTextSourceId,
         text: quickSubtitleText,
         presetId: quickTextPresetId,
-        durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
+        durationMs: quickTextDurationMs,
         nowMs
       })
     );
@@ -625,7 +627,7 @@ export const StudioScreen = ({
         sourceId: selectedManualTextSourceId,
         text: quickSubtitleText,
         presetId: quickTextPresetId,
-        durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
+        durationMs: quickTextDurationMs,
         nowMs
       })
     );
@@ -661,7 +663,7 @@ export const StudioScreen = ({
       return;
     }
     const nowMs = Date.now();
-    onSceneChange(showQuickTextOverlayPreset(scene, presetId, { nowMs }));
+    onSceneChange(showQuickTextOverlayPreset(scene, presetId, { durationMs: quickTextDurationMs, nowMs }));
     setTextOverlayClock(nowMs);
   };
   const diagnostics = createStreamDiagnostics(
@@ -1037,6 +1039,23 @@ export const StudioScreen = ({
                 ))}
               </select>
             </label>
+            <fieldset className="quick-text-duration-field">
+              <legend>Hold</legend>
+              <div className="quick-text-duration-buttons">
+                {quickTextOverlayDurationPresets.map((preset) => (
+                  <button
+                    key={preset.id}
+                    className={`quick-text-duration-button${quickTextDurationMs === preset.durationMs ? " active" : ""}`}
+                    type="button"
+                    disabled={quickSubtitleLocked}
+                    aria-pressed={quickTextDurationMs === preset.durationMs}
+                    onClick={() => setQuickTextDurationMs(preset.durationMs)}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
             <div className="quick-subtitle-actions">
               <button className="secondary-action" type="button" disabled={!canShowQuickSubtitle} onClick={showQuickSubtitle}>
                 <MessageCircle size={18} />
