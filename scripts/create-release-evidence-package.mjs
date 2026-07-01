@@ -631,11 +631,16 @@ function validatePackagedUiEvidenceTextChecks(viewport, failures) {
 
 function validatePackagedUiEvidenceQuickTextInteraction(viewport, failures) {
   const proof = viewport.quickTextInteraction;
-  if (!proof || typeof proof.text !== "string" || typeof proof.programText !== "string") {
+  if (
+    !proof ||
+    typeof proof.text !== "string" ||
+    typeof proof.programText !== "string" ||
+    typeof proof.previewText !== "string"
+  ) {
     failures.push(`Package browser UI evidence for ${viewport.name} is missing Quick Text interaction proof.`);
     return;
   }
-  if (!proof.text.includes(viewport.name) || !proof.programText.includes(proof.text)) {
+  if (!proof.text.includes(viewport.name) || !proof.programText.includes(proof.text) || !proof.previewText.includes(proof.text)) {
     failures.push(`Package browser UI evidence for ${viewport.name} has invalid Quick Text interaction proof.`);
   }
 }

@@ -162,9 +162,17 @@ async function verifyQuickTextInteraction(page, viewportName) {
     throw new Error(`Quick Text program overlay did not show proof text at ${viewportName}.`);
   }
 
+  const preview = page.locator(".quick-text-status-preview").first();
+  await preview.waitFor({ timeout: 10_000 });
+  const previewText = (await preview.innerText()).trim();
+  if (!previewText.includes(proofText)) {
+    throw new Error(`Quick Text status preview did not show proof text at ${viewportName}.`);
+  }
+
   return {
     text: proofText,
-    programText: programTextContent
+    programText: programTextContent,
+    previewText
   };
 }
 

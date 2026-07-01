@@ -2007,7 +2007,7 @@ export const createTextOverlayRuntimeStatus = (
     }
     return next === null ? expiresAt : Math.min(next, expiresAt);
   }, null);
-  const previewSource = activeManualSources[0] ?? activeCaptionSources[0] ?? null;
+  const previewSource = selectTextOverlayRuntimePreviewSource(activeManualSources, activeCaptionSources);
   const previewText = previewSource ? resolveRuntimeTextOverlayPreview(previewSource, runtime) : "";
 
   return {
@@ -2023,6 +2023,23 @@ export const createTextOverlayRuntimeStatus = (
     remainingMs: nextExpirationMs === null ? 0 : Math.max(0, nextExpirationMs - nowMs),
     previewText
   };
+};
+
+const selectTextOverlayRuntimePreviewSource = (
+  activeManualSources: TextSource[],
+  activeCaptionSources: TextSource[]
+): TextSource | null =>
+  [...activeManualSources].sort(compareTextOverlayPreviewPriority)[0] ?? activeCaptionSources[0] ?? null;
+
+const compareTextOverlayPreviewPriority = (left: TextSource, right: TextSource): number => {
+  const rightActivatedAtMs = Math.max(0, Math.round(finiteNumber(right.activatedAtMs, 0)));
+  const leftActivatedAtMs = Math.max(0, Math.round(finiteNumber(left.activatedAtMs, 0)));
+  if (rightActivatedAtMs !== leftActivatedAtMs) {
+    return rightActivatedAtMs - leftActivatedAtMs;
+  }
+  const rightTimedPriority = right.visibilityMode === "timed" ? 1 : 0;
+  const leftTimedPriority = left.visibilityMode === "timed" ? 1 : 0;
+  return rightTimedPriority - leftTimedPriority;
 };
 
 export const normalizeSceneDocument = (value: unknown): SceneDocument => {

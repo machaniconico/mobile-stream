@@ -935,6 +935,20 @@ describe("scene document", () => {
     expect(captionsDisabled.activeCaptionSourceCount).toBe(0);
   });
 
+  it("previews the latest active quick text instead of older pinned defaults", () => {
+    const nowMs = 94600;
+    const scene = showTimedTextOverlay(createDefaultScene(), {
+      text: "fresh quick text",
+      durationMs: 5000,
+      nowMs
+    });
+
+    const status = createTextOverlayRuntimeStatus(scene, { nowMs: nowMs + 750 });
+
+    expect(status.previewText).toBe("fresh quick text");
+    expect(status.remainingMs).toBe(4250);
+  });
+
   it("chains multiple queued subtitles and omits queued runtime text from persistence", () => {
     const nowMs = 93000;
     const first = showTimedTextOverlay(createDefaultScene(), {

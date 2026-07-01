@@ -403,6 +403,30 @@ describe("release report verifier", () => {
     expect(failures).toContain("Browser UI evidence for mobile is missing Quick Text interaction proof.");
   });
 
+  it("rejects UI evidence missing only Quick Text status preview proof", () => {
+    const report = createReport();
+    rewriteUiEvidence(report, (evidence) => {
+      const mobile = evidence.viewports.find((viewport) => viewport.name === "mobile");
+      delete mobile.quickTextInteraction.previewText;
+    });
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain("Browser UI evidence for mobile is missing Quick Text interaction proof.");
+  });
+
+  it("rejects UI evidence with stale Quick Text status preview proof", () => {
+    const report = createReport();
+    rewriteUiEvidence(report, (evidence) => {
+      const mobile = evidence.viewports.find((viewport) => viewport.name === "mobile");
+      mobile.quickTextInteraction.previewText = "MobileLiveCaster";
+    });
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain("Browser UI evidence for mobile has invalid Quick Text interaction proof.");
+  });
+
   it("audits UI evidence artifacts from in-process browser UI gates", () => {
     const report = createReport({ skipUi: false, uiEvidencePath: ".artifacts/ui-verification.json" });
     rewriteUiEvidence(report, (evidence) => {
@@ -1464,7 +1488,8 @@ function quickTextInteraction(viewportName) {
   const text = `ui-proof-${viewportName}`;
   return {
     text,
-    programText: text
+    programText: text,
+    previewText: text
   };
 }
 

@@ -173,12 +173,16 @@ const checks = [
     expectIncludes(files.releaseReportScript, "defaultBrowserUiEvidencePath");
     expectIncludes(files.releaseReportScript, "requiredBrowserUiTextChecks");
     expectIncludes(files.releaseReportScript, "validateEvidenceQuickTextInteraction");
+    expectIncludes(files.releaseReportScript, "previewText");
     expectIncludes(files.releaseCandidateScript, "requiredBrowserUiTextChecks");
     expectIncludes(files.releaseCandidateScript, "validateUiQuickTextInteraction");
+    expectIncludes(files.releaseCandidateScript, "previewText");
     expectIncludes(files.releaseEvidencePackageScript, "requiredBrowserUiTextChecks");
     expectIncludes(files.releaseEvidencePackageScript, "validatePackagedUiEvidenceQuickTextInteraction");
+    expectIncludes(files.releaseEvidencePackageScript, "previewText");
     expectIncludes(files.verifyUiScript, "requiredBrowserUiTextChecks");
     expectIncludes(files.verifyUiScript, "verifyQuickTextInteraction");
+    expectIncludes(files.verifyUiScript, "Quick Text status preview did not show proof text");
     expectIncludes(files.browserUiRequiredTextScript, "requiredBrowserUiTextChecks");
     expectIncludes(files.browserUiRequiredTextScript, '"Quick text"');
     expectIncludes(files.browserUiRequiredTextScript, '"Preset action"');

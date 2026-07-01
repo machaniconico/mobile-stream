@@ -1272,7 +1272,8 @@ function quickTextInteraction(viewportName) {
   const text = `ui-proof-${viewportName}`;
   return {
     text,
-    programText: text
+    programText: text,
+    previewText: text
   };
 }
 

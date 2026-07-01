@@ -1271,13 +1271,30 @@ describe("release evidence package creator", () => {
     const packagedUiEvidencePath = `${packageDir}/ui-evidence/ui-evidence.json`;
     const packagedUiEvidence = JSON.parse(readFileSync(packagedUiEvidencePath, "utf8"));
     const mobile = packagedUiEvidence.viewports.find((viewport) => viewport.name === "mobile");
-    delete mobile.quickTextInteraction;
+    delete mobile.quickTextInteraction.previewText;
     writeFileSync(packagedUiEvidencePath, JSON.stringify(packagedUiEvidence, null, 2));
     refreshPackagedUiEvidence(packagedUiEvidencePath);
 
     const failures = validateReleaseEvidencePackage({ packageDir });
 
     expect(failures).toContain("Package browser UI evidence for mobile is missing Quick Text interaction proof.");
+  });
+
+  it("rejects packaged browser UI evidence with stale Quick Text status preview proof", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedUiEvidencePath = `${packageDir}/ui-evidence/ui-evidence.json`;
+    const packagedUiEvidence = JSON.parse(readFileSync(packagedUiEvidencePath, "utf8"));
+    const mobile = packagedUiEvidence.viewports.find((viewport) => viewport.name === "mobile");
+    mobile.quickTextInteraction.previewText = "MobileLiveCaster";
+    writeFileSync(packagedUiEvidencePath, JSON.stringify(packagedUiEvidence, null, 2));
+    refreshPackagedUiEvidence(packagedUiEvidencePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Package browser UI evidence for mobile has invalid Quick Text interaction proof.");
   });
 
   it("rejects packaged browser UI evidence whose git dirty-state provenance is missing", () => {
@@ -2664,7 +2681,8 @@ function quickTextInteraction(viewportName) {
   const text = `ui-proof-${viewportName}`;
   return {
     text,
-    programText: text
+    programText: text,
+    previewText: text
   };
 }
 

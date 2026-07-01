@@ -235,6 +235,34 @@ describe("release candidate verifier", () => {
     expect(result.stderr).toContain("UI evidence for mobile is missing Quick Text interaction proof.");
   });
 
+  it("rejects skipped UI evidence missing only Quick Text status preview proof before source gates", () => {
+    writeUiEvidenceFixture();
+    const evidencePath = `${fixtureRoot}/ui-evidence.json`;
+    const evidence = JSON.parse(readFileSync(evidencePath, "utf8"));
+    const mobile = evidence.viewports.find((viewport) => viewport.name === "mobile");
+    delete mobile.quickTextInteraction.previewText;
+    writeFile(evidencePath, JSON.stringify(evidence, null, 2));
+
+    const result = runVerifier(["--skip-ui", `--ui-evidence-json=${evidencePath}`]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("UI evidence for mobile is missing Quick Text interaction proof.");
+  });
+
+  it("rejects skipped UI evidence with stale Quick Text status preview proof before source gates", () => {
+    writeUiEvidenceFixture();
+    const evidencePath = `${fixtureRoot}/ui-evidence.json`;
+    const evidence = JSON.parse(readFileSync(evidencePath, "utf8"));
+    const mobile = evidence.viewports.find((viewport) => viewport.name === "mobile");
+    mobile.quickTextInteraction.previewText = "MobileLiveCaster";
+    writeFile(evidencePath, JSON.stringify(evidence, null, 2));
+
+    const result = runVerifier(["--skip-ui", `--ui-evidence-json=${evidencePath}`]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("UI evidence for mobile has invalid Quick Text interaction proof.");
+  });
+
   it("rejects symlinked skipped UI evidence before reading linked JSON", () => {
     writeUiEvidenceFixture();
     const evidencePath = `${fixtureRoot}/ui-evidence.json`;
@@ -972,7 +1000,8 @@ function quickTextInteraction(viewportName) {
   const text = `ui-proof-${viewportName}`;
   return {
     text,
-    programText: text
+    programText: text,
+    previewText: text
   };
 }
 
