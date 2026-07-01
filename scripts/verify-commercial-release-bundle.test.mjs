@@ -39,7 +39,22 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v54.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v55.");
+  });
+
+  it("blocks v54 support bundles because native caption overlay proof requires v55", () => {
+    writeBundle({
+      app: {
+        name: "MobileLiveCaster",
+        reportVersion: 1,
+        bundleVersion: 54
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Support bundle v54 is older than the required v55.");
   });
 
   it("blocks support bundles without public launch confirmation summary evidence", () => {
@@ -55,7 +70,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Public launch confirmation audit");
   });
 
-  it("blocks v54 support bundles without scene fingerprint evidence", () => {
+  it("blocks v55 support bundles without scene fingerprint evidence", () => {
     writeBundle({
       summary: {
         sceneFingerprint: undefined
@@ -67,10 +82,10 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Scene fingerprint");
-    expect(result.stdout).toContain("Support bundle v54 is missing scene composition fingerprint evidence.");
+    expect(result.stdout).toContain("Support bundle v55 is missing scene composition fingerprint evidence.");
   });
 
-  it("blocks v54 support bundles with mismatched scene fingerprints", () => {
+  it("blocks v55 support bundles with mismatched scene fingerprints", () => {
     writeBundle({
       summary: {
         sceneFingerprint: "scene1-summary"
@@ -86,7 +101,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Summary and scene fingerprint values do not match.");
   });
 
-  it("blocks v54 support bundles when retained validation runs are from another scene", () => {
+  it("blocks v55 support bundles when retained validation runs are from another scene", () => {
     writeBundle({
       summary: {
         validationEvidenceRunManifest: [
@@ -101,6 +116,20 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Validation evidence manifest");
     expect(result.stdout).toContain("do not match the current scene fingerprint scene1-ready");
+  });
+
+  it("blocks v55 support bundles without native caption overlay summary evidence", () => {
+    writeBundle({
+      summary: {
+        nativeCompositionCaptionOverlayCount: undefined
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Native caption overlay evidence");
+    expect(result.stdout).toContain("missing native caption overlay count summary evidence");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -1295,7 +1324,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 54
+      bundleVersion: 55
     },
     generatedAt: new Date().toISOString(),
     profile: {

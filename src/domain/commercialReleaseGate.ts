@@ -44,7 +44,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 54;
+const minimumSupportBundleVersion = 55;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -70,6 +70,7 @@ export const createCommercialReleaseGate = (
     createPublicLaunchIssue(bundle),
     createPublicLaunchConfirmationEvidenceIssue(bundle),
     createSceneFingerprintIssue(bundle),
+    createNativeCaptionOverlaySummaryIssue(bundle),
     createTextOverlayEvidenceIssue(bundle),
     createChatOverlayEvidenceIssue(bundle),
     createLiveCaptionEvidenceIssue(bundle),
@@ -265,7 +266,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v54 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, text overlay proof, live caption proof, semantic and eye-mouth avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
+      "Export a support bundle v55 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, text overlay proof, live caption proof, native caption overlay kind proof, semantic and eye-mouth avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
     );
   }
 
@@ -284,7 +285,7 @@ const createSceneFingerprintIssue = (bundle: SupportBundle): CommercialReleaseGa
     return failIssue(
       "scene-fingerprint-missing",
       "Scene fingerprint",
-      "Support bundle v54 is missing scene composition fingerprint evidence.",
+      "Support bundle v55 is missing scene composition fingerprint evidence.",
       "Export a fresh support bundle from the exact scene/profile intended for release."
     );
   }
@@ -297,6 +298,20 @@ const createSceneFingerprintIssue = (bundle: SupportBundle): CommercialReleaseGa
     );
   }
   return null;
+};
+
+const createNativeCaptionOverlaySummaryIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+  const summary = bundle.summary as Partial<SupportBundle["summary"]>;
+  if (isNonNegativeInteger(summary.nativeCompositionCaptionOverlayCount)) {
+    return null;
+  }
+
+  return failIssue(
+    "native-caption-overlay-summary-missing",
+    "Native caption overlay evidence",
+    "The support bundle is missing native caption overlay count summary evidence.",
+    "Export a support bundle v55 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
+  );
 };
 
 const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
@@ -326,7 +341,7 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "text-overlay-evidence-missing",
       "Text overlay evidence",
       "The support bundle is missing text overlay launch evidence.",
-      "Export a support bundle v54 or newer so visible manual text, subtitle, ticker, live-caption, and avatar-overlap overlay evidence is summarized."
+      "Export a support bundle v55 or newer so visible manual text, subtitle, ticker, live-caption, native caption overlay kind proof, and avatar-overlap overlay evidence is summarized."
     );
   }
 
@@ -381,7 +396,7 @@ const createChatOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "chat-overlay-evidence-missing",
       "Chat overlay evidence",
       "The support bundle is missing chat overlay launch evidence.",
-      "Export a support bundle v54 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap evidence is summarized."
+      "Export a support bundle v55 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap evidence is summarized."
     );
   }
 
@@ -426,7 +441,7 @@ const createLiveCaptionEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "live-caption-evidence-missing",
       "Live caption evidence",
       "The support bundle is missing live caption launch evidence.",
-      "Export a support bundle v54 or newer so live caption enablement, recognition state, source visibility, and cue proof are summarized."
+      "Export a support bundle v55 or newer so live caption enablement, recognition state, source visibility, cue proof, and native caption overlay kind proof are summarized."
     );
   }
 
@@ -583,7 +598,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v54 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v55 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -612,7 +627,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-android-publisher-mode",
       "Validation evidence manifest",
       `The latest Android validation manifest row used ${latestRuns.get("android")?.androidPublisherMode || "missing"} publisher mode.`,
-      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v54 or newer."
+      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v55 or newer."
     );
   }
   if (manifest.length !== bundle.summary.validationEvidenceRunCount) {
@@ -648,7 +663,7 @@ const createValidationEvidenceSceneManifestIssue = (bundle: SupportBundle): Comm
     "validation-evidence-manifest-scene-fingerprint",
     "Validation evidence manifest",
     `${mismatchedRuns.length} fresh retained validation run(s) do not match the current scene fingerprint ${sceneFingerprint}.`,
-    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v54 support bundle."
+    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v55 support bundle."
   );
 };
 

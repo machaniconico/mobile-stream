@@ -1419,7 +1419,7 @@ function commercialSupportBundleFixture() {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 54
+      bundleVersion: 55
     },
     generatedAt: capturedAt,
     fixture: true,
@@ -1470,6 +1470,11 @@ function commercialSupportBundleFixture() {
       chatOverlayAvatarOverlapIssueCount: 0,
       chatOverlaySummary: "1/1 chat overlay visible.",
       chatOverlayRecommendation: "Keep chat overlay settings unchanged.",
+      nativeCompositionNativeOverlayCount: 4,
+      nativeCompositionStillImageOverlayCount: 1,
+      nativeCompositionTextOverlayCount: 2,
+      nativeCompositionCaptionOverlayCount: 1,
+      nativeCompositionChatOverlayCount: 1,
       liveCaptionStatus: "info",
       liveCaptionEnabled: false,
       liveCaptionRecognitionStatus: "unavailable",
@@ -1519,6 +1524,8 @@ function commercialSupportBundleFixture() {
       validationEvidenceChatReadoutAndroidPass: true,
       validationEvidencePlatformPublishingIosPass: true,
       validationEvidencePlatformPublishingAndroidPass: true,
+      validationEvidencePlatformIngestIosPass: true,
+      validationEvidencePlatformIngestAndroidPass: true,
       validationEvidenceRunManifest: [
         supportBundleManifestRun("ios", "svr1-ios"),
         supportBundleManifestRun("android", "svr1-android")
@@ -1553,7 +1560,8 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     nativeRuntimeVideoEncoderBackend: devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
     nativeRuntimeAudioEncoderBackend: devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
     nativeRuntimeCompositionStatus: "applied",
-    nativeRuntimeCompositionAppliedCount: 1,
+    nativeRuntimeCompositionAppliedCount: 4,
+    nativeRuntimeCompositionAppliedKinds: ["caption", "chat", "pngtuber", "text"],
     nativeRuntimeCompositionSkippedCount: 0,
     nativeRuntimeCompositionSkippedKinds: [],
     nativeRuntimeSentVideoFrames: 120,

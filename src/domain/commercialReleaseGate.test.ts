@@ -35,7 +35,28 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v54 support bundles without scene fingerprint evidence", () => {
+  it("blocks v54 support bundles because native caption overlay proof requires v55", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        app: {
+          name: "MobileLiveCaster",
+          reportVersion: 1,
+          bundleVersion: 54
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "bundle-version",
+        detail: "Support bundle v54 is older than the required v55."
+      })
+    );
+  });
+
+  it("blocks v55 support bundles without scene fingerprint evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).sceneFingerprint;
     delete (bundle.scene as Partial<SupportBundle["scene"]>).fingerprint;
@@ -49,7 +70,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v54 support bundles with mismatched scene fingerprints", () => {
+  it("blocks v55 support bundles with mismatched scene fingerprints", () => {
     const bundle = supportBundle({
       summary: {
         sceneFingerprint: "scene1-summary"
@@ -66,7 +87,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v54 support bundles when retained validation runs are from another scene", () => {
+  it("blocks v55 support bundles when retained validation runs are from another scene", () => {
     const bundle = supportBundle({
       summary: {
         validationEvidenceRunManifest: [
@@ -85,7 +106,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v54 text overlay evidence", () => {
+  it("blocks support bundles without v55 text overlay evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).textOverlayStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -98,7 +119,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v54 chat overlay evidence", () => {
+  it("blocks support bundles without v55 chat overlay evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).chatOverlayStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -111,7 +132,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v54 live caption evidence", () => {
+  it("blocks support bundles without v55 live caption evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).liveCaptionStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -120,6 +141,19 @@ describe("commercial release gate", () => {
     expect(gate.issues).toContainEqual(
       expect.objectContaining({
         code: "live-caption-evidence-missing"
+      })
+    );
+  });
+
+  it("blocks v55 support bundles without native caption overlay summary evidence", () => {
+    const bundle = supportBundle();
+    delete (bundle.summary as Partial<SupportBundle["summary"]>).nativeCompositionCaptionOverlayCount;
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "native-caption-overlay-summary-missing"
       })
     );
   });
@@ -1995,7 +2029,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 54 as const
+    bundleVersion: 55 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
