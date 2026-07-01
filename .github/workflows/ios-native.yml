@@ -30,6 +30,8 @@ jobs:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
+          # No .ruby-version file in the repo; pin explicitly (Gemfile requires >= 2.6.10).
+          ruby-version: "3.2"
           bundler-cache: true
 
       - name: Install dependencies

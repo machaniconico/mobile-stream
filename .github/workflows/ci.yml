@@ -35,6 +35,10 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # ubuntu-latest no longer ships the Android SDK on PATH; install cmdline-tools first.
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Install Android SDK packages
         run: |
           yes | sdkmanager --licenses >/dev/null
