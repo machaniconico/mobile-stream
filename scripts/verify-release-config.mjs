@@ -165,15 +165,15 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 51");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 52");
     expectIncludes(files.supportBundleDomain, "androidPublisherMode: StudioProfile");
     expectIncludes(files.streamDiagnosticsDomain, "Evidence Android publisher mode");
     expectIncludes(files.streamValidationEvidenceDomain, "androidPublisherMode: StreamDiagnostics");
     expectIncludes(files.streamValidationEvidenceDomain, "androidPublisherModeAndroidPass");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 51");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 52");
     expectIncludes(files.commercialReleaseGateDomain, "android-publisher-mode-not-commercial");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 51");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 52");
     expectIncludes(files.commercialReleaseBundleScript, "android-publisher-mode-not-commercial");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "hasAndroidMediaCodecCompositorProof(run)");

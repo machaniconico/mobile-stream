@@ -43,7 +43,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 51;
+const minimumSupportBundleVersion = 52;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -68,6 +68,8 @@ export const createCommercialReleaseGate = (
     createAndroidPublisherModeIssue(bundle),
     createPublicLaunchIssue(bundle),
     createPublicLaunchConfirmationEvidenceIssue(bundle),
+    createTextOverlayEvidenceIssue(bundle),
+    createLiveCaptionEvidenceIssue(bundle),
     createPlatformPublishingFreshnessIssue(bundle),
     createValidationIssue(bundle),
     createValidationRunbookIssue(bundle),
@@ -257,7 +259,107 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v51 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, semantic and eye-mouth avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
+      "Export a support bundle v52 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, text overlay proof, live caption proof, semantic and eye-mouth avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
+    );
+  }
+
+  return null;
+};
+
+const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+  const summary = bundle.summary as Partial<SupportBundle["summary"]>;
+  const status = summary.textOverlayStatus;
+  const hasRequiredEvidence =
+    isDiagnosticStatus(status) &&
+    isNonNegativeInteger(summary.textOverlaySourceCount) &&
+    isNonNegativeInteger(summary.textOverlayVisibleSourceCount) &&
+    isNonNegativeInteger(summary.textOverlayManualSourceCount) &&
+    isNonNegativeInteger(summary.textOverlayVisibleManualSourceCount) &&
+    isNonNegativeInteger(summary.textOverlayRuntimeCaptionSourceCount) &&
+    isNonNegativeInteger(summary.textOverlayVisibleRuntimeCaptionSourceCount) &&
+    isNonNegativeInteger(summary.textOverlayEmptyVisibleManualSourceCount) &&
+    isNonNegativeInteger(summary.textOverlaySensitiveContentIssueCount) &&
+    isNonNegativeInteger(summary.textOverlayDominantBackdropIssueCount) &&
+    typeof summary.textOverlaySummary === "string" &&
+    summary.textOverlaySummary.trim().length > 0 &&
+    typeof summary.textOverlayRecommendation === "string" &&
+    summary.textOverlayRecommendation.trim().length > 0;
+
+  if (!hasRequiredEvidence) {
+    return failIssue(
+      "text-overlay-evidence-missing",
+      "Text overlay evidence",
+      "The support bundle is missing text overlay launch evidence.",
+      "Export a support bundle v52 or newer so visible manual text, subtitle, ticker, and live-caption overlay evidence is summarized."
+    );
+  }
+
+  if (status === "fail" || (summary.textOverlaySensitiveContentIssueCount ?? 0) > 0) {
+    return failIssue(
+      "text-overlay-evidence-failed",
+      "Text overlay evidence",
+      summary.textOverlaySummary || "Text overlay evidence failed.",
+      summary.textOverlayRecommendation || "Resolve text overlay blockers and export a fresh support bundle."
+    );
+  }
+
+  if (
+    status === "warn" ||
+    (summary.textOverlayEmptyVisibleManualSourceCount ?? 0) > 0 ||
+    (summary.textOverlayDominantBackdropIssueCount ?? 0) > 0
+  ) {
+    return warnIssue(
+      "text-overlay-evidence-warning",
+      "Text overlay evidence",
+      summary.textOverlaySummary || "Text overlay evidence has warnings.",
+      summary.textOverlayRecommendation || "Review text overlay warnings before approving release."
+    );
+  }
+
+  return null;
+};
+
+const createLiveCaptionEvidenceIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+  const summary = bundle.summary as Partial<SupportBundle["summary"]>;
+  const status = summary.liveCaptionStatus;
+  const hasRequiredEvidence =
+    isDiagnosticStatus(status) &&
+    typeof summary.liveCaptionEnabled === "boolean" &&
+    typeof summary.liveCaptionRecognitionStatus === "string" &&
+    isNonNegativeInteger(summary.liveCaptionRuntimeSourceCount) &&
+    isNonNegativeInteger(summary.liveCaptionVisibleRuntimeSourceCount) &&
+    isNonNegativeInteger(summary.liveCaptionActiveCueCount) &&
+    isNonNegativeInteger(summary.liveCaptionFinalCueCount) &&
+    isNonNegativeInteger(summary.liveCaptionTranscriptCount) &&
+    typeof summary.liveCaptionSummary === "string" &&
+    summary.liveCaptionSummary.trim().length > 0 &&
+    typeof summary.liveCaptionRecommendation === "string" &&
+    summary.liveCaptionRecommendation.trim().length > 0;
+
+  if (!hasRequiredEvidence) {
+    return failIssue(
+      "live-caption-evidence-missing",
+      "Live caption evidence",
+      "The support bundle is missing live caption launch evidence.",
+      "Export a support bundle v52 or newer so live caption enablement, recognition state, source visibility, and cue proof are summarized."
+    );
+  }
+
+  if (status === "fail") {
+    return failIssue(
+      "live-caption-evidence-failed",
+      "Live caption evidence",
+      summary.liveCaptionSummary || "Live caption evidence failed.",
+      summary.liveCaptionRecommendation || "Resolve live caption blockers and export a fresh support bundle."
+    );
+  }
+
+  if (status === "warn") {
+    return warnIssue(
+      "live-caption-evidence-warning",
+      "Live caption evidence",
+      summary.liveCaptionSummary || "Live caption evidence has warnings.",
+      summary.liveCaptionRecommendation || "Review live caption warnings before approving release."
     );
   }
 
@@ -396,7 +498,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v51 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v52 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -425,7 +527,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-android-publisher-mode",
       "Validation evidence manifest",
       `The latest Android validation manifest row used ${latestRuns.get("android")?.androidPublisherMode || "missing"} publisher mode.`,
-      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v51 or newer."
+      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v52 or newer."
     );
   }
   if (manifest.length !== bundle.summary.validationEvidenceRunCount) {
@@ -714,6 +816,12 @@ const ageInHours = (createdAt: string, now: Date): number | null => {
 
 const nonEmptyText = (value: string | null | undefined): string | null =>
   typeof value === "string" && value.trim() ? value.trim() : null;
+
+const isNonNegativeInteger = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0;
+
+const isDiagnosticStatus = (value: unknown): value is "pass" | "warn" | "fail" | "info" =>
+  value === "pass" || value === "warn" || value === "fail" || value === "info";
 
 type ValidationEvidenceManifestRun = SupportBundle["summary"]["validationEvidenceRunManifest"][number];
 

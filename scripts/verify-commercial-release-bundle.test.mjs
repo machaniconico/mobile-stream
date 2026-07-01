@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v51.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v52.");
   });
 
   it("blocks support bundles without public launch confirmation summary evidence", () => {
@@ -1005,6 +1005,29 @@ const createBundle = (patch = {}) => {
     publicLaunchLastConfirmationStatus: "none",
     publicLaunchLastConfirmationAt: null,
     publicLaunchLastConfirmationMessage: "",
+    textOverlayStatus: "pass",
+    textOverlaySourceCount: 2,
+    textOverlayVisibleSourceCount: 2,
+    textOverlayManualSourceCount: 2,
+    textOverlayVisibleManualSourceCount: 2,
+    textOverlayRuntimeCaptionSourceCount: 0,
+    textOverlayVisibleRuntimeCaptionSourceCount: 0,
+    textOverlayEmptyVisibleManualSourceCount: 0,
+    textOverlayTransparentVisibleSourceCount: 1,
+    textOverlaySensitiveContentIssueCount: 0,
+    textOverlayDominantBackdropIssueCount: 0,
+    textOverlaySummary: "2/2 text overlays visible.",
+    textOverlayRecommendation: "Keep text overlays unchanged.",
+    liveCaptionStatus: "info",
+    liveCaptionEnabled: false,
+    liveCaptionRecognitionStatus: "unavailable",
+    liveCaptionRuntimeSourceCount: 0,
+    liveCaptionVisibleRuntimeSourceCount: 0,
+    liveCaptionActiveCueCount: 0,
+    liveCaptionFinalCueCount: 0,
+    liveCaptionTranscriptCount: 0,
+    liveCaptionSummary: "Live captions are disabled.",
+    liveCaptionRecommendation: "Enable live captions when subtitles are part of the launch plan.",
     launchBlockCount: 0,
     launchWarningCount: 0,
     validationStatus: "ready",
@@ -1059,7 +1082,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 51
+      bundleVersion: 52
     },
     generatedAt: new Date().toISOString(),
     profile: {

@@ -33,6 +33,77 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks support bundles without v52 text overlay evidence", () => {
+    const bundle = supportBundle();
+    delete (bundle.summary as Partial<SupportBundle["summary"]>).textOverlayStatus;
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "text-overlay-evidence-missing"
+      })
+    );
+  });
+
+  it("blocks support bundles without v52 live caption evidence", () => {
+    const bundle = supportBundle();
+    delete (bundle.summary as Partial<SupportBundle["summary"]>).liveCaptionStatus;
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "live-caption-evidence-missing"
+      })
+    );
+  });
+
+  it("blocks release when text overlay evidence reports sensitive visible content", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          textOverlayStatus: "fail",
+          textOverlaySensitiveContentIssueCount: 1,
+          textOverlaySummary: "1 visible text overlay may expose credentials.",
+          textOverlayRecommendation: "Remove credentials from visible text overlays before launch."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "text-overlay-evidence-failed"
+      })
+    );
+  });
+
+  it("warns release when enabled live captions still need final cue evidence", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          liveCaptionStatus: "warn",
+          liveCaptionEnabled: true,
+          liveCaptionRecognitionStatus: "listening",
+          liveCaptionFinalCueCount: 0,
+          liveCaptionSummary: "Live captions are listening, but no final caption cue has been confirmed in this session.",
+          liveCaptionRecommendation: "Speak a short test phrase before public launch."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("warning");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "live-caption-evidence-warning"
+      })
+    );
+  });
+
   it("blocks native runtime claims without video frame interval proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -1622,7 +1693,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 51 as const
+    bundleVersion: 52 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1665,6 +1736,34 @@ const supportBundle = ({
       publicLaunchLastConfirmationStatus: "none",
       publicLaunchLastConfirmationAt: null,
       publicLaunchLastConfirmationMessage: "",
+      textOverlayStatus: "pass",
+      textOverlaySourceCount: 2,
+      textOverlayVisibleSourceCount: 2,
+      textOverlayManualSourceCount: 2,
+      textOverlayVisibleManualSourceCount: 2,
+      textOverlayRuntimeCaptionSourceCount: 0,
+      textOverlayVisibleRuntimeCaptionSourceCount: 0,
+      textOverlayEmptyVisibleManualSourceCount: 0,
+      textOverlayTransparentVisibleSourceCount: 1,
+      textOverlaySensitiveContentIssueCount: 0,
+      textOverlayDominantBackdropIssueCount: 0,
+      textOverlayLabelSourceCount: 1,
+      textOverlaySubtitleSourceCount: 1,
+      textOverlayTickerSourceCount: 0,
+      textOverlayCaptionSourceCount: 0,
+      textOverlaySummary: "2/2 text overlays visible: 2 manual and 0 live-caption sources.",
+      textOverlayRecommendation: "Keep text positions, transparency, font size, and outline settings unchanged.",
+      liveCaptionStatus: "info",
+      liveCaptionEnabled: false,
+      liveCaptionRecognitionStatus: "unavailable",
+      liveCaptionLanguage: "",
+      liveCaptionRuntimeSourceCount: 0,
+      liveCaptionVisibleRuntimeSourceCount: 0,
+      liveCaptionActiveCueCount: 0,
+      liveCaptionFinalCueCount: 0,
+      liveCaptionTranscriptCount: 0,
+      liveCaptionSummary: "Live captions are disabled.",
+      liveCaptionRecommendation: "Enable live captions when subtitles are part of the launch plan.",
       launchBlockCount: 0,
       launchWarningCount: 0,
       validationStatus: "ready",
