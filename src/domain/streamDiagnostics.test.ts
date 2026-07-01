@@ -1561,7 +1561,8 @@ describe("stream diagnostics", () => {
     mutableReport.diagnostics.summary = `Failed Authorization: Bearer diagnostic-access-token-secret with ${demoStreamKey}`;
     mutableReport.diagnostics.telemetry.message =
       "Contact viewer@example.com / 090-1234-5678 / discord.gg/privateRoom";
-    mutableReport.diagnostics.session.historySummary.summary = "Inspect www.example.org/private and example.tv/show";
+    mutableReport.diagnostics.session.historySummary.summary =
+      "Inspect www.example.org/private, example.tv/show, and a.rtmps.youtube.com/private";
     mutableReport.diagnostics.session.historySummary.recommendation =
       "callback mobilelivecaster://oauth/twitch?access_token=diagnostic-oauth-token-secret";
     mutableReport.diagnostics.api = {
@@ -1587,6 +1588,7 @@ describe("stream diagnostics", () => {
     expect(exported).not.toContain("discord.gg/privateRoom");
     expect(exported).not.toContain("www.example.org");
     expect(exported).not.toContain("example.tv");
+    expect(exported).not.toContain("a.rtmps.youtube.com/private");
   });
 
   it("keeps stream-stop chat disconnect events while redacting details", () => {

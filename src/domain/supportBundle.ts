@@ -17,6 +17,7 @@ import type { StreamDiagnostics } from "./streamDiagnostics";
 import type { StreamSessionEvent } from "./streamSessionLog";
 import type { StreamStartPreflightReport } from "./streamStartPreflight";
 import { redactSecretsFromPersistedValue, redactSecretsFromText } from "./persistencePrivacy";
+import { redactSensitiveText } from "./sensitiveText";
 
 export interface SupportBundleSourceSummary {
   id: string;
@@ -1303,7 +1304,15 @@ export const createSupportBundle = ({
 };
 
 export const serializeSupportBundle = (bundle: SupportBundle, options: SupportBundleExportOptions = {}): string =>
-  JSON.stringify(redactSecretsFromPersistedValue(bundle, options.secrets ?? []), null, 2);
+  JSON.stringify(
+    restoreSupportBundleExportFields(
+      redactSecretsFromPersistedValue(bundle, options.secrets ?? []),
+      bundle,
+      options.secrets ?? []
+    ),
+    null,
+    2
+  );
 
 export const formatSupportBundle = (bundle: SupportBundle, options: SupportBundleExportOptions = {}): string => {
   const formatted = [
@@ -1442,7 +1451,70 @@ export const formatSupportBundle = (bundle: SupportBundle, options: SupportBundl
     `- Publishing freshness action: ${bundle.summary.platformPublishingFreshnessRecommendation}`
   ].join("\n");
 
-  return redactSecretsFromText(formatted, options.secrets ?? []);
+  return restoreSupportBundleEndpointLine(
+    redactSecretsFromText(formatted, options.secrets ?? []),
+    bundle.target.host,
+    bundle.target.application,
+    options.secrets ?? []
+  );
+};
+
+const restoreSupportBundleExportFields = (
+  redactedBundle: SupportBundle,
+  bundle: SupportBundle,
+  secrets: string[]
+): SupportBundle => {
+  if (!isSafeSupportBundleExportHost(bundle.target.host, secrets)) {
+    return redactedBundle;
+  }
+  return {
+    ...redactedBundle,
+    target: {
+      ...redactedBundle.target,
+      host: bundle.target.host
+    },
+    profile: {
+      ...redactedBundle.profile,
+      destination: {
+        ...redactedBundle.profile.destination,
+        host: bundle.profile.destination.host
+      }
+    }
+  };
+};
+
+const restoreSupportBundleEndpointLine = (text: string, host: string, application: string, secrets: string[]): string => {
+  if (!isSafeSupportBundleExportHost(host, secrets) || !isSafeSupportBundleExportApplication(application, secrets)) {
+    return text;
+  }
+  const endpointLine = `- Endpoint: ${host}/${application}`;
+  return text
+    .split("\n")
+    .map((line) => (line.startsWith("- Endpoint: ") ? endpointLine : line))
+    .join("\n");
+};
+
+const isSafeSupportBundleExportHost = (value: string | null | undefined, secrets: string[]): boolean => {
+  const trimmed = value?.trim() ?? "";
+  const lower = trimmed.toLowerCase();
+  if (!trimmed || !trimmed.includes(".") || !/^[a-z0-9.-]+$/i.test(trimmed)) {
+    return false;
+  }
+  return !secrets.some((secret) => {
+    const normalized = secret.trim().toLowerCase();
+    return Boolean(normalized) && (lower.includes(normalized) || normalized.includes(lower));
+  });
+};
+
+const isSafeSupportBundleExportApplication = (value: string, secrets: string[]): boolean => {
+  if (redactSensitiveText(value) !== value) {
+    return false;
+  }
+  const lower = value.toLowerCase();
+  return !secrets.some((secret) => {
+    const normalized = secret.trim().toLowerCase();
+    return Boolean(normalized) && lower.includes(normalized);
+  });
 };
 
 const formatBroadcastMixerSummary = (mixer: StudioProfile["broadcastMixer"]): string =>

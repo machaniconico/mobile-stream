@@ -560,7 +560,16 @@ export const createStreamDiagnosticReport = (
 export const serializeStreamDiagnosticReport = (
   report: StreamDiagnosticReport,
   options: StreamDiagnosticReportExportOptions = {}
-): string => JSON.stringify(redactDiagnosticReportExport(report, options), null, 2);
+): string =>
+  JSON.stringify(
+    restoreDiagnosticReportExportFields(
+      redactSecretsFromPersistedValue(report, options.secrets ?? []),
+      report,
+      options.secrets ?? []
+    ),
+    null,
+    2
+  );
 
 export const formatStreamDiagnosticReport = (
   report: StreamDiagnosticReport,
@@ -809,42 +818,46 @@ export const formatStreamDiagnosticReport = (
     ...diagnostics.checks.map((check) => `- [${check.status.toUpperCase()}] ${check.label}: ${check.message}`)
   ].join("\n");
 
-  return redactDiagnosticReportTextExport(formatted, report, options);
+  return restoreDiagnosticEndpointLine(
+    redactSecretsFromText(formatted, options.secrets ?? []),
+    diagnostics.target.host,
+    diagnostics.target.application,
+    options.secrets ?? []
+  );
 };
 
-type DiagnosticExportReplacement = readonly [value: string, placeholder: string];
-
-const redactDiagnosticReportExport = (
-  report: StreamDiagnosticReport,
-  options: StreamDiagnosticReportExportOptions
-): StreamDiagnosticReport => {
-  const replacements = createDiagnosticExportReplacements(report, options.secrets ?? []);
-  const protectedReport = replaceDiagnosticExportText(report, replacements) as StreamDiagnosticReport;
-  const redactedReport = redactSecretsFromPersistedValue(protectedReport, options.secrets ?? []);
-  return restoreDiagnosticExportText(redactedReport, replacements) as StreamDiagnosticReport;
-};
-
-const redactDiagnosticReportTextExport = (
-  text: string,
-  report: StreamDiagnosticReport,
-  options: StreamDiagnosticReportExportOptions
-): string => {
-  const replacements = createDiagnosticExportReplacements(report, options.secrets ?? []);
-  const protectedText = replaceDiagnosticExportString(text, replacements);
-  return restoreDiagnosticExportString(redactSecretsFromText(protectedText, options.secrets ?? []), replacements);
-};
-
-const createDiagnosticExportReplacements = (
+const restoreDiagnosticReportExportFields = (
+  redactedReport: StreamDiagnosticReport,
   report: StreamDiagnosticReport,
   secrets: string[]
-): DiagnosticExportReplacement[] => {
-  const values = [report.diagnostics.target.host].filter((value): value is string =>
-    isSafeDiagnosticExportLiteral(value, secrets)
-  );
-  return [...new Set(values)].map((value, index) => [value, `__MLC_DIAGNOSTIC_ALLOWED_${index}__`] as const);
+): StreamDiagnosticReport => {
+  if (!isSafeDiagnosticExportHost(report.diagnostics.target.host, secrets)) {
+    return redactedReport;
+  }
+  return {
+    ...redactedReport,
+    diagnostics: {
+      ...redactedReport.diagnostics,
+      target: {
+        ...redactedReport.diagnostics.target,
+        host: report.diagnostics.target.host
+      }
+    }
+  };
 };
 
-const isSafeDiagnosticExportLiteral = (value: string | null | undefined, secrets: string[]): boolean => {
+const restoreDiagnosticEndpointLine = (text: string, host: string, application: string, secrets: string[]): string => {
+  if (!isSafeDiagnosticExportHost(host, secrets) || !isSafeDiagnosticExportApplication(application, secrets)) {
+    return text;
+  }
+  const endpointLine = `- Endpoint: ${host}/${application}`;
+  return text
+    .split("\n")
+    .map((line) => (line.startsWith("- Endpoint: ") ? endpointLine : line))
+    .join("\n");
+};
+
+const isSafeDiagnosticExportHost = (value: string | null | undefined, secrets: string[]): boolean => {
   const trimmed = value?.trim() ?? "";
   const lower = trimmed.toLowerCase();
   if (!trimmed || !trimmed.includes(".") || !/^[a-z0-9.-]+$/i.test(trimmed) || redactSensitiveText(trimmed) !== trimmed) {
@@ -856,30 +869,16 @@ const isSafeDiagnosticExportLiteral = (value: string | null | undefined, secrets
   });
 };
 
-const replaceDiagnosticExportText = (value: unknown, replacements: DiagnosticExportReplacement[]): unknown => {
-  if (typeof value === "string") {
-    return replaceDiagnosticExportString(value, replacements);
+const isSafeDiagnosticExportApplication = (value: string, secrets: string[]): boolean => {
+  if (redactSensitiveText(value) !== value) {
+    return false;
   }
-  if (Array.isArray(value)) {
-    return value.map((item) => replaceDiagnosticExportText(item, replacements));
-  }
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceDiagnosticExportText(item, replacements)]));
-  }
-  return value;
+  const lower = value.toLowerCase();
+  return !secrets.some((secret) => {
+    const normalized = secret.trim().toLowerCase();
+    return Boolean(normalized) && lower.includes(normalized);
+  });
 };
-
-const restoreDiagnosticExportText = (value: unknown, replacements: DiagnosticExportReplacement[]): unknown =>
-  replaceDiagnosticExportText(
-    value,
-    replacements.map(([original, placeholder]) => [placeholder, original] as const)
-  );
-
-const replaceDiagnosticExportString = (value: string, replacements: DiagnosticExportReplacement[]): string =>
-  replacements.reduce((current, [original, placeholder]) => current.split(original).join(placeholder), value);
-
-const restoreDiagnosticExportString = (value: string, replacements: DiagnosticExportReplacement[]): string =>
-  replacements.reduce((current, [original, placeholder]) => current.split(placeholder).join(original), value);
 
 const allowedChatEventTitles = new Set([
   "Chat auto-connect started",

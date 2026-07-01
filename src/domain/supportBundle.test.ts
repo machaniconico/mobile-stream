@@ -879,7 +879,8 @@ describe("support bundle", () => {
     };
     mutableBundle.preflight.summary = `Failed Authorization: Bearer support-access-token-secret with ${streamKey}`;
     mutableBundle.preflight.primaryAction = "Contact viewer@example.com / 090-1234-5678 / discord.gg/privateRoom";
-    mutableBundle.diagnostics.session.historySummary.summary = "Inspect www.example.org/private and example.tv/show";
+    mutableBundle.diagnostics.session.historySummary.summary =
+      "Inspect www.example.org/private, example.tv/show, and a.rtmps.youtube.com/private";
     mutableBundle.diagnostics.session.historySummary.recommendation =
       "callback mobilelivecaster://oauth/youtube?code=support-oauth-code-secret";
     mutableBundle.diagnostics.api = {
@@ -891,6 +892,8 @@ describe("support bundle", () => {
     const exported = `${json}\n${text}`;
 
     expect(exported).toContain("[redacted]");
+    expect(json).toContain("\"host\": \"a.rtmps.youtube.com\"");
+    expect(text).toContain("Endpoint: a.rtmps.youtube.com/live2");
     expect(exported).not.toContain(streamKey);
     expect(exported).not.toContain("support-access-token-secret");
     expect(exported).not.toContain("support-oauth-code-secret");
@@ -901,6 +904,7 @@ describe("support bundle", () => {
     expect(exported).not.toContain("discord.gg/privateRoom");
     expect(exported).not.toContain("www.example.org");
     expect(exported).not.toContain("example.tv");
+    expect(exported).not.toContain("a.rtmps.youtube.com/private");
   });
 
   it("serializes support bundles without leaking chat author or message details", () => {
