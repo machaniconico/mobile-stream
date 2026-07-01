@@ -327,6 +327,9 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceLatestFaceTrackingFaceLandmarkReady).toBe(false);
     expect(bundle.summary.nativeCompositionStatus).toBe("warn");
     expect(bundle.summary.nativeCompositionCoverage).toBe("preview-only-overlays");
+    expect(bundle.summary.nativeCompositionStillImageOverlayCount).toBe(1);
+    expect(bundle.summary.nativeCompositionTextOverlayCount).toBe(2);
+    expect(bundle.summary.nativeCompositionChatOverlayCount).toBe(1);
     expect(bundle.summary.nativeCompositionPreviewOnlySourceCount).toBeGreaterThan(0);
     expect(bundle.summary.nativeCompositionAssetIssueCount).toBe(1);
     expect(bundle.summary.nativeCompositionFileBackedAssetIssueCount).toBe(0);
@@ -455,7 +458,9 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Live captions summary: Live caption session state is not available.");
     expect(formatSupportBundle(bundle)).toContain("Commercial Validation");
     expect(formatSupportBundle(bundle)).toContain("Runbook: running");
-    expect(formatSupportBundle(bundle)).toContain("Native composition: warn / preview-only-overlays");
+    expect(formatSupportBundle(bundle)).toContain(
+      "Native composition: warn / preview-only-overlays / still-image 1 / text 2 / chat 1"
+    );
     expect(formatSupportBundle(bundle)).toContain("asset issues 1 / file-backed 0");
     expect(formatSupportBundle(bundle)).toContain(
       "assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / runtime android-canvas-mediacodec 144 frames 1 dropped 0 failures / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing"

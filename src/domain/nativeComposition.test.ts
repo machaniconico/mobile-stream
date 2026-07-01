@@ -14,6 +14,8 @@ describe("native composition report", () => {
     expect(report.screenSourceCount).toBe(1);
     expect(report.avatarSourceCount).toBe(1);
     expect(report.stillImageOverlayCount).toBe(1);
+    expect(report.textOverlayCount).toBe(2);
+    expect(report.chatOverlayCount).toBe(1);
     expect(report.previewOnlySourceCount).toBe(1);
     expect(report.unsupportedSourceKinds).toEqual(["solid"]);
     expect(report.issues.map((issue) => issue.code)).toEqual(
@@ -34,6 +36,8 @@ describe("native composition report", () => {
     expect(report.coverage).toBe("native-overlays");
     expect(report.requiresNativeCompositor).toBe(false);
     expect(report.stillImageOverlayCount).toBe(1);
+    expect(report.textOverlayCount).toBe(2);
+    expect(report.chatOverlayCount).toBe(1);
     expect(report.previewOnlySourceCount).toBe(0);
     expect(report.assetIssueCount).toBe(0);
     expect(report.fileBackedAssetIssueCount).toBe(0);
@@ -138,6 +142,8 @@ describe("native composition report", () => {
     expect(report.status).toBe("pass");
     expect(report.coverage).toBe("screen-only");
     expect(report.requiresNativeCompositor).toBe(false);
+    expect(report.textOverlayCount).toBe(0);
+    expect(report.chatOverlayCount).toBe(0);
     expect(report.previewOnlySourceCount).toBe(0);
     expect(report.issues).toHaveLength(0);
   });
@@ -150,6 +156,8 @@ describe("native composition report", () => {
     expect(report.status).toBe("warn");
     expect(report.coverage).toBe("no-screen-capture");
     expect(report.screenSourceCount).toBe(0);
+    expect(report.textOverlayCount).toBe(2);
+    expect(report.chatOverlayCount).toBe(1);
     expect(report.requiresNativeCompositor).toBe(true);
   });
 });

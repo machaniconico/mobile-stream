@@ -722,6 +722,7 @@ export const formatStreamDiagnosticReport = (
     `- Visible sources: ${diagnostics.nativeComposition.visibleSourceCount}`,
     `- Screen sources: ${diagnostics.nativeComposition.screenSourceCount}`,
     `- Preview-only overlays: ${diagnostics.nativeComposition.previewOnlySourceCount}`,
+    `- Native overlay detail: still-image ${diagnostics.nativeComposition.stillImageOverlayCount} / text ${diagnostics.nativeComposition.textOverlayCount} / chat ${diagnostics.nativeComposition.chatOverlayCount}`,
     `- Still-image asset issues: ${diagnostics.nativeComposition.assetIssueCount}`,
     `- File-backed asset issues: ${diagnostics.nativeComposition.fileBackedAssetIssueCount}`,
     `- Avatar sources: ${diagnostics.nativeComposition.avatarSourceCount}`,

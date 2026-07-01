@@ -27,6 +27,8 @@ export interface NativeCompositionReport {
   screenSourceCount: number;
   avatarSourceCount: number;
   stillImageOverlayCount: number;
+  textOverlayCount: number;
+  chatOverlayCount: number;
   previewOnlySourceCount: number;
   assetIssueCount: number;
   fileBackedAssetIssueCount: number;
@@ -51,6 +53,8 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
     firstScreenIndex >= 0 ? visibleSources.slice(firstScreenIndex + 1).filter((source) => source.kind !== "screen") : visibleNonScreenSources;
   const nativeOverlaySources = overlaySources.filter((source) => nativeOverlayKinds.has(source.kind));
   const stillImageOverlayCount = nativeOverlaySources.filter((source) => nativeStillImageKinds.has(source.kind)).length;
+  const textOverlayCount = nativeOverlaySources.filter((source) => source.kind === "text").length;
+  const chatOverlayCount = nativeOverlaySources.filter((source) => source.kind === "chat").length;
   const unsupportedOverlaySources = overlaySources.filter((source) => !nativeOverlayKinds.has(source.kind));
   const previewOnlySources = [...underlaySources, ...unsupportedOverlaySources];
   const previewIssues = [
@@ -72,6 +76,8 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       screenSourceCount: 0,
       avatarSourceCount: 0,
       stillImageOverlayCount: 0,
+      textOverlayCount: 0,
+      chatOverlayCount: 0,
       previewOnlySourceCount: 0,
       assetIssueCount: 0,
       fileBackedAssetIssueCount: 0,
@@ -92,6 +98,8 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       screenSourceCount: 0,
       avatarSourceCount: countAvatarSources(visibleSources),
       stillImageOverlayCount,
+      textOverlayCount,
+      chatOverlayCount,
       previewOnlySourceCount: visibleNonScreenSources.length,
       assetIssueCount: assetIssues.length,
       fileBackedAssetIssueCount,
@@ -111,6 +119,8 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       screenSourceCount: screenSources.length,
       avatarSourceCount: countAvatarSources(visibleSources),
       stillImageOverlayCount,
+      textOverlayCount,
+      chatOverlayCount,
       previewOnlySourceCount: previewOnlySources.length,
       assetIssueCount: assetIssues.length,
       fileBackedAssetIssueCount,
@@ -131,6 +141,8 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
         screenSourceCount: screenSources.length,
         avatarSourceCount: countAvatarSources(visibleSources),
         stillImageOverlayCount,
+        textOverlayCount,
+        chatOverlayCount,
         previewOnlySourceCount: 0,
         assetIssueCount: assetIssues.length,
         fileBackedAssetIssueCount,
@@ -149,6 +161,8 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       screenSourceCount: screenSources.length,
       avatarSourceCount: countAvatarSources(visibleSources),
       stillImageOverlayCount,
+      textOverlayCount,
+      chatOverlayCount,
       previewOnlySourceCount: 0,
       assetIssueCount: 0,
       fileBackedAssetIssueCount: 0,
@@ -167,6 +181,8 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
     screenSourceCount: screenSources.length,
     avatarSourceCount: 0,
     stillImageOverlayCount: 0,
+    textOverlayCount: 0,
+    chatOverlayCount: 0,
     previewOnlySourceCount: 0,
     assetIssueCount: 0,
     fileBackedAssetIssueCount: 0,
