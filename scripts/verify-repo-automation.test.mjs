@@ -18,7 +18,17 @@ describe("repository automation verifier", () => {
     const result = verifyRepoAutomation({ ciPath, autoMergePath });
 
     expect(result.failures).toEqual([]);
-    expect(result.checks).toHaveLength(7);
+    expect(result.checks).toHaveLength(11);
+  });
+
+  it("rejects CI fixtures that drop Android native build coverage", () => {
+    writeWorkflowFixtures({ ci: ciFixture().replace("  - run: npm run verify:android-native", "") });
+
+    const result = verifyRepoAutomation({ ciPath, autoMergePath });
+
+    expect(result.failures).toContain(
+      'CI builds the Android native debug app: missing "npm run verify:android-native"'
+    );
   });
 
   it("rejects symlinked CI workflow files before reading linked targets", () => {
@@ -76,8 +86,15 @@ function writeWorkflowFixtures({ ci = ciFixture(), autoMerge = autoMergeFixture(
 
 function ciFixture() {
   return [
+    "permissions:",
+    "  contents: read",
     "name: test",
+    "timeout-minutes: 40",
     "steps:",
+    "  - uses: actions/setup-java@v4",
+    "    with:",
+    "      java-version: 17",
+    '  - run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006"',
     "  - run: npm ci",
     "  - run: npm run verify:repo-automation",
     "  - run: npm run verify:scripts",
@@ -86,7 +103,8 @@ function ciFixture() {
     "  - run: npm run typecheck",
     "  - run: npm run build",
     "  - run: npm run verify:web-bundle-size",
-    "  - run: npm run verify:rn"
+    "  - run: npm run verify:rn",
+    "  - run: npm run verify:android-native"
   ].join("\n");
 }
 

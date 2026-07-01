@@ -42,8 +42,19 @@ export function verifyRepoAutomation({ ciPath = defaultCiPath, autoMergePath = d
     check("CI keeps the required commercial gate job name", () => {
       expectIncludes(files.ci, "name: test");
     }),
+    check("CI keeps enough timeout for Android native builds", () => {
+      expectIncludes(files.ci, "timeout-minutes: 40");
+    }),
+    check("CI limits default token permissions", () => {
+      expectIncludes(files.ci, "permissions:\n  contents: read");
+    }),
     check("CI installs locked dependencies", () => {
       expectIncludes(files.ci, "npm ci");
+    }),
+    check("CI provisions Java and Android SDK for native builds", () => {
+      expectIncludes(files.ci, "actions/setup-java@v4");
+      expectIncludes(files.ci, "java-version: 17");
+      expectIncludes(files.ci, 'sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006"');
     }),
     check("CI runs repository automation safety audit", () => {
       expectIncludes(files.ci, "npm run verify:repo-automation");
@@ -58,6 +69,9 @@ export function verifyRepoAutomation({ ciPath = defaultCiPath, autoMergePath = d
       ["npm test", "npm run typecheck", "npm run build", "npm run verify:web-bundle-size", "npm run verify:rn"].forEach(
         (command) => expectIncludes(files.ci, command)
       );
+    }),
+    check("CI builds the Android native debug app", () => {
+      expectIncludes(files.ci, "npm run verify:android-native");
     }),
     check("Auto-merge is explicit opt-in only", () => {
       expectIncludes(files.autoMerge, "types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]");

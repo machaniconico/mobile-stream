@@ -33,6 +33,7 @@
     "mobile:bundle:ios": "react-native bundle --platform ios --dev false --entry-file index.js --bundle-output .artifacts/rn/main.ios.jsbundle --assets-dest .artifacts/rn/ios-assets",
     "mobile:bundle:android": "react-native bundle --platform android --dev false --entry-file index.js --bundle-output .artifacts/rn/index.android.bundle --assets-dest .artifacts/rn/android-assets",
     "verify:rn": "npm run mobile:bundle:ios && npm run mobile:bundle:android",
+    "verify:android-native": "npm run android:assembleDebug",
     "android:assembleDebug": "bash -lc 'source scripts/rn-env.sh && cd android && ./gradlew assembleDebug'",
     "android:assembleRelease": "bash -lc 'source scripts/rn-env.sh && cd android && ./gradlew assembleRelease'",
     "android:bundleRelease": "bash -lc 'source scripts/rn-env.sh && cd android && ./gradlew bundleRelease'",
