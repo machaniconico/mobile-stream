@@ -239,11 +239,15 @@ const sceneTransitionKinds: Array<{ kind: SceneTransitionKind; label: string }> 
 ];
 const expressions: AvatarExpression[] = ["neutral", "happy", "angry", "surprised"];
 
-const shareStreamDiagnosticReport = async (diagnostics: StreamDiagnostics, publicLaunchChecklist: PublicLaunchChecklist) => {
+const shareStreamDiagnosticReport = async (
+  diagnostics: StreamDiagnostics,
+  publicLaunchChecklist: PublicLaunchChecklist,
+  secrets: string[] = []
+) => {
   const report = createStreamDiagnosticReport(diagnostics, new Date(), publicLaunchChecklist);
   await Share.share({
     title: "MobileLiveCaster diagnostics",
-    message: formatStreamDiagnosticReport(report)
+    message: formatStreamDiagnosticReport(report, { secrets })
   });
 };
 
@@ -2300,7 +2304,10 @@ const StreamDiagnosticsPanel = ({
       <Text style={[styles.diagnosticSummaryText, diagnosticSummaryTextStyle(diagnostics.status)]}>{diagnostics.summary}</Text>
     </View>
     <View style={styles.diagnosticActions}>
-      <ActionButton label="Share Report" onPress={() => shareStreamDiagnosticReport(diagnostics, publicLaunchChecklist)} />
+      <ActionButton
+        label="Share Report"
+        onPress={() => shareStreamDiagnosticReport(diagnostics, publicLaunchChecklist, [profile.destination.streamKey])}
+      />
       <ActionButton label="Share Bundle" onPress={() => shareSupportBundle({ scene, profile, readiness, preflight, diagnostics })} />
       <ActionButton
         label="Clear History"

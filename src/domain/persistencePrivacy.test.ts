@@ -67,4 +67,12 @@ describe("persistence privacy", () => {
     expect(json).toContain("[phone redacted]");
     expect(json).toContain("[invite redacted]");
   });
+
+  it("redacts protocol-less .com links as whole tokens", () => {
+    const redacted = redactSecretsFromText("open example.com/private and a.rtmps.youtube.com/live2");
+
+    expect(redacted).toBe("open [redacted] and [redacted]");
+    expect(redacted).not.toContain("m/private");
+    expect(redacted).not.toContain("m/live2");
+  });
 });

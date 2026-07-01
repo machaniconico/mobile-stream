@@ -31,11 +31,35 @@ const redactText = (value: string, candidates: string[]): string =>
     redactProtocolLessLinks(redactSensitiveText(value))
   );
 
+const protocolLessLinkTldPattern = [
+  "stream",
+  "live",
+  "link",
+  "site",
+  "com",
+  "app",
+  "dev",
+  "xyz",
+  "net",
+  "org",
+  "ai",
+  "co",
+  "gg",
+  "io",
+  "jp",
+  "ly",
+  "me",
+  "tv"
+].join("|");
+
 const redactProtocolLessLinks = (value: string): string =>
   value
     .replace(/\bwww\.[^\s<>"']+/gi, redactProtocolLessLinkToken)
     .replace(
-      /(^|[^\w@./:])((?:[a-z0-9-]+\.)+(?:ai|app|co|com|dev|gg|io|jp|link|live|ly|me|net|org|site|stream|tv|xyz)(?:\/[^\s<>"']*)?)/gi,
+      new RegExp(
+        `(^|[^\\w@./:])((?:[a-z0-9-]+\\.)+(?:${protocolLessLinkTldPattern})(?:/[^\\s<>"']*)?)`,
+        "gi"
+      ),
       (_match, prefix: string, token: string) => `${prefix}${redactProtocolLessLinkToken(token)}`
     );
 

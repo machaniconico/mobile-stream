@@ -1532,6 +1532,63 @@ describe("stream diagnostics", () => {
     expect(text).not.toContain(demoStreamKey);
   }, 10_000);
 
+  it("redacts sensitive values during final diagnostic report export", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "failed" },
+      health: health({
+        message: `Authorization: Bearer diagnostic-access-token-secret with ${demoStreamKey}`
+      })
+    });
+    const report = createStreamDiagnosticReport(diagnostics, new Date("2026-06-22T00:00:00.000Z"));
+    const mutableReport = report as unknown as {
+      diagnostics: {
+        summary: string;
+        telemetry: { message: string };
+        session: { historySummary: { summary: string; recommendation: string } };
+        api?: { serialized: string };
+      };
+      publicLaunchChecklist?: { summary: string; primaryAction: string } | null;
+    };
+    mutableReport.diagnostics.summary = `Failed Authorization: Bearer diagnostic-access-token-secret with ${demoStreamKey}`;
+    mutableReport.diagnostics.telemetry.message =
+      "Contact viewer@example.com / 090-1234-5678 / discord.gg/privateRoom";
+    mutableReport.diagnostics.session.historySummary.summary = "Inspect www.example.org/private and example.tv/show";
+    mutableReport.diagnostics.session.historySummary.recommendation =
+      "callback mobilelivecaster://oauth/twitch?access_token=diagnostic-oauth-token-secret";
+    mutableReport.diagnostics.api = {
+      serialized:
+        '{"apiKey":"diagnostic-api-key-secret","nestedClientSecret":"diagnostic-client-secret"} customOauthToken=diagnostic-custom-token-secret'
+    };
+
+    const json = serializeStreamDiagnosticReport(report, { secrets: [demoStreamKey] });
+    const text = formatStreamDiagnosticReport(report, { secrets: [demoStreamKey] });
+    const exported = `${json}\n${text}`;
+
+    expect(exported).toContain("[redacted]");
+    expect(json).toContain("\"host\": \"a.rtmps.youtube.com\"");
+    expect(text).toContain("Endpoint: a.rtmps.youtube.com");
+    expect(exported).not.toContain(demoStreamKey);
+    expect(exported).not.toContain("diagnostic-access-token-secret");
+    expect(exported).not.toContain("diagnostic-oauth-token-secret");
+    expect(exported).not.toContain("diagnostic-api-key-secret");
+    expect(exported).not.toContain("diagnostic-client-secret");
+    expect(exported).not.toContain("diagnostic-custom-token-secret");
+    expect(exported).not.toContain("viewer@example.com");
+    expect(exported).not.toContain("090-1234-5678");
+    expect(exported).not.toContain("discord.gg/privateRoom");
+    expect(exported).not.toContain("www.example.org");
+    expect(exported).not.toContain("example.tv");
+  });
+
   it("keeps stream-stop chat disconnect events while redacting details", () => {
     const scene = createDefaultScene();
     const profile = {

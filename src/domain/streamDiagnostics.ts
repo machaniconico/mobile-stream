@@ -40,6 +40,7 @@ import type { ReadinessReport } from "./readiness";
 import type { SceneDocument } from "./scene";
 import { createSceneCompositionFingerprint } from "./sceneFingerprint";
 import { redactSensitiveText } from "./sensitiveText";
+import { redactSecretsFromPersistedValue, redactSecretsFromText } from "./persistencePrivacy";
 import {
   createDefaultStreamRecoveryPolicy,
   createStreamRecoveryStatus,
@@ -239,6 +240,10 @@ export interface StreamDiagnosticReport {
   };
   publicLaunchChecklist: PublicLaunchChecklist | null;
   diagnostics: StreamDiagnostics;
+}
+
+export interface StreamDiagnosticReportExportOptions {
+  secrets?: string[];
 }
 
 interface SnapshotLike {
@@ -552,13 +557,19 @@ export const createStreamDiagnosticReport = (
   diagnostics
 });
 
-export const serializeStreamDiagnosticReport = (report: StreamDiagnosticReport): string => JSON.stringify(report, null, 2);
+export const serializeStreamDiagnosticReport = (
+  report: StreamDiagnosticReport,
+  options: StreamDiagnosticReportExportOptions = {}
+): string => JSON.stringify(redactDiagnosticReportExport(report, options), null, 2);
 
-export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): string => {
+export const formatStreamDiagnosticReport = (
+  report: StreamDiagnosticReport,
+  options: StreamDiagnosticReportExportOptions = {}
+): string => {
   const diagnostics = report.diagnostics;
   const generatedAt = new Date(report.generatedAt);
   const platformPublishingFreshness = assessPlatformPublishingFreshness(diagnostics.platformPublishing, generatedAt);
-  return [
+  const formatted = [
     "MobileLiveCaster Diagnostics",
     `Generated: ${report.generatedAt}`,
     `Status: ${diagnostics.status}`,
@@ -797,7 +808,78 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     "Checks",
     ...diagnostics.checks.map((check) => `- [${check.status.toUpperCase()}] ${check.label}: ${check.message}`)
   ].join("\n");
+
+  return redactDiagnosticReportTextExport(formatted, report, options);
 };
+
+type DiagnosticExportReplacement = readonly [value: string, placeholder: string];
+
+const redactDiagnosticReportExport = (
+  report: StreamDiagnosticReport,
+  options: StreamDiagnosticReportExportOptions
+): StreamDiagnosticReport => {
+  const replacements = createDiagnosticExportReplacements(report, options.secrets ?? []);
+  const protectedReport = replaceDiagnosticExportText(report, replacements) as StreamDiagnosticReport;
+  const redactedReport = redactSecretsFromPersistedValue(protectedReport, options.secrets ?? []);
+  return restoreDiagnosticExportText(redactedReport, replacements) as StreamDiagnosticReport;
+};
+
+const redactDiagnosticReportTextExport = (
+  text: string,
+  report: StreamDiagnosticReport,
+  options: StreamDiagnosticReportExportOptions
+): string => {
+  const replacements = createDiagnosticExportReplacements(report, options.secrets ?? []);
+  const protectedText = replaceDiagnosticExportString(text, replacements);
+  return restoreDiagnosticExportString(redactSecretsFromText(protectedText, options.secrets ?? []), replacements);
+};
+
+const createDiagnosticExportReplacements = (
+  report: StreamDiagnosticReport,
+  secrets: string[]
+): DiagnosticExportReplacement[] => {
+  const values = [report.diagnostics.target.host].filter((value): value is string =>
+    isSafeDiagnosticExportLiteral(value, secrets)
+  );
+  return [...new Set(values)].map((value, index) => [value, `__MLC_DIAGNOSTIC_ALLOWED_${index}__`] as const);
+};
+
+const isSafeDiagnosticExportLiteral = (value: string | null | undefined, secrets: string[]): boolean => {
+  const trimmed = value?.trim() ?? "";
+  const lower = trimmed.toLowerCase();
+  if (!trimmed || !trimmed.includes(".") || !/^[a-z0-9.-]+$/i.test(trimmed) || redactSensitiveText(trimmed) !== trimmed) {
+    return false;
+  }
+  return !secrets.some((secret) => {
+    const normalized = secret.trim().toLowerCase();
+    return Boolean(normalized) && (lower.includes(normalized) || normalized.includes(lower));
+  });
+};
+
+const replaceDiagnosticExportText = (value: unknown, replacements: DiagnosticExportReplacement[]): unknown => {
+  if (typeof value === "string") {
+    return replaceDiagnosticExportString(value, replacements);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => replaceDiagnosticExportText(item, replacements));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceDiagnosticExportText(item, replacements)]));
+  }
+  return value;
+};
+
+const restoreDiagnosticExportText = (value: unknown, replacements: DiagnosticExportReplacement[]): unknown =>
+  replaceDiagnosticExportText(
+    value,
+    replacements.map(([original, placeholder]) => [placeholder, original] as const)
+  );
+
+const replaceDiagnosticExportString = (value: string, replacements: DiagnosticExportReplacement[]): string =>
+  replacements.reduce((current, [original, placeholder]) => current.split(original).join(placeholder), value);
+
+const restoreDiagnosticExportString = (value: string, replacements: DiagnosticExportReplacement[]): string =>
+  replacements.reduce((current, [original, placeholder]) => current.split(placeholder).join(original), value);
 
 const allowedChatEventTitles = new Set([
   "Chat auto-connect started",

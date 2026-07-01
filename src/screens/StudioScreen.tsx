@@ -252,9 +252,13 @@ const sceneTransitionKinds: Array<{ kind: SceneTransitionKind; label: string }> 
 
 const expressions: AvatarExpression[] = ["neutral", "happy", "angry", "surprised"];
 
-const downloadStreamDiagnosticReport = (diagnostics: StreamDiagnostics, publicLaunchChecklist: PublicLaunchChecklist) => {
+const downloadStreamDiagnosticReport = (
+  diagnostics: StreamDiagnostics,
+  publicLaunchChecklist: PublicLaunchChecklist,
+  secrets: string[] = []
+) => {
   const generatedAt = new Date();
-  const report = serializeStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics, generatedAt, publicLaunchChecklist));
+  const report = serializeStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics, generatedAt, publicLaunchChecklist), { secrets });
   const blob = new Blob([report], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -1993,7 +1997,11 @@ const StreamDiagnosticsPanel = ({
       <div className="diagnostic-summary-row">
         <div className={`diagnostic-summary ${diagnostics.status}`}>{diagnostics.summary}</div>
         <div className="diagnostic-actions">
-          <button className="secondary-action compact-action diagnostic-export" type="button" onClick={() => downloadStreamDiagnosticReport(diagnostics, publicLaunchChecklist)}>
+          <button
+            className="secondary-action compact-action diagnostic-export"
+            type="button"
+            onClick={() => downloadStreamDiagnosticReport(diagnostics, publicLaunchChecklist, [profile.destination.streamKey])}
+          >
             <Download size={15} />
             Diagnostics
           </button>
