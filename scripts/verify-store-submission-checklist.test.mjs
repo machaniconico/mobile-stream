@@ -104,6 +104,41 @@ describe("store submission checklist verifier", () => {
     expect(result.stderr).toContain("Store submission metadata contains possible OAuth/access/refresh/client secret");
   });
 
+  it("rejects personal contact details and protocol-less links in public store metadata copy", () => {
+    writeStoreSubmissionFiles({
+      appStore: {
+        appPrivacyNotes:
+          "Contact viewer@example.com or 090-1234-5678, join discord.gg/privateRoom, and see example.tv/private."
+      }
+    });
+
+    const result = runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Store submission metadata contains possible personal email address");
+    expect(result.stderr).toContain("Store submission metadata contains possible phone number");
+    expect(result.stderr).toContain("Store submission metadata contains possible invite link");
+    expect(result.stderr).toContain("Store submission metadata contains possible protocol-less private link");
+  });
+
+  it("allows official support emails and https policy URLs in store metadata", () => {
+    writeStoreSubmissionFiles({
+      appStore: {
+        reviewContactEmail: "contact@example.com",
+        supportUrl: "https://example.com/mobilelivecaster/support",
+        privacyPolicyUrl: "https://example.com/mobilelivecaster/privacy"
+      },
+      playStore: {
+        supportEmail: "privacy@example.com",
+        privacyPolicyUrl: "https://example.com/mobilelivecaster/privacy"
+      }
+    });
+
+    const result = runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(0);
+  });
+
   it("fails when a screenshot is modified after manifest creation", () => {
     writeStoreSubmissionFiles();
     expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
@@ -140,6 +175,24 @@ describe("store submission checklist verifier", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`Store submission review document metadata mismatch for ${reviewDocument}.`);
     expect(result.stderr).toContain("Store submission metadata contains possible OAuth/access/refresh/client secret");
+  });
+
+  it("rejects personal contact details and protocol-less links added to review documents", () => {
+    writeStoreSubmissionFiles();
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    writeFileSync(
+      reviewDocument,
+      "Updated review: viewer@example.com 090-1234-5678 discord.gg/privateRoom example.tv/private"
+    );
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission review document metadata mismatch for ${reviewDocument}.`);
+    expect(result.stderr).toContain("Store submission metadata contains possible personal email address");
+    expect(result.stderr).toContain("Store submission metadata contains possible phone number");
+    expect(result.stderr).toContain("Store submission metadata contains possible invite link");
+    expect(result.stderr).toContain("Store submission metadata contains possible protocol-less private link");
   });
 
   it("rejects verification when git commit provenance is missing", () => {

@@ -64,6 +64,12 @@ const sensitivePatterns = [
     pattern: /\brtmps?:\/\/[^\s"'<>]+\/[^\s"'<>]+\/[A-Za-z0-9_-]{8,}/i
   }
 ];
+const emailAddressPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const phoneLikePattern = /(^|[^\w+])(\+?\d[\d\s().-]{7,}\d)(?=$|[^\w])/g;
+const inviteLinkPattern = /\b(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/[A-Za-z0-9-]{2,}\b/gi;
+const protocolLessLinkPattern =
+  /(^|[^\w@./:])((?:www\.)?(?:[a-z0-9-]+\.)+(?:ai|app|co|com|dev|gg|io|jp|link|live|ly|me|net|org|site|stream|tv|xyz)(?:\/[^\s<>"']*)?)/gi;
+const allowedSupportEmailLocalParts = new Set(["support", "contact", "help", "privacy", "appstore", "playstore"]);
 
 export function createStoreSubmissionChecklist({
   metadataPath,
@@ -470,6 +476,11 @@ function validateNoSensitiveText(value, failures, path = "metadata") {
         failures.push(`Store submission metadata contains possible ${label} at ${path}.`);
       }
     }
+    for (const { label, detected } of storeSubmissionPrivacyFindings(value, path)) {
+      if (detected) {
+        failures.push(`Store submission metadata contains possible ${label} at ${path}.`);
+      }
+    }
     return;
   }
   if (Array.isArray(value)) {
@@ -481,6 +492,51 @@ function validateNoSensitiveText(value, failures, path = "metadata") {
       validateNoSensitiveText(child, failures, `${path}.${key}`);
     }
   }
+}
+
+function storeSubmissionPrivacyFindings(value, path) {
+  return [
+    { label: "personal email address", detected: hasDisallowedEmailAddress(value) },
+    { label: "phone number", detected: hasUnredactedPhoneMatch(value) },
+    { label: "invite link", detected: hasPatternMatch(value, inviteLinkPattern) },
+    { label: "protocol-less private link", detected: isProtocolLessLinkPath(path) && hasPatternMatch(value, protocolLessLinkPattern) }
+  ];
+}
+
+function hasDisallowedEmailAddress(value) {
+  emailAddressPattern.lastIndex = 0;
+  for (const match of value.matchAll(emailAddressPattern)) {
+    const localPart = String(match[0]).split("@")[0]?.toLowerCase() || "";
+    if (!allowedSupportEmailLocalParts.has(localPart)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function hasUnredactedPhoneMatch(value) {
+  phoneLikePattern.lastIndex = 0;
+  for (const match of value.matchAll(phoneLikePattern)) {
+    if (isUnredactedPhoneCandidate(match[2] || "")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isUnredactedPhoneCandidate(value) {
+  const digits = value.replace(/\D/g, "");
+  const normalized = value.trim();
+  return digits.length >= 10 && digits.length <= 15 && !/^20\d{2}[-./\s]/.test(normalized);
+}
+
+function isProtocolLessLinkPath(path) {
+  return !path.includes(".supportUrl") && !path.includes(".privacyPolicyUrl");
+}
+
+function hasPatternMatch(value, pattern) {
+  pattern.lastIndex = 0;
+  return pattern.test(value);
 }
 
 function validateManifestScreenshotsMatchMetadata(manifest, metadata, failures) {
