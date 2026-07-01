@@ -2594,7 +2594,7 @@ const validationRunMonitorHoldLabel = (run: StreamValidationRun): string | null 
 
 const validationRunFaceTrackingLabel = (run: StreamValidationRun): string | null =>
   run.faceTracking && run.faceTracking.status !== "info"
-    ? `face ${run.faceTracking.status} / ${run.faceTracking.inputMode} / ${run.faceTracking.runtimeStatus} / prepared ${run.faceTracking.preparedPngTuberCount} / moving ${run.faceTracking.activeMotionCount}`
+    ? `face ${run.faceTracking.status} / ${run.faceTracking.inputMode} / ${run.faceTracking.runtimeStatus} / landmarks ${Math.round(run.faceTracking.faceLandmarkConfidence * 100)}% ${run.faceTracking.faceLandmarkReady ? "ready" : "not-ready"} / attenuation motion ${Math.round(run.faceTracking.landmarkMotionScale * 100)}% controls ${Math.round(run.faceTracking.faceControlScale * 100)}% / prepared ${run.faceTracking.preparedPngTuberCount} / moving ${run.faceTracking.activeMotionCount}`
     : null;
 
 const validationRunChatReadoutLabel = (run: StreamValidationRun): string | null =>

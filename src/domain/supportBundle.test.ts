@@ -769,6 +769,7 @@ describe("support bundle", () => {
     expect(text).toContain(`Evidence fingerprint: ${bundle.summary.validationEvidenceFingerprint} / latest ${latestRunFingerprint ?? "-"}`);
     expect(text).toContain("Evidence run manifest: ios warn eligible");
     expect(text).toContain(latestRunFingerprint ?? "-");
+    expect(text).toContain("avatar landmarks 0% not-ready attenuation motion 100% controls 0%");
     expect(text).toContain(
       "Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / encoders videotoolbox-h264/audiotoolbox-aac / MediaCodec probe missing none/none / sent 0 video 0 audio / bytes 0 / frame interval 119 samples avg 33.3ms max 42ms jitter 8.7ms / overlays applied 4 kinds caption/chat/pngtuber/text skipped 0 / live reloads 2 rejected 1 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / 0 missing / app-group 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600"
     );
