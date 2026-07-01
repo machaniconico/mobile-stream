@@ -75,13 +75,20 @@ if (isDirectRun()) {
 function run() {
   const args = argv.slice(2);
   const filePath = args.find((arg) => !arg.startsWith("--"));
-  const allowWarnings = args.includes("--allow-warnings");
   const maxAgeArg = args.find((arg) => arg.startsWith("--max-age-hours="));
   const maxBundleAgeHours = maxAgeArg ? Number(maxAgeArg.split("=")[1]) : defaultMaxBundleAgeHours;
 
+  if (args.includes("--allow-warnings")) {
+    console.error(
+      "Usage: npm run verify:commercial-release-bundle -- <support-bundle.json> [--max-age-hours=24]"
+    );
+    console.error("--allow-warnings is not supported for commercial release approval. Resolve support-bundle warnings first.");
+    return 2;
+  }
+
   if (!filePath || !Number.isFinite(maxBundleAgeHours) || maxBundleAgeHours < 1) {
     console.error(
-      "Usage: npm run verify:commercial-release-bundle -- <support-bundle.json> [--max-age-hours=24] [--allow-warnings]"
+      "Usage: npm run verify:commercial-release-bundle -- <support-bundle.json> [--max-age-hours=24]"
     );
     return 2;
   }
@@ -98,8 +105,7 @@ function run() {
 
   const gate = createCommercialReleaseGate(bundle, {
     now: new Date(),
-    maxBundleAgeHours,
-    allowWarnings
+    maxBundleAgeHours
   });
 
   console.log(`MobileLiveCaster Commercial Release Gate (${basename(filePath)})`);
@@ -118,7 +124,7 @@ function run() {
   return gate.canRelease ? 0 : 1;
 }
 
-export function createCommercialReleaseGate(bundle, { now, maxBundleAgeHours = defaultMaxBundleAgeHours, allowWarnings = false }) {
+export function createCommercialReleaseGate(bundle, { now, maxBundleAgeHours = defaultMaxBundleAgeHours }) {
   const issues = [
     bundleIdentityIssue(bundle),
     supportBundleRedactionIssue(bundle),
@@ -147,19 +153,19 @@ export function createCommercialReleaseGate(bundle, { now, maxBundleAgeHours = d
   const warningCount = issues.filter((issue) => issue.severity === "warn").length;
   const failureCount = issues.filter((issue) => issue.severity === "fail").length;
   const status = failureCount > 0 ? "blocked" : warningCount > 0 ? "warning" : "ready";
-  const canRelease = failureCount === 0 && (allowWarnings || warningCount === 0);
+  const canRelease = failureCount === 0 && warningCount === 0;
   return {
     canRelease,
     status,
     bundleAgeHours: ageInHours(bundle?.generatedAt, now),
     issues,
-    summary: gateSummary(status, canRelease, warningCount, failureCount),
+    summary: gateSummary(canRelease, warningCount, failureCount),
     primaryAction:
       canRelease
         ? "Archive this support bundle with the release-candidate build before publishing."
         : issues.find((issue) => issue.severity === "fail")?.action ??
           issues[0]?.action ??
-          "Review release warnings before publishing."
+          "Resolve release warnings before publishing."
   };
 }
 
@@ -1053,16 +1059,14 @@ function supportBundleRedactionIssue(bundle) {
   );
 }
 
-function gateSummary(status, canRelease, warningCount, failureCount) {
+function gateSummary(canRelease, warningCount, failureCount) {
   if (canRelease) {
-    return status === "warning"
-      ? `${warningCount} release warning${warningCount === 1 ? "" : "s"} accepted.`
-      : "Commercial release gate is ready.";
+    return "Commercial release gate is ready.";
   }
   if (failureCount > 0) {
     return `${failureCount} commercial release blocker${failureCount === 1 ? "" : "s"} remain.`;
   }
-  return `${warningCount} commercial release warning${warningCount === 1 ? "" : "s"} require approval.`;
+  return `${warningCount} commercial release warning${warningCount === 1 ? "" : "s"} require resolution.`;
 }
 
 function fail(code, label, detail, action) {

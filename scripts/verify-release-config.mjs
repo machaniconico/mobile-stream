@@ -179,6 +179,8 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "android-publisher-mode-not-commercial");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 55");
+    expectIncludes(files.commercialReleaseBundleScript, "--allow-warnings is not supported for commercial release approval");
+    expectIncludes(files.commercialReleaseBundleScript, "warningCount === 0");
     expectIncludes(files.commercialReleaseBundleScript, "scene-fingerprint-missing");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-scene-fingerprint");
     expectIncludes(files.commercialReleaseBundleScript, "native-caption-overlay-summary-missing");

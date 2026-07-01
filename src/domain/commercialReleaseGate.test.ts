@@ -189,7 +189,7 @@ describe("commercial release gate", () => {
           textOverlayRecommendation: "Increase the text box before public launch."
         }
       }),
-      { now, allowWarnings: true }
+      { now }
     );
 
     expect(gate.status).toBe("blocked");
@@ -213,7 +213,7 @@ describe("commercial release gate", () => {
           chatOverlayRecommendation: "Increase the chat box before launch."
         }
       }),
-      { now, allowWarnings: true }
+      { now }
     );
 
     expect(gate.status).toBe("blocked");
@@ -391,7 +391,7 @@ describe("commercial release gate", () => {
     expect(formatCommercialReleaseGate(gate)).toContain("Refresh YouTube status within 10 minutes");
   });
 
-  it("blocks stale retained validation runs even when warnings are allowed", () => {
+  it("blocks stale retained validation runs", () => {
     const bundle = supportBundle({
       summary: {
         validationEvidenceRunCount: 3,
@@ -404,7 +404,7 @@ describe("commercial release gate", () => {
       }
     });
 
-    const gate = createCommercialReleaseGate(bundle, { now, allowWarnings: true });
+    const gate = createCommercialReleaseGate(bundle, { now });
 
     expect(gate.status).toBe("blocked");
     expect(gate.canRelease).toBe(false);
@@ -417,7 +417,7 @@ describe("commercial release gate", () => {
     expect(gate.primaryAction).toContain("Clear old retained validation evidence");
   });
 
-  it("blocks public launch checklist warnings even when warnings are allowed", () => {
+  it("blocks public launch checklist warnings", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         summary: {
@@ -425,7 +425,7 @@ describe("commercial release gate", () => {
           publicLaunchWarningCount: 1
         }
       }),
-      { now, allowWarnings: true }
+      { now }
     );
 
     expect(gate.status).toBe("blocked");
@@ -438,7 +438,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks Go Live preflight warnings even when warnings are allowed", () => {
+  it("blocks Go Live preflight warnings", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         summary: {
@@ -446,7 +446,7 @@ describe("commercial release gate", () => {
           launchWarningCount: 1
         }
       }),
-      { now, allowWarnings: true }
+      { now }
     );
 
     expect(gate.status).toBe("blocked");
@@ -459,7 +459,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks commercial validation warnings and pending items even when warnings are allowed", () => {
+  it("blocks commercial validation warnings and pending items", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         summary: {
@@ -467,7 +467,7 @@ describe("commercial release gate", () => {
           validationPendingCount: 1
         }
       }),
-      { now, allowWarnings: true }
+      { now }
     );
 
     expect(gate.status).toBe("blocked");
@@ -480,7 +480,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks launch rehearsal warnings even when warnings are allowed", () => {
+  it("blocks launch rehearsal warnings", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         summary: {
@@ -489,7 +489,7 @@ describe("commercial release gate", () => {
           rehearsalPrimaryAction: "Repeat the rehearsal until every warning is resolved."
         }
       }),
-      { now, allowWarnings: true }
+      { now }
     );
 
     expect(gate.status).toBe("blocked");
@@ -502,7 +502,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks retained manifest count mismatches even when warnings are allowed", () => {
+  it("blocks retained manifest count mismatches", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         summary: {
@@ -515,7 +515,7 @@ describe("commercial release gate", () => {
           ]
         }
       }),
-      { now, allowWarnings: true }
+      { now }
     );
 
     expect(gate.status).toBe("blocked");

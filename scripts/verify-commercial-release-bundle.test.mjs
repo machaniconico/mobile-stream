@@ -27,6 +27,23 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Can release: yes");
   });
 
+  it("rejects warning-approved commercial support-bundle verification", () => {
+    writeBundle();
+
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/verify-commercial-release-bundle.mjs", fixturePath, "--max-age-hours=24", "--allow-warnings"],
+      {
+        encoding: "utf8"
+      }
+    );
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("Usage:");
+    expect(result.stderr).toContain("--allow-warnings is not supported for commercial release approval.");
+    expect(result.stdout).not.toContain("Can release: yes");
+  });
+
   it("blocks v21 support bundles without platform dashboard manifest proof", () => {
     writeBundle({
       app: {
@@ -132,7 +149,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("missing native caption overlay count summary evidence");
   });
 
-  it("blocks text overlay warning evidence even when warnings are allowed", () => {
+  it("blocks text overlay warning evidence", () => {
     writeBundle({
       summary: {
         textOverlayStatus: "warn",
@@ -142,7 +159,7 @@ describe("commercial release bundle verifier CLI", () => {
       }
     });
 
-    const result = runVerifierAllowWarnings();
+    const result = runVerifier();
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("[FAIL] Text overlay evidence");
@@ -151,7 +168,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("release warning");
   });
 
-  it("blocks live caption warning evidence even when warnings are allowed", () => {
+  it("blocks live caption warning evidence", () => {
     writeBundle({
       summary: {
         liveCaptionStatus: "warn",
@@ -166,7 +183,7 @@ describe("commercial release bundle verifier CLI", () => {
       }
     });
 
-    const result = runVerifierAllowWarnings();
+    const result = runVerifier();
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("[FAIL] Live caption evidence");
@@ -175,7 +192,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("release warning");
   });
 
-  it("blocks chat overlay warning evidence even when warnings are allowed", () => {
+  it("blocks chat overlay warning evidence", () => {
     writeBundle({
       summary: {
         chatOverlayStatus: "warn",
@@ -186,7 +203,7 @@ describe("commercial release bundle verifier CLI", () => {
       }
     });
 
-    const result = runVerifierAllowWarnings();
+    const result = runVerifier();
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("[FAIL] Chat overlay evidence");
@@ -195,7 +212,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("release warning");
   });
 
-  it("blocks public launch checklist warnings even when warnings are allowed", () => {
+  it("blocks public launch checklist warnings", () => {
     writeBundle({
       summary: {
         publicLaunchStatus: "warning",
@@ -203,7 +220,7 @@ describe("commercial release bundle verifier CLI", () => {
       }
     });
 
-    const result = runVerifierAllowWarnings();
+    const result = runVerifier();
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("[FAIL] Public launch checklist");
@@ -212,7 +229,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("release warning");
   });
 
-  it("blocks Go Live preflight warnings even when warnings are allowed", () => {
+  it("blocks Go Live preflight warnings", () => {
     writeBundle({
       summary: {
         preflightStatus: "warning",
@@ -220,7 +237,7 @@ describe("commercial release bundle verifier CLI", () => {
       }
     });
 
-    const result = runVerifierAllowWarnings();
+    const result = runVerifier();
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("[FAIL] Go Live preflight");
@@ -229,7 +246,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("release warning");
   });
 
-  it("blocks commercial validation warnings and pending items even when warnings are allowed", () => {
+  it("blocks commercial validation warnings and pending items", () => {
     writeBundle({
       summary: {
         validationWarningCount: 1,
@@ -237,7 +254,7 @@ describe("commercial release bundle verifier CLI", () => {
       }
     });
 
-    const result = runVerifierAllowWarnings();
+    const result = runVerifier();
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("[FAIL] Commercial validation");
@@ -246,7 +263,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("release warning");
   });
 
-  it("blocks launch rehearsal warnings even when warnings are allowed", () => {
+  it("blocks launch rehearsal warnings", () => {
     writeBundle({
       summary: {
         rehearsalWarningCount: 1,
@@ -255,7 +272,7 @@ describe("commercial release bundle verifier CLI", () => {
       }
     });
 
-    const result = runVerifierAllowWarnings();
+    const result = runVerifier();
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("[FAIL] Launch rehearsal");
@@ -715,7 +732,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("stable duration, sample count");
   });
 
-  it("blocks manifest count mismatches even when warnings are allowed", () => {
+  it("blocks manifest count mismatches", () => {
     writeBundle({
       summary: {
         validationEvidenceRunCount: 2,
@@ -728,7 +745,7 @@ describe("commercial release bundle verifier CLI", () => {
       }
     });
 
-    const result = runVerifierAllowWarnings();
+    const result = runVerifier();
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("[FAIL] Validation evidence manifest");
@@ -737,7 +754,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("release warning");
   });
 
-  it("blocks stale retained validation runs even when warnings are allowed", () => {
+  it("blocks stale retained validation runs", () => {
     writeBundle({
       summary: {
         validationEvidenceRunCount: 3,
@@ -751,7 +768,7 @@ describe("commercial release bundle verifier CLI", () => {
       }
     });
 
-    const result = runVerifierAllowWarnings();
+    const result = runVerifier();
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("[FAIL] Physical validation evidence");
@@ -776,7 +793,7 @@ describe("commercial release bundle verifier CLI", () => {
       }
     });
 
-    const result = runVerifierAllowWarnings();
+    const result = runVerifier();
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Can release: no");
@@ -1377,11 +1394,6 @@ describe("commercial release bundle verifier CLI", () => {
 
 const runVerifier = (path = fixturePath) =>
   spawnSync(process.execPath, ["scripts/verify-commercial-release-bundle.mjs", path, "--max-age-hours=24"], {
-    encoding: "utf8"
-  });
-
-const runVerifierAllowWarnings = (path = fixturePath) =>
-  spawnSync(process.execPath, ["scripts/verify-commercial-release-bundle.mjs", path, "--max-age-hours=24", "--allow-warnings"], {
     encoding: "utf8"
   });
 

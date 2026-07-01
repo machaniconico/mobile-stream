@@ -41,7 +41,6 @@ export interface CommercialReleaseGate {
 export interface CommercialReleaseGateOptions {
   now?: Date;
   maxBundleAgeHours?: number;
-  allowWarnings?: boolean;
 }
 
 const minimumSupportBundleVersion = 55;
@@ -57,8 +56,7 @@ export const createCommercialReleaseGate = (
   bundle: SupportBundle,
   {
     now = new Date(),
-    maxBundleAgeHours = defaultMaxBundleAgeHours,
-    allowWarnings = false
+    maxBundleAgeHours = defaultMaxBundleAgeHours
   }: CommercialReleaseGateOptions = {}
 ): CommercialReleaseGate => {
   const issueCandidates = [
@@ -91,7 +89,7 @@ export const createCommercialReleaseGate = (
   const warningCount = issues.filter((issue) => issue.severity === "warn").length;
   const failureCount = issues.filter((issue) => issue.severity === "fail").length;
   const status: CommercialReleaseGateStatus = failureCount > 0 ? "blocked" : warningCount > 0 ? "warning" : "ready";
-  const canRelease = failureCount === 0 && (allowWarnings || warningCount === 0);
+  const canRelease = failureCount === 0 && warningCount === 0;
 
   return {
     canRelease,
@@ -106,7 +104,7 @@ export const createCommercialReleaseGate = (
       failureCount
     },
     issues,
-    summary: createGateSummary(status, canRelease, { warningCount, failureCount }),
+    summary: createGateSummary(canRelease, { warningCount, failureCount }),
     primaryAction: createPrimaryAction(canRelease, issues)
   };
 };
@@ -888,26 +886,23 @@ const createRetainedStaleEvidenceIssue = (bundle: SupportBundle): CommercialRele
 };
 
 const createGateSummary = (
-  status: CommercialReleaseGateStatus,
   canRelease: boolean,
   counts: { warningCount: number; failureCount: number }
 ): string => {
   if (canRelease) {
-    return status === "warning"
-      ? `${counts.warningCount} release warning${counts.warningCount === 1 ? "" : "s"} accepted.`
-      : "Commercial release gate is ready.";
+    return "Commercial release gate is ready.";
   }
   if (counts.failureCount > 0) {
     return `${counts.failureCount} commercial release blocker${counts.failureCount === 1 ? "" : "s"} remain.`;
   }
-  return `${counts.warningCount} commercial release warning${counts.warningCount === 1 ? "" : "s"} require approval.`;
+  return `${counts.warningCount} commercial release warning${counts.warningCount === 1 ? "" : "s"} require resolution.`;
 };
 
 const createPrimaryAction = (canRelease: boolean, issues: CommercialReleaseGateIssue[]): string => {
   if (canRelease) {
     return "Archive this support bundle with the release-candidate build before publishing.";
   }
-  return issues.find((issue) => issue.severity === "fail")?.action ?? issues[0]?.action ?? "Review release warnings before publishing.";
+  return issues.find((issue) => issue.severity === "fail")?.action ?? issues[0]?.action ?? "Resolve release warnings before publishing.";
 };
 
 const failIssue = (
