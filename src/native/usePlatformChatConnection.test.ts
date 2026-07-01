@@ -11,4 +11,12 @@ describe("usePlatformChatConnection", () => {
     expect(source).not.toContain("Twitch chat socket error.");
     expect(source).not.toContain("Twitch chat socket closed.");
   });
+
+  it("keeps lastReceivedAt when YouTube polls or Twitch PINGs have no chat messages", () => {
+    const source = readFileSync(new URL("./usePlatformChatConnection.ts", import.meta.url), "utf8");
+
+    expect(source.match(/lastReceivedAt: .*current\.lastReceivedAt/g)).toHaveLength(2);
+    expect(source).not.toContain("lastReceivedAt: page.ingest.messages.at(-1)?.receivedAt ?? null");
+    expect(source).not.toContain("lastReceivedAt: result.messages.at(-1)?.receivedAt ?? null");
+  });
 });

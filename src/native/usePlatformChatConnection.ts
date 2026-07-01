@@ -141,13 +141,13 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages, autoReco
 
         const now = Date.now();
         const nextPollAt = now + page.nextPollIntervalMs;
-        setConnection({
+        setConnection((current) => ({
           phase: "connected",
           label: "Connected",
           message: `YouTube chat polling every ${Math.round(page.nextPollIntervalMs / 1000)}s.`,
-          lastReceivedAt: page.ingest.messages.at(-1)?.receivedAt ?? null,
+          lastReceivedAt: page.ingest.messages.at(-1)?.receivedAt ?? current.lastReceivedAt,
           nextPollAt
-        });
+        }));
         youtubeTimerRef.current = setTimeout(() => void pollYouTube(connectionId, page.nextCursor), page.nextPollIntervalMs);
       } catch (error) {
         if (!isCurrentConnection(activeRef, connectionIdRef, connectionId)) {
@@ -216,13 +216,13 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages, autoReco
         onMessagesRef.current(result.messages);
       }
 
-      setConnection({
+      setConnection((current) => ({
         phase: "connected",
         label: "Connected",
         message: "Twitch IRC chat is connected.",
-        lastReceivedAt: result.messages.at(-1)?.receivedAt ?? null,
+        lastReceivedAt: result.messages.at(-1)?.receivedAt ?? current.lastReceivedAt,
         nextPollAt: null
-      });
+      }));
     };
 
     socket.onerror = () => {
