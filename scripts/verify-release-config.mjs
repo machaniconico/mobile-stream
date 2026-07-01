@@ -42,6 +42,13 @@ const files = {
   storeSubmissionScript: read("scripts/verify-store-submission-checklist.mjs"),
   releaseGitProvenanceScript: read("scripts/release-git-provenance.mjs"),
   storeSubmissionApprovalScript: read("scripts/verify-store-submission-approval.mjs"),
+  readme: read("README.md"),
+  implementationStatus: read("docs/IMPLEMENTATION_STATUS.md"),
+  sceneDomain: read("src/domain/scene.ts"),
+  sceneDomainTest: read("src/domain/scene.test.ts"),
+  webStudioScreen: read("src/screens/StudioScreen.tsx"),
+  mobileStudioScreen: read("src/mobile/MobileStudioScreen.tsx"),
+  webStyles: read("src/styles.css"),
   supportBundleDomain: read("src/domain/supportBundle.ts"),
   commercialReleaseGateDomain: read("src/domain/commercialReleaseGate.ts"),
   streamDiagnosticsDomain: read("src/domain/streamDiagnostics.ts"),
@@ -374,6 +381,35 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "isGeneratedReactNativeBundlePath");
     expectIncludes(files.releaseEvidencePackageScript, "artifacts/.artifacts/rn/");
     expectIncludes(files.releaseEvidencePackageScript, "endsWith(\".jsbundle\")");
+  }),
+  check("Quick text preset actions are locked for Web and React Native release builds", () => {
+    expectIncludes(files.sceneDomain, 'export type QuickTextOverlayPresetAction = "show" | "queue" | "pin";');
+    expectIncludes(files.sceneDomain, "quickTextOverlayPresetActions");
+    expectIncludes(files.sceneDomain, 'action: "show"');
+    expectIncludes(files.sceneDomain, 'action: "queue"');
+    expectIncludes(files.sceneDomain, 'action: "pin"');
+    expectIncludes(files.sceneDomain, "queueQuickTextOverlayPreset");
+    expectIncludes(files.sceneDomain, "pinQuickTextOverlayPreset");
+    expectIncludes(files.sceneDomain, "applyQuickTextOverlayPreset");
+    expectIncludes(files.sceneDomain, "return queueQuickTextOverlayPreset(scene, presetId, request);");
+    expectIncludes(files.sceneDomain, "return pinQuickTextOverlayPreset(scene, presetId, request);");
+    expectIncludes(files.sceneDomain, "return showQuickTextOverlayPreset(scene, presetId, request);");
+    expectIncludes(files.sceneDomainTest, "queues and pins quick text presets for scripted subtitle operation");
+    expectIncludes(files.sceneDomainTest, "applies quick text preset actions through a shared action API");
+    expectIncludes(files.sceneDomainTest, 'expect(quickTextOverlayPresetActions.map((option) => option.action)).toEqual(["show", "queue", "pin"])');
+    expectIncludes(files.webStudioScreen, 'useState<QuickTextOverlayPresetAction>("show")');
+    expectIncludes(files.mobileStudioScreen, 'useState<QuickTextOverlayPresetAction>("show")');
+    expectIncludes(files.webStudioScreen, "applyQuickTextOverlayPreset(scene, presetId, quickTextPresetAction,");
+    expectIncludes(files.mobileStudioScreen, "applyQuickTextOverlayPreset(scene, presetId, quickTextPresetAction,");
+    expectIncludes(files.webStudioScreen, "quickTextOverlayPresetActions.map");
+    expectIncludes(files.mobileStudioScreen, "quickTextOverlayPresetActions.map");
+    expectIncludes(files.webStudioScreen, "Preset action");
+    expectIncludes(files.mobileStudioScreen, "Preset action");
+    expectIncludes(files.webStudioScreen, "onClick={() => setQuickTextPresetAction(option.action)}");
+    expectIncludes(files.mobileStudioScreen, "onPress={() => setQuickTextPresetAction(option.action)}");
+    expectIncludes(files.webStyles, "quick-text-action-buttons");
+    expectIncludes(files.readme, "preset action switching for immediate display, queued display, or pinned display");
+    expectIncludes(files.implementationStatus, "preset action switching for immediate, queued, or pinned display");
   }),
   check("Android streaming permissions are declared", () => {
     [
