@@ -491,11 +491,11 @@ const createValidationIssue = (bundle: SupportBundle): CommercialReleaseGateIssu
     );
   }
   if (bundle.summary.validationWarningCount > 0 || bundle.summary.validationPendingCount > 0) {
-    return warnIssue(
-      "commercial-validation-warning",
+    return failIssue(
+      "commercial-validation-incomplete",
       "Commercial validation",
       `${bundle.summary.validationWarningCount} warning(s) and ${bundle.summary.validationPendingCount} pending validation item(s) remain.`,
-      "Review remaining validation items before approving release with warnings."
+      "Resolve every commercial validation warning and pending item before release approval."
     );
   }
   return null;

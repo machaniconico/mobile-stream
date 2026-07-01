@@ -590,11 +590,11 @@ function validationIssue(bundle) {
     );
   }
   if (number(summary.validationWarningCount) > 0 || number(summary.validationPendingCount) > 0) {
-    return warn(
-      "commercial-validation-warning",
+    return fail(
+      "commercial-validation-incomplete",
       "Commercial validation",
       `${number(summary.validationWarningCount)} warning(s) and ${number(summary.validationPendingCount)} pending validation item(s) remain.`,
-      "Review remaining validation items before approving release with warnings."
+      "Resolve every commercial validation warning and pending item before release approval."
     );
   }
   return null;

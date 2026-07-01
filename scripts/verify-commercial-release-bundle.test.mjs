@@ -229,6 +229,23 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("release warning");
   });
 
+  it("blocks commercial validation warnings and pending items even when warnings are allowed", () => {
+    writeBundle({
+      summary: {
+        validationWarningCount: 1,
+        validationPendingCount: 1
+      }
+    });
+
+    const result = runVerifierAllowWarnings();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[FAIL] Commercial validation");
+    expect(result.stdout).toContain("Resolve every commercial validation warning");
+    expect(result.stdout).toContain("Can release: no");
+    expect(result.stdout).not.toContain("release warning");
+  });
+
   it("blocks prefix-named token and API key leaks", () => {
     writeBundle({
       diagnostics: {
