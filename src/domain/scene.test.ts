@@ -13,6 +13,7 @@ import {
   createSceneFromTemplate,
   createSubtitleTextSource,
   createSource,
+  createTextOverlayPresetSource,
   duplicateActiveScene,
   inferAvatarIllustrationRig,
   normalizeSceneCollection,
@@ -852,6 +853,45 @@ describe("scene document", () => {
       backgroundColor: "#000000",
       outlineColor: "#000000"
     });
+  });
+
+  it("creates OBS-style text overlay presets for manual copy, tickers, and live captions", () => {
+    const lowerThird = createTextOverlayPresetSource("lower-third");
+    const ticker = createTextOverlayPresetSource("ticker");
+    const liveCaption = createTextOverlayPresetSource("live-caption");
+    const graph = toRenderGraph(addSource(addSource(addSource(createDefaultScene(), lowerThird), ticker), liveCaption), {
+      captions: [{ speaker: "Host", text: "ライブ字幕テスト" }]
+    });
+
+    expect(lowerThird).toMatchObject({
+      kind: "text",
+      name: "Lower Third",
+      mode: "label",
+      contentSource: "manual",
+      align: "left",
+      maxLines: 2,
+      backgroundOpacity: 0.36,
+      transform: { x: 0.05, y: 0.72, width: 0.52, height: 0.18 }
+    });
+    expect(ticker).toMatchObject({
+      kind: "text",
+      name: "Ticker",
+      mode: "ticker",
+      contentSource: "manual",
+      maxLines: 1,
+      backgroundOpacity: 0.52,
+      transform: { x: 0, y: 0.91, width: 1, height: 0.09 }
+    });
+    expect(liveCaption).toMatchObject({
+      kind: "text",
+      mode: "caption",
+      contentSource: "runtime-caption",
+      showCaptionSpeaker: false,
+      maxLines: 3
+    });
+    expect(graph.find((node) => node.id === lowerThird.id)?.payload.text).toBe("配信タイトル / 告知テキスト");
+    expect(graph.find((node) => node.id === ticker.id)?.payload.mode).toBe("ticker");
+    expect(graph.find((node) => node.id === liveCaption.id)?.payload.text).toBe("ライブ字幕テスト");
   });
 
   it("strips transient avatar runtime before scene persistence", () => {

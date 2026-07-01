@@ -54,9 +54,8 @@ import type { ReadinessIssue, ReadinessReport } from "../domain/readiness";
 import {
   addSource,
   applyInferredAvatarIllustrationRig,
-  createLiveCaptionTextSource,
-  createSubtitleTextSource,
   createSource,
+  createTextOverlayPresetSource,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
   reorderSource,
@@ -78,6 +77,7 @@ import {
   type TextSourceAlign,
   type TextSourceContentSource,
   type TextSourceMode,
+  type TextOverlayPresetId,
   type SourceKind
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
@@ -211,6 +211,12 @@ const textSourceModes: Array<{ mode: TextSourceMode; label: string }> = [
 const textSourceContentSources: Array<{ contentSource: TextSourceContentSource; label: string }> = [
   { contentSource: "manual", label: "Manual" },
   { contentSource: "runtime-caption", label: "Live caption" }
+];
+const textOverlayPresets: Array<{ presetId: TextOverlayPresetId; label: string }> = [
+  { presetId: "subtitle", label: "Subtitle" },
+  { presetId: "lower-third", label: "Lower Third" },
+  { presetId: "ticker", label: "Ticker" },
+  { presetId: "live-caption", label: "Live Caption" }
 ];
 const textSourceAlignments: TextSourceAlign[] = ["left", "center", "right"];
 const sceneTransitionKinds: Array<{ kind: SceneTransitionKind; label: string }> = [
@@ -606,20 +612,11 @@ export const MobileStudioScreen = ({
     onSelectSource(source.id);
   };
 
-  const addSubtitleSource = () => {
+  const addTextOverlayPreset = (presetId: TextOverlayPresetId) => {
     if (setupLocked) {
       return;
     }
-    const source = createSubtitleTextSource();
-    onSceneChange(addSource(scene, source));
-    onSelectSource(source.id);
-  };
-
-  const addLiveCaptionSource = () => {
-    if (setupLocked) {
-      return;
-    }
-    const source = createLiveCaptionTextSource();
+    const source = createTextOverlayPresetSource(presetId);
     onSceneChange(addSource(scene, source));
     onSelectSource(source.id);
   };
@@ -830,8 +827,14 @@ export const MobileStudioScreen = ({
           ))}
 
           <View style={styles.grid2}>
-            <ActionButton label="+ Subtitle" disabled={setupLocked} onPress={addSubtitleSource} />
-            <ActionButton label="+ Live Caption" disabled={setupLocked} onPress={addLiveCaptionSource} />
+            {textOverlayPresets.map((preset) => (
+              <ActionButton
+                key={preset.presetId}
+                label={`+ ${preset.label}`}
+                disabled={setupLocked}
+                onPress={() => addTextOverlayPreset(preset.presetId)}
+              />
+            ))}
             {sourceKinds.map((kind) => (
               <ActionButton key={kind} label={`+ ${sourceLabels[kind]}`} disabled={setupLocked} onPress={() => addNewSource(kind)} />
             ))}

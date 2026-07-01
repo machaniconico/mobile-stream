@@ -46,7 +46,8 @@ const sourceGates = [
   ["Build web prototype", ["run", "build"]],
   ["Verify web bundle size", ["run", "verify:web-bundle-size"]],
   ["Bundle React Native JavaScript", ["run", "verify:rn"]],
-  ["Build Android native debug app", ["run", "verify:android-native"]]
+  ["Build Android native debug app", ["run", "verify:android-native"]],
+  ["Build iOS native simulator app", ["run", "verify:ios-native"]]
 ];
 
 const npm = npmExecutable();
@@ -969,6 +970,7 @@ function collectReleaseArtifacts({ storeReleaseReportJsonPath = "", physicalDevi
     ...collectDirectoryFiles("web", "dist/assets", (path) => path.endsWith(".js") || path.endsWith(".css")),
     ...collectFiles("react-native", [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"]),
     ...collectFiles("android", ["android/app/build/outputs/apk/debug/app-debug.apk"]),
+    ...collectFiles("ios", [".artifacts/ios-native-verification.json"]),
     ...collectDistributionArtifactRecords(),
     ...collectDashboardEvidenceArtifactRecords(),
     ...collectStoreSubmissionArtifactRecords(),
@@ -1097,7 +1099,7 @@ function printUsage() {
       "Usage:",
       "  npm run verify:release-candidate -- <support-bundle.json> [--max-age-hours=24] [--allow-warnings] [--allow-dirty] [--report-json=.artifacts/release-candidate-verification.json] [--ui-url=http://127.0.0.1:5173/] [--skip-ui --ui-evidence-json=.artifacts/ui-verification.json] [--store-release-report-json=.artifacts/store-release-orchestration.json] [--physical-device-preflight-json=.artifacts/physical-device-preflight.json]",
       "",
-      "Runs source release gates, browser UI verification, React Native bundle verification, Android native build verification, and the commercial support-bundle gate.",
+      "Runs source release gates, browser UI verification, React Native bundle verification, Android/iOS native build verification, and the commercial support-bundle gate.",
       "Writes a JSON evidence report for release approval audit trails.",
       "Fails on uncommitted source changes unless --allow-dirty is provided for development-only evidence.",
       "Use --ui-url when a preview server is already running.",

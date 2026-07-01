@@ -4,6 +4,7 @@ import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
 const defaultCiPath = ".github/workflows/ci.yml";
+const defaultIosNativePath = ".github/workflows/ios-native.yml";
 const defaultAutoMergePath = ".github/workflows/auto-merge.yml";
 
 if (isDirectRun()) {
@@ -32,9 +33,14 @@ function run() {
   return 0;
 }
 
-export function verifyRepoAutomation({ ciPath = defaultCiPath, autoMergePath = defaultAutoMergePath } = {}) {
+export function verifyRepoAutomation({
+  ciPath = defaultCiPath,
+  iosNativePath = defaultIosNativePath,
+  autoMergePath = defaultAutoMergePath
+} = {}) {
   const files = {
     ci: read(ciPath, "CI workflow"),
+    iosNative: read(iosNativePath, "iOS native workflow"),
     autoMerge: read(autoMergePath, "Auto-merge workflow")
   };
 
@@ -72,6 +78,21 @@ export function verifyRepoAutomation({ ciPath = defaultCiPath, autoMergePath = d
     }),
     check("CI builds the Android native debug app", () => {
       expectIncludes(files.ci, "npm run verify:android-native");
+    }),
+    check("iOS native workflow runs on macOS with locked dependencies", () => {
+      expectIncludes(files.iosNative, "name: ios-native");
+      expectIncludes(files.iosNative, "runs-on: macos-latest");
+      expectIncludes(files.iosNative, "node-version: 22.11.0");
+      expectIncludes(files.iosNative, "ruby/setup-ruby@v1");
+      expectIncludes(files.iosNative, "bundler-cache: true");
+      expectIncludes(files.iosNative, "npm ci");
+    }),
+    check("iOS native workflow installs pods and builds the simulator app", () => {
+      expectIncludes(files.iosNative, "bundle exec pod install --project-directory=ios");
+      expectIncludes(files.iosNative, "npm run verify:ios-native");
+    }),
+    check("iOS native workflow limits default token permissions", () => {
+      expectIncludes(files.iosNative, "permissions:\n  contents: read");
     }),
     check("Auto-merge is explicit opt-in only", () => {
       expectIncludes(files.autoMerge, "types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]");

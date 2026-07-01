@@ -71,9 +71,8 @@ import {
   applyInferredAvatarIllustrationRig,
   createAvatarIllustrationLandmarkAnalysisFromPixelFeatures,
   createAvatarIllustrationLandmarkAnalysisFromDetector,
-  createLiveCaptionTextSource,
-  createSubtitleTextSource,
   createSource,
+  createTextOverlayPresetSource,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
   reorderSource,
@@ -96,6 +95,7 @@ import {
   type TextSourceAlign,
   type TextSourceContentSource,
   type TextSourceMode,
+  type TextOverlayPresetId,
   type SourceKind
 } from "../domain/scene";
 import type { StreamOperationStatus } from "../domain/streamOperation";
@@ -223,6 +223,12 @@ const textSourceModes: Array<{ mode: TextSourceMode; label: string }> = [
 const textSourceContentSources: Array<{ contentSource: TextSourceContentSource; label: string }> = [
   { contentSource: "manual", label: "Manual" },
   { contentSource: "runtime-caption", label: "Live caption" }
+];
+const textOverlayPresets: Array<{ presetId: TextOverlayPresetId; label: string }> = [
+  { presetId: "subtitle", label: "Subtitle" },
+  { presetId: "lower-third", label: "Lower Third" },
+  { presetId: "ticker", label: "Ticker" },
+  { presetId: "live-caption", label: "Live Caption" }
 ];
 const textSourceAlignments: TextSourceAlign[] = ["left", "center", "right"];
 const sceneTransitionKinds: Array<{ kind: SceneTransitionKind; label: string }> = [
@@ -599,20 +605,11 @@ export const StudioScreen = ({
     onSelectSource(source.id);
   };
 
-  const addSubtitleSource = () => {
+  const addTextOverlayPreset = (presetId: TextOverlayPresetId) => {
     if (setupLocked) {
       return;
     }
-    const source = createSubtitleTextSource();
-    onSceneChange(addSource(scene, source));
-    onSelectSource(source.id);
-  };
-
-  const addLiveCaptionSource = () => {
-    if (setupLocked) {
-      return;
-    }
-    const source = createLiveCaptionTextSource();
+    const source = createTextOverlayPresetSource(presetId);
     onSceneChange(addSource(scene, source));
     onSelectSource(source.id);
   };
@@ -755,14 +752,18 @@ export const StudioScreen = ({
           </div>
 
           <div className="button-grid">
-            <button className="tool-button" type="button" disabled={setupLocked} onClick={addSubtitleSource}>
-              <Plus size={16} />
-              <span>Subtitle</span>
-            </button>
-            <button className="tool-button" type="button" disabled={setupLocked} onClick={addLiveCaptionSource}>
-              <Plus size={16} />
-              <span>Live Caption</span>
-            </button>
+            {textOverlayPresets.map((preset) => (
+              <button
+                key={preset.presetId}
+                className="tool-button"
+                type="button"
+                disabled={setupLocked}
+                onClick={() => addTextOverlayPreset(preset.presetId)}
+              >
+                <Plus size={16} />
+                <span>{preset.label}</span>
+              </button>
+            ))}
             {sourceKinds.map((kind) => (
               <button key={kind} className="tool-button" type="button" disabled={setupLocked} onClick={() => addNewSource(kind)}>
                 <Plus size={16} />

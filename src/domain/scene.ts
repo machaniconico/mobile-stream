@@ -177,6 +177,7 @@ export interface SolidSource extends BaseSource {
 export type TextSourceMode = "label" | "subtitle" | "ticker" | "caption";
 export type TextSourceAlign = "left" | "center" | "right";
 export type TextSourceContentSource = "manual" | "runtime-caption";
+export type TextOverlayPresetId = "subtitle" | "lower-third" | "ticker" | "live-caption";
 
 export interface TextSource extends BaseSource {
   kind: "text";
@@ -1268,39 +1269,83 @@ export const createSource = (kind: SourceKind): SceneSource => {
   }
 };
 
-export const createSubtitleTextSource = (): TextSource => ({
-  ...(createSource("text") as TextSource),
-  name: "Subtitle",
-  text: "字幕テキスト",
-  mode: "subtitle",
-  contentSource: "manual",
-  align: "center",
-  showCaptionSpeaker: true,
-  fontSize: 54,
-  backgroundColor: "#000000",
-  backgroundOpacity: 0.46,
-  outlineColor: "#000000",
-  outlineWidth: 5,
-  maxLines: 2,
-  transform: defaultTransform({ x: 0.16, y: 0.77, width: 0.68, height: 0.16 })
-});
+export const createTextOverlayPresetSource = (presetId: TextOverlayPresetId): TextSource => {
+  const base = createSource("text") as TextSource;
+  switch (presetId) {
+    case "subtitle":
+      return {
+        ...base,
+        name: "Subtitle",
+        text: "字幕テキスト",
+        mode: "subtitle",
+        contentSource: "manual",
+        align: "center",
+        showCaptionSpeaker: true,
+        fontSize: 54,
+        backgroundColor: "#000000",
+        backgroundOpacity: 0.46,
+        outlineColor: "#000000",
+        outlineWidth: 5,
+        maxLines: 2,
+        transform: defaultTransform({ x: 0.16, y: 0.77, width: 0.68, height: 0.16 })
+      };
+    case "lower-third":
+      return {
+        ...base,
+        name: "Lower Third",
+        text: "配信タイトル / 告知テキスト",
+        mode: "label",
+        contentSource: "manual",
+        align: "left",
+        showCaptionSpeaker: true,
+        fontSize: 44,
+        backgroundColor: "#000000",
+        backgroundOpacity: 0.36,
+        outlineColor: "#000000",
+        outlineWidth: 4,
+        maxLines: 2,
+        transform: defaultTransform({ x: 0.05, y: 0.72, width: 0.52, height: 0.18 })
+      };
+    case "ticker":
+      return {
+        ...base,
+        name: "Ticker",
+        text: "お知らせ: チャンネル登録と高評価お願いします",
+        mode: "ticker",
+        contentSource: "manual",
+        align: "left",
+        showCaptionSpeaker: true,
+        fontSize: 38,
+        backgroundColor: "#000000",
+        backgroundOpacity: 0.52,
+        outlineColor: "#000000",
+        outlineWidth: 3,
+        maxLines: 1,
+        transform: defaultTransform({ x: 0, y: 0.91, width: 1, height: 0.09 })
+      };
+    case "live-caption":
+      return {
+        ...base,
+        name: "Live Captions",
+        text: "Live captions",
+        mode: "caption",
+        contentSource: "runtime-caption",
+        align: "center",
+        showCaptionSpeaker: false,
+        fontSize: 48,
+        backgroundColor: "#000000",
+        backgroundOpacity: 0.42,
+        outlineColor: "#000000",
+        outlineWidth: 4,
+        maxLines: 3,
+        transform: defaultTransform({ x: 0.14, y: 0.72, width: 0.72, height: 0.2 })
+      };
+  }
+};
 
-export const createLiveCaptionTextSource = (): TextSource => ({
-  ...(createSource("text") as TextSource),
-  name: "Live Captions",
-  text: "Live captions",
-  mode: "caption",
-  contentSource: "runtime-caption",
-  align: "center",
-  showCaptionSpeaker: false,
-  fontSize: 48,
-  backgroundColor: "#000000",
-  backgroundOpacity: 0.42,
-  outlineColor: "#000000",
-  outlineWidth: 4,
-  maxLines: 3,
-  transform: defaultTransform({ x: 0.14, y: 0.72, width: 0.72, height: 0.2 })
-});
+export const createSubtitleTextSource = (): TextSource => createTextOverlayPresetSource("subtitle");
+
+export const createLiveCaptionTextSource = (): TextSource => createTextOverlayPresetSource("live-caption");
 
 export const normalizeSceneDocument = (value: unknown): SceneDocument => {
   const fallback = createDefaultScene();

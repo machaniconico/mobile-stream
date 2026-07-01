@@ -5,6 +5,7 @@ import { verifyRepoAutomation } from "./verify-repo-automation.mjs";
 
 const fixtureRoot = ".artifacts/verify-repo-automation-test";
 const ciPath = `${fixtureRoot}/ci.yml`;
+const iosNativePath = `${fixtureRoot}/ios-native.yml`;
 const autoMergePath = `${fixtureRoot}/auto-merge.yml`;
 
 describe("repository automation verifier", () => {
@@ -15,19 +16,29 @@ describe("repository automation verifier", () => {
   it("passes repository automation fixtures that keep commercial gates enabled", () => {
     writeWorkflowFixtures();
 
-    const result = verifyRepoAutomation({ ciPath, autoMergePath });
+    const result = verifyRepoAutomation({ ciPath, iosNativePath, autoMergePath });
 
     expect(result.failures).toEqual([]);
-    expect(result.checks).toHaveLength(11);
+    expect(result.checks).toHaveLength(14);
   });
 
   it("rejects CI fixtures that drop Android native build coverage", () => {
     writeWorkflowFixtures({ ci: ciFixture().replace("  - run: npm run verify:android-native", "") });
 
-    const result = verifyRepoAutomation({ ciPath, autoMergePath });
+    const result = verifyRepoAutomation({ ciPath, iosNativePath, autoMergePath });
 
     expect(result.failures).toContain(
       'CI builds the Android native debug app: missing "npm run verify:android-native"'
+    );
+  });
+
+  it("rejects iOS native workflow fixtures that drop simulator build coverage", () => {
+    writeWorkflowFixtures({ iosNative: iosNativeFixture().replace("      - run: npm run verify:ios-native", "") });
+
+    const result = verifyRepoAutomation({ ciPath, iosNativePath, autoMergePath });
+
+    expect(result.failures).toContain(
+      'iOS native workflow installs pods and builds the simulator app: missing "npm run verify:ios-native"'
     );
   });
 
@@ -37,7 +48,7 @@ describe("repository automation verifier", () => {
     writeFileSync(outsideCi, ciFixture());
     symlinkSync(resolve(outsideCi), ciPath);
 
-    expect(() => verifyRepoAutomation({ ciPath, autoMergePath })).toThrow(
+    expect(() => verifyRepoAutomation({ ciPath, iosNativePath, autoMergePath })).toThrow(
       `CI workflow must not be a symbolic link: ${ciPath}`
     );
   });
@@ -47,7 +58,7 @@ describe("repository automation verifier", () => {
     writeWorkflowFixtures({ ci: null });
     symlinkSync(resolve(missingCi), ciPath);
 
-    expect(() => verifyRepoAutomation({ ciPath, autoMergePath })).toThrow(
+    expect(() => verifyRepoAutomation({ ciPath, iosNativePath, autoMergePath })).toThrow(
       `CI workflow must not be a symbolic link: ${ciPath}`
     );
   });
@@ -61,7 +72,7 @@ describe("repository automation verifier", () => {
     writeFileSync(`${realParent}/auto-merge.yml`, autoMergeFixture());
     symlinkSync(resolve(realParent), linkParent, "dir");
 
-    expect(() => verifyRepoAutomation({ ciPath, autoMergePath: linkedAutoMergePath })).toThrow(
+    expect(() => verifyRepoAutomation({ ciPath, iosNativePath, autoMergePath: linkedAutoMergePath })).toThrow(
       `Auto-merge workflow path parent must not be a symbolic link: ${linkParent}`
     );
   });
@@ -70,14 +81,19 @@ describe("repository automation verifier", () => {
     writeWorkflowFixtures({ ci: null });
     mkdirSync(ciPath, { recursive: true });
 
-    expect(() => verifyRepoAutomation({ ciPath, autoMergePath })).toThrow(`CI workflow must point to a file: ${ciPath}`);
+    expect(() => verifyRepoAutomation({ ciPath, iosNativePath, autoMergePath })).toThrow(
+      `CI workflow must point to a file: ${ciPath}`
+    );
   });
 });
 
-function writeWorkflowFixtures({ ci = ciFixture(), autoMerge = autoMergeFixture() } = {}) {
+function writeWorkflowFixtures({ ci = ciFixture(), iosNative = iosNativeFixture(), autoMerge = autoMergeFixture() } = {}) {
   mkdirSync(fixtureRoot, { recursive: true });
   if (ci !== null) {
     writeFileSync(ciPath, ci);
+  }
+  if (iosNative !== null) {
+    writeFileSync(iosNativePath, iosNative);
   }
   if (autoMerge !== null) {
     writeFileSync(autoMergePath, autoMerge);
@@ -105,6 +121,28 @@ function ciFixture() {
     "  - run: npm run verify:web-bundle-size",
     "  - run: npm run verify:rn",
     "  - run: npm run verify:android-native"
+  ].join("\n");
+}
+
+function iosNativeFixture() {
+  return [
+    "name: iOS Native",
+    "permissions:",
+    "  contents: read",
+    "jobs:",
+    "  ios-native:",
+    "    name: ios-native",
+    "    runs-on: macos-latest",
+    "    steps:",
+    "      - uses: actions/setup-node@v4",
+    "        with:",
+    "          node-version: 22.11.0",
+    "      - uses: ruby/setup-ruby@v1",
+    "        with:",
+    "          bundler-cache: true",
+    "      - run: npm ci",
+    "      - run: bundle exec pod install --project-directory=ios",
+    "      - run: npm run verify:ios-native"
   ].join("\n");
 }
 
