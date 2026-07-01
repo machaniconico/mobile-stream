@@ -14,6 +14,7 @@ export type PublicLaunchChecklistItemId =
   | "avatar-tracking"
   | "platform-dashboard"
   | "chat-readout"
+  | "text-overlays"
   | "live-captions"
   | "mic-monitor"
   | "commercial-evidence"
@@ -53,6 +54,7 @@ export interface PublicLaunchChecklistInput {
     | "audio"
     | "faceTracking"
     | "chatReadout"
+    | "textOverlay"
     | "liveCaption"
     | "platformPublishing"
     | "validation"
@@ -73,6 +75,7 @@ export const createPublicLaunchChecklist = ({
     createAvatarTrackingItem(preflight, diagnostics),
     createPlatformDashboardItem(preflight, diagnostics, platformPublishingFreshness),
     createChatReadoutItem(preflight, diagnostics),
+    createTextOverlayItem(preflight, diagnostics),
     createLiveCaptionItem(preflight, diagnostics),
     createMicMonitorItem(preflight, diagnostics),
     createCommercialEvidenceItem(preflight, diagnostics),
@@ -136,7 +139,7 @@ const createDestinationItem = (
   const issue = findMostSevereIssue(
     preflight,
     ["destination", "security", "quality", "scene"],
-    (candidate) => !isLiveCaptionIssue(candidate)
+    (candidate) => !isLiveCaptionIssue(candidate) && !isTextOverlayIssue(candidate)
   );
   if (issue) {
     return issueItem("destination", "Destination and scene", issue);
@@ -148,6 +151,45 @@ const createDestinationItem = (
     label: "Destination and scene",
     detail: `${diagnostics.target.platform} is set to ${diagnostics.target.protocol.toUpperCase()} at ${diagnostics.target.publishUrlPreview}.`,
     action: "Keep the destination, stream key, quality target, and visible scene unchanged before launch."
+  };
+};
+
+const createTextOverlayItem = (
+  preflight: StreamStartPreflightReport,
+  diagnostics: PublicLaunchChecklistInput["diagnostics"]
+): PublicLaunchChecklistItem => {
+  const issue = findMostSevereIssue(preflight, ["security", "scene"], isTextOverlayIssue);
+  if (issue) {
+    return issueItem("text-overlays", "Text overlays", issue);
+  }
+
+  const overlays = diagnostics.textOverlay;
+  if (overlays.status === "fail") {
+    return {
+      id: "text-overlays",
+      status: "fail",
+      label: "Text overlays",
+      detail: overlays.summary,
+      action: overlays.recommendation
+    };
+  }
+
+  if (overlays.status === "warn") {
+    return {
+      id: "text-overlays",
+      status: "warn",
+      label: "Text overlays",
+      detail: overlays.summary,
+      action: overlays.recommendation
+    };
+  }
+
+  return {
+    id: "text-overlays",
+    status: "pass",
+    label: "Text overlays",
+    detail: overlays.summary,
+    action: overlays.recommendation
   };
 };
 
@@ -515,6 +557,9 @@ const findMostSevereIssue = (
   preflight.warnings.find((issue) => areas.includes(issue.area) && predicate(issue));
 
 const isLiveCaptionIssue = (issue: StreamStartPreflightIssue): boolean => issue.code.startsWith("live-caption-");
+
+const isTextOverlayIssue = (issue: StreamStartPreflightIssue): boolean =>
+  issue.code.startsWith("readiness-scene-text-overlay-");
 
 const issueItem = (
   id: PublicLaunchChecklistItemId,

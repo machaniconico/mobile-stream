@@ -23,6 +23,10 @@ import {
   createLiveCaptionDiagnostics,
   type LiveCaptionDiagnostics
 } from "./liveCaptionDiagnostics";
+import {
+  createTextOverlayDiagnostics,
+  type TextOverlayDiagnostics
+} from "./textOverlayDiagnostics";
 import { createNativeCompositionReport, type NativeCompositionReport } from "./nativeComposition";
 import { assessPlatformPublishingFreshness } from "./platformPublishingFreshness";
 import type { PublicLaunchChecklist } from "./publicLaunchChecklist";
@@ -202,6 +206,7 @@ export interface StreamDiagnostics {
     connectionLabel: string;
     connectionMessage: string;
   };
+  textOverlay: TextOverlayDiagnostics;
   liveCaption: LiveCaptionDiagnostics;
   platformPublishing: PlatformPublishingDiagnostics;
   history: StreamHealthHistorySummary;
@@ -316,9 +321,10 @@ export const createStreamDiagnostics = (
     streamStatus: snapshot.state.status,
     elapsedSeconds: snapshot.health.elapsedSeconds
   });
-  const liveCaption = createLiveCaptionDiagnostics(scene, options.liveCaption ?? null, toTimestampMs(options.now ?? Date.now()));
   const effectiveReadiness = createEffectiveReadiness(readiness, faceTracking);
   const effectiveNativeComposition = createEffectiveNativeComposition(nativeComposition, faceTracking);
+  const textOverlay = createTextOverlayDiagnostics(scene, effectiveReadiness);
+  const liveCaption = createLiveCaptionDiagnostics(scene, options.liveCaption ?? null, toTimestampMs(options.now ?? Date.now()));
   const checks = [
     ...effectiveReadiness.issues.map<DiagnosticCheck>((issue) => ({
       code: `readiness-${issue.code}`,
@@ -344,6 +350,7 @@ export const createStreamDiagnostics = (
     createBroadcastAudioGuardCheck(audioGuard),
     createBroadcastAudioSilenceGuardCheck(audioSilenceGuard),
     createAudioRouteCheck(monitorSafety),
+    createTextOverlayCheck(textOverlay),
     createLiveCaptionCheck(liveCaption),
     createHistoryCheck(history),
     createRecoveryCheck(recoveryStatus)
@@ -496,6 +503,7 @@ export const createStreamDiagnostics = (
     audio,
     audioRoute,
     chatReadout,
+    textOverlay,
     liveCaption,
     platformPublishing,
     history,
@@ -646,6 +654,16 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Platform chat: ${diagnostics.chatReadout.platformChatEnabled ? "on" : "off"}`,
     `- Reader: ${diagnostics.chatReadout.readerEnabled ? "on" : "off"}`,
     `- Connection: ${diagnostics.chatReadout.connectionPhase} / ${diagnostics.chatReadout.connectionLabel || "-"} / ${diagnostics.chatReadout.connectionMessage || "-"}`,
+    "",
+    "Text Overlays",
+    `- Status: ${diagnostics.textOverlay.status}`,
+    `- Sources: ${diagnostics.textOverlay.visibleSourceCount}/${diagnostics.textOverlay.sourceCount} visible / ${diagnostics.textOverlay.visibleManualSourceCount}/${diagnostics.textOverlay.manualSourceCount} manual / ${diagnostics.textOverlay.visibleRuntimeCaptionSourceCount}/${diagnostics.textOverlay.runtimeCaptionSourceCount} live-caption`,
+    `- Modes: label ${diagnostics.textOverlay.modeCounts.label} / subtitle ${diagnostics.textOverlay.modeCounts.subtitle} / ticker ${diagnostics.textOverlay.modeCounts.ticker} / caption ${diagnostics.textOverlay.modeCounts.caption}`,
+    `- Empty manual: ${diagnostics.textOverlay.emptyVisibleManualSourceCount}`,
+    `- Transparent visible: ${diagnostics.textOverlay.transparentVisibleSourceCount}`,
+    `- Safety issues: ${diagnostics.textOverlay.sensitiveContentIssueCount} sensitive / ${diagnostics.textOverlay.dominantBackdropIssueCount} dominant backdrop`,
+    `- Summary: ${diagnostics.textOverlay.summary}`,
+    `- Action: ${diagnostics.textOverlay.recommendation}`,
     "",
     "Live Captions",
     `- Status: ${diagnostics.liveCaption.status}`,
@@ -1660,6 +1678,13 @@ const createBroadcastAudioSilenceGuardCheck = (
   status: audioSilenceGuard.status,
   label: "Audio silence guard",
   message: audioSilenceGuard.summary
+});
+
+const createTextOverlayCheck = (textOverlay: TextOverlayDiagnostics): DiagnosticCheck => ({
+  code: `text-overlay-${textOverlay.status}`,
+  status: textOverlay.status,
+  label: "Text overlays",
+  message: textOverlay.summary
 });
 
 const createLiveCaptionCheck = (liveCaption: LiveCaptionDiagnostics): DiagnosticCheck => ({

@@ -118,6 +118,27 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
     connectionLabel: "YouTube Live chat",
     connectionMessage: "YouTube Live chat is connected."
   },
+  textOverlay: {
+    status: "pass",
+    sourceCount: 2,
+    visibleSourceCount: 2,
+    manualSourceCount: 2,
+    visibleManualSourceCount: 2,
+    runtimeCaptionSourceCount: 0,
+    visibleRuntimeCaptionSourceCount: 0,
+    emptyVisibleManualSourceCount: 0,
+    transparentVisibleSourceCount: 1,
+    dominantBackdropIssueCount: 0,
+    sensitiveContentIssueCount: 0,
+    modeCounts: {
+      label: 1,
+      subtitle: 1,
+      ticker: 0,
+      caption: 0
+    },
+    summary: "2/2 text overlays visible: 2 manual and 0 live-caption sources.",
+    recommendation: "Keep text positions, transparency, font size, and outline settings unchanged for the retained launch evidence."
+  },
   liveCaption: {
     status: "pass",
     enabled: true,
@@ -207,7 +228,7 @@ describe("public launch checklist", () => {
     expect(checklist.status).toBe("ready");
     expect(checklist.canStart).toBe(true);
     expect(checklist.startLock).toMatchObject({ applies: true, blocked: false });
-    expect(checklist.passCount).toBe(8);
+    expect(checklist.passCount).toBe(9);
     expect(checklist.summary).toBe("Public launch checklist is ready.");
   });
 
@@ -334,6 +355,50 @@ describe("public launch checklist", () => {
       status: "warn",
       detail: liveCaptionWarning.message,
       action: "Speak a short test phrase before public launch."
+    });
+  });
+
+  it("surfaces manual text overlay safety issues as a dedicated public checklist item", () => {
+    const textOverlayBlock: StreamStartPreflightReport["blocks"][number] = {
+      code: "readiness-scene-text-overlay-sensitive-content",
+      severity: "block",
+      area: "security",
+      label: "Security",
+      message: "Subtitle appears to contain a stream key, OAuth token, or API credential.",
+      recommendation: "Remove credentials from visible text overlays before starting."
+    };
+    const diagnostics = readyDiagnostics();
+    const checklist = createPublicLaunchChecklist({
+      preflight: {
+        ...readyPreflight,
+        canStart: false,
+        status: "blocked",
+        blocks: [textOverlayBlock],
+        issues: [textOverlayBlock]
+      },
+      diagnostics: {
+        ...diagnostics,
+        textOverlay: {
+          ...diagnostics.textOverlay,
+          status: "fail",
+          sensitiveContentIssueCount: 1,
+          summary: "1 visible text overlay may expose credentials.",
+          recommendation: textOverlayBlock.recommendation
+        }
+      },
+      platformPublishingFreshness: freshDashboard,
+      profile: youtubePublicProfile()
+    });
+
+    expect(checklist.status).toBe("blocked");
+    expect(checklist.canStart).toBe(false);
+    expect(checklist.items.find((item) => item.id === "destination")).toMatchObject({
+      status: "pass"
+    });
+    expect(checklist.items.find((item) => item.id === "text-overlays")).toMatchObject({
+      status: "fail",
+      detail: textOverlayBlock.message,
+      action: textOverlayBlock.recommendation
     });
   });
 

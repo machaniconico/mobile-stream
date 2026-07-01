@@ -398,6 +398,23 @@ export interface SupportBundle {
     faceTrackingRigHighFidelityGrade: StreamDiagnostics["faceTracking"]["rigQualityGrade"];
     faceTrackingSummary: string;
     faceTrackingRecommendation: string;
+    textOverlayStatus: StreamDiagnostics["textOverlay"]["status"];
+    textOverlaySourceCount: number;
+    textOverlayVisibleSourceCount: number;
+    textOverlayManualSourceCount: number;
+    textOverlayVisibleManualSourceCount: number;
+    textOverlayRuntimeCaptionSourceCount: number;
+    textOverlayVisibleRuntimeCaptionSourceCount: number;
+    textOverlayEmptyVisibleManualSourceCount: number;
+    textOverlayTransparentVisibleSourceCount: number;
+    textOverlaySensitiveContentIssueCount: number;
+    textOverlayDominantBackdropIssueCount: number;
+    textOverlayLabelSourceCount: number;
+    textOverlaySubtitleSourceCount: number;
+    textOverlayTickerSourceCount: number;
+    textOverlayCaptionSourceCount: number;
+    textOverlaySummary: string;
+    textOverlayRecommendation: string;
     liveCaptionStatus: StreamDiagnostics["liveCaption"]["status"];
     liveCaptionEnabled: boolean;
     liveCaptionRecognitionStatus: StreamDiagnostics["liveCaption"]["recognitionStatus"];
@@ -1052,6 +1069,23 @@ export const createSupportBundle = ({
       faceTrackingRigHighFidelityGrade: diagnostics.faceTracking.rigHighFidelityGrade ?? "blocked",
       faceTrackingSummary: diagnostics.faceTracking.summary,
       faceTrackingRecommendation: diagnostics.faceTracking.recommendation,
+      textOverlayStatus: diagnostics.textOverlay.status,
+      textOverlaySourceCount: diagnostics.textOverlay.sourceCount,
+      textOverlayVisibleSourceCount: diagnostics.textOverlay.visibleSourceCount,
+      textOverlayManualSourceCount: diagnostics.textOverlay.manualSourceCount,
+      textOverlayVisibleManualSourceCount: diagnostics.textOverlay.visibleManualSourceCount,
+      textOverlayRuntimeCaptionSourceCount: diagnostics.textOverlay.runtimeCaptionSourceCount,
+      textOverlayVisibleRuntimeCaptionSourceCount: diagnostics.textOverlay.visibleRuntimeCaptionSourceCount,
+      textOverlayEmptyVisibleManualSourceCount: diagnostics.textOverlay.emptyVisibleManualSourceCount,
+      textOverlayTransparentVisibleSourceCount: diagnostics.textOverlay.transparentVisibleSourceCount,
+      textOverlaySensitiveContentIssueCount: diagnostics.textOverlay.sensitiveContentIssueCount,
+      textOverlayDominantBackdropIssueCount: diagnostics.textOverlay.dominantBackdropIssueCount,
+      textOverlayLabelSourceCount: diagnostics.textOverlay.modeCounts.label,
+      textOverlaySubtitleSourceCount: diagnostics.textOverlay.modeCounts.subtitle,
+      textOverlayTickerSourceCount: diagnostics.textOverlay.modeCounts.ticker,
+      textOverlayCaptionSourceCount: diagnostics.textOverlay.modeCounts.caption,
+      textOverlaySummary: diagnostics.textOverlay.summary,
+      textOverlayRecommendation: diagnostics.textOverlay.recommendation,
       liveCaptionStatus: diagnostics.liveCaption.status,
       liveCaptionEnabled: diagnostics.liveCaption.enabled,
       liveCaptionRecognitionStatus: diagnostics.liveCaption.recognitionStatus,
@@ -1298,6 +1332,10 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Face tracking: ${bundle.summary.faceTrackingStatus} / runtime ${bundle.summary.faceTrackingRuntimeStatus} / age ${bundle.summary.faceTrackingRuntimeAgeMs === null ? "-" : `${bundle.summary.faceTrackingRuntimeAgeMs} ms`} / fresh ${bundle.summary.faceTrackingRuntimeFresh ? "yes" : "no"} / landmarks ${Math.round(bundle.summary.faceTrackingFaceLandmarkConfidence * 100)}% ${bundle.summary.faceTrackingFaceLandmarkReady ? "ready" : "not-ready"} / prepared PNGTuber ${bundle.summary.faceTrackingPreparedPngTuberCount} / VRM ${bundle.summary.faceTrackingVisibleVrmCount} renderer ${bundle.summary.faceTrackingNativeVrmRendererReady ? "ready" : "not-ready"} / moving ${bundle.summary.faceTrackingActiveMotionCount} / rig quality ${bundle.summary.faceTrackingRigQualityScore}/100 ${bundle.summary.faceTrackingRigQualityGrade} / rig high fidelity ${bundle.summary.faceTrackingRigHighFidelityScore}/100 ${bundle.summary.faceTrackingRigHighFidelityGrade} / parts ${bundle.summary.faceTrackingRigPartSeparationScore}/100 / depth ${bundle.summary.faceTrackingRigDepthContinuityScore}/100 / semantic ${bundle.summary.faceTrackingRigSemanticSegmentScore}/100 / eye-mouth ${bundle.summary.faceTrackingRigEyeMouthSegmentScore}/100 / rig issues ${bundle.summary.faceTrackingRigIssueCount}`,
     `- Face tracking rig: ${bundle.summary.faceTrackingRigIssueSummary}`,
     `- Face tracking recommendation: ${bundle.summary.faceTrackingRecommendation}`,
+    `- Text overlays: ${bundle.summary.textOverlayStatus} / visible ${bundle.summary.textOverlayVisibleSourceCount}/${bundle.summary.textOverlaySourceCount} / manual ${bundle.summary.textOverlayVisibleManualSourceCount}/${bundle.summary.textOverlayManualSourceCount} / live-caption ${bundle.summary.textOverlayVisibleRuntimeCaptionSourceCount}/${bundle.summary.textOverlayRuntimeCaptionSourceCount} / transparent ${bundle.summary.textOverlayTransparentVisibleSourceCount} / empty manual ${bundle.summary.textOverlayEmptyVisibleManualSourceCount} / sensitive ${bundle.summary.textOverlaySensitiveContentIssueCount} / dominant backdrop ${bundle.summary.textOverlayDominantBackdropIssueCount}`,
+    `- Text overlay modes: label ${bundle.summary.textOverlayLabelSourceCount} / subtitle ${bundle.summary.textOverlaySubtitleSourceCount} / ticker ${bundle.summary.textOverlayTickerSourceCount} / caption ${bundle.summary.textOverlayCaptionSourceCount}`,
+    `- Text overlay summary: ${bundle.summary.textOverlaySummary}`,
+    `- Text overlay recommendation: ${bundle.summary.textOverlayRecommendation}`,
     `- Live captions: ${bundle.summary.liveCaptionStatus} / enabled ${bundle.summary.liveCaptionEnabled ? "yes" : "no"} / recognition ${bundle.summary.liveCaptionRecognitionStatus} / language ${bundle.summary.liveCaptionLanguage || "-"} / sources ${bundle.summary.liveCaptionVisibleRuntimeSourceCount}/${bundle.summary.liveCaptionRuntimeSourceCount} visible / cues ${bundle.summary.liveCaptionFinalCueCount} final ${bundle.summary.liveCaptionActiveCueCount} active / transcripts ${bundle.summary.liveCaptionTranscriptCount}`,
     `- Live captions summary: ${bundle.summary.liveCaptionSummary}`,
     `- Live captions recommendation: ${bundle.summary.liveCaptionRecommendation}`,

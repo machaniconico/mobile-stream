@@ -148,6 +148,14 @@ describe("stream diagnostics", () => {
     expect(diagnostics.nativeComposition.coverage).toBe("preview-only-overlays");
     expect(diagnostics.nativeComposition.assetIssueCount).toBe(1);
     expect(diagnostics.checks.some((check) => check.code === "native-composition-preview-only-overlays")).toBe(true);
+    expect(diagnostics.textOverlay).toMatchObject({
+      status: "pass",
+      visibleSourceCount: 2,
+      visibleManualSourceCount: 2,
+      emptyVisibleManualSourceCount: 0,
+      sensitiveContentIssueCount: 0
+    });
+    expect(diagnostics.checks.find((check) => check.code === "text-overlay-pass")?.status).toBe("pass");
   });
 
   it("retains the active engine platform from the native snapshot", () => {
@@ -1760,6 +1768,8 @@ describe("stream diagnostics", () => {
     expect(text).toContain("Health History");
     expect(text).toContain("Audio Validation");
     expect(text).toContain("Chat Readout");
+    expect(text).toContain("Text Overlays");
+    expect(text).toContain("Sources: 2/2 visible / 2/2 manual / 0/0 live-caption");
     expect(text).toContain("Completed Sessions");
     expect(text).toContain("Platform API: 2 events / 0 failed");
     expect(text).toContain("Chat readout: 0 events / 0 reconnects / 0 exhausted");
@@ -1775,6 +1785,7 @@ describe("stream diagnostics", () => {
     expect(json).toContain("backoffWindow");
     expect(json).toContain("qualityIncidents");
     expect(json).toContain("qualityAdvisor");
+    expect(json).toContain("textOverlay");
     expect(json).toContain("history");
     expect(json).toContain("historySummary");
     expect(json).toContain("lastSummary");
