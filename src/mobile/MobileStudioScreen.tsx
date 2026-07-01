@@ -62,6 +62,7 @@ import {
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
   hideTextOverlays,
+  manualTextOverlayPresets,
   quickTextOverlayPresetGroups,
   queueTimedTextOverlay,
   reorderSource,
@@ -76,6 +77,7 @@ import {
   type AvatarIllustrationRig,
   type AvatarIllustrationRigInferenceInput,
   type CaptionOverlayCue,
+  type ManualTextOverlayPresetId,
   type QuickTextOverlayPresetId,
   type SceneDocument,
   type RenderNode,
@@ -510,6 +512,7 @@ export const MobileStudioScreen = ({
   const chatOverlayMessages = selectChatOverlayMessages(chatReader);
   const [textOverlayClock, setTextOverlayClock] = useState(() => Date.now());
   const [quickSubtitleText, setQuickSubtitleText] = useState("");
+  const [quickTextPresetId, setQuickTextPresetId] = useState<ManualTextOverlayPresetId>("subtitle");
   const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canQueueQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canPinQuickText = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
@@ -540,6 +543,7 @@ export const MobileStudioScreen = ({
       showTimedTextOverlay(scene, {
         sourceId: selectedManualTextSourceId,
         text: quickSubtitleText,
+        presetId: quickTextPresetId,
         durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
         nowMs
       })
@@ -556,6 +560,7 @@ export const MobileStudioScreen = ({
       queueTimedTextOverlay(scene, {
         sourceId: selectedManualTextSourceId,
         text: quickSubtitleText,
+        presetId: quickTextPresetId,
         durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
         nowMs
       })
@@ -572,7 +577,7 @@ export const MobileStudioScreen = ({
       showPersistentTextOverlay(scene, {
         sourceId: selectedManualTextSourceId,
         text: quickSubtitleText,
-        presetId: selectedManualTextSourceId ? undefined : "subtitle",
+        presetId: quickTextPresetId,
         nowMs
       })
     );
@@ -1025,22 +1030,36 @@ export const MobileStudioScreen = ({
           </View>
           <View style={styles.quickSubtitleBar}>
             <View style={styles.quickSubtitleInputWrap}>
-              <Label text="Quick subtitle" />
+              <Label text="Quick text" />
               <TextInput
                 value={quickSubtitleText}
                 onChangeText={setQuickSubtitleText}
                 style={styles.input}
                 editable={!quickSubtitleLocked}
                 maxLength={220}
-                placeholder="配信に一時表示する字幕"
+                placeholder="配信に表示する字幕・テキスト"
                 placeholderTextColor="#71717a"
                 returnKeyType="send"
                 onSubmitEditing={showQuickSubtitle}
               />
             </View>
+            <View style={styles.quickTextStylePicker}>
+              <Label text="Style" />
+              <View style={styles.quickTextStyleButtons}>
+                {manualTextOverlayPresets.map((preset) => (
+                  <ActionButton
+                    key={preset.presetId}
+                    label={preset.label}
+                    variant={quickTextPresetId === preset.presetId ? "active" : "default"}
+                    disabled={quickSubtitleLocked}
+                    onPress={() => setQuickTextPresetId(preset.presetId)}
+                  />
+                ))}
+              </View>
+            </View>
             <View style={styles.quickSubtitleActions}>
-              <ActionButton label="Show subtitle" disabled={!canShowQuickSubtitle} onPress={showQuickSubtitle} />
-              <ActionButton label="Queue subtitle" disabled={!canQueueQuickSubtitle} onPress={queueQuickSubtitle} />
+              <ActionButton label="Show text" disabled={!canShowQuickSubtitle} onPress={showQuickSubtitle} />
+              <ActionButton label="Queue text" disabled={!canQueueQuickSubtitle} onPress={queueQuickSubtitle} />
               <ActionButton label="Pin text" disabled={!canPinQuickText} onPress={pinQuickText} />
               <ActionButton label="Hide text" disabled={!canHideManualTextOverlay} onPress={hideManualTextOverlay} />
             </View>
@@ -4914,6 +4933,17 @@ const styles = StyleSheet.create({
   quickSubtitleInputWrap: {
     flex: 2,
     minWidth: 220
+  },
+  quickTextStylePicker: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 220,
+    gap: 6
+  },
+  quickTextStyleButtons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6
   },
   quickSubtitleActions: {
     flexDirection: "row",

@@ -80,6 +80,7 @@ import {
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
   quickTextOverlayPresetGroups,
+  manualTextOverlayPresets,
   queueTimedTextOverlay,
   reorderSource,
   setLocked,
@@ -103,6 +104,7 @@ import {
   type SceneTransitionPreview,
   type SceneTransitionSettings,
   type QuickTextOverlayPresetId,
+  type ManualTextOverlayPresetId,
   type TextSourceAlign,
   type TextSourceContentSource,
   type TextSourceMode,
@@ -561,6 +563,7 @@ export const StudioScreen = ({
   const chatOverlayMessages = selectChatOverlayMessages(chatReader);
   const [textOverlayClock, setTextOverlayClock] = useState(() => Date.now());
   const [quickSubtitleText, setQuickSubtitleText] = useState("");
+  const [quickTextPresetId, setQuickTextPresetId] = useState<ManualTextOverlayPresetId>("subtitle");
   const quickSubtitleLocked = isBusy || operationBusy || platformApiBusy;
   const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canQueueQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
@@ -600,6 +603,7 @@ export const StudioScreen = ({
       showTimedTextOverlay(scene, {
         sourceId: selectedManualTextSourceId,
         text: quickSubtitleText,
+        presetId: quickTextPresetId,
         durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
         nowMs
       })
@@ -616,6 +620,7 @@ export const StudioScreen = ({
       queueTimedTextOverlay(scene, {
         sourceId: selectedManualTextSourceId,
         text: quickSubtitleText,
+        presetId: quickTextPresetId,
         durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
         nowMs
       })
@@ -632,7 +637,7 @@ export const StudioScreen = ({
       showPersistentTextOverlay(scene, {
         sourceId: selectedManualTextSourceId,
         text: quickSubtitleText,
-        presetId: selectedManualTextSourceId ? undefined : "subtitle",
+        presetId: quickTextPresetId,
         nowMs
       })
     );
@@ -999,12 +1004,12 @@ export const StudioScreen = ({
           </div>
           <div className="quick-subtitle-bar">
             <label className="quick-subtitle-field">
-              <span>Quick subtitle</span>
+              <span>Quick text</span>
               <input
                 value={quickSubtitleText}
                 disabled={quickSubtitleLocked}
                 maxLength={220}
-                placeholder="配信に一時表示する字幕"
+                placeholder="配信に表示する字幕・テキスト"
                 onChange={(event) => setQuickSubtitleText(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.shiftKey) {
@@ -1014,14 +1019,28 @@ export const StudioScreen = ({
                 }}
               />
             </label>
+            <label className="quick-subtitle-field quick-text-style-field">
+              <span>Style</span>
+              <select
+                value={quickTextPresetId}
+                disabled={quickSubtitleLocked}
+                onChange={(event) => setQuickTextPresetId(event.target.value as ManualTextOverlayPresetId)}
+              >
+                {manualTextOverlayPresets.map((preset) => (
+                  <option key={preset.presetId} value={preset.presetId}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <div className="quick-subtitle-actions">
               <button className="secondary-action" type="button" disabled={!canShowQuickSubtitle} onClick={showQuickSubtitle}>
                 <MessageCircle size={18} />
-                <span>Show subtitle</span>
+                <span>Show text</span>
               </button>
               <button className="secondary-action" type="button" disabled={!canQueueQuickSubtitle} onClick={queueQuickSubtitle}>
                 <Plus size={18} />
-                <span>Queue subtitle</span>
+                <span>Queue text</span>
               </button>
               <button className="secondary-action" type="button" disabled={!canPinQuickText} onClick={pinQuickText}>
                 <Pin size={18} />

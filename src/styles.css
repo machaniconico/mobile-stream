@@ -695,7 +695,8 @@ select:focus-visible {
   font-weight: 800;
 }
 
-.quick-subtitle-field input {
+.quick-subtitle-field input,
+.quick-subtitle-field select {
   width: 100%;
   min-height: 38px;
   border: 1px solid var(--line);
@@ -703,6 +704,10 @@ select:focus-visible {
   padding: 0 10px;
   background: var(--panel-2);
   color: var(--text);
+}
+
+.quick-text-style-field {
+  flex: 0 1 160px;
 }
 
 .quick-subtitle-actions {

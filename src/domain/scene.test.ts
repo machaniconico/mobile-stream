@@ -22,6 +22,7 @@ import {
   hideLiveCaptionTextSources,
   hideTextOverlays,
   inferAvatarIllustrationRig,
+  manualTextOverlayPresets,
   normalizeSceneCollection,
   normalizeSceneDocument,
   quickTextOverlayPresets,
@@ -773,6 +774,57 @@ describe("scene document", () => {
       remainingMs: 2000
     });
     expect(toRenderGraph(nextScene, { nowMs: nowMs + 4000 }).some((node) => node.id === quickSubtitle?.id)).toBe(false);
+  });
+
+  it("exposes quick manual text display presets without live-caption runtime sources", () => {
+    expect(manualTextOverlayPresets.map((preset) => preset.presetId)).toEqual([
+      "subtitle",
+      "lower-third",
+      "notice",
+      "ticker",
+      "badge",
+      "title"
+    ]);
+  });
+
+  it("applies selected quick text display presets to timed, queued, and pinned overlays", () => {
+    const nowMs = 91000;
+    const emptyScene = { ...createDefaultScene(), sources: [] };
+    const timed = showTimedTextOverlay(emptyScene, {
+      text: "中央通知",
+      presetId: "notice",
+      durationMs: 4000,
+      nowMs
+    });
+    const queued = queueTimedTextOverlay(emptyScene, {
+      text: "下部ニュース",
+      presetId: "ticker",
+      durationMs: 5000,
+      nowMs
+    });
+    const pinned = showPersistentTextOverlay(emptyScene, {
+      text: "LIVE",
+      presetId: "badge",
+      nowMs
+    });
+
+    expect(timed.sources.find((source) => source.kind === "text" && source.name === "Quick Subtitle")).toMatchObject({
+      mode: "label",
+      text: "中央通知",
+      visibilityMode: "timed",
+      transform: expect.objectContaining({ x: 0.18, y: 0.4 })
+    });
+    expect(queued.sources.find((source) => source.kind === "text" && source.name === "Queued Subtitle")).toMatchObject({
+      mode: "ticker",
+      text: "下部ニュース",
+      transform: expect.objectContaining({ x: 0, width: 1 })
+    });
+    expect(pinned.sources.find((source) => source.kind === "text" && source.name === "Pinned Text")).toMatchObject({
+      mode: "label",
+      text: "LIVE",
+      backgroundColor: "#dc2626",
+      visibilityMode: "always"
+    });
   });
 
   it("queues timed subtitles after the current timed text window", () => {

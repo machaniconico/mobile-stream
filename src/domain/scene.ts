@@ -191,6 +191,13 @@ export type TextOverlayPresetId =
   | "title"
   | "notice"
   | "badge";
+export type ManualTextOverlayPresetId = Exclude<TextOverlayPresetId, "live-caption">;
+
+export interface ManualTextOverlayPreset {
+  presetId: ManualTextOverlayPresetId;
+  label: string;
+  description: string;
+}
 
 export interface TextSource extends BaseSource {
   kind: "text";
@@ -493,6 +500,15 @@ export const quickTextOverlayPresetGroups: readonly QuickTextOverlayPresetGroup[
     presets: quickTextOverlayPresets.filter((preset) => preset.category === group.category)
   })
 );
+
+export const manualTextOverlayPresets: readonly ManualTextOverlayPreset[] = [
+  { presetId: "subtitle", label: "Subtitle", description: "Bottom subtitles for spoken copy or short reactions." },
+  { presetId: "lower-third", label: "Lower Third", description: "Left-aligned lower-third title or announcement." },
+  { presetId: "notice", label: "Notice", description: "Centered notice for breaks, waiting, or alerts." },
+  { presetId: "ticker", label: "Ticker", description: "Full-width bottom ticker for repeated stream copy." },
+  { presetId: "badge", label: "Badge", description: "Corner badge such as LIVE, SPOILER, or Q&A." },
+  { presetId: "title", label: "Title", description: "Large top title text for scene labels." }
+];
 
 const clampTransform = (transform: Transform): Transform => ({
   x: clamp01(transform.x),
