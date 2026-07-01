@@ -228,10 +228,12 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 52 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 53 });
     expect(bundle.profile.androidPublisherMode).toBe(profile.androidPublisherMode);
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
+    expect(bundle.summary.sceneFingerprint).toMatch(/^scene1-[0-9a-f]{8}-[0-9a-z]+$/);
+    expect(bundle.scene.fingerprint).toBe(bundle.summary.sceneFingerprint);
     expect(bundle.summary.publicLaunchStatus).toBe(bundle.publicLaunchChecklist.status);
     expect(bundle.summary.publicLaunchCanStart).toBe(bundle.publicLaunchChecklist.canStart);
     expect(bundle.summary.publicLaunchStartLockBlocked).toBe(bundle.publicLaunchChecklist.startLock.blocked);
@@ -413,6 +415,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Completed summaries: 1");
     expect(formatSupportBundle(bundle)).toContain("Public Launch Checklist");
     expect(formatSupportBundle(bundle)).toContain("Public launch:");
+    expect(formatSupportBundle(bundle)).toContain(`Scene fingerprint: ${bundle.summary.sceneFingerprint}`);
     expect(formatSupportBundle(bundle)).toContain("Start lock:");
     expect(formatSupportBundle(bundle)).toContain("Confirmation events: 2 / last cancelled at 2026-06-23T00:00:03.500Z");
     expect(formatSupportBundle(bundle)).toContain("Last confirmation evidence: YouTube Public launch confirmation was cancelled");
@@ -824,6 +827,7 @@ describe("support bundle", () => {
     expect(json).not.toContain(streamKey);
     expect(text).not.toContain(streamKey);
     expect(json).not.toContain("private label");
+    expect(bundle.summary.sceneFingerprint).toMatch(/^scene1-[0-9a-f]{8}-[0-9a-z]+$/);
     expect(bundle.scene.sources.find((source) => source.id === "source-sensitive-label")?.payload.textLength).toBeGreaterThan(0);
   });
 

@@ -1356,12 +1356,15 @@ function commercialSupportBundleFixture() {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 52
+      bundleVersion: 53
     },
     generatedAt: capturedAt,
     fixture: true,
     profile: {
       androidPublisherMode: "mediacodec"
+    },
+    scene: {
+      fingerprint: "scene1-ready"
     },
     summary: {
       preflightStatus: "ready",
@@ -1376,6 +1379,7 @@ function commercialSupportBundleFixture() {
       publicLaunchLastConfirmationStatus: "none",
       publicLaunchLastConfirmationAt: null,
       publicLaunchLastConfirmationMessage: "",
+      sceneFingerprint: "scene1-ready",
       textOverlayStatus: "pass",
       textOverlaySourceCount: 2,
       textOverlayVisibleSourceCount: 2,

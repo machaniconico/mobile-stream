@@ -404,10 +404,13 @@ function writeSupportBundleFixture() {
     ".artifacts/store-approval-test/support-bundle.json",
     JSON.stringify(
       {
-        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 52 },
+        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 53 },
         generatedAt: new Date().toISOString(),
         profile: {
           androidPublisherMode: "mediacodec"
+        },
+        scene: {
+          fingerprint: "scene1-ready"
         },
         summary: {
           preflightStatus: "ready",
@@ -422,6 +425,7 @@ function writeSupportBundleFixture() {
           publicLaunchLastConfirmationStatus: "none",
           publicLaunchLastConfirmationAt: null,
           publicLaunchLastConfirmationMessage: "",
+          sceneFingerprint: "scene1-ready",
           textOverlayStatus: "pass",
           textOverlaySourceCount: 2,
           textOverlayVisibleSourceCount: 2,

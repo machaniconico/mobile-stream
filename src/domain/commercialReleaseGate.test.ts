@@ -15,9 +15,11 @@ describe("commercial release gate", () => {
     expect(gate.status).toBe("ready");
     expect(gate.canRelease).toBe(true);
     expect(gate.issueCounts).toEqual({ warningCount: 0, failureCount: 0 });
+    expect(gate.sceneFingerprint).toBe("scene1-ready");
     expect(gate.evidenceFingerprint).toBe("sve1-ready");
     expect(gate.latestRunFingerprint).toBe("svr1-android");
     expect(formatCommercialReleaseGate(gate)).toContain("Can release: yes");
+    expect(formatCommercialReleaseGate(gate)).toContain("Scene fingerprint: scene1-ready");
   });
 
   it("blocks support bundles without public launch confirmation summary evidence", () => {
@@ -33,7 +35,38 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v52 text overlay evidence", () => {
+  it("blocks v53 support bundles without scene fingerprint evidence", () => {
+    const bundle = supportBundle();
+    delete (bundle.summary as Partial<SupportBundle["summary"]>).sceneFingerprint;
+    delete (bundle.scene as Partial<SupportBundle["scene"]>).fingerprint;
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "scene-fingerprint-missing"
+      })
+    );
+  });
+
+  it("blocks v53 support bundles with mismatched scene fingerprints", () => {
+    const bundle = supportBundle({
+      summary: {
+        sceneFingerprint: "scene1-summary"
+      }
+    });
+    bundle.scene.fingerprint = "scene1-scene";
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "scene-fingerprint-mismatch"
+      })
+    );
+  });
+
+  it("blocks support bundles without v53 text overlay evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).textOverlayStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -46,7 +79,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v52 live caption evidence", () => {
+  it("blocks support bundles without v53 live caption evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).liveCaptionStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -1693,7 +1726,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 52 as const
+    bundleVersion: 53 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -1736,6 +1769,7 @@ const supportBundle = ({
       publicLaunchLastConfirmationStatus: "none",
       publicLaunchLastConfirmationAt: null,
       publicLaunchLastConfirmationMessage: "",
+      sceneFingerprint: "scene1-ready",
       textOverlayStatus: "pass",
       textOverlaySourceCount: 2,
       textOverlayVisibleSourceCount: 2,
@@ -1817,6 +1851,9 @@ const supportBundle = ({
         manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
       ],
       ...summary
+    },
+    scene: {
+      fingerprint: "scene1-ready"
     }
   }) as SupportBundle;
 

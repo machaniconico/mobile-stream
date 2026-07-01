@@ -39,7 +39,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v52.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v53.");
   });
 
   it("blocks support bundles without public launch confirmation summary evidence", () => {
@@ -53,6 +53,37 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Public launch confirmation audit");
+  });
+
+  it("blocks v53 support bundles without scene fingerprint evidence", () => {
+    writeBundle({
+      summary: {
+        sceneFingerprint: undefined
+      },
+      scene: {}
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Scene fingerprint");
+    expect(result.stdout).toContain("Support bundle v53 is missing scene composition fingerprint evidence.");
+  });
+
+  it("blocks v53 support bundles with mismatched scene fingerprints", () => {
+    writeBundle({
+      summary: {
+        sceneFingerprint: "scene1-summary"
+      },
+      scene: {
+        fingerprint: "scene1-scene"
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Summary and scene fingerprint values do not match.");
   });
 
   it("blocks prefix-named token and API key leaks", () => {
@@ -1005,6 +1036,7 @@ const createBundle = (patch = {}) => {
     publicLaunchLastConfirmationStatus: "none",
     publicLaunchLastConfirmationAt: null,
     publicLaunchLastConfirmationMessage: "",
+    sceneFingerprint: "scene1-ready",
     textOverlayStatus: "pass",
     textOverlaySourceCount: 2,
     textOverlayVisibleSourceCount: 2,
@@ -1082,7 +1114,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 52
+      bundleVersion: 53
     },
     generatedAt: new Date().toISOString(),
     profile: {
@@ -1091,6 +1123,9 @@ const createBundle = (patch = {}) => {
         platform: "youtube-live",
         protocol: "rtmps"
       }
+    },
+    scene: {
+      fingerprint: "scene1-ready"
     },
     ...patch,
     summary: {

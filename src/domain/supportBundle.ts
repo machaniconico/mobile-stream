@@ -20,6 +20,7 @@ export interface SupportBundleSourceSummary {
   name: string;
   visible: boolean;
   locked: boolean;
+  blendMode: SceneSource["blendMode"];
   transform: Transform;
   payload: Record<string, string | number | boolean>;
 }
@@ -29,7 +30,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 52;
+    bundleVersion: 53;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -508,6 +509,7 @@ export interface SupportBundle {
     platformPublishingFreshnessRecommendation: string;
     sourceCount: number;
     visibleSourceCount: number;
+    sceneFingerprint: string;
   };
   target: StreamDiagnostics["target"];
   quality: StreamDiagnostics["quality"];
@@ -517,6 +519,7 @@ export interface SupportBundle {
   scene: {
     id: string;
     name: string;
+    fingerprint: string;
     canvas: SceneDocument["canvas"];
     sourceCounts: Record<SourceKind, number>;
     visibleSourceCount: number;
@@ -595,6 +598,8 @@ export const createSupportBundle = ({
   const sourceCounts = countSources(scene.sources);
   const visibleSourceCount = scene.sources.filter((source) => source.visible).length;
   const lockedSourceCount = scene.sources.filter((source) => source.locked).length;
+  const sourceSummaries = scene.sources.map(toSourceSummary);
+  const sceneFingerprint = createSceneFingerprint(scene, sourceSummaries);
   const platformPublishingFreshness = assessPlatformPublishingFreshness(diagnostics.platformPublishing, now);
   const publicLaunchChecklist = createPublicLaunchChecklist({
     preflight,
@@ -621,7 +626,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 52
+      bundleVersion: 53
     },
     summary: {
       status: diagnostics.status,
@@ -1183,7 +1188,8 @@ export const createSupportBundle = ({
       platformPublishingFreshnessSummary: platformPublishingFreshness.summary,
       platformPublishingFreshnessRecommendation: platformPublishingFreshness.recommendation,
       sourceCount: scene.sources.length,
-      visibleSourceCount
+      visibleSourceCount,
+      sceneFingerprint
     },
     target: diagnostics.target,
     quality: diagnostics.quality,
@@ -1193,13 +1199,14 @@ export const createSupportBundle = ({
     scene: {
       id: scene.id,
       name: scene.name,
+      fingerprint: sceneFingerprint,
       canvas: scene.canvas,
       sourceCounts,
       visibleSourceCount,
       lockedSourceCount,
       emptyImageSourceCount: scene.sources.filter((source) => source.kind === "image" && !source.uri.trim()).length,
       live2dSourceCount: sourceCounts.live2d,
-      sources: scene.sources.map(toSourceSummary)
+      sources: sourceSummaries
     },
     profile: {
       androidPublisherMode: profile.androidPublisherMode,
@@ -1277,6 +1284,7 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Publish URL: ${bundle.target.publishUrlPreview}`,
     "",
     "Scene",
+    `- Scene fingerprint: ${bundle.scene.fingerprint}`,
     `- Canvas: ${bundle.scene.canvas.width}x${bundle.scene.canvas.height} / ${bundle.scene.canvas.fps}fps`,
     `- Sources: ${bundle.summary.sourceCount} total / ${bundle.summary.visibleSourceCount} visible / ${bundle.scene.lockedSourceCount} locked`,
     `- Source counts: ${formatSourceCounts(bundle.scene.sourceCounts)}`,
@@ -1491,9 +1499,21 @@ const toSourceSummary = (source: SceneSource): SupportBundleSourceSummary => ({
   name: source.name,
   visible: source.visible,
   locked: source.locked,
+  blendMode: source.blendMode,
   transform: source.transform,
   payload: sourcePayloadSummary(source)
 });
+
+const createSceneFingerprint = (scene: SceneDocument, sources: SupportBundleSourceSummary[]): string =>
+  createStableFingerprint("scene1", {
+    id: scene.id,
+    name: scene.name,
+    canvas: scene.canvas,
+    sources: sources.map((source, order) => ({
+      order,
+      ...source
+    }))
+  });
 
 const sourcePayloadSummary = (source: SceneSource): Record<string, string | number | boolean> => {
   switch (source.kind) {
@@ -1526,7 +1546,9 @@ const sourcePayloadSummary = (source: SceneSource): Record<string, string | numb
         showCaptionSpeaker: source.showCaptionSpeaker,
         color: source.color,
         fontSize: source.fontSize,
+        backgroundColor: source.backgroundColor,
         backgroundOpacity: source.backgroundOpacity,
+        outlineColor: source.outlineColor,
         outlineWidth: source.outlineWidth,
         maxLines: source.maxLines
       };
@@ -1538,6 +1560,7 @@ const sourcePayloadSummary = (source: SceneSource): Record<string, string | numb
         redactUrls: source.redactUrls,
         color: source.color,
         fontSize: source.fontSize,
+        backgroundColor: source.backgroundColor,
         backgroundOpacity: source.backgroundOpacity
       };
   }
@@ -1547,3 +1570,36 @@ const formatSourceCounts = (sourceCounts: Record<SourceKind, number>): string =>
   Object.entries(sourceCounts)
     .map(([kind, count]) => `${kind} ${count}`)
     .join(", ");
+
+type CanonicalJson = string | number | boolean | null | CanonicalJson[] | { [key: string]: CanonicalJson };
+
+const createStableFingerprint = (prefix: string, value: unknown): string => {
+  const canonical = JSON.stringify(canonicalize(value));
+  return `${prefix}-${hashString(canonical)}-${canonical.length.toString(36)}`;
+};
+
+const canonicalize = (value: unknown): CanonicalJson => {
+  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(canonicalize);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nestedValue]) => [key, canonicalize(nestedValue)])
+    );
+  }
+  return null;
+};
+
+const hashString = (value: string): string => {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+};

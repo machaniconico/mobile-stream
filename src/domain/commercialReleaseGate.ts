@@ -26,6 +26,7 @@ export interface CommercialReleaseGate {
   status: CommercialReleaseGateStatus;
   generatedAt: string;
   bundleAgeHours: number | null;
+  sceneFingerprint: string | null;
   evidenceFingerprint: string | null;
   latestRunFingerprint: string | null;
   issueCounts: {
@@ -43,7 +44,7 @@ export interface CommercialReleaseGateOptions {
   allowWarnings?: boolean;
 }
 
-const minimumSupportBundleVersion = 52;
+const minimumSupportBundleVersion = 53;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -68,6 +69,7 @@ export const createCommercialReleaseGate = (
     createAndroidPublisherModeIssue(bundle),
     createPublicLaunchIssue(bundle),
     createPublicLaunchConfirmationEvidenceIssue(bundle),
+    createSceneFingerprintIssue(bundle),
     createTextOverlayEvidenceIssue(bundle),
     createLiveCaptionEvidenceIssue(bundle),
     createPlatformPublishingFreshnessIssue(bundle),
@@ -93,6 +95,7 @@ export const createCommercialReleaseGate = (
     status,
     generatedAt: bundle.generatedAt,
     bundleAgeHours: ageInHours(bundle.generatedAt, now),
+    sceneFingerprint: nonEmptyText(bundle.summary.sceneFingerprint) ?? nonEmptyText(bundle.scene?.fingerprint),
     evidenceFingerprint: nonEmptyText(bundle.summary.validationEvidenceFingerprint),
     latestRunFingerprint: nonEmptyText(bundle.summary.validationEvidenceLatestRunFingerprint),
     issueCounts: {
@@ -112,6 +115,7 @@ export const formatCommercialReleaseGate = (gate: CommercialReleaseGate): string
     `Can release: ${gate.canRelease ? "yes" : "no"}`,
     `Generated: ${gate.generatedAt}`,
     `Bundle age: ${gate.bundleAgeHours === null ? "-" : `${gate.bundleAgeHours}h`}`,
+    `Scene fingerprint: ${gate.sceneFingerprint ?? "-"}`,
     `Evidence fingerprint: ${gate.evidenceFingerprint ?? "-"}`,
     `Latest run fingerprint: ${gate.latestRunFingerprint ?? "-"}`,
     `Summary: ${gate.summary}`,
@@ -259,10 +263,37 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v52 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, text overlay proof, live caption proof, semantic and eye-mouth avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
+      "Export a support bundle v53 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, text overlay proof, live caption proof, semantic and eye-mouth avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
     );
   }
 
+  return null;
+};
+
+const createSceneFingerprintIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+  if (bundle.app.bundleVersion < 53) {
+    return null;
+  }
+  const summary = bundle.summary as Partial<SupportBundle["summary"]>;
+  const scene = bundle.scene as Partial<SupportBundle["scene"]> | undefined;
+  const summaryFingerprint = nonEmptyText(summary.sceneFingerprint);
+  const sceneFingerprint = nonEmptyText(scene?.fingerprint);
+  if (!summaryFingerprint || !sceneFingerprint) {
+    return failIssue(
+      "scene-fingerprint-missing",
+      "Scene fingerprint",
+      "Support bundle v53 is missing scene composition fingerprint evidence.",
+      "Export a fresh support bundle from the exact scene/profile intended for release."
+    );
+  }
+  if (summaryFingerprint !== sceneFingerprint) {
+    return failIssue(
+      "scene-fingerprint-mismatch",
+      "Scene fingerprint",
+      "Summary and scene fingerprint values do not match.",
+      "Export a fresh support bundle without manually editing the JSON."
+    );
+  }
   return null;
 };
 
@@ -290,7 +321,7 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "text-overlay-evidence-missing",
       "Text overlay evidence",
       "The support bundle is missing text overlay launch evidence.",
-      "Export a support bundle v52 or newer so visible manual text, subtitle, ticker, and live-caption overlay evidence is summarized."
+      "Export a support bundle v53 or newer so visible manual text, subtitle, ticker, and live-caption overlay evidence is summarized."
     );
   }
 
@@ -341,7 +372,7 @@ const createLiveCaptionEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "live-caption-evidence-missing",
       "Live caption evidence",
       "The support bundle is missing live caption launch evidence.",
-      "Export a support bundle v52 or newer so live caption enablement, recognition state, source visibility, and cue proof are summarized."
+      "Export a support bundle v53 or newer so live caption enablement, recognition state, source visibility, and cue proof are summarized."
     );
   }
 
@@ -498,7 +529,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v52 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v53 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -527,7 +558,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-android-publisher-mode",
       "Validation evidence manifest",
       `The latest Android validation manifest row used ${latestRuns.get("android")?.androidPublisherMode || "missing"} publisher mode.`,
-      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v52 or newer."
+      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v53 or newer."
     );
   }
   if (manifest.length !== bundle.summary.validationEvidenceRunCount) {
