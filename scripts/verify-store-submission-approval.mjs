@@ -115,6 +115,9 @@ function validateCommercialApprovableReleaseReport(report) {
   if (report?.options?.allowCommitMismatch) {
     failures.push("Release report was generated with --allow-commit-mismatch and cannot be used for store submission approval.");
   }
+  if (report?.options?.allowWarnings) {
+    failures.push("Release report was generated with --allow-warnings and cannot be used for store submission approval.");
+  }
   const cleanGitGate = Array.isArray(report?.gates)
     ? report.gates.find((gate) => gate?.label === "Verify clean git worktree")
     : null;

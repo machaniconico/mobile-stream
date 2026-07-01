@@ -309,6 +309,7 @@ const checks = [
     expectIncludes(files.storeSubmissionApprovalScript, "validateStoreReleaseReportInReleaseReport");
     expectIncludes(files.storeSubmissionApprovalScript, "validateCommercialApprovableReleaseReport");
     expectIncludes(files.storeSubmissionApprovalScript, "cannot be used for store submission approval");
+    expectIncludes(files.storeSubmissionApprovalScript, "Release report was generated with --allow-warnings");
     expectIncludes(files.storeSubmissionApprovalScript, "clean git worktree gate must be passed for store submission approval");
     expectIncludes(files.storeSubmissionApprovalScript, "validateDashboardStatusFreshness");
     expectIncludes(files.storeSubmissionApprovalScript, "validateStoreScreenshotFreshness");

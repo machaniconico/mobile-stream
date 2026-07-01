@@ -142,6 +142,16 @@ describe("store submission approval verifier", () => {
     expect(failures).toContain("Release report clean git worktree gate must be passed for store submission approval.");
   });
 
+  it("rejects warning-approved RC reports for final store submission approval", () => {
+    const report = createReport();
+    report.options.allowWarnings = true;
+
+    const failures = validateStoreSubmissionApproval(report, readStoreManifest(), approvalOptions());
+
+    expect(failures).toContain("Report was generated with --allow-warnings and cannot be used for commercial approval.");
+    expect(failures).toContain("Release report was generated with --allow-warnings and cannot be used for store submission approval.");
+  });
+
   it("rejects RC reports missing clean-git approval evidence", () => {
     const report = createReport();
     report.gates = report.gates.filter((gate) => gate.label !== "Verify clean git worktree");
