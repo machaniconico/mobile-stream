@@ -705,6 +705,28 @@ select:focus-visible {
   color: var(--text);
 }
 
+.quick-text-preset-row {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quick-text-preset-button {
+  min-height: 34px;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quick-text-preset-button:disabled {
+  color: var(--muted);
+  background: var(--panel-2);
+}
+
 .operation-banner {
   display: inline-flex;
   align-items: center;

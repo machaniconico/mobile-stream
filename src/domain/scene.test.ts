@@ -22,12 +22,15 @@ import {
   inferAvatarIllustrationRig,
   normalizeSceneCollection,
   normalizeSceneDocument,
+  quickTextOverlayPresets,
   reorderSource,
+  selectQuickTextOverlayPreset,
   selectActiveScene,
   selectLiveCaptionTextSource,
   setActiveScene,
   setLocked,
   setVisibility,
+  showQuickTextOverlayPreset,
   showTimedTextOverlay,
   stripTransientSceneCollectionRuntime,
   stripTransientSceneRuntime,
@@ -764,6 +767,59 @@ describe("scene document", () => {
     expect(payloadText).toContain("access_token=[redacted]");
     expect(payloadText).not.toContain("quick-caption-secret-12345");
     expect(payloadText).not.toContain("quick-access-secret");
+  });
+
+  it("shows one-tap quick text presets as timed program overlays", () => {
+    const nowMs = 104000;
+    const nextScene = showQuickTextOverlayPreset(createDefaultScene(), "please-wait", { nowMs });
+    const preset = selectQuickTextOverlayPreset("please-wait");
+    const quickSubtitle = nextScene.sources.find((source) => source.kind === "text" && source.name === "Quick Subtitle");
+    const graph = toRenderGraph(nextScene, { nowMs: nowMs + 1500 });
+    const quickNode = graph.find((node) => node.id === quickSubtitle?.id);
+
+    expect(quickTextOverlayPresets.map((item) => item.id)).toContain("please-wait");
+    expect(preset).toMatchObject({
+      label: "少し待って",
+      text: "少しお待ちください",
+      presetId: "notice",
+      durationMs: 7000
+    });
+    expect(quickSubtitle).toMatchObject({
+      kind: "text",
+      name: "Quick Subtitle",
+      text: "少しお待ちください",
+      mode: "label",
+      visibilityMode: "timed",
+      displayDurationMs: 7000,
+      activatedAtMs: nowMs
+    });
+    expect(quickNode?.payload).toMatchObject({
+      text: "少しお待ちください",
+      remainingMs: 5500
+    });
+  });
+
+  it("restyles the reusable quick overlay when a different quick text preset is shown", () => {
+    const nowMs = 106000;
+    const firstScene = showQuickTextOverlayPreset(createDefaultScene(), "welcome", { nowMs });
+    const updated = showQuickTextOverlayPreset(firstScene, "follow-reminder", { nowMs: nowMs + 1000 });
+    const quickSubtitles = updated.sources.filter((source) => source.kind === "text" && source.name === "Quick Subtitle");
+    const graph = toRenderGraph(updated, { nowMs: nowMs + 2000 });
+    const quickNode = graph.find((node) => node.id === quickSubtitles[0]?.id);
+
+    expect(quickSubtitles).toHaveLength(1);
+    expect(quickSubtitles[0]).toMatchObject({
+      mode: "ticker",
+      text: "フォロー・高評価お願いします",
+      displayDurationMs: 8000,
+      activatedAtMs: nowMs + 1000,
+      transform: { x: 0, y: 0.91, width: 1, height: 0.09 }
+    });
+    expect(quickNode?.payload).toMatchObject({
+      mode: "ticker",
+      text: "フォロー・高評価お願いします",
+      remainingMs: 7000
+    });
   });
 
   it("can target an existing manual text source for quick timed display", () => {

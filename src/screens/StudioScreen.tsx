@@ -77,9 +77,11 @@ import {
   createTextOverlayPresetSource,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
+  quickTextOverlayPresets,
   reorderSource,
   setLocked,
   setVisibility,
+  showQuickTextOverlayPreset,
   showTimedTextOverlay,
   toRenderGraph,
   updateSource,
@@ -95,6 +97,7 @@ import {
   type SceneTransitionKind,
   type SceneTransitionPreview,
   type SceneTransitionSettings,
+  type QuickTextOverlayPresetId,
   type TextSourceAlign,
   type TextSourceContentSource,
   type TextSourceMode,
@@ -556,6 +559,14 @@ export const StudioScreen = ({
     setQuickSubtitleText("");
     setTextOverlayClock(nowMs);
   };
+  const showQuickTextPreset = (presetId: QuickTextOverlayPresetId) => {
+    if (quickSubtitleLocked) {
+      return;
+    }
+    const nowMs = Date.now();
+    onSceneChange(showQuickTextOverlayPreset(scene, presetId, { nowMs }));
+    setTextOverlayClock(nowMs);
+  };
   const diagnostics = createStreamDiagnostics(
     scene,
     profile,
@@ -919,6 +930,19 @@ export const StudioScreen = ({
               <MessageCircle size={18} />
               <span>Show subtitle</span>
             </button>
+            <div className="quick-text-preset-row" aria-label="quick text overlay presets">
+              {quickTextOverlayPresets.map((preset) => (
+                <button
+                  key={preset.id}
+                  className="quick-text-preset-button"
+                  type="button"
+                  disabled={quickSubtitleLocked}
+                  onClick={() => showQuickTextPreset(preset.id)}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
           </div>
           {operationStatus ? (
             <div className={`operation-banner ${operationStatus.kind}`} role={operationStatus.kind === "error" ? "alert" : "status"}>

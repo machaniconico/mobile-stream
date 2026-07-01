@@ -60,9 +60,11 @@ import {
   createTextOverlayPresetSource,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
+  quickTextOverlayPresets,
   reorderSource,
   setLocked,
   setVisibility,
+  showQuickTextOverlayPreset,
   showTimedTextOverlay,
   toRenderGraph,
   updateSource,
@@ -70,6 +72,7 @@ import {
   type AvatarIllustrationRig,
   type AvatarIllustrationRigInferenceInput,
   type CaptionOverlayCue,
+  type QuickTextOverlayPresetId,
   type SceneDocument,
   type RenderNode,
   type SceneSource,
@@ -496,6 +499,14 @@ export const MobileStudioScreen = ({
       })
     );
     setQuickSubtitleText("");
+    setTextOverlayClock(nowMs);
+  };
+  const showQuickTextPreset = (presetId: QuickTextOverlayPresetId) => {
+    if (quickSubtitleLocked) {
+      return;
+    }
+    const nowMs = Date.now();
+    onSceneChange(showQuickTextOverlayPreset(scene, presetId, { nowMs }));
     setTextOverlayClock(nowMs);
   };
   const diagnostics = createStreamDiagnostics(
@@ -942,6 +953,16 @@ export const MobileStudioScreen = ({
               />
             </View>
             <ActionButton label="Show subtitle" disabled={!canShowQuickSubtitle} onPress={showQuickSubtitle} />
+            <View style={styles.quickTextPresetRow}>
+              {quickTextOverlayPresets.map((preset) => (
+                <ActionButton
+                  key={preset.id}
+                  label={preset.label}
+                  disabled={quickSubtitleLocked}
+                  onPress={() => showQuickTextPreset(preset.id)}
+                />
+              ))}
+            </View>
           </View>
           {operationStatus ? (
             <View style={[styles.operationBanner, operationStatus.kind === "error" ? styles.operationBannerError : styles.operationBannerPending]}>
@@ -4696,6 +4717,12 @@ const styles = StyleSheet.create({
   quickSubtitleInputWrap: {
     flex: 2,
     minWidth: 220
+  },
+  quickTextPresetRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    width: "100%"
   },
   operationBanner: {
     minHeight: 38,

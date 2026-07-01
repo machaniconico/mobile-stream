@@ -258,6 +258,22 @@ export interface TimedTextOverlayRequest {
   nowMs?: number;
 }
 
+export type QuickTextOverlayPresetId =
+  | "welcome"
+  | "reading-chat"
+  | "mic-check"
+  | "please-wait"
+  | "follow-reminder"
+  | "spoiler-alert";
+
+export interface QuickTextOverlayPreset {
+  id: QuickTextOverlayPresetId;
+  label: string;
+  text: string;
+  presetId: TextOverlayPresetId;
+  durationMs: number;
+}
+
 export interface SceneDocument {
   version: 1;
   id: string;
@@ -322,6 +338,51 @@ const textOverlayMinimumDisplayDurationMs = 1000;
 const textOverlayMaximumDisplayDurationMs = 60000;
 const textOverlayDefaultDisplayDurationMs = 5000;
 const quickSubtitleSourceName = "Quick Subtitle";
+
+export const quickTextOverlayPresets: readonly QuickTextOverlayPreset[] = [
+  {
+    id: "welcome",
+    label: "初見歓迎",
+    text: "初見さん歓迎です",
+    presetId: "subtitle",
+    durationMs: 5000
+  },
+  {
+    id: "reading-chat",
+    label: "コメント読む",
+    text: "コメント読みます",
+    presetId: "subtitle",
+    durationMs: 4500
+  },
+  {
+    id: "mic-check",
+    label: "マイク確認",
+    text: "マイク音量を確認中です",
+    presetId: "notice",
+    durationMs: 6000
+  },
+  {
+    id: "please-wait",
+    label: "少し待って",
+    text: "少しお待ちください",
+    presetId: "notice",
+    durationMs: 7000
+  },
+  {
+    id: "follow-reminder",
+    label: "フォローお願い",
+    text: "フォロー・高評価お願いします",
+    presetId: "ticker",
+    durationMs: 8000
+  },
+  {
+    id: "spoiler-alert",
+    label: "ネタバレ注意",
+    text: "ここからネタバレ注意",
+    presetId: "badge",
+    durationMs: 6000
+  }
+];
 
 const clampTransform = (transform: Transform): Transform => ({
   x: clamp01(transform.x),
@@ -1482,7 +1543,8 @@ export const showTimedTextOverlay = (
     return updateSource(scene, targetSource.id, (source) =>
       source.kind === "text"
         ? {
-            ...source,
+            ...(request.presetId ? applyTextOverlayPresetStyle(source, request.presetId) : source),
+            name: source.name,
             text,
             contentSource: "manual",
             visible: true,
@@ -1507,6 +1569,27 @@ export const showTimedTextOverlay = (
   };
 
   return addSource(scene, source);
+};
+
+export const selectQuickTextOverlayPreset = (presetId: string): QuickTextOverlayPreset | null =>
+  quickTextOverlayPresets.find((preset) => preset.id === presetId) ?? null;
+
+export const showQuickTextOverlayPreset = (
+  scene: SceneDocument,
+  presetId: QuickTextOverlayPresetId,
+  request: Omit<Partial<TimedTextOverlayRequest>, "text" | "presetId"> = {}
+): SceneDocument => {
+  const preset = selectQuickTextOverlayPreset(presetId);
+  if (!preset) {
+    return scene;
+  }
+
+  return showTimedTextOverlay(scene, {
+    ...request,
+    text: preset.text,
+    presetId: preset.presetId,
+    durationMs: request.durationMs ?? preset.durationMs
+  });
 };
 
 export const activateTimedTextSource = (
