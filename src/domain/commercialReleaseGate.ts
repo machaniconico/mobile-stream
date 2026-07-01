@@ -315,6 +315,7 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
     isNonNegativeInteger(summary.textOverlayDominantBackdropIssueCount) &&
     isNonNegativeInteger(summary.textOverlayLayoutRiskIssueCount) &&
     isNonNegativeInteger(summary.textOverlaySafeAreaIssueCount) &&
+    isNonNegativeInteger(summary.textOverlayAvatarOverlapIssueCount) &&
     typeof summary.textOverlaySummary === "string" &&
     summary.textOverlaySummary.trim().length > 0 &&
     typeof summary.textOverlayRecommendation === "string" &&
@@ -325,7 +326,7 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "text-overlay-evidence-missing",
       "Text overlay evidence",
       "The support bundle is missing text overlay launch evidence.",
-      "Export a support bundle v54 or newer so visible manual text, subtitle, ticker, and live-caption overlay evidence is summarized."
+      "Export a support bundle v54 or newer so visible manual text, subtitle, ticker, live-caption, and avatar-overlap overlay evidence is summarized."
     );
   }
 
@@ -343,7 +344,8 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
     (summary.textOverlayEmptyVisibleManualSourceCount ?? 0) > 0 ||
     (summary.textOverlayDominantBackdropIssueCount ?? 0) > 0 ||
     (summary.textOverlayLayoutRiskIssueCount ?? 0) > 0 ||
-    (summary.textOverlaySafeAreaIssueCount ?? 0) > 0
+    (summary.textOverlaySafeAreaIssueCount ?? 0) > 0 ||
+    (summary.textOverlayAvatarOverlapIssueCount ?? 0) > 0
   ) {
     return warnIssue(
       "text-overlay-evidence-warning",
@@ -368,6 +370,7 @@ const createChatOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
     isNonNegativeInteger(summary.chatOverlayOpaqueBackgroundIssueCount) &&
     isNonNegativeInteger(summary.chatOverlayLayoutRiskIssueCount) &&
     isNonNegativeInteger(summary.chatOverlaySafeAreaIssueCount) &&
+    isNonNegativeInteger(summary.chatOverlayAvatarOverlapIssueCount) &&
     typeof summary.chatOverlaySummary === "string" &&
     summary.chatOverlaySummary.trim().length > 0 &&
     typeof summary.chatOverlayRecommendation === "string" &&
@@ -378,7 +381,7 @@ const createChatOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "chat-overlay-evidence-missing",
       "Chat overlay evidence",
       "The support bundle is missing chat overlay launch evidence.",
-      "Export a support bundle v54 or newer so visible chat overlay transparency, URL redaction, layout, and safe-area evidence is summarized."
+      "Export a support bundle v54 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap evidence is summarized."
     );
   }
 
@@ -387,7 +390,8 @@ const createChatOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
     (summary.chatOverlayUrlRedactionDisabledCount ?? 0) > 0 ||
     (summary.chatOverlayOpaqueBackgroundIssueCount ?? 0) > 0 ||
     (summary.chatOverlayLayoutRiskIssueCount ?? 0) > 0 ||
-    (summary.chatOverlaySafeAreaIssueCount ?? 0) > 0
+    (summary.chatOverlaySafeAreaIssueCount ?? 0) > 0 ||
+    (summary.chatOverlayAvatarOverlapIssueCount ?? 0) > 0
   ) {
     return warnIssue(
       "chat-overlay-evidence-warning",

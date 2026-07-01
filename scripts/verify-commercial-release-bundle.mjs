@@ -424,6 +424,7 @@ function textOverlayEvidenceIssue(bundle) {
     isNonNegativeInteger(summary.textOverlayDominantBackdropIssueCount) &&
     isNonNegativeInteger(summary.textOverlayLayoutRiskIssueCount) &&
     isNonNegativeInteger(summary.textOverlaySafeAreaIssueCount) &&
+    isNonNegativeInteger(summary.textOverlayAvatarOverlapIssueCount) &&
     typeof summary.textOverlaySummary === "string" &&
     summary.textOverlaySummary.trim().length > 0 &&
     typeof summary.textOverlayRecommendation === "string" &&
@@ -434,7 +435,7 @@ function textOverlayEvidenceIssue(bundle) {
       "text-overlay-evidence-missing",
       "Text overlay evidence",
       "The support bundle is missing text overlay launch evidence.",
-      "Export a support bundle v54 or newer so visible manual text, subtitle, ticker, and live-caption overlay evidence is summarized."
+      "Export a support bundle v54 or newer so visible manual text, subtitle, ticker, live-caption, and avatar-overlap overlay evidence is summarized."
     );
   }
 
@@ -452,7 +453,8 @@ function textOverlayEvidenceIssue(bundle) {
     number(summary.textOverlayEmptyVisibleManualSourceCount) > 0 ||
     number(summary.textOverlayDominantBackdropIssueCount) > 0 ||
     number(summary.textOverlayLayoutRiskIssueCount) > 0 ||
-    number(summary.textOverlaySafeAreaIssueCount) > 0
+    number(summary.textOverlaySafeAreaIssueCount) > 0 ||
+    number(summary.textOverlayAvatarOverlapIssueCount) > 0
   ) {
     return warn(
       "text-overlay-evidence-warning",
@@ -477,6 +479,7 @@ function chatOverlayEvidenceIssue(bundle) {
     isNonNegativeInteger(summary.chatOverlayOpaqueBackgroundIssueCount) &&
     isNonNegativeInteger(summary.chatOverlayLayoutRiskIssueCount) &&
     isNonNegativeInteger(summary.chatOverlaySafeAreaIssueCount) &&
+    isNonNegativeInteger(summary.chatOverlayAvatarOverlapIssueCount) &&
     typeof summary.chatOverlaySummary === "string" &&
     summary.chatOverlaySummary.trim().length > 0 &&
     typeof summary.chatOverlayRecommendation === "string" &&
@@ -487,7 +490,7 @@ function chatOverlayEvidenceIssue(bundle) {
       "chat-overlay-evidence-missing",
       "Chat overlay evidence",
       "The support bundle is missing chat overlay launch evidence.",
-      "Export a support bundle v54 or newer so visible chat overlay transparency, URL redaction, layout, and safe-area evidence is summarized."
+      "Export a support bundle v54 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap evidence is summarized."
     );
   }
 
@@ -496,7 +499,8 @@ function chatOverlayEvidenceIssue(bundle) {
     number(summary.chatOverlayUrlRedactionDisabledCount) > 0 ||
     number(summary.chatOverlayOpaqueBackgroundIssueCount) > 0 ||
     number(summary.chatOverlayLayoutRiskIssueCount) > 0 ||
-    number(summary.chatOverlaySafeAreaIssueCount) > 0
+    number(summary.chatOverlaySafeAreaIssueCount) > 0 ||
+    number(summary.chatOverlayAvatarOverlapIssueCount) > 0
   ) {
     return warn(
       "chat-overlay-evidence-warning",

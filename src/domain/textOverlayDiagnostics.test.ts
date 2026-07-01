@@ -22,7 +22,8 @@ describe("textOverlayDiagnostics", () => {
       visibleRuntimeCaptionSourceCount: 0,
       emptyVisibleManualSourceCount: 0,
       sensitiveContentIssueCount: 0,
-      dominantBackdropIssueCount: 0
+      dominantBackdropIssueCount: 0,
+      avatarOverlapIssueCount: 0
     });
     expect(diagnostics.modeCounts).toMatchObject({ label: 1, subtitle: 1, ticker: 0, caption: 0 });
     expect(diagnostics.summary).toContain("2/2 text overlays visible");
@@ -61,5 +62,30 @@ describe("textOverlayDiagnostics", () => {
     expect(diagnostics.sensitiveContentIssueCount).toBe(1);
     expect(diagnostics.summary).toBe("1 visible text overlay may expose credentials.");
     expect(diagnostics.recommendation).not.toContain("secret-stream-key-123456");
+  });
+
+  it("warns when readiness found text over avatar overlap", () => {
+    const scene = updateSource(createDefaultScene(), "source-subtitle", (source) =>
+      source.kind === "text"
+        ? {
+            ...source,
+            transform: {
+              ...source.transform,
+              x: 0.62,
+              y: 0.52,
+              width: 0.28,
+              height: 0.24
+            }
+          }
+        : source
+    );
+    const readiness = createReadinessReport(scene, createDefaultStudioProfile());
+
+    const diagnostics = createTextOverlayDiagnostics(scene, readiness);
+
+    expect(diagnostics.status).toBe("warn");
+    expect(diagnostics.avatarOverlapIssueCount).toBe(1);
+    expect(diagnostics.summary).toContain("overlap the avatar layer");
+    expect(diagnostics.recommendation).toContain("Move text away from the avatar");
   });
 });

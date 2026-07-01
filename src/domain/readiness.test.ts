@@ -41,6 +41,8 @@ describe("stream readiness", () => {
     expect(report.canStart).toBe(true);
     expect(report.errorCount).toBe(0);
     expect(report.issues.map((issue) => issue.code)).toContain("scene-native-composition-preview-only-overlays");
+    expect(report.issues.map((issue) => issue.code)).not.toContain("scene-text-overlay-avatar-overlap-risk");
+    expect(report.issues.map((issue) => issue.code)).not.toContain("scene-chat-overlay-avatar-overlap-risk");
   });
 
   it("accepts the YouTube Live preset with a stream key", () => {
@@ -479,6 +481,80 @@ describe("stream readiness", () => {
     const report = createReadinessReport(scene, profile);
 
     expect(report.issues.map((issue) => issue.code)).not.toContain("scene-text-overlay-safe-area-risk");
+  });
+
+  it("warns when a text overlay is stacked over and substantially overlaps the avatar", () => {
+    const scene = updateSource(createDefaultScene(), "source-subtitle", (source) =>
+      source.kind === "text"
+        ? {
+            ...source,
+            transform: {
+              ...source.transform,
+              x: 0.62,
+              y: 0.52,
+              width: 0.28,
+              height: 0.24
+            }
+          }
+        : source
+    );
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "dummy-stream-value"
+      }
+    };
+
+    const report = createReadinessReport(scene, profile);
+
+    expect(report.canStart).toBe(true);
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        code: "scene-text-overlay-avatar-overlap-risk",
+        field: "scene",
+        severity: "warning",
+        message: expect.stringContaining("overlaps a visible avatar layer")
+      })
+    );
+  });
+
+  it("warns when a chat overlay is stacked over and substantially overlaps the avatar", () => {
+    const scene = updateSource(createDefaultScene(), "source-chat", (source) =>
+      source.kind === "chat"
+        ? {
+            ...source,
+            transform: {
+              ...source.transform,
+              x: 0.62,
+              y: 0.54,
+              width: 0.3,
+              height: 0.26
+            }
+          }
+        : source
+    );
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "dummy-stream-value"
+      }
+    };
+
+    const report = createReadinessReport(scene, profile);
+
+    expect(report.canStart).toBe(true);
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        code: "scene-chat-overlay-avatar-overlap-risk",
+        field: "scene",
+        severity: "warning",
+        message: expect.stringContaining("overlaps a visible avatar layer")
+      })
+    );
   });
 
   it("warns when a mobile production scene has too many visible overlays", () => {

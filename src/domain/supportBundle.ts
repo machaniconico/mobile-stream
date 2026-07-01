@@ -415,6 +415,7 @@ export interface SupportBundle {
     textOverlayDominantBackdropIssueCount: number;
     textOverlayLayoutRiskIssueCount: number;
     textOverlaySafeAreaIssueCount: number;
+    textOverlayAvatarOverlapIssueCount: number;
     textOverlayLabelSourceCount: number;
     textOverlaySubtitleSourceCount: number;
     textOverlayTickerSourceCount: number;
@@ -429,6 +430,7 @@ export interface SupportBundle {
     chatOverlayOpaqueBackgroundIssueCount: number;
     chatOverlayLayoutRiskIssueCount: number;
     chatOverlaySafeAreaIssueCount: number;
+    chatOverlayAvatarOverlapIssueCount: number;
     chatOverlaySummary: string;
     chatOverlayRecommendation: string;
     liveCaptionStatus: StreamDiagnostics["liveCaption"]["status"];
@@ -1103,6 +1105,7 @@ export const createSupportBundle = ({
       textOverlayDominantBackdropIssueCount: diagnostics.textOverlay.dominantBackdropIssueCount,
       textOverlayLayoutRiskIssueCount: diagnostics.textOverlay.layoutRiskIssueCount,
       textOverlaySafeAreaIssueCount: diagnostics.textOverlay.safeAreaIssueCount,
+      textOverlayAvatarOverlapIssueCount: diagnostics.textOverlay.avatarOverlapIssueCount,
       textOverlayLabelSourceCount: diagnostics.textOverlay.modeCounts.label,
       textOverlaySubtitleSourceCount: diagnostics.textOverlay.modeCounts.subtitle,
       textOverlayTickerSourceCount: diagnostics.textOverlay.modeCounts.ticker,
@@ -1117,6 +1120,7 @@ export const createSupportBundle = ({
       chatOverlayOpaqueBackgroundIssueCount: chatOverlayEvidence.opaqueBackgroundIssueCount,
       chatOverlayLayoutRiskIssueCount: chatOverlayEvidence.layoutRiskIssueCount,
       chatOverlaySafeAreaIssueCount: chatOverlayEvidence.safeAreaIssueCount,
+      chatOverlayAvatarOverlapIssueCount: chatOverlayEvidence.avatarOverlapIssueCount,
       chatOverlaySummary: chatOverlayEvidence.summary,
       chatOverlayRecommendation: chatOverlayEvidence.recommendation,
       liveCaptionStatus: diagnostics.liveCaption.status,
@@ -1368,11 +1372,11 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Face tracking: ${bundle.summary.faceTrackingStatus} / runtime ${bundle.summary.faceTrackingRuntimeStatus} / age ${bundle.summary.faceTrackingRuntimeAgeMs === null ? "-" : `${bundle.summary.faceTrackingRuntimeAgeMs} ms`} / fresh ${bundle.summary.faceTrackingRuntimeFresh ? "yes" : "no"} / landmarks ${Math.round(bundle.summary.faceTrackingFaceLandmarkConfidence * 100)}% ${bundle.summary.faceTrackingFaceLandmarkReady ? "ready" : "not-ready"} / prepared PNGTuber ${bundle.summary.faceTrackingPreparedPngTuberCount} / VRM ${bundle.summary.faceTrackingVisibleVrmCount} renderer ${bundle.summary.faceTrackingNativeVrmRendererReady ? "ready" : "not-ready"} / moving ${bundle.summary.faceTrackingActiveMotionCount} / rig quality ${bundle.summary.faceTrackingRigQualityScore}/100 ${bundle.summary.faceTrackingRigQualityGrade} / rig high fidelity ${bundle.summary.faceTrackingRigHighFidelityScore}/100 ${bundle.summary.faceTrackingRigHighFidelityGrade} / parts ${bundle.summary.faceTrackingRigPartSeparationScore}/100 / depth ${bundle.summary.faceTrackingRigDepthContinuityScore}/100 / semantic ${bundle.summary.faceTrackingRigSemanticSegmentScore}/100 / eye-mouth ${bundle.summary.faceTrackingRigEyeMouthSegmentScore}/100 / rig issues ${bundle.summary.faceTrackingRigIssueCount}`,
     `- Face tracking rig: ${bundle.summary.faceTrackingRigIssueSummary}`,
     `- Face tracking recommendation: ${bundle.summary.faceTrackingRecommendation}`,
-    `- Text overlays: ${bundle.summary.textOverlayStatus} / visible ${bundle.summary.textOverlayVisibleSourceCount}/${bundle.summary.textOverlaySourceCount} / manual ${bundle.summary.textOverlayVisibleManualSourceCount}/${bundle.summary.textOverlayManualSourceCount} / live-caption ${bundle.summary.textOverlayVisibleRuntimeCaptionSourceCount}/${bundle.summary.textOverlayRuntimeCaptionSourceCount} / transparent ${bundle.summary.textOverlayTransparentVisibleSourceCount} / empty manual ${bundle.summary.textOverlayEmptyVisibleManualSourceCount} / sensitive ${bundle.summary.textOverlaySensitiveContentIssueCount} / dominant backdrop ${bundle.summary.textOverlayDominantBackdropIssueCount} / layout risk ${bundle.summary.textOverlayLayoutRiskIssueCount} / safe area ${bundle.summary.textOverlaySafeAreaIssueCount}`,
+    `- Text overlays: ${bundle.summary.textOverlayStatus} / visible ${bundle.summary.textOverlayVisibleSourceCount}/${bundle.summary.textOverlaySourceCount} / manual ${bundle.summary.textOverlayVisibleManualSourceCount}/${bundle.summary.textOverlayManualSourceCount} / live-caption ${bundle.summary.textOverlayVisibleRuntimeCaptionSourceCount}/${bundle.summary.textOverlayRuntimeCaptionSourceCount} / transparent ${bundle.summary.textOverlayTransparentVisibleSourceCount} / empty manual ${bundle.summary.textOverlayEmptyVisibleManualSourceCount} / sensitive ${bundle.summary.textOverlaySensitiveContentIssueCount} / dominant backdrop ${bundle.summary.textOverlayDominantBackdropIssueCount} / layout risk ${bundle.summary.textOverlayLayoutRiskIssueCount} / safe area ${bundle.summary.textOverlaySafeAreaIssueCount} / avatar overlap ${bundle.summary.textOverlayAvatarOverlapIssueCount}`,
     `- Text overlay modes: label ${bundle.summary.textOverlayLabelSourceCount} / subtitle ${bundle.summary.textOverlaySubtitleSourceCount} / ticker ${bundle.summary.textOverlayTickerSourceCount} / caption ${bundle.summary.textOverlayCaptionSourceCount}`,
     `- Text overlay summary: ${bundle.summary.textOverlaySummary}`,
     `- Text overlay recommendation: ${bundle.summary.textOverlayRecommendation}`,
-    `- Chat overlays: ${bundle.summary.chatOverlayStatus} / visible ${bundle.summary.chatOverlayVisibleSourceCount}/${bundle.summary.chatOverlaySourceCount} / transparent ${bundle.summary.chatOverlayTransparentVisibleSourceCount} / raw URLs ${bundle.summary.chatOverlayUrlRedactionDisabledCount} / opaque ${bundle.summary.chatOverlayOpaqueBackgroundIssueCount} / layout risk ${bundle.summary.chatOverlayLayoutRiskIssueCount} / safe area ${bundle.summary.chatOverlaySafeAreaIssueCount}`,
+    `- Chat overlays: ${bundle.summary.chatOverlayStatus} / visible ${bundle.summary.chatOverlayVisibleSourceCount}/${bundle.summary.chatOverlaySourceCount} / transparent ${bundle.summary.chatOverlayTransparentVisibleSourceCount} / raw URLs ${bundle.summary.chatOverlayUrlRedactionDisabledCount} / opaque ${bundle.summary.chatOverlayOpaqueBackgroundIssueCount} / layout risk ${bundle.summary.chatOverlayLayoutRiskIssueCount} / safe area ${bundle.summary.chatOverlaySafeAreaIssueCount} / avatar overlap ${bundle.summary.chatOverlayAvatarOverlapIssueCount}`,
     `- Chat overlay summary: ${bundle.summary.chatOverlaySummary}`,
     `- Chat overlay recommendation: ${bundle.summary.chatOverlayRecommendation}`,
     `- Live captions: ${bundle.summary.liveCaptionStatus} / enabled ${bundle.summary.liveCaptionEnabled ? "yes" : "no"} / recognition ${bundle.summary.liveCaptionRecognitionStatus} / language ${bundle.summary.liveCaptionLanguage || "-"} / sources ${bundle.summary.liveCaptionVisibleRuntimeSourceCount}/${bundle.summary.liveCaptionRuntimeSourceCount} visible / cues ${bundle.summary.liveCaptionFinalCueCount} final ${bundle.summary.liveCaptionActiveCueCount} active / transcripts ${bundle.summary.liveCaptionTranscriptCount}`,
@@ -1534,6 +1538,7 @@ const createChatOverlayEvidenceSummary = (
   opaqueBackgroundIssueCount: number;
   layoutRiskIssueCount: number;
   safeAreaIssueCount: number;
+  avatarOverlapIssueCount: number;
   summary: string;
   recommendation: string;
 } => {
@@ -1550,8 +1555,15 @@ const createChatOverlayEvidenceSummary = (
   const safeAreaIssueCount = readiness.issues.filter(
     (issue) => issue.code === "scene-chat-overlay-safe-area-risk"
   ).length;
+  const avatarOverlapIssueCount = readiness.issues.filter(
+    (issue) => issue.code === "scene-chat-overlay-avatar-overlap-risk"
+  ).length;
   const status =
-    opaqueBackgroundIssueCount > 0 || urlRedactionDisabledCount > 0 || layoutRiskIssueCount > 0 || safeAreaIssueCount > 0
+    opaqueBackgroundIssueCount > 0 ||
+    urlRedactionDisabledCount > 0 ||
+    layoutRiskIssueCount > 0 ||
+    safeAreaIssueCount > 0 ||
+    avatarOverlapIssueCount > 0
       ? "warn"
       : visibleChatSources.length > 0
         ? "pass"
@@ -1566,13 +1578,15 @@ const createChatOverlayEvidenceSummary = (
     opaqueBackgroundIssueCount,
     layoutRiskIssueCount,
     safeAreaIssueCount,
+    avatarOverlapIssueCount,
     summary: createChatOverlaySummary({
       sourceCount: chatSources.length,
       visibleSourceCount: visibleChatSources.length,
       urlRedactionDisabledCount,
       opaqueBackgroundIssueCount,
       layoutRiskIssueCount,
-      safeAreaIssueCount
+      safeAreaIssueCount,
+      avatarOverlapIssueCount
     }),
     recommendation: createChatOverlayRecommendation({
       sourceCount: chatSources.length,
@@ -1580,7 +1594,8 @@ const createChatOverlayEvidenceSummary = (
       urlRedactionDisabledCount,
       opaqueBackgroundIssueCount,
       layoutRiskIssueCount,
-      safeAreaIssueCount
+      safeAreaIssueCount,
+      avatarOverlapIssueCount
     })
   };
 };
@@ -1591,7 +1606,8 @@ const createChatOverlaySummary = ({
   urlRedactionDisabledCount,
   opaqueBackgroundIssueCount,
   layoutRiskIssueCount,
-  safeAreaIssueCount
+  safeAreaIssueCount,
+  avatarOverlapIssueCount
 }: {
   sourceCount: number;
   visibleSourceCount: number;
@@ -1599,6 +1615,7 @@ const createChatOverlaySummary = ({
   opaqueBackgroundIssueCount: number;
   layoutRiskIssueCount: number;
   safeAreaIssueCount: number;
+  avatarOverlapIssueCount: number;
 }): string => {
   if (urlRedactionDisabledCount > 0) {
     return `${urlRedactionDisabledCount} visible chat overlay${urlRedactionDisabledCount === 1 ? "" : "s"} can display raw URLs.`;
@@ -1611,6 +1628,9 @@ const createChatOverlaySummary = ({
   }
   if (safeAreaIssueCount > 0) {
     return `${safeAreaIssueCount} visible chat overlay${safeAreaIssueCount === 1 ? "" : "s"} are too close to the program edge.`;
+  }
+  if (avatarOverlapIssueCount > 0) {
+    return `${avatarOverlapIssueCount} visible chat overlay${avatarOverlapIssueCount === 1 ? "" : "s"} overlap the avatar layer.`;
   }
   if (visibleSourceCount > 0) {
     return `${visibleSourceCount}/${sourceCount} chat overlay${sourceCount === 1 ? "" : "s"} visible.`;
@@ -1627,7 +1647,8 @@ const createChatOverlayRecommendation = ({
   urlRedactionDisabledCount,
   opaqueBackgroundIssueCount,
   layoutRiskIssueCount,
-  safeAreaIssueCount
+  safeAreaIssueCount,
+  avatarOverlapIssueCount
 }: {
   sourceCount: number;
   visibleSourceCount: number;
@@ -1635,6 +1656,7 @@ const createChatOverlayRecommendation = ({
   opaqueBackgroundIssueCount: number;
   layoutRiskIssueCount: number;
   safeAreaIssueCount: number;
+  avatarOverlapIssueCount: number;
 }): string => {
   if (urlRedactionDisabledCount > 0) {
     return "Turn chat overlay URL redaction on before public streams.";
@@ -1647,6 +1669,9 @@ const createChatOverlayRecommendation = ({
   }
   if (safeAreaIssueCount > 0) {
     return "Move chat overlays away from program edges, then verify phone safe areas and platform overlays do not cover comments.";
+  }
+  if (avatarOverlapIssueCount > 0) {
+    return "Move chat overlays away from the avatar or reduce the chat box size, then verify the model remains visible during gameplay.";
   }
   if (visibleSourceCount > 0) {
     return "Keep chat overlay transparency, URL redaction, position, and message limits unchanged for retained launch evidence.";

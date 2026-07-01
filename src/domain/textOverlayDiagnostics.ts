@@ -16,6 +16,7 @@ export interface TextOverlayDiagnostics {
   dominantBackdropIssueCount: number;
   layoutRiskIssueCount: number;
   safeAreaIssueCount: number;
+  avatarOverlapIssueCount: number;
   sensitiveContentIssueCount: number;
   modeCounts: Record<TextSourceMode, number>;
   summary: string;
@@ -43,6 +44,9 @@ export const createTextOverlayDiagnostics = (
   const safeAreaIssueCount = readiness.issues.filter(
     (issue) => issue.code === "scene-text-overlay-safe-area-risk"
   ).length;
+  const avatarOverlapIssueCount = readiness.issues.filter(
+    (issue) => issue.code === "scene-text-overlay-avatar-overlap-risk"
+  ).length;
   const sensitiveContentIssueCount = readiness.issues.filter(
     (issue) => issue.code === "scene-text-overlay-sensitive-content"
   ).length;
@@ -64,6 +68,7 @@ export const createTextOverlayDiagnostics = (
     dominantBackdropIssueCount,
     layoutRiskIssueCount,
     safeAreaIssueCount,
+    avatarOverlapIssueCount,
     sensitiveContentIssueCount
   });
 
@@ -80,6 +85,7 @@ export const createTextOverlayDiagnostics = (
     dominantBackdropIssueCount,
     layoutRiskIssueCount,
     safeAreaIssueCount,
+    avatarOverlapIssueCount,
     sensitiveContentIssueCount,
     modeCounts,
     summary: createTextOverlaySummary({
@@ -92,6 +98,7 @@ export const createTextOverlayDiagnostics = (
       dominantBackdropIssueCount,
       layoutRiskIssueCount,
       safeAreaIssueCount,
+      avatarOverlapIssueCount,
       sensitiveContentIssueCount
     }),
     recommendation: createTextOverlayRecommendation({
@@ -102,6 +109,7 @@ export const createTextOverlayDiagnostics = (
       dominantBackdropIssueCount,
       layoutRiskIssueCount,
       safeAreaIssueCount,
+      avatarOverlapIssueCount,
       sensitiveContentIssueCount
     })
   };
@@ -113,6 +121,7 @@ const createTextOverlayStatus = ({
   dominantBackdropIssueCount,
   layoutRiskIssueCount,
   safeAreaIssueCount,
+  avatarOverlapIssueCount,
   sensitiveContentIssueCount
 }: {
   visibleSourceCount: number;
@@ -120,12 +129,19 @@ const createTextOverlayStatus = ({
   dominantBackdropIssueCount: number;
   layoutRiskIssueCount: number;
   safeAreaIssueCount: number;
+  avatarOverlapIssueCount: number;
   sensitiveContentIssueCount: number;
 }): TextOverlayDiagnosticStatus => {
   if (sensitiveContentIssueCount > 0) {
     return "fail";
   }
-  if (dominantBackdropIssueCount > 0 || layoutRiskIssueCount > 0 || safeAreaIssueCount > 0 || emptyVisibleManualSourceCount > 0) {
+  if (
+    dominantBackdropIssueCount > 0 ||
+    layoutRiskIssueCount > 0 ||
+    safeAreaIssueCount > 0 ||
+    avatarOverlapIssueCount > 0 ||
+    emptyVisibleManualSourceCount > 0
+  ) {
     return "warn";
   }
   if (visibleSourceCount > 0) {
@@ -144,6 +160,7 @@ const createTextOverlaySummary = ({
   dominantBackdropIssueCount,
   layoutRiskIssueCount,
   safeAreaIssueCount,
+  avatarOverlapIssueCount,
   sensitiveContentIssueCount
 }: {
   status: TextOverlayDiagnosticStatus;
@@ -155,6 +172,7 @@ const createTextOverlaySummary = ({
   dominantBackdropIssueCount: number;
   layoutRiskIssueCount: number;
   safeAreaIssueCount: number;
+  avatarOverlapIssueCount: number;
   sensitiveContentIssueCount: number;
 }): string => {
   if (sensitiveContentIssueCount > 0) {
@@ -168,6 +186,9 @@ const createTextOverlaySummary = ({
   }
   if (safeAreaIssueCount > 0) {
     return `${safeAreaIssueCount} visible text overlay${safeAreaIssueCount === 1 ? "" : "s"} are too close to the program edge.`;
+  }
+  if (avatarOverlapIssueCount > 0) {
+    return `${avatarOverlapIssueCount} visible text overlay${avatarOverlapIssueCount === 1 ? "" : "s"} overlap the avatar layer.`;
   }
   if (emptyVisibleManualSourceCount > 0) {
     return `${emptyVisibleManualSourceCount} visible manual text overlay${emptyVisibleManualSourceCount === 1 ? "" : "s"} are empty.`;
@@ -189,6 +210,7 @@ const createTextOverlayRecommendation = ({
   dominantBackdropIssueCount,
   layoutRiskIssueCount,
   safeAreaIssueCount,
+  avatarOverlapIssueCount,
   sensitiveContentIssueCount
 }: {
   status: TextOverlayDiagnosticStatus;
@@ -198,6 +220,7 @@ const createTextOverlayRecommendation = ({
   dominantBackdropIssueCount: number;
   layoutRiskIssueCount: number;
   safeAreaIssueCount: number;
+  avatarOverlapIssueCount: number;
   sensitiveContentIssueCount: number;
 }): string => {
   if (sensitiveContentIssueCount > 0) {
@@ -211,6 +234,9 @@ const createTextOverlayRecommendation = ({
   }
   if (safeAreaIssueCount > 0) {
     return "Move non-ticker text away from program edges, then verify phone safe areas and platform overlays do not cover it.";
+  }
+  if (avatarOverlapIssueCount > 0) {
+    return "Move text away from the avatar or reduce the text box size, then verify the model remains visible during gameplay.";
   }
   if (emptyVisibleManualSourceCount > 0) {
     return "Fill or hide empty manual text overlays before exporting launch evidence.";

@@ -7,6 +7,10 @@ import { createLive2DModelAssetReport } from "./live2dModel";
 import { createVrmModelAssetReport } from "./vrmModel";
 import { redactSecretsFromText } from "./persistencePrivacy";
 
+type SceneSource = SceneDocument["sources"][number];
+type AvatarSceneSource = Extract<SceneSource, { kind: "pngtuber" | "live2d" | "vrm" }>;
+type ProgramOverlaySource = TextSource | ChatOverlaySource;
+
 export type ReadinessSeverity = "error" | "warning";
 
 export interface ReadinessIssue {
@@ -36,6 +40,7 @@ const textOverlayMinimumReadableFontRatio = 0.022;
 const textOverlayMinimumReadableFontSize = 18;
 const textOverlayLineHeightRatio = 1.22;
 const textOverlaySafeAreaMargin = 0.025;
+const overlayAvatarOverlapWarningThreshold = 0.22;
 const sceneTotalSourceWarningThreshold = 24;
 const sceneVisibleSourceWarningThreshold = 12;
 const sceneVisibleOverlayWarningThreshold = 9;
@@ -291,6 +296,7 @@ const validateScene = (scene: SceneDocument, profile: StudioProfile): ReadinessI
   const visibleOverlaySources = visibleSources.filter((source) => source.kind !== "screen");
   const visibleTextSources = visibleSources.filter((source) => source.kind === "text");
   const visibleChatSources = visibleSources.filter((source) => source.kind === "chat");
+  const visibleAvatarSources = visibleSources.filter(isAvatarSource);
   const nativeComposition = createNativeCompositionReport(scene);
 
   if (visibleSources.length === 0) {
@@ -462,6 +468,20 @@ const validateScene = (scene: SceneDocument, profile: StudioProfile): ReadinessI
     });
   }
 
+  const avatarOverlapChatOverlays = visibleSources.filter(
+    (source): source is ChatOverlaySource =>
+      source.kind === "chat" && hasOverlayAvatarOverlapRisk(scene, source, visibleAvatarSources)
+  );
+  if (avatarOverlapChatOverlays.length > 0) {
+    const names = avatarOverlapChatOverlays.map((source) => source.name).join(", ");
+    issues.push({
+      code: "scene-chat-overlay-avatar-overlap-risk",
+      severity: "warning",
+      field: "scene",
+      message: `${names} overlaps a visible avatar layer and may cover the model during gameplay.`
+    });
+  }
+
   const dominantTextOverlays = visibleSources.filter(
     (source): source is TextSource => source.kind === "text" && isDominantTextOverlay(source)
   );
@@ -498,6 +518,20 @@ const validateScene = (scene: SceneDocument, profile: StudioProfile): ReadinessI
       severity: "warning",
       field: "scene",
       message: `${names} is too close to the program edge for phone and platform overlay safe areas.`
+    });
+  }
+
+  const avatarOverlapTextOverlays = visibleSources.filter(
+    (source): source is TextSource =>
+      source.kind === "text" && hasOverlayAvatarOverlapRisk(scene, source, visibleAvatarSources)
+  );
+  if (avatarOverlapTextOverlays.length > 0) {
+    const names = avatarOverlapTextOverlays.map((source) => source.name).join(", ");
+    issues.push({
+      code: "scene-text-overlay-avatar-overlap-risk",
+      severity: "warning",
+      field: "scene",
+      message: `${names} overlaps a visible avatar layer and may cover the model during gameplay.`
     });
   }
 
@@ -583,6 +617,41 @@ const isTextOverlaySafeAreaRisk = (source: TextSource): boolean => {
     right > 1 - textOverlaySafeAreaMargin ||
     bottom > 1 - textOverlaySafeAreaMargin
   );
+};
+
+const isAvatarSource = (source: SceneSource): source is AvatarSceneSource =>
+  source.kind === "pngtuber" || source.kind === "live2d" || source.kind === "vrm";
+
+const hasOverlayAvatarOverlapRisk = (
+  scene: SceneDocument,
+  overlay: ProgramOverlaySource,
+  avatars: AvatarSceneSource[]
+): boolean =>
+  avatars.some(
+    (avatar) =>
+      isOverlayStackedAboveSource(scene, overlay, avatar) &&
+      transformOverlapRatio(overlay.transform, avatar.transform) >= overlayAvatarOverlapWarningThreshold
+  );
+
+const isOverlayStackedAboveSource = (scene: SceneDocument, overlay: ProgramOverlaySource, target: AvatarSceneSource): boolean => {
+  const overlayIndex = scene.sources.findIndex((source) => source.id === overlay.id);
+  const targetIndex = scene.sources.findIndex((source) => source.id === target.id);
+  return overlayIndex >= 0 && targetIndex >= 0 && overlayIndex > targetIndex;
+};
+
+const transformOverlapRatio = (
+  a: ProgramOverlaySource["transform"],
+  b: AvatarSceneSource["transform"]
+): number => {
+  const left = Math.max(a.x, b.x);
+  const top = Math.max(a.y, b.y);
+  const right = Math.min(a.x + a.width, b.x + b.width);
+  const bottom = Math.min(a.y + a.height, b.y + b.height);
+  const width = Math.max(0, right - left);
+  const height = Math.max(0, bottom - top);
+  const intersectionArea = width * height;
+  const smallerArea = Math.min(a.width * a.height, b.width * b.height);
+  return smallerArea > 0 ? intersectionArea / smallerArea : 0;
 };
 
 const hasSensitiveOverlayText = (source: TextSource, profile: StudioProfile): boolean =>
