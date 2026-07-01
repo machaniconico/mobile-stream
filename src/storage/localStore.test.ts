@@ -160,7 +160,7 @@ describe("local stream session summary store", () => {
       summary: `Summary ${profile.destination.streamKey}`,
       recommendation: `Retest ${profile.destination.streamKey}`,
       networkProfile:
-        "Authorization: Bearer validation-oauth-token mobilelivecaster://oauth/youtube?code=validation-code"
+        "Authorization: Bearer validation-oauth-token mobilelivecaster://oauth/youtube?code=validation-code www.example.org/room example.tv/show"
     };
 
     saveStreamValidationRuns([unsafeRun], [profile.destination.streamKey]);
@@ -170,6 +170,8 @@ describe("local stream session summary store", () => {
     expect(storage.getItem(validationRunsStorageKey)).not.toContain(profile.destination.streamKey);
     expect(storage.getItem(validationRunsStorageKey)).not.toContain("validation-oauth-token");
     expect(storage.getItem(validationRunsStorageKey)).not.toContain("validation-code");
+    expect(storage.getItem(validationRunsStorageKey)).not.toContain("www.example.org");
+    expect(storage.getItem(validationRunsStorageKey)).not.toContain("example.tv");
     expect(storage.getItem(validationRunsStorageKey)).toContain("[redacted]");
 
     clearStreamValidationRuns();

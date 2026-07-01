@@ -26,7 +26,23 @@ const redactValue = (value: unknown, candidates: string[]): unknown => {
 };
 
 const redactText = (value: string, candidates: string[]): string =>
-  candidates.reduce((current, candidate) => current.split(candidate).join("[redacted]"), redactSensitiveText(value));
+  candidates.reduce(
+    (current, candidate) => current.split(candidate).join("[redacted]"),
+    redactProtocolLessLinks(redactSensitiveText(value))
+  );
+
+const redactProtocolLessLinks = (value: string): string =>
+  value
+    .replace(/\bwww\.[^\s<>"']+/gi, redactProtocolLessLinkToken)
+    .replace(
+      /(^|[^\w@./:])((?:[a-z0-9-]+\.)+(?:ai|app|co|com|dev|gg|io|jp|link|live|ly|me|net|org|site|stream|tv|xyz)(?:\/[^\s<>"']*)?)/gi,
+      (_match, prefix: string, token: string) => `${prefix}${redactProtocolLessLinkToken(token)}`
+    );
+
+const redactProtocolLessLinkToken = (token: string): string => {
+  const trailing = token.match(/[),.;:!?]+$/)?.[0] ?? "";
+  return `[redacted]${trailing}`;
+};
 
 const secretCandidates = (secrets: string[]): string[] => {
   const candidates = secrets.flatMap((secret) => {

@@ -45,4 +45,26 @@ describe("persistence privacy", () => {
     expect(json).not.toContain("refresh-secret");
     expect(json).toContain("[redacted]");
   });
+
+  it("redacts contact details and protocol-less links without removing retained RTMPS endpoints", () => {
+    const value = {
+      ingestEndpoint: "rtmps://live.example.com/app",
+      note:
+        "viewer@example.com shared www.example.org/private, example.tv/show, 090-1234-5678, and discord.gg/privateRoom"
+    };
+
+    const redacted = redactSecretsFromPersistedValue(value);
+    const json = JSON.stringify(redacted);
+
+    expect(json).toContain("rtmps://live.example.com/app");
+    expect(json).not.toContain("viewer@example.com");
+    expect(json).not.toContain("www.example.org");
+    expect(json).not.toContain("example.tv");
+    expect(json).not.toContain("090-1234-5678");
+    expect(json).not.toContain("discord.gg/privateRoom");
+    expect(json).toContain("[redacted]");
+    expect(json).toContain("[email redacted]");
+    expect(json).toContain("[phone redacted]");
+    expect(json).toContain("[invite redacted]");
+  });
 });
