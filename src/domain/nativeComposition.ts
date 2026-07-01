@@ -26,6 +26,7 @@ export interface NativeCompositionReport {
   visibleSourceCount: number;
   screenSourceCount: number;
   avatarSourceCount: number;
+  nativeOverlayCount: number;
   stillImageOverlayCount: number;
   textOverlayCount: number;
   chatOverlayCount: number;
@@ -52,6 +53,7 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
   const overlaySources =
     firstScreenIndex >= 0 ? visibleSources.slice(firstScreenIndex + 1).filter((source) => source.kind !== "screen") : visibleNonScreenSources;
   const nativeOverlaySources = overlaySources.filter((source) => nativeOverlayKinds.has(source.kind));
+  const nativeOverlayCount = nativeOverlaySources.length;
   const stillImageOverlayCount = nativeOverlaySources.filter((source) => nativeStillImageKinds.has(source.kind)).length;
   const textOverlayCount = nativeOverlaySources.filter((source) => source.kind === "text").length;
   const chatOverlayCount = nativeOverlaySources.filter((source) => source.kind === "chat").length;
@@ -75,6 +77,7 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       visibleSourceCount: 0,
       screenSourceCount: 0,
       avatarSourceCount: 0,
+      nativeOverlayCount: 0,
       stillImageOverlayCount: 0,
       textOverlayCount: 0,
       chatOverlayCount: 0,
@@ -97,6 +100,7 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       visibleSourceCount: visibleSources.length,
       screenSourceCount: 0,
       avatarSourceCount: countAvatarSources(visibleSources),
+      nativeOverlayCount,
       stillImageOverlayCount,
       textOverlayCount,
       chatOverlayCount,
@@ -118,6 +122,7 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       visibleSourceCount: visibleSources.length,
       screenSourceCount: screenSources.length,
       avatarSourceCount: countAvatarSources(visibleSources),
+      nativeOverlayCount,
       stillImageOverlayCount,
       textOverlayCount,
       chatOverlayCount,
@@ -140,6 +145,7 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
         visibleSourceCount: visibleSources.length,
         screenSourceCount: screenSources.length,
         avatarSourceCount: countAvatarSources(visibleSources),
+        nativeOverlayCount,
         stillImageOverlayCount,
         textOverlayCount,
         chatOverlayCount,
@@ -160,6 +166,7 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
       visibleSourceCount: visibleSources.length,
       screenSourceCount: screenSources.length,
       avatarSourceCount: countAvatarSources(visibleSources),
+      nativeOverlayCount,
       stillImageOverlayCount,
       textOverlayCount,
       chatOverlayCount,
@@ -180,6 +187,7 @@ export const createNativeCompositionReport = (scene: SceneDocument): NativeCompo
     visibleSourceCount: visibleSources.length,
     screenSourceCount: screenSources.length,
     avatarSourceCount: 0,
+    nativeOverlayCount: 0,
     stillImageOverlayCount: 0,
     textOverlayCount: 0,
     chatOverlayCount: 0,

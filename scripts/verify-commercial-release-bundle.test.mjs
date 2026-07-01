@@ -361,6 +361,33 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("applied/skipped native overlay proof");
   });
 
+  it("blocks native runtime claims when retained manifests only prove still-image overlays", () => {
+    writeBundle({
+      summary: {
+        nativeCompositionNativeOverlayCount: 4,
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeCompositionAppliedCount: 1,
+            nativeRuntimeCompositionSkippedCount: 0,
+            nativeRuntimeStillImageAssetCount: 1,
+            nativeRuntimeStillImageAssetLoadedCount: 1,
+            nativeRuntimeStillImageAssetMissingCount: 0,
+            nativeRuntimeStillImageAssetDecodedCount: 1,
+            nativeRuntimeStillImageAssetDecodedPixelCount: 921_600,
+            nativeRuntimeStillImageAssetCompositedCount: 1,
+            nativeRuntimeStillImageAssetCompositedPixelCount: 921_600
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("applied/skipped native overlay proof");
+  });
+
   it("blocks native runtime claims when retained VRM manifests lack renderer proof", () => {
     writeBundle({
       summary: {
@@ -1137,6 +1164,10 @@ const createBundle = (patch = {}) => {
     chatOverlayAvatarOverlapIssueCount: 0,
     chatOverlaySummary: "1/1 chat overlay visible.",
     chatOverlayRecommendation: "Keep chat overlay settings unchanged.",
+    nativeCompositionNativeOverlayCount: 4,
+    nativeCompositionStillImageOverlayCount: 1,
+    nativeCompositionTextOverlayCount: 2,
+    nativeCompositionChatOverlayCount: 1,
     liveCaptionStatus: "info",
     liveCaptionEnabled: false,
     liveCaptionRecognitionStatus: "unavailable",
@@ -1247,7 +1278,7 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeVideoEncoderBackend: devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
   nativeRuntimeAudioEncoderBackend: devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
   nativeRuntimeCompositionStatus: "applied",
-  nativeRuntimeCompositionAppliedCount: 1,
+  nativeRuntimeCompositionAppliedCount: 4,
   nativeRuntimeCompositionSkippedCount: 0,
   nativeRuntimeCompositionSkippedKinds: [],
   nativeRuntimeSentVideoFrames: 120,

@@ -732,13 +732,14 @@ function validationManifestIssue(bundle) {
       "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v54 or newer."
     );
   }
+  const expectedNativeOverlayCount = nativeCompositionNativeOverlayCount(summary);
   const eligibleNativeRuntimePlatforms = new Set(
     latestEligibleRuns
       .filter(
         (run) =>
           run?.eligible === true &&
           run?.result === "pass" &&
-          isManifestNativeRuntimePass(run)
+          isManifestNativeRuntimePass(run, expectedNativeOverlayCount)
       )
       .map((run) => run.devicePlatform)
   );
@@ -890,7 +891,7 @@ function validationManifestIssue(bundle) {
         (run) =>
           run?.eligible === true &&
           run?.result === "pass" &&
-          isManifestPlatformIngestPass(run)
+          isManifestPlatformIngestPass(run, expectedNativeOverlayCount)
       )
       .map((run) => run.devicePlatform)
   );
@@ -987,17 +988,25 @@ function validationEvidencePlatformIngestPasses(bundle) {
   const latestRuns = Array.isArray(manifest)
     ? latestEligibleManifestRunsByPlatform(manifest, createExpectedManifestScope(bundle))
     : new Map();
+  const expectedNativeOverlayCount = nativeCompositionNativeOverlayCount(summary);
   return {
-    ios: resolveValidationEvidencePlatformIngestPass(summary.validationEvidencePlatformIngestIosPass, latestRuns.get("ios")),
+    ios: resolveValidationEvidencePlatformIngestPass(
+      summary.validationEvidencePlatformIngestIosPass,
+      latestRuns.get("ios"),
+      expectedNativeOverlayCount
+    ),
     android: resolveValidationEvidencePlatformIngestPass(
       summary.validationEvidencePlatformIngestAndroidPass,
-      latestRuns.get("android")
+      latestRuns.get("android"),
+      expectedNativeOverlayCount
     )
   };
 }
 
-function resolveValidationEvidencePlatformIngestPass(summaryValue, manifestRun) {
-  return typeof summaryValue === "boolean" ? summaryValue : isManifestPlatformIngestPass(manifestRun);
+function resolveValidationEvidencePlatformIngestPass(summaryValue, manifestRun, expectedNativeOverlayCount = 0) {
+  return typeof summaryValue === "boolean"
+    ? summaryValue
+    : isManifestPlatformIngestPass(manifestRun, expectedNativeOverlayCount);
 }
 
 function staleEvidenceIssue(bundle) {
@@ -1150,7 +1159,7 @@ function isManifestQualityAutomationPass(run) {
   );
 }
 
-function isManifestPlatformIngestPass(run) {
+function isManifestPlatformIngestPass(run, expectedNativeOverlayCount = 0) {
   if (!run) {
     return false;
   }
@@ -1158,7 +1167,7 @@ function isManifestPlatformIngestPass(run) {
     return true;
   }
   return (
-    isManifestNativeRuntimePass(run) &&
+    isManifestNativeRuntimePass(run, expectedNativeOverlayCount) &&
     isManifestPlatformPublishingPass(run) &&
     isManifestPlatformPublishingTimestampConsistent(run)
   );
@@ -1184,7 +1193,7 @@ function isManifestPlatformPublishingTimestampConsistent(run) {
   );
 }
 
-function isManifestNativeRuntimePass(run) {
+function isManifestNativeRuntimePass(run, expectedNativeOverlayCount = 0) {
   return (
     run?.nativeRuntimeStatus === "pass" &&
     run?.nativeRuntimePlatform === run?.devicePlatform &&
@@ -1197,6 +1206,7 @@ function isManifestNativeRuntimePass(run) {
     hasAndroidMediaCodecCompositorProof(run) &&
     hasIosReplayKitCompositorProof(run) &&
     (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
+    hasNativeOverlayProof(run, expectedNativeOverlayCount) &&
     hasStillImageOverlayProof(run) &&
     hasIosAppGroupStillImageProof(run) &&
     hasVrmReleaseProof(run)
@@ -1252,6 +1262,25 @@ function hasStillImageOverlayProof(run) {
     hasLoadedAllNativeRuntimeAssets(run) &&
     hasDecodedAllNativeRuntimeAssets(run) &&
     hasCompositedAllNativeRuntimeAssets(run)
+  );
+}
+
+function nativeCompositionNativeOverlayCount(summary) {
+  return typeof summary?.nativeCompositionNativeOverlayCount === "number" &&
+    Number.isFinite(summary.nativeCompositionNativeOverlayCount)
+    ? Math.max(0, Math.round(summary.nativeCompositionNativeOverlayCount))
+    : 0;
+}
+
+function hasNativeOverlayProof(run, expectedNativeOverlayCount) {
+  if (!isPositiveNumber(expectedNativeOverlayCount)) {
+    return true;
+  }
+
+  return (
+    run?.nativeRuntimeCompositionStatus === "applied" &&
+    isAtLeastNumber(run?.nativeRuntimeCompositionAppliedCount, expectedNativeOverlayCount) &&
+    isZeroNumber(run?.nativeRuntimeCompositionSkippedCount)
   );
 }
 

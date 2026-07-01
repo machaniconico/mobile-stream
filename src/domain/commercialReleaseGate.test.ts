@@ -936,6 +936,41 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks native-runtime summary claims when the manifest only proves still-image overlays", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          nativeCompositionNativeOverlayCount: 4,
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeCompositionAppliedCount: 1,
+              nativeRuntimeCompositionSkippedCount: 0,
+              nativeRuntimeStillImageAssetCount: 1,
+              nativeRuntimeStillImageAssetLoadedCount: 1,
+              nativeRuntimeStillImageAssetMissingCount: 0,
+              nativeRuntimeStillImageAssetDecodedCount: 1,
+              nativeRuntimeStillImageAssetDecodedPixelCount: 921_600,
+              nativeRuntimeStillImageAssetCompositedCount: 1,
+              nativeRuntimeStillImageAssetCompositedPixelCount: 921_600
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS native runtime proof")
+      })
+    );
+  });
+
   it("blocks native-runtime summary claims when the manifest lacks VRM renderer proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -1957,6 +1992,10 @@ const supportBundle = ({
       chatOverlayAvatarOverlapIssueCount: 0,
       chatOverlaySummary: "1/1 chat overlay visible.",
       chatOverlayRecommendation: "Keep chat overlay settings unchanged.",
+      nativeCompositionNativeOverlayCount: 4,
+      nativeCompositionStillImageOverlayCount: 1,
+      nativeCompositionTextOverlayCount: 2,
+      nativeCompositionChatOverlayCount: 1,
       liveCaptionStatus: "info",
       liveCaptionEnabled: false,
       liveCaptionRecognitionStatus: "unavailable",
@@ -2079,7 +2118,7 @@ const manifestRun = ({
   nativeRuntimeEncoderProbeVideoBackend = "none",
   nativeRuntimeEncoderProbeAudioBackend = "none",
   nativeRuntimeCompositionStatus = "applied",
-  nativeRuntimeCompositionAppliedCount = 1,
+  nativeRuntimeCompositionAppliedCount = 4,
   nativeRuntimeCompositionSkippedCount = 0,
   nativeRuntimeCompositionSkippedKinds = [],
   nativeRuntimeSentVideoFrames = 120,

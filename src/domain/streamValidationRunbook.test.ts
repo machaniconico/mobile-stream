@@ -39,6 +39,7 @@ const nativeComposition: NativeCompositionReport = {
   summary: "Native overlays are covered.",
   visibleSourceCount: 2,
   screenSourceCount: 1,
+  nativeOverlayCount: 3,
   stillImageOverlayCount: 1,
   textOverlayCount: 1,
   chatOverlayCount: 1,

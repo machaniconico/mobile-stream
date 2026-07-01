@@ -1443,10 +1443,11 @@ const alignNativeRuntimeWithComposition = (
     return nativeRuntime;
   }
 
+  const expectedNativeOverlayCount = nativeComposition.nativeOverlayCount;
   const expectedStillImageCount = nativeComposition.stillImageOverlayCount;
   const requiresStillImageProof = expectedStillImageCount > 0;
   const overlayApplied = nativeRuntime.compositionStatus === "applied";
-  const runtimeAppliedEnoughOverlays = nativeRuntime.compositionAppliedCount >= expectedStillImageCount;
+  const runtimeAppliedEnoughOverlays = nativeRuntime.compositionAppliedCount >= expectedNativeOverlayCount;
   const runtimeSkippedClean = nativeRuntime.compositionSkippedCount === 0;
   const runtimeDeclaredEnoughAssets = nativeRuntime.stillImageAssetCount >= expectedStillImageCount;
   const runtimeLoadedEnoughAssets = nativeRuntime.stillImageAssetLoadedCount >= expectedStillImageCount;
@@ -1483,8 +1484,8 @@ const alignNativeRuntimeWithComposition = (
   return addNativeRuntimeCompositionReview(
     nativeRuntime,
     "warn",
-    `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, applied ${nativeRuntime.compositionAppliedCount}/${expectedStillImageCount}, skipped ${nativeRuntime.compositionSkippedCount}, assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded, decoded ${nativeRuntime.stillImageAssetDecodedCount}/${expectedStillImageCount}, decoded pixels ${nativeRuntime.stillImageAssetDecodedPixelCount}, composited ${nativeRuntime.stillImageAssetCompositedCount}/${expectedStillImageCount}, composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount}, frame compositor ${nativeRuntime.runtimeCompositorBackend}, composited frames ${nativeRuntime.runtimeCompositedFrameCount}, composition failures ${nativeRuntime.runtimeCompositionFailureCount}.`,
-    "Repeat physical validation with the current scene and retain native compositor telemetry showing overlays applied, zero skipped overlays, all required still-image assets decoded/composited to non-zero pixels, iOS ReplayKit/CoreGraphics composited frames above zero when iOS overlays are active, and Android direct MediaCodec Canvas composited frames above zero with zero composition failures."
+    `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, applied ${nativeRuntime.compositionAppliedCount}/${expectedNativeOverlayCount} overlays, skipped ${nativeRuntime.compositionSkippedCount}, still-image assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded, decoded ${nativeRuntime.stillImageAssetDecodedCount}/${expectedStillImageCount}, decoded pixels ${nativeRuntime.stillImageAssetDecodedPixelCount}, composited ${nativeRuntime.stillImageAssetCompositedCount}/${expectedStillImageCount}, composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount}, frame compositor ${nativeRuntime.runtimeCompositorBackend}, composited frames ${nativeRuntime.runtimeCompositedFrameCount}, composition failures ${nativeRuntime.runtimeCompositionFailureCount}.`,
+    "Repeat physical validation with the current scene and retain native compositor telemetry showing every native overlay applied, zero skipped overlays, all required still-image assets decoded/composited to non-zero pixels, iOS ReplayKit/CoreGraphics composited frames above zero when iOS overlays are active, and Android direct MediaCodec Canvas composited frames above zero with zero composition failures."
   );
 };
 

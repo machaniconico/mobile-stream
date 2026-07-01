@@ -386,7 +386,7 @@ const platformPublishingFreshnessMetricLabel = (
   `${diagnostics.platformPublishing.status} / ${freshness.status}${freshness.ageMinutes === null ? "" : ` / ${freshness.ageMinutes}m old`}`;
 
 const nativeCompositionMetricLabel = (diagnostics: StreamDiagnostics): string =>
-  `${diagnostics.nativeComposition.coverage} / text ${diagnostics.nativeComposition.textOverlayCount} / chat ${diagnostics.nativeComposition.chatOverlayCount} / ${diagnostics.nativeComposition.previewOnlySourceCount} preview-only`;
+  `${diagnostics.nativeComposition.coverage} / overlays ${diagnostics.nativeComposition.nativeOverlayCount} / text ${diagnostics.nativeComposition.textOverlayCount} / chat ${diagnostics.nativeComposition.chatOverlayCount} / ${diagnostics.nativeComposition.previewOnlySourceCount} preview-only`;
 
 const nativeRuntimeMonitorMetricLabel = (diagnostics: StreamDiagnostics): string => {
   const audioProcessing = diagnostics.nativeRuntime?.audioProcessing;

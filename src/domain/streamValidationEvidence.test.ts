@@ -156,7 +156,7 @@ const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
   },
   composition: {
     status: "applied" as const,
-    appliedCount: 1,
+    appliedCount: 4,
     skippedCount: 0,
     skippedKinds: [],
     stillImageAssetCount: 1,
@@ -209,7 +209,7 @@ const nativeVrmMonitorRuntime = (platform: "ios" | "android" = "ios") => {
     ...runtime,
     composition: {
       ...runtime.composition,
-      appliedCount: 1,
+      appliedCount: 3,
       vrmSourceCount: 1,
       vrmPosePayloadCount: 1,
       vrmActivePoseCount: 1,
@@ -1533,7 +1533,68 @@ describe("stream validation evidence", () => {
       stillImageAssetCount: 1,
       stillImageAssetLoadedCount: 1
     });
-    expect(run.nativeRuntime?.summary).toContain("applied 0/1");
+    expect(run.nativeRuntime?.summary).toContain("applied 0/4");
+    expect(summary.nativeRuntimeReadyCount).toBe(0);
+    expect(summary.nativeRuntimeIosPass).toBe(false);
+  });
+
+  it("does not accept still-image-only native proof when text and chat overlays are present", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntime("ios");
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: {
+          ...runtime,
+          composition: {
+            ...runtime.composition,
+            status: "applied" as const,
+            appliedCount: 1,
+            skippedCount: 0,
+            stillImageAssetCount: 1,
+            stillImageAssetLoadedCount: 1,
+            stillImageAssetMissingCount: 0,
+            stillImageAssetDecodedCount: 1,
+            stillImageAssetDecodedPixelCount: 921_600,
+            stillImageAssetCompositedCount: 1,
+            stillImageAssetCompositedPixelCount: 921_600
+          }
+        }
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.nativeRuntime).toMatchObject({
+      status: "warn",
+      compositionStatus: "applied",
+      compositionAppliedCount: 1,
+      stillImageAssetCount: 1,
+      stillImageAssetLoadedCount: 1
+    });
+    expect(run.nativeRuntime?.summary).toContain("applied 1/4 overlays");
+    expect(run.recommendation).toContain("every native overlay");
     expect(summary.nativeRuntimeReadyCount).toBe(0);
     expect(summary.nativeRuntimeIosPass).toBe(false);
   });
@@ -1679,7 +1740,7 @@ describe("stream validation evidence", () => {
           composition: {
             ...runtime.composition,
             status: "applied" as const,
-            appliedCount: 1,
+            appliedCount: 4,
             skippedCount: 0,
             stillImageAssetCount: 1,
             stillImageAssetLoadedCount: 1,
@@ -2199,7 +2260,7 @@ describe("stream validation evidence", () => {
       nativeRuntimeVideoEncoderBackend: "videotoolbox-h264",
       nativeRuntimeAudioEncoderBackend: "audiotoolbox-aac",
       nativeRuntimeCompositionStatus: "applied",
-      nativeRuntimeCompositionAppliedCount: 1,
+      nativeRuntimeCompositionAppliedCount: 4,
       nativeRuntimeCompositionSkippedCount: 0,
       nativeRuntimeCompositionSkippedKinds: [],
       nativeRuntimeSentVideoFrames: 120,
