@@ -426,6 +426,90 @@ describe("face tracking", () => {
     );
   });
 
+  it("attenuates localized still-image deformation when horizontal face anchors are unbalanced", () => {
+    const profile = {
+      ...defaultFaceTrackingProfile,
+      enabled: true,
+      headRange: 1,
+      bodyRange: 1,
+      illustrationDeform: 1,
+      eyeDeform: 1,
+      mouthDeform: 1
+    };
+    const runtime = {
+      ...createFaceTrackingRuntimeState(2_000),
+      status: "tracking" as const,
+      yaw: 0.56,
+      pitch: -0.12,
+      roll: 0.24,
+      mouthOpen: 0.76,
+      blink: 0.8,
+      confidence: 0.96
+    };
+    const scene = createDefaultScene();
+    const readyRigScene = {
+      ...scene,
+      sources: scene.sources.map((source) =>
+        source.kind === "pngtuber"
+          ? {
+              ...source,
+              illustrationRig: {
+                ...source.illustrationRig,
+                faceCenterX: 0.5,
+                leftEyeX: 0.42,
+                rightEyeX: 0.58,
+                mouthCenterX: 0.5,
+                faceCenterY: 0.47,
+                faceRange: 0.38,
+                hairLineY: 0.22,
+                eyeLineY: 0.35,
+                mouthLineY: 0.52,
+                shoulderLineY: 0.78,
+                sliceCount: 24
+              }
+            }
+          : source
+      )
+    };
+    const unbalancedRigScene = {
+      ...scene,
+      sources: scene.sources.map((source) =>
+        source.kind === "pngtuber"
+          ? {
+              ...source,
+              illustrationRig: {
+                ...source.illustrationRig,
+                faceCenterX: 0.78,
+                leftEyeX: 0.47,
+                rightEyeX: 0.53,
+                mouthCenterX: 0.84,
+                faceCenterY: 0.47,
+                faceRange: 0.38,
+                hairLineY: 0.22,
+                eyeLineY: 0.35,
+                mouthLineY: 0.52,
+                shoulderLineY: 0.78,
+                sliceCount: 24
+              }
+            }
+          : source
+      )
+    };
+
+    const readyAvatar = applyFaceTrackingRuntime(readyRigScene, runtime, profile).sources.find(
+      (source) => source.kind === "pngtuber"
+    );
+    const unbalancedAvatar = applyFaceTrackingRuntime(unbalancedRigScene, runtime, profile).sources.find(
+      (source) => source.kind === "pngtuber"
+    );
+
+    expect(Math.abs(readyAvatar?.motion.headYaw ?? 0)).toBeCloseTo(Math.abs(unbalancedAvatar?.motion.headYaw ?? 0));
+    expect(Math.abs(readyAvatar?.motion.headX ?? 0)).toBeGreaterThan(Math.abs(unbalancedAvatar?.motion.headX ?? 0));
+    expect(Math.abs(readyAvatar?.motion.meshWarp ?? 0)).toBeGreaterThan(Math.abs(unbalancedAvatar?.motion.meshWarp ?? 0));
+    expect(readyAvatar?.motion.eyeSquint).toBeGreaterThan(unbalancedAvatar?.motion.eyeSquint ?? 0);
+    expect(readyAvatar?.motion.mouthDeform).toBeGreaterThan(unbalancedAvatar?.motion.mouthDeform ?? 0);
+  });
+
   it("calibrates neutral pose from the current runtime offset", () => {
     const calibrated = calibrateFaceTrackingProfile(defaultFaceTrackingProfile, {
       ...createFaceTrackingRuntimeState(3_000),

@@ -275,6 +275,7 @@ const runtimeToMotion = (
   const rigQuality = createAvatarIllustrationRigQuality(rig);
   const partSeparationMotionScale = 0.45 + rigQuality.partSeparationFactor * 0.55;
   const depthContinuityMotionScale = 0.5 + rigQuality.depthContinuityFactor * 0.5;
+  const horizontalAnchorMotionScale = 0.35 + rigQuality.horizontalAnchorFactor * 0.65;
   const highFidelityMotionScale = 0.45 + rigQuality.highFidelityFactor * 0.55;
   const faceMotionScale = 0.84 + faceInfluence * 0.34;
   const bodyMotionScale = 0.74 + lowerBodyInfluence * 0.36;
@@ -284,7 +285,7 @@ const runtimeToMotion = (
     headYaw: clamp(runtime.yaw * profile.headRange * lostMultiplier * faceMotionScale, -1, 1),
     headPitch: clamp(runtime.pitch * profile.headRange * lostMultiplier * faceMotionScale, -1, 1),
     headRoll: clamp(runtime.roll * profile.headRange * lostMultiplier * faceMotionScale, -1, 1),
-    headX: clamp(runtime.yaw * 0.035 * profile.headRange * lostMultiplier * faceMotionScale, -1, 1),
+    headX: clamp(runtime.yaw * 0.035 * profile.headRange * lostMultiplier * faceMotionScale * horizontalAnchorMotionScale, -1, 1),
     headY: clamp(runtime.pitch * 0.03 * profile.headRange * lostMultiplier * faceMotionScale, -1, 1),
     bodyLean: clamp(runtime.roll * profile.bodyRange * lostMultiplier * bodyMotionScale, -1, 1),
     bodyBounce: Math.abs(runtime.mouthOpen - 0.3) * 0.02 * profile.bodyRange,
@@ -299,13 +300,21 @@ const runtimeToMotion = (
       (runtime.yaw + runtime.roll * profile.bodyRange * 0.18) *
         illustrationStrength *
         faceMotionScale *
-        highFidelityMotionScale,
+        highFidelityMotionScale *
+        horizontalAnchorMotionScale,
       -1,
       1
     ),
-    eyeSquint: clamp01(runtime.blink * profile.eyeDeform * illustrationRigMultiplier * partSeparationMotionScale),
+    eyeSquint: clamp01(
+      runtime.blink * profile.eyeDeform * illustrationRigMultiplier * partSeparationMotionScale * horizontalAnchorMotionScale
+    ),
     mouthDeform: clamp01(
-      runtime.mouthOpen * profile.mouthDeform * illustrationRigMultiplier * mouthMotionScale * partSeparationMotionScale
+      runtime.mouthOpen *
+        profile.mouthDeform *
+        illustrationRigMultiplier *
+        mouthMotionScale *
+        partSeparationMotionScale *
+        horizontalAnchorMotionScale
     ),
     hairSway: clamp(
       (-runtime.yaw * 0.72 + runtime.roll * 0.32) *
