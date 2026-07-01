@@ -371,6 +371,9 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "Package ${label} references artifact not present in package");
     expectIncludes(files.releaseEvidencePackageScript, "Package ${label} metadata mismatch");
     expectIncludes(files.releaseEvidencePackageScript, "sensitiveJsonPattern");
+    expectIncludes(files.releaseEvidencePackageScript, "isGeneratedReactNativeBundlePath");
+    expectIncludes(files.releaseEvidencePackageScript, "artifacts/.artifacts/rn/");
+    expectIncludes(files.releaseEvidencePackageScript, "endsWith(\".jsbundle\")");
   }),
   check("Android streaming permissions are declared", () => {
     [
