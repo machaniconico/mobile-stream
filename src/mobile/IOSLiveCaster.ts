@@ -173,6 +173,7 @@ const normalizeNativeRuntime = (
         composition: {
           status: runtime.composition?.status ?? "unknown",
           appliedCount: runtime.composition?.appliedCount ?? 0,
+          appliedKinds: runtime.composition?.appliedKinds ?? [],
           skippedCount: runtime.composition?.skippedCount ?? 0,
           skippedKinds: runtime.composition?.skippedKinds ?? [],
           stillImageAssetCount: runtime.composition?.stillImageAssetCount ?? 0,

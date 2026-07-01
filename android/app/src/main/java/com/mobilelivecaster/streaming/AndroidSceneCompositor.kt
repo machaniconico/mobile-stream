@@ -72,6 +72,7 @@ data class AndroidStillImageAssetEvidence(
 
 data class AndroidCompositionResult(
     val appliedCount: Int,
+    val appliedKinds: List<String> = emptyList(),
     val skippedCount: Int,
     val skippedKinds: Set<String>,
     val parseFailed: Boolean = false,
@@ -129,6 +130,7 @@ object AndroidSceneCompositor {
             .sortedBy { node -> node.order }
 
         var appliedCount = 0
+        val appliedKinds = mutableListOf<String>()
         var skippedCount = underlays.size
         val skippedKinds = underlays.mapTo(linkedSetOf()) { node -> node.kind }
         val stillImageNodes = overlays.filter(::requiresStillImageAsset)
@@ -146,6 +148,7 @@ object AndroidSceneCompositor {
             recordStillImageAssetComposited(stillImageEvidence, node)
             canvasOverlays.add(CanvasOverlayItem(bitmap, resolveOverlayTransform(node)))
             appliedCount += 1
+            appliedKinds.add(node.kind)
         }
         val missingStillImageNodes = stillImageNodes.filter { node ->
             stillImageEvidence[assetEvidenceKey(node)]?.loaded != true
@@ -154,6 +157,7 @@ object AndroidSceneCompositor {
         return CanvasComposition(
             result = AndroidCompositionResult(
                 appliedCount = appliedCount,
+                appliedKinds = appliedKinds.sorted(),
                 skippedCount = skippedCount,
                 skippedKinds = skippedKinds,
                 stillImageAssetCount = stillImageNodes.size,
@@ -187,6 +191,7 @@ object AndroidSceneCompositor {
         stream.getGlInterface().clearFilters()
 
         var appliedCount = 0
+        val appliedKinds = mutableListOf<String>()
         var skippedCount = underlays.size
         val skippedKinds = underlays.mapTo(linkedSetOf()) { node -> node.kind }
         val stillImageNodes = overlays.filter(::requiresStillImageAsset)
@@ -204,6 +209,7 @@ object AndroidSceneCompositor {
             stream.getGlInterface().addFilter(filter)
             recordStillImageAssetComposited(stillImageEvidence, node)
             appliedCount += 1
+            appliedKinds.add(node.kind)
         }
         val missingStillImageNodes = stillImageNodes.filter { node ->
             stillImageEvidence[assetEvidenceKey(node)]?.loaded != true
@@ -211,6 +217,7 @@ object AndroidSceneCompositor {
 
         return AndroidCompositionResult(
             appliedCount = appliedCount,
+            appliedKinds = appliedKinds.sorted(),
             skippedCount = skippedCount,
             skippedKinds = skippedKinds,
             stillImageAssetCount = stillImageNodes.size,

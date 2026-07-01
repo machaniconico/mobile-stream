@@ -698,17 +698,17 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): 
     mismatches.push(`summary reports same build but manifest latest iOS/Android builds are ${iosRun?.appBuild} / ${androidRun?.appBuild}`);
   }
 
-  const expectedNativeOverlayCount = nativeCompositionNativeOverlayCount(summary);
+  const expectedNativeOverlays = nativeCompositionOverlayProofRequirements(summary);
   const claimChecks: Array<[boolean, string, boolean]> = [
     [summary.validationEvidenceIosPass, "iOS validation pass", isManifestRunPass(iosRun)],
     [summary.validationEvidenceAndroidPass, "Android validation pass", isManifestRunPass(androidRun)],
     [summary.validationEvidencePhysicalDeviceIosPass, "iOS physical-device proof", isManifestPhysicalRunPass(iosRun)],
     [summary.validationEvidencePhysicalDeviceAndroidPass, "Android physical-device proof", isManifestPhysicalRunPass(androidRun)],
-    [summary.validationEvidenceNativeRuntimeIosPass, "iOS native runtime proof", isManifestNativeRuntimePass(iosRun, expectedNativeOverlayCount)],
+    [summary.validationEvidenceNativeRuntimeIosPass, "iOS native runtime proof", isManifestNativeRuntimePass(iosRun, expectedNativeOverlays)],
     [
       summary.validationEvidenceNativeRuntimeAndroidPass,
       "Android native runtime proof",
-      isManifestNativeRuntimePass(androidRun, expectedNativeOverlayCount)
+      isManifestNativeRuntimePass(androidRun, expectedNativeOverlays)
     ],
     [summary.validationEvidenceMonitorHoldIosPass, "iOS stable monitor-hold proof", isManifestMonitorHoldPass(iosRun)],
     [
@@ -743,12 +743,12 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): 
     [
       summary.validationEvidencePlatformIngestIosPass,
       "iOS same-run platform ingest proof",
-      isManifestPlatformIngestPass(iosRun, expectedNativeOverlayCount)
+      isManifestPlatformIngestPass(iosRun, expectedNativeOverlays)
     ],
     [
       summary.validationEvidencePlatformIngestAndroidPass,
       "Android same-run platform ingest proof",
-      isManifestPlatformIngestPass(androidRun, expectedNativeOverlayCount)
+      isManifestPlatformIngestPass(androidRun, expectedNativeOverlays)
     ]
   ];
   for (const [claimed, label, backedByManifest] of claimChecks) {
@@ -839,17 +839,17 @@ const getValidationEvidencePlatformIngestPasses = (bundle: SupportBundle): { ios
   const latestRuns = Array.isArray(manifest)
     ? latestEligibleManifestRunsByPlatform(manifest, createExpectedManifestScope(bundle))
     : new Map<string, ValidationEvidenceManifestRun>();
-  const expectedNativeOverlayCount = nativeCompositionNativeOverlayCount(bundle.summary);
+  const expectedNativeOverlays = nativeCompositionOverlayProofRequirements(bundle.summary);
   return {
     ios: resolveValidationEvidencePlatformIngestPass(
       bundle.summary.validationEvidencePlatformIngestIosPass,
       latestRuns.get("ios"),
-      expectedNativeOverlayCount
+      expectedNativeOverlays
     ),
     android: resolveValidationEvidencePlatformIngestPass(
       bundle.summary.validationEvidencePlatformIngestAndroidPass,
       latestRuns.get("android"),
-      expectedNativeOverlayCount
+      expectedNativeOverlays
     )
   };
 };
@@ -857,8 +857,8 @@ const getValidationEvidencePlatformIngestPasses = (bundle: SupportBundle): { ios
 const resolveValidationEvidencePlatformIngestPass = (
   summaryValue: unknown,
   manifestRun: ValidationEvidenceManifestRun | undefined,
-  expectedNativeOverlayCount = 0
-): boolean => (typeof summaryValue === "boolean" ? summaryValue : isManifestPlatformIngestPass(manifestRun, expectedNativeOverlayCount));
+  expectedNativeOverlays: NativeOverlayProofRequirements = emptyNativeOverlayProofRequirements
+): boolean => (typeof summaryValue === "boolean" ? summaryValue : isManifestPlatformIngestPass(manifestRun, expectedNativeOverlays));
 
 const createRetainedStaleEvidenceIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
   if (bundle.summary.validationEvidenceStaleRunCount <= 0) {
@@ -1037,7 +1037,7 @@ const isManifestFeaturePass = (status: string | null | undefined): boolean => st
 
 const isManifestNativeRuntimePass = (
   run: ValidationEvidenceManifestRun | undefined,
-  expectedNativeOverlayCount = 0
+  expectedNativeOverlays: NativeOverlayProofRequirements = emptyNativeOverlayProofRequirements
 ): boolean =>
   isManifestFeaturePass(run?.nativeRuntimeStatus) &&
   run?.nativeRuntimePlatform === run?.devicePlatform &&
@@ -1050,7 +1050,7 @@ const isManifestNativeRuntimePass = (
   hasManifestAndroidMediaCodecCompositorProof(run) &&
   hasManifestIosReplayKitCompositorProof(run) &&
   (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
-  hasManifestNativeOverlayProof(run, expectedNativeOverlayCount) &&
+  hasManifestNativeOverlayProof(run, expectedNativeOverlays) &&
   hasManifestStillImageOverlayProof(run) &&
   hasManifestIosAppGroupStillImageProof(run) &&
   hasManifestVrmReleaseProof(run);
@@ -1112,25 +1112,43 @@ const isAtMostFiniteNumber = (value: unknown, maximum: number): boolean =>
 
 const isZeroFiniteNumber = (value: unknown): boolean => typeof value === "number" && Number.isFinite(value) && value === 0;
 
-const nativeCompositionNativeOverlayCount = (summary: SupportBundle["summary"]): number =>
-  typeof summary.nativeCompositionNativeOverlayCount === "number" && Number.isFinite(summary.nativeCompositionNativeOverlayCount)
-    ? Math.max(0, Math.round(summary.nativeCompositionNativeOverlayCount))
-    : 0;
+interface NativeOverlayProofRequirements {
+  total: number;
+  text: number;
+  chat: number;
+}
+
+const emptyNativeOverlayProofRequirements: NativeOverlayProofRequirements = { total: 0, text: 0, chat: 0 };
+
+const nativeCompositionOverlayProofRequirements = (summary: SupportBundle["summary"]): NativeOverlayProofRequirements => ({
+  total: nonNegativeSummaryCount(summary.nativeCompositionNativeOverlayCount),
+  text: nonNegativeSummaryCount(summary.nativeCompositionTextOverlayCount),
+  chat: nonNegativeSummaryCount(summary.nativeCompositionChatOverlayCount)
+});
+
+const nonNegativeSummaryCount = (value: unknown): number =>
+  typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
 
 const hasManifestNativeOverlayProof = (
   run: ValidationEvidenceManifestRun | undefined,
-  expectedNativeOverlayCount: number
+  expectedNativeOverlays: NativeOverlayProofRequirements
 ): boolean => {
-  if (!isPositiveFiniteNumber(expectedNativeOverlayCount)) {
+  if (!isPositiveFiniteNumber(expectedNativeOverlays.total)) {
     return true;
   }
 
+  const appliedKinds = run?.nativeRuntimeCompositionAppliedKinds ?? [];
   return (
     run?.nativeRuntimeCompositionStatus === "applied" &&
-    isAtLeastFiniteNumber(run.nativeRuntimeCompositionAppliedCount, expectedNativeOverlayCount) &&
+    isAtLeastFiniteNumber(run.nativeRuntimeCompositionAppliedCount, expectedNativeOverlays.total) &&
+    countKind(appliedKinds, "text") >= expectedNativeOverlays.text &&
+    countKind(appliedKinds, "chat") >= expectedNativeOverlays.chat &&
     isZeroFiniteNumber(run.nativeRuntimeCompositionSkippedCount)
   );
 };
+
+const countKind = (kinds: string[], expectedKind: string): number =>
+  kinds.filter((kind) => kind === expectedKind).length;
 
 const hasZeroManifestNativeRuntimeMissingAssets = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   typeof run?.nativeRuntimeStillImageAssetMissingCount === "number" &&
@@ -1332,7 +1350,7 @@ const isManifestPlatformPublishingPass = (run: ValidationEvidenceManifestRun | u
 
 const isManifestPlatformIngestPass = (
   run: ValidationEvidenceManifestRun | undefined,
-  expectedNativeOverlayCount = 0
+  expectedNativeOverlays: NativeOverlayProofRequirements = emptyNativeOverlayProofRequirements
 ): boolean => {
   if (!run) {
     return false;
@@ -1341,7 +1359,7 @@ const isManifestPlatformIngestPass = (
     return true;
   }
   return (
-    isManifestNativeRuntimePass(run, expectedNativeOverlayCount) &&
+    isManifestNativeRuntimePass(run, expectedNativeOverlays) &&
     isManifestPlatformPublishingPass(run) &&
     isManifestPlatformPublishingTimestampConsistent(run)
   );

@@ -157,6 +157,7 @@ const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
   composition: {
     status: "applied" as const,
     appliedCount: 4,
+    appliedKinds: ["chat", "pngtuber", "text", "text"],
     skippedCount: 0,
     skippedKinds: [],
     stillImageAssetCount: 1,
@@ -210,6 +211,7 @@ const nativeVrmMonitorRuntime = (platform: "ios" | "android" = "ios") => {
     composition: {
       ...runtime.composition,
       appliedCount: 3,
+      appliedKinds: ["chat", "text", "text"],
       vrmSourceCount: 1,
       vrmPosePayloadCount: 1,
       vrmActivePoseCount: 1,
@@ -1556,6 +1558,7 @@ describe("stream validation evidence", () => {
             ...runtime.composition,
             status: "applied" as const,
             appliedCount: 1,
+            appliedKinds: ["pngtuber"],
             skippedCount: 0,
             stillImageAssetCount: 1,
             stillImageAssetLoadedCount: 1,
@@ -1595,6 +1598,55 @@ describe("stream validation evidence", () => {
     });
     expect(run.nativeRuntime?.summary).toContain("applied 1/4 overlays");
     expect(run.recommendation).toContain("every native overlay");
+    expect(summary.nativeRuntimeReadyCount).toBe(0);
+    expect(summary.nativeRuntimeIosPass).toBe(false);
+  });
+
+  it("does not accept native proof that omits text and chat overlay kinds", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntime("ios");
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: {
+          ...runtime,
+          composition: {
+            ...runtime.composition,
+            status: "applied" as const,
+            appliedCount: 4,
+            appliedKinds: ["image", "image", "pngtuber", "solid"],
+            skippedCount: 0
+          }
+        }
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.nativeRuntime?.summary).toContain("text 0/2");
+    expect(run.nativeRuntime?.summary).toContain("chat 0/1");
+    expect(run.recommendation).toContain("including all text and chat overlays");
     expect(summary.nativeRuntimeReadyCount).toBe(0);
     expect(summary.nativeRuntimeIosPass).toBe(false);
   });
@@ -2261,6 +2313,7 @@ describe("stream validation evidence", () => {
       nativeRuntimeAudioEncoderBackend: "audiotoolbox-aac",
       nativeRuntimeCompositionStatus: "applied",
       nativeRuntimeCompositionAppliedCount: 4,
+      nativeRuntimeCompositionAppliedKinds: ["chat", "pngtuber", "text", "text"],
       nativeRuntimeCompositionSkippedCount: 0,
       nativeRuntimeCompositionSkippedKinds: [],
       nativeRuntimeSentVideoFrames: 120,

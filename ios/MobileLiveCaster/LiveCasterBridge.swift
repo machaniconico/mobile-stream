@@ -1086,6 +1086,9 @@ final class LiveCasterNative: RCTEventEmitter {
                 "runtimeDroppedFrameCount": sceneComposition.intValue("runtimeDroppedFrameCount"),
                 "runtimeCompositionFailureCount": sceneComposition.intValue("runtimeCompositionFailureCount"),
                 "appliedCount": appliedCount,
+                "appliedKinds": sceneComposition.stringArrayValue("appliedKinds").map {
+                    redactSensitiveText($0, streamKey: streamKey, publishURL: publishURL)
+                },
                 "skippedCount": skippedCount,
                 "skippedKinds": sceneComposition.stringArrayValue("skippedKinds").map {
                     redactSensitiveText($0, streamKey: streamKey, publishURL: publishURL)

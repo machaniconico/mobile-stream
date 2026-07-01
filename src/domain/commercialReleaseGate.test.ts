@@ -971,6 +971,44 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks native-runtime summary claims when the manifest omits text and chat overlay kinds", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          nativeCompositionNativeOverlayCount: 4,
+          nativeCompositionTextOverlayCount: 2,
+          nativeCompositionChatOverlayCount: 1,
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeCompositionAppliedCount: 4,
+              nativeRuntimeCompositionAppliedKinds: ["image", "image", "pngtuber", "solid"],
+              nativeRuntimeCompositionSkippedCount: 0,
+              nativeRuntimeStillImageAssetCount: 1,
+              nativeRuntimeStillImageAssetLoadedCount: 1,
+              nativeRuntimeStillImageAssetMissingCount: 0,
+              nativeRuntimeStillImageAssetDecodedCount: 1,
+              nativeRuntimeStillImageAssetDecodedPixelCount: 921_600,
+              nativeRuntimeStillImageAssetCompositedCount: 1,
+              nativeRuntimeStillImageAssetCompositedPixelCount: 921_600
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS native runtime proof")
+      })
+    );
+  });
+
   it("blocks native-runtime summary claims when the manifest lacks VRM renderer proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -2119,6 +2157,7 @@ const manifestRun = ({
   nativeRuntimeEncoderProbeAudioBackend = "none",
   nativeRuntimeCompositionStatus = "applied",
   nativeRuntimeCompositionAppliedCount = 4,
+  nativeRuntimeCompositionAppliedKinds = ["chat", "pngtuber", "text", "text"],
   nativeRuntimeCompositionSkippedCount = 0,
   nativeRuntimeCompositionSkippedKinds = [],
   nativeRuntimeSentVideoFrames = 120,
@@ -2277,6 +2316,7 @@ const manifestRun = ({
   nativeRuntimeEncoderProbeAudioBackend?: ValidationManifestRun["nativeRuntimeEncoderProbeAudioBackend"];
   nativeRuntimeCompositionStatus?: ValidationManifestRun["nativeRuntimeCompositionStatus"];
   nativeRuntimeCompositionAppliedCount?: ValidationManifestRun["nativeRuntimeCompositionAppliedCount"];
+  nativeRuntimeCompositionAppliedKinds?: ValidationManifestRun["nativeRuntimeCompositionAppliedKinds"];
   nativeRuntimeCompositionSkippedCount?: ValidationManifestRun["nativeRuntimeCompositionSkippedCount"];
   nativeRuntimeCompositionSkippedKinds?: ValidationManifestRun["nativeRuntimeCompositionSkippedKinds"];
   nativeRuntimeSentVideoFrames?: ValidationManifestRun["nativeRuntimeSentVideoFrames"];
@@ -2442,6 +2482,7 @@ const manifestRun = ({
   nativeRuntimeEncoderProbeAudioBackend,
   nativeRuntimeCompositionStatus,
   nativeRuntimeCompositionAppliedCount,
+  nativeRuntimeCompositionAppliedKinds,
   nativeRuntimeCompositionSkippedCount,
   nativeRuntimeCompositionSkippedKinds,
   nativeRuntimeSentVideoFrames,

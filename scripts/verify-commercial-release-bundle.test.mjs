@@ -388,6 +388,36 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("applied/skipped native overlay proof");
   });
 
+  it("blocks native runtime claims when retained manifests omit text and chat overlay kinds", () => {
+    writeBundle({
+      summary: {
+        nativeCompositionNativeOverlayCount: 4,
+        nativeCompositionTextOverlayCount: 2,
+        nativeCompositionChatOverlayCount: 1,
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeCompositionAppliedCount: 4,
+            nativeRuntimeCompositionAppliedKinds: ["image", "image", "pngtuber", "solid"],
+            nativeRuntimeCompositionSkippedCount: 0,
+            nativeRuntimeStillImageAssetCount: 1,
+            nativeRuntimeStillImageAssetLoadedCount: 1,
+            nativeRuntimeStillImageAssetMissingCount: 0,
+            nativeRuntimeStillImageAssetDecodedCount: 1,
+            nativeRuntimeStillImageAssetDecodedPixelCount: 921_600,
+            nativeRuntimeStillImageAssetCompositedCount: 1,
+            nativeRuntimeStillImageAssetCompositedPixelCount: 921_600
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("applied/skipped native overlay proof");
+  });
+
   it("blocks native runtime claims when retained VRM manifests lack renderer proof", () => {
     writeBundle({
       summary: {
@@ -1279,6 +1309,7 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeAudioEncoderBackend: devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
   nativeRuntimeCompositionStatus: "applied",
   nativeRuntimeCompositionAppliedCount: 4,
+  nativeRuntimeCompositionAppliedKinds: ["chat", "pngtuber", "text", "text"],
   nativeRuntimeCompositionSkippedCount: 0,
   nativeRuntimeCompositionSkippedKinds: [],
   nativeRuntimeSentVideoFrames: 120,

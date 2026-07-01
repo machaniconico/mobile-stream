@@ -62,6 +62,7 @@ const nativeRuntimeWithAudioProcessing = (
   composition: {
     status: "applied",
     appliedCount: 4,
+    appliedKinds: ["chat", "pngtuber", "text", "text"],
     skippedCount: 0,
     skippedKinds: [],
     stillImageAssetCount: 1,
@@ -648,6 +649,7 @@ describe("stream diagnostics", () => {
       composition: {
         status: "applied" as const,
         appliedCount: 4,
+        appliedKinds: ["chat", "pngtuber", "text", "text"],
         skippedCount: 0,
         skippedKinds: [],
         stillImageAssetCount: 1,

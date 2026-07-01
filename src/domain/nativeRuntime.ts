@@ -55,6 +55,7 @@ export const isProductionNativeAudioEncoderBackend = (
 export interface NativeRuntimeComposition {
   status: NativeRuntimeCompositionStatus;
   appliedCount: number;
+  appliedKinds?: string[];
   skippedCount: number;
   skippedKinds: string[];
   stillImageAssetCount?: number;

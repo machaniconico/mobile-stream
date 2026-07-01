@@ -26,6 +26,7 @@ const productionAudioEncoderBackendsByPlatform = {
   android: new Set(["mediacodec", "mediacodec-aac"])
 };
 const redactedMarker = "[redacted]";
+const emptyNativeOverlayProofRequirements = { total: 0, text: 0, chat: 0 };
 const sensitivePropertyNames = new Set([
   "accesstoken",
   "refreshtoken",
@@ -732,14 +733,14 @@ function validationManifestIssue(bundle) {
       "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v54 or newer."
     );
   }
-  const expectedNativeOverlayCount = nativeCompositionNativeOverlayCount(summary);
+  const expectedNativeOverlays = nativeCompositionOverlayProofRequirements(summary);
   const eligibleNativeRuntimePlatforms = new Set(
     latestEligibleRuns
       .filter(
         (run) =>
           run?.eligible === true &&
           run?.result === "pass" &&
-          isManifestNativeRuntimePass(run, expectedNativeOverlayCount)
+          isManifestNativeRuntimePass(run, expectedNativeOverlays)
       )
       .map((run) => run.devicePlatform)
   );
@@ -891,7 +892,7 @@ function validationManifestIssue(bundle) {
         (run) =>
           run?.eligible === true &&
           run?.result === "pass" &&
-          isManifestPlatformIngestPass(run, expectedNativeOverlayCount)
+          isManifestPlatformIngestPass(run, expectedNativeOverlays)
       )
       .map((run) => run.devicePlatform)
   );
@@ -988,25 +989,25 @@ function validationEvidencePlatformIngestPasses(bundle) {
   const latestRuns = Array.isArray(manifest)
     ? latestEligibleManifestRunsByPlatform(manifest, createExpectedManifestScope(bundle))
     : new Map();
-  const expectedNativeOverlayCount = nativeCompositionNativeOverlayCount(summary);
+  const expectedNativeOverlays = nativeCompositionOverlayProofRequirements(summary);
   return {
     ios: resolveValidationEvidencePlatformIngestPass(
       summary.validationEvidencePlatformIngestIosPass,
       latestRuns.get("ios"),
-      expectedNativeOverlayCount
+      expectedNativeOverlays
     ),
     android: resolveValidationEvidencePlatformIngestPass(
       summary.validationEvidencePlatformIngestAndroidPass,
       latestRuns.get("android"),
-      expectedNativeOverlayCount
+      expectedNativeOverlays
     )
   };
 }
 
-function resolveValidationEvidencePlatformIngestPass(summaryValue, manifestRun, expectedNativeOverlayCount = 0) {
+function resolveValidationEvidencePlatformIngestPass(summaryValue, manifestRun, expectedNativeOverlays = emptyNativeOverlayProofRequirements) {
   return typeof summaryValue === "boolean"
     ? summaryValue
-    : isManifestPlatformIngestPass(manifestRun, expectedNativeOverlayCount);
+    : isManifestPlatformIngestPass(manifestRun, expectedNativeOverlays);
 }
 
 function staleEvidenceIssue(bundle) {
@@ -1159,7 +1160,7 @@ function isManifestQualityAutomationPass(run) {
   );
 }
 
-function isManifestPlatformIngestPass(run, expectedNativeOverlayCount = 0) {
+function isManifestPlatformIngestPass(run, expectedNativeOverlays = emptyNativeOverlayProofRequirements) {
   if (!run) {
     return false;
   }
@@ -1167,7 +1168,7 @@ function isManifestPlatformIngestPass(run, expectedNativeOverlayCount = 0) {
     return true;
   }
   return (
-    isManifestNativeRuntimePass(run, expectedNativeOverlayCount) &&
+    isManifestNativeRuntimePass(run, expectedNativeOverlays) &&
     isManifestPlatformPublishingPass(run) &&
     isManifestPlatformPublishingTimestampConsistent(run)
   );
@@ -1193,7 +1194,7 @@ function isManifestPlatformPublishingTimestampConsistent(run) {
   );
 }
 
-function isManifestNativeRuntimePass(run, expectedNativeOverlayCount = 0) {
+function isManifestNativeRuntimePass(run, expectedNativeOverlays = emptyNativeOverlayProofRequirements) {
   return (
     run?.nativeRuntimeStatus === "pass" &&
     run?.nativeRuntimePlatform === run?.devicePlatform &&
@@ -1206,7 +1207,7 @@ function isManifestNativeRuntimePass(run, expectedNativeOverlayCount = 0) {
     hasAndroidMediaCodecCompositorProof(run) &&
     hasIosReplayKitCompositorProof(run) &&
     (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
-    hasNativeOverlayProof(run, expectedNativeOverlayCount) &&
+    hasNativeOverlayProof(run, expectedNativeOverlays) &&
     hasStillImageOverlayProof(run) &&
     hasIosAppGroupStillImageProof(run) &&
     hasVrmReleaseProof(run)
@@ -1265,23 +1266,37 @@ function hasStillImageOverlayProof(run) {
   );
 }
 
-function nativeCompositionNativeOverlayCount(summary) {
-  return typeof summary?.nativeCompositionNativeOverlayCount === "number" &&
-    Number.isFinite(summary.nativeCompositionNativeOverlayCount)
-    ? Math.max(0, Math.round(summary.nativeCompositionNativeOverlayCount))
-    : 0;
+function nativeCompositionOverlayProofRequirements(summary) {
+  return {
+    total: nonNegativeSummaryCount(summary?.nativeCompositionNativeOverlayCount),
+    text: nonNegativeSummaryCount(summary?.nativeCompositionTextOverlayCount),
+    chat: nonNegativeSummaryCount(summary?.nativeCompositionChatOverlayCount)
+  };
 }
 
-function hasNativeOverlayProof(run, expectedNativeOverlayCount) {
-  if (!isPositiveNumber(expectedNativeOverlayCount)) {
+function nonNegativeSummaryCount(value) {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+}
+
+function hasNativeOverlayProof(run, expectedNativeOverlays) {
+  if (!isPositiveNumber(expectedNativeOverlays.total)) {
     return true;
   }
 
+  const appliedKinds = Array.isArray(run?.nativeRuntimeCompositionAppliedKinds)
+    ? run.nativeRuntimeCompositionAppliedKinds
+    : [];
   return (
     run?.nativeRuntimeCompositionStatus === "applied" &&
-    isAtLeastNumber(run?.nativeRuntimeCompositionAppliedCount, expectedNativeOverlayCount) &&
+    isAtLeastNumber(run?.nativeRuntimeCompositionAppliedCount, expectedNativeOverlays.total) &&
+    countKind(appliedKinds, "text") >= expectedNativeOverlays.text &&
+    countKind(appliedKinds, "chat") >= expectedNativeOverlays.chat &&
     isZeroNumber(run?.nativeRuntimeCompositionSkippedCount)
   );
+}
+
+function countKind(kinds, expectedKind) {
+  return kinds.filter((kind) => kind === expectedKind).length;
 }
 
 function hasIosAppGroupStillImageProof(run) {

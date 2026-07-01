@@ -48,6 +48,7 @@ export interface StreamSessionNativeRuntimeSummary {
   encoderProbeMessage: string;
   compositionStatus: NativeRuntimeTelemetry["composition"]["status"];
   compositionAppliedCount: number;
+  compositionAppliedKinds: string[];
   compositionSkippedCount: number;
   compositionSkippedKinds: string[];
   stillImageAssetCount: number;
@@ -880,6 +881,7 @@ export const createNativeRuntimeSessionSummary = (
     encoderProbeMessage,
     compositionStatus: runtime.composition.status,
     compositionAppliedCount: normalizeNonNegativeInteger(runtime.composition.appliedCount),
+    compositionAppliedKinds: normalizeStringArray(runtime.composition.appliedKinds),
     compositionSkippedCount: normalizeNonNegativeInteger(runtime.composition.skippedCount),
     compositionSkippedKinds: normalizeStringArray(runtime.composition.skippedKinds),
     stillImageAssetCount,
@@ -1237,6 +1239,7 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     encoderProbeMessage: typeof value.encoderProbeMessage === "string" ? value.encoderProbeMessage : "",
     compositionStatus,
     compositionAppliedCount: normalizeNonNegativeInteger(value.compositionAppliedCount),
+    compositionAppliedKinds: normalizeStringArray(value.compositionAppliedKinds),
     compositionSkippedCount: normalizeNonNegativeInteger(value.compositionSkippedCount),
     compositionSkippedKinds: normalizeStringArray(value.compositionSkippedKinds),
     stillImageAssetCount: normalizeNonNegativeInteger(value.stillImageAssetCount),

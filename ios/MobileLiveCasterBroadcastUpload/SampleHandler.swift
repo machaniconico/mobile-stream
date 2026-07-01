@@ -3109,6 +3109,7 @@ struct BroadcastSceneCompositionSummary: Equatable {
     let runtimeDroppedFrameCount: Int
     let runtimeCompositionFailureCount: Int
     let appliedCount: Int
+    let appliedKinds: [String]
     let skippedCount: Int
     let skippedKinds: [String]
     let parseFailed: Bool
@@ -3134,6 +3135,7 @@ struct BroadcastSceneCompositionSummary: Equatable {
         runtimeDroppedFrameCount: 0,
         runtimeCompositionFailureCount: 0,
         appliedCount: 0,
+        appliedKinds: [],
         skippedCount: 0,
         skippedKinds: [],
         parseFailed: false,
@@ -3199,6 +3201,7 @@ struct BroadcastSceneCompositionSummary: Equatable {
             "runtimeDroppedFrameCount": runtimeDroppedFrameCount,
             "runtimeCompositionFailureCount": runtimeCompositionFailureCount,
             "appliedCount": appliedCount,
+            "appliedKinds": appliedKinds,
             "skippedCount": skippedCount,
             "skippedKinds": skippedKinds,
             "parseFailed": parseFailed,
@@ -3552,6 +3555,7 @@ final class BroadcastSceneCompositor {
             runtimeDroppedFrameCount: runtimeDroppedFrameCount,
             runtimeCompositionFailureCount: runtimeCompositionFailureCount,
             appliedCount: overlayNodes.count,
+            appliedKinds: overlayNodes.map(\.kind).sorted(),
             skippedCount: skippedCount,
             skippedKinds: skippedKinds,
             parseFailed: parseFailed,

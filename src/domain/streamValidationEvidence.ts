@@ -221,6 +221,7 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeEncoderProbeAudioBackend: string | null;
   nativeRuntimeCompositionStatus: StreamSessionNativeRuntimeSummary["compositionStatus"] | null;
   nativeRuntimeCompositionAppliedCount: number;
+  nativeRuntimeCompositionAppliedKinds: string[];
   nativeRuntimeCompositionSkippedCount: number;
   nativeRuntimeCompositionSkippedKinds: string[];
   nativeRuntimeSentVideoFrames: number;
@@ -1445,9 +1446,15 @@ const alignNativeRuntimeWithComposition = (
 
   const expectedNativeOverlayCount = nativeComposition.nativeOverlayCount;
   const expectedStillImageCount = nativeComposition.stillImageOverlayCount;
+  const expectedTextOverlayCount = nativeComposition.textOverlayCount;
+  const expectedChatOverlayCount = nativeComposition.chatOverlayCount;
+  const appliedTextOverlayCount = countKind(nativeRuntime.compositionAppliedKinds, "text");
+  const appliedChatOverlayCount = countKind(nativeRuntime.compositionAppliedKinds, "chat");
   const requiresStillImageProof = expectedStillImageCount > 0;
   const overlayApplied = nativeRuntime.compositionStatus === "applied";
   const runtimeAppliedEnoughOverlays = nativeRuntime.compositionAppliedCount >= expectedNativeOverlayCount;
+  const runtimeAppliedTextOverlays = appliedTextOverlayCount >= expectedTextOverlayCount;
+  const runtimeAppliedChatOverlays = appliedChatOverlayCount >= expectedChatOverlayCount;
   const runtimeSkippedClean = nativeRuntime.compositionSkippedCount === 0;
   const runtimeDeclaredEnoughAssets = nativeRuntime.stillImageAssetCount >= expectedStillImageCount;
   const runtimeLoadedEnoughAssets = nativeRuntime.stillImageAssetLoadedCount >= expectedStillImageCount;
@@ -1469,6 +1476,8 @@ const alignNativeRuntimeWithComposition = (
   if (
     overlayApplied &&
     runtimeAppliedEnoughOverlays &&
+    runtimeAppliedTextOverlays &&
+    runtimeAppliedChatOverlays &&
     runtimeSkippedClean &&
     runtimeDeclaredEnoughAssets &&
     runtimeLoadedEnoughAssets &&
@@ -1484,10 +1493,13 @@ const alignNativeRuntimeWithComposition = (
   return addNativeRuntimeCompositionReview(
     nativeRuntime,
     "warn",
-    `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, applied ${nativeRuntime.compositionAppliedCount}/${expectedNativeOverlayCount} overlays, skipped ${nativeRuntime.compositionSkippedCount}, still-image assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded, decoded ${nativeRuntime.stillImageAssetDecodedCount}/${expectedStillImageCount}, decoded pixels ${nativeRuntime.stillImageAssetDecodedPixelCount}, composited ${nativeRuntime.stillImageAssetCompositedCount}/${expectedStillImageCount}, composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount}, frame compositor ${nativeRuntime.runtimeCompositorBackend}, composited frames ${nativeRuntime.runtimeCompositedFrameCount}, composition failures ${nativeRuntime.runtimeCompositionFailureCount}.`,
-    "Repeat physical validation with the current scene and retain native compositor telemetry showing every native overlay applied, zero skipped overlays, all required still-image assets decoded/composited to non-zero pixels, iOS ReplayKit/CoreGraphics composited frames above zero when iOS overlays are active, and Android direct MediaCodec Canvas composited frames above zero with zero composition failures."
+    `Native runtime did not prove the current scene overlays: composition ${nativeRuntime.compositionStatus}, applied ${nativeRuntime.compositionAppliedCount}/${expectedNativeOverlayCount} overlays, text ${appliedTextOverlayCount}/${expectedTextOverlayCount}, chat ${appliedChatOverlayCount}/${expectedChatOverlayCount}, skipped ${nativeRuntime.compositionSkippedCount}, still-image assets ${nativeRuntime.stillImageAssetLoadedCount}/${expectedStillImageCount} loaded, decoded ${nativeRuntime.stillImageAssetDecodedCount}/${expectedStillImageCount}, decoded pixels ${nativeRuntime.stillImageAssetDecodedPixelCount}, composited ${nativeRuntime.stillImageAssetCompositedCount}/${expectedStillImageCount}, composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount}, frame compositor ${nativeRuntime.runtimeCompositorBackend}, composited frames ${nativeRuntime.runtimeCompositedFrameCount}, composition failures ${nativeRuntime.runtimeCompositionFailureCount}.`,
+    "Repeat physical validation with the current scene and retain native compositor telemetry showing every native overlay kind applied, including all text and chat overlays, zero skipped overlays, all required still-image assets decoded/composited to non-zero pixels, iOS ReplayKit/CoreGraphics composited frames above zero when iOS overlays are active, and Android direct MediaCodec Canvas composited frames above zero with zero composition failures."
   );
 };
+
+const countKind = (kinds: string[] | null | undefined, expectedKind: string): number =>
+  (kinds ?? []).filter((kind) => kind === expectedKind).length;
 
 const addNativeRuntimeCompositionReview = (
   nativeRuntime: StreamSessionNativeRuntimeSummary,
@@ -2665,6 +2677,7 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeEncoderProbeAudioBackend: run.nativeRuntime?.encoderProbeAudioBackend ?? null,
     nativeRuntimeCompositionStatus: run.nativeRuntime?.compositionStatus ?? null,
     nativeRuntimeCompositionAppliedCount: run.nativeRuntime?.compositionAppliedCount ?? 0,
+    nativeRuntimeCompositionAppliedKinds: run.nativeRuntime?.compositionAppliedKinds ?? [],
     nativeRuntimeCompositionSkippedCount: run.nativeRuntime?.compositionSkippedCount ?? 0,
     nativeRuntimeCompositionSkippedKinds: run.nativeRuntime?.compositionSkippedKinds ?? [],
     nativeRuntimeSentVideoFrames: run.nativeRuntime?.sentVideoFrames ?? 0,

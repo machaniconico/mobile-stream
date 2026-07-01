@@ -19,6 +19,7 @@ data class LiveCasterHealth(
 data class NativeRuntimeComposition(
     val status: String = "unknown",
     val appliedCount: Int = 0,
+    val appliedKinds: List<String> = emptyList(),
     val skippedCount: Int = 0,
     val skippedKinds: List<String> = emptyList(),
     val stillImageAssetCount: Int = 0,
@@ -83,6 +84,7 @@ data class NativeRuntimeComposition(
     fun asWritableMap(): WritableMap = Arguments.createMap().apply {
         putString("status", status)
         putInt("appliedCount", appliedCount)
+        putArray("appliedKinds", appliedKinds.toWritableArray())
         putInt("skippedCount", skippedCount)
         putArray("skippedKinds", skippedKinds.toWritableArray())
         putInt("stillImageAssetCount", stillImageAssetCount)
@@ -161,6 +163,7 @@ private fun AndroidCompositionResult.toNativeRuntimeComposition(): NativeRuntime
     return NativeRuntimeComposition(
         status = status,
         appliedCount = appliedCount,
+        appliedKinds = appliedKinds.sorted(),
         skippedCount = skippedCount,
         skippedKinds = skippedKinds.toList().sorted(),
         stillImageAssetCount = stillImageAssetCount,
