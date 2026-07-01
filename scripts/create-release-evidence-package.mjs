@@ -1540,6 +1540,8 @@ const rtmpPublishUrlPattern = /\brtmps?:\/\/[^\s"'<>]+\/(?:app|live|live2)\/([A-
 const emailAddressPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const inviteLinkPattern = /\b(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/[A-Za-z0-9-]{2,}\b/gi;
 const phoneLikePattern = /(^|[^\w+])(\+?\d[\d\s().-]{7,}\d)(?=$|[^\w])/g;
+const protocolLessLinkPattern =
+  /(^|[^\w@./:])((?:www\.)?(?:[a-z0-9-]+\.)+(?:ai|app|co|com|dev|gg|io|jp|link|live|ly|me|net|org|site|stream|tv|xyz)(?:\/[^\s<>"']*)?)/gi;
 
 function countTextEvidenceEntries(entries) {
   return entries.filter((entry) => entry?.packagedPath && isTextEvidencePath(entry.packagedPath)).length;
@@ -1579,12 +1581,19 @@ function findSensitiveTextFindings(value, path) {
     if (hasUnredactedPhoneMatch(value)) {
       findings.push({ path, reason: "contains a phone number" });
     }
+    if (isProtocolLessLinkEvidencePath(path) && hasUnredactedProtocolLessLink(value)) {
+      findings.push({ path, reason: "contains a protocol-less link" });
+    }
   }
   return findings;
 }
 
 function isContactEvidencePath(path) {
   return (!path.startsWith("artifacts/") || path.startsWith("artifacts/.artifacts/")) && !path.endsWith("/submission-metadata.json");
+}
+
+function isProtocolLessLinkEvidencePath(path) {
+  return path.startsWith("ui-evidence/") || path.startsWith("artifacts/.artifacts/");
 }
 
 function hasPatternMatch(value, pattern) {
@@ -1596,6 +1605,17 @@ function hasUnredactedPhoneMatch(value) {
   phoneLikePattern.lastIndex = 0;
   for (const match of value.matchAll(phoneLikePattern)) {
     if (isUnredactedPhoneCandidate(match[2] ?? "")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function hasUnredactedProtocolLessLink(value) {
+  protocolLessLinkPattern.lastIndex = 0;
+  for (const match of value.matchAll(protocolLessLinkPattern)) {
+    const candidate = match[2] ?? "";
+    if (candidate && !candidate.includes(redactedMarker)) {
       return true;
     }
   }
