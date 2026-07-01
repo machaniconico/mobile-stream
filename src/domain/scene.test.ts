@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addSource,
   analyzeAvatarIllustrationAlphaMask,
+  activateTimedTextSource,
   applyInferredAvatarIllustrationRig,
   applyTextOverlayPresetStyle,
   addSceneToCollection,
@@ -646,6 +647,51 @@ describe("scene document", () => {
     expect(node?.payload.text).toBe("Legacy subtitle");
   });
 
+  it("renders timed text overlays only while the activated display window is active", () => {
+    const nowMs = 120000;
+    const text = {
+      ...createTextOverlayPresetSource("notice"),
+      id: "timed-notice",
+      visibilityMode: "timed" as const,
+      displayDurationMs: 5000,
+      activatedAtMs: 0
+    };
+    const scene = addSource(createDefaultScene(), text);
+    const inactiveGraph = toRenderGraph(scene, { nowMs });
+    const activeScene = activateTimedTextSource(scene, text.id, nowMs);
+    const activeGraph = toRenderGraph(activeScene, { nowMs: nowMs + 3000 });
+    const expiredGraph = toRenderGraph(activeScene, { nowMs: nowMs + 6000 });
+    const activeNode = activeGraph.find((node) => node.id === text.id);
+
+    expect(inactiveGraph.some((node) => node.id === text.id)).toBe(false);
+    expect(activeNode?.payload).toMatchObject({
+      visibilityMode: "timed",
+      displayDurationMs: 5000,
+      activatedAtMs: nowMs,
+      remainingMs: 2000
+    });
+    expect(expiredGraph.some((node) => node.id === text.id)).toBe(false);
+  });
+
+  it("preserves timed text behavior when applying text overlay preset styling", () => {
+    const source = {
+      ...createSubtitleTextSource(),
+      id: "timed-subtitle",
+      visibilityMode: "timed" as const,
+      displayDurationMs: 8000,
+      activatedAtMs: 4242
+    };
+    const styled = applyTextOverlayPresetStyle(source, "notice");
+
+    expect(styled).toMatchObject({
+      id: "timed-subtitle",
+      name: "Center Notice",
+      visibilityMode: "timed",
+      displayDurationMs: 8000,
+      activatedAtMs: 4242
+    });
+  });
+
   it("builds live caption overlay payloads from runtime cues without persisting caption text", () => {
     const liveCaption = createLiveCaptionTextSource();
     const scene = addSource(createDefaultScene(), liveCaption);
@@ -941,6 +987,9 @@ describe("scene document", () => {
       contentSource: "manual",
       align: "center",
       showCaptionSpeaker: true,
+      visibilityMode: "always",
+      displayDurationMs: 5000,
+      activatedAtMs: 0,
       backgroundOpacity: 0,
       outlineWidth: 3,
       maxLines: 1,
@@ -1100,29 +1149,38 @@ describe("scene document", () => {
     });
   });
 
-  it("strips transient avatar runtime before scene persistence", () => {
+  it("strips transient avatar and timed text runtime before scene persistence", () => {
     const scene = createDefaultScene();
     const persisted = stripTransientSceneRuntime({
       ...scene,
-      sources: scene.sources.map((source) =>
-        source.kind === "pngtuber"
-          ? {
-              ...source,
-              mouthOpen: 0.9,
-              blink: 0.8,
-              motion: {
-                ...source.motion,
-                headYaw: 0.7,
-                meshWarp: 0.5,
-                hairSway: -0.4,
-                confidence: 1
+      sources: [
+        ...scene.sources.map((source) =>
+          source.kind === "pngtuber"
+            ? {
+                ...source,
+                mouthOpen: 0.9,
+                blink: 0.8,
+                motion: {
+                  ...source.motion,
+                  headYaw: 0.7,
+                  meshWarp: 0.5,
+                  hairSway: -0.4,
+                  confidence: 1
+                }
               }
-            }
-          : source
-      )
+            : source
+        ),
+        {
+          ...createTextOverlayPresetSource("notice"),
+          id: "active-timed-text",
+          visibilityMode: "timed",
+          activatedAtMs: 123456
+        }
+      ]
     });
 
     const avatar = persisted.sources.find((source) => source.kind === "pngtuber");
+    const timedText = persisted.sources.find((source) => source.id === "active-timed-text");
 
     expect(avatar?.mouthOpen).toBe(0);
     expect(avatar?.blink).toBe(0);
@@ -1130,6 +1188,11 @@ describe("scene document", () => {
     expect(avatar?.motion.meshWarp).toBe(0);
     expect(avatar?.motion.hairSway).toBe(0);
     expect(avatar?.motion.confidence).toBe(0);
+    expect(timedText).toMatchObject({
+      kind: "text",
+      visibilityMode: "timed",
+      activatedAtMs: 0
+    });
   });
 
   it("strips transient avatar runtime from every persisted scene", () => {

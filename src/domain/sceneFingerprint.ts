@@ -65,6 +65,8 @@ export const createSceneCompositionSourcePayloadSummary = (
         contentSource: source.contentSource,
         align: source.align,
         showCaptionSpeaker: source.showCaptionSpeaker,
+        visibilityMode: source.visibilityMode,
+        displayDurationMs: source.displayDurationMs,
         color: source.color,
         fontSize: source.fontSize,
         backgroundColor: source.backgroundColor,

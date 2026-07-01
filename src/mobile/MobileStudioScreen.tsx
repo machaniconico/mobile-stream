@@ -53,6 +53,7 @@ import {
 import type { ReadinessIssue, ReadinessReport } from "../domain/readiness";
 import {
   addSource,
+  activateTimedTextSource,
   applyInferredAvatarIllustrationRig,
   applyTextOverlayPresetStyle,
   createSource,
@@ -78,6 +79,7 @@ import {
   type TextSourceAlign,
   type TextSourceContentSource,
   type TextSourceMode,
+  type TextSourceVisibilityMode,
   type TextOverlayPresetId,
   type SourceKind
 } from "../domain/scene";
@@ -212,6 +214,10 @@ const textSourceModes: Array<{ mode: TextSourceMode; label: string }> = [
 const textSourceContentSources: Array<{ contentSource: TextSourceContentSource; label: string }> = [
   { contentSource: "manual", label: "Manual" },
   { contentSource: "runtime-caption", label: "Live caption" }
+];
+const textSourceVisibilityModes: Array<{ visibilityMode: TextSourceVisibilityMode; label: string }> = [
+  { visibilityMode: "always", label: "Always" },
+  { visibilityMode: "timed", label: "Timed" }
 ];
 const textOverlayPresets: Array<{ presetId: TextOverlayPresetId; label: string }> = [
   { presetId: "title", label: "Title" },
@@ -463,6 +469,15 @@ export const MobileStudioScreen = ({
     );
   };
   const chatOverlayMessages = selectChatOverlayMessages(chatReader);
+  const [textOverlayClock, setTextOverlayClock] = useState(() => Date.now());
+  const hasActiveTimedTextOverlays = scene.sources.some(
+    (source) =>
+      source.kind === "text" &&
+      source.visible &&
+      source.visibilityMode === "timed" &&
+      source.activatedAtMs > 0 &&
+      source.activatedAtMs + source.displayDurationMs > textOverlayClock
+  );
   const diagnostics = createStreamDiagnostics(
     scene,
     profile,
@@ -516,6 +531,15 @@ export const MobileStudioScreen = ({
   useEffect(() => {
     setAssetPrepareStatus(null);
   }, [selectedSourceId]);
+
+  useEffect(() => {
+    if (!hasActiveTimedTextOverlays) {
+      setTextOverlayClock(Date.now());
+      return undefined;
+    }
+    const timer = setInterval(() => setTextOverlayClock(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, [hasActiveTimedTextOverlays]);
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
     if (setupLocked) {
@@ -867,6 +891,7 @@ export const MobileStudioScreen = ({
             chatMessages={chatOverlayMessages}
             captions={liveCaptionCues}
             captionsEnabled={liveCaption.settings.enabled}
+            nowMs={textOverlayClock}
             transitionPreview={sceneTransitionPreview}
             onSelectSource={onSelectSource}
           />
@@ -1099,6 +1124,52 @@ export const MobileStudioScreen = ({
                   />
                 ))}
               </View>
+              <View style={styles.grid3}>
+                {textSourceVisibilityModes.map((mode) => (
+                  <ActionButton
+                    key={mode.visibilityMode}
+                    label={mode.label}
+                    variant={selectedSource.visibilityMode === mode.visibilityMode ? "active" : "default"}
+                    disabled={setupLocked}
+                    onPress={() =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "text"
+                            ? {
+                                ...source,
+                                visibilityMode: mode.visibilityMode,
+                                activatedAtMs: 0
+                              }
+                            : source
+                        )
+                      )
+                    }
+                  />
+                ))}
+                <ActionButton
+                  label="Show now"
+                  variant={selectedSource.visibilityMode === "timed" ? "active" : "default"}
+                  disabled={setupLocked || selectedSource.visibilityMode !== "timed"}
+                  onPress={() => onSceneChange(activateTimedTextSource(scene, selectedSource.id))}
+                />
+              </View>
+              <NumberStepper
+                label="Show sec"
+                value={Math.round(selectedSource.displayDurationMs / 1000)}
+                min={1}
+                max={60}
+                step={1}
+                disabled={setupLocked || selectedSource.visibilityMode !== "timed"}
+                onChange={(displaySeconds) =>
+                  onSceneChange(
+                    updateSource(scene, selectedSource.id, (source) =>
+                      source.kind === "text"
+                        ? { ...source, displayDurationMs: Math.round(displaySeconds) * 1000 }
+                        : source
+                    )
+                  )
+                }
+              />
               {selectedSource.contentSource === "runtime-caption" ? (
                 <ActionButton
                   label={selectedSource.showCaptionSpeaker ? "Speaker On" : "Speaker Off"}
@@ -3143,6 +3214,7 @@ const ProgramPreview = ({
   chatMessages,
   captions,
   captionsEnabled,
+  nowMs,
   transitionPreview,
   onSelectSource
 }: {
@@ -3151,6 +3223,7 @@ const ProgramPreview = ({
   chatMessages: ReturnType<typeof selectChatOverlayMessages>;
   captions: CaptionOverlayCue[];
   captionsEnabled: boolean;
+  nowMs: number;
   transitionPreview: SceneTransitionPreview | null;
   onSelectSource(sourceId: string): void;
 }) => {
@@ -3163,11 +3236,18 @@ const ProgramPreview = ({
         chatMessages={chatMessages}
         captions={captions}
         captionsEnabled={captionsEnabled}
+        nowMs={nowMs}
         onSelectSource={onSelectSource}
       />
       {transitionPreview && transitionOpacity > 0 ? (
         <View style={[styles.previewTransitionLayer, { opacity: transitionOpacity }]} pointerEvents="none">
-          <ScenePreviewLayer scene={transitionPreview.scene} chatMessages={chatMessages} captions={captions} captionsEnabled={captionsEnabled} />
+          <ScenePreviewLayer
+            scene={transitionPreview.scene}
+            chatMessages={chatMessages}
+            captions={captions}
+            captionsEnabled={captionsEnabled}
+            nowMs={nowMs}
+          />
         </View>
       ) : null}
     </View>
@@ -3180,6 +3260,7 @@ const ScenePreviewLayer = ({
   chatMessages,
   captions,
   captionsEnabled,
+  nowMs,
   onSelectSource
 }: {
   scene: SceneDocument;
@@ -3187,10 +3268,11 @@ const ScenePreviewLayer = ({
   chatMessages: ReturnType<typeof selectChatOverlayMessages>;
   captions: CaptionOverlayCue[];
   captionsEnabled: boolean;
+  nowMs: number;
   onSelectSource?(sourceId: string): void;
 }) => (
   <>
-    {toRenderGraph(scene, { chatMessages, captions, captionsEnabled }).map((node) => {
+    {toRenderGraph(scene, { chatMessages, captions, captionsEnabled, nowMs }).map((node) => {
       const source = scene.sources.find((item) => item.id === node.id);
       if (!source) {
         return null;

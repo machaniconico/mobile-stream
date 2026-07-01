@@ -177,6 +177,7 @@ export interface SolidSource extends BaseSource {
 export type TextSourceMode = "label" | "subtitle" | "ticker" | "caption";
 export type TextSourceAlign = "left" | "center" | "right";
 export type TextSourceContentSource = "manual" | "runtime-caption";
+export type TextSourceVisibilityMode = "always" | "timed";
 export type TextOverlayPresetId =
   | "subtitle"
   | "lower-third"
@@ -193,6 +194,9 @@ export interface TextSource extends BaseSource {
   contentSource: TextSourceContentSource;
   align: TextSourceAlign;
   showCaptionSpeaker: boolean;
+  visibilityMode: TextSourceVisibilityMode;
+  displayDurationMs: number;
+  activatedAtMs: number;
   color: string;
   fontSize: number;
   backgroundColor: string;
@@ -243,6 +247,7 @@ export interface RenderGraphRuntime {
   chatMessages?: ChatOverlayMessage[];
   captions?: CaptionOverlayCue[];
   captionsEnabled?: boolean;
+  nowMs?: number;
 }
 
 export interface SceneDocument {
@@ -302,8 +307,12 @@ const sceneTransitionKinds: readonly SceneTransitionKind[] = ["cut", "fade"];
 const textSourceModes: readonly TextSourceMode[] = ["label", "subtitle", "ticker", "caption"];
 const textSourceAlignments: readonly TextSourceAlign[] = ["left", "center", "right"];
 const textSourceContentSources: readonly TextSourceContentSource[] = ["manual", "runtime-caption"];
+const textSourceVisibilityModes: readonly TextSourceVisibilityMode[] = ["always", "timed"];
 const textOverlayLineMaxLength = 220;
 const textOverlayTokenMaxLength = 48;
+const textOverlayMinimumDisplayDurationMs = 1000;
+const textOverlayMaximumDisplayDurationMs = 60000;
+const textOverlayDefaultDisplayDurationMs = 5000;
 
 const clampTransform = (transform: Transform): Transform => ({
   x: clamp01(transform.x),
@@ -1022,6 +1031,9 @@ export const createDefaultScene = (): SceneDocument => {
       contentSource: "manual",
       align: "left",
       showCaptionSpeaker: true,
+      visibilityMode: "always",
+      displayDurationMs: textOverlayDefaultDisplayDurationMs,
+      activatedAtMs: 0,
       color: "#f8fafc",
       fontSize: 44,
       backgroundColor: "#000000",
@@ -1043,6 +1055,9 @@ export const createDefaultScene = (): SceneDocument => {
       contentSource: "manual",
       align: "center",
       showCaptionSpeaker: true,
+      visibilityMode: "always",
+      displayDurationMs: textOverlayDefaultDisplayDurationMs,
+      activatedAtMs: 0,
       color: "#f8fafc",
       fontSize: 54,
       backgroundColor: "#000000",
@@ -1253,6 +1268,9 @@ export const createSource = (kind: SourceKind): SceneSource => {
         contentSource: "manual",
         align: "center",
         showCaptionSpeaker: true,
+        visibilityMode: "always",
+        displayDurationMs: textOverlayDefaultDisplayDurationMs,
+        activatedAtMs: 0,
         color: "#f8fafc",
         fontSize: 36,
         backgroundColor: "#000000",
@@ -1412,6 +1430,9 @@ export const applyTextOverlayPresetStyle = (source: TextSource, presetId: TextOv
     visible: source.visible,
     locked: source.locked,
     blendMode: source.blendMode,
+    visibilityMode: source.visibilityMode,
+    displayDurationMs: source.displayDurationMs,
+    activatedAtMs: source.activatedAtMs,
     text: source.text.trim() ? source.text : preset.text
   };
 };
@@ -1419,6 +1440,22 @@ export const applyTextOverlayPresetStyle = (source: TextSource, presetId: TextOv
 export const createSubtitleTextSource = (): TextSource => createTextOverlayPresetSource("subtitle");
 
 export const createLiveCaptionTextSource = (): TextSource => createTextOverlayPresetSource("live-caption");
+
+export const activateTimedTextSource = (
+  scene: SceneDocument,
+  sourceId: string,
+  nowMs: number = Date.now()
+): SceneDocument =>
+  updateSource(scene, sourceId, (source) =>
+    source.kind === "text"
+      ? {
+          ...source,
+          visible: true,
+          visibilityMode: "timed",
+          activatedAtMs: Math.max(0, Math.round(nowMs))
+        }
+      : source
+  );
 
 export const selectLiveCaptionTextSource = (scene: SceneDocument): TextSource | null =>
   scene.sources.find(
@@ -1516,6 +1553,9 @@ export const normalizeSceneCollection = (value: unknown): SceneCollection => {
 export const stripTransientSceneRuntime = (scene: SceneDocument): SceneDocument => ({
   ...scene,
   sources: scene.sources.map((source) => {
+    if (source.kind === "text") {
+      return source.activatedAtMs > 0 ? { ...source, activatedAtMs: 0 } : source;
+    }
     if (!isAvatarSource(source)) {
       return source;
     }
@@ -1690,6 +1730,9 @@ const isRenderableSource = (source: SceneSource, runtime: RenderGraphRuntime): b
   if (!source.visible) {
     return false;
   }
+  if (source.kind === "text" && !isTextSourceActiveAt(source, runtime.nowMs ?? Date.now())) {
+    return false;
+  }
   return !(source.kind === "text" && source.contentSource === "runtime-caption" && runtime.captionsEnabled === false);
 };
 
@@ -1795,12 +1838,18 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
     case "text": {
       const captionCues =
         source.contentSource === "runtime-caption" ? serializeCaptionOverlayCues(runtime.captions ?? [], source) : [];
+      const nowMs = runtime.nowMs ?? Date.now();
+      const remainingMs = textSourceRemainingMs(source, nowMs);
       return {
         text: resolveTextSourceText(source, captionCues),
         mode: source.mode,
         contentSource: source.contentSource,
         align: source.align,
         showCaptionSpeaker: source.showCaptionSpeaker,
+        visibilityMode: source.visibilityMode,
+        displayDurationMs: source.displayDurationMs,
+        activatedAtMs: source.activatedAtMs,
+        remainingMs,
         captionCuesJson: JSON.stringify(captionCues),
         color: source.color,
         fontSize: source.fontSize,
@@ -2028,6 +2077,18 @@ const normalizeSceneSource = (value: unknown, canvas: SceneDocument["canvas"] = 
           ? (value.align as TextSourceAlign)
           : sourceFallback.align,
         showCaptionSpeaker: booleanValue(value.showCaptionSpeaker, sourceFallback.showCaptionSpeaker),
+        visibilityMode: textSourceVisibilityModes.includes(value.visibilityMode as TextSourceVisibilityMode)
+          ? (value.visibilityMode as TextSourceVisibilityMode)
+          : sourceFallback.visibilityMode,
+        displayDurationMs: Math.round(
+          clampedNumber(
+            value.displayDurationMs,
+            sourceFallback.displayDurationMs,
+            textOverlayMinimumDisplayDurationMs,
+            textOverlayMaximumDisplayDurationMs
+          )
+        ),
+        activatedAtMs: Math.round(clampedNumber(value.activatedAtMs, 0, 0, Number.MAX_SAFE_INTEGER)),
         color: stringValue(value.color, sourceFallback.color),
         fontSize: clampedNumber(value.fontSize, sourceFallback.fontSize, 8, 180),
         backgroundColor: stringValue(value.backgroundColor, sourceFallback.backgroundColor),
@@ -2103,6 +2164,20 @@ const resolveTextSourceText = (source: TextSource, captionCues: CaptionOverlayCu
 
 const formatCaptionOverlayLine = (cue: CaptionOverlayCue, showSpeaker: boolean): string =>
   truncateOverlayText(showSpeaker && cue.speaker ? `${cue.speaker}: ${cue.text}` : cue.text, textOverlayLineMaxLength);
+
+const isTextSourceActiveAt = (source: TextSource, nowMs: number): boolean =>
+  source.visibilityMode !== "timed" || textSourceRemainingMs(source, nowMs) > 0;
+
+const textSourceRemainingMs = (source: TextSource, nowMs: number): number => {
+  if (source.visibilityMode !== "timed") {
+    return 0;
+  }
+  if (source.activatedAtMs <= 0) {
+    return 0;
+  }
+  const endMs = source.activatedAtMs + source.displayDurationMs;
+  return Math.max(0, Math.round(endMs - nowMs));
+};
 
 const serializeTextOverlayLines = (value: string, maxLines: number): string[] => {
   const lineLimit = Math.round(clampRange(finiteNumber(maxLines, 1), 1, 4));

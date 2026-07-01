@@ -184,6 +184,7 @@ export const App = () => {
   const [chatReader, setChatReader] = useState(() => createDefaultChatReaderState());
   const [liveCaption, setLiveCaption] = useState(() => createDefaultLiveCaptionState());
   const [liveCaptionClock, setLiveCaptionClock] = useState(() => Date.now());
+  const [textOverlayClock, setTextOverlayClock] = useState(() => Date.now());
   const [platformChatAuth, setPlatformChatAuth] = useState<PlatformChatAuthSession>(() => createDefaultPlatformChatAuthSession());
   const [platformChatOAuth, setPlatformChatOAuth] = useState<PlatformChatOAuthSettings>(() => createDefaultPlatformChatOAuthSettings());
   const [platformChatOAuthFlow, setPlatformChatOAuthFlow] = useState<PlatformChatOAuthFlow | null>(null);
@@ -216,13 +217,26 @@ export const App = () => {
     () => selectLiveCaptionCues(liveCaption, liveCaptionClock),
     [liveCaption, liveCaptionClock]
   );
+  const hasActiveTimedTextOverlays = useMemo(
+    () =>
+      scene.sources.some(
+        (source) =>
+          source.kind === "text" &&
+          source.visible &&
+          source.visibilityMode === "timed" &&
+          source.activatedAtMs > 0 &&
+          source.activatedAtMs + source.displayDurationMs > textOverlayClock
+      ),
+    [scene.sources, textOverlayClock]
+  );
   const renderGraphRuntime = useMemo(
     () => ({
       chatMessages: chatOverlayMessages,
       captions: liveCaptionCues,
-      captionsEnabled: liveCaption.settings.enabled
+      captionsEnabled: liveCaption.settings.enabled,
+      nowMs: Math.max(liveCaptionClock, textOverlayClock)
     }),
-    [chatOverlayMessages, liveCaption.settings.enabled, liveCaptionCues]
+    [chatOverlayMessages, liveCaption.settings.enabled, liveCaptionClock, liveCaptionCues, textOverlayClock]
   );
   const initialStreamSessionSummaries = useMemo(() => loadStreamSessionSummaries(), []);
   const initialStreamValidationRuns = useMemo(() => loadStreamValidationRuns(), []);
@@ -301,6 +315,15 @@ export const App = () => {
     const timer = window.setInterval(() => setLiveCaptionClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [liveCaption.settings.enabled]);
+
+  useEffect(() => {
+    if (!hasActiveTimedTextOverlays) {
+      setTextOverlayClock(Date.now());
+      return undefined;
+    }
+    const timer = window.setInterval(() => setTextOverlayClock(Date.now()), 500);
+    return () => window.clearInterval(timer);
+  }, [hasActiveTimedTextOverlays]);
 
   useEffect(() => {
     let active = true;
