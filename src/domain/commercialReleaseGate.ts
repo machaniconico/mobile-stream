@@ -538,11 +538,11 @@ const createRehearsalIssue = (bundle: SupportBundle): CommercialReleaseGateIssue
     );
   }
   if (bundle.summary.rehearsalWarningCount > 0) {
-    return warnIssue(
-      "stream-rehearsal-warning",
+    return failIssue(
+      "stream-rehearsal-incomplete",
       "Launch rehearsal",
       bundle.summary.rehearsalSummary,
-      bundle.summary.rehearsalPrimaryAction || "Review rehearsal warnings before approving release."
+      bundle.summary.rehearsalPrimaryAction || "Resolve rehearsal warnings before approving release."
     );
   }
   return null;

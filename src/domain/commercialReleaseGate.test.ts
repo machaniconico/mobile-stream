@@ -480,6 +480,28 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks launch rehearsal warnings even when warnings are allowed", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          rehearsalWarningCount: 1,
+          rehearsalSummary: "Private rehearsal has one warning.",
+          rehearsalPrimaryAction: "Repeat the rehearsal until every warning is resolved."
+        }
+      }),
+      { now, allowWarnings: true }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "stream-rehearsal-incomplete",
+        severity: "fail"
+      })
+    );
+  });
+
   it("blocks old support bundle schema versions without retained-run manifests", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({

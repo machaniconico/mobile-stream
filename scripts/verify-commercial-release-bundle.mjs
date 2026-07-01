@@ -639,11 +639,11 @@ function rehearsalIssue(bundle) {
     );
   }
   if (number(summary.rehearsalWarningCount) > 0) {
-    return warn(
-      "stream-rehearsal-warning",
+    return fail(
+      "stream-rehearsal-incomplete",
       "Launch rehearsal",
       text(summary.rehearsalSummary) || "Launch rehearsal has warnings.",
-      text(summary.rehearsalPrimaryAction) || "Review rehearsal warnings before approving release."
+      text(summary.rehearsalPrimaryAction) || "Resolve rehearsal warnings before approving release."
     );
   }
   return null;
