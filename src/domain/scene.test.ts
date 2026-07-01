@@ -28,6 +28,7 @@ import {
   setVisibility,
   stripTransientSceneCollectionRuntime,
   stripTransientSceneRuntime,
+  syncLiveCaptionTextSourceForSettings,
   toRenderGraph,
   updateSource,
   updateSceneTransition,
@@ -722,6 +723,22 @@ describe("scene document", () => {
       transform: hiddenCaption.transform
     });
     expect(updated.sources.filter((source) => source.kind === "text" && source.contentSource === "runtime-caption")).toHaveLength(1);
+  });
+
+  it("syncs live caption text overlays only when captions are being enabled", () => {
+    const scene = createDefaultScene();
+    const languageOnlySettings = { language: "ja-JP" };
+    const unchanged = syncLiveCaptionTextSourceForSettings(scene, languageOnlySettings);
+    const enabled = syncLiveCaptionTextSourceForSettings(scene, { enabled: true });
+    const disabled = syncLiveCaptionTextSourceForSettings(enabled, { enabled: false });
+
+    expect(unchanged).toBe(scene);
+    expect(selectLiveCaptionTextSource(unchanged)).toBeNull();
+    expect(selectLiveCaptionTextSource(enabled)).toMatchObject({
+      visible: true,
+      contentSource: "runtime-caption"
+    });
+    expect(disabled).toBe(enabled);
   });
 
   it("can show speaker names for live caption overlays", () => {

@@ -1437,6 +1437,11 @@ export const ensureLiveCaptionTextSource = (scene: SceneDocument): SceneDocument
   );
 };
 
+export const syncLiveCaptionTextSourceForSettings = (
+  scene: SceneDocument,
+  settings: { enabled?: boolean } & Record<string, unknown>
+): SceneDocument => (settings.enabled === true ? ensureLiveCaptionTextSource(scene) : scene);
+
 export const normalizeSceneDocument = (value: unknown): SceneDocument => {
   const fallback = createDefaultScene();
   if (!isRecord(value)) {

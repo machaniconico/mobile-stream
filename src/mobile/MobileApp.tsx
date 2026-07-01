@@ -94,10 +94,10 @@ import {
   createDefaultSceneCollection,
   createSceneFromTemplate,
   duplicateActiveScene,
-  ensureLiveCaptionTextSource,
   selectActiveScene,
   setActiveScene,
   stripTransientSceneCollectionRuntime,
+  syncLiveCaptionTextSourceForSettings,
   updateActiveScene,
   updateSceneTransition,
   updateSource,
@@ -1206,11 +1206,9 @@ export const MobileApp = () => {
   };
 
   const updateLiveCaptionSettings = (settings: Partial<LiveCaptionSettings>) => {
-    if (settings.enabled === true) {
-      setSceneCollection((currentCollection) =>
-        updateActiveScene(currentCollection, ensureLiveCaptionTextSource(selectActiveScene(currentCollection)))
-      );
-    }
+    setSceneCollection((currentCollection) =>
+      updateActiveScene(currentCollection, syncLiveCaptionTextSourceForSettings(selectActiveScene(currentCollection), settings))
+    );
     setLiveCaption((current) => updateLiveCaptionSettingsDomain(current, settings));
   };
 
