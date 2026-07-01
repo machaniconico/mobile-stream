@@ -51,6 +51,7 @@ import {
   pollTwitchDeviceCodeOAuthFlow,
   refreshTwitchOAuthCredential,
   refreshYouTubeOAuthCredential,
+  removePlatformChatOAuthCredential,
   shouldRefreshPlatformChatOAuthCredential,
   shouldValidateTwitchOAuthCredential,
   startTwitchDeviceCodeOAuthFlow,
@@ -241,6 +242,7 @@ export const MobileApp = () => {
   const [platformApiOperationLabel, setPlatformApiOperationLabel] = useState<string | null>(null);
   const audioRoute = useAudioRouteMonitor();
   const operationInFlight = useRef(false);
+  const platformChatOAuthCredentialsRef = useRef(platformChatOAuthCredentials);
   const platformChatOAuthSyncInFlight = useRef(false);
   const platformChatOAuthSyncRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const platformChatOAuthSyncRetryUntil = useRef(0);
@@ -371,30 +373,36 @@ export const MobileApp = () => {
     platformChatOAuthSyncRetryUntil.current = 0;
   }, []);
 
+  useEffect(() => {
+    platformChatOAuthCredentialsRef.current = platformChatOAuthCredentials;
+  }, [platformChatOAuthCredentials]);
+
   const persistPlatformChatOAuthCredential = useCallback(async (
     credential: PlatformChatOAuthCredential,
-    baseCredentials: PlatformChatOAuthCredentialStore = platformChatOAuthCredentials
+    baseCredentials: PlatformChatOAuthCredentialStore = platformChatOAuthCredentialsRef.current
   ): Promise<PlatformChatOAuthCredentialStore> => {
     clearPlatformChatOAuthSyncRetry();
     const nextCredentials = upsertPlatformChatOAuthCredential(baseCredentials, credential);
+    platformChatOAuthCredentialsRef.current = nextCredentials;
     setPlatformChatAuth((current) => mergeOAuthAuth(current, createPlatformChatAuthFromCredentialStore(nextCredentials)));
     setPlatformChatOAuthCredentials(nextCredentials);
     await saveSecureOAuthCredentials(nextCredentials);
     return nextCredentials;
-  }, [clearPlatformChatOAuthSyncRetry, platformChatOAuthCredentials]);
+  }, [clearPlatformChatOAuthSyncRetry]);
 
   const clearStoredPlatformChatOAuthCredential = useCallback(async (
     status: string,
     platform?: PlatformChatOAuthCredential["platform"]
   ) => {
     clearPlatformChatOAuthSyncRetry();
-    const nextCredentials = platform
-      ? {
-          ...platformChatOAuthCredentials,
-          [platform]: null
-        }
+    let nextCredentials = platform
+      ? removePlatformChatOAuthCredential(platformChatOAuthCredentialsRef.current, platform)
       : createEmptyPlatformChatOAuthCredentialStore();
-    setPlatformChatOAuthCredentials(nextCredentials);
+    setPlatformChatOAuthCredentials((current) => {
+      nextCredentials = platform ? removePlatformChatOAuthCredential(current, platform) : createEmptyPlatformChatOAuthCredentialStore();
+      platformChatOAuthCredentialsRef.current = nextCredentials;
+      return nextCredentials;
+    });
     if (platform) {
       setPlatformChatAuth((current) =>
         normalizePlatformChatAuthSession({
@@ -409,7 +417,7 @@ export const MobileApp = () => {
       await clearSecureOAuthCredential().catch(() => undefined);
     }
     setPlatformChatOAuthStatus(status);
-  }, [clearPlatformChatOAuthSyncRetry, platformChatOAuthCredentials]);
+  }, [clearPlatformChatOAuthSyncRetry]);
 
   const runPlatformApiOperation = useCallback(async <T,>(label: string, operation: () => Promise<T>): Promise<T> => {
     const currentLabel = platformApiOperationGate.getCurrentLabel();
