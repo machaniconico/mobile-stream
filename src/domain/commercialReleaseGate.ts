@@ -362,11 +362,11 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
     (summary.textOverlaySafeAreaIssueCount ?? 0) > 0 ||
     (summary.textOverlayAvatarOverlapIssueCount ?? 0) > 0
   ) {
-    return warnIssue(
-      "text-overlay-evidence-warning",
+    return failIssue(
+      "text-overlay-evidence-incomplete",
       "Text overlay evidence",
       summary.textOverlaySummary || "Text overlay evidence has warnings.",
-      summary.textOverlayRecommendation || "Review text overlay warnings before approving release."
+      summary.textOverlayRecommendation || "Resolve text overlay readability, safe-area, empty-text, and avatar-overlap warnings before approving release."
     );
   }
 

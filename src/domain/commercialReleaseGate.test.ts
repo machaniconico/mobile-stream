@@ -179,6 +179,29 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks release when text overlay evidence still has readability or placement warnings", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          textOverlayStatus: "warn",
+          textOverlayLayoutRiskIssueCount: 1,
+          textOverlaySummary: "1 visible text overlay may clip or be unreadable on mobile output.",
+          textOverlayRecommendation: "Increase the text box before public launch."
+        }
+      }),
+      { now, allowWarnings: true }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "text-overlay-evidence-incomplete",
+        severity: "fail"
+      })
+    );
+  });
+
   it("warns release when chat overlay evidence reports layout or safe-area risk", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({

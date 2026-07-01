@@ -475,11 +475,11 @@ function textOverlayEvidenceIssue(bundle) {
     number(summary.textOverlaySafeAreaIssueCount) > 0 ||
     number(summary.textOverlayAvatarOverlapIssueCount) > 0
   ) {
-    return warn(
-      "text-overlay-evidence-warning",
+    return fail(
+      "text-overlay-evidence-incomplete",
       "Text overlay evidence",
       summary.textOverlaySummary || "Text overlay evidence has warnings.",
-      summary.textOverlayRecommendation || "Review text overlay warnings before approving release."
+      summary.textOverlayRecommendation || "Resolve text overlay readability, safe-area, empty-text, and avatar-overlap warnings before approving release."
     );
   }
 
@@ -568,11 +568,11 @@ function liveCaptionEvidenceIssue(bundle) {
   }
 
   if (status === "warn") {
-    return warn(
-      "live-caption-evidence-warning",
+    return fail(
+      "live-caption-evidence-incomplete",
       "Live caption evidence",
       summary.liveCaptionSummary || "Live caption evidence has warnings.",
-      summary.liveCaptionRecommendation || "Review live caption warnings before approving release."
+      summary.liveCaptionRecommendation || "Confirm final live caption cue evidence before approving release."
     );
   }
 

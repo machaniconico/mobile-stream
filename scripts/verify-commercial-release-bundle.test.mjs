@@ -132,6 +132,49 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("missing native caption overlay count summary evidence");
   });
 
+  it("blocks text overlay warning evidence even when warnings are allowed", () => {
+    writeBundle({
+      summary: {
+        textOverlayStatus: "warn",
+        textOverlayLayoutRiskIssueCount: 1,
+        textOverlaySummary: "1 visible text overlay may clip or be unreadable on mobile output.",
+        textOverlayRecommendation: "Increase the text box before public launch."
+      }
+    });
+
+    const result = runVerifierAllowWarnings();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[FAIL] Text overlay evidence");
+    expect(result.stdout).toContain("Text overlay evidence");
+    expect(result.stdout).toContain("Can release: no");
+    expect(result.stdout).not.toContain("release warning");
+  });
+
+  it("blocks live caption warning evidence even when warnings are allowed", () => {
+    writeBundle({
+      summary: {
+        liveCaptionStatus: "warn",
+        liveCaptionEnabled: true,
+        liveCaptionRecognitionStatus: "listening",
+        liveCaptionVisibleRuntimeSourceCount: 1,
+        liveCaptionActiveCueCount: 0,
+        liveCaptionFinalCueCount: 0,
+        liveCaptionTranscriptCount: 0,
+        liveCaptionSummary: "Live captions are listening, but no final caption cue has been confirmed in this session.",
+        liveCaptionRecommendation: "Speak a short test phrase before public launch."
+      }
+    });
+
+    const result = runVerifierAllowWarnings();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[FAIL] Live caption evidence");
+    expect(result.stdout).toContain("Live caption evidence");
+    expect(result.stdout).toContain("Can release: no");
+    expect(result.stdout).not.toContain("release warning");
+  });
+
   it("blocks prefix-named token and API key leaks", () => {
     writeBundle({
       diagnostics: {
