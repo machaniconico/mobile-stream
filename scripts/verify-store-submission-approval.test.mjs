@@ -979,13 +979,15 @@ function writeUiEvidenceFile() {
             name: "desktop",
             horizontalOverflow: false,
             screenshot: artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
-            requiredTextChecks: requiredTextChecks()
+            requiredTextChecks: requiredTextChecks(),
+            quickTextInteraction: quickTextInteraction("desktop")
           },
           {
             name: "mobile",
             horizontalOverflow: false,
             screenshot: artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
-            requiredTextChecks: requiredTextChecks()
+            requiredTextChecks: requiredTextChecks(),
+            quickTextInteraction: quickTextInteraction("mobile")
           }
         ]
       },
@@ -1264,6 +1266,14 @@ function artifactRecord(group, path) {
 
 function requiredTextChecks() {
   return requiredBrowserUiTextChecks.map((text) => ({ text, count: 1 }));
+}
+
+function quickTextInteraction(viewportName) {
+  const text = `ui-proof-${viewportName}`;
+  return {
+    text,
+    programText: text
+  };
 }
 
 function fileSha256(path) {

@@ -168,12 +168,17 @@ const checks = [
     expectIncludes(files.releaseReportScript, "Browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");
     expectIncludes(files.releaseReportScript, "Browser UI evidence finishedAt timestamp is missing or invalid.");
     expectIncludes(files.releaseReportScript, "Browser UI evidence for ${viewport.name} is missing text");
+    expectIncludes(files.releaseReportScript, "Browser UI evidence for ${viewport.name} is missing Quick Text interaction proof.");
     expectIncludes(files.releaseReportScript, "Browser UI verification is missing evidence artifact");
     expectIncludes(files.releaseReportScript, "defaultBrowserUiEvidencePath");
     expectIncludes(files.releaseReportScript, "requiredBrowserUiTextChecks");
+    expectIncludes(files.releaseReportScript, "validateEvidenceQuickTextInteraction");
     expectIncludes(files.releaseCandidateScript, "requiredBrowserUiTextChecks");
+    expectIncludes(files.releaseCandidateScript, "validateUiQuickTextInteraction");
     expectIncludes(files.releaseEvidencePackageScript, "requiredBrowserUiTextChecks");
+    expectIncludes(files.releaseEvidencePackageScript, "validatePackagedUiEvidenceQuickTextInteraction");
     expectIncludes(files.verifyUiScript, "requiredBrowserUiTextChecks");
+    expectIncludes(files.verifyUiScript, "verifyQuickTextInteraction");
     expectIncludes(files.browserUiRequiredTextScript, "requiredBrowserUiTextChecks");
     expectIncludes(files.browserUiRequiredTextScript, '"Quick text"');
     expectIncludes(files.browserUiRequiredTextScript, '"Preset action"');
@@ -310,6 +315,7 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence target must be a loopback http(s) URL.");
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence for ${viewport.name} is missing text");
+    expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence for ${viewport.name} is missing Quick Text interaction proof.");
     expectIncludes(files.releaseEvidencePackageScript, "structurally valid PNG file");
     expectIncludes(files.dashboardEvidenceScript, "youtubeScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "twitchScreenshot");

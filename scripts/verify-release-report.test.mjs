@@ -391,6 +391,18 @@ describe("release report verifier", () => {
     expect(failures).toContain('Browser UI evidence for mobile is missing text "Go Live".');
   });
 
+  it("rejects UI evidence missing Quick Text interaction proof", () => {
+    const report = createReport();
+    rewriteUiEvidence(report, (evidence) => {
+      const mobile = evidence.viewports.find((viewport) => viewport.name === "mobile");
+      delete mobile.quickTextInteraction;
+    });
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain("Browser UI evidence for mobile is missing Quick Text interaction proof.");
+  });
+
   it("audits UI evidence artifacts from in-process browser UI gates", () => {
     const report = createReport({ skipUi: false, uiEvidencePath: ".artifacts/ui-verification.json" });
     rewriteUiEvidence(report, (evidence) => {
@@ -1443,7 +1455,16 @@ function viewportEvidence(name, path) {
     name,
     horizontalOverflow: false,
     requiredTextChecks: requiredBrowserUiTextChecks.map((text) => ({ text, count: 1 })),
+    quickTextInteraction: quickTextInteraction(name),
     screenshot: artifactRecord("ui", path)
+  };
+}
+
+function quickTextInteraction(viewportName) {
+  const text = `ui-proof-${viewportName}`;
+  return {
+    text,
+    programText: text
   };
 }
 

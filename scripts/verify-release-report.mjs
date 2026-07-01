@@ -478,6 +478,7 @@ function validateUiEvidence(report, options, fail) {
       fail(`Browser UI evidence reports horizontal overflow for ${viewportName}.`);
     }
     validateEvidenceTextChecks(viewport, fail);
+    validateEvidenceQuickTextInteraction(viewport, fail);
     validateEvidenceScreenshot(viewport, fail);
   }
 }
@@ -494,6 +495,17 @@ function validateEvidenceTextChecks(viewport, fail) {
     if (!check || !Number.isFinite(check.count) || check.count <= 0) {
       fail(`Browser UI evidence for ${viewport.name} is missing text ${JSON.stringify(text)}.`);
     }
+  }
+}
+
+function validateEvidenceQuickTextInteraction(viewport, fail) {
+  const proof = viewport.quickTextInteraction;
+  if (!proof || typeof proof.text !== "string" || typeof proof.programText !== "string") {
+    fail(`Browser UI evidence for ${viewport.name} is missing Quick Text interaction proof.`);
+    return;
+  }
+  if (!proof.text.includes(viewport.name) || !proof.programText.includes(proof.text)) {
+    fail(`Browser UI evidence for ${viewport.name} has invalid Quick Text interaction proof.`);
   }
 }
 

@@ -614,6 +614,7 @@ function validatePackagedUiEvidenceViewports(evidence, packagedArtifacts, packag
       failures.push(`Package browser UI evidence reports horizontal overflow for ${viewportName}.`);
     }
     validatePackagedUiEvidenceTextChecks(viewport, failures);
+    validatePackagedUiEvidenceQuickTextInteraction(viewport, failures);
     validatePackagedUiEvidenceScreenshot(viewport, packagedArtifacts, packageDir, failures);
   }
 }
@@ -625,6 +626,17 @@ function validatePackagedUiEvidenceTextChecks(viewport, failures) {
     if (!check || !Number.isFinite(check.count) || check.count <= 0) {
       failures.push(`Package browser UI evidence for ${viewport.name} is missing text ${JSON.stringify(text)}.`);
     }
+  }
+}
+
+function validatePackagedUiEvidenceQuickTextInteraction(viewport, failures) {
+  const proof = viewport.quickTextInteraction;
+  if (!proof || typeof proof.text !== "string" || typeof proof.programText !== "string") {
+    failures.push(`Package browser UI evidence for ${viewport.name} is missing Quick Text interaction proof.`);
+    return;
+  }
+  if (!proof.text.includes(viewport.name) || !proof.programText.includes(proof.text)) {
+    failures.push(`Package browser UI evidence for ${viewport.name} has invalid Quick Text interaction proof.`);
   }
 }
 

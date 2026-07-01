@@ -853,6 +853,7 @@ function validateUiEvidence(evidence, { currentCommit, allowDirty, maxAgeHours }
       throw new GateError(`UI evidence reports horizontal overflow for ${viewportName}.`, 1);
     }
     validateUiTextChecks(viewport);
+    validateUiQuickTextInteraction(viewport);
     validateUiScreenshot(viewport);
   }
 }
@@ -864,6 +865,16 @@ function validateUiTextChecks(viewport) {
     if (!check || !Number.isFinite(check.count) || check.count <= 0) {
       throw new GateError(`UI evidence for ${viewport.name} is missing text ${JSON.stringify(text)}.`, 1);
     }
+  }
+}
+
+function validateUiQuickTextInteraction(viewport) {
+  const proof = viewport.quickTextInteraction;
+  if (!proof || typeof proof.text !== "string" || typeof proof.programText !== "string") {
+    throw new GateError(`UI evidence for ${viewport.name} is missing Quick Text interaction proof.`, 1);
+  }
+  if (!proof.text.includes(viewport.name) || !proof.programText.includes(proof.text)) {
+    throw new GateError(`UI evidence for ${viewport.name} has invalid Quick Text interaction proof.`, 1);
   }
 }
 

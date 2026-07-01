@@ -93,6 +93,7 @@ export async function verifyUi({
         checks.push({ text, count });
       }
 
+      const quickTextInteraction = await verifyQuickTextInteraction(page, viewport.name);
       const horizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 2);
       if (horizontalOverflow) {
         throw new Error(`Horizontal overflow detected at ${viewport.name}`);
@@ -107,6 +108,7 @@ export async function verifyUi({
       report.viewports.push({
         ...viewport,
         requiredTextChecks: checks,
+        quickTextInteraction,
         horizontalOverflow: false,
         rigQualityProgressBarCount,
         screenshot
@@ -143,6 +145,27 @@ async function selectPngTuberSourceForUiProof(page, viewportName) {
     throw new Error(`Rig quality panel is missing score bars at ${viewportName}`);
   }
   return progressBarCount;
+}
+
+async function verifyQuickTextInteraction(page, viewportName) {
+  const proofText = `ui-proof-${viewportName}`;
+  const input = page.locator(".quick-subtitle-field input").first();
+  await input.waitFor({ timeout: 10_000 });
+  await input.fill(proofText);
+  await page.locator("button").filter({ hasText: "Show text" }).first().click();
+  await waitForRequiredText(page, proofText, viewportName);
+
+  const programText = page.locator(".program-source.text").filter({ hasText: proofText }).first();
+  await programText.waitFor({ timeout: 10_000 });
+  const programTextContent = (await programText.innerText()).trim();
+  if (!programTextContent.includes(proofText)) {
+    throw new Error(`Quick Text program overlay did not show proof text at ${viewportName}.`);
+  }
+
+  return {
+    text: proofText,
+    programText: programTextContent
+  };
 }
 
 function finishReport(report, status, error = null) {

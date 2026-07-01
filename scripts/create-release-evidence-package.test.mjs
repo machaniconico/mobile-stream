@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { releaseConfigArtifactPaths, requiredReleaseGateLabels } from "./release-artifact-policy.mjs";
 import { distributionArtifactGroup, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
 import { dashboardEvidenceArtifactGroup, dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
@@ -61,6 +61,9 @@ const storePngBytes = pngWithDimensions(1179, 2556);
 const dashboardPngBytes = pngWithDimensions(1440, 900);
 const minimumDistributionArtifactBytes = 1_048_576;
 const capturedAt = new Date().toISOString();
+
+vi.setConfig({ testTimeout: 60_000 });
+
 describe("release evidence package creator", () => {
   beforeAll(() => {
     releaseTestUnlock = acquireReleaseTestLock();
@@ -1258,6 +1261,23 @@ describe("release evidence package creator", () => {
     const failures = validateReleaseEvidencePackage({ packageDir });
 
     expect(failures).toContain('Package browser UI evidence for mobile is missing text "Go Live".');
+  });
+
+  it("rejects packaged browser UI evidence missing Quick Text interaction proof", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedUiEvidencePath = `${packageDir}/ui-evidence/ui-evidence.json`;
+    const packagedUiEvidence = JSON.parse(readFileSync(packagedUiEvidencePath, "utf8"));
+    const mobile = packagedUiEvidence.viewports.find((viewport) => viewport.name === "mobile");
+    delete mobile.quickTextInteraction;
+    writeFileSync(packagedUiEvidencePath, JSON.stringify(packagedUiEvidence, null, 2));
+    refreshPackagedUiEvidence(packagedUiEvidencePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Package browser UI evidence for mobile is missing Quick Text interaction proof.");
   });
 
   it("rejects packaged browser UI evidence whose git dirty-state provenance is missing", () => {
@@ -2631,11 +2651,20 @@ function uiViewport(name, screenshotPath) {
     name,
     horizontalOverflow: false,
     requiredTextChecks: requiredBrowserUiTextChecks.map((text) => ({ text, count: 1 })),
+    quickTextInteraction: quickTextInteraction(name),
     screenshot: {
       path: screenshotPath,
       bytes: content.byteLength,
       sha256: createHash("sha256").update(content).digest("hex")
     }
+  };
+}
+
+function quickTextInteraction(viewportName) {
+  const text = `ui-proof-${viewportName}`;
+  return {
+    text,
+    programText: text
   };
 }
 
