@@ -253,6 +253,37 @@ describe("chatReader", () => {
     expect(limited.skippedCount).toBe(1);
   });
 
+  it("rate limits an author even after busy chat pushes their messages out of display history", () => {
+    const stateWithSpammer = Array.from({ length: 6 }, (_, index) =>
+      createChatMessage({
+        author: "spammer",
+        body: `spam message ${index}`,
+        receivedAt: 1000 + index * 1000
+      })
+    ).reduce(enqueueChatMessage, createDefaultChatReaderState());
+    const crowded = Array.from({ length: 17 }, (_, index) =>
+      createChatMessage({
+        author: `viewer-${index}`,
+        body: `busy chat ${index}`,
+        receivedAt: 8000 + index * 1000
+      })
+    ).reduce(enqueueChatMessage, stateWithSpammer);
+    const seventh = createChatMessage({
+      author: "spammer",
+      body: "spam message 7",
+      receivedAt: 26000
+    });
+
+    expect(crowded.history).toHaveLength(16);
+    expect(crowded.history.some((message) => message.author === "spammer")).toBe(false);
+
+    const blocked = enqueueChatMessage(crowded, seventh);
+
+    expect(blocked.queue.some((message) => message.id === seventh.id)).toBe(false);
+    expect(blocked.history.some((message) => message.id === seventh.id)).toBe(false);
+    expect(blocked.skippedCount).toBe(crowded.skippedCount + 1);
+  });
+
   it("uses external message ids for stable queue dedupe", () => {
     const state = createDefaultChatReaderState();
     const first = createChatMessage({

@@ -30,8 +30,14 @@ export interface ChatReaderState {
   settings: ChatReaderSettings;
   queue: ChatMessage[];
   history: ChatMessage[];
+  authorActivity: ChatAuthorActivity[];
   speakingMessageId: string | null;
   skippedCount: number;
+}
+
+export interface ChatAuthorActivity {
+  author: string;
+  receivedAt: number;
 }
 
 export interface ChatMessageInput {
@@ -50,6 +56,8 @@ export interface ChatOverlayDisplayMessage {
 
 const MAX_QUEUE_LENGTH = 24;
 const MAX_HISTORY_LENGTH = 16;
+const MAX_AUTHOR_ACTIVITY_LENGTH = 500;
+const AUTHOR_RATE_WINDOW_MILLIS = 60 * 1000;
 
 export const createDefaultChatReaderSettings = (): ChatReaderSettings => ({
   enabled: true,
@@ -73,6 +81,7 @@ export const createDefaultChatReaderState = (): ChatReaderState => ({
   settings: createDefaultChatReaderSettings(),
   queue: [],
   history: [],
+  authorActivity: [],
   speakingMessageId: null,
   skippedCount: 0
 });
@@ -91,9 +100,12 @@ export const createChatMessage = ({ id, source = "manual", author, body, receive
 };
 
 export const enqueueChatMessage = (state: ChatReaderState, message: ChatMessage): ChatReaderState => {
+  const authorActivity = pruneAuthorActivity(state.authorActivity ?? [], message.receivedAt);
+
   if (!message.body) {
     return {
       ...state,
+      authorActivity,
       skippedCount: state.skippedCount + 1
     };
   }
@@ -101,6 +113,7 @@ export const enqueueChatMessage = (state: ChatReaderState, message: ChatMessage)
   if (isDuplicateRecentMessage(message, state.history, state.settings.duplicateWindowSeconds)) {
     return {
       ...state,
+      authorActivity,
       skippedCount: state.skippedCount + 1
     };
   }
@@ -108,23 +121,27 @@ export const enqueueChatMessage = (state: ChatReaderState, message: ChatMessage)
   if (shouldSkipCommandMessage(message, state.settings)) {
     return {
       ...state,
+      authorActivity,
       skippedCount: state.skippedCount + 1
     };
   }
 
-  if (isModerationBlockedMessage(message, state)) {
+  if (isModerationBlockedMessage(message, { ...state, authorActivity })) {
     return {
       ...state,
+      authorActivity,
       skippedCount: state.skippedCount + 1
     };
   }
 
   const history = [message, ...state.history.filter((item) => item.id !== message.id)].slice(0, MAX_HISTORY_LENGTH);
+  const nextAuthorActivity = appendAuthorActivity(authorActivity, message);
 
   if (isMutedMessage(message, state.settings)) {
     return {
       ...state,
       history,
+      authorActivity: nextAuthorActivity,
       skippedCount: state.skippedCount + 1
     };
   }
@@ -134,7 +151,8 @@ export const enqueueChatMessage = (state: ChatReaderState, message: ChatMessage)
   return {
     ...state,
     queue,
-    history
+    history,
+    authorActivity: nextAuthorActivity
   };
 };
 
@@ -181,6 +199,7 @@ export const clearChatReaderSession = (state: ChatReaderState): ChatReaderState 
   ...state,
   queue: [],
   history: [],
+  authorActivity: [],
   speakingMessageId: null,
   skippedCount: 0
 });
@@ -255,16 +274,27 @@ const isModerationBlockedMessage = (message: ChatMessage, state: ChatReaderState
     return true;
   }
 
-  const windowMillis = 60 * 1000;
   const author = normalizeWhitespace(message.author).toLowerCase();
-  const recentAuthorMessageCount = state.history.filter((item) => {
-    if (message.receivedAt - item.receivedAt > windowMillis) {
+  const recentAuthorMessageCount = (state.authorActivity ?? []).filter((item) => {
+    if (message.receivedAt - item.receivedAt > AUTHOR_RATE_WINDOW_MILLIS) {
       return false;
     }
-    return normalizeWhitespace(item.author).toLowerCase() === author;
+    return item.author === author;
   }).length;
   return recentAuthorMessageCount >= settings.maxMessagesPerAuthorPerMinute;
 };
+
+const appendAuthorActivity = (activity: ChatAuthorActivity[], message: ChatMessage): ChatAuthorActivity[] =>
+  [
+    ...activity,
+    {
+      author: normalizeWhitespace(message.author).toLowerCase(),
+      receivedAt: message.receivedAt
+    }
+  ].slice(-MAX_AUTHOR_ACTIVITY_LENGTH);
+
+const pruneAuthorActivity = (activity: ChatAuthorActivity[], receivedAt: number): ChatAuthorActivity[] =>
+  activity.filter((item) => receivedAt - item.receivedAt <= AUTHOR_RATE_WINDOW_MILLIS).slice(-MAX_AUTHOR_ACTIVITY_LENGTH);
 
 const isMessageContentBlockedByModeration = (message: ChatMessage, settings: ChatReaderSettings): boolean => {
   if (!settings.moderationEnabled) {
