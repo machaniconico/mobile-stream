@@ -183,6 +183,7 @@ struct LiveCasterPreparedConfiguration {
             "audioBitrateKbps": audioBitrateKbps,
             "micEffects": micEffects.payload,
             "broadcastMixer": broadcastMixer.payload,
+            "renderGraphUpdatedAt": now,
             "renderGraph": renderGraphJSON
         ]
     }

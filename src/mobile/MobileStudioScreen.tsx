@@ -60,10 +60,12 @@ import {
   createTextOverlayPresetSource,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
+  hideTextOverlays,
   quickTextOverlayPresetGroups,
   reorderSource,
   setLocked,
   setVisibility,
+  showPersistentTextOverlay,
   showQuickTextOverlayPreset,
   showTimedTextOverlay,
   toRenderGraph,
@@ -481,6 +483,10 @@ export const MobileStudioScreen = ({
   const [textOverlayClock, setTextOverlayClock] = useState(() => Date.now());
   const [quickSubtitleText, setQuickSubtitleText] = useState("");
   const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
+  const canPinQuickText = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
+  const canHideManualTextOverlay =
+    !quickSubtitleLocked &&
+    scene.sources.some((source) => source.kind === "text" && source.contentSource === "manual" && source.visible);
   const hasActiveTimedTextOverlays = scene.sources.some(
     (source) =>
       source.kind === "text" &&
@@ -489,6 +495,8 @@ export const MobileStudioScreen = ({
       source.activatedAtMs > 0 &&
       source.activatedAtMs + source.displayDurationMs > textOverlayClock
   );
+  const selectedManualTextSourceId =
+    selectedSource.kind === "text" && selectedSource.contentSource === "manual" ? selectedSource.id : undefined;
   const showQuickSubtitle = () => {
     if (!canShowQuickSubtitle) {
       return;
@@ -496,7 +504,7 @@ export const MobileStudioScreen = ({
     const nowMs = Date.now();
     onSceneChange(
       showTimedTextOverlay(scene, {
-        sourceId: selectedSource.kind === "text" && selectedSource.contentSource === "manual" ? selectedSource.id : undefined,
+        sourceId: selectedManualTextSourceId,
         text: quickSubtitleText,
         durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
         nowMs
@@ -504,6 +512,30 @@ export const MobileStudioScreen = ({
     );
     setQuickSubtitleText("");
     setTextOverlayClock(nowMs);
+  };
+  const pinQuickText = () => {
+    if (!canPinQuickText) {
+      return;
+    }
+    const nowMs = Date.now();
+    onSceneChange(
+      showPersistentTextOverlay(scene, {
+        sourceId: selectedManualTextSourceId,
+        text: quickSubtitleText,
+        presetId: selectedManualTextSourceId ? undefined : "subtitle",
+        nowMs
+      })
+    );
+    setQuickSubtitleText("");
+    setTextOverlayClock(nowMs);
+  };
+  const hideManualTextOverlay = () => {
+    if (!canHideManualTextOverlay) {
+      return;
+    }
+    const targetSourceId = selectedManualTextSourceId && selectedSource.visible ? selectedManualTextSourceId : undefined;
+    onSceneChange(hideTextOverlays(scene, { sourceId: targetSourceId }));
+    setTextOverlayClock(Date.now());
   };
   const showQuickTextPreset = (presetId: QuickTextOverlayPresetId) => {
     if (quickSubtitleLocked) {
@@ -956,7 +988,11 @@ export const MobileStudioScreen = ({
                 onSubmitEditing={showQuickSubtitle}
               />
             </View>
-            <ActionButton label="Show subtitle" disabled={!canShowQuickSubtitle} onPress={showQuickSubtitle} />
+            <View style={styles.quickSubtitleActions}>
+              <ActionButton label="Show subtitle" disabled={!canShowQuickSubtitle} onPress={showQuickSubtitle} />
+              <ActionButton label="Pin text" disabled={!canPinQuickText} onPress={pinQuickText} />
+              <ActionButton label="Hide text" disabled={!canHideManualTextOverlay} onPress={hideManualTextOverlay} />
+            </View>
             <View style={styles.quickTextPresetRow}>
               {quickTextOverlayPresetGroups.map((group) => (
                 <View key={group.category} style={styles.quickTextPresetGroup}>
@@ -4731,6 +4767,14 @@ const styles = StyleSheet.create({
   quickSubtitleInputWrap: {
     flex: 2,
     minWidth: 220
+  },
+  quickSubtitleActions: {
+    flexDirection: "row",
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 260,
+    flexWrap: "wrap",
+    gap: 8
   },
   quickTextPresetRow: {
     flexDirection: "row",

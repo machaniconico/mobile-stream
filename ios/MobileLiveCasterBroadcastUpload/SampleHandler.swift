@@ -192,6 +192,7 @@ struct BroadcastUploadConfiguration: Equatable {
     let videoBitrateKbps: Int
     let audioBitrateKbps: Int
     let renderGraphJSON: String?
+    let renderGraphUpdatedAt: Double
     let micEffects: BroadcastMicEffectsConfiguration
     let broadcastMixer: BroadcastMixerConfiguration
 
@@ -213,6 +214,7 @@ struct BroadcastUploadConfiguration: Equatable {
         videoBitrateKbps = Self.clampedInt(["videoBitrateKbps", "bitrateKbps"], in: setupInfo, defaultValue: 4500, range: 800...20000)
         audioBitrateKbps = Self.clampedInt(["audioBitrateKbps"], in: setupInfo, defaultValue: 128, range: 64...320)
         renderGraphJSON = Self.stringValue(["renderGraph", "renderGraphJSON"], in: setupInfo)
+        renderGraphUpdatedAt = Self.doubleValue(["renderGraphUpdatedAt", "createdAt"], in: setupInfo)
         micEffects = BroadcastMicEffectsConfiguration(payload: Self.dictionaryValue(["micEffects"], in: setupInfo))
         broadcastMixer = BroadcastMixerConfiguration(payload: Self.dictionaryValue(["broadcastMixer"], in: setupInfo))
     }
@@ -328,6 +330,14 @@ struct BroadcastUploadConfiguration: Equatable {
         }
 
         return min(max(parsedValue, range.lowerBound), range.upperBound)
+    }
+
+    private static func doubleValue(_ keys: [String], in setupInfo: [String: NSObject], defaultValue: Double = 0) -> Double {
+        guard let rawValue = stringValue(keys, in: setupInfo), let parsedValue = Double(rawValue) else {
+            return defaultValue
+        }
+
+        return parsedValue
     }
 
     private static func dictionaryValue(_ keys: [String], in setupInfo: [String: NSObject]) -> [String: Any]? {
@@ -3942,7 +3952,8 @@ final class BroadcastSceneCompositor {
 
         UIGraphicsPushContext(context)
         let mode = node.payload.stringValue("mode", fallback: "label")
-        let isSubtitleLike = mode == "subtitle" || mode == "caption"
+        let contentSource = node.payload.stringValue("contentSource", fallback: "manual")
+        let isSubtitleLike = mode == "subtitle" || mode == "caption" || contentSource == "runtime-caption"
         let maxLines = max(1, min(Int(node.payload.cgFloatValue("maxLines", fallback: isSubtitleLike ? 2 : 1)), 4))
         let lines = text
             .components(separatedBy: "\n")
@@ -4831,6 +4842,9 @@ final class BroadcastUploadPipeline {
     private var audioEncoder: BroadcastAudioEncoder?
     private var publisher: BroadcastRTMPPublisher?
     private var sceneCompositor: BroadcastSceneCompositor?
+    private var activeRenderGraphJSON: String?
+    private var activeRenderGraphUpdatedAt: Double = 0
+    private var lastSceneConfigurationCheckAt: TimeInterval = 0
 
     var isRunning: Bool {
         state.acceptsSamples
@@ -4874,6 +4888,9 @@ final class BroadcastUploadPipeline {
             videoEncoder = nextVideoEncoder
             audioEncoder = nextAudioEncoder
             sceneCompositor = nextSceneCompositor
+            activeRenderGraphJSON = Self.normalizedRenderGraphJSON(nextConfiguration.renderGraphJSON)
+            activeRenderGraphUpdatedAt = nextConfiguration.renderGraphUpdatedAt
+            lastSceneConfigurationCheckAt = 0
             stats.start()
             state = .running
             nextPublisher.start()
@@ -4891,6 +4908,9 @@ final class BroadcastUploadPipeline {
             videoEncoder?.finish()
             videoEncoder = nil
             sceneCompositor = nil
+            activeRenderGraphJSON = nil
+            activeRenderGraphUpdatedAt = 0
+            lastSceneConfigurationCheckAt = 0
             configuration = nil
             state = .failed(message)
             logger.error("Broadcast upload failed to start: \(message, privacy: .public)")
@@ -4930,6 +4950,9 @@ final class BroadcastUploadPipeline {
         audioEncoder?.finish()
         audioEncoder = nil
         sceneCompositor = nil
+        activeRenderGraphJSON = nil
+        activeRenderGraphUpdatedAt = 0
+        lastSceneConfigurationCheckAt = 0
         publisher?.stop()
         publisher = nil
         state = .stopped
@@ -4944,6 +4967,7 @@ final class BroadcastUploadPipeline {
         }
 
         stats.recordVideo(sampleBuffer)
+        refreshSceneCompositorIfNeeded()
         let sampleForEncoding = sceneCompositor?.compose(sampleBuffer) ?? sampleBuffer
         do {
             try videoEncoder?.encode(sampleForEncoding)
@@ -4994,6 +5018,57 @@ final class BroadcastUploadPipeline {
             publisherStats: publisher?.stats,
             sceneCompositionSummary: sceneCompositor?.summary
         )
+    }
+
+    private func refreshSceneCompositorIfNeeded() {
+        guard state.acceptsSamples, let currentConfiguration = configuration else {
+            return
+        }
+        let now = Date().timeIntervalSince1970
+        guard now - lastSceneConfigurationCheckAt >= 0.5 else {
+            return
+        }
+        lastSceneConfigurationCheckAt = now
+
+        guard
+            let setupInfo = BroadcastSharedStore.loadConfigurationSetupInfo(),
+            let nextConfiguration = try? BroadcastUploadConfiguration(setupInfo: setupInfo)
+        else {
+            return
+        }
+
+        let nextRenderGraphJSON = Self.normalizedRenderGraphJSON(nextConfiguration.renderGraphJSON)
+        let currentRenderGraphJSON = activeRenderGraphJSON ?? ""
+        guard nextConfiguration.renderGraphUpdatedAt != activeRenderGraphUpdatedAt || nextRenderGraphJSON != currentRenderGraphJSON else {
+            return
+        }
+        guard Self.canRefreshSceneCompositor(from: currentConfiguration, to: nextConfiguration) else {
+            logger.info("Ignoring live scene update because encoder or RTMP destination settings changed")
+            return
+        }
+
+        let nextSceneCompositor = BroadcastSceneCompositor(configuration: nextConfiguration)
+        configuration = nextConfiguration
+        sceneCompositor = nextSceneCompositor
+        activeRenderGraphJSON = nextRenderGraphJSON
+        activeRenderGraphUpdatedAt = nextConfiguration.renderGraphUpdatedAt
+        logger.info("Reloaded live scene compositor composition=\(nextSceneCompositor.summary.message, privacy: .public)")
+    }
+
+    private static func canRefreshSceneCompositor(
+        from currentConfiguration: BroadcastUploadConfiguration,
+        to nextConfiguration: BroadcastUploadConfiguration
+    ) -> Bool {
+        currentConfiguration.publishURL == nextConfiguration.publishURL &&
+            currentConfiguration.width == nextConfiguration.width &&
+            currentConfiguration.height == nextConfiguration.height &&
+            currentConfiguration.fps == nextConfiguration.fps &&
+            currentConfiguration.videoBitrateKbps == nextConfiguration.videoBitrateKbps &&
+            currentConfiguration.audioBitrateKbps == nextConfiguration.audioBitrateKbps
+    }
+
+    private static func normalizedRenderGraphJSON(_ value: String?) -> String {
+        value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     private func sanitizeError(_ message: String) -> String {
