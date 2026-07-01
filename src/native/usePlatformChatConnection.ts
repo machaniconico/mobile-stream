@@ -44,6 +44,8 @@ interface PlatformChatSocket {
 
 type PlatformChatSocketConstructor = new (url: string) => PlatformChatSocket;
 
+export const TWITCH_CHAT_CONNECTION_LOST_MESSAGE = "Twitch chat connection lost.";
+
 export const usePlatformChatConnection = ({ settings, auth, onMessages, autoReconnect }: PlatformChatConnectionOptions) => {
   const [connection, setConnection] = useState<PlatformChatConnectionState>(() => createPlatformChatConnectionState());
   const connectionRef = useRef(connection);
@@ -225,14 +227,14 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages, autoReco
 
     socket.onerror = () => {
       if (isCurrentSocket()) {
-        setConnection(createPlatformChatConnectionState("failed", "Twitch chat socket error."));
+        setConnection(createPlatformChatConnectionState("failed", TWITCH_CHAT_CONNECTION_LOST_MESSAGE));
       }
     };
 
     socket.onclose = () => {
       if (isCurrentSocket()) {
         activeRef.current = false;
-        setConnection(createPlatformChatConnectionState("failed", "Twitch chat socket closed."));
+        setConnection(createPlatformChatConnectionState("failed", TWITCH_CHAT_CONNECTION_LOST_MESSAGE));
       }
     };
   }, []);
