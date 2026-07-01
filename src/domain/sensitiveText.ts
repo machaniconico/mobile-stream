@@ -8,10 +8,50 @@ const sensitiveQueryKeys = [
   "code_verifier",
   "device_code",
   "client_secret",
-  "stream_key"
+  "stream_key",
+  "api_key",
+  "oauth_token",
+  "auth_token",
+  "bearer_token",
+  "accessToken",
+  "refreshToken",
+  "idToken",
+  "codeVerifier",
+  "deviceCode",
+  "clientSecret",
+  "streamKey",
+  "apiKey",
+  "oauthToken",
+  "authToken",
+  "bearerToken"
 ];
 
 const sensitiveKeyPattern = sensitiveQueryKeys.join("|");
+const sensitiveNamedCredentialPattern = [
+  "access_token",
+  "refresh_token",
+  "id_token",
+  "code_verifier",
+  "device_code",
+  "client_secret",
+  "stream_key",
+  "api_key",
+  "oauth_token",
+  "auth_token",
+  "bearer_token",
+  "accessToken",
+  "refreshToken",
+  "idToken",
+  "codeVerifier",
+  "deviceCode",
+  "clientSecret",
+  "streamKey",
+  "apiKey",
+  "oauthToken",
+  "authToken",
+  "bearerToken",
+  "secret"
+].join("|");
 const redacted = "[redacted]";
 const redactedEmail = "[email redacted]";
 const redactedInvite = "[invite redacted]";
@@ -30,6 +70,8 @@ export const redactSensitiveText = (value: string): string => {
     .replace(new RegExp(`([?&#](${sensitiveKeyPattern})=)([^&#\\s]+)`, "gi"), `$1${redacted}`)
     .replace(new RegExp(`\\b(${sensitiveKeyPattern})=([^&\\s]+)`, "gi"), `$1=${redacted}`)
     .replace(new RegExp(`(["'](${sensitiveKeyPattern})["']\\s*:\\s*["'])([^"']+)(["'])`, "gi"), `$1${redacted}$4`)
+    .replace(new RegExp(`\\b([A-Za-z0-9_.-]*(?:${sensitiveNamedCredentialPattern}))=([^&\\s"']+)`, "gi"), `$1=${redacted}`)
+    .replace(new RegExp(`(["']([A-Za-z0-9_.-]*(?:${sensitiveNamedCredentialPattern}))["']\\s*:\\s*["'])([^"']+)(["'])`, "gi"), `$1${redacted}$4`)
     .replace(/\b(Authorization\s*:\s*)(Bearer|OAuth)\s+[^\s,;]+/gi, `$1$2 ${redacted}`)
     .replace(/\b(Bearer|OAuth)\s+[A-Za-z0-9._~+/=-]{12,}/g, `$1 ${redacted}`)
     .replace(emailPattern, redactedEmail)

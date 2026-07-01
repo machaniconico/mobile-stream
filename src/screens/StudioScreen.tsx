@@ -289,7 +289,8 @@ const downloadSupportBundle = ({
       preflight,
       diagnostics,
       now: generatedAt
-    })
+    }),
+    { secrets: [profile.destination.streamKey] }
   );
   const blob = new Blob([bundle], { type: "application/json" });
   const url = URL.createObjectURL(blob);

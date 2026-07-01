@@ -34,6 +34,23 @@ describe("sensitive text redaction", () => {
     expect(redacted).not.toContain("json-token-secret");
   });
 
+  it("redacts camelCase credential assignments and nested JSON secret fields", () => {
+    const text =
+      '{"apiKey":"platform-api-key-secret","nestedClientSecret":"client-secret-value"} ' +
+      "customOauthToken=custom-oauth-token-secret bearerToken=bearer-token-secret";
+
+    const redacted = redactSensitiveText(text);
+
+    expect(redacted).toContain('"apiKey":"[redacted]"');
+    expect(redacted).toContain('"nestedClientSecret":"[redacted]"');
+    expect(redacted).toContain("customOauthToken=[redacted]");
+    expect(redacted).toContain("bearerToken=[redacted]");
+    expect(redacted).not.toContain("platform-api-key-secret");
+    expect(redacted).not.toContain("client-secret-value");
+    expect(redacted).not.toContain("custom-oauth-token-secret");
+    expect(redacted).not.toContain("bearer-token-secret");
+  });
+
   it("redacts personal contact details and invite links", () => {
     const text =
       "mail me@example.com, phone 090-1234-5678, intl +1 415 555 2671, discord.gg/privateRoom";

@@ -263,7 +263,7 @@ const shareSupportBundle = async ({
   const bundle = createSupportBundle({ scene, profile, readiness, preflight, diagnostics });
   await Share.share({
     title: "MobileLiveCaster support bundle",
-    message: formatSupportBundle(bundle)
+    message: formatSupportBundle(bundle, { secrets: [profile.destination.streamKey] })
   });
 };
 

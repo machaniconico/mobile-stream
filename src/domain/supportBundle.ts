@@ -16,6 +16,7 @@ import {
 import type { StreamDiagnostics } from "./streamDiagnostics";
 import type { StreamSessionEvent } from "./streamSessionLog";
 import type { StreamStartPreflightReport } from "./streamStartPreflight";
+import { redactSecretsFromPersistedValue, redactSecretsFromText } from "./persistencePrivacy";
 
 export interface SupportBundleSourceSummary {
   id: string;
@@ -595,6 +596,10 @@ export interface SupportBundle {
       twitchStatusCheckedAt: string;
     };
   };
+}
+
+export interface SupportBundleExportOptions {
+  secrets?: string[];
 }
 
 export const createSupportBundle = ({
@@ -1297,10 +1302,11 @@ export const createSupportBundle = ({
   };
 };
 
-export const serializeSupportBundle = (bundle: SupportBundle): string => JSON.stringify(bundle, null, 2);
+export const serializeSupportBundle = (bundle: SupportBundle, options: SupportBundleExportOptions = {}): string =>
+  JSON.stringify(redactSecretsFromPersistedValue(bundle, options.secrets ?? []), null, 2);
 
-export const formatSupportBundle = (bundle: SupportBundle): string => {
-  return [
+export const formatSupportBundle = (bundle: SupportBundle, options: SupportBundleExportOptions = {}): string => {
+  const formatted = [
     "MobileLiveCaster Support Bundle",
     `Generated: ${bundle.generatedAt}`,
     `Status: ${bundle.summary.status}`,
@@ -1435,6 +1441,8 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Publishing status freshness: ${bundle.summary.platformPublishingFreshnessStatus} / ${bundle.summary.platformPublishingFreshnessSummary}`,
     `- Publishing freshness action: ${bundle.summary.platformPublishingFreshnessRecommendation}`
   ].join("\n");
+
+  return redactSecretsFromText(formatted, options.secrets ?? []);
 };
 
 const formatBroadcastMixerSummary = (mixer: StudioProfile["broadcastMixer"]): string =>

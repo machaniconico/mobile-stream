@@ -844,6 +844,65 @@ describe("support bundle", () => {
     expect(bundle.scene.sources.find((source) => source.id === "source-sensitive-label")?.payload.textLength).toBeGreaterThan(0);
   });
 
+  it("redacts unsafe nested support-bundle export text before serialization or sharing", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health()
+    });
+    const preflight = createStreamStartPreflightReport({
+      readiness,
+      streamStatus: "idle"
+    });
+    const bundle = createSupportBundle({ scene, profile, readiness, preflight, diagnostics });
+    const mutableBundle = bundle as unknown as {
+      preflight: { summary: string; primaryAction: string };
+      diagnostics: {
+        session: {
+          historySummary: {
+            summary: string;
+            recommendation: string;
+          };
+        };
+        api: {
+          serialized: string;
+        };
+      };
+    };
+    mutableBundle.preflight.summary = `Failed Authorization: Bearer support-access-token-secret with ${streamKey}`;
+    mutableBundle.preflight.primaryAction = "Contact viewer@example.com / 090-1234-5678 / discord.gg/privateRoom";
+    mutableBundle.diagnostics.session.historySummary.summary = "Inspect www.example.org/private and example.tv/show";
+    mutableBundle.diagnostics.session.historySummary.recommendation =
+      "callback mobilelivecaster://oauth/youtube?code=support-oauth-code-secret";
+    mutableBundle.diagnostics.api = {
+      serialized: '{"apiKey":"support-api-key-secret"} customOauthToken=support-custom-token-secret'
+    };
+
+    const json = serializeSupportBundle(bundle, { secrets: [streamKey] });
+    const text = formatSupportBundle(bundle, { secrets: [streamKey] });
+    const exported = `${json}\n${text}`;
+
+    expect(exported).toContain("[redacted]");
+    expect(exported).not.toContain(streamKey);
+    expect(exported).not.toContain("support-access-token-secret");
+    expect(exported).not.toContain("support-oauth-code-secret");
+    expect(exported).not.toContain("support-api-key-secret");
+    expect(exported).not.toContain("support-custom-token-secret");
+    expect(exported).not.toContain("viewer@example.com");
+    expect(exported).not.toContain("090-1234-5678");
+    expect(exported).not.toContain("discord.gg/privateRoom");
+    expect(exported).not.toContain("www.example.org");
+    expect(exported).not.toContain("example.tv");
+  });
+
   it("serializes support bundles without leaking chat author or message details", () => {
     const scene = createDefaultScene();
     const profile = {
