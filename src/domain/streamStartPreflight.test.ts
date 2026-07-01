@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultScene, createSource, setVisibility, updateSource, type SceneDocument } from "./scene";
+import { createDefaultScene, createLiveCaptionTextSource, createSource, setVisibility, updateSource, type SceneDocument } from "./scene";
 import { applyDestinationPreset, createDefaultStudioProfile, type StudioProfile } from "./profiles";
 import { createFaceTrackingDiagnostics } from "./faceTrackingDiagnostics";
+import { createDefaultLiveCaptionState, updateLiveCaptionSettings } from "./liveCaption";
+import { createLiveCaptionDiagnostics } from "./liveCaptionDiagnostics";
 import { createReadinessReport } from "./readiness";
 import {
   TWITCH_CHANNEL_MANAGE_SCOPE,
@@ -433,6 +435,97 @@ describe("stream start preflight", () => {
       })
     );
     expect(formatStreamStartPreflightBlockMessage(report)).not.toContain("secret-stream-key-123456");
+  });
+
+  it("warns when live captions are enabled but not visible on validation targets", () => {
+    const profile = validProfile();
+    const scene = createScreenOnlyScene();
+    const liveCaption = createLiveCaptionDiagnostics(
+      scene,
+      updateLiveCaptionSettings(createDefaultLiveCaptionState(), { enabled: true }),
+      1000
+    );
+
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(scene, profile),
+      streamStatus: "idle",
+      profile,
+      liveCaption
+    });
+
+    expect(report.canStart).toBe(true);
+    expect(report.warnings).toContainEqual(
+      expect.objectContaining({
+        code: "live-caption-fail",
+        severity: "warning",
+        label: "Live captions"
+      })
+    );
+  });
+
+  it("blocks public YouTube starts when enabled live captions cannot be shown", () => {
+    const presetProfile = applyDestinationPreset(validProfile(), "youtube-live-rtmps");
+    const profile: StudioProfile = {
+      ...presetProfile,
+      destination: {
+        ...presetProfile.destination,
+        streamKey: "dummy-stream-value"
+      },
+      platformPublishing: {
+        ...presetProfile.platformPublishing,
+        privacyStatus: "public"
+      }
+    };
+    const scene = createScreenOnlyScene();
+    const liveCaption = createLiveCaptionDiagnostics(
+      scene,
+      updateLiveCaptionSettings(createDefaultLiveCaptionState(), { enabled: true }),
+      1000
+    );
+
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(scene, profile),
+      streamStatus: "idle",
+      profile,
+      liveCaption
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks).toContainEqual(
+      expect.objectContaining({
+        code: "live-caption-fail",
+        severity: "block",
+        area: "scene"
+      })
+    );
+  });
+
+  it("does not warn when live captions have a visible source and confirmed final cue", () => {
+    const profile = validProfile();
+    const scene: SceneDocument = {
+      ...createScreenOnlyScene(),
+      sources: [...createScreenOnlyScene().sources, createLiveCaptionTextSource()]
+    };
+    const liveCaption = createLiveCaptionDiagnostics(
+      scene,
+      {
+        ...updateLiveCaptionSettings(createDefaultLiveCaptionState(), { enabled: true }),
+        status: "listening",
+        transcriptCount: 1,
+        cues: [{ text: "ready", isFinal: true, timestampMs: 1000 }]
+      },
+      1000
+    );
+
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(scene, profile),
+      streamStatus: "idle",
+      profile,
+      liveCaption
+    });
+
+    expect(report.issues.map((issue) => issue.code)).not.toContain("live-caption-fail");
+    expect(report.issues.map((issue) => issue.code)).not.toContain("live-caption-warn");
   });
 
   it("blocks start when every broadcast mixer channel is silent", () => {

@@ -915,7 +915,8 @@ export const MobileApp = () => {
           chatReader: chatReader.settings,
           platformChatConnection: platformChatConnection.connection,
           audioRoute,
-          audioLevelSamples: getAudioLevelSamples()
+          audioLevelSamples: getAudioLevelSamples(),
+          liveCaption
         }
       );
       const preflight = createStreamStartPreflightReport({
@@ -930,7 +931,8 @@ export const MobileApp = () => {
         platformChatOAuthCredentials,
         platformChatConnection: platformChatConnection.connection,
         audioRoute,
-        faceTracking: diagnostics.faceTracking
+        faceTracking: diagnostics.faceTracking,
+        liveCaption: diagnostics.liveCaption
       });
       if (!preflight.canStart) {
         throw new Error(formatStreamStartPreflightBlockMessage(preflight));
@@ -1052,7 +1054,8 @@ export const MobileApp = () => {
         chatReader: chatReader.settings,
         platformChatConnection: platformChatConnection.connection,
         audioRoute,
-        audioLevelSamples: getAudioLevelSamples()
+        audioLevelSamples: getAudioLevelSamples(),
+        liveCaption
       }
     );
     const preflight = createStreamStartPreflightReport({
@@ -1067,7 +1070,8 @@ export const MobileApp = () => {
       platformChatOAuthCredentials,
       platformChatConnection: platformChatConnection.connection,
       audioRoute,
-      faceTracking: diagnostics.faceTracking
+      faceTracking: diagnostics.faceTracking,
+      liveCaption: diagnostics.liveCaption
     });
     const publicLaunchChecklist = createPublicLaunchChecklist({
       preflight,
@@ -1087,6 +1091,7 @@ export const MobileApp = () => {
     chatReader.settings,
     faceTrackingRuntime,
     getAudioLevelSamples,
+    liveCaption,
     platformChatAuth,
     platformChatConnection.connection,
     profile,
@@ -1114,7 +1119,8 @@ export const MobileApp = () => {
           chatReader: chatReader.settings,
           platformChatConnection: platformChatConnection.connection,
           audioRoute,
-          audioLevelSamples: getAudioLevelSamples()
+          audioLevelSamples: getAudioLevelSamples(),
+          liveCaption
         }
       ),
     [
@@ -1122,6 +1128,7 @@ export const MobileApp = () => {
       chatReader.settings,
       faceTrackingRuntime,
       getAudioLevelSamples,
+      liveCaption,
       platformChatConnection.connection,
       profile,
       readiness,
@@ -1418,7 +1425,8 @@ export const MobileApp = () => {
             chatReader: chatReader.settings,
             platformChatConnection: platformChatConnection.connection,
             audioRoute,
-            audioLevelSamples: getAudioLevelSamples()
+            audioLevelSamples: getAudioLevelSamples(),
+            liveCaption
           }
         );
         const startPreflight = createStreamStartPreflightReport({
@@ -1433,7 +1441,8 @@ export const MobileApp = () => {
           platformChatOAuthCredentials,
           platformChatConnection: platformChatConnection.connection,
           audioRoute,
-          faceTracking: diagnostics.faceTracking
+          faceTracking: diagnostics.faceTracking,
+          liveCaption: diagnostics.liveCaption
         });
         const publicLaunchChecklist = createPublicLaunchChecklist({
           preflight: startPreflight,

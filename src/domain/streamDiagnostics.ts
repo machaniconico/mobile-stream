@@ -18,6 +18,11 @@ import {
   createFaceTrackingDiagnostics,
   type FaceTrackingDiagnostics
 } from "./faceTrackingDiagnostics";
+import type { LiveCaptionState } from "./liveCaption";
+import {
+  createLiveCaptionDiagnostics,
+  type LiveCaptionDiagnostics
+} from "./liveCaptionDiagnostics";
 import { createNativeCompositionReport, type NativeCompositionReport } from "./nativeComposition";
 import { assessPlatformPublishingFreshness } from "./platformPublishingFreshness";
 import type { PublicLaunchChecklist } from "./publicLaunchChecklist";
@@ -197,6 +202,7 @@ export interface StreamDiagnostics {
     connectionLabel: string;
     connectionMessage: string;
   };
+  liveCaption: LiveCaptionDiagnostics;
   platformPublishing: PlatformPublishingDiagnostics;
   history: StreamHealthHistorySummary;
   session: {
@@ -243,6 +249,7 @@ export interface StreamDiagnosticsOptions {
   } | null;
   audioRoute?: AudioRouteState | null;
   audioLevelSamples?: StreamAudioLevelSample[];
+  liveCaption?: LiveCaptionState | null;
 }
 
 const platformLabels: Record<StudioProfile["destination"]["platform"], string> = {
@@ -309,6 +316,7 @@ export const createStreamDiagnostics = (
     streamStatus: snapshot.state.status,
     elapsedSeconds: snapshot.health.elapsedSeconds
   });
+  const liveCaption = createLiveCaptionDiagnostics(scene, options.liveCaption ?? null, toTimestampMs(options.now ?? Date.now()));
   const effectiveReadiness = createEffectiveReadiness(readiness, faceTracking);
   const effectiveNativeComposition = createEffectiveNativeComposition(nativeComposition, faceTracking);
   const checks = [
@@ -336,6 +344,7 @@ export const createStreamDiagnostics = (
     createBroadcastAudioGuardCheck(audioGuard),
     createBroadcastAudioSilenceGuardCheck(audioSilenceGuard),
     createAudioRouteCheck(monitorSafety),
+    createLiveCaptionCheck(liveCaption),
     createHistoryCheck(history),
     createRecoveryCheck(recoveryStatus)
   ];
@@ -487,6 +496,7 @@ export const createStreamDiagnostics = (
     audio,
     audioRoute,
     chatReadout,
+    liveCaption,
     platformPublishing,
     history,
     session: {
@@ -636,6 +646,15 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Platform chat: ${diagnostics.chatReadout.platformChatEnabled ? "on" : "off"}`,
     `- Reader: ${diagnostics.chatReadout.readerEnabled ? "on" : "off"}`,
     `- Connection: ${diagnostics.chatReadout.connectionPhase} / ${diagnostics.chatReadout.connectionLabel || "-"} / ${diagnostics.chatReadout.connectionMessage || "-"}`,
+    "",
+    "Live Captions",
+    `- Status: ${diagnostics.liveCaption.status}`,
+    `- Enabled: ${diagnostics.liveCaption.enabled ? "yes" : "no"}`,
+    `- Recognition: ${diagnostics.liveCaption.recognitionStatus}`,
+    `- Sources: ${diagnostics.liveCaption.visibleRuntimeSourceCount}/${diagnostics.liveCaption.runtimeSourceCount} visible`,
+    `- Cues: ${diagnostics.liveCaption.finalCueCount} final / ${diagnostics.liveCaption.activeCueCount} active / ${diagnostics.liveCaption.transcriptCount} session transcripts`,
+    `- Summary: ${diagnostics.liveCaption.summary}`,
+    `- Action: ${diagnostics.liveCaption.recommendation}`,
     "",
     "Native Composition",
     `- Status: ${diagnostics.nativeComposition.status}`,
@@ -1643,6 +1662,13 @@ const createBroadcastAudioSilenceGuardCheck = (
   message: audioSilenceGuard.summary
 });
 
+const createLiveCaptionCheck = (liveCaption: LiveCaptionDiagnostics): DiagnosticCheck => ({
+  code: `live-caption-${liveCaption.status}`,
+  status: liveCaption.status,
+  label: "Live captions",
+  message: liveCaption.summary
+});
+
 const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): DiagnosticCheck => {
   if (!runtime) {
     return {
@@ -1848,6 +1874,9 @@ const createRecoveryCheck = (recovery: StreamRecoveryStatus): DiagnosticCheck =>
   label: "Recovery",
   message: recovery.message
 });
+
+const toTimestampMs = (value: number | Date): number =>
+  value instanceof Date ? value.getTime() : Number.isFinite(value) ? value : Date.now();
 
 const summaryStatus = (checks: DiagnosticCheck[]): DiagnosticStatus => {
   if (checks.some((check) => check.status === "fail")) {

@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { assessPlatformPublishingFreshness } from "./platformPublishingFreshness";
+import { createDefaultLiveCaptionState, ingestLiveCaptionCue, setLiveCaptionStatus, updateLiveCaptionSettings } from "./liveCaption";
 import { applyDestinationPreset, createDefaultStudioProfile, redactStreamKey } from "./profiles";
 import { createPublicLaunchChecklist } from "./publicLaunchChecklist";
 import { createReadinessReport } from "./readiness";
-import { createDefaultScene, setVisibility, updateSource } from "./scene";
+import { createDefaultScene, createLiveCaptionTextSource, setVisibility, updateSource } from "./scene";
 import {
   createStreamDiagnosticReport,
   createStreamDiagnostics,
@@ -161,6 +162,68 @@ describe("stream diagnostics", () => {
     });
 
     expect(diagnostics.telemetry.enginePlatform).toBe("mock");
+  });
+
+  it("fails diagnostics when enabled live captions have no visible caption source", () => {
+    const scene = createDefaultScene();
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health()
+      },
+      [],
+      [],
+      [],
+      [],
+      null,
+      {
+        liveCaption: updateLiveCaptionSettings(createDefaultLiveCaptionState(), { enabled: true })
+      }
+    );
+
+    expect(diagnostics.liveCaption.status).toBe("fail");
+    expect(diagnostics.checks.find((check) => check.code === "live-caption-fail")?.status).toBe("fail");
+  });
+
+  it("passes live caption diagnostics after a visible final caption cue", () => {
+    const scene = {
+      ...createDefaultScene(),
+      sources: [...createDefaultScene().sources, createLiveCaptionTextSource()]
+    };
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+    const liveCaption = ingestLiveCaptionCue(
+      setLiveCaptionStatus(updateLiveCaptionSettings(createDefaultLiveCaptionState(), { enabled: true }), "listening"),
+      { text: "final caption", isFinal: true, timestampMs: 1000 },
+      1000
+    );
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health()
+      },
+      [],
+      [],
+      [],
+      [],
+      null,
+      {
+        liveCaption,
+        now: 1200
+      }
+    );
+
+    expect(diagnostics.liveCaption.status).toBe("pass");
+    expect(diagnostics.liveCaption.finalCueCount).toBe(1);
+    expect(diagnostics.checks.find((check) => check.code === "live-caption-pass")?.status).toBe("pass");
   });
 
   it("warns when the broadcast mic channel is muted", () => {

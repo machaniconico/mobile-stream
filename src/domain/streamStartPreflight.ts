@@ -11,6 +11,7 @@ import {
   type PlatformChatAuthSession,
   type PlatformChatConnectionState
 } from "./platformChatConnection";
+import type { LiveCaptionDiagnostics } from "./liveCaptionDiagnostics";
 import {
   assessPlatformChatOAuthCredentialHealth,
   TWITCH_CHANNEL_MANAGE_SCOPE,
@@ -88,6 +89,7 @@ export interface StreamStartPreflightInput {
   platformChatConnection?: Pick<PlatformChatConnectionState, "phase" | "message"> | null;
   audioRoute?: AudioRouteState | null;
   faceTracking?: FaceTrackingDiagnostics | null;
+  liveCaption?: LiveCaptionDiagnostics | null;
   validationEvidence?: Pick<
     StreamValidationEvidenceSummary,
     "nativeRuntimeIosPass" | "nativeRuntimeAndroidPass" | "runManifest"
@@ -111,6 +113,7 @@ export const createStreamStartPreflightReport = ({
   platformChatConnection = null,
   audioRoute = null,
   faceTracking = null,
+  liveCaption = null,
   validationEvidence = null,
   now = new Date()
 }: StreamStartPreflightInput): StreamStartPreflightReport => {
@@ -123,6 +126,7 @@ export const createStreamStartPreflightReport = ({
     ...createBroadcastMixerIssues(profile),
     ...createAudioMonitorRouteIssues(profile, audioRoute),
     ...createChatReadoutIssues(profile, chatReader, platformChatAuth, platformChatOAuthCredentials, platformChatOAuthCredential, platformChatConnection, now),
+    ...createLiveCaptionIssues(profile, liveCaption),
     ...createCommercialValidationIssues(profile, validation),
     ...createPlatformPublishingIssues(profile, validation, now, platformChatOAuthCredentials, platformChatOAuthCredential),
     ...createEnginePlatformIssues(profile, enginePlatform),
@@ -271,6 +275,28 @@ const createFaceTrackingIssues = (
   }
 
   return [];
+};
+
+const createLiveCaptionIssues = (
+  profile: StreamStartPreflightInput["profile"],
+  liveCaption: LiveCaptionDiagnostics | null
+): StreamStartPreflightIssue[] => {
+  if (!liveCaption || !liveCaption.enabled || liveCaption.status === "pass" || liveCaption.status === "info") {
+    return [];
+  }
+
+  const severity: StreamStartPreflightSeverity =
+    liveCaption.status === "fail" && isPlatformVisibleProductionTarget(profile) ? "block" : "warning";
+  return [
+    {
+      code: `live-caption-${liveCaption.status}`,
+      severity,
+      area: "scene",
+      label: "Live captions",
+      message: liveCaption.summary,
+      recommendation: liveCaption.recommendation
+    }
+  ];
 };
 
 const readinessSeverity = (
