@@ -1054,6 +1054,7 @@ const isManifestNativeRuntimePass = (
   hasManifestNativeOverlayProof(run, expectedNativeOverlays) &&
   hasManifestStillImageOverlayProof(run) &&
   hasManifestIosAppGroupStillImageProof(run) &&
+  hasManifestLive2DPoseProof(run) &&
   hasManifestVrmReleaseProof(run);
 
 const hasManifestNativeRuntimeVideoFrameIntervalProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
@@ -1267,6 +1268,19 @@ const hasManifestVrmReleaseProof = (run: ValidationEvidenceManifestRun | undefin
   );
 };
 
+const hasManifestLive2DPoseProof = (run: ValidationEvidenceManifestRun | undefined): boolean => {
+  const live2dSourceCount = run?.nativeRuntimeLive2dSourceCount;
+  if (typeof live2dSourceCount !== "number" || !Number.isFinite(live2dSourceCount) || live2dSourceCount <= 0) {
+    return true;
+  }
+
+  return (
+    isAtLeastFiniteNumber(run?.nativeRuntimeLive2dPosePayloadCount, live2dSourceCount) &&
+    isAtLeastFiniteNumber(run?.nativeRuntimeLive2dActivePoseCount, live2dSourceCount) &&
+    isZeroFiniteNumber(run?.nativeRuntimeLive2dMissingPoseCount)
+  );
+};
+
 const isManifestAudioPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.audioStatus) &&
   isPositiveFiniteNumber(run?.audioNativeMonitorWrittenFrames) &&
@@ -1348,6 +1362,7 @@ const hasReadyManifestVrmMotionProof = (run: ValidationEvidenceManifestRun | und
   isPositiveFiniteNumber(run?.faceTrackingVisibleVrmCount) &&
   run?.faceTrackingNativeVrmRendererReady === true &&
   isPositiveFiniteNumber(run?.nativeRuntimeVrmSourceCount) &&
+  hasManifestLive2DPoseProof(run) &&
   hasManifestVrmReleaseProof(run);
 
 const isManifestChatReadoutPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>

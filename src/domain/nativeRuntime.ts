@@ -78,6 +78,11 @@ export interface NativeRuntimeComposition {
   stillImageAssetAppGroupDecodedPixelCount?: number;
   stillImageAssetAppGroupCompositedCount?: number;
   stillImageAssetAppGroupCompositedPixelCount?: number;
+  live2dSourceCount?: number;
+  live2dPosePayloadCount?: number;
+  live2dActivePoseCount?: number;
+  live2dMissingPoseCount?: number;
+  live2dRuntimeStatuses?: string[];
   vrmSourceCount?: number;
   vrmPosePayloadCount?: number;
   vrmActivePoseCount?: number;

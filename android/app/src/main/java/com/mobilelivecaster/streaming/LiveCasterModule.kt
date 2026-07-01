@@ -40,6 +40,11 @@ data class NativeRuntimeComposition(
     val stillImageAssetAppGroupDecodedPixelCount: Long = 0,
     val stillImageAssetAppGroupCompositedCount: Int = 0,
     val stillImageAssetAppGroupCompositedPixelCount: Long = 0,
+    val live2dSourceCount: Int = 0,
+    val live2dPosePayloadCount: Int = 0,
+    val live2dActivePoseCount: Int = 0,
+    val live2dMissingPoseCount: Int = 0,
+    val live2dRuntimeStatuses: List<String> = emptyList(),
     val vrmSourceCount: Int = 0,
     val vrmPosePayloadCount: Int = 0,
     val vrmActivePoseCount: Int = 0,
@@ -105,6 +110,11 @@ data class NativeRuntimeComposition(
         putDouble("stillImageAssetAppGroupDecodedPixelCount", stillImageAssetAppGroupDecodedPixelCount.toDouble())
         putInt("stillImageAssetAppGroupCompositedCount", stillImageAssetAppGroupCompositedCount)
         putDouble("stillImageAssetAppGroupCompositedPixelCount", stillImageAssetAppGroupCompositedPixelCount.toDouble())
+        putInt("live2dSourceCount", live2dSourceCount)
+        putInt("live2dPosePayloadCount", live2dPosePayloadCount)
+        putInt("live2dActivePoseCount", live2dActivePoseCount)
+        putInt("live2dMissingPoseCount", live2dMissingPoseCount)
+        putArray("live2dRuntimeStatuses", live2dRuntimeStatuses.toWritableArray())
         putInt("vrmSourceCount", vrmSourceCount)
         putInt("vrmPosePayloadCount", vrmPosePayloadCount)
         putInt("vrmActivePoseCount", vrmActivePoseCount)
@@ -174,6 +184,11 @@ private fun AndroidCompositionResult.toNativeRuntimeComposition(): NativeRuntime
         stillImageAssetDecodedPixelCount = stillImageAssetDecodedPixelCount,
         stillImageAssetCompositedCount = stillImageAssetCompositedCount,
         stillImageAssetCompositedPixelCount = stillImageAssetCompositedPixelCount,
+        live2dSourceCount = live2dPoseSummary.sourceCount,
+        live2dPosePayloadCount = live2dPoseSummary.posePayloadCount,
+        live2dActivePoseCount = live2dPoseSummary.activePoseCount,
+        live2dMissingPoseCount = live2dPoseSummary.missingPoseCount,
+        live2dRuntimeStatuses = live2dPoseSummary.runtimeStatuses.toList().sorted(),
         vrmSourceCount = vrmPoseSummary.sourceCount,
         vrmPosePayloadCount = vrmPoseSummary.posePayloadCount,
         vrmActivePoseCount = vrmPoseSummary.activePoseCount,

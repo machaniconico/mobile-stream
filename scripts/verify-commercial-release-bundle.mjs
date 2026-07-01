@@ -1227,6 +1227,7 @@ function isManifestNativeRuntimePass(run, expectedNativeOverlays = emptyNativeOv
     hasNativeOverlayProof(run, expectedNativeOverlays) &&
     hasStillImageOverlayProof(run) &&
     hasIosAppGroupStillImageProof(run) &&
+    hasLive2DPoseProof(run) &&
     hasVrmReleaseProof(run)
   );
 }
@@ -1390,6 +1391,19 @@ function hasVrmReleaseProof(run) {
   );
 }
 
+function hasLive2DPoseProof(run) {
+  const live2dSourceCount = run?.nativeRuntimeLive2dSourceCount;
+  if (typeof live2dSourceCount !== "number" || !Number.isFinite(live2dSourceCount) || live2dSourceCount <= 0) {
+    return true;
+  }
+
+  return (
+    isAtLeastNumber(run?.nativeRuntimeLive2dPosePayloadCount, live2dSourceCount) &&
+    isAtLeastNumber(run?.nativeRuntimeLive2dActivePoseCount, live2dSourceCount) &&
+    isZeroNumber(run?.nativeRuntimeLive2dMissingPoseCount)
+  );
+}
+
 function isProductionVrmRendererBackend(platform, backend) {
   const normalized = typeof backend === "string" ? backend.trim().toLowerCase() : "";
   return platform === "ios" || platform === "android"
@@ -1441,6 +1455,7 @@ function hasReadyVrmMotionProof(run) {
     isPositiveNumber(run?.faceTrackingVisibleVrmCount) &&
     run?.faceTrackingNativeVrmRendererReady === true &&
     isPositiveNumber(run?.nativeRuntimeVrmSourceCount) &&
+    hasLive2DPoseProof(run) &&
     hasVrmReleaseProof(run)
   );
 }

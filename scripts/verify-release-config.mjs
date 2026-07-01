@@ -198,6 +198,11 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetDecodedPixelCount");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetCompositedPixelCount");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetAppGroupCompositedPixelCount");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeLive2dPosePayloadCount");
+    expectIncludes(files.streamValidationEvidenceDomain, "hasNativeRuntimeLive2DPoseProof");
+    expectIncludes(files.supportBundleDomain, "nativeRuntimeLive2dPosePayloadCount");
+    expectIncludes(files.commercialReleaseGateDomain, "hasManifestLive2DPoseProof");
+    expectIncludes(files.commercialReleaseBundleScript, "hasLive2DPoseProof");
     expectIncludes(files.streamValidationEvidenceDomain, "isProductionVrmRendererBackend");
     expectIncludes(files.commercialReleaseGateDomain, "hasManifestIosAppGroupStillImageProof");
     expectIncludes(files.commercialReleaseBundleScript, "hasIosAppGroupStillImageProof");

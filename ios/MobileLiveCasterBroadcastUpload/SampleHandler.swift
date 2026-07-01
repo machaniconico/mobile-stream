@@ -3139,6 +3139,7 @@ struct BroadcastSceneCompositionSummary: Equatable {
     let stillImageAssetAppGroupDecodedPixelCount: Int
     let stillImageAssetAppGroupCompositedCount: Int
     let stillImageAssetAppGroupCompositedPixelCount: Int
+    let live2dPoseSummary: BroadcastLive2DPoseSummary
     let vrmPoseSummary: BroadcastVrmPoseSummary
 
     static let screenOnly = BroadcastSceneCompositionSummary(
@@ -3167,6 +3168,7 @@ struct BroadcastSceneCompositionSummary: Equatable {
         stillImageAssetAppGroupDecodedPixelCount: 0,
         stillImageAssetAppGroupCompositedCount: 0,
         stillImageAssetAppGroupCompositedPixelCount: 0,
+        live2dPoseSummary: .empty,
         vrmPoseSummary: .empty
     )
 
@@ -3188,7 +3190,7 @@ struct BroadcastSceneCompositionSummary: Equatable {
     }
 
     private var evidenceMessages: [String] {
-        [assetEvidenceMessage, liveRenderGraphUpdateEvidenceMessage, vrmPoseSummary.evidenceMessage].compactMap { $0 }
+        [assetEvidenceMessage, liveRenderGraphUpdateEvidenceMessage, live2dPoseSummary.evidenceMessage, vrmPoseSummary.evidenceMessage].compactMap { $0 }
     }
 
     private var liveRenderGraphUpdateEvidenceMessage: String? {
@@ -3242,6 +3244,11 @@ struct BroadcastSceneCompositionSummary: Equatable {
             "stillImageAssetAppGroupDecodedPixelCount": stillImageAssetAppGroupDecodedPixelCount,
             "stillImageAssetAppGroupCompositedCount": stillImageAssetAppGroupCompositedCount,
             "stillImageAssetAppGroupCompositedPixelCount": stillImageAssetAppGroupCompositedPixelCount,
+            "live2dSourceCount": live2dPoseSummary.sourceCount,
+            "live2dPosePayloadCount": live2dPoseSummary.posePayloadCount,
+            "live2dActivePoseCount": live2dPoseSummary.activePoseCount,
+            "live2dMissingPoseCount": live2dPoseSummary.missingPoseCount,
+            "live2dRuntimeStatuses": live2dPoseSummary.runtimeStatuses,
             "vrmSourceCount": vrmPoseSummary.sourceCount,
             "vrmPosePayloadCount": vrmPoseSummary.posePayloadCount,
             "vrmActivePoseCount": vrmPoseSummary.activePoseCount,
@@ -3283,6 +3290,30 @@ struct BroadcastSceneCompositionSummary: Equatable {
             "vrmRenderFailureCount": vrmPoseSummary.renderFailureCount,
             "message": message
         ]
+    }
+}
+
+struct BroadcastLive2DPoseSummary: Equatable {
+    let sourceCount: Int
+    let posePayloadCount: Int
+    let activePoseCount: Int
+    let missingPoseCount: Int
+    let runtimeStatuses: [String]
+
+    static let empty = BroadcastLive2DPoseSummary(
+        sourceCount: 0,
+        posePayloadCount: 0,
+        activePoseCount: 0,
+        missingPoseCount: 0,
+        runtimeStatuses: []
+    )
+
+    var evidenceMessage: String? {
+        guard sourceCount > 0 else {
+            return nil
+        }
+        let statusSuffix = runtimeStatuses.isEmpty ? "" : ", statuses \(runtimeStatuses.joined(separator: "/"))"
+        return "Live2D poses \(activePoseCount)/\(sourceCount) active, payloads \(posePayloadCount), missing \(missingPoseCount)\(statusSuffix)"
     }
 }
 
@@ -3566,6 +3597,7 @@ final class BroadcastSceneCompositor {
     private let skippedCount: Int
     private let skippedKinds: [String]
     private let parseFailed: Bool
+    private let live2dPoseSummary: BroadcastLive2DPoseSummary
     private let vrmPoseSummary: BroadcastVrmPoseSummary
     private var cachedImages: [String: UIImage] = [:]
     private var cachedRiggedImages: [String: UIImage] = [:]
@@ -3614,6 +3646,7 @@ final class BroadcastSceneCompositor {
             stillImageAssetAppGroupDecodedPixelCount: appGroupDecodedPixelCount,
             stillImageAssetAppGroupCompositedCount: appGroupCompositedCount,
             stillImageAssetAppGroupCompositedPixelCount: appGroupCompositedPixelCount,
+            live2dPoseSummary: live2dPoseSummary,
             vrmPoseSummary: vrmPoseSummary
         )
     }
@@ -3627,6 +3660,7 @@ final class BroadcastSceneCompositor {
             skippedCount = 0
             skippedKinds = []
             parseFailed = false
+            live2dPoseSummary = .empty
             vrmPoseSummary = .empty
             return
         }
@@ -3636,9 +3670,11 @@ final class BroadcastSceneCompositor {
             skippedCount = 0
             skippedKinds = []
             parseFailed = true
+            live2dPoseSummary = .empty
             vrmPoseSummary = .empty
             return
         }
+        live2dPoseSummary = Self.summarizeLive2DPosePayloads(renderNodes)
         vrmPoseSummary = Self.summarizeVrmPosePayloads(renderNodes)
 
         let primaryScreenOrder = renderNodes
@@ -4217,6 +4253,51 @@ final class BroadcastSceneCompositor {
         return width * height
     }
 
+    private static func summarizeLive2DPosePayloads(_ nodes: [BroadcastRenderNode]) -> BroadcastLive2DPoseSummary {
+        let live2dNodes = nodes.filter { $0.kind == "live2d" }
+        guard !live2dNodes.isEmpty else {
+            return .empty
+        }
+
+        var posePayloadCount = 0
+        var activePoseCount = 0
+        var runtimeStatuses = Set<String>()
+
+        for node in live2dNodes {
+            let directStatus = normalizeLive2DRuntimeStatus(node.payload["live2dRuntimeStatus"] as? String)
+            let rawPose = (node.payload["live2dRuntimePoseJson"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            var poseStatus = ""
+            if !rawPose.isEmpty, let data = rawPose.data(using: .utf8) {
+                if let object = try? JSONSerialization.jsonObject(with: data),
+                   let pose = object as? [String: Any] {
+                    posePayloadCount += 1
+                    poseStatus = normalizeLive2DRuntimeStatus(pose["status"] as? String)
+                } else {
+                    runtimeStatuses.insert("invalid")
+                }
+            }
+
+            let status = !poseStatus.isEmpty ? poseStatus : (!directStatus.isEmpty ? directStatus : "missing")
+            if status == "active" {
+                activePoseCount += 1
+            }
+            runtimeStatuses.insert(status)
+        }
+
+        let missingPoseCount = max(0, live2dNodes.count - posePayloadCount)
+        if missingPoseCount > 0 {
+            runtimeStatuses.insert("missing")
+        }
+
+        return BroadcastLive2DPoseSummary(
+            sourceCount: live2dNodes.count,
+            posePayloadCount: posePayloadCount,
+            activePoseCount: activePoseCount,
+            missingPoseCount: missingPoseCount,
+            runtimeStatuses: runtimeStatuses.sorted()
+        )
+    }
+
     private static func summarizeVrmPosePayloads(_ nodes: [BroadcastRenderNode]) -> BroadcastVrmPoseSummary {
         let vrmNodes = nodes.filter { $0.kind == "vrm" }
         guard !vrmNodes.isEmpty else {
@@ -4705,6 +4786,16 @@ final class BroadcastSceneCompositor {
         return String(String(String.UnicodeScalarView(scalars)).prefix(40))
     }
 
+    private static func normalizeLive2DRuntimeStatus(_ value: String?) -> String {
+        let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else {
+            return ""
+        }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789-_")
+        let scalars = trimmed.unicodeScalars.filter { allowed.contains($0) }
+        return String(String(String.UnicodeScalarView(scalars)).prefix(40))
+    }
+
     private func mapBlueprintRect(_ blueprintRect: CGRect, into targetRect: CGRect) -> CGRect {
         CGRect(
             x: targetRect.minX + (blueprintRect.minX / 720) * targetRect.width,
@@ -5111,6 +5202,7 @@ final class BroadcastUploadPipeline {
             stillImageAssetAppGroupDecodedPixelCount: summary.stillImageAssetAppGroupDecodedPixelCount,
             stillImageAssetAppGroupCompositedCount: summary.stillImageAssetAppGroupCompositedCount,
             stillImageAssetAppGroupCompositedPixelCount: summary.stillImageAssetAppGroupCompositedPixelCount,
+            live2dPoseSummary: summary.live2dPoseSummary,
             vrmPoseSummary: summary.vrmPoseSummary
         )
     }

@@ -64,6 +64,14 @@ data class AndroidVrmPoseSummary(
     val renderFailureCount: Int = 0
 )
 
+data class AndroidLive2DPoseSummary(
+    val sourceCount: Int = 0,
+    val posePayloadCount: Int = 0,
+    val activePoseCount: Int = 0,
+    val missingPoseCount: Int = 0,
+    val runtimeStatuses: Set<String> = emptySet()
+)
+
 data class AndroidStillImageAssetEvidence(
     val loaded: Boolean = false,
     val decodedPixelCount: Long = 0,
@@ -84,6 +92,7 @@ data class AndroidCompositionResult(
     val stillImageAssetDecodedPixelCount: Long = 0,
     val stillImageAssetCompositedCount: Int = 0,
     val stillImageAssetCompositedPixelCount: Long = 0,
+    val live2dPoseSummary: AndroidLive2DPoseSummary = AndroidLive2DPoseSummary(),
     val vrmPoseSummary: AndroidVrmPoseSummary = AndroidVrmPoseSummary()
 ) {
     val summary: String
@@ -104,6 +113,14 @@ data class AndroidCompositionResult(
                 }
                 evidenceMessages.add("image assets $stillImageAssetLoadedCount/$stillImageAssetCount, decoded $stillImageAssetDecodedCount, pixels $stillImageAssetDecodedPixelCount, composited $stillImageAssetCompositedCount, pixels $stillImageAssetCompositedPixelCount$missingSuffix")
             }
+            if (live2dPoseSummary.sourceCount > 0) {
+                val statusSuffix = if (live2dPoseSummary.runtimeStatuses.isEmpty()) {
+                    ""
+                } else {
+                    ", statuses ${live2dPoseSummary.runtimeStatuses.joinToString("/")}"
+                }
+                evidenceMessages.add("Live2D poses ${live2dPoseSummary.activePoseCount}/${live2dPoseSummary.sourceCount} active, payloads ${live2dPoseSummary.posePayloadCount}, missing ${live2dPoseSummary.missingPoseCount}$statusSuffix")
+            }
             if (vrmPoseSummary.sourceCount > 0) {
                 evidenceMessages.add("VRM poses ${vrmPoseSummary.activePoseCount}/${vrmPoseSummary.sourceCount} active, payloads ${vrmPoseSummary.posePayloadCount}, missing ${vrmPoseSummary.missingPoseCount}; VRM renderer ${vrmPoseSummary.rendererStatus} ${vrmPoseSummary.rendererBackend}, rendered ${vrmPoseSummary.renderedSourceCount}/${vrmPoseSummary.sourceCount}, models ${vrmPoseSummary.modelLoadedCount}/${vrmPoseSummary.modelUriCount}, bones ${vrmPoseSummary.humanoidBoneCount}, expressions ${vrmPoseSummary.expressionCount}, primitives ${vrmPoseSummary.meshPrimitiveCount}, triangles ${vrmPoseSummary.trianglePrimitiveCount}, unsupported modes ${vrmPoseSummary.unsupportedPrimitiveModeCount}, skinned ${vrmPoseSummary.skinnedMeshPrimitiveCount}, joints ${vrmPoseSummary.skinJointCount}, position accessors ${vrmPoseSummary.positionAccessorCount}, normals ${vrmPoseSummary.normalAccessorCount}, uvs ${vrmPoseSummary.texcoordAccessorCount}, vertices ${vrmPoseSummary.vertexCount}, indices ${vrmPoseSummary.indexCount}, bounds ${vrmPoseSummary.boundsAccessorCount}, skin attrs ${vrmPoseSummary.skinningAttributePrimitiveCount}, morphs ${vrmPoseSummary.morphTargetCount}, materials ${vrmPoseSummary.materialCount}, transparent materials ${vrmPoseSummary.transparentMaterialCount}, textures ${vrmPoseSummary.textureCount}, images ${vrmPoseSummary.imageCount}, unsupported image mimes ${vrmPoseSummary.unsupportedImageMimeCount}, pose bones ${vrmPoseSummary.poseBoneAppliedCount}/${vrmPoseSummary.poseBoneCount}, pose expressions ${vrmPoseSummary.poseExpressionAppliedCount}/${vrmPoseSummary.poseExpressionCount}, failed ${vrmPoseSummary.renderFailureCount}")
             }
@@ -118,6 +135,7 @@ object AndroidSceneCompositor {
                 result = AndroidCompositionResult(appliedCount = 0, skippedCount = 0, skippedKinds = emptySet(), parseFailed = true),
                 overlays = emptyList()
             )
+        val live2dPoseSummary = summarizeLive2DPosePayloads(renderNodes)
         val vrmPoseSummary = summarizeVrmPosePayloads(context, renderNodes)
 
         val primaryScreenOrder = renderNodes
@@ -168,6 +186,7 @@ object AndroidSceneCompositor {
                 stillImageAssetDecodedPixelCount = stillImageEvidence.values.sumOf { evidence -> evidence.decodedPixelCount },
                 stillImageAssetCompositedCount = stillImageEvidence.values.count { evidence -> evidence.loaded && evidence.compositedPixelCount > 0 },
                 stillImageAssetCompositedPixelCount = stillImageEvidence.values.sumOf { evidence -> evidence.compositedPixelCount },
+                live2dPoseSummary = live2dPoseSummary,
                 vrmPoseSummary = vrmPoseSummary
             ),
             overlays = canvasOverlays
@@ -177,6 +196,7 @@ object AndroidSceneCompositor {
     fun apply(context: Context, stream: GenericStream, renderGraphJson: String): AndroidCompositionResult {
         val renderNodes = parseRenderGraph(renderGraphJson)
             ?: return AndroidCompositionResult(appliedCount = 0, skippedCount = 0, skippedKinds = emptySet(), parseFailed = true)
+        val live2dPoseSummary = summarizeLive2DPosePayloads(renderNodes)
         val vrmPoseSummary = summarizeVrmPosePayloads(context, renderNodes)
 
         val primaryScreenOrder = renderNodes
@@ -228,6 +248,7 @@ object AndroidSceneCompositor {
             stillImageAssetDecodedPixelCount = stillImageEvidence.values.sumOf { evidence -> evidence.decodedPixelCount },
             stillImageAssetCompositedCount = stillImageEvidence.values.count { evidence -> evidence.loaded && evidence.compositedPixelCount > 0 },
             stillImageAssetCompositedPixelCount = stillImageEvidence.values.sumOf { evidence -> evidence.compositedPixelCount },
+            live2dPoseSummary = live2dPoseSummary,
             vrmPoseSummary = vrmPoseSummary
         )
     }
@@ -706,6 +727,51 @@ object AndroidSceneCompositor {
         } else {
             "text"
         }
+    }
+
+    private fun summarizeLive2DPosePayloads(renderNodes: List<RenderGraphNode>): AndroidLive2DPoseSummary {
+        val live2dNodes = renderNodes.filter { node -> node.kind == "live2d" }
+        if (live2dNodes.isEmpty()) {
+            return AndroidLive2DPoseSummary()
+        }
+
+        var posePayloadCount = 0
+        var activePoseCount = 0
+        val runtimeStatuses = linkedSetOf<String>()
+
+        live2dNodes.forEach { node ->
+            val directStatus = normalizeLive2DRuntimeStatus(node.payload.optString("live2dRuntimeStatus"))
+            val rawPose = node.payload.optString("live2dRuntimePoseJson").trim()
+            var poseStatus = ""
+            if (rawPose.isNotEmpty()) {
+                try {
+                    val pose = JSONObject(rawPose)
+                    posePayloadCount += 1
+                    poseStatus = normalizeLive2DRuntimeStatus(pose.optString("status", directStatus))
+                } catch (_: Throwable) {
+                    runtimeStatuses.add("invalid")
+                }
+            }
+
+            val status = poseStatus.ifEmpty { directStatus.ifEmpty { "missing" } }
+            if (status == "active") {
+                activePoseCount += 1
+            }
+            runtimeStatuses.add(status)
+        }
+
+        val missingPoseCount = (live2dNodes.size - posePayloadCount).coerceAtLeast(0)
+        if (missingPoseCount > 0) {
+            runtimeStatuses.add("missing")
+        }
+
+        return AndroidLive2DPoseSummary(
+            sourceCount = live2dNodes.size,
+            posePayloadCount = posePayloadCount,
+            activePoseCount = activePoseCount,
+            missingPoseCount = missingPoseCount,
+            runtimeStatuses = runtimeStatuses
+        )
     }
 
     private fun summarizeVrmPosePayloads(context: Context, renderNodes: List<RenderGraphNode>): AndroidVrmPoseSummary {
@@ -1205,6 +1271,14 @@ object AndroidSceneCompositor {
     }
 
     private fun normalizeVrmRuntimeStatus(value: String): String {
+        return value
+            .trim()
+            .lowercase()
+            .replace(Regex("[^a-z0-9_-]"), "")
+            .take(40)
+    }
+
+    private fun normalizeLive2DRuntimeStatus(value: String): String {
         return value
             .trim()
             .lowercase()

@@ -71,6 +71,11 @@ export interface StreamSessionNativeRuntimeSummary {
   stillImageAssetAppGroupDecodedPixelCount: number;
   stillImageAssetAppGroupCompositedCount: number;
   stillImageAssetAppGroupCompositedPixelCount: number;
+  live2dSourceCount: number;
+  live2dPosePayloadCount: number;
+  live2dActivePoseCount: number;
+  live2dMissingPoseCount: number;
+  live2dRuntimeStatuses: string[];
   vrmSourceCount: number;
   vrmPosePayloadCount: number;
   vrmActivePoseCount: number;
@@ -764,6 +769,9 @@ export const createNativeRuntimeSessionSummary = (
       stillImageAssetAppGroupDecodedPixelCount <= 0 ||
       stillImageAssetAppGroupCompositedCount < stillImageAssetCount ||
       stillImageAssetAppGroupCompositedPixelCount <= 0);
+  const missingLive2DPoseCount = normalizeNonNegativeInteger(runtime.composition.live2dMissingPoseCount);
+  const live2dSourceCount = normalizeNonNegativeInteger(runtime.composition.live2dSourceCount);
+  const missingLive2DPoses = missingLive2DPoseCount > 0 && live2dSourceCount > 0;
   const missingVrmPoseCount = normalizeNonNegativeInteger(runtime.composition.vrmMissingPoseCount);
   const vrmSourceCount = normalizeNonNegativeInteger(runtime.composition.vrmSourceCount);
   const missingVrmPoses = missingVrmPoseCount > 0 && vrmSourceCount > 0;
@@ -851,6 +859,7 @@ export const createNativeRuntimeSessionSummary = (
         missingIosReplayKitCompositorProof ||
         missingIosAppGroupStillImageProof ||
         invalidNativeEncoderBackends ||
+        missingLive2DPoses ||
         missingVrmPoses ||
         incompleteVrmRendering
       ? "warn"
@@ -867,6 +876,7 @@ export const createNativeRuntimeSessionSummary = (
     missingIosReplayKitCompositorProof,
     missingIosAppGroupStillImageProof,
     invalidNativeEncoderBackends,
+    missingLive2DPoses,
     missingVrmPoses,
     incompleteVrmRendering
   ].filter(Boolean).length;
@@ -908,6 +918,11 @@ export const createNativeRuntimeSessionSummary = (
     stillImageAssetAppGroupDecodedPixelCount,
     stillImageAssetAppGroupCompositedCount,
     stillImageAssetAppGroupCompositedPixelCount,
+    live2dSourceCount,
+    live2dPosePayloadCount: normalizeNonNegativeInteger(runtime.composition.live2dPosePayloadCount),
+    live2dActivePoseCount: normalizeNonNegativeInteger(runtime.composition.live2dActivePoseCount),
+    live2dMissingPoseCount: missingLive2DPoseCount,
+    live2dRuntimeStatuses: normalizeStringArray(runtime.composition.live2dRuntimeStatuses),
     vrmSourceCount,
     vrmPosePayloadCount: normalizeNonNegativeInteger(runtime.composition.vrmPosePayloadCount),
     vrmActivePoseCount: normalizeNonNegativeInteger(runtime.composition.vrmActivePoseCount),
@@ -1002,6 +1017,8 @@ export const createNativeRuntimeSessionSummary = (
                         ? "Repeat iOS ReplayKit validation until runtime telemetry reports the ios-replaykit-coregraphics compositor backend, non-zero composited frames, and zero composition failures."
                         : missingIosAppGroupStillImageProof
                           ? "Confirm App Group-copied PNGTuber/image assets load and render inside the iOS Broadcast Upload Extension before public streams."
+                          : missingLive2DPoses
+                          ? "Confirm Live2D runtime pose payloads reach the native compositor before retaining production evidence."
                           : missingVrmPoses
                           ? "Confirm VRM runtime pose payloads reach the native compositor before retaining production evidence."
                           : incompleteVrmModelMetadata
@@ -1268,6 +1285,11 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     stillImageAssetAppGroupDecodedPixelCount: normalizeNonNegativeInteger(value.stillImageAssetAppGroupDecodedPixelCount),
     stillImageAssetAppGroupCompositedCount: normalizeNonNegativeInteger(value.stillImageAssetAppGroupCompositedCount),
     stillImageAssetAppGroupCompositedPixelCount: normalizeNonNegativeInteger(value.stillImageAssetAppGroupCompositedPixelCount),
+    live2dSourceCount: normalizeNonNegativeInteger(value.live2dSourceCount),
+    live2dPosePayloadCount: normalizeNonNegativeInteger(value.live2dPosePayloadCount),
+    live2dActivePoseCount: normalizeNonNegativeInteger(value.live2dActivePoseCount),
+    live2dMissingPoseCount: normalizeNonNegativeInteger(value.live2dMissingPoseCount),
+    live2dRuntimeStatuses: normalizeStringArray(value.live2dRuntimeStatuses),
     vrmSourceCount: normalizeNonNegativeInteger(value.vrmSourceCount),
     vrmPosePayloadCount: normalizeNonNegativeInteger(value.vrmPosePayloadCount),
     vrmActivePoseCount: normalizeNonNegativeInteger(value.vrmActivePoseCount),

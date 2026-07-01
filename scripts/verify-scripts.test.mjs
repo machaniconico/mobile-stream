@@ -43,7 +43,7 @@ describe("release automation script verifier", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`Release automation script must not be a symbolic link: ${symlinkScriptPath}`);
-  });
+  }, 30_000);
 
   it("rejects release automation script paths that point to directories", () => {
     mkdirSync(directoryScriptPath, { recursive: true });

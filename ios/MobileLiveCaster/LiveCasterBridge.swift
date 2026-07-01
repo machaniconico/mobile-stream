@@ -1112,6 +1112,13 @@ final class LiveCasterNative: RCTEventEmitter {
                 "stillImageAssetAppGroupDecodedPixelCount": sceneComposition.intValue("stillImageAssetAppGroupDecodedPixelCount"),
                 "stillImageAssetAppGroupCompositedCount": sceneComposition.intValue("stillImageAssetAppGroupCompositedCount"),
                 "stillImageAssetAppGroupCompositedPixelCount": sceneComposition.intValue("stillImageAssetAppGroupCompositedPixelCount"),
+                "live2dSourceCount": sceneComposition.intValue("live2dSourceCount"),
+                "live2dPosePayloadCount": sceneComposition.intValue("live2dPosePayloadCount"),
+                "live2dActivePoseCount": sceneComposition.intValue("live2dActivePoseCount"),
+                "live2dMissingPoseCount": sceneComposition.intValue("live2dMissingPoseCount"),
+                "live2dRuntimeStatuses": sceneComposition.stringArrayValue("live2dRuntimeStatuses").map {
+                    redactSensitiveText($0, streamKey: streamKey, publishURL: publishURL)
+                },
                 "vrmSourceCount": sceneComposition.intValue("vrmSourceCount"),
                 "vrmPosePayloadCount": sceneComposition.intValue("vrmPosePayloadCount"),
                 "vrmActivePoseCount": sceneComposition.intValue("vrmActivePoseCount"),

@@ -1128,6 +1128,74 @@ describe("stream diagnostics", () => {
     );
   });
 
+  it("warns when the native runtime is missing Live2D pose payloads", () => {
+    const scene = createDefaultScene();
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3200, fps: 30, message: "Live" }),
+      nativeRuntime: {
+        platform: "android",
+        runtimeStatus: "live",
+        updatedAt: Date.now(),
+        stale: false,
+        elapsedSeconds: 12,
+        videoFrames: 330,
+        encodedBytes: 4_400_000,
+        droppedFrames: 0,
+        publisher: {
+          state: "published",
+          videoEncoderBackend: "mediacodec-h264",
+          audioEncoderBackend: "mediacodec-aac",
+          reconnectAttempts: 0,
+          sentVideoFrames: 330,
+          sentAudioFrames: 500,
+          droppedVideoFrames: 0,
+          droppedAudioFrames: 0,
+          bytesWritten: 4_400_000,
+          cacheSize: 100,
+          itemsInCache: 0,
+          congested: false,
+          lastError: ""
+        },
+        composition: {
+          status: "applied",
+          appliedCount: 1,
+          skippedCount: 0,
+          skippedKinds: [],
+          stillImageAssetCount: 0,
+          stillImageAssetLoadedCount: 0,
+          stillImageAssetMissingCount: 0,
+          stillImageAssetMissingKinds: [],
+          stillImageAssetDecodedCount: 0,
+          stillImageAssetDecodedPixelCount: 0,
+          stillImageAssetCompositedCount: 0,
+          stillImageAssetCompositedPixelCount: 0,
+          runtimeCompositorBackend: "android-canvas-mediacodec",
+          runtimeCompositedFrameCount: 330,
+          runtimeDroppedFrameCount: 0,
+          runtimeCompositionFailureCount: 0,
+          live2dSourceCount: 1,
+          live2dPosePayloadCount: 0,
+          live2dActivePoseCount: 0,
+          live2dMissingPoseCount: 1,
+          live2dRuntimeStatuses: ["missing"],
+          message: ""
+        },
+        message: "Android runtime live"
+      }
+    });
+
+    const nativeCheck = diagnostics.checks.find((check) => check.code === "native-runtime-composition-applied");
+    expect(nativeCheck?.status).toBe("warn");
+    expect(nativeCheck?.message).toContain("missing 1 Live2D pose payload");
+    expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
+      "Composition Live2D: 0/1 active / payloads 0 / missing 1"
+    );
+  });
+
   it("warns when VRM poses arrive but the native VRM renderer has not rendered the source", () => {
     const scene = createDefaultScene();
     const profile = createDefaultStudioProfile();

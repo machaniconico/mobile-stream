@@ -256,6 +256,11 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeStillImageAssetAppGroupDecodedPixelCount: number;
   nativeRuntimeStillImageAssetAppGroupCompositedCount: number;
   nativeRuntimeStillImageAssetAppGroupCompositedPixelCount: number;
+  nativeRuntimeLive2dSourceCount: number;
+  nativeRuntimeLive2dPosePayloadCount: number;
+  nativeRuntimeLive2dActivePoseCount: number;
+  nativeRuntimeLive2dMissingPoseCount: number;
+  nativeRuntimeLive2dRuntimeStatuses: string[];
   nativeRuntimeVrmSourceCount: number;
   nativeRuntimeVrmPosePayloadCount: number;
   nativeRuntimeVrmActivePoseCount: number;
@@ -1299,6 +1304,7 @@ const isNativeRuntimeEvidencePass = (
   (nativeRuntime.compositionStatus === "applied" || nativeRuntime.compositionStatus === "screen-only") &&
   hasNativeRuntimeStillImageOverlayProof(nativeRuntime) &&
   hasNativeRuntimeIosAppGroupStillImageProof(nativeRuntime, expectedPlatform) &&
+  hasNativeRuntimeLive2DPoseProof(nativeRuntime) &&
   hasNativeRuntimeVrmReleaseProof(nativeRuntime);
 
 const hasNativeRuntimeVideoFrameIntervalProof = (
@@ -1380,6 +1386,20 @@ const hasNativeRuntimeIosAppGroupStillImageProof = (
     nativeRuntime.stillImageAssetAppGroupDecodedPixelCount > 0 &&
     nativeRuntime.stillImageAssetAppGroupCompositedCount >= nativeRuntime.stillImageAssetCount &&
     nativeRuntime.stillImageAssetAppGroupCompositedPixelCount > 0
+  );
+};
+
+const hasNativeRuntimeLive2DPoseProof = (
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null | undefined
+): boolean => {
+  if (!nativeRuntime || nativeRuntime.live2dSourceCount <= 0) {
+    return true;
+  }
+
+  return (
+    nativeRuntime.live2dPosePayloadCount >= nativeRuntime.live2dSourceCount &&
+    nativeRuntime.live2dActivePoseCount >= nativeRuntime.live2dSourceCount &&
+    nativeRuntime.live2dMissingPoseCount === 0
   );
 };
 
@@ -2726,6 +2746,11 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeStillImageAssetAppGroupDecodedPixelCount: run.nativeRuntime?.stillImageAssetAppGroupDecodedPixelCount ?? 0,
     nativeRuntimeStillImageAssetAppGroupCompositedCount: run.nativeRuntime?.stillImageAssetAppGroupCompositedCount ?? 0,
     nativeRuntimeStillImageAssetAppGroupCompositedPixelCount: run.nativeRuntime?.stillImageAssetAppGroupCompositedPixelCount ?? 0,
+    nativeRuntimeLive2dSourceCount: run.nativeRuntime?.live2dSourceCount ?? 0,
+    nativeRuntimeLive2dPosePayloadCount: run.nativeRuntime?.live2dPosePayloadCount ?? 0,
+    nativeRuntimeLive2dActivePoseCount: run.nativeRuntime?.live2dActivePoseCount ?? 0,
+    nativeRuntimeLive2dMissingPoseCount: run.nativeRuntime?.live2dMissingPoseCount ?? 0,
+    nativeRuntimeLive2dRuntimeStatuses: run.nativeRuntime?.live2dRuntimeStatuses ?? [],
     nativeRuntimeVrmSourceCount: run.nativeRuntime?.vrmSourceCount ?? 0,
     nativeRuntimeVrmPosePayloadCount: run.nativeRuntime?.vrmPosePayloadCount ?? 0,
     nativeRuntimeVrmActivePoseCount: run.nativeRuntime?.vrmActivePoseCount ?? 0,

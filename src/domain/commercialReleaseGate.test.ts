@@ -2646,6 +2646,11 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetAppGroupDecodedPixelCount = devicePlatform === "ios" ? 921_600 : 0,
   nativeRuntimeStillImageAssetAppGroupCompositedCount = devicePlatform === "ios" ? 1 : 0,
   nativeRuntimeStillImageAssetAppGroupCompositedPixelCount = devicePlatform === "ios" ? 921_600 : 0,
+  nativeRuntimeLive2dSourceCount = 0,
+  nativeRuntimeLive2dPosePayloadCount = 0,
+  nativeRuntimeLive2dActivePoseCount = 0,
+  nativeRuntimeLive2dMissingPoseCount = 0,
+  nativeRuntimeLive2dRuntimeStatuses = [],
   nativeRuntimeVrmSourceCount = 0,
   nativeRuntimeVrmPosePayloadCount = 0,
   nativeRuntimeVrmActivePoseCount = 0,
@@ -2812,6 +2817,11 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetAppGroupDecodedPixelCount?: ValidationManifestRun["nativeRuntimeStillImageAssetAppGroupDecodedPixelCount"];
   nativeRuntimeStillImageAssetAppGroupCompositedCount?: ValidationManifestRun["nativeRuntimeStillImageAssetAppGroupCompositedCount"];
   nativeRuntimeStillImageAssetAppGroupCompositedPixelCount?: ValidationManifestRun["nativeRuntimeStillImageAssetAppGroupCompositedPixelCount"];
+  nativeRuntimeLive2dSourceCount?: ValidationManifestRun["nativeRuntimeLive2dSourceCount"];
+  nativeRuntimeLive2dPosePayloadCount?: ValidationManifestRun["nativeRuntimeLive2dPosePayloadCount"];
+  nativeRuntimeLive2dActivePoseCount?: ValidationManifestRun["nativeRuntimeLive2dActivePoseCount"];
+  nativeRuntimeLive2dMissingPoseCount?: ValidationManifestRun["nativeRuntimeLive2dMissingPoseCount"];
+  nativeRuntimeLive2dRuntimeStatuses?: ValidationManifestRun["nativeRuntimeLive2dRuntimeStatuses"];
   nativeRuntimeVrmSourceCount?: ValidationManifestRun["nativeRuntimeVrmSourceCount"];
   nativeRuntimeVrmPosePayloadCount?: ValidationManifestRun["nativeRuntimeVrmPosePayloadCount"];
   nativeRuntimeVrmActivePoseCount?: ValidationManifestRun["nativeRuntimeVrmActivePoseCount"];
@@ -2986,6 +2996,11 @@ const manifestRun = ({
   nativeRuntimeStillImageAssetAppGroupDecodedPixelCount,
   nativeRuntimeStillImageAssetAppGroupCompositedCount,
   nativeRuntimeStillImageAssetAppGroupCompositedPixelCount,
+  nativeRuntimeLive2dSourceCount,
+  nativeRuntimeLive2dPosePayloadCount,
+  nativeRuntimeLive2dActivePoseCount,
+  nativeRuntimeLive2dMissingPoseCount,
+  nativeRuntimeLive2dRuntimeStatuses,
   nativeRuntimeVrmSourceCount,
   nativeRuntimeVrmPosePayloadCount,
   nativeRuntimeVrmActivePoseCount,

@@ -372,6 +372,46 @@ describe("stream validation evidence", () => {
     expect(normalizeStreamValidationRuns([{ ...run, fingerprint: "tampered" }])[0]?.fingerprint).toBe(run.fingerprint);
   });
 
+  it("retains native Live2D pose payload evidence in the run manifest", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntime("android");
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30, message: "Live" }),
+      nativeRuntime: {
+        ...runtime,
+        composition: {
+          ...runtime.composition,
+          live2dSourceCount: 1,
+          live2dPosePayloadCount: 1,
+          live2dActivePoseCount: 1,
+          live2dMissingPoseCount: 0,
+          live2dRuntimeStatuses: ["active"]
+        }
+      }
+    });
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      ...physicalDeviceMeta("android"),
+      appBuild: "rc-1",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(summary.runManifest[0]).toMatchObject({
+      nativeRuntimeLive2dSourceCount: 1,
+      nativeRuntimeLive2dPosePayloadCount: 1,
+      nativeRuntimeLive2dActivePoseCount: 1,
+      nativeRuntimeLive2dMissingPoseCount: 0,
+      nativeRuntimeLive2dRuntimeStatuses: ["active"]
+    });
+  });
+
   it("stores audio and chat readout evidence and downgrades unvalidated passing runs", () => {
     const scene = nativeReadyScene();
     const profile = profileWithKey("validation-key");
