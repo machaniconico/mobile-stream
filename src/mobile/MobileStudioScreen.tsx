@@ -2003,6 +2003,14 @@ export const MobileStudioScreen = ({
             <Text style={styles.trackingCell}>yaw {faceTrackingRuntime.yaw.toFixed(2)}</Text>
             <Text style={styles.trackingCell}>pitch {faceTrackingRuntime.pitch.toFixed(2)}</Text>
             <Text style={styles.trackingCell}>conf {Math.round(faceTrackingRuntime.confidence * 100)}%</Text>
+            <Text style={styles.trackingCell}>
+              lm {Math.round((diagnostics.faceTracking.faceLandmarkConfidence ?? 0) * 100)}%{" "}
+              {diagnostics.faceTracking.faceLandmarkReady ? "ok" : "low"}
+            </Text>
+            <Text style={styles.trackingCell}>
+              attn {Math.round(diagnostics.faceTracking.landmarkMotionScale * 100)}/
+              {Math.round(diagnostics.faceTracking.faceControlScale * 100)}%
+            </Text>
           </View>
         </Panel>
 

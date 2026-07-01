@@ -1974,6 +1974,14 @@ export const StudioScreen = ({
                 <span>yaw {faceTrackingRuntime.yaw.toFixed(2)}</span>
                 <span>pitch {faceTrackingRuntime.pitch.toFixed(2)}</span>
                 <span>conf {Math.round(faceTrackingRuntime.confidence * 100)}%</span>
+                <span>
+                  lm {Math.round((diagnostics.faceTracking.faceLandmarkConfidence ?? 0) * 100)}%{" "}
+                  {diagnostics.faceTracking.faceLandmarkReady ? "ok" : "low"}
+                </span>
+                <span>
+                  attn {Math.round(diagnostics.faceTracking.landmarkMotionScale * 100)}/
+                  {Math.round(diagnostics.faceTracking.faceControlScale * 100)}%
+                </span>
               </div>
             </div>
           </section>
