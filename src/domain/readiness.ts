@@ -26,6 +26,8 @@ export interface ReadinessReport {
 
 const supportedProtocols = new Set(["rtmp:", "rtmps:"]);
 const chatOverlayBackgroundOpacityWarningThreshold = 0.05;
+const chatOverlayLineHeightRatio = 1.18;
+const chatOverlaySafeAreaMargin = 0.025;
 const textOverlayBackgroundOpacityWarningThreshold = 0.35;
 const textOverlayDominantAreaWarningThreshold = 0.18;
 const textOverlayVeryOpaqueWarningThreshold = 0.65;
@@ -434,6 +436,32 @@ const validateScene = (scene: SceneDocument, profile: StudioProfile): ReadinessI
     });
   }
 
+  const layoutRiskChatOverlays = visibleSources.filter(
+    (source): source is ChatOverlaySource => source.kind === "chat" && isChatOverlayLayoutRisk(source, scene)
+  );
+  if (layoutRiskChatOverlays.length > 0) {
+    const names = layoutRiskChatOverlays.map((source) => source.name).join(", ");
+    issues.push({
+      code: "scene-chat-overlay-layout-risk",
+      severity: "warning",
+      field: "scene",
+      message: `${names} may clip comments or render unreadably on mobile output.`
+    });
+  }
+
+  const safeAreaChatOverlays = visibleSources.filter(
+    (source): source is ChatOverlaySource => source.kind === "chat" && isChatOverlaySafeAreaRisk(source)
+  );
+  if (safeAreaChatOverlays.length > 0) {
+    const names = safeAreaChatOverlays.map((source) => source.name).join(", ");
+    issues.push({
+      code: "scene-chat-overlay-safe-area-risk",
+      severity: "warning",
+      field: "scene",
+      message: `${names} is too close to the program edge for phone and platform overlay safe areas.`
+    });
+  }
+
   const dominantTextOverlays = visibleSources.filter(
     (source): source is TextSource => source.kind === "text" && isDominantTextOverlay(source)
   );
@@ -504,6 +532,27 @@ const isDominantTextOverlay = (source: TextSource): boolean => {
     return true;
   }
   return source.backgroundOpacity >= textOverlayBackgroundOpacityWarningThreshold && area >= textOverlayDominantAreaWarningThreshold;
+};
+
+const isChatOverlayLayoutRisk = (source: ChatOverlaySource, scene: SceneDocument): boolean => {
+  const boxHeight = Math.max(1, source.transform.height * scene.canvas.height);
+  const boxWidth = Math.max(1, source.transform.width * scene.canvas.width);
+  const lineHeight = source.fontSize * chatOverlayLineHeightRatio;
+  const verticalSafetyPadding = Math.max(source.fontSize * 0.3, 8);
+  const requiredHeight = source.maxMessages * lineHeight + verticalSafetyPadding;
+
+  return requiredHeight > boxHeight || boxWidth < source.fontSize * 8;
+};
+
+const isChatOverlaySafeAreaRisk = (source: ChatOverlaySource): boolean => {
+  const right = source.transform.x + source.transform.width;
+  const bottom = source.transform.y + source.transform.height;
+  return (
+    source.transform.x < chatOverlaySafeAreaMargin ||
+    source.transform.y < chatOverlaySafeAreaMargin ||
+    right > 1 - chatOverlaySafeAreaMargin ||
+    bottom > 1 - chatOverlaySafeAreaMargin
+  );
 };
 
 const isTextOverlayLayoutRisk = (source: TextSource, scene: SceneDocument): boolean => {

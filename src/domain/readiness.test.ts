@@ -269,6 +269,77 @@ describe("stream readiness", () => {
     );
   });
 
+  it("warns when a visible chat overlay may clip comments on mobile output", () => {
+    const scene = updateSource(createDefaultScene(), "source-chat", (source) =>
+      source.kind === "chat"
+        ? {
+            ...source,
+            fontSize: 58,
+            maxMessages: 8,
+            transform: {
+              ...source.transform,
+              width: 0.16,
+              height: 0.12
+            }
+          }
+        : source
+    );
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "dummy-stream-value"
+      }
+    };
+
+    const report = createReadinessReport(scene, profile);
+
+    expect(report.canStart).toBe(true);
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        code: "scene-chat-overlay-layout-risk",
+        field: "scene",
+        severity: "warning",
+        message: expect.stringContaining("may clip comments")
+      })
+    );
+  });
+
+  it("warns when a visible chat overlay is too close to program safe-area edges", () => {
+    const scene = updateSource(createDefaultScene(), "source-chat", (source) =>
+      source.kind === "chat"
+        ? {
+            ...source,
+            transform: {
+              ...source.transform,
+              x: 0.01
+            }
+          }
+        : source
+    );
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "dummy-stream-value"
+      }
+    };
+
+    const report = createReadinessReport(scene, profile);
+
+    expect(report.canStart).toBe(true);
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        code: "scene-chat-overlay-safe-area-risk",
+        field: "scene",
+        severity: "warning",
+        message: expect.stringContaining("too close to the program edge")
+      })
+    );
+  });
+
   it("allows the default lower-third subtitle backdrop without a dominant overlay warning", () => {
     const profile = {
       ...createDefaultStudioProfile(),

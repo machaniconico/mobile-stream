@@ -8,7 +8,7 @@ import {
   type PublicLaunchChecklist
 } from "./publicLaunchChecklist";
 import type { ReadinessReport } from "./readiness";
-import type { SceneDocument, SceneSource, SourceKind, Transform } from "./scene";
+import type { ChatOverlaySource, SceneDocument, SceneSource, SourceKind, Transform } from "./scene";
 import {
   createSceneCompositionFingerprint,
   createSceneCompositionSourcePayloadSummary
@@ -421,6 +421,16 @@ export interface SupportBundle {
     textOverlayCaptionSourceCount: number;
     textOverlaySummary: string;
     textOverlayRecommendation: string;
+    chatOverlayStatus: "pass" | "warn" | "info";
+    chatOverlaySourceCount: number;
+    chatOverlayVisibleSourceCount: number;
+    chatOverlayTransparentVisibleSourceCount: number;
+    chatOverlayUrlRedactionDisabledCount: number;
+    chatOverlayOpaqueBackgroundIssueCount: number;
+    chatOverlayLayoutRiskIssueCount: number;
+    chatOverlaySafeAreaIssueCount: number;
+    chatOverlaySummary: string;
+    chatOverlayRecommendation: string;
     liveCaptionStatus: StreamDiagnostics["liveCaption"]["status"];
     liveCaptionEnabled: boolean;
     liveCaptionRecognitionStatus: StreamDiagnostics["liveCaption"]["recognitionStatus"];
@@ -625,6 +635,7 @@ export const createSupportBundle = ({
   const nativeRuntimeVrmRenderMissingCount =
     nativeRuntimeComposition?.vrmRenderMissingCount ?? Math.max(0, nativeRuntimeVrmSourceCount - nativeRuntimeVrmRenderedSourceCount);
   const publicLaunchConfirmationEvidence = summarizePublicLaunchConfirmationEvents(diagnostics.session.events);
+  const chatOverlayEvidence = createChatOverlayEvidenceSummary(scene, readiness);
 
   return {
     generatedAt: now.toISOString(),
@@ -1098,6 +1109,16 @@ export const createSupportBundle = ({
       textOverlayCaptionSourceCount: diagnostics.textOverlay.modeCounts.caption,
       textOverlaySummary: diagnostics.textOverlay.summary,
       textOverlayRecommendation: diagnostics.textOverlay.recommendation,
+      chatOverlayStatus: chatOverlayEvidence.status,
+      chatOverlaySourceCount: chatOverlayEvidence.sourceCount,
+      chatOverlayVisibleSourceCount: chatOverlayEvidence.visibleSourceCount,
+      chatOverlayTransparentVisibleSourceCount: chatOverlayEvidence.transparentVisibleSourceCount,
+      chatOverlayUrlRedactionDisabledCount: chatOverlayEvidence.urlRedactionDisabledCount,
+      chatOverlayOpaqueBackgroundIssueCount: chatOverlayEvidence.opaqueBackgroundIssueCount,
+      chatOverlayLayoutRiskIssueCount: chatOverlayEvidence.layoutRiskIssueCount,
+      chatOverlaySafeAreaIssueCount: chatOverlayEvidence.safeAreaIssueCount,
+      chatOverlaySummary: chatOverlayEvidence.summary,
+      chatOverlayRecommendation: chatOverlayEvidence.recommendation,
       liveCaptionStatus: diagnostics.liveCaption.status,
       liveCaptionEnabled: diagnostics.liveCaption.enabled,
       liveCaptionRecognitionStatus: diagnostics.liveCaption.recognitionStatus,
@@ -1351,6 +1372,9 @@ export const formatSupportBundle = (bundle: SupportBundle): string => {
     `- Text overlay modes: label ${bundle.summary.textOverlayLabelSourceCount} / subtitle ${bundle.summary.textOverlaySubtitleSourceCount} / ticker ${bundle.summary.textOverlayTickerSourceCount} / caption ${bundle.summary.textOverlayCaptionSourceCount}`,
     `- Text overlay summary: ${bundle.summary.textOverlaySummary}`,
     `- Text overlay recommendation: ${bundle.summary.textOverlayRecommendation}`,
+    `- Chat overlays: ${bundle.summary.chatOverlayStatus} / visible ${bundle.summary.chatOverlayVisibleSourceCount}/${bundle.summary.chatOverlaySourceCount} / transparent ${bundle.summary.chatOverlayTransparentVisibleSourceCount} / raw URLs ${bundle.summary.chatOverlayUrlRedactionDisabledCount} / opaque ${bundle.summary.chatOverlayOpaqueBackgroundIssueCount} / layout risk ${bundle.summary.chatOverlayLayoutRiskIssueCount} / safe area ${bundle.summary.chatOverlaySafeAreaIssueCount}`,
+    `- Chat overlay summary: ${bundle.summary.chatOverlaySummary}`,
+    `- Chat overlay recommendation: ${bundle.summary.chatOverlayRecommendation}`,
     `- Live captions: ${bundle.summary.liveCaptionStatus} / enabled ${bundle.summary.liveCaptionEnabled ? "yes" : "no"} / recognition ${bundle.summary.liveCaptionRecognitionStatus} / language ${bundle.summary.liveCaptionLanguage || "-"} / sources ${bundle.summary.liveCaptionVisibleRuntimeSourceCount}/${bundle.summary.liveCaptionRuntimeSourceCount} visible / cues ${bundle.summary.liveCaptionFinalCueCount} final ${bundle.summary.liveCaptionActiveCueCount} active / transcripts ${bundle.summary.liveCaptionTranscriptCount}`,
     `- Live captions summary: ${bundle.summary.liveCaptionSummary}`,
     `- Live captions recommendation: ${bundle.summary.liveCaptionRecommendation}`,
@@ -1496,6 +1520,141 @@ const countSources = (sources: SceneSource[]): Record<SourceKind, number> => {
   }
 
   return counts;
+};
+
+const createChatOverlayEvidenceSummary = (
+  scene: SceneDocument,
+  readiness: Pick<ReadinessReport, "issues">
+): {
+  status: "pass" | "warn" | "info";
+  sourceCount: number;
+  visibleSourceCount: number;
+  transparentVisibleSourceCount: number;
+  urlRedactionDisabledCount: number;
+  opaqueBackgroundIssueCount: number;
+  layoutRiskIssueCount: number;
+  safeAreaIssueCount: number;
+  summary: string;
+  recommendation: string;
+} => {
+  const chatSources = scene.sources.filter((source): source is ChatOverlaySource => source.kind === "chat");
+  const visibleChatSources = chatSources.filter((source) => source.visible);
+  const urlRedactionDisabledCount = visibleChatSources.filter((source) => !source.redactUrls).length;
+  const transparentVisibleSourceCount = visibleChatSources.filter((source) => source.backgroundOpacity === 0).length;
+  const opaqueBackgroundIssueCount = readiness.issues.filter(
+    (issue) => issue.code === "scene-chat-overlay-background-opaque"
+  ).length;
+  const layoutRiskIssueCount = readiness.issues.filter(
+    (issue) => issue.code === "scene-chat-overlay-layout-risk"
+  ).length;
+  const safeAreaIssueCount = readiness.issues.filter(
+    (issue) => issue.code === "scene-chat-overlay-safe-area-risk"
+  ).length;
+  const status =
+    opaqueBackgroundIssueCount > 0 || urlRedactionDisabledCount > 0 || layoutRiskIssueCount > 0 || safeAreaIssueCount > 0
+      ? "warn"
+      : visibleChatSources.length > 0
+        ? "pass"
+        : "info";
+
+  return {
+    status,
+    sourceCount: chatSources.length,
+    visibleSourceCount: visibleChatSources.length,
+    transparentVisibleSourceCount,
+    urlRedactionDisabledCount,
+    opaqueBackgroundIssueCount,
+    layoutRiskIssueCount,
+    safeAreaIssueCount,
+    summary: createChatOverlaySummary({
+      sourceCount: chatSources.length,
+      visibleSourceCount: visibleChatSources.length,
+      urlRedactionDisabledCount,
+      opaqueBackgroundIssueCount,
+      layoutRiskIssueCount,
+      safeAreaIssueCount
+    }),
+    recommendation: createChatOverlayRecommendation({
+      sourceCount: chatSources.length,
+      visibleSourceCount: visibleChatSources.length,
+      urlRedactionDisabledCount,
+      opaqueBackgroundIssueCount,
+      layoutRiskIssueCount,
+      safeAreaIssueCount
+    })
+  };
+};
+
+const createChatOverlaySummary = ({
+  sourceCount,
+  visibleSourceCount,
+  urlRedactionDisabledCount,
+  opaqueBackgroundIssueCount,
+  layoutRiskIssueCount,
+  safeAreaIssueCount
+}: {
+  sourceCount: number;
+  visibleSourceCount: number;
+  urlRedactionDisabledCount: number;
+  opaqueBackgroundIssueCount: number;
+  layoutRiskIssueCount: number;
+  safeAreaIssueCount: number;
+}): string => {
+  if (urlRedactionDisabledCount > 0) {
+    return `${urlRedactionDisabledCount} visible chat overlay${urlRedactionDisabledCount === 1 ? "" : "s"} can display raw URLs.`;
+  }
+  if (opaqueBackgroundIssueCount > 0) {
+    return `${opaqueBackgroundIssueCount} visible chat overlay${opaqueBackgroundIssueCount === 1 ? "" : "s"} use non-transparent backgrounds.`;
+  }
+  if (layoutRiskIssueCount > 0) {
+    return `${layoutRiskIssueCount} visible chat overlay${layoutRiskIssueCount === 1 ? "" : "s"} may clip comments or be unreadable.`;
+  }
+  if (safeAreaIssueCount > 0) {
+    return `${safeAreaIssueCount} visible chat overlay${safeAreaIssueCount === 1 ? "" : "s"} are too close to the program edge.`;
+  }
+  if (visibleSourceCount > 0) {
+    return `${visibleSourceCount}/${sourceCount} chat overlay${sourceCount === 1 ? "" : "s"} visible.`;
+  }
+  if (sourceCount > 0) {
+    return `${sourceCount} chat overlay${sourceCount === 1 ? "" : "s"} configured, but none are visible.`;
+  }
+  return "No chat overlays are configured in the active scene.";
+};
+
+const createChatOverlayRecommendation = ({
+  sourceCount,
+  visibleSourceCount,
+  urlRedactionDisabledCount,
+  opaqueBackgroundIssueCount,
+  layoutRiskIssueCount,
+  safeAreaIssueCount
+}: {
+  sourceCount: number;
+  visibleSourceCount: number;
+  urlRedactionDisabledCount: number;
+  opaqueBackgroundIssueCount: number;
+  layoutRiskIssueCount: number;
+  safeAreaIssueCount: number;
+}): string => {
+  if (urlRedactionDisabledCount > 0) {
+    return "Turn chat overlay URL redaction on before public streams.";
+  }
+  if (opaqueBackgroundIssueCount > 0) {
+    return "Keep chat overlay backgrounds transparent unless the exact lower-third design is validated on device.";
+  }
+  if (layoutRiskIssueCount > 0) {
+    return "Increase the chat box, reduce font size or visible message count, then verify comment readability on a target phone screen.";
+  }
+  if (safeAreaIssueCount > 0) {
+    return "Move chat overlays away from program edges, then verify phone safe areas and platform overlays do not cover comments.";
+  }
+  if (visibleSourceCount > 0) {
+    return "Keep chat overlay transparency, URL redaction, position, and message limits unchanged for retained launch evidence.";
+  }
+  if (sourceCount > 0) {
+    return "Show the intended chat overlay before public launch, or remove unused hidden chat sources from the scene.";
+  }
+  return "Add a chat overlay only when comments should appear on the program output.";
 };
 
 const formatQualityAdvisorTarget = (target: NonNullable<StreamDiagnostics["qualityAdvisor"]["suggestedTarget"]>): string =>

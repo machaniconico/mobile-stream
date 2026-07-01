@@ -398,6 +398,12 @@ describe("support bundle", () => {
     expect(bundle.summary.textOverlayLayoutRiskIssueCount).toBe(0);
     expect(bundle.summary.textOverlaySafeAreaIssueCount).toBe(0);
     expect(bundle.summary.textOverlaySubtitleSourceCount).toBe(1);
+    expect(bundle.summary.chatOverlayStatus).toBe("pass");
+    expect(bundle.summary.chatOverlayVisibleSourceCount).toBe(1);
+    expect(bundle.summary.chatOverlayTransparentVisibleSourceCount).toBe(1);
+    expect(bundle.summary.chatOverlayUrlRedactionDisabledCount).toBe(0);
+    expect(bundle.summary.chatOverlayLayoutRiskIssueCount).toBe(0);
+    expect(bundle.summary.chatOverlaySafeAreaIssueCount).toBe(0);
     expect(bundle.summary.liveCaptionStatus).toBe("info");
     expect(bundle.summary.liveCaptionEnabled).toBe(false);
     expect(bundle.summary.liveCaptionRecognitionStatus).toBe("unavailable");
@@ -438,6 +444,9 @@ describe("support bundle", () => {
       "Text overlays: pass / visible 2/2 / manual 2/2 / live-caption 0/0 / transparent 1 / empty manual 0 / sensitive 0 / dominant backdrop 0 / layout risk 0 / safe area 0"
     );
     expect(formatSupportBundle(bundle)).toContain("Text overlay modes: label 1 / subtitle 1 / ticker 0 / caption 0");
+    expect(formatSupportBundle(bundle)).toContain(
+      "Chat overlays: pass / visible 1/1 / transparent 1 / raw URLs 0 / opaque 0 / layout risk 0 / safe area 0"
+    );
     expect(formatSupportBundle(bundle)).toContain(
       "Live captions: info / enabled no / recognition unavailable / language - / sources 0/0 visible / cues 0 final 0 active / transcripts 0"
     );

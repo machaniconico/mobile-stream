@@ -98,6 +98,19 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks support bundles without v54 chat overlay evidence", () => {
+    const bundle = supportBundle();
+    delete (bundle.summary as Partial<SupportBundle["summary"]>).chatOverlayStatus;
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "chat-overlay-evidence-missing"
+      })
+    );
+  });
+
   it("blocks support bundles without v54 live caption evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).liveCaptionStatus;
@@ -128,6 +141,28 @@ describe("commercial release gate", () => {
     expect(gate.issues).toContainEqual(
       expect.objectContaining({
         code: "text-overlay-evidence-failed"
+      })
+    );
+  });
+
+  it("warns release when chat overlay evidence reports layout or safe-area risk", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          chatOverlayStatus: "warn",
+          chatOverlayLayoutRiskIssueCount: 1,
+          chatOverlaySummary: "1 visible chat overlay may clip comments or be unreadable.",
+          chatOverlayRecommendation: "Increase the chat box before launch."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("warning");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "chat-overlay-evidence-warning"
       })
     );
   });
@@ -1808,6 +1843,16 @@ const supportBundle = ({
       textOverlayCaptionSourceCount: 0,
       textOverlaySummary: "2/2 text overlays visible: 2 manual and 0 live-caption sources.",
       textOverlayRecommendation: "Keep text positions, transparency, font size, and outline settings unchanged.",
+      chatOverlayStatus: "pass",
+      chatOverlaySourceCount: 1,
+      chatOverlayVisibleSourceCount: 1,
+      chatOverlayTransparentVisibleSourceCount: 1,
+      chatOverlayUrlRedactionDisabledCount: 0,
+      chatOverlayOpaqueBackgroundIssueCount: 0,
+      chatOverlayLayoutRiskIssueCount: 0,
+      chatOverlaySafeAreaIssueCount: 0,
+      chatOverlaySummary: "1/1 chat overlay visible.",
+      chatOverlayRecommendation: "Keep chat overlay settings unchanged.",
       liveCaptionStatus: "info",
       liveCaptionEnabled: false,
       liveCaptionRecognitionStatus: "unavailable",

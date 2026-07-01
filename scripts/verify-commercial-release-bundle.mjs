@@ -124,6 +124,7 @@ export function createCommercialReleaseGate(bundle, { now, maxBundleAgeHours = d
     publicLaunchConfirmationEvidenceIssue(bundle),
     sceneFingerprintIssue(bundle),
     textOverlayEvidenceIssue(bundle),
+    chatOverlayEvidenceIssue(bundle),
     liveCaptionEvidenceIssue(bundle),
     validationIssue(bundle),
     validationRunbookIssue(bundle),
@@ -458,6 +459,50 @@ function textOverlayEvidenceIssue(bundle) {
       "Text overlay evidence",
       summary.textOverlaySummary || "Text overlay evidence has warnings.",
       summary.textOverlayRecommendation || "Review text overlay warnings before approving release."
+    );
+  }
+
+  return null;
+}
+
+function chatOverlayEvidenceIssue(bundle) {
+  const summary = bundle?.summary ?? {};
+  const status = summary.chatOverlayStatus;
+  const hasRequiredEvidence =
+    isDiagnosticStatus(status) &&
+    isNonNegativeInteger(summary.chatOverlaySourceCount) &&
+    isNonNegativeInteger(summary.chatOverlayVisibleSourceCount) &&
+    isNonNegativeInteger(summary.chatOverlayTransparentVisibleSourceCount) &&
+    isNonNegativeInteger(summary.chatOverlayUrlRedactionDisabledCount) &&
+    isNonNegativeInteger(summary.chatOverlayOpaqueBackgroundIssueCount) &&
+    isNonNegativeInteger(summary.chatOverlayLayoutRiskIssueCount) &&
+    isNonNegativeInteger(summary.chatOverlaySafeAreaIssueCount) &&
+    typeof summary.chatOverlaySummary === "string" &&
+    summary.chatOverlaySummary.trim().length > 0 &&
+    typeof summary.chatOverlayRecommendation === "string" &&
+    summary.chatOverlayRecommendation.trim().length > 0;
+
+  if (!hasRequiredEvidence) {
+    return fail(
+      "chat-overlay-evidence-missing",
+      "Chat overlay evidence",
+      "The support bundle is missing chat overlay launch evidence.",
+      "Export a support bundle v54 or newer so visible chat overlay transparency, URL redaction, layout, and safe-area evidence is summarized."
+    );
+  }
+
+  if (
+    status === "warn" ||
+    number(summary.chatOverlayUrlRedactionDisabledCount) > 0 ||
+    number(summary.chatOverlayOpaqueBackgroundIssueCount) > 0 ||
+    number(summary.chatOverlayLayoutRiskIssueCount) > 0 ||
+    number(summary.chatOverlaySafeAreaIssueCount) > 0
+  ) {
+    return warn(
+      "chat-overlay-evidence-warning",
+      "Chat overlay evidence",
+      summary.chatOverlaySummary || "Chat overlay evidence has warnings.",
+      summary.chatOverlayRecommendation || "Review chat overlay warnings before approving release."
     );
   }
 
