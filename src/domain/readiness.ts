@@ -33,6 +33,7 @@ const textOverlayVeryOpaqueAreaWarningThreshold = 0.1;
 const textOverlayMinimumReadableFontRatio = 0.022;
 const textOverlayMinimumReadableFontSize = 18;
 const textOverlayLineHeightRatio = 1.22;
+const textOverlaySafeAreaMargin = 0.025;
 const sceneTotalSourceWarningThreshold = 24;
 const sceneVisibleSourceWarningThreshold = 12;
 const sceneVisibleOverlayWarningThreshold = 9;
@@ -459,6 +460,19 @@ const validateScene = (scene: SceneDocument, profile: StudioProfile): ReadinessI
     });
   }
 
+  const safeAreaTextOverlays = visibleSources.filter(
+    (source): source is TextSource => source.kind === "text" && isTextOverlaySafeAreaRisk(source)
+  );
+  if (safeAreaTextOverlays.length > 0) {
+    const names = safeAreaTextOverlays.map((source) => source.name).join(", ");
+    issues.push({
+      code: "scene-text-overlay-safe-area-risk",
+      severity: "warning",
+      field: "scene",
+      message: `${names} is too close to the program edge for phone and platform overlay safe areas.`
+    });
+  }
+
   const sensitiveTextOverlays = visibleSources.filter(
     (source): source is TextSource => source.kind === "text" && hasSensitiveOverlayText(source, profile)
   );
@@ -506,6 +520,20 @@ const isTextOverlayLayoutRisk = (source: TextSource, scene: SceneDocument): bool
   const requiredHeight = lineLimit * lineHeight + verticalSafetyPadding;
 
   return requiredHeight > boxHeight || boxWidth < source.fontSize * 4;
+};
+
+const isTextOverlaySafeAreaRisk = (source: TextSource): boolean => {
+  if (source.mode === "ticker") {
+    return false;
+  }
+  const right = source.transform.x + source.transform.width;
+  const bottom = source.transform.y + source.transform.height;
+  return (
+    source.transform.x < textOverlaySafeAreaMargin ||
+    source.transform.y < textOverlaySafeAreaMargin ||
+    right > 1 - textOverlaySafeAreaMargin ||
+    bottom > 1 - textOverlaySafeAreaMargin
+  );
 };
 
 const hasSensitiveOverlayText = (source: TextSource, profile: StudioProfile): boolean =>

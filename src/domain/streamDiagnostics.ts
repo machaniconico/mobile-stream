@@ -682,7 +682,7 @@ export const formatStreamDiagnosticReport = (report: StreamDiagnosticReport): st
     `- Modes: label ${diagnostics.textOverlay.modeCounts.label} / subtitle ${diagnostics.textOverlay.modeCounts.subtitle} / ticker ${diagnostics.textOverlay.modeCounts.ticker} / caption ${diagnostics.textOverlay.modeCounts.caption}`,
     `- Empty manual: ${diagnostics.textOverlay.emptyVisibleManualSourceCount}`,
     `- Transparent visible: ${diagnostics.textOverlay.transparentVisibleSourceCount}`,
-    `- Safety issues: ${diagnostics.textOverlay.sensitiveContentIssueCount} sensitive / ${diagnostics.textOverlay.dominantBackdropIssueCount} dominant backdrop / ${diagnostics.textOverlay.layoutRiskIssueCount} layout risk`,
+    `- Safety issues: ${diagnostics.textOverlay.sensitiveContentIssueCount} sensitive / ${diagnostics.textOverlay.dominantBackdropIssueCount} dominant backdrop / ${diagnostics.textOverlay.layoutRiskIssueCount} layout risk / ${diagnostics.textOverlay.safeAreaIssueCount} safe area`,
     `- Summary: ${diagnostics.textOverlay.summary}`,
     `- Action: ${diagnostics.textOverlay.recommendation}`,
     "",

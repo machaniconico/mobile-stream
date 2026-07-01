@@ -359,6 +359,57 @@ describe("stream readiness", () => {
     );
   });
 
+  it("warns when non-ticker text is too close to program safe-area edges", () => {
+    const scene = updateSource(createDefaultScene(), "source-subtitle", (source) =>
+      source.kind === "text"
+        ? {
+            ...source,
+            transform: {
+              ...source.transform,
+              x: 0.01,
+              y: 0.03
+            }
+          }
+        : source
+    );
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "dummy-stream-value"
+      }
+    };
+
+    const report = createReadinessReport(scene, profile);
+
+    expect(report.canStart).toBe(true);
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        code: "scene-text-overlay-safe-area-risk",
+        field: "scene",
+        severity: "warning",
+        message: expect.stringContaining("too close to the program edge")
+      })
+    );
+  });
+
+  it("does not warn when a ticker intentionally spans the program edge", () => {
+    const scene = addSource(createDefaultScene(), createTextOverlayPresetSource("ticker"));
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        serverUrl: "rtmps://live.example-stream.test/app",
+        streamKey: "dummy-stream-value"
+      }
+    };
+
+    const report = createReadinessReport(scene, profile);
+
+    expect(report.issues.map((issue) => issue.code)).not.toContain("scene-text-overlay-safe-area-risk");
+  });
+
   it("warns when a mobile production scene has too many visible overlays", () => {
     const profile = {
       ...createDefaultStudioProfile(),

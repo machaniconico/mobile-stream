@@ -130,6 +130,7 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
     transparentVisibleSourceCount: 1,
     dominantBackdropIssueCount: 0,
     layoutRiskIssueCount: 0,
+    safeAreaIssueCount: 0,
     sensitiveContentIssueCount: 0,
     modeCounts: {
       label: 1,

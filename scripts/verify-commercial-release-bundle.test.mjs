@@ -1066,6 +1066,7 @@ const createBundle = (patch = {}) => {
     textOverlaySensitiveContentIssueCount: 0,
     textOverlayDominantBackdropIssueCount: 0,
     textOverlayLayoutRiskIssueCount: 0,
+    textOverlaySafeAreaIssueCount: 0,
     textOverlaySummary: "2/2 text overlays visible.",
     textOverlayRecommendation: "Keep text overlays unchanged.",
     liveCaptionStatus: "info",
