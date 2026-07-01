@@ -825,6 +825,46 @@ describe("scene document", () => {
     expect(payloadText.endsWith("...")).toBe(true);
   });
 
+  it("breaks very long manual text tokens before render output", () => {
+    const longToken = "A".repeat(140);
+    const scene = updateSource(createDefaultScene(), "source-subtitle", (source) =>
+      source.kind === "text"
+        ? {
+            ...source,
+            text: `Notice ${longToken}`,
+            maxLines: 1
+          }
+        : source
+    );
+    const subtitleNode = toRenderGraph(scene).find((node) => node.id === "source-subtitle");
+    const payloadText = String(subtitleNode?.payload.text);
+
+    expect(payloadText).not.toContain(longToken);
+    expect(payloadText.split(/\s+/).every((token) => Array.from(token).length <= 48)).toBe(true);
+    expect(payloadText.length).toBeLessThanOrEqual(220);
+  });
+
+  it("breaks long chat overlay tokens even when raw URLs are intentionally visible", () => {
+    const longUrl = `https://example.com/${"pathsegment".repeat(12)}`;
+    const scene = updateSource(createDefaultScene(), "source-chat", (source) =>
+      source.kind === "chat"
+        ? {
+            ...source,
+            redactUrls: false,
+            maxMessageLength: 240
+          }
+        : source
+    );
+    const chatNode = toRenderGraph(scene, {
+      chatMessages: [{ author: "Viewer", body: longUrl }]
+    }).find((node) => node.id === "source-chat");
+    const payloadText = String(chatNode?.payload.text);
+
+    expect(payloadText).not.toContain(longUrl);
+    expect(payloadText).toContain("https://example.com/");
+    expect(payloadText.split(/\s+/).every((token) => Array.from(token).length <= 48)).toBe(true);
+  });
+
   it("normalizes persisted scene data into safe renderable sources", () => {
     const scene = normalizeSceneDocument({
       version: 1,

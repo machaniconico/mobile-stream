@@ -303,6 +303,7 @@ const textSourceModes: readonly TextSourceMode[] = ["label", "subtitle", "ticker
 const textSourceAlignments: readonly TextSourceAlign[] = ["left", "center", "right"];
 const textSourceContentSources: readonly TextSourceContentSource[] = ["manual", "runtime-caption"];
 const textOverlayLineMaxLength = 220;
+const textOverlayTokenMaxLength = 48;
 
 const clampTransform = (transform: Transform): Transform => ({
   x: clamp01(transform.x),
@@ -2121,9 +2122,40 @@ const normalizeOverlayText = (value: string): string =>
 const redactOverlayUrls = (value: string): string => value.replace(/https?:\/\/\S+/gi, "[link]");
 
 const truncateOverlayText = (value: string, maxLength: number): string => {
-  const clean = normalizeOverlayText(value);
+  const clean = breakLongOverlayTokens(normalizeOverlayText(value));
   if (clean.length <= maxLength) {
     return clean;
   }
   return `${clean.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
+};
+
+const breakLongOverlayTokens = (value: string): string =>
+  value
+    .split(/(\s+)/)
+    .map((part) => (part.trim().length === 0 ? part : breakLongOverlayToken(part)))
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const breakLongOverlayToken = (value: string): string => {
+  const redactedMarkerPattern = /(\[redacted\])/i;
+  if (redactedMarkerPattern.test(value)) {
+    return value
+      .split(redactedMarkerPattern)
+      .map((part) => (part.toLowerCase() === "[redacted]" ? part : breakLongOverlayTokenSegment(part)))
+      .join("");
+  }
+  return breakLongOverlayTokenSegment(value);
+};
+
+const breakLongOverlayTokenSegment = (value: string): string => {
+  const characters = Array.from(value);
+  if (characters.length <= textOverlayTokenMaxLength) {
+    return value;
+  }
+  const chunks: string[] = [];
+  for (let index = 0; index < characters.length; index += textOverlayTokenMaxLength) {
+    chunks.push(characters.slice(index, index + textOverlayTokenMaxLength).join(""));
+  }
+  return chunks.join(" ");
 };
