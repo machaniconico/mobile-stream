@@ -501,6 +501,41 @@ describe("commercial release bundle verifier CLI", () => {
     expect(queuedResult.stdout).toContain("empty native publisher queue");
   });
 
+  it("blocks native runtime claims when retained manifests show publisher video or audio drops", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeDroppedVideoFrames: 1,
+            nativeRuntimeDroppedAudioFrames: 0
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const videoDropResult = runVerifier();
+
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeDroppedVideoFrames: 0,
+            nativeRuntimeDroppedAudioFrames: 1
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const audioDropResult = runVerifier();
+
+    expect(videoDropResult.status).toBe(1);
+    expect(videoDropResult.stdout).toContain("zero publisher video/audio drops");
+    expect(audioDropResult.status).toBe(1);
+    expect(audioDropResult.stdout).toContain("zero publisher video/audio drops");
+  });
+
   it("blocks native runtime claims when retained manifests have missing compositor assets", () => {
     writeBundle({
       summary: {
@@ -1635,6 +1670,8 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeCongested: false,
   nativeRuntimeQueuedItems: 0,
   nativeRuntimeCacheSize: 0,
+  nativeRuntimeDroppedVideoFrames: 0,
+  nativeRuntimeDroppedAudioFrames: 0,
   nativeRuntimeCompositionStatus: "applied",
   nativeRuntimeCompositionAppliedCount: 4,
   nativeRuntimeCompositionAppliedKinds: ["caption", "chat", "pngtuber", "text"],

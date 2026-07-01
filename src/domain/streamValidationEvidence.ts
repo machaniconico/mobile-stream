@@ -222,6 +222,8 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeCongested: boolean;
   nativeRuntimeQueuedItems: number;
   nativeRuntimeCacheSize: number;
+  nativeRuntimeDroppedVideoFrames: number;
+  nativeRuntimeDroppedAudioFrames: number;
   nativeRuntimeCompositionStatus: StreamSessionNativeRuntimeSummary["compositionStatus"] | null;
   nativeRuntimeCompositionAppliedCount: number;
   nativeRuntimeCompositionAppliedKinds: string[];
@@ -2687,6 +2689,8 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeCongested: run.nativeRuntime?.congested ?? false,
     nativeRuntimeQueuedItems: run.nativeRuntime?.queuedItems ?? 0,
     nativeRuntimeCacheSize: run.nativeRuntime?.cacheSize ?? 0,
+    nativeRuntimeDroppedVideoFrames: run.nativeRuntime?.droppedVideoFrames ?? 0,
+    nativeRuntimeDroppedAudioFrames: run.nativeRuntime?.droppedAudioFrames ?? 0,
     nativeRuntimeCompositionStatus: run.nativeRuntime?.compositionStatus ?? null,
     nativeRuntimeCompositionAppliedCount: run.nativeRuntime?.compositionAppliedCount ?? 0,
     nativeRuntimeCompositionAppliedKinds: run.nativeRuntime?.compositionAppliedKinds ?? [],

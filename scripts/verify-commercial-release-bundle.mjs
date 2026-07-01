@@ -770,7 +770,7 @@ function validationManifestIssue(bundle) {
     return fail(
       "validation-evidence-manifest-native-runtime",
       "Validation evidence manifest",
-      "The manifest does not back claimed native runtime evidence with platform-matched production video/audio encoder backends, video/audio frames, bytes written, non-congested publisher state, empty native publisher queue, compositor status, zero compositor drops/failures, live render-graph update proof, applied/skipped native overlay proof, loaded, decoded, and composited still-image assets, and accepted production VRM renderer/backend/model/pose proof when VRM sources are present.",
+      "The manifest does not back claimed native runtime evidence with platform-matched production video/audio encoder backends, video/audio frames, bytes written, non-congested publisher state, empty native publisher queue, zero publisher video/audio drops, compositor status, zero compositor drops/failures, live render-graph update proof, applied/skipped native overlay proof, loaded, decoded, and composited still-image assets, and accepted production VRM renderer/backend/model/pose proof when VRM sources are present.",
       "Export a support bundle v55 or newer after retaining iOS and Android validation runs with native publisher/compositor overlay telemetry from the current scene and platform-accepted production encoder backends."
     );
   }
@@ -1217,6 +1217,7 @@ function isManifestNativeRuntimePass(run, expectedNativeOverlays = emptyNativeOv
     isProductionNativeVideoEncoderBackend(run?.devicePlatform, run?.nativeRuntimeVideoEncoderBackend) &&
     isProductionNativeAudioEncoderBackend(run?.devicePlatform, run?.nativeRuntimeAudioEncoderBackend) &&
     hasNativePublisherBackpressureProof(run) &&
+    hasNativePublisherDropProof(run) &&
     hasNativeRuntimeVideoFrameIntervalProof(run) &&
     hasLiveRenderGraphUpdateProof(run) &&
     hasNativeCompositorDropProof(run) &&
@@ -1245,6 +1246,10 @@ function hasNativePublisherBackpressureProof(run) {
     isZeroNumber(run?.nativeRuntimeQueuedItems) &&
     isNonNegativeNumber(run?.nativeRuntimeCacheSize)
   );
+}
+
+function hasNativePublisherDropProof(run) {
+  return isZeroNumber(run?.nativeRuntimeDroppedVideoFrames) && isZeroNumber(run?.nativeRuntimeDroppedAudioFrames);
 }
 
 function hasLiveRenderGraphUpdateProof(run) {

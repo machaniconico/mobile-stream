@@ -610,6 +610,8 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     nativeRuntimeCongested: false,
     nativeRuntimeQueuedItems: 0,
     nativeRuntimeCacheSize: 0,
+    nativeRuntimeDroppedVideoFrames: 0,
+    nativeRuntimeDroppedAudioFrames: 0,
     nativeRuntimeCompositionStatus: "applied",
     nativeRuntimeCompositionAppliedCount: 4,
     nativeRuntimeCompositionAppliedKinds: ["caption", "chat", "pngtuber", "text"],

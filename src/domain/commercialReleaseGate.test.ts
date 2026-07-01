@@ -433,6 +433,68 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks native runtime claims when retained manifests show publisher video or audio drops", () => {
+    const droppedVideoGate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeDroppedVideoFrames: 1
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+    const droppedAudioGate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeDroppedAudioFrames: 1
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+    const {
+      nativeRuntimeDroppedVideoFrames: _nativeRuntimeDroppedVideoFrames,
+      nativeRuntimeDroppedAudioFrames: _nativeRuntimeDroppedAudioFrames,
+      ...iosRunWithoutPublisherDrops
+    } = manifestRun({
+      devicePlatform: "ios",
+      fingerprint: "svr1-ios"
+    });
+    const missingProofGate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            iosRunWithoutPublisherDrops as ValidationManifestRun,
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    for (const gate of [droppedVideoGate, droppedAudioGate, missingProofGate]) {
+      expect(gate.status).toBe("blocked");
+      expect(gate.issues).toContainEqual(
+        expect.objectContaining({
+          code: "validation-evidence-manifest-integrity",
+          detail: expect.stringContaining("iOS native runtime proof")
+        })
+      );
+    }
+  });
+
   it("blocks iOS native runtime claims without App Group still-image compositor proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -2523,6 +2585,8 @@ const manifestRun = ({
   nativeRuntimeCongested = false,
   nativeRuntimeQueuedItems = 0,
   nativeRuntimeCacheSize = 0,
+  nativeRuntimeDroppedVideoFrames = 0,
+  nativeRuntimeDroppedAudioFrames = 0,
   nativeRuntimeCompositionStatus = "applied",
   nativeRuntimeCompositionAppliedCount = 4,
   nativeRuntimeCompositionAppliedKinds = ["caption", "chat", "pngtuber", "text"],
@@ -2687,6 +2751,8 @@ const manifestRun = ({
   nativeRuntimeCongested?: ValidationManifestRun["nativeRuntimeCongested"];
   nativeRuntimeQueuedItems?: ValidationManifestRun["nativeRuntimeQueuedItems"];
   nativeRuntimeCacheSize?: ValidationManifestRun["nativeRuntimeCacheSize"];
+  nativeRuntimeDroppedVideoFrames?: ValidationManifestRun["nativeRuntimeDroppedVideoFrames"];
+  nativeRuntimeDroppedAudioFrames?: ValidationManifestRun["nativeRuntimeDroppedAudioFrames"];
   nativeRuntimeCompositionStatus?: ValidationManifestRun["nativeRuntimeCompositionStatus"];
   nativeRuntimeCompositionAppliedCount?: ValidationManifestRun["nativeRuntimeCompositionAppliedCount"];
   nativeRuntimeCompositionAppliedKinds?: ValidationManifestRun["nativeRuntimeCompositionAppliedKinds"];
@@ -2858,6 +2924,8 @@ const manifestRun = ({
   nativeRuntimeCongested,
   nativeRuntimeQueuedItems,
   nativeRuntimeCacheSize,
+  nativeRuntimeDroppedVideoFrames,
+  nativeRuntimeDroppedAudioFrames,
   nativeRuntimeCompositionStatus,
   nativeRuntimeCompositionAppliedCount,
   nativeRuntimeCompositionAppliedKinds,
