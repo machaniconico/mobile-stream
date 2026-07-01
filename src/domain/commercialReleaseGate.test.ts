@@ -394,8 +394,6 @@ describe("commercial release gate", () => {
   it("requires explicit approval before releasing with warnings", () => {
     const bundle = supportBundle({
       summary: {
-        publicLaunchStatus: "warning",
-        publicLaunchWarningCount: 1,
         validationEvidenceRunCount: 3,
         validationEvidenceStaleRunCount: 1,
         validationEvidenceRunManifest: [
@@ -410,13 +408,34 @@ describe("commercial release gate", () => {
     expect(warningGate.status).toBe("warning");
     expect(warningGate.canRelease).toBe(false);
     expect(warningGate.issues.map((issue) => issue.code)).toEqual(
-      expect.arrayContaining(["public-launch-warning", "validation-evidence-stale-retained-runs"])
+      expect.arrayContaining(["validation-evidence-stale-retained-runs"])
     );
 
     const approvedGate = createCommercialReleaseGate(bundle, { now, allowWarnings: true });
     expect(approvedGate.status).toBe("warning");
     expect(approvedGate.canRelease).toBe(true);
     expect(approvedGate.summary).toContain("accepted");
+  });
+
+  it("blocks public launch checklist warnings even when warnings are allowed", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          publicLaunchStatus: "warning",
+          publicLaunchWarningCount: 1
+        }
+      }),
+      { now, allowWarnings: true }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "public-launch-incomplete",
+        severity: "fail"
+      })
+    );
   });
 
   it("blocks old support bundle schema versions without retained-run manifests", () => {

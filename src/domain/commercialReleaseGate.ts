@@ -233,11 +233,11 @@ const createPublicLaunchIssue = (bundle: SupportBundle): CommercialReleaseGateIs
     );
   }
   if (bundle.summary.publicLaunchStatus === "warning" || bundle.summary.publicLaunchWarningCount > 0) {
-    return warnIssue(
-      "public-launch-warning",
+    return failIssue(
+      "public-launch-incomplete",
       "Public launch checklist",
       `${bundle.summary.publicLaunchWarningCount} public launch warning${bundle.summary.publicLaunchWarningCount === 1 ? "" : "s"} remain.`,
-      "Review dashboard, chat, mic monitor, and evidence warnings before approving release."
+      "Resolve public launch checklist warnings before approving release; platform-visible starts are locked when warnings remain."
     );
   }
   return null;

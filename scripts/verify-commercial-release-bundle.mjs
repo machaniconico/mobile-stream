@@ -339,11 +339,11 @@ function publicLaunchIssue(bundle) {
     );
   }
   if (summary.publicLaunchStatus === "warning" || number(summary.publicLaunchWarningCount) > 0) {
-    return warn(
-      "public-launch-warning",
+    return fail(
+      "public-launch-incomplete",
       "Public launch checklist",
       `${number(summary.publicLaunchWarningCount)} public launch warning(s) remain.`,
-      "Review dashboard, chat, mic monitor, and evidence warnings before approving release."
+      "Resolve public launch checklist warnings before approving release; platform-visible starts are locked when warnings remain."
     );
   }
   return null;

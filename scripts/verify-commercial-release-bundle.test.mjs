@@ -195,6 +195,23 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("release warning");
   });
 
+  it("blocks public launch checklist warnings even when warnings are allowed", () => {
+    writeBundle({
+      summary: {
+        publicLaunchStatus: "warning",
+        publicLaunchWarningCount: 1
+      }
+    });
+
+    const result = runVerifierAllowWarnings();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[FAIL] Public launch checklist");
+    expect(result.stdout).toContain("platform-visible starts are locked");
+    expect(result.stdout).toContain("Can release: no");
+    expect(result.stdout).not.toContain("release warning");
+  });
+
   it("blocks prefix-named token and API key leaks", () => {
     writeBundle({
       diagnostics: {
