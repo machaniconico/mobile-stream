@@ -72,7 +72,8 @@ export interface StreamStartPreflightInput {
   streamStatus: StreamStatus;
   enginePlatform?: string | null;
   operationStatus?: StreamOperationStatus | null;
-  profile?: Pick<StudioProfile, "destination" | "platformPublishing" | "platformChat" | "micEffects" | "broadcastMixer">;
+  profile?: Pick<StudioProfile, "destination" | "platformPublishing" | "platformChat" | "micEffects" | "broadcastMixer"> &
+    Partial<Pick<StudioProfile, "androidPublisherMode">>;
   validation?: Pick<StreamValidationChecklist, "status" | "recommendedNextStep"> | null;
   chatReader?: (
     Pick<ChatReaderSettings, "enabled"> &
@@ -129,6 +130,7 @@ export const createStreamStartPreflightReport = ({
     ...createLiveCaptionIssues(profile, liveCaption),
     ...createCommercialValidationIssues(profile, validation),
     ...createPlatformPublishingIssues(profile, validation, now, platformChatOAuthCredentials, platformChatOAuthCredential),
+    ...createAndroidPublisherModeIssues(profile, enginePlatform),
     ...createEnginePlatformIssues(profile, enginePlatform),
     ...createEngineStateIssues(streamStatus),
     ...createOperationIssues(operationStatus)
@@ -473,6 +475,28 @@ const createEnginePlatformIssues = (
       label: "Native engine",
       message: `Native streaming engine is required for platform-visible streams, but current engine platform is ${enginePlatform}.`,
       recommendation: "Run the iOS or Android app with the native LiveCaster module linked before starting YouTube Public or Twitch streams."
+    }
+  ];
+};
+
+const createAndroidPublisherModeIssues = (
+  profile: StreamStartPreflightInput["profile"],
+  enginePlatform: StreamStartPreflightInput["enginePlatform"]
+): StreamStartPreflightIssue[] => {
+  if (!isPlatformVisibleProductionTarget(profile) || enginePlatform !== "android" || profile?.androidPublisherMode === "mediacodec") {
+    return [];
+  }
+
+  return [
+    {
+      code: "engine-android-publisher-mode-not-commercial",
+      severity: "block",
+      area: "engine",
+      label: "Android publisher",
+      message: `Android platform-visible streams require the direct MediaCodec publisher, but the profile is set to ${
+        profile?.androidPublisherMode || "missing"
+      }.`,
+      recommendation: "Switch Android publisher mode to direct MediaCodec and retain passing Android physical validation evidence before going public."
     }
   ];
 };

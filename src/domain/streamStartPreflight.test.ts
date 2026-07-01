@@ -23,6 +23,7 @@ const validReadiness = () =>
 
 const validProfile = (): StudioProfile => ({
   ...createDefaultStudioProfile(),
+  androidPublisherMode: "mediacodec",
   destination: {
     ...createDefaultStudioProfile().destination,
     serverUrl: "rtmps://live.example-stream.test/app",
@@ -727,6 +728,7 @@ describe("stream start preflight", () => {
     const report = createStreamStartPreflightReport({
       readiness: createReadinessReport(createScreenOnlyScene(), profile),
       streamStatus: "idle",
+      enginePlatform: "android",
       profile,
       validation: {
         status: "ready",
@@ -739,6 +741,41 @@ describe("stream start preflight", () => {
     expect(report.canStart).toBe(true);
     expect(report.status).toBe("ready");
     expect(report.issues.map((issue) => issue.code)).not.toContain("validation-youtube-public-not-ready");
+  });
+
+  it("blocks Android public YouTube starts when direct MediaCodec publisher mode is not selected", () => {
+    const profile = {
+      ...validProfile(),
+      androidPublisherMode: "rootencoder" as const,
+      platformPublishing: {
+        ...validProfile().platformPublishing,
+        privacyStatus: "public" as const,
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "stream-id",
+        youtubeBroadcastBoundStreamId: "stream-id",
+        youtubeBroadcastStatus: "testing",
+        youtubeBroadcastPrivacyStatus: "public" as const,
+        youtubeStreamStatus: "active",
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      enginePlatform: "android",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.status).toBe("blocked");
+    expect(report.blocks.map((issue) => issue.code)).toContain("engine-android-publisher-mode-not-commercial");
+    expect(formatStreamStartPreflightBlockMessage(report)).toContain("direct MediaCodec publisher");
   });
 
   it("blocks public YouTube launches when broadcast-management OAuth is not stored", () => {
@@ -1303,6 +1340,47 @@ describe("stream start preflight", () => {
 
     expect(report.canStart).toBe(false);
     expect(report.blocks.map((issue) => issue.code)).toContain("validation-twitch-public-not-ready");
+  });
+
+  it("blocks Android Twitch starts when direct MediaCodec publisher mode is not selected", () => {
+    const baseProfile = applyDestinationPreset(validProfile(), "twitch-auto");
+    const profile = {
+      ...baseProfile,
+      androidPublisherMode: "rootencoder" as const,
+      destination: {
+        ...baseProfile.destination,
+        streamKey: "placeholder-twitch-key"
+      },
+      platformPublishing: {
+        ...baseProfile.platformPublishing,
+        title: "App title",
+        twitchCategory: "Just Chatting",
+        twitchCategoryId: "509658",
+        twitchLanguage: "ja",
+        twitchChannelTitle: "App title",
+        twitchChannelCategory: "Just Chatting",
+        twitchChannelCategoryId: "509658",
+        twitchChannelLanguage: "ja",
+        twitchLiveStatus: "offline",
+        twitchStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(createScreenOnlyScene(), profile),
+      streamStatus: "idle",
+      enginePlatform: "android",
+      profile,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: twitchCredential([TWITCH_CHANNEL_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.status).toBe("blocked");
+    expect(report.blocks.map((issue) => issue.code)).toContain("engine-android-publisher-mode-not-commercial");
   });
 
   it("blocks Twitch launches when the channel is already live", () => {
