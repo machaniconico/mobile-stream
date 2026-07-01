@@ -156,6 +156,27 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("unredacted protocol-less link pattern");
   });
 
+  it("allows retained ingest host fields in release support bundles", () => {
+    writeBundle({
+      target: {
+        host: "a.rtmps.youtube.com"
+      },
+      profile: {
+        androidPublisherMode: "mediacodec",
+        destination: {
+          platform: "youtube-live",
+          protocol: "rtmps",
+          host: "a.rtmps.youtube.com"
+        }
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Can release: yes");
+  });
+
   it("blocks retained validation runs without physical-device proof", () => {
     writeBundle({
       summary: {

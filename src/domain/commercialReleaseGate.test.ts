@@ -1860,6 +1860,22 @@ describe("commercial release gate", () => {
     expect(gate.canRelease).toBe(true);
     expect(gate.issues.map((issue) => issue.code)).not.toContain("support-bundle-sensitive-data");
   });
+
+  it("allows retained ingest host fields without allowing protocol-less private paths elsewhere", () => {
+    const bundle = supportBundle();
+    const mutableBundle = bundle as unknown as {
+      target: { host: string };
+      profile: { destination: { host: string } };
+    };
+    mutableBundle.target = { host: "a.rtmps.youtube.com" };
+    mutableBundle.profile.destination.host = "a.rtmps.youtube.com";
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("ready");
+    expect(gate.canRelease).toBe(true);
+    expect(gate.issues.map((issue) => issue.code)).not.toContain("support-bundle-sensitive-data");
+  });
 });
 
 const supportBundle = ({

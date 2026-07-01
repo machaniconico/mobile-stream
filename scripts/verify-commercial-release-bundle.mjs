@@ -1532,7 +1532,7 @@ function findSensitiveStringFindings(value, path) {
   if (hasUnredactedContactTextLeak(value)) {
     findings.push({ path, reason: "contains an unredacted contact pattern" });
   }
-  if (hasUnredactedProtocolLessLink(value)) {
+  if (hasUnredactedProtocolLessLink(value, path)) {
     findings.push({ path, reason: "contains an unredacted protocol-less link pattern" });
   }
   return findings;
@@ -1562,15 +1562,24 @@ function hasUnredactedContactTextLeak(value) {
   return hasPatternMatch(value, emailAddressPattern) || hasPatternMatch(value, inviteLinkPattern) || hasUnredactedPhoneMatch(value);
 }
 
-function hasUnredactedProtocolLessLink(value) {
+function hasUnredactedProtocolLessLink(value, path) {
   protocolLessLinkPattern.lastIndex = 0;
   for (const match of value.matchAll(protocolLessLinkPattern)) {
     const candidate = match[2] ?? "";
-    if (candidate && !candidate.includes(redactedMarker)) {
+    if (candidate && !candidate.includes(redactedMarker) && !isAllowedProtocolLessLinkFinding(path, candidate)) {
       return true;
     }
   }
   return false;
+}
+
+function isAllowedProtocolLessLinkFinding(path, candidate) {
+  return (
+    (path === "bundle.target.host" || path === "bundle.profile.destination.host") &&
+    candidate.includes(".") &&
+    !candidate.includes("/") &&
+    /^[a-z0-9.-]+$/i.test(candidate)
+  );
 }
 
 function hasPatternMatch(value, pattern) {
