@@ -5,7 +5,7 @@
 - TypeScript app scaffold with Vite.
 - OBS-like multi-scene/source/render graph domain model with Main, Starting Soon, Break, and Privacy Shield presets, active scene switching, and cut/fade transition settings.
 - Persisted scene collection normalization with transition settings, clamped canvas/source/transform/avatar runtime values, and legacy single-scene migration.
-- Text overlay presets for subtitles, lower thirds, tickers, notices, badges, labels, and live captions, including automatic visible live-caption text source creation when live captions are enabled.
+- Text overlay presets for subtitles, lower thirds, tickers, notices, badges, labels, and live captions, including automatic visible live-caption text source creation when live captions are enabled and automatic live-caption source hiding when captions are disabled.
 - Stream profile model for RTMP and RTMPS destinations, including YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - Commercial-start readiness checks for endpoint, protocol, stream key, quality, and scene safety.
 - Mobile scene complexity readiness checks warn before public launch when total sources, visible layers, native overlays, text overlays, or duplicate chat overlays exceed conservative phone-safe budgets without retained physical-device evidence for that exact composition.

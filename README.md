@@ -8,7 +8,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 
 - OBS-like multi-scene/source stack with Main, Starting Soon, Break, and Privacy Shield scene presets, live scene switching, and cut/fade transition settings.
 - Screen, PNGTuber, Live2D, VRM/VRoid, image, solid, and text source records, including Live2D Cubism `model3.json` and VRM/GLB URI persistence for model-package preparation.
-- OBS-style text display presets for top titles, subtitles, lower-third captions, center notices, ticker announcements, corner badges, and live captions, with one-tap preset styling, editable copy, alignment, transparency, outline, line limits, native compositor output, and automatic live-caption overlay creation when captions are enabled.
+- OBS-style text display presets for top titles, subtitles, lower-third captions, center notices, ticker announcements, corner badges, and live captions, with one-tap preset styling, editable copy, alignment, transparency, outline, line limits, native compositor output, automatic live-caption overlay creation when captions are enabled, and automatic live-caption overlay hiding when captions are disabled.
 - Layer visibility, lock, ordering, and transform controls.
 - RTMP/RTMPS destination profiles with YouTube Live, Twitch Auto, Twitch Tokyo, and Custom presets.
 - OAuth/API-backed platform stream key controls: YouTube can create a new reusable Live Stream and apply its RTMPS key; Twitch can sync the current Helix stream key.

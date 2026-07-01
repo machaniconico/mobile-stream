@@ -17,6 +17,7 @@ import {
   createTextOverlayPresetSource,
   duplicateActiveScene,
   ensureLiveCaptionTextSource,
+  hideLiveCaptionTextSources,
   inferAvatarIllustrationRig,
   normalizeSceneCollection,
   normalizeSceneDocument,
@@ -738,7 +739,37 @@ describe("scene document", () => {
       visible: true,
       contentSource: "runtime-caption"
     });
-    expect(disabled).toBe(enabled);
+    expect(selectLiveCaptionTextSource(disabled)).toMatchObject({
+      visible: false,
+      contentSource: "runtime-caption"
+    });
+    expect(disabled.sources.find((source) => source.id === "source-subtitle")).toMatchObject({
+      kind: "text",
+      visible: true,
+      contentSource: "manual"
+    });
+  });
+
+  it("hides every visible live caption text source without changing manual text overlays", () => {
+    const firstCaption = createLiveCaptionTextSource();
+    const secondCaption = {
+      ...createLiveCaptionTextSource(),
+      id: "source-second-live-caption",
+      text: "Custom fallback"
+    };
+    const scene = [firstCaption, secondCaption].reduce(addSource, createDefaultScene());
+    const hidden = hideLiveCaptionTextSources(scene);
+
+    expect(
+      hidden.sources
+        .filter((source) => source.kind === "text" && source.contentSource === "runtime-caption")
+        .map((source) => source.visible)
+    ).toEqual([false, false]);
+    expect(hidden.sources.find((source) => source.id === "source-label")).toMatchObject({
+      kind: "text",
+      visible: true,
+      contentSource: "manual"
+    });
   });
 
   it("can show speaker names for live caption overlays", () => {

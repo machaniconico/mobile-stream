@@ -1437,10 +1437,23 @@ export const ensureLiveCaptionTextSource = (scene: SceneDocument): SceneDocument
   );
 };
 
+export const hideLiveCaptionTextSources = (scene: SceneDocument): SceneDocument => {
+  if (!scene.sources.some((source) => source.kind === "text" && source.contentSource === "runtime-caption" && source.visible)) {
+    return scene;
+  }
+  return {
+    ...scene,
+    sources: scene.sources.map((source) =>
+      source.kind === "text" && source.contentSource === "runtime-caption" ? { ...source, visible: false } : source
+    )
+  };
+};
+
 export const syncLiveCaptionTextSourceForSettings = (
   scene: SceneDocument,
   settings: { enabled?: boolean } & Record<string, unknown>
-): SceneDocument => (settings.enabled === true ? ensureLiveCaptionTextSource(scene) : scene);
+): SceneDocument =>
+  settings.enabled === true ? ensureLiveCaptionTextSource(scene) : settings.enabled === false ? hideLiveCaptionTextSources(scene) : scene;
 
 export const normalizeSceneDocument = (value: unknown): SceneDocument => {
   const fallback = createDefaultScene();
