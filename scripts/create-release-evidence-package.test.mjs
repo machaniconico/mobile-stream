@@ -1371,6 +1371,53 @@ describe("release evidence package creator", () => {
     expect(failures.join("\n")).toContain("ui-evidence/ui-evidence.json contains a protocol-less link");
   });
 
+  it("does not apply contact/link heuristics to generated React Native bundles", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const sourcePath = ".artifacts/rn/index.android.bundle";
+    const packagedBundlePath = `${packageDir}/artifacts/${sourcePath}`;
+    writeFileSync(
+      packagedBundlePath,
+      [
+        "console.log('redaction fixture email viewer@example.com');",
+        "console.log('phone 090-1234-5678 invite discord.gg/privateRoom');",
+        "console.log('links www.example.org/private example.tv/show');"
+      ].join("\n")
+    );
+    refreshPackagedArtifactEvidence(sourcePath, packagedBundlePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).not.toContain("index.android.bundle contains an email address");
+    expect(failures.join("\n")).not.toContain("index.android.bundle contains a phone number");
+    expect(failures.join("\n")).not.toContain("index.android.bundle contains an invite link");
+    expect(failures.join("\n")).not.toContain("index.android.bundle contains a protocol-less link");
+  });
+
+  it("still scans generated React Native bundles for credentials and RTMP keys", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const sourcePath = ".artifacts/rn/index.android.bundle";
+    const packagedBundlePath = `${packageDir}/artifacts/${sourcePath}`;
+    writeFileSync(
+      packagedBundlePath,
+      [
+        "const auth = 'Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456';",
+        "const publishUrl = 'rtmps://a.rtmps.youtube.com/live2/abcd-efgh-ijkl-mnop-qrst';"
+      ].join("\n")
+    );
+    refreshPackagedArtifactEvidence(sourcePath, packagedBundlePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain("artifacts/.artifacts/rn/index.android.bundle contains a bearer/OAuth token");
+    expect(failures.join("\n")).toContain("artifacts/.artifacts/rn/index.android.bundle contains a stream key in an RTMP URL");
+  });
+
   it("scans release text artifacts such as mjs files for oauth tokens and RTMP stream keys", () => {
     resetPackageDir();
     writeReportFixture();
@@ -2364,6 +2411,24 @@ function refreshPackageArtifactEntry(manifest, sourcePath, packagedPath) {
   const content = readFileSync(packagedPath);
   entry.bytes = content.byteLength;
   entry.sha256 = createHash("sha256").update(content).digest("hex");
+}
+
+function refreshPackagedArtifactEvidence(sourcePath, packagedPath) {
+  const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+  const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+  const content = readFileSync(packagedPath);
+  const sha256 = createHash("sha256").update(content).digest("hex");
+  const reportArtifact = packagedReport.artifacts.files.find((artifact) => artifact.path === sourcePath);
+  reportArtifact.bytes = content.byteLength;
+  reportArtifact.sha256 = sha256;
+  writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+  const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+  manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+  refreshPackageArtifactEntry(manifest, sourcePath, packagedPath);
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 }
 
 function refreshPackagedUiEvidence(packagedUiEvidencePath) {

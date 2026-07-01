@@ -1574,7 +1574,7 @@ function findSensitiveTextFindings(value, path) {
       }
     }
   }
-  if (isContactEvidencePath(path)) {
+  if (isContactEvidencePath(path) && !isGeneratedReactNativeBundlePath(path)) {
     if (hasPatternMatch(value, emailAddressPattern)) {
       findings.push({ path, reason: "contains an email address" });
     }
@@ -1597,6 +1597,14 @@ function isContactEvidencePath(path) {
 
 function isProtocolLessLinkEvidencePath(path) {
   return path.startsWith("ui-evidence/") || path.startsWith("artifacts/.artifacts/");
+}
+
+function isGeneratedReactNativeBundlePath(path) {
+  const normalized = String(path || "").replaceAll("\\", "/");
+  return (
+    normalized.startsWith("artifacts/.artifacts/rn/") &&
+    (normalized.endsWith(".bundle") || normalized.endsWith(".jsbundle"))
+  );
 }
 
 function hasPatternMatch(value, pattern) {
