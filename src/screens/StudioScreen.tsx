@@ -76,6 +76,7 @@ import {
   createAvatarIllustrationLandmarkAnalysisFromDetector,
   createSource,
   createTextOverlayPresetSource,
+  createTextOverlayRuntimeStatus,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
   quickTextOverlayPresetGroups,
@@ -106,6 +107,7 @@ import {
   type TextSourceContentSource,
   type TextSourceMode,
   type TextSourceVisibilityMode,
+  type TextOverlayRuntimeStatus,
   type TextOverlayPresetId,
   type SourceKind
 } from "../domain/scene";
@@ -557,6 +559,11 @@ export const StudioScreen = ({
       source.activatedAtMs > 0 &&
       source.activatedAtMs + source.displayDurationMs > textOverlayClock
   );
+  const textOverlayRuntimeStatus = createTextOverlayRuntimeStatus(scene, {
+    captions: liveCaptionCues,
+    captionsEnabled: liveCaption.settings.enabled,
+    nowMs: textOverlayClock
+  });
   useEffect(() => {
     if (!hasActiveTimedTextOverlays) {
       setTextOverlayClock(Date.now());
@@ -1008,6 +1015,7 @@ export const StudioScreen = ({
                 <span>Hide text</span>
               </button>
             </div>
+            <TextOverlayStatusStrip status={textOverlayRuntimeStatus} />
             <div className="quick-text-preset-row" aria-label="quick text overlay presets">
               {quickTextOverlayPresetGroups.map((group) => (
                 <div key={group.category} className="quick-text-preset-group">
@@ -3509,6 +3517,29 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
   return <span className="image-visual">Image</span>;
 };
 
+const TextOverlayStatusStrip = ({ status }: { status: TextOverlayRuntimeStatus }) => {
+  const previewText = formatTextOverlayPreview(status.previewText);
+  return (
+    <div className="quick-text-status" aria-label="subtitle and text display status">
+      <span>
+        <strong>{status.activeSourceCount}</strong>表示中
+      </span>
+      <span>
+        <strong>{status.queuedSourceCount}</strong>待機
+      </span>
+      <span>
+        <strong>{status.pinnedSourceCount}</strong>固定
+      </span>
+      <span>
+        <strong>{formatTextOverlayRemaining(status.remainingMs)}</strong>残り
+      </span>
+      <span className="quick-text-status-preview" title={status.previewText || undefined}>
+        {previewText || "表示テキストなし"}
+      </span>
+    </div>
+  );
+};
+
 const StatusPill = ({ label, tone }: { label: string; tone: "live" | "idle" | "bad" }) => (
   <span className={`status-pill ${tone}`}>{label}</span>
 );
@@ -3663,6 +3694,18 @@ const formatElapsed = (seconds: number): string => {
   const minutes = Math.floor(seconds / 60);
   const rest = seconds % 60;
   return `${minutes.toString().padStart(2, "0")}:${rest.toString().padStart(2, "0")}`;
+};
+
+const formatTextOverlayRemaining = (remainingMs: number): string => {
+  if (remainingMs <= 0) {
+    return "-";
+  }
+  return `${Math.ceil(remainingMs / 1000)}s`;
+};
+
+const formatTextOverlayPreview = (value: string): string => {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length > 48 ? `${normalized.slice(0, 47)}...` : normalized;
 };
 
 const fontSizeForTextSource = (source: Extract<SceneSource, { kind: "text" }>): number => {

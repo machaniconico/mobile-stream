@@ -1,3 +1,4 @@
+import { createLive2DRuntimePose } from "./live2dRuntime";
 import { createVrmRuntimePose } from "./vrmRuntime";
 import type { SceneDocument, SceneSource, SourceKind, Transform } from "./scene";
 
@@ -42,8 +43,16 @@ export const createSceneCompositionSourcePayloadSummary = (
       return { captureMode: source.captureMode };
     case "pngtuber":
       return { avatarId: source.avatarId, expression: source.expression, hasImageUri: Boolean(source.imageUri.trim()) };
-    case "live2d":
-      return { modelId: source.modelId, expression: source.expression, hasModelJsonUri: Boolean(source.modelJsonUri.trim()) };
+    case "live2d": {
+      const pose = createLive2DRuntimePose(source);
+      return {
+        modelId: source.modelId,
+        expression: source.expression,
+        hasModelJsonUri: Boolean(source.modelJsonUri.trim()),
+        runtimePoseStatus: pose.status,
+        trackingConfidence: pose.confidence
+      };
+    }
     case "vrm": {
       const pose = createVrmRuntimePose(source);
       return {

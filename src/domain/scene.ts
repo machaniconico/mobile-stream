@@ -1,4 +1,5 @@
 import { normalizeLive2DModelJsonUri } from "./live2dModel";
+import { createLive2DRuntimePose, serializeLive2DRuntimePose } from "./live2dRuntime";
 import { normalizeVrmModelUri } from "./vrmModel";
 import { createVrmRuntimePose, serializeVrmRuntimePose } from "./vrmRuntime";
 import { redactSensitiveText } from "./sensitiveText";
@@ -302,6 +303,20 @@ export interface QuickTextOverlayPresetGroup {
   category: QuickTextOverlayPresetCategory;
   label: string;
   presets: readonly QuickTextOverlayPreset[];
+}
+
+export interface TextOverlayRuntimeStatus {
+  sourceCount: number;
+  visibleSourceCount: number;
+  activeSourceCount: number;
+  activeManualSourceCount: number;
+  activeCaptionSourceCount: number;
+  timedSourceCount: number;
+  queuedSourceCount: number;
+  pinnedSourceCount: number;
+  nextExpirationMs: number | null;
+  remainingMs: number;
+  previewText: string;
 }
 
 export interface SceneDocument {
@@ -1878,6 +1893,47 @@ export const syncLiveCaptionTextSourceForSettings = (
 ): SceneDocument =>
   settings.enabled === true ? ensureLiveCaptionTextSource(scene) : settings.enabled === false ? hideLiveCaptionTextSources(scene) : scene;
 
+export const createTextOverlayRuntimeStatus = (
+  scene: SceneDocument,
+  runtime: RenderGraphRuntime = {}
+): TextOverlayRuntimeStatus => {
+  const nowMs = Math.max(0, Math.round(finiteNumber(runtime.nowMs, Date.now())));
+  const textSources = scene.sources.filter((source): source is TextSource => source.kind === "text");
+  const visibleSources = textSources.filter((source) => source.visible);
+  const activeSources = textSources.filter((source) => isRenderableSource(source, { ...runtime, nowMs }));
+  const activeManualSources = activeSources.filter((source) => source.contentSource === "manual");
+  const activeCaptionSources = activeSources.filter((source) => source.contentSource === "runtime-caption");
+  const timedSources = visibleSources.filter((source) => source.visibilityMode === "timed");
+  const queuedSources = timedSources.filter(
+    (source) => source.contentSource === "manual" && isQueuedTextOverlaySource(source) && source.activatedAtMs > nowMs
+  );
+  const pinnedSources = activeManualSources.filter((source) => source.visibilityMode === "always");
+  const activeTimedSources = activeSources.filter((source) => source.visibilityMode === "timed");
+  const nextExpirationMs = activeTimedSources.reduce<number | null>((next, source) => {
+    const expiresAt = source.activatedAtMs + source.displayDurationMs;
+    if (expiresAt <= nowMs) {
+      return next;
+    }
+    return next === null ? expiresAt : Math.min(next, expiresAt);
+  }, null);
+  const previewSource = activeManualSources[0] ?? activeCaptionSources[0] ?? null;
+  const previewText = previewSource ? resolveRuntimeTextOverlayPreview(previewSource, runtime) : "";
+
+  return {
+    sourceCount: textSources.length,
+    visibleSourceCount: visibleSources.length,
+    activeSourceCount: activeSources.length,
+    activeManualSourceCount: activeManualSources.length,
+    activeCaptionSourceCount: activeCaptionSources.length,
+    timedSourceCount: timedSources.length,
+    queuedSourceCount: queuedSources.length,
+    pinnedSourceCount: pinnedSources.length,
+    nextExpirationMs,
+    remainingMs: nextExpirationMs === null ? 0 : Math.max(0, nextExpirationMs - nowMs),
+    previewText
+  };
+};
+
 export const normalizeSceneDocument = (value: unknown): SceneDocument => {
   const fallback = createDefaultScene();
   if (!isRecord(value)) {
@@ -2163,6 +2219,7 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
     }
     case "live2d": {
       const live2dMotion = source.motion ?? defaultAvatarMotion();
+      const live2dRuntimePose = createLive2DRuntimePose(source);
       return {
         modelId: source.modelId,
         modelJsonUri: source.modelJsonUri,
@@ -2183,7 +2240,22 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
         mouthDeform: live2dMotion.mouthDeform,
         hairSway: live2dMotion.hairSway,
         shoulderSway: live2dMotion.shoulderSway,
-        trackingConfidence: live2dMotion.confidence
+        trackingConfidence: live2dMotion.confidence,
+        live2dRuntimeStatus: live2dRuntimePose.status,
+        live2dRuntimePoseJson: serializeLive2DRuntimePose(live2dRuntimePose),
+        live2dParamAngleX: live2dRuntimePose.parameters.ParamAngleX,
+        live2dParamAngleY: live2dRuntimePose.parameters.ParamAngleY,
+        live2dParamAngleZ: live2dRuntimePose.parameters.ParamAngleZ,
+        live2dParamBodyAngleX: live2dRuntimePose.parameters.ParamBodyAngleX,
+        live2dParamBodyAngleY: live2dRuntimePose.parameters.ParamBodyAngleY,
+        live2dParamEyeLOpen: live2dRuntimePose.parameters.ParamEyeLOpen,
+        live2dParamEyeROpen: live2dRuntimePose.parameters.ParamEyeROpen,
+        live2dParamMouthOpenY: live2dRuntimePose.parameters.ParamMouthOpenY,
+        live2dParamMouthForm: live2dRuntimePose.parameters.ParamMouthForm,
+        live2dParamBreath: live2dRuntimePose.parameters.ParamBreath,
+        live2dParamCheek: live2dRuntimePose.parameters.ParamCheek,
+        live2dLookAtYaw: live2dRuntimePose.lookAt.yaw,
+        live2dLookAtPitch: live2dRuntimePose.lookAt.pitch
       };
     }
     case "vrm": {
@@ -2552,6 +2624,12 @@ const resolveTextSourceText = (source: TextSource, captionCues: CaptionOverlayCu
   }
   const captionText = captionCues.map((cue) => formatCaptionOverlayLine(cue, source.showCaptionSpeaker)).join("\n");
   return captionText || serializeTextOverlayLines(source.text, source.maxLines).join("\n");
+};
+
+const resolveRuntimeTextOverlayPreview = (source: TextSource, runtime: RenderGraphRuntime): string => {
+  const captionCues =
+    source.contentSource === "runtime-caption" ? serializeCaptionOverlayCues(runtime.captions ?? [], source) : [];
+  return resolveTextSourceText(source, captionCues);
 };
 
 const formatCaptionOverlayLine = (cue: CaptionOverlayCue, showSpeaker: boolean): string =>

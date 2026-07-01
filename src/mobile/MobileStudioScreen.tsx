@@ -58,6 +58,7 @@ import {
   applyTextOverlayPresetStyle,
   createSource,
   createTextOverlayPresetSource,
+  createTextOverlayRuntimeStatus,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
   hideTextOverlays,
@@ -87,6 +88,7 @@ import {
   type TextSourceContentSource,
   type TextSourceMode,
   type TextSourceVisibilityMode,
+  type TextOverlayRuntimeStatus,
   type TextOverlayPresetId,
   type SourceKind
 } from "../domain/scene";
@@ -505,6 +507,11 @@ export const MobileStudioScreen = ({
       source.activatedAtMs > 0 &&
       source.activatedAtMs + source.displayDurationMs > textOverlayClock
   );
+  const textOverlayRuntimeStatus = createTextOverlayRuntimeStatus(scene, {
+    captions: liveCaptionCues,
+    captionsEnabled: liveCaption.settings.enabled,
+    nowMs: textOverlayClock
+  });
   const selectedManualTextSourceId =
     selectedSource.kind === "text" && selectedSource.contentSource === "manual" ? selectedSource.id : undefined;
   const showQuickSubtitle = () => {
@@ -1020,6 +1027,7 @@ export const MobileStudioScreen = ({
               <ActionButton label="Pin text" disabled={!canPinQuickText} onPress={pinQuickText} />
               <ActionButton label="Hide text" disabled={!canHideManualTextOverlay} onPress={hideManualTextOverlay} />
             </View>
+            <TextOverlayStatusStrip status={textOverlayRuntimeStatus} />
             <View style={styles.quickTextPresetRow}>
               {quickTextOverlayPresetGroups.map((group) => (
                 <View key={group.category} style={styles.quickTextPresetGroup}>
@@ -3659,6 +3667,29 @@ const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
   </View>
 );
 
+const TextOverlayStatusStrip = ({ status }: { status: TextOverlayRuntimeStatus }) => {
+  const previewText = formatTextOverlayPreview(status.previewText);
+  return (
+    <View accessibilityLabel="subtitle and text display status" style={styles.quickTextStatus}>
+      <Text style={styles.quickTextStatusChip}>
+        <Text style={styles.quickTextStatusStrong}>{status.activeSourceCount}</Text> 表示中
+      </Text>
+      <Text style={styles.quickTextStatusChip}>
+        <Text style={styles.quickTextStatusStrong}>{status.queuedSourceCount}</Text> 待機
+      </Text>
+      <Text style={styles.quickTextStatusChip}>
+        <Text style={styles.quickTextStatusStrong}>{status.pinnedSourceCount}</Text> 固定
+      </Text>
+      <Text style={styles.quickTextStatusChip}>
+        <Text style={styles.quickTextStatusStrong}>{formatTextOverlayRemaining(status.remainingMs)}</Text> 残り
+      </Text>
+      <Text style={styles.quickTextStatusPreview} numberOfLines={1}>
+        {previewText || "表示テキストなし"}
+      </Text>
+    </View>
+  );
+};
+
 const StatusPill = ({ label, tone }: { label: string; tone: "live" | "idle" | "bad" }) => (
   <View style={[styles.statusPill, tone === "live" && styles.statusLive, tone === "bad" && styles.statusBad]}>
     <Text style={[styles.statusText, tone === "live" && styles.statusTextLive]}>{label.toUpperCase()}</Text>
@@ -4288,6 +4319,18 @@ const formatElapsed = (seconds: number): string => {
   return `${minutes.toString().padStart(2, "0")}:${rest.toString().padStart(2, "0")}`;
 };
 
+const formatTextOverlayRemaining = (remainingMs: number): string => {
+  if (remainingMs <= 0) {
+    return "-";
+  }
+  return `${Math.ceil(remainingMs / 1000)}s`;
+};
+
+const formatTextOverlayPreview = (value: string): string => {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length > 48 ? `${normalized.slice(0, 47)}...` : normalized;
+};
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -4841,6 +4884,45 @@ const styles = StyleSheet.create({
     flexBasis: 260,
     flexWrap: "wrap",
     gap: 8
+  },
+  quickTextStatus: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 6,
+    width: "100%"
+  },
+  quickTextStatusChip: {
+    minHeight: 28,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    color: "#a1a1aa",
+    fontSize: 12,
+    fontWeight: "800"
+  },
+  quickTextStatusStrong: {
+    color: "#f4f4f5",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  quickTextStatusPreview: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 220,
+    minHeight: 28,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    color: "#f4f4f5",
+    fontSize: 12,
+    fontWeight: "800"
   },
   quickTextPresetRow: {
     flexDirection: "row",

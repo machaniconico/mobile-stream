@@ -717,6 +717,44 @@ select:focus-visible {
   white-space: nowrap;
 }
 
+.quick-text-status {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quick-text-status span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.quick-text-status strong {
+  margin-right: 4px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.quick-text-status-preview {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow: hidden;
+  justify-content: flex-start;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .quick-text-preset-row {
   display: flex;
   flex: 1 1 100%;

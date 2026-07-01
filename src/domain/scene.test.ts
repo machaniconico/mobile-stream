@@ -16,6 +16,7 @@ import {
   createSubtitleTextSource,
   createSource,
   createTextOverlayPresetSource,
+  createTextOverlayRuntimeStatus,
   duplicateActiveScene,
   ensureLiveCaptionTextSource,
   hideLiveCaptionTextSources,
@@ -213,7 +214,9 @@ describe("scene document", () => {
     const scene = addSource(createDefaultScene(), {
       ...live2d,
       modelId: "hiyori",
-      modelJsonUri: " file:///models/hiyori/hiyori.model3.json\n"
+      modelJsonUri: " file:///models/hiyori/hiyori.model3.json\n",
+      mouthOpen: 0.42,
+      motion: { ...live2d.motion, headYaw: 0.5, headPitch: -0.25, mouthDeform: 0.72, confidence: 0.88 }
     });
     const normalized = normalizeSceneDocument(scene);
     const live2dSource = normalized.sources.find((source) => source.kind === "live2d");
@@ -221,9 +224,26 @@ describe("scene document", () => {
 
     expect(live2dSource).toMatchObject({
       modelId: "hiyori",
-      modelJsonUri: "file:///models/hiyori/hiyori.model3.json"
+      modelJsonUri: "file:///models/hiyori/hiyori.model3.json",
+      mouthOpen: 0.42
     });
-    expect(live2dNode?.payload.modelJsonUri).toBe("file:///models/hiyori/hiyori.model3.json");
+    expect(live2dNode?.payload).toMatchObject({
+      modelJsonUri: "file:///models/hiyori/hiyori.model3.json",
+      trackingConfidence: 0.88,
+      live2dRuntimeStatus: "active",
+      live2dParamAngleX: 15,
+      live2dParamAngleY: 5.5,
+      live2dParamMouthOpenY: 0.72,
+      live2dLookAtYaw: 0.5
+    });
+    expect(JSON.parse(String(live2dNode?.payload.live2dRuntimePoseJson))).toMatchObject({
+      status: "active",
+      confidence: 0.88,
+      parameters: {
+        ParamAngleX: 15,
+        ParamMouthOpenY: 0.72
+      }
+    });
   });
 
   it("persists and renders VRM model URIs for VRoid sources", () => {
@@ -790,6 +810,62 @@ describe("scene document", () => {
       remainingMs: 2000
     });
     expect(expiredGraph.some((node) => node.id === queuedSubtitle?.id)).toBe(false);
+  });
+
+  it("summarizes active, queued, pinned, and caption text overlays for live controls", () => {
+    const nowMs = 94000;
+    const emptyScene = { ...createDefaultScene(), sources: [] };
+    const active = showTimedTextOverlay(emptyScene, {
+      text: "first subtitle",
+      durationMs: 5000,
+      nowMs
+    });
+    const queued = queueTimedTextOverlay(active, {
+      text: "second subtitle",
+      durationMs: 3000,
+      nowMs: nowMs + 500
+    });
+    const pinned = showPersistentTextOverlay(queued, {
+      text: "pinned notice",
+      presetId: "lower-third",
+      nowMs
+    });
+    const captioned = addSource(pinned, createLiveCaptionTextSource());
+
+    const duringFirst = createTextOverlayRuntimeStatus(captioned, {
+      captions: [{ text: "caption cue", speaker: "host", timestampMs: nowMs }],
+      captionsEnabled: true,
+      nowMs: nowMs + 1000
+    });
+    const duringQueued = createTextOverlayRuntimeStatus(captioned, {
+      captionsEnabled: true,
+      nowMs: nowMs + 5600
+    });
+    const captionsDisabled = createTextOverlayRuntimeStatus(captioned, {
+      captionsEnabled: false,
+      nowMs: nowMs + 1000
+    });
+
+    expect(duringFirst).toMatchObject({
+      sourceCount: 4,
+      visibleSourceCount: 4,
+      activeSourceCount: 3,
+      activeManualSourceCount: 2,
+      activeCaptionSourceCount: 1,
+      timedSourceCount: 2,
+      queuedSourceCount: 1,
+      pinnedSourceCount: 1,
+      remainingMs: 4000,
+      previewText: "first subtitle"
+    });
+    expect(duringFirst.nextExpirationMs).toBe(nowMs + 5000);
+    expect(duringQueued).toMatchObject({
+      activeManualSourceCount: 2,
+      queuedSourceCount: 0,
+      remainingMs: 2400,
+      previewText: "second subtitle"
+    });
+    expect(captionsDisabled.activeCaptionSourceCount).toBe(0);
   });
 
   it("chains multiple queued subtitles and omits queued runtime text from persistence", () => {
