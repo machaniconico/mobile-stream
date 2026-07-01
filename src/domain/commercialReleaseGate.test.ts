@@ -202,6 +202,29 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks release when retained text evidence has queued or expired timed overlays", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          textOverlayStatus: "pass",
+          textOverlayQueuedTimedManualSourceCount: 1,
+          textOverlayExpiredTimedManualSourceCount: 1,
+          textOverlaySummary: "1 timed text overlay is queued and 1 has expired.",
+          textOverlayRecommendation: "Start or hide timed text overlays before launch."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "text-overlay-evidence-incomplete",
+        severity: "fail"
+      })
+    );
+  });
+
   it("blocks release when chat overlay evidence reports layout or transparency risk", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -2458,6 +2481,11 @@ const supportBundle = ({
       textOverlayVisibleManualSourceCount: 2,
       textOverlayRuntimeCaptionSourceCount: 0,
       textOverlayVisibleRuntimeCaptionSourceCount: 0,
+      textOverlayRenderVisibleSourceCount: 2,
+      textOverlayActiveTimedManualSourceCount: 0,
+      textOverlayQueuedTimedManualSourceCount: 0,
+      textOverlayExpiredTimedManualSourceCount: 0,
+      textOverlayPersistentManualSourceCount: 2,
       textOverlayEmptyVisibleManualSourceCount: 0,
       textOverlayTransparentVisibleSourceCount: 1,
       textOverlaySensitiveContentIssueCount: 0,
@@ -2469,7 +2497,7 @@ const supportBundle = ({
       textOverlaySubtitleSourceCount: 1,
       textOverlayTickerSourceCount: 0,
       textOverlayCaptionSourceCount: 0,
-      textOverlaySummary: "2/2 text overlays visible: 2 manual and 0 live-caption sources.",
+      textOverlaySummary: "2/2 text overlays on program output: 2 manual (2 pinned, 0 timed active, 0 queued) and 0 live-caption sources.",
       textOverlayRecommendation: "Keep text positions, transparency, font size, and outline settings unchanged.",
       chatOverlayStatus: "pass",
       chatOverlaySourceCount: 1,

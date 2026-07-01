@@ -168,6 +168,25 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("release warning");
   });
 
+  it("blocks queued or expired timed text overlay evidence", () => {
+    writeBundle({
+      summary: {
+        textOverlayStatus: "pass",
+        textOverlayQueuedTimedManualSourceCount: 1,
+        textOverlayExpiredTimedManualSourceCount: 1,
+        textOverlaySummary: "1 timed text overlay is queued and 1 has expired.",
+        textOverlayRecommendation: "Start or hide timed text overlays before launch."
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[FAIL] Text overlay evidence");
+    expect(result.stdout).toContain("1 timed text overlay is queued and 1 has expired.");
+    expect(result.stdout).toContain("Can release: no");
+  });
+
   it("blocks live caption warning evidence", () => {
     writeBundle({
       summary: {
@@ -1551,6 +1570,11 @@ const createBundle = (patch = {}) => {
     textOverlayVisibleManualSourceCount: 2,
     textOverlayRuntimeCaptionSourceCount: 0,
     textOverlayVisibleRuntimeCaptionSourceCount: 0,
+    textOverlayRenderVisibleSourceCount: 2,
+    textOverlayActiveTimedManualSourceCount: 0,
+    textOverlayQueuedTimedManualSourceCount: 0,
+    textOverlayExpiredTimedManualSourceCount: 0,
+    textOverlayPersistentManualSourceCount: 2,
     textOverlayEmptyVisibleManualSourceCount: 0,
     textOverlayTransparentVisibleSourceCount: 1,
     textOverlaySensitiveContentIssueCount: 0,
@@ -1558,7 +1582,7 @@ const createBundle = (patch = {}) => {
     textOverlayLayoutRiskIssueCount: 0,
     textOverlaySafeAreaIssueCount: 0,
     textOverlayAvatarOverlapIssueCount: 0,
-    textOverlaySummary: "2/2 text overlays visible.",
+    textOverlaySummary: "2/2 text overlays on program output.",
     textOverlayRecommendation: "Keep text overlays unchanged.",
     chatOverlayStatus: "pass",
     chatOverlaySourceCount: 1,

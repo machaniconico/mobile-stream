@@ -128,6 +128,11 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
     visibleManualSourceCount: 2,
     runtimeCaptionSourceCount: 0,
     visibleRuntimeCaptionSourceCount: 0,
+    renderVisibleSourceCount: 2,
+    activeTimedManualSourceCount: 0,
+    queuedTimedManualSourceCount: 0,
+    expiredTimedManualSourceCount: 0,
+    persistentManualSourceCount: 2,
     emptyVisibleManualSourceCount: 0,
     transparentVisibleSourceCount: 1,
     dominantBackdropIssueCount: 0,
@@ -141,7 +146,7 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
       ticker: 0,
       caption: 0
     },
-    summary: "2/2 text overlays visible: 2 manual and 0 live-caption sources.",
+    summary: "2/2 text overlays on program output: 2 manual (2 pinned, 0 timed active, 0 queued) and 0 live-caption sources.",
     recommendation: "Keep text positions, transparency, font size, and outline settings unchanged for the retained launch evidence."
   },
   liveCaption: {

@@ -11,6 +11,11 @@ export interface TextOverlayDiagnostics {
   visibleManualSourceCount: number;
   runtimeCaptionSourceCount: number;
   visibleRuntimeCaptionSourceCount: number;
+  renderVisibleSourceCount: number;
+  activeTimedManualSourceCount: number;
+  queuedTimedManualSourceCount: number;
+  expiredTimedManualSourceCount: number;
+  persistentManualSourceCount: number;
   emptyVisibleManualSourceCount: number;
   transparentVisibleSourceCount: number;
   dominantBackdropIssueCount: number;
@@ -25,14 +30,21 @@ export interface TextOverlayDiagnostics {
 
 export const createTextOverlayDiagnostics = (
   scene: SceneDocument,
-  readiness: Pick<ReadinessReport, "issues">
+  readiness: Pick<ReadinessReport, "issues">,
+  now = Date.now()
 ): TextOverlayDiagnostics => {
+  const nowMs = Number.isFinite(now) ? Math.max(0, Math.round(now)) : Date.now();
   const textSources = scene.sources.filter((source) => source.kind === "text");
   const visibleTextSources = textSources.filter((source) => source.visible);
   const manualSources = textSources.filter((source) => source.contentSource === "manual");
   const visibleManualSources = manualSources.filter((source) => source.visible);
   const runtimeCaptionSources = textSources.filter((source) => source.contentSource === "runtime-caption");
   const visibleRuntimeCaptionSources = runtimeCaptionSources.filter((source) => source.visible);
+  const renderVisibleSources = visibleTextSources.filter((source) => isTextSourceRenderVisible(source, nowMs));
+  const activeTimedManualSources = visibleManualSources.filter((source) => isTimedTextSourceActive(source, nowMs));
+  const queuedTimedManualSources = visibleManualSources.filter((source) => isTimedTextSourceQueued(source, nowMs));
+  const expiredTimedManualSources = visibleManualSources.filter((source) => isTimedTextSourceExpired(source, nowMs));
+  const persistentManualSources = visibleManualSources.filter((source) => source.visibilityMode === "always");
   const emptyVisibleManualSources = visibleManualSources.filter((source) => source.text.trim().length === 0);
   const transparentVisibleSources = visibleTextSources.filter((source) => source.backgroundOpacity === 0);
   const dominantBackdropIssueCount = readiness.issues.filter(
@@ -63,7 +75,9 @@ export const createTextOverlayDiagnostics = (
     }
   );
   const status = createTextOverlayStatus({
-    visibleSourceCount: visibleTextSources.length,
+    renderVisibleSourceCount: renderVisibleSources.length,
+    queuedTimedManualSourceCount: queuedTimedManualSources.length,
+    expiredTimedManualSourceCount: expiredTimedManualSources.length,
     emptyVisibleManualSourceCount: emptyVisibleManualSources.length,
     dominantBackdropIssueCount,
     layoutRiskIssueCount,
@@ -80,6 +94,11 @@ export const createTextOverlayDiagnostics = (
     visibleManualSourceCount: visibleManualSources.length,
     runtimeCaptionSourceCount: runtimeCaptionSources.length,
     visibleRuntimeCaptionSourceCount: visibleRuntimeCaptionSources.length,
+    renderVisibleSourceCount: renderVisibleSources.length,
+    activeTimedManualSourceCount: activeTimedManualSources.length,
+    queuedTimedManualSourceCount: queuedTimedManualSources.length,
+    expiredTimedManualSourceCount: expiredTimedManualSources.length,
+    persistentManualSourceCount: persistentManualSources.length,
     emptyVisibleManualSourceCount: emptyVisibleManualSources.length,
     transparentVisibleSourceCount: transparentVisibleSources.length,
     dominantBackdropIssueCount,
@@ -92,8 +111,13 @@ export const createTextOverlayDiagnostics = (
       status,
       sourceCount: textSources.length,
       visibleSourceCount: visibleTextSources.length,
+      renderVisibleSourceCount: renderVisibleSources.length,
       visibleManualSourceCount: visibleManualSources.length,
       visibleRuntimeCaptionSourceCount: visibleRuntimeCaptionSources.length,
+      activeTimedManualSourceCount: activeTimedManualSources.length,
+      queuedTimedManualSourceCount: queuedTimedManualSources.length,
+      expiredTimedManualSourceCount: expiredTimedManualSources.length,
+      persistentManualSourceCount: persistentManualSources.length,
       emptyVisibleManualSourceCount: emptyVisibleManualSources.length,
       dominantBackdropIssueCount,
       layoutRiskIssueCount,
@@ -104,7 +128,9 @@ export const createTextOverlayDiagnostics = (
     recommendation: createTextOverlayRecommendation({
       status,
       sourceCount: textSources.length,
-      visibleSourceCount: visibleTextSources.length,
+      renderVisibleSourceCount: renderVisibleSources.length,
+      queuedTimedManualSourceCount: queuedTimedManualSources.length,
+      expiredTimedManualSourceCount: expiredTimedManualSources.length,
       emptyVisibleManualSourceCount: emptyVisibleManualSources.length,
       dominantBackdropIssueCount,
       layoutRiskIssueCount,
@@ -116,7 +142,9 @@ export const createTextOverlayDiagnostics = (
 };
 
 const createTextOverlayStatus = ({
-  visibleSourceCount,
+  renderVisibleSourceCount,
+  queuedTimedManualSourceCount,
+  expiredTimedManualSourceCount,
   emptyVisibleManualSourceCount,
   dominantBackdropIssueCount,
   layoutRiskIssueCount,
@@ -124,7 +152,9 @@ const createTextOverlayStatus = ({
   avatarOverlapIssueCount,
   sensitiveContentIssueCount
 }: {
-  visibleSourceCount: number;
+  renderVisibleSourceCount: number;
+  queuedTimedManualSourceCount: number;
+  expiredTimedManualSourceCount: number;
   emptyVisibleManualSourceCount: number;
   dominantBackdropIssueCount: number;
   layoutRiskIssueCount: number;
@@ -136,6 +166,8 @@ const createTextOverlayStatus = ({
     return "fail";
   }
   if (
+    queuedTimedManualSourceCount > 0 ||
+    expiredTimedManualSourceCount > 0 ||
     dominantBackdropIssueCount > 0 ||
     layoutRiskIssueCount > 0 ||
     safeAreaIssueCount > 0 ||
@@ -144,7 +176,7 @@ const createTextOverlayStatus = ({
   ) {
     return "warn";
   }
-  if (visibleSourceCount > 0) {
+  if (renderVisibleSourceCount > 0) {
     return "pass";
   }
   return "info";
@@ -154,8 +186,13 @@ const createTextOverlaySummary = ({
   status,
   sourceCount,
   visibleSourceCount,
+  renderVisibleSourceCount,
   visibleManualSourceCount,
   visibleRuntimeCaptionSourceCount,
+  activeTimedManualSourceCount,
+  queuedTimedManualSourceCount,
+  expiredTimedManualSourceCount,
+  persistentManualSourceCount,
   emptyVisibleManualSourceCount,
   dominantBackdropIssueCount,
   layoutRiskIssueCount,
@@ -166,8 +203,13 @@ const createTextOverlaySummary = ({
   status: TextOverlayDiagnosticStatus;
   sourceCount: number;
   visibleSourceCount: number;
+  renderVisibleSourceCount: number;
   visibleManualSourceCount: number;
   visibleRuntimeCaptionSourceCount: number;
+  activeTimedManualSourceCount: number;
+  queuedTimedManualSourceCount: number;
+  expiredTimedManualSourceCount: number;
+  persistentManualSourceCount: number;
   emptyVisibleManualSourceCount: number;
   dominantBackdropIssueCount: number;
   layoutRiskIssueCount: number;
@@ -190,11 +232,21 @@ const createTextOverlaySummary = ({
   if (avatarOverlapIssueCount > 0) {
     return `${avatarOverlapIssueCount} visible text overlay${avatarOverlapIssueCount === 1 ? "" : "s"} overlap the avatar layer.`;
   }
+  if (expiredTimedManualSourceCount > 0) {
+    return `${expiredTimedManualSourceCount} visible timed text overlay${expiredTimedManualSourceCount === 1 ? "" : "s"} have expired and are no longer on the program output.`;
+  }
+  if (queuedTimedManualSourceCount > 0 && renderVisibleSourceCount === 0) {
+    return `${queuedTimedManualSourceCount} timed text overlay${queuedTimedManualSourceCount === 1 ? "" : "s"} are queued, but no text is currently on the program output.`;
+  }
   if (emptyVisibleManualSourceCount > 0) {
     return `${emptyVisibleManualSourceCount} visible manual text overlay${emptyVisibleManualSourceCount === 1 ? "" : "s"} are empty.`;
   }
+  if (renderVisibleSourceCount > 0) {
+    const renderVisibleManualSourceCount = persistentManualSourceCount + activeTimedManualSourceCount;
+    return `${renderVisibleSourceCount}/${sourceCount} text overlay${sourceCount === 1 ? "" : "s"} on program output: ${renderVisibleManualSourceCount} manual (${persistentManualSourceCount} pinned, ${activeTimedManualSourceCount} timed active, ${queuedTimedManualSourceCount} queued) and ${visibleRuntimeCaptionSourceCount} live-caption source${visibleRuntimeCaptionSourceCount === 1 ? "" : "s"}.`;
+  }
   if (visibleSourceCount > 0) {
-    return `${visibleSourceCount}/${sourceCount} text overlay${sourceCount === 1 ? "" : "s"} visible: ${visibleManualSourceCount} manual and ${visibleRuntimeCaptionSourceCount} live-caption source${visibleRuntimeCaptionSourceCount === 1 ? "" : "s"}.`;
+    return `${visibleSourceCount}/${sourceCount} text overlay${sourceCount === 1 ? "" : "s"} enabled, but none are currently on the program output.`;
   }
   if (sourceCount > 0) {
     return `${sourceCount} text overlay${sourceCount === 1 ? "" : "s"} configured, but none are visible.`;
@@ -205,7 +257,9 @@ const createTextOverlaySummary = ({
 const createTextOverlayRecommendation = ({
   status,
   sourceCount,
-  visibleSourceCount,
+  renderVisibleSourceCount,
+  queuedTimedManualSourceCount,
+  expiredTimedManualSourceCount,
   emptyVisibleManualSourceCount,
   dominantBackdropIssueCount,
   layoutRiskIssueCount,
@@ -215,7 +269,9 @@ const createTextOverlayRecommendation = ({
 }: {
   status: TextOverlayDiagnosticStatus;
   sourceCount: number;
-  visibleSourceCount: number;
+  renderVisibleSourceCount: number;
+  queuedTimedManualSourceCount: number;
+  expiredTimedManualSourceCount: number;
   emptyVisibleManualSourceCount: number;
   dominantBackdropIssueCount: number;
   layoutRiskIssueCount: number;
@@ -238,10 +294,16 @@ const createTextOverlayRecommendation = ({
   if (avatarOverlapIssueCount > 0) {
     return "Move text away from the avatar or reduce the text box size, then verify the model remains visible during gameplay.";
   }
+  if (expiredTimedManualSourceCount > 0) {
+    return "Hide expired timed text overlays or trigger the intended subtitle/text again before exporting launch evidence.";
+  }
+  if (queuedTimedManualSourceCount > 0 && renderVisibleSourceCount === 0) {
+    return "Start the queued text item or pin the intended text before Go Live so the launch evidence matches the program output.";
+  }
   if (emptyVisibleManualSourceCount > 0) {
     return "Fill or hide empty manual text overlays before exporting launch evidence.";
   }
-  if (visibleSourceCount > 0) {
+  if (renderVisibleSourceCount > 0) {
     return "Keep text positions, transparency, font size, and outline settings unchanged for the retained launch evidence.";
   }
   if (sourceCount > 0) {
@@ -251,3 +313,36 @@ const createTextOverlayRecommendation = ({
     ? "Add a subtitle, ticker, label, or live-caption text source when stream copy must appear on the program output."
     : "Review text overlay setup before launch.";
 };
+
+const isTextSourceRenderVisible = (source: SceneDocument["sources"][number], nowMs: number): boolean => {
+  if (source.kind !== "text") {
+    return false;
+  }
+  if (source.visibilityMode !== "timed") {
+    return true;
+  }
+  return isTimedTextSourceActive(source, nowMs);
+};
+
+const isTimedTextSourceActive = (source: SceneDocument["sources"][number], nowMs: number): boolean =>
+  source.kind === "text" &&
+  source.visibilityMode === "timed" &&
+  source.activatedAtMs > 0 &&
+  nowMs >= source.activatedAtMs &&
+  nowMs < source.activatedAtMs + Math.max(0, Math.round(source.displayDurationMs));
+
+const isTimedTextSourceQueued = (source: SceneDocument["sources"][number], nowMs: number): boolean =>
+  source.kind === "text" &&
+  source.visibilityMode === "timed" &&
+  source.activatedAtMs > nowMs &&
+  isExplicitQueuedTextOverlaySource(source);
+
+const isTimedTextSourceExpired = (source: SceneDocument["sources"][number], nowMs: number): boolean =>
+  source.kind === "text" &&
+  source.visibilityMode === "timed" &&
+  source.activatedAtMs > 0 &&
+  nowMs >= source.activatedAtMs + Math.max(0, Math.round(source.displayDurationMs));
+
+const isExplicitQueuedTextOverlaySource = (source: SceneDocument["sources"][number]): boolean =>
+  source.kind === "text" &&
+  (source.id.startsWith("source-queued-subtitle-") || source.name.trim().toLowerCase() === "queued subtitle");

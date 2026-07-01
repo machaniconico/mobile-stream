@@ -444,6 +444,11 @@ function textOverlayEvidenceIssue(bundle) {
     isNonNegativeInteger(summary.textOverlayVisibleManualSourceCount) &&
     isNonNegativeInteger(summary.textOverlayRuntimeCaptionSourceCount) &&
     isNonNegativeInteger(summary.textOverlayVisibleRuntimeCaptionSourceCount) &&
+    isNonNegativeInteger(summary.textOverlayRenderVisibleSourceCount) &&
+    isNonNegativeInteger(summary.textOverlayActiveTimedManualSourceCount) &&
+    isNonNegativeInteger(summary.textOverlayQueuedTimedManualSourceCount) &&
+    isNonNegativeInteger(summary.textOverlayExpiredTimedManualSourceCount) &&
+    isNonNegativeInteger(summary.textOverlayPersistentManualSourceCount) &&
     isNonNegativeInteger(summary.textOverlayEmptyVisibleManualSourceCount) &&
     isNonNegativeInteger(summary.textOverlaySensitiveContentIssueCount) &&
     isNonNegativeInteger(summary.textOverlayDominantBackdropIssueCount) &&
@@ -475,6 +480,8 @@ function textOverlayEvidenceIssue(bundle) {
 
   if (
     status === "warn" ||
+    number(summary.textOverlayQueuedTimedManualSourceCount) > 0 ||
+    number(summary.textOverlayExpiredTimedManualSourceCount) > 0 ||
     number(summary.textOverlayEmptyVisibleManualSourceCount) > 0 ||
     number(summary.textOverlayDominantBackdropIssueCount) > 0 ||
     number(summary.textOverlayLayoutRiskIssueCount) > 0 ||

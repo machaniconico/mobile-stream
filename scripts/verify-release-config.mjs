@@ -173,6 +173,9 @@ const checks = [
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
     expectIncludes(files.supportBundleDomain, "bundleVersion: 55");
     expectIncludes(files.supportBundleDomain, "nativeCompositionCaptionOverlayCount");
+    expectIncludes(files.supportBundleDomain, "textOverlayRenderVisibleSourceCount");
+    expectIncludes(files.supportBundleDomain, "textOverlayQueuedTimedManualSourceCount");
+    expectIncludes(files.supportBundleDomain, "textOverlayExpiredTimedManualSourceCount");
     expectIncludes(files.supportBundleDomain, "sceneFingerprint: string");
     expectIncludes(files.supportBundleDomain, "androidPublisherMode: StudioProfile");
     expectIncludes(files.streamDiagnosticsDomain, "Evidence Android publisher mode");
@@ -182,12 +185,16 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "scene-fingerprint-missing");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scene-fingerprint");
     expectIncludes(files.commercialReleaseGateDomain, "native-caption-overlay-summary-missing");
+    expectIncludes(files.commercialReleaseGateDomain, "textOverlayQueuedTimedManualSourceCount");
+    expectIncludes(files.commercialReleaseGateDomain, "textOverlayExpiredTimedManualSourceCount");
     expectIncludes(files.commercialReleaseGateDomain, "android-publisher-mode-not-commercial");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 55");
     expectIncludes(files.commercialReleaseBundleScript, "--allow-warnings is not supported for commercial release approval");
     expectIncludes(files.commercialReleaseBundleScript, "warningCount === 0");
     expectIncludes(files.commercialReleaseBundleScript, "scene-fingerprint-missing");
+    expectIncludes(files.commercialReleaseBundleScript, "textOverlayQueuedTimedManualSourceCount");
+    expectIncludes(files.commercialReleaseBundleScript, "textOverlayExpiredTimedManualSourceCount");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-scene-fingerprint");
     expectIncludes(files.commercialReleaseBundleScript, "native-caption-overlay-summary-missing");
     expectIncludes(files.commercialReleaseBundleScript, "android-publisher-mode-not-commercial");

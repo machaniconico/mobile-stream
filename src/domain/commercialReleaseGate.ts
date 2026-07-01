@@ -323,6 +323,11 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
     isNonNegativeInteger(summary.textOverlayVisibleManualSourceCount) &&
     isNonNegativeInteger(summary.textOverlayRuntimeCaptionSourceCount) &&
     isNonNegativeInteger(summary.textOverlayVisibleRuntimeCaptionSourceCount) &&
+    isNonNegativeInteger(summary.textOverlayRenderVisibleSourceCount) &&
+    isNonNegativeInteger(summary.textOverlayActiveTimedManualSourceCount) &&
+    isNonNegativeInteger(summary.textOverlayQueuedTimedManualSourceCount) &&
+    isNonNegativeInteger(summary.textOverlayExpiredTimedManualSourceCount) &&
+    isNonNegativeInteger(summary.textOverlayPersistentManualSourceCount) &&
     isNonNegativeInteger(summary.textOverlayEmptyVisibleManualSourceCount) &&
     isNonNegativeInteger(summary.textOverlaySensitiveContentIssueCount) &&
     isNonNegativeInteger(summary.textOverlayDominantBackdropIssueCount) &&
@@ -354,6 +359,8 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
 
   if (
     status === "warn" ||
+    (summary.textOverlayQueuedTimedManualSourceCount ?? 0) > 0 ||
+    (summary.textOverlayExpiredTimedManualSourceCount ?? 0) > 0 ||
     (summary.textOverlayEmptyVisibleManualSourceCount ?? 0) > 0 ||
     (summary.textOverlayDominantBackdropIssueCount ?? 0) > 0 ||
     (summary.textOverlayLayoutRiskIssueCount ?? 0) > 0 ||

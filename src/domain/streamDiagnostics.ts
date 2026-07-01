@@ -336,8 +336,9 @@ export const createStreamDiagnostics = (
   });
   const effectiveReadiness = createEffectiveReadiness(readiness, faceTracking);
   const effectiveNativeComposition = createEffectiveNativeComposition(nativeComposition, faceTracking);
-  const textOverlay = createTextOverlayDiagnostics(scene, effectiveReadiness);
-  const liveCaption = createLiveCaptionDiagnostics(scene, options.liveCaption ?? null, toTimestampMs(options.now ?? Date.now()));
+  const nowMs = toTimestampMs(options.now ?? Date.now());
+  const textOverlay = createTextOverlayDiagnostics(scene, effectiveReadiness, nowMs);
+  const liveCaption = createLiveCaptionDiagnostics(scene, options.liveCaption ?? null, nowMs);
   const checks = [
     ...effectiveReadiness.issues.map<DiagnosticCheck>((issue) => ({
       code: `readiness-${issue.code}`,
@@ -700,7 +701,8 @@ export const formatStreamDiagnosticReport = (
     "",
     "Text Overlays",
     `- Status: ${diagnostics.textOverlay.status}`,
-    `- Sources: ${diagnostics.textOverlay.visibleSourceCount}/${diagnostics.textOverlay.sourceCount} visible / ${diagnostics.textOverlay.visibleManualSourceCount}/${diagnostics.textOverlay.manualSourceCount} manual / ${diagnostics.textOverlay.visibleRuntimeCaptionSourceCount}/${diagnostics.textOverlay.runtimeCaptionSourceCount} live-caption`,
+    `- Sources: ${diagnostics.textOverlay.renderVisibleSourceCount}/${diagnostics.textOverlay.sourceCount} on program / ${diagnostics.textOverlay.visibleSourceCount} enabled / ${diagnostics.textOverlay.visibleManualSourceCount}/${diagnostics.textOverlay.manualSourceCount} manual / ${diagnostics.textOverlay.visibleRuntimeCaptionSourceCount}/${diagnostics.textOverlay.runtimeCaptionSourceCount} live-caption`,
+    `- Timed manual: ${diagnostics.textOverlay.activeTimedManualSourceCount} active / ${diagnostics.textOverlay.queuedTimedManualSourceCount} queued / ${diagnostics.textOverlay.expiredTimedManualSourceCount} expired / ${diagnostics.textOverlay.persistentManualSourceCount} pinned`,
     `- Modes: label ${diagnostics.textOverlay.modeCounts.label} / subtitle ${diagnostics.textOverlay.modeCounts.subtitle} / ticker ${diagnostics.textOverlay.modeCounts.ticker} / caption ${diagnostics.textOverlay.modeCounts.caption}`,
     `- Empty manual: ${diagnostics.textOverlay.emptyVisibleManualSourceCount}`,
     `- Transparent visible: ${diagnostics.textOverlay.transparentVisibleSourceCount}`,

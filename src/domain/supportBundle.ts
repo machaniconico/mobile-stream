@@ -433,6 +433,11 @@ export interface SupportBundle {
     textOverlayVisibleManualSourceCount: number;
     textOverlayRuntimeCaptionSourceCount: number;
     textOverlayVisibleRuntimeCaptionSourceCount: number;
+    textOverlayRenderVisibleSourceCount: number;
+    textOverlayActiveTimedManualSourceCount: number;
+    textOverlayQueuedTimedManualSourceCount: number;
+    textOverlayExpiredTimedManualSourceCount: number;
+    textOverlayPersistentManualSourceCount: number;
     textOverlayEmptyVisibleManualSourceCount: number;
     textOverlayTransparentVisibleSourceCount: number;
     textOverlaySensitiveContentIssueCount: number;
@@ -1181,6 +1186,11 @@ export const createSupportBundle = ({
       textOverlayVisibleManualSourceCount: diagnostics.textOverlay.visibleManualSourceCount,
       textOverlayRuntimeCaptionSourceCount: diagnostics.textOverlay.runtimeCaptionSourceCount,
       textOverlayVisibleRuntimeCaptionSourceCount: diagnostics.textOverlay.visibleRuntimeCaptionSourceCount,
+      textOverlayRenderVisibleSourceCount: diagnostics.textOverlay.renderVisibleSourceCount,
+      textOverlayActiveTimedManualSourceCount: diagnostics.textOverlay.activeTimedManualSourceCount,
+      textOverlayQueuedTimedManualSourceCount: diagnostics.textOverlay.queuedTimedManualSourceCount,
+      textOverlayExpiredTimedManualSourceCount: diagnostics.textOverlay.expiredTimedManualSourceCount,
+      textOverlayPersistentManualSourceCount: diagnostics.textOverlay.persistentManualSourceCount,
       textOverlayEmptyVisibleManualSourceCount: diagnostics.textOverlay.emptyVisibleManualSourceCount,
       textOverlayTransparentVisibleSourceCount: diagnostics.textOverlay.transparentVisibleSourceCount,
       textOverlaySensitiveContentIssueCount: diagnostics.textOverlay.sensitiveContentIssueCount,

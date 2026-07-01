@@ -1899,7 +1899,8 @@ describe("stream diagnostics", () => {
     expect(text).toContain("Audio Validation");
     expect(text).toContain("Chat Readout");
     expect(text).toContain("Text Overlays");
-    expect(text).toContain("Sources: 2/2 visible / 2/2 manual / 0/0 live-caption");
+    expect(text).toContain("Sources: 2/2 on program / 2 enabled / 2/2 manual / 0/0 live-caption");
+    expect(text).toContain("Timed manual: 0 active / 0 queued / 0 expired / 2 pinned");
     expect(text).toContain("Completed Sessions");
     expect(text).toContain("Platform API: 2 events / 0 failed");
     expect(text).toContain("Chat readout: 0 events / 0 reconnects / 0 exhausted");
