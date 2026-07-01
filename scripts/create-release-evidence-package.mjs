@@ -1537,6 +1537,9 @@ const authorizationHeaderPattern = /\bAuthorization\s*:\s*(Bearer|OAuth)\s+([^\s
 const bearerTokenPattern = /\b(Bearer|OAuth)\s+([A-Za-z0-9._~+/=-]{12,})/g;
 const twitchIrcOauthPattern = /\boauth:([A-Za-z0-9._~+/=-]{12,})/gi;
 const rtmpPublishUrlPattern = /\brtmps?:\/\/[^\s"'<>]+\/(?:app|live|live2)\/([A-Za-z0-9._~+/=-]{12,}(?:[/?#][^\s"'<>]*)?)/gi;
+const emailAddressPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const inviteLinkPattern = /\b(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/[A-Za-z0-9-]{2,}\b/gi;
+const phoneLikePattern = /(^|[^\w+])(\+?\d[\d\s().-]{7,}\d)(?=$|[^\w])/g;
 
 function countTextEvidenceEntries(entries) {
   return entries.filter((entry) => entry?.packagedPath && isTextEvidencePath(entry.packagedPath)).length;
@@ -1566,7 +1569,43 @@ function findSensitiveTextFindings(value, path) {
       }
     }
   }
+  if (isContactEvidencePath(path)) {
+    if (hasPatternMatch(value, emailAddressPattern)) {
+      findings.push({ path, reason: "contains an email address" });
+    }
+    if (hasPatternMatch(value, inviteLinkPattern)) {
+      findings.push({ path, reason: "contains an invite link" });
+    }
+    if (hasUnredactedPhoneMatch(value)) {
+      findings.push({ path, reason: "contains a phone number" });
+    }
+  }
   return findings;
+}
+
+function isContactEvidencePath(path) {
+  return (!path.startsWith("artifacts/") || path.startsWith("artifacts/.artifacts/")) && !path.endsWith("/submission-metadata.json");
+}
+
+function hasPatternMatch(value, pattern) {
+  pattern.lastIndex = 0;
+  return pattern.test(value);
+}
+
+function hasUnredactedPhoneMatch(value) {
+  phoneLikePattern.lastIndex = 0;
+  for (const match of value.matchAll(phoneLikePattern)) {
+    if (isUnredactedPhoneCandidate(match[2] ?? "")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isUnredactedPhoneCandidate(value) {
+  const digits = value.replace(/\D/g, "");
+  const normalized = value.trim();
+  return digits.length >= 10 && digits.length <= 15 && !/^20\d{2}[-./\s]/.test(normalized);
 }
 
 function isSafeSensitiveValue(value) {

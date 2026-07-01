@@ -1272,6 +1272,38 @@ describe("release evidence package creator", () => {
     expect(failures.join("\n")).toContain("ui-evidence/ui-evidence.json contains a bearer/OAuth token");
   });
 
+  it("rejects unredacted contact text even when package metadata hashes match", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedUiEvidencePath = `${packageDir}/ui-evidence/ui-evidence.json`;
+    const packagedUiEvidence = JSON.parse(readFileSync(packagedUiEvidencePath, "utf8"));
+    packagedUiEvidence.debug = "email viewer@example.com phone 090-1234-5678 invite discord.gg/privateRoom";
+    writeFileSync(packagedUiEvidencePath, JSON.stringify(packagedUiEvidence, null, 2));
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const evidenceGate = packagedReport.gates.find((gate) => gate.label === "Verify browser UI evidence");
+    evidenceGate.evidence.sha256 = fileSha256(packagedUiEvidencePath);
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+    manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+    manifest.uiEvidence.bytes = readFileSync(packagedUiEvidencePath).byteLength;
+    manifest.uiEvidence.sha256 = fileSha256(packagedUiEvidencePath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain("Release evidence package contains");
+    expect(failures.join("\n")).toContain("ui-evidence/ui-evidence.json contains an email address");
+    expect(failures.join("\n")).toContain("ui-evidence/ui-evidence.json contains a phone number");
+    expect(failures.join("\n")).toContain("ui-evidence/ui-evidence.json contains an invite link");
+  });
+
   it("scans release text artifacts such as mjs files for oauth tokens and RTMP stream keys", () => {
     resetPackageDir();
     writeReportFixture();
