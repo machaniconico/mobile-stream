@@ -1412,6 +1412,8 @@ const bearerTokenPattern = /\b(Bearer|OAuth)\s+([A-Za-z0-9._~+/=-]{12,})/g;
 const emailAddressPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const inviteLinkPattern = /\b(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/[A-Za-z0-9-]{2,}\b/gi;
 const phoneLikePattern = /(^|[^\w+])(\+?\d[\d\s().-]{7,}\d)(?=$|[^\w])/g;
+const protocolLessLinkPattern =
+  /(^|[^\w@./:])((?:www\.)?(?:[a-z0-9-]+\.)+(?:ai|app|co|com|dev|gg|io|jp|link|live|ly|me|net|org|site|stream|tv|xyz)(?:\/[^\s<>"']*)?)/gi;
 
 const findSensitiveBundleFindings = (value: unknown): SensitiveBundleFinding[] => {
   const findings: SensitiveBundleFinding[] = [];
@@ -1467,6 +1469,9 @@ const findSensitiveStringFindings = (value: string, path: string): SensitiveBund
   if (hasUnredactedContactTextLeak(value)) {
     findings.push({ path, reason: "contains an unredacted contact pattern" });
   }
+  if (hasUnredactedProtocolLessLink(value)) {
+    findings.push({ path, reason: "contains an unredacted protocol-less link pattern" });
+  }
   return findings;
 };
 
@@ -1491,6 +1496,17 @@ const hasUnredactedContactTextLeak = (value: string): boolean =>
   hasPatternMatch(value, emailAddressPattern) ||
   hasPatternMatch(value, inviteLinkPattern) ||
   hasUnredactedPhoneMatch(value);
+
+const hasUnredactedProtocolLessLink = (value: string): boolean => {
+  protocolLessLinkPattern.lastIndex = 0;
+  for (const match of value.matchAll(protocolLessLinkPattern)) {
+    const candidate = match[2] ?? "";
+    if (candidate && !candidate.includes(redactedMarker)) {
+      return true;
+    }
+  }
+  return false;
+};
 
 const hasPatternMatch = (value: string, pattern: RegExp): boolean => {
   pattern.lastIndex = 0;

@@ -137,6 +137,25 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("unredacted contact pattern");
   });
 
+  it("blocks unredacted protocol-less links in release support bundles", () => {
+    writeBundle({
+      diagnostics: {
+        destination: {
+          ingestEndpoint: "rtmps://live.example.com/app"
+        },
+        chat: {
+          lastOverlayText: "shared www.example.org/private and example.tv/show"
+        }
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Support bundle privacy");
+    expect(result.stdout).toContain("unredacted protocol-less link pattern");
+  });
+
   it("blocks retained validation runs without physical-device proof", () => {
     writeBundle({
       summary: {

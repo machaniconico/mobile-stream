@@ -1803,6 +1803,63 @@ describe("commercial release gate", () => {
       ])
     );
   });
+
+  it("blocks support bundles that contain unredacted protocol-less links without blocking RTMPS endpoints", () => {
+    const bundle = supportBundle();
+    const mutableBundle = bundle as unknown as {
+      diagnostics: {
+        destination: {
+          ingestEndpoint: string;
+        };
+        chat: {
+          lastOverlayText: string;
+        };
+      };
+    };
+    mutableBundle.diagnostics = {
+      destination: {
+        ingestEndpoint: "rtmps://live.example.com/app"
+      },
+      chat: {
+        lastOverlayText: "shared www.example.org/private and example.tv/show"
+      }
+    };
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "support-bundle-sensitive-data",
+          detail: expect.stringContaining("unredacted protocol-less link pattern")
+        })
+      ])
+    );
+  });
+
+  it("allows support bundles that retain RTMPS endpoints without protocol-less private links", () => {
+    const bundle = supportBundle();
+    const mutableBundle = bundle as unknown as {
+      diagnostics: {
+        destination: {
+          ingestEndpoint: string;
+        };
+      };
+    };
+    mutableBundle.diagnostics = {
+      destination: {
+        ingestEndpoint: "rtmps://live.example.com/app"
+      }
+    };
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("ready");
+    expect(gate.canRelease).toBe(true);
+    expect(gate.issues.map((issue) => issue.code)).not.toContain("support-bundle-sensitive-data");
+  });
 });
 
 const supportBundle = ({
