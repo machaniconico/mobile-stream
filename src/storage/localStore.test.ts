@@ -84,6 +84,88 @@ describe("local stream session summary store", () => {
     expect(storage.getItem(sessionSummaryStorageKey)).toBeNull();
   });
 
+  it("redacts secrets and contact details from saved stream session summaries", () => {
+    const storage = createMemoryStorage();
+    vi.stubGlobal("localStorage", storage);
+    const streamKey = "session-summary-stream-key";
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "failed",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+    const unsafeSummary = {
+      ...summary,
+      summary:
+        "Failed with Authorization: Bearer session-oauth-token and callback mobilelivecaster://oauth/youtube?code=session-code",
+      recommendation: `Retest without ${streamKey} and contact viewer@example.com / 090-1234-5678 / discord.gg/privateRoom`,
+      health: {
+        ...summary.health,
+        summary: "Inspect www.example.org/private and example.tv/backstage before release."
+      },
+      audioLevel: {
+        ...summary.audioLevel,
+        recommendation: "Send logs to viewer@example.com only after redaction."
+      }
+    };
+
+    saveStreamSessionSummaries([unsafeSummary], [streamKey]);
+
+    const stored = storage.getItem(sessionSummaryStorageKey) ?? "";
+    expect(loadStreamSessionSummaries()).toHaveLength(1);
+    expect(stored).toContain(summary.id);
+    expect(stored).toContain("[redacted]");
+    expect(stored).not.toContain(streamKey);
+    expect(stored).not.toContain("session-oauth-token");
+    expect(stored).not.toContain("session-code");
+    expect(stored).not.toContain("viewer@example.com");
+    expect(stored).not.toContain("090-1234-5678");
+    expect(stored).not.toContain("discord.gg/privateRoom");
+    expect(stored).not.toContain("www.example.org");
+    expect(stored).not.toContain("example.tv");
+  });
+
+  it("redacts legacy unsafe stream session summaries when loading", () => {
+    const storage = createMemoryStorage();
+    vi.stubGlobal("localStorage", storage);
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "failed",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+    storage.setItem(
+      sessionSummaryStorageKey,
+      JSON.stringify([
+        {
+          ...summary,
+          summary:
+            "Legacy Authorization: Bearer legacy-session-token callback mobilelivecaster://oauth/twitch?access_token=legacy-access",
+          recommendation: "Contact viewer@example.com / 090-1234-5678 / discord.gg/privateRoom / www.example.org/private"
+        }
+      ])
+    );
+
+    const [loaded] = loadStreamSessionSummaries();
+    const serializedLoaded = JSON.stringify(loaded);
+
+    expect(serializedLoaded).toContain("[redacted]");
+    expect(serializedLoaded).not.toContain("legacy-session-token");
+    expect(serializedLoaded).not.toContain("legacy-access");
+    expect(serializedLoaded).not.toContain("viewer@example.com");
+    expect(serializedLoaded).not.toContain("090-1234-5678");
+    expect(serializedLoaded).not.toContain("discord.gg/privateRoom");
+    expect(serializedLoaded).not.toContain("www.example.org");
+  });
+
   it("loads legacy scene persistence as an active scene collection", () => {
     const storage = createMemoryStorage();
     vi.stubGlobal("localStorage", storage);

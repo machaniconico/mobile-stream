@@ -67,7 +67,7 @@
 - Web and React Native automatic recovery respects the public launch checklist for unstarted failed-stream recovery while still allowing active live/reconnecting sessions to recover without being blocked by transient dashboard/chat/audio evidence changes.
 - Shared stream session event log for status transitions, manual operations, platform API started/succeeded/failed/skipped audit events, automatic recovery actions, support diagnostics, and redacted report export.
 - Stream key redaction and no-secret browser persistence.
-- Physical validation run persistence redacts supplied stream-key candidates plus OAuth/API tokens, device codes, client secrets, Authorization headers, email addresses, phone numbers, invite links, and protocol-less links before writing Web localStorage or mobile native storage.
+- Physical validation run and completed stream session summary persistence redact supplied stream-key candidates plus OAuth/API tokens, device codes, client secrets, Authorization headers, email addresses, phone numbers, invite links, and protocol-less links before writing Web localStorage or mobile native storage.
 - Sensitive OAuth/API error message redaction before user-facing status display.
 - OAuth, stream-key, platform publishing, and YouTube chat API calls fail closed with sanitized HTTP/unreadable-JSON errors when upstream responses are empty, non-JSON, or unavailable, while retaining status code, retryability, and `Retry-After` metadata for diagnostics and safe app status retry guidance.
 - Native Android/iOS status and publisher-runtime message redaction for publish URLs, stream keys, and bearer tokens before app display.

@@ -137,7 +137,8 @@ import {
   appendStreamAudioLevelSample,
   createStreamAudioLevelSample,
   type StreamAudioLevelSource,
-  type StreamAudioLevelSample
+  type StreamAudioLevelSample,
+  type StreamSessionSummary
 } from "../domain/streamSessionSummary";
 import {
   appendStreamValidationRun,
@@ -290,6 +291,10 @@ export const App = () => {
     }
   });
   const streamHealthSamples = useStreamHealthHistory(snapshot);
+  const persistStreamSessionSummaries = useCallback(
+    (summaries: StreamSessionSummary[]) => saveStreamSessionSummaries(summaries, [profile.destination.streamKey]),
+    [profile.destination.streamKey]
+  );
   const clearPersistedStreamSessionSummaries = useCallback(() => {
     clearStreamSessionSummaries();
   }, []);
@@ -299,7 +304,7 @@ export const App = () => {
     healthSamples: streamHealthSamples,
     quality: readiness.sanitizedProfile.quality,
     initialSummaries: initialStreamSessionSummaries,
-    onSummariesChange: saveStreamSessionSummaries,
+    onSummariesChange: persistStreamSessionSummaries,
     onSummariesClear: clearPersistedStreamSessionSummaries,
     getAudioLevelSamples
   });

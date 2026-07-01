@@ -324,8 +324,8 @@ export const MobileApp = () => {
     if (!streamSessionSummariesLoaded) {
       return;
     }
-    void saveMobileStreamSessionSummaries(summaries).catch(() => undefined);
-  }, [streamSessionSummariesLoaded]);
+    void saveMobileStreamSessionSummaries(summaries, [profile.destination.streamKey]).catch(() => undefined);
+  }, [profile.destination.streamKey, streamSessionSummariesLoaded]);
   const clearPersistedStreamSessionSummaries = useCallback(() => {
     setPersistedStreamSessionSummaries([]);
     void clearMobileStreamSessionSummaries().catch(() => undefined);

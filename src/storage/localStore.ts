@@ -85,14 +85,19 @@ export const loadStreamSessionSummaries = (): StreamSessionSummary[] => {
   if (!hasLocalStorage()) {
     return [];
   }
-  return normalizeStreamSessionSummaries(safeParse<unknown>(localStorage.getItem(STREAM_SESSION_SUMMARIES_KEY)));
+  return redactSecretsFromPersistedValue(
+    normalizeStreamSessionSummaries(safeParse<unknown>(localStorage.getItem(STREAM_SESSION_SUMMARIES_KEY)))
+  );
 };
 
-export const saveStreamSessionSummaries = (summaries: StreamSessionSummary[]): void => {
+export const saveStreamSessionSummaries = (summaries: StreamSessionSummary[], secrets: string[] = []): void => {
   if (!hasLocalStorage()) {
     return;
   }
-  localStorage.setItem(STREAM_SESSION_SUMMARIES_KEY, JSON.stringify(normalizeStreamSessionSummaries(summaries)));
+  localStorage.setItem(
+    STREAM_SESSION_SUMMARIES_KEY,
+    JSON.stringify(redactSecretsFromPersistedValue(normalizeStreamSessionSummaries(summaries), secrets))
+  );
 };
 
 export const clearStreamSessionSummaries = (): void => {

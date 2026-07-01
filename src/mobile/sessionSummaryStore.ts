@@ -3,6 +3,7 @@ import {
   normalizeStreamSessionSummaries,
   type StreamSessionSummary
 } from "../domain/streamSessionSummary";
+import { redactSecretsFromPersistedValue } from "../domain/persistencePrivacy";
 
 interface MobileSessionSummaryStoreModule {
   saveSessionSummaries?(summariesJson: string): Promise<boolean>;
@@ -26,18 +27,23 @@ export const loadMobileStreamSessionSummaries = async (): Promise<StreamSessionS
   }
 
   try {
-    return normalizeStreamSessionSummaries(JSON.parse(summariesJson) as unknown);
+    return redactSecretsFromPersistedValue(normalizeStreamSessionSummaries(JSON.parse(summariesJson) as unknown));
   } catch {
     await nativeStore.clearSessionSummaries?.();
     return [];
   }
 };
 
-export const saveMobileStreamSessionSummaries = async (summaries: StreamSessionSummary[]): Promise<void> => {
+export const saveMobileStreamSessionSummaries = async (
+  summaries: StreamSessionSummary[],
+  secrets: string[] = []
+): Promise<void> => {
   if (!canUseMobileSessionSummaryStore() || !nativeStore?.saveSessionSummaries) {
     return;
   }
-  await nativeStore.saveSessionSummaries(JSON.stringify(normalizeStreamSessionSummaries(summaries)));
+  await nativeStore.saveSessionSummaries(
+    JSON.stringify(redactSecretsFromPersistedValue(normalizeStreamSessionSummaries(summaries), secrets))
+  );
 };
 
 export const clearMobileStreamSessionSummaries = async (): Promise<void> => {
