@@ -326,7 +326,8 @@ function createReport() {
       statusShort: ""
     },
     options: {
-      skipUi: true
+      skipUi: true,
+      physicalDevicePreflightJson: physicalDevicePreflightPath
     },
     supportBundle: {
       path: supportBundlePath,
@@ -401,7 +402,8 @@ function createReport() {
           platforms: ["android", "ios"],
           distributionManifest: distributionManifestSummary(distributionArtifactManifestPath)
         }
-      }
+      },
+      physicalDevicePreflightGateRecord()
     ],
     error: null
   };
@@ -1007,6 +1009,36 @@ function dashboardEvidenceRecords() {
     artifactRecord("dashboard", ".artifacts/store-approval-test/youtube-dashboard.json"),
     artifactRecord("dashboard", ".artifacts/store-approval-test/twitch-dashboard.json")
   ];
+}
+
+function physicalDevicePreflightGateRecord() {
+  const preflight = JSON.parse(readFileSync(physicalDevicePreflightPath, "utf8"));
+  const steps = Array.isArray(preflight.runbook?.steps) ? preflight.runbook.steps : [];
+  return {
+    label: "Verify physical device preflight",
+    command: `read ${physicalDevicePreflightPath}`,
+    status: "passed",
+    startedAt: new Date(Date.now() - 1_000).toISOString(),
+    finishedAt: new Date().toISOString(),
+    durationMs: 1,
+    exitCode: 0,
+    error: null,
+    evidence: {
+      path: physicalDevicePreflightPath,
+      sha256: fileSha256(physicalDevicePreflightPath),
+      generatedAt: preflight.generatedAt,
+      mode: preflight.mode,
+      androidDeviceCount: preflight.platforms?.android?.devices?.length || 0,
+      iosDeviceCount: preflight.platforms?.ios?.devices?.length || 0,
+      runbook: {
+        summary: preflight.runbook?.summary || "",
+        stepCount: steps.length,
+        readyStepCount: steps.filter((step) => step?.status === "ready-to-run" && step?.deviceReady === true).length,
+        waitingStepCount: steps.filter((step) => step?.status === "waiting-for-device" || step?.deviceReady !== true).length,
+        stepIds: steps.map((step) => String(step?.id || "")).filter(Boolean)
+      }
+    }
+  };
 }
 
 function distributionManifestRecord(platform, kind, path) {

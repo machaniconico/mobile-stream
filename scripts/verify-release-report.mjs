@@ -325,6 +325,51 @@ function validatePhysicalDevicePreflightInReport(report, artifacts, options, fai
   })) {
     fail(failure);
   }
+  validatePhysicalDevicePreflightGateEvidence(report, preflight, fail);
+}
+
+function validatePhysicalDevicePreflightGateEvidence(report, preflight, fail) {
+  const gate = (Array.isArray(report?.gates) ? report.gates : []).find(
+    (entry) => entry?.label === "Verify physical device preflight"
+  );
+  if (!gate) {
+    fail("Release report is missing the physical-device preflight gate record.");
+    return;
+  }
+  if (gate.status !== "passed") {
+    fail(`Physical-device preflight gate must be passed, got ${JSON.stringify(gate.status)}.`);
+  }
+  const evidence = gate.evidence;
+  if (!evidence || typeof evidence !== "object") {
+    fail("Physical-device preflight gate evidence is missing.");
+    return;
+  }
+  const runbook = evidence.runbook;
+  if (!runbook || typeof runbook !== "object") {
+    fail("Physical-device preflight gate evidence is missing runbook summary.");
+    return;
+  }
+  const steps = Array.isArray(preflight?.runbook?.steps) ? preflight.runbook.steps : [];
+  const expectedSummary = typeof preflight?.runbook?.summary === "string" ? preflight.runbook.summary : "";
+  const expectedStepIds = steps.map((step) => String(step?.id || "")).filter(Boolean);
+  const readyStepCount = steps.filter((step) => step?.status === "ready-to-run" && step?.deviceReady === true).length;
+  const waitingStepCount = steps.filter((step) => step?.status === "waiting-for-device" || step?.deviceReady !== true).length;
+
+  if (runbook.summary !== expectedSummary) {
+    fail("Physical-device preflight gate runbook summary does not match the preflight artifact.");
+  }
+  if (runbook.stepCount !== steps.length) {
+    fail("Physical-device preflight gate runbook step count does not match the preflight artifact.");
+  }
+  if (runbook.readyStepCount !== readyStepCount) {
+    fail("Physical-device preflight gate runbook ready-step count does not match the preflight artifact.");
+  }
+  if (runbook.waitingStepCount !== waitingStepCount) {
+    fail("Physical-device preflight gate runbook waiting-step count does not match the preflight artifact.");
+  }
+  if (JSON.stringify(runbook.stepIds || []) !== JSON.stringify(expectedStepIds)) {
+    fail("Physical-device preflight gate runbook step IDs do not match the preflight artifact.");
+  }
 }
 
 function validateArtifactRecord(artifact, fail) {

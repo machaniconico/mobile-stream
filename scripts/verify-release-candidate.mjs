@@ -336,7 +336,8 @@ function runPhysicalDevicePreflightGate(report, options) {
       generatedAt: preflight.generatedAt,
       mode: preflight.mode,
       androidDeviceCount: preflight.platforms?.android?.devices?.length || 0,
-      iosDeviceCount: preflight.platforms?.ios?.devices?.length || 0
+      iosDeviceCount: preflight.platforms?.ios?.devices?.length || 0,
+      runbook: summarizePhysicalDeviceRunbook(preflight.runbook)
     };
   } catch (error) {
     gate.status = "failed";
@@ -347,6 +348,17 @@ function runPhysicalDevicePreflightGate(report, options) {
     gate.finishedAt = new Date().toISOString();
     gate.durationMs = Date.now() - startedAt;
   }
+}
+
+function summarizePhysicalDeviceRunbook(runbook) {
+  const steps = Array.isArray(runbook?.steps) ? runbook.steps : [];
+  return {
+    summary: typeof runbook?.summary === "string" ? runbook.summary : "",
+    stepCount: steps.length,
+    readyStepCount: steps.filter((step) => step?.status === "ready-to-run" && step?.deviceReady === true).length,
+    waitingStepCount: steps.filter((step) => step?.status === "waiting-for-device" || step?.deviceReady !== true).length,
+    stepIds: steps.map((step) => String(step?.id || "")).filter(Boolean)
+  };
 }
 
 function runStoreSubmissionEvidenceRequirementGate(report, options) {

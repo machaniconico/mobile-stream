@@ -152,6 +152,7 @@ const checks = [
     expectIncludes(files.releaseReportScript, "Browser UI evidence target must be a loopback http(s) URL.");
     expectIncludes(files.releaseReportScript, "validatePhysicalDevicePreflightReport");
     expectIncludes(files.releaseReportScript, "physicalDevicePreflightArtifactGroup");
+    expectIncludes(files.releaseReportScript, "Physical-device preflight gate runbook");
     expectIncludes(files.releaseReportScript, "validateManifestGitProvenance");
     expectIncludes(files.releaseReportScript, "Browser UI evidence");
     expectIncludes(files.releaseReportScript, "Browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");

@@ -462,6 +462,17 @@ describe("release report verifier", () => {
     expect(failures).toContain("Store-submission release reports must include physical-device preflight evidence.");
   });
 
+  it("rejects release reports with mismatched physical-device preflight runbook gate evidence", () => {
+    restoreUiScreenshots();
+    const report = createReport({ includeStoreSubmission: true });
+    const gate = report.gates.find((entry) => entry.label === "Verify physical device preflight");
+    gate.evidence.runbook.stepIds = ["android-private-rtmps"];
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain("Physical-device preflight gate runbook step IDs do not match the preflight artifact.");
+  });
+
   it("rejects release reports missing store submission artifacts referenced by the checklist", () => {
     restoreUiScreenshots();
     const report = createReport({ includeStoreSubmission: true });
@@ -580,7 +591,8 @@ function createReport({
     options: {
       allowDirty: true,
       allowWarnings,
-      skipUi
+      skipUi,
+      physicalDevicePreflightJson: includeStoreSubmission ? physicalDevicePreflightPath : null
     },
     supportBundle: {
       path: supportBundlePath,
@@ -630,7 +642,8 @@ function createReport({
             durationMs: 1,
             exitCode: 0,
             error: null
-          }
+          },
+      ...(includeStoreSubmission ? [physicalDevicePreflightGateRecord()] : [])
     ],
     error: null
   };
@@ -1282,6 +1295,36 @@ function storeSubmissionRecords() {
 
 function physicalDevicePreflightRecords() {
   return [artifactRecord(physicalDevicePreflightArtifactGroup, physicalDevicePreflightPath)];
+}
+
+function physicalDevicePreflightGateRecord() {
+  const preflight = JSON.parse(readFileSync(physicalDevicePreflightPath, "utf8"));
+  const steps = Array.isArray(preflight.runbook?.steps) ? preflight.runbook.steps : [];
+  return {
+    label: "Verify physical device preflight",
+    command: `read ${physicalDevicePreflightPath}`,
+    status: "passed",
+    startedAt: new Date(Date.now() - 1_000).toISOString(),
+    finishedAt: new Date().toISOString(),
+    durationMs: 1,
+    exitCode: 0,
+    error: null,
+    evidence: {
+      path: physicalDevicePreflightPath,
+      sha256: fileSha256(physicalDevicePreflightPath),
+      generatedAt: preflight.generatedAt,
+      mode: preflight.mode,
+      androidDeviceCount: preflight.platforms?.android?.devices?.length || 0,
+      iosDeviceCount: preflight.platforms?.ios?.devices?.length || 0,
+      runbook: {
+        summary: preflight.runbook?.summary || "",
+        stepCount: steps.length,
+        readyStepCount: steps.filter((step) => step?.status === "ready-to-run" && step?.deviceReady === true).length,
+        waitingStepCount: steps.filter((step) => step?.status === "waiting-for-device" || step?.deviceReady !== true).length,
+        stepIds: steps.map((step) => String(step?.id || "")).filter(Boolean)
+      }
+    }
+  };
 }
 
 function dashboardStatusJsonRecord(platform, path) {

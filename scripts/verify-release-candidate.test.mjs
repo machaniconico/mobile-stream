@@ -441,7 +441,22 @@ describe("release candidate verifier", () => {
         path: physicalDevicePreflightPath,
         mode: "all",
         androidDeviceCount: 1,
-        iosDeviceCount: 1
+        iosDeviceCount: 1,
+        runbook: {
+          summary: "7 commercial physical-device validation step(s) are ready to execute for all mode.",
+          stepCount: 7,
+          readyStepCount: 7,
+          waitingStepCount: 0,
+          stepIds: [
+            "android-private-rtmps",
+            "android-mediacodec-compositor",
+            "android-monitor-latency",
+            "ios-private-rtmps",
+            "ios-app-group-still-image",
+            "ios-monitor-latency",
+            "youtube-twitch-ingest"
+          ]
+        }
       }
     });
     expect(report.artifacts.files).toEqual(
