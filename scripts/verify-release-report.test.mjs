@@ -830,6 +830,8 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     nativeRuntimeCompositedFrameCount: 120,
     nativeRuntimeDroppedFrameCount: 0,
     nativeRuntimeCompositionFailureCount: 0,
+    nativeRuntimeLiveRenderGraphReloadCount: 0,
+    nativeRuntimeLiveRenderGraphRejectedUpdateCount: 0,
     nativeRuntimeStillImageAssetAppGroupCount: devicePlatform === "ios" ? 1 : 0,
     nativeRuntimeStillImageAssetAppGroupLoadedCount: devicePlatform === "ios" ? 1 : 0,
     nativeRuntimeStillImageAssetAppGroupDecodedCount: devicePlatform === "ios" ? 1 : 0,

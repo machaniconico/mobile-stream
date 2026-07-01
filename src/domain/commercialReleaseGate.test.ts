@@ -331,6 +331,32 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks native runtime claims when native compositor dropped frames", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeDroppedFrameCount: 1
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS native runtime proof")
+      })
+    );
+  });
+
   it("blocks iOS native runtime claims without App Group still-image compositor proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({

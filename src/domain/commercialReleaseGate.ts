@@ -1045,6 +1045,7 @@ const isManifestNativeRuntimePass = (
   isProductionNativeAudioEncoderBackend(run?.devicePlatform, run?.nativeRuntimeAudioEncoderBackend) &&
   hasManifestNativeRuntimeVideoFrameIntervalProof(run) &&
   hasManifestLiveRenderGraphUpdateProof(run) &&
+  hasManifestNativeCompositorDropProof(run) &&
   hasManifestAndroidMediaCodecCompositorProof(run) &&
   hasManifestIosReplayKitCompositorProof(run) &&
   (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
@@ -1062,6 +1063,9 @@ const hasManifestNativeRuntimeVideoFrameIntervalProof = (run: ValidationEvidence
 const hasManifestLiveRenderGraphUpdateProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isNonNegativeFiniteNumber(run?.nativeRuntimeLiveRenderGraphReloadCount) &&
   isZeroFiniteNumber(run?.nativeRuntimeLiveRenderGraphRejectedUpdateCount);
+
+const hasManifestNativeCompositorDropProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  isZeroFiniteNumber(run?.nativeRuntimeDroppedFrameCount);
 
 const hasManifestAndroidMediaCodecCompositorProof = (run: ValidationEvidenceManifestRun | undefined): boolean => {
   if (

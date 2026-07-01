@@ -770,7 +770,7 @@ function validationManifestIssue(bundle) {
     return fail(
       "validation-evidence-manifest-native-runtime",
       "Validation evidence manifest",
-      "The manifest does not back claimed native runtime evidence with platform-matched production video/audio encoder backends, video/audio frames, bytes written, compositor status, applied/skipped native overlay proof, loaded, decoded, and composited still-image assets, and accepted production VRM renderer/backend/model/pose proof when VRM sources are present.",
+      "The manifest does not back claimed native runtime evidence with platform-matched production video/audio encoder backends, video/audio frames, bytes written, compositor status, zero compositor drops/failures, live render-graph update proof, applied/skipped native overlay proof, loaded, decoded, and composited still-image assets, and accepted production VRM renderer/backend/model/pose proof when VRM sources are present.",
       "Export a support bundle v55 or newer after retaining iOS and Android validation runs with native publisher/compositor overlay telemetry from the current scene and platform-accepted production encoder backends."
     );
   }
@@ -1217,6 +1217,8 @@ function isManifestNativeRuntimePass(run, expectedNativeOverlays = emptyNativeOv
     isProductionNativeVideoEncoderBackend(run?.devicePlatform, run?.nativeRuntimeVideoEncoderBackend) &&
     isProductionNativeAudioEncoderBackend(run?.devicePlatform, run?.nativeRuntimeAudioEncoderBackend) &&
     hasNativeRuntimeVideoFrameIntervalProof(run) &&
+    hasLiveRenderGraphUpdateProof(run) &&
+    hasNativeCompositorDropProof(run) &&
     hasAndroidMediaCodecCompositorProof(run) &&
     hasIosReplayKitCompositorProof(run) &&
     (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
@@ -1234,6 +1236,17 @@ function hasNativeRuntimeVideoFrameIntervalProof(run) {
     isPositiveNumber(run?.nativeRuntimeVideoFrameIntervalMaxMs) &&
     isNonNegativeNumber(run?.nativeRuntimeVideoFrameIntervalJitterMs)
   );
+}
+
+function hasLiveRenderGraphUpdateProof(run) {
+  return (
+    isNonNegativeNumber(run?.nativeRuntimeLiveRenderGraphReloadCount) &&
+    isZeroNumber(run?.nativeRuntimeLiveRenderGraphRejectedUpdateCount)
+  );
+}
+
+function hasNativeCompositorDropProof(run) {
+  return isZeroNumber(run?.nativeRuntimeDroppedFrameCount);
 }
 
 function hasAndroidMediaCodecCompositorProof(run) {

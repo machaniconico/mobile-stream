@@ -427,6 +427,43 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("production video/audio encoder backends");
   });
 
+  it("blocks native runtime claims when retained manifests have rejected live render-graph updates", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeLiveRenderGraphReloadCount: 2,
+            nativeRuntimeLiveRenderGraphRejectedUpdateCount: 1
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("live render-graph update proof");
+  });
+
+  it("blocks native runtime claims when retained manifests have compositor frame drops", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeDroppedFrameCount: 1
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("zero compositor drops/failures");
+  });
+
   it("blocks native runtime claims when retained manifests have missing compositor assets", () => {
     writeBundle({
       summary: {
@@ -1581,6 +1618,8 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeCompositedFrameCount: 120,
   nativeRuntimeDroppedFrameCount: 0,
   nativeRuntimeCompositionFailureCount: 0,
+  nativeRuntimeLiveRenderGraphReloadCount: 0,
+  nativeRuntimeLiveRenderGraphRejectedUpdateCount: 0,
   nativeRuntimeStillImageAssetAppGroupCount: devicePlatform === "ios" ? 1 : 0,
   nativeRuntimeStillImageAssetAppGroupLoadedCount: devicePlatform === "ios" ? 1 : 0,
   nativeRuntimeStillImageAssetAppGroupDecodedCount: devicePlatform === "ios" ? 1 : 0,
