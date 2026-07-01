@@ -408,11 +408,11 @@ const createChatOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
     (summary.chatOverlaySafeAreaIssueCount ?? 0) > 0 ||
     (summary.chatOverlayAvatarOverlapIssueCount ?? 0) > 0
   ) {
-    return warnIssue(
-      "chat-overlay-evidence-warning",
+    return failIssue(
+      "chat-overlay-evidence-incomplete",
       "Chat overlay evidence",
       summary.chatOverlaySummary || "Chat overlay evidence has warnings.",
-      summary.chatOverlayRecommendation || "Review chat overlay warnings before approving release."
+      summary.chatOverlayRecommendation || "Resolve chat overlay transparency, URL redaction, readability, safe-area, and avatar-overlap warnings before approving release."
     );
   }
 

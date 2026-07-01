@@ -202,24 +202,26 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("warns release when chat overlay evidence reports layout or safe-area risk", () => {
+  it("blocks release when chat overlay evidence reports layout or transparency risk", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         summary: {
           chatOverlayStatus: "warn",
+          chatOverlayOpaqueBackgroundIssueCount: 1,
           chatOverlayLayoutRiskIssueCount: 1,
           chatOverlaySummary: "1 visible chat overlay may clip comments or be unreadable.",
           chatOverlayRecommendation: "Increase the chat box before launch."
         }
       }),
-      { now }
+      { now, allowWarnings: true }
     );
 
-    expect(gate.status).toBe("warning");
+    expect(gate.status).toBe("blocked");
     expect(gate.canRelease).toBe(false);
     expect(gate.issues).toContainEqual(
       expect.objectContaining({
-        code: "chat-overlay-evidence-warning"
+        code: "chat-overlay-evidence-incomplete",
+        severity: "fail"
       })
     );
   });

@@ -175,6 +175,26 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("release warning");
   });
 
+  it("blocks chat overlay warning evidence even when warnings are allowed", () => {
+    writeBundle({
+      summary: {
+        chatOverlayStatus: "warn",
+        chatOverlayOpaqueBackgroundIssueCount: 1,
+        chatOverlayLayoutRiskIssueCount: 1,
+        chatOverlaySummary: "1 visible chat overlay may clip comments or cover gameplay.",
+        chatOverlayRecommendation: "Keep the chat overlay transparent and increase the chat box before launch."
+      }
+    });
+
+    const result = runVerifierAllowWarnings();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[FAIL] Chat overlay evidence");
+    expect(result.stdout).toContain("Chat overlay evidence");
+    expect(result.stdout).toContain("Can release: no");
+    expect(result.stdout).not.toContain("release warning");
+  });
+
   it("blocks prefix-named token and API key leaks", () => {
     writeBundle({
       diagnostics: {
