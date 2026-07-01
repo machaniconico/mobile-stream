@@ -305,7 +305,11 @@ describe("stream start preflight", () => {
       },
       platformPublishing: {
         ...presetProfile.platformPublishing,
-        privacyStatus: "public"
+        privacyStatus: "public",
+        youtubeBroadcastId: "broadcast-id",
+        youtubeStreamId: "stream-id",
+        youtubeBroadcastStatus: "testing",
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
       }
     };
     const scene = updateSource(createScreenOnlyScene(), "source-chat", (source) =>
@@ -450,8 +454,15 @@ describe("stream start preflight", () => {
     const report = createStreamStartPreflightReport({
       readiness: createReadinessReport(scene, profile),
       streamStatus: "idle",
+      enginePlatform: "android",
       profile,
-      liveCaption
+      liveCaption,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: youtubeCredential([YOUTUBE_LIVE_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
     });
 
     expect(report.canStart).toBe(true);
@@ -497,6 +508,108 @@ describe("stream start preflight", () => {
         code: "live-caption-fail",
         severity: "block",
         area: "scene"
+      })
+    );
+  });
+
+  it("blocks public YouTube starts when live captions have no final cue proof", () => {
+    const presetProfile = applyDestinationPreset(validProfile(), "youtube-live-rtmps");
+    const profile: StudioProfile = {
+      ...presetProfile,
+      destination: {
+        ...presetProfile.destination,
+        streamKey: "dummy-stream-value"
+      },
+      platformPublishing: {
+        ...presetProfile.platformPublishing,
+        privacyStatus: "public"
+      }
+    };
+    const scene: SceneDocument = {
+      ...createScreenOnlyScene(),
+      sources: [...createScreenOnlyScene().sources, createLiveCaptionTextSource()]
+    };
+    const liveCaption = createLiveCaptionDiagnostics(
+      scene,
+      {
+        ...updateLiveCaptionSettings(createDefaultLiveCaptionState(), { enabled: true }),
+        status: "listening",
+        transcriptCount: 0,
+        cues: []
+      },
+      1000
+    );
+
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(scene, profile),
+      streamStatus: "idle",
+      profile,
+      liveCaption
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks).toContainEqual(
+      expect.objectContaining({
+        code: "live-caption-warn",
+        severity: "block",
+        message: expect.stringContaining("no final caption cue")
+      })
+    );
+  });
+
+  it("blocks Twitch starts when live captions have no final cue proof", () => {
+    const baseProfile = applyDestinationPreset(validProfile(), "twitch-auto");
+    const profile: StudioProfile = {
+      ...baseProfile,
+      destination: {
+        ...baseProfile.destination,
+        streamKey: "placeholder-twitch-key"
+      },
+      platformPublishing: {
+        ...baseProfile.platformPublishing,
+        twitchChannelTitle: baseProfile.platformPublishing.title,
+        twitchChannelCategory: baseProfile.platformPublishing.twitchCategory,
+        twitchChannelCategoryId: baseProfile.platformPublishing.twitchCategoryId,
+        twitchChannelLanguage: baseProfile.platformPublishing.twitchLanguage,
+        twitchLiveStatus: "offline",
+        twitchStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const scene: SceneDocument = {
+      ...createScreenOnlyScene(),
+      sources: [...createScreenOnlyScene().sources, createLiveCaptionTextSource()]
+    };
+    const liveCaption = createLiveCaptionDiagnostics(
+      scene,
+      {
+        ...updateLiveCaptionSettings(createDefaultLiveCaptionState(), { enabled: true }),
+        status: "listening",
+        transcriptCount: 0,
+        cues: []
+      },
+      1000
+    );
+
+    const report = createStreamStartPreflightReport({
+      readiness: createReadinessReport(scene, profile),
+      streamStatus: "idle",
+      enginePlatform: "android",
+      profile,
+      liveCaption,
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation evidence fresh."
+      },
+      platformChatOAuthCredential: twitchCredential([TWITCH_CHANNEL_MANAGE_SCOPE]),
+      now: new Date("2026-06-23T00:05:00.000Z")
+    });
+
+    expect(report.canStart).toBe(false);
+    expect(report.blocks).toContainEqual(
+      expect.objectContaining({
+        code: "live-caption-warn",
+        severity: "block",
+        message: expect.stringContaining("no final caption cue")
       })
     );
   });

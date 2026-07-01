@@ -201,7 +201,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("warns release when enabled live captions still need final cue evidence", () => {
+  it("blocks release when enabled live captions still need final cue evidence", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         summary: {
@@ -216,11 +216,11 @@ describe("commercial release gate", () => {
       { now }
     );
 
-    expect(gate.status).toBe("warning");
+    expect(gate.status).toBe("blocked");
     expect(gate.canRelease).toBe(false);
     expect(gate.issues).toContainEqual(
       expect.objectContaining({
-        code: "live-caption-evidence-warning"
+        code: "live-caption-evidence-incomplete"
       })
     );
   });

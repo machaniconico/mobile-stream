@@ -287,8 +287,7 @@ const createLiveCaptionIssues = (
     return [];
   }
 
-  const severity: StreamStartPreflightSeverity =
-    liveCaption.status === "fail" && isPlatformVisibleProductionTarget(profile) ? "block" : "warning";
+  const severity: StreamStartPreflightSeverity = isPlatformVisibleProductionTarget(profile) ? "block" : "warning";
   return [
     {
       code: `live-caption-${liveCaption.status}`,

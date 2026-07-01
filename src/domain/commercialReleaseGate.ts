@@ -455,11 +455,11 @@ const createLiveCaptionEvidenceIssue = (bundle: SupportBundle): CommercialReleas
   }
 
   if (status === "warn") {
-    return warnIssue(
-      "live-caption-evidence-warning",
+    return failIssue(
+      "live-caption-evidence-incomplete",
       "Live caption evidence",
       summary.liveCaptionSummary || "Live caption evidence has warnings.",
-      summary.liveCaptionRecommendation || "Review live caption warnings before approving release."
+      summary.liveCaptionRecommendation || "Confirm final live caption cue evidence before approving release."
     );
   }
 
