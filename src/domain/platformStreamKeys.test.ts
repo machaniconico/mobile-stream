@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { createDefaultStudioProfile } from "./profiles";
 import {
+  createPlatformStreamKeyIdleStatus,
   createTwitchDestination,
   createYouTubeDestinationFromStream,
+  getPlatformStreamKeyOperationInfo,
   PlatformStreamKeyError,
+  resolvePlatformStreamKeyOperationPlatform,
+  resolvePlatformStreamKeyStatusMessage,
   rotateYouTubeStreamKey,
   syncTwitchStreamKey
 } from "./platformStreamKeys";
@@ -122,6 +126,86 @@ describe("platformStreamKeys", () => {
       platform: "twitch",
       streamKey: "live_123_new"
     });
+    expect(result.message).toContain("Twitch stream key synced from Helix.");
+    expect(result.message).toContain("Twitch Creator Dashboard");
+  });
+
+  it("describes Twitch stream key sync as Helix-only and dashboard-rotated", () => {
+    expect(getPlatformStreamKeyOperationInfo("youtube")).toMatchObject({
+      actionLabel: "Rotate Stream Key",
+      operationLabel: "YouTube stream key rotation"
+    });
+    expect(getPlatformStreamKeyOperationInfo("twitch")).toMatchObject({
+      actionLabel: "Sync Stream Key",
+      operationLabel: "Twitch stream key sync"
+    });
+    expect(getPlatformStreamKeyOperationInfo("twitch").description).toContain("Twitch Creator Dashboard");
+    expect(getPlatformStreamKeyOperationInfo("twitch").idleStatus).toContain("does not expose public reset or rotation");
+  });
+
+  it("resolves stream-key operations from the destination before the chat platform fallback", () => {
+    const profile = createDefaultStudioProfile();
+
+    expect(
+      resolvePlatformStreamKeyOperationPlatform({
+        ...profile,
+        destination: {
+          ...profile.destination,
+          platform: "youtube-live"
+        },
+        platformChat: {
+          ...profile.platformChat,
+          platform: "twitch"
+        }
+      })
+    ).toBe("youtube");
+    expect(
+      resolvePlatformStreamKeyOperationPlatform({
+        ...profile,
+        destination: {
+          ...profile.destination,
+          platform: "twitch"
+        },
+        platformChat: {
+          ...profile.platformChat,
+          platform: "youtube"
+        }
+      })
+    ).toBe("twitch");
+    expect(
+      resolvePlatformStreamKeyOperationPlatform({
+        ...profile,
+        destination: {
+          ...profile.destination,
+          platform: "custom"
+        },
+        platformChat: {
+          ...profile.platformChat,
+          platform: "twitch"
+        }
+      })
+    ).toBe("twitch");
+  });
+
+  it("shows the current platform idle status instead of stale status from a previous platform", () => {
+    const profile = createDefaultStudioProfile();
+    const youtubeStatus = createPlatformStreamKeyIdleStatus({
+      ...profile,
+      destination: {
+        ...profile.destination,
+        platform: "youtube-live"
+      }
+    });
+
+    expect(
+      resolvePlatformStreamKeyStatusMessage(youtubeStatus, {
+        ...profile,
+        destination: {
+          ...profile.destination,
+          platform: "twitch"
+        }
+      })
+    ).toBe(getPlatformStreamKeyOperationInfo("twitch").idleStatus);
   });
 
   it("rejects credentials missing platform stream key scopes", async () => {

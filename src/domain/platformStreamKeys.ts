@@ -22,6 +22,18 @@ export interface PlatformStreamKeyResult {
   destination: DestinationProfile;
 }
 
+export interface PlatformStreamKeyOperationInfo {
+  actionLabel: string;
+  operationLabel: string;
+  idleStatus: string;
+  description: string;
+}
+
+export interface PlatformStreamKeyStatusState {
+  platform: PlatformChatOAuthCredential["platform"];
+  message: string;
+}
+
 export class PlatformStreamKeyError extends Error {
   readonly statusCode: number | null;
   readonly retryable: boolean;
@@ -69,6 +81,50 @@ interface TwitchStreamKeyResponse {
 
 const YOUTUBE_LIVE_STREAMS_URL = "https://www.googleapis.com/youtube/v3/liveStreams";
 const TWITCH_STREAM_KEY_URL = "https://api.twitch.tv/helix/streams/key";
+
+export const getPlatformStreamKeyOperationInfo = (
+  platform: PlatformChatOAuthCredential["platform"]
+): PlatformStreamKeyOperationInfo =>
+  platform === "youtube"
+    ? {
+        actionLabel: "Rotate Stream Key",
+        operationLabel: "YouTube stream key rotation",
+        idleStatus: "YouTube stream key rotation idle.",
+        description: "Creates a new reusable YouTube Live stream and applies the returned RTMPS ingestion details."
+      }
+    : {
+        actionLabel: "Sync Stream Key",
+        operationLabel: "Twitch stream key sync",
+        idleStatus: "Twitch stream key sync idle; Helix can retrieve the current key but does not expose public reset or rotation.",
+        description: "Reset or rotate the key in Twitch Creator Dashboard, then sync the current Helix key here."
+      };
+
+export const resolvePlatformStreamKeyOperationPlatform = (
+  profile: Pick<StudioProfile, "destination" | "platformChat">
+): PlatformChatOAuthCredential["platform"] =>
+  profile.destination.platform === "youtube-live"
+    ? "youtube"
+    : profile.destination.platform === "twitch"
+      ? "twitch"
+      : profile.platformChat.platform;
+
+export const createPlatformStreamKeyIdleStatus = (
+  profile: Pick<StudioProfile, "destination" | "platformChat">
+): PlatformStreamKeyStatusState => {
+  const platform = resolvePlatformStreamKeyOperationPlatform(profile);
+  return {
+    platform,
+    message: getPlatformStreamKeyOperationInfo(platform).idleStatus
+  };
+};
+
+export const resolvePlatformStreamKeyStatusMessage = (
+  status: PlatformStreamKeyStatusState,
+  profile: Pick<StudioProfile, "destination" | "platformChat">
+): string => {
+  const platform = resolvePlatformStreamKeyOperationPlatform(profile);
+  return status.platform === platform ? status.message : getPlatformStreamKeyOperationInfo(platform).idleStatus;
+};
 
 export const rotateYouTubeStreamKey = async (
   profile: StudioProfile,
@@ -168,7 +224,7 @@ export const syncTwitchStreamKey = async (
       destination
     },
     destination,
-    message: "Twitch stream key synced from Helix."
+    message: "Twitch stream key synced from Helix. Reset or rotate it in Twitch Creator Dashboard, then sync again."
   };
 };
 

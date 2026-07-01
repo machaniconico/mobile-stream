@@ -48,6 +48,10 @@ const files = {
   implementationStatus: read("docs/IMPLEMENTATION_STATUS.md"),
   sceneDomain: read("src/domain/scene.ts"),
   sceneDomainTest: read("src/domain/scene.test.ts"),
+  platformStreamKeysDomain: read("src/domain/platformStreamKeys.ts"),
+  platformStreamKeysDomainTest: read("src/domain/platformStreamKeys.test.ts"),
+  webApp: read("src/app/App.tsx"),
+  mobileApp: read("src/mobile/MobileApp.tsx"),
   webStudioScreen: read("src/screens/StudioScreen.tsx"),
   mobileStudioScreen: read("src/mobile/MobileStudioScreen.tsx"),
   webStyles: read("src/styles.css"),
@@ -432,6 +436,27 @@ const checks = [
     expectIncludes(files.webStyles, "quick-text-action-buttons");
     expectIncludes(files.readme, "preset action switching for immediate display, queued display, or pinned display");
     expectIncludes(files.implementationStatus, "preset action switching for immediate, queued, or pinned display");
+  }),
+  check("Platform stream key UX keeps Twitch reset scope explicit", () => {
+    expectIncludes(files.platformStreamKeysDomain, "getPlatformStreamKeyOperationInfo");
+    expectIncludes(files.platformStreamKeysDomain, "resolvePlatformStreamKeyOperationPlatform");
+    expectIncludes(files.platformStreamKeysDomain, "resolvePlatformStreamKeyStatusMessage");
+    expectIncludes(files.platformStreamKeysDomain, "Twitch stream key sync idle; Helix can retrieve the current key but does not expose public reset or rotation.");
+    expectIncludes(files.platformStreamKeysDomain, "Reset or rotate the key in Twitch Creator Dashboard, then sync the current Helix key here.");
+    expectIncludes(files.platformStreamKeysDomain, "Twitch stream key synced from Helix. Reset or rotate it in Twitch Creator Dashboard, then sync again.");
+    expectIncludes(files.platformStreamKeysDomainTest, "describes Twitch stream key sync as Helix-only and dashboard-rotated");
+    expectIncludes(files.platformStreamKeysDomainTest, "resolves stream-key operations from the destination before the chat platform fallback");
+    expectIncludes(files.platformStreamKeysDomainTest, "shows the current platform idle status instead of stale status from a previous platform");
+    expectIncludes(files.webApp, "getPlatformStreamKeyOperationInfo(platform)");
+    expectIncludes(files.mobileApp, "getPlatformStreamKeyOperationInfo(platform)");
+    expectIncludes(files.webApp, "resolvePlatformStreamKeyStatusMessage(platformStreamKeyStatus, profile)");
+    expectIncludes(files.mobileApp, "resolvePlatformStreamKeyStatusMessage(platformStreamKeyStatus, profile)");
+    expectIncludes(files.webStudioScreen, "streamKeyOperationPlatform={resolvePlatformStreamKeyOperationPlatform(profile)}");
+    expectIncludes(files.mobileStudioScreen, "streamKeyOperationPlatform={resolvePlatformStreamKeyOperationPlatform(profile)}");
+    expectIncludes(files.webStudioScreen, "streamKeyOperationInfo.description");
+    expectIncludes(files.mobileStudioScreen, "streamKeyOperationInfo.description");
+    expectIncludes(files.readme, "Twitch stream-key controls are Helix sync-only");
+    expectIncludes(files.implementationStatus, "Twitch stream-key handling is explicitly Helix sync-only");
   }),
   check("Android streaming permissions are declared", () => {
     [

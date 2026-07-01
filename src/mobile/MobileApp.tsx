@@ -85,7 +85,14 @@ import {
   formatPublicLaunchConfirmationEventMessage,
   type PublicLaunchConfirmation
 } from "../domain/publicLaunchConfirmation";
-import { rotateYouTubeStreamKey, syncTwitchStreamKey } from "../domain/platformStreamKeys";
+import {
+  createPlatformStreamKeyIdleStatus,
+  getPlatformStreamKeyOperationInfo,
+  resolvePlatformStreamKeyOperationPlatform,
+  resolvePlatformStreamKeyStatusMessage,
+  rotateYouTubeStreamKey,
+  syncTwitchStreamKey
+} from "../domain/platformStreamKeys";
 import { applyEmergencyBroadcastMute, clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
@@ -223,7 +230,7 @@ export const MobileApp = () => {
   const [platformChatOAuthCredentials, setPlatformChatOAuthCredentials] = useState<PlatformChatOAuthCredentialStore>(() =>
     createEmptyPlatformChatOAuthCredentialStore()
   );
-  const [platformStreamKeyStatus, setPlatformStreamKeyStatus] = useState("Platform stream key sync idle.");
+  const [platformStreamKeyStatus, setPlatformStreamKeyStatus] = useState(() => createPlatformStreamKeyIdleStatus(profile));
   const [platformPublishingStatus, setPlatformPublishingStatus] = useState("Platform publishing setup idle.");
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [sceneTransitionPreview, setSceneTransitionPreview] = useState<SceneTransitionPreview | null>(null);
@@ -272,6 +279,10 @@ export const MobileApp = () => {
       nowMs: Math.max(liveCaptionClock, textOverlayClock)
     }),
     [chatOverlayMessages, liveCaption.settings.enabled, liveCaptionClock, liveCaptionCues, textOverlayClock]
+  );
+  const platformStreamKeyStatusMessage = useMemo(
+    () => resolvePlatformStreamKeyStatusMessage(platformStreamKeyStatus, profile),
+    [platformStreamKeyStatus, profile]
   );
   const { events: streamSessionEvents, recordEvent: recordStreamSessionEvent } = useStreamSessionLog(snapshot);
   const recordAudioLevelSample = useCallback((level: number, source: StreamAudioLevelSource) => {
@@ -1405,9 +1416,10 @@ export const MobileApp = () => {
   };
 
   const applyPlatformStreamKey = async () => {
+    const platform = resolvePlatformStreamKeyOperationPlatform(profile);
     try {
-      await runPlatformApiOperation("Platform stream key sync", async () => {
-        const platform = resolvePlatformApiCredentialPlatform(profile);
+      const operationInfo = getPlatformStreamKeyOperationInfo(platform);
+      await runPlatformApiOperation(operationInfo.operationLabel, async () => {
         const credential = await preparePlatformApiCredential(platform);
         const result =
           platform === "youtube"
@@ -1415,10 +1427,10 @@ export const MobileApp = () => {
             : await syncTwitchStreamKey(profile, credential, fetch);
         setProfile(result.profile);
         await saveSecureProfile(result.profile).catch(() => undefined);
-        setPlatformStreamKeyStatus(result.message);
+        setPlatformStreamKeyStatus({ platform, message: result.message });
       });
     } catch (error) {
-      setPlatformStreamKeyStatus(toErrorMessage(error));
+      setPlatformStreamKeyStatus({ platform, message: toErrorMessage(error) });
     }
   };
 
@@ -1593,7 +1605,7 @@ export const MobileApp = () => {
         platformChatOAuthFlow={platformChatOAuthFlow}
         twitchDeviceOAuthFlow={twitchDeviceOAuthFlow}
         platformChatOAuthStatus={platformChatOAuthStatus}
-        platformStreamKeyStatus={platformStreamKeyStatus}
+        platformStreamKeyStatus={platformStreamKeyStatusMessage}
         platformPublishingStatus={platformPublishingStatus}
         platformApiOperationLabel={platformApiOperationLabel}
         platformChatConnection={platformChatConnection.connection}
@@ -1722,15 +1734,6 @@ const confirmPublicLaunchStart = (confirmation: PublicLaunchConfirmation): Promi
       }
     );
   });
-
-const resolvePlatformApiCredentialPlatform = (
-  profile: Pick<StudioProfile, "destination" | "platformChat">
-): PlatformChatOAuthCredential["platform"] =>
-  profile.destination.platform === "youtube-live"
-    ? "youtube"
-    : profile.destination.platform === "twitch"
-      ? "twitch"
-      : profile.platformChat.platform;
 
 const formatStoredOAuthPlatforms = (credentials: PlatformChatOAuthCredentialStore): string =>
   [credentials.youtube ? "YouTube" : "", credentials.twitch ? "Twitch" : ""].filter(Boolean).join(" and ");

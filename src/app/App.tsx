@@ -78,7 +78,14 @@ import {
   formatPublicLaunchConfirmationCancelMessage,
   formatPublicLaunchConfirmationEventMessage
 } from "../domain/publicLaunchConfirmation";
-import { rotateYouTubeStreamKey, syncTwitchStreamKey } from "../domain/platformStreamKeys";
+import {
+  createPlatformStreamKeyIdleStatus,
+  getPlatformStreamKeyOperationInfo,
+  resolvePlatformStreamKeyOperationPlatform,
+  resolvePlatformStreamKeyStatusMessage,
+  rotateYouTubeStreamKey,
+  syncTwitchStreamKey
+} from "../domain/platformStreamKeys";
 import { applyEmergencyBroadcastMute, clearStreamKey, createDefaultStudioProfile, type StudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import {
@@ -194,7 +201,7 @@ export const App = () => {
   const [platformChatOAuthCredentials, setPlatformChatOAuthCredentials] = useState<PlatformChatOAuthCredentialStore>(() =>
     createEmptyPlatformChatOAuthCredentialStore()
   );
-  const [platformStreamKeyStatus, setPlatformStreamKeyStatus] = useState("Platform stream key sync idle.");
+  const [platformStreamKeyStatus, setPlatformStreamKeyStatus] = useState(() => createPlatformStreamKeyIdleStatus(profile));
   const [platformPublishingStatus, setPlatformPublishingStatus] = useState("Platform publishing setup idle.");
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
   const [sceneTransitionPreview, setSceneTransitionPreview] = useState<SceneTransitionPreview | null>(null);
@@ -238,6 +245,10 @@ export const App = () => {
       nowMs: Math.max(liveCaptionClock, textOverlayClock)
     }),
     [chatOverlayMessages, liveCaption.settings.enabled, liveCaptionClock, liveCaptionCues, textOverlayClock]
+  );
+  const platformStreamKeyStatusMessage = useMemo(
+    () => resolvePlatformStreamKeyStatusMessage(platformStreamKeyStatus, profile),
+    [platformStreamKeyStatus, profile]
   );
   const initialStreamSessionSummaries = useMemo(() => loadStreamSessionSummaries(), []);
   const initialStreamValidationRuns = useMemo(() => loadStreamValidationRuns(), []);
@@ -1063,19 +1074,20 @@ export const App = () => {
   };
 
   const applyPlatformStreamKey = async () => {
+    const platform = resolvePlatformStreamKeyOperationPlatform(profile);
     try {
-      await runPlatformApiOperation("Platform stream key sync", async () => {
-        const platform = resolvePlatformApiCredentialPlatform(profile);
+      const operationInfo = getPlatformStreamKeyOperationInfo(platform);
+      await runPlatformApiOperation(operationInfo.operationLabel, async () => {
         const credential = await preparePlatformApiCredential(platform);
         const result =
           platform === "youtube"
             ? await rotateYouTubeStreamKey(profile, credential, fetch)
             : await syncTwitchStreamKey(profile, credential, fetch);
         setProfile(result.profile);
-        setPlatformStreamKeyStatus(result.message);
+        setPlatformStreamKeyStatus({ platform, message: result.message });
       });
     } catch (error) {
-      setPlatformStreamKeyStatus(toErrorMessage(error));
+      setPlatformStreamKeyStatus({ platform, message: toErrorMessage(error) });
     }
   };
 
@@ -1241,7 +1253,7 @@ export const App = () => {
         platformChatOAuthFlow={platformChatOAuthFlow}
         twitchDeviceOAuthFlow={twitchDeviceOAuthFlow}
         platformChatOAuthStatus={platformChatOAuthStatus}
-        platformStreamKeyStatus={platformStreamKeyStatus}
+        platformStreamKeyStatus={platformStreamKeyStatusMessage}
         platformPublishingStatus={platformPublishingStatus}
         platformApiOperationLabel={platformApiOperationLabel}
         platformChatConnection={platformChatConnection.connection}
@@ -1332,15 +1344,6 @@ const mergeOAuthAuth = (
     twitchOauthToken: update.twitchOauthToken || current.twitchOauthToken,
     twitchLogin: update.twitchLogin || current.twitchLogin
   });
-
-const resolvePlatformApiCredentialPlatform = (
-  profile: Pick<StudioProfile, "destination" | "platformChat">
-): PlatformChatOAuthCredential["platform"] =>
-  profile.destination.platform === "youtube-live"
-    ? "youtube"
-    : profile.destination.platform === "twitch"
-      ? "twitch"
-      : profile.platformChat.platform;
 
 const shouldDisconnectPlatformChatOnStreamStop = (phase: string): boolean =>
   phase === "connecting" || phase === "connected" || phase === "failed";

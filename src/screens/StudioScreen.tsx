@@ -57,6 +57,7 @@ import {
   type PublicLaunchChecklist,
   type PublicLaunchChecklistItemStatus
 } from "../domain/publicLaunchChecklist";
+import { getPlatformStreamKeyOperationInfo, resolvePlatformStreamKeyOperationPlatform } from "../domain/platformStreamKeys";
 import {
   applyMicEffectPreset,
   broadcastMixerChannels,
@@ -2060,6 +2061,7 @@ export const StudioScreen = ({
           <ChatReaderPanel
             chatReader={chatReader}
             platformChat={platformChat}
+            streamKeyOperationPlatform={resolvePlatformStreamKeyOperationPlatform(profile)}
             platformChatAuth={platformChatAuth}
             platformChatOAuth={platformChatOAuth}
             platformChatOAuthFlow={platformChatOAuthFlow}
@@ -2788,6 +2790,7 @@ const LiveCaptionPanel = ({
 const ChatReaderPanel = ({
   chatReader,
   platformChat,
+  streamKeyOperationPlatform,
   platformChatAuth,
   platformChatOAuth,
   platformChatOAuthFlow,
@@ -2813,6 +2816,7 @@ const ChatReaderPanel = ({
 }: {
   chatReader: ChatReaderState;
   platformChat: PlatformChatSettings;
+  streamKeyOperationPlatform: ReturnType<typeof resolvePlatformStreamKeyOperationPlatform>;
   platformChatAuth: PlatformChatAuthSession;
   platformChatOAuth: PlatformChatOAuthSettings;
   platformChatOAuthFlow: PlatformChatOAuthFlow | null;
@@ -2846,6 +2850,7 @@ const ChatReaderPanel = ({
   const oauthClientKey = platformChat.platform === "youtube" ? "youtubeClientId" : "twitchClientId";
   const oauthRedirectKey = platformChat.platform === "youtube" ? "youtubeRedirectUri" : "twitchRedirectUri";
   const platformApiBusy = Boolean(platformApiOperationLabel);
+  const streamKeyOperationInfo = getPlatformStreamKeyOperationInfo(streamKeyOperationPlatform);
 
   const submit = () => {
     if (!body.trim()) {
@@ -2983,8 +2988,9 @@ const ChatReaderPanel = ({
           <span className="chat-network-message">{platformApiOperationLabel ? `Running ${platformApiOperationLabel}. ${platformChatOAuthStatus}` : platformChatOAuthStatus}</span>
           <button className="secondary-action compact-action chat-ingest-action" type="button" disabled={platformApiBusy} onClick={onPlatformStreamKeyApply}>
             <KeyRound size={15} />
-            {platformChat.platform === "youtube" ? "Rotate Stream Key" : "Sync Stream Key"}
+            {streamKeyOperationInfo.actionLabel}
           </button>
+          <span className="chat-network-message">{streamKeyOperationInfo.description}</span>
           <span className="chat-network-message">{platformApiOperationLabel ? `Running ${platformApiOperationLabel}. ${platformStreamKeyStatus}` : platformStreamKeyStatus}</span>
         </div>
         {platformChat.platform === "youtube" ? (

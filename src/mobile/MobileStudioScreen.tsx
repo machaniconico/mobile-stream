@@ -33,6 +33,7 @@ import {
   type PublicLaunchChecklist,
   type PublicLaunchChecklistItemStatus
 } from "../domain/publicLaunchChecklist";
+import { getPlatformStreamKeyOperationInfo, resolvePlatformStreamKeyOperationPlatform } from "../domain/platformStreamKeys";
 import {
   createYouTubeBroadcastTransitionPreflightReport,
   type PlatformPublishingPreflightReport
@@ -2080,6 +2081,7 @@ export const MobileStudioScreen = ({
         <ChatReaderPanel
           chatReader={chatReader}
           platformChat={platformChat}
+          streamKeyOperationPlatform={resolvePlatformStreamKeyOperationPlatform(profile)}
           platformChatAuth={platformChatAuth}
           platformChatOAuth={platformChatOAuth}
           platformChatOAuthFlow={platformChatOAuthFlow}
@@ -3082,6 +3084,7 @@ const LiveCaptionPanel = ({
 const ChatReaderPanel = ({
   chatReader,
   platformChat,
+  streamKeyOperationPlatform,
   platformChatAuth,
   platformChatOAuth,
   platformChatOAuthFlow,
@@ -3107,6 +3110,7 @@ const ChatReaderPanel = ({
 }: {
   chatReader: ChatReaderState;
   platformChat: PlatformChatSettings;
+  streamKeyOperationPlatform: ReturnType<typeof resolvePlatformStreamKeyOperationPlatform>;
   platformChatAuth: PlatformChatAuthSession;
   platformChatOAuth: PlatformChatOAuthSettings;
   platformChatOAuthFlow: PlatformChatOAuthFlow | null;
@@ -3142,6 +3146,7 @@ const ChatReaderPanel = ({
   const updateOAuthRedirectUri = (value: string) =>
     onPlatformChatOAuthChange(platformChat.platform === "youtube" ? { youtubeRedirectUri: value } : { twitchRedirectUri: value });
   const platformApiBusy = Boolean(platformApiOperationLabel);
+  const streamKeyOperationInfo = getPlatformStreamKeyOperationInfo(streamKeyOperationPlatform);
 
   const submit = () => {
     if (!body.trim()) {
@@ -3281,10 +3286,11 @@ const ChatReaderPanel = ({
             {platformApiOperationLabel ? `Running ${platformApiOperationLabel}. ${platformChatOAuthStatus}` : platformChatOAuthStatus}
           </Text>
           <ActionButton
-            label={platformChat.platform === "youtube" ? "Rotate Stream Key" : "Sync Stream Key"}
+            label={streamKeyOperationInfo.actionLabel}
             disabled={platformApiBusy}
             onPress={onPlatformStreamKeyApply}
           />
+          <Text style={styles.platformConnectionMessage}>{streamKeyOperationInfo.description}</Text>
           <Text style={styles.platformConnectionMessage}>
             {platformApiOperationLabel ? `Running ${platformApiOperationLabel}. ${platformStreamKeyStatus}` : platformStreamKeyStatus}
           </Text>
