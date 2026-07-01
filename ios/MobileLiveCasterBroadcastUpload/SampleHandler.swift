@@ -3938,7 +3938,8 @@ final class BroadcastSceneCompositor {
 
         UIGraphicsPushContext(context)
         let mode = node.payload.stringValue("mode", fallback: "label")
-        let maxLines = max(1, min(Int(node.payload.cgFloatValue("maxLines", fallback: mode == "subtitle" ? 2 : 1)), 4))
+        let isSubtitleLike = mode == "subtitle" || mode == "caption"
+        let maxLines = max(1, min(Int(node.payload.cgFloatValue("maxLines", fallback: isSubtitleLike ? 2 : 1)), 4))
         let lines = text
             .components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -3956,9 +3957,9 @@ final class BroadcastSceneCompositor {
         default:
             paragraphStyle.alignment = .center
         }
-        paragraphStyle.lineBreakMode = mode == "subtitle" ? .byWordWrapping : .byTruncatingTail
+        paragraphStyle.lineBreakMode = isSubtitleLike ? .byWordWrapping : .byTruncatingTail
         let baseAttributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: fontSize, weight: mode == "subtitle" ? .bold : .semibold),
+            .font: UIFont.systemFont(ofSize: fontSize, weight: isSubtitleLike ? .bold : .semibold),
             .foregroundColor: Self.color(node.payload.stringValue("color"), fallback: .white),
             .paragraphStyle: paragraphStyle,
             .shadow: Self.chatTextShadow()

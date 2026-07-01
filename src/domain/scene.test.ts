@@ -878,11 +878,27 @@ describe("scene document", () => {
       captions: [
         {
           speaker: "Macha",
+          text: "dropped cue",
+          language: "ja-JP",
+          confidence: 0.7,
+          isFinal: true,
+          timestampMs: 500
+        },
+        {
+          speaker: "Macha",
           text: "older cue",
           language: "ja-JP",
           confidence: 0.8,
           isFinal: true,
           timestampMs: 1000
+        },
+        {
+          speaker: "Macha",
+          text: "middle cue",
+          language: "ja-JP",
+          confidence: 0.9,
+          isFinal: true,
+          timestampMs: 1500
         },
         {
           speaker: "Bearer caption-speaker-secret viewer@example.com",
@@ -908,9 +924,11 @@ describe("scene document", () => {
       maxLines: 3
     });
     expect(payloadText).toBe(
-      "older cue\ncurrent caption [link] [link] Authorization: Bearer [redacted] [phone redacted] [link]"
+      "older cue\nmiddle cue\ncurrent caption [link] [link] Authorization: Bearer [redacted] [phone redacted] [link]"
     );
+    expect(payloadText).not.toContain("dropped cue");
     expect(captionCuesJson).toContain("\"confidence\":1");
+    expect(captionCuesJson).not.toContain("dropped cue");
     expect(captionCuesJson).not.toContain("example.com");
     expect(captionCuesJson).not.toContain("example.org");
     expect(captionCuesJson).not.toContain("caption-speaker-secret");

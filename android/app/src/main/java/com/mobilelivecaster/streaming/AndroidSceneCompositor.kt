@@ -399,8 +399,9 @@ object AndroidSceneCompositor {
         }
 
         val mode = node.payload.optString("mode", "label")
-        val maxLines = node.payload.optInt("maxLines", if (mode == "subtitle") 2 else 1).coerceIn(1, 4)
-        val bitmapHeight = if (mode == "subtitle") 280 else 220
+        val isSubtitleLike = mode == "subtitle" || mode == "caption"
+        val maxLines = node.payload.optInt("maxLines", if (isSubtitleLike) 2 else 1).coerceIn(1, 4)
+        val bitmapHeight = if (isSubtitleLike) 280 else 220
         val bitmap = Bitmap.createBitmap(960, bitmapHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
