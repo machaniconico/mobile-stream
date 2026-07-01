@@ -63,6 +63,7 @@ import {
   reorderSource,
   setLocked,
   setVisibility,
+  showTimedTextOverlay,
   toRenderGraph,
   updateSource,
   updateTransform,
@@ -439,6 +440,7 @@ export const MobileStudioScreen = ({
   const platformApiBusy = Boolean(platformApiOperationLabel);
   const setupLocked = isLive || isBusy || operationBusy || platformApiBusy;
   const sceneSwitchLocked = isBusy || operationBusy || platformApiBusy;
+  const quickSubtitleLocked = isBusy || operationBusy || platformApiBusy;
   const updateSelectedIllustrationRig = (key: keyof AvatarIllustrationRig, value: number) => {
     onSceneChange(
       updateSource(scene, selectedSource.id, (source) =>
@@ -470,6 +472,8 @@ export const MobileStudioScreen = ({
   };
   const chatOverlayMessages = selectChatOverlayMessages(chatReader);
   const [textOverlayClock, setTextOverlayClock] = useState(() => Date.now());
+  const [quickSubtitleText, setQuickSubtitleText] = useState("");
+  const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const hasActiveTimedTextOverlays = scene.sources.some(
     (source) =>
       source.kind === "text" &&
@@ -478,6 +482,22 @@ export const MobileStudioScreen = ({
       source.activatedAtMs > 0 &&
       source.activatedAtMs + source.displayDurationMs > textOverlayClock
   );
+  const showQuickSubtitle = () => {
+    if (!canShowQuickSubtitle) {
+      return;
+    }
+    const nowMs = Date.now();
+    onSceneChange(
+      showTimedTextOverlay(scene, {
+        sourceId: selectedSource.kind === "text" && selectedSource.contentSource === "manual" ? selectedSource.id : undefined,
+        text: quickSubtitleText,
+        durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
+        nowMs
+      })
+    );
+    setQuickSubtitleText("");
+    setTextOverlayClock(nowMs);
+  };
   const diagnostics = createStreamDiagnostics(
     scene,
     profile,
@@ -905,6 +925,23 @@ export const MobileStudioScreen = ({
           <View style={styles.transportReadout}>
             <Text style={styles.mutedText}>{formatElapsed(snapshot.health.elapsedSeconds)}</Text>
             <Text style={styles.mutedText}>{snapshot.health.message}</Text>
+          </View>
+          <View style={styles.quickSubtitleBar}>
+            <View style={styles.quickSubtitleInputWrap}>
+              <Label text="Quick subtitle" />
+              <TextInput
+                value={quickSubtitleText}
+                onChangeText={setQuickSubtitleText}
+                style={styles.input}
+                editable={!quickSubtitleLocked}
+                maxLength={220}
+                placeholder="配信に一時表示する字幕"
+                placeholderTextColor="#71717a"
+                returnKeyType="send"
+                onSubmitEditing={showQuickSubtitle}
+              />
+            </View>
+            <ActionButton label="Show subtitle" disabled={!canShowQuickSubtitle} onPress={showQuickSubtitle} />
           </View>
           {operationStatus ? (
             <View style={[styles.operationBanner, operationStatus.kind === "error" ? styles.operationBannerError : styles.operationBannerPending]}>
@@ -4644,6 +4681,21 @@ const styles = StyleSheet.create({
   transportReadout: {
     flexDirection: "row",
     justifyContent: "space-between"
+  },
+  quickSubtitleBar: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-end",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: "#15151c"
+  },
+  quickSubtitleInputWrap: {
+    flex: 2,
+    minWidth: 220
   },
   operationBanner: {
     minHeight: 38,

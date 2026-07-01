@@ -80,6 +80,7 @@ import {
   reorderSource,
   setLocked,
   setVisibility,
+  showTimedTextOverlay,
   toRenderGraph,
   updateSource,
   updateTransform,
@@ -520,6 +521,9 @@ export const StudioScreen = ({
   const sceneSwitchLocked = isBusy || operationBusy || platformApiBusy;
   const chatOverlayMessages = selectChatOverlayMessages(chatReader);
   const [textOverlayClock, setTextOverlayClock] = useState(() => Date.now());
+  const [quickSubtitleText, setQuickSubtitleText] = useState("");
+  const quickSubtitleLocked = isBusy || operationBusy || platformApiBusy;
+  const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const hasActiveTimedTextOverlays = scene.sources.some(
     (source) =>
       source.kind === "text" &&
@@ -536,6 +540,22 @@ export const StudioScreen = ({
     const timer = window.setInterval(() => setTextOverlayClock(Date.now()), 500);
     return () => window.clearInterval(timer);
   }, [hasActiveTimedTextOverlays]);
+  const showQuickSubtitle = () => {
+    if (!canShowQuickSubtitle) {
+      return;
+    }
+    const nowMs = Date.now();
+    onSceneChange(
+      showTimedTextOverlay(scene, {
+        sourceId: selectedSource.kind === "text" && selectedSource.contentSource === "manual" ? selectedSource.id : undefined,
+        text: quickSubtitleText,
+        durationMs: selectedSource.kind === "text" ? selectedSource.displayDurationMs : undefined,
+        nowMs
+      })
+    );
+    setQuickSubtitleText("");
+    setTextOverlayClock(nowMs);
+  };
   const diagnostics = createStreamDiagnostics(
     scene,
     profile,
@@ -877,6 +897,28 @@ export const StudioScreen = ({
               <span>{formatElapsed(snapshot.health.elapsedSeconds)}</span>
               <span>{snapshot.health.message}</span>
             </div>
+          </div>
+          <div className="quick-subtitle-bar">
+            <label className="quick-subtitle-field">
+              <span>Quick subtitle</span>
+              <input
+                value={quickSubtitleText}
+                disabled={quickSubtitleLocked}
+                maxLength={220}
+                placeholder="配信に一時表示する字幕"
+                onChange={(event) => setQuickSubtitleText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    showQuickSubtitle();
+                  }
+                }}
+              />
+            </label>
+            <button className="secondary-action" type="button" disabled={!canShowQuickSubtitle} onClick={showQuickSubtitle}>
+              <MessageCircle size={18} />
+              <span>Show subtitle</span>
+            </button>
           </div>
           {operationStatus ? (
             <div className={`operation-banner ${operationStatus.kind}`} role={operationStatus.kind === "error" ? "alert" : "status"}>

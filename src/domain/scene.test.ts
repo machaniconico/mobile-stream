@@ -28,6 +28,7 @@ import {
   setActiveScene,
   setLocked,
   setVisibility,
+  showTimedTextOverlay,
   stripTransientSceneCollectionRuntime,
   stripTransientSceneRuntime,
   syncLiveCaptionTextSourceForSettings,
@@ -671,6 +672,103 @@ describe("scene document", () => {
       remainingMs: 2000
     });
     expect(expiredGraph.some((node) => node.id === text.id)).toBe(false);
+  });
+
+  it("shows a quick timed subtitle without mutating existing subtitle sources", () => {
+    const nowMs = 90000;
+    const scene = createDefaultScene();
+    const nextScene = showTimedTextOverlay(scene, {
+      text: "  配信中の一時字幕  ",
+      durationMs: 3200,
+      nowMs
+    });
+    const quickSubtitle = nextScene.sources.find((source) => source.kind === "text" && source.name === "Quick Subtitle");
+    const defaultSubtitle = nextScene.sources.find((source) => source.id === "source-subtitle");
+    const graph = toRenderGraph(nextScene, { nowMs: nowMs + 1200 });
+    const quickNode = graph.find((node) => node.id === quickSubtitle?.id);
+
+    expect(defaultSubtitle).toMatchObject({
+      text: "字幕テキスト",
+      visibilityMode: "always"
+    });
+    expect(quickSubtitle).toMatchObject({
+      kind: "text",
+      mode: "subtitle",
+      contentSource: "manual",
+      text: "配信中の一時字幕",
+      visibilityMode: "timed",
+      displayDurationMs: 3200,
+      activatedAtMs: nowMs
+    });
+    expect(quickNode?.payload).toMatchObject({
+      text: "配信中の一時字幕",
+      remainingMs: 2000
+    });
+    expect(toRenderGraph(nextScene, { nowMs: nowMs + 4000 }).some((node) => node.id === quickSubtitle?.id)).toBe(false);
+  });
+
+  it("reuses the quick subtitle source and redacts sensitive quick text in render output", () => {
+    const nowMs = 100000;
+    const sceneWithQuickSubtitle = showTimedTextOverlay(createDefaultScene(), {
+      text: "first quick subtitle",
+      durationMs: 5000,
+      nowMs
+    });
+    const quickSubtitle = sceneWithQuickSubtitle.sources.find(
+      (source) => source.kind === "text" && source.name === "Quick Subtitle"
+    );
+    const updated = showTimedTextOverlay(sceneWithQuickSubtitle, {
+      text:
+        "Authorization: Bearer quick-caption-secret-12345\n" +
+        "callback mobilelivecaster://oauth/youtube?access_token=quick-access-secret",
+      durationMs: 7000,
+      nowMs: nowMs + 500
+    });
+    const updatedQuickSubtitles = updated.sources.filter((source) => source.kind === "text" && source.name === "Quick Subtitle");
+    const graph = toRenderGraph(updated, { nowMs: nowMs + 600 });
+    const quickNode = graph.find((node) => node.id === quickSubtitle?.id);
+    const payloadText = String(quickNode?.payload.text);
+
+    expect(updatedQuickSubtitles).toHaveLength(1);
+    expect(updatedQuickSubtitles[0]).toMatchObject({
+      id: quickSubtitle?.id,
+      displayDurationMs: 7000,
+      activatedAtMs: nowMs + 500
+    });
+    expect(payloadText).toContain("Authorization: Bearer [redacted]");
+    expect(payloadText).toContain("access_token=[redacted]");
+    expect(payloadText).not.toContain("quick-caption-secret-12345");
+    expect(payloadText).not.toContain("quick-access-secret");
+  });
+
+  it("can target an existing manual text source for quick timed display", () => {
+    const nowMs = 110000;
+    const scene = createDefaultScene();
+    const nextScene = showTimedTextOverlay(scene, {
+      sourceId: "source-subtitle",
+      text: "selected subtitle",
+      durationMs: 2600,
+      nowMs
+    });
+    const subtitle = nextScene.sources.find((source) => source.id === "source-subtitle");
+
+    expect(nextScene.sources.filter((source) => source.kind === "text" && source.name === "Quick Subtitle")).toHaveLength(0);
+    expect(subtitle).toMatchObject({
+      text: "selected subtitle",
+      visibilityMode: "timed",
+      displayDurationMs: 2600,
+      activatedAtMs: nowMs
+    });
+  });
+
+  it("ignores blank quick timed subtitle text", () => {
+    const scene = createDefaultScene();
+    const nextScene = showTimedTextOverlay(scene, {
+      text: " \n\t ",
+      nowMs: 120000
+    });
+
+    expect(nextScene).toBe(scene);
   });
 
   it("preserves timed text behavior when applying text overlay preset styling", () => {

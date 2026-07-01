@@ -250,6 +250,14 @@ export interface RenderGraphRuntime {
   nowMs?: number;
 }
 
+export interface TimedTextOverlayRequest {
+  text: string;
+  sourceId?: string;
+  presetId?: TextOverlayPresetId;
+  durationMs?: number;
+  nowMs?: number;
+}
+
 export interface SceneDocument {
   version: 1;
   id: string;
@@ -313,6 +321,7 @@ const textOverlayTokenMaxLength = 48;
 const textOverlayMinimumDisplayDurationMs = 1000;
 const textOverlayMaximumDisplayDurationMs = 60000;
 const textOverlayDefaultDisplayDurationMs = 5000;
+const quickSubtitleSourceName = "Quick Subtitle";
 
 const clampTransform = (transform: Transform): Transform => ({
   x: clamp01(transform.x),
@@ -1440,6 +1449,65 @@ export const applyTextOverlayPresetStyle = (source: TextSource, presetId: TextOv
 export const createSubtitleTextSource = (): TextSource => createTextOverlayPresetSource("subtitle");
 
 export const createLiveCaptionTextSource = (): TextSource => createTextOverlayPresetSource("live-caption");
+
+export const showTimedTextOverlay = (
+  scene: SceneDocument,
+  request: TimedTextOverlayRequest
+): SceneDocument => {
+  const text = serializeTextOverlayLines(request.text, 4).join("\n");
+  if (!text) {
+    return scene;
+  }
+
+  const nowMs = Math.max(0, Math.round(finiteNumber(request.nowMs, Date.now())));
+  const displayDurationMs = Math.round(
+    clampRange(
+      finiteNumber(request.durationMs, textOverlayDefaultDisplayDurationMs),
+      textOverlayMinimumDisplayDurationMs,
+      textOverlayMaximumDisplayDurationMs
+    )
+  );
+  const requestedSource = request.sourceId
+    ? scene.sources.find((source): source is TextSource => source.kind === "text" && source.id === request.sourceId)
+    : null;
+  const existingQuickSubtitle = scene.sources.find(
+    (source): source is TextSource =>
+      source.kind === "text" &&
+      source.contentSource === "manual" &&
+      source.name.trim().toLowerCase() === quickSubtitleSourceName.toLowerCase()
+  );
+  const targetSource = requestedSource?.contentSource === "manual" ? requestedSource : existingQuickSubtitle;
+
+  if (targetSource) {
+    return updateSource(scene, targetSource.id, (source) =>
+      source.kind === "text"
+        ? {
+            ...source,
+            text,
+            contentSource: "manual",
+            visible: true,
+            visibilityMode: "timed",
+            displayDurationMs,
+            activatedAtMs: nowMs
+          }
+        : source
+    );
+  }
+
+  const source: TextSource = {
+    ...createTextOverlayPresetSource(request.presetId ?? "subtitle"),
+    id: makeId("source-quick-subtitle"),
+    name: quickSubtitleSourceName,
+    text,
+    visible: true,
+    contentSource: "manual",
+    visibilityMode: "timed" as const,
+    displayDurationMs,
+    activatedAtMs: nowMs
+  };
+
+  return addSource(scene, source);
+};
 
 export const activateTimedTextSource = (
   scene: SceneDocument,

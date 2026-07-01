@@ -674,6 +674,37 @@ select:focus-visible {
   font-size: 13px;
 }
 
+.quick-subtitle-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--panel);
+}
+
+.quick-subtitle-field {
+  display: grid;
+  flex: 1 1 280px;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quick-subtitle-field input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: var(--panel-2);
+  color: var(--text);
+}
+
 .operation-banner {
   display: inline-flex;
   align-items: center;
