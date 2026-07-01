@@ -1043,6 +1043,7 @@ const isManifestNativeRuntimePass = (
   isPositiveFiniteNumber(run?.nativeRuntimeBytesWritten) &&
   isProductionNativeVideoEncoderBackend(run?.devicePlatform, run?.nativeRuntimeVideoEncoderBackend) &&
   isProductionNativeAudioEncoderBackend(run?.devicePlatform, run?.nativeRuntimeAudioEncoderBackend) &&
+  hasManifestNativePublisherBackpressureProof(run) &&
   hasManifestNativeRuntimeVideoFrameIntervalProof(run) &&
   hasManifestLiveRenderGraphUpdateProof(run) &&
   hasManifestNativeCompositorDropProof(run) &&
@@ -1059,6 +1060,11 @@ const hasManifestNativeRuntimeVideoFrameIntervalProof = (run: ValidationEvidence
   isPositiveFiniteNumber(run?.nativeRuntimeVideoFrameIntervalAverageMs) &&
   isPositiveFiniteNumber(run?.nativeRuntimeVideoFrameIntervalMaxMs) &&
   isNonNegativeFiniteNumber(run?.nativeRuntimeVideoFrameIntervalJitterMs);
+
+const hasManifestNativePublisherBackpressureProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  run?.nativeRuntimeCongested === false &&
+  isZeroFiniteNumber(run?.nativeRuntimeQueuedItems) &&
+  isNonNegativeFiniteNumber(run?.nativeRuntimeCacheSize);
 
 const hasManifestLiveRenderGraphUpdateProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isNonNegativeFiniteNumber(run?.nativeRuntimeLiveRenderGraphReloadCount) &&

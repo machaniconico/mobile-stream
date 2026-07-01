@@ -357,6 +357,82 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks native runtime claims when retained manifests show publisher congestion or queued frames", () => {
+    const congestedGate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeCongested: true
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+    const queuedGate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeQueuedItems: 2,
+              nativeRuntimeCacheSize: 8
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+    const {
+      nativeRuntimeCongested: _nativeRuntimeCongested,
+      nativeRuntimeQueuedItems: _nativeRuntimeQueuedItems,
+      nativeRuntimeCacheSize: _nativeRuntimeCacheSize,
+      ...iosRunWithoutPublisherBackpressure
+    } = manifestRun({
+      devicePlatform: "ios",
+      fingerprint: "svr1-ios"
+    });
+    const missingProofGate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            iosRunWithoutPublisherBackpressure as ValidationManifestRun,
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(congestedGate.status).toBe("blocked");
+    expect(congestedGate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS native runtime proof")
+      })
+    );
+    expect(queuedGate.status).toBe("blocked");
+    expect(queuedGate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS native runtime proof")
+      })
+    );
+    expect(missingProofGate.status).toBe("blocked");
+    expect(missingProofGate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS native runtime proof")
+      })
+    );
+  });
+
   it("blocks iOS native runtime claims without App Group still-image compositor proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -2444,6 +2520,9 @@ const manifestRun = ({
   nativeRuntimeEncoderProbeStatus = "missing",
   nativeRuntimeEncoderProbeVideoBackend = "none",
   nativeRuntimeEncoderProbeAudioBackend = "none",
+  nativeRuntimeCongested = false,
+  nativeRuntimeQueuedItems = 0,
+  nativeRuntimeCacheSize = 0,
   nativeRuntimeCompositionStatus = "applied",
   nativeRuntimeCompositionAppliedCount = 4,
   nativeRuntimeCompositionAppliedKinds = ["caption", "chat", "pngtuber", "text"],
@@ -2605,6 +2684,9 @@ const manifestRun = ({
   nativeRuntimeEncoderProbeStatus?: ValidationManifestRun["nativeRuntimeEncoderProbeStatus"];
   nativeRuntimeEncoderProbeVideoBackend?: ValidationManifestRun["nativeRuntimeEncoderProbeVideoBackend"];
   nativeRuntimeEncoderProbeAudioBackend?: ValidationManifestRun["nativeRuntimeEncoderProbeAudioBackend"];
+  nativeRuntimeCongested?: ValidationManifestRun["nativeRuntimeCongested"];
+  nativeRuntimeQueuedItems?: ValidationManifestRun["nativeRuntimeQueuedItems"];
+  nativeRuntimeCacheSize?: ValidationManifestRun["nativeRuntimeCacheSize"];
   nativeRuntimeCompositionStatus?: ValidationManifestRun["nativeRuntimeCompositionStatus"];
   nativeRuntimeCompositionAppliedCount?: ValidationManifestRun["nativeRuntimeCompositionAppliedCount"];
   nativeRuntimeCompositionAppliedKinds?: ValidationManifestRun["nativeRuntimeCompositionAppliedKinds"];
@@ -2773,6 +2855,9 @@ const manifestRun = ({
   nativeRuntimeEncoderProbeStatus,
   nativeRuntimeEncoderProbeVideoBackend,
   nativeRuntimeEncoderProbeAudioBackend,
+  nativeRuntimeCongested,
+  nativeRuntimeQueuedItems,
+  nativeRuntimeCacheSize,
   nativeRuntimeCompositionStatus,
   nativeRuntimeCompositionAppliedCount,
   nativeRuntimeCompositionAppliedKinds,

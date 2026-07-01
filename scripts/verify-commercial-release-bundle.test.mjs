@@ -464,6 +464,43 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("zero compositor drops/failures");
   });
 
+  it("blocks native runtime claims when retained manifests show publisher congestion or queued frames", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeCongested: true,
+            nativeRuntimeQueuedItems: 0,
+            nativeRuntimeCacheSize: 8
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const congestedResult = runVerifier();
+
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeCongested: false,
+            nativeRuntimeQueuedItems: 3,
+            nativeRuntimeCacheSize: 8
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const queuedResult = runVerifier();
+
+    expect(congestedResult.status).toBe(1);
+    expect(congestedResult.stdout).toContain("non-congested publisher state");
+    expect(queuedResult.status).toBe(1);
+    expect(queuedResult.stdout).toContain("empty native publisher queue");
+  });
+
   it("blocks native runtime claims when retained manifests have missing compositor assets", () => {
     writeBundle({
       summary: {
@@ -1595,6 +1632,9 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeStatus: "pass",
   nativeRuntimeVideoEncoderBackend: devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
   nativeRuntimeAudioEncoderBackend: devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
+  nativeRuntimeCongested: false,
+  nativeRuntimeQueuedItems: 0,
+  nativeRuntimeCacheSize: 0,
   nativeRuntimeCompositionStatus: "applied",
   nativeRuntimeCompositionAppliedCount: 4,
   nativeRuntimeCompositionAppliedKinds: ["caption", "chat", "pngtuber", "text"],
