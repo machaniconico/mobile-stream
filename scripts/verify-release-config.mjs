@@ -45,6 +45,7 @@ const files = {
   supportBundleDomain: read("src/domain/supportBundle.ts"),
   commercialReleaseGateDomain: read("src/domain/commercialReleaseGate.ts"),
   streamDiagnosticsDomain: read("src/domain/streamDiagnostics.ts"),
+  publicLaunchChecklistDomain: read("src/domain/publicLaunchChecklist.ts"),
   streamValidationEvidenceDomain: read("src/domain/streamValidationEvidence.ts"),
   liveCasterBridge: read("ios/MobileLiveCaster/LiveCasterBridge.swift"),
   broadcastHandler: read("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift")
@@ -252,6 +253,9 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpeechFailureCount");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestChatReadoutPass");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-chat-readout");
+    expectIncludes(files.publicLaunchChecklistDomain, "latestChatReadout");
+    expectIncludes(files.publicLaunchChecklistDomain, "chatReadoutIosPass");
+    expectIncludes(files.publicLaunchChecklistDomain, "chatReadoutAndroidPass");
     expectIncludes(files.streamValidationEvidenceDomain, "qualityAutomationLiveUpdateCount");
     expectIncludes(files.streamValidationEvidenceDomain, "qualityAutomationFailureCount");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestQualityAutomationPass");

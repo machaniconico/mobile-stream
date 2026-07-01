@@ -59,7 +59,12 @@ export interface PublicLaunchChecklistInput {
     | "platformPublishing"
     | "validation"
     | "validationRunbook"
-  >;
+  > & {
+    validationEvidence?: Pick<
+      StreamDiagnostics["validationEvidence"],
+      "chatReadoutReadyCount" | "chatReadoutIosPass" | "chatReadoutAndroidPass" | "latestChatReadout"
+    >;
+  };
   platformPublishingFreshness: PlatformPublishingFreshness;
   profile?: Pick<StudioProfile, "destination" | "platformPublishing">;
 }
@@ -380,11 +385,40 @@ const createChatReadoutItem = (
     };
   }
 
+  const chatReadoutEvidence = diagnostics.validationEvidence;
+  const latestChatReadout = chatReadoutEvidence?.latestChatReadout ?? null;
+  if (
+    !latestChatReadout ||
+    latestChatReadout.status !== "pass" ||
+    latestChatReadout.spokenMessageCount <= 0 ||
+    latestChatReadout.speechFailureCount > 0
+  ) {
+    return {
+      id: "chat-readout",
+      status: "warn",
+      label: "Chat readout",
+      detail: latestChatReadout
+        ? `Latest retained chat readout has ${latestChatReadout.spokenMessageCount} spoken / ${latestChatReadout.speechFailureCount} failed message(s).`
+        : "No retained spoken chat readout sample is available for this launch evidence.",
+      action: "Ingest one YouTube/Twitch sample message, confirm it is spoken successfully, then retain the validation run before public launch."
+    };
+  }
+
+  if (chatReadoutEvidence && (!chatReadoutEvidence.chatReadoutIosPass || !chatReadoutEvidence.chatReadoutAndroidPass)) {
+    return {
+      id: "chat-readout",
+      status: "warn",
+      label: "Chat readout",
+      detail: `Retained spoken chat readout proof is incomplete: iOS ${chatReadoutEvidence.chatReadoutIosPass ? "pass" : "missing"} / Android ${chatReadoutEvidence.chatReadoutAndroidPass ? "pass" : "missing"}.`,
+      action: "Retain successful spoken chat readout evidence from both iOS and Android before public launch."
+    };
+  }
+
   return {
     id: "chat-readout",
     status: "pass",
     label: "Chat readout",
-    detail: chat.connectionMessage || `${chat.connectionLabel || "Platform chat"} is connected for spoken comments.`,
+    detail: `${chat.connectionMessage || `${chat.connectionLabel || "Platform chat"} is connected.`} Retained chat readout has ${latestChatReadout.spokenMessageCount} spoken / ${latestChatReadout.speechFailureCount} failed sample${latestChatReadout.spokenMessageCount === 1 ? "" : "s"}.`,
     action: "Keep the chat connection active and retain a sample readout event with launch evidence."
   };
 };

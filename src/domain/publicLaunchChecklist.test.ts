@@ -199,6 +199,22 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
     failCount: 0,
     pendingCount: 0,
     items: []
+  },
+  validationEvidence: {
+    chatReadoutReadyCount: 2,
+    chatReadoutIosPass: true,
+    chatReadoutAndroidPass: true,
+    latestChatReadout: {
+      status: "pass",
+      platformChatEnabled: true,
+      readerEnabled: true,
+      connectionPhase: "connected",
+      connectionLabel: "YouTube Live chat",
+      spokenMessageCount: 1,
+      speechFailureCount: 0,
+      summary: "Chat readout retained 1 spoken / 0 failed.",
+      recommendation: "Keep this sample readout evidence with the release candidate."
+    }
   }
 });
 
@@ -240,6 +256,9 @@ describe("public launch checklist", () => {
     expect(checklist.startLock).toMatchObject({ applies: true, blocked: false });
     expect(checklist.passCount).toBe(9);
     expect(checklist.summary).toBe("Public launch checklist is ready.");
+    expect(checklist.items.find((item) => item.id === "chat-readout")?.detail).toContain(
+      "Retained chat readout has 1 spoken / 0 failed"
+    );
   });
 
   it("carries hard Go Live preflight blocks into the public checklist", () => {
@@ -291,6 +310,54 @@ describe("public launch checklist", () => {
     expect(checklist.items.find((item) => item.id === "chat-readout")).toMatchObject({
       status: "warn",
       label: "Chat readout"
+    });
+  });
+
+  it("warns when chat is connected but no retained spoken sample is available", () => {
+    const diagnostics = readyDiagnostics();
+    const checklist = createPublicLaunchChecklist({
+      preflight: readyPreflight,
+      diagnostics: {
+        ...diagnostics,
+        validationEvidence: {
+          ...diagnostics.validationEvidence!,
+          latestChatReadout: null
+        }
+      },
+      platformPublishingFreshness: freshDashboard,
+      profile: youtubePublicProfile()
+    });
+
+    expect(checklist.status).toBe("warning");
+    expect(checklist.canStart).toBe(false);
+    expect(checklist.items.find((item) => item.id === "chat-readout")).toMatchObject({
+      status: "warn",
+      detail: "No retained spoken chat readout sample is available for this launch evidence.",
+      action: expect.stringContaining("Ingest one YouTube/Twitch sample message")
+    });
+  });
+
+  it("warns when retained spoken chat readout proof is missing on one platform", () => {
+    const diagnostics = readyDiagnostics();
+    const checklist = createPublicLaunchChecklist({
+      preflight: readyPreflight,
+      diagnostics: {
+        ...diagnostics,
+        validationEvidence: {
+          ...diagnostics.validationEvidence!,
+          chatReadoutAndroidPass: false
+        }
+      },
+      platformPublishingFreshness: freshDashboard,
+      profile: youtubePublicProfile()
+    });
+
+    expect(checklist.status).toBe("warning");
+    expect(checklist.canStart).toBe(false);
+    expect(checklist.items.find((item) => item.id === "chat-readout")).toMatchObject({
+      status: "warn",
+      detail: "Retained spoken chat readout proof is incomplete: iOS pass / Android missing.",
+      action: "Retain successful spoken chat readout evidence from both iOS and Android before public launch."
     });
   });
 
