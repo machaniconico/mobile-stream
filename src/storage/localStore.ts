@@ -111,7 +111,9 @@ export const loadStreamValidationRuns = (): StreamValidationRun[] => {
   if (!hasLocalStorage()) {
     return [];
   }
-  return normalizeStreamValidationRuns(safeParse<unknown>(localStorage.getItem(STREAM_VALIDATION_RUNS_KEY)));
+  return redactSecretsFromPersistedValue(
+    normalizeStreamValidationRuns(safeParse<unknown>(localStorage.getItem(STREAM_VALIDATION_RUNS_KEY)))
+  );
 };
 
 export const saveStreamValidationRuns = (runs: StreamValidationRun[], secrets: string[] = []): void => {

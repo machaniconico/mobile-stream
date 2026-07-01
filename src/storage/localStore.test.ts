@@ -262,6 +262,31 @@ describe("local stream session summary store", () => {
     expect(storage.getItem(validationRunsStorageKey)).toBeNull();
   });
 
+  it("redacts legacy unredacted validation runs on load", () => {
+    const storage = createMemoryStorage();
+    vi.stubGlobal("localStorage", storage);
+    storage.setItem(
+      validationRunsStorageKey,
+      JSON.stringify([
+        {
+          createdAt: "2026-06-23T00:00:00.000Z",
+          devicePlatform: "android",
+          result: "warn",
+          networkProfile: "Authorization: Bearer legacy-validation-token",
+          summary: "Callback mobilelivecaster://oauth/youtube?code=legacy-code"
+        }
+      ])
+    );
+
+    const loaded = loadStreamValidationRuns();
+    const json = JSON.stringify(loaded);
+
+    expect(loaded).toHaveLength(1);
+    expect(json).not.toContain("legacy-validation-token");
+    expect(json).not.toContain("legacy-code");
+    expect(json).toContain("[redacted]");
+  });
+
   it("strips stream keys from saved browser profiles", () => {
     const storage = createMemoryStorage();
     vi.stubGlobal("localStorage", storage);
