@@ -250,8 +250,8 @@ function validateStoreReleaseArtifactsCaptured(report, artifacts, artifactByPath
   }
   validateStoreReleaseReportInReleaseReport(artifacts, fail, {
     expectedCommit: report.git?.commit || "",
-    allowDirty: options.allowDirty,
-    allowCommitMismatch: options.allowCommitMismatch,
+    allowDirty: false,
+    allowCommitMismatch: false,
     maxAgeHours: options.maxAgeHours
   });
 }

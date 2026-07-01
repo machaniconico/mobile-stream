@@ -307,6 +307,8 @@ const checks = [
     expectIncludes(files.storeSubmissionApprovalScript, "dashboardEvidenceManifestPath");
     expectIncludes(files.storeSubmissionApprovalScript, "storeReleaseReportArtifactGroup");
     expectIncludes(files.storeSubmissionApprovalScript, "validateStoreReleaseReportInReleaseReport");
+    expectIncludes(files.storeSubmissionApprovalScript, "allowDirty: false");
+    expectIncludes(files.storeSubmissionApprovalScript, "allowCommitMismatch: false");
     expectIncludes(files.storeSubmissionApprovalScript, "validateCommercialApprovableReleaseReport");
     expectIncludes(files.storeSubmissionApprovalScript, "cannot be used for store submission approval");
     expectIncludes(files.storeSubmissionApprovalScript, "Release report was generated with --allow-warnings");

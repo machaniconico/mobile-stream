@@ -229,6 +229,21 @@ describe("store submission approval verifier", () => {
     expect(failures).toContain("Store submission approval requires store-release orchestration report in the RC report.");
   });
 
+  it("rejects approval when the store-release report was generated from a dirty worktree", () => {
+    const storeReleaseReport = JSON.parse(readFileSync(storeReleaseReportPath, "utf8"));
+    storeReleaseReport.git.dirty = true;
+    storeReleaseReport.git.statusShort = " M scripts/verify-store-submission-approval.test.mjs";
+    storeReleaseReport.options.allowDirty = true;
+    writeFile(storeReleaseReportPath, JSON.stringify(storeReleaseReport, null, 2));
+
+    const failures = validateStoreSubmissionApproval(createReport(), readStoreManifest(), approvalOptions());
+
+    expect(failures).toContain("Store release report was generated from a dirty worktree.");
+    expect(failures).toContain("Store release report was generated with --allow-dirty.");
+
+    writeStoreReleaseFixture();
+  });
+
   it("rejects approval when the store-release gate evidence does not match the artifact", () => {
     const report = createReport();
     const gate = report.gates.find((entry) => entry.label === "Verify store release orchestration report");
@@ -847,11 +862,11 @@ function writeStoreReleaseFixture() {
         git: {
           commit: currentCommit(),
           branch: "main",
-          dirty: true,
-          statusShort: " M scripts/verify-store-submission-approval.test.mjs"
+          dirty: false,
+          statusShort: ""
         },
         options: {
-          allowDirty: true,
+          allowDirty: false,
           allowCommitMismatch: false,
           skipEnv: false,
           skipBuild: false
