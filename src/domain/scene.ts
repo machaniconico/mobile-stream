@@ -2262,7 +2262,19 @@ const normalizeOverlayText = (value: string): string =>
     .replace(/\s+/g, " ")
     .trim();
 
-const redactOverlayUrls = (value: string): string => value.replace(/https?:\/\/\S+/gi, "[link]");
+const redactOverlayUrls = (value: string): string =>
+  value
+    .replace(/\bhttps?:\/\/[^\s<>"']+/gi, redactOverlayUrlToken)
+    .replace(/\bwww\.[^\s<>"']+/gi, redactOverlayUrlToken)
+    .replace(
+      /(^|[^\w@.])((?:[a-z0-9-]+\.)+(?:ai|app|co|com|dev|gg|io|jp|link|live|ly|me|net|org|site|stream|tv|xyz)(?:\/[^\s<>"']*)?)/gi,
+      (_match, prefix: string, token: string) => `${prefix}${redactOverlayUrlToken(token)}`
+    );
+
+const redactOverlayUrlToken = (token: string): string => {
+  const trailing = token.match(/[),.;:!?]+$/)?.[0] ?? "";
+  return `[link]${trailing}`;
+};
 
 const truncateOverlayText = (value: string, maxLength: number): string => {
   const clean = breakLongOverlayTokens(normalizeOverlayText(value));

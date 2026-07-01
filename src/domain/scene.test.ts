@@ -614,6 +614,31 @@ describe("scene document", () => {
     expect(`${payloadText}\n${messagesJson}`).not.toContain("access-token-secret");
   });
 
+  it("redacts contact details and protocol-less links from runtime chat overlay payloads", () => {
+    const scene = createDefaultScene();
+    const graph = toRenderGraph(scene, {
+      chatMessages: [
+        {
+          author: "viewer@example.com",
+          body: "visit www.example.com/private or example.org/room, call 090-1234-5678, join discord.gg/privateRoom",
+          source: "youtube"
+        }
+      ]
+    });
+
+    const chatNode = graph.find((node) => node.kind === "chat");
+    const payloadText = String(chatNode?.payload.text);
+    const messagesJson = String(chatNode?.payload.messagesJson);
+    const rendered = `${payloadText}\n${messagesJson}`;
+
+    expect(payloadText).toContain("[email redacted]: visit [link] or [link], call [phone redacted], join [link]");
+    expect(rendered).not.toContain("viewer@example.com");
+    expect(rendered).not.toContain("www.example.com");
+    expect(rendered).not.toContain("example.org");
+    expect(rendered).not.toContain("090-1234-5678");
+    expect(rendered).not.toContain("discord.gg/privateRoom");
+  });
+
   it("renders manual text overlays with sanitized bounded lines", () => {
     const subtitle = {
       ...createSubtitleTextSource(),
@@ -804,9 +829,9 @@ describe("scene document", () => {
           timestampMs: 1000
         },
         {
-          speaker: "Bearer caption-speaker-secret",
+          speaker: "Bearer caption-speaker-secret viewer@example.com",
           text:
-            "current caption https://example.com/private Authorization: Bearer caption-body-secret",
+            "current caption https://example.com/private example.org/room Authorization: Bearer caption-body-secret 090-1234-5678 discord.gg/privateRoom",
           language: "ja-JP",
           confidence: 2,
           isFinal: false,
@@ -826,11 +851,17 @@ describe("scene document", () => {
       showCaptionSpeaker: false,
       maxLines: 3
     });
-    expect(payloadText).toBe("older cue\ncurrent caption [link] Authorization: Bearer [redacted]");
+    expect(payloadText).toBe(
+      "older cue\ncurrent caption [link] [link] Authorization: Bearer [redacted] [phone redacted] [link]"
+    );
     expect(captionCuesJson).toContain("\"confidence\":1");
     expect(captionCuesJson).not.toContain("example.com");
+    expect(captionCuesJson).not.toContain("example.org");
     expect(captionCuesJson).not.toContain("caption-speaker-secret");
     expect(captionCuesJson).not.toContain("caption-body-secret");
+    expect(captionCuesJson).not.toContain("viewer@example.com");
+    expect(captionCuesJson).not.toContain("090-1234-5678");
+    expect(captionCuesJson).not.toContain("discord.gg/privateRoom");
     expect(JSON.stringify(persisted)).not.toContain("current caption");
   });
 
