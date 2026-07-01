@@ -293,6 +293,7 @@ const sceneTransitionKinds: readonly SceneTransitionKind[] = ["cut", "fade"];
 const textSourceModes: readonly TextSourceMode[] = ["label", "subtitle", "ticker", "caption"];
 const textSourceAlignments: readonly TextSourceAlign[] = ["left", "center", "right"];
 const textSourceContentSources: readonly TextSourceContentSource[] = ["manual", "runtime-caption"];
+const textOverlayLineMaxLength = 220;
 
 const clampTransform = (transform: Transform): Transform => ({
   x: clamp01(transform.x),
@@ -1920,7 +1921,7 @@ const formatChatOverlayLine = (message: ChatOverlayMessage, showAuthor: boolean)
 const serializeCaptionOverlayCues = (captions: CaptionOverlayCue[], source: TextSource): CaptionOverlayCue[] =>
   captions
     .map((cue) => ({
-      text: truncateOverlayText(redactOverlayUrls(cue.text), 220),
+      text: truncateOverlayText(redactOverlayUrls(cue.text), textOverlayLineMaxLength),
       speaker: normalizeOverlayText(cue.speaker ?? "").slice(0, 48),
       language: normalizeOverlayText(cue.language ?? "").slice(0, 16),
       confidence: clamp01(finiteNumber(cue.confidence, 1)),
@@ -1932,14 +1933,23 @@ const serializeCaptionOverlayCues = (captions: CaptionOverlayCue[], source: Text
 
 const resolveTextSourceText = (source: TextSource, captionCues: CaptionOverlayCue[]): string => {
   if (source.contentSource !== "runtime-caption") {
-    return source.text;
+    return serializeTextOverlayLines(source.text, source.maxLines).join("\n");
   }
   const captionText = captionCues.map((cue) => formatCaptionOverlayLine(cue, source.showCaptionSpeaker)).join("\n");
-  return captionText || source.text;
+  return captionText || serializeTextOverlayLines(source.text, source.maxLines).join("\n");
 };
 
 const formatCaptionOverlayLine = (cue: CaptionOverlayCue, showSpeaker: boolean): string =>
-  showSpeaker && cue.speaker ? `${cue.speaker}: ${cue.text}` : cue.text;
+  truncateOverlayText(showSpeaker && cue.speaker ? `${cue.speaker}: ${cue.text}` : cue.text, textOverlayLineMaxLength);
+
+const serializeTextOverlayLines = (value: string, maxLines: number): string[] => {
+  const lineLimit = Math.round(clampRange(finiteNumber(maxLines, 1), 1, 4));
+  return value
+    .split(/\r?\n/)
+    .map((line) => truncateOverlayText(line, textOverlayLineMaxLength))
+    .filter((line) => line.length > 0)
+    .slice(0, lineLimit);
+};
 
 const normalizeOverlayText = (value: string): string =>
   redactSensitiveText(value)

@@ -606,6 +606,40 @@ describe("scene document", () => {
     expect(`${payloadText}\n${messagesJson}`).not.toContain("access-token-secret");
   });
 
+  it("renders manual text overlays with sanitized bounded lines", () => {
+    const subtitle = {
+      ...createSubtitleTextSource(),
+      maxLines: 2,
+      text:
+        "Launch note Authorization: Bearer manual-caption-secret\n" +
+        "Callback https://example.com/oauth?access_token=manual-access-secret\u202e visible\n" +
+        "Dropped stream_key=manual-stream-secret"
+    };
+    const graph = toRenderGraph(addSource(createDefaultScene(), subtitle));
+    const node = graph.find((item) => item.id === subtitle.id);
+    const payloadText = String(node?.payload.text);
+
+    expect(payloadText.split("\n")).toHaveLength(2);
+    expect(payloadText).toContain("Authorization: Bearer [redacted]");
+    expect(payloadText).toContain("access_token=[redacted]");
+    expect(payloadText).not.toContain("\u202e");
+    expect(payloadText).not.toContain("manual-caption-secret");
+    expect(payloadText).not.toContain("manual-access-secret");
+    expect(payloadText).not.toContain("manual-stream-secret");
+  });
+
+  it("keeps legacy text overlays renderable when maxLines is missing", () => {
+    const legacyText = {
+      ...createSubtitleTextSource(),
+      text: "Legacy subtitle",
+      maxLines: undefined as unknown as number
+    };
+    const graph = toRenderGraph(addSource(createDefaultScene(), legacyText));
+    const node = graph.find((item) => item.id === legacyText.id);
+
+    expect(node?.payload.text).toBe("Legacy subtitle");
+  });
+
   it("builds live caption overlay payloads from runtime cues without persisting caption text", () => {
     const liveCaption = createLiveCaptionTextSource();
     const scene = addSource(createDefaultScene(), liveCaption);
@@ -661,6 +695,29 @@ describe("scene document", () => {
     const captionNode = graph.find((node) => node.id === liveCaption.id);
 
     expect(captionNode?.payload.text).toBe("Host: 字幕テスト");
+  });
+
+  it("bounds speaker-prefixed live caption lines before rendering", () => {
+    const liveCaption = {
+      ...createLiveCaptionTextSource(),
+      showCaptionSpeaker: true
+    };
+    const graph = toRenderGraph(addSource(createDefaultScene(), liveCaption), {
+      captions: [
+        {
+          speaker: `Host ${"speaker ".repeat(12)}`,
+          text: `Authorization: Bearer caption-line-secret ${"long caption ".repeat(40)}`,
+          isFinal: true
+        }
+      ]
+    });
+    const captionNode = graph.find((node) => node.id === liveCaption.id);
+    const payloadText = String(captionNode?.payload.text);
+
+    expect(payloadText.length).toBeLessThanOrEqual(220);
+    expect(payloadText).toContain("Authorization: Bearer [redacted]");
+    expect(payloadText).not.toContain("caption-line-secret");
+    expect(payloadText.endsWith("...")).toBe(true);
   });
 
   it("normalizes persisted scene data into safe renderable sources", () => {
