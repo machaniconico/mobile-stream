@@ -60,7 +60,7 @@ import {
   createTextOverlayPresetSource,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
-  quickTextOverlayPresets,
+  quickTextOverlayPresetGroups,
   reorderSource,
   setLocked,
   setVisibility,
@@ -958,13 +958,20 @@ export const MobileStudioScreen = ({
             </View>
             <ActionButton label="Show subtitle" disabled={!canShowQuickSubtitle} onPress={showQuickSubtitle} />
             <View style={styles.quickTextPresetRow}>
-              {quickTextOverlayPresets.map((preset) => (
-                <ActionButton
-                  key={preset.id}
-                  label={preset.label}
-                  disabled={quickSubtitleLocked}
-                  onPress={() => showQuickTextPreset(preset.id)}
-                />
+              {quickTextOverlayPresetGroups.map((group) => (
+                <View key={group.category} style={styles.quickTextPresetGroup}>
+                  <Text style={styles.quickTextPresetGroupLabel}>{group.label}</Text>
+                  <View style={styles.quickTextPresetButtons}>
+                    {group.presets.map((preset) => (
+                      <ActionButton
+                        key={preset.id}
+                        label={preset.label}
+                        disabled={quickSubtitleLocked}
+                        onPress={() => showQuickTextPreset(preset.id)}
+                      />
+                    ))}
+                  </View>
+                </View>
               ))}
             </View>
           </View>
@@ -4730,6 +4737,23 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
     width: "100%"
+  },
+  quickTextPresetGroup: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 180,
+    gap: 6,
+    minWidth: 0
+  },
+  quickTextPresetGroupLabel: {
+    color: "#a1a1aa",
+    fontSize: 11,
+    fontWeight: "900"
+  },
+  quickTextPresetButtons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6
   },
   operationBanner: {
     minHeight: 38,

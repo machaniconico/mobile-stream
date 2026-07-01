@@ -77,7 +77,7 @@ import {
   createTextOverlayPresetSource,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
-  quickTextOverlayPresets,
+  quickTextOverlayPresetGroups,
   reorderSource,
   setLocked,
   setVisibility,
@@ -936,16 +936,23 @@ export const StudioScreen = ({
               <span>Show subtitle</span>
             </button>
             <div className="quick-text-preset-row" aria-label="quick text overlay presets">
-              {quickTextOverlayPresets.map((preset) => (
-                <button
-                  key={preset.id}
-                  className="quick-text-preset-button"
-                  type="button"
-                  disabled={quickSubtitleLocked}
-                  onClick={() => showQuickTextPreset(preset.id)}
-                >
-                  {preset.label}
-                </button>
+              {quickTextOverlayPresetGroups.map((group) => (
+                <div key={group.category} className="quick-text-preset-group">
+                  <span className="quick-text-preset-group-label">{group.label}</span>
+                  <div className="quick-text-preset-buttons">
+                    {group.presets.map((preset) => (
+                      <button
+                        key={preset.id}
+                        className="quick-text-preset-button"
+                        type="button"
+                        disabled={quickSubtitleLocked}
+                        onClick={() => showQuickTextPreset(preset.id)}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>

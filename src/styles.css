@@ -712,6 +712,25 @@ select:focus-visible {
   gap: 8px;
 }
 
+.quick-text-preset-group {
+  display: grid;
+  flex: 1 1 180px;
+  gap: 6px;
+  min-width: 0;
+}
+
+.quick-text-preset-group-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.quick-text-preset-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .quick-text-preset-button {
   min-height: 34px;
   border-radius: 8px;

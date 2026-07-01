@@ -264,14 +264,28 @@ export type QuickTextOverlayPresetId =
   | "mic-check"
   | "please-wait"
   | "follow-reminder"
-  | "spoiler-alert";
+  | "spoiler-alert"
+  | "ending-soon"
+  | "thanks"
+  | "pinned-comment"
+  | "spoiler-clear"
+  | "stream-trouble";
+
+export type QuickTextOverlayPresetCategory = "subtitle" | "notice" | "engagement" | "safety";
 
 export interface QuickTextOverlayPreset {
   id: QuickTextOverlayPresetId;
+  category: QuickTextOverlayPresetCategory;
   label: string;
   text: string;
   presetId: TextOverlayPresetId;
   durationMs: number;
+}
+
+export interface QuickTextOverlayPresetGroup {
+  category: QuickTextOverlayPresetCategory;
+  label: string;
+  presets: readonly QuickTextOverlayPreset[];
 }
 
 export interface SceneDocument {
@@ -342,6 +356,7 @@ const quickSubtitleSourceName = "Quick Subtitle";
 export const quickTextOverlayPresets: readonly QuickTextOverlayPreset[] = [
   {
     id: "welcome",
+    category: "subtitle",
     label: "初見歓迎",
     text: "初見さん歓迎です",
     presetId: "subtitle",
@@ -349,6 +364,7 @@ export const quickTextOverlayPresets: readonly QuickTextOverlayPreset[] = [
   },
   {
     id: "reading-chat",
+    category: "subtitle",
     label: "コメント読む",
     text: "コメント読みます",
     presetId: "subtitle",
@@ -356,6 +372,7 @@ export const quickTextOverlayPresets: readonly QuickTextOverlayPreset[] = [
   },
   {
     id: "mic-check",
+    category: "notice",
     label: "マイク確認",
     text: "マイク音量を確認中です",
     presetId: "notice",
@@ -363,6 +380,7 @@ export const quickTextOverlayPresets: readonly QuickTextOverlayPreset[] = [
   },
   {
     id: "please-wait",
+    category: "notice",
     label: "少し待って",
     text: "少しお待ちください",
     presetId: "notice",
@@ -370,6 +388,7 @@ export const quickTextOverlayPresets: readonly QuickTextOverlayPreset[] = [
   },
   {
     id: "follow-reminder",
+    category: "engagement",
     label: "フォローお願い",
     text: "フォロー・高評価お願いします",
     presetId: "ticker",
@@ -377,12 +396,70 @@ export const quickTextOverlayPresets: readonly QuickTextOverlayPreset[] = [
   },
   {
     id: "spoiler-alert",
+    category: "safety",
     label: "ネタバレ注意",
     text: "ここからネタバレ注意",
     presetId: "badge",
     durationMs: 6000
+  },
+  {
+    id: "ending-soon",
+    category: "notice",
+    label: "終了前",
+    text: "まもなく配信を終了します",
+    presetId: "notice",
+    durationMs: 7000
+  },
+  {
+    id: "thanks",
+    category: "subtitle",
+    label: "ありがとう",
+    text: "ご視聴ありがとうございます",
+    presetId: "subtitle",
+    durationMs: 5500
+  },
+  {
+    id: "pinned-comment",
+    category: "engagement",
+    label: "固定コメント",
+    text: "固定コメントを確認してください",
+    presetId: "lower-third",
+    durationMs: 9000
+  },
+  {
+    id: "spoiler-clear",
+    category: "safety",
+    label: "ネタバレ終了",
+    text: "ネタバレ区間は終了しました",
+    presetId: "badge",
+    durationMs: 5000
+  },
+  {
+    id: "stream-trouble",
+    category: "notice",
+    label: "配信不調",
+    text: "配信が不安定なため調整中です",
+    presetId: "notice",
+    durationMs: 8000
   }
 ];
+
+export const quickTextOverlayPresetCategories: readonly {
+  category: QuickTextOverlayPresetCategory;
+  label: string;
+}[] = [
+  { category: "subtitle", label: "字幕" },
+  { category: "notice", label: "告知" },
+  { category: "engagement", label: "誘導" },
+  { category: "safety", label: "注意" }
+];
+
+export const quickTextOverlayPresetGroups: readonly QuickTextOverlayPresetGroup[] = quickTextOverlayPresetCategories.map(
+  (group) => ({
+    ...group,
+    presets: quickTextOverlayPresets.filter((preset) => preset.category === group.category)
+  })
+);
 
 const clampTransform = (transform: Transform): Transform => ({
   x: clamp01(transform.x),

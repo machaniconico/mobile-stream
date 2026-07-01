@@ -23,6 +23,7 @@ import {
   normalizeSceneCollection,
   normalizeSceneDocument,
   quickTextOverlayPresets,
+  quickTextOverlayPresetGroups,
   reorderSource,
   selectQuickTextOverlayPreset,
   selectActiveScene,
@@ -779,6 +780,7 @@ describe("scene document", () => {
 
     expect(quickTextOverlayPresets.map((item) => item.id)).toContain("please-wait");
     expect(preset).toMatchObject({
+      category: "notice",
       label: "少し待って",
       text: "少しお待ちください",
       presetId: "notice",
@@ -819,6 +821,42 @@ describe("scene document", () => {
       mode: "ticker",
       text: "フォロー・高評価お願いします",
       remainingMs: 7000
+    });
+  });
+
+  it("organizes quick subtitle and text display presets for live operation", () => {
+    const nowMs = 108000;
+    const groupedPresetIds = quickTextOverlayPresetGroups.flatMap((group) => group.presets.map((preset) => preset.id));
+    const nextScene = showQuickTextOverlayPreset(createDefaultScene(), "pinned-comment", { nowMs });
+    const quickSubtitle = nextScene.sources.find((source) => source.kind === "text" && source.name === "Quick Subtitle");
+    const quickNode = toRenderGraph(nextScene, { nowMs: nowMs + 2500 }).find((node) => node.id === quickSubtitle?.id);
+
+    expect(quickTextOverlayPresetGroups.map((group) => group.category)).toEqual([
+      "subtitle",
+      "notice",
+      "engagement",
+      "safety"
+    ]);
+    expect(groupedPresetIds).toHaveLength(quickTextOverlayPresets.length);
+    expect([...groupedPresetIds].sort()).toEqual([...quickTextOverlayPresets.map((preset) => preset.id)].sort());
+    expect(selectQuickTextOverlayPreset("ending-soon")).toMatchObject({
+      category: "notice",
+      text: "まもなく配信を終了します",
+      presetId: "notice"
+    });
+    expect(selectQuickTextOverlayPreset("stream-trouble")).toMatchObject({
+      category: "notice",
+      durationMs: 8000
+    });
+    expect(quickSubtitle).toMatchObject({
+      mode: "label",
+      text: "固定コメントを確認してください",
+      displayDurationMs: 9000,
+      transform: { x: 0.05, y: 0.72, width: 0.52, height: 0.18 }
+    });
+    expect(quickNode?.payload).toMatchObject({
+      text: "固定コメントを確認してください",
+      remainingMs: 6500
     });
   });
 
