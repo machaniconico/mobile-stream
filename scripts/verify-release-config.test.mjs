@@ -24,6 +24,8 @@ describe("release configuration verifier", () => {
   it("rejects symlinked native source files before scanning linked targets", () => {
     const outsideSource = `${fixtureRoot}/outside.swift`;
     mkdirSync(fixtureRoot, { recursive: true });
+    // native/ holds no tracked files, so fresh checkouts (CI) do not have it.
+    mkdirSync("native", { recursive: true });
     writeFileSync(outsideSource, "final class Outside {}\n");
     symlinkSync(resolve(outsideSource), symlinkSourcePath);
 
@@ -37,6 +39,8 @@ describe("release configuration verifier", () => {
   it("rejects symlinked native source directories before scanning linked trees", () => {
     const outsideDirectory = `${fixtureRoot}/outside-native`;
     mkdirSync(outsideDirectory, { recursive: true });
+    // native/ holds no tracked files, so fresh checkouts (CI) do not have it.
+    mkdirSync("native", { recursive: true });
     writeFileSync(`${outsideDirectory}/Legacy.swift`, "final class Legacy {}\n");
     symlinkSync(resolve(outsideDirectory), symlinkDirectoryPath, "dir");
 

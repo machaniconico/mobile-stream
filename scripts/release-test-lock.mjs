@@ -7,6 +7,10 @@ export function acquireReleaseTestLock(name = "release-fixture-lock", timeoutMs 
   const lockDir = `.artifacts/${name}`;
   const startedAt = Date.now();
 
+  // .artifacts/ is gitignored, so fresh checkouts (CI) do not have it. The lock
+  // mkdir below must stay non-recursive for atomicity, so create the parent here.
+  mkdirSync(".artifacts", { recursive: true });
+
   while (true) {
     try {
       mkdirSync(lockDir, { recursive: false });
