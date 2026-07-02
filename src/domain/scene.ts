@@ -2055,13 +2055,14 @@ export const normalizeSceneDocument = (value: unknown): SceneDocument => {
         return normalized ? [normalized] : [];
       })
     : fallback.sources;
+  const uniqueSources = ensureUniqueSceneSourceIds(sources);
 
   return {
     version: 1,
     id: stringValue(value.id, fallback.id),
     name: stringValue(value.name, fallback.name),
     canvas,
-    sources: sources.length > 0 ? sources : fallback.sources
+    sources: uniqueSources.length > 0 ? uniqueSources : fallback.sources
   };
 };
 
@@ -2194,11 +2195,12 @@ export const addSceneToCollection = (collection: SceneCollection, scene: SceneDo
 export const duplicateActiveScene = (collection: SceneCollection): SceneCollection => {
   const normalized = normalizeSceneCollection(collection);
   const activeScene = selectActiveScene(normalized);
+  const strippedActiveScene = stripTransientSceneRuntime(activeScene);
   const duplicate = {
-    ...stripTransientSceneRuntime(activeScene),
+    ...strippedActiveScene,
     id: makeId("scene"),
     name: `${activeScene.name} Copy`,
-    sources: activeScene.sources.map((source) => ({
+    sources: strippedActiveScene.sources.map((source) => ({
       ...source,
       id: makeId(`source-${source.kind}`)
     }))
@@ -2503,6 +2505,21 @@ const createUniqueScene = (scene: SceneDocument, used: Set<string>): SceneDocume
     suffix += 1;
   }
   return nextId === scene.id ? scene : { ...scene, id: nextId };
+};
+
+const ensureUniqueSceneSourceIds = (sources: SceneSource[]): SceneSource[] => {
+  const used = new Set<string>();
+  return sources.map((source, index) => {
+    const baseId = source.id.trim() || `source-${source.kind || index + 1}`;
+    let nextId = baseId;
+    let suffix = 2;
+    while (used.has(nextId)) {
+      nextId = `${baseId}-${suffix}`;
+      suffix += 1;
+    }
+    used.add(nextId);
+    return nextId === source.id ? source : { ...source, id: nextId };
+  });
 };
 
 const normalizeTransformValue = (value: unknown, fallback: Transform): Transform => {

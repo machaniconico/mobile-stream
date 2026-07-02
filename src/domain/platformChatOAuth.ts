@@ -988,7 +988,26 @@ const secondsToExpiresAt = (seconds: number | null, receivedAt: number): number 
   seconds && Number.isFinite(seconds) && seconds > 0 ? receivedAt + seconds * 1000 : null;
 
 const normalizeTimestamp = (value: unknown): number | null =>
+  normalizeTimestampNumber(value) ?? normalizeTimestampString(value);
+
+const normalizeTimestampNumber = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.round(value) : null;
+
+const normalizeTimestampString = (value: unknown): number | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const numericTimestamp = Number(trimmed);
+  if (Number.isFinite(numericTimestamp) && numericTimestamp > 0) {
+    return Math.round(numericTimestamp);
+  }
+  const parsedTimestamp = Date.parse(trimmed);
+  return Number.isFinite(parsedTimestamp) && parsedTimestamp > 0 ? parsedTimestamp : null;
+};
 
 const readStringField = (payload: unknown, key: string): string => {
   if (!payload || typeof payload !== "object") {

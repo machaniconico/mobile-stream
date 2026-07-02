@@ -201,6 +201,7 @@ export const App = () => {
   const [platformChatOAuthCredentials, setPlatformChatOAuthCredentials] = useState<PlatformChatOAuthCredentialStore>(() =>
     createEmptyPlatformChatOAuthCredentialStore()
   );
+  const platformChatOAuthCredentialsRef = useRef(platformChatOAuthCredentials);
   const [platformStreamKeyStatus, setPlatformStreamKeyStatus] = useState(() => createPlatformStreamKeyIdleStatus(profile));
   const [platformPublishingStatus, setPlatformPublishingStatus] = useState("Platform publishing setup idle.");
   const [selectedSourceId, setSelectedSourceId] = useState("source-avatar");
@@ -989,9 +990,14 @@ export const App = () => {
   };
 
   const rememberPlatformChatOAuthCredential = (credential: PlatformChatOAuthCredential) => {
-    const nextCredentials = upsertPlatformChatOAuthCredential(platformChatOAuthCredentials, credential);
-    setPlatformChatOAuthCredentials(nextCredentials);
-    setPlatformChatAuth((current) => mergeOAuthAuth(current, createPlatformChatAuthFromCredentialStore(nextCredentials)));
+    const optimisticCredentials = upsertPlatformChatOAuthCredential(platformChatOAuthCredentialsRef.current, credential);
+    platformChatOAuthCredentialsRef.current = optimisticCredentials;
+    setPlatformChatOAuthCredentials((current) => {
+      const nextCredentials = upsertPlatformChatOAuthCredential(current, credential);
+      platformChatOAuthCredentialsRef.current = nextCredentials;
+      return nextCredentials;
+    });
+    setPlatformChatAuth((currentAuth) => mergeOAuthAuth(currentAuth, createPlatformChatAuthFromCredentialStore(optimisticCredentials)));
   };
 
   const startPlatformChatOAuth = () => {

@@ -27,7 +27,7 @@ export const loadMobileStreamValidationRuns = async (): Promise<StreamValidation
   }
 
   try {
-    return normalizeStreamValidationRuns(JSON.parse(runsJson) as unknown);
+    return redactSecretsFromPersistedValue(normalizeStreamValidationRuns(JSON.parse(runsJson) as unknown));
   } catch {
     await nativeStore.clearValidationRuns?.();
     return [];

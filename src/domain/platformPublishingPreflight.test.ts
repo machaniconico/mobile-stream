@@ -327,6 +327,24 @@ describe("platform publishing preflight", () => {
     expect(formatPlatformPublishingPreflightBlockMessage(report)).toContain("YouTube broadcast and ingest status are 16 minutes old");
   });
 
+  it("blocks live transition when the YouTube status snapshot is too far in the future", () => {
+    const report = transitionReport({
+      profile: youtubeProfile({
+        youtubeStatusCheckedAt: "2026-06-23T01:00:00.000Z"
+      }),
+      transitionStatus: "live",
+      streamStatus: "live",
+      validation: {
+        status: "ready",
+        recommendedNextStep: "Keep validation fresh."
+      },
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+
+    expect(report.canProceed).toBe(false);
+    expect(report.blocks.map((issue) => issue.code)).toContain("youtube-transition-status-invalid");
+  });
+
   it("warns but allows test transition when the YouTube status snapshot is missing", () => {
     const report = transitionReport({
       profile: youtubeProfile({

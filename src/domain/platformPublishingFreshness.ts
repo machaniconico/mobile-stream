@@ -22,6 +22,7 @@ export interface PlatformPublishingFreshness {
 }
 
 export const platformPublishingDashboardMaxAgeMinutes = 10;
+const platformPublishingDashboardFutureSkewToleranceMs = 2 * 60 * 1000;
 
 export const resolvePlatformPublishingFreshnessPlatform = (
   platform: string | null | undefined
@@ -75,6 +76,16 @@ export const assessPlatformPublishingFreshness = (
   const checkedTimestamp = Date.parse(checkedAt);
   const nowTimestamp = now.getTime();
   if (!Number.isFinite(checkedTimestamp) || !Number.isFinite(nowTimestamp)) {
+    return {
+      status: "invalid",
+      platformLabel,
+      checkedAt,
+      ageMinutes: null,
+      summary: `${platformLabel} dashboard status timestamp is invalid.`,
+      recommendation: `Refresh ${platformLabel} status before recording release-candidate evidence.`
+    };
+  }
+  if (checkedTimestamp - nowTimestamp > platformPublishingDashboardFutureSkewToleranceMs) {
     return {
       status: "invalid",
       platformLabel,

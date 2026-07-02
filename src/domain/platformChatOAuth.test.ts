@@ -11,12 +11,14 @@ import {
   ensureFreshPlatformChatOAuthCredential,
   exchangeYouTubeOAuthCode,
   getPlatformChatOAuthCredential,
+  normalizePlatformChatOAuthCredential,
   normalizePlatformChatOAuthCredentialStore,
   parseOAuthCallback,
   PlatformChatOAuthError,
   pollTwitchDeviceCodeOAuthFlow,
   refreshTwitchOAuthCredential,
   refreshYouTubeOAuthCredential,
+  removePlatformChatOAuthCredential,
   shouldRefreshPlatformChatOAuthCredential,
   shouldValidateTwitchOAuthCredential,
   startTwitchDeviceCodeOAuthFlow,
@@ -692,6 +694,30 @@ describe("platformChatOAuth", () => {
       youtube: null,
       twitch: null
     });
+    expect(removePlatformChatOAuthCredential(combined, "twitch")).toMatchObject({
+      youtube: legacyYouTube,
+      twitch: null
+    });
+  });
+
+  it("normalizes persisted OAuth timestamp strings", () => {
+    const expiresAt = Date.parse("2026-06-23T00:10:00.000Z");
+    const credential = normalizePlatformChatOAuthCredential({
+      platform: "youtube",
+      accessToken: "yt-token",
+      refreshToken: "yt-refresh",
+      expiresAt: "2026-06-23T00:10:00.000Z",
+      scopes: ["https://www.googleapis.com/auth/youtube.readonly"],
+      validatedAt: "1800",
+      clientId: "youtube-client",
+      redirectUri: "com.mobilelivecaster.app:/oauth/youtube"
+    } as unknown as Parameters<typeof normalizePlatformChatOAuthCredential>[0]);
+
+    expect(credential).toMatchObject({
+      expiresAt,
+      validatedAt: 1800
+    });
+    expect(shouldRefreshPlatformChatOAuthCredential(credential, expiresAt - 60_000)).toBe(true);
   });
 
   it("derives chat auth and refresh/validation scheduling from stored credentials", () => {

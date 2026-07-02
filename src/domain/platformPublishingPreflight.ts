@@ -44,6 +44,7 @@ export interface YouTubeBroadcastTransitionPreflightInput {
 }
 
 export const youtubeBroadcastTransitionStatusMaxAgeMinutes = 10;
+const youtubeBroadcastTransitionStatusFutureSkewToleranceMs = 2 * 60 * 1000;
 
 export const createYouTubeBroadcastTransitionPreflightReport = ({
   profile,
@@ -282,6 +283,17 @@ const createYouTubeStatusFreshnessIssues = (
   const checkedTimestamp = Date.parse(checkedAt);
   const nowTimestamp = now.getTime();
   if (!Number.isFinite(checkedTimestamp) || !Number.isFinite(nowTimestamp)) {
+    return [
+      {
+        code: "youtube-transition-status-invalid",
+        severity: staleSeverity,
+        label: "Status",
+        message: "YouTube status timestamp is invalid.",
+        recommendation: "Refresh YouTube status before changing the broadcast lifecycle state."
+      }
+    ];
+  }
+  if (checkedTimestamp - nowTimestamp > youtubeBroadcastTransitionStatusFutureSkewToleranceMs) {
     return [
       {
         code: "youtube-transition-status-invalid",

@@ -37,6 +37,7 @@ import {
   type ChatReaderState
 } from "../domain/chatReader";
 import type { FaceTrackingRuntimeState } from "../domain/faceTracking";
+import { createDiagnosticRedactionSecrets } from "../domain/diagnosticSecrets";
 import type { LiveCaptionSettings, LiveCaptionState } from "../domain/liveCaption";
 import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../domain/platformChat";
 import type { PlatformChatAuthSession, PlatformChatConnectionState } from "../domain/platformChatConnection";
@@ -291,13 +292,15 @@ const downloadSupportBundle = ({
   profile,
   readiness,
   preflight,
-  diagnostics
+  diagnostics,
+  secrets
 }: {
   scene: SceneDocument;
   profile: StudioProfile;
   readiness: ReadinessReport;
   preflight: StreamStartPreflightReport;
   diagnostics: StreamDiagnostics;
+  secrets: string[];
 }) => {
   const generatedAt = new Date();
   const bundle = serializeSupportBundle(
@@ -309,7 +312,7 @@ const downloadSupportBundle = ({
       diagnostics,
       now: generatedAt
     }),
-    { secrets: [profile.destination.streamKey] }
+    { secrets }
   );
   const blob = new Blob([bundle], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -706,6 +709,11 @@ export const StudioScreen = ({
     diagnostics,
     platformPublishingFreshness,
     profile
+  });
+  const diagnosticSecrets = createDiagnosticRedactionSecrets({
+    streamKey: profile.destination.streamKey,
+    platformChatOAuthCredentials,
+    twitchDeviceOAuthFlow
   });
   const canGoLive = publicLaunchChecklist.canStart;
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
@@ -2109,6 +2117,7 @@ export const StudioScreen = ({
             readiness={readiness}
             preflight={startPreflight}
             diagnostics={diagnostics}
+            secrets={diagnosticSecrets}
             qualityAutomationDecision={qualityAutomationDecision}
             setupLocked={setupLocked}
             onProfileChange={onProfileChange}
@@ -2177,6 +2186,7 @@ const StreamDiagnosticsPanel = ({
   readiness,
   preflight,
   diagnostics,
+  secrets,
   qualityAutomationDecision,
   setupLocked,
   onProfileChange,
@@ -2189,6 +2199,7 @@ const StreamDiagnosticsPanel = ({
   readiness: ReadinessReport;
   preflight: StreamStartPreflightReport;
   diagnostics: StreamDiagnostics;
+  secrets: string[];
   qualityAutomationDecision: StreamQualityAutomationDecision;
   setupLocked: boolean;
   onProfileChange(profile: StudioProfile): void;
@@ -2213,7 +2224,7 @@ const StreamDiagnosticsPanel = ({
           <button
             className="secondary-action compact-action diagnostic-export"
             type="button"
-            onClick={() => downloadStreamDiagnosticReport(diagnostics, publicLaunchChecklist, [profile.destination.streamKey])}
+            onClick={() => downloadStreamDiagnosticReport(diagnostics, publicLaunchChecklist, secrets)}
           >
             <Download size={15} />
             Diagnostics
@@ -2221,7 +2232,7 @@ const StreamDiagnosticsPanel = ({
           <button
             className="secondary-action compact-action diagnostic-export"
             type="button"
-            onClick={() => downloadSupportBundle({ scene, profile, readiness, preflight, diagnostics })}
+            onClick={() => downloadSupportBundle({ scene, profile, readiness, preflight, diagnostics, secrets })}
           >
             <Download size={15} />
             Support
@@ -2348,7 +2359,7 @@ const StreamDiagnosticsPanel = ({
       </div>
       <StreamValidationRecorder
         diagnostics={diagnostics}
-        profile={profile}
+        secrets={secrets}
         onRecordStreamValidationRun={onRecordStreamValidationRun}
         onClearStreamValidationRuns={onClearStreamValidationRuns}
       />
@@ -2412,12 +2423,12 @@ const StreamDiagnosticsPanel = ({
 
 const StreamValidationRecorder = ({
   diagnostics,
-  profile,
+  secrets,
   onRecordStreamValidationRun,
   onClearStreamValidationRuns
 }: {
   diagnostics: StreamDiagnostics;
-  profile: StudioProfile;
+  secrets: string[];
   onRecordStreamValidationRun(run: StreamValidationRun): void;
   onClearStreamValidationRuns(): void;
 }) => {
@@ -2438,7 +2449,7 @@ const StreamValidationRecorder = ({
       measuredLatencyMs: parseOptionalLatencyMs(monitorLatencyMs),
       note: monitorTuningNote
     },
-    [profile.destination.streamKey]
+    secrets
   );
   const latestDashboardFreshness =
     diagnostics.validationEvidence.latestPlatformPublishingFreshness ??
@@ -2464,7 +2475,7 @@ const StreamValidationRecorder = ({
           note: monitorTuningNote
         },
         result,
-        secrets: [profile.destination.streamKey]
+        secrets
       })
     );
   };

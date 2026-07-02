@@ -7,6 +7,7 @@ import {
   type AvatarIllustrationRigQualityGrade
 } from "../domain/avatarIllustrationRigQuality";
 import type { AudioRouteState } from "../domain/audioRoute";
+import { createDiagnosticRedactionSecrets } from "../domain/diagnosticSecrets";
 import {
   normalizeMutedWordsInput,
   selectChatOverlayMessages,
@@ -270,18 +271,20 @@ const shareSupportBundle = async ({
   profile,
   readiness,
   preflight,
-  diagnostics
+  diagnostics,
+  secrets
 }: {
   scene: SceneDocument;
   profile: StudioProfile;
   readiness: ReadinessReport;
   preflight: StreamStartPreflightReport;
   diagnostics: StreamDiagnostics;
+  secrets: string[];
 }) => {
   const bundle = createSupportBundle({ scene, profile, readiness, preflight, diagnostics });
   await Share.share({
     title: "MobileLiveCaster support bundle",
-    message: formatSupportBundle(bundle, { secrets: [profile.destination.streamKey] })
+    message: formatSupportBundle(bundle, { secrets })
   });
 };
 
@@ -646,6 +649,11 @@ export const MobileStudioScreen = ({
     diagnostics,
     platformPublishingFreshness,
     profile
+  });
+  const diagnosticSecrets = createDiagnosticRedactionSecrets({
+    streamKey: profile.destination.streamKey,
+    platformChatOAuthCredentials,
+    twitchDeviceOAuthFlow
   });
   const canGoLive = publicLaunchChecklist.canStart;
   const youtubeTransitionReport = (transitionStatus: YouTubeBroadcastTransitionStatus) =>
@@ -2391,6 +2399,7 @@ export const MobileStudioScreen = ({
           readiness={readiness}
           preflight={startPreflight}
           diagnostics={diagnostics}
+          secrets={diagnosticSecrets}
           qualityAutomationDecision={qualityAutomationDecision}
           setupLocked={setupLocked}
           onProfileChange={onProfileChange}
@@ -2469,6 +2478,7 @@ const StreamDiagnosticsPanel = ({
   readiness,
   preflight,
   diagnostics,
+  secrets,
   qualityAutomationDecision,
   setupLocked,
   onProfileChange,
@@ -2481,6 +2491,7 @@ const StreamDiagnosticsPanel = ({
   readiness: ReadinessReport;
   preflight: StreamStartPreflightReport;
   diagnostics: StreamDiagnostics;
+  secrets: string[];
   qualityAutomationDecision: StreamQualityAutomationDecision;
   setupLocked: boolean;
   onProfileChange(profile: StudioProfile): void;
@@ -2504,9 +2515,9 @@ const StreamDiagnosticsPanel = ({
     <View style={styles.diagnosticActions}>
       <ActionButton
         label="Share Report"
-        onPress={() => shareStreamDiagnosticReport(diagnostics, publicLaunchChecklist, [profile.destination.streamKey])}
+        onPress={() => shareStreamDiagnosticReport(diagnostics, publicLaunchChecklist, secrets)}
       />
-      <ActionButton label="Share Bundle" onPress={() => shareSupportBundle({ scene, profile, readiness, preflight, diagnostics })} />
+      <ActionButton label="Share Bundle" onPress={() => shareSupportBundle({ scene, profile, readiness, preflight, diagnostics, secrets })} />
       <ActionButton
         label="Clear History"
         disabled={diagnostics.session.summaries.length === 0}
@@ -2615,7 +2626,7 @@ const StreamDiagnosticsPanel = ({
     </View>
     <StreamValidationRecorder
       diagnostics={diagnostics}
-      profile={profile}
+      secrets={secrets}
       onRecordStreamValidationRun={onRecordStreamValidationRun}
       onClearStreamValidationRuns={onClearStreamValidationRuns}
     />
@@ -2686,12 +2697,12 @@ const StreamDiagnosticsPanel = ({
 
 const StreamValidationRecorder = ({
   diagnostics,
-  profile,
+  secrets,
   onRecordStreamValidationRun,
   onClearStreamValidationRuns
 }: {
   diagnostics: StreamDiagnostics;
-  profile: StudioProfile;
+  secrets: string[];
   onRecordStreamValidationRun(run: StreamValidationRun): void | Promise<void>;
   onClearStreamValidationRuns(): void | Promise<void>;
 }) => {
@@ -2712,7 +2723,7 @@ const StreamValidationRecorder = ({
       measuredLatencyMs: parseOptionalLatencyMs(monitorLatencyMs),
       note: monitorTuningNote
     },
-    [profile.destination.streamKey]
+    secrets
   );
   const latestDashboardFreshness =
     diagnostics.validationEvidence.latestPlatformPublishingFreshness ??
@@ -2738,7 +2749,7 @@ const StreamValidationRecorder = ({
           note: monitorTuningNote
         },
         result,
-        secrets: [profile.destination.streamKey]
+        secrets
       })
     );
   };

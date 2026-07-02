@@ -189,6 +189,52 @@ describe("platformChatConnection", () => {
     expect(decision.state.exhaustedKey).toBe(decision.key);
   });
 
+  it("exhausts Twitch reconnect attempts when repeated socket failures use one stable message", () => {
+    const auth = normalizePlatformChatAuthSession({
+      twitchOauthToken: "tw-token",
+      twitchLogin: "macha"
+    });
+    const policy = { baseDelayMs: 1000, maxAttempts: 2 };
+    const connection = { phase: "failed" as const, message: "Twitch chat connection lost." };
+    const first = createPlatformChatReconnectDecision({
+      settings: twitchSettings(),
+      auth,
+      chatReaderEnabled: true,
+      streamActive: true,
+      connection,
+      state: createInitialPlatformChatReconnectState(),
+      policy
+    });
+    const second = createPlatformChatReconnectDecision({
+      settings: twitchSettings(),
+      auth,
+      chatReaderEnabled: true,
+      streamActive: true,
+      connection,
+      state: { ...first.state, scheduledKey: null },
+      policy
+    });
+    const exhausted = createPlatformChatReconnectDecision({
+      settings: twitchSettings(),
+      auth,
+      chatReaderEnabled: true,
+      streamActive: true,
+      connection,
+      state: { ...second.state, scheduledKey: null },
+      policy
+    });
+
+    expect(first).toMatchObject({ command: "schedule-reconnect", attemptsUsed: 1 });
+    expect(second).toMatchObject({ command: "schedule-reconnect", attemptsUsed: 2 });
+    expect(exhausted).toMatchObject({
+      command: "give-up",
+      attemptsUsed: 2,
+      maxAttempts: 2
+    });
+    expect(second.key).toBe(first.key);
+    expect(exhausted.key).toBe(first.key);
+  });
+
   it("builds sanitized YouTube live chat requests with bearer auth", () => {
     const request = buildYouTubeLiveChatRequest(
       youtubeSettings(),

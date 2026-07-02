@@ -44,6 +44,8 @@ interface PlatformChatSocket {
 
 type PlatformChatSocketConstructor = new (url: string) => PlatformChatSocket;
 
+export const TWITCH_CHAT_CONNECTION_LOST_MESSAGE = "Twitch chat connection lost.";
+
 export const usePlatformChatConnection = ({ settings, auth, onMessages, autoReconnect }: PlatformChatConnectionOptions) => {
   const [connection, setConnection] = useState<PlatformChatConnectionState>(() => createPlatformChatConnectionState());
   const connectionRef = useRef(connection);
@@ -139,13 +141,13 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages, autoReco
 
         const now = Date.now();
         const nextPollAt = now + page.nextPollIntervalMs;
-        setConnection({
+        setConnection((current) => ({
           phase: "connected",
           label: "Connected",
           message: `YouTube chat polling every ${Math.round(page.nextPollIntervalMs / 1000)}s.`,
-          lastReceivedAt: page.ingest.messages.at(-1)?.receivedAt ?? null,
+          lastReceivedAt: page.ingest.messages.at(-1)?.receivedAt ?? current.lastReceivedAt,
           nextPollAt
-        });
+        }));
         youtubeTimerRef.current = setTimeout(() => void pollYouTube(connectionId, page.nextCursor), page.nextPollIntervalMs);
       } catch (error) {
         if (!isCurrentConnection(activeRef, connectionIdRef, connectionId)) {
@@ -214,25 +216,25 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages, autoReco
         onMessagesRef.current(result.messages);
       }
 
-      setConnection({
+      setConnection((current) => ({
         phase: "connected",
         label: "Connected",
         message: "Twitch IRC chat is connected.",
-        lastReceivedAt: result.messages.at(-1)?.receivedAt ?? null,
+        lastReceivedAt: result.messages.at(-1)?.receivedAt ?? current.lastReceivedAt,
         nextPollAt: null
-      });
+      }));
     };
 
     socket.onerror = () => {
       if (isCurrentSocket()) {
-        setConnection(createPlatformChatConnectionState("failed", "Twitch chat socket error."));
+        setConnection(createPlatformChatConnectionState("failed", TWITCH_CHAT_CONNECTION_LOST_MESSAGE));
       }
     };
 
     socket.onclose = () => {
       if (isCurrentSocket()) {
         activeRef.current = false;
-        setConnection(createPlatformChatConnectionState("failed", "Twitch chat socket closed."));
+        setConnection(createPlatformChatConnectionState("failed", TWITCH_CHAT_CONNECTION_LOST_MESSAGE));
       }
     };
   }, []);
