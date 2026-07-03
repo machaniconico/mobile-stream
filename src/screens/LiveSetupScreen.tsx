@@ -1,4 +1,5 @@
-import { Settings, ShieldCheck, Trash2 } from "lucide-react";
+import { Megaphone, Settings, ShieldCheck, Trash2 } from "lucide-react";
+import { createDiagnosticRedactionSecrets } from "../domain/diagnosticSecrets";
 import {
   applyDestinationPreset,
   destinationPresets,
@@ -20,6 +21,8 @@ import {
 } from "../domain/platformPublishingPreflight";
 import type { PublicLaunchChecklist } from "../domain/publicLaunchChecklist";
 import type { ReadinessReport } from "../domain/readiness";
+import { createStreamAnnouncementPreview } from "../domain/streamAnnouncement";
+import { isValidDiscordWebhookUrl } from "../domain/streamAnnouncementAutoPost";
 import type { StreamStatus } from "../domain/streamState";
 import type { StreamValidationChecklist } from "../domain/streamValidationChecklist";
 import { PanelTitle, ProtocolBadge } from "./ui";
@@ -34,10 +37,13 @@ interface LiveSetupScreenProps {
   locked: boolean;
   platformPublishingStatus: string;
   platformApiOperationLabel: string | null;
+  streamAnnouncementAutoPostStatus: string;
+  streamAnnouncementWebhookStorageNotice: string;
   onProfileChange(profile: StudioProfile): void;
   onPlatformPublishingApply(): void | Promise<void>;
   onPlatformPublishingStatusRefresh(): void | Promise<void>;
   onYouTubeBroadcastTransition(status: YouTubeBroadcastTransitionStatus): void | Promise<void>;
+  onStreamAnnouncementWebhookTest(): void | Promise<void>;
   onClearStreamKey(): void;
 }
 
@@ -51,14 +57,28 @@ export const LiveSetupScreen = ({
   locked,
   platformPublishingStatus,
   platformApiOperationLabel,
+  streamAnnouncementAutoPostStatus,
+  streamAnnouncementWebhookStorageNotice,
   onProfileChange,
   onPlatformPublishingApply,
   onPlatformPublishingStatusRefresh,
   onYouTubeBroadcastTransition,
+  onStreamAnnouncementWebhookTest,
   onClearStreamKey
 }: LiveSetupScreenProps) => {
   const activePreset = getDestinationPreset(profile.destination.presetId) ?? getDestinationPreset("custom-rtmps");
   const canApplyPlatformPublishing = profile.destination.platform === "youtube-live" || profile.destination.platform === "twitch";
+  const streamAnnouncementPreview = createStreamAnnouncementPreview({
+    profile,
+    twitchLogin: platformChatOAuthCredentials?.twitch?.twitchLogin,
+    secrets: createDiagnosticRedactionSecrets({
+      streamKey: profile.destination.streamKey,
+      discordWebhookUrl: profile.streamAnnouncement.discordWebhookUrl,
+      platformChatOAuthCredentials
+    })
+  });
+  const webhookUrlPresent = Boolean(profile.streamAnnouncement.discordWebhookUrl.trim());
+  const webhookUrlValid = isValidDiscordWebhookUrl(profile.streamAnnouncement.discordWebhookUrl);
   const youtubeTransitionReport = (transitionStatus: YouTubeBroadcastTransitionStatus) =>
     createYouTubeBroadcastTransitionPreflightReport({
       profile,
@@ -106,6 +126,18 @@ export const LiveSetupScreen = ({
       ...profile,
       platformPublishing: {
         ...profile.platformPublishing,
+        ...update
+      }
+    });
+  };
+  const updateStreamAnnouncement = (update: Partial<StudioProfile["streamAnnouncement"]>) => {
+    if (locked) {
+      return;
+    }
+    onProfileChange({
+      ...profile,
+      streamAnnouncement: {
+        ...profile.streamAnnouncement,
         ...update
       }
     });
@@ -203,6 +235,82 @@ export const LiveSetupScreen = ({
           onChange={(event) => updatePublishing({ description: event.target.value })}
         />
       </label>
+      <label className="field">
+        <span>Announcement template</span>
+        <textarea
+          value={profile.streamAnnouncement.template}
+          maxLength={500}
+          disabled={locked}
+          rows={3}
+          onChange={(event) => updateStreamAnnouncement({ template: event.target.value })}
+        />
+      </label>
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={profile.streamAnnouncement.promptAfterGoLive}
+          disabled={locked}
+          onChange={(event) => updateStreamAnnouncement({ promptAfterGoLive: event.target.checked })}
+        />
+        <span>Prompt after Go Live</span>
+      </label>
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={profile.streamAnnouncement.autoPostEnabled}
+          disabled={locked}
+          onChange={(event) => updateStreamAnnouncement({ autoPostEnabled: event.target.checked })}
+        />
+        <span>Auto-post to Discord after platform Live</span>
+      </label>
+      <label className="field">
+        <span>Discord webhook URL</span>
+        <div className="secret-input-row">
+          <input
+            type="password"
+            value={profile.streamAnnouncement.discordWebhookUrl}
+            disabled={locked}
+            autoComplete="off"
+            placeholder="https://discord.com/api/webhooks/{id}/{token}"
+            onChange={(event) => updateStreamAnnouncement({ discordWebhookUrl: event.target.value })}
+          />
+          <button
+            className="icon-button"
+            type="button"
+            disabled={locked || !webhookUrlPresent}
+            title="Clear Discord webhook URL"
+            aria-label="Clear Discord webhook URL"
+            onClick={() => updateStreamAnnouncement({ discordWebhookUrl: "" })}
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      </label>
+      <div className="stream-announcement-webhook-row">
+        <span>{webhookUrlPresent ? (webhookUrlValid ? "Discord webhook configured." : "Discord webhook URL format is invalid.") : "Discord webhook not set."}</span>
+        <button
+          className="secondary-action compact-action"
+          type="button"
+          disabled={locked || !webhookUrlPresent || !streamAnnouncementPreview.text}
+          onClick={() => void onStreamAnnouncementWebhookTest()}
+        >
+          <Megaphone size={16} />
+          <span>Test post</span>
+        </button>
+      </div>
+      <p className="field-note">{streamAnnouncementWebhookStorageNotice}</p>
+      {streamAnnouncementAutoPostStatus ? (
+        <div className="stream-announcement-status" role="status">
+          {streamAnnouncementAutoPostStatus}
+        </div>
+      ) : null}
+      <div className="stream-announcement-preview">
+        <span>Announcement preview</span>
+        <p>{streamAnnouncementPreview.text}</p>
+        {streamAnnouncementPreview.sensitiveValueRemoved ? (
+          <strong>sensitive value removed</strong>
+        ) : null}
+      </div>
 
       {profile.destination.platform === "youtube-live" ? (
         <>

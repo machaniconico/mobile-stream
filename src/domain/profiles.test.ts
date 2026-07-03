@@ -39,6 +39,8 @@ describe("studio profiles", () => {
     expect(profile.platformChat.platform).toBe("youtube");
     expect(profile.platformPublishing.title).toBe("MobileLiveCaster Live");
     expect(profile.platformPublishing.privacyStatus).toBe("private");
+    expect(profile.streamAnnouncement.template).toContain("{title}");
+    expect(profile.streamAnnouncement.promptAfterGoLive).toBe(true);
   });
 
   it("normalizes Android publisher mode with RootEncoder as the compatibility default", () => {
@@ -104,15 +106,23 @@ describe("studio profiles", () => {
   });
 
   it("removes stream keys before persistence", () => {
+    const webhookUrl =
+      "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz.ABCDEFGHIJKLMNOPQRSTUVWXYZ_1234567890";
     const profile = {
       ...createDefaultStudioProfile(),
       destination: {
         ...createDefaultStudioProfile().destination,
         streamKey: "secret-stream-key"
+      },
+      streamAnnouncement: {
+        ...createDefaultStudioProfile().streamAnnouncement,
+        autoPostEnabled: true,
+        discordWebhookUrl: webhookUrl
       }
     };
 
     expect(stripSensitiveProfileData(profile).destination.streamKey).toBe("");
+    expect(stripSensitiveProfileData(profile).streamAnnouncement.discordWebhookUrl).toBe("");
   });
 
   it("applies destination presets without dropping the stream key", () => {

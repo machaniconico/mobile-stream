@@ -6,18 +6,21 @@ import {
 
 export interface DiagnosticRedactionSecretInput {
   streamKey?: string | null;
+  discordWebhookUrl?: string | null;
   platformChatOAuthCredentials?: Partial<PlatformChatOAuthCredentialStore> | null;
   twitchDeviceOAuthFlow?: Pick<TwitchDeviceCodeOAuthFlow, "deviceCode"> | null;
 }
 
 export const createDiagnosticRedactionSecrets = ({
   streamKey,
+  discordWebhookUrl,
   platformChatOAuthCredentials,
   twitchDeviceOAuthFlow
 }: DiagnosticRedactionSecretInput): string[] => {
   const credentials = normalizePlatformChatOAuthCredentialStore(platformChatOAuthCredentials);
   return compactSecrets([
     streamKey,
+    discordWebhookUrl,
     credentials.youtube?.accessToken,
     credentials.youtube?.refreshToken,
     credentials.twitch?.accessToken,

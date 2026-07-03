@@ -6,6 +6,8 @@ describe("diagnosticSecrets", () => {
     expect(
       createDiagnosticRedactionSecrets({
         streamKey: " stream-key ",
+        discordWebhookUrl:
+          " https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz.ABCDEFGHIJKLMNOPQRSTUVWXYZ_1234567890 ",
         platformChatOAuthCredentials: {
           youtube: {
             platform: "youtube",
@@ -36,6 +38,13 @@ describe("diagnosticSecrets", () => {
           deviceCode: "device-secret"
         }
       })
-    ).toEqual(["stream-key", "yt-access", "yt-refresh", "tw-access", "device-secret"]);
+    ).toEqual([
+      "stream-key",
+      "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz.ABCDEFGHIJKLMNOPQRSTUVWXYZ_1234567890",
+      "yt-access",
+      "yt-refresh",
+      "tw-access",
+      "device-secret"
+    ]);
   });
 });

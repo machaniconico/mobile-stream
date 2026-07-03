@@ -11,4 +11,14 @@ describe("MobileApp OAuth credential state", () => {
     expect(source).toContain("await saveSecureOAuthCredentials(nextCredentials)");
     expect(source).not.toContain("...platformChatOAuthCredentials,\n          [platform]: null");
   });
+
+  it("hooks Discord announcement autopost to native platform-visible live success signals", () => {
+    const source = readFileSync(new URL("./MobileApp.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("runStreamAnnouncementAutoPost(result.profile, \"youtube-live-transition\")");
+    expect(source).toContain("runStreamAnnouncementAutoPost(result.profile, \"twitch-status-refresh\")");
+    expect(source).toContain("createStreamAnnouncementAutoPostDecision({");
+    expect(source).toContain("enginePlatform: engineSnapshot.platform");
+    expect(source).toContain("postedSessionKeys: streamAnnouncementAutoPostedSessionKeys.current");
+  });
 });

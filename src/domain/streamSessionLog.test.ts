@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   appendStreamSessionEvent,
+  createStreamAnnouncementAutoPostEvent,
   createStreamChatEvent,
   createStreamChatReconnectEvent,
   createStreamOperationEvent,
@@ -115,6 +116,34 @@ describe("stream session log", () => {
     expect(skipped).toMatchObject({
       severity: "warn",
       title: "OAuth callback exchange skipped"
+    });
+  });
+
+  it("creates Discord announcement autopost audit events", () => {
+    const posted = createStreamAnnouncementAutoPostEvent(
+      {
+        phase: "posted",
+        message: "Discord announcement posted. Content: Live now!"
+      },
+      new Date("2026-06-23T00:00:00.000Z")
+    );
+    const failed = createStreamAnnouncementAutoPostEvent(
+      {
+        phase: "failed",
+        message: "Discord webhook post failed with HTTP 429. Retry after 3s."
+      },
+      new Date("2026-06-23T00:00:01.000Z")
+    );
+
+    expect(posted).toMatchObject({
+      kind: "announcement",
+      severity: "info",
+      title: "Discord announcement posted"
+    });
+    expect(failed).toMatchObject({
+      kind: "announcement",
+      severity: "warn",
+      title: "Discord announcement failed"
     });
   });
 
