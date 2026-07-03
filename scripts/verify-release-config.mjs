@@ -48,6 +48,8 @@ const files = {
   implementationStatus: read("docs/IMPLEMENTATION_STATUS.md"),
   sceneDomain: read("src/domain/scene.ts"),
   sceneDomainTest: read("src/domain/scene.test.ts"),
+  chatReaderDomain: read("src/domain/chatReader.ts"),
+  chatReaderDomainTest: read("src/domain/chatReader.test.ts"),
   platformStreamKeysDomain: read("src/domain/platformStreamKeys.ts"),
   platformStreamKeysDomainTest: read("src/domain/platformStreamKeys.test.ts"),
   webApp: read("src/app/App.tsx"),
@@ -436,6 +438,37 @@ const checks = [
     expectIncludes(files.webStyles, "quick-text-action-buttons");
     expectIncludes(files.readme, "preset action switching for immediate display, queued display, or pinned display");
     expectIncludes(files.implementationStatus, "preset action switching for immediate, queued, or pinned display");
+  }),
+  check("Stream timer text overlays and chat pinning are locked for Web and React Native builds", () => {
+    expectIncludes(files.sceneDomain, 'export type TextSourceTimerMode = "none" | "countdown" | "uptime";');
+    expectIncludes(files.sceneDomain, '"starting-soon-countdown"');
+    expectIncludes(files.sceneDomain, '"uptime-badge"');
+    expectIncludes(files.sceneDomain, "formatTimerOverlayText");
+    expectIncludes(files.sceneDomain, "streamStartedAtMs");
+    expectIncludes(files.sceneDomain, "timerCompleteText");
+    expectIncludes(files.sceneDomainTest, "formats countdown and uptime timer overlay text at duration boundaries");
+    expectIncludes(files.sceneDomainTest, "switches completed countdown timers to editable complete text");
+    expectIncludes(files.sceneDomainTest, "renders timer text overlays through normal text payloads without persisting current values");
+    expectIncludes(files.chatReaderDomain, "pinnedMessage: PinnedChatMessage | null");
+    expectIncludes(files.chatReaderDomain, "pinChatMessage");
+    expectIncludes(files.chatReaderDomain, "unpinChatMessage");
+    expectIncludes(files.chatReaderDomain, "pinned: true");
+    expectIncludes(files.chatReaderDomainTest, "pins a recent comment at the top of the chat overlay and unpins it");
+    expectIncludes(files.chatReaderDomainTest, "clears pinned comments with the chat reader session");
+    expectIncludes(files.chatReaderDomainTest, "redacts pinned comment urls through the same overlay selector");
+    expectIncludes(files.webApp, "streamStartedAtMs");
+    expectIncludes(files.mobileApp, "streamStartedAtMs");
+    expectIncludes(files.webStudioScreen, "Starting Soon countdown");
+    expectIncludes(files.mobileStudioScreen, "Starting Soon countdown");
+    expectIncludes(files.webStudioScreen, "textSourceTimerModes.map");
+    expectIncludes(files.mobileStudioScreen, "textSourceTimerModes.map");
+    expectIncludes(files.webStudioScreen, "onChatCommentPin");
+    expectIncludes(files.mobileStudioScreen, "onChatCommentPin");
+    expectIncludes(files.webStyles, "chat-overlay-visual span.pinned");
+    expectIncludes(files.readme, "starting-soon countdown timers, uptime badges");
+    expectIncludes(files.readme, "session-only recent-comment pinning");
+    expectIncludes(files.implementationStatus, "starting-soon countdown timers, uptime badges");
+    expectIncludes(files.implementationStatus, "session-only pinned message snapshots rendered at the top");
   }),
   check("Platform stream key UX keeps Twitch reset scope explicit", () => {
     expectIncludes(files.platformStreamKeysDomain, "getPlatformStreamKeyOperationInfo");

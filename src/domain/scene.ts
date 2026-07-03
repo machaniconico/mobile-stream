@@ -183,6 +183,7 @@ export type TextSourceMode = "label" | "subtitle" | "ticker" | "caption";
 export type TextSourceAlign = "left" | "center" | "right";
 export type TextSourceContentSource = "manual" | "runtime-caption";
 export type TextSourceVisibilityMode = "always" | "timed";
+export type TextSourceTimerMode = "none" | "countdown" | "uptime";
 export type TextOverlayPresetId =
   | "subtitle"
   | "lower-third"
@@ -190,7 +191,9 @@ export type TextOverlayPresetId =
   | "live-caption"
   | "title"
   | "notice"
-  | "badge";
+  | "badge"
+  | "starting-soon-countdown"
+  | "uptime-badge";
 export type ManualTextOverlayPresetId = Exclude<TextOverlayPresetId, "live-caption">;
 
 export interface ManualTextOverlayPreset {
@@ -207,6 +210,9 @@ export interface TextSource extends BaseSource {
   align: TextSourceAlign;
   showCaptionSpeaker: boolean;
   visibilityMode: TextSourceVisibilityMode;
+  timerMode: TextSourceTimerMode;
+  countdownTargetMs?: number;
+  timerCompleteText: string;
   displayDurationMs: number;
   activatedAtMs: number;
   color: string;
@@ -244,6 +250,7 @@ export interface ChatOverlayMessage {
   author: string;
   body: string;
   source?: string;
+  pinned?: boolean;
 }
 
 export interface CaptionOverlayCue {
@@ -260,6 +267,7 @@ export interface RenderGraphRuntime {
   captions?: CaptionOverlayCue[];
   captionsEnabled?: boolean;
   nowMs?: number;
+  streamStartedAtMs?: number;
 }
 
 export interface TimedTextOverlayRequest {
@@ -292,10 +300,12 @@ export type QuickTextOverlayPresetId =
   | "ending-soon"
   | "thanks"
   | "pinned-comment"
+  | "starting-soon-countdown"
+  | "uptime-badge"
   | "spoiler-clear"
   | "stream-trouble";
 
-export type QuickTextOverlayPresetCategory = "subtitle" | "notice" | "engagement" | "safety";
+export type QuickTextOverlayPresetCategory = "subtitle" | "notice" | "engagement" | "safety" | "timer";
 
 export interface QuickTextOverlayPreset {
   id: QuickTextOverlayPresetId;
@@ -398,11 +408,15 @@ const textSourceModes: readonly TextSourceMode[] = ["label", "subtitle", "ticker
 const textSourceAlignments: readonly TextSourceAlign[] = ["left", "center", "right"];
 const textSourceContentSources: readonly TextSourceContentSource[] = ["manual", "runtime-caption"];
 const textSourceVisibilityModes: readonly TextSourceVisibilityMode[] = ["always", "timed"];
+const textSourceTimerModes: readonly TextSourceTimerMode[] = ["none", "countdown", "uptime"];
 const textOverlayLineMaxLength = 220;
 const textOverlayTokenMaxLength = 48;
 const textOverlayMinimumDisplayDurationMs = 1000;
 const textOverlayMaximumDisplayDurationMs = 60000;
 const textOverlayDefaultDisplayDurationMs = 5000;
+const defaultCountdownPrefixText = "配信開始まで";
+const defaultCountdownCompleteText = "まもなく開始…";
+const defaultUptimePrefixText = "経過";
 const quickSubtitleSourceName = "Quick Subtitle";
 const queuedSubtitleSourceName = "Queued Subtitle";
 const pinnedTextSourceName = "Pinned Text";
@@ -415,6 +429,48 @@ const normalizeTextOverlayDisplayDurationMs = (durationMs: number | undefined): 
       textOverlayMaximumDisplayDurationMs
     )
   );
+
+export const formatTimerOverlayText = (
+  nowMs: number,
+  source: Pick<TextSource, "timerMode" | "countdownTargetMs" | "timerCompleteText" | "activatedAtMs" | "text">,
+  runtime: Pick<RenderGraphRuntime, "streamStartedAtMs"> = {}
+): string => {
+  const mode = source.timerMode ?? "none";
+  const now = Math.max(0, Math.round(finiteNumber(nowMs, Date.now())));
+
+  if (mode === "countdown") {
+    const targetMs = Math.max(0, Math.round(finiteNumber(source.countdownTargetMs, 0)));
+    if (targetMs <= now) {
+      return normalizeOverlayText(source.timerCompleteText || defaultCountdownCompleteText) || defaultCountdownCompleteText;
+    }
+    const prefix = normalizeTimerPrefix(source.text, defaultCountdownPrefixText);
+    return `${prefix} ${formatTimerDurationSeconds(Math.ceil((targetMs - now) / 1000))}`;
+  }
+
+  if (mode === "uptime") {
+    const streamStartedAtMs = Math.max(0, Math.round(finiteNumber(runtime.streamStartedAtMs, 0)));
+    const sourceStartedAtMs = Math.max(0, Math.round(finiteNumber(source.activatedAtMs, 0)));
+    const startedAtMs = streamStartedAtMs > 0 ? streamStartedAtMs : sourceStartedAtMs > 0 ? sourceStartedAtMs : now;
+    const prefix = normalizeTimerPrefix(source.text, defaultUptimePrefixText);
+    return `${prefix} ${formatTimerDurationSeconds(Math.floor(Math.max(0, now - startedAtMs) / 1000))}`;
+  }
+
+  return normalizeOverlayText(source.text);
+};
+
+const normalizeTimerPrefix = (value: string, fallback: string): string =>
+  normalizeOverlayText(value).replace(/\s+$/, "") || fallback;
+
+const formatTimerDurationSeconds = (totalSeconds: number): string => {
+  const seconds = Math.max(0, Math.floor(finiteNumber(totalSeconds, 0)));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  if (hours > 0) {
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${remainder.toString().padStart(2, "0")}`;
+  }
+  return `${minutes.toString().padStart(2, "0")}:${remainder.toString().padStart(2, "0")}`;
+};
 
 export const quickTextOverlayDurationPresets: readonly QuickTextOverlayDurationPreset[] = [
   { id: "short", label: "3s", durationMs: 3000 },
@@ -503,6 +559,22 @@ export const quickTextOverlayPresets: readonly QuickTextOverlayPreset[] = [
     durationMs: 9000
   },
   {
+    id: "starting-soon-countdown",
+    category: "timer",
+    label: "開始カウント",
+    text: defaultCountdownPrefixText,
+    presetId: "starting-soon-countdown",
+    durationMs: 12000
+  },
+  {
+    id: "uptime-badge",
+    category: "timer",
+    label: "経過バッジ",
+    text: defaultUptimePrefixText,
+    presetId: "uptime-badge",
+    durationMs: 12000
+  },
+  {
     id: "spoiler-clear",
     category: "safety",
     label: "ネタバレ終了",
@@ -527,6 +599,7 @@ export const quickTextOverlayPresetCategories: readonly {
   { category: "subtitle", label: "字幕" },
   { category: "notice", label: "告知" },
   { category: "engagement", label: "誘導" },
+  { category: "timer", label: "タイマー" },
   { category: "safety", label: "注意" }
 ];
 
@@ -543,7 +616,9 @@ export const manualTextOverlayPresets: readonly ManualTextOverlayPreset[] = [
   { presetId: "notice", label: "Notice", description: "Centered notice for breaks, waiting, or alerts." },
   { presetId: "ticker", label: "Ticker", description: "Full-width bottom ticker for repeated stream copy." },
   { presetId: "badge", label: "Badge", description: "Corner badge such as LIVE, SPOILER, or Q&A." },
-  { presetId: "title", label: "Title", description: "Large top title text for scene labels." }
+  { presetId: "title", label: "Title", description: "Large top title text for scene labels." },
+  { presetId: "starting-soon-countdown", label: "Starting Soon countdown", description: "Countdown text for pre-stream scenes." },
+  { presetId: "uptime-badge", label: "Uptime badge", description: "Elapsed-stream timer badge." }
 ];
 
 const clampTransform = (transform: Transform): Transform => ({
@@ -1286,6 +1361,9 @@ export const createDefaultScene = (): SceneDocument => {
       align: "left",
       showCaptionSpeaker: true,
       visibilityMode: "always",
+      timerMode: "none",
+      countdownTargetMs: 0,
+      timerCompleteText: defaultCountdownCompleteText,
       displayDurationMs: textOverlayDefaultDisplayDurationMs,
       activatedAtMs: 0,
       color: "#f8fafc",
@@ -1310,6 +1388,9 @@ export const createDefaultScene = (): SceneDocument => {
       align: "center",
       showCaptionSpeaker: true,
       visibilityMode: "always",
+      timerMode: "none",
+      countdownTargetMs: 0,
+      timerCompleteText: defaultCountdownCompleteText,
       displayDurationMs: textOverlayDefaultDisplayDurationMs,
       activatedAtMs: 0,
       color: "#f8fafc",
@@ -1523,6 +1604,9 @@ export const createSource = (kind: SourceKind): SceneSource => {
         align: "center",
         showCaptionSpeaker: true,
         visibilityMode: "always",
+        timerMode: "none",
+        countdownTargetMs: 0,
+        timerCompleteText: defaultCountdownCompleteText,
         displayDurationMs: textOverlayDefaultDisplayDurationMs,
         activatedAtMs: 0,
         color: "#f8fafc",
@@ -1656,6 +1740,49 @@ export const createTextOverlayPresetSource = (presetId: TextOverlayPresetId): Te
         maxLines: 1,
         transform: defaultTransform({ x: 0.79, y: 0.06, width: 0.16, height: 0.08 })
       };
+    case "starting-soon-countdown":
+      return {
+        ...base,
+        name: "Starting Soon Countdown",
+        text: defaultCountdownPrefixText,
+        mode: "label",
+        contentSource: "manual",
+        align: "center",
+        showCaptionSpeaker: true,
+        timerMode: "countdown",
+        countdownTargetMs: Date.now() + 5 * 60 * 1000,
+        timerCompleteText: defaultCountdownCompleteText,
+        color: "#f8fafc",
+        fontSize: 70,
+        backgroundColor: "#020617",
+        backgroundOpacity: 0.48,
+        outlineColor: "#000000",
+        outlineWidth: 5,
+        maxLines: 1,
+        transform: defaultTransform({ x: 0.16, y: 0.34, width: 0.68, height: 0.16 })
+      };
+    case "uptime-badge":
+      return {
+        ...base,
+        name: "Uptime Badge",
+        text: defaultUptimePrefixText,
+        mode: "label",
+        contentSource: "manual",
+        align: "center",
+        showCaptionSpeaker: true,
+        timerMode: "uptime",
+        countdownTargetMs: 0,
+        timerCompleteText: defaultCountdownCompleteText,
+        activatedAtMs: Date.now(),
+        color: "#ffffff",
+        fontSize: 36,
+        backgroundColor: "#0f766e",
+        backgroundOpacity: 0.82,
+        outlineColor: "#042f2e",
+        outlineWidth: 2,
+        maxLines: 1,
+        transform: defaultTransform({ x: 0.74, y: 0.16, width: 0.21, height: 0.08 })
+      };
     case "live-caption":
       return {
         ...base,
@@ -1678,6 +1805,8 @@ export const createTextOverlayPresetSource = (presetId: TextOverlayPresetId): Te
 
 export const applyTextOverlayPresetStyle = (source: TextSource, presetId: TextOverlayPresetId): TextSource => {
   const preset = createTextOverlayPresetSource(presetId);
+  const shouldKeepCurrentText =
+    source.text.trim().length > 0 && (source.timerMode ?? "none") === (preset.timerMode ?? "none");
   return {
     ...preset,
     id: source.id,
@@ -1687,7 +1816,7 @@ export const applyTextOverlayPresetStyle = (source: TextSource, presetId: TextOv
     visibilityMode: source.visibilityMode,
     displayDurationMs: source.displayDurationMs,
     activatedAtMs: source.activatedAtMs,
-    text: source.text.trim() ? source.text : preset.text
+    text: shouldKeepCurrentText ? source.text : preset.text
   };
 };
 
@@ -2411,12 +2540,15 @@ const sourcePayload = (source: SceneSource, runtime: RenderGraphRuntime): Record
       const nowMs = runtime.nowMs ?? Date.now();
       const remainingMs = textSourceRemainingMs(source, nowMs);
       return {
-        text: resolveTextSourceText(source, captionCues),
+        text: resolveTextSourceText(source, captionCues, { ...runtime, nowMs }),
         mode: source.mode,
         contentSource: source.contentSource,
         align: source.align,
         showCaptionSpeaker: source.showCaptionSpeaker,
         visibilityMode: source.visibilityMode,
+        timerMode: source.timerMode ?? "none",
+        countdownTargetMs: source.countdownTargetMs ?? 0,
+        timerCompleteText: source.timerCompleteText,
         displayDurationMs: source.displayDurationMs,
         activatedAtMs: source.activatedAtMs,
         remainingMs,
@@ -2669,6 +2801,13 @@ const normalizeSceneSource = (value: unknown, canvas: SceneDocument["canvas"] = 
         visibilityMode: textSourceVisibilityModes.includes(value.visibilityMode as TextSourceVisibilityMode)
           ? (value.visibilityMode as TextSourceVisibilityMode)
           : sourceFallback.visibilityMode,
+        timerMode: textSourceTimerModes.includes(value.timerMode as TextSourceTimerMode)
+          ? (value.timerMode as TextSourceTimerMode)
+          : sourceFallback.timerMode,
+        countdownTargetMs: Math.round(clampedNumber(value.countdownTargetMs, sourceFallback.countdownTargetMs ?? 0, 0, Number.MAX_SAFE_INTEGER)),
+        timerCompleteText: typeof value.timerCompleteText === "string" && value.timerCompleteText.trim().length > 0
+          ? value.timerCompleteText
+          : sourceFallback.timerCompleteText,
         displayDurationMs: Math.round(
           clampedNumber(
             value.displayDurationMs,
@@ -2722,7 +2861,8 @@ const serializeChatOverlayMessages = (messages: ChatOverlayMessage[], source: Ch
     .map((message) => ({
       author: normalizeOverlayText(message.author).slice(0, 48) || "viewer",
       body: truncateOverlayText(source.redactUrls ? redactOverlayUrls(message.body) : message.body, source.maxMessageLength),
-      source: normalizeOverlayText(message.source ?? "").slice(0, 24)
+      source: normalizeOverlayText(message.source ?? "").slice(0, 24),
+      pinned: message.pinned === true
     }))
     .filter((message) => message.body.length > 0)
     .slice(0, source.maxMessages);
@@ -2743,7 +2883,13 @@ const serializeCaptionOverlayCues = (captions: CaptionOverlayCue[], source: Text
     .filter((cue) => cue.text.length > 0)
     .slice(-source.maxLines);
 
-const resolveTextSourceText = (source: TextSource, captionCues: CaptionOverlayCue[]): string => {
+const resolveTextSourceText = (source: TextSource, captionCues: CaptionOverlayCue[], runtime: RenderGraphRuntime = {}): string => {
+  if (source.contentSource === "manual" && (source.timerMode ?? "none") !== "none") {
+    return serializeTextOverlayLines(
+      formatTimerOverlayText(runtime.nowMs ?? Date.now(), source, runtime),
+      source.maxLines
+    ).join("\n");
+  }
   if (source.contentSource !== "runtime-caption") {
     return serializeTextOverlayLines(source.text, source.maxLines).join("\n");
   }
@@ -2754,7 +2900,7 @@ const resolveTextSourceText = (source: TextSource, captionCues: CaptionOverlayCu
 const resolveRuntimeTextOverlayPreview = (source: TextSource, runtime: RenderGraphRuntime): string => {
   const captionCues =
     source.contentSource === "runtime-caption" ? serializeCaptionOverlayCues(runtime.captions ?? [], source) : [];
-  return resolveTextSourceText(source, captionCues);
+  return resolveTextSourceText(source, captionCues, runtime);
 };
 
 const formatCaptionOverlayLine = (cue: CaptionOverlayCue, showSpeaker: boolean): string =>

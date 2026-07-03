@@ -94,6 +94,7 @@ import {
   type TextSourceAlign,
   type TextSourceContentSource,
   type TextSourceMode,
+  type TextSourceTimerMode,
   type TextSourceVisibilityMode,
   type TextOverlayRuntimeStatus,
   type TextOverlayPresetId,
@@ -186,6 +187,8 @@ interface MobileStudioScreenProps {
   onStop(): Promise<void>;
   onReconnect(): Promise<void>;
   onChatCommentSubmit(author: string, body: string): void;
+  onChatCommentPin(messageId: string): void;
+  onChatCommentUnpin(): void;
   onChatReaderSettingsChange(settings: Partial<ChatReaderSettings>): void;
   onChatCommentsClear(): void;
   onLiveCaptionSettingsChange(settings: Partial<LiveCaptionSettings>): void;
@@ -238,6 +241,11 @@ const textSourceVisibilityModes: Array<{ visibilityMode: TextSourceVisibilityMod
   { visibilityMode: "always", label: "Always" },
   { visibilityMode: "timed", label: "Timed" }
 ];
+const textSourceTimerModes: Array<{ timerMode: TextSourceTimerMode; label: string }> = [
+  { timerMode: "none", label: "Static" },
+  { timerMode: "countdown", label: "Countdown" },
+  { timerMode: "uptime", label: "Uptime" }
+];
 const textOverlayPresets: Array<{ presetId: TextOverlayPresetId; label: string }> = [
   { presetId: "title", label: "Title" },
   { presetId: "subtitle", label: "Subtitle" },
@@ -245,6 +253,8 @@ const textOverlayPresets: Array<{ presetId: TextOverlayPresetId; label: string }
   { presetId: "notice", label: "Notice" },
   { presetId: "ticker", label: "Ticker" },
   { presetId: "badge", label: "Badge" },
+  { presetId: "starting-soon-countdown", label: "Starting Soon countdown" },
+  { presetId: "uptime-badge", label: "Uptime badge" },
   { presetId: "live-caption", label: "Live Caption" }
 ];
 const textSourceAlignments: TextSourceAlign[] = ["left", "center", "right"];
@@ -452,6 +462,8 @@ export const MobileStudioScreen = ({
   onStop,
   onReconnect,
   onChatCommentSubmit,
+  onChatCommentPin,
+  onChatCommentUnpin,
   onChatReaderSettingsChange,
   onChatCommentsClear,
   onLiveCaptionSettingsChange,
@@ -530,13 +542,14 @@ export const MobileStudioScreen = ({
   const canHideManualTextOverlay =
     !quickSubtitleLocked &&
     scene.sources.some((source) => source.kind === "text" && source.contentSource === "manual" && source.visible);
-  const hasActiveTimedTextOverlays = scene.sources.some(
+  const hasActiveTextOverlayClockSources = scene.sources.some(
     (source) =>
       source.kind === "text" &&
       source.visible &&
-      source.visibilityMode === "timed" &&
-      source.activatedAtMs > 0 &&
-      source.activatedAtMs + source.displayDurationMs > textOverlayClock
+      (((source.timerMode ?? "none") !== "none") ||
+        (source.visibilityMode === "timed" &&
+          source.activatedAtMs > 0 &&
+          source.activatedAtMs + source.displayDurationMs > textOverlayClock))
   );
   const textOverlayRuntimeStatus = createTextOverlayRuntimeStatus(scene, {
     captions: liveCaptionCues,
@@ -671,13 +684,13 @@ export const MobileStudioScreen = ({
   }, [selectedSourceId]);
 
   useEffect(() => {
-    if (!hasActiveTimedTextOverlays) {
+    if (!hasActiveTextOverlayClockSources) {
       setTextOverlayClock(Date.now());
       return undefined;
     }
     const timer = setInterval(() => setTextOverlayClock(Date.now()), 500);
     return () => clearInterval(timer);
-  }, [hasActiveTimedTextOverlays]);
+  }, [hasActiveTextOverlayClockSources]);
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
     if (setupLocked) {
@@ -1295,7 +1308,15 @@ export const MobileStudioScreen = ({
                   />
                 ))}
               </View>
-              <Label text={selectedSource.contentSource === "runtime-caption" ? "Fallback text" : "Text"} />
+              <Label
+                text={
+                  selectedSource.timerMode !== "none"
+                    ? "Timer prefix"
+                    : selectedSource.contentSource === "runtime-caption"
+                      ? "Fallback text"
+                      : "Text"
+                }
+              />
               <TextInput
                 value={selectedSource.text}
                 onChangeText={(text) =>
@@ -1310,6 +1331,73 @@ export const MobileStudioScreen = ({
                 placeholder="Overlay text"
                 placeholderTextColor="#71717a"
               />
+              <Label text="Timer" />
+              <View style={styles.grid3}>
+                {textSourceTimerModes.map((mode) => (
+                  <ActionButton
+                    key={mode.timerMode}
+                    label={mode.label}
+                    variant={selectedSource.timerMode === mode.timerMode ? "active" : "default"}
+                    disabled={setupLocked || selectedSource.contentSource !== "manual"}
+                    onPress={() =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "text"
+                            ? {
+                                ...source,
+                                timerMode: mode.timerMode,
+                                countdownTargetMs:
+                                  mode.timerMode === "countdown"
+                                    ? source.countdownTargetMs && source.countdownTargetMs > Date.now()
+                                      ? source.countdownTargetMs
+                                      : Date.now() + 5 * 60 * 1000
+                                    : source.countdownTargetMs,
+                                activatedAtMs: mode.timerMode === "uptime" ? Date.now() : source.activatedAtMs
+                              }
+                            : source
+                        )
+                      )
+                    }
+                  />
+                ))}
+              </View>
+              {selectedSource.timerMode === "countdown" ? (
+                <>
+                  <NumberStepper
+                    label="Countdown min"
+                    value={formatCountdownTargetMinutes(selectedSource.countdownTargetMs)}
+                    min={0}
+                    max={720}
+                    step={1}
+                    disabled={setupLocked}
+                    onChange={(minutes) =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "text"
+                            ? { ...source, countdownTargetMs: Date.now() + Math.round(minutes) * 60 * 1000 }
+                            : source
+                        )
+                      )
+                    }
+                  />
+                  <Label text="Complete text" />
+                  <TextInput
+                    value={selectedSource.timerCompleteText}
+                    onChangeText={(timerCompleteText) =>
+                      onSceneChange(
+                        updateSource(scene, selectedSource.id, (source) =>
+                          source.kind === "text" ? { ...source, timerCompleteText } : source
+                        )
+                      )
+                    }
+                    style={styles.input}
+                    editable={!setupLocked}
+                    maxLength={80}
+                    placeholder="まもなく開始…"
+                    placeholderTextColor="#71717a"
+                  />
+                </>
+              ) : null}
               <View style={styles.grid3}>
                 {textSourceModes.map((mode) => (
                   <ActionButton
@@ -2099,6 +2187,8 @@ export const MobileStudioScreen = ({
           platformApiOperationLabel={platformApiOperationLabel}
           platformChatConnection={platformChatConnection}
           onSubmit={onChatCommentSubmit}
+          onPin={onChatCommentPin}
+          onUnpin={onChatCommentUnpin}
           onSettingsChange={onChatReaderSettingsChange}
           onClearComments={onChatCommentsClear}
           onPlatformChatSettingsChange={onPlatformChatSettingsChange}
@@ -3105,6 +3195,8 @@ const ChatReaderPanel = ({
   platformApiOperationLabel,
   platformChatConnection,
   onSubmit,
+  onPin,
+  onUnpin,
   onSettingsChange,
   onClearComments,
   onPlatformChatSettingsChange,
@@ -3131,6 +3223,8 @@ const ChatReaderPanel = ({
   platformApiOperationLabel: string | null;
   platformChatConnection: PlatformChatConnectionState;
   onSubmit(author: string, body: string): void;
+  onPin(messageId: string): void;
+  onUnpin(): void;
   onSettingsChange(settings: Partial<ChatReaderSettings>): void;
   onClearComments(): void;
   onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
@@ -3461,14 +3555,24 @@ const ChatReaderPanel = ({
         {chatReader.history.length === 0 ? (
           <Text style={styles.chatEmpty}>No comments yet</Text>
         ) : (
-          chatReader.history.slice(0, 4).map((message) => (
-            <View key={message.id} style={styles.chatHistoryRow}>
-              <Text style={styles.chatAuthor}>{message.author}</Text>
-              <Text style={styles.chatBody} numberOfLines={1}>
-                {message.body}
-              </Text>
-            </View>
-          ))
+          chatReader.history.slice(0, 4).map((message) => {
+            const isPinned = chatReader.pinnedMessage?.id === message.id;
+            return (
+              <View key={message.id} style={[styles.chatHistoryRow, isPinned && styles.chatHistoryRowPinned]}>
+                <View style={styles.chatHistoryHeader}>
+                  <Text style={styles.chatAuthor}>{message.author}</Text>
+                  <ActionButton
+                    label={isPinned ? "解除" : "📌 ピン留め"}
+                    variant={isPinned ? "active" : "default"}
+                    onPress={() => (isPinned ? onUnpin() : onPin(message.id))}
+                  />
+                </View>
+                <Text style={styles.chatBody} numberOfLines={1}>
+                  {message.body}
+                </Text>
+              </View>
+            );
+          })
         )}
       </View>
     </Panel>
@@ -3744,22 +3848,37 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
 
   if (source.kind === "chat") {
     const text = typeof node?.payload.text === "string" ? node.payload.text : "";
+    const messages = parseChatOverlayPayloadMessages(node);
     const lines = text ? text.split("\n") : ["Chat overlay"];
     return (
       <View style={[styles.chatOverlaySource, { backgroundColor: rgbaFromHex(source.backgroundColor, source.backgroundOpacity) }]}>
-        {lines.slice(0, source.maxMessages).map((line, index) => (
-          <Text
-            key={`${line}-${index}`}
-            style={[
-              styles.chatOverlayLine,
-              !text && styles.chatOverlayEmpty,
-              { color: source.color, fontSize: fontSizeForChatSource(source) }
-            ]}
-            numberOfLines={1}
-          >
-            {line}
-          </Text>
-        ))}
+        {messages.length > 0
+          ? messages.slice(0, source.maxMessages).map((message, index) => (
+              <Text
+                key={`${message.author}-${message.body}-${index}`}
+                style={[
+                  styles.chatOverlayLine,
+                  message.pinned && styles.chatOverlayLinePinned,
+                  { color: source.color, fontSize: fontSizeForChatSource(source) }
+                ]}
+                numberOfLines={1}
+              >
+                {source.showAuthor ? `${message.author}: ${message.body}` : message.body}
+              </Text>
+            ))
+          : lines.slice(0, source.maxMessages).map((line, index) => (
+              <Text
+                key={`${line}-${index}`}
+                style={[
+                  styles.chatOverlayLine,
+                  !text && styles.chatOverlayEmpty,
+                  { color: source.color, fontSize: fontSizeForChatSource(source) }
+                ]}
+                numberOfLines={1}
+              >
+                {line}
+              </Text>
+            ))}
       </View>
     );
   }
@@ -4421,6 +4540,33 @@ const fontSizeForTextSource = (source: Extract<SceneSource, { kind: "text" }>) =
 const fontSizeForChatSource = (source: Extract<SceneSource, { kind: "chat" }>) =>
   Math.max(9, Math.min(source.fontSize / 2, source.transform.width * 52, source.transform.height * 132));
 
+const parseChatOverlayPayloadMessages = (
+  node?: RenderNode
+): Array<{ author: string; body: string; source?: string; pinned?: boolean }> => {
+  if (typeof node?.payload.messagesJson !== "string") {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(node.payload.messagesJson);
+    return Array.isArray(parsed)
+      ? parsed.flatMap((message) =>
+          typeof message?.author === "string" && typeof message?.body === "string"
+            ? [
+                {
+                  author: message.author,
+                  body: message.body,
+                  source: typeof message.source === "string" ? message.source : undefined,
+                  pinned: message.pinned === true
+                }
+              ]
+            : []
+        )
+      : [];
+  } catch {
+    return [];
+  }
+};
+
 const rgbaFromHex = (hex: string, alpha: number): string => {
   const normalized = hex.trim().replace(/^#/, "");
   const color = /^[0-9a-fA-F]{6}$/.test(normalized) ? normalized : "000000";
@@ -4446,6 +4592,13 @@ const formatTextOverlayRemaining = (remainingMs: number): string => {
 const formatTextOverlayPreview = (value: string): string => {
   const normalized = value.replace(/\s+/g, " ").trim();
   return normalized.length > 48 ? `${normalized.slice(0, 47)}...` : normalized;
+};
+
+const formatCountdownTargetMinutes = (valueMs: number | undefined): number => {
+  if (!valueMs || !Number.isFinite(valueMs)) {
+    return 0;
+  }
+  return Math.max(0, Math.round((valueMs - Date.now()) / 60000));
 };
 
 const styles = StyleSheet.create({
@@ -4949,6 +5102,12 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(0, 0, 0, 0.82)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4
+  },
+  chatOverlayLinePinned: {
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    backgroundColor: "rgba(45, 212, 191, 0.22)"
   },
   chatOverlayEmpty: {
     color: "#a1a1aa"
@@ -5558,6 +5717,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
     backgroundColor: "#101015"
+  },
+  chatHistoryRowPinned: {
+    borderColor: "#2dd4bf",
+    backgroundColor: "#0f1f1e"
+  },
+  chatHistoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8
   },
   chatAuthor: {
     color: "#2dd4bf",
