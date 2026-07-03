@@ -11,6 +11,7 @@ import {
   KeyRound,
   Layers,
   Lock,
+  Megaphone,
   MessageCircle,
   Mic,
   MonitorSmartphone,
@@ -131,6 +132,7 @@ import {
   serializeStreamDiagnosticReport,
   type StreamDiagnostics
 } from "../domain/streamDiagnostics";
+import { createStreamAnnouncementPreview } from "../domain/streamAnnouncement";
 import { applyStreamQualityAdvisorTarget } from "../domain/streamQualityAdvisor";
 import type { StreamQualityAutomationDecision } from "../domain/streamQualityAutomation";
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
@@ -169,6 +171,9 @@ interface StudioScreenProps {
   streamValidationRuns: StreamValidationRun[];
   qualityAutomationDecision: StreamQualityAutomationDecision;
   operationStatus: StreamOperationStatus | null;
+  streamAnnouncementPromptNonce: number;
+  streamAnnouncementAutoPostStatus: string;
+  streamAnnouncementWebhookStorageNotice: string;
   readiness: ReadinessReport;
   liveCaption: LiveCaptionState;
   liveCaptionCues: CaptionOverlayCue[];
@@ -218,6 +223,7 @@ interface StudioScreenProps {
   onPlatformPublishingApply(): void | Promise<void>;
   onPlatformPublishingStatusRefresh(): void | Promise<void>;
   onYouTubeBroadcastTransition(status: YouTubeBroadcastTransitionStatus): void | Promise<void>;
+  onStreamAnnouncementWebhookTest(): void | Promise<void>;
   onPlatformChatConnect(): void;
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
@@ -518,6 +524,9 @@ export const StudioScreen = ({
   streamValidationRuns,
   qualityAutomationDecision,
   operationStatus,
+  streamAnnouncementPromptNonce,
+  streamAnnouncementAutoPostStatus,
+  streamAnnouncementWebhookStorageNotice,
   readiness,
   liveCaption,
   liveCaptionCues,
@@ -567,6 +576,7 @@ export const StudioScreen = ({
   onPlatformPublishingApply,
   onPlatformPublishingStatusRefresh,
   onYouTubeBroadcastTransition,
+  onStreamAnnouncementWebhookTest,
   onPlatformChatConnect,
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
@@ -589,6 +599,8 @@ export const StudioScreen = ({
   const [quickTextPresetId, setQuickTextPresetId] = useState<ManualTextOverlayPresetId>("subtitle");
   const [quickTextDurationMs, setQuickTextDurationMs] = useState(() => quickTextOverlayDurationPresets[1]?.durationMs ?? 5000);
   const [quickTextPresetAction, setQuickTextPresetAction] = useState<QuickTextOverlayPresetAction>("show");
+  const [streamAnnouncementPromptVisible, setStreamAnnouncementPromptVisible] = useState(false);
+  const [streamAnnouncementShareStatus, setStreamAnnouncementShareStatus] = useState("");
   const quickSubtitleLocked = isBusy || operationBusy || platformApiBusy;
   const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canQueueQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
@@ -725,10 +737,50 @@ export const StudioScreen = ({
   });
   const diagnosticSecrets = createDiagnosticRedactionSecrets({
     streamKey: profile.destination.streamKey,
+    discordWebhookUrl: profile.streamAnnouncement.discordWebhookUrl,
     platformChatOAuthCredentials,
     twitchDeviceOAuthFlow
   });
+  const streamAnnouncementPreview = createStreamAnnouncementPreview({
+    profile,
+    twitchLogin: platformChatOAuthCredentials.twitch?.twitchLogin ?? platformChatAuth.twitchLogin,
+    secrets: diagnosticSecrets
+  });
   const canGoLive = publicLaunchChecklist.canStart;
+  useEffect(() => {
+    if (streamAnnouncementPromptNonce > 0 && profile.streamAnnouncement.promptAfterGoLive) {
+      setStreamAnnouncementPromptVisible(true);
+    }
+  }, [profile.streamAnnouncement.promptAfterGoLive, streamAnnouncementPromptNonce]);
+  useEffect(() => {
+    if (!isLive) {
+      setStreamAnnouncementPromptVisible(false);
+    }
+  }, [isLive]);
+
+  const shareStreamAnnouncement = async () => {
+    if (!streamAnnouncementPreview.text) {
+      setStreamAnnouncementShareStatus("Announcement preview is empty.");
+      return;
+    }
+
+    const message = streamAnnouncementPreview.text;
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        await navigator.share({ text: message });
+        setStreamAnnouncementShareStatus("Announcement shared.");
+      } else if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(message);
+        setStreamAnnouncementShareStatus("Announcement copied to clipboard.");
+      } else {
+        setStreamAnnouncementShareStatus("Share unavailable; copy the preview manually.");
+      }
+      setStreamAnnouncementPromptVisible(false);
+    } catch (error) {
+      const errorName = error instanceof DOMException ? error.name : "";
+      setStreamAnnouncementShareStatus(errorName === "AbortError" ? "Share cancelled." : "Announcement share failed.");
+    }
+  };
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
     if (setupLocked) {
       return;
@@ -1028,11 +1080,50 @@ export const StudioScreen = ({
               <RotateCcw size={18} />
               <span>Reconnect</span>
             </button>
+            <button
+              className={`secondary-action${streamAnnouncementPromptVisible ? " announcement-action-highlight" : ""}`}
+              type="button"
+              disabled={!isLive || !streamAnnouncementPreview.text}
+              onClick={shareStreamAnnouncement}
+            >
+              <Megaphone size={18} />
+              <span>Share announcement</span>
+            </button>
             <div className="transport-readout">
               <span>{formatElapsed(snapshot.health.elapsedSeconds)}</span>
               <span>{snapshot.health.message}</span>
             </div>
           </div>
+          {streamAnnouncementPromptVisible ? (
+            <div className="stream-announcement-prompt" role="status">
+              <div>
+                <strong>Stream announcement ready</strong>
+                <p>{streamAnnouncementPreview.text}</p>
+                {streamAnnouncementPreview.sensitiveValueRemoved ? (
+                  <span className="stream-announcement-warning">sensitive value removed</span>
+                ) : null}
+              </div>
+              <div className="stream-announcement-actions">
+                <button className="primary-action compact-action" type="button" onClick={shareStreamAnnouncement}>
+                  <Megaphone size={16} />
+                  <span>Share announcement</span>
+                </button>
+                <button className="secondary-action compact-action" type="button" onClick={() => setStreamAnnouncementPromptVisible(false)}>
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {streamAnnouncementShareStatus ? (
+            <div className="stream-announcement-status" role="status">
+              {streamAnnouncementShareStatus}
+            </div>
+          ) : null}
+          {streamAnnouncementAutoPostStatus ? (
+            <div className="stream-announcement-status" role="status">
+              {streamAnnouncementAutoPostStatus}
+            </div>
+          ) : null}
           <div className="quick-subtitle-bar">
             <label className="quick-subtitle-field">
               <span>Quick text</span>
@@ -2202,10 +2293,13 @@ export const StudioScreen = ({
             locked={setupLocked}
             platformPublishingStatus={platformPublishingStatus}
             platformApiOperationLabel={platformApiOperationLabel}
+            streamAnnouncementAutoPostStatus={streamAnnouncementAutoPostStatus}
+            streamAnnouncementWebhookStorageNotice={streamAnnouncementWebhookStorageNotice}
             onProfileChange={onProfileChange}
             onPlatformPublishingApply={onPlatformPublishingApply}
             onPlatformPublishingStatusRefresh={onPlatformPublishingStatusRefresh}
             onYouTubeBroadcastTransition={onYouTubeBroadcastTransition}
+            onStreamAnnouncementWebhookTest={onStreamAnnouncementWebhookTest}
             onClearStreamKey={onClearStreamKey}
           />
 

@@ -112,6 +112,8 @@ import {
   formatStreamDiagnosticReport,
   type StreamDiagnostics
 } from "../domain/streamDiagnostics";
+import { createStreamAnnouncementPreview } from "../domain/streamAnnouncement";
+import { isValidDiscordWebhookUrl } from "../domain/streamAnnouncementAutoPost";
 import { applyStreamQualityAdvisorTarget } from "../domain/streamQualityAdvisor";
 import type { StreamQualityAutomationDecision } from "../domain/streamQualityAutomation";
 import type { StreamSessionEvent } from "../domain/streamSessionLog";
@@ -155,6 +157,9 @@ interface MobileStudioScreenProps {
   streamValidationRuns: StreamValidationRun[];
   qualityAutomationDecision: StreamQualityAutomationDecision;
   operationStatus: StreamOperationStatus | null;
+  streamAnnouncementPromptNonce: number;
+  streamAnnouncementAutoPostStatus: string;
+  streamAnnouncementWebhookStorageNotice: string;
   readiness: ReadinessReport;
   liveCaption: LiveCaptionState;
   liveCaptionCues: CaptionOverlayCue[];
@@ -205,6 +210,7 @@ interface MobileStudioScreenProps {
   onPlatformPublishingApply(): void | Promise<void>;
   onPlatformPublishingStatusRefresh(): void | Promise<void>;
   onYouTubeBroadcastTransition(status: YouTubeBroadcastTransitionStatus): void | Promise<void>;
+  onStreamAnnouncementWebhookTest(): void | Promise<void>;
   onPlatformChatConnect(): void;
   onPlatformChatDisconnect(): void;
   onPlatformChatSampleIngest(): void;
@@ -430,6 +436,9 @@ export const MobileStudioScreen = ({
   streamValidationRuns,
   qualityAutomationDecision,
   operationStatus,
+  streamAnnouncementPromptNonce,
+  streamAnnouncementAutoPostStatus,
+  streamAnnouncementWebhookStorageNotice,
   readiness,
   liveCaption,
   liveCaptionCues,
@@ -480,6 +489,7 @@ export const MobileStudioScreen = ({
   onPlatformPublishingApply,
   onPlatformPublishingStatusRefresh,
   onYouTubeBroadcastTransition,
+  onStreamAnnouncementWebhookTest,
   onPlatformChatConnect,
   onPlatformChatDisconnect,
   onPlatformChatSampleIngest,
@@ -536,6 +546,8 @@ export const MobileStudioScreen = ({
   const [quickTextPresetId, setQuickTextPresetId] = useState<ManualTextOverlayPresetId>("subtitle");
   const [quickTextDurationMs, setQuickTextDurationMs] = useState(() => quickTextOverlayDurationPresets[1]?.durationMs ?? 5000);
   const [quickTextPresetAction, setQuickTextPresetAction] = useState<QuickTextOverlayPresetAction>("show");
+  const [streamAnnouncementPromptVisible, setStreamAnnouncementPromptVisible] = useState(false);
+  const [streamAnnouncementShareStatus, setStreamAnnouncementShareStatus] = useState("");
   const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canQueueQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canPinQuickText = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
@@ -665,9 +677,17 @@ export const MobileStudioScreen = ({
   });
   const diagnosticSecrets = createDiagnosticRedactionSecrets({
     streamKey: profile.destination.streamKey,
+    discordWebhookUrl: profile.streamAnnouncement.discordWebhookUrl,
     platformChatOAuthCredentials,
     twitchDeviceOAuthFlow
   });
+  const streamAnnouncementPreview = createStreamAnnouncementPreview({
+    profile,
+    twitchLogin: platformChatOAuthCredentials.twitch?.twitchLogin ?? platformChatAuth.twitchLogin,
+    secrets: diagnosticSecrets
+  });
+  const webhookUrlPresent = Boolean(profile.streamAnnouncement.discordWebhookUrl.trim());
+  const webhookUrlValid = isValidDiscordWebhookUrl(profile.streamAnnouncement.discordWebhookUrl);
   const canGoLive = publicLaunchChecklist.canStart;
   const youtubeTransitionReport = (transitionStatus: YouTubeBroadcastTransitionStatus) =>
     createYouTubeBroadcastTransitionPreflightReport({
@@ -691,6 +711,31 @@ export const MobileStudioScreen = ({
     const timer = setInterval(() => setTextOverlayClock(Date.now()), 500);
     return () => clearInterval(timer);
   }, [hasActiveTextOverlayClockSources]);
+  useEffect(() => {
+    if (streamAnnouncementPromptNonce > 0 && profile.streamAnnouncement.promptAfterGoLive) {
+      setStreamAnnouncementPromptVisible(true);
+    }
+  }, [profile.streamAnnouncement.promptAfterGoLive, streamAnnouncementPromptNonce]);
+  useEffect(() => {
+    if (!isLive) {
+      setStreamAnnouncementPromptVisible(false);
+    }
+  }, [isLive]);
+
+  const shareStreamAnnouncement = async () => {
+    if (!streamAnnouncementPreview.text) {
+      setStreamAnnouncementShareStatus("Announcement preview is empty.");
+      return;
+    }
+
+    try {
+      await Share.share({ message: streamAnnouncementPreview.text });
+      setStreamAnnouncementShareStatus("Announcement shared.");
+      setStreamAnnouncementPromptVisible(false);
+    } catch {
+      setStreamAnnouncementShareStatus("Announcement share failed.");
+    }
+  };
 
   const updateDestination = (update: Partial<StudioProfile["destination"]>) => {
     if (setupLocked) {
@@ -729,6 +774,18 @@ export const MobileStudioScreen = ({
       ...profile,
       platformPublishing: {
         ...profile.platformPublishing,
+        ...update
+      }
+    });
+  };
+  const updateStreamAnnouncement = (update: Partial<StudioProfile["streamAnnouncement"]>) => {
+    if (setupLocked) {
+      return;
+    }
+    onProfileChange({
+      ...profile,
+      streamAnnouncement: {
+        ...profile.streamAnnouncement,
         ...update
       }
     });
@@ -1053,10 +1110,37 @@ export const MobileStudioScreen = ({
           <ActionButton label="Stop" variant="danger" disabled={operationBusy || isBusy || !isLive} onPress={onStop} />
           <ActionButton label="Shield" variant="danger" onPress={onPrivacyShieldActivate} />
           <ActionButton label="Reconnect" disabled={operationBusy || !isLive} onPress={onReconnect} />
+          <ActionButton
+            label="Share announcement"
+            variant={streamAnnouncementPromptVisible ? "warn" : "default"}
+            disabled={!isLive || !streamAnnouncementPreview.text}
+            onPress={shareStreamAnnouncement}
+          />
           <View style={styles.transportReadout}>
             <Text style={styles.mutedText}>{formatElapsed(snapshot.health.elapsedSeconds)}</Text>
             <Text style={styles.mutedText}>{snapshot.health.message}</Text>
           </View>
+          {streamAnnouncementPromptVisible ? (
+            <View style={styles.streamAnnouncementPrompt}>
+              <View style={styles.streamAnnouncementPromptText}>
+                <Text style={styles.streamAnnouncementTitle}>Stream announcement ready</Text>
+                <Text style={styles.streamAnnouncementPreviewText}>{streamAnnouncementPreview.text}</Text>
+                {streamAnnouncementPreview.sensitiveValueRemoved ? (
+                  <Text style={styles.streamAnnouncementWarning}>sensitive value removed</Text>
+                ) : null}
+              </View>
+              <View style={styles.streamAnnouncementActions}>
+                <ActionButton label="Share announcement" variant="primary" onPress={shareStreamAnnouncement} />
+                <ActionButton label="Dismiss" onPress={() => setStreamAnnouncementPromptVisible(false)} />
+              </View>
+            </View>
+          ) : null}
+          {streamAnnouncementShareStatus ? (
+            <Text style={styles.streamAnnouncementStatus}>{streamAnnouncementShareStatus}</Text>
+          ) : null}
+          {streamAnnouncementAutoPostStatus ? (
+            <Text style={styles.streamAnnouncementStatus}>{streamAnnouncementAutoPostStatus}</Text>
+          ) : null}
           <View style={styles.quickSubtitleBar}>
             <View style={styles.quickSubtitleInputWrap}>
               <Label text="Quick text" />
@@ -2285,6 +2369,69 @@ export const MobileStudioScreen = ({
             multiline
             placeholderTextColor="#71717a"
           />
+          <Label text="Announcement template" />
+          <TextInput
+            value={profile.streamAnnouncement.template}
+            onChangeText={(template) => updateStreamAnnouncement({ template })}
+            style={[styles.input, styles.multilineInput]}
+            maxLength={500}
+            editable={!setupLocked}
+            multiline
+            placeholderTextColor="#71717a"
+          />
+          <ActionButton
+            label="Prompt after Go Live"
+            variant={profile.streamAnnouncement.promptAfterGoLive ? "active" : "default"}
+            disabled={setupLocked}
+            onPress={() => updateStreamAnnouncement({ promptAfterGoLive: !profile.streamAnnouncement.promptAfterGoLive })}
+          />
+          <ActionButton
+            label="Auto-post to Discord"
+            variant={profile.streamAnnouncement.autoPostEnabled ? "active" : "default"}
+            disabled={setupLocked}
+            onPress={() => updateStreamAnnouncement({ autoPostEnabled: !profile.streamAnnouncement.autoPostEnabled })}
+          />
+          <Label text="Discord webhook URL" />
+          <TextInput
+            value={profile.streamAnnouncement.discordWebhookUrl}
+            onChangeText={(discordWebhookUrl) => updateStreamAnnouncement({ discordWebhookUrl })}
+            style={styles.input}
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry
+            editable={!setupLocked}
+            placeholder="https://discord.com/api/webhooks/{id}/{token}"
+            placeholderTextColor="#71717a"
+          />
+          <View style={styles.secretRow}>
+            <Text style={styles.secretStatus} numberOfLines={1}>
+              {webhookUrlPresent ? (webhookUrlValid ? "Discord webhook configured" : "Discord webhook URL format is invalid") : "Discord webhook not set"}
+            </Text>
+            <ActionButton
+              label="Clear"
+              variant="danger"
+              disabled={setupLocked || !webhookUrlPresent}
+              onPress={() => updateStreamAnnouncement({ discordWebhookUrl: "" })}
+            />
+          </View>
+          <View style={styles.grid2}>
+            <ActionButton
+              label="Test post"
+              disabled={setupLocked || !webhookUrlPresent || !streamAnnouncementPreview.text}
+              onPress={onStreamAnnouncementWebhookTest}
+            />
+            <Text style={styles.streamAnnouncementStatus}>{streamAnnouncementWebhookStorageNotice}</Text>
+          </View>
+          {streamAnnouncementAutoPostStatus ? (
+            <Text style={styles.streamAnnouncementStatus}>{streamAnnouncementAutoPostStatus}</Text>
+          ) : null}
+          <View style={styles.streamAnnouncementPreviewBox}>
+            <Text style={styles.streamAnnouncementPreviewLabel}>Announcement preview</Text>
+            <Text style={styles.streamAnnouncementPreviewText}>{streamAnnouncementPreview.text}</Text>
+            {streamAnnouncementPreview.sensitiveValueRemoved ? (
+              <Text style={styles.streamAnnouncementWarning}>sensitive value removed</Text>
+            ) : null}
+          </View>
 
           {profile.destination.platform === "youtube-live" ? (
             <>
@@ -5137,6 +5284,56 @@ const styles = StyleSheet.create({
   transportReadout: {
     flexDirection: "row",
     justifyContent: "space-between"
+  },
+  streamAnnouncementPrompt: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.58)",
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    gap: 10
+  },
+  streamAnnouncementPromptText: {
+    gap: 5
+  },
+  streamAnnouncementTitle: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  streamAnnouncementActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  streamAnnouncementStatus: {
+    color: "#bae6fd",
+    fontSize: 12,
+    fontWeight: "800"
+  },
+  streamAnnouncementPreviewBox: {
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: "#101015",
+    gap: 6
+  },
+  streamAnnouncementPreviewLabel: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    fontWeight: "900"
+  },
+  streamAnnouncementPreviewText: {
+    color: "#f8fafc",
+    fontSize: 13,
+    lineHeight: 18
+  },
+  streamAnnouncementWarning: {
+    color: "#fcd34d",
+    fontSize: 12,
+    fontWeight: "900"
   },
   quickSubtitleBar: {
     flexDirection: "row",

@@ -4,6 +4,11 @@ import {
   normalizePlatformChatSettings,
   type PlatformChatSettings
 } from "./platformChat";
+import {
+  createDefaultStreamAnnouncementSettings,
+  normalizeStreamAnnouncementSettings,
+  type StreamAnnouncementSettings
+} from "./streamAnnouncement";
 
 export type StreamProtocol = "rtmp" | "rtmps";
 export type StreamPlatform = "custom" | "youtube-live" | "twitch";
@@ -123,6 +128,7 @@ export interface StudioProfile {
   faceTracking: FaceTrackingProfile;
   platformChat: PlatformChatSettings;
   platformPublishing: PlatformPublishingSettings;
+  streamAnnouncement: StreamAnnouncementSettings;
 }
 
 export const destinationPresets: DestinationPreset[] = [
@@ -555,7 +561,8 @@ export const createDefaultStudioProfile = (): StudioProfile => ({
   broadcastMixer: cloneBroadcastMixerProfile(defaultBroadcastMixerProfile),
   faceTracking: { ...defaultFaceTrackingProfile },
   platformChat: createDefaultPlatformChatSettings(),
-  platformPublishing: { ...defaultPlatformPublishingSettings }
+  platformPublishing: { ...defaultPlatformPublishingSettings },
+  streamAnnouncement: createDefaultStreamAnnouncementSettings()
 });
 
 export const redactStreamKey = (streamKey: string): string => {
@@ -603,7 +610,8 @@ export const normalizeStudioProfile = (profile: Partial<StudioProfile> | null | 
     broadcastMixer: normalizeBroadcastMixerProfile(profile?.broadcastMixer),
     faceTracking: normalizeFaceTrackingProfile(profile?.faceTracking),
     platformChat: normalizePlatformChatSettings(profile?.platformChat ?? fallback.platformChat),
-    platformPublishing: normalizePlatformPublishingSettings(profile?.platformPublishing)
+    platformPublishing: normalizePlatformPublishingSettings(profile?.platformPublishing),
+    streamAnnouncement: normalizeStreamAnnouncementSettings(profile?.streamAnnouncement)
   };
 };
 
@@ -726,5 +734,9 @@ export const stripSensitiveProfileData = (profile: StudioProfile): StudioProfile
   destination: {
     ...profile.destination,
     streamKey: ""
+  },
+  streamAnnouncement: {
+    ...profile.streamAnnouncement,
+    discordWebhookUrl: ""
   }
 });

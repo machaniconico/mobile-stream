@@ -5,7 +5,15 @@ import type { StreamHealth, StreamStatus } from "./streamState";
 import type { PlatformChatReconnectDecision } from "./platformChatConnection";
 
 export type StreamSessionEventSeverity = "info" | "warn" | "fail";
-export type StreamSessionEventKind = "status" | "operation" | "recovery" | "quality" | "chat" | "platform-api" | "safety";
+export type StreamSessionEventKind =
+  | "status"
+  | "operation"
+  | "recovery"
+  | "quality"
+  | "chat"
+  | "platform-api"
+  | "announcement"
+  | "safety";
 
 export interface StreamSessionEvent {
   id: string;
@@ -45,6 +53,13 @@ export interface StreamPlatformApiOperationEventInput {
   phase: StreamPlatformApiOperationPhase;
   message?: string;
   retryDelayLabel?: string | null;
+}
+
+export type StreamAnnouncementAutoPostEventPhase = "posted" | "failed";
+
+export interface StreamAnnouncementAutoPostEventInput {
+  phase: StreamAnnouncementAutoPostEventPhase;
+  message: string;
 }
 
 export type StreamSafetyEventPhase =
@@ -215,6 +230,18 @@ export const createStreamPlatformApiOperationEvent = (
     ].filter(Boolean).join(" ")
   };
 };
+
+export const createStreamAnnouncementAutoPostEvent = (
+  input: StreamAnnouncementAutoPostEventInput,
+  now: Date = new Date()
+): StreamSessionEvent => ({
+  id: createEventId(now, "announcement", input.phase),
+  at: now.toISOString(),
+  kind: "announcement",
+  severity: input.phase === "failed" ? "warn" : "info",
+  title: input.phase === "posted" ? "Discord announcement posted" : "Discord announcement failed",
+  message: sanitizeSingleLine(input.message)
+});
 
 export const createStreamSafetyEvent = (
   phase: StreamSafetyEventPhase,

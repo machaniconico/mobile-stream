@@ -52,8 +52,16 @@ const files = {
   chatReaderDomainTest: read("src/domain/chatReader.test.ts"),
   platformStreamKeysDomain: read("src/domain/platformStreamKeys.ts"),
   platformStreamKeysDomainTest: read("src/domain/platformStreamKeys.test.ts"),
+  streamAnnouncementDomain: read("src/domain/streamAnnouncement.ts"),
+  streamAnnouncementDomainTest: read("src/domain/streamAnnouncement.test.ts"),
+  streamAnnouncementAutoPostDomain: read("src/domain/streamAnnouncementAutoPost.ts"),
+  streamAnnouncementAutoPostDomainTest: read("src/domain/streamAnnouncementAutoPost.test.ts"),
+  diagnosticSecretsDomain: read("src/domain/diagnosticSecrets.ts"),
+  localStoreDomain: read("src/storage/localStore.ts"),
+  secureProfileStoreDomain: read("src/mobile/secureProfileStore.ts"),
   webApp: read("src/app/App.tsx"),
   mobileApp: read("src/mobile/MobileApp.tsx"),
+  webLiveSetupScreen: read("src/screens/LiveSetupScreen.tsx"),
   webStudioScreen: read("src/screens/StudioScreen.tsx"),
   mobileStudioScreen: read("src/mobile/MobileStudioScreen.tsx"),
   webStyles: read("src/styles.css"),
@@ -490,6 +498,52 @@ const checks = [
     expectIncludes(files.mobileStudioScreen, "streamKeyOperationInfo.description");
     expectIncludes(files.readme, "Twitch stream-key controls are Helix sync-only");
     expectIncludes(files.implementationStatus, "Twitch stream-key handling is explicitly Helix sync-only");
+  }),
+  check("Stream announcement sharing is locked for Web and React Native builds", () => {
+    expectIncludes(files.streamAnnouncementDomain, "createStreamAnnouncementText");
+    expectIncludes(files.streamAnnouncementDomain, "createStreamAnnouncementPreview");
+    expectIncludes(files.streamAnnouncementDomain, "normalizeStreamAnnouncementSettings");
+    expectIncludes(files.streamAnnouncementDomain, "redactSensitiveText");
+    expectIncludes(files.streamAnnouncementDomain, "https://www.youtube.com/watch?v=");
+    expectIncludes(files.streamAnnouncementDomain, "https://www.twitch.tv/");
+    expectIncludes(files.streamAnnouncementDomainTest, "expands title, platform, and YouTube broadcast watch URL placeholders");
+    expectIncludes(files.streamAnnouncementDomainTest, "creates Twitch channel URLs from OAuth login values");
+    expectIncludes(files.streamAnnouncementDomainTest, "redacts stream keys and OAuth-shaped secrets from unsafe templates");
+    expectIncludes(files.webApp, "streamAnnouncementPromptNonce");
+    expectIncludes(files.mobileApp, "streamAnnouncementPromptNonce");
+    expectIncludes(files.webStudioScreen, "navigator.share");
+    expectIncludes(files.webStudioScreen, "clipboard.writeText");
+    expectIncludes(files.webStudioScreen, "Share announcement");
+    expectIncludes(files.mobileStudioScreen, "Share.share({ message: streamAnnouncementPreview.text })");
+    expectIncludes(files.mobileStudioScreen, "Share announcement");
+    expectIncludes(files.webStudioScreen, "sensitive value removed");
+    expectIncludes(files.mobileStudioScreen, "sensitive value removed");
+    expectIncludes(files.webStudioScreen, "streamAnnouncementPromptVisible");
+    expectIncludes(files.mobileStudioScreen, "streamAnnouncementPromptVisible");
+    expectIncludes(files.webStyles, "stream-announcement-prompt");
+    expectIncludes(files.readme, "one-tap stream announcement sharing");
+    expectIncludes(files.implementationStatus, "one-tap stream announcement sharing");
+    expectIncludes(files.streamAnnouncementDomain, "autoPostEnabled");
+    expectIncludes(files.streamAnnouncementDomain, "discordWebhookUrl");
+    expectIncludes(files.streamAnnouncementAutoPostDomain, "postDiscordStreamAnnouncement");
+    expectIncludes(files.streamAnnouncementAutoPostDomain, "createStreamAnnouncementAutoPostDecision");
+    expectIncludes(files.streamAnnouncementAutoPostDomain, "https://discord.com/api/webhooks/{id}/{token}");
+    expectIncludes(files.streamAnnouncementAutoPostDomain, "getPlatformHttpFailureMetadata");
+    expectIncludes(files.streamAnnouncementAutoPostDomainTest, "respects Retry-After and retries a retryable non-2xx response once");
+    expectIncludes(files.streamAnnouncementAutoPostDomainTest, "fires only for platform-visible live success and dedupes per stream session");
+    expectIncludes(files.diagnosticSecretsDomain, "discordWebhookUrl");
+    expectIncludes(files.localStoreDomain, "stripSensitiveProfileData(profile)");
+    expectIncludes(files.secureProfileStoreDomain, "saveProfile(JSON.stringify(normalizeStudioProfile(profile)))");
+    expectIncludes(files.webApp, "runStreamAnnouncementAutoPost(result.profile, \"youtube-live-transition\")");
+    expectIncludes(files.mobileApp, "runStreamAnnouncementAutoPost(result.profile, \"youtube-live-transition\")");
+    expectIncludes(files.webStudioScreen, "streamAnnouncementAutoPostStatus");
+    expectIncludes(files.mobileStudioScreen, "streamAnnouncementAutoPostStatus");
+    expectIncludes(files.webLiveSetupScreen, "Discord webhook URL");
+    expectIncludes(files.mobileStudioScreen, "Discord webhook URL");
+    expectIncludes(files.webLiveSetupScreen, "Test post");
+    expectIncludes(files.mobileStudioScreen, "Test post");
+    expectIncludes(files.readme, "Discord webhook auto-posting");
+    expectIncludes(files.implementationStatus, "Discord webhook auto-posting");
   }),
   check("Android streaming permissions are declared", () => {
     [

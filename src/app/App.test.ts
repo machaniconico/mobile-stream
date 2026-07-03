@@ -12,4 +12,14 @@ describe("App OAuth credential state", () => {
     expect(source).toContain("createPlatformChatAuthFromCredentialStore(optimisticCredentials)");
     expect(source).not.toContain("upsertPlatformChatOAuthCredential(platformChatOAuthCredentials, credential)");
   });
+
+  it("hooks Discord announcement autopost to platform-visible live success signals", () => {
+    const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("runStreamAnnouncementAutoPost(result.profile, \"youtube-live-transition\")");
+    expect(source).toContain("runStreamAnnouncementAutoPost(result.profile, \"twitch-status-refresh\")");
+    expect(source).toContain("createStreamAnnouncementAutoPostDecision({");
+    expect(source).toContain("enginePlatform: engineSnapshot.platform");
+    expect(source).toContain("postedSessionKeys: streamAnnouncementAutoPostedSessionKeys.current");
+  });
 });

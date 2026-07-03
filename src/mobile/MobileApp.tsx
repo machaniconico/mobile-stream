@@ -134,10 +134,19 @@ import {
   formatStreamStartPreflightBlockMessage
 } from "../domain/streamStartPreflight";
 import { createStreamDiagnostics } from "../domain/streamDiagnostics";
+import { createDiagnosticRedactionSecrets } from "../domain/diagnosticSecrets";
 import { createPlatformApiRetrySchedule } from "../domain/platformApiRetry";
 import { createPlatformApiOperationGate, PlatformApiOperationInFlightError } from "../domain/platformApiOperationGate";
 import { errorToSafeMessage } from "../domain/sensitiveText";
+import { createStreamAnnouncementPreview } from "../domain/streamAnnouncement";
 import {
+  createStreamAnnouncementAutoPostDecision,
+  formatStreamAnnouncementAutoPostError,
+  postDiscordStreamAnnouncement,
+  type StreamAnnouncementAutoPostSignal
+} from "../domain/streamAnnouncementAutoPost";
+import {
+  createStreamAnnouncementAutoPostEvent,
   createStreamChatEvent,
   createStreamChatSpeechEvent,
   createStreamChatReconnectEvent,
@@ -242,8 +251,11 @@ export const MobileApp = () => {
   const [faceTrackingRuntime, setFaceTrackingRuntime] = useState(() => createFaceTrackingRuntimeState(Date.now()));
   const [operationStatus, setOperationStatus] = useState<StreamOperationStatus | null>(null);
   const [platformApiOperationLabel, setPlatformApiOperationLabel] = useState<string | null>(null);
+  const [streamAnnouncementPromptNonce, setStreamAnnouncementPromptNonce] = useState(0);
+  const [streamAnnouncementAutoPostStatus, setStreamAnnouncementAutoPostStatus] = useState("");
   const audioRoute = useAudioRouteMonitor();
   const operationInFlight = useRef(false);
+  const streamAnnouncementAutoPostedSessionKeys = useRef(new Set<string>());
   const platformChatOAuthCredentialsRef = useRef(platformChatOAuthCredentials);
   const platformChatOAuthSyncInFlight = useRef(false);
   const platformChatOAuthSyncRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -355,8 +367,11 @@ export const MobileApp = () => {
     if (!streamSessionSummariesLoaded) {
       return;
     }
-    void saveMobileStreamSessionSummaries(summaries, [profile.destination.streamKey]).catch(() => undefined);
-  }, [profile.destination.streamKey, streamSessionSummariesLoaded]);
+    void saveMobileStreamSessionSummaries(summaries, [
+      profile.destination.streamKey,
+      profile.streamAnnouncement.discordWebhookUrl
+    ]).catch(() => undefined);
+  }, [profile.destination.streamKey, profile.streamAnnouncement.discordWebhookUrl, streamSessionSummariesLoaded]);
   const clearPersistedStreamSessionSummaries = useCallback(() => {
     setPersistedStreamSessionSummaries([]);
     void clearMobileStreamSessionSummaries().catch(() => undefined);
@@ -394,6 +409,80 @@ export const MobileApp = () => {
   useEffect(() => {
     platformChatOAuthCredentialsRef.current = platformChatOAuthCredentials;
   }, [platformChatOAuthCredentials]);
+
+  const runStreamAnnouncementAutoPost = useCallback(
+    async (nextProfile: StudioProfile, signal: StreamAnnouncementAutoPostSignal, force = false) => {
+      const engineSnapshot = engine.getSnapshot();
+      const decision = force
+        ? { shouldPost: true as const, sessionKey: null, reason: "platform-visible-live" as const }
+        : createStreamAnnouncementAutoPostDecision({
+            settings: nextProfile.streamAnnouncement,
+            destinationPlatform: nextProfile.destination.platform,
+            youtubeBroadcastPrivacyStatus: nextProfile.platformPublishing.youtubeBroadcastPrivacyStatus,
+            youtubeConfiguredPrivacyStatus: nextProfile.platformPublishing.privacyStatus,
+            youtubeBroadcastStatus: nextProfile.platformPublishing.youtubeBroadcastStatus,
+            twitchLiveStatus: nextProfile.platformPublishing.twitchLiveStatus,
+            enginePlatform: engineSnapshot.platform,
+            streamStatus: engineSnapshot.state.status,
+            sessionStartedAt: engineSnapshot.state.startedAt,
+            signal,
+            postedSessionKeys: streamAnnouncementAutoPostedSessionKeys.current
+          });
+
+      if (!decision.shouldPost) {
+        if (decision.reason === "invalid-webhook") {
+          setStreamAnnouncementAutoPostStatus("Discord webhook URL is invalid. Use the full https://discord.com/api/webhooks/{id}/{token} URL.");
+        }
+        return;
+      }
+
+      if (decision.sessionKey) {
+        streamAnnouncementAutoPostedSessionKeys.current.add(decision.sessionKey);
+      }
+
+      const currentCredentials = platformChatOAuthCredentialsRef.current;
+      const secrets = createDiagnosticRedactionSecrets({
+        streamKey: nextProfile.destination.streamKey,
+        discordWebhookUrl: nextProfile.streamAnnouncement.discordWebhookUrl,
+        platformChatOAuthCredentials: currentCredentials
+      });
+      const preview = createStreamAnnouncementPreview({
+        profile: nextProfile,
+        twitchLogin: currentCredentials.twitch?.twitchLogin ?? platformChatAuth.twitchLogin,
+        secrets
+      });
+
+      try {
+        const result = await postDiscordStreamAnnouncement({
+          webhookUrl: nextProfile.streamAnnouncement.discordWebhookUrl,
+          content: preview.text,
+          fetcher: fetch
+        });
+        const status = force ? "📣 Discord test announcement posted." : "📣 Discord に告知を投稿したよ";
+        setStreamAnnouncementAutoPostStatus(status);
+        recordStreamSessionEvent(
+          createStreamAnnouncementAutoPostEvent({
+            phase: "posted",
+            message: `${result.message} Content: ${preview.text}`
+          })
+        );
+      } catch (error) {
+        const safeMessage = formatStreamAnnouncementAutoPostError(error, nextProfile.streamAnnouncement.discordWebhookUrl);
+        setStreamAnnouncementAutoPostStatus(`Discord announcement failed: ${safeMessage} Use Share announcement for manual sharing.`);
+        recordStreamSessionEvent(
+          createStreamAnnouncementAutoPostEvent({
+            phase: "failed",
+            message: safeMessage
+          })
+        );
+      }
+    },
+    [engine, platformChatAuth.twitchLogin, recordStreamSessionEvent]
+  );
+  const testStreamAnnouncementAutoPost = useCallback(
+    () => runStreamAnnouncementAutoPost(profile, "youtube-status-refresh", true),
+    [profile, runStreamAnnouncementAutoPost]
+  );
 
   const persistPlatformChatOAuthCredential = useCallback(async (
     credential: PlatformChatOAuthCredential,
@@ -825,8 +914,11 @@ export const MobileApp = () => {
     if (!streamValidationRunsLoaded) {
       return;
     }
-    void saveMobileStreamValidationRuns(streamValidationRuns, [profile.destination.streamKey]).catch(() => undefined);
-  }, [profile.destination.streamKey, streamValidationRuns, streamValidationRunsLoaded]);
+    void saveMobileStreamValidationRuns(streamValidationRuns, [
+      profile.destination.streamKey,
+      profile.streamAnnouncement.discordWebhookUrl
+    ]).catch(() => undefined);
+  }, [profile.destination.streamKey, profile.streamAnnouncement.discordWebhookUrl, streamValidationRuns, streamValidationRunsLoaded]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1029,6 +1121,9 @@ export const MobileApp = () => {
       }
       await engine.prepare(scene, readiness.sanitizedProfile, renderGraphRuntime);
       await engine.start();
+      if (profile.streamAnnouncement.promptAfterGoLive) {
+        setStreamAnnouncementPromptNonce((current) => current + 1);
+      }
       const chatPlan = platformChatConnection.ensureConnected(chatReader.settings.enabled);
       if (chatPlan.reason !== "platform-chat-disabled") {
         recordStreamSessionEvent(
@@ -1547,6 +1642,9 @@ export const MobileApp = () => {
         setProfile(result.profile);
         await saveSecureProfile(result.profile).catch(() => undefined);
         setPlatformPublishingStatus(result.message);
+        if (broadcastStatus === "live") {
+          void runStreamAnnouncementAutoPost(result.profile, "youtube-live-transition");
+        }
       });
     } catch (error) {
       setPlatformPublishingStatus(toErrorMessage(error));
@@ -1571,6 +1669,12 @@ export const MobileApp = () => {
         setProfile(result.profile);
         await saveSecureProfile(result.profile).catch(() => undefined);
         setPlatformPublishingStatus(result.message);
+        if (result.profile.destination.platform === "youtube-live") {
+          void runStreamAnnouncementAutoPost(result.profile, "youtube-status-refresh");
+        }
+        if (result.profile.destination.platform === "twitch") {
+          void runStreamAnnouncementAutoPost(result.profile, "twitch-status-refresh");
+        }
       });
     } catch (error) {
       setPlatformPublishingStatus(toErrorMessage(error));
@@ -1628,6 +1732,9 @@ export const MobileApp = () => {
         streamValidationRuns={streamValidationRuns}
         qualityAutomationDecision={qualityAutomationDecision}
         operationStatus={operationStatus}
+        streamAnnouncementPromptNonce={streamAnnouncementPromptNonce}
+        streamAnnouncementAutoPostStatus={streamAnnouncementAutoPostStatus}
+        streamAnnouncementWebhookStorageNotice="Discord webhook URL is stored in the mobile secure store."
         readiness={readiness}
         liveCaption={liveCaption}
         liveCaptionCues={liveCaptionCues}
@@ -1678,6 +1785,7 @@ export const MobileApp = () => {
         onPlatformPublishingApply={applyPlatformPublishingSetup}
         onPlatformPublishingStatusRefresh={refreshPlatformPublishingStatus}
         onYouTubeBroadcastTransition={transitionYouTubeBroadcastState}
+        onStreamAnnouncementWebhookTest={testStreamAnnouncementAutoPost}
         onPlatformChatConnect={platformChatConnection.connect}
         onPlatformChatDisconnect={platformChatConnection.disconnect}
         onPlatformChatSampleIngest={ingestPlatformChatSample}

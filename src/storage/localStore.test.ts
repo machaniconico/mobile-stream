@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDefaultStudioProfile } from "../domain/profiles";
 import { createReadinessReport } from "../domain/readiness";
 import { createDefaultScene, createDefaultSceneCollection, selectActiveScene } from "../domain/scene";
+import { streamAnnouncementTemplateMaxLength } from "../domain/streamAnnouncement";
 import { type StreamHealthSample } from "../domain/streamHealthHistory";
 import { createStreamDiagnostics } from "../domain/streamDiagnostics";
 import { createStreamSessionSummary } from "../domain/streamSessionSummary";
@@ -302,5 +303,38 @@ describe("local stream session summary store", () => {
 
     expect(storage.getItem(profileStorageKey)).not.toContain("browser-profile-secret");
     expect(loadProfile()?.destination.streamKey).toBe("");
+  });
+
+  it("round-trips stream announcement settings through browser profile persistence", () => {
+    const storage = createMemoryStorage();
+    vi.stubGlobal("localStorage", storage);
+    const webhookUrl =
+      "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz.ABCDEFGHIJKLMNOPQRSTUVWXYZ_1234567890";
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: "browser-profile-secret"
+      },
+      streamAnnouncement: {
+        ...createDefaultStudioProfile().streamAnnouncement,
+        template: `Go live\u0000 ${"A".repeat(streamAnnouncementTemplateMaxLength + 20)}`,
+        promptAfterGoLive: false,
+        autoPostEnabled: true,
+        discordWebhookUrl: webhookUrl
+      }
+    };
+
+    saveProfile(profile);
+
+    const loaded = loadProfile();
+    expect(loaded?.streamAnnouncement.template).toHaveLength(streamAnnouncementTemplateMaxLength);
+    expect(loaded?.streamAnnouncement.template).not.toContain("\u0000");
+    expect(loaded?.streamAnnouncement.promptAfterGoLive).toBe(false);
+    expect(loaded?.streamAnnouncement.autoPostEnabled).toBe(true);
+    expect(loaded?.streamAnnouncement.discordWebhookUrl).toBe("");
+    expect(storage.getItem(profileStorageKey)).toContain("streamAnnouncement");
+    expect(storage.getItem(profileStorageKey)).not.toContain("browser-profile-secret");
+    expect(storage.getItem(profileStorageKey)).not.toContain(webhookUrl);
   });
 });

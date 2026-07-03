@@ -680,6 +680,72 @@ select:focus-visible {
   font-size: 13px;
 }
 
+.announcement-action-highlight {
+  border-color: rgba(245, 158, 11, 0.72);
+  background: rgba(245, 158, 11, 0.14);
+  color: #fde68a;
+}
+
+.stream-announcement-prompt {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  border: 1px solid rgba(245, 158, 11, 0.58);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.stream-announcement-prompt strong,
+.stream-announcement-preview span {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.stream-announcement-prompt p,
+.stream-announcement-preview p {
+  margin: 5px 0 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.stream-announcement-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.stream-announcement-warning {
+  display: inline-flex;
+  margin-top: 6px;
+  color: #fde68a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.stream-announcement-status {
+  margin-top: 8px;
+  color: #bae6fd;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.stream-announcement-preview {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #101015;
+}
+
 .quick-subtitle-bar {
   display: flex;
   flex-wrap: wrap;
@@ -1200,6 +1266,30 @@ select:focus-visible {
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.secret-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 8px;
+}
+
+.stream-announcement-webhook-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -4px 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.field-note {
+  margin: -2px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .compact-action {
@@ -2155,6 +2245,14 @@ select:focus-visible {
   .transport-readout {
     width: 100%;
     margin-left: 0;
+  }
+
+  .stream-announcement-prompt {
+    grid-template-columns: 1fr;
+  }
+
+  .stream-announcement-actions {
+    justify-content: stretch;
   }
 
   .transport-readout {
