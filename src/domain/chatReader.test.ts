@@ -9,8 +9,10 @@ import {
   markChatMessageSpeaking,
   markChatMessageSpoken,
   normalizeMutedWordsInput,
+  pinChatMessage,
   selectChatOverlayMessages,
   selectNextReadableMessage,
+  unpinChatMessage,
   updateChatReaderSettings
 } from "./chatReader";
 
@@ -96,6 +98,76 @@ describe("chatReader", () => {
     expect(JSON.stringify(selectChatOverlayMessages(next))).not.toContain("example.com");
     expect(JSON.stringify(selectChatOverlayMessages(next))).not.toContain("example.org");
     expect(JSON.stringify(selectChatOverlayMessages(next))).not.toContain("example.tv");
+  });
+
+  it("pins a recent comment at the top of the chat overlay and unpins it", () => {
+    const first = createChatMessage({ source: "youtube", author: "first", body: "older", receivedAt: 1 });
+    const second = createChatMessage({ source: "twitch", author: "second", body: "newer", receivedAt: 2 });
+    const state = [first, second].reduce(enqueueChatMessage, createDefaultChatReaderState());
+    const pinned = pinChatMessage(state, first.id);
+
+    expect(selectChatOverlayMessages(pinned)).toEqual([
+      {
+        author: "first",
+        body: "older",
+        source: "youtube",
+        pinned: true,
+        receivedAt: 1
+      },
+      {
+        author: "second",
+        body: "newer",
+        source: "twitch"
+      }
+    ]);
+    expect(selectChatOverlayMessages(unpinChatMessage(pinned))).toEqual([
+      {
+        author: "second",
+        body: "newer",
+        source: "twitch"
+      },
+      {
+        author: "first",
+        body: "older",
+        source: "youtube"
+      }
+    ]);
+  });
+
+  it("clears pinned comments with the chat reader session", () => {
+    const message = createChatMessage({
+      source: "youtube",
+      author: "viewer",
+      body: "private pinned comment",
+      receivedAt: 20
+    });
+    const pinned = pinChatMessage(enqueueChatMessage(createDefaultChatReaderState(), message), message.id);
+    const cleared = clearChatReaderSession(pinned);
+
+    expect(pinned.pinnedMessage?.body).toBe("private pinned comment");
+    expect(cleared.pinnedMessage).toBeNull();
+    expect(selectChatOverlayMessages(cleared)).toHaveLength(0);
+    expect(JSON.stringify(cleared)).not.toContain("private pinned comment");
+  });
+
+  it("redacts pinned comment urls through the same overlay selector", () => {
+    const message = createChatMessage({
+      source: "twitch",
+      author: "viewer",
+      body: "pin https://example.com/private and example.tv/room",
+      receivedAt: 21
+    });
+    const pinned = pinChatMessage(enqueueChatMessage(createDefaultChatReaderState(), message), message.id);
+    const overlay = selectChatOverlayMessages(pinned);
+
+    expect(overlay[0]).toMatchObject({
+      author: "viewer",
+      body: "pin link omitted and link omitted",
+      source: "twitch",
+      pinned: true
+    });
+    expect(JSON.stringify(overlay)).not.toContain("example.com");
+    expect(JSON.stringify(overlay)).not.toContain("example.tv");
   });
 
   it("redacts OAuth and authorization secrets before storing, overlaying, or reading chat", () => {

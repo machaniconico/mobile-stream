@@ -113,6 +113,7 @@ import {
   type TextSourceAlign,
   type TextSourceContentSource,
   type TextSourceMode,
+  type TextSourceTimerMode,
   type TextSourceVisibilityMode,
   type TextOverlayRuntimeStatus,
   type TextOverlayPresetId,
@@ -199,6 +200,8 @@ interface StudioScreenProps {
   onStop(): Promise<void>;
   onReconnect(): Promise<void>;
   onChatCommentSubmit(author: string, body: string): void;
+  onChatCommentPin(messageId: string): void;
+  onChatCommentUnpin(): void;
   onChatReaderSettingsChange(settings: Partial<ChatReaderSettings>): void;
   onChatCommentsClear(): void;
   onLiveCaptionSettingsChange(settings: Partial<LiveCaptionSettings>): void;
@@ -251,6 +254,11 @@ const textSourceVisibilityModes: Array<{ visibilityMode: TextSourceVisibilityMod
   { visibilityMode: "always", label: "Always" },
   { visibilityMode: "timed", label: "Timed" }
 ];
+const textSourceTimerModes: Array<{ timerMode: TextSourceTimerMode; label: string }> = [
+  { timerMode: "none", label: "Static" },
+  { timerMode: "countdown", label: "Countdown" },
+  { timerMode: "uptime", label: "Uptime" }
+];
 const textOverlayPresets: Array<{ presetId: TextOverlayPresetId; label: string }> = [
   { presetId: "title", label: "Title" },
   { presetId: "subtitle", label: "Subtitle" },
@@ -258,6 +266,8 @@ const textOverlayPresets: Array<{ presetId: TextOverlayPresetId; label: string }
   { presetId: "notice", label: "Notice" },
   { presetId: "ticker", label: "Ticker" },
   { presetId: "badge", label: "Badge" },
+  { presetId: "starting-soon-countdown", label: "Starting Soon countdown" },
+  { presetId: "uptime-badge", label: "Uptime badge" },
   { presetId: "live-caption", label: "Live Caption" }
 ];
 const textSourceAlignments: TextSourceAlign[] = ["left", "center", "right"];
@@ -539,6 +549,8 @@ export const StudioScreen = ({
   onStop,
   onReconnect,
   onChatCommentSubmit,
+  onChatCommentPin,
+  onChatCommentUnpin,
   onChatReaderSettingsChange,
   onChatCommentsClear,
   onLiveCaptionSettingsChange,
@@ -584,13 +596,14 @@ export const StudioScreen = ({
   const canHideManualTextOverlay =
     !quickSubtitleLocked &&
     scene.sources.some((source) => source.kind === "text" && source.contentSource === "manual" && source.visible);
-  const hasActiveTimedTextOverlays = scene.sources.some(
+  const hasActiveTextOverlayClockSources = scene.sources.some(
     (source) =>
       source.kind === "text" &&
       source.visible &&
-      source.visibilityMode === "timed" &&
-      source.activatedAtMs > 0 &&
-      source.activatedAtMs + source.displayDurationMs > textOverlayClock
+      (((source.timerMode ?? "none") !== "none") ||
+        (source.visibilityMode === "timed" &&
+          source.activatedAtMs > 0 &&
+          source.activatedAtMs + source.displayDurationMs > textOverlayClock))
   );
   const textOverlayRuntimeStatus = createTextOverlayRuntimeStatus(scene, {
     captions: liveCaptionCues,
@@ -598,13 +611,13 @@ export const StudioScreen = ({
     nowMs: textOverlayClock
   });
   useEffect(() => {
-    if (!hasActiveTimedTextOverlays) {
+    if (!hasActiveTextOverlayClockSources) {
       setTextOverlayClock(Date.now());
       return undefined;
     }
     const timer = window.setInterval(() => setTextOverlayClock(Date.now()), 500);
     return () => window.clearInterval(timer);
-  }, [hasActiveTimedTextOverlays]);
+  }, [hasActiveTextOverlayClockSources]);
   const selectedManualTextSourceId =
     selectedSource.kind === "text" && selectedSource.contentSource === "manual" ? selectedSource.id : undefined;
   const showQuickSubtitle = () => {
@@ -1257,7 +1270,13 @@ export const StudioScreen = ({
                   </select>
                 </label>
                 <label className="field">
-                  <span>{selectedSource.contentSource === "runtime-caption" ? "Fallback text" : "Text"}</span>
+                  <span>
+                    {selectedSource.timerMode !== "none"
+                      ? "Timer prefix"
+                      : selectedSource.contentSource === "runtime-caption"
+                        ? "Fallback text"
+                        : "Text"}
+                  </span>
                   <textarea
                     value={selectedSource.text}
                     disabled={setupLocked}
@@ -1271,6 +1290,83 @@ export const StudioScreen = ({
                     }
                   />
                 </label>
+                <fieldset className="quick-text-duration-field">
+                  <legend>Timer</legend>
+                  <div className="quick-text-duration-buttons quick-text-action-buttons">
+                    {textSourceTimerModes.map((mode) => (
+                      <button
+                        key={mode.timerMode}
+                        className={`quick-text-duration-button${selectedSource.timerMode === mode.timerMode ? " active" : ""}`}
+                        type="button"
+                        disabled={setupLocked || selectedSource.contentSource !== "manual"}
+                        aria-pressed={selectedSource.timerMode === mode.timerMode}
+                        onClick={() =>
+                          onSceneChange(
+                            updateSource(scene, selectedSource.id, (source) =>
+                              source.kind === "text"
+                                ? {
+                                    ...source,
+                                    timerMode: mode.timerMode,
+                                    countdownTargetMs:
+                                      mode.timerMode === "countdown"
+                                        ? source.countdownTargetMs && source.countdownTargetMs > Date.now()
+                                          ? source.countdownTargetMs
+                                          : Date.now() + 5 * 60 * 1000
+                                        : source.countdownTargetMs,
+                                    activatedAtMs: mode.timerMode === "uptime" ? Date.now() : source.activatedAtMs
+                                  }
+                                : source
+                            )
+                          )
+                        }
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                {selectedSource.timerMode === "countdown" ? (
+                  <>
+                    <label className="field">
+                      <span>Target time</span>
+                      <input
+                        type="datetime-local"
+                        value={formatDateTimeLocalInputValue(selectedSource.countdownTargetMs)}
+                        disabled={setupLocked}
+                        onChange={(event) =>
+                          onSceneChange(
+                            updateSource(scene, selectedSource.id, (source) =>
+                              source.kind === "text"
+                                ? {
+                                    ...source,
+                                    countdownTargetMs: parseDateTimeLocalInputValue(
+                                      event.target.value,
+                                      source.countdownTargetMs ?? Date.now()
+                                    )
+                                  }
+                                : source
+                            )
+                          )
+                        }
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Complete text</span>
+                      <input
+                        value={selectedSource.timerCompleteText}
+                        disabled={setupLocked}
+                        maxLength={80}
+                        onChange={(event) =>
+                          onSceneChange(
+                            updateSource(scene, selectedSource.id, (source) =>
+                              source.kind === "text" ? { ...source, timerCompleteText: event.target.value } : source
+                            )
+                          )
+                        }
+                      />
+                    </label>
+                  </>
+                ) : null}
                 <label className="field">
                   <span>Mode</span>
                   <select
@@ -2079,6 +2175,8 @@ export const StudioScreen = ({
             platformApiOperationLabel={platformApiOperationLabel}
             platformChatConnection={platformChatConnection}
             onSubmit={onChatCommentSubmit}
+            onPin={onChatCommentPin}
+            onUnpin={onChatCommentUnpin}
             onSettingsChange={onChatReaderSettingsChange}
             onClearComments={onChatCommentsClear}
             onPlatformChatSettingsChange={onPlatformChatSettingsChange}
@@ -2811,6 +2909,8 @@ const ChatReaderPanel = ({
   platformApiOperationLabel,
   platformChatConnection,
   onSubmit,
+  onPin,
+  onUnpin,
   onSettingsChange,
   onClearComments,
   onPlatformChatSettingsChange,
@@ -2837,6 +2937,8 @@ const ChatReaderPanel = ({
   platformApiOperationLabel: string | null;
   platformChatConnection: PlatformChatConnectionState;
   onSubmit(author: string, body: string): void;
+  onPin(messageId: string): void;
+  onUnpin(): void;
   onSettingsChange(settings: Partial<ChatReaderSettings>): void;
   onClearComments(): void;
   onPlatformChatSettingsChange(settings: Partial<PlatformChatSettings>): void;
@@ -3151,12 +3253,23 @@ const ChatReaderPanel = ({
         {chatReader.history.length === 0 ? (
           <span className="chat-empty">No comments yet</span>
         ) : (
-          chatReader.history.slice(0, 4).map((message) => (
-            <span key={message.id} className="chat-history-row">
-              <strong>{message.author}</strong>
-              <span>{message.body}</span>
-            </span>
-          ))
+          chatReader.history.slice(0, 4).map((message) => {
+            const isPinned = chatReader.pinnedMessage?.id === message.id;
+            return (
+              <span key={message.id} className={`chat-history-row${isPinned ? " pinned" : ""}`}>
+                <strong>{message.author}</strong>
+                <span>{message.body}</span>
+                <button
+                  className="chat-pin-button"
+                  type="button"
+                  aria-pressed={isPinned}
+                  onClick={() => (isPinned ? onUnpin() : onPin(message.id))}
+                >
+                  {isPinned ? "解除" : "📌 ピン留め"}
+                </button>
+              </span>
+            );
+          })
         )}
       </div>
     </section>
@@ -3608,6 +3721,7 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
 
   if (source.kind === "chat") {
     const text = typeof node?.payload.text === "string" ? node.payload.text : "";
+    const messages = parseChatOverlayPayloadMessages(node);
     const lines = text ? text.split("\n") : ["Chat overlay"];
     return (
       <div
@@ -3618,9 +3732,13 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
           backgroundColor: rgbaFromHex(source.backgroundColor, source.backgroundOpacity)
         }}
       >
-        {lines.slice(0, source.maxMessages).map((line, index) => (
-          <span key={`${line}-${index}`}>{line}</span>
-        ))}
+        {messages.length > 0
+          ? messages.slice(0, source.maxMessages).map((message, index) => (
+              <span key={`${message.author}-${message.body}-${index}`} className={message.pinned ? "pinned" : undefined}>
+                {source.showAuthor ? `${message.author}: ${message.body}` : message.body}
+              </span>
+            ))
+          : lines.slice(0, source.maxMessages).map((line, index) => <span key={`${line}-${index}`}>{line}</span>)}
       </div>
     );
   }
@@ -3829,6 +3947,47 @@ const formatTextOverlayRemaining = (remainingMs: number): string => {
 const formatTextOverlayPreview = (value: string): string => {
   const normalized = value.replace(/\s+/g, " ").trim();
   return normalized.length > 48 ? `${normalized.slice(0, 47)}...` : normalized;
+};
+
+const parseChatOverlayPayloadMessages = (
+  node?: RenderNode
+): Array<{ author: string; body: string; source?: string; pinned?: boolean }> => {
+  if (typeof node?.payload.messagesJson !== "string") {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(node.payload.messagesJson);
+    return Array.isArray(parsed)
+      ? parsed.flatMap((message) =>
+          typeof message?.author === "string" && typeof message?.body === "string"
+            ? [
+                {
+                  author: message.author,
+                  body: message.body,
+                  source: typeof message.source === "string" ? message.source : undefined,
+                  pinned: message.pinned === true
+                }
+              ]
+            : []
+        )
+      : [];
+  } catch {
+    return [];
+  }
+};
+
+const formatDateTimeLocalInputValue = (valueMs: number | undefined): string => {
+  if (!valueMs || !Number.isFinite(valueMs) || valueMs <= 0) {
+    return "";
+  }
+  const date = new Date(valueMs);
+  const localMs = valueMs - date.getTimezoneOffset() * 60 * 1000;
+  return new Date(localMs).toISOString().slice(0, 16);
+};
+
+const parseDateTimeLocalInputValue = (value: string, fallbackMs: number): number => {
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : fallbackMs;
 };
 
 const fontSizeForTextSource = (source: Extract<SceneSource, { kind: "text" }>): number => {

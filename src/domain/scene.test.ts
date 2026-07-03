@@ -20,6 +20,7 @@ import {
   createTextOverlayRuntimeStatus,
   duplicateActiveScene,
   ensureLiveCaptionTextSource,
+  formatTimerOverlayText,
   hideLiveCaptionTextSources,
   hideTextOverlays,
   inferAvatarIllustrationRig,
@@ -687,6 +688,35 @@ describe("scene document", () => {
     expect(JSON.stringify(persistedChat)).not.toContain("first comment");
   });
 
+  it("keeps pinned chat runtime messages first without persisting pinned text", () => {
+    const scene = createDefaultScene();
+    const graph = toRenderGraph(scene, {
+      chatMessages: [
+        { author: "pinned", body: "pin https://example.com/private", source: "youtube", pinned: true },
+        { author: "viewer", body: "recent comment", source: "twitch" }
+      ]
+    });
+
+    const chatNode = graph.find((node) => node.kind === "chat");
+    const messages = JSON.parse(String(chatNode?.payload.messagesJson));
+    const persisted = stripTransientSceneRuntime(scene);
+
+    expect(chatNode?.payload.text).toBe("pinned: pin [link]\nviewer: recent comment");
+    expect(messages[0]).toMatchObject({
+      author: "pinned",
+      body: "pin [link]",
+      source: "youtube",
+      pinned: true
+    });
+    expect(messages[1]).toMatchObject({
+      author: "viewer",
+      body: "recent comment",
+      pinned: false
+    });
+    expect(JSON.stringify(persisted)).not.toContain("pin https://example.com/private");
+    expect(JSON.stringify(persisted)).not.toContain("recent comment");
+  });
+
   it("redacts sensitive runtime chat overlay payloads even when URL redaction is disabled", () => {
     const scene = updateSource(createDefaultScene(), "source-chat", (source) =>
       source.kind === "chat"
@@ -807,6 +837,84 @@ describe("scene document", () => {
     expect(expiredGraph.some((node) => node.id === text.id)).toBe(false);
   });
 
+  it("formats countdown and uptime timer overlay text at duration boundaries", () => {
+    const nowMs = 1_000_000;
+    const countdown = {
+      ...createTextOverlayPresetSource("starting-soon-countdown"),
+      text: "配信開始まで",
+      countdownTargetMs: nowMs + 5 * 60 * 1000
+    };
+    const uptime = {
+      ...createTextOverlayPresetSource("uptime-badge"),
+      text: "経過",
+      activatedAtMs: nowMs
+    };
+
+    expect(formatTimerOverlayText(nowMs, countdown)).toBe("配信開始まで 05:00");
+    expect(formatTimerOverlayText(nowMs + 59 * 1000, countdown)).toBe("配信開始まで 04:01");
+    expect(formatTimerOverlayText(nowMs + 60 * 1000, countdown)).toBe("配信開始まで 04:00");
+    expect(formatTimerOverlayText(nowMs + 3_600_000, { ...countdown, countdownTargetMs: nowMs + 3_600_000 + 1000 })).toBe(
+      "配信開始まで 00:01"
+    );
+    expect(formatTimerOverlayText(nowMs, uptime)).toBe("経過 00:00");
+    expect(formatTimerOverlayText(nowMs + 60 * 1000, uptime)).toBe("経過 01:00");
+    expect(formatTimerOverlayText(nowMs + 3_723_000, uptime)).toBe("経過 01:02:03");
+  });
+
+  it("switches completed countdown timers to editable complete text", () => {
+    const nowMs = 2_000_000;
+    const countdown = {
+      ...createTextOverlayPresetSource("starting-soon-countdown"),
+      countdownTargetMs: nowMs,
+      timerCompleteText: "まもなく開始します"
+    };
+
+    expect(formatTimerOverlayText(nowMs, countdown)).toBe("まもなく開始します");
+    expect(formatTimerOverlayText(nowMs + 1, countdown)).toBe("まもなく開始します");
+  });
+
+  it("renders timer text overlays through normal text payloads without persisting current values", () => {
+    const nowMs = 10_000_000;
+    const countdown = {
+      ...createTextOverlayPresetSource("starting-soon-countdown"),
+      id: "timer-countdown",
+      text: "配信開始まで",
+      countdownTargetMs: nowMs + 90_000,
+      activatedAtMs: nowMs - 30_000
+    };
+    const uptime = {
+      ...createTextOverlayPresetSource("uptime-badge"),
+      id: "timer-uptime",
+      text: "経過",
+      activatedAtMs: nowMs - 65_000
+    };
+    const scene = addSource(addSource(createDefaultScene(), countdown), uptime);
+    const graph = toRenderGraph(scene, {
+      nowMs,
+      streamStartedAtMs: nowMs - 3_723_000
+    });
+    const normalized = normalizeSceneDocument(JSON.parse(JSON.stringify(scene)));
+    const persisted = stripTransientSceneRuntime(normalized);
+
+    expect(graph.find((node) => node.id === "timer-countdown")?.payload).toMatchObject({
+      text: "配信開始まで 01:30",
+      timerMode: "countdown",
+      countdownTargetMs: nowMs + 90_000
+    });
+    expect(graph.find((node) => node.id === "timer-uptime")?.payload).toMatchObject({
+      text: "経過 01:02:03",
+      timerMode: "uptime"
+    });
+    expect(persisted.sources.find((source) => source.id === "timer-countdown")).toMatchObject({
+      kind: "text",
+      timerMode: "countdown",
+      countdownTargetMs: nowMs + 90_000,
+      activatedAtMs: 0
+    });
+    expect(JSON.stringify(persisted)).not.toContain("01:30");
+    expect(JSON.stringify(persisted)).not.toContain("01:02:03");
+  });
+
   it("shows a quick timed subtitle without mutating existing subtitle sources", () => {
     const nowMs = 90000;
     const scene = createDefaultScene();
@@ -847,7 +955,9 @@ describe("scene document", () => {
       "notice",
       "ticker",
       "badge",
-      "title"
+      "title",
+      "starting-soon-countdown",
+      "uptime-badge"
     ]);
   });
 
@@ -1199,6 +1309,7 @@ describe("scene document", () => {
       "subtitle",
       "notice",
       "engagement",
+      "timer",
       "safety"
     ]);
     expect(groupedPresetIds).toHaveLength(quickTextOverlayPresets.length);
@@ -1211,6 +1322,16 @@ describe("scene document", () => {
     expect(selectQuickTextOverlayPreset("stream-trouble")).toMatchObject({
       category: "notice",
       durationMs: 8000
+    });
+    expect(selectQuickTextOverlayPreset("starting-soon-countdown")).toMatchObject({
+      category: "timer",
+      text: "配信開始まで",
+      presetId: "starting-soon-countdown"
+    });
+    expect(selectQuickTextOverlayPreset("uptime-badge")).toMatchObject({
+      category: "timer",
+      text: "経過",
+      presetId: "uptime-badge"
     });
     expect(quickSubtitle).toMatchObject({
       mode: "label",
@@ -1717,10 +1838,20 @@ describe("scene document", () => {
     const notice = createTextOverlayPresetSource("notice");
     const ticker = createTextOverlayPresetSource("ticker");
     const badge = createTextOverlayPresetSource("badge");
+    const startingSoon = {
+      ...createTextOverlayPresetSource("starting-soon-countdown"),
+      countdownTargetMs: 2_000_000
+    };
+    const uptimeBadge = {
+      ...createTextOverlayPresetSource("uptime-badge"),
+      activatedAtMs: 1_000_000
+    };
     const liveCaption = createTextOverlayPresetSource("live-caption");
-    const scene = [title, lowerThird, notice, ticker, badge, liveCaption].reduce(addSource, createDefaultScene());
+    const scene = [title, lowerThird, notice, ticker, badge, startingSoon, uptimeBadge, liveCaption].reduce(addSource, createDefaultScene());
     const graph = toRenderGraph(scene, {
-      captions: [{ speaker: "Host", text: "ライブ字幕テスト" }]
+      captions: [{ speaker: "Host", text: "ライブ字幕テスト" }],
+      nowMs: 1_700_000,
+      streamStartedAtMs: 1_000_000
     });
 
     expect(title).toMatchObject({
@@ -1773,6 +1904,22 @@ describe("scene document", () => {
       backgroundOpacity: 0.78,
       transform: { x: 0.79, y: 0.06, width: 0.16, height: 0.08 }
     });
+    expect(startingSoon).toMatchObject({
+      kind: "text",
+      name: "Starting Soon Countdown",
+      mode: "label",
+      timerMode: "countdown",
+      timerCompleteText: "まもなく開始…",
+      transform: { x: 0.16, y: 0.34, width: 0.68, height: 0.16 }
+    });
+    expect(uptimeBadge).toMatchObject({
+      kind: "text",
+      name: "Uptime Badge",
+      mode: "label",
+      timerMode: "uptime",
+      backgroundColor: "#0f766e",
+      transform: { x: 0.74, y: 0.16, width: 0.21, height: 0.08 }
+    });
     expect(liveCaption).toMatchObject({
       kind: "text",
       mode: "caption",
@@ -1785,6 +1932,8 @@ describe("scene document", () => {
     expect(graph.find((node) => node.id === notice.id)?.payload.text).toBe("少しお待ちください");
     expect(graph.find((node) => node.id === ticker.id)?.payload.mode).toBe("ticker");
     expect(graph.find((node) => node.id === badge.id)?.payload.text).toBe("LIVE");
+    expect(graph.find((node) => node.id === startingSoon.id)?.payload.text).toBe("配信開始まで 05:00");
+    expect(graph.find((node) => node.id === uptimeBadge.id)?.payload.text).toBe("経過 11:40");
     expect(graph.find((node) => node.id === liveCaption.id)?.payload.text).toBe("ライブ字幕テスト");
   });
 

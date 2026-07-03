@@ -33,10 +33,19 @@ export interface ChatReaderState {
   authorActivity: ChatAuthorActivity[];
   speakingMessageId: string | null;
   skippedCount: number;
+  pinnedMessage: PinnedChatMessage | null;
 }
 
 export interface ChatAuthorActivity {
   author: string;
+  receivedAt: number;
+}
+
+export interface PinnedChatMessage {
+  id: string;
+  source: ChatMessage["source"];
+  author: string;
+  body: string;
   receivedAt: number;
 }
 
@@ -52,6 +61,8 @@ export interface ChatOverlayDisplayMessage {
   author: string;
   body: string;
   source: ChatMessage["source"];
+  pinned?: boolean;
+  receivedAt?: number;
 }
 
 const MAX_QUEUE_LENGTH = 24;
@@ -83,7 +94,8 @@ export const createDefaultChatReaderState = (): ChatReaderState => ({
   history: [],
   authorActivity: [],
   speakingMessageId: null,
-  skippedCount: 0
+  skippedCount: 0,
+  pinnedMessage: null
 });
 
 export const createChatMessage = ({ id, source = "manual", author, body, receivedAt = Date.now() }: ChatMessageInput): ChatMessage => {
@@ -201,19 +213,53 @@ export const clearChatReaderSession = (state: ChatReaderState): ChatReaderState 
   history: [],
   authorActivity: [],
   speakingMessageId: null,
-  skippedCount: 0
+  skippedCount: 0,
+  pinnedMessage: null
 });
 
-export const selectChatOverlayMessages = (state: ChatReaderState, limit = 4): ChatOverlayDisplayMessage[] =>
-  state.history
+export const pinChatMessage = (state: ChatReaderState, messageId: string): ChatReaderState => {
+  const message = state.history.find((item) => item.id === messageId);
+  if (!message) {
+    return state;
+  }
+  return {
+    ...state,
+    pinnedMessage: {
+      id: message.id,
+      source: message.source,
+      author: message.author,
+      body: message.body,
+      receivedAt: message.receivedAt
+    }
+  };
+};
+
+export const unpinChatMessage = (state: ChatReaderState): ChatReaderState =>
+  state.pinnedMessage ? { ...state, pinnedMessage: null } : state;
+
+type ChatOverlaySelectableMessage = ChatMessage & { pinned?: boolean };
+
+const selectPinnedOverlayMessage = (state: ChatReaderState): ChatOverlaySelectableMessage[] =>
+  state.pinnedMessage ? [{ ...state.pinnedMessage, pinned: true }] : [];
+
+export const selectChatOverlayMessages = (state: ChatReaderState, limit = 4): ChatOverlayDisplayMessage[] => {
+  const messages: ChatOverlaySelectableMessage[] = [
+    ...selectPinnedOverlayMessage(state),
+    ...state.history.filter((message) => message.id !== state.pinnedMessage?.id)
+  ];
+  return messages
     .filter((message) => !isMutedMessage(message, state.settings))
     .filter((message) => !isMessageContentBlockedByModeration(message, state.settings))
     .slice(0, Math.round(clamp(limit, 1, 8)))
-    .map((message) => ({
-      author: message.author,
-      body: state.settings.redactUrls ? stripUrls(message.body) : message.body,
-      source: message.source
-    }));
+    .map((message) => {
+      const displayMessage = {
+        author: message.author,
+        body: state.settings.redactUrls ? stripUrls(message.body) : message.body,
+        source: message.source
+      };
+      return message.pinned ? { ...displayMessage, pinned: true, receivedAt: message.receivedAt } : displayMessage;
+    });
+};
 
 export const createSpeechText = (message: ChatMessage, settings: ChatReaderSettings): string | null => {
   if (isMutedMessage(message, settings) || shouldSkipCommandMessage(message, settings) || isMessageContentBlockedByModeration(message, settings)) {

@@ -5,7 +5,9 @@ import {
   createChatMessage,
   createDefaultChatReaderState,
   enqueueChatMessage,
+  pinChatMessage,
   selectChatOverlayMessages,
+  unpinChatMessage,
   updateChatReaderSettings,
   type ChatReaderSettings
 } from "../domain/chatReader";
@@ -220,32 +222,48 @@ export const App = () => {
   );
   const chatOverlayMessages = useMemo(
     () => selectChatOverlayMessages(chatReader),
-    [chatReader.history, chatReader.settings]
+    [chatReader.history, chatReader.pinnedMessage, chatReader.settings]
   );
   const liveCaptionCues = useMemo(
     () => selectLiveCaptionCues(liveCaption, liveCaptionClock),
     [liveCaption, liveCaptionClock]
   );
-  const hasActiveTimedTextOverlays = useMemo(
+  const hasActiveTextOverlayClockSources = useMemo(
     () =>
       scene.sources.some(
         (source) =>
           source.kind === "text" &&
           source.visible &&
-          source.visibilityMode === "timed" &&
-          source.activatedAtMs > 0 &&
-          source.activatedAtMs + source.displayDurationMs > textOverlayClock
+          (((source.timerMode ?? "none") !== "none") ||
+            (source.visibilityMode === "timed" &&
+              source.activatedAtMs > 0 &&
+              source.activatedAtMs + source.displayDurationMs > textOverlayClock))
       ),
     [scene.sources, textOverlayClock]
   );
   const renderGraphRuntime = useMemo(
-    () => ({
-      chatMessages: chatOverlayMessages,
-      captions: liveCaptionCues,
-      captionsEnabled: liveCaption.settings.enabled,
-      nowMs: Math.max(liveCaptionClock, textOverlayClock)
-    }),
-    [chatOverlayMessages, liveCaption.settings.enabled, liveCaptionClock, liveCaptionCues, textOverlayClock]
+    () => {
+      const nowMs = Math.max(liveCaptionClock, textOverlayClock);
+      return {
+        chatMessages: chatOverlayMessages,
+        captions: liveCaptionCues,
+        captionsEnabled: liveCaption.settings.enabled,
+        nowMs,
+        streamStartedAtMs:
+          snapshot.state.status === "live" || snapshot.state.status === "reconnecting"
+            ? Math.max(0, Math.round(nowMs - snapshot.health.elapsedSeconds * 1000))
+            : undefined
+      };
+    },
+    [
+      chatOverlayMessages,
+      liveCaption.settings.enabled,
+      liveCaptionClock,
+      liveCaptionCues,
+      snapshot.health.elapsedSeconds,
+      snapshot.state.status,
+      textOverlayClock
+    ]
   );
   const platformStreamKeyStatusMessage = useMemo(
     () => resolvePlatformStreamKeyStatusMessage(platformStreamKeyStatus, profile),
@@ -334,13 +352,13 @@ export const App = () => {
   }, [liveCaption.settings.enabled]);
 
   useEffect(() => {
-    if (!hasActiveTimedTextOverlays) {
+    if (!hasActiveTextOverlayClockSources) {
       setTextOverlayClock(Date.now());
       return undefined;
     }
     const timer = window.setInterval(() => setTextOverlayClock(Date.now()), 500);
     return () => window.clearInterval(timer);
-  }, [hasActiveTimedTextOverlays]);
+  }, [hasActiveTextOverlayClockSources]);
 
   useEffect(() => {
     let active = true;
@@ -891,6 +909,14 @@ export const App = () => {
     setChatReader((current) => enqueueChatMessage(current, createChatMessage({ author, body })));
   };
 
+  const pinChatComment = (messageId: string) => {
+    setChatReader((current) => pinChatMessage(current, messageId));
+  };
+
+  const unpinChatComment = () => {
+    setChatReader(unpinChatMessage);
+  };
+
   const updateChatSettings = (settings: Partial<ChatReaderSettings>) => {
     setChatReader((current) => updateChatReaderSettings(current, settings));
   };
@@ -1279,6 +1305,8 @@ export const App = () => {
         onStop={stopStream}
         onReconnect={reconnectStream}
         onChatCommentSubmit={submitChatComment}
+        onChatCommentPin={pinChatComment}
+        onChatCommentUnpin={unpinChatComment}
         onChatReaderSettingsChange={updateChatSettings}
         onChatCommentsClear={clearChatComments}
         onLiveCaptionSettingsChange={updateLiveCaptionSettings}
