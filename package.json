@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc -p tsconfig.json && vite build",
+    "build": "node scripts/build-web.mjs",
     "typecheck": "npm run typecheck:web && npm run typecheck:rn",
     "typecheck:web": "tsc -p tsconfig.json --pretty false",
     "typecheck:rn": "tsc -p tsconfig.rn.json --pretty false",

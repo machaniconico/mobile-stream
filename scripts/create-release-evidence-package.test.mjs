@@ -38,16 +38,21 @@ import {
 } from "./native-build-test-fixtures.mjs";
 
 const fixtureRoot = ".artifacts/release-evidence-package-test";
+const webArtifactRoot = `${fixtureRoot}/web`;
+const webIndexPath = "dist/index.html";
+const webScriptPath = `${webArtifactRoot}/release-evidence-package-test.js`;
+const webStylePath = `${webArtifactRoot}/release-evidence-package-test.css`;
 const nativeBuildPaths = nativeBuildFixturePaths(fixtureRoot);
 const packageDir = `${fixtureRoot}/package`;
 const reportPath = `${fixtureRoot}/release-report.json`;
 const supportBundlePath = `${fixtureRoot}/support-bundle.json`;
 const storeReleaseReportPath = `${fixtureRoot}/store-release-report.json`;
 const physicalDevicePreflightPath = `${fixtureRoot}/physical-device-preflight.json`;
+const packagedArtifactPath = (sourcePath) => `${packageDir}/artifacts/${sourcePath}`;
 const generatedFiles = [
-  "dist/index.html",
-  "dist/assets/release-evidence-package-test.js",
-  "dist/assets/release-evidence-package-test.css",
+  webIndexPath,
+  webScriptPath,
+  webStylePath,
   ".artifacts/rn/main.ios.jsbundle",
   ".artifacts/rn/index.android.bundle",
   gitleaksHistoryScanArtifactPath,
@@ -112,7 +117,7 @@ describe("release evidence package creator", () => {
     expect(existsSync(`${packageDir}/release-candidate-report.json`)).toBe(true);
     expect(existsSync(`${packageDir}/support-bundle/support-bundle.json`)).toBe(true);
     expect(existsSync(`${packageDir}/ui-evidence/ui-evidence.json`)).toBe(true);
-    expect(existsSync(`${packageDir}/artifacts/dist/index.html`)).toBe(true);
+    expect(existsSync(packagedArtifactPath(webIndexPath))).toBe(true);
     expect(validateReleaseEvidencePackage({ packageDir })).toEqual([]);
   });
 
@@ -654,10 +659,10 @@ describe("release evidence package creator", () => {
     writeReportFixture();
     createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
 
-    writeFileSync(`${packageDir}/artifacts/dist/index.html`, "<!doctype html><title>Tampered</title>");
+    writeFileSync(packagedArtifactPath(webScriptPath), "console.log('tampered');");
     const failures = validateReleaseEvidencePackage({ packageDir });
 
-    expect(failures).toContain("Release evidence package file metadata mismatch for artifacts/dist/index.html.");
+    expect(failures).toContain(`Release evidence package file metadata mismatch for artifacts/${webScriptPath}.`);
   });
 
   it("rejects packaged reports missing a required native build gate", () => {
@@ -772,7 +777,7 @@ describe("release evidence package creator", () => {
 
     const packagedReportPath = `${packageDir}/release-candidate-report.json`;
     const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
-    packagedReport.artifacts.files = packagedReport.artifacts.files.filter((artifact) => artifact.path !== "dist/index.html");
+    packagedReport.artifacts.files = packagedReport.artifacts.files.filter((artifact) => artifact.path !== webScriptPath);
     writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
 
     const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
@@ -783,7 +788,7 @@ describe("release evidence package creator", () => {
 
     const failures = validateReleaseEvidencePackage({ packageDir });
 
-    expect(failures).toContain("Package manifest contains artifact not present in the release report: web:dist/index.html.");
+    expect(failures).toContain(`Package manifest contains artifact not present in the release report: web:${webScriptPath}.`);
   });
 
   it("rejects packages whose report omits final handoff evidence groups", () => {
@@ -1462,7 +1467,7 @@ describe("release evidence package creator", () => {
   it("rejects traversal-style artifact paths before report validation reads sources", () => {
     writeReportFixture();
     const report = JSON.parse(readFileSync(reportPath, "utf8"));
-    report.artifacts.files[0].path = "dist/../../outside-release-artifact.txt";
+    report.artifacts.files[0].path = `${webArtifactRoot}/../../outside-release-artifact.txt`;
     writeFileSync(reportPath, JSON.stringify(report, null, 2));
 
     expect(() =>
@@ -1477,7 +1482,7 @@ describe("release evidence package creator", () => {
   it("rejects non-canonical artifact paths before package creation normalizes sources", () => {
     writeReportFixture();
     const report = JSON.parse(readFileSync(reportPath, "utf8"));
-    report.artifacts.files[0].path = "dist/../dist/index.html";
+    report.artifacts.files[0].path = `${webArtifactRoot}/../web/index.html`;
     writeFileSync(reportPath, JSON.stringify(report, null, 2));
 
     expect(() =>
@@ -1531,10 +1536,10 @@ describe("release evidence package creator", () => {
     writeReportFixture();
     createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
 
-    writeFileSync("dist/index.html", "<!doctype html><title>Source drift</title>");
+    writeFileSync(webScriptPath, "console.log('source drift');");
     const failures = validateReleaseEvidencePackage({ packageDir, verifySources: true });
 
-    expect(failures).toContain("Package source metadata mismatch for dist/index.html.");
+    expect(failures).toContain(`Package source metadata mismatch for ${webScriptPath}.`);
   });
 
   it("rejects unsafe package source paths before source verification reads them", () => {
@@ -1544,11 +1549,11 @@ describe("release evidence package creator", () => {
 
     const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    const absoluteArtifactPath = resolve("dist/index.html");
+    const absoluteArtifactPath = resolve(webScriptPath);
     const absoluteUiEvidencePath = resolve(manifest.uiEvidence.sourcePath);
     manifest.sourceReport.sourcePath = `./${reportPath}`;
     manifest.uiEvidence.sourcePath = absoluteUiEvidencePath;
-    manifest.artifacts.find((artifact) => artifact.sourcePath === "dist/index.html").sourcePath = absoluteArtifactPath;
+    manifest.artifacts.find((artifact) => artifact.sourcePath === webScriptPath).sourcePath = absoluteArtifactPath;
     writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
     const failures = validateReleaseEvidencePackage({ packageDir, verifySources: true });
@@ -1580,12 +1585,12 @@ describe("release evidence package creator", () => {
 
     const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    manifest.artifacts.find((artifact) => artifact.sourcePath === "dist/index.html").sourcePath = "dist";
+    manifest.artifacts.find((artifact) => artifact.sourcePath === webScriptPath).sourcePath = webArtifactRoot;
     writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
     const failures = validateReleaseEvidencePackage({ packageDir, verifySources: true });
 
-    expect(failures).toContain("Package source must point to a file: dist.");
+    expect(failures).toContain(`Package source must point to a file: ${webArtifactRoot}.`);
   });
 
   it("rejects symlinked package source paths before reading linked targets", () => {
@@ -1599,7 +1604,7 @@ describe("release evidence package creator", () => {
     symlinkSync(resolve(outsideSecretPath), symlinkSourcePath);
     const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    manifest.artifacts.find((artifact) => artifact.sourcePath === "dist/index.html").sourcePath = symlinkSourcePath;
+    manifest.artifacts.find((artifact) => artifact.sourcePath === webScriptPath).sourcePath = symlinkSourcePath;
     writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
     const failures = validateReleaseEvidencePackage({ packageDir, verifySources: true });
@@ -1611,10 +1616,10 @@ describe("release evidence package creator", () => {
   it("rejects symlinked artifact sources before package creation copies linked targets", () => {
     writeReportFixture();
     const outsideArtifact = `${fixtureRoot}/outside-artifact-secret.html`;
-    const originalIndex = readFileSync("dist/index.html");
+    const originalScript = readFileSync(webScriptPath);
     writeFile(outsideArtifact, "<!doctype html><title>Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456</title>");
-    rmSync("dist/index.html", { force: true });
-    symlinkSync(resolve(outsideArtifact), "dist/index.html");
+    rmSync(webScriptPath, { force: true });
+    symlinkSync(resolve(outsideArtifact), webScriptPath);
 
     try {
       expect(() =>
@@ -1623,10 +1628,10 @@ describe("release evidence package creator", () => {
           outputDir: `${fixtureRoot}/artifact-link-package`,
           allowDirty: true
         })
-      ).toThrow("Release report is not packageable:\n- Artifact must not be a symbolic link: dist/index.html.");
+      ).toThrow(`Release report is not packageable:\n- Artifact must not be a symbolic link: ${webScriptPath}.`);
     } finally {
-      rmSync("dist/index.html", { force: true });
-      writeFile("dist/index.html", originalIndex);
+      rmSync(webScriptPath, { force: true });
+      writeFile(webScriptPath, originalScript);
     }
   });
 
@@ -1954,9 +1959,9 @@ describe("release evidence package creator", () => {
 
 function writeFixtureFiles() {
   resetPackageDir();
-  writeFile("dist/index.html", "<!doctype html><title>MobileLiveCaster</title>");
-  writeFile("dist/assets/release-evidence-package-test.js", "console.log('release-evidence-package-test');");
-  writeFile("dist/assets/release-evidence-package-test.css", "body { color: #111; }");
+  writeFile(webIndexPath, "<!doctype html><title>MobileLiveCaster</title>");
+  writeFile(webScriptPath, "console.log('release-evidence-package-test');");
+  writeFile(webStylePath, "body { color: #111; }");
   writeFile(".artifacts/rn/main.ios.jsbundle", "ios bundle");
   writeFile(".artifacts/rn/index.android.bundle", "android bundle");
   writeGitleaksHistoryScanFixture();
@@ -2310,9 +2315,9 @@ function writeReportFixture({ skipUi = true, uiEvidencePath = ".artifacts/releas
   writeGitleaksHistoryScanFixture({ generatedAt: scanGeneratedAt });
   const artifactFiles = [
     ...releaseConfigArtifactPaths.map((path) => artifactRecord("release-config", path)),
-    artifactRecord("web", "dist/index.html"),
-    artifactRecord("web", "dist/assets/release-evidence-package-test.js"),
-    artifactRecord("web", "dist/assets/release-evidence-package-test.css"),
+    artifactRecord("web", webIndexPath),
+    artifactRecord("web", webScriptPath),
+    artifactRecord("web", webStylePath),
     artifactRecord("react-native", ".artifacts/rn/main.ios.jsbundle"),
     artifactRecord("react-native", ".artifacts/rn/index.android.bundle"),
     artifactRecord(sourceSecretScanArtifactGroup, gitleaksHistoryScanArtifactPath),
