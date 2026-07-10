@@ -19,7 +19,7 @@ describe("repository automation verifier", () => {
     const result = verifyRepoAutomation({ ciPath, iosNativePath, autoMergePath });
 
     expect(result.failures).toEqual([]);
-    expect(result.checks).toHaveLength(14);
+    expect(result.checks).toHaveLength(17);
   });
 
   it("rejects CI fixtures that drop Android native build coverage", () => {
@@ -39,6 +39,36 @@ describe("repository automation verifier", () => {
 
     expect(result.failures).toContain(
       'CI runs unit tests, typecheck, web build, bundle size, RN bundles, and secret scan: missing "npm run verify:source-secrets"'
+    );
+  });
+
+  it("rejects CI fixtures that use a shallow checkout for history scanning", () => {
+    writeWorkflowFixtures({ ci: ciFixture().replace("      fetch-depth: 0", "      fetch-depth: 1") });
+
+    const result = verifyRepoAutomation({ ciPath, iosNativePath, autoMergePath });
+
+    expect(result.failures).toContain(
+      'CI checks out full git history for secret history scanning: missing "fetch-depth: 0"'
+    );
+  });
+
+  it("rejects CI fixtures that drop Gitleaks history scanning", () => {
+    writeWorkflowFixtures({ ci: ciFixture().replace("  - run: npm run verify:gitleaks-history", "") });
+
+    const result = verifyRepoAutomation({ ciPath, iosNativePath, autoMergePath });
+
+    expect(result.failures).toContain(
+      'CI runs Gitleaks history scanning before source and bundle secret scanning: missing "npm run verify:gitleaks-history"'
+    );
+  });
+
+  it("rejects CI fixtures that drop the pinned Gitleaks install", () => {
+    writeWorkflowFixtures({ ci: ciFixture().replace("  - uses: actions/setup-go@v5", "  - uses: actions/setup-go@v4") });
+
+    const result = verifyRepoAutomation({ ciPath, iosNativePath, autoMergePath });
+
+    expect(result.failures).toContain(
+      'CI installs the pinned Gitleaks CLI: missing "actions/setup-go@v5"'
     );
   });
 
@@ -117,6 +147,14 @@ function ciFixture() {
     "name: test",
     "timeout-minutes: 40",
     "steps:",
+    "  - uses: actions/checkout@v4",
+    "    with:",
+    "      fetch-depth: 0",
+    "  - uses: actions/setup-go@v5",
+    "    with:",
+    "      go-version: 1.24.x",
+    "  - run: go install github.com/gitleaks/gitleaks/v8@v8.30.1",
+    '  - run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"',
     "  - uses: actions/setup-java@v4",
     "    with:",
     "      java-version: 17",
@@ -125,6 +163,7 @@ function ciFixture() {
     "  - run: npm run verify:repo-automation",
     "  - run: npm run verify:scripts",
     "  - run: npm run verify:release-config",
+    "  - run: npm run verify:gitleaks-history",
     "  - run: npm test",
     "  - run: npm run typecheck",
     "  - run: npm run build",

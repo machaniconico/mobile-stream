@@ -54,6 +54,15 @@ export function verifyRepoAutomation({
     check("CI limits default token permissions", () => {
       expectIncludes(files.ci, "permissions:\n  contents: read");
     }),
+    check("CI checks out full git history for secret history scanning", () => {
+      expectIncludes(files.ci, "fetch-depth: 0");
+    }),
+    check("CI installs the pinned Gitleaks CLI", () => {
+      expectIncludes(files.ci, "actions/setup-go@v5");
+      expectIncludes(files.ci, "go-version: 1.24.x");
+      expectIncludes(files.ci, "go install github.com/gitleaks/gitleaks/v8@v8.30.1");
+      expectIncludes(files.ci, "GITHUB_PATH");
+    }),
     check("CI installs locked dependencies", () => {
       expectIncludes(files.ci, "npm ci");
     }),
@@ -70,6 +79,10 @@ export function verifyRepoAutomation({
     }),
     check("CI runs native release configuration audit", () => {
       expectIncludes(files.ci, "npm run verify:release-config");
+    }),
+    check("CI runs Gitleaks history scanning before source and bundle secret scanning", () => {
+      expectIncludes(files.ci, "npm run verify:gitleaks-history");
+      expectBefore(files.ci, "npm run verify:gitleaks-history", "npm run verify:source-secrets");
     }),
     check("CI runs unit tests, typecheck, web build, bundle size, RN bundles, and secret scan", () => {
       ["npm test", "npm run typecheck", "npm run build", "npm run verify:web-bundle-size", "npm run verify:rn", "npm run verify:source-secrets"].forEach(

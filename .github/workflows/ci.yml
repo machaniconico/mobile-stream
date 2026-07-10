@@ -22,12 +22,25 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22.11.0
           cache: npm
+
+      - name: Setup Go for Gitleaks
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.x
+          cache: false
+
+      - name: Install Gitleaks
+        run: |
+          go install github.com/gitleaks/gitleaks/v8@v8.30.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -55,6 +68,9 @@ jobs:
 
       - name: Verify native release configuration
         run: npm run verify:release-config
+
+      - name: Verify Gitleaks history scan
+        run: npm run verify:gitleaks-history
 
       - name: Run unit tests
         run: npm test
