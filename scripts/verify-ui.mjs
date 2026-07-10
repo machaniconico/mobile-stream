@@ -80,6 +80,7 @@ export async function verifyUi({
     for (const viewport of viewports) {
       const page = await browser.newPage({ viewport });
       await page.goto(target, { waitUntil: "networkidle" });
+      const targetIdentity = await assertMobileLiveCasterTarget(page, viewport.name, target);
       const rigQualityProgressBarCount = await selectPngTuberSourceForUiProof(page, viewport.name);
 
       const checks = [];
@@ -107,6 +108,7 @@ export async function verifyUi({
       const screenshot = artifactRecord(screenshotPath);
       report.viewports.push({
         ...viewport,
+        targetIdentity,
         requiredTextChecks: checks,
         quickTextInteraction,
         horizontalOverflow: false,
@@ -135,6 +137,20 @@ export async function verifyUi({
   };
 }
 
+async function assertMobileLiveCasterTarget(page, viewportName, target) {
+  const title = normalizeTextForReport(await page.title().catch(() => ""));
+  if (title !== "MobileLiveCaster") {
+    throw new Error(
+      `UI target ${target} at ${viewportName} is not MobileLiveCaster (document title: ${title || "missing"}). Set MLC_URL to this repository's dev server before collecting browser UI evidence.`
+    );
+  }
+  await waitForRequiredText(page, "MobileLiveCaster", viewportName);
+  return {
+    app: "MobileLiveCaster",
+    documentTitle: title
+  };
+}
+
 async function selectPngTuberSourceForUiProof(page, viewportName) {
   const sourceRow = page.locator(".source-row").filter({ hasText: "PNGTuber" }).first();
   await sourceRow.waitFor({ timeout: 10_000 });
@@ -145,6 +161,10 @@ async function selectPngTuberSourceForUiProof(page, viewportName) {
     throw new Error(`Rig quality panel is missing score bars at ${viewportName}`);
   }
   return progressBarCount;
+}
+
+function normalizeTextForReport(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
 }
 
 async function verifyQuickTextInteraction(page, viewportName) {

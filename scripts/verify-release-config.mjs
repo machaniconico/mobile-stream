@@ -226,6 +226,8 @@ const checks = [
     expectIncludes(files.verifyUiScript, "requiredBrowserUiTextChecks");
     expectIncludes(files.verifyUiScript, "verifyQuickTextInteraction");
     expectIncludes(files.verifyUiScript, "Quick Text status preview did not show proof text");
+    expectIncludes(files.verifyUiScript, "assertMobileLiveCasterTarget");
+    expectIncludes(files.verifyUiScript, "Set MLC_URL to this repository's dev server");
     expectIncludes(files.browserUiRequiredTextScript, "requiredBrowserUiTextChecks");
     expectIncludes(files.browserUiRequiredTextScript, '"Quick text"');
     expectIncludes(files.browserUiRequiredTextScript, '"Text deck"');
