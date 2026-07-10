@@ -30,5 +30,7 @@ describe("MobileApp OAuth credential state", () => {
       source.indexOf("const result = await postDiscordStreamAnnouncement({")
     );
     expect(source).toContain("streamAnnouncementAutoPostPendingSessionKeys.current.delete(decision.sessionKey)");
+    expect(source).toContain("formatStreamAnnouncementAuditMessage(preview, result.message)");
+    expect(source).not.toContain("Content: ${preview.text}");
   });
 });

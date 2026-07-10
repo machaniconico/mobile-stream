@@ -61,6 +61,20 @@ export const createStreamAnnouncementText = (
   template: string = input.profile.streamAnnouncement.template
 ): string => createStreamAnnouncementPreview(input, template).text;
 
+export const formatStreamAnnouncementAuditMessage = (
+  preview: Pick<StreamAnnouncementPreview, "text" | "sensitiveValueRemoved" | "truncated">,
+  statusMessage = "Discord announcement posted."
+): string => {
+  const status = normalizeSingleLine(statusMessage) || "Discord announcement posted.";
+  const contentLength = Array.from(preview.text).length;
+  return [
+    status,
+    `Content length: ${contentLength} chars.`,
+    `Sensitive values removed: ${preview.sensitiveValueRemoved ? "yes" : "no"}.`,
+    `Shortened: ${preview.truncated ? "yes" : "no"}.`
+  ].join(" ");
+};
+
 export const createStreamAnnouncementPreview = (
   input: StreamAnnouncementInput,
   template: string = input.profile.streamAnnouncement.template

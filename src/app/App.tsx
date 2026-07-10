@@ -128,7 +128,7 @@ import {
 import { createStreamDiagnostics } from "../domain/streamDiagnostics";
 import { createDiagnosticRedactionSecrets } from "../domain/diagnosticSecrets";
 import { errorToSafeMessage } from "../domain/sensitiveText";
-import { createStreamAnnouncementPreview } from "../domain/streamAnnouncement";
+import { createStreamAnnouncementPreview, formatStreamAnnouncementAuditMessage } from "../domain/streamAnnouncement";
 import {
   createStreamAnnouncementAutoPostDecision,
   formatStreamAnnouncementAutoPostError,
@@ -379,7 +379,7 @@ export const App = () => {
         recordStreamSessionEvent(
           createStreamAnnouncementAutoPostEvent({
             phase: "posted",
-            message: `${result.message} Content: ${preview.text}`
+            message: formatStreamAnnouncementAuditMessage(preview, result.message)
           })
         );
       } catch (error) {

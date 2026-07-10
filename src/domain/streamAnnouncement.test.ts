@@ -4,6 +4,7 @@ import {
   createStreamAnnouncementPreview,
   createStreamAnnouncementText,
   defaultStreamAnnouncementTemplate,
+  formatStreamAnnouncementAuditMessage,
   normalizeStreamAnnouncementSettings,
   streamAnnouncementContentMaxLength,
   streamAnnouncementTemplateMaxLength
@@ -98,6 +99,22 @@ describe("stream announcements", () => {
 
     expect(preview.text).toHaveLength(streamAnnouncementContentMaxLength);
     expect(preview.truncated).toBe(true);
+  });
+
+  it("summarizes announcement audit evidence without retaining the posted text", () => {
+    const audit = formatStreamAnnouncementAuditMessage(
+      {
+        text: "Live now with safe public copy",
+        sensitiveValueRemoved: true,
+        truncated: true
+      },
+      "Discord announcement posted after retry."
+    );
+
+    expect(audit).toBe(
+      "Discord announcement posted after retry. Content length: 30 chars. Sensitive values removed: yes. Shortened: yes."
+    );
+    expect(audit).not.toContain("Live now");
   });
 
   it("normalizes editable template settings for profile persistence", () => {

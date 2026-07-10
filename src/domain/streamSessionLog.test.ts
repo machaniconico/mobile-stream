@@ -123,7 +123,7 @@ describe("stream session log", () => {
     const posted = createStreamAnnouncementAutoPostEvent(
       {
         phase: "posted",
-        message: "Discord announcement posted. Content: Live now!"
+        message: "Discord announcement posted. Content length: 9 chars. Sensitive values removed: no. Shortened: no."
       },
       new Date("2026-06-23T00:00:00.000Z")
     );
@@ -140,6 +140,7 @@ describe("stream session log", () => {
       severity: "info",
       title: "Discord announcement posted"
     });
+    expect(posted.message).not.toContain("Live now");
     expect(failed).toMatchObject({
       kind: "announcement",
       severity: "warn",
