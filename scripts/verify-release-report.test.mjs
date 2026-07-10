@@ -167,6 +167,21 @@ describe("release report verifier", () => {
     );
   });
 
+  it("rejects release reports whose source secret scan commit does not match the report", () => {
+    const report = createReport();
+    rewriteSourceSecretScan(report, {
+      git: {
+        commit: "0".repeat(40),
+        dirty: false,
+        statusShort: ""
+      }
+    });
+
+    expect(validateReport(report, reportOptions())).toContain(
+      `Source secret scan artifact commit ${"0".repeat(40)} does not match current commit ${report.git.commit}.`
+    );
+  });
+
   it.each([
     ["status", (nativeReport) => { nativeReport.status = "failed"; }, "status must be passed"],
     [
@@ -931,6 +946,11 @@ function writeSourceSecretScanFixture(patch = {}) {
         type: "source-secret-scan",
         status: "passed",
         generatedAt: new Date().toISOString(),
+        git: {
+          commit: currentCommit(),
+          dirty: false,
+          statusShort: ""
+        },
         scannedFiles: ["src/mobile/MobileApp.tsx"],
         scannedBytes: 1234,
         findingCount: 0,

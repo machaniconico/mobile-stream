@@ -415,6 +415,16 @@ function validatePackagedSourceSecretScanArtifact(report, packagedArtifacts, pac
   if (!Array.isArray(scan?.scannedFiles) || scan.scannedFiles.length === 0 || !Number.isInteger(scan?.scannedBytes) || scan.scannedBytes <= 0) {
     failures.push("Package source secret scan artifact is missing scanned file and byte evidence.");
   }
+  validateManifestGitProvenance(
+    scan?.git,
+    {
+      label: "Package source secret scan",
+      currentCommit: String(report?.git?.commit || ""),
+      allowDirty: false,
+      allowCommitMismatch: false
+    },
+    failures
+  );
   if (!Number.isFinite(Date.parse(String(scan?.generatedAt || "")))) {
     failures.push("Package source secret scan generatedAt timestamp is missing or invalid.");
   }

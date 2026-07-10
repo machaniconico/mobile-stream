@@ -515,6 +515,11 @@ function writeSourceSecretScanFixture(patch = {}) {
         type: "source-secret-scan",
         status: "passed",
         generatedAt: new Date().toISOString(),
+        git: {
+          commit: currentCommit(),
+          dirty: false,
+          statusShort: ""
+        },
         scannedFiles: ["src/mobile/MobileApp.tsx"],
         scannedBytes: 1234,
         findingCount: 0,

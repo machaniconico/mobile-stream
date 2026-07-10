@@ -58,6 +58,11 @@ describe("source secret scanner", () => {
       const result = scanForSourceSecrets({ roots: [`${fixtureRoot}/src`] });
 
       expect(result.status).toBe("failed");
+      expect(result.git).toMatchObject({
+        commit: expect.stringMatching(/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i),
+        dirty: expect.any(Boolean),
+        statusShort: expect.any(String)
+      });
       expect(result.findingCount).toBe(1);
       expect(result.scannedFiles).toEqual([`${fixtureRoot}/src/production.ts`]);
       expect(result.findings).toHaveLength(1);

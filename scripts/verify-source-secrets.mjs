@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { cwd, exit } from "node:process";
@@ -169,6 +170,11 @@ export function scanForSourceSecrets({ roots = defaultScanRoots } = {}) {
     type: "source-secret-scan",
     status: findings.length === 0 ? "passed" : "failed",
     generatedAt: new Date().toISOString(),
+    git: {
+      commit: commandOutput("git", ["rev-parse", "HEAD"]),
+      dirty: commandOutput("git", ["status", "--short"]).length > 0,
+      statusShort: commandOutput("git", ["status", "--short"])
+    },
     scannedFiles,
     scannedBytes,
     findingCount: findings.length,
@@ -283,6 +289,17 @@ function parseArgs(args) {
     }
   }
   return options;
+}
+
+function commandOutput(command, args) {
+  const result = spawnSync(command, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"]
+  });
+  if (result.status !== 0 || result.error) {
+    return "";
+  }
+  return result.stdout.trim();
 }
 
 function writeJsonReport(path, result) {

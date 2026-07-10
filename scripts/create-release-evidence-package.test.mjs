@@ -298,6 +298,24 @@ describe("release evidence package creator", () => {
     expect(failures).toContain("Package source secret scan generatedAt is before the release report startedAt.");
   });
 
+  it("rejects packaged source secret scan evidence from a different commit", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedScanPath = packagedSourceSecretScanPath();
+    const scan = JSON.parse(readFileSync(packagedScanPath, "utf8"));
+    scan.git.commit = "0".repeat(40);
+    writeFileSync(packagedScanPath, JSON.stringify(scan, null, 2));
+    refreshPackagedArtifactEvidence(sourceSecretScanArtifactPath, packagedScanPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      `Package source secret scan commit ${"0".repeat(40)} does not match current commit ${currentCommit()}.`
+    );
+  });
+
   it("rejects release reports generated with development-only dirty-worktree approval", () => {
     writeReportFixture();
     const report = JSON.parse(readFileSync(reportPath, "utf8"));
@@ -1834,6 +1852,11 @@ function writeSourceSecretScanFixture(patch = {}) {
         type: "source-secret-scan",
         status: "passed",
         generatedAt: new Date().toISOString(),
+        git: {
+          commit: currentCommit(),
+          dirty: false,
+          statusShort: ""
+        },
         scannedFiles: ["src/mobile/MobileApp.tsx"],
         scannedBytes: 1234,
         findingCount: 0,

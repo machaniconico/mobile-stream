@@ -296,7 +296,7 @@ function validateArtifacts(report, options, fail) {
     validateArtifactRecord(artifact, fail);
   }
   validateGitleaksHistoryScanArtifactInReport(report, artifacts, fail);
-  validateSourceSecretScanArtifactInReport(report, artifacts, fail);
+  validateSourceSecretScanArtifactInReport(report, artifacts, options, fail);
   validateNativeBuildArtifactsInReport(report, artifacts, options, fail);
   validateDistributionArtifactsInReport(artifacts, fail);
   validateDashboardEvidenceInReport(artifacts, fail);
@@ -333,7 +333,7 @@ function validateGitleaksHistoryScanArtifactInReport(report, artifacts, fail) {
   }
 }
 
-function validateSourceSecretScanArtifactInReport(report, artifacts, fail) {
+function validateSourceSecretScanArtifactInReport(report, artifacts, options, fail) {
   const artifact = artifacts.find(
     (candidate) => candidate?.group === sourceSecretScanArtifactGroup && candidate?.path === sourceSecretScanArtifactPath
   );
@@ -359,6 +359,16 @@ function validateSourceSecretScanArtifactInReport(report, artifacts, fail) {
   if (!Array.isArray(scan?.scannedFiles) || scan.scannedFiles.length === 0 || !Number.isInteger(scan?.scannedBytes) || scan.scannedBytes <= 0) {
     fail("Source secret scan artifact is missing scanned file and byte evidence.");
   }
+  validateManifestGitProvenance(
+    scan?.git,
+    {
+      label: "Source secret scan artifact",
+      currentCommit: String(report?.git?.commit || ""),
+      allowDirty: options.allowDirty,
+      allowCommitMismatch: options.allowCommitMismatch
+    },
+    failuresFrom(fail)
+  );
   const scanGeneratedAt = Date.parse(String(scan?.generatedAt || ""));
   if (!Number.isFinite(scanGeneratedAt)) {
     fail("Source secret scan artifact generatedAt timestamp is missing or invalid.");
