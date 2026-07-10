@@ -32,6 +32,16 @@ describe("repository automation verifier", () => {
     );
   });
 
+  it("rejects CI fixtures that drop source and bundle secret scanning", () => {
+    writeWorkflowFixtures({ ci: ciFixture().replace("  - run: npm run verify:source-secrets", "") });
+
+    const result = verifyRepoAutomation({ ciPath, iosNativePath, autoMergePath });
+
+    expect(result.failures).toContain(
+      'CI runs unit tests, typecheck, web build, bundle size, RN bundles, and secret scan: missing "npm run verify:source-secrets"'
+    );
+  });
+
   it("rejects iOS native workflow fixtures that drop simulator build coverage", () => {
     writeWorkflowFixtures({ iosNative: iosNativeFixture().replace("      - run: npm run verify:ios-native", "") });
 
@@ -120,6 +130,7 @@ function ciFixture() {
     "  - run: npm run build",
     "  - run: npm run verify:web-bundle-size",
     "  - run: npm run verify:rn",
+    "  - run: npm run verify:source-secrets",
     "  - run: npm run verify:android-native"
   ].join("\n");
 }

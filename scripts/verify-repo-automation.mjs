@@ -71,10 +71,11 @@ export function verifyRepoAutomation({
     check("CI runs native release configuration audit", () => {
       expectIncludes(files.ci, "npm run verify:release-config");
     }),
-    check("CI runs unit tests, typecheck, web build, bundle size, and RN bundles", () => {
-      ["npm test", "npm run typecheck", "npm run build", "npm run verify:web-bundle-size", "npm run verify:rn"].forEach(
+    check("CI runs unit tests, typecheck, web build, bundle size, RN bundles, and secret scan", () => {
+      ["npm test", "npm run typecheck", "npm run build", "npm run verify:web-bundle-size", "npm run verify:rn", "npm run verify:source-secrets"].forEach(
         (command) => expectIncludes(files.ci, command)
       );
+      expectBefore(files.ci, "npm run verify:rn", "npm run verify:source-secrets");
     }),
     check("CI builds the Android native debug app", () => {
       expectIncludes(files.ci, "npm run verify:android-native");
@@ -186,5 +187,19 @@ function check(name, assertion) {
 function expectIncludes(value, needle) {
   if (!value.includes(needle)) {
     throw new Error(`missing ${JSON.stringify(needle)}`);
+  }
+}
+
+function expectBefore(value, left, right) {
+  const leftIndex = value.indexOf(left);
+  const rightIndex = value.indexOf(right);
+  if (leftIndex < 0) {
+    throw new Error(`missing ${JSON.stringify(left)}`);
+  }
+  if (rightIndex < 0) {
+    throw new Error(`missing ${JSON.stringify(right)}`);
+  }
+  if (leftIndex >= rightIndex) {
+    throw new Error(`${JSON.stringify(left)} must appear before ${JSON.stringify(right)}`);
   }
 }

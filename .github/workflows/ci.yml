@@ -71,6 +71,9 @@ jobs:
       - name: Bundle React Native JavaScript
         run: npm run verify:rn
 
+      - name: Verify source and bundle secret scan
+        run: npm run verify:source-secrets
+
       # *.keystore is gitignored (commercial safety), so fresh checkouts have no
       # debug keystore. Generate the standard Android debug keystore for CI only.
       - name: Generate Android debug keystore
