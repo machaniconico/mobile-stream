@@ -29,6 +29,7 @@ const files = {
   storeRealDeviceScreenshotsScript: read("scripts/import-store-real-device-screenshots.mjs"),
   releaseCandidateScript: read("scripts/verify-release-candidate.mjs"),
   releaseReportScript: read("scripts/verify-release-report.mjs"),
+  sourceSecretsScript: read("scripts/verify-source-secrets.mjs"),
   androidNativeVerificationScript: read("scripts/verify-android-native.mjs"),
   iosNativeVerificationScript: read("scripts/verify-ios-native.mjs"),
   releaseEvidencePackageScript: read("scripts/create-release-evidence-package.mjs"),
@@ -106,6 +107,7 @@ const checks = [
     expectIncludes(files.androidGradle, "signingConfig signingConfigs.release");
     expectNotIncludes(releaseBlock(files.androidGradle), "signingConfigs.debug");
     expectIncludes(files.packageJson, '"verify:physical-devices": "node scripts/verify-physical-devices.mjs"');
+    expectIncludes(files.packageJson, '"verify:source-secrets": "node scripts/verify-source-secrets.mjs"');
     expectIncludes(files.packageJson, '"verify:store-release-env": "node scripts/verify-store-release-env.mjs"');
     expectIncludes(files.packageJson, '"verify:distribution-artifacts": "node scripts/verify-distribution-artifacts.mjs --verify"');
     expectIncludes(files.packageJson, '"verify:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --verify"');
@@ -164,6 +166,8 @@ const checks = [
     expectIncludes(files.releaseCandidateScript, "Verify store release orchestration report");
     expectIncludes(files.releaseCandidateScript, "Verify physical device preflight");
     expectIncludes(files.releaseCandidateScript, "Verify existing release artifact path safety");
+    expectIncludes(files.releaseCandidateScript, "Verify source and bundle secret scan");
+    expectIncludes(files.releaseCandidateScript, '["run", "verify:source-secrets"]');
     expectIncludes(files.releaseCandidateScript, "assertExistingReleaseArtifactPathsSafe");
     expectIncludes(files.releaseCandidateScript, "Verify store submission evidence requirements");
     expectIncludes(files.releaseCandidateScript, "Verify store submission handoff evidence integrity");
@@ -339,10 +343,25 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingTwitchChannelLanguage");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestPlatformIdentityPass");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-platform-dashboard");
+    expectIncludes(files.sourceSecretsScript, "Source secret scan failed");
+    expectIncludes(files.sourceSecretsScript, "discord-webhook-url");
+    expectIncludes(files.sourceSecretsScript, "authorization-header-token");
+    expectIncludes(files.sourceSecretsScript, "rtmp-publish-url-key");
+    expectIncludes(files.sourceSecretsScript, ".artifacts/rn");
     expectBefore(
       files.releaseCandidateScript,
       "runCommercialSupportBundleGate(report, options);",
       "for (const [label, args] of sourceGates)"
+    );
+    expectBefore(
+      files.releaseCandidateScript,
+      '["Bundle React Native JavaScript", ["run", "verify:rn"]]',
+      '["Verify source and bundle secret scan", ["run", "verify:source-secrets"]]'
+    );
+    expectBefore(
+      files.releaseCandidateScript,
+      '["Verify source and bundle secret scan", ["run", "verify:source-secrets"]]',
+      '["Build Android native debug app", ["run", "verify:android-native"]]'
     );
     expectIncludes(files.releaseEvidencePackageScript, "storeReleaseReportArtifactGroup");
     expectIncludes(files.releaseEvidencePackageScript, "storeReleaseReportType");

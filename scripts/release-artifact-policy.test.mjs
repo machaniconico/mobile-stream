@@ -35,6 +35,7 @@ describe("release artifact policy source collection", () => {
   });
 
   it("requires native build gates, artifact groups, and verifier source evidence", () => {
+    expect(requiredReleaseGateLabels).toContain("Verify source and bundle secret scan");
     expect(requiredReleaseGateLabels).toContain("Build Android native debug app");
     expect(requiredReleaseGateLabels).toContain("Build iOS native simulator app");
     expect(requiredReleaseArtifactGroups).toEqual(expect.arrayContaining(["android", "ios"]));
@@ -42,6 +43,7 @@ describe("release artifact policy source collection", () => {
     expect(androidNativeVerificationArtifactPath).toBe(".artifacts/android-native-verification.json");
     expect(iosNativeVerificationArtifactPath).toBe(".artifacts/ios-native-verification.json");
     expect(releaseConfigArtifactPaths).toContain("scripts/verify-ios-native.mjs");
+    expect(releaseConfigArtifactPaths).toContain("scripts/verify-source-secrets.mjs");
   });
 
   it("rejects symlinked release source directories", () => {

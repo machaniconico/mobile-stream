@@ -21,6 +21,7 @@ const staticReleaseConfigArtifactPaths = [
   "scripts/verify-android-native.mjs",
   "scripts/verify-ios-native.mjs",
   "scripts/verify-release-config.mjs",
+  "scripts/verify-source-secrets.mjs",
   "scripts/verify-commercial-release-bundle.mjs",
   "scripts/verify-physical-devices.mjs",
   "scripts/verify-store-release-env.mjs",
@@ -71,6 +72,7 @@ export const requiredReleaseGateLabels = [
   "Build web prototype",
   "Verify web bundle size",
   "Bundle React Native JavaScript",
+  "Verify source and bundle secret scan",
   "Build Android native debug app",
   "Build iOS native simulator app",
   "Verify commercial release support bundle"

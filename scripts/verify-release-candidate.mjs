@@ -54,6 +54,7 @@ const sourceGates = [
   ["Build web prototype", ["run", "build"]],
   ["Verify web bundle size", ["run", "verify:web-bundle-size"]],
   ["Bundle React Native JavaScript", ["run", "verify:rn"]],
+  ["Verify source and bundle secret scan", ["run", "verify:source-secrets"]],
   ["Build Android native debug app", ["run", "verify:android-native"]],
   ["Build iOS native simulator app", ["run", "verify:ios-native"]]
 ];

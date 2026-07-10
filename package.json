@@ -14,6 +14,7 @@
     "verify:ui": "node scripts/verify-ui.mjs",
     "verify:scripts": "node scripts/verify-scripts.mjs",
     "verify:repo-automation": "node scripts/verify-repo-automation.mjs",
+    "verify:source-secrets": "node scripts/verify-source-secrets.mjs",
     "verify:web-bundle-size": "node scripts/verify-web-bundle-size.mjs",
     "verify:release-config": "node scripts/verify-release-config.mjs",
     "verify:physical-devices": "node scripts/verify-physical-devices.mjs",
