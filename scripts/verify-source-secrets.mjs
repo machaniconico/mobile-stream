@@ -167,9 +167,11 @@ export function scanForSourceSecrets({ roots = defaultScanRoots } = {}) {
     reportVersion: 1,
     app: "MobileLiveCaster",
     type: "source-secret-scan",
+    status: findings.length === 0 ? "passed" : "failed",
     generatedAt: new Date().toISOString(),
     scannedFiles,
     scannedBytes,
+    findingCount: findings.length,
     findings
   };
 }

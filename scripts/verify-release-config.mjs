@@ -107,7 +107,10 @@ const checks = [
     expectIncludes(files.androidGradle, "signingConfig signingConfigs.release");
     expectNotIncludes(releaseBlock(files.androidGradle), "signingConfigs.debug");
     expectIncludes(files.packageJson, '"verify:physical-devices": "node scripts/verify-physical-devices.mjs"');
-    expectIncludes(files.packageJson, '"verify:source-secrets": "node scripts/verify-source-secrets.mjs"');
+    expectIncludes(
+      files.packageJson,
+      '"verify:source-secrets": "node scripts/verify-source-secrets.mjs --report-json=.artifacts/source-secret-scan.json"'
+    );
     expectIncludes(files.packageJson, '"verify:store-release-env": "node scripts/verify-store-release-env.mjs"');
     expectIncludes(files.packageJson, '"verify:distribution-artifacts": "node scripts/verify-distribution-artifacts.mjs --verify"');
     expectIncludes(files.packageJson, '"verify:dashboard-evidence": "node scripts/verify-platform-dashboard-evidence.mjs --verify"');
@@ -227,9 +230,18 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
     expectIncludes(files.releaseArtifactPolicyScript, '"Build Android native debug app"');
     expectIncludes(files.releaseArtifactPolicyScript, '"Build iOS native simulator app"');
-    expectIncludes(files.releaseArtifactPolicyScript, '"android", "ios"');
+    expectIncludes(files.releaseArtifactPolicyScript, 'sourceSecretScanArtifactGroup = "security"');
+    expectIncludes(files.releaseArtifactPolicyScript, 'sourceSecretScanArtifactPath = ".artifacts/source-secret-scan.json"');
+    expectIncludes(files.releaseArtifactPolicyScript, '"security", "android", "ios"');
     expectIncludes(files.releaseArtifactPolicyScript, '"scripts/verify-android-native.mjs"');
     expectIncludes(files.releaseArtifactPolicyScript, '"scripts/verify-ios-native.mjs"');
+    expectIncludes(files.releaseCandidateScript, "sourceSecretScanArtifactGroup");
+    expectIncludes(files.releaseCandidateScript, "sourceSecretScanArtifactPath");
+    expectIncludes(files.releaseReportScript, "validateSourceSecretScanArtifactInReport");
+    expectIncludes(files.releaseReportScript, "Source secret scan artifact must report zero findings.");
+    expectIncludes(files.sourceSecretsScript, "type: \"source-secret-scan\"");
+    expectIncludes(files.sourceSecretsScript, "findingCount: findings.length");
+    expectIncludes(files.sourceSecretsScript, "--report-json=");
     expectIncludes(files.releaseCandidateScript, "collectAndroidNativeVerificationArtifactRecords");
     expectIncludes(files.releaseCandidateScript, "collectIosNativeVerificationArtifactRecords");
     expectIncludes(files.releaseCandidateScript, "Release candidate self-verification failed:");

@@ -4050,6 +4050,7 @@ const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
 
 const TextOverlayStatusStrip = ({ status }: { status: TextOverlayRuntimeStatus }) => {
   const previewText = formatTextOverlayPreview(status.previewText);
+  const queuedPreviewText = formatTextOverlayPreview(status.queuedPreviewText);
   return (
     <View accessibilityLabel="subtitle and text display status" style={styles.quickTextStatus}>
       <Text style={styles.quickTextStatusChip}>
@@ -4064,8 +4065,14 @@ const TextOverlayStatusStrip = ({ status }: { status: TextOverlayRuntimeStatus }
       <Text style={styles.quickTextStatusChip}>
         <Text style={styles.quickTextStatusStrong}>{formatTextOverlayRemaining(status.remainingMs)}</Text> 残り
       </Text>
+      <Text style={styles.quickTextStatusChip}>
+        <Text style={styles.quickTextStatusStrong}>{formatTextOverlayRemaining(status.nextQueuedRemainingMs)}</Text> 次
+      </Text>
       <Text style={styles.quickTextStatusPreview} numberOfLines={1}>
-        {previewText || "表示テキストなし"}
+        表示: {previewText || "なし"}
+      </Text>
+      <Text style={styles.quickTextStatusPreview} numberOfLines={1}>
+        次: {queuedPreviewText || "待機なし"}
       </Text>
     </View>
   );

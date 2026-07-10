@@ -348,6 +348,9 @@ export interface TextOverlayRuntimeStatus {
   nextExpirationMs: number | null;
   remainingMs: number;
   previewText: string;
+  nextQueuedStartMs: number | null;
+  nextQueuedRemainingMs: number;
+  queuedPreviewText: string;
 }
 
 export interface SceneDocument {
@@ -2138,6 +2141,9 @@ export const createTextOverlayRuntimeStatus = (
   }, null);
   const previewSource = selectTextOverlayRuntimePreviewSource(activeManualSources, activeCaptionSources);
   const previewText = previewSource ? resolveRuntimeTextOverlayPreview(previewSource, runtime) : "";
+  const nextQueuedSource = selectNextQueuedTextOverlaySource(queuedSources);
+  const nextQueuedStartMs = nextQueuedSource ? nextQueuedSource.activatedAtMs : null;
+  const queuedPreviewText = nextQueuedSource ? resolveRuntimeTextOverlayPreview(nextQueuedSource, runtime) : "";
 
   return {
     sourceCount: textSources.length,
@@ -2150,7 +2156,10 @@ export const createTextOverlayRuntimeStatus = (
     pinnedSourceCount: pinnedSources.length,
     nextExpirationMs,
     remainingMs: nextExpirationMs === null ? 0 : Math.max(0, nextExpirationMs - nowMs),
-    previewText
+    previewText,
+    nextQueuedStartMs,
+    nextQueuedRemainingMs: nextQueuedStartMs === null ? 0 : Math.max(0, nextQueuedStartMs - nowMs),
+    queuedPreviewText
   };
 };
 
@@ -2170,6 +2179,9 @@ const compareTextOverlayPreviewPriority = (left: TextSource, right: TextSource):
   const leftTimedPriority = left.visibilityMode === "timed" ? 1 : 0;
   return rightTimedPriority - leftTimedPriority;
 };
+
+const selectNextQueuedTextOverlaySource = (queuedSources: TextSource[]): TextSource | null =>
+  [...queuedSources].sort((left, right) => left.activatedAtMs - right.activatedAtMs)[0] ?? null;
 
 export const normalizeSceneDocument = (value: unknown): SceneDocument => {
   const fallback = createDefaultScene();

@@ -7,6 +7,8 @@ import {
   collectReleaseSourceFiles,
   iosNativeVerificationArtifactPath,
   releaseConfigArtifactPaths,
+  sourceSecretScanArtifactGroup,
+  sourceSecretScanArtifactPath,
   requiredReleaseArtifactGroups,
   requiredReleaseGateLabels
 } from "./release-artifact-policy.mjs";
@@ -38,10 +40,12 @@ describe("release artifact policy source collection", () => {
     expect(requiredReleaseGateLabels).toContain("Verify source and bundle secret scan");
     expect(requiredReleaseGateLabels).toContain("Build Android native debug app");
     expect(requiredReleaseGateLabels).toContain("Build iOS native simulator app");
-    expect(requiredReleaseArtifactGroups).toEqual(expect.arrayContaining(["android", "ios"]));
+    expect(requiredReleaseArtifactGroups).toEqual(expect.arrayContaining(["security", "android", "ios"]));
     expect(androidNativeDebugArtifactPath).toBe("android/app/build/outputs/apk/debug/app-debug.apk");
     expect(androidNativeVerificationArtifactPath).toBe(".artifacts/android-native-verification.json");
     expect(iosNativeVerificationArtifactPath).toBe(".artifacts/ios-native-verification.json");
+    expect(sourceSecretScanArtifactGroup).toBe("security");
+    expect(sourceSecretScanArtifactPath).toBe(".artifacts/source-secret-scan.json");
     expect(releaseConfigArtifactPaths).toContain("scripts/verify-ios-native.mjs");
     expect(releaseConfigArtifactPaths).toContain("scripts/verify-source-secrets.mjs");
   });

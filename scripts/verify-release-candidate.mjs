@@ -7,7 +7,9 @@ import {
   androidNativeDebugArtifactPath,
   androidNativeVerificationArtifactPath,
   iosNativeVerificationArtifactPath,
-  releaseConfigArtifactPaths
+  releaseConfigArtifactPaths,
+  sourceSecretScanArtifactGroup,
+  sourceSecretScanArtifactPath
 } from "./release-artifact-policy.mjs";
 import { collectIosNativeVerificationArtifactRecords } from "./verify-ios-native.mjs";
 import { collectAndroidNativeVerificationArtifactRecords } from "./verify-android-native.mjs";
@@ -1058,6 +1060,7 @@ function collectReleaseArtifacts({
     ...collectFiles("web", ["dist/index.html"]),
     ...collectDirectoryFiles("web", "dist/assets", (path) => path.endsWith(".js") || path.endsWith(".css")),
     ...collectFiles("react-native", [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"]),
+    ...collectFiles(sourceSecretScanArtifactGroup, [sourceSecretScanArtifactPath]),
     ...collectNativeArtifacts(
       collectAndroidNativeVerificationArtifactRecords,
       { reportPath: androidNativeVerificationArtifactPath, required: requireNativeArtifacts },
@@ -1101,6 +1104,7 @@ function assertExistingReleaseArtifactPathsSafe({
     "dist/index.html",
     ".artifacts/rn/main.ios.jsbundle",
     ".artifacts/rn/index.android.bundle",
+    sourceSecretScanArtifactPath,
     androidNativeDebugArtifactPath,
     androidNativeVerificationArtifactPath,
     iosNativeVerificationArtifactPath,

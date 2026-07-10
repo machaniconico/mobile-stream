@@ -878,6 +878,10 @@ select:focus-visible {
   white-space: nowrap;
 }
 
+.quick-text-status-preview.queued {
+  color: var(--muted);
+}
+
 .quick-text-preset-row {
   display: flex;
   flex: 1 1 100%;

@@ -14,6 +14,8 @@ describe("MobileStudioScreen subtitle and text controls", () => {
     expect(source).toContain("queueTimedTextOverlay(scene, {");
     expect(source).toContain("showPersistentTextOverlay(scene, {");
     expect(source).toContain("hideTextOverlays(scene, { sourceId: targetSourceId })");
+    expect(source).toContain("status.queuedPreviewText");
+    expect(source).toContain("次: {queuedPreviewText || \"待機なし\"}");
   });
 
   it("keeps preset decks and selected text-source editing available on mobile", () => {

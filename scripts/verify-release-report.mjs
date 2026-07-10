@@ -9,7 +9,9 @@ import {
   iosNativeVerificationArtifactPath,
   releaseConfigArtifactPaths,
   requiredReleaseArtifactGroups,
-  requiredReleaseGateLabels
+  requiredReleaseGateLabels,
+  sourceSecretScanArtifactGroup,
+  sourceSecretScanArtifactPath
 } from "./release-artifact-policy.mjs";
 import { validateIosNativeVerificationArtifacts } from "./verify-ios-native.mjs";
 import { validateAndroidNativeVerificationArtifacts } from "./verify-android-native.mjs";
@@ -280,10 +282,14 @@ function validateArtifacts(report, options, fail) {
   if (!artifacts.some((artifact) => artifact?.group === "web" && /\.css$/.test(artifact.path))) {
     fail("Report is missing a web CSS asset artifact.");
   }
+  if (!artifactPaths.has(sourceSecretScanArtifactPath)) {
+    fail(`Report is missing source secret scan artifact ${sourceSecretScanArtifactPath}.`);
+  }
 
   for (const artifact of artifacts) {
     validateArtifactRecord(artifact, fail);
   }
+  validateSourceSecretScanArtifactInReport(artifacts, fail);
   validateNativeBuildArtifactsInReport(report, artifacts, options, fail);
   validateDistributionArtifactsInReport(artifacts, fail);
   validateDashboardEvidenceInReport(artifacts, fail);
@@ -295,6 +301,34 @@ function validateArtifacts(report, options, fail) {
     maxAgeHours: options.maxAgeHours
   });
   validatePhysicalDevicePreflightInReport(report, artifacts, options, fail);
+}
+
+function validateSourceSecretScanArtifactInReport(artifacts, fail) {
+  const artifact = artifacts.find(
+    (candidate) => candidate?.group === sourceSecretScanArtifactGroup && candidate?.path === sourceSecretScanArtifactPath
+  );
+  if (!artifact) {
+    return;
+  }
+  let scan;
+  try {
+    scan = readJsonFile(artifact.path, "source secret scan");
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+    return;
+  }
+  if (scan?.app !== "MobileLiveCaster" || scan?.type !== "source-secret-scan" || scan?.reportVersion !== 1) {
+    fail("Source secret scan artifact is not a MobileLiveCaster source-secret-scan reportVersion 1 file.");
+  }
+  if (scan?.status !== "passed") {
+    fail(`Source secret scan artifact did not pass. Status: ${scan?.status || "-"}.`);
+  }
+  if (!Number.isInteger(scan?.findingCount) || scan.findingCount !== 0) {
+    fail("Source secret scan artifact must report zero findings.");
+  }
+  if (!Array.isArray(scan?.scannedFiles) || scan.scannedFiles.length === 0 || !Number.isInteger(scan?.scannedBytes) || scan.scannedBytes <= 0) {
+    fail("Source secret scan artifact is missing scanned file and byte evidence.");
+  }
 }
 
 function validateNativeBuildArtifactsInReport(report, artifacts, options, fail) {

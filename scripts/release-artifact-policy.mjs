@@ -60,6 +60,8 @@ export const releaseConfigArtifactPaths = [...new Set([...staticReleaseConfigArt
 export const androidNativeDebugArtifactPath = "android/app/build/outputs/apk/debug/app-debug.apk";
 export const androidNativeVerificationArtifactPath = ".artifacts/android-native-verification.json";
 export const iosNativeVerificationArtifactPath = ".artifacts/ios-native-verification.json";
+export const sourceSecretScanArtifactGroup = "security";
+export const sourceSecretScanArtifactPath = ".artifacts/source-secret-scan.json";
 
 export const requiredReleaseGateLabels = [
   "Verify clean git worktree",
@@ -78,7 +80,7 @@ export const requiredReleaseGateLabels = [
   "Verify commercial release support bundle"
 ];
 
-export const requiredReleaseArtifactGroups = ["release-config", "web", "react-native", "android", "ios", "ui"];
+export const requiredReleaseArtifactGroups = ["release-config", "web", "react-native", "security", "android", "ios", "ui"];
 
 export function collectReleaseSourceFiles(relativePath, extensions) {
   const absoluteDirectory = join(cwd(), relativePath);

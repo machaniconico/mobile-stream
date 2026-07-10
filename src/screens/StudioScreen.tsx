@@ -3854,6 +3854,7 @@ const SourceVisual = ({ source, node }: { source: SceneSource; node?: RenderNode
 
 const TextOverlayStatusStrip = ({ status }: { status: TextOverlayRuntimeStatus }) => {
   const previewText = formatTextOverlayPreview(status.previewText);
+  const queuedPreviewText = formatTextOverlayPreview(status.queuedPreviewText);
   return (
     <div className="quick-text-status" aria-label="subtitle and text display status">
       <span>
@@ -3868,8 +3869,14 @@ const TextOverlayStatusStrip = ({ status }: { status: TextOverlayRuntimeStatus }
       <span>
         <strong>{formatTextOverlayRemaining(status.remainingMs)}</strong>残り
       </span>
+      <span>
+        <strong>{formatTextOverlayRemaining(status.nextQueuedRemainingMs)}</strong>次
+      </span>
       <span className="quick-text-status-preview" title={status.previewText || undefined}>
-        {previewText || "表示テキストなし"}
+        表示: {previewText || "なし"}
+      </span>
+      <span className="quick-text-status-preview queued" title={status.queuedPreviewText || undefined}>
+        次: {queuedPreviewText || "待機なし"}
       </span>
     </div>
   );

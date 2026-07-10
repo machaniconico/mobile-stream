@@ -1091,14 +1091,20 @@ describe("scene document", () => {
       queuedSourceCount: 1,
       pinnedSourceCount: 1,
       remainingMs: 4000,
-      previewText: "first subtitle"
+      previewText: "first subtitle",
+      nextQueuedStartMs: nowMs + 5000,
+      nextQueuedRemainingMs: 4000,
+      queuedPreviewText: "second subtitle"
     });
     expect(duringFirst.nextExpirationMs).toBe(nowMs + 5000);
     expect(duringQueued).toMatchObject({
       activeManualSourceCount: 2,
       queuedSourceCount: 0,
       remainingMs: 2400,
-      previewText: "second subtitle"
+      previewText: "second subtitle",
+      nextQueuedStartMs: null,
+      nextQueuedRemainingMs: 0,
+      queuedPreviewText: ""
     });
     expect(captionsDisabled.activeCaptionSourceCount).toBe(0);
   });

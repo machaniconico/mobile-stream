@@ -7,6 +7,8 @@ import {
   androidNativeDebugArtifactPath,
   iosNativeVerificationArtifactPath,
   releaseConfigArtifactPaths,
+  sourceSecretScanArtifactGroup,
+  sourceSecretScanArtifactPath,
   requiredReleaseGateLabels
 } from "./release-artifact-policy.mjs";
 import { distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
@@ -36,6 +38,7 @@ const generatedFiles = [
   "dist/assets/release-report-test.css",
   ".artifacts/rn/main.ios.jsbundle",
   ".artifacts/rn/index.android.bundle",
+  sourceSecretScanArtifactPath,
   ...nativeBuildPaths.allPaths,
   ".artifacts/mobile-live-caster-desktop.png",
   ".artifacts/mobile-live-caster-mobile.png",
@@ -108,6 +111,15 @@ describe("release report verifier", () => {
     report.artifacts.files = report.artifacts.files.filter((artifact) => artifact.path !== path);
 
     expect(validateReport(report, reportOptions()).join("\n")).toContain(path);
+  });
+
+  it("rejects release reports missing the source secret scan artifact", () => {
+    const report = createReport();
+    report.artifacts.files = report.artifacts.files.filter((artifact) => artifact.path !== sourceSecretScanArtifactPath);
+
+    expect(validateReport(report, reportOptions())).toContain(
+      `Report is missing source secret scan artifact ${sourceSecretScanArtifactPath}.`
+    );
   });
 
   it.each([
@@ -710,6 +722,7 @@ function createReport({
     artifactRecord("web", "dist/assets/release-report-test.css"),
     artifactRecord("react-native", ".artifacts/rn/main.ios.jsbundle"),
     artifactRecord("react-native", ".artifacts/rn/index.android.bundle"),
+    artifactRecord(sourceSecretScanArtifactGroup, sourceSecretScanArtifactPath),
     ...nativeBuildArtifactRecords(fixtureRoot, artifactRecord),
     artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
     artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
@@ -801,11 +814,34 @@ function writeFixtureFiles() {
   writeFile("dist/assets/release-report-test.css", "body { color: #111; }");
   writeFile(".artifacts/rn/main.ios.jsbundle", "ios bundle");
   writeFile(".artifacts/rn/index.android.bundle", "android bundle");
+  writeSourceSecretScanFixture();
   writeNativeBuildFixture(fixtureRoot);
   writeFile(".artifacts/mobile-live-caster-desktop.png", pngBytes);
   writeFile(".artifacts/mobile-live-caster-mobile.png", pngBytes);
   writeSupportBundleFixture();
   writeUiEvidenceFile();
+}
+
+function writeSourceSecretScanFixture(patch = {}) {
+  writeFile(
+    sourceSecretScanArtifactPath,
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: "source-secret-scan",
+        status: "passed",
+        generatedAt: new Date().toISOString(),
+        scannedFiles: ["src/mobile/MobileApp.tsx"],
+        scannedBytes: 1234,
+        findingCount: 0,
+        findings: [],
+        ...patch
+      },
+      null,
+      2
+    )
+  );
 }
 
 function rewriteIosNativeVerification(report, mutate) {

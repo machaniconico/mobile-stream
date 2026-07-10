@@ -57,6 +57,8 @@ describe("source secret scanner", () => {
     try {
       const result = scanForSourceSecrets({ roots: [`${fixtureRoot}/src`] });
 
+      expect(result.status).toBe("failed");
+      expect(result.findingCount).toBe(1);
       expect(result.scannedFiles).toEqual([`${fixtureRoot}/src/production.ts`]);
       expect(result.findings).toHaveLength(1);
       expect(result.findings[0]).toMatchObject({

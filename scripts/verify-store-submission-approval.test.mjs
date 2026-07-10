@@ -5,6 +5,8 @@ import { dirname, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   releaseConfigArtifactPaths,
+  sourceSecretScanArtifactGroup,
+  sourceSecretScanArtifactPath,
   requiredReleaseGateLabels
 } from "./release-artifact-policy.mjs";
 import { distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
@@ -34,6 +36,7 @@ const generatedFiles = [
   "dist/assets/store-approval-test.css",
   ".artifacts/rn/main.ios.jsbundle",
   ".artifacts/rn/index.android.bundle",
+  sourceSecretScanArtifactPath,
   ".artifacts/mobile-live-caster-desktop.png",
   ".artifacts/mobile-live-caster-mobile.png",
   ".artifacts/distribution-artifacts.json",
@@ -367,6 +370,7 @@ function createReport() {
         artifactRecord("web", "dist/assets/store-approval-test.css"),
         artifactRecord("react-native", ".artifacts/rn/main.ios.jsbundle"),
         artifactRecord("react-native", ".artifacts/rn/index.android.bundle"),
+        artifactRecord(sourceSecretScanArtifactGroup, sourceSecretScanArtifactPath),
         ...nativeBuildArtifactRecords(fixtureRoot, artifactRecord),
         artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
         artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
@@ -439,6 +443,7 @@ function writeFixtureFiles() {
   writeFile("dist/assets/store-approval-test.css", "body { color: #111; }");
   writeFile(".artifacts/rn/main.ios.jsbundle", "ios bundle");
   writeFile(".artifacts/rn/index.android.bundle", "android bundle");
+  writeSourceSecretScanFixture();
   writeNativeBuildFixture(fixtureRoot);
   writeFile(".artifacts/mobile-live-caster-desktop.png", pngBytes);
   writeFile(".artifacts/mobile-live-caster-mobile.png", pngBytes);
@@ -449,6 +454,28 @@ function writeFixtureFiles() {
   writeStoreSubmissionFixture();
   writePhysicalDevicePreflightFixture();
   writeUiEvidenceFile();
+}
+
+function writeSourceSecretScanFixture(patch = {}) {
+  writeFile(
+    sourceSecretScanArtifactPath,
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: "source-secret-scan",
+        status: "passed",
+        generatedAt: new Date().toISOString(),
+        scannedFiles: ["src/mobile/MobileApp.tsx"],
+        scannedBytes: 1234,
+        findingCount: 0,
+        findings: [],
+        ...patch
+      },
+      null,
+      2
+    )
+  );
 }
 
 function writeSupportBundleFixture() {
