@@ -121,4 +121,39 @@ describe("gitleaks history scanner", () => {
       })
     ).toContain("Gitleaks history scan artifact baseline SHA-256 does not match the approved baseline file.");
   });
+
+  it("rejects history scan artifacts whose git provenance does not match the release commit", () => {
+    const report = createGitleaksHistoryScanReport({
+      status: "passed",
+      generatedAt: "2026-06-25T00:00:01.000Z",
+      gitleaksVersion: expectedGitleaksVersion,
+      shallowRepository: false,
+      baselineFindings: validateGitleaksBaselineFile(),
+      rawFindings: []
+    });
+    report.git.commit = "0".repeat(40);
+
+    expect(
+      validateGitleaksHistoryScanReport(report, {
+        expectedGitCommit: "1".repeat(40),
+        allowCommitMismatch: false
+      })
+    ).toContain(`Gitleaks history scan artifact commit ${"0".repeat(40)} does not match current commit ${"1".repeat(40)}.`);
+  });
+
+  it("rejects dirty history scan artifacts for commercial package evidence", () => {
+    const report = createGitleaksHistoryScanReport({
+      status: "passed",
+      generatedAt: "2026-06-25T00:00:01.000Z",
+      gitleaksVersion: expectedGitleaksVersion,
+      shallowRepository: false,
+      baselineFindings: validateGitleaksBaselineFile(),
+      rawFindings: []
+    });
+    report.git.dirty = true;
+
+    expect(validateGitleaksHistoryScanReport(report, { allowDirty: false })).toContain(
+      "Gitleaks history scan artifact was generated from a dirty worktree."
+    );
+  });
 });

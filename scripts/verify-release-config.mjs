@@ -252,6 +252,8 @@ const checks = [
     expectIncludes(files.gitleaksHistoryScript, "expectedGitleaksBaselineFindings");
     expectIncludes(files.gitleaksHistoryScript, 'expectedGitleaksVersion = "8.30.1"');
     expectIncludes(files.gitleaksHistoryScript, "expectedBaselineSha256");
+    expectIncludes(files.gitleaksHistoryScript, "validateManifestGitProvenance");
+    expectIncludes(files.gitleaksHistoryScript, "expectedGitCommit");
     expectIncludes(files.gitleaksHistoryScript, "baseline SHA-256");
     expectIncludes(files.gitleaksHistoryScript, "--is-shallow-repository");
     expectIncludes(files.gitleaksHistoryScript, "full git history checkout");
@@ -261,6 +263,7 @@ const checks = [
     expectIncludes(files.gitleaksBaseline, "07acf4a10f14ed7491a9f97c71cb41a74c5a7c84:src/domain/readiness.test.ts:generic-api-key:19");
     expectIncludes(files.releaseReportScript, "validateGitleaksHistoryScanReport");
     expectIncludes(files.releaseReportScript, "expectedBaselineSha256: fileSha256(gitleaksHistoryBaselinePath)");
+    expectIncludes(files.releaseReportScript, "expectedGitCommit: report?.git?.commit");
     expectIncludes(files.releaseEvidencePackageScript, "Package is missing gitleaks history scan artifact");
     expectIncludes(files.releaseEvidencePackageScript, "Package is missing gitleaks baseline artifact");
     expectIncludes(files.releaseArtifactPolicyScript, '"scripts/verify-android-native.mjs"');

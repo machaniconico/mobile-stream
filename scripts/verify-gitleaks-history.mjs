@@ -9,6 +9,7 @@ import {
   gitleaksHistoryRawReportPath,
   gitleaksHistoryScanArtifactPath
 } from "./release-artifact-policy.mjs";
+import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 
 export const expectedGitleaksBaselineFindings = [
   {
@@ -260,6 +261,16 @@ export function validateGitleaksHistoryScanReport(scan, options = {}) {
   } else if (options.expectedBaselineSha256 && scan.baselineSha256 !== options.expectedBaselineSha256) {
     failures.push("Gitleaks history scan artifact baseline SHA-256 does not match the approved baseline file.");
   }
+  validateManifestGitProvenance(
+    scan?.git,
+    {
+      label: "Gitleaks history scan artifact",
+      currentCommit: String(options.expectedGitCommit || ""),
+      allowDirty: options.allowDirty ?? true,
+      allowCommitMismatch: options.allowCommitMismatch ?? true
+    },
+    failures
+  );
   if (scan?.git?.shallowRepository !== false) {
     failures.push("Gitleaks history scan artifact must be generated from a full git history checkout.");
   }

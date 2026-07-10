@@ -262,6 +262,24 @@ describe("release evidence package creator", () => {
     expect(failures).toContain(`Package is missing gitleaks baseline artifact ${gitleaksHistoryBaselinePath}.`);
   });
 
+  it("rejects packaged gitleaks history scan evidence from a different commit", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedScanPath = packagedGitleaksHistoryScanPath();
+    const scan = JSON.parse(readFileSync(packagedScanPath, "utf8"));
+    scan.git.commit = "0".repeat(40);
+    writeFileSync(packagedScanPath, JSON.stringify(scan, null, 2));
+    refreshPackagedArtifactEvidence(gitleaksHistoryScanArtifactPath, packagedScanPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      `Package Gitleaks history scan artifact commit ${"0".repeat(40)} does not match current commit ${currentCommit()}.`
+    );
+  });
+
   it("rejects packaged source secret scan evidence with retained findings even when metadata hashes match", () => {
     resetPackageDir();
     writeReportFixture();

@@ -156,6 +156,22 @@ describe("release report verifier", () => {
     );
   });
 
+  it("rejects release reports whose gitleaks history scan commit does not match the report", () => {
+    const report = createReport();
+    rewriteGitleaksHistoryScan(report, {
+      git: {
+        commit: "0".repeat(40),
+        dirty: false,
+        statusShort: "",
+        shallowRepository: false
+      }
+    });
+
+    expect(validateReport(report, reportOptions())).toContain(
+      `Gitleaks history scan artifact commit ${"0".repeat(40)} does not match current commit ${report.git.commit}.`
+    );
+  });
+
   it("rejects release reports with stale source secret scan timing", () => {
     const report = createReport();
     rewriteSourceSecretScan(report, {
@@ -761,7 +777,7 @@ function createReport({
   const reportStartedAt = new Date(nowMs - 1_000).toISOString();
   const scanGeneratedAt = new Date(nowMs - 500).toISOString();
   const reportFinishedAt = new Date(nowMs).toISOString();
-  writeSupportBundleFixture(supportBundlePatch);
+  writeSupportBundleFixture({ generatedAt: scanGeneratedAt, ...supportBundlePatch });
   writeUiEvidenceFile({ path: uiEvidencePath, target: uiEvidenceTarget });
   writeSourceSecretScanFixture({ generatedAt: scanGeneratedAt });
   writeGitleaksHistoryScanFixture({ generatedAt: scanGeneratedAt });
@@ -981,6 +997,7 @@ function rewriteIosNativeVerification(report, mutate) {
 }
 
 function writeSupportBundleFixture(patch = {}) {
+  rmSync(".artifacts/release-report-test/support-bundle.json", { force: true });
   writeFile(
     ".artifacts/release-report-test/support-bundle.json",
     JSON.stringify(commercialSupportBundleFixture(patch), null, 2)

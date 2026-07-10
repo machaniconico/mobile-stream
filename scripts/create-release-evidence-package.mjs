@@ -386,6 +386,9 @@ function validatePackagedGitleaksHistoryScanArtifact(report, packagedArtifacts, 
   failures.push(
     ...validateGitleaksHistoryScanReport(scan, {
       expectedBaselineSha256: baselineContent ? createHash("sha256").update(baselineContent).digest("hex") : "",
+      expectedGitCommit: report?.git?.commit || "",
+      allowDirty: false,
+      allowCommitMismatch: false,
       releaseStartedAt: report?.startedAt || "",
       releaseFinishedAt: report?.finishedAt || ""
     }).map((failure) => `Package ${failure}`)

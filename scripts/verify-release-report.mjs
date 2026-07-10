@@ -295,7 +295,7 @@ function validateArtifacts(report, options, fail) {
   for (const artifact of artifacts) {
     validateArtifactRecord(artifact, fail);
   }
-  validateGitleaksHistoryScanArtifactInReport(report, artifacts, fail);
+  validateGitleaksHistoryScanArtifactInReport(report, artifacts, options, fail);
   validateSourceSecretScanArtifactInReport(report, artifacts, options, fail);
   validateNativeBuildArtifactsInReport(report, artifacts, options, fail);
   validateDistributionArtifactsInReport(artifacts, fail);
@@ -310,7 +310,7 @@ function validateArtifacts(report, options, fail) {
   validatePhysicalDevicePreflightInReport(report, artifacts, options, fail);
 }
 
-function validateGitleaksHistoryScanArtifactInReport(report, artifacts, fail) {
+function validateGitleaksHistoryScanArtifactInReport(report, artifacts, options, fail) {
   const artifact = artifacts.find(
     (candidate) => candidate?.group === sourceSecretScanArtifactGroup && candidate?.path === gitleaksHistoryScanArtifactPath
   );
@@ -326,6 +326,9 @@ function validateGitleaksHistoryScanArtifactInReport(report, artifacts, fail) {
   }
   for (const failure of validateGitleaksHistoryScanReport(scan, {
     expectedBaselineSha256: fileSha256(gitleaksHistoryBaselinePath),
+    expectedGitCommit: report?.git?.commit || "",
+    allowDirty: options.allowDirty,
+    allowCommitMismatch: options.allowCommitMismatch,
     releaseStartedAt: report?.startedAt || "",
     releaseFinishedAt: report?.finishedAt || ""
   })) {
