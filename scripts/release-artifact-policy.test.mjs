@@ -6,6 +6,8 @@ import {
   androidNativeVerificationArtifactPath,
   collectReleaseSourceFiles,
   iosNativeVerificationArtifactPath,
+  gitleaksHistoryBaselinePath,
+  gitleaksHistoryScanArtifactPath,
   releaseConfigArtifactPaths,
   sourceSecretScanArtifactGroup,
   sourceSecretScanArtifactPath,
@@ -38,6 +40,7 @@ describe("release artifact policy source collection", () => {
 
   it("requires native build gates, artifact groups, and verifier source evidence", () => {
     expect(requiredReleaseGateLabels).toContain("Verify source and bundle secret scan");
+    expect(requiredReleaseGateLabels).toContain("Verify gitleaks history scan");
     expect(requiredReleaseGateLabels).toContain("Build Android native debug app");
     expect(requiredReleaseGateLabels).toContain("Build iOS native simulator app");
     expect(requiredReleaseArtifactGroups).toEqual(expect.arrayContaining(["security", "android", "ios"]));
@@ -46,7 +49,11 @@ describe("release artifact policy source collection", () => {
     expect(iosNativeVerificationArtifactPath).toBe(".artifacts/ios-native-verification.json");
     expect(sourceSecretScanArtifactGroup).toBe("security");
     expect(sourceSecretScanArtifactPath).toBe(".artifacts/source-secret-scan.json");
+    expect(gitleaksHistoryBaselinePath).toBe(".gitleaks-baseline.json");
+    expect(gitleaksHistoryScanArtifactPath).toBe(".artifacts/gitleaks-history-scan.json");
     expect(releaseConfigArtifactPaths).toContain("scripts/verify-ios-native.mjs");
+    expect(releaseConfigArtifactPaths).toContain("scripts/verify-gitleaks-history.mjs");
+    expect(releaseConfigArtifactPaths).toContain(".gitleaks-baseline.json");
     expect(releaseConfigArtifactPaths).toContain("scripts/verify-source-secrets.mjs");
   });
 

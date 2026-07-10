@@ -14,6 +14,8 @@ const root = cwd();
 
 const files = {
   packageJson: read("package.json"),
+  gitleaksConfig: read(".gitleaks.toml"),
+  gitleaksBaseline: read(".gitleaks-baseline.json"),
   releaseArtifactPolicyScript: read("scripts/release-artifact-policy.mjs"),
   androidGradle: read("android/app/build.gradle"),
   androidManifest: read("android/app/src/main/AndroidManifest.xml"),
@@ -29,6 +31,7 @@ const files = {
   storeRealDeviceScreenshotsScript: read("scripts/import-store-real-device-screenshots.mjs"),
   releaseCandidateScript: read("scripts/verify-release-candidate.mjs"),
   releaseReportScript: read("scripts/verify-release-report.mjs"),
+  gitleaksHistoryScript: read("scripts/verify-gitleaks-history.mjs"),
   sourceSecretsScript: read("scripts/verify-source-secrets.mjs"),
   androidNativeVerificationScript: read("scripts/verify-android-native.mjs"),
   iosNativeVerificationScript: read("scripts/verify-ios-native.mjs"),
@@ -109,6 +112,10 @@ const checks = [
     expectIncludes(files.packageJson, '"verify:physical-devices": "node scripts/verify-physical-devices.mjs"');
     expectIncludes(
       files.packageJson,
+      '"verify:gitleaks-history": "node scripts/verify-gitleaks-history.mjs --report-json=.artifacts/gitleaks-history-scan.json"'
+    );
+    expectIncludes(
+      files.packageJson,
       '"verify:source-secrets": "node scripts/verify-source-secrets.mjs --report-json=.artifacts/source-secret-scan.json"'
     );
     expectIncludes(files.packageJson, '"verify:store-release-env": "node scripts/verify-store-release-env.mjs"');
@@ -169,6 +176,8 @@ const checks = [
     expectIncludes(files.releaseCandidateScript, "Verify store release orchestration report");
     expectIncludes(files.releaseCandidateScript, "Verify physical device preflight");
     expectIncludes(files.releaseCandidateScript, "Verify existing release artifact path safety");
+    expectIncludes(files.releaseCandidateScript, "Verify gitleaks history scan");
+    expectIncludes(files.releaseCandidateScript, '["run", "verify:gitleaks-history"]');
     expectIncludes(files.releaseCandidateScript, "Verify source and bundle secret scan");
     expectIncludes(files.releaseCandidateScript, '["run", "verify:source-secrets"]');
     expectIncludes(files.releaseCandidateScript, "assertExistingReleaseArtifactPathsSafe");
@@ -232,7 +241,20 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, '"Build iOS native simulator app"');
     expectIncludes(files.releaseArtifactPolicyScript, 'sourceSecretScanArtifactGroup = "security"');
     expectIncludes(files.releaseArtifactPolicyScript, 'sourceSecretScanArtifactPath = ".artifacts/source-secret-scan.json"');
+    expectIncludes(files.releaseArtifactPolicyScript, 'gitleaksHistoryBaselinePath = ".gitleaks-baseline.json"');
+    expectIncludes(files.releaseArtifactPolicyScript, 'gitleaksHistoryScanArtifactPath = ".artifacts/gitleaks-history-scan.json"');
     expectIncludes(files.releaseArtifactPolicyScript, '"security", "android", "ios"');
+    expectIncludes(files.releaseArtifactPolicyScript, '"scripts/verify-gitleaks-history.mjs"');
+    expectIncludes(files.releaseArtifactPolicyScript, '".gitleaks.toml"');
+    expectIncludes(files.releaseArtifactPolicyScript, '".gitleaks-baseline.json"');
+    expectIncludes(files.gitleaksConfig, "useDefault = true");
+    expectIncludes(files.gitleaksHistoryScript, "gitleaks-history-scan");
+    expectIncludes(files.gitleaksHistoryScript, "expectedGitleaksBaselineFindings");
+    expectIncludes(files.gitleaksHistoryScript, "Gitleaks baseline validation failed");
+    expectIncludes(files.gitleaksBaseline, "REDACTED");
+    expectIncludes(files.gitleaksBaseline, "07acf4a10f14ed7491a9f97c71cb41a74c5a7c84:src/domain/readiness.test.ts:generic-api-key:19");
+    expectIncludes(files.releaseReportScript, "validateGitleaksHistoryScanReport");
+    expectIncludes(files.releaseEvidencePackageScript, "Package is missing gitleaks history scan artifact");
     expectIncludes(files.releaseArtifactPolicyScript, '"scripts/verify-android-native.mjs"');
     expectIncludes(files.releaseArtifactPolicyScript, '"scripts/verify-ios-native.mjs"');
     expectIncludes(files.releaseCandidateScript, "sourceSecretScanArtifactGroup");

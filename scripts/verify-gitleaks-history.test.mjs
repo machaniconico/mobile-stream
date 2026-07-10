@@ -1,0 +1,73 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import {
+  createGitleaksHistoryScanReport,
+  expectedGitleaksBaselineFindings,
+  validateGitleaksBaselineEntries,
+  validateGitleaksBaselineFile,
+  validateGitleaksHistoryScanReport
+} from "./verify-gitleaks-history.mjs";
+
+describe("gitleaks history scanner", () => {
+  it("accepts the committed redacted baseline", () => {
+    const entries = validateGitleaksBaselineFile();
+
+    expect(entries.map((entry) => entry.Fingerprint).sort()).toEqual(
+      expectedGitleaksBaselineFindings.map((entry) => entry.Fingerprint).sort()
+    );
+  });
+
+  it("rejects baseline expansion beyond the fixed historical test fixtures", () => {
+    const entries = JSON.parse(readFileSync(".gitleaks-baseline.json", "utf8"));
+    entries.push({
+      ...entries[0],
+      Fingerprint: "unexpected:new.ts:generic-api-key:1",
+      File: "new.ts",
+      StartLine: 1
+    });
+
+    expect(() => validateGitleaksBaselineEntries(entries)).toThrow("unapproved finding");
+  });
+
+  it("rejects unredacted secret-like baseline content", () => {
+    const entries = JSON.parse(readFileSync(".gitleaks-baseline.json", "utf8"));
+    entries[0] = {
+      ...entries[0],
+      Match: 'apiKey: "AIzaabcdefghijklmnopqrstuvwxyz123456789"',
+      Secret: "AIzaabcdefghijklmnopqrstuvwxyz123456789"
+    };
+
+    expect(() => validateGitleaksBaselineEntries(entries)).toThrow("not redacted");
+  });
+
+  it("validates a passing release history scan artifact", () => {
+    const baselineFindings = validateGitleaksBaselineFile();
+    const report = createGitleaksHistoryScanReport({
+      status: "passed",
+      generatedAt: "2026-06-25T00:00:01.000Z",
+      gitleaksVersion: "8.30.1",
+      baselineFindings,
+      rawFindings: []
+    });
+
+    expect(
+      validateGitleaksHistoryScanReport(report, {
+        releaseStartedAt: "2026-06-25T00:00:00.000Z",
+        releaseFinishedAt: "2026-06-25T00:00:02.000Z"
+      })
+    ).toEqual([]);
+  });
+
+  it("rejects retained unbaselined findings in release history scan artifacts", () => {
+    const baselineFindings = validateGitleaksBaselineFile();
+    const report = createGitleaksHistoryScanReport({
+      status: "failed",
+      generatedAt: "2026-06-25T00:00:01.000Z",
+      gitleaksVersion: "8.30.1",
+      baselineFindings,
+      rawFindings: [{ RuleID: "generic-api-key", File: "src/main.ts", StartLine: 1, Fingerprint: "new" }]
+    });
+
+    expect(validateGitleaksHistoryScanReport(report).join("\n")).toContain("zero unbaselined findings");
+  });
+});

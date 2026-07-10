@@ -31,6 +31,7 @@ import { requiredBrowserUiTextChecks } from "./browser-ui-required-text.mjs";
 import {
   androidNativeDebugArtifactPath,
   androidNativeVerificationArtifactPath,
+  gitleaksHistoryScanArtifactPath,
   iosNativeVerificationArtifactPath,
   requiredReleaseArtifactGroups,
   requiredReleaseGateLabels,
@@ -47,6 +48,7 @@ import {
   androidNativeVerificationArtifactGroup,
   validateAndroidNativeVerificationReport
 } from "./verify-android-native.mjs";
+import { validateGitleaksHistoryScanReport } from "./verify-gitleaks-history.mjs";
 
 export const releaseEvidencePackageManifestName = "release-evidence-package.json";
 export const releaseEvidencePackageType = "release-evidence-package-manifest";
@@ -320,6 +322,7 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
   );
   validatePackagedCoreReleaseEvidence(report, failures);
   validatePackagedSourceSecretScanArtifact(report, packagedArtifacts, packageDir, failures);
+  validatePackagedGitleaksHistoryScanArtifact(report, packagedArtifacts, packageDir, failures);
   validatePackagedNativeBuildArtifacts(report, packagedArtifacts, packageDir, failures, { maxAgeHours });
   validatePackagedUiEvidence(manifest, report, packagedArtifacts, packageDir, failures, { maxAgeHours });
   validateRequiredCommercialPackageArtifacts(report, manifest, reportArtifacts, packagedArtifacts, failures);
@@ -361,6 +364,25 @@ function validatePackagedCoreReleaseEvidence(report, failures) {
       failures.push(`Packaged release report is missing required artifact group ${group}.`);
     }
   }
+}
+
+function validatePackagedGitleaksHistoryScanArtifact(report, packagedArtifacts, packageDir, failures) {
+  const artifact = packagedArtifactFor(packagedArtifacts, sourceSecretScanArtifactGroup, gitleaksHistoryScanArtifactPath);
+  if (!artifact) {
+    failures.push(`Package is missing gitleaks history scan artifact ${gitleaksHistoryScanArtifactPath}.`);
+    return;
+  }
+
+  const scan = readPackagedJsonEntry(artifact, packageDir, "gitleaks history scan", failures);
+  if (!scan) {
+    return;
+  }
+  failures.push(
+    ...validateGitleaksHistoryScanReport(scan, {
+      releaseStartedAt: report?.startedAt || "",
+      releaseFinishedAt: report?.finishedAt || ""
+    }).map((failure) => `Package ${failure}`)
+  );
 }
 
 function validatePackagedSourceSecretScanArtifact(report, packagedArtifacts, packageDir, failures) {

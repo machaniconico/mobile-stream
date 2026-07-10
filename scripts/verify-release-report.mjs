@@ -7,12 +7,14 @@ import { pathToFileURL } from "node:url";
 import {
   androidNativeVerificationArtifactPath,
   iosNativeVerificationArtifactPath,
+  gitleaksHistoryScanArtifactPath,
   releaseConfigArtifactPaths,
   requiredReleaseArtifactGroups,
   requiredReleaseGateLabels,
   sourceSecretScanArtifactGroup,
   sourceSecretScanArtifactPath
 } from "./release-artifact-policy.mjs";
+import { validateGitleaksHistoryScanReport } from "./verify-gitleaks-history.mjs";
 import { validateIosNativeVerificationArtifacts } from "./verify-ios-native.mjs";
 import { validateAndroidNativeVerificationArtifacts } from "./verify-android-native.mjs";
 import { validateDistributionArtifactsInReport } from "./verify-distribution-artifacts.mjs";
@@ -285,10 +287,14 @@ function validateArtifacts(report, options, fail) {
   if (!artifactPaths.has(sourceSecretScanArtifactPath)) {
     fail(`Report is missing source secret scan artifact ${sourceSecretScanArtifactPath}.`);
   }
+  if (!artifactPaths.has(gitleaksHistoryScanArtifactPath)) {
+    fail(`Report is missing gitleaks history scan artifact ${gitleaksHistoryScanArtifactPath}.`);
+  }
 
   for (const artifact of artifacts) {
     validateArtifactRecord(artifact, fail);
   }
+  validateGitleaksHistoryScanArtifactInReport(report, artifacts, fail);
   validateSourceSecretScanArtifactInReport(report, artifacts, fail);
   validateNativeBuildArtifactsInReport(report, artifacts, options, fail);
   validateDistributionArtifactsInReport(artifacts, fail);
@@ -301,6 +307,28 @@ function validateArtifacts(report, options, fail) {
     maxAgeHours: options.maxAgeHours
   });
   validatePhysicalDevicePreflightInReport(report, artifacts, options, fail);
+}
+
+function validateGitleaksHistoryScanArtifactInReport(report, artifacts, fail) {
+  const artifact = artifacts.find(
+    (candidate) => candidate?.group === sourceSecretScanArtifactGroup && candidate?.path === gitleaksHistoryScanArtifactPath
+  );
+  if (!artifact) {
+    return;
+  }
+  let scan;
+  try {
+    scan = readJsonFile(artifact.path, "gitleaks history scan");
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+    return;
+  }
+  for (const failure of validateGitleaksHistoryScanReport(scan, {
+    releaseStartedAt: report?.startedAt || "",
+    releaseFinishedAt: report?.finishedAt || ""
+  })) {
+    fail(failure);
+  }
 }
 
 function validateSourceSecretScanArtifactInReport(report, artifacts, fail) {

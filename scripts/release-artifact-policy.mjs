@@ -3,12 +3,15 @@ import { join, relative, resolve, sep } from "node:path";
 import { cwd } from "node:process";
 
 const staticReleaseConfigArtifactPaths = [
+  ".gitleaks.toml",
+  ".gitleaks-baseline.json",
   "package.json",
   "package-lock.json",
   "vite.config.ts",
   ".github/workflows/ci.yml",
   ".github/workflows/auto-merge.yml",
   "scripts/release-artifact-policy.mjs",
+  "scripts/verify-gitleaks-history.mjs",
   "scripts/release-store-build.mjs",
   "scripts/archive-ios-release.mjs",
   "scripts/create-store-submission-draft.mjs",
@@ -62,6 +65,9 @@ export const androidNativeVerificationArtifactPath = ".artifacts/android-native-
 export const iosNativeVerificationArtifactPath = ".artifacts/ios-native-verification.json";
 export const sourceSecretScanArtifactGroup = "security";
 export const sourceSecretScanArtifactPath = ".artifacts/source-secret-scan.json";
+export const gitleaksHistoryBaselinePath = ".gitleaks-baseline.json";
+export const gitleaksHistoryScanArtifactPath = ".artifacts/gitleaks-history-scan.json";
+export const gitleaksHistoryRawReportPath = ".artifacts/gitleaks-history-raw.json";
 
 export const requiredReleaseGateLabels = [
   "Verify clean git worktree",
@@ -74,6 +80,7 @@ export const requiredReleaseGateLabels = [
   "Build web prototype",
   "Verify web bundle size",
   "Bundle React Native JavaScript",
+  "Verify gitleaks history scan",
   "Verify source and bundle secret scan",
   "Build Android native debug app",
   "Build iOS native simulator app",

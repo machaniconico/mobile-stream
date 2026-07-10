@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync
 import { dirname, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  gitleaksHistoryScanArtifactPath,
   releaseConfigArtifactPaths,
   sourceSecretScanArtifactGroup,
   sourceSecretScanArtifactPath,
@@ -36,6 +37,7 @@ const generatedFiles = [
   "dist/assets/store-approval-test.css",
   ".artifacts/rn/main.ios.jsbundle",
   ".artifacts/rn/index.android.bundle",
+  gitleaksHistoryScanArtifactPath,
   sourceSecretScanArtifactPath,
   ".artifacts/mobile-live-caster-desktop.png",
   ".artifacts/mobile-live-caster-mobile.png",
@@ -335,16 +337,22 @@ function approvalOptions() {
 }
 
 function createReport() {
+  const nowMs = Date.now();
+  const reportStartedAt = new Date(nowMs - 1_000).toISOString();
+  const scanGeneratedAt = new Date(nowMs - 500).toISOString();
+  const reportFinishedAt = new Date(nowMs).toISOString();
   writeSupportBundleFixture();
   writeUiEvidenceFile();
+  writeGitleaksHistoryScanFixture({ generatedAt: scanGeneratedAt });
+  writeSourceSecretScanFixture({ generatedAt: scanGeneratedAt });
   const supportBundlePath = ".artifacts/store-approval-test/support-bundle.json";
   return {
     reportVersion: 1,
     app: "MobileLiveCaster",
     type: "release-candidate-verification",
     status: "passed",
-    startedAt: new Date(Date.now() - 1_000).toISOString(),
-    finishedAt: new Date().toISOString(),
+    startedAt: reportStartedAt,
+    finishedAt: reportFinishedAt,
     git: {
       commit: currentCommit(),
       branch: "main",
@@ -370,6 +378,7 @@ function createReport() {
         artifactRecord("web", "dist/assets/store-approval-test.css"),
         artifactRecord("react-native", ".artifacts/rn/main.ios.jsbundle"),
         artifactRecord("react-native", ".artifacts/rn/index.android.bundle"),
+        artifactRecord(sourceSecretScanArtifactGroup, gitleaksHistoryScanArtifactPath),
         artifactRecord(sourceSecretScanArtifactGroup, sourceSecretScanArtifactPath),
         ...nativeBuildArtifactRecords(fixtureRoot, artifactRecord),
         artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
@@ -443,6 +452,7 @@ function writeFixtureFiles() {
   writeFile("dist/assets/store-approval-test.css", "body { color: #111; }");
   writeFile(".artifacts/rn/main.ios.jsbundle", "ios bundle");
   writeFile(".artifacts/rn/index.android.bundle", "android bundle");
+  writeGitleaksHistoryScanFixture();
   writeSourceSecretScanFixture();
   writeNativeBuildFixture(fixtureRoot);
   writeFile(".artifacts/mobile-live-caster-desktop.png", pngBytes);
@@ -454,6 +464,43 @@ function writeFixtureFiles() {
   writeStoreSubmissionFixture();
   writePhysicalDevicePreflightFixture();
   writeUiEvidenceFile();
+}
+
+function writeGitleaksHistoryScanFixture(patch = {}) {
+  writeFile(
+    gitleaksHistoryScanArtifactPath,
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: "gitleaks-history-scan",
+        status: "passed",
+        generatedAt: new Date().toISOString(),
+        gitleaksVersion: "8.30.1",
+        git: {
+          commit: currentCommit(),
+          dirty: false,
+          statusShort: ""
+        },
+        scannedCommits: 484,
+        baselinePath: ".gitleaks-baseline.json",
+        baselineSha256: "a".repeat(64),
+        baselineFingerprintCount: 4,
+        baselineFingerprints: [
+          "07acf4a10f14ed7491a9f97c71cb41a74c5a7c84:src/domain/readiness.test.ts:generic-api-key:19",
+          "07acf4a10f14ed7491a9f97c71cb41a74c5a7c84:src/domain/readiness.test.ts:generic-api-key:50",
+          "801c776904f1bcec9863e59924537f45d0bbc0e1:src/domain/readiness.test.ts:generic-api-key:21",
+          "801c776904f1bcec9863e59924537f45d0bbc0e1:src/domain/readiness.test.ts:generic-api-key:38"
+        ],
+        rawReportPath: ".artifacts/gitleaks-history-raw.json",
+        findingCount: 0,
+        findings: [],
+        ...patch
+      },
+      null,
+      2
+    )
+  );
 }
 
 function writeSourceSecretScanFixture(patch = {}) {

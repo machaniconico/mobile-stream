@@ -8,6 +8,7 @@ import {
   androidNativeVerificationArtifactPath,
   iosNativeVerificationArtifactPath,
   releaseConfigArtifactPaths,
+  gitleaksHistoryScanArtifactPath,
   sourceSecretScanArtifactGroup,
   sourceSecretScanArtifactPath
 } from "./release-artifact-policy.mjs";
@@ -56,6 +57,7 @@ const sourceGates = [
   ["Build web prototype", ["run", "build"]],
   ["Verify web bundle size", ["run", "verify:web-bundle-size"]],
   ["Bundle React Native JavaScript", ["run", "verify:rn"]],
+  ["Verify gitleaks history scan", ["run", "verify:gitleaks-history"]],
   ["Verify source and bundle secret scan", ["run", "verify:source-secrets"]],
   ["Build Android native debug app", ["run", "verify:android-native"]],
   ["Build iOS native simulator app", ["run", "verify:ios-native"]]
@@ -1060,7 +1062,7 @@ function collectReleaseArtifacts({
     ...collectFiles("web", ["dist/index.html"]),
     ...collectDirectoryFiles("web", "dist/assets", (path) => path.endsWith(".js") || path.endsWith(".css")),
     ...collectFiles("react-native", [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"]),
-    ...collectFiles(sourceSecretScanArtifactGroup, [sourceSecretScanArtifactPath]),
+    ...collectFiles(sourceSecretScanArtifactGroup, [gitleaksHistoryScanArtifactPath, sourceSecretScanArtifactPath]),
     ...collectNativeArtifacts(
       collectAndroidNativeVerificationArtifactRecords,
       { reportPath: androidNativeVerificationArtifactPath, required: requireNativeArtifacts },

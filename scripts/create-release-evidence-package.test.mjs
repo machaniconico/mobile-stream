@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   androidNativeDebugArtifactPath,
+  gitleaksHistoryScanArtifactPath,
   iosNativeVerificationArtifactPath,
   releaseConfigArtifactPaths,
   sourceSecretScanArtifactGroup,
@@ -48,6 +49,7 @@ const generatedFiles = [
   "dist/assets/release-evidence-package-test.css",
   ".artifacts/rn/main.ios.jsbundle",
   ".artifacts/rn/index.android.bundle",
+  gitleaksHistoryScanArtifactPath,
   sourceSecretScanArtifactPath,
   ".artifacts/mobile-live-caster-desktop.png",
   ".artifacts/mobile-live-caster-mobile.png",
@@ -226,6 +228,25 @@ describe("release evidence package creator", () => {
     expect(failures).toContain(
       "Package source secret scan is not a MobileLiveCaster source-secret-scan reportVersion 1 file."
     );
+  });
+
+  it("rejects packaged gitleaks history scan evidence with retained findings even when metadata hashes match", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedScanPath = packagedGitleaksHistoryScanPath();
+    const scan = JSON.parse(readFileSync(packagedScanPath, "utf8"));
+    scan.status = "failed";
+    scan.findingCount = 1;
+    scan.findings = [{ RuleID: "generic-api-key", File: "src/main.ts", StartLine: 1, Fingerprint: "new" }];
+    writeFileSync(packagedScanPath, JSON.stringify(scan, null, 2));
+    refreshPackagedArtifactEvidence(gitleaksHistoryScanArtifactPath, packagedScanPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain('Package Gitleaks history scan artifact must be passed, got "failed".');
+    expect(failures).toContain("Package Gitleaks history scan artifact must report zero unbaselined findings.");
   });
 
   it("rejects packaged source secret scan evidence with retained findings even when metadata hashes match", () => {
@@ -1735,6 +1756,7 @@ function writeFixtureFiles() {
   writeFile("dist/assets/release-evidence-package-test.css", "body { color: #111; }");
   writeFile(".artifacts/rn/main.ios.jsbundle", "ios bundle");
   writeFile(".artifacts/rn/index.android.bundle", "android bundle");
+  writeGitleaksHistoryScanFixture();
   writeSourceSecretScanFixture();
   writeNativeBuildFixture(fixtureRoot);
   writeFile(".artifacts/mobile-live-caster-desktop.png", pngBytes);
@@ -1749,6 +1771,43 @@ function writeFixtureFiles() {
   writeStoreSubmissionFixture();
   writePhysicalDevicePreflightFixture();
   writeUiEvidenceFile();
+}
+
+function writeGitleaksHistoryScanFixture(patch = {}) {
+  writeFile(
+    gitleaksHistoryScanArtifactPath,
+    JSON.stringify(
+      {
+        reportVersion: 1,
+        app: "MobileLiveCaster",
+        type: "gitleaks-history-scan",
+        status: "passed",
+        generatedAt: new Date().toISOString(),
+        gitleaksVersion: "8.30.1",
+        git: {
+          commit: currentCommit(),
+          dirty: false,
+          statusShort: ""
+        },
+        scannedCommits: 484,
+        baselinePath: ".gitleaks-baseline.json",
+        baselineSha256: "a".repeat(64),
+        baselineFingerprintCount: 4,
+        baselineFingerprints: [
+          "07acf4a10f14ed7491a9f97c71cb41a74c5a7c84:src/domain/readiness.test.ts:generic-api-key:19",
+          "07acf4a10f14ed7491a9f97c71cb41a74c5a7c84:src/domain/readiness.test.ts:generic-api-key:50",
+          "801c776904f1bcec9863e59924537f45d0bbc0e1:src/domain/readiness.test.ts:generic-api-key:21",
+          "801c776904f1bcec9863e59924537f45d0bbc0e1:src/domain/readiness.test.ts:generic-api-key:38"
+        ],
+        rawReportPath: ".artifacts/gitleaks-history-raw.json",
+        findingCount: 0,
+        findings: [],
+        ...patch
+      },
+      null,
+      2
+    )
+  );
 }
 
 function writeSourceSecretScanFixture(patch = {}) {
@@ -2039,6 +2098,7 @@ function writeReportFixture({ skipUi = true, uiEvidencePath = ".artifacts/releas
   const scanGeneratedAt = new Date(nowMs - 500).toISOString();
   const reportFinishedAt = new Date(nowMs).toISOString();
   writeSourceSecretScanFixture({ generatedAt: scanGeneratedAt });
+  writeGitleaksHistoryScanFixture({ generatedAt: scanGeneratedAt });
   const artifactFiles = [
     ...releaseConfigArtifactPaths.map((path) => artifactRecord("release-config", path)),
     artifactRecord("web", "dist/index.html"),
@@ -2046,6 +2106,7 @@ function writeReportFixture({ skipUi = true, uiEvidencePath = ".artifacts/releas
     artifactRecord("web", "dist/assets/release-evidence-package-test.css"),
     artifactRecord("react-native", ".artifacts/rn/main.ios.jsbundle"),
     artifactRecord("react-native", ".artifacts/rn/index.android.bundle"),
+    artifactRecord(sourceSecretScanArtifactGroup, gitleaksHistoryScanArtifactPath),
     artifactRecord(sourceSecretScanArtifactGroup, sourceSecretScanArtifactPath),
     ...nativeBuildArtifactRecords(fixtureRoot, artifactRecord),
     artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
@@ -2756,6 +2817,14 @@ function packagedSourceSecretScanPath() {
   const manifest = JSON.parse(readFileSync(`${packageDir}/${releaseEvidencePackageManifestName}`, "utf8"));
   const artifact = manifest.artifacts.find(
     (candidate) => candidate.group === sourceSecretScanArtifactGroup && candidate.sourcePath === sourceSecretScanArtifactPath
+  );
+  return `${packageDir}/${artifact.packagedPath}`;
+}
+
+function packagedGitleaksHistoryScanPath() {
+  const manifest = JSON.parse(readFileSync(`${packageDir}/${releaseEvidencePackageManifestName}`, "utf8"));
+  const artifact = manifest.artifacts.find(
+    (candidate) => candidate.group === sourceSecretScanArtifactGroup && candidate.sourcePath === gitleaksHistoryScanArtifactPath
   );
   return `${packageDir}/${artifact.packagedPath}`;
 }
