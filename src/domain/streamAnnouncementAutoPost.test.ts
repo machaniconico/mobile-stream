@@ -77,6 +77,27 @@ describe("stream announcement Discord autopost", () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
+  it("does not hold auto-post pending through excessive Retry-After delays", async () => {
+    const fetcher = vi.fn(async () => response(429, "600"));
+    const wait = vi.fn(async () => undefined);
+
+    await expect(
+      postDiscordStreamAnnouncement({
+        webhookUrl: validWebhookUrl,
+        content: "Live now!",
+        fetcher,
+        wait
+      })
+    ).rejects.toMatchObject({
+      statusCode: 429,
+      retryAfterMs: 600000,
+      attempts: 1
+    });
+
+    expect(wait).not.toHaveBeenCalled();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("does not retry more than once and returns a redacted safe error message", async () => {
     const fetcher = vi.fn(async () => response(429, "3"));
     const wait = vi.fn(async () => undefined);

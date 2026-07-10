@@ -58,6 +58,7 @@ export interface StreamAnnouncementAutoPostInput {
   fetcher: PlatformChatFetch;
   wait?: (delayMs: number) => Promise<void>;
   now?: () => number;
+  maxRetryDelayMs?: number | null;
 }
 
 export class StreamAnnouncementAutoPostError extends Error {
@@ -91,6 +92,7 @@ export class StreamAnnouncementAutoPostError extends Error {
 
 const discordWebhookPathPattern = /^\/api\/webhooks\/(\d{5,32})\/([A-Za-z0-9._-]{20,})\/?$/;
 const redactedDiscordWebhookUrl = "https://discord.com/api/webhooks/[redacted]";
+const defaultMaxDiscordAutoPostRetryDelayMs = 30_000;
 
 export const createDefaultStreamAnnouncementAutoPostSettings = (): StreamAnnouncementAutoPostSettings => ({
   autoPostEnabled: false,
@@ -206,7 +208,8 @@ export const postDiscordStreamAnnouncement = async ({
   content,
   fetcher,
   wait = defaultWait,
-  now = Date.now
+  now = Date.now,
+  maxRetryDelayMs = defaultMaxDiscordAutoPostRetryDelayMs
 }: StreamAnnouncementAutoPostInput): Promise<StreamAnnouncementAutoPostResult> => {
   const normalizedWebhookUrl = assertValidDiscordWebhookUrl(webhookUrl);
   const body = JSON.stringify({ content });
@@ -230,6 +233,9 @@ export const postDiscordStreamAnnouncement = async ({
 
     lastError = createDiscordWebhookHttpError(response, attempt, now());
     if (attempt === 1 && lastError.retryable) {
+      if (isRetryDelayAboveBudget(lastError.retryAfterMs, maxRetryDelayMs)) {
+        throw lastError;
+      }
       if (lastError.retryAfterMs !== null && lastError.retryAfterMs > 0) {
         await wait(lastError.retryAfterMs);
       }
@@ -258,6 +264,16 @@ const defaultWait = (delayMs: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, Math.max(0, delayMs));
   });
+
+const isRetryDelayAboveBudget = (retryAfterMs: number | null, maxRetryDelayMs: number | null): boolean => {
+  if (retryAfterMs === null || maxRetryDelayMs === null) {
+    return false;
+  }
+  if (!Number.isFinite(maxRetryDelayMs) || maxRetryDelayMs < 0) {
+    return false;
+  }
+  return retryAfterMs > maxRetryDelayMs;
+};
 
 const parseDiscordWebhookUrl = (value: string): { id: string; token: string } | null => {
   try {
