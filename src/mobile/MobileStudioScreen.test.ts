@@ -32,4 +32,10 @@ describe("MobileStudioScreen subtitle and text controls", () => {
     expect(source).toContain('label="Show now"');
     expect(source).toContain('label="Show sec"');
   });
+
+  it("surfaces announcement redaction and truncation warnings on mobile", () => {
+    expect(source).toContain("streamAnnouncementPreview.sensitiveValueRemoved");
+    expect(source).toContain("streamAnnouncementPreview.truncated");
+    expect(source).toContain("announcement shortened to Discord limit");
+  });
 });

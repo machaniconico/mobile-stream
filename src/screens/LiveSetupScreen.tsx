@@ -310,6 +310,9 @@ export const LiveSetupScreen = ({
         {streamAnnouncementPreview.sensitiveValueRemoved ? (
           <strong>sensitive value removed</strong>
         ) : null}
+        {streamAnnouncementPreview.truncated ? (
+          <strong>announcement shortened to Discord limit</strong>
+        ) : null}
       </div>
 
       {profile.destination.platform === "youtube-live" ? (

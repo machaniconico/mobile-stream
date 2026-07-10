@@ -1136,6 +1136,9 @@ export const StudioScreen = ({
                 {streamAnnouncementPreview.sensitiveValueRemoved ? (
                   <span className="stream-announcement-warning">sensitive value removed</span>
                 ) : null}
+                {streamAnnouncementPreview.truncated ? (
+                  <span className="stream-announcement-warning">announcement shortened to Discord limit</span>
+                ) : null}
               </div>
               <div className="stream-announcement-actions">
                 <button className="primary-action compact-action" type="button" onClick={shareStreamAnnouncement}>

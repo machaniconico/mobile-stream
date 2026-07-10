@@ -1162,6 +1162,9 @@ export const MobileStudioScreen = ({
                 {streamAnnouncementPreview.sensitiveValueRemoved ? (
                   <Text style={styles.streamAnnouncementWarning}>sensitive value removed</Text>
                 ) : null}
+                {streamAnnouncementPreview.truncated ? (
+                  <Text style={styles.streamAnnouncementWarning}>announcement shortened to Discord limit</Text>
+                ) : null}
               </View>
               <View style={styles.streamAnnouncementActions}>
                 <ActionButton label="Share announcement" variant="primary" onPress={shareStreamAnnouncement} />
@@ -2493,6 +2496,9 @@ export const MobileStudioScreen = ({
             <Text style={styles.streamAnnouncementPreviewText}>{streamAnnouncementPreview.text}</Text>
             {streamAnnouncementPreview.sensitiveValueRemoved ? (
               <Text style={styles.streamAnnouncementWarning}>sensitive value removed</Text>
+            ) : null}
+            {streamAnnouncementPreview.truncated ? (
+              <Text style={styles.streamAnnouncementWarning}>announcement shortened to Discord limit</Text>
             ) : null}
           </View>
 
