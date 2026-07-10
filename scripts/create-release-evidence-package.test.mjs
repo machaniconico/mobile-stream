@@ -210,6 +210,43 @@ describe("release evidence package creator", () => {
     expect(failures.join("\n")).not.toContain("unredacted sensitive text finding");
   });
 
+  it("rejects packaged source secret scan evidence with an invalid schema even when metadata hashes match", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedScanPath = packagedSourceSecretScanPath();
+    const scan = JSON.parse(readFileSync(packagedScanPath, "utf8"));
+    scan.type = "source-scan";
+    writeFileSync(packagedScanPath, JSON.stringify(scan, null, 2));
+    refreshPackagedArtifactEvidence(sourceSecretScanArtifactPath, packagedScanPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package source secret scan is not a MobileLiveCaster source-secret-scan reportVersion 1 file."
+    );
+  });
+
+  it("rejects packaged source secret scan evidence with retained findings even when metadata hashes match", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedScanPath = packagedSourceSecretScanPath();
+    const scan = JSON.parse(readFileSync(packagedScanPath, "utf8"));
+    scan.status = "failed";
+    scan.findingCount = 1;
+    scan.findings = [{ ruleId: "fixture-secret", file: "src/mobile/MobileApp.tsx", preview: "[redacted]" }];
+    writeFileSync(packagedScanPath, JSON.stringify(scan, null, 2));
+    refreshPackagedArtifactEvidence(sourceSecretScanArtifactPath, packagedScanPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain('Package source secret scan must be passed, got "failed".');
+    expect(failures).toContain("Package source secret scan artifact must report zero findings.");
+  });
+
   it("rejects release reports generated with development-only dirty-worktree approval", () => {
     writeReportFixture();
     const report = JSON.parse(readFileSync(reportPath, "utf8"));
@@ -2691,6 +2728,14 @@ function refreshPackagedArtifactEvidence(sourcePath, packagedPath) {
   manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
   refreshPackageArtifactEntry(manifest, sourcePath, packagedPath);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+}
+
+function packagedSourceSecretScanPath() {
+  const manifest = JSON.parse(readFileSync(`${packageDir}/${releaseEvidencePackageManifestName}`, "utf8"));
+  const artifact = manifest.artifacts.find(
+    (candidate) => candidate.group === sourceSecretScanArtifactGroup && candidate.sourcePath === sourceSecretScanArtifactPath
+  );
+  return `${packageDir}/${artifact.packagedPath}`;
 }
 
 function refreshPackagedUiEvidence(packagedUiEvidencePath) {

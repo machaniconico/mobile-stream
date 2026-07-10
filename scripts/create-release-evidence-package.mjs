@@ -33,7 +33,9 @@ import {
   androidNativeVerificationArtifactPath,
   iosNativeVerificationArtifactPath,
   requiredReleaseArtifactGroups,
-  requiredReleaseGateLabels
+  requiredReleaseGateLabels,
+  sourceSecretScanArtifactGroup,
+  sourceSecretScanArtifactPath
 } from "./release-artifact-policy.mjs";
 import {
   iosNativeVerificationArtifactGroup,
@@ -317,6 +319,7 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
     (manifest.artifacts || []).map((artifact) => [`${artifact.group}:${artifact.sourcePath}`, artifact])
   );
   validatePackagedCoreReleaseEvidence(report, failures);
+  validatePackagedSourceSecretScanArtifact(report, packagedArtifacts, packageDir, failures);
   validatePackagedNativeBuildArtifacts(report, packagedArtifacts, packageDir, failures, { maxAgeHours });
   validatePackagedUiEvidence(manifest, report, packagedArtifacts, packageDir, failures, { maxAgeHours });
   validateRequiredCommercialPackageArtifacts(report, manifest, reportArtifacts, packagedArtifacts, failures);
@@ -357,6 +360,39 @@ function validatePackagedCoreReleaseEvidence(report, failures) {
     if (!artifacts.some((artifact) => artifact?.group === group)) {
       failures.push(`Packaged release report is missing required artifact group ${group}.`);
     }
+  }
+}
+
+function validatePackagedSourceSecretScanArtifact(report, packagedArtifacts, packageDir, failures) {
+  const artifact = packagedArtifactFor(packagedArtifacts, sourceSecretScanArtifactGroup, sourceSecretScanArtifactPath);
+  if (!artifact) {
+    failures.push(`Package is missing source secret scan artifact ${sourceSecretScanArtifactPath}.`);
+    return;
+  }
+
+  const scan = readPackagedJsonEntry(artifact, packageDir, "source secret scan", failures);
+  if (!scan) {
+    return;
+  }
+  if (scan?.app !== "MobileLiveCaster" || scan?.type !== "source-secret-scan" || scan?.reportVersion !== 1) {
+    failures.push("Package source secret scan is not a MobileLiveCaster source-secret-scan reportVersion 1 file.");
+  }
+  if (scan?.status !== "passed") {
+    failures.push(`Package source secret scan must be passed, got ${JSON.stringify(scan?.status)}.`);
+  }
+  if (!Number.isInteger(scan?.findingCount) || scan.findingCount !== 0 || (Array.isArray(scan?.findings) && scan.findings.length > 0)) {
+    failures.push("Package source secret scan artifact must report zero findings.");
+  }
+  if (!Array.isArray(scan?.scannedFiles) || scan.scannedFiles.length === 0 || !Number.isInteger(scan?.scannedBytes) || scan.scannedBytes <= 0) {
+    failures.push("Package source secret scan artifact is missing scanned file and byte evidence.");
+  }
+  if (!Number.isFinite(Date.parse(String(scan?.generatedAt || "")))) {
+    failures.push("Package source secret scan generatedAt timestamp is missing or invalid.");
+  }
+  const reportFinishedAt = Date.parse(String(report?.finishedAt || ""));
+  const scanGeneratedAt = Date.parse(String(scan?.generatedAt || ""));
+  if (Number.isFinite(reportFinishedAt) && Number.isFinite(scanGeneratedAt) && scanGeneratedAt > reportFinishedAt) {
+    failures.push("Package source secret scan generatedAt is after the release report finishedAt.");
   }
 }
 

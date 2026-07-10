@@ -239,6 +239,9 @@ const checks = [
     expectIncludes(files.releaseCandidateScript, "sourceSecretScanArtifactPath");
     expectIncludes(files.releaseReportScript, "validateSourceSecretScanArtifactInReport");
     expectIncludes(files.releaseReportScript, "Source secret scan artifact must report zero findings.");
+    expectIncludes(files.releaseEvidencePackageScript, "validatePackagedSourceSecretScanArtifact");
+    expectIncludes(files.releaseEvidencePackageScript, "sourceSecretScanArtifactPath");
+    expectIncludes(files.releaseEvidencePackageScript, "Package source secret scan artifact must report zero findings.");
     expectIncludes(files.sourceSecretsScript, "type: \"source-secret-scan\"");
     expectIncludes(files.sourceSecretsScript, "findingCount: findings.length");
     expectIncludes(files.sourceSecretsScript, "--report-json=");
