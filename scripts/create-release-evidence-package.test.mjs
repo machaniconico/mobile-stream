@@ -1381,6 +1381,26 @@ describe("release evidence package creator", () => {
     expect(failures).toContain("Package store release report git dirty state is missing.");
   });
 
+  it("rejects packaged store release reports from a different commit", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedStoreReleaseReportPath = `${packageDir}/artifacts/${storeReleaseReportPath}`;
+    const storeReleaseReport = JSON.parse(readFileSync(packagedStoreReleaseReportPath, "utf8"));
+    storeReleaseReport.git.commit = "0".repeat(40);
+    storeReleaseReport.git.dirty = false;
+    storeReleaseReport.git.statusShort = "";
+    writeFileSync(packagedStoreReleaseReportPath, JSON.stringify(storeReleaseReport, null, 2));
+    refreshPackagedStoreReleaseReportEvidence(packagedStoreReleaseReportPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      `Package store release report commit ${"0".repeat(40)} does not match current commit ${currentCommit()}.`
+    );
+  });
+
   it("rejects packaged store release reports older than the packaged release report", () => {
     resetPackageDir();
     writeReportFixture();
@@ -1675,6 +1695,26 @@ describe("release evidence package creator", () => {
     const failures = validateReleaseEvidencePackage({ packageDir });
 
     expect(failures).toContain("Package browser UI evidence git dirty state is missing.");
+  });
+
+  it("rejects packaged browser UI evidence from a different commit", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedUiEvidencePath = `${packageDir}/ui-evidence/ui-evidence.json`;
+    const packagedUiEvidence = JSON.parse(readFileSync(packagedUiEvidencePath, "utf8"));
+    packagedUiEvidence.git.commit = "0".repeat(40);
+    packagedUiEvidence.git.dirty = false;
+    packagedUiEvidence.git.statusShort = "";
+    writeFileSync(packagedUiEvidencePath, JSON.stringify(packagedUiEvidence, null, 2));
+    refreshPackagedUiEvidence(packagedUiEvidencePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      `Package browser UI evidence commit ${"0".repeat(40)} does not match current commit ${currentCommit()}.`
+    );
   });
 
   it("rejects unredacted sensitive text even when package metadata hashes match", () => {
@@ -3005,6 +3045,29 @@ function refreshPackagedUiEvidence(packagedUiEvidencePath) {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   manifest.uiEvidence.bytes = evidenceContent.byteLength;
   manifest.uiEvidence.sha256 = evidenceSha256;
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+}
+
+function refreshPackagedStoreReleaseReportEvidence(packagedStoreReleaseReportPath) {
+  const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+  const storeReportContent = readFileSync(packagedStoreReleaseReportPath);
+  const storeReportSha256 = createHash("sha256").update(storeReportContent).digest("hex");
+
+  const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+  const reportArtifact = packagedReport.artifacts.files.find(
+    (artifact) => artifact.group === storeReleaseReportArtifactGroup && artifact.path === storeReleaseReportPath
+  );
+  reportArtifact.bytes = storeReportContent.byteLength;
+  reportArtifact.sha256 = storeReportSha256;
+  const storeReleaseGate = packagedReport.gates.find((gate) => gate.label === "Verify store release orchestration report");
+  storeReleaseGate.evidence.sha256 = storeReportSha256;
+  writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+  const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+  manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+  refreshPackageArtifactEntry(manifest, storeReleaseReportPath, packagedStoreReleaseReportPath);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 }
 

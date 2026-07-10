@@ -842,16 +842,12 @@ function validatePackagedUiEvidenceFreshness(evidence, releaseReport, maxAgeHour
 }
 
 function validatePackagedUiEvidenceGit(evidence, releaseReport, failures) {
-  const evidenceCommit = String(evidence?.git?.commit || "");
   const reportCommit = String(releaseReport?.git?.commit || "");
   validateManifestGitProvenance(
     evidence?.git,
-    { label: "Package browser UI evidence", currentCommit: "", allowDirty: false, allowCommitMismatch: true },
+    { label: "Package browser UI evidence", currentCommit: reportCommit, allowDirty: false, allowCommitMismatch: false },
     failures
   );
-  if (evidenceCommit && reportCommit && evidenceCommit !== reportCommit) {
-    failures.push(`Package browser UI evidence commit ${evidenceCommit} does not match release report commit ${reportCommit}.`);
-  }
 }
 
 function validatePackagedUiEvidenceViewports(evidence, packagedArtifacts, packageDir, failures) {
@@ -1546,19 +1542,13 @@ function validatePackagedStoreReleaseReportContent(storeReport, releaseReport, p
     failures.push("Package store release report durationMs is missing or invalid.");
   }
 
-  const reportCommit = String(storeReport.git?.commit || "");
   const expectedCommit = String(releaseReport.git?.commit || "");
-  const allowDirty = Boolean(releaseReport.options?.allowDirty);
-  const allowCommitMismatch = Boolean(releaseReport.options?.allowCommitMismatch);
   validateManifestGitProvenance(
     storeReport?.git,
-    { label: "Package store release report", currentCommit: "", allowDirty, allowCommitMismatch: true },
+    { label: "Package store release report", currentCommit: expectedCommit, allowDirty: false, allowCommitMismatch: false },
     failures
   );
-  if (expectedCommit && reportCommit && expectedCommit !== reportCommit && !allowCommitMismatch) {
-    failures.push(`Package store release report commit ${reportCommit} does not match release report commit ${expectedCommit}.`);
-  }
-  if (storeReport.options?.allowDirty && !allowDirty) {
+  if (storeReport.options?.allowDirty) {
     failures.push("Package store release report was generated with --allow-dirty.");
   }
   if (storeReport.options?.skipEnv) {
