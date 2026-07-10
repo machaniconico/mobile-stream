@@ -300,9 +300,9 @@ export const pollTwitchDeviceCodeOAuthFlow = async (
     ...flow,
     lastPollAt: receivedAt
   };
-  const payload = await readPlatformChatOAuthJson(response, "Twitch device OAuth token request");
 
   if (!response.ok) {
+    const payload = await readOptionalPlatformChatOAuthJson(response);
     const errorCode = readStringField(payload, "message") || readStringField(payload, "error");
     if (errorCode === "authorization_pending") {
       return {
@@ -327,6 +327,7 @@ export const pollTwitchDeviceCodeOAuthFlow = async (
     );
   }
 
+  const payload = await readPlatformChatOAuthJson(response, "Twitch device OAuth token request");
   const token = normalizeTokenPayload("twitch", payload, receivedAt);
   const credential = await hydrateTwitchCredential(token, normalized.twitchClientId, null, fetcher, receivedAt);
   const auth = createPlatformChatAuthFromCredential(credential);
@@ -973,6 +974,14 @@ const readPlatformChatOAuthJson = async (
     throw new PlatformChatOAuthError(`${operation} returned unreadable JSON with HTTP ${response.status}.`, {
       statusCode: response.status
     });
+  }
+};
+
+const readOptionalPlatformChatOAuthJson = async (response: Awaited<ReturnType<PlatformChatFetch>>): Promise<unknown> => {
+  try {
+    return await response.json();
+  } catch {
+    return null;
   }
 };
 

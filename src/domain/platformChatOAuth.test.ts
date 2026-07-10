@@ -425,6 +425,39 @@ describe("platformChatOAuth", () => {
     } satisfies Partial<PlatformChatOAuthError>);
   });
 
+  it("keeps retry metadata when Twitch device OAuth polling returns a non-JSON outage page", async () => {
+    const flow = {
+      platform: "twitch" as const,
+      deviceCode: "device-code",
+      userCode: "ABCD-EFGH",
+      verificationUri: "https://www.twitch.tv/activate",
+      expiresAt: 20000,
+      intervalMs: 5000,
+      createdAt: 1000,
+      lastPollAt: null
+    };
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      headers: {
+        get: (name: string) => (name.toLowerCase() === "retry-after" ? "13" : null)
+      },
+      json: async () => {
+        throw new Error("raw outage page with device-code and tw-access");
+      }
+    });
+
+    await expect(pollTwitchDeviceCodeOAuthFlow(flow, oauthSettings(), fetcher, 6000)).rejects.toThrow(
+      "Twitch device OAuth token request failed with HTTP 503."
+    );
+    await expect(pollTwitchDeviceCodeOAuthFlow(flow, oauthSettings(), fetcher, 6000)).rejects.toMatchObject({
+      name: "PlatformChatOAuthError",
+      statusCode: 503,
+      retryable: true,
+      retryAfterMs: 13000
+    } satisfies Partial<PlatformChatOAuthError>);
+  });
+
   it("polls Twitch device OAuth into a stored refreshable credential", async () => {
     const flow = {
       platform: "twitch" as const,
