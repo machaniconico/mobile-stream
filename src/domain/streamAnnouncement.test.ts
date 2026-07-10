@@ -5,6 +5,7 @@ import {
   createStreamAnnouncementText,
   defaultStreamAnnouncementTemplate,
   normalizeStreamAnnouncementSettings,
+  streamAnnouncementContentMaxLength,
   streamAnnouncementTemplateMaxLength
 } from "./streamAnnouncement";
 
@@ -81,6 +82,22 @@ describe("stream announcements", () => {
     expect(preview.text).toContain("access_token=[redacted]");
     expect(preview.text).not.toContain(streamKey);
     expect(preview.text).not.toContain("unsafe-oauth-token");
+  });
+
+  it("keeps final announcement text within the Discord content limit", () => {
+    const profile = {
+      ...createDefaultStudioProfile(),
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        title: "A".repeat(streamAnnouncementContentMaxLength + 200),
+        youtubeBroadcastId: "yt-broadcast-123"
+      }
+    };
+
+    const preview = createStreamAnnouncementPreview({ profile }, "{title}");
+
+    expect(preview.text).toHaveLength(streamAnnouncementContentMaxLength);
+    expect(preview.truncated).toBe(true);
   });
 
   it("normalizes editable template settings for profile persistence", () => {

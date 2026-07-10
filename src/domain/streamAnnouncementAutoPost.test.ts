@@ -3,6 +3,7 @@ import type { PlatformChatFetch } from "./platformChatConnection";
 import {
   createDefaultStreamAnnouncementAutoPostSettings,
   createStreamAnnouncementAutoPostDecision,
+  discordWebhookContentMaxLength,
   formatStreamAnnouncementAutoPostError,
   isValidDiscordWebhookUrl,
   normalizeDiscordWebhookUrl,
@@ -55,6 +56,33 @@ describe("stream announcement Discord autopost", () => {
         content: "YouTube: Launch live https://www.youtube.com/watch?v=broadcast-1"
       })
     });
+  });
+
+  it("clamps Discord webhook content before sending", async () => {
+    const fetcher = vi.fn(async (..._args: Parameters<PlatformChatFetch>) => response(204));
+
+    await postDiscordStreamAnnouncement({
+      webhookUrl: validWebhookUrl,
+      content: "A".repeat(discordWebhookContentMaxLength + 100),
+      fetcher
+    });
+
+    const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body ?? "{}"));
+    expect(body.content).toHaveLength(discordWebhookContentMaxLength);
+  });
+
+  it("rejects empty Discord webhook content before sending", async () => {
+    const fetcher = vi.fn(async (..._args: Parameters<PlatformChatFetch>) => response(204));
+
+    await expect(
+      postDiscordStreamAnnouncement({
+        webhookUrl: validWebhookUrl,
+        content: "   \n\t   ",
+        fetcher
+      })
+    ).rejects.toThrow("Discord announcement content is empty.");
+
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it("respects Retry-After and retries a retryable non-2xx response once", async () => {

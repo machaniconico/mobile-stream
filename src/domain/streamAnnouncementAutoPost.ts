@@ -93,6 +93,7 @@ export class StreamAnnouncementAutoPostError extends Error {
 const discordWebhookPathPattern = /^\/api\/webhooks\/(\d{5,32})\/([A-Za-z0-9._-]{20,})\/?$/;
 const redactedDiscordWebhookUrl = "https://discord.com/api/webhooks/[redacted]";
 const defaultMaxDiscordAutoPostRetryDelayMs = 30_000;
+export const discordWebhookContentMaxLength = 2000;
 
 export const createDefaultStreamAnnouncementAutoPostSettings = (): StreamAnnouncementAutoPostSettings => ({
   autoPostEnabled: false,
@@ -127,6 +128,9 @@ export const assertValidDiscordWebhookUrl = (value: unknown): string => {
   }
   return normalized;
 };
+
+export const normalizeDiscordWebhookContent = (content: unknown): string =>
+  clampDiscordWebhookContent(typeof content === "string" ? content.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim() : "");
 
 export const redactDiscordWebhookUrlFromText = (value: string, webhookUrl?: string | null): string => {
   const normalizedWebhookUrl = normalizeDiscordWebhookUrl(webhookUrl);
@@ -212,7 +216,11 @@ export const postDiscordStreamAnnouncement = async ({
   maxRetryDelayMs = defaultMaxDiscordAutoPostRetryDelayMs
 }: StreamAnnouncementAutoPostInput): Promise<StreamAnnouncementAutoPostResult> => {
   const normalizedWebhookUrl = assertValidDiscordWebhookUrl(webhookUrl);
-  const body = JSON.stringify({ content });
+  const normalizedContent = normalizeDiscordWebhookContent(content);
+  if (!normalizedContent) {
+    throw new StreamAnnouncementAutoPostError("Discord announcement content is empty.");
+  }
+  const body = JSON.stringify({ content: normalizedContent });
   let lastError: StreamAnnouncementAutoPostError | null = null;
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
@@ -274,6 +282,9 @@ const isRetryDelayAboveBudget = (retryAfterMs: number | null, maxRetryDelayMs: n
   }
   return retryAfterMs > maxRetryDelayMs;
 };
+
+const clampDiscordWebhookContent = (content: string): string =>
+  Array.from(content).slice(0, discordWebhookContentMaxLength).join("").trim();
 
 const parseDiscordWebhookUrl = (value: string): { id: string; token: string } | null => {
   try {

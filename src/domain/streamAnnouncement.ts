@@ -1,6 +1,8 @@
 import type { StudioProfile } from "./profiles";
 import {
   createDefaultStreamAnnouncementAutoPostSettings,
+  discordWebhookContentMaxLength,
+  normalizeDiscordWebhookContent,
   normalizeStreamAnnouncementAutoPostSettings,
   type StreamAnnouncementAutoPostSettings
 } from "./streamAnnouncementAutoPost";
@@ -22,6 +24,7 @@ export interface StreamAnnouncementInput {
 export interface StreamAnnouncementPreview {
   text: string;
   sensitiveValueRemoved: boolean;
+  truncated: boolean;
   title: string;
   platform: string;
   url: string;
@@ -29,6 +32,7 @@ export interface StreamAnnouncementPreview {
 
 export const defaultStreamAnnouncementTemplate = "🔴 Live now! {title} {url}";
 export const streamAnnouncementTemplateMaxLength = 500;
+export const streamAnnouncementContentMaxLength = discordWebhookContentMaxLength;
 
 export const createDefaultStreamAnnouncementSettings = (): StreamAnnouncementSettings => ({
   template: defaultStreamAnnouncementTemplate,
@@ -69,10 +73,12 @@ export const createStreamAnnouncementPreview = (
       .replace(/\{url\}/g, values.url)
   );
   const redacted = normalizeAnnouncementText(redactAnnouncementSecretsFromText(expanded, createStreamAnnouncementSecrets(input)));
+  const text = normalizeDiscordWebhookContent(redacted);
 
   return {
-    text: redacted,
+    text,
     sensitiveValueRemoved: redacted !== expanded,
+    truncated: Array.from(redacted).length > Array.from(text).length,
     ...values
   };
 };
