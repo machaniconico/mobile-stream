@@ -250,6 +250,9 @@ const checks = [
     expectIncludes(files.gitleaksConfig, "useDefault = true");
     expectIncludes(files.gitleaksHistoryScript, "gitleaks-history-scan");
     expectIncludes(files.gitleaksHistoryScript, "expectedGitleaksBaselineFindings");
+    expectIncludes(files.gitleaksHistoryScript, "--is-shallow-repository");
+    expectIncludes(files.gitleaksHistoryScript, "full git history checkout");
+    expectIncludes(files.gitleaksHistoryScript, "shallowRepository");
     expectIncludes(files.gitleaksHistoryScript, "Gitleaks baseline validation failed");
     expectIncludes(files.gitleaksBaseline, "REDACTED");
     expectIncludes(files.gitleaksBaseline, "07acf4a10f14ed7491a9f97c71cb41a74c5a7c84:src/domain/readiness.test.ts:generic-api-key:19");

@@ -46,6 +46,7 @@ describe("gitleaks history scanner", () => {
       status: "passed",
       generatedAt: "2026-06-25T00:00:01.000Z",
       gitleaksVersion: "8.30.1",
+      shallowRepository: false,
       baselineFindings,
       rawFindings: []
     });
@@ -64,10 +65,27 @@ describe("gitleaks history scanner", () => {
       status: "failed",
       generatedAt: "2026-06-25T00:00:01.000Z",
       gitleaksVersion: "8.30.1",
+      shallowRepository: false,
       baselineFindings,
       rawFindings: [{ RuleID: "generic-api-key", File: "src/main.ts", StartLine: 1, Fingerprint: "new" }]
     });
 
     expect(validateGitleaksHistoryScanReport(report).join("\n")).toContain("zero unbaselined findings");
+  });
+
+  it("rejects history scan artifacts produced from shallow repositories", () => {
+    const baselineFindings = validateGitleaksBaselineFile();
+    const report = createGitleaksHistoryScanReport({
+      status: "passed",
+      generatedAt: "2026-06-25T00:00:01.000Z",
+      gitleaksVersion: "8.30.1",
+      shallowRepository: true,
+      baselineFindings,
+      rawFindings: []
+    });
+
+    expect(validateGitleaksHistoryScanReport(report)).toContain(
+      "Gitleaks history scan artifact must be generated from a full git history checkout."
+    );
   });
 });

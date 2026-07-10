@@ -1787,7 +1787,8 @@ function writeGitleaksHistoryScanFixture(patch = {}) {
         git: {
           commit: currentCommit(),
           dirty: false,
-          statusShort: ""
+          statusShort: "",
+          shallowRepository: false
         },
         scannedCommits: 484,
         baselinePath: ".gitleaks-baseline.json",

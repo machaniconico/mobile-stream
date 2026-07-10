@@ -60,6 +60,14 @@ async function main() {
   if (!gitleaksVersion) {
     throw new Error("gitleaks is required for history scanning. Install gitleaks and rerun npm run verify:gitleaks-history.");
   }
+  const shallowRepository = readShallowRepositoryStatus();
+  if (shallowRepository !== false) {
+    throw new Error(
+      shallowRepository === true
+        ? "Gitleaks history scan requires a full git history checkout; the current repository is shallow."
+        : "Gitleaks history scan could not determine whether the current repository is shallow."
+    );
+  }
 
   assertWritableRegularPath(options.reportJson, "gitleaks history scan report");
   assertWritableRegularPath(options.rawReportJson, "raw gitleaks history report");
@@ -89,6 +97,7 @@ async function main() {
     status: result.status === 0 && rawFindings.length === 0 ? "passed" : "failed",
     generatedAt,
     gitleaksVersion,
+    shallowRepository,
     baselinePath: options.baselinePath,
     baselineFindings,
     rawReportPath: options.rawReportJson,
@@ -136,6 +145,7 @@ export function createGitleaksHistoryScanReport({
   status,
   generatedAt = new Date().toISOString(),
   gitleaksVersion,
+  shallowRepository = readShallowRepositoryStatus(),
   baselinePath = gitleaksHistoryBaselinePath,
   baselineFindings,
   rawReportPath = gitleaksHistoryRawReportPath,
@@ -152,7 +162,8 @@ export function createGitleaksHistoryScanReport({
     git: {
       commit: commandOutput("git", ["rev-parse", "HEAD"]),
       dirty: commandOutput("git", ["status", "--short"]).length > 0,
-      statusShort: commandOutput("git", ["status", "--short"])
+      statusShort: commandOutput("git", ["status", "--short"]),
+      shallowRepository
     },
     scannedCommits: Number(commandOutput("git", ["rev-list", "--count", "HEAD"])) || 0,
     baselinePath,
@@ -240,6 +251,9 @@ export function validateGitleaksHistoryScanReport(scan, options = {}) {
   if (typeof scan?.gitleaksVersion !== "string" || scan.gitleaksVersion.trim().length === 0) {
     failures.push("Gitleaks history scan artifact is missing gitleaks version evidence.");
   }
+  if (scan?.git?.shallowRepository !== false) {
+    failures.push("Gitleaks history scan artifact must be generated from a full git history checkout.");
+  }
   if (!Number.isInteger(scan?.scannedCommits) || scan.scannedCommits <= 0) {
     failures.push("Gitleaks history scan artifact is missing scanned commit evidence.");
   }
@@ -286,6 +300,17 @@ function commandOutput(command, args) {
     return "";
   }
   return result.stdout.trim();
+}
+
+function readShallowRepositoryStatus() {
+  const value = commandOutput("git", ["rev-parse", "--is-shallow-repository"]);
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
+  return null;
 }
 
 function fileSha256(path) {
