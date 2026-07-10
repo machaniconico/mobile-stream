@@ -79,6 +79,7 @@ import {
   showPersistentTextOverlay,
   showTimedTextOverlay,
   toRenderGraph,
+  updateQuickTextOverlayDeckInput,
   updateSource,
   updateTransform,
   type AvatarIllustrationRig,
@@ -549,9 +550,9 @@ export const MobileStudioScreen = ({
   const [quickTextPresetId, setQuickTextPresetId] = useState<ManualTextOverlayPresetId>("subtitle");
   const [quickTextDurationMs, setQuickTextDurationMs] = useState(() => quickTextOverlayDurationPresets[1]?.durationMs ?? 5000);
   const [quickTextPresetAction, setQuickTextPresetAction] = useState<QuickTextOverlayPresetAction>("show");
-  const [quickTextDeckInput, setQuickTextDeckInput] = useState(defaultQuickTextOverlayDeckInput);
   const [streamAnnouncementPromptVisible, setStreamAnnouncementPromptVisible] = useState(false);
   const [streamAnnouncementShareStatus, setStreamAnnouncementShareStatus] = useState("");
+  const quickTextDeckInput = scene.quickTextOverlayDeckInput ?? defaultQuickTextOverlayDeckInput;
   const quickTextDeck = createQuickTextOverlayDeck(quickTextDeckInput, {
     defaultPresetId: quickTextPresetId,
     defaultDurationMs: quickTextDurationMs
@@ -644,6 +645,12 @@ export const MobileStudioScreen = ({
     const nowMs = Date.now();
     onSceneChange(applyQuickTextOverlayPreset(scene, presetId, quickTextPresetAction, { durationMs: quickTextDurationMs, nowMs }));
     setTextOverlayClock(nowMs);
+  };
+  const updateQuickTextDeckInput = (input: string) => {
+    if (quickSubtitleLocked) {
+      return;
+    }
+    onSceneChange(updateQuickTextOverlayDeckInput(scene, input));
   };
   const showQuickTextDeckCue = (cueId: string) => {
     if (!canUseQuickTextDeck) {
@@ -1236,7 +1243,7 @@ export const MobileStudioScreen = ({
               <Label text="Text deck" />
               <TextInput
                 value={quickTextDeckInput}
-                onChangeText={setQuickTextDeckInput}
+                onChangeText={updateQuickTextDeckInput}
                 style={[styles.input, styles.quickTextDeckInput]}
                 editable={!quickSubtitleLocked}
                 multiline

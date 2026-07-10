@@ -882,6 +882,35 @@ select:focus-visible {
   color: var(--muted);
 }
 
+.quick-text-deck-field {
+  display: grid;
+  flex: 1 1 100%;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quick-text-deck-field textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.45;
+}
+
+.quick-text-deck-row {
+  display: grid;
+  flex: 1 1 100%;
+  gap: 6px;
+  min-width: 0;
+}
+
 .quick-text-preset-row {
   display: flex;
   flex: 1 1 100%;

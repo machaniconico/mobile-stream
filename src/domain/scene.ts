@@ -371,6 +371,7 @@ export interface SceneDocument {
   version: 1;
   id: string;
   name: string;
+  quickTextOverlayDeckInput?: string;
   canvas: {
     width: number;
     height: number;
@@ -439,6 +440,7 @@ const queuedSubtitleSourceName = "Queued Subtitle";
 const pinnedTextSourceName = "Pinned Text";
 const quickTextOverlayDeckDefaultMaxCueCount = 12;
 const quickTextOverlayDeckLabelMaxLength = 20;
+const quickTextOverlayDeckInputMaxLength = 1200;
 
 const normalizeTextOverlayDisplayDurationMs = (durationMs: number | undefined): number =>
   Math.round(
@@ -679,7 +681,7 @@ export const createQuickTextOverlayDeck = (
     clampRange(finiteNumber(options.maxCueCount, quickTextOverlayDeckDefaultMaxCueCount), 1, quickTextOverlayDeckDefaultMaxCueCount)
   );
 
-  return input
+  return normalizeQuickTextOverlayDeckInput(input)
     .split(/\r?\n/)
     .flatMap((line, index) =>
       createQuickTextOverlayDeckCue(line, index, {
@@ -688,6 +690,18 @@ export const createQuickTextOverlayDeck = (
       })
     )
     .slice(0, maxCueCount);
+};
+
+export const normalizeQuickTextOverlayDeckInput = (input: unknown, fallback = ""): string => {
+  const raw = typeof input === "string" ? input : fallback;
+  return raw
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => normalizeOverlayText(line))
+    .filter((line) => line.length > 0)
+    .slice(0, quickTextOverlayDeckDefaultMaxCueCount)
+    .join("\n")
+    .slice(0, quickTextOverlayDeckInputMaxLength);
 };
 
 export const manualTextOverlayPresets: readonly ManualTextOverlayPreset[] = [
@@ -1452,6 +1466,7 @@ export const createDefaultScene = (): SceneDocument => {
     version: 1,
     id: "scene-main",
     name: "Main Scene",
+    quickTextOverlayDeckInput: defaultQuickTextOverlayDeckInput,
     canvas,
     sources: [
     {
@@ -1601,6 +1616,7 @@ export const createSceneFromTemplate = (templateId: SceneTemplateId): SceneDocum
       version: 1,
       id: privacyShieldSceneId,
       name: templateLabels[templateId],
+      quickTextOverlayDeckInput: defaultQuickTextOverlayDeckInput,
       canvas,
       sources: [
         {
@@ -1631,6 +1647,7 @@ export const createSceneFromTemplate = (templateId: SceneTemplateId): SceneDocum
     version: 1,
     id: `scene-${templateId}`,
     name: templateLabels[templateId],
+    quickTextOverlayDeckInput: defaultQuickTextOverlayDeckInput,
     canvas,
     sources: [
       {
@@ -2210,6 +2227,11 @@ export const applyQuickTextOverlayDeckCue = (
   }
 };
 
+export const updateQuickTextOverlayDeckInput = (scene: SceneDocument, input: string): SceneDocument => ({
+  ...scene,
+  quickTextOverlayDeckInput: normalizeQuickTextOverlayDeckInput(input)
+});
+
 export const hideTextOverlays = (
   scene: SceneDocument,
   request: HideTextOverlayRequest = {}
@@ -2372,6 +2394,10 @@ export const normalizeSceneDocument = (value: unknown): SceneDocument => {
     version: 1,
     id: stringValue(value.id, fallback.id),
     name: stringValue(value.name, fallback.name),
+    quickTextOverlayDeckInput: normalizeQuickTextOverlayDeckInput(
+      value.quickTextOverlayDeckInput,
+      fallback.quickTextOverlayDeckInput ?? defaultQuickTextOverlayDeckInput
+    ),
     canvas,
     sources: uniqueSources.length > 0 ? uniqueSources : fallback.sources
   };

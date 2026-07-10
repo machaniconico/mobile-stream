@@ -10,6 +10,8 @@ export const requiredBrowserUiTextChecks = [
   "Rig quality",
   "Subtitle",
   "Quick text",
+  "Text deck",
+  "Custom deck",
   "Preset action",
   "Queue text",
   "Pin text",

@@ -740,6 +740,7 @@ function validatePackagedCommercialManifests(packageDir, packagedArtifacts, fail
   }
   const preflight = readPackagedJsonEntry(preflightArtifact, packageDir, "physical device preflight", failures);
   if (preflight) {
+    validatePackagedPhysicalDevicePreflightArtifactPath(preflight, preflightArtifact, failures);
     failures.push(
       ...validatePhysicalDevicePreflightGateEvidence(
         releaseReport,
@@ -753,6 +754,25 @@ function validatePackagedCommercialManifests(packageDir, packagedArtifacts, fail
         allowDirty: Boolean(releaseReport.options?.allowDirty),
         maxAgeHours
       }).map((failure) => `Package ${failure}`)
+    );
+  }
+}
+
+function validatePackagedPhysicalDevicePreflightArtifactPath(preflight, preflightArtifact, failures) {
+  const expectedPath = workspaceRecordPath(preflightArtifact?.sourcePath || "");
+  const declaredPath =
+    typeof preflight?.artifactPath === "string" && !isAbsolute(preflight.artifactPath)
+      ? workspaceRelativePath(preflight.artifactPath)
+      : "";
+  if (!expectedPath) {
+    failures.push("Package physical device preflight artifact source path must be workspace-relative.");
+    return;
+  }
+  if (declaredPath !== expectedPath) {
+    failures.push(
+      `Package physical device preflight artifactPath must match packaged source path ${expectedPath}, got ${String(
+        preflight?.artifactPath || "-"
+      )}.`
     );
   }
 }

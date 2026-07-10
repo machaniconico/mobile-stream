@@ -15,6 +15,8 @@ describe("browser UI required text checks", () => {
       "Rig quality",
       "Subtitle",
       "Quick text",
+      "Text deck",
+      "Custom deck",
       "Preset action",
       "Queue text",
       "Pin text",

@@ -849,6 +849,24 @@ describe("release evidence package creator", () => {
     );
   });
 
+  it("rejects packages whose physical-device preflight artifactPath points at another source", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedPreflightPath = `${packageDir}/artifacts/${physicalDevicePreflightPath}`;
+    const preflight = JSON.parse(readFileSync(packagedPreflightPath, "utf8"));
+    preflight.artifactPath = ".artifacts/release-evidence-package-test/other-physical-device-preflight.json";
+    writeFileSync(packagedPreflightPath, JSON.stringify(preflight, null, 2));
+    refreshPackagedPhysicalDevicePreflightEvidence(packagedPreflightPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      `Package physical device preflight artifactPath must match packaged source path ${physicalDevicePreflightPath}, got .artifacts/release-evidence-package-test/other-physical-device-preflight.json.`
+    );
+  });
+
   it("rejects packages missing artifacts referenced by a packaged commercial manifest", () => {
     resetPackageDir();
     writeReportFixture();
@@ -3068,6 +3086,29 @@ function refreshPackagedStoreReleaseReportEvidence(packagedStoreReleaseReportPat
   manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
   manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
   refreshPackageArtifactEntry(manifest, storeReleaseReportPath, packagedStoreReleaseReportPath);
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+}
+
+function refreshPackagedPhysicalDevicePreflightEvidence(packagedPreflightPath) {
+  const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+  const preflightContent = readFileSync(packagedPreflightPath);
+  const preflightSha256 = createHash("sha256").update(preflightContent).digest("hex");
+
+  const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+  const reportArtifact = packagedReport.artifacts.files.find(
+    (artifact) => artifact.group === physicalDevicePreflightArtifactGroup && artifact.path === physicalDevicePreflightPath
+  );
+  reportArtifact.bytes = preflightContent.byteLength;
+  reportArtifact.sha256 = preflightSha256;
+  const gate = packagedReport.gates.find((entry) => entry.label === "Verify physical device preflight");
+  gate.evidence.sha256 = preflightSha256;
+  writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+  const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+  manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+  refreshPackageArtifactEntry(manifest, physicalDevicePreflightPath, packagedPreflightPath);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 }
 

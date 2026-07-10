@@ -73,13 +73,16 @@ import {
   addSource,
   analyzeAvatarIllustrationAlphaMask,
   activateTimedTextSource,
+  applyQuickTextOverlayDeckCue,
   applyInferredAvatarIllustrationRig,
   applyTextOverlayPresetStyle,
   createAvatarIllustrationLandmarkAnalysisFromPixelFeatures,
   createAvatarIllustrationLandmarkAnalysisFromDetector,
+  createQuickTextOverlayDeck,
   createSource,
   createTextOverlayPresetSource,
   createTextOverlayRuntimeStatus,
+  defaultQuickTextOverlayDeckInput,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
   applyQuickTextOverlayPreset,
@@ -95,6 +98,7 @@ import {
   showPersistentTextOverlay,
   showTimedTextOverlay,
   toRenderGraph,
+  updateQuickTextOverlayDeckInput,
   updateSource,
   updateTransform,
   type AvatarIllustrationDetectorFace,
@@ -602,9 +606,15 @@ export const StudioScreen = ({
   const [streamAnnouncementPromptVisible, setStreamAnnouncementPromptVisible] = useState(false);
   const [streamAnnouncementShareStatus, setStreamAnnouncementShareStatus] = useState("");
   const quickSubtitleLocked = isBusy || operationBusy || platformApiBusy;
+  const quickTextDeckInput = scene.quickTextOverlayDeckInput ?? defaultQuickTextOverlayDeckInput;
+  const quickTextDeck = createQuickTextOverlayDeck(quickTextDeckInput, {
+    defaultPresetId: quickTextPresetId,
+    defaultDurationMs: quickTextDurationMs
+  });
   const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canQueueQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canPinQuickText = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
+  const canUseQuickTextDeck = quickTextDeck.length > 0 && !quickSubtitleLocked;
   const canHideManualTextOverlay =
     !quickSubtitleLocked &&
     scene.sources.some((source) => source.kind === "text" && source.contentSource === "manual" && source.visible);
@@ -696,6 +706,30 @@ export const StudioScreen = ({
     }
     const nowMs = Date.now();
     onSceneChange(applyQuickTextOverlayPreset(scene, presetId, quickTextPresetAction, { durationMs: quickTextDurationMs, nowMs }));
+    setTextOverlayClock(nowMs);
+  };
+  const updateQuickTextDeckInput = (input: string) => {
+    if (quickSubtitleLocked) {
+      return;
+    }
+    onSceneChange(updateQuickTextOverlayDeckInput(scene, input));
+  };
+  const showQuickTextDeckCue = (cueId: string) => {
+    if (!canUseQuickTextDeck) {
+      return;
+    }
+    const cue = quickTextDeck.find((item) => item.id === cueId);
+    if (!cue) {
+      return;
+    }
+    const nowMs = Date.now();
+    onSceneChange(
+      applyQuickTextOverlayDeckCue(scene, cue, quickTextPresetAction, {
+        sourceId: selectedManualTextSourceId,
+        durationMs: quickTextDurationMs,
+        nowMs
+      })
+    );
     setTextOverlayClock(nowMs);
   };
   const diagnostics = createStreamDiagnostics(
@@ -1208,6 +1242,35 @@ export const StudioScreen = ({
               </button>
             </div>
             <TextOverlayStatusStrip status={textOverlayRuntimeStatus} />
+            <label className="quick-text-deck-field">
+              <span>Text deck</span>
+              <textarea
+                value={quickTextDeckInput}
+                disabled={quickSubtitleLocked}
+                maxLength={1200}
+                rows={4}
+                placeholder={"[subtitle] こんにちは\n[notice] 少しお待ちください"}
+                onChange={(event) => updateQuickTextDeckInput(event.target.value)}
+              />
+            </label>
+            {quickTextDeck.length > 0 ? (
+              <div className="quick-text-deck-row" aria-label="custom text deck">
+                <span className="quick-text-preset-group-label">Custom deck</span>
+                <div className="quick-text-preset-buttons">
+                  {quickTextDeck.map((cue) => (
+                    <button
+                      key={cue.id}
+                      className="quick-text-preset-button"
+                      type="button"
+                      disabled={!canUseQuickTextDeck}
+                      onClick={() => showQuickTextDeckCue(cue.id)}
+                    >
+                      {cue.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className="quick-text-preset-row" aria-label="quick text overlay presets">
               {quickTextOverlayPresetGroups.map((group) => (
                 <div key={group.category} className="quick-text-preset-group">

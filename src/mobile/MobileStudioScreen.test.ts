@@ -18,6 +18,7 @@ describe("MobileStudioScreen subtitle and text controls", () => {
     expect(source).toContain("次: {queuedPreviewText || \"待機なし\"}");
     expect(source).toContain("createQuickTextOverlayDeck(quickTextDeckInput");
     expect(source).toContain("applyQuickTextOverlayDeckCue(scene, cue, quickTextPresetAction");
+    expect(source).toContain("updateQuickTextOverlayDeckInput(scene, input)");
     expect(source).toContain('text="Text deck"');
     expect(source).toContain("quickTextDeck.map");
   });

@@ -228,6 +228,8 @@ const checks = [
     expectIncludes(files.verifyUiScript, "Quick Text status preview did not show proof text");
     expectIncludes(files.browserUiRequiredTextScript, "requiredBrowserUiTextChecks");
     expectIncludes(files.browserUiRequiredTextScript, '"Quick text"');
+    expectIncludes(files.browserUiRequiredTextScript, '"Text deck"');
+    expectIncludes(files.browserUiRequiredTextScript, '"Custom deck"');
     expectIncludes(files.browserUiRequiredTextScript, '"Preset action"');
     expectIncludes(files.browserUiRequiredTextScript, '"Queue text"');
     expectIncludes(files.browserUiRequiredTextScript, '"Pin text"');
@@ -443,6 +445,7 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "Package distribution manifest");
     expectIncludes(files.releaseEvidencePackageScript, "Package dashboard evidence manifest");
     expectIncludes(files.releaseEvidencePackageScript, "Package store submission checklist");
+    expectIncludes(files.releaseEvidencePackageScript, "validatePackagedPhysicalDevicePreflightArtifactPath");
     expectIncludes(files.releaseEvidencePackageScript, "Package manifest generatedAt timestamp is missing or invalid");
     expectIncludes(files.releaseEvidencePackageScript, "Release evidence package contains unmanifested file");
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");

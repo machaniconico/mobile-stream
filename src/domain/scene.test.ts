@@ -28,6 +28,7 @@ import {
   hideTextOverlays,
   inferAvatarIllustrationRig,
   manualTextOverlayPresets,
+  normalizeQuickTextOverlayDeckInput,
   quickTextOverlayDurationPresets,
   quickTextOverlayPresetActions,
   normalizeSceneCollection,
@@ -52,6 +53,7 @@ import {
   stripTransientSceneRuntime,
   syncLiveCaptionTextSourceForSettings,
   toRenderGraph,
+  updateQuickTextOverlayDeckInput,
   updateSource,
   updateSceneTransition,
   updateTransform
@@ -1323,6 +1325,36 @@ describe("scene document", () => {
     });
     expect(deck[3]?.text).toContain("Authorization: Bearer [redacted]");
     expect(deck[3]?.text).not.toContain("deck-secret-12345");
+  });
+
+  it("persists custom quick text deck input with the scene document", () => {
+    const scene = updateQuickTextOverlayDeckInput(
+      createDefaultScene(),
+      [
+        "[subtitle] 保存される字幕",
+        "   ",
+        "[notice] Authorization: Bearer saved-deck-secret-12345",
+        "[badge] Q&A"
+      ].join("\n")
+    );
+    const normalized = normalizeSceneDocument(JSON.parse(JSON.stringify(scene)));
+    const persisted = stripTransientSceneRuntime(normalized);
+    const deck = createQuickTextOverlayDeck(persisted.quickTextOverlayDeckInput ?? "");
+
+    expect(persisted.quickTextOverlayDeckInput).toBe(
+      "[subtitle] 保存される字幕\n[notice] Authorization: Bearer [redacted]\n[badge] Q&A"
+    );
+    expect(JSON.stringify(persisted)).not.toContain("saved-deck-secret-12345");
+    expect(deck.map((cue) => cue.text)).toEqual(["保存される字幕", "Authorization: Bearer [redacted]", "Q&A"]);
+  });
+
+  it("normalizes legacy scenes with the default quick text deck", () => {
+    const legacy = createDefaultScene();
+    const { quickTextOverlayDeckInput: _deck, ...withoutDeck } = legacy;
+    const normalized = normalizeSceneDocument(withoutDeck);
+
+    expect(normalized.quickTextOverlayDeckInput).toBe(defaultQuickTextOverlayDeckInput);
+    expect(normalizeQuickTextOverlayDeckInput(" \n[subtitle] 1\n[notice] 2\n")).toBe("[subtitle] 1\n[notice] 2");
   });
 
   it("applies custom quick text deck cues through show, queue, and pin actions", () => {
