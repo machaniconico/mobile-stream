@@ -438,6 +438,7 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "Packaged release report is missing browser UI evidence JSON metadata.");
     expectIncludes(files.releaseEvidencePackageScript, "validatePackagedUiEvidence");
     expectIncludes(files.releaseEvidencePackageScript, "validateManifestGitProvenance");
+    expectIncludes(files.releaseEvidencePackageScript, "validatePackageManifestGitAgainstReport");
     expectIncludes(files.releaseEvidencePackageScript, "Package manifest");
     expectIncludes(files.releaseEvidencePackageScript, "Package distribution manifest");
     expectIncludes(files.releaseEvidencePackageScript, "Package dashboard evidence manifest");

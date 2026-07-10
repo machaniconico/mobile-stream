@@ -495,6 +495,40 @@ describe("release evidence package creator", () => {
     expect(failures).toContain("Package manifest git dirty state is missing.");
   });
 
+  it("rejects packages whose manifest git commit provenance is missing", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.git.commit = "";
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Package manifest git commit is missing.");
+  });
+
+  it("rejects packages whose manifest commit does not match the packaged release report", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.git.commit = "0".repeat(40);
+    manifest.git.dirty = false;
+    manifest.git.statusShort = "";
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      `Package manifest commit ${"0".repeat(40)} does not match current commit ${currentCommit()}.`
+    );
+  });
+
   it("rejects packages whose manifest generatedAt timestamp is missing or invalid", () => {
     resetPackageDir();
     writeReportFixture();

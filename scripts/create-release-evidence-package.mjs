@@ -296,10 +296,8 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
     failures.push("Packaged release report must be a passed MobileLiveCaster release-candidate-verification report.");
   }
   validatePackageManifestGeneratedAfterReport(manifest, report, failures);
+  validatePackageManifestGitAgainstReport(manifest, report, failures);
   failures.push(...validateCommercialPackageableReleaseReport(report, "Packaged release report"));
-  if (report?.git?.commit && manifest.git?.commit && report.git.commit !== manifest.git.commit) {
-    failures.push(`Packaged release report commit ${report.git.commit} does not match package commit ${manifest.git.commit}.`);
-  }
   if (report?.supportBundle?.sha256 && report.supportBundle.sha256 !== manifest.supportBundle.sha256) {
     failures.push("Packaged support bundle SHA-256 does not match the release report support bundle SHA-256.");
   }
@@ -568,6 +566,25 @@ function validatePackageManifestGeneratedAfterReport(manifest, report, failures)
   }
   if (generatedAt < reportFinishedAt) {
     failures.push("Package manifest generatedAt is before the packaged release report finishedAt.");
+  }
+}
+
+function validatePackageManifestGitAgainstReport(manifest, report, failures) {
+  const provenanceFailures = [];
+  validateManifestGitProvenance(
+    manifest?.git,
+    {
+      label: "Package manifest",
+      currentCommit: String(report?.git?.commit || ""),
+      allowDirty: false,
+      allowCommitMismatch: false
+    },
+    provenanceFailures
+  );
+  for (const failure of provenanceFailures) {
+    if (!failures.includes(failure)) {
+      failures.push(failure);
+    }
   }
 }
 
