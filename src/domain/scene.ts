@@ -336,6 +336,20 @@ export interface QuickTextOverlayPresetActionOption {
   label: string;
 }
 
+export interface QuickTextOverlayDeckCue {
+  id: string;
+  label: string;
+  text: string;
+  presetId: ManualTextOverlayPresetId;
+  durationMs: number;
+}
+
+export interface QuickTextOverlayDeckOptions {
+  defaultPresetId?: ManualTextOverlayPresetId;
+  defaultDurationMs?: number;
+  maxCueCount?: number;
+}
+
 export interface TextOverlayRuntimeStatus {
   sourceCount: number;
   visibleSourceCount: number;
@@ -423,6 +437,8 @@ const defaultUptimePrefixText = "経過";
 const quickSubtitleSourceName = "Quick Subtitle";
 const queuedSubtitleSourceName = "Queued Subtitle";
 const pinnedTextSourceName = "Pinned Text";
+const quickTextOverlayDeckDefaultMaxCueCount = 12;
+const quickTextOverlayDeckLabelMaxLength = 20;
 
 const normalizeTextOverlayDisplayDurationMs = (durationMs: number | undefined): number =>
   Math.round(
@@ -613,6 +629,67 @@ export const quickTextOverlayPresetGroups: readonly QuickTextOverlayPresetGroup[
   })
 );
 
+export const defaultQuickTextOverlayDeckInput = [
+  "[subtitle] 初見さん歓迎です",
+  "[notice] 少しお待ちください",
+  "[ticker] フォロー・高評価お願いします",
+  "[badge] ネタバレ注意",
+  "[lower-third] 固定コメントを確認してください"
+].join("\n");
+
+const quickTextOverlayDeckPresetAliases: Readonly<Record<string, ManualTextOverlayPresetId>> = {
+  subtitle: "subtitle",
+  captions: "subtitle",
+  caption: "subtitle",
+  "字幕": "subtitle",
+  "テロップ": "subtitle",
+  notice: "notice",
+  alert: "notice",
+  "告知": "notice",
+  "通知": "notice",
+  ticker: "ticker",
+  crawl: "ticker",
+  "帯": "ticker",
+  "ニュース": "ticker",
+  badge: "badge",
+  live: "badge",
+  "バッジ": "badge",
+  "注意": "badge",
+  "lower-third": "lower-third",
+  lowerthird: "lower-third",
+  lower: "lower-third",
+  third: "lower-third",
+  "肩書き": "lower-third",
+  "左下": "lower-third",
+  title: "title",
+  "タイトル": "title",
+  countdown: "starting-soon-countdown",
+  "カウントダウン": "starting-soon-countdown",
+  uptime: "uptime-badge",
+  "経過": "uptime-badge"
+};
+
+export const createQuickTextOverlayDeck = (
+  input: string,
+  options: QuickTextOverlayDeckOptions = {}
+): QuickTextOverlayDeckCue[] => {
+  const defaultPresetId = normalizeManualTextOverlayPresetId(options.defaultPresetId, "subtitle");
+  const defaultDurationMs = normalizeTextOverlayDisplayDurationMs(options.defaultDurationMs);
+  const maxCueCount = Math.round(
+    clampRange(finiteNumber(options.maxCueCount, quickTextOverlayDeckDefaultMaxCueCount), 1, quickTextOverlayDeckDefaultMaxCueCount)
+  );
+
+  return input
+    .split(/\r?\n/)
+    .flatMap((line, index) =>
+      createQuickTextOverlayDeckCue(line, index, {
+        defaultPresetId,
+        defaultDurationMs
+      })
+    )
+    .slice(0, maxCueCount);
+};
+
 export const manualTextOverlayPresets: readonly ManualTextOverlayPreset[] = [
   { presetId: "subtitle", label: "Subtitle", description: "Bottom subtitles for spoken copy or short reactions." },
   { presetId: "lower-third", label: "Lower Third", description: "Left-aligned lower-third title or announcement." },
@@ -623,6 +700,68 @@ export const manualTextOverlayPresets: readonly ManualTextOverlayPreset[] = [
   { presetId: "starting-soon-countdown", label: "Starting Soon countdown", description: "Countdown text for pre-stream scenes." },
   { presetId: "uptime-badge", label: "Uptime badge", description: "Elapsed-stream timer badge." }
 ];
+
+const createQuickTextOverlayDeckCue = (
+  rawLine: string,
+  index: number,
+  options: Required<Pick<QuickTextOverlayDeckOptions, "defaultPresetId" | "defaultDurationMs">>
+): QuickTextOverlayDeckCue[] => {
+  const parsed = parseQuickTextOverlayDeckLine(rawLine, options.defaultPresetId);
+  const text = serializeTextOverlayLines(parsed.text, 4).join("\n");
+  if (!text) {
+    return [];
+  }
+
+  return [
+    {
+      id: `deck-cue-${index + 1}-${createStableOverlayCueSlug(text)}`,
+      label: createQuickTextOverlayDeckCueLabel(text),
+      text,
+      presetId: parsed.presetId,
+      durationMs: options.defaultDurationMs
+    }
+  ];
+};
+
+const parseQuickTextOverlayDeckLine = (
+  rawLine: string,
+  defaultPresetId: ManualTextOverlayPresetId
+): { text: string; presetId: ManualTextOverlayPresetId } => {
+  const line = rawLine.trim();
+  const match = line.match(/^\[([^\]]+)\]\s*(.*)$/u);
+  if (!match) {
+    return { text: line, presetId: defaultPresetId };
+  }
+
+  const alias = normalizeOverlayText(match[1] ?? "").toLowerCase();
+  return {
+    text: match[2] ?? "",
+    presetId: quickTextOverlayDeckPresetAliases[alias] ?? defaultPresetId
+  };
+};
+
+const createQuickTextOverlayDeckCueLabel = (text: string): string => {
+  const singleLine = normalizeOverlayText(text.replace(/\n+/g, " "));
+  if (singleLine.length <= quickTextOverlayDeckLabelMaxLength) {
+    return singleLine;
+  }
+  return `${singleLine.slice(0, quickTextOverlayDeckLabelMaxLength - 1).trim()}…`;
+};
+
+const createStableOverlayCueSlug = (text: string): string => {
+  const slug = normalizeOverlayText(text)
+    .toLowerCase()
+    .replace(/[^a-z0-9ぁ-んァ-ン一-龯]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 24);
+  return slug || "text";
+};
+
+const normalizeManualTextOverlayPresetId = (
+  presetId: ManualTextOverlayPresetId | undefined,
+  fallback: ManualTextOverlayPresetId
+): ManualTextOverlayPresetId =>
+  presetId && manualTextOverlayPresets.some((preset) => preset.presetId === presetId) ? presetId : fallback;
 
 const clampTransform = (transform: Transform): Transform => ({
   x: clamp01(transform.x),
@@ -2037,6 +2176,37 @@ export const applyQuickTextOverlayPreset = (
       return pinQuickTextOverlayPreset(scene, presetId, request);
     case "show":
       return showQuickTextOverlayPreset(scene, presetId, request);
+  }
+};
+
+export const applyQuickTextOverlayDeckCue = (
+  scene: SceneDocument,
+  cue: QuickTextOverlayDeckCue,
+  action: QuickTextOverlayPresetAction,
+  request: Omit<Partial<TimedTextOverlayRequest>, "text" | "presetId"> = {}
+): SceneDocument => {
+  switch (action) {
+    case "queue":
+      return queueTimedTextOverlay(scene, {
+        ...request,
+        text: cue.text,
+        presetId: cue.presetId,
+        durationMs: request.durationMs ?? cue.durationMs
+      });
+    case "pin":
+      return showPersistentTextOverlay(scene, {
+        sourceId: request.sourceId,
+        nowMs: request.nowMs,
+        text: cue.text,
+        presetId: cue.presetId
+      });
+    case "show":
+      return showTimedTextOverlay(scene, {
+        ...request,
+        text: cue.text,
+        presetId: cue.presetId,
+        durationMs: request.durationMs ?? cue.durationMs
+      });
   }
 };
 

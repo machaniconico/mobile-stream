@@ -56,14 +56,17 @@ import type { ReadinessIssue, ReadinessReport } from "../domain/readiness";
 import {
   addSource,
   activateTimedTextSource,
+  applyQuickTextOverlayDeckCue,
   applyQuickTextOverlayPreset,
   applyInferredAvatarIllustrationRig,
   applyTextOverlayPresetStyle,
+  createQuickTextOverlayDeck,
   createSource,
   createTextOverlayPresetSource,
   createTextOverlayRuntimeStatus,
   defaultAvatarIllustrationRig,
   defaultAvatarMotion,
+  defaultQuickTextOverlayDeckInput,
   hideTextOverlays,
   manualTextOverlayPresets,
   quickTextOverlayDurationPresets,
@@ -546,11 +549,17 @@ export const MobileStudioScreen = ({
   const [quickTextPresetId, setQuickTextPresetId] = useState<ManualTextOverlayPresetId>("subtitle");
   const [quickTextDurationMs, setQuickTextDurationMs] = useState(() => quickTextOverlayDurationPresets[1]?.durationMs ?? 5000);
   const [quickTextPresetAction, setQuickTextPresetAction] = useState<QuickTextOverlayPresetAction>("show");
+  const [quickTextDeckInput, setQuickTextDeckInput] = useState(defaultQuickTextOverlayDeckInput);
   const [streamAnnouncementPromptVisible, setStreamAnnouncementPromptVisible] = useState(false);
   const [streamAnnouncementShareStatus, setStreamAnnouncementShareStatus] = useState("");
+  const quickTextDeck = createQuickTextOverlayDeck(quickTextDeckInput, {
+    defaultPresetId: quickTextPresetId,
+    defaultDurationMs: quickTextDurationMs
+  });
   const canShowQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canQueueQuickSubtitle = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
   const canPinQuickText = quickSubtitleText.trim().length > 0 && !quickSubtitleLocked;
+  const canUseQuickTextDeck = quickTextDeck.length > 0 && !quickSubtitleLocked;
   const canHideManualTextOverlay =
     !quickSubtitleLocked &&
     scene.sources.some((source) => source.kind === "text" && source.contentSource === "manual" && source.visible);
@@ -634,6 +643,24 @@ export const MobileStudioScreen = ({
     }
     const nowMs = Date.now();
     onSceneChange(applyQuickTextOverlayPreset(scene, presetId, quickTextPresetAction, { durationMs: quickTextDurationMs, nowMs }));
+    setTextOverlayClock(nowMs);
+  };
+  const showQuickTextDeckCue = (cueId: string) => {
+    if (!canUseQuickTextDeck) {
+      return;
+    }
+    const cue = quickTextDeck.find((item) => item.id === cueId);
+    if (!cue) {
+      return;
+    }
+    const nowMs = Date.now();
+    onSceneChange(
+      applyQuickTextOverlayDeckCue(scene, cue, quickTextPresetAction, {
+        sourceId: selectedManualTextSourceId,
+        durationMs: quickTextDurationMs,
+        nowMs
+      })
+    );
     setTextOverlayClock(nowMs);
   };
   const diagnostics = createStreamDiagnostics(
@@ -1205,6 +1232,35 @@ export const MobileStudioScreen = ({
               <ActionButton label="Hide text" disabled={!canHideManualTextOverlay} onPress={hideManualTextOverlay} />
             </View>
             <TextOverlayStatusStrip status={textOverlayRuntimeStatus} />
+            <View style={styles.quickTextDeckEditor}>
+              <Label text="Text deck" />
+              <TextInput
+                value={quickTextDeckInput}
+                onChangeText={setQuickTextDeckInput}
+                style={[styles.input, styles.quickTextDeckInput]}
+                editable={!quickSubtitleLocked}
+                multiline
+                numberOfLines={4}
+                maxLength={1200}
+                placeholder={"[subtitle] こんにちは\n[notice] 少しお待ちください"}
+                placeholderTextColor="#71717a"
+              />
+            </View>
+            {quickTextDeck.length > 0 ? (
+              <View style={styles.quickTextDeckRow}>
+                <Text style={styles.quickTextPresetGroupLabel}>Custom deck</Text>
+                <View style={styles.quickTextPresetButtons}>
+                  {quickTextDeck.map((cue) => (
+                    <ActionButton
+                      key={cue.id}
+                      label={cue.label}
+                      disabled={!canUseQuickTextDeck}
+                      onPress={() => showQuickTextDeckCue(cue.id)}
+                    />
+                  ))}
+                </View>
+              </View>
+            ) : null}
             <View style={styles.quickTextPresetRow}>
               {quickTextOverlayPresetGroups.map((group) => (
                 <View key={group.category} style={styles.quickTextPresetGroup}>
@@ -5425,6 +5481,18 @@ const styles = StyleSheet.create({
     color: "#f4f4f5",
     fontSize: 12,
     fontWeight: "800"
+  },
+  quickTextDeckEditor: {
+    width: "100%",
+    gap: 6
+  },
+  quickTextDeckInput: {
+    minHeight: 92,
+    textAlignVertical: "top"
+  },
+  quickTextDeckRow: {
+    width: "100%",
+    gap: 6
   },
   quickTextPresetRow: {
     flexDirection: "row",

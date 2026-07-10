@@ -3,6 +3,7 @@ import {
   addSource,
   analyzeAvatarIllustrationAlphaMask,
   activateTimedTextSource,
+  applyQuickTextOverlayDeckCue,
   applyQuickTextOverlayPreset,
   applyInferredAvatarIllustrationRig,
   applyTextOverlayPresetStyle,
@@ -13,11 +14,13 @@ import {
   createDefaultSceneCollection,
   createDefaultScene,
   createLiveCaptionTextSource,
+  createQuickTextOverlayDeck,
   createSceneFromTemplate,
   createSubtitleTextSource,
   createSource,
   createTextOverlayPresetSource,
   createTextOverlayRuntimeStatus,
+  defaultQuickTextOverlayDeckInput,
   duplicateActiveScene,
   ensureLiveCaptionTextSource,
   formatTimerOverlayText,
@@ -1279,6 +1282,84 @@ describe("scene document", () => {
       visibilityMode: "always"
     });
     expect(applyQuickTextOverlayPreset(pinned, "missing" as QuickTextOverlayPresetId, "show")).toBe(pinned);
+  });
+
+  it("builds custom quick text decks from multiline subtitle scripts", () => {
+    const defaultDeck = createQuickTextOverlayDeck(defaultQuickTextOverlayDeckInput);
+    const deck = createQuickTextOverlayDeck(
+      [
+        "[notice] 少しお待ちください",
+        "[badge] ネタバレ注意",
+        "[unknown] フォールバック表示",
+        "Authorization: Bearer deck-secret-12345"
+      ].join("\n"),
+      {
+        defaultPresetId: "ticker",
+        defaultDurationMs: 9500,
+        maxCueCount: 4
+      }
+    );
+
+    expect(defaultDeck).toHaveLength(5);
+    expect(defaultDeck[0]).toMatchObject({
+      label: "初見さん歓迎です",
+      text: "初見さん歓迎です",
+      presetId: "subtitle"
+    });
+    expect(deck).toHaveLength(4);
+    expect(deck[0]).toMatchObject({
+      label: "少しお待ちください",
+      text: "少しお待ちください",
+      presetId: "notice",
+      durationMs: 9500
+    });
+    expect(deck[1]).toMatchObject({
+      label: "ネタバレ注意",
+      presetId: "badge"
+    });
+    expect(deck[2]).toMatchObject({
+      text: "フォールバック表示",
+      presetId: "ticker"
+    });
+    expect(deck[3]?.text).toContain("Authorization: Bearer [redacted]");
+    expect(deck[3]?.text).not.toContain("deck-secret-12345");
+  });
+
+  it("applies custom quick text deck cues through show, queue, and pin actions", () => {
+    const nowMs = 105500;
+    const [noticeCue, badgeCue] = createQuickTextOverlayDeck("[notice] 休憩中です\n[badge] Q&A", {
+      defaultDurationMs: 6000
+    });
+    const shown = applyQuickTextOverlayDeckCue(createDefaultScene(), noticeCue!, "show", {
+      nowMs,
+      durationMs: 4000
+    });
+    const queued = applyQuickTextOverlayDeckCue(shown, badgeCue!, "queue", {
+      nowMs: nowMs + 500,
+      durationMs: 3000
+    });
+    const pinned = applyQuickTextOverlayDeckCue(queued, badgeCue!, "pin", {
+      nowMs: nowMs + 1000
+    });
+
+    expect(shown.sources.find((source) => source.kind === "text" && source.name === "Quick Subtitle")).toMatchObject({
+      text: "休憩中です",
+      mode: "label",
+      displayDurationMs: 4000,
+      transform: { x: 0.18, y: 0.4, width: 0.64, height: 0.18 }
+    });
+    expect(queued.sources.find((source) => source.kind === "text" && source.name === "Queued Subtitle")).toMatchObject({
+      text: "Q&A",
+      mode: "label",
+      displayDurationMs: 3000,
+      activatedAtMs: nowMs + 4000
+    });
+    expect(pinned.sources.find((source) => source.kind === "text" && source.name === "Pinned Text")).toMatchObject({
+      text: "Q&A",
+      backgroundColor: "#dc2626",
+      visibilityMode: "always",
+      activatedAtMs: nowMs + 1000
+    });
   });
 
   it("restyles the reusable quick overlay when a different quick text preset is shown", () => {
