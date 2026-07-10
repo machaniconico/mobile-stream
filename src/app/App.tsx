@@ -226,6 +226,7 @@ export const App = () => {
   const [streamAnnouncementAutoPostStatus, setStreamAnnouncementAutoPostStatus] = useState("");
   const operationInFlight = useRef(false);
   const streamAnnouncementAutoPostedSessionKeys = useRef(new Set<string>());
+  const streamAnnouncementAutoPostPendingSessionKeys = useRef(new Set<string>());
   const audioLevelSamplesRef = useRef<StreamAudioLevelSample[]>([]);
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
   const persistableSceneCollectionJson = useMemo(
@@ -322,6 +323,10 @@ export const App = () => {
   const runStreamAnnouncementAutoPost = useCallback(
     async (nextProfile: StudioProfile, signal: StreamAnnouncementAutoPostSignal, force = false) => {
       const engineSnapshot = engine.getSnapshot();
+      const activeSessionKeys = new Set([
+        ...streamAnnouncementAutoPostedSessionKeys.current,
+        ...streamAnnouncementAutoPostPendingSessionKeys.current
+      ]);
       const decision = force
         ? { shouldPost: true as const, sessionKey: null, reason: "platform-visible-live" as const }
         : createStreamAnnouncementAutoPostDecision({
@@ -335,7 +340,7 @@ export const App = () => {
             streamStatus: engineSnapshot.state.status,
             sessionStartedAt: engineSnapshot.state.startedAt,
             signal,
-            postedSessionKeys: streamAnnouncementAutoPostedSessionKeys.current
+            postedSessionKeys: activeSessionKeys
           });
 
       if (!decision.shouldPost) {
@@ -343,10 +348,6 @@ export const App = () => {
           setStreamAnnouncementAutoPostStatus("Discord webhook URL is invalid. Use the full https://discord.com/api/webhooks/{id}/{token} URL.");
         }
         return;
-      }
-
-      if (decision.sessionKey) {
-        streamAnnouncementAutoPostedSessionKeys.current.add(decision.sessionKey);
       }
 
       const secrets = createDiagnosticRedactionSecrets({
@@ -360,12 +361,19 @@ export const App = () => {
         secrets
       });
 
+      if (decision.sessionKey) {
+        streamAnnouncementAutoPostPendingSessionKeys.current.add(decision.sessionKey);
+      }
+
       try {
         const result = await postDiscordStreamAnnouncement({
           webhookUrl: nextProfile.streamAnnouncement.discordWebhookUrl,
           content: preview.text,
           fetcher: fetch
         });
+        if (decision.sessionKey) {
+          streamAnnouncementAutoPostedSessionKeys.current.add(decision.sessionKey);
+        }
         const status = force ? "📣 Discord test announcement posted." : "📣 Discord に告知を投稿したよ";
         setStreamAnnouncementAutoPostStatus(status);
         recordStreamSessionEvent(
@@ -383,6 +391,10 @@ export const App = () => {
             message: safeMessage
           })
         );
+      } finally {
+        if (decision.sessionKey) {
+          streamAnnouncementAutoPostPendingSessionKeys.current.delete(decision.sessionKey);
+        }
       }
     },
     [engine, platformChatAuth.twitchLogin, platformChatOAuthCredentials, recordStreamSessionEvent]

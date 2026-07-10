@@ -19,6 +19,16 @@ describe("MobileApp OAuth credential state", () => {
     expect(source).toContain("runStreamAnnouncementAutoPost(result.profile, \"twitch-status-refresh\")");
     expect(source).toContain("createStreamAnnouncementAutoPostDecision({");
     expect(source).toContain("enginePlatform: engineSnapshot.platform");
-    expect(source).toContain("postedSessionKeys: streamAnnouncementAutoPostedSessionKeys.current");
+    expect(source).toContain("const activeSessionKeys = new Set([");
+    expect(source).toContain("...streamAnnouncementAutoPostedSessionKeys.current");
+    expect(source).toContain("...streamAnnouncementAutoPostPendingSessionKeys.current");
+    expect(source).toContain("postedSessionKeys: activeSessionKeys");
+    expect(source.indexOf("streamAnnouncementAutoPostPendingSessionKeys.current.add(decision.sessionKey)")).toBeLessThan(
+      source.indexOf("const result = await postDiscordStreamAnnouncement({")
+    );
+    expect(source.indexOf("streamAnnouncementAutoPostedSessionKeys.current.add(decision.sessionKey)")).toBeGreaterThan(
+      source.indexOf("const result = await postDiscordStreamAnnouncement({")
+    );
+    expect(source).toContain("streamAnnouncementAutoPostPendingSessionKeys.current.delete(decision.sessionKey)");
   });
 });
