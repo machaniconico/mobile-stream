@@ -31,6 +31,7 @@ import { requiredBrowserUiTextChecks } from "./browser-ui-required-text.mjs";
 import {
   androidNativeDebugArtifactPath,
   androidNativeVerificationArtifactPath,
+  gitleaksHistoryBaselinePath,
   gitleaksHistoryScanArtifactPath,
   iosNativeVerificationArtifactPath,
   requiredReleaseArtifactGroups,
@@ -372,6 +373,11 @@ function validatePackagedGitleaksHistoryScanArtifact(report, packagedArtifacts, 
     failures.push(`Package is missing gitleaks history scan artifact ${gitleaksHistoryScanArtifactPath}.`);
     return;
   }
+  const baselineArtifact = packagedArtifactFor(packagedArtifacts, "release-config", gitleaksHistoryBaselinePath);
+  const baselineContent = baselineArtifact ? readPackagedArtifactContent(baselineArtifact, packageDir) : null;
+  if (!baselineContent) {
+    failures.push(`Package is missing gitleaks baseline artifact ${gitleaksHistoryBaselinePath}.`);
+  }
 
   const scan = readPackagedJsonEntry(artifact, packageDir, "gitleaks history scan", failures);
   if (!scan) {
@@ -379,6 +385,7 @@ function validatePackagedGitleaksHistoryScanArtifact(report, packagedArtifacts, 
   }
   failures.push(
     ...validateGitleaksHistoryScanReport(scan, {
+      expectedBaselineSha256: baselineContent ? createHash("sha256").update(baselineContent).digest("hex") : "",
       releaseStartedAt: report?.startedAt || "",
       releaseFinishedAt: report?.finishedAt || ""
     }).map((failure) => `Package ${failure}`)

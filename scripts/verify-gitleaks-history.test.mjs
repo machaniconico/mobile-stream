@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createGitleaksHistoryScanReport,
   expectedGitleaksBaselineFindings,
+  expectedGitleaksVersion,
   validateGitleaksBaselineEntries,
   validateGitleaksBaselineFile,
   validateGitleaksHistoryScanReport
@@ -45,7 +46,7 @@ describe("gitleaks history scanner", () => {
     const report = createGitleaksHistoryScanReport({
       status: "passed",
       generatedAt: "2026-06-25T00:00:01.000Z",
-      gitleaksVersion: "8.30.1",
+      gitleaksVersion: expectedGitleaksVersion,
       shallowRepository: false,
       baselineFindings,
       rawFindings: []
@@ -64,7 +65,7 @@ describe("gitleaks history scanner", () => {
     const report = createGitleaksHistoryScanReport({
       status: "failed",
       generatedAt: "2026-06-25T00:00:01.000Z",
-      gitleaksVersion: "8.30.1",
+      gitleaksVersion: expectedGitleaksVersion,
       shallowRepository: false,
       baselineFindings,
       rawFindings: [{ RuleID: "generic-api-key", File: "src/main.ts", StartLine: 1, Fingerprint: "new" }]
@@ -78,7 +79,7 @@ describe("gitleaks history scanner", () => {
     const report = createGitleaksHistoryScanReport({
       status: "passed",
       generatedAt: "2026-06-25T00:00:01.000Z",
-      gitleaksVersion: "8.30.1",
+      gitleaksVersion: expectedGitleaksVersion,
       shallowRepository: true,
       baselineFindings,
       rawFindings: []
@@ -87,5 +88,37 @@ describe("gitleaks history scanner", () => {
     expect(validateGitleaksHistoryScanReport(report)).toContain(
       "Gitleaks history scan artifact must be generated from a full git history checkout."
     );
+  });
+
+  it("rejects history scan artifacts from unexpected gitleaks versions", () => {
+    const report = createGitleaksHistoryScanReport({
+      status: "passed",
+      generatedAt: "2026-06-25T00:00:01.000Z",
+      gitleaksVersion: "8.29.0",
+      shallowRepository: false,
+      baselineFindings: validateGitleaksBaselineFile(),
+      rawFindings: []
+    });
+
+    expect(validateGitleaksHistoryScanReport(report)).toContain(
+      `Gitleaks history scan artifact must use gitleaks ${expectedGitleaksVersion}.`
+    );
+  });
+
+  it("rejects history scan artifacts whose baseline hash does not match the approved file", () => {
+    const report = createGitleaksHistoryScanReport({
+      status: "passed",
+      generatedAt: "2026-06-25T00:00:01.000Z",
+      gitleaksVersion: expectedGitleaksVersion,
+      shallowRepository: false,
+      baselineFindings: validateGitleaksBaselineFile(),
+      rawFindings: []
+    });
+
+    expect(
+      validateGitleaksHistoryScanReport(report, {
+        expectedBaselineSha256: "0".repeat(64)
+      })
+    ).toContain("Gitleaks history scan artifact baseline SHA-256 does not match the approved baseline file.");
   });
 });

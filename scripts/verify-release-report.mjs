@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import {
   androidNativeVerificationArtifactPath,
   iosNativeVerificationArtifactPath,
+  gitleaksHistoryBaselinePath,
   gitleaksHistoryScanArtifactPath,
   releaseConfigArtifactPaths,
   requiredReleaseArtifactGroups,
@@ -324,6 +325,7 @@ function validateGitleaksHistoryScanArtifactInReport(report, artifacts, fail) {
     return;
   }
   for (const failure of validateGitleaksHistoryScanReport(scan, {
+    expectedBaselineSha256: fileSha256(gitleaksHistoryBaselinePath),
     releaseStartedAt: report?.startedAt || "",
     releaseFinishedAt: report?.finishedAt || ""
   })) {

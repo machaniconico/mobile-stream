@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync
 import { dirname, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  gitleaksHistoryBaselinePath,
   gitleaksHistoryScanArtifactPath,
   releaseConfigArtifactPaths,
   sourceSecretScanArtifactGroup,
@@ -485,7 +486,7 @@ function writeGitleaksHistoryScanFixture(patch = {}) {
         },
         scannedCommits: 484,
         baselinePath: ".gitleaks-baseline.json",
-        baselineSha256: "a".repeat(64),
+        baselineSha256: fileSha256(gitleaksHistoryBaselinePath),
         baselineFingerprintCount: 4,
         baselineFingerprints: [
           "07acf4a10f14ed7491a9f97c71cb41a74c5a7c84:src/domain/readiness.test.ts:generic-api-key:19",

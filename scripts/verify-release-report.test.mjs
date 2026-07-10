@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   androidNativeDebugArtifactPath,
+  gitleaksHistoryBaselinePath,
   gitleaksHistoryScanArtifactPath,
   iosNativeVerificationArtifactPath,
   releaseConfigArtifactPaths,
@@ -141,6 +142,17 @@ describe("release report verifier", () => {
 
     expect(validateReport(report, reportOptions())).toContain(
       "Gitleaks history scan artifact generatedAt is before the release report startedAt."
+    );
+  });
+
+  it("rejects release reports whose gitleaks history baseline hash does not match the approved baseline", () => {
+    const report = createReport();
+    rewriteGitleaksHistoryScan(report, {
+      baselineSha256: "0".repeat(64)
+    });
+
+    expect(validateReport(report, reportOptions())).toContain(
+      "Gitleaks history scan artifact baseline SHA-256 does not match the approved baseline file."
     );
   });
 
@@ -882,7 +894,7 @@ function writeGitleaksHistoryScanFixture(patch = {}) {
         },
         scannedCommits: 484,
         baselinePath: ".gitleaks-baseline.json",
-        baselineSha256: "a".repeat(64),
+        baselineSha256: fileSha256(gitleaksHistoryBaselinePath),
         baselineFingerprintCount: 4,
         baselineFingerprints: [
           "07acf4a10f14ed7491a9f97c71cb41a74c5a7c84:src/domain/readiness.test.ts:generic-api-key:19",

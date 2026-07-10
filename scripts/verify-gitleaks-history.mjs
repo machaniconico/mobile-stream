@@ -40,6 +40,7 @@ export const expectedGitleaksBaselineFindings = [
     Fingerprint: "801c776904f1bcec9863e59924537f45d0bbc0e1:src/domain/readiness.test.ts:generic-api-key:38"
   }
 ];
+export const expectedGitleaksVersion = "8.30.1";
 
 if (isDirectRun()) {
   main().catch((error) => {
@@ -59,6 +60,9 @@ async function main() {
   const gitleaksVersion = commandOutput("gitleaks", ["version"]);
   if (!gitleaksVersion) {
     throw new Error("gitleaks is required for history scanning. Install gitleaks and rerun npm run verify:gitleaks-history.");
+  }
+  if (gitleaksVersion !== expectedGitleaksVersion) {
+    throw new Error(`Gitleaks history scan requires gitleaks ${expectedGitleaksVersion}, got ${gitleaksVersion}.`);
   }
   const shallowRepository = readShallowRepositoryStatus();
   if (shallowRepository !== false) {
@@ -248,8 +252,13 @@ export function validateGitleaksHistoryScanReport(scan, options = {}) {
   if (JSON.stringify(actualFingerprints) !== JSON.stringify(expectedFingerprints)) {
     failures.push("Gitleaks history scan artifact baseline fingerprints do not match the approved baseline.");
   }
-  if (typeof scan?.gitleaksVersion !== "string" || scan.gitleaksVersion.trim().length === 0) {
-    failures.push("Gitleaks history scan artifact is missing gitleaks version evidence.");
+  if (scan?.gitleaksVersion !== expectedGitleaksVersion) {
+    failures.push(`Gitleaks history scan artifact must use gitleaks ${expectedGitleaksVersion}.`);
+  }
+  if (typeof scan?.baselineSha256 !== "string" || !/^[a-f0-9]{64}$/u.test(scan.baselineSha256)) {
+    failures.push("Gitleaks history scan artifact is missing valid baseline SHA-256 evidence.");
+  } else if (options.expectedBaselineSha256 && scan.baselineSha256 !== options.expectedBaselineSha256) {
+    failures.push("Gitleaks history scan artifact baseline SHA-256 does not match the approved baseline file.");
   }
   if (scan?.git?.shallowRepository !== false) {
     failures.push("Gitleaks history scan artifact must be generated from a full git history checkout.");

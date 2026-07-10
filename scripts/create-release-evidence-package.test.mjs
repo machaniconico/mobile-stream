@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   androidNativeDebugArtifactPath,
+  gitleaksHistoryBaselinePath,
   gitleaksHistoryScanArtifactPath,
   iosNativeVerificationArtifactPath,
   releaseConfigArtifactPaths,
@@ -247,6 +248,18 @@ describe("release evidence package creator", () => {
 
     expect(failures).toContain('Package Gitleaks history scan artifact must be passed, got "failed".');
     expect(failures).toContain("Package Gitleaks history scan artifact must report zero unbaselined findings.");
+  });
+
+  it("rejects packaged gitleaks history scan evidence when the approved baseline artifact is missing", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    rmSync(packagedGitleaksBaselinePath(), { force: true });
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(`Package is missing gitleaks baseline artifact ${gitleaksHistoryBaselinePath}.`);
   });
 
   it("rejects packaged source secret scan evidence with retained findings even when metadata hashes match", () => {
@@ -1792,7 +1805,7 @@ function writeGitleaksHistoryScanFixture(patch = {}) {
         },
         scannedCommits: 484,
         baselinePath: ".gitleaks-baseline.json",
-        baselineSha256: "a".repeat(64),
+        baselineSha256: fileSha256(gitleaksHistoryBaselinePath),
         baselineFingerprintCount: 4,
         baselineFingerprints: [
           "07acf4a10f14ed7491a9f97c71cb41a74c5a7c84:src/domain/readiness.test.ts:generic-api-key:19",
@@ -2826,6 +2839,14 @@ function packagedGitleaksHistoryScanPath() {
   const manifest = JSON.parse(readFileSync(`${packageDir}/${releaseEvidencePackageManifestName}`, "utf8"));
   const artifact = manifest.artifacts.find(
     (candidate) => candidate.group === sourceSecretScanArtifactGroup && candidate.sourcePath === gitleaksHistoryScanArtifactPath
+  );
+  return `${packageDir}/${artifact.packagedPath}`;
+}
+
+function packagedGitleaksBaselinePath() {
+  const manifest = JSON.parse(readFileSync(`${packageDir}/${releaseEvidencePackageManifestName}`, "utf8"));
+  const artifact = manifest.artifacts.find(
+    (candidate) => candidate.group === "release-config" && candidate.sourcePath === gitleaksHistoryBaselinePath
   );
   return `${packageDir}/${artifact.packagedPath}`;
 }
