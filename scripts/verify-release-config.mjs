@@ -157,6 +157,7 @@ const checks = [
     expectIncludes(files.distributionArtifactsScript, ".aab");
     expectIncludes(files.distributionArtifactsScript, "sha256");
     expectIncludes(files.distributionArtifactsScript, "validateManifestGitProvenance");
+    expectIncludes(files.distributionArtifactsScript, "currentCommit = \"\"");
     expectIncludes(files.releaseGitProvenanceScript, "git commit is missing");
     expectIncludes(files.releaseGitProvenanceScript, "full 40- or 64-character hexadecimal object id");
     expectIncludes(files.releaseGitProvenanceScript, "git dirty state is missing");
@@ -203,6 +204,9 @@ const checks = [
     expectIncludes(files.releaseReportScript, "physicalDevicePreflightArtifactGroup");
     expectIncludes(files.releaseReportScript, "Physical-device preflight gate runbook");
     expectIncludes(files.releaseReportScript, "validateManifestGitProvenance");
+    expectIncludes(files.releaseReportScript, "validateDistributionArtifactsInReport(report, artifacts, options, fail)");
+    expectIncludes(files.releaseReportScript, "validateDashboardEvidenceInReport(report, artifacts, options, fail)");
+    expectIncludes(files.releaseReportScript, "validateStoreSubmissionInReport(report, artifacts, options, fail)");
     expectIncludes(files.releaseReportScript, "Browser UI evidence");
     expectIncludes(files.releaseReportScript, "Browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");
     expectIncludes(files.releaseReportScript, "Browser UI evidence finishedAt timestamp is missing or invalid.");
@@ -435,6 +439,9 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "validatePackagedUiEvidence");
     expectIncludes(files.releaseEvidencePackageScript, "validateManifestGitProvenance");
     expectIncludes(files.releaseEvidencePackageScript, "Package manifest");
+    expectIncludes(files.releaseEvidencePackageScript, "Package distribution manifest");
+    expectIncludes(files.releaseEvidencePackageScript, "Package dashboard evidence manifest");
+    expectIncludes(files.releaseEvidencePackageScript, "Package store submission checklist");
     expectIncludes(files.releaseEvidencePackageScript, "Package manifest generatedAt timestamp is missing or invalid");
     expectIncludes(files.releaseEvidencePackageScript, "Release evidence package contains unmanifested file");
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");
@@ -446,6 +453,7 @@ const checks = [
     expectIncludes(files.dashboardEvidenceScript, "twitchScreenshot");
     expectIncludes(files.dashboardEvidenceScript, "platform-dashboard-evidence-manifest");
     expectIncludes(files.dashboardEvidenceScript, "validateManifestGitProvenance");
+    expectIncludes(files.dashboardEvidenceScript, "currentCommit = \"\"");
     expectIncludes(files.dashboardEvidenceScript, "readPngEvidence");
     expectIncludes(files.dashboardEvidenceScript, "dashboardScreenshotMinimumShortEdge");
     expectIncludes(files.dashboardEvidenceScript, "Dashboard evidence screenshot dimensions mismatch");
@@ -456,6 +464,7 @@ const checks = [
     expectIncludes(files.dashboardEvidenceScript, "Twitch broadcasterId");
     expectIncludes(files.storeSubmissionScript, "store-submission-checklist-manifest");
     expectIncludes(files.storeSubmissionScript, "validateManifestGitProvenance");
+    expectIncludes(files.storeSubmissionScript, "currentCommit = \"\"");
     expectIncludes(files.storeSubmissionScript, "readPngEvidence");
     expectIncludes(files.storeSubmissionScript, "privacyPolicyUrl");
     expectIncludes(files.storeSubmissionScript, "dataSafetyNotes");

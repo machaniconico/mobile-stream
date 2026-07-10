@@ -587,6 +587,20 @@ describe("release report verifier", () => {
     expect(failures).toEqual([]);
   });
 
+  it("rejects release reports whose distribution manifest commit does not match the report", () => {
+    restoreUiScreenshots();
+    const report = createReport({ includeDistribution: true });
+    rewriteJsonArtifact(report, distributionArtifactManifestPath, (manifest) => {
+      manifest.git.commit = "0".repeat(40);
+      manifest.git.dirty = false;
+      manifest.git.statusShort = "";
+    });
+
+    expect(validateReport(report, reportOptions())).toContain(
+      `Distribution manifest commit ${"0".repeat(40)} does not match current commit ${report.git.commit}.`
+    );
+  });
+
   it("rejects release reports missing an artifact referenced by the distribution manifest", () => {
     restoreUiScreenshots();
     const report = createReport({ includeDistribution: true });
@@ -606,6 +620,20 @@ describe("release report verifier", () => {
     expect(failures).toEqual([]);
   });
 
+  it("rejects release reports whose dashboard evidence manifest commit does not match the report", () => {
+    restoreUiScreenshots();
+    const report = createReport({ includeDashboardEvidence: true });
+    rewriteJsonArtifact(report, dashboardEvidenceManifestPath, (manifest) => {
+      manifest.git.commit = "0".repeat(40);
+      manifest.git.dirty = false;
+      manifest.git.statusShort = "";
+    });
+
+    expect(validateReport(report, reportOptions())).toContain(
+      `Dashboard evidence manifest commit ${"0".repeat(40)} does not match current commit ${report.git.commit}.`
+    );
+  });
+
   it("rejects release reports missing dashboard evidence referenced by the manifest", () => {
     restoreUiScreenshots();
     const report = createReport({ includeDashboardEvidence: true });
@@ -623,6 +651,20 @@ describe("release report verifier", () => {
     const failures = validateReport(createReport({ includeStoreSubmission: true }), reportOptions());
 
     expect(failures).toEqual([]);
+  });
+
+  it("rejects release reports whose store submission checklist commit does not match the report", () => {
+    restoreUiScreenshots();
+    const report = createReport({ includeStoreSubmission: true });
+    rewriteJsonArtifact(report, storeSubmissionChecklistPath, (manifest) => {
+      manifest.git.commit = "0".repeat(40);
+      manifest.git.dirty = false;
+      manifest.git.statusShort = "";
+    });
+
+    expect(validateReport(report, reportOptions())).toContain(
+      `Store submission checklist commit ${"0".repeat(40)} does not match current commit ${report.git.commit}.`
+    );
   });
 
   it("rejects store-submission release reports without physical-device preflight evidence", () => {
@@ -985,6 +1027,15 @@ function rewriteSourceSecretScan(report, patch) {
   const artifact = report.artifacts.files.find((candidate) => candidate.path === sourceSecretScanArtifactPath);
   artifact.bytes = readFileSync(sourceSecretScanArtifactPath).byteLength;
   artifact.sha256 = fileSha256(sourceSecretScanArtifactPath);
+}
+
+function rewriteJsonArtifact(report, path, mutate) {
+  const content = JSON.parse(readFileSync(path, "utf8"));
+  mutate(content);
+  writeFile(path, JSON.stringify(content, null, 2));
+  const artifact = report.artifacts.files.find((candidate) => candidate.path === path);
+  artifact.bytes = readFileSync(path).byteLength;
+  artifact.sha256 = fileSha256(path);
 }
 
 function rewriteIosNativeVerification(report, mutate) {

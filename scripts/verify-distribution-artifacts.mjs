@@ -77,7 +77,7 @@ export function readDistributionManifest(manifestPath = distributionArtifactMani
 
 export function validateDistributionManifest(
   manifest,
-  { manifestPath = distributionArtifactManifestPath, allowDirty = true, allowCommitMismatch = true } = {}
+  { manifestPath = distributionArtifactManifestPath, currentCommit = "", allowDirty = true, allowCommitMismatch = true } = {}
 ) {
   const failures = [];
   if (manifest?.app !== "MobileLiveCaster" || manifest?.type !== "distribution-artifact-manifest" || manifest?.reportVersion !== 1) {
@@ -88,10 +88,10 @@ export function validateDistributionManifest(
     failures.push("Distribution manifest has no artifacts.");
     return failures;
   }
-  const currentCommit = commandOutput("git", ["rev-parse", "HEAD"]);
+  const resolvedCurrentCommit = currentCommit || commandOutput("git", ["rev-parse", "HEAD"]);
   validateManifestGitProvenance(
     manifest.git,
-    { label: "Distribution manifest", currentCommit, allowDirty, allowCommitMismatch },
+    { label: "Distribution manifest", currentCommit: resolvedCurrentCommit, allowDirty, allowCommitMismatch },
     failures
   );
 
@@ -129,7 +129,7 @@ export function collectDistributionArtifactRecords({ manifestPath = distribution
   return records;
 }
 
-export function validateDistributionArtifactsInReport(artifacts, fail) {
+export function validateDistributionArtifactsInReport(report, artifacts, options, fail) {
   const manifestArtifact = artifacts.find(
     (artifact) => artifact?.group === distributionArtifactGroup && artifact?.path === distributionArtifactManifestPath
   );
@@ -145,7 +145,11 @@ export function validateDistributionArtifactsInReport(artifacts, fail) {
     return;
   }
 
-  for (const failure of validateDistributionManifest(manifest, { allowDirty: true, allowCommitMismatch: true })) {
+  for (const failure of validateDistributionManifest(manifest, {
+    currentCommit: report?.git?.commit || "",
+    allowDirty: options.allowDirty,
+    allowCommitMismatch: options.allowCommitMismatch
+  })) {
     fail(failure);
   }
 

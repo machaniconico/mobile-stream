@@ -298,9 +298,9 @@ function validateArtifacts(report, options, fail) {
   validateGitleaksHistoryScanArtifactInReport(report, artifacts, options, fail);
   validateSourceSecretScanArtifactInReport(report, artifacts, options, fail);
   validateNativeBuildArtifactsInReport(report, artifacts, options, fail);
-  validateDistributionArtifactsInReport(artifacts, fail);
-  validateDashboardEvidenceInReport(artifacts, fail);
-  validateStoreSubmissionInReport(artifacts, fail);
+  validateDistributionArtifactsInReport(report, artifacts, options, fail);
+  validateDashboardEvidenceInReport(report, artifacts, options, fail);
+  validateStoreSubmissionInReport(report, artifacts, options, fail);
   validateStoreReleaseReportInReleaseReport(artifacts, fail, {
     expectedCommit: report.git?.commit || "",
     allowDirty: options.allowDirty,

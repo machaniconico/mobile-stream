@@ -126,6 +126,7 @@ export function validateStoreSubmissionChecklist(
   manifest,
   {
     manifestPath = storeSubmissionChecklistPath,
+    currentCommit = "",
     allowDirty = true,
     allowCommitMismatch = true,
     requireRealDeviceScreenshots = false
@@ -140,10 +141,10 @@ export function validateStoreSubmissionChecklist(
     failures.push("Store submission checklist is not a MobileLiveCaster store-submission-checklist-manifest reportVersion 1 file.");
     return failures;
   }
-  const currentCommit = commandOutput("git", ["rev-parse", "HEAD"]);
+  const resolvedCurrentCommit = currentCommit || commandOutput("git", ["rev-parse", "HEAD"]);
   validateManifestGitProvenance(
     manifest.git,
-    { label: "Store submission checklist", currentCommit, allowDirty, allowCommitMismatch },
+    { label: "Store submission checklist", currentCommit: resolvedCurrentCommit, allowDirty, allowCommitMismatch },
     failures
   );
   if (!workspaceRelativePath(manifestPath)) {
@@ -205,7 +206,7 @@ export function collectStoreSubmissionArtifactRecords({ manifestPath = storeSubm
   return records;
 }
 
-export function validateStoreSubmissionInReport(artifacts, fail) {
+export function validateStoreSubmissionInReport(report, artifacts, options, fail) {
   const manifestArtifact = artifacts.find(
     (artifact) => artifact?.group === storeSubmissionArtifactGroup && artifact?.path === storeSubmissionChecklistPath
   );
@@ -221,7 +222,11 @@ export function validateStoreSubmissionInReport(artifacts, fail) {
     return;
   }
 
-  for (const failure of validateStoreSubmissionChecklist(manifest, { allowDirty: true, allowCommitMismatch: true })) {
+  for (const failure of validateStoreSubmissionChecklist(manifest, {
+    currentCommit: report?.git?.commit || "",
+    allowDirty: options.allowDirty,
+    allowCommitMismatch: options.allowCommitMismatch
+  })) {
     fail(failure);
   }
 

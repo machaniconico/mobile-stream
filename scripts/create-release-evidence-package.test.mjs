@@ -334,6 +334,68 @@ describe("release evidence package creator", () => {
     );
   });
 
+  it("rejects packaged distribution manifests from a different commit", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const sourceAabPath = ".artifacts/release-evidence-package-test/app-release.aab";
+    const packagedAabPath = `${packageDir}/artifacts/${sourceAabPath}`;
+    const packagedDistributionManifestPath = `${packageDir}/artifacts/${distributionArtifactManifestPath}`;
+    const distributionManifest = JSON.parse(readFileSync(packagedDistributionManifestPath, "utf8"));
+    distributionManifest.git.commit = "0".repeat(40);
+    distributionManifest.git.dirty = false;
+    distributionManifest.git.statusShort = "";
+    writeFileSync(packagedDistributionManifestPath, JSON.stringify(distributionManifest, null, 2));
+    refreshPackagedDistributionEvidence(packagedDistributionManifestPath, sourceAabPath, packagedAabPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      `Package distribution manifest commit ${"0".repeat(40)} does not match current commit ${currentCommit()}.`
+    );
+  });
+
+  it("rejects packaged dashboard evidence manifests from a different commit", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedDashboardManifestPath = `${packageDir}/artifacts/${dashboardEvidenceManifestPath}`;
+    const dashboardManifest = JSON.parse(readFileSync(packagedDashboardManifestPath, "utf8"));
+    dashboardManifest.git.commit = "0".repeat(40);
+    dashboardManifest.git.dirty = false;
+    dashboardManifest.git.statusShort = "";
+    writeFileSync(packagedDashboardManifestPath, JSON.stringify(dashboardManifest, null, 2));
+    refreshPackagedDashboardEvidenceEntries({ packagedDashboardManifestPath });
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      `Package dashboard evidence manifest commit ${"0".repeat(40)} does not match current commit ${currentCommit()}.`
+    );
+  });
+
+  it("rejects packaged store submission checklists from a different commit", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedChecklistPath = `${packageDir}/artifacts/${storeSubmissionChecklistPath}`;
+    const checklist = JSON.parse(readFileSync(packagedChecklistPath, "utf8"));
+    checklist.git.commit = "0".repeat(40);
+    checklist.git.dirty = false;
+    checklist.git.statusShort = "";
+    writeFileSync(packagedChecklistPath, JSON.stringify(checklist, null, 2));
+    refreshPackagedChecklistEvidence(packagedChecklistPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      `Package store submission checklist commit ${"0".repeat(40)} does not match current commit ${currentCommit()}.`
+    );
+  });
+
   it("rejects release reports generated with development-only dirty-worktree approval", () => {
     writeReportFixture();
     const report = JSON.parse(readFileSync(reportPath, "utf8"));
@@ -2285,8 +2347,8 @@ function writeDistributionFixture() {
         git: {
           commit: currentCommit(),
           branch: "main",
-          dirty: true,
-          statusShort: " M scripts/create-release-evidence-package.test.mjs"
+          dirty: false,
+          statusShort: ""
         },
         artifacts: [
           distributionManifestRecord("android", "aab", ".artifacts/release-evidence-package-test/app-release.aab"),
@@ -2383,8 +2445,8 @@ function writeDashboardEvidenceFixture() {
         git: {
           commit: currentCommit(),
           branch: "main",
-          dirty: true,
-          statusShort: " M scripts/create-release-evidence-package.test.mjs"
+          dirty: false,
+          statusShort: ""
         },
         artifacts: [
           dashboardScreenshotRecord("youtube", ".artifacts/release-evidence-package-test/youtube-dashboard.png"),
@@ -2473,8 +2535,8 @@ function writeStoreSubmissionFixture() {
         git: {
           commit: currentCommit(),
           branch: "main",
-          dirty: true,
-          statusShort: " M scripts/create-release-evidence-package.test.mjs"
+          dirty: false,
+          statusShort: ""
         },
         metadata: storeMetadataRecord(),
         screenshots: [

@@ -80,7 +80,7 @@ export function readDashboardEvidenceManifest(manifestPath = dashboardEvidenceMa
 
 export function validateDashboardEvidenceManifest(
   manifest,
-  { manifestPath = dashboardEvidenceManifestPath, allowDirty = true, allowCommitMismatch = true } = {}
+  { manifestPath = dashboardEvidenceManifestPath, currentCommit = "", allowDirty = true, allowCommitMismatch = true } = {}
 ) {
   const failures = [];
   if (manifest?.app !== "MobileLiveCaster" || manifest?.type !== "platform-dashboard-evidence-manifest" || manifest?.reportVersion !== 1) {
@@ -91,10 +91,10 @@ export function validateDashboardEvidenceManifest(
     failures.push("Dashboard evidence manifest has no artifacts.");
     return failures;
   }
-  const currentCommit = commandOutput("git", ["rev-parse", "HEAD"]);
+  const resolvedCurrentCommit = currentCommit || commandOutput("git", ["rev-parse", "HEAD"]);
   validateManifestGitProvenance(
     manifest.git,
-    { label: "Dashboard evidence manifest", currentCommit, allowDirty, allowCommitMismatch },
+    { label: "Dashboard evidence manifest", currentCommit: resolvedCurrentCommit, allowDirty, allowCommitMismatch },
     failures
   );
 
@@ -132,7 +132,7 @@ export function collectDashboardEvidenceArtifactRecords({ manifestPath = dashboa
   return records;
 }
 
-export function validateDashboardEvidenceInReport(artifacts, fail) {
+export function validateDashboardEvidenceInReport(report, artifacts, options, fail) {
   const manifestArtifact = artifacts.find(
     (artifact) => artifact?.group === dashboardEvidenceArtifactGroup && artifact?.path === dashboardEvidenceManifestPath
   );
@@ -148,7 +148,11 @@ export function validateDashboardEvidenceInReport(artifacts, fail) {
     return;
   }
 
-  for (const failure of validateDashboardEvidenceManifest(manifest, { allowDirty: true, allowCommitMismatch: true })) {
+  for (const failure of validateDashboardEvidenceManifest(manifest, {
+    currentCommit: report?.git?.commit || "",
+    allowDirty: options.allowDirty,
+    allowCommitMismatch: options.allowCommitMismatch
+  })) {
     fail(failure);
   }
 

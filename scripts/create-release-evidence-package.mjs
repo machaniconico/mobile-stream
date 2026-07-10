@@ -678,7 +678,7 @@ function validatePackagedCommercialManifests(packageDir, packagedArtifacts, fail
     failures
   });
   if (distributionManifest) {
-    validatePackagedDistributionManifest(distributionManifest, packagedArtifacts, packageDir, failures);
+    validatePackagedDistributionManifest(distributionManifest, packagedArtifacts, packageDir, failures, { releaseReport });
   }
 
   const dashboardManifest = readPackagedJsonArtifact({
@@ -906,7 +906,7 @@ function validatePackagedUiEvidenceScreenshot(viewport, packagedArtifacts, packa
   }
 }
 
-function validatePackagedDistributionManifest(distributionManifest, packagedArtifacts, packageDir, failures) {
+function validatePackagedDistributionManifest(distributionManifest, packagedArtifacts, packageDir, failures, { releaseReport }) {
   if (
     distributionManifest?.app !== "MobileLiveCaster" ||
     distributionManifest?.type !== "distribution-artifact-manifest" ||
@@ -921,6 +921,16 @@ function validatePackagedDistributionManifest(distributionManifest, packagedArti
     failures.push("Package distribution manifest has no artifacts.");
     return;
   }
+  validateManifestGitProvenance(
+    distributionManifest.git,
+    {
+      label: "Package distribution manifest",
+      currentCommit: releaseReport?.git?.commit || "",
+      allowDirty: false,
+      allowCommitMismatch: false
+    },
+    failures
+  );
   validateRequiredRecordKinds(
     records,
     [
@@ -987,6 +997,16 @@ function validatePackagedDashboardEvidenceManifest(
     failures.push("Package dashboard evidence manifest has no artifacts.");
     return;
   }
+  validateManifestGitProvenance(
+    dashboardManifest.git,
+    {
+      label: "Package dashboard evidence manifest",
+      currentCommit: releaseReport?.git?.commit || "",
+      allowDirty: false,
+      allowCommitMismatch: false
+    },
+    failures
+  );
   validateRequiredRecordKinds(
     records,
     [
@@ -1214,6 +1234,16 @@ function validatePackagedStoreSubmissionChecklist(
   if (!Array.isArray(storeSubmissionChecklist.reviewDocuments) || storeSubmissionChecklist.reviewDocuments.length === 0) {
     failures.push("Package store submission checklist has no review documents.");
   }
+  validateManifestGitProvenance(
+    storeSubmissionChecklist.git,
+    {
+      label: "Package store submission checklist",
+      currentCommit: releaseReport?.git?.commit || "",
+      allowDirty: false,
+      allowCommitMismatch: false
+    },
+    failures
+  );
   validateRequiredRecordKinds(
     records,
     [
