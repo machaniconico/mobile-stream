@@ -18,12 +18,28 @@ private let broadcastRuntimeStateKey = "MobileLiveCaster.broadcastRuntimeState.v
 
 final class SampleHandler: RPBroadcastSampleHandler {
     private let pipeline = BroadcastUploadPipeline()
+    private let logger = Logger(subsystem: "MobileLiveCaster", category: "BroadcastUploadLifecycle")
+    private var activeHandoffID: String?
 
     override func broadcastStarted(withSetupInfo setupInfo: [String: NSObject]?) {
-        switch pipeline.start(setupInfo: setupInfo ?? [:]) {
-        case .success:
-            break
-        case .failure(let error):
+        let requestedHandoffID = BroadcastSharedStore.currentHandoffID()
+        do {
+            let sharedSetupInfo = try requestedHandoffID.flatMap { handoffID in
+                try BroadcastSharedStore.loadConfigurationSetupInfo(expectedHandoffID: handoffID)
+            }
+            let effectiveSetupInfo = sharedSetupInfo.map { shared in
+                (setupInfo ?? [:]).merging(shared) { _, sharedValue in sharedValue }
+            } ?? setupInfo ?? [:]
+            let handoffID = sharedSetupInfo?["handoffId"] as? String
+            switch pipeline.start(setupInfo: effectiveSetupInfo) {
+            case .success:
+                activeHandoffID = handoffID
+            case .failure(let error):
+                clearCredential(handoffID: handoffID)
+                finishBroadcastWithError(BroadcastUploadError.asNSError(error))
+            }
+        } catch {
+            clearCredential(handoffID: requestedHandoffID)
             finishBroadcastWithError(BroadcastUploadError.asNSError(error))
         }
     }
@@ -38,6 +54,9 @@ final class SampleHandler: RPBroadcastSampleHandler {
 
     override func broadcastFinished() {
         pipeline.stop()
+        let handoffID = activeHandoffID
+        activeHandoffID = nil
+        clearCredential(handoffID: handoffID)
     }
 
     override func processSampleBuffer(_ sampleBuffer: CMSampleBuffer, with sampleBufferType: RPSampleBufferType) {
@@ -50,6 +69,17 @@ final class SampleHandler: RPBroadcastSampleHandler {
             pipeline.consumeMicrophone(sampleBuffer)
         @unknown default:
             pipeline.dropUnknownSample()
+        }
+    }
+
+    private func clearCredential(handoffID: String?) {
+        guard let handoffID else {
+            return
+        }
+        do {
+            try BroadcastSharedStore.clearCredential(handoffID: handoffID)
+        } catch {
+            logger.error("Broadcast handoff cleanup failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 }
@@ -184,6 +214,7 @@ enum BroadcastAudioEncoderError: LocalizedError, Equatable {
 }
 
 struct BroadcastUploadConfiguration: Equatable {
+    let handoffID: String?
     let publishURL: URL
     let destinationName: String
     let width: Int
@@ -206,6 +237,7 @@ struct BroadcastUploadConfiguration: Equatable {
 
     init(setupInfo: [String: NSObject]) throws {
         let resolvedURL = try Self.resolvePublishURL(setupInfo: setupInfo)
+        handoffID = Self.stringValue(["handoffId"], in: setupInfo)
         publishURL = resolvedURL
         destinationName = Self.stringValue(["destinationName", "presetName", "platform"], in: setupInfo) ?? "RTMP"
         width = Self.clampedInt(["width", "videoWidth"], in: setupInfo, defaultValue: 1280, range: 360...3840)
@@ -686,14 +718,46 @@ final class BroadcastSharedStore {
         UserDefaults(suiteName: broadcastAppGroup)
     }
 
-    static func loadConfigurationSetupInfo() -> [String: NSObject]? {
+    static func loadConfigurationSetupInfo(
+        expectedHandoffID: String,
+        publishURLFallback: String? = nil
+    ) throws -> [String: NSObject]? {
         guard let payload = defaults?.dictionary(forKey: broadcastConfigurationKey) else {
             return nil
         }
 
-        let now = Date().timeIntervalSince1970 * 1000
-        if let expiresAt = payload["expiresAt"] as? NSNumber, expiresAt.doubleValue < now {
+        guard
+            let handoffID = payload["handoffId"] as? String,
+            UUID(uuidString: handoffID) != nil,
+            let expiresAt = payload["expiresAt"] as? NSNumber
+        else {
+            try LiveCasterBroadcastCredentialStore.clearExpiredCredentials()
             return nil
+        }
+        if expectedHandoffID != handoffID {
+            return nil
+        }
+
+        let now = Date().timeIntervalSince1970 * 1000
+        let publishURL: String
+        if let publishURLFallback, !publishURLFallback.isEmpty {
+            publishURL = publishURLFallback
+        } else {
+            guard expiresAt.doubleValue >= now else {
+                try clearCredential(handoffID: handoffID)
+                return nil
+            }
+            guard
+                let storedPublishURL = try LiveCasterBroadcastCredentialStore.consumePublishURL(
+                    handoffID: handoffID,
+                    expectedExpiresAt: expiresAt.doubleValue,
+                    nowMillis: now
+                )
+            else {
+                try clearCredential(handoffID: handoffID)
+                return nil
+            }
+            publishURL = storedPublishURL
         }
 
         var setupInfo: [String: NSObject] = [:]
@@ -702,7 +766,17 @@ final class BroadcastSharedStore {
                 setupInfo[key] = object
             }
         }
+        setupInfo["handoffId"] = handoffID as NSString
+        setupInfo["publishUrl"] = publishURL as NSString
         return setupInfo
+    }
+
+    static func currentHandoffID() -> String? {
+        defaults?.dictionary(forKey: broadcastConfigurationKey)?["handoffId"] as? String
+    }
+
+    static func clearCredential(handoffID: String) throws {
+        try LiveCasterBroadcastCredentialStore.clear(handoffID: handoffID)
     }
 
     static func saveRuntimeState(
@@ -2442,7 +2516,7 @@ final class BroadcastAudioEncoder {
         guard let inputFormatPointer = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription) else {
             throw BroadcastAudioEncoderError.formatDescriptionMissing
         }
-        var inputFormat = inputFormatPointer.pointee
+        let inputFormat = inputFormatPointer.pointee
         try configureMixerIfNeeded(sampleRate: inputFormat.mSampleRate)
         guard let mixerInputFormat else {
             throw BroadcastAudioEncoderError.converterCreateFailed(kAudio_ParamError)
@@ -5011,12 +5085,9 @@ final class BroadcastUploadPipeline {
 
     func start(setupInfo: [String: NSObject]) -> Result<Void, Error> {
         state = .starting
-        let effectiveSetupInfo = BroadcastSharedStore.loadConfigurationSetupInfo()?.merging(setupInfo) { _, explicitValue in
-            explicitValue
-        } ?? setupInfo
 
         do {
-            let nextConfiguration = try BroadcastUploadConfiguration(setupInfo: effectiveSetupInfo)
+            let nextConfiguration = try BroadcastUploadConfiguration(setupInfo: setupInfo)
             let nextPublisher = try BroadcastRTMPPublisher(configuration: nextConfiguration)
             let nextVideoEncoder = try BroadcastVideoEncoder(configuration: nextConfiguration) { encodedFrame in
                 nextPublisher.publishVideoFrame(encodedFrame)
@@ -5218,7 +5289,11 @@ final class BroadcastUploadPipeline {
         lastSceneConfigurationCheckAt = now
 
         guard
-            let setupInfo = BroadcastSharedStore.loadConfigurationSetupInfo(),
+            let handoffID = currentConfiguration.handoffID,
+            let setupInfo = try? BroadcastSharedStore.loadConfigurationSetupInfo(
+                expectedHandoffID: handoffID,
+                publishURLFallback: currentConfiguration.publishURL.absoluteString
+            ),
             let nextConfiguration = try? BroadcastUploadConfiguration(setupInfo: setupInfo)
         else {
             return

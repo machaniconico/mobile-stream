@@ -8,9 +8,17 @@ private let liveCasterSceneAppGroup = "group.com.mobilelivecaster.app"
 @objc(LiveCasterSceneStore)
 final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
     private let fileName = "mobile-live-caster-scene.json"
-    private let sessionSummariesFileName = "mobile-live-caster-session-summaries.json"
-    private let validationRunsFileName = "mobile-live-caster-validation-runs.json"
     private let sceneAssetsDirectoryName = "scene-assets"
+    private let sessionSummariesStore = LiveCasterDiagnosticHistoryStore(
+        encryptedFileName: "mobile-live-caster-session-summaries.encrypted-v1",
+        legacyFileName: "mobile-live-caster-session-summaries.json",
+        historyNamespace: "session-summaries-v1"
+    )
+    private let validationRunsStore = LiveCasterDiagnosticHistoryStore(
+        encryptedFileName: "mobile-live-caster-validation-runs.encrypted-v1",
+        legacyFileName: "mobile-live-caster-validation-runs.json",
+        historyNamespace: "validation-runs-v1"
+    )
     private var stillImagePickerResolve: RCTPromiseResolveBlock?
     private var stillImagePickerReject: RCTPromiseRejectBlock?
     private var stillImagePickerFilenameHint = "still-image"
@@ -246,14 +254,8 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
         resolver resolve: RCTPromiseResolveBlock,
         rejecter reject: RCTPromiseRejectBlock
     ) {
-        guard let data = summariesJson.data(using: .utf8), let url = sessionSummariesURL() else {
-            reject("session_summary_store_encode_failed", "Session summaries could not be encoded as UTF-8", nil)
-            return
-        }
-
         do {
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try data.write(to: url, options: .atomic)
+            try sessionSummariesStore.save(summariesJson)
             resolve(true)
         } catch {
             reject("session_summary_store_save_failed", "Session summaries save failed", error)
@@ -265,18 +267,8 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
         _ resolve: RCTPromiseResolveBlock,
         rejecter reject: RCTPromiseRejectBlock
     ) {
-        guard let url = sessionSummariesURL() else {
-            resolve(nil)
-            return
-        }
-
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            resolve(nil)
-            return
-        }
-
         do {
-            resolve(try String(contentsOf: url, encoding: .utf8))
+            resolve(try sessionSummariesStore.load())
         } catch {
             reject("session_summary_store_load_failed", "Session summaries load failed", error)
         }
@@ -287,13 +279,8 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
         _ resolve: RCTPromiseResolveBlock,
         rejecter reject: RCTPromiseRejectBlock
     ) {
-        guard let url = sessionSummariesURL(), FileManager.default.fileExists(atPath: url.path) else {
-            resolve(true)
-            return
-        }
-
         do {
-            try FileManager.default.removeItem(at: url)
+            try sessionSummariesStore.clear()
             resolve(true)
         } catch {
             reject("session_summary_store_clear_failed", "Session summaries clear failed", error)
@@ -306,14 +293,8 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
         resolver resolve: RCTPromiseResolveBlock,
         rejecter reject: RCTPromiseRejectBlock
     ) {
-        guard let data = runsJson.data(using: .utf8), let url = validationRunsURL() else {
-            reject("validation_run_store_encode_failed", "Validation runs could not be encoded as UTF-8", nil)
-            return
-        }
-
         do {
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try data.write(to: url, options: .atomic)
+            try validationRunsStore.save(runsJson)
             resolve(true)
         } catch {
             reject("validation_run_store_save_failed", "Validation runs save failed", error)
@@ -325,18 +306,8 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
         _ resolve: RCTPromiseResolveBlock,
         rejecter reject: RCTPromiseRejectBlock
     ) {
-        guard let url = validationRunsURL() else {
-            resolve(nil)
-            return
-        }
-
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            resolve(nil)
-            return
-        }
-
         do {
-            resolve(try String(contentsOf: url, encoding: .utf8))
+            resolve(try validationRunsStore.load())
         } catch {
             reject("validation_run_store_load_failed", "Validation runs load failed", error)
         }
@@ -347,13 +318,8 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
         _ resolve: RCTPromiseResolveBlock,
         rejecter reject: RCTPromiseRejectBlock
     ) {
-        guard let url = validationRunsURL(), FileManager.default.fileExists(atPath: url.path) else {
-            resolve(true)
-            return
-        }
-
         do {
-            try FileManager.default.removeItem(at: url)
+            try validationRunsStore.clear()
             resolve(true)
         } catch {
             reject("validation_run_store_clear_failed", "Validation runs clear failed", error)
@@ -362,14 +328,6 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
 
     private func sceneURL() -> URL? {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appendingPathComponent(fileName)
-    }
-
-    private func sessionSummariesURL() -> URL? {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appendingPathComponent(sessionSummariesFileName)
-    }
-
-    private func validationRunsURL() -> URL? {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appendingPathComponent(validationRunsFileName)
     }
 
     private func sceneAssetsURL() -> URL? {
@@ -462,13 +420,21 @@ final class LiveCasterSceneStore: NSObject, UIDocumentPickerDelegate {
         let sampleStep = max(1, Int(ceil(Double(max(width, height)) / 512.0)))
         let bounds = analyzeForegroundBounds(pixels: pixels, width: width, height: height, sampleStep: sampleStep)
         let imageAspectRatio = Double(width) / Double(height)
+        let foregroundCoverage: Double = bounds?.foregroundCoverage ?? 0
+        let confidence: Double = bounds?.confidence ?? 0
+        let foregroundBounds: Any
+        if let bounds {
+            foregroundBounds = bounds.dictionary()
+        } else {
+            foregroundBounds = NSNull()
+        }
         var result: [String: Any] = [
             "imageAspectRatio": imageAspectRatio,
             "imageAnalysis": [
                 "imageAspectRatio": imageAspectRatio,
-                "foregroundBounds": bounds?.dictionary() ?? NSNull(),
-                "foregroundCoverage": bounds?.foregroundCoverage ?? 0,
-                "confidence": bounds?.confidence ?? 0
+                "foregroundBounds": foregroundBounds,
+                "foregroundCoverage": foregroundCoverage,
+                "confidence": confidence
             ]
         ]
         if let landmarkAnalysis = createPixelFeatureLandmarks(pixels: pixels, width: width, height: height, sampleStep: sampleStep, bounds: bounds) {

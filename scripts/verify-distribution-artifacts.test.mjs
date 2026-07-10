@@ -2,6 +2,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { inspectAndroidDebugApkContent, inspectAndroidDebugApkFile } from "./verify-distribution-artifacts.mjs";
+import { createAndroidDebugApkFixture } from "./native-build-test-fixtures.mjs";
 
 const fixtureRoot = ".artifacts/verify-distribution-artifacts-test";
 const androidAab = `${fixtureRoot}/app-release.aab`;
@@ -12,6 +14,36 @@ const minimumDistributionArtifactBytes = 1_048_576;
 describe("distribution artifact verifier", () => {
   afterEach(() => {
     rmSync(fixtureRoot, { recursive: true, force: true });
+  });
+
+  it("recognizes a structured Android debug APK", () => {
+    const path = `${fixtureRoot}/app-debug.apk`;
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(path, createAndroidDebugApkFixture());
+    const inspection = inspectAndroidDebugApkFile(path, {
+      displayPath: "android/app/build/outputs/apk/debug/app-debug.apk"
+    });
+
+    expect(inspection).toMatchObject({
+      failures: [],
+      requiredZipEntries: ["AndroidManifest.xml", "classes.dex"],
+      signature: { verified: true, signerCount: 1, schemes: expect.arrayContaining(["v2"]) }
+    });
+    expect(inspection.zipEntryCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("rejects a large generic ZIP masquerading as an Android debug APK", () => {
+    const inspection = inspectAndroidDebugApkContent(
+      zipArtifactBytes([{ name: "notes.txt", size: minimumDistributionArtifactBytes }]),
+      { path: "android/app/build/outputs/apk/debug/app-debug.apk" }
+    );
+
+    expect(inspection.failures).toContain(
+      "Android native debug artifact android/app/build/outputs/apk/debug/app-debug.apk is missing required APK ZIP entry AndroidManifest.xml."
+    );
+    expect(inspection.failures).toContain(
+      "Android native debug artifact android/app/build/outputs/apk/debug/app-debug.apk is missing required APK ZIP entry classes.dex."
+    );
   });
 
   it("writes and verifies Android AAB and iOS IPA artifact hashes", () => {

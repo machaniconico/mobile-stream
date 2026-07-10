@@ -3,12 +3,27 @@ import { spawnSync } from "node:child_process";
 import { lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { arch, argv, cwd, exit, platform, version as nodeVersion } from "node:process";
+import { isDeepStrictEqual } from "node:util";
 
 export const physicalDevicePreflightDefaultPath = ".artifacts/physical-device-preflight.json";
 export const physicalDevicePreflightArtifactGroup = "physical-device-preflight";
 export const physicalDevicePreflightType = "physical-device-preflight";
 
 const modes = new Set(["all", "ios", "android"]);
+const platformToolRequirements = {
+  android: {
+    checkLabel: "Android device tooling",
+    tool: "adb",
+    deviceListInvocation: "adb devices -l",
+    versionInvocation: "adb version"
+  },
+  ios: {
+    checkLabel: "iOS device tooling",
+    tool: "xcrun",
+    deviceListInvocation: "xcrun xctrace list devices",
+    versionInvocation: "xcrun xctrace version"
+  }
+};
 
 export function createPhysicalDevicePreflightReport({
   mode = "all",
@@ -42,6 +57,8 @@ export function createPhysicalDevicePreflightReport({
     checks.push(...ios.checks);
     platforms.ios = ios.summary;
   }
+
+  checks.push(...createPreflightToolChecks(toolEvidence, mode));
 
   return {
     reportVersion: 1,
@@ -233,6 +250,7 @@ export function validatePhysicalDevicePreflightReport(report, { reportPath, curr
   if (report.mode !== "all") {
     failures.push(`Physical device preflight mode must be all for commercial release evidence, got ${JSON.stringify(report.mode)}.`);
   }
+  validatePreflightChecks(report.checks, report.mode, failures);
   validatePreflightHostEvidence(report.host, failures);
   validatePreflightToolEvidence(report.toolEvidence, report.mode, failures);
   validatePhysicalDeviceValidationRunbook(report.runbook, report.mode, failures);
@@ -244,22 +262,37 @@ export function validatePhysicalDevicePreflightReport(report, { reportPath, curr
   }
   validatePreflightGit(report.git, { label: "Physical device preflight", currentCommit, allowDirty }, failures);
   failures.push(...unsafeIdentityFieldFailures(report));
-  for (const platformName of ["android", "ios"]) {
-    const platformSummary = report.platforms?.[platformName];
-    const devices = Array.isArray(platformSummary?.devices) ? platformSummary.devices : [];
-    if (devices.length === 0) {
-      failures.push(`Physical device preflight is missing ready ${platformName} physical-device proof.`);
-    }
-  }
+  validatePreflightPlatformEvidence(report.platforms, failures);
   if (reportPath) {
     const reportRecordPath = workspaceRelativePath(reportPath, cwd());
     if (!reportRecordPath) {
       failures.push(`Physical device preflight artifact path must be workspace-relative: ${reportPath}.`);
     } else {
+      const declaredArtifactPath =
+        typeof report.artifactPath === "string" && !isAbsolute(report.artifactPath)
+          ? workspaceRelativePath(report.artifactPath, cwd())
+          : null;
+      if (declaredArtifactPath !== reportRecordPath) {
+        failures.push(
+          `Physical device preflight artifactPath must match report path ${reportRecordPath}, got ${String(report.artifactPath || "-")}.`
+        );
+      }
       try {
         const artifacts = collectPhysicalDevicePreflightArtifactRecords({ reportPath });
         if (artifacts.length === 0) {
           failures.push(`Physical device preflight artifact file does not exist: ${reportPath}.`);
+        } else {
+          let savedReport;
+          let savedReportParsed = false;
+          try {
+            savedReport = JSON.parse(readFileSync(resolve(reportPath), "utf8"));
+            savedReportParsed = true;
+          } catch {
+            failures.push(`Physical device preflight artifact is not valid JSON: ${reportRecordPath}.`);
+          }
+          if (savedReportParsed && !isDeepStrictEqual(savedReport, report)) {
+            failures.push("Physical device preflight artifact content does not match the report being validated.");
+          }
         }
       } catch (error) {
         failures.push(error instanceof Error ? error.message : String(error));
@@ -721,36 +754,153 @@ function validatePreflightHostEvidence(host, failures) {
   }
 }
 
+function validatePreflightChecks(checks, mode, failures) {
+  if (!Array.isArray(checks)) {
+    failures.push("Physical device preflight checks are missing.");
+    return;
+  }
+  const requiredLabels = requiredPreflightCheckLabels(mode);
+  for (const label of requiredLabels) {
+    const matches = checks.filter((check) => check?.label === label);
+    if (matches.length !== 1) {
+      failures.push(`Physical device preflight must contain exactly one ${label} check.`);
+    }
+  }
+  for (const [index, check] of checks.entries()) {
+    const label = typeof check?.label === "string" && check.label.trim() ? check.label : `check ${index}`;
+    if (check?.status !== "pass") {
+      failures.push(`Physical device preflight check ${label} must be pass, got ${JSON.stringify(check?.status)}.`);
+    }
+    if (typeof check?.detail !== "string" || check.detail.trim().length < 8) {
+      failures.push(`Physical device preflight check ${label} detail is missing.`);
+    }
+  }
+}
+
 function validatePreflightToolEvidence(toolEvidence, mode, failures) {
   if (!toolEvidence || typeof toolEvidence !== "object") {
     failures.push("Physical device preflight tool evidence is missing.");
     return;
   }
+  for (const platformName of preflightPlatforms(mode)) {
+    failures.push(...preflightToolEvidenceFailures(toolEvidence, platformName));
+  }
+}
+
+function validatePreflightPlatformEvidence(platforms, failures) {
   for (const platformName of ["android", "ios"]) {
-    if (mode !== "all" && mode !== platformName) {
+    const platformSummary = platforms?.[platformName];
+    const expectedTool = platformToolRequirements[platformName].tool;
+    if (!platformSummary || typeof platformSummary !== "object") {
+      failures.push(`Physical device preflight is missing ${platformName} platform evidence.`);
       continue;
     }
-    const evidence = toolEvidence[platformName];
-    if (!evidence || typeof evidence !== "object") {
-      failures.push(`Physical device preflight tool evidence is missing ${platformName}.`);
+    if (platformSummary.tool !== expectedTool) {
+      failures.push(`Physical device preflight ${platformName} platform tool must be ${expectedTool}.`);
+    }
+    const devices = Array.isArray(platformSummary.devices) ? platformSummary.devices : [];
+    if (devices.length === 0) {
+      failures.push(`Physical device preflight is missing ready ${platformName} physical-device proof.`);
       continue;
     }
-    const deviceList = evidence.deviceList;
-    if (!deviceList || typeof deviceList !== "object") {
-      failures.push(`Physical device preflight tool evidence is missing ${platformName}.deviceList.`);
-    } else {
-      if (typeof deviceList.invocation !== "string" || deviceList.invocation.trim().length === 0) {
-        failures.push(`Physical device preflight tool evidence is missing ${platformName}.deviceList invocation.`);
+    for (const [index, device] of devices.entries()) {
+      if (platformName === "android") {
+        const runtimeProof = device?.runtimeProof;
+        const hardware = typeof runtimeProof?.hardware === "string" ? runtimeProof.hardware.trim() : "";
+        if (
+          device?.state !== "device" ||
+          device?.transport !== "adb" ||
+          runtimeProof?.qemu !== false ||
+          !hardware ||
+          /^(ranchu|goldfish|vbox|qemu|android_x86)$/i.test(hardware)
+        ) {
+          failures.push(`Physical device preflight Android device ${index} is missing non-emulator runtime proof.`);
+        }
+      } else {
+        if (!/^(iPhone|iPad|iPod)$/i.test(String(device?.family || ""))) {
+          failures.push(`Physical device preflight iOS device ${index} has an unsupported device family.`);
+        }
+        if (typeof device?.osVersion !== "string" || device.osVersion.trim().length === 0) {
+          failures.push(`Physical device preflight iOS device ${index} is missing OS version evidence.`);
+        }
+        if (/simulator|unavailable|disconnected|offline/i.test(String(device?.state || ""))) {
+          failures.push(`Physical device preflight iOS device ${index} is not available physical-device evidence.`);
+        }
       }
-      if (deviceList.ok !== true) {
-        failures.push(`Physical device preflight tool evidence has failed ${platformName}.deviceList command.`);
-      }
-    }
-    const version = evidence.version;
-    if (!version || typeof version !== "object") {
-      failures.push(`Physical device preflight tool evidence is missing ${platformName}.version.`);
     }
   }
+}
+
+function createPreflightToolChecks(toolEvidence, mode) {
+  return preflightPlatforms(mode).map((platformName) => {
+    const requirement = platformToolRequirements[platformName];
+    const issues = preflightToolEvidenceFailures(toolEvidence, platformName);
+    return issues.length > 0
+      ? fail(requirement.checkLabel, issues.join(" "))
+      : pass(requirement.checkLabel, `${requirement.tool} device discovery and version evidence ready.`);
+  });
+}
+
+function preflightToolEvidenceFailures(toolEvidence, platformName) {
+  const failures = [];
+  const requirement = platformToolRequirements[platformName];
+  const evidence = toolEvidence?.[platformName];
+  if (!evidence || typeof evidence !== "object") {
+    return [`Physical device preflight tool evidence is missing ${platformName}.`];
+  }
+  const deviceList = evidence.deviceList;
+  if (!deviceList || typeof deviceList !== "object") {
+    failures.push(`Physical device preflight tool evidence is missing ${platformName}.deviceList.`);
+  } else {
+    if (deviceList.invocation !== requirement.deviceListInvocation) {
+      failures.push(
+        `Physical device preflight tool evidence ${platformName}.deviceList invocation must be ${requirement.deviceListInvocation}.`
+      );
+    }
+    if (deviceList.tool !== requirement.tool) {
+      failures.push(`Physical device preflight tool evidence ${platformName}.deviceList tool must be ${requirement.tool}.`);
+    }
+    if (deviceList.ok !== true) {
+      failures.push(`Physical device preflight tool evidence ${platformName}.deviceList command failed.`);
+    }
+  }
+  const version = evidence.version;
+  if (!version || typeof version !== "object") {
+    failures.push(`Physical device preflight tool evidence is missing ${platformName}.version.`);
+  } else {
+    if (version.invocation !== requirement.versionInvocation) {
+      failures.push(
+        `Physical device preflight tool evidence ${platformName}.version invocation must be ${requirement.versionInvocation}.`
+      );
+    }
+    if (version.tool !== requirement.tool) {
+      failures.push(`Physical device preflight tool evidence ${platformName}.version tool must be ${requirement.tool}.`);
+    }
+    if (version.ok !== true) {
+      failures.push(`Physical device preflight tool evidence ${platformName}.version command failed.`);
+    }
+    if (typeof version.version !== "string" || version.version.trim().length === 0) {
+      failures.push(`Physical device preflight tool evidence ${platformName}.version string is missing.`);
+    }
+  }
+  return failures;
+}
+
+function requiredPreflightCheckLabels(mode) {
+  return preflightPlatforms(mode).flatMap((platformName) => [
+    platformName === "android" ? "Android physical device" : "iOS physical device",
+    platformToolRequirements[platformName].checkLabel
+  ]);
+}
+
+function preflightPlatforms(mode) {
+  if (mode === "android") {
+    return ["android"];
+  }
+  if (mode === "ios") {
+    return ["ios"];
+  }
+  return ["android", "ios"];
 }
 
 function validatePhysicalDeviceValidationRunbook(runbook, mode, failures) {

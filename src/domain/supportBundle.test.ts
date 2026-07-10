@@ -647,7 +647,9 @@ describe("support bundle", () => {
       [],
       [],
       [],
-      [run]
+      [run],
+      null,
+      { now: new Date("2026-06-23T00:20:00.000Z") }
     );
     const preflight = createStreamStartPreflightReport({
       readiness,

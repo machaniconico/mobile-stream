@@ -33,13 +33,18 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
         private const val PREFS_NAME = "mobile_live_caster_scene_store"
         private const val SCENE_JSON = "scene_json"
         private const val SESSION_SUMMARIES_JSON = "session_summaries_json"
+        private const val SESSION_SUMMARIES_ENCRYPTED = "session_summaries_encrypted_v1"
+        private const val SESSION_SUMMARIES_PURPOSE = "session-summaries-v1"
         private const val VALIDATION_RUNS_JSON = "validation_runs_json"
+        private const val VALIDATION_RUNS_ENCRYPTED = "validation_runs_encrypted_v1"
+        private const val VALIDATION_RUNS_PURPOSE = "validation-runs-v1"
         private const val SCENE_ASSETS_DIR = "scene-assets"
         private const val STILL_IMAGE_PICK_REQUEST_CODE = 42071
         private const val VRM_MODEL_PICK_REQUEST_CODE = 42072
     }
 
     private var pendingPickPromise: Promise? = null
+    private val diagnosticHistoryCipher = DiagnosticHistoryCipher()
     private var pendingPickFilenameHint = "still-image"
     private var pendingPickAssetKind = SceneAssetKind.STILL_IMAGE
     private val activityEventListener: ActivityEventListener = object : BaseActivityEventListener() {
@@ -254,7 +259,12 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun saveSessionSummaries(summariesJson: String, promise: Promise) {
         try {
-            prefs().edit().putString(SESSION_SUMMARIES_JSON, summariesJson).apply()
+            saveDiagnosticHistory(
+                SESSION_SUMMARIES_ENCRYPTED,
+                SESSION_SUMMARIES_JSON,
+                SESSION_SUMMARIES_PURPOSE,
+                summariesJson
+            )
             promise.resolve(true)
         } catch (error: Throwable) {
             promise.reject("session_summary_store_save_failed", error)
@@ -264,7 +274,13 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun loadSessionSummaries(promise: Promise) {
         try {
-            promise.resolve(prefs().getString(SESSION_SUMMARIES_JSON, null))
+            promise.resolve(
+                loadDiagnosticHistory(
+                    SESSION_SUMMARIES_ENCRYPTED,
+                    SESSION_SUMMARIES_JSON,
+                    SESSION_SUMMARIES_PURPOSE
+                )
+            )
         } catch (error: Throwable) {
             promise.reject("session_summary_store_load_failed", error)
         }
@@ -272,14 +288,23 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun clearSessionSummaries(promise: Promise) {
-        prefs().edit().remove(SESSION_SUMMARIES_JSON).apply()
-        promise.resolve(true)
+        try {
+            clearDiagnosticHistory(SESSION_SUMMARIES_ENCRYPTED, SESSION_SUMMARIES_JSON)
+            promise.resolve(true)
+        } catch (error: Throwable) {
+            promise.reject("session_summary_store_clear_failed", error)
+        }
     }
 
     @ReactMethod
     fun saveValidationRuns(runsJson: String, promise: Promise) {
         try {
-            prefs().edit().putString(VALIDATION_RUNS_JSON, runsJson).apply()
+            saveDiagnosticHistory(
+                VALIDATION_RUNS_ENCRYPTED,
+                VALIDATION_RUNS_JSON,
+                VALIDATION_RUNS_PURPOSE,
+                runsJson
+            )
             promise.resolve(true)
         } catch (error: Throwable) {
             promise.reject("validation_run_store_save_failed", error)
@@ -289,7 +314,13 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun loadValidationRuns(promise: Promise) {
         try {
-            promise.resolve(prefs().getString(VALIDATION_RUNS_JSON, null))
+            promise.resolve(
+                loadDiagnosticHistory(
+                    VALIDATION_RUNS_ENCRYPTED,
+                    VALIDATION_RUNS_JSON,
+                    VALIDATION_RUNS_PURPOSE
+                )
+            )
         } catch (error: Throwable) {
             promise.reject("validation_run_store_load_failed", error)
         }
@@ -297,11 +328,42 @@ class SceneStoreModule(private val reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun clearValidationRuns(promise: Promise) {
-        prefs().edit().remove(VALIDATION_RUNS_JSON).apply()
-        promise.resolve(true)
+        try {
+            clearDiagnosticHistory(VALIDATION_RUNS_ENCRYPTED, VALIDATION_RUNS_JSON)
+            promise.resolve(true)
+        } catch (error: Throwable) {
+            promise.reject("validation_run_store_clear_failed", error)
+        }
     }
 
     private fun prefs() = reactContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    private fun saveDiagnosticHistory(encryptedKey: String, legacyKey: String, purpose: String, plaintext: String) {
+        val envelope = diagnosticHistoryCipher.encrypt(plaintext, purpose)
+        check(prefs().edit().putString(encryptedKey, envelope).remove(legacyKey).commit()) {
+            "Encrypted diagnostic history could not be committed"
+        }
+    }
+
+    private fun loadDiagnosticHistory(encryptedKey: String, legacyKey: String, purpose: String): String? {
+        val preferences = prefs()
+        val encrypted = preferences.getString(encryptedKey, null)
+        if (encrypted != null) {
+            return diagnosticHistoryCipher.decrypt(encrypted, purpose)
+        }
+        val legacy = preferences.getString(legacyKey, null) ?: return null
+        val envelope = diagnosticHistoryCipher.encrypt(legacy, purpose)
+        check(preferences.edit().putString(encryptedKey, envelope).remove(legacyKey).commit()) {
+            "Legacy diagnostic history could not be migrated"
+        }
+        return legacy
+    }
+
+    private fun clearDiagnosticHistory(encryptedKey: String, legacyKey: String) {
+        check(prefs().edit().remove(encryptedKey).remove(legacyKey).commit()) {
+            "Diagnostic history could not be cleared"
+        }
+    }
 
     private fun copySceneAsset(uri: Uri, rawUri: String, filenameHint: String, assetKind: SceneAssetKind): String {
         val extension = assetExtension(uri, filenameHint, assetKind)

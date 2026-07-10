@@ -33,7 +33,7 @@
     "mobile:bundle:ios": "react-native bundle --platform ios --dev false --entry-file index.js --bundle-output .artifacts/rn/main.ios.jsbundle --assets-dest .artifacts/rn/ios-assets",
     "mobile:bundle:android": "react-native bundle --platform android --dev false --entry-file index.js --bundle-output .artifacts/rn/index.android.bundle --assets-dest .artifacts/rn/android-assets",
     "verify:rn": "npm run mobile:bundle:ios && npm run mobile:bundle:android",
-    "verify:android-native": "npm run android:assembleDebug",
+    "verify:android-native": "node scripts/verify-android-native.mjs",
     "verify:ios-native": "node scripts/verify-ios-native.mjs",
     "android:assembleDebug": "bash -lc 'source scripts/rn-env.sh && cd android && ./gradlew assembleDebug'",
     "android:assembleRelease": "bash -lc 'source scripts/rn-env.sh && cd android && ./gradlew assembleRelease'",
@@ -54,13 +54,11 @@
     "release:evidence-package": "node scripts/create-release-evidence-package.mjs --write"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "^5.1.1",
     "lucide-react": "^0.562.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.85.3",
-    "react-native-safe-area-context": "^5.5.2",
-    "vite": "^7.2.7"
+    "react-native-safe-area-context": "^5.5.2"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -74,8 +72,10 @@
     "@react-native/typescript-config": "0.85.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
     "playwright-core": "^1.60.0",
     "typescript": "^5.9.3",
+    "vite": "^7.2.7",
     "vitest": "^4.0.15"
   },
   "engines": {

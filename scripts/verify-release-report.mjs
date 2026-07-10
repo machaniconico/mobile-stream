@@ -5,10 +5,14 @@ import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import {
+  androidNativeVerificationArtifactPath,
+  iosNativeVerificationArtifactPath,
   releaseConfigArtifactPaths,
   requiredReleaseArtifactGroups,
   requiredReleaseGateLabels
 } from "./release-artifact-policy.mjs";
+import { validateIosNativeVerificationArtifacts } from "./verify-ios-native.mjs";
+import { validateAndroidNativeVerificationArtifacts } from "./verify-android-native.mjs";
 import { validateDistributionArtifactsInReport } from "./verify-distribution-artifacts.mjs";
 import { validateDashboardEvidenceInReport } from "./verify-platform-dashboard-evidence.mjs";
 import { storeSubmissionArtifactGroup, validateStoreSubmissionInReport } from "./verify-store-submission-checklist.mjs";
@@ -280,6 +284,7 @@ function validateArtifacts(report, options, fail) {
   for (const artifact of artifacts) {
     validateArtifactRecord(artifact, fail);
   }
+  validateNativeBuildArtifactsInReport(report, artifacts, options, fail);
   validateDistributionArtifactsInReport(artifacts, fail);
   validateDashboardEvidenceInReport(artifacts, fail);
   validateStoreSubmissionInReport(artifacts, fail);
@@ -290,6 +295,26 @@ function validateArtifacts(report, options, fail) {
     maxAgeHours: options.maxAgeHours
   });
   validatePhysicalDevicePreflightInReport(report, artifacts, options, fail);
+}
+
+function validateNativeBuildArtifactsInReport(report, artifacts, options, fail) {
+  for (const failure of validateAndroidNativeVerificationArtifacts(artifacts, {
+    reportPath: androidNativeVerificationArtifactPath,
+    releaseFinishedAt: report?.finishedAt || "",
+    releaseGitCommit: report?.git?.commit || "",
+    maxAgeHours: options.maxAgeHours
+  })) {
+    fail(failure);
+  }
+
+  for (const failure of validateIosNativeVerificationArtifacts(artifacts, {
+    reportPath: iosNativeVerificationArtifactPath,
+    releaseFinishedAt: report?.finishedAt || "",
+    releaseGitCommit: report?.git?.commit || "",
+    maxAgeHours: options.maxAgeHours
+  })) {
+    fail(failure);
+  }
 }
 
 function validatePhysicalDevicePreflightInReport(report, artifacts, options, fail) {
@@ -325,16 +350,20 @@ function validatePhysicalDevicePreflightInReport(report, artifacts, options, fai
   })) {
     fail(failure);
   }
-  validatePhysicalDevicePreflightGateEvidence(report, preflight, fail);
+  for (const failure of validatePhysicalDevicePreflightGateEvidence(report, preflightArtifact, preflight)) {
+    fail(failure);
+  }
 }
 
-function validatePhysicalDevicePreflightGateEvidence(report, preflight, fail) {
+export function validatePhysicalDevicePreflightGateEvidence(report, preflightArtifact, preflight) {
+  const failures = [];
+  const fail = (message) => failures.push(message);
   const gate = (Array.isArray(report?.gates) ? report.gates : []).find(
     (entry) => entry?.label === "Verify physical device preflight"
   );
   if (!gate) {
     fail("Release report is missing the physical-device preflight gate record.");
-    return;
+    return failures;
   }
   if (gate.status !== "passed") {
     fail(`Physical-device preflight gate must be passed, got ${JSON.stringify(gate.status)}.`);
@@ -342,19 +371,47 @@ function validatePhysicalDevicePreflightGateEvidence(report, preflight, fail) {
   const evidence = gate.evidence;
   if (!evidence || typeof evidence !== "object") {
     fail("Physical-device preflight gate evidence is missing.");
-    return;
+    return failures;
+  }
+  const evidencePath =
+    typeof evidence.path === "string" && !isAbsolute(evidence.path) ? workspaceRelativePath(evidence.path) : "";
+  const artifactPath =
+    typeof preflightArtifact?.path === "string" && !isAbsolute(preflightArtifact.path)
+      ? workspaceRelativePath(preflightArtifact.path)
+      : "";
+  if (!evidencePath || !artifactPath || evidencePath !== artifactPath) {
+    fail("Physical-device preflight gate evidence path does not match the preflight artifact record.");
+  }
+  if (evidence.sha256 !== preflightArtifact.sha256) {
+    fail("Physical-device preflight gate evidence SHA-256 does not match the preflight artifact record.");
   }
   const runbook = evidence.runbook;
   if (!runbook || typeof runbook !== "object") {
     fail("Physical-device preflight gate evidence is missing runbook summary.");
-    return;
+    return failures;
   }
   const steps = Array.isArray(preflight?.runbook?.steps) ? preflight.runbook.steps : [];
   const expectedSummary = typeof preflight?.runbook?.summary === "string" ? preflight.runbook.summary : "";
   const expectedStepIds = steps.map((step) => String(step?.id || "")).filter(Boolean);
   const readyStepCount = steps.filter((step) => step?.status === "ready-to-run" && step?.deviceReady === true).length;
   const waitingStepCount = steps.filter((step) => step?.status === "waiting-for-device" || step?.deviceReady !== true).length;
+  const expectedGeneratedAt = typeof preflight?.generatedAt === "string" ? preflight.generatedAt : "";
+  const expectedMode = typeof preflight?.mode === "string" ? preflight.mode : "";
+  const expectedAndroidDeviceCount = preflight?.platforms?.android?.devices?.length || 0;
+  const expectedIosDeviceCount = preflight?.platforms?.ios?.devices?.length || 0;
 
+  if (evidence.generatedAt !== expectedGeneratedAt) {
+    fail("Physical-device preflight gate generatedAt does not match the preflight artifact.");
+  }
+  if (evidence.mode !== expectedMode) {
+    fail("Physical-device preflight gate mode does not match the preflight artifact.");
+  }
+  if (evidence.androidDeviceCount !== expectedAndroidDeviceCount) {
+    fail("Physical-device preflight gate Android device count does not match the preflight artifact.");
+  }
+  if (evidence.iosDeviceCount !== expectedIosDeviceCount) {
+    fail("Physical-device preflight gate iOS device count does not match the preflight artifact.");
+  }
   if (runbook.summary !== expectedSummary) {
     fail("Physical-device preflight gate runbook summary does not match the preflight artifact.");
   }
@@ -370,6 +427,7 @@ function validatePhysicalDevicePreflightGateEvidence(report, preflight, fail) {
   if (JSON.stringify(runbook.stepIds || []) !== JSON.stringify(expectedStepIds)) {
     fail("Physical-device preflight gate runbook step IDs do not match the preflight artifact.");
   }
+  return failures;
 }
 
 function validateArtifactRecord(artifact, fail) {
@@ -382,7 +440,13 @@ function validateArtifactRecord(artifact, fail) {
     fail(`Artifact path must be workspace-relative: ${artifact.path}.`);
     return;
   }
-  if (!Number.isFinite(artifact.bytes) || artifact.bytes <= 0 || !isSha256(artifact.sha256)) {
+  const allowsEmptyIosBundleFile = artifact.group === "ios" && artifact.path !== iosNativeVerificationArtifactPath;
+  if (
+    !Number.isFinite(artifact.bytes) ||
+    artifact.bytes < 0 ||
+    (!allowsEmptyIosBundleFile && artifact.bytes === 0) ||
+    !isSha256(artifact.sha256)
+  ) {
     fail(`Artifact ${artifactPath} is missing valid bytes or sha256 metadata.`);
     return;
   }

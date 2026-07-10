@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   releaseConfigArtifactPaths,
   requiredReleaseGateLabels
@@ -18,9 +18,16 @@ import {
 } from "./verify-physical-devices.mjs";
 import { validateStoreSubmissionApproval } from "./verify-store-submission-approval.mjs";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
-import { acquireReleaseTestLock } from "./release-test-lock.mjs";
+import { acquireReleaseTestLock, releaseTestLockHookTimeoutMs } from "./release-test-lock.mjs";
 import { requiredBrowserUiTextChecks } from "./browser-ui-required-text.mjs";
+import {
+  nativeBuildArtifactRecords,
+  nativeBuildFixturePaths,
+  writeNativeBuildFixture
+} from "./native-build-test-fixtures.mjs";
 
+const fixtureRoot = ".artifacts/store-approval-test";
+const nativeBuildPaths = nativeBuildFixturePaths(fixtureRoot);
 const generatedFiles = [
   "dist/index.html",
   "dist/assets/store-approval-test.js",
@@ -46,7 +53,8 @@ const generatedFiles = [
   ".artifacts/store-approval-test/physical-device-preflight.json",
   ".artifacts/store-approval-test/support-bundle.json",
   ".artifacts/store-approval-test/ui-evidence.json",
-  ".artifacts/store-approval-test/release-report.json"
+  ".artifacts/store-approval-test/release-report.json",
+  ...nativeBuildPaths.allPaths
 ];
 const fileBackups = new Map();
 let releaseTestUnlock = () => {};
@@ -59,6 +67,8 @@ const appBuild = "rc-1";
 const storeReleaseReportPath = ".artifacts/store-approval-test/store-release-report.json";
 const approvalReportPath = ".artifacts/store-approval-test/release-report.json";
 const physicalDevicePreflightPath = ".artifacts/store-approval-test/physical-device-preflight.json";
+
+vi.setConfig({ hookTimeout: releaseTestLockHookTimeoutMs });
 
 describe("store submission approval verifier", () => {
   beforeAll(() => {
@@ -181,6 +191,18 @@ describe("store submission approval verifier", () => {
 
     expect(failures).toContain(
       "Store submission approval requires distribution manifest .artifacts/distribution-artifacts.json in the RC report."
+    );
+  });
+
+  it("rejects approval when the physical-device gate hash is detached from its artifact", () => {
+    const report = createReport();
+    const gate = report.gates.find((entry) => entry.label === "Verify physical device preflight");
+    gate.evidence.sha256 = "0".repeat(64);
+
+    const failures = validateStoreSubmissionApproval(report, readStoreManifest(), approvalOptions());
+
+    expect(failures).toContain(
+      "Physical-device preflight gate evidence SHA-256 does not match the preflight artifact record."
     );
   });
 
@@ -345,6 +367,7 @@ function createReport() {
         artifactRecord("web", "dist/assets/store-approval-test.css"),
         artifactRecord("react-native", ".artifacts/rn/main.ios.jsbundle"),
         artifactRecord("react-native", ".artifacts/rn/index.android.bundle"),
+        ...nativeBuildArtifactRecords(fixtureRoot, artifactRecord),
         artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
         artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
         ...distributionArtifactRecords(),
@@ -416,6 +439,7 @@ function writeFixtureFiles() {
   writeFile("dist/assets/store-approval-test.css", "body { color: #111; }");
   writeFile(".artifacts/rn/main.ios.jsbundle", "ios bundle");
   writeFile(".artifacts/rn/index.android.bundle", "android bundle");
+  writeNativeBuildFixture(fixtureRoot);
   writeFile(".artifacts/mobile-live-caster-desktop.png", pngBytes);
   writeFile(".artifacts/mobile-live-caster-mobile.png", pngBytes);
   writeDistributionFixture();
@@ -555,25 +579,7 @@ function writeSupportBundleFixture() {
 }
 
 function writePhysicalDevicePreflightFixture(patch = {}) {
-  const report = createPhysicalDevicePreflightReport({
-    androidAdbOutput: `List of devices attached
-R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
-`,
-    androidRuntimeProperties: {
-      R58M123456B: `[ro.kernel.qemu]: [0]
-[ro.boot.qemu]: [0]
-[ro.hardware]: [qcom]
-`
-    },
-    androidRuntimeCommands: {
-      R58M123456B: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" }
-    },
-    iosXctraceOutput: `== Devices ==
-Release iPhone (17.5.1) (00008110-001234560E91801E)
-== Simulators ==
-iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
-`
-  });
+  const report = createPhysicalDevicePreflightReport(createPhysicalDevicePreflightFixtureInput());
   writePhysicalDevicePreflightReport(
     {
       ...report,
@@ -587,6 +593,62 @@ iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
     },
     physicalDevicePreflightPath
   );
+}
+
+function createPhysicalDevicePreflightFixtureInput() {
+  return {
+    androidAdbOutput: `List of devices attached
+R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
+`,
+    androidCommand: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" },
+    androidRuntimeProperties: {
+      R58M123456B: `[ro.kernel.qemu]: [0]
+[ro.boot.qemu]: [0]
+[ro.hardware]: [qcom]
+`
+    },
+    androidRuntimeCommands: {
+      R58M123456B: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" }
+    },
+    iosXctraceOutput: `== Devices ==
+Release iPhone (17.5.1) (00008110-001234560E91801E)
+== Simulators ==
+iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
+`,
+    iosCommand: { ok: true, tool: "xcrun", stdout: "", detail: "command succeeded" },
+    toolEvidence: {
+      android: {
+        deviceList: {
+          invocation: "adb devices -l",
+          tool: "adb",
+          ok: true,
+          detail: "command succeeded"
+        },
+        version: {
+          invocation: "adb version",
+          tool: "adb",
+          ok: true,
+          detail: "command succeeded",
+          version: "Android Debug Bridge version 1.0.41 / Version 35.0.2 (r12147458)"
+        }
+      },
+      ios: {
+        deviceList: {
+          invocation: "xcrun xctrace list devices",
+          tool: "xcrun",
+          ok: true,
+          detail: "command succeeded"
+        },
+        version: {
+          invocation: "xcrun xctrace version",
+          tool: "xcrun",
+          ok: true,
+          detail: "command succeeded",
+          version: "xctrace version 16.4 (16F6)"
+        }
+      }
+    }
+  };
 }
 
 function supportBundleManifestRun(devicePlatform, fingerprint) {

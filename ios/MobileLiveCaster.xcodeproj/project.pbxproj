@@ -26,6 +26,9 @@
 		A10000000000000000000010 /* LiveCasterSceneStoreBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000021 /* LiveCasterSceneStoreBridge.m */; };
 		B10000000000000000000001 /* SampleHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* SampleHandler.swift */; };
 		B10000000000000000000002 /* MobileLiveCasterBroadcastUpload.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* MobileLiveCasterBroadcastUpload.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C10000000000000000000001 /* LiveCasterBroadcastCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000011 /* LiveCasterBroadcastCredentialStore.swift */; };
+		C10000000000000000000002 /* LiveCasterBroadcastCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000011 /* LiveCasterBroadcastCredentialStore.swift */; };
+		D10000000000000000000001 /* LiveCasterDiagnosticHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000011 /* LiveCasterDiagnosticHistoryStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -79,6 +82,8 @@
 		B10000000000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B10000000000000000000005 /* MobileLiveCasterBroadcastUpload.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MobileLiveCasterBroadcastUpload.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B10000000000000000000017 /* MobileLiveCasterBroadcastUpload.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MobileLiveCasterBroadcastUpload.entitlements; sourceTree = "<group>"; };
+		C10000000000000000000011 /* LiveCasterBroadcastCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LiveCasterBroadcastCredentialStore.swift; path = MobileLiveCaster/LiveCasterBroadcastCredentialStore.swift; sourceTree = "<group>"; };
+		D10000000000000000000011 /* LiveCasterDiagnosticHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LiveCasterDiagnosticHistoryStore.swift; path = MobileLiveCaster/LiveCasterDiagnosticHistoryStore.swift; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -107,6 +112,8 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
 				A10000000000000000000011 /* LiveCasterBridge.swift */,
+				C10000000000000000000011 /* LiveCasterBroadcastCredentialStore.swift */,
+				D10000000000000000000011 /* LiveCasterDiagnosticHistoryStore.swift */,
 				A10000000000000000000012 /* LiveCasterSecureStore.swift */,
 				A10000000000000000000013 /* LiveCasterSecureStoreBridge.m */,
 				A10000000000000000000014 /* LiveCasterSpeech.swift */,
@@ -286,6 +293,7 @@
 /* Begin PBXShellScriptBuildPhase section */
 		00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -365,6 +373,8 @@
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
 				A10000000000000000000001 /* LiveCasterBridge.swift in Sources */,
+				C10000000000000000000001 /* LiveCasterBroadcastCredentialStore.swift in Sources */,
+				D10000000000000000000001 /* LiveCasterDiagnosticHistoryStore.swift in Sources */,
 				A10000000000000000000002 /* LiveCasterSecureStore.swift in Sources */,
 				A10000000000000000000003 /* LiveCasterSecureStoreBridge.m in Sources */,
 				A10000000000000000000004 /* LiveCasterSpeech.swift in Sources */,
@@ -384,6 +394,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B10000000000000000000001 /* SampleHandler.swift in Sources */,
+				C10000000000000000000002 /* LiveCasterBroadcastCredentialStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

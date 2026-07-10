@@ -34,8 +34,13 @@ describe("diagnosticSecrets", () => {
             redirectUri: null
           }
         },
+        platformChatOAuthFlow: {
+          state: "oauth-state-secret",
+          codeVerifier: "pkce-verifier-secret"
+        },
         twitchDeviceOAuthFlow: {
-          deviceCode: "device-secret"
+          deviceCode: "device-secret",
+          userCode: "user-code-secret"
         }
       })
     ).toEqual([
@@ -44,7 +49,10 @@ describe("diagnosticSecrets", () => {
       "yt-access",
       "yt-refresh",
       "tw-access",
-      "device-secret"
+      "oauth-state-secret",
+      "pkce-verifier-secret",
+      "device-secret",
+      "user-code-secret"
     ]);
   });
 });

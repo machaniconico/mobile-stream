@@ -696,7 +696,9 @@ describe("stream diagnostics", () => {
       [],
       [],
       [],
-      [run]
+      [run],
+      null,
+      { now: new Date("2026-06-23T00:05:00.000Z") }
     );
     const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics, new Date("2026-06-23T00:05:00.000Z")));
 
@@ -752,7 +754,9 @@ describe("stream diagnostics", () => {
       [],
       [],
       [],
-      [run]
+      [run],
+      null,
+      { now: new Date("2026-06-23T00:05:00.000Z") }
     );
     const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics, new Date("2026-06-23T00:05:00.000Z")));
 

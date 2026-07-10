@@ -18,6 +18,8 @@ const staticReleaseConfigArtifactPaths = [
   "scripts/export-ios-release.mjs",
   "scripts/ios-release-config.mjs",
   "scripts/verify-release-candidate.mjs",
+  "scripts/verify-android-native.mjs",
+  "scripts/verify-ios-native.mjs",
   "scripts/verify-release-config.mjs",
   "scripts/verify-commercial-release-bundle.mjs",
   "scripts/verify-physical-devices.mjs",
@@ -54,8 +56,13 @@ export const releaseConfigArtifactPaths = [...new Set([...staticReleaseConfigArt
   (left, right) => left.localeCompare(right)
 );
 
+export const androidNativeDebugArtifactPath = "android/app/build/outputs/apk/debug/app-debug.apk";
+export const androidNativeVerificationArtifactPath = ".artifacts/android-native-verification.json";
+export const iosNativeVerificationArtifactPath = ".artifacts/ios-native-verification.json";
+
 export const requiredReleaseGateLabels = [
   "Verify clean git worktree",
+  "Verify existing release artifact path safety",
   "Verify release automation scripts",
   "Verify repository automation safety",
   "Verify native release configuration",
@@ -64,10 +71,12 @@ export const requiredReleaseGateLabels = [
   "Build web prototype",
   "Verify web bundle size",
   "Bundle React Native JavaScript",
+  "Build Android native debug app",
+  "Build iOS native simulator app",
   "Verify commercial release support bundle"
 ];
 
-export const requiredReleaseArtifactGroups = ["release-config", "web", "react-native", "ui"];
+export const requiredReleaseArtifactGroups = ["release-config", "web", "react-native", "android", "ios", "ui"];
 
 export function collectReleaseSourceFiles(relativePath, extensions) {
   const absoluteDirectory = join(cwd(), relativePath);

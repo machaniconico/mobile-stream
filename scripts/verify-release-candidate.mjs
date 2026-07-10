@@ -3,7 +3,14 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, env, exit, platform, cwd } from "node:process";
-import { releaseConfigArtifactPaths } from "./release-artifact-policy.mjs";
+import {
+  androidNativeDebugArtifactPath,
+  androidNativeVerificationArtifactPath,
+  iosNativeVerificationArtifactPath,
+  releaseConfigArtifactPaths
+} from "./release-artifact-policy.mjs";
+import { collectIosNativeVerificationArtifactRecords } from "./verify-ios-native.mjs";
+import { collectAndroidNativeVerificationArtifactRecords } from "./verify-android-native.mjs";
 import {
   collectDistributionArtifactRecords,
   distributionArtifactManifestPath,
@@ -32,6 +39,7 @@ import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
 import { readPngEvidence } from "./png-evidence.mjs";
 import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 import { requiredBrowserUiTextChecks } from "./browser-ui-required-text.mjs";
+import { validateReport } from "./verify-release-report.mjs";
 
 const defaultUiUrl = "http://127.0.0.1:5173/";
 const devServerTimeoutMs = 30_000;
@@ -118,6 +126,7 @@ async function main() {
       runPhysicalDevicePreflightGate(report, options);
     }
 
+    runExistingReleaseArtifactPathSafetyGate(report, options);
     runCommercialSupportBundleGate(report, options);
 
     for (const [label, args] of sourceGates) {
@@ -129,6 +138,14 @@ async function main() {
     }
 
     finishReport(report, "passed");
+    const finalFailures = validateReport(report, {
+      maxAgeHours: options.maxAgeHours,
+      allowDirty: options.allowDirty,
+      allowCommitMismatch: false
+    });
+    if (finalFailures.length > 0) {
+      throw new GateError(["Release candidate self-verification failed:", ...finalFailures.map((failure) => `- ${failure}`)].join("\n"), 1);
+    }
     writeReport(report, options.reportJsonPath);
     console.log(`Release candidate verification passed for ${basename(options.supportBundlePath)}.`);
     console.log(`Release candidate report written to ${options.reportJsonPath}.`);
@@ -328,11 +345,17 @@ function runPhysicalDevicePreflightGate(report, options) {
     if (failures.length > 0) {
       throw new GateError(failures.join("\n"), 1);
     }
+    const [preflightArtifact] = collectPhysicalDevicePreflightArtifactRecords({
+      reportPath: options.physicalDevicePreflightJsonPath
+    });
+    if (!preflightArtifact) {
+      throw new GateError(`Physical device preflight artifact file does not exist: ${options.physicalDevicePreflightJsonPath}.`, 1);
+    }
     gate.status = "passed";
     gate.exitCode = 0;
     gate.evidence = {
-      path: options.physicalDevicePreflightJsonPath,
-      sha256: fileSha256(options.physicalDevicePreflightJsonPath),
+      path: preflightArtifact.path,
+      sha256: preflightArtifact.sha256,
       generatedAt: preflight.generatedAt,
       mode: preflight.mode,
       androidDeviceCount: preflight.platforms?.android?.devices?.length || 0,
@@ -344,6 +367,35 @@ function runPhysicalDevicePreflightGate(report, options) {
     gate.exitCode = error instanceof GateError ? error.exitCode : 1;
     gate.error = error instanceof Error ? error.message : String(error);
     throw error instanceof GateError ? error : new GateError(gate.error, gate.exitCode);
+  } finally {
+    gate.finishedAt = new Date().toISOString();
+    gate.durationMs = Date.now() - startedAt;
+  }
+}
+
+function runExistingReleaseArtifactPathSafetyGate(report, options) {
+  const gate = {
+    label: "Verify existing release artifact path safety",
+    command: "inspect existing release artifact paths",
+    status: "running",
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    durationMs: null,
+    exitCode: null,
+    error: null
+  };
+  const startedAt = Date.now();
+  report.gates.push(gate);
+
+  try {
+    assertExistingReleaseArtifactPathsSafe(options);
+    gate.status = "passed";
+    gate.exitCode = 0;
+  } catch (error) {
+    gate.status = "failed";
+    gate.exitCode = 1;
+    gate.error = error instanceof Error ? error.message : String(error);
+    throw new GateError(gate.error, 1);
   } finally {
     gate.finishedAt = new Date().toISOString();
     gate.durationMs = Date.now() - startedAt;
@@ -970,7 +1022,8 @@ function finishReport(report, status, error = null) {
     generatedAt: report.finishedAt,
     files: collectReleaseArtifacts({
       storeReleaseReportJsonPath: report.options.storeReleaseReportJson || "",
-      physicalDevicePreflightJsonPath: report.options.physicalDevicePreflightJson || ""
+      physicalDevicePreflightJsonPath: report.options.physicalDevicePreflightJson || "",
+      requireNativeArtifacts: status === "passed"
     })
   };
   report.error = error ? (error instanceof Error ? error.message : String(error)) : null;
@@ -994,14 +1047,26 @@ function commandOutput(command, args) {
   return result.stdout.trim();
 }
 
-function collectReleaseArtifacts({ storeReleaseReportJsonPath = "", physicalDevicePreflightJsonPath = "" } = {}) {
+function collectReleaseArtifacts({
+  storeReleaseReportJsonPath = "",
+  physicalDevicePreflightJsonPath = "",
+  requireNativeArtifacts = false
+} = {}) {
   return [
     ...collectFiles("release-config", releaseConfigArtifactPaths),
     ...collectFiles("web", ["dist/index.html"]),
     ...collectDirectoryFiles("web", "dist/assets", (path) => path.endsWith(".js") || path.endsWith(".css")),
     ...collectFiles("react-native", [".artifacts/rn/main.ios.jsbundle", ".artifacts/rn/index.android.bundle"]),
-    ...collectFiles("android", ["android/app/build/outputs/apk/debug/app-debug.apk"]),
-    ...collectFiles("ios", [".artifacts/ios-native-verification.json"]),
+    ...collectNativeArtifacts(
+      collectAndroidNativeVerificationArtifactRecords,
+      { reportPath: androidNativeVerificationArtifactPath, required: requireNativeArtifacts },
+      requireNativeArtifacts
+    ),
+    ...collectNativeArtifacts(
+      collectIosNativeVerificationArtifactRecords,
+      { reportPath: iosNativeVerificationArtifactPath, required: requireNativeArtifacts },
+      requireNativeArtifacts
+    ),
     ...collectDistributionArtifactRecords(),
     ...collectDashboardEvidenceArtifactRecords(),
     ...collectStoreSubmissionArtifactRecords(),
@@ -1013,6 +1078,62 @@ function collectReleaseArtifacts({ storeReleaseReportJsonPath = "", physicalDevi
       ".artifacts/mobile-live-caster-mobile.png"
     ])
   ].sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function collectNativeArtifacts(collector, options, required) {
+  try {
+    return collector(options);
+  } catch (error) {
+    if (required) {
+      throw error;
+    }
+    return [];
+  }
+}
+
+function assertExistingReleaseArtifactPathsSafe({
+  storeReleaseReportJsonPath = "",
+  physicalDevicePreflightJsonPath = ""
+} = {}) {
+  for (const path of [
+    ...releaseConfigArtifactPaths,
+    "dist/index.html",
+    ".artifacts/rn/main.ios.jsbundle",
+    ".artifacts/rn/index.android.bundle",
+    androidNativeDebugArtifactPath,
+    androidNativeVerificationArtifactPath,
+    iosNativeVerificationArtifactPath,
+    ".artifacts/ui-verification.json",
+    ".artifacts/mobile-live-caster-desktop.png",
+    ".artifacts/mobile-live-caster-mobile.png",
+    storeReleaseReportJsonPath,
+    physicalDevicePreflightJsonPath
+  ]) {
+    if (path && lstatExisting(path)) {
+      assertRegularSourceFile(path, "Release artifact");
+    }
+  }
+  assertExistingReleaseArtifactDirectorySafe("dist/assets", (path) => path.endsWith(".js") || path.endsWith(".css"));
+}
+
+function assertExistingReleaseArtifactDirectorySafe(directory, include) {
+  const directoryStat = lstatExisting(directory);
+  if (!directoryStat) {
+    return;
+  }
+  assertNoSymlinkedParentDirectories(directory, "Release artifact directory");
+  if (directoryStat.isSymbolicLink()) {
+    throw new GateError(`Release artifact directory must not be a symbolic link: ${directory}`, 1);
+  }
+  if (!directoryStat.isDirectory()) {
+    return;
+  }
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isFile() && include(path)) {
+      assertRegularSourceFile(path, "Release artifact");
+    }
+  }
 }
 
 function collectFiles(group, paths) {

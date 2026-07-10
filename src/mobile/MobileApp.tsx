@@ -263,6 +263,23 @@ export const MobileApp = () => {
   const platformChatOAuthSyncRequest = useRef<(() => void) | null>(null);
   const audioLevelSamplesRef = useRef<StreamAudioLevelSample[]>([]);
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
+  const persistedDiagnosticSecrets = useMemo(
+    () =>
+      createDiagnosticRedactionSecrets({
+        streamKey: profile.destination.streamKey,
+        discordWebhookUrl: profile.streamAnnouncement.discordWebhookUrl,
+        platformChatOAuthCredentials,
+        platformChatOAuthFlow,
+        twitchDeviceOAuthFlow
+      }),
+    [
+      platformChatOAuthCredentials,
+      platformChatOAuthFlow,
+      profile.destination.streamKey,
+      profile.streamAnnouncement.discordWebhookUrl,
+      twitchDeviceOAuthFlow
+    ]
+  );
   const persistableSceneCollectionJson = useMemo(
     () => JSON.stringify(stripTransientSceneCollectionRuntime(sceneCollection)),
     [sceneCollection]
@@ -367,11 +384,8 @@ export const MobileApp = () => {
     if (!streamSessionSummariesLoaded) {
       return;
     }
-    void saveMobileStreamSessionSummaries(summaries, [
-      profile.destination.streamKey,
-      profile.streamAnnouncement.discordWebhookUrl
-    ]).catch(() => undefined);
-  }, [profile.destination.streamKey, profile.streamAnnouncement.discordWebhookUrl, streamSessionSummariesLoaded]);
+    void saveMobileStreamSessionSummaries(summaries, persistedDiagnosticSecrets).catch(() => undefined);
+  }, [persistedDiagnosticSecrets, streamSessionSummariesLoaded]);
   const clearPersistedStreamSessionSummaries = useCallback(() => {
     setPersistedStreamSessionSummaries([]);
     void clearMobileStreamSessionSummaries().catch(() => undefined);
@@ -914,11 +928,8 @@ export const MobileApp = () => {
     if (!streamValidationRunsLoaded) {
       return;
     }
-    void saveMobileStreamValidationRuns(streamValidationRuns, [
-      profile.destination.streamKey,
-      profile.streamAnnouncement.discordWebhookUrl
-    ]).catch(() => undefined);
-  }, [profile.destination.streamKey, profile.streamAnnouncement.discordWebhookUrl, streamValidationRuns, streamValidationRunsLoaded]);
+    void saveMobileStreamValidationRuns(streamValidationRuns, persistedDiagnosticSecrets).catch(() => undefined);
+  }, [persistedDiagnosticSecrets, streamValidationRuns, streamValidationRunsLoaded]);
 
   useEffect(() => {
     let cancelled = false;

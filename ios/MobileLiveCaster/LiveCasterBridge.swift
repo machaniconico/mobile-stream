@@ -10,6 +10,7 @@ private let broadcastConfigurationKey = "MobileLiveCaster.broadcastConfiguration
 private let broadcastControlKey = "MobileLiveCaster.broadcastControl.v1"
 private let broadcastRuntimeStateKey = "MobileLiveCaster.broadcastRuntimeState.v1"
 private let broadcastRuntimeStateStaleMillis: Double = 10_000
+private let broadcastCredentialLifetimeMillis: Double = 10 * 60 * 1000
 
 enum LiveCasterStatus: String {
     case idle
@@ -165,17 +166,15 @@ struct LiveCasterPreparedConfiguration {
         broadcastMixer = LiveCasterBroadcastMixerConfiguration(payload: root["broadcastMixer"] as? [String: Any])
     }
 
-    func payload(renderGraphJSON: String) -> [String: Any] {
+    func payload(renderGraphJSON: String, handoffID: String, expiresAt: Double) -> [String: Any] {
         let now = Date().timeIntervalSince1970 * 1000
         return [
             "schemaVersion": 1,
             "createdAt": now,
-            "expiresAt": now + 10 * 60 * 1000,
+            "expiresAt": expiresAt,
+            "handoffId": handoffID,
             "preferredExtension": liveCasterBroadcastExtensionId,
             "destinationName": destinationName,
-            "serverUrl": serverURL,
-            "streamKey": streamKey,
-            "publishUrl": publishURL,
             "width": width,
             "height": height,
             "fps": fps,
@@ -426,11 +425,70 @@ final class LiveCasterSharedStore {
         UserDefaults(suiteName: liveCasterAppGroup)
     }
 
-    func saveConfiguration(_ configuration: LiveCasterPreparedConfiguration, renderGraphJSON: String) throws {
+    func saveConfiguration(
+        _ configuration: LiveCasterPreparedConfiguration,
+        renderGraphJSON: String,
+        handoffID: String,
+        expiresAt: Double
+    ) throws {
         guard let defaults else {
             throw LiveCasterNativeError.sharedStoreUnavailable
         }
-        defaults.set(configuration.payload(renderGraphJSON: renderGraphJSON), forKey: broadcastConfigurationKey)
+        try LiveCasterBroadcastCredentialStore.savePublishURL(
+            configuration.publishURL,
+            handoffID: handoffID,
+            expiresAt: expiresAt
+        )
+        defaults.set(
+            configuration.payload(renderGraphJSON: renderGraphJSON, handoffID: handoffID, expiresAt: expiresAt),
+            forKey: broadcastConfigurationKey
+        )
+        defaults.synchronize()
+    }
+
+    func saveConfigurationMetadata(
+        _ configuration: LiveCasterPreparedConfiguration,
+        renderGraphJSON: String,
+        handoffID: String,
+        expiresAt: Double
+    ) throws {
+        guard let defaults else {
+            throw LiveCasterNativeError.sharedStoreUnavailable
+        }
+        defaults.set(
+            configuration.payload(renderGraphJSON: renderGraphJSON, handoffID: handoffID, expiresAt: expiresAt),
+            forKey: broadcastConfigurationKey
+        )
+        defaults.synchronize()
+    }
+
+    func clearConfiguration(handoffID: String) throws {
+        if let defaults {
+            let storedHandoffID = defaults.dictionary(forKey: broadcastConfigurationKey)?["handoffId"] as? String
+            if storedHandoffID == nil || storedHandoffID == handoffID {
+                defaults.removeObject(forKey: broadcastConfigurationKey)
+                defaults.synchronize()
+            }
+        }
+        try LiveCasterBroadcastCredentialStore.clear(handoffID: handoffID)
+    }
+
+    func clearCredential(handoffID: String) throws {
+        try LiveCasterBroadcastCredentialStore.clear(handoffID: handoffID)
+    }
+
+    func cleanupExpiredCredentials() throws {
+        let now = Date().timeIntervalSince1970 * 1000
+        try LiveCasterBroadcastCredentialStore.clearExpiredCredentials(nowMillis: now)
+        guard let defaults, let payload = defaults.dictionary(forKey: broadcastConfigurationKey) else {
+            return
+        }
+        let handoffID = payload["handoffId"] as? String
+        let expiresAt = (payload["expiresAt"] as? NSNumber)?.doubleValue ?? 0
+        guard handoffID == nil || expiresAt < now else {
+            return
+        }
+        defaults.removeObject(forKey: broadcastConfigurationKey)
         defaults.synchronize()
     }
 
@@ -472,11 +530,15 @@ final class LiveCasterNative: RCTEventEmitter {
     private var preparedConfiguration: LiveCasterPreparedConfiguration?
     private var renderGraphJSON = "[]"
     private var runtimePoller: DispatchSourceTimer?
+    private var broadcastHandoffID: String?
+    private var broadcastHandoffExpiresAt: Double?
+    private var credentialCleanupWorkItem: DispatchWorkItem?
     private var lastRuntimeUpdatedAt: Double = 0
     private var nativeRuntime: [String: Any]?
 
     deinit {
         runtimePoller?.cancel()
+        credentialCleanupWorkItem?.cancel()
     }
 
     @objc
@@ -535,7 +597,7 @@ final class LiveCasterNative: RCTEventEmitter {
                 let configuration = try LiveCasterPreparedConfiguration(profileJSON: profileJson)
                 self.stopRuntimePollingLocked()
                 self.sharedStore.clearRuntimeState()
-                try self.sharedStore.saveConfiguration(configuration, renderGraphJSON: nextRenderGraphJSON)
+                try self.clearBroadcastHandoffLocked()
                 self.preparedConfiguration = configuration
                 self.renderGraphJSON = nextRenderGraphJSON
                 self.startedAt = nil
@@ -554,6 +616,7 @@ final class LiveCasterNative: RCTEventEmitter {
                 self.emitSnapshot(snapshot)
                 resolve(snapshot)
             } catch {
+                try? self.clearBroadcastHandoffLocked()
                 let message = self.redactSensitiveTextLocked(error.localizedDescription)
                 self.failLocked(message)
                 reject((error as? LiveCasterNativeError)?.code ?? "prepare_failed", message, error)
@@ -571,9 +634,18 @@ final class LiveCasterNative: RCTEventEmitter {
                 resolve(nil)
                 return
             }
-            guard self.preparedConfiguration != nil else {
+            guard let preparedConfiguration = self.preparedConfiguration else {
                 self.failLocked(LiveCasterNativeError.profileMissing.localizedDescription)
                 reject(LiveCasterNativeError.profileMissing.code, LiveCasterNativeError.profileMissing.localizedDescription, nil)
+                return
+            }
+
+            do {
+                try self.beginBroadcastHandoffLocked(preparedConfiguration, renderGraphJSON: self.renderGraphJSON)
+            } catch {
+                let message = self.redactSensitiveTextLocked(error.localizedDescription)
+                self.failLocked(message)
+                reject("broadcast_credential_save_failed", message, error)
                 return
             }
 
@@ -603,6 +675,7 @@ final class LiveCasterNative: RCTEventEmitter {
                     }
                 } catch {
                     self.stateQueue.async {
+                        try? self.clearBroadcastHandoffLocked()
                         let message = self.redactSensitiveTextLocked(error.localizedDescription)
                         self.failLocked(message)
                         reject((error as? LiveCasterNativeError)?.code ?? "start_failed", message, error)
@@ -615,7 +688,7 @@ final class LiveCasterNative: RCTEventEmitter {
     @objc(stop:rejecter:)
     func stop(
         _ resolve: @escaping RCTPromiseResolveBlock,
-        rejecter reject: RCTPromiseRejectBlock
+        rejecter reject: @escaping RCTPromiseRejectBlock
     ) {
         stateQueue.async { [weak self] in
             guard let self else {
@@ -623,6 +696,7 @@ final class LiveCasterNative: RCTEventEmitter {
                 return
             }
             self.sharedStore.saveControlAction("stop")
+            let cleanupResult = Result { try self.clearBroadcastHandoffLocked() }
             self.stopRuntimePollingLocked()
             self.status = .idle
             self.startedAt = nil
@@ -631,7 +705,13 @@ final class LiveCasterNative: RCTEventEmitter {
             self.health = LiveCasterHealth(message: "Stop requested; end iOS system broadcast if it is still active")
             let snapshot = self.snapshotLocked()
             self.emitSnapshot(snapshot)
-            resolve(snapshot)
+            switch cleanupResult {
+            case .success:
+                resolve(snapshot)
+            case .failure(let error):
+                let message = self.redactSensitiveTextLocked(error.localizedDescription)
+                reject("broadcast_credential_clear_failed", message, error)
+            }
         }
     }
 
@@ -643,6 +723,19 @@ final class LiveCasterNative: RCTEventEmitter {
         stateQueue.async { [weak self] in
             guard let self else {
                 resolve(nil)
+                return
+            }
+            guard let preparedConfiguration = self.preparedConfiguration else {
+                self.failLocked(LiveCasterNativeError.profileMissing.localizedDescription)
+                reject(LiveCasterNativeError.profileMissing.code, LiveCasterNativeError.profileMissing.localizedDescription, nil)
+                return
+            }
+            do {
+                try self.beginBroadcastHandoffLocked(preparedConfiguration, renderGraphJSON: self.renderGraphJSON)
+            } catch {
+                let message = self.redactSensitiveTextLocked(error.localizedDescription)
+                self.failLocked(message)
+                reject("broadcast_credential_save_failed", message, error)
                 return
             }
             self.status = .reconnecting
@@ -671,6 +764,7 @@ final class LiveCasterNative: RCTEventEmitter {
                     }
                 } catch {
                     self.stateQueue.async {
+                        try? self.clearBroadcastHandoffLocked()
                         let message = self.redactSensitiveTextLocked(error.localizedDescription)
                         self.failLocked(message)
                         reject((error as? LiveCasterNativeError)?.code ?? "reconnect_failed", message, error)
@@ -692,8 +786,19 @@ final class LiveCasterNative: RCTEventEmitter {
                 return
             }
             self.renderGraphJSON = nextRenderGraphJSON
-            if let preparedConfiguration = self.preparedConfiguration {
-                try? self.sharedStore.saveConfiguration(preparedConfiguration, renderGraphJSON: nextRenderGraphJSON)
+            if
+                let preparedConfiguration = self.preparedConfiguration,
+                let handoffID = self.broadcastHandoffID,
+                let expiresAt = self.broadcastHandoffExpiresAt,
+                self.status != .idle,
+                self.status != .failed
+            {
+                try? self.sharedStore.saveConfigurationMetadata(
+                    preparedConfiguration,
+                    renderGraphJSON: nextRenderGraphJSON,
+                    handoffID: handoffID,
+                    expiresAt: expiresAt
+                )
             }
             let snapshot = self.snapshotLocked()
             resolve(snapshot)
@@ -719,7 +824,19 @@ final class LiveCasterNative: RCTEventEmitter {
                 }
 
                 self.preparedConfiguration = nextConfiguration
-                try self.sharedStore.saveConfiguration(nextConfiguration, renderGraphJSON: self.renderGraphJSON)
+                if
+                    let handoffID = self.broadcastHandoffID,
+                    let expiresAt = self.broadcastHandoffExpiresAt,
+                    self.status != .idle,
+                    self.status != .failed
+                {
+                    try self.sharedStore.saveConfigurationMetadata(
+                        nextConfiguration,
+                        renderGraphJSON: self.renderGraphJSON,
+                        handoffID: handoffID,
+                        expiresAt: expiresAt
+                    )
+                }
                 self.health.fps = nextConfiguration.fps
                 self.health.message =
                     self.status == .live || self.status == .reconnecting
@@ -733,6 +850,88 @@ final class LiveCasterNative: RCTEventEmitter {
                 reject((error as? LiveCasterNativeError)?.code ?? "quality_update_failed", message, error)
             }
         }
+    }
+
+    private func beginBroadcastHandoffLocked(
+        _ configuration: LiveCasterPreparedConfiguration,
+        renderGraphJSON: String
+    ) throws {
+        try sharedStore.cleanupExpiredCredentials()
+        if broadcastHandoffID != nil {
+            try clearBroadcastHandoffLocked()
+        }
+
+        let handoffID = UUID().uuidString.lowercased()
+        let expiresAt = Date().timeIntervalSince1970 * 1000 + broadcastCredentialLifetimeMillis
+        do {
+            try sharedStore.saveConfiguration(
+                configuration,
+                renderGraphJSON: renderGraphJSON,
+                handoffID: handoffID,
+                expiresAt: expiresAt
+            )
+        } catch {
+            try? sharedStore.clearConfiguration(handoffID: handoffID)
+            throw error
+        }
+
+        broadcastHandoffID = handoffID
+        broadcastHandoffExpiresAt = expiresAt
+        scheduleCredentialCleanupLocked(handoffID: handoffID, deadlineMillis: expiresAt, retryAttempt: 0)
+    }
+
+    private func clearBroadcastHandoffLocked() throws {
+        guard let handoffID = broadcastHandoffID else {
+            try sharedStore.cleanupExpiredCredentials()
+            return
+        }
+        do {
+            try sharedStore.clearConfiguration(handoffID: handoffID)
+            credentialCleanupWorkItem?.cancel()
+            credentialCleanupWorkItem = nil
+            broadcastHandoffID = nil
+            broadcastHandoffExpiresAt = nil
+        } catch {
+            scheduleCredentialCleanupLocked(
+                handoffID: handoffID,
+                deadlineMillis: Date().timeIntervalSince1970 * 1000 + 1_000,
+                retryAttempt: 1
+            )
+            throw error
+        }
+    }
+
+    private func scheduleCredentialCleanupLocked(
+        handoffID: String,
+        deadlineMillis: Double,
+        retryAttempt: Int
+    ) {
+        credentialCleanupWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, self.broadcastHandoffID == handoffID else {
+                return
+            }
+            do {
+                try self.sharedStore.clearCredential(handoffID: handoffID)
+                self.credentialCleanupWorkItem = nil
+            } catch {
+                guard retryAttempt < 3 else {
+                    self.credentialCleanupWorkItem = nil
+                    self.health.message = "Broadcast credential cleanup requires another app retry"
+                    self.emitSnapshot(self.snapshotLocked())
+                    return
+                }
+                let retryDelayMillis = Double(30_000 * (1 << retryAttempt))
+                self.scheduleCredentialCleanupLocked(
+                    handoffID: handoffID,
+                    deadlineMillis: Date().timeIntervalSince1970 * 1000 + retryDelayMillis,
+                    retryAttempt: retryAttempt + 1
+                )
+            }
+        }
+        credentialCleanupWorkItem = workItem
+        let delayMillis = max(0, deadlineMillis - Date().timeIntervalSince1970 * 1000)
+        stateQueue.asyncAfter(deadline: .now() + .milliseconds(Int(delayMillis)), execute: workItem)
     }
 
     private func openBroadcastPicker() throws {

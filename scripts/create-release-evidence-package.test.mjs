@@ -3,7 +3,12 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { releaseConfigArtifactPaths, requiredReleaseGateLabels } from "./release-artifact-policy.mjs";
+import {
+  androidNativeDebugArtifactPath,
+  iosNativeVerificationArtifactPath,
+  releaseConfigArtifactPaths,
+  requiredReleaseGateLabels
+} from "./release-artifact-policy.mjs";
 import { distributionArtifactGroup, distributionArtifactManifestPath } from "./verify-distribution-artifacts.mjs";
 import { dashboardEvidenceArtifactGroup, dashboardEvidenceManifestPath } from "./verify-platform-dashboard-evidence.mjs";
 import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
@@ -22,8 +27,14 @@ import {
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
 import { acquireReleaseTestLock } from "./release-test-lock.mjs";
 import { requiredBrowserUiTextChecks } from "./browser-ui-required-text.mjs";
+import {
+  nativeBuildArtifactRecords,
+  nativeBuildFixturePaths,
+  writeNativeBuildFixture
+} from "./native-build-test-fixtures.mjs";
 
 const fixtureRoot = ".artifacts/release-evidence-package-test";
+const nativeBuildPaths = nativeBuildFixturePaths(fixtureRoot);
 const packageDir = `${fixtureRoot}/package`;
 const reportPath = `${fixtureRoot}/release-report.json`;
 const supportBundlePath = `${fixtureRoot}/support-bundle.json`;
@@ -52,7 +63,8 @@ const generatedFiles = [
   ".artifacts/release-evidence-package-test/submission-review.md",
   ".artifacts/release-evidence-package-test/ios-store.png",
   ".artifacts/release-evidence-package-test/android-store.png",
-  ".artifacts/release-evidence-package-test/physical-device-preflight.json"
+  ".artifacts/release-evidence-package-test/physical-device-preflight.json",
+  ...nativeBuildPaths.allPaths
 ];
 const fileBackups = new Map();
 let releaseTestUnlock = () => {};
@@ -425,6 +437,111 @@ describe("release evidence package creator", () => {
     expect(failures).toContain("Release evidence package file metadata mismatch for artifacts/dist/index.html.");
   });
 
+  it("rejects packaged reports missing a required native build gate", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    packagedReport.gates = packagedReport.gates.filter((gate) => gate.label !== "Build iOS native simulator app");
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+    refreshPackagedSourceReportEvidence();
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Packaged release report is missing required gate Build iOS native simulator app.");
+  });
+
+  it("rejects semantically tampered packaged iOS native verification metadata", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedVerificationPath = `${packageDir}/artifacts/${iosNativeVerificationArtifactPath}`;
+    const verification = JSON.parse(readFileSync(packagedVerificationPath, "utf8"));
+    verification.broadcastUploadExtension.processMode = "RPBroadcastProcessModeUserInitiated";
+    writeFileSync(packagedVerificationPath, JSON.stringify(verification, null, 2));
+    refreshPackagedArtifactEvidence(iosNativeVerificationArtifactPath, packagedVerificationPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Package iOS native verification ReplayKit process mode is invalid.");
+  });
+
+  it("rejects non-canonical iOS bundle record paths after outer hashes are refreshed", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedVerificationPath = `${packageDir}/artifacts/${iosNativeVerificationArtifactPath}`;
+    const verification = JSON.parse(readFileSync(packagedVerificationPath, "utf8"));
+    verification.appBundle.files[0].path = `./${verification.appBundle.files[0].path}`;
+    writeFileSync(packagedVerificationPath, JSON.stringify(verification, null, 2));
+    refreshPackagedArtifactEvidence(iosNativeVerificationArtifactPath, packagedVerificationPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain("contains a non-canonical or escaped file path");
+    expect(failures.join("\n")).toContain("artifact path must be canonical and workspace-relative");
+  });
+
+  it("rejects coherent removal of the iOS implementation dylib from a package", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedVerificationPath = `${packageDir}/artifacts/${iosNativeVerificationArtifactPath}`;
+    const verification = JSON.parse(readFileSync(packagedVerificationPath, "utf8"));
+    const implementationPath = verification.appBundle.implementation.path;
+    verification.appBundle.files = verification.appBundle.files.filter((record) => record.path !== implementationPath);
+    delete verification.appBundle.implementation;
+    writeFileSync(packagedVerificationPath, JSON.stringify(verification, null, 2));
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const verificationArtifact = packagedReport.artifacts.files.find(
+      (artifact) => artifact.path === iosNativeVerificationArtifactPath
+    );
+    verificationArtifact.bytes = readFileSync(packagedVerificationPath).byteLength;
+    verificationArtifact.sha256 = fileSha256(packagedVerificationPath);
+    packagedReport.artifacts.files = packagedReport.artifacts.files.filter(
+      (artifact) => artifact.path !== implementationPath
+    );
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+    manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+    refreshPackageArtifactEntry(manifest, iosNativeVerificationArtifactPath, packagedVerificationPath);
+    manifest.artifacts = manifest.artifacts.filter((artifact) => artifact.sourcePath !== implementationPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+    rmSync(`${packageDir}/artifacts/${implementationPath}`, { force: true });
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      `Package iOS native verification bundle manifest is missing required implementation file ${implementationPath}.`
+    );
+  });
+
+  it("rejects a coherently rehashed packaged Android artifact that is not an APK", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedApkPath = `${packageDir}/artifacts/${androidNativeDebugArtifactPath}`;
+    writeFileSync(packagedApkPath, "not-an-apk");
+    refreshPackagedArtifactEvidence(androidNativeDebugArtifactPath, packagedApkPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      `Package Android native debug artifact ${androidNativeDebugArtifactPath} must be at least 1048576 bytes to prevent placeholder release binaries.`
+    );
+  });
+
   it("rejects a package manifest that retains artifacts removed from the packaged report", () => {
     resetPackageDir();
     writeReportFixture();
@@ -482,6 +599,30 @@ describe("release evidence package creator", () => {
 
     expect(failures).toContain(
       `Package is missing physical-device preflight artifact group ${physicalDevicePreflightArtifactGroup}.`
+    );
+  });
+
+  it("rejects packages whose report detaches the physical-device gate hash from its artifact", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const gate = packagedReport.gates.find((entry) => entry.label === "Verify physical device preflight");
+    gate.evidence.sha256 = "0".repeat(64);
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+    manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      "Package Physical-device preflight gate evidence SHA-256 does not match the preflight artifact record."
     );
   });
 
@@ -1454,6 +1595,24 @@ describe("release evidence package creator", () => {
     expect(failures.join("\n")).toContain("artifacts/.artifacts/rn/index.android.bundle contains a stream key in an RTMP URL");
   });
 
+  it("still scans iOS native verification metadata for credentials", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedVerificationPath = `${packageDir}/artifacts/${iosNativeVerificationArtifactPath}`;
+    const verification = JSON.parse(readFileSync(packagedVerificationPath, "utf8"));
+    verification.debug = "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456";
+    writeFileSync(packagedVerificationPath, JSON.stringify(verification, null, 2));
+    refreshPackagedArtifactEvidence(iosNativeVerificationArtifactPath, packagedVerificationPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain(
+      "artifacts/.artifacts/ios-native-verification.json contains a bearer/OAuth token"
+    );
+  });
+
   it("scans release text artifacts such as mjs files for oauth tokens and RTMP stream keys", () => {
     resetPackageDir();
     writeReportFixture();
@@ -1519,6 +1678,7 @@ function writeFixtureFiles() {
   writeFile("dist/assets/release-evidence-package-test.css", "body { color: #111; }");
   writeFile(".artifacts/rn/main.ios.jsbundle", "ios bundle");
   writeFile(".artifacts/rn/index.android.bundle", "android bundle");
+  writeNativeBuildFixture(fixtureRoot);
   writeFile(".artifacts/mobile-live-caster-desktop.png", pngBytes);
   writeFile(".artifacts/mobile-live-caster-mobile.png", pngBytes);
   writeFile(
@@ -1801,6 +1961,7 @@ function writeReportFixture({ skipUi = true, uiEvidencePath = ".artifacts/releas
     artifactRecord("web", "dist/assets/release-evidence-package-test.css"),
     artifactRecord("react-native", ".artifacts/rn/main.ios.jsbundle"),
     artifactRecord("react-native", ".artifacts/rn/index.android.bundle"),
+    ...nativeBuildArtifactRecords(fixtureRoot, artifactRecord),
     artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
     artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
     ...(!skipUi ? [artifactRecord("ui", uiEvidencePath)] : []),
@@ -2127,25 +2288,7 @@ function writeStoreSubmissionFixture() {
 }
 
 function writePhysicalDevicePreflightFixture(patch = {}) {
-  const report = createPhysicalDevicePreflightReport({
-    androidAdbOutput: `List of devices attached
-R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
-`,
-    androidRuntimeProperties: {
-      R58M123456B: `[ro.kernel.qemu]: [0]
-[ro.boot.qemu]: [0]
-[ro.hardware]: [qcom]
-`
-    },
-    androidRuntimeCommands: {
-      R58M123456B: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" }
-    },
-    iosXctraceOutput: `== Devices ==
-Release iPhone (17.5.1) (00008110-001234560E91801E)
-== Simulators ==
-iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
-`
-  });
+  const report = createPhysicalDevicePreflightReport(createPhysicalDevicePreflightFixtureInput());
   writePhysicalDevicePreflightReport(
     {
       ...report,
@@ -2159,6 +2302,62 @@ iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
     },
     physicalDevicePreflightPath
   );
+}
+
+function createPhysicalDevicePreflightFixtureInput() {
+  return {
+    androidAdbOutput: `List of devices attached
+R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
+`,
+    androidCommand: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" },
+    androidRuntimeProperties: {
+      R58M123456B: `[ro.kernel.qemu]: [0]
+[ro.boot.qemu]: [0]
+[ro.hardware]: [qcom]
+`
+    },
+    androidRuntimeCommands: {
+      R58M123456B: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" }
+    },
+    iosXctraceOutput: `== Devices ==
+Release iPhone (17.5.1) (00008110-001234560E91801E)
+== Simulators ==
+iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
+`,
+    iosCommand: { ok: true, tool: "xcrun", stdout: "", detail: "command succeeded" },
+    toolEvidence: {
+      android: {
+        deviceList: {
+          invocation: "adb devices -l",
+          tool: "adb",
+          ok: true,
+          detail: "command succeeded"
+        },
+        version: {
+          invocation: "adb version",
+          tool: "adb",
+          ok: true,
+          detail: "command succeeded",
+          version: "Android Debug Bridge version 1.0.41 / Version 35.0.2 (r12147458)"
+        }
+      },
+      ios: {
+        deviceList: {
+          invocation: "xcrun xctrace list devices",
+          tool: "xcrun",
+          ok: true,
+          detail: "command succeeded"
+        },
+        version: {
+          invocation: "xcrun xctrace version",
+          tool: "xcrun",
+          ok: true,
+          detail: "command succeeded",
+          version: "xctrace version 16.4 (16F6)"
+        }
+      }
+    }
+  };
 }
 
 function distributionArtifactRecords() {

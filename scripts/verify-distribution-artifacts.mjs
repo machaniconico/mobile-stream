@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { argv, cwd, exit } from "node:process";
+import { argv, cwd, env, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 
@@ -21,6 +22,11 @@ const requiredZipEntries = {
   ],
   ios: [{ label: "Payload/*.app/Info.plist", test: (entry) => /^Payload\/[^/]+\.app\/Info\.plist$/.test(entry) }]
 };
+const androidDebugApkRequiredZipEntries = [
+  { label: "AndroidManifest.xml", test: (entry) => entry === "AndroidManifest.xml" },
+  { label: "classes.dex", test: (entry) => /^classes(?:\d+)?\.dex$/u.test(entry) }
+];
+const androidApkFileInspectionCache = new Map();
 
 export function createDistributionManifest({ androidAab, iosIpa, manifestPath = distributionArtifactManifestPath } = {}) {
   const artifactInputs = [
@@ -248,33 +254,167 @@ function validateDistributionArtifact(artifact, failures) {
 }
 
 export function inspectDistributionArtifactContent(artifact, content) {
+  return inspectZipArtifactContent(
+    {
+      path: artifact.path,
+      label: "Distribution artifact",
+      platformLabel: artifact.platform,
+      requirements: requiredZipEntries[artifact.platform] || []
+    },
+    content
+  );
+}
+
+export function inspectAndroidDebugApkContent(content, { path = "app-debug.apk" } = {}) {
+  return inspectZipArtifactContent(
+    {
+      path,
+      label: "Android native debug artifact",
+      platformLabel: "APK",
+      requirements: androidDebugApkRequiredZipEntries
+    },
+    content
+  );
+}
+
+export function inspectAndroidDebugApkFile(path, { displayPath = path } = {}) {
+  const content = readFileSync(path);
+  const contentInspection = inspectAndroidDebugApkContent(content, { path: displayPath });
+  const sha256 = createHash("sha256").update(content).digest("hex");
+  let fileInspection = androidApkFileInspectionCache.get(sha256);
+  if (!fileInspection) {
+    fileInspection = inspectAndroidApkFileWithPlatformTools(path, content);
+    androidApkFileInspectionCache.set(sha256, fileInspection);
+  }
+  return {
+    ...contentInspection,
+    failures: [
+      ...contentInspection.failures,
+      ...fileInspection.failureReasons.map((reason) => `Android native debug artifact ${displayPath} ${reason}.`)
+    ],
+    signature: fileInspection.signature
+  };
+}
+
+function inspectAndroidApkFileWithPlatformTools(path, content) {
+  const failureReasons = [];
+  const integrity = spawnSync("unzip", ["-tqq", path], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  if (integrity.error || integrity.status !== 0) {
+    failureReasons.push("failed ZIP payload and CRC validation");
+  }
+
+  const entries = readZipEntryNames(content) || [];
+  const manifest = extractZipEntry(path, "AndroidManifest.xml");
+  if (!isBinaryAndroidManifest(manifest)) {
+    failureReasons.push("contains an invalid binary AndroidManifest.xml");
+  }
+  const dexEntries = entries.filter((entry) => /^classes(?:\d+)?\.dex$/u.test(entry));
+  if (dexEntries.length === 0 || dexEntries.some((entry) => !hasDexMagic(extractZipEntry(path, entry)))) {
+    failureReasons.push("contains an invalid DEX payload");
+  }
+
+  const apkSignerPath = resolveAndroidApkSignerPath();
+  let signature = { verified: false, signerCount: 0, schemes: [] };
+  if (!apkSignerPath) {
+    failureReasons.push("cannot locate Android SDK apksigner");
+  } else {
+    const result = spawnSync(apkSignerPath, ["verify", "--verbose", "--min-sdk-version", "24", path], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    const output = `${result.stdout || ""}\n${result.stderr || ""}`;
+    const schemes = [...output.matchAll(/Verified using (v\d+(?:\.\d+)?) scheme[^:]*:\s*true/gu)].map((match) => match[1]);
+    const signerCount = Number(output.match(/Number of signers:\s*(\d+)/u)?.[1] || 0);
+    signature = { verified: !result.error && result.status === 0 && schemes.includes("v2") && signerCount > 0, signerCount, schemes };
+    if (!signature.verified) {
+      failureReasons.push("does not have a valid APK Signature Scheme v2 signature");
+    }
+  }
+  return { failureReasons, signature };
+}
+
+function extractZipEntry(path, entry) {
+  const result = spawnSync("unzip", ["-p", path, entry], {
+    encoding: null,
+    maxBuffer: 256 * 1024 * 1024,
+    stdio: ["ignore", "pipe", "ignore"]
+  });
+  return !result.error && result.status === 0 && Buffer.isBuffer(result.stdout) ? result.stdout : null;
+}
+
+function isBinaryAndroidManifest(content) {
+  return Boolean(
+    content &&
+      content.length >= 8 &&
+      content[0] === 0x03 &&
+      content[1] === 0x00 &&
+      content[2] === 0x08 &&
+      content[3] === 0x00 &&
+      content.readUInt32LE(4) >= 8 &&
+      content.readUInt32LE(4) <= content.length
+  );
+}
+
+function hasDexMagic(content) {
+  return Boolean(content && content.length >= 8 && /^dex\n\d{3}\u0000$/u.test(content.subarray(0, 8).toString("ascii")));
+}
+
+export function resolveAndroidApkSignerPath() {
+  const roots = new Set([env.ANDROID_HOME, env.ANDROID_SDK_ROOT, androidSdkRootFromLocalProperties(), join(homedir(), "Library/Android/sdk"), join(homedir(), "Android/Sdk")].filter(Boolean));
+  for (const root of roots) {
+    const buildToolsPath = join(root, "build-tools");
+    if (!existsSync(buildToolsPath)) {
+      continue;
+    }
+    const versions = readdirSync(buildToolsPath).sort((left, right) => right.localeCompare(left, undefined, { numeric: true }));
+    for (const version of versions) {
+      const candidate = join(buildToolsPath, version, process.platform === "win32" ? "apksigner.bat" : "apksigner");
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  return "";
+}
+
+function androidSdkRootFromLocalProperties() {
+  if (!existsSync("android/local.properties")) {
+    return "";
+  }
+  const line = readFileSync("android/local.properties", "utf8")
+    .split(/\r?\n/u)
+    .find((entry) => entry.startsWith("sdk.dir="));
+  return line ? line.slice("sdk.dir=".length).replaceAll("\\\\", "\\").replaceAll("\\:", ":") : "";
+}
+
+function inspectZipArtifactContent({ path, label, platformLabel, requirements }, content) {
   const failures = [];
   let zipEntryCount = 0;
   let requiredEntriesFound = [];
   if (content.byteLength < minimumDistributionArtifactBytes) {
     failures.push(
-      `Distribution artifact ${artifact.path} must be at least ${minimumDistributionArtifactBytes} bytes to prevent placeholder release binaries.`
+      `${label} ${path} must be at least ${minimumDistributionArtifactBytes} bytes to prevent placeholder release binaries.`
     );
   }
   if (!hasZipLocalFileHeader(content)) {
-    failures.push(`Distribution artifact ${artifact.path} must start with a ZIP local-file header.`);
+    failures.push(`${label} ${path} must start with a ZIP local-file header.`);
   }
   if (!hasZipEndOfCentralDirectory(content)) {
-    failures.push(`Distribution artifact ${artifact.path} is missing a ZIP end-of-central-directory record.`);
+    failures.push(`${label} ${path} is missing a ZIP end-of-central-directory record.`);
   }
   const entries = readZipEntryNames(content);
   if (entries === null) {
-    failures.push(`Distribution artifact ${artifact.path} ZIP central directory could not be read.`);
+    failures.push(`${label} ${path} ZIP central directory could not be read.`);
   } else {
     zipEntryCount = entries.length;
     if (zipEntryCount === 0) {
-      failures.push(`Distribution artifact ${artifact.path} ZIP central directory has no entries.`);
+      failures.push(`${label} ${path} ZIP central directory has no entries.`);
     }
-    requiredEntriesFound = findRequiredZipEntries(artifact.platform, entries);
+    requiredEntriesFound = findRequiredZipEntries(requirements, entries);
     const foundLabels = new Set(requiredEntriesFound);
-    for (const requirement of requiredZipEntries[artifact.platform] || []) {
+    for (const requirement of requirements) {
       if (!foundLabels.has(requirement.label)) {
-        failures.push(`Distribution artifact ${artifact.path} is missing required ${artifact.platform} ZIP entry ${requirement.label}.`);
+        failures.push(`${label} ${path} is missing required ${platformLabel} ZIP entry ${requirement.label}.`);
       }
     }
   }
@@ -343,9 +483,9 @@ function readZipEntryNames(content) {
   return names;
 }
 
-function findRequiredZipEntries(platform, entries) {
+function findRequiredZipEntries(requirements, entries) {
   const found = [];
-  for (const requirement of requiredZipEntries[platform] || []) {
+  for (const requirement of requirements) {
     if (entries.some((entry) => requirement.test(entry))) {
       found.push(requirement.label);
     }

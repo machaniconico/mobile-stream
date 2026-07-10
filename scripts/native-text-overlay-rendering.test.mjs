@@ -31,7 +31,8 @@ describe("native text overlay rendering", () => {
     expect(handler).toContain("private var liveRenderGraphRejectedUpdateCount = 0");
     expect(handler).toContain("private var lastRejectedRenderGraphUpdateKey: String?");
     expect(handler).toContain("refreshSceneCompositorIfNeeded()");
-    expect(handler).toContain("BroadcastSharedStore.loadConfigurationSetupInfo()");
+    expect(handler).toContain("BroadcastSharedStore.loadConfigurationSetupInfo(");
+    expect(handler).toContain("expectedHandoffID: handoffID");
     expect(handler).toContain("nextConfiguration.renderGraphUpdatedAt != activeRenderGraphUpdatedAt || nextRenderGraphJSON != currentRenderGraphJSON");
     expect(handler).toContain("lastRejectedRenderGraphUpdateKey != nextRenderGraphUpdateKey");
     expect(handler).toContain("liveRenderGraphRejectedUpdateCount += 1");

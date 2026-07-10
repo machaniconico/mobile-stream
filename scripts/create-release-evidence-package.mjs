@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import {
   distributionArtifactGroup,
   distributionArtifactManifestPath,
+  inspectAndroidDebugApkFile,
   inspectDistributionArtifactContent
 } from "./verify-distribution-artifacts.mjs";
 import {
@@ -13,7 +14,7 @@ import {
   dashboardEvidenceManifestPath,
   dashboardScreenshotStatusMaxSkewMinutes
 } from "./verify-platform-dashboard-evidence.mjs";
-import { validateReport } from "./verify-release-report.mjs";
+import { validatePhysicalDevicePreflightGateEvidence, validateReport } from "./verify-release-report.mjs";
 import { storeReleaseReportArtifactGroup, storeReleaseReportType } from "./release-store-build.mjs";
 import {
   storeSubmissionArtifactGroup,
@@ -27,6 +28,23 @@ import { isLoopbackHttpUrl } from "./release-url-policy.mjs";
 import { readPngEvidence } from "./png-evidence.mjs";
 import { validateManifestGitProvenance } from "./release-git-provenance.mjs";
 import { requiredBrowserUiTextChecks } from "./browser-ui-required-text.mjs";
+import {
+  androidNativeDebugArtifactPath,
+  androidNativeVerificationArtifactPath,
+  iosNativeVerificationArtifactPath,
+  requiredReleaseArtifactGroups,
+  requiredReleaseGateLabels
+} from "./release-artifact-policy.mjs";
+import {
+  iosNativeVerificationArtifactGroup,
+  iosNativeVerificationRecordedFiles,
+  validateIosNativeArtifactContents,
+  validateIosNativeVerificationReport
+} from "./verify-ios-native.mjs";
+import {
+  androidNativeVerificationArtifactGroup,
+  validateAndroidNativeVerificationReport
+} from "./verify-android-native.mjs";
 
 export const releaseEvidencePackageManifestName = "release-evidence-package.json";
 export const releaseEvidencePackageType = "release-evidence-package-manifest";
@@ -298,6 +316,8 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
   const packagedArtifacts = new Map(
     (manifest.artifacts || []).map((artifact) => [`${artifact.group}:${artifact.sourcePath}`, artifact])
   );
+  validatePackagedCoreReleaseEvidence(report, failures);
+  validatePackagedNativeBuildArtifacts(report, packagedArtifacts, packageDir, failures, { maxAgeHours });
   validatePackagedUiEvidence(manifest, report, packagedArtifacts, packageDir, failures, { maxAgeHours });
   validateRequiredCommercialPackageArtifacts(report, manifest, reportArtifacts, packagedArtifacts, failures);
   validatePackagedCommercialManifests(packageDir, packagedArtifacts, failures, { releaseReport: report, maxAgeHours, supportBundle });
@@ -319,6 +339,132 @@ function validatePackagedReport(manifest, packageDir, failures, { maxAgeHours })
       failures.push(`Packaged artifact metadata mismatch for ${reportArtifact.path}.`);
     }
   }
+}
+
+function validatePackagedCoreReleaseEvidence(report, failures) {
+  const gates = Array.isArray(report?.gates) ? report.gates : [];
+  for (const label of requiredReleaseGateLabels) {
+    const gate = gates.find((entry) => entry?.label === label);
+    if (!gate) {
+      failures.push(`Packaged release report is missing required gate ${label}.`);
+    } else if (gate.status !== "passed") {
+      failures.push(`Packaged release report required gate ${label} must be passed.`);
+    }
+  }
+
+  const artifacts = Array.isArray(report?.artifacts?.files) ? report.artifacts.files : [];
+  for (const group of requiredReleaseArtifactGroups) {
+    if (!artifacts.some((artifact) => artifact?.group === group)) {
+      failures.push(`Packaged release report is missing required artifact group ${group}.`);
+    }
+  }
+}
+
+function validatePackagedNativeBuildArtifacts(report, packagedArtifacts, packageDir, failures, { maxAgeHours }) {
+  const androidReportArtifact = packagedArtifactFor(
+    packagedArtifacts,
+    androidNativeVerificationArtifactGroup,
+    androidNativeVerificationArtifactPath
+  );
+  if (!androidReportArtifact) {
+    failures.push(`Package is missing Android native verification artifact ${androidNativeVerificationArtifactPath}.`);
+  }
+  const androidReport = androidReportArtifact
+    ? readPackagedJsonEntry(androidReportArtifact, packageDir, "Android native verification report", failures)
+    : null;
+  if (androidReport) {
+    failures.push(
+      ...validateAndroidNativeVerificationReport(androidReport, {
+        reportPath: androidNativeVerificationArtifactPath,
+        releaseFinishedAt: report?.finishedAt || "",
+        releaseGitCommit: report?.git?.commit || "",
+        maxAgeHours
+      }).map((failure) => `Package ${failure}`)
+    );
+  }
+
+  const androidArtifact = packagedArtifactFor(
+    packagedArtifacts,
+    androidNativeVerificationArtifactGroup,
+    androidNativeDebugArtifactPath
+  );
+  if (!androidArtifact) {
+    failures.push(`Package is missing Android native debug artifact ${androidNativeDebugArtifactPath}.`);
+  } else {
+    const content = readPackagedArtifactContent(androidArtifact, packageDir);
+    if (content && safeRelativePath(androidArtifact.packagedPath)) {
+      const packagedPath = resolve(packageDir, androidArtifact.packagedPath);
+      const inspection = inspectAndroidDebugApkFile(packagedPath, { displayPath: androidNativeDebugArtifactPath });
+      failures.push(
+        ...inspection.failures.map((failure) =>
+          failure.replace("Android native debug artifact", "Package Android native debug artifact")
+        )
+      );
+      if (
+        androidReport &&
+        (androidArtifact.bytes !== androidReport.apk?.bytes ||
+          androidArtifact.sha256 !== androidReport.apk?.sha256 ||
+          inspection.zipEntryCount !== androidReport.apk?.zipEntryCount ||
+          JSON.stringify(inspection.requiredZipEntries) !== JSON.stringify(androidReport.apk?.requiredZipEntries) ||
+          JSON.stringify(inspection.signature) !== JSON.stringify(androidReport.apk?.signature))
+      ) {
+        failures.push("Package Android native debug APK metadata does not match the native verification report.");
+      }
+    }
+  }
+
+  const iosArtifact = packagedArtifactFor(
+    packagedArtifacts,
+    iosNativeVerificationArtifactGroup,
+    iosNativeVerificationArtifactPath
+  );
+  if (!iosArtifact) {
+    failures.push(`Package is missing iOS native verification artifact ${iosNativeVerificationArtifactPath}.`);
+    return;
+  }
+  const iosReport = readPackagedJsonEntry(iosArtifact, packageDir, "iOS native verification report", failures);
+  if (!iosReport) {
+    return;
+  }
+  failures.push(
+    ...validateIosNativeVerificationReport(iosReport, {
+      reportPath: iosNativeVerificationArtifactPath,
+      releaseFinishedAt: report?.finishedAt || "",
+      releaseGitCommit: report?.git?.commit || "",
+      maxAgeHours
+    }).map((failure) => `Package ${failure}`)
+  );
+
+  for (const { label, record } of iosNativeVerificationRecordedFiles(iosReport)) {
+    const recordPath = workspaceRecordPath(record?.path || "");
+    if (!recordPath) {
+      failures.push(`Package iOS native ${label} artifact path must be canonical and workspace-relative.`);
+      continue;
+    }
+    const packagedArtifact = packagedArtifactFor(packagedArtifacts, iosNativeVerificationArtifactGroup, recordPath);
+    if (!packagedArtifact) {
+      failures.push(`Package is missing iOS native ${label} artifact ${recordPath}.`);
+    } else if (packagedArtifact.bytes !== record.bytes || packagedArtifact.sha256 !== record.sha256) {
+      failures.push(`Package iOS native ${label} metadata does not match the native verification report.`);
+    }
+  }
+  failures.push(
+    ...validateIosNativeArtifactContents(iosReport, (sourcePath) => {
+      const artifact = packagedArtifactFor(packagedArtifacts, iosNativeVerificationArtifactGroup, sourcePath);
+      return artifact ? readPackagedArtifactContent(artifact, packageDir) : null;
+    }).map((failure) => `Package ${failure}`)
+  );
+}
+
+function readPackagedArtifactContent(artifact, packageDir) {
+  if (!artifact?.packagedPath || !safeRelativePath(artifact.packagedPath)) {
+    return null;
+  }
+  const path = resolve(packageDir, artifact.packagedPath);
+  if (!isInsideDirectory(path, packageDir) || !existsSync(path) || !lstatSync(path).isFile()) {
+    return null;
+  }
+  return readFileSync(path);
 }
 
 function validatePackageManifestGeneratedAt(manifest, failures) {
@@ -495,6 +641,13 @@ function validatePackagedCommercialManifests(packageDir, packagedArtifacts, fail
   }
   const preflight = readPackagedJsonEntry(preflightArtifact, packageDir, "physical device preflight", failures);
   if (preflight) {
+    failures.push(
+      ...validatePhysicalDevicePreflightGateEvidence(
+        releaseReport,
+        { path: preflightArtifact.sourcePath, sha256: preflightArtifact.sha256 },
+        preflight
+      ).map((failure) => `Package ${failure}`)
+    );
     failures.push(
       ...validatePhysicalDevicePreflightReport(preflight, {
         currentCommit: String(releaseReport.git?.commit || ""),
@@ -1601,7 +1754,11 @@ function findSensitiveTextFindings(value, path) {
     if (hasUnredactedPhoneMatch(value)) {
       findings.push({ path, reason: "contains a phone number" });
     }
-    if (isProtocolLessLinkEvidencePath(path) && hasUnredactedProtocolLessLink(value)) {
+    if (
+      isProtocolLessLinkEvidencePath(path) &&
+      !isIosNativeBuildMetadataPath(path) &&
+      hasUnredactedProtocolLessLink(value)
+    ) {
       findings.push({ path, reason: "contains a protocol-less link" });
     }
   }
@@ -1621,6 +1778,14 @@ function isGeneratedReactNativeBundlePath(path) {
   return (
     normalized.startsWith("artifacts/.artifacts/rn/") &&
     (normalized.endsWith(".bundle") || normalized.endsWith(".jsbundle"))
+  );
+}
+
+function isIosNativeBuildMetadataPath(path) {
+  const normalized = String(path || "").replaceAll("\\", "/");
+  return (
+    normalized === `artifacts/${iosNativeVerificationArtifactPath}` ||
+    (normalized.includes("/Build/Products/Debug-iphonesimulator/") && normalized.endsWith("/Info.plist"))
   );
 }
 
@@ -1714,7 +1879,8 @@ function copyEvidenceFile({
   const sourceStat = lstatSync(resolvedSourcePath);
   const sourceBytes = sourceStat.size;
   const sourceSha256 = fileSha256(resolvedSourcePath);
-  if (sourceBytes <= 0) {
+  const allowsEmptyIosBundleFile = role === "artifact" && group === iosNativeVerificationArtifactGroup;
+  if (sourceBytes <= 0 && !allowsEmptyIosBundleFile) {
     throw new Error(`${role} source file is empty: ${sourcePath}.`);
   }
   if (Number.isFinite(expectedBytes) && expectedBytes !== sourceBytes) {
@@ -1791,7 +1957,8 @@ function validatePackageEntry(entry, packageDir, failures) {
   }
   const bytes = packagedFileStat.size;
   const sha256 = fileSha256(resolvedPath);
-  if (bytes <= 0 || bytes !== entry.bytes || sha256 !== entry.sha256) {
+  const allowsEmptyIosBundleFile = entry.role === "artifact" && entry.group === iosNativeVerificationArtifactGroup;
+  if ((!allowsEmptyIosBundleFile && bytes <= 0) || bytes !== entry.bytes || sha256 !== entry.sha256) {
     failures.push(`Release evidence package file metadata mismatch for ${entry.packagedPath}.`);
   }
 }

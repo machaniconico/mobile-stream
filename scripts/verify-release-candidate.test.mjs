@@ -8,7 +8,7 @@ import { createDashboardEvidenceManifest, dashboardEvidenceManifestPath } from "
 import { createStoreSubmissionChecklist, storeSubmissionChecklistPath } from "./verify-store-submission-checklist.mjs";
 import { createPhysicalDevicePreflightReport, writePhysicalDevicePreflightReport } from "./verify-physical-devices.mjs";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
-import { acquireReleaseTestLock } from "./release-test-lock.mjs";
+import { acquireReleaseTestLock, releaseTestLockHookTimeoutMs } from "./release-test-lock.mjs";
 import { requiredBrowserUiTextChecks } from "./browser-ui-required-text.mjs";
 
 const fixtureRoot = ".artifacts/verify-release-candidate-test";
@@ -40,7 +40,7 @@ const minimumDistributionArtifactBytes = 1_048_576;
 const pngBytes = pngWithDimensions(1179, 2556);
 const appBuild = "1.0.0 (1)";
 
-vi.setConfig({ testTimeout: 45_000 });
+vi.setConfig({ testTimeout: 45_000, hookTimeout: releaseTestLockHookTimeoutMs });
 
 describe("release candidate verifier", () => {
   beforeEach(() => {
@@ -474,7 +474,7 @@ describe("release candidate verifier", () => {
     writeSupportBundleFixture({ summary: { validationEvidenceStatus: "blocked" } });
     writePhysicalDevicePreflightFixture();
 
-    const result = runVerifier([`--physical-device-preflight-json=${physicalDevicePreflightPath}`]);
+    const result = runVerifier([`--physical-device-preflight-json=./${physicalDevicePreflightPath}`]);
 
     expect(result.status).toBe(1);
     const report = JSON.parse(readFileSync(reportPath, "utf8"));
@@ -544,7 +544,7 @@ function runVerifier(extraArgs = []) {
       `--report-json=${reportPath}`,
       ...extraArgs
     ],
-    { encoding: "utf8" }
+    { encoding: "utf8", timeout: 15_000 }
   );
 }
 
@@ -564,10 +564,16 @@ function writeStoreSubmissionChecklist() {
 }
 
 function writePhysicalDevicePreflightFixture(patch = {}) {
-  const report = createPhysicalDevicePreflightReport({
+  const report = createPhysicalDevicePreflightReport(createPhysicalDevicePreflightFixtureInput());
+  writePhysicalDevicePreflightReport({ ...report, ...patch }, physicalDevicePreflightPath);
+}
+
+function createPhysicalDevicePreflightFixtureInput() {
+  return {
     androidAdbOutput: `List of devices attached
 R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
 `,
+    androidCommand: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" },
     androidRuntimeProperties: {
       R58M123456B: `[ro.kernel.qemu]: [0]
 [ro.boot.qemu]: [0]
@@ -581,9 +587,41 @@ R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
 Release iPhone (17.5.1) (00008110-001234560E91801E)
 == Simulators ==
 iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
-`
-  });
-  writePhysicalDevicePreflightReport({ ...report, ...patch }, physicalDevicePreflightPath);
+`,
+    iosCommand: { ok: true, tool: "xcrun", stdout: "", detail: "command succeeded" },
+    toolEvidence: {
+      android: {
+        deviceList: {
+          invocation: "adb devices -l",
+          tool: "adb",
+          ok: true,
+          detail: "command succeeded"
+        },
+        version: {
+          invocation: "adb version",
+          tool: "adb",
+          ok: true,
+          detail: "command succeeded",
+          version: "Android Debug Bridge version 1.0.41 / Version 35.0.2 (r12147458)"
+        }
+      },
+      ios: {
+        deviceList: {
+          invocation: "xcrun xctrace list devices",
+          tool: "xcrun",
+          ok: true,
+          detail: "command succeeded"
+        },
+        version: {
+          invocation: "xcrun xctrace version",
+          tool: "xcrun",
+          ok: true,
+          detail: "command succeeded",
+          version: "xctrace version 16.4 (16F6)"
+        }
+      }
+    }
+  };
 }
 
 function writeSupportBundleFixture(patch = {}) {

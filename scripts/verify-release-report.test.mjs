@@ -2,8 +2,10 @@ import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  androidNativeDebugArtifactPath,
+  iosNativeVerificationArtifactPath,
   releaseConfigArtifactPaths,
   requiredReleaseGateLabels
 } from "./release-artifact-policy.mjs";
@@ -18,15 +20,23 @@ import {
 } from "./verify-physical-devices.mjs";
 import { validateReport } from "./verify-release-report.mjs";
 import { createRgbaPngFixture } from "./png-test-fixtures.mjs";
-import { acquireReleaseTestLock } from "./release-test-lock.mjs";
+import { acquireReleaseTestLock, releaseTestLockHookTimeoutMs } from "./release-test-lock.mjs";
 import { requiredBrowserUiTextChecks } from "./browser-ui-required-text.mjs";
+import {
+  nativeBuildArtifactRecords,
+  nativeBuildFixturePaths,
+  writeNativeBuildFixture
+} from "./native-build-test-fixtures.mjs";
 
+const fixtureRoot = ".artifacts/release-report-test";
+const nativeBuildPaths = nativeBuildFixturePaths(fixtureRoot);
 const generatedFiles = [
   "dist/index.html",
   "dist/assets/release-report-test.js",
   "dist/assets/release-report-test.css",
   ".artifacts/rn/main.ios.jsbundle",
   ".artifacts/rn/index.android.bundle",
+  ...nativeBuildPaths.allPaths,
   ".artifacts/mobile-live-caster-desktop.png",
   ".artifacts/mobile-live-caster-mobile.png",
   ".artifacts/ui-verification.json",
@@ -55,6 +65,9 @@ const minimumDistributionArtifactBytes = 1_048_576;
 const pngBytes = pngWithDimensions(1179, 2556);
 const capturedAt = "2026-06-25T00:00:00.000Z";
 const physicalDevicePreflightPath = ".artifacts/release-report-test/physical-device-preflight.json";
+
+vi.setConfig({ hookTimeout: releaseTestLockHookTimeoutMs });
+
 describe("release report verifier", () => {
   beforeAll(() => {
     releaseTestUnlock = acquireReleaseTestLock();
@@ -75,6 +88,45 @@ describe("release report verifier", () => {
     const failures = validateReport(createReport(), reportOptions());
 
     expect(failures).toEqual([]);
+  });
+
+  it.each(["Build Android native debug app", "Build iOS native simulator app"])(
+    "rejects release reports missing required native build gate %s",
+    (label) => {
+      const report = createReport();
+      report.gates = report.gates.filter((gate) => gate.label !== label);
+
+      expect(validateReport(report, reportOptions())).toContain(`Report is missing gate ${JSON.stringify(label)}.`);
+    }
+  );
+
+  it.each([
+    ["Android", androidNativeDebugArtifactPath],
+    ["iOS", iosNativeVerificationArtifactPath]
+  ])("rejects release reports missing the %s native artifact", (_platform, path) => {
+    const report = createReport();
+    report.artifacts.files = report.artifacts.files.filter((artifact) => artifact.path !== path);
+
+    expect(validateReport(report, reportOptions()).join("\n")).toContain(path);
+  });
+
+  it.each([
+    ["status", (nativeReport) => { nativeReport.status = "failed"; }, "status must be passed"],
+    [
+      "ReplayKit process mode",
+      (nativeReport) => { nativeReport.broadcastUploadExtension.processMode = "RPBroadcastProcessModeUserContext"; },
+      "ReplayKit process mode is invalid"
+    ],
+    [
+      "embedded executable SHA",
+      (nativeReport) => { nativeReport.broadcastUploadExtension.embedded.executable.sha256 = "0".repeat(64); },
+      "embedded ReplayKit executable does not match its full bundle manifest record"
+    ]
+  ])("rejects iOS native verification with a tampered %s after the outer hash is updated", (_label, mutate, message) => {
+    const report = createReport();
+    rewriteIosNativeVerification(report, mutate);
+
+    expect(validateReport(report, reportOptions()).join("\n")).toContain(message);
   });
 
   it("rejects symlinked release report input paths before reading linked reports", () => {
@@ -508,6 +560,63 @@ describe("release report verifier", () => {
     expect(failures).toContain("Physical-device preflight gate runbook step IDs do not match the preflight artifact.");
   });
 
+  it("rejects release reports with tampered physical-device preflight gate evidence paths", () => {
+    restoreUiScreenshots();
+    const report = createReport({ includeStoreSubmission: true });
+    const gate = report.gates.find((entry) => entry.label === "Verify physical device preflight");
+    gate.evidence.path = ".artifacts/release-report-test/other-physical-device-preflight.json";
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain(
+      "Physical-device preflight gate evidence path does not match the preflight artifact record."
+    );
+  });
+
+  it("rejects release reports with tampered physical-device preflight gate evidence SHA-256 values", () => {
+    restoreUiScreenshots();
+    const report = createReport({ includeStoreSubmission: true });
+    const gate = report.gates.find((entry) => entry.label === "Verify physical device preflight");
+    gate.evidence.sha256 = "0".repeat(64);
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).toContain(
+      "Physical-device preflight gate evidence SHA-256 does not match the preflight artifact record."
+    );
+  });
+
+  it("accepts equivalent normalized physical-device preflight gate evidence paths", () => {
+    restoreUiScreenshots();
+    const report = createReport({ includeStoreSubmission: true });
+    const gate = report.gates.find((entry) => entry.label === "Verify physical device preflight");
+    gate.evidence.path = `./${physicalDevicePreflightPath}`;
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures).not.toContain(
+      "Physical-device preflight gate evidence path does not match the preflight artifact record."
+    );
+  });
+
+  it("rejects physical-device gate metadata that does not match the preflight artifact", () => {
+    restoreUiScreenshots();
+    const cases = [
+      ["generatedAt", "2020-01-01T00:00:00.000Z", "Physical-device preflight gate generatedAt does not match the preflight artifact."],
+      ["mode", "android", "Physical-device preflight gate mode does not match the preflight artifact."],
+      ["androidDeviceCount", 0, "Physical-device preflight gate Android device count does not match the preflight artifact."],
+      ["iosDeviceCount", 0, "Physical-device preflight gate iOS device count does not match the preflight artifact."]
+    ];
+
+    for (const [field, value, expectedFailure] of cases) {
+      const report = createReport({ includeStoreSubmission: true });
+      const gate = report.gates.find((entry) => entry.label === "Verify physical device preflight");
+      gate.evidence[field] = value;
+
+      expect(validateReport(report, reportOptions())).toContain(expectedFailure);
+    }
+  });
+
   it("rejects release reports missing store submission artifacts referenced by the checklist", () => {
     restoreUiScreenshots();
     const report = createReport({ includeStoreSubmission: true });
@@ -578,6 +687,7 @@ function createReport({
 } = {}) {
   writeSupportBundleFixture(supportBundlePatch);
   writeUiEvidenceFile({ path: uiEvidencePath, target: uiEvidenceTarget });
+  writeNativeBuildFixture(fixtureRoot);
   const shouldIncludeDistribution = includeDistribution || includeStoreRelease;
   if (shouldIncludeDistribution) {
     writeDistributionFixture();
@@ -600,6 +710,7 @@ function createReport({
     artifactRecord("web", "dist/assets/release-report-test.css"),
     artifactRecord("react-native", ".artifacts/rn/main.ios.jsbundle"),
     artifactRecord("react-native", ".artifacts/rn/index.android.bundle"),
+    ...nativeBuildArtifactRecords(fixtureRoot, artifactRecord),
     artifactRecord("ui", ".artifacts/mobile-live-caster-desktop.png"),
     artifactRecord("ui", ".artifacts/mobile-live-caster-mobile.png"),
     ...(!skipUi ? [artifactRecord("ui", uiEvidencePath)] : []),
@@ -690,10 +801,20 @@ function writeFixtureFiles() {
   writeFile("dist/assets/release-report-test.css", "body { color: #111; }");
   writeFile(".artifacts/rn/main.ios.jsbundle", "ios bundle");
   writeFile(".artifacts/rn/index.android.bundle", "android bundle");
+  writeNativeBuildFixture(fixtureRoot);
   writeFile(".artifacts/mobile-live-caster-desktop.png", pngBytes);
   writeFile(".artifacts/mobile-live-caster-mobile.png", pngBytes);
   writeSupportBundleFixture();
   writeUiEvidenceFile();
+}
+
+function rewriteIosNativeVerification(report, mutate) {
+  const nativeReport = JSON.parse(readFileSync(iosNativeVerificationArtifactPath, "utf8"));
+  mutate(nativeReport);
+  writeFile(iosNativeVerificationArtifactPath, JSON.stringify(nativeReport, null, 2));
+  const artifact = report.artifacts.files.find((candidate) => candidate.path === iosNativeVerificationArtifactPath);
+  artifact.bytes = readFileSync(iosNativeVerificationArtifactPath).byteLength;
+  artifact.sha256 = fileSha256(iosNativeVerificationArtifactPath);
 }
 
 function writeSupportBundleFixture(patch = {}) {
@@ -1143,10 +1264,16 @@ function writeStoreSubmissionFixture() {
 }
 
 function writePhysicalDevicePreflightFixture(patch = {}) {
-  const report = createPhysicalDevicePreflightReport({
+  const report = createPhysicalDevicePreflightReport(createPhysicalDevicePreflightFixtureInput());
+  writePhysicalDevicePreflightReport({ ...report, ...patch }, physicalDevicePreflightPath);
+}
+
+function createPhysicalDevicePreflightFixtureInput() {
+  return {
     androidAdbOutput: `List of devices attached
 R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
 `,
+    androidCommand: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" },
     androidRuntimeProperties: {
       R58M123456B: `[ro.kernel.qemu]: [0]
 [ro.boot.qemu]: [0]
@@ -1160,9 +1287,41 @@ R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
 Release iPhone (17.5.1) (00008110-001234560E91801E)
 == Simulators ==
 iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
-`
-  });
-  writePhysicalDevicePreflightReport({ ...report, ...patch }, physicalDevicePreflightPath);
+`,
+    iosCommand: { ok: true, tool: "xcrun", stdout: "", detail: "command succeeded" },
+    toolEvidence: {
+      android: {
+        deviceList: {
+          invocation: "adb devices -l",
+          tool: "adb",
+          ok: true,
+          detail: "command succeeded"
+        },
+        version: {
+          invocation: "adb version",
+          tool: "adb",
+          ok: true,
+          detail: "command succeeded",
+          version: "Android Debug Bridge version 1.0.41 / Version 35.0.2 (r12147458)"
+        }
+      },
+      ios: {
+        deviceList: {
+          invocation: "xcrun xctrace list devices",
+          tool: "xcrun",
+          ok: true,
+          detail: "command succeeded"
+        },
+        version: {
+          invocation: "xcrun xctrace version",
+          tool: "xcrun",
+          ok: true,
+          detail: "command succeeded",
+          version: "xctrace version 16.4 (16F6)"
+        }
+      }
+    }
+  };
 }
 
 function writeStoreReleaseFixture({ status = "passed", finishedAt = new Date().toISOString() } = {}) {

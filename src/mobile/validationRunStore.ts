@@ -12,6 +12,7 @@ interface MobileValidationRunStoreModule {
 }
 
 const nativeStore = NativeModules.LiveCasterSceneStore as MobileValidationRunStoreModule | undefined;
+let storeGeneration = 0;
 
 export const canUseMobileValidationRunStore = (): boolean =>
   Boolean(nativeStore?.saveValidationRuns && nativeStore.loadValidationRuns);
@@ -21,15 +22,27 @@ export const loadMobileStreamValidationRuns = async (): Promise<StreamValidation
     return [];
   }
 
-  const runsJson = await nativeStore.loadValidationRuns();
+  let runsJson: string | null;
+  const loadGeneration = storeGeneration;
+  try {
+    runsJson = await nativeStore.loadValidationRuns();
+  } catch {
+    return [];
+  }
   if (!runsJson) {
     return [];
   }
 
   try {
-    return redactSecretsFromPersistedValue(normalizeStreamValidationRuns(JSON.parse(runsJson) as unknown));
+    const runs = redactSecretsFromPersistedValue(normalizeStreamValidationRuns(JSON.parse(runsJson) as unknown));
+    const sanitizedJson = JSON.stringify(runs);
+    if (sanitizedJson !== runsJson && loadGeneration === storeGeneration) {
+      try {
+        await nativeStore.saveValidationRuns?.(sanitizedJson);
+      } catch {}
+    }
+    return runs;
   } catch {
-    await nativeStore.clearValidationRuns?.();
     return [];
   }
 };
@@ -38,6 +51,7 @@ export const saveMobileStreamValidationRuns = async (runs: StreamValidationRun[]
   if (!canUseMobileValidationRunStore() || !nativeStore?.saveValidationRuns) {
     return;
   }
+  storeGeneration += 1;
   await nativeStore.saveValidationRuns(
     JSON.stringify(redactSecretsFromPersistedValue(normalizeStreamValidationRuns(runs), secrets))
   );
@@ -47,5 +61,6 @@ export const clearMobileStreamValidationRuns = async (): Promise<void> => {
   if (!canUseMobileValidationRunStore() || !nativeStore?.clearValidationRuns) {
     return;
   }
+  storeGeneration += 1;
   await nativeStore.clearValidationRuns();
 };

@@ -1,7 +1,15 @@
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { collectReleaseSourceFiles } from "./release-artifact-policy.mjs";
+import {
+  androidNativeDebugArtifactPath,
+  androidNativeVerificationArtifactPath,
+  collectReleaseSourceFiles,
+  iosNativeVerificationArtifactPath,
+  releaseConfigArtifactPaths,
+  requiredReleaseArtifactGroups,
+  requiredReleaseGateLabels
+} from "./release-artifact-policy.mjs";
 
 const fixtureRoot = ".artifacts/release-artifact-policy-test";
 
@@ -20,6 +28,20 @@ describe("release artifact policy source collection", () => {
       `${fixtureRoot}/source/Main.kt`,
       `${fixtureRoot}/source/nested/Bridge.java`
     ]);
+  });
+
+  it("requires the existing artifact path safety gate in saved release reports", () => {
+    expect(requiredReleaseGateLabels).toContain("Verify existing release artifact path safety");
+  });
+
+  it("requires native build gates, artifact groups, and verifier source evidence", () => {
+    expect(requiredReleaseGateLabels).toContain("Build Android native debug app");
+    expect(requiredReleaseGateLabels).toContain("Build iOS native simulator app");
+    expect(requiredReleaseArtifactGroups).toEqual(expect.arrayContaining(["android", "ios"]));
+    expect(androidNativeDebugArtifactPath).toBe("android/app/build/outputs/apk/debug/app-debug.apk");
+    expect(androidNativeVerificationArtifactPath).toBe(".artifacts/android-native-verification.json");
+    expect(iosNativeVerificationArtifactPath).toBe(".artifacts/ios-native-verification.json");
+    expect(releaseConfigArtifactPaths).toContain("scripts/verify-ios-native.mjs");
   });
 
   it("rejects symlinked release source directories", () => {

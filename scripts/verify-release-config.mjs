@@ -29,6 +29,8 @@ const files = {
   storeRealDeviceScreenshotsScript: read("scripts/import-store-real-device-screenshots.mjs"),
   releaseCandidateScript: read("scripts/verify-release-candidate.mjs"),
   releaseReportScript: read("scripts/verify-release-report.mjs"),
+  androidNativeVerificationScript: read("scripts/verify-android-native.mjs"),
+  iosNativeVerificationScript: read("scripts/verify-ios-native.mjs"),
   releaseEvidencePackageScript: read("scripts/create-release-evidence-package.mjs"),
   browserUiRequiredTextScript: read("scripts/browser-ui-required-text.mjs"),
   verifyUiScript: read("scripts/verify-ui.mjs"),
@@ -71,7 +73,12 @@ const files = {
   publicLaunchChecklistDomain: read("src/domain/publicLaunchChecklist.ts"),
   streamValidationEvidenceDomain: read("src/domain/streamValidationEvidence.ts"),
   liveCasterBridge: read("ios/MobileLiveCaster/LiveCasterBridge.swift"),
-  broadcastHandler: read("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift")
+  liveCasterSpeech: read("ios/MobileLiveCaster/LiveCasterSpeech.swift"),
+  broadcastCredentialStore: read("ios/MobileLiveCaster/LiveCasterBroadcastCredentialStore.swift"),
+  diagnosticHistoryStore: read("ios/MobileLiveCaster/LiveCasterDiagnosticHistoryStore.swift"),
+  broadcastHandler: read("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift"),
+  androidDiagnosticHistoryCipher: read("android/app/src/main/java/com/mobilelivecaster/streaming/DiagnosticHistoryCipher.kt"),
+  androidSceneStore: read("android/app/src/main/java/com/mobilelivecaster/streaming/SceneStoreModule.kt")
 };
 
 const productionNativeSourceFiles = [
@@ -156,6 +163,8 @@ const checks = [
     expectIncludes(files.releaseCandidateScript, "--physical-device-preflight-json");
     expectIncludes(files.releaseCandidateScript, "Verify store release orchestration report");
     expectIncludes(files.releaseCandidateScript, "Verify physical device preflight");
+    expectIncludes(files.releaseCandidateScript, "Verify existing release artifact path safety");
+    expectIncludes(files.releaseCandidateScript, "assertExistingReleaseArtifactPathsSafe");
     expectIncludes(files.releaseCandidateScript, "Verify store submission evidence requirements");
     expectIncludes(files.releaseCandidateScript, "Verify store submission handoff evidence integrity");
     expectIncludes(files.releaseCandidateScript, "storeSubmissionChecklistPath");
@@ -212,6 +221,29 @@ const checks = [
     expectIncludes(files.releaseArtifactPolicyScript, "productionNativeSourcePaths");
     expectIncludes(files.releaseArtifactPolicyScript, "android/app/src/main/java");
     expectIncludes(files.releaseArtifactPolicyScript, "ios/MobileLiveCasterBroadcastUpload");
+    expectIncludes(files.releaseArtifactPolicyScript, '"Build Android native debug app"');
+    expectIncludes(files.releaseArtifactPolicyScript, '"Build iOS native simulator app"');
+    expectIncludes(files.releaseArtifactPolicyScript, '"android", "ios"');
+    expectIncludes(files.releaseArtifactPolicyScript, '"scripts/verify-android-native.mjs"');
+    expectIncludes(files.releaseArtifactPolicyScript, '"scripts/verify-ios-native.mjs"');
+    expectIncludes(files.releaseCandidateScript, "collectAndroidNativeVerificationArtifactRecords");
+    expectIncludes(files.releaseCandidateScript, "collectIosNativeVerificationArtifactRecords");
+    expectIncludes(files.releaseCandidateScript, "Release candidate self-verification failed:");
+    expectIncludes(files.releaseCandidateScript, "validateReport(report");
+    expectIncludes(files.releaseReportScript, "validateAndroidNativeVerificationArtifacts");
+    expectIncludes(files.releaseReportScript, "validateIosNativeVerificationArtifacts");
+    expectIncludes(files.releaseEvidencePackageScript, "inspectAndroidDebugApkFile");
+    expectIncludes(files.androidNativeVerificationScript, "inspectAndroidDebugApkFile");
+    expectIncludes(files.androidNativeVerificationScript, "rmSync(resolve(apkPath)");
+    expectIncludes(files.androidNativeVerificationScript, "./gradlew assembleDebug");
+    expectIncludes(files.distributionArtifactsScript, "AndroidManifest.xml");
+    expectIncludes(files.distributionArtifactsScript, "classes.dex");
+    expectIncludes(files.iosNativeVerificationScript, "validateIosNativeVerificationReport");
+    expectIncludes(files.iosNativeVerificationScript, "iosNativeVerificationRecordedFiles");
+    expectIncludes(files.iosNativeVerificationScript, "rmSync(derivedDataPath");
+    expectIncludes(files.iosNativeVerificationScript, "collectBundleFileRecords");
+    expectIncludes(files.iosNativeVerificationScript, "MobileLiveCaster.debug.dylib");
+    expectIncludes(files.iosNativeVerificationScript, "embedded and standalone ReplayKit executable hashes do not match");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
     expectIncludes(files.supportBundleDomain, "bundleVersion: 55");
     expectIncludes(files.supportBundleDomain, "nativeCompositionCaptionOverlayCount");
@@ -532,8 +564,13 @@ const checks = [
     expectIncludes(files.streamAnnouncementAutoPostDomainTest, "respects Retry-After and retries a retryable non-2xx response once");
     expectIncludes(files.streamAnnouncementAutoPostDomainTest, "fires only for platform-visible live success and dedupes per stream session");
     expectIncludes(files.diagnosticSecretsDomain, "discordWebhookUrl");
+    expectIncludes(files.diagnosticSecretsDomain, "platformChatOAuthFlow?.codeVerifier");
+    expectIncludes(files.diagnosticSecretsDomain, "twitchDeviceOAuthFlow?.userCode");
     expectIncludes(files.localStoreDomain, "stripSensitiveProfileData(profile)");
     expectIncludes(files.secureProfileStoreDomain, "saveProfile(JSON.stringify(normalizeStudioProfile(profile)))");
+    expectIncludes(files.mobileApp, "const persistedDiagnosticSecrets = useMemo");
+    expectIncludes(files.mobileApp, "saveMobileStreamSessionSummaries(summaries, persistedDiagnosticSecrets)");
+    expectIncludes(files.mobileApp, "saveMobileStreamValidationRuns(streamValidationRuns, persistedDiagnosticSecrets)");
     expectIncludes(files.webApp, "runStreamAnnouncementAutoPost(result.profile, \"youtube-live-transition\")");
     expectIncludes(files.mobileApp, "runStreamAnnouncementAutoPost(result.profile, \"youtube-live-transition\")");
     expectIncludes(files.webStudioScreen, "streamAnnouncementAutoPostStatus");
@@ -673,6 +710,72 @@ const checks = [
     expectIncludes(files.liveCasterBridge, `liveCasterAppGroup = "${iosReleaseConfig.appGroupId}"`);
     expectIncludes(files.liveCasterBridge, `liveCasterBroadcastExtensionId = "${iosReleaseConfig.broadcastBundleId}"`);
     expectIncludes(files.broadcastHandler, `broadcastAppGroup = "${iosReleaseConfig.appGroupId}"`);
+  }),
+  check("iOS broadcast credentials use the shared Keychain instead of App Group UserDefaults", () => {
+    const handoffPayload = swiftFunctionBlock(
+      files.liveCasterBridge,
+      "func payload(renderGraphJSON: String, handoffID: String, expiresAt: Double)"
+    );
+    expectNotIncludes(handoffPayload, '"serverUrl"');
+    expectNotIncludes(handoffPayload, '"streamKey"');
+    expectNotIncludes(handoffPayload, '"publishUrl"');
+    expectIncludes(files.broadcastCredentialStore, `accessGroup = "${iosReleaseConfig.appGroupId}"`);
+    expectIncludes(files.broadcastCredentialStore, "kSecAttrAccessGroup");
+    expectIncludes(files.broadcastCredentialStore, "kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly");
+    expectIncludes(files.broadcastCredentialStore, "SecItemUpdate");
+    expectIncludes(files.broadcastCredentialStore, 'accountPrefix = "publish-url."');
+    expectIncludes(files.broadcastCredentialStore, 'case handoffID = "handoffId"');
+    expectIncludes(files.broadcastCredentialStore, 'case publishURL = "publishUrl"');
+    expectIncludes(files.broadcastCredentialStore, "static func consumePublishURL(");
+    expectIncludes(files.broadcastCredentialStore, "static func clearExpiredCredentials(");
+    expectIncludes(files.liveCasterBridge, "let handoffID = UUID().uuidString.lowercased()");
+    const metadataWriter = swiftFunctionBlock(files.liveCasterBridge, "func saveConfigurationMetadata(");
+    expectNotIncludes(metadataWriter, "savePublishURL");
+    expectIncludes(files.liveCasterBridge, "scheduleCredentialCleanupLocked(");
+    expectIncludes(files.broadcastHandler, 'setupInfo["publishUrl"] = publishURL as NSString');
+    expectIncludes(files.broadcastHandler, "expectedHandoffID != handoffID");
+    expectIncludes(files.broadcastHandler, "clearCredential(handoffID: handoffID)");
+    const broadcastStarted = swiftFunctionBlock(
+      files.broadcastHandler,
+      "override func broadcastStarted(withSetupInfo setupInfo: [String: NSObject]?)"
+    );
+    expectIncludes(broadcastStarted, "let requestedHandoffID = BroadcastSharedStore.currentHandoffID()");
+    expectIncludes(broadcastStarted, "clearCredential(handoffID: requestedHandoffID)");
+    const currentHandoffReads = broadcastStarted.match(/currentHandoffID\(\)/g) ?? [];
+    expectEqual(currentHandoffReads.length, 1, "broadcast start handoff snapshot reads");
+    const extensionCredentialClear = swiftFunctionBlock(
+      files.broadcastHandler,
+      "static func clearCredential(handoffID: String)"
+    );
+    expectNotIncludes(extensionCredentialClear, "removeObject");
+    const sourceMemberships = files.xcodeProject.match(/LiveCasterBroadcastCredentialStore\.swift in Sources/g) ?? [];
+    expectEqual(sourceMemberships.length, 4, "shared credential store Xcode source memberships");
+  }),
+  check("Native diagnostic histories use authenticated device-bound encryption", () => {
+    expectIncludes(files.diagnosticHistoryStore, "AES.GCM.seal");
+    expectIncludes(files.diagnosticHistoryStore, "AES.GCM.open");
+    expectIncludes(files.diagnosticHistoryStore, "kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly");
+    expectIncludes(files.diagnosticHistoryStore, ".completeFileProtectionUntilFirstUserAuthentication");
+    expectIncludes(files.diagnosticHistoryStore, "isExcludedFromBackup = true");
+    expectIncludes(files.xcodeProject, "LiveCasterDiagnosticHistoryStore.swift in Sources");
+    expectIncludes(files.androidDiagnosticHistoryCipher, 'TRANSFORMATION = "AES/GCM/NoPadding"');
+    expectIncludes(files.androidDiagnosticHistoryCipher, ".setKeySize(256)");
+    expectIncludes(files.androidDiagnosticHistoryCipher, ".setRandomizedEncryptionRequired(true)");
+    expectIncludes(files.androidSceneStore, "SESSION_SUMMARIES_ENCRYPTED");
+    expectIncludes(files.androidSceneStore, "VALIDATION_RUNS_ENCRYPTED");
+    expectNotIncludes(files.androidSceneStore, "putString(SESSION_SUMMARIES_JSON, summariesJson)");
+    expectNotIncludes(files.androidSceneStore, "putString(VALIDATION_RUNS_JSON, runsJson)");
+  }),
+  check("iOS speech synthesis is serialized on the main queue", () => {
+    expectIncludes(files.liveCasterSpeech, "AVSpeechSynthesizerDelegate, @unchecked Sendable");
+    expectIncludes(files.liveCasterSpeech, "static func requiresMainQueueSetup() -> Bool");
+    expectIncludes(files.liveCasterSpeech, "performOnMain");
+    expectIncludes(files.liveCasterSpeech, "dispatchPrecondition(condition: .onQueue(.main))");
+    expectIncludes(files.liveCasterSpeech, "DispatchQueue.main.async");
+  }),
+  check("iOS React Native bundle phase declares intentional every-build execution", () => {
+    expectIncludes(files.xcodeProject, "alwaysOutOfDate = 1;");
+    expectIncludes(files.xcodeProject, "Bundle React Native code and images");
   }),
   check("iOS privacy manifest is packaged and non-tracking", () => {
     expectIncludes(files.iosPrivacy, "NSPrivacyTracking");
@@ -1024,6 +1127,31 @@ function allNativeConfigText() {
     files.broadcastEntitlements,
     files.xcodeProject,
     files.liveCasterBridge,
+    files.broadcastCredentialStore,
     files.broadcastHandler
   ].join("\n");
+}
+
+function swiftFunctionBlock(swiftText, signature) {
+  const signatureIndex = swiftText.indexOf(signature);
+  if (signatureIndex === -1) {
+    throw new Error(`missing Swift function ${signature}`);
+  }
+  const openingBraceIndex = swiftText.indexOf("{", signatureIndex + signature.length);
+  if (openingBraceIndex === -1) {
+    throw new Error(`missing opening brace for Swift function ${signature}`);
+  }
+
+  let depth = 0;
+  for (let index = openingBraceIndex; index < swiftText.length; index += 1) {
+    if (swiftText[index] === "{") {
+      depth += 1;
+    } else if (swiftText[index] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return swiftText.slice(signatureIndex, index + 1);
+      }
+    }
+  }
+  throw new Error(`unterminated Swift function ${signature}`);
 }

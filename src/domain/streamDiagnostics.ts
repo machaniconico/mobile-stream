@@ -374,6 +374,7 @@ export const createStreamDiagnostics = (
   const targetPlatform = platformLabels[destination.platform];
   const sceneFingerprint = createSceneCompositionFingerprint(scene);
   const validationEvidence = summarizeStreamValidationEvidence(validationRuns, {
+    now: new Date(nowMs),
     requiredTargetPlatform: targetPlatform,
     requiredTransport: destination.protocol,
     requiredSceneFingerprint: sceneFingerprint

@@ -12,6 +12,7 @@ interface MobileSessionSummaryStoreModule {
 }
 
 const nativeStore = NativeModules.LiveCasterSceneStore as MobileSessionSummaryStoreModule | undefined;
+let storeGeneration = 0;
 
 export const canUseMobileSessionSummaryStore = (): boolean =>
   Boolean(nativeStore?.saveSessionSummaries && nativeStore.loadSessionSummaries);
@@ -21,15 +22,29 @@ export const loadMobileStreamSessionSummaries = async (): Promise<StreamSessionS
     return [];
   }
 
-  const summariesJson = await nativeStore.loadSessionSummaries();
+  let summariesJson: string | null;
+  const loadGeneration = storeGeneration;
+  try {
+    summariesJson = await nativeStore.loadSessionSummaries();
+  } catch {
+    return [];
+  }
   if (!summariesJson) {
     return [];
   }
 
   try {
-    return redactSecretsFromPersistedValue(normalizeStreamSessionSummaries(JSON.parse(summariesJson) as unknown));
+    const summaries = redactSecretsFromPersistedValue(
+      normalizeStreamSessionSummaries(JSON.parse(summariesJson) as unknown)
+    );
+    const sanitizedJson = JSON.stringify(summaries);
+    if (sanitizedJson !== summariesJson && loadGeneration === storeGeneration) {
+      try {
+        await nativeStore.saveSessionSummaries?.(sanitizedJson);
+      } catch {}
+    }
+    return summaries;
   } catch {
-    await nativeStore.clearSessionSummaries?.();
     return [];
   }
 };
@@ -41,6 +56,7 @@ export const saveMobileStreamSessionSummaries = async (
   if (!canUseMobileSessionSummaryStore() || !nativeStore?.saveSessionSummaries) {
     return;
   }
+  storeGeneration += 1;
   await nativeStore.saveSessionSummaries(
     JSON.stringify(redactSecretsFromPersistedValue(normalizeStreamSessionSummaries(summaries), secrets))
   );
@@ -50,5 +66,6 @@ export const clearMobileStreamSessionSummaries = async (): Promise<void> => {
   if (!canUseMobileSessionSummaryStore() || !nativeStore?.clearSessionSummaries) {
     return;
   }
+  storeGeneration += 1;
   await nativeStore.clearSessionSummaries();
 };

@@ -78,6 +78,7 @@ iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
 
   it("creates a ready all-platform report only when Android and iOS physical devices are present", () => {
     const report = createPhysicalDevicePreflightReport({
+      ...readyPhysicalDeviceToolInputs(),
       androidAdbOutput: `List of devices attached
 R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
 `,
@@ -134,6 +135,16 @@ iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
         label: "iOS physical device",
         status: "pass",
         detail: "1 connected physical iOS device(s) ready."
+      },
+      {
+        label: "Android device tooling",
+        status: "pass",
+        detail: "adb device discovery and version evidence ready."
+      },
+      {
+        label: "iOS device tooling",
+        status: "pass",
+        detail: "xcrun device discovery and version evidence ready."
       }
     ]);
     expect(report.runbook).toMatchObject({
@@ -275,22 +286,7 @@ R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
   });
 
   it("validates and collects commercial physical-device preflight artifacts", () => {
-    const report = createPhysicalDevicePreflightReport({
-      androidAdbOutput: `List of devices attached
-R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
-`,
-      androidRuntimeProperties: {
-        R58M123456B: `[ro.kernel.qemu]: [0]
-[ro.hardware]: [qcom]
-`
-      },
-      androidRuntimeCommands: {
-        R58M123456B: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" }
-      },
-      iosXctraceOutput: `== Devices ==
-Release iPhone (17.5.1) (00008110-001234560E91801E)
-`
-    });
+    const report = createReadyPhysicalDeviceReport();
     const reportPath = `${fixtureRoot}/physical-device-preflight.json`;
     writePhysicalDevicePreflightReport(report, reportPath);
 
@@ -309,6 +305,127 @@ Release iPhone (17.5.1) (00008110-001234560E91801E)
         sha256: expect.stringMatching(/^[a-f0-9]{64}$/)
       })
     ]);
+  });
+
+  it("rejects ready reports whose retained checks contain failures", () => {
+    const report = createReadyPhysicalDeviceReport();
+    report.checks[0] = {
+      ...report.checks[0],
+      status: "fail",
+      detail: "Android physical-device probe failed."
+    };
+
+    expect(validatePhysicalDevicePreflightReport(report, { currentCommit: report.git.commit, allowDirty: true })).toContain(
+      'Physical device preflight check Android physical device must be pass, got "fail".'
+    );
+  });
+
+  it("rejects fabricated Android device entries without runtime physical proof", () => {
+    const report = createReadyPhysicalDeviceReport();
+    delete report.platforms.android.devices[0].runtimeProof;
+
+    expect(validatePhysicalDevicePreflightReport(report, { currentCommit: report.git.commit, allowDirty: true })).toContain(
+      "Physical device preflight Android device 0 is missing non-emulator runtime proof."
+    );
+  });
+
+  it("rejects failed or substituted device-tool evidence", () => {
+    const report = createReadyPhysicalDeviceReport();
+    report.toolEvidence.android.deviceList.invocation = "echo fake";
+    report.toolEvidence.android.version.ok = false;
+    report.toolEvidence.android.version.version = "";
+    report.platforms.ios.tool = "fake-tool";
+
+    expect(validatePhysicalDevicePreflightReport(report, { currentCommit: report.git.commit, allowDirty: true })).toEqual(
+      expect.arrayContaining([
+        "Physical device preflight tool evidence android.deviceList invocation must be adb devices -l.",
+        "Physical device preflight tool evidence android.version command failed.",
+        "Physical device preflight tool evidence android.version string is missing.",
+        "Physical device preflight ios platform tool must be xcrun."
+      ])
+    );
+  });
+
+  it("rejects preflight objects that do not match the saved artifact content", () => {
+    const report = createReadyPhysicalDeviceReport();
+    const reportPath = `${fixtureRoot}/physical-device-preflight.json`;
+    writePhysicalDevicePreflightReport(report, reportPath);
+    const savedReport = JSON.parse(readFileSync(reportPath, "utf8"));
+    savedReport.host.arch = "tampered-arch";
+    writeFileSync(reportPath, `${JSON.stringify(savedReport, null, 2)}\n`);
+
+    expect(
+      validatePhysicalDevicePreflightReport(report, {
+        reportPath,
+        currentCommit: report.git.commit,
+        allowDirty: true
+      })
+    ).toContain("Physical device preflight artifact content does not match the report being validated.");
+  });
+
+  it("rejects preflight artifacts whose declared artifactPath does not match their file", () => {
+    const report = createReadyPhysicalDeviceReport();
+    const reportPath = `${fixtureRoot}/physical-device-preflight.json`;
+    writePhysicalDevicePreflightReport(report, reportPath);
+    report.artifactPath = `${fixtureRoot}/different-preflight.json`;
+
+    expect(
+      validatePhysicalDevicePreflightReport(report, {
+        reportPath,
+        currentCommit: report.git.commit,
+        allowDirty: true
+      })
+    ).toEqual(
+      expect.arrayContaining([
+        `Physical device preflight artifactPath must match report path ${reportPath}, got ${report.artifactPath}.`
+      ])
+    );
+  });
+
+  it("accepts equivalent normalized workspace-relative artifactPath values", () => {
+    const report = createReadyPhysicalDeviceReport();
+    const reportPath = `${fixtureRoot}/physical-device-preflight.json`;
+    writePhysicalDevicePreflightReport(report, reportPath);
+    report.artifactPath = `./${reportPath}`;
+    writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+
+    expect(
+      validatePhysicalDevicePreflightReport(report, {
+        reportPath,
+        currentCommit: report.git.commit,
+        allowDirty: true
+      })
+    ).toEqual([]);
+  });
+
+  it("rejects malformed saved preflight artifacts", () => {
+    const report = createReadyPhysicalDeviceReport();
+    const reportPath = `${fixtureRoot}/physical-device-preflight.json`;
+    writePhysicalDevicePreflightReport(report, reportPath);
+    writeFileSync(reportPath, "{not-json\n");
+
+    expect(
+      validatePhysicalDevicePreflightReport(report, {
+        reportPath,
+        currentCommit: report.git.commit,
+        allowDirty: true
+      })
+    ).toContain(`Physical device preflight artifact is not valid JSON: ${reportPath}.`);
+  });
+
+  it("rejects saved preflight artifacts containing a different valid JSON value", () => {
+    const report = createReadyPhysicalDeviceReport();
+    const reportPath = `${fixtureRoot}/physical-device-preflight.json`;
+    writePhysicalDevicePreflightReport(report, reportPath);
+    writeFileSync(reportPath, "null\n");
+
+    expect(
+      validatePhysicalDevicePreflightReport(report, {
+        reportPath,
+        currentCommit: report.git.commit,
+        allowDirty: true
+      })
+    ).toContain("Physical device preflight artifact content does not match the report being validated.");
   });
 
   it("records sanitized host and tool-version evidence when run through device tools", () => {
@@ -374,23 +491,7 @@ Release iPhone (17.5.1) (00008110-001234560E91801E)
   });
 
   it("rejects commercial preflight reports without host and tool evidence", () => {
-    const report = createPhysicalDevicePreflightReport({
-      androidAdbOutput: `List of devices attached
-R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
-`,
-      androidRuntimeProperties: {
-        R58M123456B: `[ro.kernel.qemu]: [0]
-[ro.boot.qemu]: [0]
-[ro.hardware]: [qcom]
-`
-      },
-      androidRuntimeCommands: {
-        R58M123456B: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" }
-      },
-      iosXctraceOutput: `== Devices ==
-Release iPhone (17.5.1) (00008110-001234560E91801E)
-`
-    });
+    const report = createReadyPhysicalDeviceReport();
     delete report.host;
     delete report.toolEvidence;
 
@@ -403,23 +504,7 @@ Release iPhone (17.5.1) (00008110-001234560E91801E)
   });
 
   it("rejects commercial preflight reports without validation runbook evidence", () => {
-    const report = createPhysicalDevicePreflightReport({
-      androidAdbOutput: `List of devices attached
-R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
-`,
-      androidRuntimeProperties: {
-        R58M123456B: `[ro.kernel.qemu]: [0]
-[ro.boot.qemu]: [0]
-[ro.hardware]: [qcom]
-`
-      },
-      androidRuntimeCommands: {
-        R58M123456B: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" }
-      },
-      iosXctraceOutput: `== Devices ==
-Release iPhone (17.5.1) (00008110-001234560E91801E)
-`
-    });
+    const report = createReadyPhysicalDeviceReport();
     delete report.runbook;
 
     expect(validatePhysicalDevicePreflightReport(report, { currentCommit: report.git.commit, allowDirty: true })).toEqual(
@@ -427,3 +512,63 @@ Release iPhone (17.5.1) (00008110-001234560E91801E)
     );
   });
 });
+
+function createReadyPhysicalDeviceReport() {
+  return createPhysicalDevicePreflightReport({
+    ...readyPhysicalDeviceToolInputs(),
+    androidAdbOutput: `List of devices attached
+R58M123456B device product:r0q model:SM_S901B device:r0q transport_id:4
+`,
+    androidRuntimeProperties: {
+      R58M123456B: `[ro.kernel.qemu]: [0]
+[ro.boot.qemu]: [0]
+[ro.hardware]: [qcom]
+`
+    },
+    androidRuntimeCommands: {
+      R58M123456B: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" }
+    },
+    iosXctraceOutput: `== Devices ==
+Release iPhone (17.5.1) (00008110-001234560E91801E)
+`
+  });
+}
+
+function readyPhysicalDeviceToolInputs() {
+  return {
+    androidCommand: { ok: true, tool: "adb", stdout: "", detail: "command succeeded" },
+    iosCommand: { ok: true, tool: "xcrun", stdout: "", detail: "command succeeded" },
+    toolEvidence: {
+      android: {
+        deviceList: {
+          invocation: "adb devices -l",
+          tool: "adb",
+          ok: true,
+          detail: "command succeeded"
+        },
+        version: {
+          invocation: "adb version",
+          tool: "adb",
+          ok: true,
+          detail: "command succeeded",
+          version: "Android Debug Bridge version 1.0.41"
+        }
+      },
+      ios: {
+        deviceList: {
+          invocation: "xcrun xctrace list devices",
+          tool: "xcrun",
+          ok: true,
+          detail: "command succeeded"
+        },
+        version: {
+          invocation: "xcrun xctrace version",
+          tool: "xcrun",
+          ok: true,
+          detail: "command succeeded",
+          version: "xctrace version 16.0 (17F42)"
+        }
+      }
+    }
+  };
+}

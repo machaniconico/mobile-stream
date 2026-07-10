@@ -3,7 +3,7 @@ import Foundation
 import React
 
 @objc(LiveCasterSpeech)
-final class LiveCasterSpeech: NSObject, AVSpeechSynthesizerDelegate {
+final class LiveCasterSpeech: NSObject, AVSpeechSynthesizerDelegate, @unchecked Sendable {
     private let synthesizer = AVSpeechSynthesizer()
     private var activeRequest: SpeechRequest?
     private var requestQueue: [SpeechRequest] = []
@@ -15,7 +15,7 @@ final class LiveCasterSpeech: NSObject, AVSpeechSynthesizerDelegate {
 
     @objc
     static func requiresMainQueueSetup() -> Bool {
-        false
+        true
     }
 
     @objc(speak:rate:pitch:volume:resolver:rejecter:)
@@ -32,44 +32,57 @@ final class LiveCasterSpeech: NSObject, AVSpeechSynthesizerDelegate {
             return
         }
 
-        requestQueue.append(
-            SpeechRequest(
-                text: String(text.prefix(400)),
-                rate: rate.doubleValue,
-                pitch: pitch.doubleValue,
-                volume: volume.doubleValue,
-                resolve: resolve
-            )
+        let request = SpeechRequest(
+            text: String(text.prefix(400)),
+            rate: rate.doubleValue,
+            pitch: pitch.doubleValue,
+            volume: volume.doubleValue,
+            resolve: resolve
         )
-        drainQueue()
+        performOnMain { [weak self] in
+            guard let self else {
+                request.resolve(false)
+                return
+            }
+            self.requestQueue.append(request)
+            self.drainQueue()
+        }
     }
 
     @objc(stop:rejecter:)
     func stop(
-        _ resolve: RCTPromiseResolveBlock,
+        _ resolve: @escaping RCTPromiseResolveBlock,
         rejecter reject: RCTPromiseRejectBlock
     ) {
-        requestQueue.forEach { request in request.resolve(false) }
-        requestQueue.removeAll()
-        synthesizer.stopSpeaking(at: .immediate)
-        activeRequest?.resolve(false)
-        activeRequest = nil
-        resolve(true)
+        performOnMain { [weak self] in
+            guard let self else {
+                resolve(false)
+                return
+            }
+            self.requestQueue.forEach { request in request.resolve(false) }
+            self.requestQueue.removeAll()
+            let activeRequest = self.activeRequest
+            self.activeRequest = nil
+            self.synthesizer.stopSpeaking(at: .immediate)
+            activeRequest?.resolve(false)
+            resolve(true)
+        }
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        activeRequest?.resolve(true)
-        activeRequest = nil
-        drainQueue()
+        performOnMain { [weak self] in
+            self?.completeActiveRequest(true)
+        }
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        activeRequest?.resolve(false)
-        activeRequest = nil
-        drainQueue()
+        performOnMain { [weak self] in
+            self?.completeActiveRequest(false)
+        }
     }
 
     private func drainQueue() {
+        dispatchPrecondition(condition: .onQueue(.main))
         guard activeRequest == nil, !synthesizer.isSpeaking, !requestQueue.isEmpty else {
             return
         }
@@ -83,6 +96,21 @@ final class LiveCasterSpeech: NSObject, AVSpeechSynthesizerDelegate {
         utterance.volume = Float(clamp(request.volume, min: 0, max: 1))
         utterance.voice = AVSpeechSynthesisVoice(language: Locale.preferredLanguages.first ?? "en-US")
         synthesizer.speak(utterance)
+    }
+
+    private func completeActiveRequest(_ completed: Bool) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        activeRequest?.resolve(completed)
+        activeRequest = nil
+        drainQueue()
+    }
+
+    private func performOnMain(_ work: @escaping @Sendable () -> Void) {
+        if Thread.isMainThread {
+            work()
+        } else {
+            DispatchQueue.main.async(execute: work)
+        }
     }
 
     private func clamp(_ value: Double, min: Double, max: Double) -> Double {
