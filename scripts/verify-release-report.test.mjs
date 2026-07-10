@@ -122,6 +122,17 @@ describe("release report verifier", () => {
     );
   });
 
+  it("rejects release reports with stale source secret scan timing", () => {
+    const report = createReport();
+    rewriteSourceSecretScan(report, {
+      generatedAt: new Date(Date.parse(report.startedAt) - 1_000).toISOString()
+    });
+
+    expect(validateReport(report, reportOptions())).toContain(
+      "Source secret scan artifact generatedAt is before the release report startedAt."
+    );
+  });
+
   it.each([
     ["status", (nativeReport) => { nativeReport.status = "failed"; }, "status must be passed"],
     [
@@ -697,8 +708,13 @@ function createReport({
   allowWarnings = false,
   supportBundlePatch = {}
 } = {}) {
+  const nowMs = Date.now();
+  const reportStartedAt = new Date(nowMs - 1_000).toISOString();
+  const scanGeneratedAt = new Date(nowMs - 500).toISOString();
+  const reportFinishedAt = new Date(nowMs).toISOString();
   writeSupportBundleFixture(supportBundlePatch);
   writeUiEvidenceFile({ path: uiEvidencePath, target: uiEvidenceTarget });
+  writeSourceSecretScanFixture({ generatedAt: scanGeneratedAt });
   writeNativeBuildFixture(fixtureRoot);
   const shouldIncludeDistribution = includeDistribution || includeStoreRelease;
   if (shouldIncludeDistribution) {
@@ -739,8 +755,8 @@ function createReport({
     app: "MobileLiveCaster",
     type: "release-candidate-verification",
     status: "passed",
-    startedAt: new Date(Date.now() - 1_000).toISOString(),
-    finishedAt: new Date().toISOString(),
+    startedAt: reportStartedAt,
+    finishedAt: reportFinishedAt,
     git: {
       commit: currentCommit(),
       branch: "main",
@@ -768,8 +784,8 @@ function createReport({
         label,
         command: "fixture",
         status: label === "Verify clean git worktree" ? "skipped" : "passed",
-        startedAt: new Date(Date.now() - 1_000).toISOString(),
-        finishedAt: new Date().toISOString(),
+        startedAt: reportStartedAt,
+        finishedAt: reportFinishedAt,
         durationMs: 1,
         exitCode: label === "Verify clean git worktree" ? null : 0,
         error: label === "Verify clean git worktree" ? "Allowed by --allow-dirty." : null
@@ -842,6 +858,14 @@ function writeSourceSecretScanFixture(patch = {}) {
       2
     )
   );
+}
+
+function rewriteSourceSecretScan(report, patch) {
+  const scan = JSON.parse(readFileSync(sourceSecretScanArtifactPath, "utf8"));
+  writeSourceSecretScanFixture({ ...scan, ...patch });
+  const artifact = report.artifacts.files.find((candidate) => candidate.path === sourceSecretScanArtifactPath);
+  artifact.bytes = readFileSync(sourceSecretScanArtifactPath).byteLength;
+  artifact.sha256 = fileSha256(sourceSecretScanArtifactPath);
 }
 
 function rewriteIosNativeVerification(report, mutate) {

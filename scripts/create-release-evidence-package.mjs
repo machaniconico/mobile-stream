@@ -389,8 +389,12 @@ function validatePackagedSourceSecretScanArtifact(report, packagedArtifacts, pac
   if (!Number.isFinite(Date.parse(String(scan?.generatedAt || "")))) {
     failures.push("Package source secret scan generatedAt timestamp is missing or invalid.");
   }
+  const reportStartedAt = Date.parse(String(report?.startedAt || ""));
   const reportFinishedAt = Date.parse(String(report?.finishedAt || ""));
   const scanGeneratedAt = Date.parse(String(scan?.generatedAt || ""));
+  if (Number.isFinite(reportStartedAt) && Number.isFinite(scanGeneratedAt) && scanGeneratedAt < reportStartedAt) {
+    failures.push("Package source secret scan generatedAt is before the release report startedAt.");
+  }
   if (Number.isFinite(reportFinishedAt) && Number.isFinite(scanGeneratedAt) && scanGeneratedAt > reportFinishedAt) {
     failures.push("Package source secret scan generatedAt is after the release report finishedAt.");
   }

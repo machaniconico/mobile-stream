@@ -247,6 +247,23 @@ describe("release evidence package creator", () => {
     expect(failures).toContain("Package source secret scan artifact must report zero findings.");
   });
 
+  it("rejects packaged source secret scan evidence generated before the release report started", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReport = JSON.parse(readFileSync(`${packageDir}/release-candidate-report.json`, "utf8"));
+    const packagedScanPath = packagedSourceSecretScanPath();
+    const scan = JSON.parse(readFileSync(packagedScanPath, "utf8"));
+    scan.generatedAt = new Date(Date.parse(packagedReport.startedAt) - 1_000).toISOString();
+    writeFileSync(packagedScanPath, JSON.stringify(scan, null, 2));
+    refreshPackagedArtifactEvidence(sourceSecretScanArtifactPath, packagedScanPath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Package source secret scan generatedAt is before the release report startedAt.");
+  });
+
   it("rejects release reports generated with development-only dirty-worktree approval", () => {
     writeReportFixture();
     const report = JSON.parse(readFileSync(reportPath, "utf8"));
@@ -2017,6 +2034,11 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
 function writeReportFixture({ skipUi = true, uiEvidencePath = ".artifacts/release-evidence-package-test/ui-evidence.json" } = {}) {
   writeFixtureFiles();
   writeUiEvidenceFile({ path: uiEvidencePath });
+  const nowMs = Date.now();
+  const reportStartedAt = new Date(nowMs - 1_000).toISOString();
+  const scanGeneratedAt = new Date(nowMs - 500).toISOString();
+  const reportFinishedAt = new Date(nowMs).toISOString();
+  writeSourceSecretScanFixture({ generatedAt: scanGeneratedAt });
   const artifactFiles = [
     ...releaseConfigArtifactPaths.map((path) => artifactRecord("release-config", path)),
     artifactRecord("web", "dist/index.html"),
@@ -2044,8 +2066,8 @@ function writeReportFixture({ skipUi = true, uiEvidencePath = ".artifacts/releas
         app: "MobileLiveCaster",
         type: "release-candidate-verification",
         status: "passed",
-        startedAt: new Date(Date.now() - 1_000).toISOString(),
-        finishedAt: new Date().toISOString(),
+        startedAt: reportStartedAt,
+        finishedAt: reportFinishedAt,
         git: {
           commit: currentCommit(),
           branch: "main",
@@ -2071,8 +2093,8 @@ function writeReportFixture({ skipUi = true, uiEvidencePath = ".artifacts/releas
             label,
             command: "fixture",
             status: "passed",
-            startedAt: new Date(Date.now() - 1_000).toISOString(),
-            finishedAt: new Date().toISOString(),
+            startedAt: reportStartedAt,
+            finishedAt: reportFinishedAt,
             durationMs: 1,
             exitCode: 0,
             error: null

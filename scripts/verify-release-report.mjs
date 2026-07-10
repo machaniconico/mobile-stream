@@ -289,7 +289,7 @@ function validateArtifacts(report, options, fail) {
   for (const artifact of artifacts) {
     validateArtifactRecord(artifact, fail);
   }
-  validateSourceSecretScanArtifactInReport(artifacts, fail);
+  validateSourceSecretScanArtifactInReport(report, artifacts, fail);
   validateNativeBuildArtifactsInReport(report, artifacts, options, fail);
   validateDistributionArtifactsInReport(artifacts, fail);
   validateDashboardEvidenceInReport(artifacts, fail);
@@ -303,7 +303,7 @@ function validateArtifacts(report, options, fail) {
   validatePhysicalDevicePreflightInReport(report, artifacts, options, fail);
 }
 
-function validateSourceSecretScanArtifactInReport(artifacts, fail) {
+function validateSourceSecretScanArtifactInReport(report, artifacts, fail) {
   const artifact = artifacts.find(
     (candidate) => candidate?.group === sourceSecretScanArtifactGroup && candidate?.path === sourceSecretScanArtifactPath
   );
@@ -328,6 +328,19 @@ function validateSourceSecretScanArtifactInReport(artifacts, fail) {
   }
   if (!Array.isArray(scan?.scannedFiles) || scan.scannedFiles.length === 0 || !Number.isInteger(scan?.scannedBytes) || scan.scannedBytes <= 0) {
     fail("Source secret scan artifact is missing scanned file and byte evidence.");
+  }
+  const scanGeneratedAt = Date.parse(String(scan?.generatedAt || ""));
+  if (!Number.isFinite(scanGeneratedAt)) {
+    fail("Source secret scan artifact generatedAt timestamp is missing or invalid.");
+    return;
+  }
+  const reportStartedAt = Date.parse(String(report?.startedAt || ""));
+  const reportFinishedAt = Date.parse(String(report?.finishedAt || ""));
+  if (Number.isFinite(reportStartedAt) && scanGeneratedAt < reportStartedAt) {
+    fail("Source secret scan artifact generatedAt is before the release report startedAt.");
+  }
+  if (Number.isFinite(reportFinishedAt) && scanGeneratedAt > reportFinishedAt) {
+    fail("Source secret scan artifact generatedAt is after the release report finishedAt.");
   }
 }
 
