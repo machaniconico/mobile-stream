@@ -1544,7 +1544,7 @@ describe("stream diagnostics", () => {
       health: health()
     }, [
       {
-        id: "event-1",
+        id: `event-${demoStreamKey}`,
         at: "2026-06-22T00:00:00.000Z",
         kind: "operation",
         severity: "fail",
@@ -1556,6 +1556,8 @@ describe("stream diagnostics", () => {
 
     expect(diagnostics.target.application).toContain(redactStreamKey(demoStreamKey));
     expect(diagnostics.target.application).not.toContain(demoStreamKey);
+    expect(diagnostics.session.events[0].id).toContain(redactStreamKey(demoStreamKey));
+    expect(diagnostics.session.events[0].id).not.toContain(demoStreamKey);
     expect(diagnostics.session.events[0].message).toContain(redactStreamKey(demoStreamKey));
     expect(diagnostics.session.events[0].message).not.toContain(demoStreamKey);
     expect(report).not.toContain(demoStreamKey);

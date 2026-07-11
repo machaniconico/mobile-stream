@@ -898,11 +898,13 @@ const allowedChatEventTitles = new Set([
 ]);
 
 const sanitizeSessionEvent = (event: StreamSessionEvent, streamKey: string): StreamSessionEvent => {
+  const redactedId = redactStreamKeyOccurrences(event.id, streamKey);
   const redactedTitle = redactStreamKeyOccurrences(event.title, streamKey);
   const redactedMessage = redactStreamKeyOccurrences(event.message, streamKey);
   if (event.kind !== "chat") {
     return {
       ...event,
+      id: redactedId,
       title: redactedTitle,
       message: redactedMessage
     };
@@ -911,6 +913,7 @@ const sanitizeSessionEvent = (event: StreamSessionEvent, streamKey: string): Str
   const title = allowedChatEventTitles.has(redactedTitle) ? redactedTitle : "Chat readout event";
   return {
     ...event,
+    id: redactedId,
     title,
     message: chatEventPrivacyMessage(title)
   };
