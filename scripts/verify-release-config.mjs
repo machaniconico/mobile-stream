@@ -76,6 +76,7 @@ const files = {
   supportBundleDomain: read("src/domain/supportBundle.ts"),
   supportBundleDomainTest: read("src/domain/supportBundle.test.ts"),
   commercialReleaseGateDomain: read("src/domain/commercialReleaseGate.ts"),
+  commercialReleaseGateDomainTest: read("src/domain/commercialReleaseGate.test.ts"),
   streamDiagnosticsDomain: read("src/domain/streamDiagnostics.ts"),
   publicLaunchChecklistDomain: read("src/domain/publicLaunchChecklist.ts"),
   streamValidationEvidenceDomain: read("src/domain/streamValidationEvidence.ts"),
@@ -340,6 +341,8 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "textOverlayQueuedTimedManualSourceCount");
     expectIncludes(files.commercialReleaseGateDomain, "textOverlayExpiredTimedManualSourceCount");
     expectIncludes(files.commercialReleaseGateDomain, "chat-overlay-evidence-failed");
+    expectIncludes(files.commercialReleaseGateDomain, "liveCaptionFinalCueCount");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks contradictory passing live-caption evidence without final cue proof");
     expectIncludes(files.commercialReleaseGateDomain, "android-publisher-mode-not-commercial");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 55");

@@ -397,6 +397,35 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks contradictory passing live-caption evidence without final cue proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          liveCaptionStatus: "pass",
+          liveCaptionEnabled: true,
+          liveCaptionRecognitionStatus: "listening",
+          liveCaptionVisibleRuntimeSourceCount: 1,
+          liveCaptionActiveCueCount: 0,
+          liveCaptionFinalCueCount: 0,
+          liveCaptionTranscriptCount: 0,
+          liveCaptionSummary: "Live captions are marked pass without retained final cue proof.",
+          liveCaptionRecommendation: "Repeat caption validation before public launch."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "live-caption-evidence-incomplete",
+        severity: "fail",
+        detail: "Live captions are marked pass without retained final cue proof."
+      })
+    );
+  });
+
   it("blocks native runtime claims without video frame interval proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({

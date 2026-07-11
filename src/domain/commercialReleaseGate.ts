@@ -482,6 +482,21 @@ const createLiveCaptionEvidenceIssue = (bundle: SupportBundle): CommercialReleas
     );
   }
 
+  if (
+    summary.liveCaptionEnabled &&
+    (summary.liveCaptionRecognitionStatus !== "listening" ||
+      (summary.liveCaptionVisibleRuntimeSourceCount ?? 0) <= 0 ||
+      (summary.liveCaptionFinalCueCount ?? 0) <= 0 ||
+      (summary.liveCaptionTranscriptCount ?? 0) <= 0)
+  ) {
+    return failIssue(
+      "live-caption-evidence-incomplete",
+      "Live caption evidence",
+      summary.liveCaptionSummary || "Enabled live captions are missing final cue evidence.",
+      summary.liveCaptionRecommendation || "Confirm visible final live-caption cue evidence before approving release."
+    );
+  }
+
   if (status === "warn") {
     return failIssue(
       "live-caption-evidence-incomplete",
