@@ -57,6 +57,7 @@ const redactedEmail = "[email redacted]";
 const redactedInvite = "[invite redacted]";
 const redactedPhone = "[phone redacted]";
 const redactedOAuthCallback = "[oauth callback redacted]";
+const redactedOAuthAuthorization = "[oauth authorization redacted]";
 const redactedDiscordWebhook = "[discord webhook redacted]";
 
 const emailPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
@@ -64,6 +65,8 @@ const invitePattern = /\b(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)
 const phoneLikePattern = /(^|[^\w+])(\+?\d[\d\s().-]{7,}\d)(?=$|[^\w])/g;
 const oauthCallbackPattern =
   /\b(?:mobilelivecaster:\/\/oauth\/|com\.mobilelivecaster\.app:\/oauth\/)[^\s<>"']*[?#][^\s<>"']+/gi;
+const oauthAuthorizationPattern =
+  /\bhttps:\/\/(?:accounts\.google\.com\/o\/oauth2\/v2\/auth|id\.twitch\.tv\/oauth2\/authorize)\?[^\s<>"']+/gi;
 const discordWebhookPattern =
   /\bhttps:\/\/(?:discord(?:app)?\.com)\/api\/webhooks\/\d{5,32}\/[A-Za-z0-9._-]{20,}/gi;
 
@@ -74,6 +77,7 @@ export const redactSensitiveText = (value: string): string => {
 
   return value
     .replace(oauthCallbackPattern, redactOAuthCallbackCandidate)
+    .replace(oauthAuthorizationPattern, redactOAuthAuthorizationCandidate)
     .replace(discordWebhookPattern, redactDiscordWebhookCandidate)
     .replace(new RegExp(`([?&#](${sensitiveKeyPattern})=)([^&#\\s]+)`, "gi"), `$1${redacted}`)
     .replace(new RegExp(`\\b(${sensitiveKeyPattern})=([^&\\s]+)`, "gi"), `$1=${redacted}`)
@@ -90,6 +94,11 @@ export const redactSensitiveText = (value: string): string => {
 const redactOAuthCallbackCandidate = (token: string): string => {
   const trailing = token.match(/[),.;:!?]+$/)?.[0] ?? "";
   return `${redactedOAuthCallback}${trailing}`;
+};
+
+const redactOAuthAuthorizationCandidate = (token: string): string => {
+  const trailing = token.match(/[),.;:!?]+$/)?.[0] ?? "";
+  return `${redactedOAuthAuthorization}${trailing}`;
 };
 
 const redactDiscordWebhookCandidate = (token: string): string => {

@@ -34,6 +34,23 @@ describe("sensitive text redaction", () => {
     expect(redacted).not.toContain("com.mobilelivecaster.app:/oauth/twitch#");
   });
 
+  it("redacts OAuth authorization URLs as whole tokens", () => {
+    const googleAuthorizationUrl =
+      "https://accounts.google.com/o/oauth2/v2/auth?client_id=yt-client&redirect_uri=com.mobilelivecaster.app%3A%2Foauth%2Fyoutube&response_type=code&state=oauth-state-secret&code_challenge=pkce-challenge-secret&code_challenge_method=S256";
+    const twitchAuthorizationUrl =
+      "https://id.twitch.tv/oauth2/authorize?client_id=tw-client&redirect_uri=mobilelivecaster%3A%2F%2Foauth%2Ftwitch&response_type=token&scope=chat%3Aread&state=twitch-state-secret";
+
+    const redacted = redactSensitiveText(`open ${googleAuthorizationUrl}. then ${twitchAuthorizationUrl},`);
+
+    expect(redacted).toContain("[oauth authorization redacted].");
+    expect(redacted).toContain("[oauth authorization redacted],");
+    expect(redacted).not.toContain("accounts.google.com/o/oauth2/v2/auth");
+    expect(redacted).not.toContain("id.twitch.tv/oauth2/authorize");
+    expect(redacted).not.toContain("oauth-state-secret");
+    expect(redacted).not.toContain("pkce-challenge-secret");
+    expect(redacted).not.toContain("twitch-state-secret");
+  });
+
   it("redacts Discord webhook URLs as whole credential tokens", () => {
     const webhookUrl =
       "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz.ABCDEFGHIJKLMNOPQRSTUVWXYZ_1234567890";

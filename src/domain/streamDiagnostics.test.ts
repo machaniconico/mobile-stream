@@ -1642,7 +1642,7 @@ describe("stream diagnostics", () => {
       "callback mobilelivecaster://oauth/twitch?access_token=diagnostic-oauth-token-secret";
     mutableReport.diagnostics.api = {
       serialized:
-        '{"apiKey":"diagnostic-api-key-secret","nestedClientSecret":"diagnostic-client-secret"} customOauthToken=diagnostic-custom-token-secret'
+        '{"apiKey":"diagnostic-api-key-secret","nestedClientSecret":"diagnostic-client-secret"} customOauthToken=diagnostic-custom-token-secret https://id.twitch.tv/oauth2/authorize?client_id=tw-client&redirect_uri=mobilelivecaster%3A%2F%2Foauth%2Ftwitch&response_type=token&scope=chat%3Aread&state=diagnostic-state-secret'
     };
 
     const json = serializeStreamDiagnosticReport(report, { secrets: [demoStreamKey] });
@@ -1658,6 +1658,8 @@ describe("stream diagnostics", () => {
     expect(exported).not.toContain("diagnostic-api-key-secret");
     expect(exported).not.toContain("diagnostic-client-secret");
     expect(exported).not.toContain("diagnostic-custom-token-secret");
+    expect(exported).not.toContain("id.twitch.tv/oauth2/authorize");
+    expect(exported).not.toContain("diagnostic-state-secret");
     expect(exported).not.toContain("mobilelivecaster://oauth");
     expect(exported).not.toContain("viewer@example.com");
     expect(exported).not.toContain("090-1234-5678");

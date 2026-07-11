@@ -914,7 +914,8 @@ describe("support bundle", () => {
     mutableBundle.diagnostics.session.historySummary.recommendation =
       "callback mobilelivecaster://oauth/youtube?code=support-oauth-code-secret";
     mutableBundle.diagnostics.api = {
-      serialized: '{"apiKey":"support-api-key-secret"} customOauthToken=support-custom-token-secret'
+      serialized:
+        '{"apiKey":"support-api-key-secret"} customOauthToken=support-custom-token-secret https://accounts.google.com/o/oauth2/v2/auth?client_id=yt-client&redirect_uri=com.mobilelivecaster.app%3A%2Foauth%2Fyoutube&response_type=code&state=support-state-secret&code_challenge=support-pkce-secret&code_challenge_method=S256'
     };
 
     const json = serializeSupportBundle(bundle, { secrets: [streamKey] });
@@ -929,6 +930,9 @@ describe("support bundle", () => {
     expect(exported).not.toContain("support-oauth-code-secret");
     expect(exported).not.toContain("support-api-key-secret");
     expect(exported).not.toContain("support-custom-token-secret");
+    expect(exported).not.toContain("accounts.google.com/o/oauth2/v2/auth");
+    expect(exported).not.toContain("support-state-secret");
+    expect(exported).not.toContain("support-pkce-secret");
     expect(exported).not.toContain("mobilelivecaster://oauth");
     expect(exported).not.toContain("viewer@example.com");
     expect(exported).not.toContain("090-1234-5678");
