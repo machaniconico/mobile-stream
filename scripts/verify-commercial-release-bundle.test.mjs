@@ -1515,6 +1515,22 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("controlled weak-network quality automation evidence for iOS");
   });
 
+  it("blocks quality automation proof retained under a normal network profile", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { networkProfile: "private test" }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("controlled weak-network quality automation evidence for iOS");
+  });
+
   it("blocks platform dashboard claims when retained manifests lack destination identity proof", () => {
     writeBundle({
       summary: {
@@ -2037,7 +2053,7 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   physicalDevice: true,
   physicalDeviceStatus: "pass",
   appBuild: "rc-1",
-  networkProfile: "private test",
+  networkProfile: "controlled weak-network throttle 2mbps",
   sceneFingerprint: "scene1-ready",
   targetPlatform: "YouTube Live",
   transport: "rtmps",

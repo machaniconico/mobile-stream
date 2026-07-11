@@ -442,6 +442,10 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-chat-readout");
     expectIncludes(files.commercialReleaseBundleScript, "connected platform chat, enabled reader");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks chat readout claims when retained manifests lack connected platform chat proof");
+    expectIncludes(files.commercialReleaseGateDomain, "hasControlledWeakNetworkProfile");
+    expectIncludes(files.commercialReleaseGateDomainTest, "quality automation proof was recorded under a normal network profile");
+    expectIncludes(files.commercialReleaseBundleScript, "hasControlledWeakNetworkProfile");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "quality automation proof retained under a normal network profile");
     expectIncludes(files.publicLaunchChecklistDomain, "latestChatReadout");
     expectIncludes(files.publicLaunchChecklistDomain, "chatReadoutIosPass");
     expectIncludes(files.publicLaunchChecklistDomain, "chatReadoutAndroidPass");

@@ -1241,8 +1241,33 @@ function isManifestPlatformPublishingPass(run, expectedYouTubePublishing = empty
 function isManifestQualityAutomationPass(run) {
   return (
     run?.qualityAutomationStatus === "pass" &&
+    hasControlledWeakNetworkProfile(run?.networkProfile) &&
     (number(run?.qualityAutomationLiveUpdateCount) > 0 || number(run?.qualityAutomationNextTargetCount) > 0) &&
     isZeroNumber(run?.qualityAutomationFailureCount)
+  );
+}
+
+function hasControlledWeakNetworkProfile(networkProfile) {
+  const normalized = statusLabel(networkProfile);
+  return (
+    normalized.includes("weak") ||
+    normalized.includes("stress") ||
+    normalized.includes("throttle") ||
+    normalized.includes("constrained") ||
+    normalized.includes("degraded") ||
+    normalized.includes("unstable") ||
+    normalized.includes("latency") ||
+    normalized.includes("jitter") ||
+    normalized.includes("loss") ||
+    normalized.includes("reconnect") ||
+    normalized.includes("poor") ||
+    normalized.includes("limited") ||
+    normalized.includes("弱") ||
+    normalized.includes("低速") ||
+    normalized.includes("遅延") ||
+    normalized.includes("損失") ||
+    normalized.includes("不安定") ||
+    normalized.includes("スロットル")
   );
 }
 

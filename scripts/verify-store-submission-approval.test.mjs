@@ -753,7 +753,7 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     physicalDevice: true,
     physicalDeviceStatus: "pass",
     appBuild,
-    networkProfile: "private test",
+    networkProfile: "controlled weak-network throttle 2mbps",
     sceneFingerprint: "scene1-ready",
     targetPlatform: "YouTube Live",
     transport: "rtmps",

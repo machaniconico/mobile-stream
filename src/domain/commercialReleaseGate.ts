@@ -1510,8 +1510,33 @@ const hasZeroManifestChatSpeechFailures = (run: ValidationEvidenceManifestRun | 
 
 const isManifestQualityAutomationPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.qualityAutomationStatus) &&
+  hasControlledWeakNetworkProfile(run?.networkProfile) &&
   (Number(run?.qualityAutomationLiveUpdateCount) > 0 || Number(run?.qualityAutomationNextTargetCount) > 0) &&
   isZeroFiniteNumber(run?.qualityAutomationFailureCount);
+
+const hasControlledWeakNetworkProfile = (networkProfile: unknown): boolean => {
+  const normalized = normalizeStatusLabel(networkProfile);
+  return (
+    normalized.includes("weak") ||
+    normalized.includes("stress") ||
+    normalized.includes("throttle") ||
+    normalized.includes("constrained") ||
+    normalized.includes("degraded") ||
+    normalized.includes("unstable") ||
+    normalized.includes("latency") ||
+    normalized.includes("jitter") ||
+    normalized.includes("loss") ||
+    normalized.includes("reconnect") ||
+    normalized.includes("poor") ||
+    normalized.includes("limited") ||
+    normalized.includes("弱") ||
+    normalized.includes("低速") ||
+    normalized.includes("遅延") ||
+    normalized.includes("損失") ||
+    normalized.includes("不安定") ||
+    normalized.includes("スロットル")
+  );
+};
 
 const isManifestPlatformPublishingPass = (
   run: ValidationEvidenceManifestRun | undefined,

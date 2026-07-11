@@ -2301,6 +2301,32 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks release when quality automation proof was recorded under a normal network profile", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              networkProfile: "private test"
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-quality-automation-gap",
+        detail: expect.stringContaining("iOS")
+      })
+    );
+  });
+
   it("blocks platform dashboard summary claims when the manifest lacks destination identity proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -3341,6 +3367,7 @@ const manifestRun = ({
   fresh = true,
   matchesScope = true,
   appBuild = "rc-1",
+  networkProfile = "controlled weak-network throttle 2mbps",
   sceneFingerprint = "scene1-ready",
   targetPlatform = "YouTube Live",
   transport = "rtmps",
@@ -3522,6 +3549,8 @@ const manifestRun = ({
   fresh?: ValidationManifestRun["fresh"];
   matchesScope?: ValidationManifestRun["matchesScope"];
   appBuild?: ValidationManifestRun["appBuild"];
+  networkProfile?: ValidationManifestRun["networkProfile"];
+  sceneFingerprint?: ValidationManifestRun["sceneFingerprint"];
   targetPlatform?: ValidationManifestRun["targetPlatform"];
   transport?: ValidationManifestRun["transport"];
   nativeRuntimePlatform?: ValidationManifestRun["nativeRuntimePlatform"];
@@ -3691,7 +3720,6 @@ const manifestRun = ({
   platformPublishingTwitchChannelCategoryId?: ValidationManifestRun["platformPublishingTwitchChannelCategoryId"];
   platformPublishingTwitchChannelLanguage?: ValidationManifestRun["platformPublishingTwitchChannelLanguage"];
   platformPublishingTwitchViewerCount?: ValidationManifestRun["platformPublishingTwitchViewerCount"];
-  sceneFingerprint?: ValidationManifestRun["sceneFingerprint"];
 }): ValidationManifestRun => ({
   id: `validation-${devicePlatform}`,
   fingerprint,
@@ -3707,7 +3735,7 @@ const manifestRun = ({
   physicalDevice,
   physicalDeviceStatus,
   appBuild,
-  networkProfile: "private test",
+  networkProfile,
   sceneFingerprint,
   targetPlatform,
   transport,
