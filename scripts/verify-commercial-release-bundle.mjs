@@ -384,7 +384,7 @@ function publicLaunchConfirmationEvidenceIssue(bundle) {
     typeof lastAt === "string" &&
     Number.isFinite(Date.parse(lastAt)) &&
     typeof lastMessage === "string" &&
-    lastMessage.trim().length > 0;
+    hasPublicLaunchConfirmationAuditEvidence(lastMessage);
 
   if (!hasValidCount || !hasValidStatus || (!hasNoConfirmation && !hasConfirmation)) {
     return fail(
@@ -395,7 +395,21 @@ function publicLaunchConfirmationEvidenceIssue(bundle) {
     );
   }
 
+  if (status === "cancelled") {
+    return fail(
+      "public-launch-confirmation-cancelled",
+      "Public launch confirmation audit",
+      "The latest public launch confirmation was cancelled by the operator.",
+      "Run the public launch checklist again and accept the final confirmation only when the current target, dashboard, audio, avatar, chat, caption, and safety evidence is ready."
+    );
+  }
+
   return null;
+}
+
+function hasPublicLaunchConfirmationAuditEvidence(message) {
+  const normalizedMessage = message.trim();
+  return normalizedMessage.includes("Target: ") && normalizedMessage.includes("Checklist: ");
 }
 
 function sceneFingerprintIssue(bundle) {

@@ -35,6 +35,72 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks support bundles whose latest public launch confirmation was cancelled", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          publicLaunchConfirmationEventCount: 2,
+          publicLaunchLastConfirmationStatus: "cancelled",
+          publicLaunchLastConfirmationAt: "2026-06-23T11:28:00.000Z",
+          publicLaunchLastConfirmationMessage:
+            "YouTube Public launch confirmation was cancelled by the operator. Target: YouTube Live, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status testing. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "public-launch-confirmation-cancelled",
+        detail: "The latest public launch confirmation was cancelled by the operator."
+      })
+    );
+  });
+
+  it("blocks public launch confirmation events without target and checklist audit evidence", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          publicLaunchConfirmationEventCount: 1,
+          publicLaunchLastConfirmationStatus: "confirmed",
+          publicLaunchLastConfirmationAt: "2026-06-23T11:28:00.000Z",
+          publicLaunchLastConfirmationMessage: "YouTube Public launch confirmation was accepted by the operator."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "public-launch-confirmation-evidence"
+      })
+    );
+  });
+
+  it("accepts confirmed public launch events with retained target and checklist audit evidence", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          publicLaunchConfirmationEventCount: 1,
+          publicLaunchLastConfirmationStatus: "confirmed",
+          publicLaunchLastConfirmationAt: "2026-06-23T11:28:00.000Z",
+          publicLaunchLastConfirmationMessage:
+            "YouTube Public launch confirmation was accepted by the operator. Target: YouTube Live, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status testing. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("ready");
+    expect(gate.canRelease).toBe(true);
+    expect(gate.issues.map((issue) => issue.code)).not.toContain("public-launch-confirmation-evidence");
+    expect(gate.issues.map((issue) => issue.code)).not.toContain("public-launch-confirmation-cancelled");
+  });
+
   it("blocks v54 support bundles because native caption overlay proof requires v55", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
