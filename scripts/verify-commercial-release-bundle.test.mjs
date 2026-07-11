@@ -1159,6 +1159,28 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("headphone route proof");
   });
 
+  it("blocks audio claims when monitor proof is not routed to headphones", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            audioMonitorHeadphonesOnly: false,
+            audioOutputRoute: "speaker",
+            audioNativeMonitorRoute: "speaker",
+            audioNativeMonitorRouteMatchesOutput: true,
+            audioNativeMonitorHeadphonesConnected: false
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("headphone route proof");
+  });
+
   it("blocks audio claims when Bluetooth monitor evidence lacks tuning review", () => {
     writeBundle({
       summary: {

@@ -412,6 +412,8 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks audio summary claims when monitor proof is not routed to headphones");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-audio-monitor");
     expectIncludes(files.commercialReleaseBundleScript, "audioNativeMonitorRouteMatchesOutput");
+    expectIncludes(files.commercialReleaseBundleScript, "audioNativeMonitorHeadphonesConnected === true");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks audio claims when monitor proof is not routed to headphones");
     expectIncludes(files.streamValidationEvidenceDomain, "faceTrackingRigSemanticSegmentScore");
     expectIncludes(files.commercialReleaseGateDomain, "faceTrackingRigSemanticSegmentScore");
     expectIncludes(files.commercialReleaseBundleScript, "faceTrackingRigSemanticSegmentScore");
