@@ -541,6 +541,16 @@ const createPlatformPublishingFreshnessIssue = (bundle: SupportBundle): Commerci
   }
 
   if (status === "not-applicable") {
+    if (isFirstPartyPublishingDestination(bundle)) {
+      return failIssue(
+        "platform-publishing-freshness",
+        "Platform publishing freshness",
+        bundle.summary.platformPublishingFreshnessSummary ||
+          "YouTube/Twitch publishing freshness cannot be marked not-applicable for a platform-visible destination.",
+        bundle.summary.platformPublishingFreshnessRecommendation ||
+          "Refresh YouTube Live or Twitch publishing status immediately before commercial release approval."
+      );
+    }
     return null;
   }
 
@@ -1009,6 +1019,9 @@ const nonEmptyText = (value: string | null | undefined): string | null =>
 
 const isNonNegativeInteger = (value: unknown): value is number =>
   typeof value === "number" && Number.isInteger(value) && value >= 0;
+
+const isFirstPartyPublishingDestination = (bundle: SupportBundle): boolean =>
+  bundle.profile?.destination?.platform === "youtube-live" || bundle.profile?.destination?.platform === "twitch";
 
 const isDiagnosticStatus = (value: unknown): value is "pass" | "warn" | "fail" | "info" =>
   value === "pass" || value === "warn" || value === "fail" || value === "info";

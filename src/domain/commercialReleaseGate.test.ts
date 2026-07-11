@@ -835,6 +835,30 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks not-applicable platform publishing freshness for first-party destinations", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          platformPublishingFreshnessStatus: "not-applicable",
+          platformPublishingFreshnessAgeMinutes: null,
+          platformPublishingFreshnessSummary: "YouTube dashboard freshness is tracked outside first-party app APIs.",
+          platformPublishingFreshnessRecommendation: "Keep an external dashboard snapshot with the validation evidence."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "platform-publishing-freshness",
+        severity: "fail",
+        detail: "YouTube dashboard freshness is tracked outside first-party app APIs."
+      })
+    );
+  });
+
   it("blocks stale retained validation runs", () => {
     const bundle = supportBundle({
       summary: {
