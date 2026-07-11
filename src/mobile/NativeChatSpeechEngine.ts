@@ -11,9 +11,12 @@ const nativeSpeech = NativeModules.LiveCasterSpeech as LiveCasterSpeechModule | 
 export class NativeChatSpeechEngine implements ChatSpeechEngine {
   async speak(request: ChatSpeechRequest): Promise<void> {
     if (!nativeSpeech) {
-      return;
+      throw new Error("Native chat speech module is unavailable.");
     }
-    await nativeSpeech.speak(request.text, request.rate, request.pitch, request.volume);
+    const spoken = await nativeSpeech.speak(request.text, request.rate, request.pitch, request.volume);
+    if (!spoken) {
+      throw new Error("Native chat speech failed.");
+    }
   }
 
   async stop(): Promise<void> {

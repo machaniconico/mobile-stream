@@ -2,19 +2,23 @@ import type { ChatSpeechEngine, ChatSpeechRequest } from "../native/ChatSpeechEn
 
 export class WebChatSpeechEngine implements ChatSpeechEngine {
   async speak(request: ChatSpeechRequest): Promise<void> {
-    if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
-      return;
+    if (
+      typeof window === "undefined" ||
+      !("speechSynthesis" in window) ||
+      typeof SpeechSynthesisUtterance === "undefined"
+    ) {
+      throw new Error("Web speech synthesis is unavailable.");
     }
 
     window.speechSynthesis.cancel();
 
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
       const utterance = new SpeechSynthesisUtterance(request.text);
       utterance.rate = request.rate;
       utterance.pitch = request.pitch;
       utterance.volume = request.volume;
       utterance.onend = () => resolve();
-      utterance.onerror = () => resolve();
+      utterance.onerror = () => reject(new Error("Web speech synthesis failed."));
       window.speechSynthesis.speak(utterance);
     });
   }
