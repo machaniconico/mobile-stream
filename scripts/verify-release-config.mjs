@@ -401,6 +401,8 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "audioMonitorTuningNote");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestAudioPass");
     expectIncludes(files.commercialReleaseGateDomain, "audioNativeMonitorRouteMatchesOutput");
+    expectIncludes(files.commercialReleaseGateDomain, "audioNativeMonitorHeadphonesConnected === true");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks audio summary claims when monitor proof is not routed to headphones");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-audio-monitor");
     expectIncludes(files.commercialReleaseBundleScript, "audioNativeMonitorRouteMatchesOutput");
     expectIncludes(files.streamValidationEvidenceDomain, "faceTrackingRigSemanticSegmentScore");

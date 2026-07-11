@@ -1766,6 +1766,36 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks audio summary claims when monitor proof is not routed to headphones", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              audioMonitorHeadphonesOnly: false,
+              audioOutputRoute: "speaker",
+              audioNativeMonitorRoute: "speaker",
+              audioNativeMonitorRouteMatchesOutput: true,
+              audioNativeMonitorHeadphonesConnected: false
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS mic/headphone proof")
+      })
+    );
+  });
+
   it("blocks audio summary claims when the app output route and native monitor route do not match", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({

@@ -1384,7 +1384,7 @@ const isManifestAudioPass = (run: ValidationEvidenceManifestRun | undefined): bo
   Boolean(nonEmptyText(run.audioMonitorLatencySource)) &&
   (run.audioBluetoothRoute !== true ||
     (run.audioBluetoothTuningReviewed === true && Boolean(nonEmptyText(run.audioMonitorTuningNote)))) &&
-  (!run.audioMonitorHeadphonesOnly || run.audioNativeMonitorHeadphonesConnected === true);
+  run.audioNativeMonitorHeadphonesConnected === true;
 
 const hasZeroManifestAudioDrops = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   typeof run?.audioNativeMonitorDroppedFrames === "number" &&
