@@ -9,9 +9,14 @@ describe("source secret scanner", () => {
     const findings = scanTextForSourceSecrets(
       [
         'const webhook = "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyzABCDE";',
+        'const callback = "mobilelivecaster://oauth/youtube?code=oauthcodeabcdefghijklmnopqrstuvwxyz&state=stateabcdefghijklmnopqrstuvwxyz";',
+        'const authUrl = "https://accounts.google.com/o/oauth2/v2/auth?client_id=yt-client&redirect_uri=com.mobilelivecaster.app%3A%2Foauth%2Fyoutube&response_type=code&state=stateabcdefghijklmnopqrstuvwxyz&code_challenge=pkceabcdefghijklmnopqrstuvwxyz&code_challenge_method=S256";',
+        'const activate = "https://www.twitch.tv/activate?public=true&device-code=ABCDEFGH1234567890";',
         'headers.Authorization = "Bearer abcdefghijklmnopqrstuvwxyz1234567890";',
         'const url = "rtmps://a.rtmp.youtube.com/live2/abcd-efgh-ijkl-mnop-qrst";',
         'const key = "AIzaabcdefghijklmnopqrstuvwxyz123456789";',
+        'const deviceCode = "abcdefghijklmnopqrstuvwxyz1234567890";',
+        'const userCode = "ABCDEFGHIJKLMNOPQRSTUVWX";',
         'const token = "ghp_abcdefghijklmnopqrstuvwxyz1234567890ABCD";'
       ].join("\n"),
       "sample.ts"
@@ -20,9 +25,13 @@ describe("source secret scanner", () => {
     expect(findings.map((finding) => finding.ruleId)).toEqual(
       expect.arrayContaining([
         "discord-webhook-url",
+        "oauth-callback-url",
+        "oauth-authorization-url",
+        "oauth-device-activation-url",
         "authorization-header-token",
         "rtmp-publish-url-key",
         "google-api-key",
+        "assigned-sensitive-value",
         "github-token"
       ])
     );
@@ -33,7 +42,10 @@ describe("source secret scanner", () => {
     const findings = scanTextForSourceSecrets(
       [
         'const webhook = "https://discord.com/api/webhooks/123456789012345678/[redacted]";',
+        'const authorizationUrl = "https://accounts.google.com/o/oauth2/v2/auth?client_id=placeholder&state=[redacted]&code_challenge=[redacted]";',
+        'const activationUrl = "https://www.twitch.tv/activate?device-code=[redacted]";',
         'const streamKey = "fake-stream-key-for-test-only";',
+        'const deviceCode = "fake-device-code-for-test-only";',
         'headers.Authorization = "Bearer [redacted]";'
       ].join("\n"),
       "sample.ts"

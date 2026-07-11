@@ -92,6 +92,21 @@ const secretRules = [
     pattern: /https:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhooks\/\d{8,}\/[A-Za-z0-9_-]{24,}/gu
   },
   {
+    id: "oauth-callback-url",
+    description: "OAuth callback URL containing credentials",
+    pattern: /\b(?:mobilelivecaster:\/\/oauth\/|com\.mobilelivecaster\.app:\/oauth\/)[^\s"'`<>]*[?#][^\s"'`<>]+/giu
+  },
+  {
+    id: "oauth-authorization-url",
+    description: "OAuth authorization URL containing state or PKCE values",
+    pattern: /\bhttps:\/\/(?:accounts\.google\.com\/o\/oauth2\/v2\/auth|id\.twitch\.tv\/oauth2\/authorize)\?[^\s"'`<>]+/giu
+  },
+  {
+    id: "oauth-device-activation-url",
+    description: "OAuth device activation URL containing a user code",
+    pattern: /\bhttps:\/\/(?:www\.)?twitch\.tv\/activate\?[^\s"'`<>]+/giu
+  },
+  {
     id: "github-token",
     description: "GitHub token",
     pattern: /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{30,}\b/gu
@@ -127,7 +142,7 @@ const secretRules = [
     id: "assigned-sensitive-value",
     description: "assigned credential-like value",
     pattern:
-      /\b(?:apiKey|clientSecret|discordWebhookUrl|oauthToken|refreshToken|streamKey|twitchOauthToken|youtubeAccessToken)\b\s*[:=]\s*["']([^"'\n]{20,})["']/giu,
+      /\b(?:accessToken|apiKey|clientSecret|deviceCode|discordWebhookUrl|oauthToken|refreshToken|streamKey|twitchOauthToken|userCode|verificationUri|verificationUriComplete|youtubeAccessToken)\b\s*[:=]\s*["']([^"'\n]{20,})["']/giu,
     captureGroup: 1
   }
 ];
