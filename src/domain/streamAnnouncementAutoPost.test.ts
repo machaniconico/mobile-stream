@@ -152,7 +152,7 @@ describe("stream announcement Discord autopost", () => {
       }),
       validWebhookUrl
     );
-    expect(safeMessage).toContain("[redacted]");
+    expect(safeMessage).toContain("[discord webhook redacted]");
     expect(safeMessage).toContain("Retry after 3s.");
     expect(safeMessage).not.toContain(validWebhookUrl);
     expect(safeMessage).not.toContain(validWebhookUrl.split("/").at(-1));

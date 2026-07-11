@@ -34,6 +34,21 @@ describe("sensitive text redaction", () => {
     expect(redacted).not.toContain("com.mobilelivecaster.app:/oauth/twitch#");
   });
 
+  it("redacts Discord webhook URLs as whole credential tokens", () => {
+    const webhookUrl =
+      "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz.ABCDEFGHIJKLMNOPQRSTUVWXYZ_1234567890";
+    const legacyWebhookUrl =
+      "https://discordapp.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz.ABCDEFGHIJKLMNOPQRSTUVWXYZ_1234567890";
+
+    const redacted = redactSensitiveText(`failed ${webhookUrl}. fallback ${legacyWebhookUrl},`);
+
+    expect(redacted).toContain("[discord webhook redacted].");
+    expect(redacted).toContain("[discord webhook redacted],");
+    expect(redacted).not.toContain("discord.com/api/webhooks/123456789012345678");
+    expect(redacted).not.toContain("discordapp.com/api/webhooks/123456789012345678");
+    expect(redacted).not.toContain("abcdefghijklmnopqrstuvwxyz");
+  });
+
   it("prioritizes OAuth key redaction before phone-like number redaction", () => {
     expect(redactSensitiveText("access_token=1234567890123")).toBe("access_token=[redacted]");
   });

@@ -907,7 +907,8 @@ describe("support bundle", () => {
       };
     };
     mutableBundle.preflight.summary = `Failed Authorization: Bearer support-access-token-secret with ${streamKey}`;
-    mutableBundle.preflight.primaryAction = "Contact viewer@example.com / 090-1234-5678 / discord.gg/privateRoom";
+    mutableBundle.preflight.primaryAction =
+      "Contact viewer@example.com / 090-1234-5678 / discord.gg/privateRoom / https://discord.com/api/webhooks/123456789012345678/supportWebhookTokenValue1234567890";
     mutableBundle.diagnostics.session.historySummary.summary =
       "Inspect www.example.org/private, example.tv/show, and a.rtmps.youtube.com/private";
     mutableBundle.diagnostics.session.historySummary.recommendation =
@@ -932,6 +933,8 @@ describe("support bundle", () => {
     expect(exported).not.toContain("viewer@example.com");
     expect(exported).not.toContain("090-1234-5678");
     expect(exported).not.toContain("discord.gg/privateRoom");
+    expect(exported).not.toContain("supportWebhookTokenValue1234567890");
+    expect(exported).not.toContain("discord.com/api/webhooks/123456789012345678");
     expect(exported).not.toContain("www.example.org");
     expect(exported).not.toContain("example.tv");
     expect(exported).not.toContain("a.rtmps.youtube.com/private");

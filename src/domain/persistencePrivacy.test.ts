@@ -27,9 +27,12 @@ describe("persistence privacy", () => {
   });
 
   it("redacts common OAuth and Authorization secrets even without supplied stream keys", () => {
+    const webhookUrl =
+      "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz.ABCDEFGHIJKLMNOPQRSTUVWXYZ_1234567890";
     const value = {
       note: "Authorization: Bearer youtube-access-token-secret",
       callback: "mobilelivecaster://oauth/youtube?code=oauth-code-secret&device_code=device-secret",
+      webhook: `Discord delivery failed for ${webhookUrl}`,
       payload: {
         clientSecret: '{"client_secret":"client-secret-value","refresh_token":"refresh-secret"}'
       }
@@ -42,9 +45,12 @@ describe("persistence privacy", () => {
     expect(json).not.toContain("oauth-code-secret");
     expect(json).not.toContain("device-secret");
     expect(json).not.toContain("mobilelivecaster://oauth");
+    expect(json).not.toContain(webhookUrl);
+    expect(json).not.toContain("discord.com/api/webhooks/123456789012345678");
     expect(json).not.toContain("client-secret-value");
     expect(json).not.toContain("refresh-secret");
     expect(json).toContain("[redacted]");
+    expect(json).toContain("[discord webhook redacted]");
   });
 
   it("redacts contact details and protocol-less links without removing retained RTMPS endpoints", () => {

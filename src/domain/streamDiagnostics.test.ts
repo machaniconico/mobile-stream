@@ -1635,7 +1635,7 @@ describe("stream diagnostics", () => {
     };
     mutableReport.diagnostics.summary = `Failed Authorization: Bearer diagnostic-access-token-secret with ${demoStreamKey}`;
     mutableReport.diagnostics.telemetry.message =
-      "Contact viewer@example.com / 090-1234-5678 / discord.gg/privateRoom";
+      "Contact viewer@example.com / 090-1234-5678 / discord.gg/privateRoom / https://discord.com/api/webhooks/123456789012345678/diagnosticWebhookTokenValue1234567890";
     mutableReport.diagnostics.session.historySummary.summary =
       "Inspect www.example.org/private, example.tv/show, and a.rtmps.youtube.com/private";
     mutableReport.diagnostics.session.historySummary.recommendation =
@@ -1662,6 +1662,8 @@ describe("stream diagnostics", () => {
     expect(exported).not.toContain("viewer@example.com");
     expect(exported).not.toContain("090-1234-5678");
     expect(exported).not.toContain("discord.gg/privateRoom");
+    expect(exported).not.toContain("diagnosticWebhookTokenValue1234567890");
+    expect(exported).not.toContain("discord.com/api/webhooks/123456789012345678");
     expect(exported).not.toContain("www.example.org");
     expect(exported).not.toContain("example.tv");
     expect(exported).not.toContain("a.rtmps.youtube.com/private");
