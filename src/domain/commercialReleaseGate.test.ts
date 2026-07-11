@@ -2425,6 +2425,34 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks support bundles that contain unredacted credential headers", () => {
+    const bundle = supportBundle();
+    const mutableBundle = bundle as unknown as {
+      diagnostics: {
+        api: {
+          headers: string;
+        };
+      };
+    };
+    mutableBundle.diagnostics = {
+      api: {
+        headers:
+          "X-API-Key: support-header-api-key-secret Client-Secret: support-header-client-secret OAuth-Token: support-header-oauth-token"
+      }
+    };
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "support-bundle-sensitive-data",
+        detail: expect.stringContaining("unredacted token pattern")
+      })
+    );
+  });
+
   it("allows support bundles with redacted sensitive placeholders", () => {
     const bundle = supportBundle();
     const mutableBundle = bundle as unknown as {

@@ -122,6 +122,19 @@ describe("sensitive text redaction", () => {
     expect(redacted).not.toContain("bearer-token-secret");
   });
 
+  it("redacts credential-bearing HTTP-style headers", () => {
+    const text = "X-API-Key: abc123 Client-Secret: client123 OAuth-Token: oauth123";
+
+    const redacted = redactSensitiveText(text);
+
+    expect(redacted).toContain("X-API-Key: [redacted]");
+    expect(redacted).toContain("Client-Secret: [redacted]");
+    expect(redacted).toContain("OAuth-Token: [redacted]");
+    expect(redacted).not.toContain("abc123");
+    expect(redacted).not.toContain("client123");
+    expect(redacted).not.toContain("oauth123");
+  });
+
   it("redacts personal contact details and invite links", () => {
     const text =
       "mail me@example.com, phone 090-1234-5678, intl +1 415 555 2671, discord.gg/privateRoom";

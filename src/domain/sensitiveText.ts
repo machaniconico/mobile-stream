@@ -83,6 +83,8 @@ const oauthAuthorizationPattern =
 const oauthDeviceActivationPattern = /\bhttps:\/\/(?:www\.)?twitch\.tv\/activate\?[^\s<>"']+/gi;
 const discordWebhookPattern =
   /\bhttps:\/\/(?:discord(?:app)?\.com)\/api\/webhooks\/\d{5,32}\/[A-Za-z0-9._-]{20,}/gi;
+const sensitiveHeaderPattern =
+  /\b((?:x-api-key|api-key|client-secret|stream-key|oauth-token|auth-token|bearer-token|access-token|refresh-token|id-token|device-code|user-code)\s*:\s*)[^\s,;"']+/gi;
 
 export const redactSensitiveText = (value: string): string => {
   if (!value) {
@@ -100,6 +102,7 @@ export const redactSensitiveText = (value: string): string => {
     .replace(new RegExp(`\\b([A-Za-z0-9_.-]*(?:${sensitiveNamedCredentialPattern}))=([^&\\s"']+)`, "gi"), `$1=${redacted}`)
     .replace(new RegExp(`(["']([A-Za-z0-9_.-]*(?:${sensitiveNamedCredentialPattern}))["']\\s*:\\s*["'])([^"']+)(["'])`, "gi"), `$1${redacted}$4`)
     .replace(/\b(Authorization\s*:\s*)(Bearer|OAuth)\s+[^\s,;]+/gi, `$1$2 ${redacted}`)
+    .replace(sensitiveHeaderPattern, `$1${redacted}`)
     .replace(/\b(Bearer|OAuth)\s+[A-Za-z0-9._~+/=-]{12,}/g, `$1 ${redacted}`)
     .replace(emailPattern, redactedEmail)
     .replace(invitePattern, redactedInvite)

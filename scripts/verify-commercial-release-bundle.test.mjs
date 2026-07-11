@@ -360,7 +360,10 @@ describe("commercial release bundle verifier CLI", () => {
         api: {
           youtubeAccessToken: "youtube-access-token-secret",
           twitchOauthToken: "twitch-oauth-token-secret",
-          serialized: '{"apiKey":"platform-api-key-secret","nestedClientSecret":"client-secret-value"} customOauthToken=custom-oauth-token-secret'
+          serialized:
+            '{"apiKey":"platform-api-key-secret","api_key":"platform-snake-api-key-secret","nestedClientSecret":"client-secret-value","oauth_token":"platform-snake-oauth-token-secret"} customOauthToken=custom-oauth-token-secret',
+          headers:
+            "X-API-Key: support-header-api-key-secret Client-Secret: support-header-client-secret OAuth-Token: support-header-oauth-token"
         }
       }
     });

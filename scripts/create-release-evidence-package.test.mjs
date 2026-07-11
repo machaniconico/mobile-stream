@@ -1935,6 +1935,7 @@ describe("release evidence package creator", () => {
       packagedBundlePath,
       [
         "const auth = 'Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456';",
+        "const apiKeyHeader = 'X-API-Key: token-token-1234';",
         "const publishUrl = 'rtmps://a.rtmps.youtube.com/live2/abcd-efgh-ijkl-mnop-qrst';"
       ].join("\n")
     );
@@ -1943,7 +1944,30 @@ describe("release evidence package creator", () => {
     const failures = validateReleaseEvidencePackage({ packageDir });
 
     expect(failures.join("\n")).toContain("artifacts/.artifacts/rn/index.android.bundle contains a bearer/OAuth token");
+    expect(failures.join("\n")).toContain("artifacts/.artifacts/rn/index.android.bundle contains a sensitive header value");
     expect(failures.join("\n")).toContain("artifacts/.artifacts/rn/index.android.bundle contains a stream key in an RTMP URL");
+  });
+
+  it("still scans generated React Native bundles for serialized snake_case credentials", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const sourcePath = ".artifacts/rn/index.android.bundle";
+    const packagedBundlePath = `${packageDir}/artifacts/${sourcePath}`;
+    writeFileSync(
+      packagedBundlePath,
+      [
+        "const serialized = '{\"api_key\":\"token-token-1234\",\"oauth_token\":\"oauth-oauth-1234\"}';",
+        "const form = 'api_key=token-token-1234 oauth_token=oauth-oauth-1234';"
+      ].join("\n")
+    );
+    refreshPackagedArtifactEvidence(sourcePath, packagedBundlePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain("artifacts/.artifacts/rn/index.android.bundle contains a sensitive assignment");
+    expect(failures.join("\n")).toContain("artifacts/.artifacts/rn/index.android.bundle contains a sensitive JSON value");
   });
 
   it("still scans iOS native verification metadata for credentials", () => {
