@@ -1841,10 +1841,17 @@ const textEvidenceExtensions = new Set([
   ".yml"
 ]);
 const sensitiveAssignmentPattern =
-  /\b([A-Za-z0-9_.-]*(?:access_token|refresh_token|id_token|code_verifier|device_code|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|clientSecret|streamKey|oauthToken|authToken|bearerToken|apiKey|secret))=([^&#\s"']+)/gi;
+  /\b([A-Za-z0-9_.-]*(?:access_token|refresh_token|id_token|code_verifier|device_code|user_code|verification_uri|verification_uri_complete|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|userCode|verificationUri|verificationUriComplete|clientSecret|streamKey|oauthToken|authToken|bearerToken|apiKey|secret))=([^&#\s"']+)/gi;
 const sensitiveJsonPattern =
-  /["']([A-Za-z0-9_.-]*(?:access_token|refresh_token|id_token|code_verifier|device_code|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|clientSecret|streamKey|oauthToken|authToken|bearerToken|apiKey|authorization|secret))["']\s*:\s*["']([^"']+)["']/gi;
+  /["']([A-Za-z0-9_.-]*(?:access_token|refresh_token|id_token|code_verifier|device_code|user_code|verification_uri|verification_uri_complete|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|userCode|verificationUri|verificationUriComplete|clientSecret|streamKey|oauthToken|authToken|bearerToken|apiKey|authorization|secret))["']\s*:\s*["']([^"']+)["']/gi;
 const oauthCallbackCodePattern = /[?&#]code=([^&#\s"']+)/gi;
+const oauthCallbackUrlPattern =
+  /(\b(?:mobilelivecaster:\/\/oauth\/|com\.mobilelivecaster\.app:\/oauth\/)[^\s<>"']*[?#][^\s<>"']+)/gi;
+const oauthAuthorizationUrlPattern =
+  /(\bhttps:\/\/(?:accounts\.google\.com\/o\/oauth2\/v2\/auth|id\.twitch\.tv\/oauth2\/authorize)\?[^\s<>"']+)/gi;
+const oauthDeviceActivationUrlPattern = /(\bhttps:\/\/(?:www\.)?twitch\.tv\/activate\?[^\s<>"']+)/gi;
+const discordWebhookUrlPattern =
+  /(\bhttps:\/\/(?:discord(?:app)?\.com)\/api\/webhooks\/\d{5,32}\/[A-Za-z0-9._-]{20,})/gi;
 const authorizationHeaderPattern = /\bAuthorization\s*:\s*(Bearer|OAuth)\s+([^\s,;]+)/gi;
 const bearerTokenPattern = /\b(Bearer|OAuth)\s+([A-Za-z0-9._~+/=-]{12,})/g;
 const twitchIrcOauthPattern = /\boauth:([A-Za-z0-9._~+/=-]{12,})/gi;
@@ -1868,6 +1875,10 @@ function findSensitiveTextFindings(value, path) {
   for (const { pattern, reason, requireTokenShape } of [
     { pattern: sensitiveAssignmentPattern, reason: "contains a sensitive assignment", requireTokenShape: true },
     { pattern: sensitiveJsonPattern, reason: "contains a sensitive JSON value", requireTokenShape: true },
+    { pattern: oauthCallbackUrlPattern, reason: "contains an OAuth callback URL", requireTokenShape: false },
+    { pattern: oauthAuthorizationUrlPattern, reason: "contains an OAuth authorization URL", requireTokenShape: false },
+    { pattern: oauthDeviceActivationUrlPattern, reason: "contains an OAuth device activation URL", requireTokenShape: false },
+    { pattern: discordWebhookUrlPattern, reason: "contains a Discord webhook URL", requireTokenShape: false },
     { pattern: oauthCallbackCodePattern, reason: "contains an OAuth authorization code", requireTokenShape: true },
     { pattern: authorizationHeaderPattern, reason: "contains an Authorization header", requireTokenShape: true },
     { pattern: bearerTokenPattern, reason: "contains a bearer/OAuth token", requireTokenShape: true },

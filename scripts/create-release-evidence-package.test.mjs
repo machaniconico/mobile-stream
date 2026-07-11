@@ -1771,6 +1771,71 @@ describe("release evidence package creator", () => {
     expect(failures.join("\n")).toContain("ui-evidence/ui-evidence.json contains a bearer/OAuth token");
   });
 
+  it("rejects unredacted OAuth credential URLs even when package metadata hashes match", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedUiEvidencePath = `${packageDir}/ui-evidence/ui-evidence.json`;
+    const packagedUiEvidence = JSON.parse(readFileSync(packagedUiEvidencePath, "utf8"));
+    packagedUiEvidence.debug = [
+      "mobilelivecaster://oauth/youtube?code=oauth-code-secret&state=oauth-state-secret",
+      "https://accounts.google.com/o/oauth2/v2/auth?client_id=yt-client&redirect_uri=com.mobilelivecaster.app%3A%2Foauth%2Fyoutube&response_type=code&state=authorization-state-secret&code_challenge=pkce-challenge-secret&code_challenge_method=S256",
+      "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH"
+    ].join(" ");
+    writeFileSync(packagedUiEvidencePath, JSON.stringify(packagedUiEvidence, null, 2));
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const evidenceGate = packagedReport.gates.find((gate) => gate.label === "Verify browser UI evidence");
+    evidenceGate.evidence.sha256 = fileSha256(packagedUiEvidencePath);
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+    manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+    manifest.uiEvidence.bytes = readFileSync(packagedUiEvidencePath).byteLength;
+    manifest.uiEvidence.sha256 = fileSha256(packagedUiEvidencePath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain("ui-evidence/ui-evidence.json contains an OAuth callback URL");
+    expect(failures.join("\n")).toContain("ui-evidence/ui-evidence.json contains an OAuth authorization URL");
+    expect(failures.join("\n")).toContain("ui-evidence/ui-evidence.json contains an OAuth device activation URL");
+  });
+
+  it("rejects unredacted Discord webhook URLs in release evidence packages", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedUiEvidencePath = `${packageDir}/ui-evidence/ui-evidence.json`;
+    const packagedUiEvidence = JSON.parse(readFileSync(packagedUiEvidencePath, "utf8"));
+    packagedUiEvidence.debug =
+      "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz.ABCDEFGHIJKLMNOPQRSTUVWXYZ_1234567890";
+    writeFileSync(packagedUiEvidencePath, JSON.stringify(packagedUiEvidence, null, 2));
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const evidenceGate = packagedReport.gates.find((gate) => gate.label === "Verify browser UI evidence");
+    evidenceGate.evidence.sha256 = fileSha256(packagedUiEvidencePath);
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+    manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+    manifest.uiEvidence.bytes = readFileSync(packagedUiEvidencePath).byteLength;
+    manifest.uiEvidence.sha256 = fileSha256(packagedUiEvidencePath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain("ui-evidence/ui-evidence.json contains a Discord webhook URL");
+  });
+
   it("rejects unredacted contact text and protocol-less links even when package metadata hashes match", () => {
     resetPackageDir();
     writeReportFixture();

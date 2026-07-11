@@ -318,6 +318,27 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("unredacted sensitive value");
   });
 
+  it("blocks unredacted credential-bearing OAuth and webhook URLs", () => {
+    writeBundle({
+      diagnostics: {
+        oauth: {
+          callbackUrl: "mobilelivecaster://oauth/youtube?code=oauth-code-secret&state=oauth-state-secret",
+          authorizationUrl:
+            "https://accounts.google.com/o/oauth2/v2/auth?client_id=yt-client&redirect_uri=com.mobilelivecaster.app%3A%2Foauth%2Fyoutube&response_type=code&state=authorization-state-secret&code_challenge=pkce-challenge-secret&code_challenge_method=S256",
+          activationUrl: "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH",
+          webhookUrl:
+            "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz.ABCDEFGHIJKLMNOPQRSTUVWXYZ_1234567890"
+        }
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Support bundle privacy");
+    expect(result.stdout).toContain("unredacted sensitive value");
+  });
+
   it("blocks unredacted contact details in release support bundles", () => {
     writeBundle({
       diagnostics: {
