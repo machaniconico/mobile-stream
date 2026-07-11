@@ -322,7 +322,8 @@ describe("stream session summary", () => {
           videoFps: 30,
           audioSampleRate: 44100,
           audioChannelCount: 2,
-          message: "Configured first-party MediaCodec H.264/AAC encoders for the requested stream profile."
+          message:
+            "Configured first-party MediaCodec H.264/AAC encoders with Authorization: Bearer nativeProbeToken12345."
         },
         composition: {
           status: "applied",
@@ -375,6 +376,8 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.monitorLatencySource).toBe("android-audiotrack-buffer");
     expect(summary?.nativeRuntime?.encoderProbeStatus).toBe("pass");
     expect(summary?.nativeRuntime?.encoderProbeVideoBackend).toBe("mediacodec-h264");
+    expect(summary?.nativeRuntime?.encoderProbeMessage).toContain("Authorization: Bearer [redacted]");
+    expect(summary?.nativeRuntime?.encoderProbeMessage).not.toContain("nativeProbeToken12345");
     expect(summary?.summary).toContain("Native runtime needs review");
     expect(summary?.recommendation).toContain("Lower bitrate");
   });
@@ -778,6 +781,128 @@ describe("stream session summary", () => {
 
     expect(normalized).toHaveLength(1);
     expect(normalized[0]?.id).toBe(summary.id);
+  });
+
+  it("redacts unsafe persisted session summary text during normalization", () => {
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+
+    const [normalized] = normalizeStreamSessionSummaries([
+      {
+        ...summary,
+        id: "session mobilelivecaster://oauth/youtube?code=sessioncodesecret12345",
+        summary: "Failed with Authorization: Bearer summaryBearerToken12345",
+        recommendation: "Contact viewer@example.com / 090-1234-5678 / discord.gg/privateRoom",
+        health: {
+          ...summary.health,
+          summary: "Inspect www.example.org/private before release."
+        },
+        audioLevel: {
+          ...summary.audioLevel,
+          summary: "Callback mobilelivecaster://oauth/twitch?access_token=audioaccesssecret12345",
+          recommendation: "Send logs to viewer@example.com only after redaction."
+        },
+        nativeRuntime: {
+          platform: "android",
+          status: "warn",
+          runtimeStatus: "live access_token=nativeRuntimeToken12345",
+          publisherState: "published",
+          videoEncoderBackend: "mediacodec-h264",
+          audioEncoderBackend: "mediacodec-aac",
+          encoderProbeMessage: "Probe Authorization: Bearer nativeProbeToken12345",
+          compositionStatus: "applied",
+          compositionAppliedKinds: ["overlay", "www.example.org/native"],
+          live2dRuntimeStatuses: ["ready client_secret=live2dClientSecret12345"],
+          vrmRuntimeStatuses: ["ready mobilelivecaster://oauth/twitch?code=vrmCodeSecret12345"],
+          monitorOutputName: "viewer@example.com",
+          summary: "Native callback mobilelivecaster://oauth/twitch?code=nativeCodeSecret12345",
+          recommendation: "Open discord.gg/nativeRoom"
+        }
+      }
+    ]);
+    const serialized = JSON.stringify(normalized);
+
+    expect(normalized?.id).toContain("[oauth callback redacted]");
+    expect(normalized?.summary).toContain("Authorization: Bearer [redacted]");
+    expect(normalized?.health.summary).toBe("Inspect [redacted] before release.");
+    expect(normalized?.audioLevel.summary).toContain("[oauth callback redacted]");
+    expect(normalized?.audioLevel.recommendation).toContain("[email redacted]");
+    expect(normalized?.nativeRuntime?.runtimeStatus).toBe("live access_token=[redacted]");
+    expect(normalized?.nativeRuntime?.encoderProbeMessage).toContain("Authorization: Bearer [redacted]");
+    expect(normalized?.nativeRuntime?.compositionAppliedKinds).toEqual(["overlay", "[redacted]"]);
+    expect(normalized?.nativeRuntime?.live2dRuntimeStatuses).toEqual(["ready client_secret=[redacted]"]);
+    expect(normalized?.nativeRuntime?.vrmRuntimeStatuses).toEqual(["ready [oauth callback redacted]"]);
+    expect(normalized?.nativeRuntime?.monitorOutputName).toBe("[email redacted]");
+    expect(normalized?.nativeRuntime?.summary).toBe("Native callback [oauth callback redacted]");
+    expect(normalized?.nativeRuntime?.recommendation).toBe("Open [invite redacted]");
+    expect(serialized).not.toContain("sessioncodesecret12345");
+    expect(serialized).not.toContain("summaryBearerToken12345");
+    expect(serialized).not.toContain("viewer@example.com");
+    expect(serialized).not.toContain("090-1234-5678");
+    expect(serialized).not.toContain("discord.gg/privateRoom");
+    expect(serialized).not.toContain("www.example.org");
+    expect(serialized).not.toContain("audioaccesssecret12345");
+    expect(serialized).not.toContain("nativeRuntimeToken12345");
+    expect(serialized).not.toContain("nativeProbeToken12345");
+    expect(serialized).not.toContain("live2dClientSecret12345");
+    expect(serialized).not.toContain("vrmCodeSecret12345");
+    expect(serialized).not.toContain("nativeCodeSecret12345");
+  });
+
+  it("redacts nested runtime text when rebuilding missing persisted summary text", () => {
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+
+    const [normalized] = normalizeStreamSessionSummaries([
+      {
+        ...summary,
+        summary: undefined,
+        health: {
+          ...summary.health,
+          summary: "Health Authorization: Bearer healthSummaryToken12345"
+        },
+        audioLevel: {
+          ...summary.audioLevel,
+          sampleCount: 1,
+          summary: "Audio callback mobilelivecaster://oauth/youtube?code=audioSummaryCode12345"
+        },
+        nativeRuntime: {
+          platform: "ios",
+          status: "warn",
+          runtimeStatus: "live",
+          publisherState: "published",
+          videoEncoderBackend: "videotoolbox-h264",
+          audioEncoderBackend: "audiotoolbox-aac",
+          compositionStatus: "applied",
+          summary: "Native Authorization: Bearer nestedRuntimeToken12345",
+          recommendation: "Open www.example.org/native"
+        }
+      }
+    ]);
+
+    expect(normalized?.summary).toContain("Health Authorization: Bearer [redacted]");
+    expect(normalized?.summary).toContain("Audio callback [oauth callback redacted]");
+    expect(normalized?.summary).toContain("Native Authorization: Bearer [redacted]");
+    expect(JSON.stringify(normalized)).not.toContain("healthSummaryToken12345");
+    expect(JSON.stringify(normalized)).not.toContain("audioSummaryCode12345");
+    expect(JSON.stringify(normalized)).not.toContain("nestedRuntimeToken12345");
+    expect(JSON.stringify(normalized)).not.toContain("www.example.org");
   });
 
   it("normalizes persisted native runtime summaries without requiring raw native messages", () => {

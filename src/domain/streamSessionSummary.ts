@@ -9,6 +9,7 @@ import {
   isProductionVrmRendererBackend,
   type NativeRuntimeTelemetry
 } from "./nativeRuntime";
+import { redactSecretsFromText } from "./persistencePrivacy";
 import type { StreamSessionEvent } from "./streamSessionLog";
 
 export type StreamSessionEndReason = "stopped" | "failed";
@@ -710,12 +711,12 @@ export const createNativeRuntimeSessionSummary = (
   );
   const stale = runtime.stale;
   const congested = runtime.publisher.congested;
-  const videoEncoderBackend = runtime.publisher.videoEncoderBackend || "none";
-  const audioEncoderBackend = runtime.publisher.audioEncoderBackend || "none";
+  const videoEncoderBackend = normalizeSafeSummaryString(runtime.publisher.videoEncoderBackend, "none");
+  const audioEncoderBackend = normalizeSafeSummaryString(runtime.publisher.audioEncoderBackend, "none");
   const encoderProbeStatus = runtime.encoderProbe?.status ?? "missing";
-  const encoderProbeVideoBackend = runtime.encoderProbe?.videoBackend || "none";
-  const encoderProbeAudioBackend = runtime.encoderProbe?.audioBackend || "none";
-  const encoderProbeMessage = runtime.encoderProbe?.message || "";
+  const encoderProbeVideoBackend = normalizeSafeSummaryString(runtime.encoderProbe?.videoBackend, "none");
+  const encoderProbeAudioBackend = normalizeSafeSummaryString(runtime.encoderProbe?.audioBackend, "none");
+  const encoderProbeMessage = normalizeSafeSummaryString(runtime.encoderProbe?.message, "");
   const invalidNativeEncoderBackends =
     !isProductionNativeVideoEncoderBackend(runtime.platform, videoEncoderBackend) ||
     !isProductionNativeAudioEncoderBackend(runtime.platform, audioEncoderBackend);
@@ -734,7 +735,7 @@ export const createNativeRuntimeSessionSummary = (
   const missingCompositedStillImageAssets =
     stillImageAssetCount > 0 &&
     (stillImageAssetCompositedCount < stillImageAssetCount || stillImageAssetCompositedPixelCount <= 0);
-  const runtimeCompositorBackend = runtime.composition.runtimeCompositorBackend || "none";
+  const runtimeCompositorBackend = normalizeSafeSummaryString(runtime.composition.runtimeCompositorBackend, "none");
   const runtimeCompositedFrameCount = normalizeNonNegativeInteger(runtime.composition.runtimeCompositedFrameCount);
   const runtimeDroppedFrameCount = normalizeNonNegativeInteger(runtime.composition.runtimeDroppedFrameCount);
   const runtimeCompositionFailureCount = normalizeNonNegativeInteger(runtime.composition.runtimeCompositionFailureCount);
@@ -831,10 +832,8 @@ export const createNativeRuntimeSessionSummary = (
       (vrmImageCount > 0 && vrmTexcoordAccessorCount === 0));
   const incompleteVrmPoseMapping =
     vrmModelLoadedCount > 0 && (vrmPoseBoneUnsupportedCount > 0 || vrmPoseExpressionUnsupportedCount > 0);
-  const hasProductionVrmRendererBackend = isProductionVrmRendererBackend(
-    runtime.platform,
-    runtime.composition.vrmRendererBackend
-  );
+  const vrmRendererBackend = normalizeSafeSummaryString(runtime.composition.vrmRendererBackend, "none");
+  const hasProductionVrmRendererBackend = isProductionVrmRendererBackend(runtime.platform, vrmRendererBackend);
   const invalidProductionVrmRendererBackend =
     vrmSourceCount > 0 && vrmRendererStatus === "ready" && !hasProductionVrmRendererBackend;
   const incompleteVrmRendering =
@@ -885,8 +884,8 @@ export const createNativeRuntimeSessionSummary = (
   return {
     platform: runtime.platform,
     status,
-    runtimeStatus: runtime.runtimeStatus,
-    publisherState: runtime.publisher.state,
+    runtimeStatus: normalizeSafeSummaryString(runtime.runtimeStatus, "unknown"),
+    publisherState: normalizeSafeSummaryString(runtime.publisher.state, ""),
     videoEncoderBackend,
     audioEncoderBackend,
     encoderProbeStatus,
@@ -955,9 +954,9 @@ export const createNativeRuntimeSessionSummary = (
     vrmPoseExpressionCount,
     vrmPoseExpressionAppliedCount,
     vrmPoseExpressionUnsupportedCount,
-    vrmRuntimeStatuses: runtime.composition.vrmRuntimeStatuses ?? [],
+    vrmRuntimeStatuses: normalizeStringArray(runtime.composition.vrmRuntimeStatuses),
     vrmRendererStatus,
-    vrmRendererBackend: runtime.composition.vrmRendererBackend || "none",
+    vrmRendererBackend,
     vrmModelLoadedCount,
     vrmRenderedSourceCount,
     vrmRenderMissingCount,
@@ -977,18 +976,18 @@ export const createNativeRuntimeSessionSummary = (
     videoFrameIntervalJitterMs: normalizeNonNegativeNumber(runtime.publisher.videoFrameIntervalJitterMs),
     encodedBytes: normalizeNonNegativeInteger(runtime.encodedBytes),
     micEffectsEnabled: runtime.audioProcessing?.micEffectsEnabled ?? false,
-    micEffectsPresetId: runtime.audioProcessing?.micEffectsPresetId ?? "clean",
+    micEffectsPresetId: normalizeSafeSummaryString(runtime.audioProcessing?.micEffectsPresetId, "clean"),
     monitorEnabled: runtime.audioProcessing?.monitorEnabled ?? false,
     monitorRunning: runtime.audioProcessing?.monitorRunning ?? false,
-    monitorRoute: runtime.audioProcessing?.monitorRoute ?? "unknown",
-    monitorOutputName: runtime.audioProcessing?.monitorOutputName ?? "Unknown",
+    monitorRoute: normalizeSafeSummaryString(runtime.audioProcessing?.monitorRoute, "unknown"),
+    monitorOutputName: normalizeSafeSummaryString(runtime.audioProcessing?.monitorOutputName, "Unknown"),
     monitorHeadphonesConnected: runtime.audioProcessing?.monitorHeadphonesConnected ?? false,
     monitorWrittenFrames: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorWrittenFrames),
     monitorDroppedFrames: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorDroppedFrames),
     monitorWrittenBuffers: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorWrittenBuffers),
     monitorDroppedBuffers: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorDroppedBuffers),
     monitorEstimatedLatencyMs: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorEstimatedLatencyMs),
-    monitorLatencySource: runtime.audioProcessing?.monitorLatencySource ?? "",
+    monitorLatencySource: normalizeSafeSummaryString(runtime.audioProcessing?.monitorLatencySource, ""),
     issueCount,
     summary:
       status === "fail"
@@ -1127,14 +1126,20 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
   const endReason = normalizeEndReason(value.endReason);
   const outcome = normalizeOutcome(value.outcome);
   const health = normalizeHealthSummary(value.health);
-  if (!endReason || !outcome || !health || typeof value.startedAt !== "string" || typeof value.endedAt !== "string") {
+  const startedAt = normalizeDateString(value.startedAt);
+  const endedAt = normalizeDateString(value.endedAt);
+  if (!endReason || !outcome || !health || !startedAt || !endedAt) {
     return null;
   }
+  const fallbackId = createSummaryId(startedAt, endedAt, endReason);
 
   return {
-    id: typeof value.id === "string" && value.id.trim() ? value.id : createSummaryId(value.startedAt, value.endedAt, endReason),
-    startedAt: value.startedAt,
-    endedAt: value.endedAt,
+    id:
+      typeof value.id === "string" && value.id.trim()
+        ? normalizeSafeSummaryString(value.id.trim(), fallbackId)
+        : fallbackId,
+    startedAt,
+    endedAt,
     endReason,
     outcome,
     durationSeconds: normalizeNonNegativeNumber(value.durationSeconds),
@@ -1160,7 +1165,7 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
     nativeRuntime: normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
     summary:
       typeof value.summary === "string"
-        ? value.summary
+        ? normalizeSafeSummaryString(value.summary, "")
         : createSummaryText(
             outcome,
             endReason,
@@ -1178,7 +1183,7 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
           ),
     recommendation:
       typeof value.recommendation === "string"
-        ? value.recommendation
+        ? normalizeSafeSummaryString(value.recommendation, "")
         : createRecommendation(
             outcome,
             endReason,
@@ -1223,10 +1228,13 @@ const normalizeAudioLevelSummary = (value: unknown): StreamSessionAudioLevelSumm
     activeSampleCount: normalizeNonNegativeInteger(value.activeSampleCount),
     activePercent: Math.min(100, normalizeNonNegativeInteger(value.activePercent)),
     clippedSampleCount: normalizeNonNegativeInteger(value.clippedSampleCount),
-    summary: typeof value.summary === "string" ? value.summary : "No lip-sync audio level samples were retained.",
+    summary:
+      typeof value.summary === "string"
+        ? normalizeSafeSummaryString(value.summary, "")
+        : "No lip-sync audio level samples were retained.",
     recommendation:
       typeof value.recommendation === "string"
-        ? value.recommendation
+        ? normalizeSafeSummaryString(value.recommendation, "")
         : "Capture a spoken private stream segment so mic FX and mouth-motion levels can be reviewed."
   };
 };
@@ -1246,10 +1254,10 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
   return {
     platform,
     status,
-    runtimeStatus: typeof value.runtimeStatus === "string" ? value.runtimeStatus : "unknown",
-    publisherState: typeof value.publisherState === "string" ? value.publisherState : "",
-    videoEncoderBackend: typeof value.videoEncoderBackend === "string" ? value.videoEncoderBackend : "none",
-    audioEncoderBackend: typeof value.audioEncoderBackend === "string" ? value.audioEncoderBackend : "none",
+    runtimeStatus: normalizeSafeSummaryString(value.runtimeStatus, "unknown"),
+    publisherState: normalizeSafeSummaryString(value.publisherState, ""),
+    videoEncoderBackend: normalizeSafeSummaryString(value.videoEncoderBackend, "none"),
+    audioEncoderBackend: normalizeSafeSummaryString(value.audioEncoderBackend, "none"),
     encoderProbeStatus:
       value.encoderProbeStatus === "pass" ||
       value.encoderProbeStatus === "warn" ||
@@ -1257,9 +1265,9 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
       value.encoderProbeStatus === "unknown"
         ? value.encoderProbeStatus
         : "missing",
-    encoderProbeVideoBackend: typeof value.encoderProbeVideoBackend === "string" ? value.encoderProbeVideoBackend : "none",
-    encoderProbeAudioBackend: typeof value.encoderProbeAudioBackend === "string" ? value.encoderProbeAudioBackend : "none",
-    encoderProbeMessage: typeof value.encoderProbeMessage === "string" ? value.encoderProbeMessage : "",
+    encoderProbeVideoBackend: normalizeSafeSummaryString(value.encoderProbeVideoBackend, "none"),
+    encoderProbeAudioBackend: normalizeSafeSummaryString(value.encoderProbeAudioBackend, "none"),
+    encoderProbeMessage: normalizeSafeSummaryString(value.encoderProbeMessage, ""),
     compositionStatus,
     compositionAppliedCount: normalizeNonNegativeInteger(value.compositionAppliedCount),
     compositionAppliedKinds: normalizeStringArray(value.compositionAppliedKinds),
@@ -1273,7 +1281,7 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     stillImageAssetDecodedPixelCount: normalizeNonNegativeInteger(value.stillImageAssetDecodedPixelCount),
     stillImageAssetCompositedCount: normalizeNonNegativeInteger(value.stillImageAssetCompositedCount),
     stillImageAssetCompositedPixelCount: normalizeNonNegativeInteger(value.stillImageAssetCompositedPixelCount),
-    runtimeCompositorBackend: typeof value.runtimeCompositorBackend === "string" ? value.runtimeCompositorBackend : "none",
+    runtimeCompositorBackend: normalizeSafeSummaryString(value.runtimeCompositorBackend, "none"),
     runtimeCompositedFrameCount: normalizeNonNegativeInteger(value.runtimeCompositedFrameCount),
     runtimeDroppedFrameCount: normalizeNonNegativeInteger(value.runtimeDroppedFrameCount),
     runtimeCompositionFailureCount: normalizeNonNegativeInteger(value.runtimeCompositionFailureCount),
@@ -1322,11 +1330,9 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     vrmPoseExpressionCount: normalizeNonNegativeInteger(value.vrmPoseExpressionCount),
     vrmPoseExpressionAppliedCount: normalizeNonNegativeInteger(value.vrmPoseExpressionAppliedCount),
     vrmPoseExpressionUnsupportedCount: normalizeNonNegativeInteger(value.vrmPoseExpressionUnsupportedCount),
-    vrmRuntimeStatuses: Array.isArray(value.vrmRuntimeStatuses)
-      ? value.vrmRuntimeStatuses.filter((status): status is string => typeof status === "string")
-      : [],
+    vrmRuntimeStatuses: normalizeStringArray(value.vrmRuntimeStatuses),
     vrmRendererStatus: normalizeVrmRendererStatus(value.vrmRendererStatus, normalizeNonNegativeInteger(value.vrmSourceCount)),
-    vrmRendererBackend: typeof value.vrmRendererBackend === "string" ? value.vrmRendererBackend : "none",
+    vrmRendererBackend: normalizeSafeSummaryString(value.vrmRendererBackend, "none"),
     vrmModelLoadedCount: normalizeNonNegativeInteger(value.vrmModelLoadedCount),
     vrmRenderedSourceCount: normalizeNonNegativeInteger(value.vrmRenderedSourceCount),
     vrmRenderMissingCount: normalizeNonNegativeInteger(value.vrmRenderMissingCount),
@@ -1346,21 +1352,27 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     videoFrameIntervalJitterMs: normalizeNonNegativeNumber(value.videoFrameIntervalJitterMs),
     encodedBytes: normalizeNonNegativeInteger(value.encodedBytes),
     micEffectsEnabled: value.micEffectsEnabled === true,
-    micEffectsPresetId: typeof value.micEffectsPresetId === "string" ? value.micEffectsPresetId : "clean",
+    micEffectsPresetId: normalizeSafeSummaryString(value.micEffectsPresetId, "clean"),
     monitorEnabled: value.monitorEnabled === true,
     monitorRunning: value.monitorRunning === true,
-    monitorRoute: typeof value.monitorRoute === "string" ? value.monitorRoute : "unknown",
-    monitorOutputName: typeof value.monitorOutputName === "string" ? value.monitorOutputName : "Unknown",
+    monitorRoute: normalizeSafeSummaryString(value.monitorRoute, "unknown"),
+    monitorOutputName: normalizeSafeSummaryString(value.monitorOutputName, "Unknown"),
     monitorHeadphonesConnected: value.monitorHeadphonesConnected === true,
     monitorWrittenFrames: normalizeNonNegativeInteger(value.monitorWrittenFrames),
     monitorDroppedFrames: normalizeNonNegativeInteger(value.monitorDroppedFrames),
     monitorWrittenBuffers: normalizeNonNegativeInteger(value.monitorWrittenBuffers),
     monitorDroppedBuffers: normalizeNonNegativeInteger(value.monitorDroppedBuffers),
     monitorEstimatedLatencyMs: normalizeNonNegativeInteger(value.monitorEstimatedLatencyMs),
-    monitorLatencySource: typeof value.monitorLatencySource === "string" ? value.monitorLatencySource : "",
+    monitorLatencySource: normalizeSafeSummaryString(value.monitorLatencySource, ""),
     issueCount: normalizeNonNegativeInteger(value.issueCount),
-    summary: typeof value.summary === "string" ? value.summary : `Native runtime ${status} on ${platform}.`,
-    recommendation: typeof value.recommendation === "string" ? value.recommendation : "Review native runtime evidence before public launch."
+    summary:
+      typeof value.summary === "string"
+        ? normalizeSafeSummaryString(value.summary, "")
+        : `Native runtime ${status} on ${platform}.`,
+    recommendation:
+      typeof value.recommendation === "string"
+        ? normalizeSafeSummaryString(value.recommendation, "")
+        : "Review native runtime evidence before public launch."
   };
 };
 
@@ -1386,7 +1398,10 @@ const normalizeHealthSummary = (value: unknown): StreamHealthHistorySummary | nu
     observedDroppedFrames: normalizeNonNegativeInteger(value.observedDroppedFrames),
     observedReconnectAttempts: normalizeNonNegativeInteger(value.observedReconnectAttempts),
     stability,
-    summary: typeof value.summary === "string" ? value.summary : "No stream health history captured yet."
+    summary:
+      typeof value.summary === "string"
+        ? normalizeSafeSummaryString(value.summary, "")
+        : "No stream health history captured yet."
   };
 };
 
@@ -1425,8 +1440,15 @@ const normalizeNonNegativeInteger = (value: unknown): number =>
 const normalizeNonNegativeNumber = (value: unknown): number =>
   Math.max(0, typeof value === "number" && Number.isFinite(value) ? value : 0);
 
+const normalizeSafeSummaryString = (value: unknown, fallback: string): string =>
+  typeof value === "string" && value.trim() ? redactSecretsFromText(value) : fallback;
+
 const normalizeStringArray = (value: unknown): string[] =>
-  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => normalizeSafeSummaryString(item, ""))
+    : [];
 
 const normalizeDateString = (value: unknown): string | null => {
   if (typeof value !== "string") {
