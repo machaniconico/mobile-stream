@@ -349,6 +349,8 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks contradictory fresh platform publishing evidence outside the release window");
     expectIncludes(files.commercialReleaseGateDomain, "isFirstPartyPublishingDestination");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks not-applicable platform publishing freshness for first-party destinations");
+    expectIncludes(files.commercialReleaseGateDomain, "isFirstPartyManifestPublishingDestination");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks first-party platform dashboard manifest rows marked not-applicable");
     expectIncludes(files.commercialReleaseGateDomain, "android-publisher-mode-not-commercial");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 55");

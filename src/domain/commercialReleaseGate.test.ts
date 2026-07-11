@@ -2245,6 +2245,34 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks first-party platform dashboard manifest rows marked not-applicable", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              platformPublishingFreshnessStatus: "not-applicable",
+              platformPublishingFreshnessAgeMinutes: null,
+              platformPublishingCheckedAt: ""
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS platform dashboard proof")
+      })
+    );
+  });
+
   it("blocks same-run platform ingest claims when the manifest lacks native send proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({

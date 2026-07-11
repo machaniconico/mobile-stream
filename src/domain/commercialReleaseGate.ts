@@ -1468,7 +1468,7 @@ const isManifestQualityAutomationPass = (run: ValidationEvidenceManifestRun | un
   isZeroFiniteNumber(run?.qualityAutomationFailureCount);
 
 const isManifestPlatformPublishingPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
-  run?.platformPublishingFreshnessStatus === "not-applicable" ||
+  (run?.platformPublishingFreshnessStatus === "not-applicable" && !isFirstPartyManifestPublishingDestination(run)) ||
   (isManifestFeaturePass(run?.platformPublishingStatus) &&
     run?.platformPublishingFreshnessStatus === "fresh" &&
     isNonEmptyIsoDate(run.platformPublishingCheckedAt) &&
@@ -1516,6 +1516,11 @@ const isManifestPlatformIngestProofRequired = (run: ValidationEvidenceManifestRu
   const target = normalizeTargetPlatformLabel(run.targetPlatform);
   return target === "youtube live" || target.includes("youtube") || target === "twitch" || target.includes("twitch");
 };
+
+const isFirstPartyManifestPublishingDestination = (run: ValidationEvidenceManifestRun): boolean =>
+  run.platformPublishingPlatform === "youtube-live" ||
+  run.platformPublishingPlatform === "twitch" ||
+  isManifestPlatformIngestProofRequired(run);
 
 const isManifestPlatformIdentityPass = (run: ValidationEvidenceManifestRun): boolean => {
   if (run.platformPublishingPlatform === "youtube-live") {
