@@ -21,6 +21,11 @@ export interface ChatSpeechEngine {
   stop(): Promise<void>;
 }
 
+export const getChatSpeechPlaybackTimeoutMs = (text: string): number => {
+  const textLength = Array.from(text).length;
+  return Math.round(clamp(6000 + textLength * 120, 6000, 45000));
+};
+
 export interface ChatSpeechQueueEvent {
   phase: "started" | "spoken" | "failed";
   message: ChatMessage;
@@ -97,3 +102,5 @@ export const useChatSpeechQueue = (
       });
   }, [engine, onSpeechEvent, setState, state]);
 };
+
+const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));

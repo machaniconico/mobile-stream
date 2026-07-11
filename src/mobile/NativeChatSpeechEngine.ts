@@ -1,5 +1,5 @@
 import { NativeModules } from "react-native";
-import type { ChatSpeechEngine, ChatSpeechRequest } from "../native/ChatSpeechEngine";
+import { getChatSpeechPlaybackTimeoutMs, type ChatSpeechEngine, type ChatSpeechRequest } from "../native/ChatSpeechEngine";
 
 interface LiveCasterSpeechModule {
   speak(text: string, rate: number, pitch: number, volume: number): Promise<boolean>;
@@ -13,7 +13,11 @@ export class NativeChatSpeechEngine implements ChatSpeechEngine {
     if (!nativeSpeech) {
       throw new Error("Native chat speech module is unavailable.");
     }
-    const spoken = await nativeSpeech.speak(request.text, request.rate, request.pitch, request.volume);
+    const spoken = await withTimeout(
+      nativeSpeech.speak(request.text, request.rate, request.pitch, request.volume),
+      getChatSpeechPlaybackTimeoutMs(request.text),
+      "Native chat speech timed out."
+    );
     if (!spoken) {
       throw new Error("Native chat speech failed.");
     }
@@ -26,3 +30,19 @@ export class NativeChatSpeechEngine implements ChatSpeechEngine {
     await nativeSpeech.stop();
   }
 }
+
+const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> => {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  }
+};

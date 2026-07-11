@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { getChatSpeechPlaybackTimeoutMs } from "../native/ChatSpeechEngine";
 import { WebChatSpeechEngine } from "./WebChatSpeechEngine";
 
 const request = {
@@ -24,6 +25,7 @@ class FakeSpeechSynthesisUtterance {
 
 describe("WebChatSpeechEngine", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -52,5 +54,28 @@ describe("WebChatSpeechEngine", () => {
       expect((error as Error).message).toBe("Web speech synthesis failed.");
       expect((error as Error).message).not.toContain(request.text);
     }
+  });
+
+  it("times out stalled utterances and cancels browser speech output", async () => {
+    vi.useFakeTimers();
+    const speechSynthesis = {
+      cancel: vi.fn(),
+      speak: vi.fn()
+    };
+    vi.stubGlobal("window", { speechSynthesis });
+    vi.stubGlobal("SpeechSynthesisUtterance", FakeSpeechSynthesisUtterance);
+
+    const promise = new WebChatSpeechEngine().speak(request);
+    const assertion = expect(promise).rejects.toThrow("Web speech synthesis timed out.");
+    await vi.advanceTimersByTimeAsync(getChatSpeechPlaybackTimeoutMs(request.text));
+
+    await assertion;
+    expect(speechSynthesis.cancel).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores stop requests when browser speech output is unavailable", async () => {
+    vi.stubGlobal("window", undefined);
+
+    await expect(new WebChatSpeechEngine().stop()).resolves.toBeUndefined();
   });
 });
