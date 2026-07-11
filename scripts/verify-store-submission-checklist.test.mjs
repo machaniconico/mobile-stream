@@ -119,6 +119,20 @@ describe("store submission checklist verifier", () => {
     expect(result.stderr).toContain("Store submission metadata contains possible credential header");
   });
 
+  it("rejects structured credential headers in store metadata", () => {
+    writeStoreSubmissionFiles({
+      playStore: {
+        dataSafetyNotes:
+          'No sale of data. Remove {"X-API-Key":"alpha-alpha-alpha-1234"} and headers["Client-Secret"] = "bravo-bravo-bravo-1234" before review.'
+      }
+    });
+
+    const result = runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Store submission metadata contains possible structured credential header");
+  });
+
   it("rejects personal contact details and protocol-less links in public store metadata copy", () => {
     writeStoreSubmissionFiles({
       appStore: {
@@ -208,6 +222,21 @@ describe("store submission checklist verifier", () => {
     expect(result.stderr).toContain("Store submission metadata contains possible phone number");
     expect(result.stderr).toContain("Store submission metadata contains possible invite link");
     expect(result.stderr).toContain("Store submission metadata contains possible protocol-less private link");
+  });
+
+  it("rejects structured credential headers added to review documents", () => {
+    writeStoreSubmissionFiles();
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    writeFileSync(
+      reviewDocument,
+      'Updated review: {"Authorization":"Bearer charlie-charlie-1234"} headers["X-API-Key"] = "delta-delta-delta-1234";'
+    );
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission review document metadata mismatch for ${reviewDocument}.`);
+    expect(result.stderr).toContain("Store submission metadata contains possible structured credential header");
   });
 
   it("rejects verification when git commit provenance is missing", () => {

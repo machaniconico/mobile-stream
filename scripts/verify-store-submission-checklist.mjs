@@ -62,6 +62,11 @@ const sensitivePatterns = [
       /\b(?:x-api-key|api-key|client-secret|stream-key|oauth-token|auth-token|bearer-token|access-token|refresh-token|id-token|device-code|user-code)\b\s*:\s*["']?[A-Za-z0-9._~+/=:-]{8,}/i
   },
   {
+    label: "structured credential header",
+    pattern:
+      /(?:\b|["'])(?:Authorization|x-api-key|api-key|client-secret|stream-key|oauth-token|auth-token|bearer-token|access-token|refresh-token|id-token|device-code|user-code)(?:\b|["'])\s*\]?\s*[:=]\s*["'](?:(?:Bearer|OAuth)\s+)?[A-Za-z0-9._~+/=-]{12,}["']/i
+  },
+  {
     label: "Twitch IRC oauth token",
     pattern: /\boauth:[A-Za-z0-9._~+/=-]{12,}/i
   },

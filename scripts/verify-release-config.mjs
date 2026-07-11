@@ -486,6 +486,7 @@ const checks = [
     expectIncludes(files.storeSubmissionScript, "authToken");
     expectIncludes(files.storeSubmissionScript, "bearer_token");
     expectIncludes(files.storeSubmissionScript, "credential header");
+    expectIncludes(files.storeSubmissionScript, "structured credential header");
     expectIncludes(files.storeSubmissionScript, "x-api-key");
     expectIncludes(files.storeSubmissionScript, "reviewDocuments");
     expectIncludes(files.storeSubmissionScript, "requireRealDeviceScreenshots");
