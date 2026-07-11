@@ -3,6 +3,7 @@ import {
   createCommercialReleaseGate,
   formatCommercialReleaseGate
 } from "./commercialReleaseGate";
+import { createStreamSafetyEvent } from "./streamSessionLog";
 import type { SupportBundle } from "./supportBundle";
 
 const now = new Date("2026-06-23T12:00:00.000Z");
@@ -99,6 +100,40 @@ describe("commercial release gate", () => {
     expect(gate.canRelease).toBe(true);
     expect(gate.issues.map((issue) => issue.code)).not.toContain("public-launch-confirmation-evidence");
     expect(gate.issues.map((issue) => issue.code)).not.toContain("public-launch-confirmation-cancelled");
+  });
+
+  it("accepts redacted safety-event confirmation evidence while retaining target and checklist fragments", () => {
+    const event = createStreamSafetyEvent(
+      "public-launch-confirmed",
+      [
+        "YouTube Public launch confirmation was accepted by the operator.",
+        "Target: YouTube mobilelivecaster://oauth/youtube?code=oauthcodeabcdefghijklmnopqrstuvwxyz&state=stateabcdefghijklmnopqrstuvwxyz, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status testing.",
+        "Checklist: 9 pass / 0 warn / 0 fail, checked Authorization: Bearer abcdefghijklmnopqrstuvwxyz1234567890."
+      ].join(" "),
+      new Date("2026-06-23T11:28:00.000Z")
+    );
+
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          publicLaunchConfirmationEventCount: 1,
+          publicLaunchLastConfirmationStatus: "confirmed",
+          publicLaunchLastConfirmationAt: event.at,
+          publicLaunchLastConfirmationMessage: event.message
+        }
+      }),
+      { now }
+    );
+
+    expect(event.message).toContain("Target:");
+    expect(event.message).toContain("Checklist:");
+    expect(event.message).toContain("[oauth callback redacted]");
+    expect(event.message).toContain("Bearer [redacted]");
+    expect(event.message).not.toContain("oauthcodeabcdefghijklmnopqrstuvwxyz");
+    expect(event.message).not.toContain("abcdefghijklmnopqrstuvwxyz1234567890");
+    expect(gate.status).toBe("ready");
+    expect(gate.canRelease).toBe(true);
+    expect(gate.issues.map((issue) => issue.code)).not.toContain("public-launch-confirmation-evidence");
   });
 
   it("blocks v54 support bundles because native caption overlay proof requires v55", () => {

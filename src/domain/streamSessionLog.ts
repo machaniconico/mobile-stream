@@ -3,6 +3,7 @@ import type { StreamQualityAutomationDecision } from "./streamQualityAutomation"
 import type { StreamControlAction, StreamOperationStatus } from "./streamOperation";
 import type { StreamHealth, StreamStatus } from "./streamState";
 import type { PlatformChatReconnectDecision } from "./platformChatConnection";
+import { redactSensitiveText } from "./sensitiveText";
 
 export type StreamSessionEventSeverity = "info" | "warn" | "fail";
 export type StreamSessionEventKind =
@@ -253,8 +254,10 @@ export const createStreamSafetyEvent = (
   kind: "safety",
   severity: safetyEventSeverity(phase),
   title: safetyEventTitle(phase),
-  message: sanitizeSingleLine(message)
+  message: sanitizeSafetyEventMessage(message)
 });
+
+const sanitizeSafetyEventMessage = (message: string): string => sanitizeSingleLine(redactSensitiveText(message));
 
 const safetyEventSeverity = (phase: StreamSafetyEventPhase): StreamSessionEventSeverity => {
   if (phase === "privacy-shield-failed") {

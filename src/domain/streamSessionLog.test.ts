@@ -197,6 +197,26 @@ describe("stream session log", () => {
     });
   });
 
+  it("redacts sensitive values from safety event messages", () => {
+    const event = createStreamSafetyEvent(
+      "public-launch-confirmed",
+      [
+        "Accepted mobilelivecaster://oauth/youtube?code=oauthcodeabcdefghijklmnopqrstuvwxyz&state=stateabcdefghijklmnopqrstuvwxyz",
+        "Authorization: Bearer abcdefghijklmnopqrstuvwxyz1234567890",
+        "Webhook https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyzABCDE"
+      ].join("\n"),
+      new Date("2026-06-23T00:00:00.000Z")
+    );
+
+    expect(event.message).toContain("[oauth callback redacted]");
+    expect(event.message).toContain("Authorization: Bearer [redacted]");
+    expect(event.message).toContain("[discord webhook redacted]");
+    expect(event.message).not.toContain("oauthcodeabcdefghijklmnopqrstuvwxyz");
+    expect(event.message).not.toContain("abcdefghijklmnopqrstuvwxyz1234567890");
+    expect(event.message).not.toContain("abcdefghijklmnopqrstuvwxyzABCDE");
+    expect(event.message).not.toContain("\n");
+  });
+
   it("creates chat auto-connect events", () => {
     const started = createStreamChatEvent(
       "auto-connect-started",
