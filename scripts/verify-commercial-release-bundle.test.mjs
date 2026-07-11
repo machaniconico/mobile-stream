@@ -566,6 +566,25 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("fresh tracking runtime, ready native face landmarks");
   });
 
+  it("blocks avatar-motion claims when retained manifests lack motion attenuation proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            faceTrackingLandmarkMotionScale: 0,
+            faceTrackingFaceControlScale: 0
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("motion/control attenuation-scale proof");
+  });
+
   it("blocks native runtime claims when retained manifests lack native frame proof", () => {
     writeBundle({
       summary: {
@@ -2051,6 +2070,8 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   faceTrackingRuntimeAgeMs: 120,
   faceTrackingFaceLandmarkConfidence: 0.82,
   faceTrackingFaceLandmarkReady: true,
+  faceTrackingLandmarkMotionScale: 0.892,
+  faceTrackingFaceControlScale: 0.892,
   faceTrackingPreparedPngTuberCount: 1,
   faceTrackingVisibleVrmCount: 0,
   faceTrackingNativeVrmRendererReady: false,

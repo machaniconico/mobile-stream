@@ -1267,6 +1267,8 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     faceTrackingRuntimeAgeMs: 120,
     faceTrackingFaceLandmarkConfidence: 0.82,
     faceTrackingFaceLandmarkReady: true,
+    faceTrackingLandmarkMotionScale: 0.892,
+    faceTrackingFaceControlScale: 0.892,
     faceTrackingPreparedPngTuberCount: 1,
     faceTrackingVisibleVrmCount: 0,
     faceTrackingNativeVrmRendererReady: false,

@@ -1428,6 +1428,7 @@ const isManifestAvatarMotionPass = (run: ValidationEvidenceManifestRun | undefin
   isManifestFeaturePass(run?.faceTrackingStatus) &&
   run?.faceTrackingRuntimeFresh === true &&
   hasReadyManifestFaceLandmarks(run) &&
+  hasReadyManifestMotionAttenuationProof(run) &&
   isPositiveFiniteNumber(run?.faceTrackingActiveMotionCount) &&
   (hasReadyManifestPngTuberMotionProof(run) || hasReadyManifestVrmMotionProof(run));
 
@@ -1436,6 +1437,10 @@ const hasReadyManifestFaceLandmarks = (run: ValidationEvidenceManifestRun | unde
   typeof run.faceTrackingFaceLandmarkConfidence === "number" &&
   Number.isFinite(run.faceTrackingFaceLandmarkConfidence) &&
   run.faceTrackingFaceLandmarkConfidence >= 0.55;
+
+const hasReadyManifestMotionAttenuationProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  isPositiveFiniteNumber(run?.faceTrackingLandmarkMotionScale) &&
+  isPositiveFiniteNumber(run?.faceTrackingFaceControlScale);
 
 const hasZeroManifestRigIssues = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   typeof run?.faceTrackingRigIssueCount === "number" &&

@@ -416,7 +416,11 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks audio claims when monitor proof is not routed to headphones");
     expectIncludes(files.streamValidationEvidenceDomain, "faceTrackingRigSemanticSegmentScore");
     expectIncludes(files.commercialReleaseGateDomain, "faceTrackingRigSemanticSegmentScore");
+    expectIncludes(files.commercialReleaseGateDomain, "hasReadyManifestMotionAttenuationProof");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks avatar-motion summary claims when the manifest lacks motion attenuation proof");
     expectIncludes(files.commercialReleaseBundleScript, "faceTrackingRigSemanticSegmentScore");
+    expectIncludes(files.commercialReleaseBundleScript, "hasMotionAttenuationProof");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks avatar-motion claims when retained manifests lack motion attenuation proof");
     expectIncludes(files.streamValidationEvidenceDomain, "faceTrackingRigEyeMouthSegmentScore");
     expectIncludes(files.streamValidationEvidenceDomain, "faceTrackingRigHorizontalAnchorScore");
     expectIncludes(files.commercialReleaseGateDomain, "faceTrackingRigEyeMouthSegmentScore");

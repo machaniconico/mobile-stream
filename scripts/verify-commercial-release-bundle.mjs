@@ -893,6 +893,7 @@ function validationManifestIssue(bundle) {
           run?.faceTrackingStatus === "pass" &&
           run?.faceTrackingRuntimeFresh === true &&
           hasReadyFaceLandmarks(run) &&
+          hasMotionAttenuationProof(run) &&
           isPositiveNumber(run?.faceTrackingActiveMotionCount) &&
           (hasReadyPngTuberMotionProof(run) || hasReadyVrmMotionProof(run))
       )
@@ -905,8 +906,8 @@ function validationManifestIssue(bundle) {
     return fail(
       "validation-evidence-manifest-avatar-motion",
       "Validation evidence manifest",
-      "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, ready native face landmarks, active motion, and either ready high-fidelity PNGTuber rig plus semantic/eye-mouth/horizontal-anchor segment proof or ready native-rendered VRM proof.",
-      "Export a support bundle v55 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion and ready PNGTuber rig quality/high-fidelity/semantic/eye-mouth/horizontal-anchor segment proof or native-rendered VRM proof."
+      "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, ready native face landmarks, retained motion/control attenuation-scale proof, active motion, and either ready high-fidelity PNGTuber rig plus semantic/eye-mouth/horizontal-anchor segment proof or ready native-rendered VRM proof.",
+      "Export a support bundle v55 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion, retained motion/control attenuation-scale proof, and ready PNGTuber rig quality/high-fidelity/semantic/eye-mouth/horizontal-anchor segment proof or native-rendered VRM proof."
     );
   }
   const eligibleChatReadoutPlatforms = new Set(
@@ -1512,6 +1513,13 @@ function hasReadyFaceLandmarks(run) {
     typeof run.faceTrackingFaceLandmarkConfidence === "number" &&
     Number.isFinite(run.faceTrackingFaceLandmarkConfidence) &&
     run.faceTrackingFaceLandmarkConfidence >= 0.55
+  );
+}
+
+function hasMotionAttenuationProof(run) {
+  return (
+    isPositiveNumber(run?.faceTrackingLandmarkMotionScale) &&
+    isPositiveNumber(run?.faceTrackingFaceControlScale)
   );
 }
 

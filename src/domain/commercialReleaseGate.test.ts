@@ -1272,6 +1272,33 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks avatar-motion summary claims when the manifest lacks motion attenuation proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              faceTrackingLandmarkMotionScale: 0,
+              faceTrackingFaceControlScale: 0
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS avatar-motion proof")
+      })
+    );
+  });
+
   it("blocks avatar-motion summary claims when the manifest lacks explicit PNGTuber or VRM avatar proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
