@@ -1002,7 +1002,7 @@ const formatValidationEvidenceRunManifest = (
         `hold ${run.monitorHoldStatus ?? "-"}`,
         `audio ${run.audioStatus ?? "-"}`,
         `chat ${run.chatReadoutStatus ?? "-"}`,
-        `dashboard ${run.platformPublishingStatus ?? "-"}/${run.platformPublishingFreshnessStatus ?? "-"}`
+        `dashboard ${run.platformPublishingStatus ?? "-"}/${run.platformPublishingFreshnessStatus ?? "-"} youtube bound ${run.platformPublishingYoutubeBoundStreamId || "-"} privacy ${run.platformPublishingYoutubeBroadcastPrivacyStatus || "-"}`
       ].join(" ");
     })
     .join(" | ");
@@ -1178,6 +1178,8 @@ const createYouTubePublishingDiagnostics = (
   );
   const privacyMismatch = Boolean(broadcastPrivacyStatus && broadcastPrivacyStatus !== settings.privacyStatus);
   const streamBindingMismatch = Boolean(boundStreamId && settings.youtubeStreamId && boundStreamId !== settings.youtubeStreamId);
+  const hasPrivacyProof = Boolean(broadcastPrivacyStatus && broadcastPrivacyStatus === settings.privacyStatus);
+  const hasBoundStreamProof = Boolean(boundStreamId && settings.youtubeStreamId && boundStreamId === settings.youtubeStreamId);
   const hasErrorIssue = settings.youtubeStreamHealthIssues.some((issue) => issue.trim().toLowerCase().startsWith("error:"));
   const unhealthy =
     privacyMismatch ||
@@ -1190,6 +1192,8 @@ const createYouTubePublishingDiagnostics = (
     ["live", "testing"].includes(broadcastStatus.toLowerCase()) &&
     streamStatus.toLowerCase() === "active" &&
     ["ok", "good"].includes(healthStatus.toLowerCase()) &&
+    hasPrivacyProof &&
+    hasBoundStreamProof &&
     healthIssueCount === 0;
   const status: DiagnosticStatus = !hasDashboardData ? "info" : unhealthy ? "fail" : healthy ? "pass" : "warn";
 

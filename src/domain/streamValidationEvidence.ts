@@ -364,6 +364,8 @@ export interface StreamValidationEvidenceRunManifestItem {
   platformPublishingYoutubeHasBroadcastId: boolean;
   platformPublishingYoutubeHasStreamId: boolean;
   platformPublishingYoutubeBroadcastStatus: string;
+  platformPublishingYoutubeBoundStreamId: string;
+  platformPublishingYoutubeBroadcastPrivacyStatus: string;
   platformPublishingYoutubeStreamStatus: string;
   platformPublishingYoutubeHealthStatus: string;
   platformPublishingYoutubeHealthIssueCount: number;
@@ -3036,6 +3038,8 @@ const createEvidenceRunManifestItem = (
     platformPublishingYoutubeHasBroadcastId: run.platformPublishing?.youtube?.hasBroadcastId ?? false,
     platformPublishingYoutubeHasStreamId: run.platformPublishing?.youtube?.hasStreamId ?? false,
     platformPublishingYoutubeBroadcastStatus: run.platformPublishing?.youtube?.broadcastStatus ?? "",
+    platformPublishingYoutubeBoundStreamId: run.platformPublishing?.youtube?.boundStreamId ?? "",
+    platformPublishingYoutubeBroadcastPrivacyStatus: run.platformPublishing?.youtube?.broadcastPrivacyStatus ?? "",
     platformPublishingYoutubeStreamStatus: run.platformPublishing?.youtube?.streamStatus ?? "",
     platformPublishingYoutubeHealthStatus: run.platformPublishing?.youtube?.healthStatus ?? "",
     platformPublishingYoutubeHealthIssueCount: run.platformPublishing?.youtube?.healthIssueCount ?? 0,

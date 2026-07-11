@@ -2232,7 +2232,11 @@ function commercialSupportBundleFixture() {
     generatedAt: capturedAt,
     fixture: true,
     profile: {
-      androidPublisherMode: "mediacodec"
+      androidPublisherMode: "mediacodec",
+      platformPublishing: {
+        privacyStatus: "public",
+        youtubeBroadcastBoundStreamId: "stream-1"
+      }
     },
     scene: {
       fingerprint: "scene1-ready"
@@ -2468,6 +2472,8 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     platformPublishingYoutubeHasBroadcastId: true,
     platformPublishingYoutubeHasStreamId: true,
     platformPublishingYoutubeBroadcastStatus: "live",
+    platformPublishingYoutubeBoundStreamId: "stream-1",
+    platformPublishingYoutubeBroadcastPrivacyStatus: "public",
     platformPublishingYoutubeStreamStatus: "active",
     platformPublishingYoutubeHealthStatus: "ok",
     platformPublishingYoutubeHealthIssueCount: 0,

@@ -796,6 +796,7 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): 
   }
 
   const expectedNativeOverlays = nativeCompositionOverlayProofRequirements(summary);
+  const expectedYouTubePublishing = youtubePublishingProofRequirements(bundle);
   const claimChecks: Array<[boolean, string, boolean]> = [
     [summary.validationEvidenceIosPass, "iOS validation pass", isManifestRunPass(iosRun)],
     [summary.validationEvidenceAndroidPass, "Android validation pass", isManifestRunPass(androidRun)],
@@ -830,22 +831,22 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): 
     [
       summary.validationEvidencePlatformPublishingIosPass,
       "iOS platform dashboard proof",
-      isManifestPlatformPublishingPass(iosRun)
+      isManifestPlatformPublishingPass(iosRun, expectedYouTubePublishing)
     ],
     [
       summary.validationEvidencePlatformPublishingAndroidPass,
       "Android platform dashboard proof",
-      isManifestPlatformPublishingPass(androidRun)
+      isManifestPlatformPublishingPass(androidRun, expectedYouTubePublishing)
     ],
     [
       summary.validationEvidencePlatformIngestIosPass,
       "iOS same-run platform ingest proof",
-      isManifestPlatformIngestPass(iosRun, expectedNativeOverlays)
+      isManifestPlatformIngestPass(iosRun, expectedNativeOverlays, expectedYouTubePublishing)
     ],
     [
       summary.validationEvidencePlatformIngestAndroidPass,
       "Android same-run platform ingest proof",
-      isManifestPlatformIngestPass(androidRun, expectedNativeOverlays)
+      isManifestPlatformIngestPass(androidRun, expectedNativeOverlays, expectedYouTubePublishing)
     ]
   ];
   for (const [claimed, label, backedByManifest] of claimChecks) {
@@ -937,16 +938,19 @@ const getValidationEvidencePlatformIngestPasses = (bundle: SupportBundle): { ios
     ? latestEligibleManifestRunsByPlatform(manifest, createExpectedManifestScope(bundle))
     : new Map<string, ValidationEvidenceManifestRun>();
   const expectedNativeOverlays = nativeCompositionOverlayProofRequirements(bundle.summary);
+  const expectedYouTubePublishing = youtubePublishingProofRequirements(bundle);
   return {
     ios: resolveValidationEvidencePlatformIngestPass(
       bundle.summary.validationEvidencePlatformIngestIosPass,
       latestRuns.get("ios"),
-      expectedNativeOverlays
+      expectedNativeOverlays,
+      expectedYouTubePublishing
     ),
     android: resolveValidationEvidencePlatformIngestPass(
       bundle.summary.validationEvidencePlatformIngestAndroidPass,
       latestRuns.get("android"),
-      expectedNativeOverlays
+      expectedNativeOverlays,
+      expectedYouTubePublishing
     )
   };
 };
@@ -954,8 +958,12 @@ const getValidationEvidencePlatformIngestPasses = (bundle: SupportBundle): { ios
 const resolveValidationEvidencePlatformIngestPass = (
   summaryValue: unknown,
   manifestRun: ValidationEvidenceManifestRun | undefined,
-  expectedNativeOverlays: NativeOverlayProofRequirements = emptyNativeOverlayProofRequirements
-): boolean => (typeof summaryValue === "boolean" ? summaryValue : isManifestPlatformIngestPass(manifestRun, expectedNativeOverlays));
+  expectedNativeOverlays: NativeOverlayProofRequirements = emptyNativeOverlayProofRequirements,
+  expectedYouTubePublishing: YouTubePublishingProofRequirements = emptyYouTubePublishingProofRequirements
+): boolean =>
+  typeof summaryValue === "boolean"
+    ? summaryValue
+    : isManifestPlatformIngestPass(manifestRun, expectedNativeOverlays, expectedYouTubePublishing);
 
 const createRetainedStaleEvidenceIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
   if (bundle.summary.validationEvidenceStaleRunCount <= 0) {
@@ -1233,11 +1241,26 @@ interface NativeOverlayProofRequirements {
 
 const emptyNativeOverlayProofRequirements: NativeOverlayProofRequirements = { total: 0, text: 0, caption: 0, chat: 0 };
 
+interface YouTubePublishingProofRequirements {
+  boundStreamId: string | null;
+  broadcastPrivacyStatus: string | null;
+}
+
+const emptyYouTubePublishingProofRequirements: YouTubePublishingProofRequirements = {
+  boundStreamId: null,
+  broadcastPrivacyStatus: null
+};
+
 const nativeCompositionOverlayProofRequirements = (summary: SupportBundle["summary"]): NativeOverlayProofRequirements => ({
   total: nonNegativeSummaryCount(summary.nativeCompositionNativeOverlayCount),
   text: nonNegativeSummaryCount(summary.nativeCompositionTextOverlayCount),
   caption: nonNegativeSummaryCount(summary.nativeCompositionCaptionOverlayCount),
   chat: nonNegativeSummaryCount(summary.nativeCompositionChatOverlayCount)
+});
+
+const youtubePublishingProofRequirements = (bundle: SupportBundle): YouTubePublishingProofRequirements => ({
+  boundStreamId: nonEmptyText(bundle.profile?.platformPublishing?.youtubeBroadcastBoundStreamId),
+  broadcastPrivacyStatus: nonEmptyText(bundle.profile?.platformPublishing?.privacyStatus)
 });
 
 const nonNegativeSummaryCount = (value: unknown): number =>
@@ -1474,17 +1497,21 @@ const isManifestQualityAutomationPass = (run: ValidationEvidenceManifestRun | un
   (Number(run?.qualityAutomationLiveUpdateCount) > 0 || Number(run?.qualityAutomationNextTargetCount) > 0) &&
   isZeroFiniteNumber(run?.qualityAutomationFailureCount);
 
-const isManifestPlatformPublishingPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+const isManifestPlatformPublishingPass = (
+  run: ValidationEvidenceManifestRun | undefined,
+  expectedYouTubePublishing: YouTubePublishingProofRequirements = emptyYouTubePublishingProofRequirements
+): boolean =>
   (run?.platformPublishingFreshnessStatus === "not-applicable" && !isFirstPartyManifestPublishingDestination(run)) ||
   (isManifestFeaturePass(run?.platformPublishingStatus) &&
     run?.platformPublishingFreshnessStatus === "fresh" &&
     isNonEmptyIsoDate(run.platformPublishingCheckedAt) &&
     isAtMostFiniteNumber(run.platformPublishingFreshnessAgeMinutes, platformPublishingDashboardMaxAgeMinutes) &&
-    isManifestPlatformIdentityPass(run));
+    isManifestPlatformIdentityPass(run, expectedYouTubePublishing));
 
 const isManifestPlatformIngestPass = (
   run: ValidationEvidenceManifestRun | undefined,
-  expectedNativeOverlays: NativeOverlayProofRequirements = emptyNativeOverlayProofRequirements
+  expectedNativeOverlays: NativeOverlayProofRequirements = emptyNativeOverlayProofRequirements,
+  expectedYouTubePublishing: YouTubePublishingProofRequirements = emptyYouTubePublishingProofRequirements
 ): boolean => {
   if (!run) {
     return false;
@@ -1494,7 +1521,7 @@ const isManifestPlatformIngestPass = (
   }
   return (
     isManifestNativeRuntimePass(run, expectedNativeOverlays) &&
-    isManifestPlatformPublishingPass(run) &&
+    isManifestPlatformPublishingPass(run, expectedYouTubePublishing) &&
     isManifestPlatformPublishingTimestampConsistent(run)
   );
 };
@@ -1529,12 +1556,17 @@ const isFirstPartyManifestPublishingDestination = (run: ValidationEvidenceManife
   run.platformPublishingPlatform === "twitch" ||
   isManifestPlatformIngestProofRequired(run);
 
-const isManifestPlatformIdentityPass = (run: ValidationEvidenceManifestRun): boolean => {
+const isManifestPlatformIdentityPass = (
+  run: ValidationEvidenceManifestRun,
+  expectedYouTubePublishing: YouTubePublishingProofRequirements = emptyYouTubePublishingProofRequirements
+): boolean => {
   if (run.platformPublishingPlatform === "youtube-live") {
     return (
       run.platformPublishingYoutubeHasBroadcastId === true &&
       run.platformPublishingYoutubeHasStreamId === true &&
       ["live", "testing"].includes(normalizeStatusLabel(run.platformPublishingYoutubeBroadcastStatus)) &&
+      hasExpectedYouTubeBoundStreamProof(run, expectedYouTubePublishing) &&
+      hasExpectedYouTubePrivacyProof(run, expectedYouTubePublishing) &&
       normalizeStatusLabel(run.platformPublishingYoutubeStreamStatus) === "active" &&
       ["ok", "good"].includes(normalizeStatusLabel(run.platformPublishingYoutubeHealthStatus)) &&
       isZeroFiniteNumber(run.platformPublishingYoutubeHealthIssueCount)
@@ -1552,6 +1584,31 @@ const isManifestPlatformIdentityPass = (run: ValidationEvidenceManifestRun): boo
     );
   }
   return false;
+};
+
+const hasExpectedYouTubeBoundStreamProof = (
+  run: ValidationEvidenceManifestRun,
+  expectedYouTubePublishing: YouTubePublishingProofRequirements
+): boolean => {
+  const manifestBoundStreamId = nonEmptyText(run.platformPublishingYoutubeBoundStreamId);
+  if (!manifestBoundStreamId) {
+    return false;
+  }
+  return !expectedYouTubePublishing.boundStreamId || manifestBoundStreamId === expectedYouTubePublishing.boundStreamId;
+};
+
+const hasExpectedYouTubePrivacyProof = (
+  run: ValidationEvidenceManifestRun,
+  expectedYouTubePublishing: YouTubePublishingProofRequirements
+): boolean => {
+  const manifestPrivacyStatus = nonEmptyText(run.platformPublishingYoutubeBroadcastPrivacyStatus);
+  if (!manifestPrivacyStatus) {
+    return false;
+  }
+  return (
+    !expectedYouTubePublishing.broadcastPrivacyStatus ||
+    normalizeStatusLabel(manifestPrivacyStatus) === normalizeStatusLabel(expectedYouTubePublishing.broadcastPrivacyStatus)
+  );
 };
 
 const isNonEmptyIsoDate = (value: unknown): boolean => typeof value === "string" && value.trim() !== "" && Number.isFinite(Date.parse(value));

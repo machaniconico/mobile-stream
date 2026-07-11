@@ -342,7 +342,7 @@ function createReport() {
   const reportStartedAt = new Date(nowMs - 1_000).toISOString();
   const scanGeneratedAt = new Date(nowMs - 500).toISOString();
   const reportFinishedAt = new Date(nowMs).toISOString();
-  writeSupportBundleFixture();
+  writeSupportBundleFixture({ generatedAt: reportStartedAt });
   writeUiEvidenceFile();
   writeGitleaksHistoryScanFixture({ generatedAt: scanGeneratedAt });
   writeSourceSecretScanFixture({ generatedAt: scanGeneratedAt });
@@ -532,15 +532,19 @@ function writeSourceSecretScanFixture(patch = {}) {
   );
 }
 
-function writeSupportBundleFixture() {
+function writeSupportBundleFixture({ generatedAt = new Date().toISOString() } = {}) {
   writeFile(
     ".artifacts/store-approval-test/support-bundle.json",
     JSON.stringify(
       {
         app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 55 },
-        generatedAt: new Date().toISOString(),
+        generatedAt,
         profile: {
-          androidPublisherMode: "mediacodec"
+          androidPublisherMode: "mediacodec",
+          platformPublishing: {
+            privacyStatus: "public",
+            youtubeBroadcastBoundStreamId: "stream-1"
+          }
         },
         scene: {
           fingerprint: "scene1-ready"
@@ -854,6 +858,8 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     platformPublishingYoutubeHasBroadcastId: true,
     platformPublishingYoutubeHasStreamId: true,
     platformPublishingYoutubeBroadcastStatus: "live",
+    platformPublishingYoutubeBoundStreamId: "stream-1",
+    platformPublishingYoutubeBroadcastPrivacyStatus: "public",
     platformPublishingYoutubeStreamStatus: "active",
     platformPublishingYoutubeHealthStatus: "ok",
     platformPublishingYoutubeHealthIssueCount: 0,

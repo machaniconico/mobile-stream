@@ -430,8 +430,12 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingCheckedAt");
     expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingObservedAgeMinutes");
     expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingYoutubeHasBroadcastId");
+    expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingYoutubeBoundStreamId");
+    expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingYoutubeBroadcastPrivacyStatus");
     expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingTwitchChannelLanguage");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestPlatformIdentityPass");
+    expectIncludes(files.commercialReleaseGateDomain, "hasExpectedYouTubeBoundStreamProof");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks YouTube platform dashboard claims when retained bound stream proof does not match the profile");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-platform-dashboard");
     expectIncludes(files.sourceSecretsScript, "Source secret scan failed");
     expectIncludes(files.sourceSecretsScript, "discord-webhook-url");

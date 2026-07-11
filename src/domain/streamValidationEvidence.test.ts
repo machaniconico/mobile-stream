@@ -64,7 +64,9 @@ const commercialProfileWithKey = (streamKey: string): StudioProfile => ({
     ...createDefaultStudioProfile().platformPublishing,
     youtubeBroadcastId: "broadcast-1",
     youtubeStreamId: "stream-1",
+    youtubeBroadcastBoundStreamId: "stream-1",
     youtubeBroadcastStatus: "live",
+    youtubeBroadcastPrivacyStatus: "private" as const,
     youtubeStreamStatus: "active",
     youtubeStreamHealthStatus: "ok",
     youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
@@ -2268,7 +2270,9 @@ describe("stream validation evidence", () => {
         ...createDefaultStudioProfile().platformPublishing,
         youtubeBroadcastId: "broadcast-1",
         youtubeStreamId: "stream-1",
+        youtubeBroadcastBoundStreamId: "stream-1",
         youtubeBroadcastStatus: "testing",
+        youtubeBroadcastPrivacyStatus: "private" as const,
         youtubeStreamStatus: "active",
         youtubeStreamHealthStatus: "ok",
         youtubeStreamHealthIssues: ["warning: bitrateLow: Video output low"]
@@ -2296,6 +2300,8 @@ describe("stream validation evidence", () => {
         hasBroadcastId: true,
         hasStreamId: true,
         broadcastStatus: "testing",
+        boundStreamId: "stream-1",
+        broadcastPrivacyStatus: "private",
         streamStatus: "active",
         healthStatus: "ok",
         healthIssueCount: 1
@@ -2669,6 +2675,8 @@ describe("stream validation evidence", () => {
       platformPublishingYoutubeHasBroadcastId: true,
       platformPublishingYoutubeHasStreamId: true,
       platformPublishingYoutubeBroadcastStatus: "live",
+      platformPublishingYoutubeBoundStreamId: "stream-1",
+      platformPublishingYoutubeBroadcastPrivacyStatus: "private",
       platformPublishingYoutubeStreamStatus: "active",
       platformPublishingYoutubeHealthStatus: "ok",
       platformPublishingYoutubeHealthIssueCount: 0

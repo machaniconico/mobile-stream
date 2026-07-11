@@ -538,6 +538,38 @@ describe("stream diagnostics", () => {
     expect(diagnostics.platformPublishing.recommendation).toContain("bound stream matches");
   });
 
+  it("warns when YouTube dashboard proof lacks broadcast privacy or bound stream evidence", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      },
+      platformPublishing: {
+        ...createDefaultStudioProfile().platformPublishing,
+        privacyStatus: "public" as const,
+        youtubeBroadcastId: "broadcast-1",
+        youtubeStreamId: "stream-1",
+        youtubeBroadcastStatus: "live",
+        youtubeStreamStatus: "active",
+        youtubeStreamHealthStatus: "ok",
+        youtubeStreamHealthIssues: [],
+        youtubeStatusCheckedAt: "2026-06-23T00:00:00.000Z"
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30 })
+    });
+
+    expect(diagnostics.platformPublishing.status).toBe("warn");
+    expect(diagnostics.platformPublishing.summary).toContain("bound stream unknown (app stream-1)");
+    expect(diagnostics.platformPublishing.summary).toContain("privacy unknown (app public)");
+  });
+
   it("fails Twitch dashboard diagnostics when channel metadata differs from app settings", () => {
     const scene = createDefaultScene();
     const baseProfile = applyDestinationPreset(createDefaultStudioProfile(), "twitch-auto");

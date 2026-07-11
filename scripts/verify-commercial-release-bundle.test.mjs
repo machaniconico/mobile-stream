@@ -1402,7 +1402,39 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("YouTube identity/state proof");
+    expect(result.stdout).toContain("YouTube identity/state/privacy/bound-stream proof");
+  });
+
+  it("blocks YouTube platform dashboard claims when retained privacy proof mismatches the profile", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { platformPublishingYoutubeBroadcastPrivacyStatus: "private" }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("YouTube identity/state/privacy/bound-stream proof");
+  });
+
+  it("blocks YouTube platform dashboard claims when retained bound-stream proof mismatches the profile", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { platformPublishingYoutubeBoundStreamId: "other-stream" }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("YouTube identity/state/privacy/bound-stream proof");
   });
 
   it("blocks Twitch platform dashboard claims when retained manifests lack channel metadata proof", () => {
@@ -1827,6 +1859,10 @@ const createBundle = (patch = {}) => {
       destination: {
         platform: "youtube-live",
         protocol: "rtmps"
+      },
+      platformPublishing: {
+        privacyStatus: "public",
+        youtubeBroadcastBoundStreamId: "stream-1"
       }
     },
     scene: {
@@ -1999,6 +2035,8 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   platformPublishingYoutubeHasBroadcastId: true,
   platformPublishingYoutubeHasStreamId: true,
   platformPublishingYoutubeBroadcastStatus: "live",
+  platformPublishingYoutubeBoundStreamId: "stream-1",
+  platformPublishingYoutubeBroadcastPrivacyStatus: "public",
   platformPublishingYoutubeStreamStatus: "active",
   platformPublishingYoutubeHealthStatus: "ok",
   platformPublishingYoutubeHealthIssueCount: 0,

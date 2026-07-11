@@ -2207,6 +2207,58 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks YouTube platform dashboard claims when retained privacy proof does not match the profile", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              platformPublishingYoutubeBroadcastPrivacyStatus: "private"
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS platform dashboard proof")
+      })
+    );
+  });
+
+  it("blocks YouTube platform dashboard claims when retained bound stream proof does not match the profile", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              platformPublishingYoutubeBoundStreamId: "other-stream"
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS platform dashboard proof")
+      })
+    );
+  });
+
   it("blocks Twitch platform dashboard claims when the manifest lacks channel metadata proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -2997,7 +3049,11 @@ const supportBundle = ({
     generatedAt,
     profile: {
       androidPublisherMode,
-      destination
+      destination,
+      platformPublishing: {
+        privacyStatus: "public",
+        youtubeBroadcastBoundStreamId: "stream-1"
+      }
     },
     summary: {
       preflightStatus: "ready",
@@ -3319,6 +3375,8 @@ const manifestRun = ({
   platformPublishingYoutubeHasBroadcastId = true,
   platformPublishingYoutubeHasStreamId = true,
   platformPublishingYoutubeBroadcastStatus = "live",
+  platformPublishingYoutubeBoundStreamId = "stream-1",
+  platformPublishingYoutubeBroadcastPrivacyStatus = "public",
   platformPublishingYoutubeStreamStatus = "active",
   platformPublishingYoutubeHealthStatus = "ok",
   platformPublishingYoutubeHealthIssueCount = 0,
@@ -3492,6 +3550,8 @@ const manifestRun = ({
   platformPublishingYoutubeHasBroadcastId?: ValidationManifestRun["platformPublishingYoutubeHasBroadcastId"];
   platformPublishingYoutubeHasStreamId?: ValidationManifestRun["platformPublishingYoutubeHasStreamId"];
   platformPublishingYoutubeBroadcastStatus?: ValidationManifestRun["platformPublishingYoutubeBroadcastStatus"];
+  platformPublishingYoutubeBoundStreamId?: ValidationManifestRun["platformPublishingYoutubeBoundStreamId"];
+  platformPublishingYoutubeBroadcastPrivacyStatus?: ValidationManifestRun["platformPublishingYoutubeBroadcastPrivacyStatus"];
   platformPublishingYoutubeStreamStatus?: ValidationManifestRun["platformPublishingYoutubeStreamStatus"];
   platformPublishingYoutubeHealthStatus?: ValidationManifestRun["platformPublishingYoutubeHealthStatus"];
   platformPublishingYoutubeHealthIssueCount?: ValidationManifestRun["platformPublishingYoutubeHealthIssueCount"];
@@ -3673,6 +3733,8 @@ const manifestRun = ({
   platformPublishingYoutubeHasBroadcastId,
   platformPublishingYoutubeHasStreamId,
   platformPublishingYoutubeBroadcastStatus,
+  platformPublishingYoutubeBoundStreamId,
+  platformPublishingYoutubeBroadcastPrivacyStatus,
   platformPublishingYoutubeStreamStatus,
   platformPublishingYoutubeHealthStatus,
   platformPublishingYoutubeHealthIssueCount,
