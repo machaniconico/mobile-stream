@@ -5,9 +5,11 @@ import {
   createDefaultPlatformChatAuthSession,
   createInitialPlatformChatReconnectState,
   createPlatformChatAutoConnectPlan,
+  createPlatformChatConnectionState,
   createPlatformChatReconnectDecision,
   createTwitchIrcAuthenticationCommands,
   fetchYouTubeLiveChatPage,
+  formatPlatformChatConnectionFailureMessage,
   getPlatformChatNetworkReadiness,
   normalizePlatformChatAuthSession,
   parseTwitchIrcPayload
@@ -166,7 +168,7 @@ describe("platformChatConnection", () => {
     const auth = normalizePlatformChatAuthSession({ youtubeAccessToken: "yt-token" });
     const state = {
       attemptsUsed: 2,
-      lastFailureKey: "youtube\u001flive-chat-123\u001fnetwork timeout",
+      lastFailureKey: "youtube\u001flive-chat-123\u001fplatform chat connection failed.",
       scheduledKey: null,
       exhaustedKey: null
     };
@@ -187,6 +189,36 @@ describe("platformChatConnection", () => {
       maxAttempts: 2
     });
     expect(decision.state.exhaustedKey).toBe(decision.key);
+  });
+
+  it("redacts unknown platform chat failure messages before state or reconnect audit", () => {
+    const unsafeMessage =
+      "YouTube chat failed after Authorization: Bearer yt-access-token-secret and viewer@example.com said private text";
+    const failedState = createPlatformChatConnectionState("failed", unsafeMessage);
+    const decision = createPlatformChatReconnectDecision({
+      settings: youtubeSettings(),
+      auth: normalizePlatformChatAuthSession({ youtubeAccessToken: "yt-token" }),
+      chatReaderEnabled: true,
+      streamActive: true,
+      connection: { phase: "failed", message: unsafeMessage },
+      state: createInitialPlatformChatReconnectState(),
+      policy: { baseDelayMs: 1000, maxAttempts: 2 }
+    });
+
+    expect(formatPlatformChatConnectionFailureMessage(unsafeMessage)).toBe("Platform chat connection failed.");
+    expect(failedState.message).toBe("Platform chat connection failed.");
+    expect(decision.reason).toBe("Platform chat connection failed.");
+    expect(decision.key).toBe("youtube\u001flive-chat-123\u001fplatform chat connection failed.");
+    expect(JSON.stringify({ failedState, decision })).not.toContain("yt-access-token-secret");
+    expect(JSON.stringify({ failedState, decision })).not.toContain("viewer@example.com");
+    expect(JSON.stringify({ failedState, decision })).not.toContain("private text");
+  });
+
+  it("keeps known platform chat failure messages for operator guidance", () => {
+    expect(formatPlatformChatConnectionFailureMessage("Twitch chat connection lost.")).toBe("Twitch chat connection lost.");
+    expect(formatPlatformChatConnectionFailureMessage("YouTube chat request failed with HTTP 429. Retry after 5s.")).toBe(
+      "YouTube chat request failed with HTTP 429. Retry after 5s."
+    );
   });
 
   it("exhausts Twitch reconnect attempts when repeated socket failures use one stable message", () => {

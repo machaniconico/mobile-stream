@@ -7,6 +7,7 @@ import {
   type PlatformChatSettings,
   type YouTubeLiveChatListResponse
 } from "./platformChat";
+import { redactSensitiveText } from "./sensitiveText";
 
 export interface PlatformChatAuthSession {
   youtubeAccessToken: string;
@@ -197,10 +198,23 @@ export const createPlatformChatConnectionState = (
 ): PlatformChatConnectionState => ({
   phase,
   label: phaseLabel(phase),
-  message,
+  message: phase === "failed" ? formatPlatformChatConnectionFailureMessage(message) : message,
   lastReceivedAt: null,
   nextPollAt: null
 });
+
+export const formatPlatformChatConnectionFailureMessage = (message: string): string => {
+  const safeMessage = normalizeSingleLine(redactSensitiveText(message));
+  if (!safeMessage) {
+    return "Platform chat connection failed.";
+  }
+
+  if (isKnownPlatformChatFailureMessage(safeMessage)) {
+    return safeMessage;
+  }
+
+  return "Platform chat connection failed.";
+};
 
 export const createInitialPlatformChatReconnectState = (): PlatformChatReconnectState => ({
   attemptsUsed: 0,
@@ -376,6 +390,7 @@ export const createPlatformChatReconnectDecision = ({
     };
   }
 
+  const safeFailureMessage = formatPlatformChatConnectionFailureMessage(connection.message);
   const autoConnectPlan = createPlatformChatAutoConnectPlan(settings, auth, chatReaderEnabled, connection);
   if (autoConnectPlan.action !== "connect") {
     return {
@@ -390,7 +405,7 @@ export const createPlatformChatReconnectDecision = ({
     };
   }
 
-  const failureKey = createReconnectFailureKey(settings, connection.message);
+  const failureKey = createReconnectFailureKey(settings, safeFailureMessage);
   if (state.scheduledKey === failureKey) {
     return {
       command: "none",
@@ -445,7 +460,7 @@ export const createPlatformChatReconnectDecision = ({
     command: "schedule-reconnect",
     key: failureKey,
     delayMs,
-    reason: connection.message || "Platform chat connection failed.",
+    reason: safeFailureMessage,
     severity: "warn",
     attemptsUsed,
     maxAttempts: normalizedPolicy.maxAttempts,
@@ -686,6 +701,20 @@ const normalizeToken = (value: unknown): string => (typeof value === "string" ? 
 
 const normalizeTwitchLogin = (value: unknown): string =>
   (typeof value === "string" ? value.trim().replace(/^@/, "").toLowerCase().replace(/[^a-z0-9_]/g, "") : "").slice(0, 25);
+
+const normalizeSingleLine = (value: string): string => value.replace(/\s+/g, " ").trim().slice(0, 220);
+
+const isKnownPlatformChatFailureMessage = (message: string): boolean =>
+  safePlatformChatFailureMessages.has(message) ||
+  /^YouTube chat request failed with HTTP \d+\.(?: Retry (?:after \d+[smh]\.|once the platform is available again\.))?$/.test(message) ||
+  /^YouTube chat request returned unreadable JSON with HTTP \d+\.(?: Retry (?:after \d+[smh]\.|once the platform is available again\.))?$/.test(message);
+
+const safePlatformChatFailureMessages = new Set([
+  "Platform chat connection failed.",
+  "WebSocket is not available in this runtime.",
+  "Twitch authentication failed.",
+  "Twitch chat connection lost."
+]);
 
 const normalizeReconnectPolicy = (policy: Partial<PlatformChatReconnectPolicy>): PlatformChatReconnectPolicy => ({
   enabled: policy.enabled !== false,
