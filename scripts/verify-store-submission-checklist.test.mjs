@@ -148,6 +148,26 @@ describe("store submission checklist verifier", () => {
     expect(result.stderr).toContain("Store submission metadata contains possible Discord webhook URL");
   });
 
+  it("rejects API keys and JWT tokens in store metadata", () => {
+    const googleApiKey = ["AI", "za", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000"].join("");
+    const jwtToken = [
+      "eyJhbGciOiJIUzI1NiJ9",
+      "eyJzdWIiOiJzdG9yZS1zdWJtaXNzaW9uIn0",
+      "c2lnbmF0dXJlMTIzNDU2Nzg5MA"
+    ].join(".");
+    writeStoreSubmissionFiles({
+      playStore: {
+        dataSafetyNotes: `No sale of data. Remove ${googleApiKey} and ${jwtToken} before review.`
+      }
+    });
+
+    const result = runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Store submission metadata contains possible Google API key");
+    expect(result.stderr).toContain("Store submission metadata contains possible JWT token");
+  });
+
   it("rejects personal contact details and protocol-less links in public store metadata copy", () => {
     writeStoreSubmissionFiles({
       appStore: {
@@ -268,6 +288,23 @@ describe("store submission checklist verifier", () => {
     expect(result.stderr).toContain(`Store submission review document metadata mismatch for ${reviewDocument}.`);
     expect(result.stderr).toContain("Store submission metadata contains possible OAuth callback URL");
     expect(result.stderr).toContain("Store submission metadata contains possible OAuth device activation URL");
+  });
+
+  it("rejects private key blocks added to review documents", () => {
+    writeStoreSubmissionFiles();
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    const privateKeyBlock = [
+      ["-----BEGIN ", "PRIVATE KEY-----"].join(""),
+      "not-a-real-key",
+      ["-----END ", "PRIVATE KEY-----"].join("")
+    ].join("\n");
+    writeFileSync(reviewDocument, `Updated review:\n${privateKeyBlock}\n`);
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission review document metadata mismatch for ${reviewDocument}.`);
+    expect(result.stderr).toContain("Store submission metadata contains possible private key block");
   });
 
   it("rejects verification when git commit provenance is missing", () => {

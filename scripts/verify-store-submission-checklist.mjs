@@ -83,6 +83,18 @@ const sensitivePatterns = [
     pattern: /\bhttps:\/\/(?:discord(?:app)?\.com)\/api\/webhooks\/\d{5,32}\/[A-Za-z0-9._-]{20,}/i
   },
   {
+    label: "Google API key",
+    pattern: /\bAIza[0-9A-Za-z_-]{30,}\b/
+  },
+  {
+    label: "JWT token",
+    pattern: /\beyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\b/
+  },
+  {
+    label: "private key block",
+    pattern: /-----BEGIN (?:RSA |EC |OPENSSH |DSA |)?PRIVATE KEY-----/i
+  },
+  {
     label: "Twitch IRC oauth token",
     pattern: /\boauth:[A-Za-z0-9._~+/=-]{12,}/i
   },
