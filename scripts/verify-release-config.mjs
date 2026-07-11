@@ -392,6 +392,11 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-native-runtime");
     expectIncludes(files.commercialReleaseGateDomain, "isProductionVrmRendererBackend");
     expectIncludes(files.commercialReleaseBundleScript, "isProductionVrmRendererBackend");
+    expectIncludes(files.commercialReleaseGateDomain, "hasManifestVrmModelStructureProof");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks VRM-only manifest proof when model geometry or texture proof is incomplete");
+    expectIncludes(files.commercialReleaseBundleScript, "hasVrmModelStructureProof");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks native runtime claims when retained VRM manifests lack model geometry or texture proof");
+    expectIncludes(files.readme, "production VRM renderer backend/model geometry/texture/pose proof");
     expectIncludes(files.streamValidationEvidenceDomain, "monitorHoldSampleCount");
     expectIncludes(files.streamValidationEvidenceDomain, "monitorHoldDroppedFrameIncrease");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestMonitorHoldPass");

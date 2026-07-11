@@ -1375,15 +1375,22 @@ const hasManifestVrmReleaseProof = (run: ValidationEvidenceManifestRun | undefin
     isPositiveFiniteNumber(run.nativeRuntimeVrmSkinJointCount) &&
     isPositiveFiniteNumber(run.nativeRuntimeVrmPositionAccessorCount) &&
     isPositiveFiniteNumber(run.nativeRuntimeVrmVertexCount) &&
+    hasManifestVrmModelStructureProof(run) &&
     isAtLeastFiniteNumber(run.nativeRuntimeVrmSkinningAttributePrimitiveCount, run.nativeRuntimeVrmSkinnedMeshPrimitiveCount) &&
     isAtLeastFiniteNumber(run.nativeRuntimeVrmTrianglePrimitiveCount, run.nativeRuntimeVrmMeshPrimitiveCount) &&
     isZeroFiniteNumber(run.nativeRuntimeVrmUnsupportedPrimitiveModeCount) &&
     isZeroFiniteNumber(run.nativeRuntimeVrmUnsupportedImageMimeCount) &&
-    (run.nativeRuntimeVrmImageCount === 0 || isPositiveFiniteNumber(run.nativeRuntimeVrmTexcoordAccessorCount)) &&
     isZeroFiniteNumber(run.nativeRuntimeVrmPoseBoneUnsupportedCount) &&
     isZeroFiniteNumber(run.nativeRuntimeVrmPoseExpressionUnsupportedCount)
   );
 };
+
+const hasManifestVrmModelStructureProof = (run: ValidationEvidenceManifestRun): boolean =>
+  isAtLeastFiniteNumber(run.nativeRuntimeVrmBoundsAccessorCount, run.nativeRuntimeVrmPositionAccessorCount) &&
+  isPositiveFiniteNumber(run.nativeRuntimeVrmMaterialCount) &&
+  (run.nativeRuntimeVrmImageCount === 0 ||
+    (isPositiveFiniteNumber(run.nativeRuntimeVrmTextureCount) &&
+      isPositiveFiniteNumber(run.nativeRuntimeVrmTexcoordAccessorCount)));
 
 const hasManifestLive2DPoseProof = (run: ValidationEvidenceManifestRun | undefined): boolean => {
   const live2dSourceCount = run?.nativeRuntimeLive2dSourceCount;

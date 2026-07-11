@@ -1353,10 +1353,13 @@ describe("commercial release gate", () => {
       nativeRuntimeVrmSkinJointCount: 54,
       nativeRuntimeVrmPositionAccessorCount: 4,
       nativeRuntimeVrmVertexCount: 24000,
+      nativeRuntimeVrmBoundsAccessorCount: 4,
       nativeRuntimeVrmSkinningAttributePrimitiveCount: 4,
       nativeRuntimeVrmTrianglePrimitiveCount: 4,
       nativeRuntimeVrmUnsupportedPrimitiveModeCount: 0,
       nativeRuntimeVrmTexcoordAccessorCount: 4,
+      nativeRuntimeVrmMaterialCount: 3,
+      nativeRuntimeVrmTextureCount: 2,
       nativeRuntimeVrmImageCount: 2,
       nativeRuntimeVrmUnsupportedImageMimeCount: 0,
       nativeRuntimeVrmPoseBoneCount: 54,
@@ -1425,10 +1428,13 @@ describe("commercial release gate", () => {
       nativeRuntimeVrmSkinJointCount: 54,
       nativeRuntimeVrmPositionAccessorCount: 4,
       nativeRuntimeVrmVertexCount: 24000,
+      nativeRuntimeVrmBoundsAccessorCount: 4,
       nativeRuntimeVrmSkinningAttributePrimitiveCount: 4,
       nativeRuntimeVrmTrianglePrimitiveCount: 4,
       nativeRuntimeVrmUnsupportedPrimitiveModeCount: 0,
       nativeRuntimeVrmTexcoordAccessorCount: 4,
+      nativeRuntimeVrmMaterialCount: 3,
+      nativeRuntimeVrmTextureCount: 2,
       nativeRuntimeVrmImageCount: 2,
       nativeRuntimeVrmUnsupportedImageMimeCount: 0,
       nativeRuntimeVrmPoseBoneUnsupportedCount: 0,
@@ -1443,6 +1449,67 @@ describe("commercial release gate", () => {
           validationEvidenceRunManifest: [
             manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", ...vrmProof }),
             manifestRun({ devicePlatform: "android", fingerprint: "svr1-android", ...vrmProof })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS native runtime proof")
+      })
+    );
+  });
+
+  it("blocks VRM-only manifest proof when model geometry or texture proof is incomplete", () => {
+    const vrmProof = {
+      faceTrackingPreparedPngTuberCount: 0,
+      faceTrackingVisibleVrmCount: 1,
+      faceTrackingNativeVrmRendererReady: true,
+      nativeRuntimeStillImageAssetCount: 0,
+      nativeRuntimeStillImageAssetLoadedCount: 0,
+      nativeRuntimeStillImageAssetDecodedCount: 0,
+      nativeRuntimeStillImageAssetDecodedPixelCount: 0,
+      nativeRuntimeStillImageAssetCompositedCount: 0,
+      nativeRuntimeStillImageAssetCompositedPixelCount: 0,
+      nativeRuntimeVrmSourceCount: 1,
+      nativeRuntimeVrmPosePayloadCount: 1,
+      nativeRuntimeVrmActivePoseCount: 1,
+      nativeRuntimeVrmMissingPoseCount: 0,
+      nativeRuntimeVrmRendererStatus: "ready" as const,
+      nativeRuntimeVrmRendererBackend: "metal",
+      nativeRuntimeVrmModelLoadedCount: 1,
+      nativeRuntimeVrmHumanoidBoneCount: 54,
+      nativeRuntimeVrmExpressionCount: 12,
+      nativeRuntimeVrmMeshPrimitiveCount: 4,
+      nativeRuntimeVrmSkinnedMeshPrimitiveCount: 4,
+      nativeRuntimeVrmSkinJointCount: 54,
+      nativeRuntimeVrmPositionAccessorCount: 4,
+      nativeRuntimeVrmVertexCount: 24000,
+      nativeRuntimeVrmBoundsAccessorCount: 0,
+      nativeRuntimeVrmSkinningAttributePrimitiveCount: 4,
+      nativeRuntimeVrmTrianglePrimitiveCount: 4,
+      nativeRuntimeVrmUnsupportedPrimitiveModeCount: 0,
+      nativeRuntimeVrmTexcoordAccessorCount: 0,
+      nativeRuntimeVrmMaterialCount: 0,
+      nativeRuntimeVrmTextureCount: 0,
+      nativeRuntimeVrmImageCount: 2,
+      nativeRuntimeVrmUnsupportedImageMimeCount: 0,
+      nativeRuntimeVrmPoseBoneUnsupportedCount: 0,
+      nativeRuntimeVrmPoseExpressionUnsupportedCount: 0,
+      nativeRuntimeVrmRenderedSourceCount: 1,
+      nativeRuntimeVrmRenderMissingCount: 0,
+      nativeRuntimeVrmRenderFailureCount: 0
+    };
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", ...vrmProof }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
           ]
         }
       }),

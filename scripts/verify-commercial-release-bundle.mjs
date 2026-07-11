@@ -817,7 +817,7 @@ function validationManifestIssue(bundle) {
     return fail(
       "validation-evidence-manifest-native-runtime",
       "Validation evidence manifest",
-      "The manifest does not back claimed native runtime evidence with platform-matched production video/audio encoder backends, video/audio frames, bytes written, non-congested publisher state, empty native publisher queue, zero publisher video/audio drops, compositor status, zero compositor drops/failures, live render-graph update proof, applied/skipped native overlay proof, loaded, decoded, and composited still-image assets, and accepted production VRM renderer/backend/model/pose proof when VRM sources are present.",
+      "The manifest does not back claimed native runtime evidence with platform-matched production video/audio encoder backends, video/audio frames, bytes written, non-congested publisher state, empty native publisher queue, zero publisher video/audio drops, compositor status, zero compositor drops/failures, live render-graph update proof, applied/skipped native overlay proof, loaded, decoded, and composited still-image assets, and accepted production VRM renderer/backend/model geometry/texture/pose proof when VRM sources are present.",
       "Export a support bundle v55 or newer after retaining iOS and Android validation runs with native publisher/compositor overlay telemetry from the current scene and platform-accepted production encoder backends."
     );
   }
@@ -1463,13 +1463,23 @@ function hasVrmReleaseProof(run) {
     isPositiveNumber(run?.nativeRuntimeVrmSkinJointCount) &&
     isPositiveNumber(run?.nativeRuntimeVrmPositionAccessorCount) &&
     isPositiveNumber(run?.nativeRuntimeVrmVertexCount) &&
+    hasVrmModelStructureProof(run) &&
     isAtLeastNumber(run?.nativeRuntimeVrmSkinningAttributePrimitiveCount, run.nativeRuntimeVrmSkinnedMeshPrimitiveCount) &&
     isAtLeastNumber(run?.nativeRuntimeVrmTrianglePrimitiveCount, run.nativeRuntimeVrmMeshPrimitiveCount) &&
     isZeroNumber(run?.nativeRuntimeVrmUnsupportedPrimitiveModeCount) &&
     isZeroNumber(run?.nativeRuntimeVrmUnsupportedImageMimeCount) &&
-    (run.nativeRuntimeVrmImageCount === 0 || isPositiveNumber(run?.nativeRuntimeVrmTexcoordAccessorCount)) &&
     isZeroNumber(run?.nativeRuntimeVrmPoseBoneUnsupportedCount) &&
     isZeroNumber(run?.nativeRuntimeVrmPoseExpressionUnsupportedCount)
+  );
+}
+
+function hasVrmModelStructureProof(run) {
+  return (
+    isAtLeastNumber(run?.nativeRuntimeVrmBoundsAccessorCount, run.nativeRuntimeVrmPositionAccessorCount) &&
+    isPositiveNumber(run?.nativeRuntimeVrmMaterialCount) &&
+    (run.nativeRuntimeVrmImageCount === 0 ||
+      (isPositiveNumber(run?.nativeRuntimeVrmTextureCount) &&
+        isPositiveNumber(run?.nativeRuntimeVrmTexcoordAccessorCount)))
   );
 }
 
