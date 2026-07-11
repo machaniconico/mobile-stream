@@ -133,6 +133,19 @@ const secretRules = [
     captureGroup: 1
   },
   {
+    id: "credential-header-token",
+    description: "credential-bearing HTTP-style header",
+    pattern:
+      /(?:\b(?:x-api-key|api-key|client-secret|stream-key|oauth-token|auth-token|bearer-token|access-token|refresh-token|id-token|device-code|user-code)\b|["'](?:x-api-key|api-key|client-secret|stream-key|oauth-token|auth-token|bearer-token|access-token|refresh-token|id-token|device-code|user-code)["'])\s*\]?\s*[:=]\s*["']?([A-Za-z0-9._~+/=-]{12,})\b/giu,
+    captureGroup: 1
+  },
+  {
+    id: "twitch-irc-oauth-token",
+    description: "Twitch IRC oauth token",
+    pattern: /\boauth:([A-Za-z0-9._~+/=-]{12,})\b/giu,
+    captureGroup: 1
+  },
+  {
     id: "rtmp-publish-url-key",
     description: "RTMP publish URL with embedded stream key",
     pattern: /\brtmps?:\/\/[^\s"'`<>]+\/(?:live|live2|app|ingest|rtmp)\/([A-Za-z0-9_-]{16,})(?:[/?#\s"'`<>]|$)/giu,
@@ -142,7 +155,7 @@ const secretRules = [
     id: "assigned-sensitive-value",
     description: "assigned credential-like value",
     pattern:
-      /\b(?:accessToken|apiKey|clientSecret|deviceCode|discordWebhookUrl|oauthToken|refreshToken|streamKey|twitchOauthToken|userCode|verificationUri|verificationUriComplete|youtubeAccessToken)\b\s*[:=]\s*["']([^"'\n]{20,})["']/giu,
+      /(?:\b|["'])(?:access_token|refresh_token|id_token|oauth_token|auth_token|bearer_token|client_secret|api_key|device_code|stream_key|user_code|verification_uri|verification_uri_complete|accessToken|apiKey|authToken|bearerToken|clientSecret|deviceCode|discordWebhookUrl|idToken|oauthToken|refreshToken|streamKey|twitchOauthToken|userCode|verificationUri|verificationUriComplete|youtubeAccessToken)(?:\b|["'])\s*\]?\s*[:=]\s*["']([^"'\n]{12,})["']/giu,
     captureGroup: 1
   }
 ];

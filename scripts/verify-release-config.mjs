@@ -294,6 +294,11 @@ const checks = [
     expectIncludes(files.sourceSecretsScript, "statusShort");
     expectIncludes(files.sourceSecretsScript, "findingCount: findings.length");
     expectIncludes(files.sourceSecretsScript, "--report-json=");
+    expectIncludes(files.sourceSecretsScript, "credential-header-token");
+    expectIncludes(files.sourceSecretsScript, "twitch-irc-oauth-token");
+    expectIncludes(files.sourceSecretsScript, "api_key");
+    expectIncludes(files.sourceSecretsScript, "oauth_token");
+    expectIncludes(files.sourceSecretsScript, "rtmp-publish-url-key");
     expectIncludes(files.releaseCandidateScript, "collectAndroidNativeVerificationArtifactRecords");
     expectIncludes(files.releaseCandidateScript, "collectIosNativeVerificationArtifactRecords");
     expectIncludes(files.releaseCandidateScript, "Release candidate self-verification failed:");

@@ -13,9 +13,13 @@ describe("source secret scanner", () => {
         'const authUrl = "https://accounts.google.com/o/oauth2/v2/auth?client_id=yt-client&redirect_uri=com.mobilelivecaster.app%3A%2Foauth%2Fyoutube&response_type=code&state=stateabcdefghijklmnopqrstuvwxyz&code_challenge=pkceabcdefghijklmnopqrstuvwxyz&code_challenge_method=S256";',
         'const activate = "https://www.twitch.tv/activate?public=true&device-code=ABCDEFGH1234567890";',
         'headers.Authorization = "Bearer abcdefghijklmnopqrstuvwxyz1234567890";',
+        'headers["X-API-Key"] = "alpha-alpha-alpha-1234";',
+        'const ircPass = "oauth:bravo-bravo-bravo-1234";',
         'const url = "rtmps://a.rtmp.youtube.com/live2/abcd-efgh-ijkl-mnop-qrst";',
         'const key = "AIzaabcdefghijklmnopqrstuvwxyz123456789";',
-        'const deviceCode = "abcdefghijklmnopqrstuvwxyz1234567890";',
+        'const deviceCode = "charlie-charlie-1234";',
+        'const bearer_token = "delta-delta-delta-1234";',
+        'const serialized = \'{"api_key":"echo-echo-echo-echo-1234","oauth_token":"foxtrot-foxtrot-foxtrot-1234"}\';',
         'const userCode = "ABCDEFGHIJKLMNOPQRSTUVWX";',
         'const token = "ghp_abcdefghijklmnopqrstuvwxyz1234567890ABCD";'
       ].join("\n"),
@@ -29,6 +33,8 @@ describe("source secret scanner", () => {
         "oauth-authorization-url",
         "oauth-device-activation-url",
         "authorization-header-token",
+        "credential-header-token",
+        "twitch-irc-oauth-token",
         "rtmp-publish-url-key",
         "google-api-key",
         "assigned-sensitive-value",
@@ -46,7 +52,11 @@ describe("source secret scanner", () => {
         'const activationUrl = "https://www.twitch.tv/activate?device-code=[redacted]";',
         'const streamKey = "fake-stream-key-for-test-only";',
         'const deviceCode = "fake-device-code-for-test-only";',
-        'headers.Authorization = "Bearer [redacted]";'
+        'headers.Authorization = "Bearer [redacted]";',
+        'headers["X-API-Key"] = "[redacted]";',
+        'const ircPass = "oauth:[redacted]";',
+        'const bearer_token = "fake-bearer-token-for-test-only";',
+        'const serialized = \'{"api_key":"[redacted]","oauth_token":"[redacted]"}\';'
       ].join("\n"),
       "sample.ts"
     );
