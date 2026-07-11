@@ -591,9 +591,16 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScript, "sensitiveStructuredHeaderPattern");
     expectIncludes(files.commercialReleaseBundleScript, "twitchIrcOauthPattern");
     expectIncludes(files.commercialReleaseBundleScript, "rtmpPublishUrlPattern");
+    expectIncludes(files.sensitiveTextDomain, "googleApiKeyPattern");
+    expectIncludes(files.sensitiveTextDomain, "openAiApiKeyPattern");
+    expectIncludes(files.sensitiveTextDomain, "githubTokenPattern");
+    expectIncludes(files.sensitiveTextDomain, "jwtTokenPattern");
+    expectIncludes(files.sensitiveTextDomain, "privateKeyBlockPattern");
     expectIncludes(files.sensitiveTextDomain, "twitchIrcOauthPattern");
     expectIncludes(files.sensitiveTextDomain, "rtmpPublishUrlPattern");
     expectIncludes(files.sensitiveTextDomain, "sensitiveStructuredHeaderPattern");
+    expectIncludes(files.sensitiveTextDomainTest, "redacts high-signal API keys and tokens");
+    expectIncludes(files.sensitiveTextDomainTest, "redacts private key blocks");
     expectIncludes(files.sensitiveTextDomainTest, "redacts structured credential headers in JSON objects and bracket assignments");
     expectIncludes(files.sensitiveTextDomainTest, "redacts Twitch IRC oauth commands and RTMP publish URL stream keys");
   }),

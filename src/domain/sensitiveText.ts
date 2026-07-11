@@ -90,6 +90,12 @@ const sensitiveStructuredHeaderPattern =
 const twitchIrcOauthPattern = /\b(oauth:)([A-Za-z0-9._~+/=-]{12,})/gi;
 const rtmpPublishUrlPattern =
   /\b(rtmps?:\/\/[^\s"'<>]+\/(?:app|live|live2)\/)([A-Za-z0-9._~+/=-]{12,}(?:[/?#][^\s"'<>]*)?)/gi;
+const googleApiKeyPattern = /\bAIza[0-9A-Za-z_-]{30,}\b/g;
+const openAiApiKeyPattern = /\bsk-(?:proj-)?[A-Za-z0-9_-]{32,}\b/g;
+const githubTokenPattern = /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{30,}\b/g;
+const jwtTokenPattern = /\beyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\b/g;
+const privateKeyBlockPattern =
+  /-----BEGIN (?:RSA |EC |OPENSSH |DSA |)?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH |DSA |)?PRIVATE KEY-----/gi;
 
 export const redactSensitiveText = (value: string): string => {
   if (!value) {
@@ -101,6 +107,11 @@ export const redactSensitiveText = (value: string): string => {
     .replace(oauthAuthorizationPattern, redactOAuthAuthorizationCandidate)
     .replace(oauthDeviceActivationPattern, redactOAuthDeviceActivationCandidate)
     .replace(discordWebhookPattern, redactDiscordWebhookCandidate)
+    .replace(privateKeyBlockPattern, redacted)
+    .replace(googleApiKeyPattern, redacted)
+    .replace(openAiApiKeyPattern, redacted)
+    .replace(githubTokenPattern, redacted)
+    .replace(jwtTokenPattern, redacted)
     .replace(new RegExp(`([?&#](${sensitiveKeyPattern})=)([^&#\\s]+)`, "gi"), `$1${redacted}`)
     .replace(new RegExp(`\\b(${sensitiveKeyPattern})=([^&\\s]+)`, "gi"), `$1=${redacted}`)
     .replace(new RegExp(`(["'](${sensitiveKeyPattern})["']\\s*:\\s*["'])([^"']+)(["'])`, "gi"), `$1${redacted}$4`)

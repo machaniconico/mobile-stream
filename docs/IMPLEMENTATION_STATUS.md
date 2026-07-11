@@ -71,7 +71,7 @@
 - Shared stream session event log for status transitions, manual operations, platform API started/succeeded/failed/skipped audit events, automatic recovery actions, support diagnostics, and redacted report export.
 - Stream key redaction and no-secret browser persistence.
 - Physical validation run and completed stream session summary persistence redact supplied stream-key candidates plus OAuth/API tokens, device codes, client secrets, Authorization headers, email addresses, phone numbers, invite links, and protocol-less links before writing Web localStorage or mobile native storage.
-- Sensitive OAuth/API error message redaction before user-facing status display.
+- Sensitive OAuth/API error message redaction before user-facing status display, including OAuth authorization/callback/activation URLs, Discord webhook URLs, Google/OpenAI API keys, GitHub tokens, JWTs, private key blocks, structured credential headers, Twitch IRC OAuth commands, and RTMP publish URLs before chat display, speech, diagnostics, support bundles, and persisted validation/session evidence.
 - OAuth, stream-key, platform publishing, and YouTube chat API calls fail closed with sanitized HTTP/unreadable-JSON errors when upstream responses are empty, non-JSON, or unavailable, while retaining status code, retryability, and `Retry-After` metadata for diagnostics and safe app status retry guidance.
 - Native Android/iOS status and publisher-runtime message redaction for publish URLs, stream keys, and bearer tokens before app display.
 - In-app stream key clear/replacement controls for browser and mobile setup screens.

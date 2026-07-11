@@ -166,6 +166,39 @@ describe("sensitive text redaction", () => {
     expect(redacted).not.toContain("twitch-stream-key-5678");
   });
 
+  it("redacts high-signal API keys and tokens", () => {
+    const googleApiKey = ["AI", "za", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000"].join("");
+    const openAiKey = ["sk", "-proj-", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"].join("");
+    const githubToken = ["gh", "p_", "cccccccccccccccccccccccccccccc0000"].join("");
+    const jwtToken = [
+      "eyJhbGciOiJIUzI1NiJ9",
+      "eyJzdWIiOiJzZW5zaXRpdmUtdGV4dCJ9",
+      "c2lnbmF0dXJlMTIzNDU2Nzg5MA"
+    ].join(".");
+
+    const redacted = redactSensitiveText(`keys ${googleApiKey} ${openAiKey} ${githubToken} ${jwtToken}`);
+
+    expect(redacted).toBe("keys [redacted] [redacted] [redacted] [redacted]");
+    expect(redacted).not.toContain(googleApiKey);
+    expect(redacted).not.toContain(openAiKey);
+    expect(redacted).not.toContain(githubToken);
+    expect(redacted).not.toContain(jwtToken);
+  });
+
+  it("redacts private key blocks", () => {
+    const privateKeyBlock = [
+      ["-----BEGIN ", "PRIVATE KEY-----"].join(""),
+      "not-a-real-key",
+      ["-----END ", "PRIVATE KEY-----"].join("")
+    ].join("\n");
+
+    const redacted = redactSensitiveText(`before ${privateKeyBlock} after`);
+
+    expect(redacted).toBe("before [redacted] after");
+    expect(redacted).not.toContain("not-a-real-key");
+    expect(redacted).not.toContain(privateKeyBlock);
+  });
+
   it("redacts personal contact details and invite links", () => {
     const text =
       "mail me@example.com, phone 090-1234-5678, intl +1 415 555 2671, discord.gg/privateRoom";
