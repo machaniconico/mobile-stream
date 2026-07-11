@@ -1970,6 +1970,29 @@ describe("release evidence package creator", () => {
     expect(failures.join("\n")).toContain("artifacts/.artifacts/rn/index.android.bundle contains a sensitive JSON value");
   });
 
+  it("still scans generated React Native bundles for structured credential headers", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const sourcePath = ".artifacts/rn/index.android.bundle";
+    const packagedBundlePath = `${packageDir}/artifacts/${sourcePath}`;
+    writeFileSync(
+      packagedBundlePath,
+      [
+        "const serializedHeaders = '{\"X-API-Key\":\"alpha-alpha-alpha-1234\"}';",
+        "headers[\"Client-Secret\"] = \"bravo-bravo-bravo-1234\";"
+      ].join("\n")
+    );
+    refreshPackagedArtifactEvidence(sourcePath, packagedBundlePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain(
+      "artifacts/.artifacts/rn/index.android.bundle contains a structured sensitive header value"
+    );
+  });
+
   it("still scans iOS native verification metadata for credentials", () => {
     resetPackageDir();
     writeReportFixture();

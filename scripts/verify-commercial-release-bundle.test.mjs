@@ -413,6 +413,23 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("unredacted sensitive value");
   });
 
+  it("blocks structured credential headers in release support bundles", () => {
+    writeBundle({
+      diagnostics: {
+        api: {
+          structuredHeaders:
+            '{"X-API-Key":"alpha-alpha-alpha-1234"} headers["Client-Secret"] = "bravo-bravo-bravo-1234";'
+        }
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Support bundle privacy");
+    expect(result.stdout).toContain("unredacted sensitive value");
+  });
+
   it("blocks unredacted contact details in release support bundles", () => {
     writeBundle({
       diagnostics: {

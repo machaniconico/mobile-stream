@@ -1855,6 +1855,8 @@ const discordWebhookUrlPattern =
 const authorizationHeaderPattern = /\bAuthorization\s*:\s*(Bearer|OAuth)\s+([^\s,;]+)/gi;
 const sensitiveHeaderPattern =
   /\b(x-api-key|api-key|client-secret|stream-key|oauth-token|auth-token|bearer-token|access-token|refresh-token|id-token|device-code|user-code)\s*:\s*([^\s,;"']+)/gi;
+const sensitiveStructuredHeaderPattern =
+  /((?:\b|["'])(?:Authorization|x-api-key|api-key|client-secret|stream-key|oauth-token|auth-token|bearer-token|access-token|refresh-token|id-token|device-code|user-code)(?:\b|["'])\s*\]?\s*[:=]\s*["'](?:(?:Bearer|OAuth)\s+)?)([A-Za-z0-9._~+/=-]{12,})(["'])/gi;
 const bearerTokenPattern = /\b(Bearer|OAuth)\s+([A-Za-z0-9._~+/=-]{12,})/g;
 const twitchIrcOauthPattern = /\boauth:([A-Za-z0-9._~+/=-]{12,})/gi;
 const rtmpPublishUrlPattern = /\brtmps?:\/\/[^\s"'<>]+\/(?:app|live|live2)\/([A-Za-z0-9._~+/=-]{12,}(?:[/?#][^\s"'<>]*)?)/gi;
@@ -1884,6 +1886,7 @@ function findSensitiveTextFindings(value, path) {
     { pattern: oauthCallbackCodePattern, reason: "contains an OAuth authorization code", requireTokenShape: true },
     { pattern: authorizationHeaderPattern, reason: "contains an Authorization header", requireTokenShape: true },
     { pattern: sensitiveHeaderPattern, reason: "contains a sensitive header value", requireTokenShape: true },
+    { pattern: sensitiveStructuredHeaderPattern, reason: "contains a structured sensitive header value", requireTokenShape: true },
     { pattern: bearerTokenPattern, reason: "contains a bearer/OAuth token", requireTokenShape: true },
     { pattern: twitchIrcOauthPattern, reason: "contains a Twitch IRC oauth token", requireTokenShape: true },
     { pattern: rtmpPublishUrlPattern, reason: "contains a stream key in an RTMP URL", requireTokenShape: true }

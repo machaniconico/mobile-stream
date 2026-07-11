@@ -1530,6 +1530,8 @@ const sensitiveJsonPattern =
 const authorizationHeaderPattern = /\bAuthorization\s*:\s*(Bearer|OAuth)\s+([^\s,;]+)/gi;
 const sensitiveHeaderPattern =
   /\b(x-api-key|api-key|client-secret|stream-key|oauth-token|auth-token|bearer-token|access-token|refresh-token|id-token|device-code|user-code)\s*:\s*([^\s,;"']+)/gi;
+const sensitiveStructuredHeaderPattern =
+  /((?:\b|["'])(?:Authorization|x-api-key|api-key|client-secret|stream-key|oauth-token|auth-token|bearer-token|access-token|refresh-token|id-token|device-code|user-code)(?:\b|["'])\s*\]?\s*[:=]\s*["'](?:(?:Bearer|OAuth)\s+)?)([A-Za-z0-9._~+/=-]{12,})(["'])/gi;
 const bearerTokenPattern = /\b(Bearer|OAuth)\s+([A-Za-z0-9._~+/=-]{12,})/g;
 const twitchIrcOauthPattern = /\b(oauth:)([A-Za-z0-9._~+/=-]{12,})/gi;
 const rtmpPublishUrlPattern =
@@ -1612,6 +1614,7 @@ const hasSensitiveTextLeak = (value: string): boolean =>
   hasUnredactedMatch(value, sensitiveJsonPattern) ||
   hasUnredactedMatch(value, authorizationHeaderPattern) ||
   hasUnredactedMatch(value, sensitiveHeaderPattern) ||
+  hasUnredactedMatch(value, sensitiveStructuredHeaderPattern) ||
   hasUnredactedMatch(value, bearerTokenPattern) ||
   hasUnredactedMatch(value, twitchIrcOauthPattern) ||
   hasUnredactedMatch(value, rtmpPublishUrlPattern) ||

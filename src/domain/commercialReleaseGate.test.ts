@@ -2565,6 +2565,34 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks support bundles that contain structured credential headers", () => {
+    const bundle = supportBundle();
+    const mutableBundle = bundle as unknown as {
+      diagnostics: {
+        api: {
+          structuredHeaders: string;
+        };
+      };
+    };
+    mutableBundle.diagnostics = {
+      api: {
+        structuredHeaders:
+          '{"X-API-Key":"alpha-alpha-alpha-1234"} headers["Client-Secret"] = "bravo-bravo-bravo-1234";'
+      }
+    };
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "support-bundle-sensitive-data",
+        detail: expect.stringContaining("unredacted token pattern")
+      })
+    );
+  });
+
   it("blocks support bundles that contain unredacted contact details", () => {
     const bundle = supportBundle();
     const mutableBundle = bundle as unknown as {
