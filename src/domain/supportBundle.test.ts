@@ -928,6 +928,7 @@ describe("support bundle", () => {
     expect(exported).not.toContain("support-oauth-code-secret");
     expect(exported).not.toContain("support-api-key-secret");
     expect(exported).not.toContain("support-custom-token-secret");
+    expect(exported).not.toContain("mobilelivecaster://oauth");
     expect(exported).not.toContain("viewer@example.com");
     expect(exported).not.toContain("090-1234-5678");
     expect(exported).not.toContain("discord.gg/privateRoom");

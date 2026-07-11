@@ -747,8 +747,8 @@ describe("scene document", () => {
     const messagesJson = String(chatNode?.payload.messagesJson);
 
     expect(payloadText).toContain("Bearer [redacted]: Authorization: Bearer [redacted]");
-    expect(messagesJson).toContain("code=[redacted]");
-    expect(messagesJson).toContain("access_token=[redacted]");
+    expect(messagesJson).toContain("[oauth callback redacted]");
+    expect(messagesJson).not.toContain("mobilelivecaster://oauth");
     expect(`${payloadText}\n${messagesJson}`).not.toContain("author-secret-token-12345");
     expect(`${payloadText}\n${messagesJson}`).not.toContain("body-secret-token-12345");
     expect(`${payloadText}\n${messagesJson}`).not.toContain("oauth-code-secret");
@@ -1199,7 +1199,8 @@ describe("scene document", () => {
       activatedAtMs: nowMs + 500
     });
     expect(payloadText).toContain("Authorization: Bearer [redacted]");
-    expect(payloadText).toContain("access_token=[redacted]");
+    expect(payloadText).toContain("[oauth callback redacted]");
+    expect(payloadText).not.toContain("mobilelivecaster://oauth");
     expect(payloadText).not.toContain("quick-caption-secret-12345");
     expect(payloadText).not.toContain("quick-access-secret");
   });

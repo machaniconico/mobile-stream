@@ -41,6 +41,7 @@ describe("persistence privacy", () => {
     expect(json).not.toContain("youtube-access-token-secret");
     expect(json).not.toContain("oauth-code-secret");
     expect(json).not.toContain("device-secret");
+    expect(json).not.toContain("mobilelivecaster://oauth");
     expect(json).not.toContain("client-secret-value");
     expect(json).not.toContain("refresh-secret");
     expect(json).toContain("[redacted]");

@@ -56,10 +56,13 @@ const redacted = "[redacted]";
 const redactedEmail = "[email redacted]";
 const redactedInvite = "[invite redacted]";
 const redactedPhone = "[phone redacted]";
+const redactedOAuthCallback = "[oauth callback redacted]";
 
 const emailPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const invitePattern = /\b(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/[A-Za-z0-9-]{2,}\b/gi;
 const phoneLikePattern = /(^|[^\w+])(\+?\d[\d\s().-]{7,}\d)(?=$|[^\w])/g;
+const oauthCallbackPattern =
+  /\b(?:mobilelivecaster:\/\/oauth\/|com\.mobilelivecaster\.app:\/oauth\/)[^\s<>"']*[?#][^\s<>"']+/gi;
 
 export const redactSensitiveText = (value: string): string => {
   if (!value) {
@@ -67,6 +70,7 @@ export const redactSensitiveText = (value: string): string => {
   }
 
   return value
+    .replace(oauthCallbackPattern, redactOAuthCallbackCandidate)
     .replace(new RegExp(`([?&#](${sensitiveKeyPattern})=)([^&#\\s]+)`, "gi"), `$1${redacted}`)
     .replace(new RegExp(`\\b(${sensitiveKeyPattern})=([^&\\s]+)`, "gi"), `$1=${redacted}`)
     .replace(new RegExp(`(["'](${sensitiveKeyPattern})["']\\s*:\\s*["'])([^"']+)(["'])`, "gi"), `$1${redacted}$4`)
@@ -77,6 +81,11 @@ export const redactSensitiveText = (value: string): string => {
     .replace(emailPattern, redactedEmail)
     .replace(invitePattern, redactedInvite)
     .replace(phoneLikePattern, redactPhoneCandidate);
+};
+
+const redactOAuthCallbackCandidate = (token: string): string => {
+  const trailing = token.match(/[),.;:!?]+$/)?.[0] ?? "";
+  return `${redactedOAuthCallback}${trailing}`;
 };
 
 const redactPhoneCandidate = (match: string, prefix: string, candidate: string): string => {

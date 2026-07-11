@@ -187,19 +187,18 @@ describe("chatReader", () => {
     expect(JSON.stringify(next)).not.toContain("body-secret-token-12345");
     expect(JSON.stringify(next)).not.toContain("oauth-code-secret");
     expect(JSON.stringify(next)).not.toContain("access-token-secret");
+    expect(JSON.stringify(next)).not.toContain("mobilelivecaster://oauth");
     expect(next.history[0]).toMatchObject({
       author: "Bearer [redacted]",
-      body:
-        "Authorization: Bearer [redacted] mobilelivecaster://oauth/youtube?code=[redacted]&access_token=[redacted]"
+      body: "Authorization: Bearer [redacted] [oauth callback redacted]"
     });
     expect(selectChatOverlayMessages(next)[0]).toMatchObject({
       author: "Bearer [redacted]",
-      body:
-        "Authorization: Bearer [redacted] mobilelivecaster://oauth/youtube?code=[redacted]&access_token=[redacted]",
+      body: "Authorization: Bearer [redacted] [oauth callback redacted]",
       source: "twitch"
     });
     expect(createSpeechText(next.queue[0], next.settings)).toBe(
-      "Bearer [redacted] says Authorization: Bearer [redacted] mobilelivecaster://oauth/youtube?code=[redacted]&access_token=[redacted]"
+      "Bearer [redacted] says Authorization: Bearer [redacted] [oauth callback redacted]"
     );
   });
 

@@ -44,10 +44,12 @@ describe("mobile validation run store", () => {
     expect(loaded).toHaveLength(1);
     expect(json).not.toContain("mobile-legacy-validation-token");
     expect(json).not.toContain("mobile-legacy-code");
+    expect(json).not.toContain("mobilelivecaster://oauth");
     expect(json).toContain("[redacted]");
     const savedJson = nativeStore.saveValidationRuns.mock.calls[0]?.[0] as string;
     expect(savedJson).not.toContain("mobile-legacy-validation-token");
     expect(savedJson).not.toContain("mobile-legacy-code");
+    expect(savedJson).not.toContain("mobilelivecaster://oauth");
   });
 
   it("preserves unavailable encrypted native runs and returns an empty history", async () => {

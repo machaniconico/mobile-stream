@@ -51,6 +51,7 @@ describe("mobile session summary store", () => {
     expect(savedJson).toContain("[redacted]");
     expect(savedJson).not.toContain("mobile-legacy-summary-token");
     expect(savedJson).not.toContain("mobile-legacy-summary-code");
+    expect(savedJson).not.toContain("mobilelivecaster://oauth");
   });
 
   it("preserves unavailable encrypted native summaries and returns an empty history", async () => {

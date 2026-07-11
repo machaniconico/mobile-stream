@@ -1658,6 +1658,7 @@ describe("stream diagnostics", () => {
     expect(exported).not.toContain("diagnostic-api-key-secret");
     expect(exported).not.toContain("diagnostic-client-secret");
     expect(exported).not.toContain("diagnostic-custom-token-secret");
+    expect(exported).not.toContain("mobilelivecaster://oauth");
     expect(exported).not.toContain("viewer@example.com");
     expect(exported).not.toContain("090-1234-5678");
     expect(exported).not.toContain("discord.gg/privateRoom");
@@ -1796,12 +1797,13 @@ describe("stream diagnostics", () => {
 
     expect(json).not.toContain("engine-access-token-secret");
     expect(json).not.toContain("engine-code-secret");
+    expect(json).not.toContain("mobilelivecaster://oauth");
     expect(json).not.toContain("session-access-token-secret");
     expect(json).not.toContain("session-refresh-secret");
     expect(json).not.toContain("session-client-secret");
     expect(json).not.toContain(demoStreamKey);
     expect(diagnostics.telemetry.message).toContain("Authorization: Bearer [redacted]");
-    expect(diagnostics.telemetry.message).toContain("code=[redacted]");
+    expect(diagnostics.telemetry.message).toContain("[oauth callback redacted]");
     expect(diagnostics.session.events[0]?.message).toContain("refresh_token=[redacted]");
     expect(diagnostics.session.events[0]?.message).toContain("client_secret=[redacted]");
   });

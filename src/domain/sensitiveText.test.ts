@@ -8,12 +8,30 @@ describe("sensitive text redaction", () => {
 
     const redacted = redactSensitiveText(text);
 
-    expect(redacted).toContain("access_token=[redacted]");
+    expect(redacted).toContain("[oauth callback redacted]");
     expect(redacted).toContain("code=[redacted]");
     expect(redacted).toContain("refresh_token=[redacted]");
+    expect(redacted).not.toContain("mobilelivecaster://oauth");
     expect(redacted).not.toContain("tw-access-secret");
     expect(redacted).not.toContain("yt-code-secret");
     expect(redacted).not.toContain("yt-refresh-secret");
+  });
+
+  it("redacts credential-bearing mobile OAuth callback URLs as whole tokens", () => {
+    const text =
+      "callbacks mobilelivecaster://oauth/youtube?code=yt-code-secret. " +
+      "com.mobilelivecaster.app:/oauth/twitch#access_token=tw-access-secret, " +
+      "redirect_uri=com.mobilelivecaster.app:/oauth/youtube";
+
+    const redacted = redactSensitiveText(text);
+
+    expect(redacted).toContain("[oauth callback redacted].");
+    expect(redacted).toContain("[oauth callback redacted],");
+    expect(redacted).toContain("redirect_uri=com.mobilelivecaster.app:/oauth/youtube");
+    expect(redacted).not.toContain("yt-code-secret");
+    expect(redacted).not.toContain("tw-access-secret");
+    expect(redacted).not.toContain("mobilelivecaster://oauth/youtube?");
+    expect(redacted).not.toContain("com.mobilelivecaster.app:/oauth/twitch#");
   });
 
   it("prioritizes OAuth key redaction before phone-like number redaction", () => {
