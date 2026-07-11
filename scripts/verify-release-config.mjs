@@ -74,6 +74,7 @@ const files = {
   mobileStudioScreen: read("src/mobile/MobileStudioScreen.tsx"),
   webStyles: read("src/styles.css"),
   supportBundleDomain: read("src/domain/supportBundle.ts"),
+  supportBundleDomainTest: read("src/domain/supportBundle.test.ts"),
   commercialReleaseGateDomain: read("src/domain/commercialReleaseGate.ts"),
   streamDiagnosticsDomain: read("src/domain/streamDiagnostics.ts"),
   publicLaunchChecklistDomain: read("src/domain/publicLaunchChecklist.ts"),
@@ -325,6 +326,8 @@ const checks = [
     expectIncludes(files.supportBundleDomain, "textOverlayRenderVisibleSourceCount");
     expectIncludes(files.supportBundleDomain, "textOverlayQueuedTimedManualSourceCount");
     expectIncludes(files.supportBundleDomain, "textOverlayExpiredTimedManualSourceCount");
+    expectIncludes(files.supportBundleDomain, 'chatOverlayStatus: "pass" | "warn" | "fail" | "info"');
+    expectIncludes(files.supportBundleDomainTest, "keeps blocking chat overlay readiness evidence as failed support-bundle evidence");
     expectIncludes(files.supportBundleDomain, "sceneFingerprint: string");
     expectIncludes(files.supportBundleDomain, "androidPublisherMode: StudioProfile");
     expectIncludes(files.streamDiagnosticsDomain, "Evidence Android publisher mode");
@@ -336,6 +339,7 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "native-caption-overlay-summary-missing");
     expectIncludes(files.commercialReleaseGateDomain, "textOverlayQueuedTimedManualSourceCount");
     expectIncludes(files.commercialReleaseGateDomain, "textOverlayExpiredTimedManualSourceCount");
+    expectIncludes(files.commercialReleaseGateDomain, "chat-overlay-evidence-failed");
     expectIncludes(files.commercialReleaseGateDomain, "android-publisher-mode-not-commercial");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 55");

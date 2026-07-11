@@ -350,6 +350,29 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks release when chat overlay evidence fails", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          chatOverlayStatus: "fail",
+          chatOverlaySummary: "Visible chat overlay is not safe for public launch.",
+          chatOverlayRecommendation: "Fix chat overlay transparency and readability before launch."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "chat-overlay-evidence-failed",
+        severity: "fail",
+        detail: "Visible chat overlay is not safe for public launch."
+      })
+    );
+  });
+
   it("blocks release when enabled live captions still need final cue evidence", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({

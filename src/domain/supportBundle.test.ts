@@ -498,6 +498,49 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Publishing status freshness: missing / YouTube dashboard status has no checked-at timestamp.");
   });
 
+  it("keeps blocking chat overlay readiness evidence as failed support-bundle evidence", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey
+      }
+    };
+    const baseReadiness = createReadinessReport(scene, profile);
+    const readiness = {
+      ...baseReadiness,
+      canStart: false,
+      issues: [
+        ...baseReadiness.issues,
+        {
+          code: "scene-chat-overlay-render-failed",
+          severity: "error" as const,
+          field: "scene" as const,
+          message: "Chat overlay rendering failed."
+        }
+      ],
+      errorCount: baseReadiness.errorCount + 1
+    };
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health()
+    });
+    const preflight = createStreamStartPreflightReport({
+      readiness,
+      streamStatus: "idle"
+    });
+
+    const bundle = createSupportBundle({ scene, profile, readiness, preflight, diagnostics });
+
+    expect(bundle.summary.chatOverlayStatus).toBe("fail");
+    expect(bundle.summary.chatOverlaySummary).toBe("1 chat overlay blocker remains.");
+    expect(bundle.summary.chatOverlayRecommendation).toBe(
+      "Resolve blocking chat overlay readiness errors and export fresh launch evidence."
+    );
+    expect(formatSupportBundle(bundle)).toContain("Chat overlays: fail");
+  });
+
   it("keeps validation dashboard freshness in support bundle summaries", () => {
     const scene = nativeReadyScene();
     const profile = {

@@ -419,6 +419,15 @@ const createChatOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
     );
   }
 
+  if (status === "fail") {
+    return failIssue(
+      "chat-overlay-evidence-failed",
+      "Chat overlay evidence",
+      summary.chatOverlaySummary || "Chat overlay evidence failed.",
+      summary.chatOverlayRecommendation || "Resolve chat overlay blockers and export a fresh support bundle."
+    );
+  }
+
   if (
     status === "warn" ||
     (summary.chatOverlayUrlRedactionDisabledCount ?? 0) > 0 ||

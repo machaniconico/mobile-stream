@@ -451,7 +451,7 @@ export interface SupportBundle {
     textOverlayCaptionSourceCount: number;
     textOverlaySummary: string;
     textOverlayRecommendation: string;
-    chatOverlayStatus: "pass" | "warn" | "info";
+    chatOverlayStatus: "pass" | "warn" | "fail" | "info";
     chatOverlaySourceCount: number;
     chatOverlayVisibleSourceCount: number;
     chatOverlayTransparentVisibleSourceCount: number;
@@ -1709,7 +1709,7 @@ const createChatOverlayEvidenceSummary = (
   scene: SceneDocument,
   readiness: Pick<ReadinessReport, "issues">
 ): {
-  status: "pass" | "warn" | "info";
+  status: "pass" | "warn" | "fail" | "info";
   sourceCount: number;
   visibleSourceCount: number;
   transparentVisibleSourceCount: number;
@@ -1737,15 +1737,22 @@ const createChatOverlayEvidenceSummary = (
   const avatarOverlapIssueCount = readiness.issues.filter(
     (issue) => issue.code === "scene-chat-overlay-avatar-overlap-risk"
   ).length;
-  const status =
+  const blockingIssueCount = readiness.issues.filter(
+    (issue) => issue.severity === "error" && issue.code.startsWith("scene-chat-overlay-")
+  ).length;
+  const hasChatOverlayWarning =
     opaqueBackgroundIssueCount > 0 ||
     urlRedactionDisabledCount > 0 ||
     layoutRiskIssueCount > 0 ||
     safeAreaIssueCount > 0 ||
-    avatarOverlapIssueCount > 0
-      ? "warn"
-      : visibleChatSources.length > 0
-        ? "pass"
+    avatarOverlapIssueCount > 0;
+  const status =
+    blockingIssueCount > 0
+      ? "fail"
+      : hasChatOverlayWarning
+        ? "warn"
+        : visibleChatSources.length > 0
+          ? "pass"
         : "info";
 
   return {
@@ -1761,6 +1768,7 @@ const createChatOverlayEvidenceSummary = (
     summary: createChatOverlaySummary({
       sourceCount: chatSources.length,
       visibleSourceCount: visibleChatSources.length,
+      blockingIssueCount,
       urlRedactionDisabledCount,
       opaqueBackgroundIssueCount,
       layoutRiskIssueCount,
@@ -1770,6 +1778,7 @@ const createChatOverlayEvidenceSummary = (
     recommendation: createChatOverlayRecommendation({
       sourceCount: chatSources.length,
       visibleSourceCount: visibleChatSources.length,
+      blockingIssueCount,
       urlRedactionDisabledCount,
       opaqueBackgroundIssueCount,
       layoutRiskIssueCount,
@@ -1782,6 +1791,7 @@ const createChatOverlayEvidenceSummary = (
 const createChatOverlaySummary = ({
   sourceCount,
   visibleSourceCount,
+  blockingIssueCount,
   urlRedactionDisabledCount,
   opaqueBackgroundIssueCount,
   layoutRiskIssueCount,
@@ -1790,12 +1800,16 @@ const createChatOverlaySummary = ({
 }: {
   sourceCount: number;
   visibleSourceCount: number;
+  blockingIssueCount: number;
   urlRedactionDisabledCount: number;
   opaqueBackgroundIssueCount: number;
   layoutRiskIssueCount: number;
   safeAreaIssueCount: number;
   avatarOverlapIssueCount: number;
 }): string => {
+  if (blockingIssueCount > 0) {
+    return `${blockingIssueCount} chat overlay blocker${blockingIssueCount === 1 ? " remains" : "s remain"}.`;
+  }
   if (urlRedactionDisabledCount > 0) {
     return `${urlRedactionDisabledCount} visible chat overlay${urlRedactionDisabledCount === 1 ? "" : "s"} can display raw URLs.`;
   }
@@ -1823,6 +1837,7 @@ const createChatOverlaySummary = ({
 const createChatOverlayRecommendation = ({
   sourceCount,
   visibleSourceCount,
+  blockingIssueCount,
   urlRedactionDisabledCount,
   opaqueBackgroundIssueCount,
   layoutRiskIssueCount,
@@ -1831,12 +1846,16 @@ const createChatOverlayRecommendation = ({
 }: {
   sourceCount: number;
   visibleSourceCount: number;
+  blockingIssueCount: number;
   urlRedactionDisabledCount: number;
   opaqueBackgroundIssueCount: number;
   layoutRiskIssueCount: number;
   safeAreaIssueCount: number;
   avatarOverlapIssueCount: number;
 }): string => {
+  if (blockingIssueCount > 0) {
+    return "Resolve blocking chat overlay readiness errors and export fresh launch evidence.";
+  }
   if (urlRedactionDisabledCount > 0) {
     return "Turn chat overlay URL redaction on before public streams.";
   }
