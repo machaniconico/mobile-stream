@@ -547,6 +547,9 @@ describe("stream validation evidence", () => {
       "audio pass / broadcast / monitor on / headphones-only yes / route pass Wired headphones / headphones yes / stale no / native monitor running 24576/0 frames Wired headphones route-match yes / latency 92ms pass/180ms manual / samples 2 / peak 80%"
     );
     expect(run.chatReadout).toMatchObject({
+      platformChatEnabled: true,
+      readerEnabled: true,
+      connectionPhase: "connected",
       spokenMessageCount: 1,
       speechFailureCount: 0
     });
@@ -2651,6 +2654,10 @@ describe("stream validation evidence", () => {
     expect(summary.chatReadoutAndroidPass).toBe(true);
     expect(summary.runManifest.find((run) => run.devicePlatform === "ios")).toMatchObject({
       chatReadoutStatus: "pass",
+      chatReadoutPlatformChatEnabled: true,
+      chatReadoutReaderEnabled: true,
+      chatReadoutConnectionPhase: "connected",
+      chatReadoutConnectionLabel: "Connected",
       chatReadoutSpokenMessageCount: 1,
       chatReadoutSpeechFailureCount: 0
     });

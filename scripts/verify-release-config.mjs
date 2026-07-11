@@ -434,8 +434,14 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScript, "faceTrackingRigHorizontalAnchorScore");
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpokenMessageCount");
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpeechFailureCount");
+    expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutConnectionPhase");
+    expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutPlatformChatEnabled");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestChatReadoutPass");
+    expectIncludes(files.commercialReleaseGateDomain, "chatReadoutReaderEnabled === true");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks chat-readout summary claims when the manifest lacks connected platform chat proof");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-chat-readout");
+    expectIncludes(files.commercialReleaseBundleScript, "connected platform chat, enabled reader");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks chat readout claims when retained manifests lack connected platform chat proof");
     expectIncludes(files.publicLaunchChecklistDomain, "latestChatReadout");
     expectIncludes(files.publicLaunchChecklistDomain, "chatReadoutIosPass");
     expectIncludes(files.publicLaunchChecklistDomain, "chatReadoutAndroidPass");

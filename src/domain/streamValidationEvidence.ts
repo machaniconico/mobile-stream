@@ -349,6 +349,10 @@ export interface StreamValidationEvidenceRunManifestItem {
   audioBluetoothRoute: boolean;
   audioBluetoothTuningReviewed: boolean;
   chatReadoutStatus: StreamValidationChatReadoutSummary["status"] | null;
+  chatReadoutPlatformChatEnabled: boolean;
+  chatReadoutReaderEnabled: boolean;
+  chatReadoutConnectionPhase: string;
+  chatReadoutConnectionLabel: string;
   chatReadoutSpokenMessageCount: number;
   chatReadoutSpeechFailureCount: number;
   qualityAutomationStatus: StreamValidationQualityAutomationSummary["status"] | null;
@@ -1759,6 +1763,9 @@ const isFeatureEvidencePass = (
 
 const isChatReadoutEvidencePass = (chatReadout: StreamValidationChatReadoutSummary | null | undefined): boolean =>
   chatReadout?.status === "pass" &&
+  chatReadout.platformChatEnabled === true &&
+  chatReadout.readerEnabled === true &&
+  chatReadout.connectionPhase === "connected" &&
   chatReadout.spokenMessageCount > 0 &&
   chatReadout.speechFailureCount === 0;
 
@@ -3023,6 +3030,10 @@ const createEvidenceRunManifestItem = (
     audioBluetoothRoute: run.audio?.bluetoothRoute ?? false,
     audioBluetoothTuningReviewed: run.audio?.bluetoothTuningReviewed ?? false,
     chatReadoutStatus: run.chatReadout?.status ?? null,
+    chatReadoutPlatformChatEnabled: run.chatReadout?.platformChatEnabled ?? false,
+    chatReadoutReaderEnabled: run.chatReadout?.readerEnabled ?? false,
+    chatReadoutConnectionPhase: run.chatReadout?.connectionPhase ?? "",
+    chatReadoutConnectionLabel: run.chatReadout?.connectionLabel ?? "",
     chatReadoutSpokenMessageCount: run.chatReadout?.spokenMessageCount ?? 0,
     chatReadoutSpeechFailureCount: run.chatReadout?.speechFailureCount ?? 0,
     qualityAutomationStatus: run.qualityAutomation?.status ?? null,

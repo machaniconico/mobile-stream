@@ -1496,6 +1496,10 @@ const hasReadyManifestVrmMotionProof = (run: ValidationEvidenceManifestRun | und
 
 const isManifestChatReadoutPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isManifestFeaturePass(run?.chatReadoutStatus) &&
+  run?.chatReadoutPlatformChatEnabled === true &&
+  run?.chatReadoutReaderEnabled === true &&
+  normalizeStatusLabel(run?.chatReadoutConnectionPhase) === "connected" &&
+  Boolean(nonEmptyText(run?.chatReadoutConnectionLabel)) &&
   Number(run?.chatReadoutSpokenMessageCount) > 0 &&
   hasZeroManifestChatSpeechFailures(run);
 

@@ -917,6 +917,10 @@ function validationManifestIssue(bundle) {
           run?.eligible === true &&
           run?.result === "pass" &&
           run?.chatReadoutStatus === "pass" &&
+          run?.chatReadoutPlatformChatEnabled === true &&
+          run?.chatReadoutReaderEnabled === true &&
+          statusLabel(run?.chatReadoutConnectionPhase) === "connected" &&
+          nonEmptyText(run?.chatReadoutConnectionLabel) !== null &&
           number(run?.chatReadoutSpokenMessageCount) > 0 &&
           isZeroNumber(run?.chatReadoutSpeechFailureCount)
       )
@@ -929,7 +933,7 @@ function validationManifestIssue(bundle) {
     return fail(
       "validation-evidence-manifest-chat-readout",
       "Validation evidence manifest",
-      "The manifest does not back claimed chat readout evidence with spoken-message success and zero speech failures.",
+      "The manifest does not back claimed chat readout evidence with connected platform chat, enabled reader, spoken-message success, and zero speech failures.",
       "Export a support bundle v55 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
     );
   }

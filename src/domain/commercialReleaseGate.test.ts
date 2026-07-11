@@ -2226,6 +2226,32 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks chat-readout summary claims when the manifest lacks connected platform chat proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              chatReadoutConnectionPhase: "idle"
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS spoken chat-readout proof")
+      })
+    );
+  });
+
   it("blocks chat-readout summary claims when the manifest keeps speech failures", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -3454,6 +3480,10 @@ const manifestRun = ({
   audioBluetoothRoute = false,
   audioBluetoothTuningReviewed = false,
   chatReadoutStatus = "pass",
+  chatReadoutPlatformChatEnabled = true,
+  chatReadoutReaderEnabled = true,
+  chatReadoutConnectionPhase = "connected",
+  chatReadoutConnectionLabel = "Connected",
   chatReadoutSpokenMessageCount = 1,
   chatReadoutSpeechFailureCount = 0,
   qualityAutomationStatus = "pass",
@@ -3629,6 +3659,10 @@ const manifestRun = ({
   audioBluetoothRoute?: ValidationManifestRun["audioBluetoothRoute"];
   audioBluetoothTuningReviewed?: ValidationManifestRun["audioBluetoothTuningReviewed"];
   chatReadoutStatus?: ValidationManifestRun["chatReadoutStatus"];
+  chatReadoutPlatformChatEnabled?: ValidationManifestRun["chatReadoutPlatformChatEnabled"];
+  chatReadoutReaderEnabled?: ValidationManifestRun["chatReadoutReaderEnabled"];
+  chatReadoutConnectionPhase?: ValidationManifestRun["chatReadoutConnectionPhase"];
+  chatReadoutConnectionLabel?: ValidationManifestRun["chatReadoutConnectionLabel"];
   chatReadoutSpokenMessageCount?: ValidationManifestRun["chatReadoutSpokenMessageCount"];
   chatReadoutSpeechFailureCount?: ValidationManifestRun["chatReadoutSpeechFailureCount"];
   qualityAutomationStatus?: ValidationManifestRun["qualityAutomationStatus"];
@@ -3812,6 +3846,10 @@ const manifestRun = ({
   audioBluetoothRoute,
   audioBluetoothTuningReviewed,
   chatReadoutStatus,
+  chatReadoutPlatformChatEnabled,
+  chatReadoutReaderEnabled,
+  chatReadoutConnectionPhase,
+  chatReadoutConnectionLabel,
   chatReadoutSpokenMessageCount,
   chatReadoutSpeechFailureCount,
   qualityAutomationStatus,

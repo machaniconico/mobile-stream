@@ -1461,7 +1461,23 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("spoken-message success and zero speech failures");
+    expect(result.stdout).toContain("connected platform chat, enabled reader, spoken-message success");
+  });
+
+  it("blocks chat readout claims when retained manifests lack connected platform chat proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { chatReadoutConnectionPhase: "idle" }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("connected platform chat, enabled reader, spoken-message success");
   });
 
   it("blocks chat readout claims when retained manifests keep speech failures", () => {
@@ -1477,7 +1493,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("spoken-message success and zero speech failures");
+    expect(result.stdout).toContain("connected platform chat, enabled reader, spoken-message success");
   });
 
   it("blocks retained manifests without controlled weak-network quality automation proof", () => {
@@ -2152,6 +2168,10 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   audioBluetoothRoute: false,
   audioBluetoothTuningReviewed: false,
   chatReadoutStatus: "pass",
+  chatReadoutPlatformChatEnabled: true,
+  chatReadoutReaderEnabled: true,
+  chatReadoutConnectionPhase: "connected",
+  chatReadoutConnectionLabel: "Connected",
   chatReadoutSpokenMessageCount: 1,
   chatReadoutSpeechFailureCount: 0,
   qualityAutomationStatus: "pass",
