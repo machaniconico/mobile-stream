@@ -434,6 +434,10 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScript, "faceTrackingRigHorizontalAnchorScore");
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpokenMessageCount");
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpeechFailureCount");
+    expectIncludes(files.commercialReleaseGateDomain, "hasCleanPublicLaunchConfirmationChecklist");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks public launch confirmation events without clean checklist counts");
+    expectIncludes(files.commercialReleaseBundleScript, "hasCleanPublicLaunchConfirmationChecklist");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks public launch confirmation events without clean checklist counts");
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutConnectionPhase");
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutPlatformChatEnabled");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestChatReadoutPass");

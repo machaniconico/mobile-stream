@@ -282,8 +282,11 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
 
 const hasPublicLaunchConfirmationAuditEvidence = (message: string): boolean => {
   const normalizedMessage = message.trim();
-  return normalizedMessage.includes("Target: ") && normalizedMessage.includes("Checklist: ");
+  return normalizedMessage.includes("Target: ") && hasCleanPublicLaunchConfirmationChecklist(normalizedMessage);
 };
+
+const hasCleanPublicLaunchConfirmationChecklist = (message: string): boolean =>
+  /Checklist:\s*\d+\s+pass(?:es)?\s*\/\s*0\s+warn(?:ings)?\s*\/\s*0\s+fail(?:ures)?/i.test(message);
 
 const createSceneFingerprintIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
   if (bundle.app.bundleVersion < 53) {

@@ -421,7 +421,11 @@ function publicLaunchConfirmationEvidenceIssue(bundle) {
 
 function hasPublicLaunchConfirmationAuditEvidence(message) {
   const normalizedMessage = message.trim();
-  return normalizedMessage.includes("Target: ") && normalizedMessage.includes("Checklist: ");
+  return normalizedMessage.includes("Target: ") && hasCleanPublicLaunchConfirmationChecklist(normalizedMessage);
+}
+
+function hasCleanPublicLaunchConfirmationChecklist(message) {
+  return /Checklist:\s*\d+\s+pass(?:es)?\s*\/\s*0\s+warn(?:ings)?\s*\/\s*0\s+fail(?:ures)?/i.test(message);
 }
 
 function sceneFingerprintIssue(bundle) {
