@@ -430,6 +430,49 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("unredacted sensitive value");
   });
 
+  it("blocks high-signal API keys and token shapes in release support bundles", () => {
+    const openAiKey = ["sk", "-proj-", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"].join("");
+    const jwtToken = [
+      "eyJhbGciOiJIUzI1NiJ9",
+      "eyJzdWIiOiJyZWxlYXNlLWJ1bmRsZSJ9",
+      "c2lnbmF0dXJlMTIzNDU2Nzg5MA"
+    ].join(".");
+    writeBundle({
+      diagnostics: {
+        api: {
+          keys: `${openAiKey} ${jwtToken}`
+        }
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Support bundle privacy");
+    expect(result.stdout).toContain("unredacted sensitive value");
+  });
+
+  it("blocks private key material in release support bundles", () => {
+    const privateKeyBlock = [
+      ["-----BEGIN ", "PRIVATE KEY-----"].join(""),
+      "not-a-real-key",
+      ["-----END ", "PRIVATE KEY-----"].join("")
+    ].join("\n");
+    writeBundle({
+      diagnostics: {
+        api: {
+          keyBlock: privateKeyBlock
+        }
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Support bundle privacy");
+    expect(result.stdout).toContain("unredacted sensitive value");
+  });
+
   it("blocks unredacted contact details in release support bundles", () => {
     writeBundle({
       diagnostics: {

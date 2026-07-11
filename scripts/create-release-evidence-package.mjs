@@ -1852,6 +1852,11 @@ const oauthAuthorizationUrlPattern =
 const oauthDeviceActivationUrlPattern = /(\bhttps:\/\/(?:www\.)?twitch\.tv\/activate\?[^\s<>"']+)/gi;
 const discordWebhookUrlPattern =
   /(\bhttps:\/\/(?:discord(?:app)?\.com)\/api\/webhooks\/\d{5,32}\/[A-Za-z0-9._-]{20,})/gi;
+const googleApiKeyPattern = /\b(AIza[0-9A-Za-z_-]{30,})\b/g;
+const openAiApiKeyPattern = /\b(sk-(?:proj-)?[A-Za-z0-9_-]{32,})\b/g;
+const githubTokenPattern = /\b((?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{30,})\b/g;
+const jwtTokenPattern = /\b(eyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,})\b/g;
+const privateKeyBlockPattern = /(-----BEGIN (?:RSA |EC |OPENSSH |DSA |)?PRIVATE KEY-----)/gi;
 const authorizationHeaderPattern = /\bAuthorization\s*:\s*(Bearer|OAuth)\s+([^\s,;]+)/gi;
 const sensitiveHeaderPattern =
   /\b(x-api-key|api-key|client-secret|stream-key|oauth-token|auth-token|bearer-token|access-token|refresh-token|id-token|device-code|user-code)\s*:\s*([^\s,;"']+)/gi;
@@ -1883,6 +1888,11 @@ function findSensitiveTextFindings(value, path) {
     { pattern: oauthAuthorizationUrlPattern, reason: "contains an OAuth authorization URL", requireTokenShape: false },
     { pattern: oauthDeviceActivationUrlPattern, reason: "contains an OAuth device activation URL", requireTokenShape: false },
     { pattern: discordWebhookUrlPattern, reason: "contains a Discord webhook URL", requireTokenShape: false },
+    { pattern: googleApiKeyPattern, reason: "contains a Google API key", requireTokenShape: true },
+    { pattern: openAiApiKeyPattern, reason: "contains an OpenAI API key", requireTokenShape: true },
+    { pattern: githubTokenPattern, reason: "contains a GitHub token", requireTokenShape: true },
+    { pattern: jwtTokenPattern, reason: "contains a JWT token", requireTokenShape: true },
+    { pattern: privateKeyBlockPattern, reason: "contains private key material", requireTokenShape: false },
     { pattern: oauthCallbackCodePattern, reason: "contains an OAuth authorization code", requireTokenShape: true },
     { pattern: authorizationHeaderPattern, reason: "contains an Authorization header", requireTokenShape: true },
     { pattern: sensitiveHeaderPattern, reason: "contains a sensitive header value", requireTokenShape: true },

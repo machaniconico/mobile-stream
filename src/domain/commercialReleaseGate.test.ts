@@ -2593,6 +2593,62 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks support bundles that contain high-signal API keys or token shapes", () => {
+    const bundle = supportBundle();
+    const googleApiKey = ["AI", "za", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000"].join("");
+    const githubToken = ["gh", "p_", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000"].join("");
+    const mutableBundle = bundle as unknown as {
+      diagnostics: {
+        api: {
+          keys: string;
+        };
+      };
+    };
+    mutableBundle.diagnostics = {
+      api: {
+        keys: `keys ${googleApiKey} ${githubToken}`
+      }
+    };
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "support-bundle-sensitive-data",
+        detail: expect.stringContaining("unredacted token pattern")
+      })
+    );
+  });
+
+  it("blocks support bundles that contain private key material", () => {
+    const bundle = supportBundle();
+    const privateKeyBlock = [
+      ["-----BEGIN ", "PRIVATE KEY-----"].join(""),
+      "not-a-real-key",
+      ["-----END ", "PRIVATE KEY-----"].join("")
+    ].join("\n");
+    const mutableBundle = bundle as unknown as {
+      diagnostics: {
+        api: {
+          keyBlock: string;
+        };
+      };
+    };
+    mutableBundle.diagnostics = {
+      api: {
+        keyBlock: privateKeyBlock
+      }
+    };
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues.map((issue) => issue.code)).toContain("support-bundle-sensitive-data");
+  });
+
   it("blocks support bundles that contain unredacted contact details", () => {
     const bundle = supportBundle();
     const mutableBundle = bundle as unknown as {

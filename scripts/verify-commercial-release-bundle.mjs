@@ -82,6 +82,11 @@ const oauthAuthorizationPattern =
 const oauthDeviceActivationPattern = /\bhttps:\/\/(?:www\.)?twitch\.tv\/activate\?[^\s<>"']+/gi;
 const discordWebhookUrlPattern =
   /\bhttps:\/\/(?:discord(?:app)?\.com)\/api\/webhooks\/\d{5,32}\/[A-Za-z0-9._-]{20,}/gi;
+const googleApiKeyPattern = /\b(AIza[0-9A-Za-z_-]{30,})\b/g;
+const openAiApiKeyPattern = /\b(sk-(?:proj-)?[A-Za-z0-9_-]{32,})\b/g;
+const githubTokenPattern = /\b((?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{30,})\b/g;
+const jwtTokenPattern = /\b(eyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,})\b/g;
+const privateKeyBlockPattern = /-----BEGIN (?:RSA |EC |OPENSSH |DSA |)?PRIVATE KEY-----/i;
 const emailAddressPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const inviteLinkPattern = /\b(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/[A-Za-z0-9-]{2,}\b/gi;
 const phoneLikePattern = /(^|[^\w+])(\+?\d[\d\s().-]{7,}\d)(?=$|[^\w])/g;
@@ -1693,17 +1698,22 @@ function hasSensitiveTextLeak(value) {
     hasUnredactedMatch(value, bearerTokenPattern) ||
     hasUnredactedMatch(value, twitchIrcOauthPattern) ||
     hasUnredactedMatch(value, rtmpPublishUrlPattern) ||
+    hasUnredactedMatch(value, googleApiKeyPattern) ||
+    hasUnredactedMatch(value, openAiApiKeyPattern) ||
+    hasUnredactedMatch(value, githubTokenPattern) ||
+    hasUnredactedMatch(value, jwtTokenPattern) ||
     hasPatternMatch(value, oauthCallbackPattern) ||
     hasPatternMatch(value, oauthAuthorizationPattern) ||
     hasPatternMatch(value, oauthDeviceActivationPattern) ||
-    hasPatternMatch(value, discordWebhookUrlPattern)
+    hasPatternMatch(value, discordWebhookUrlPattern) ||
+    hasPatternMatch(value, privateKeyBlockPattern)
   );
 }
 
 function hasUnredactedMatch(value, pattern) {
   pattern.lastIndex = 0;
   for (const match of value.matchAll(pattern)) {
-    const candidate = match[2] ?? "";
+    const candidate = match[2] ?? match[1] ?? "";
     if (!isSafeSensitiveValue(candidate)) {
       return true;
     }

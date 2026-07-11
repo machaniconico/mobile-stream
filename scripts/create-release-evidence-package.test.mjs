@@ -1993,6 +1993,26 @@ describe("release evidence package creator", () => {
     );
   });
 
+  it("still scans generated React Native bundles for high-signal API keys", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const sourcePath = ".artifacts/rn/index.android.bundle";
+    const packagedBundlePath = `${packageDir}/artifacts/${sourcePath}`;
+    const googleApiKey = ["AI", "za", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000"].join("");
+    const openAiKey = ["sk", "-proj-", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"].join("");
+    const githubToken = ["gh", "p_", "cccccccccccccccccccccccccccccc0000"].join("");
+    writeFileSync(packagedBundlePath, [googleApiKey, openAiKey, githubToken].join("\n"));
+    refreshPackagedArtifactEvidence(sourcePath, packagedBundlePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain("artifacts/.artifacts/rn/index.android.bundle contains a Google API key");
+    expect(failures.join("\n")).toContain("artifacts/.artifacts/rn/index.android.bundle contains an OpenAI API key");
+    expect(failures.join("\n")).toContain("artifacts/.artifacts/rn/index.android.bundle contains a GitHub token");
+  });
+
   it("still scans iOS native verification metadata for credentials", () => {
     resetPackageDir();
     writeReportFixture();
@@ -2049,6 +2069,50 @@ describe("release evidence package creator", () => {
 
     expect(failures.join("\n")).toContain("artifacts/scripts/create-release-evidence-package.mjs contains a Twitch IRC oauth token");
     expect(failures.join("\n")).toContain("artifacts/scripts/create-release-evidence-package.mjs contains a stream key in an RTMP URL");
+  });
+
+  it("scans release text artifacts for JWT and private key material", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedScriptPath = `${packageDir}/artifacts/scripts/create-release-evidence-package.mjs`;
+    const jwtToken = [
+      "eyJhbGciOiJIUzI1NiJ9",
+      "eyJzdWIiOiJyZWxlYXNlLWV2aWRlbmNlIn0",
+      "c2lnbmF0dXJlMTIzNDU2Nzg5MA"
+    ].join(".");
+    const privateKeyBlock = [
+      ["-----BEGIN ", "PRIVATE KEY-----"].join(""),
+      "not-a-real-key",
+      ["-----END ", "PRIVATE KEY-----"].join("")
+    ].join("\n");
+    writeFileSync(packagedScriptPath, [jwtToken, privateKeyBlock].join("\n"));
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const reportArtifact = packagedReport.artifacts.files.find(
+      (artifact) => artifact.path === "scripts/create-release-evidence-package.mjs"
+    );
+    reportArtifact.bytes = readFileSync(packagedScriptPath).byteLength;
+    reportArtifact.sha256 = fileSha256(packagedScriptPath);
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+    manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+    const packageArtifact = manifest.artifacts.find(
+      (artifact) => artifact.sourcePath === "scripts/create-release-evidence-package.mjs"
+    );
+    packageArtifact.bytes = readFileSync(packagedScriptPath).byteLength;
+    packageArtifact.sha256 = fileSha256(packagedScriptPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain("artifacts/scripts/create-release-evidence-package.mjs contains a JWT token");
+    expect(failures.join("\n")).toContain("artifacts/scripts/create-release-evidence-package.mjs contains private key material");
   });
 
   it("does not read package-escaped paths during the privacy scan", () => {
