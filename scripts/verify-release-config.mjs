@@ -62,6 +62,8 @@ const files = {
   streamAnnouncementDomainTest: read("src/domain/streamAnnouncement.test.ts"),
   streamAnnouncementAutoPostDomain: read("src/domain/streamAnnouncementAutoPost.ts"),
   streamAnnouncementAutoPostDomainTest: read("src/domain/streamAnnouncementAutoPost.test.ts"),
+  sensitiveTextDomain: read("src/domain/sensitiveText.ts"),
+  sensitiveTextDomainTest: read("src/domain/sensitiveText.test.ts"),
   diagnosticSecretsDomain: read("src/domain/diagnosticSecrets.ts"),
   localStoreDomain: read("src/storage/localStore.ts"),
   secureProfileStoreDomain: read("src/mobile/secureProfileStore.ts"),
@@ -561,6 +563,9 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScript, "sensitiveHeaderPattern");
     expectIncludes(files.commercialReleaseBundleScript, "twitchIrcOauthPattern");
     expectIncludes(files.commercialReleaseBundleScript, "rtmpPublishUrlPattern");
+    expectIncludes(files.sensitiveTextDomain, "twitchIrcOauthPattern");
+    expectIncludes(files.sensitiveTextDomain, "rtmpPublishUrlPattern");
+    expectIncludes(files.sensitiveTextDomainTest, "redacts Twitch IRC oauth commands and RTMP publish URL stream keys");
   }),
   check("Quick text preset actions are locked for Web and React Native release builds", () => {
     expectIncludes(files.sceneDomain, 'export type QuickTextOverlayPresetAction = "show" | "queue" | "pin";');

@@ -135,6 +135,22 @@ describe("sensitive text redaction", () => {
     expect(redacted).not.toContain("oauth123");
   });
 
+  it("redacts Twitch IRC oauth commands and RTMP publish URL stream keys", () => {
+    const text =
+      "PASS oauth:twitch-oauth-secret-1234 " +
+      "rtmps://a.rtmp.youtube.com/live2/youtube-stream-key-1234?backup=1 " +
+      "rtmp://live.twitch.tv/app/twitch-stream-key-5678";
+
+    const redacted = redactSensitiveText(text);
+
+    expect(redacted).toContain("PASS oauth:[redacted]");
+    expect(redacted).toContain("rtmps://a.rtmp.youtube.com/live2/[redacted]");
+    expect(redacted).toContain("rtmp://live.twitch.tv/app/[redacted]");
+    expect(redacted).not.toContain("twitch-oauth-secret-1234");
+    expect(redacted).not.toContain("youtube-stream-key-1234");
+    expect(redacted).not.toContain("twitch-stream-key-5678");
+  });
+
   it("redacts personal contact details and invite links", () => {
     const text =
       "mail me@example.com, phone 090-1234-5678, intl +1 415 555 2671, discord.gg/privateRoom";
