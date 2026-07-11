@@ -34,4 +34,14 @@ describe("App OAuth credential state", () => {
     expect(source).toContain("formatStreamAnnouncementAuditMessage(preview, result.message)");
     expect(source).not.toContain("Content: ${preview.text}");
   });
+
+  it("does not send raw chat speech failures to console logs", () => {
+    const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
+    const chatSpeechSource = readFileSync(new URL("../native/ChatSpeechEngine.ts", import.meta.url), "utf8");
+
+    expect(source).toContain("formatChatSpeechFailureLogMessage(error)");
+    expect(source).not.toContain('console.warn("Chat speech stop failed", error)');
+    expect(chatSpeechSource).toContain('console.warn("Chat speech failed", formatChatSpeechFailureLogMessage(error))');
+    expect(chatSpeechSource).not.toContain('console.warn("Chat speech failed", error)');
+  });
 });

@@ -165,7 +165,7 @@ import {
 } from "../domain/streamValidationEvidence";
 import type { NativeEngineSnapshot } from "../native/LiveCasterNative";
 import { MockLiveCaster } from "../native/MockLiveCaster";
-import { useChatSpeechQueue, type ChatSpeechQueueEvent } from "../native/ChatSpeechEngine";
+import { formatChatSpeechFailureLogMessage, useChatSpeechQueue, type ChatSpeechQueueEvent } from "../native/ChatSpeechEngine";
 import { usePlatformChatConnection } from "../native/usePlatformChatConnection";
 import { useStreamAutoRecovery } from "../native/useStreamAutoRecovery";
 import { useStreamHealthHistory } from "../native/useStreamHealthHistory";
@@ -661,7 +661,7 @@ export const App = () => {
   };
 
   const clearChatReadout = useCallback(() => {
-    void chatSpeechEngine.stop().catch((error) => console.warn("Chat speech stop failed", error));
+    void chatSpeechEngine.stop().catch((error) => console.warn("Chat speech stop failed", formatChatSpeechFailureLogMessage(error)));
     setChatReader(clearChatReaderSession);
   }, [chatSpeechEngine]);
 

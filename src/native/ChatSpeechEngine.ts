@@ -26,6 +26,11 @@ export const getChatSpeechPlaybackTimeoutMs = (text: string): number => {
   return Math.round(clamp(6000 + textLength * 120, 6000, 45000));
 };
 
+export const formatChatSpeechFailureLogMessage = (error: unknown): string => {
+  const message = normalizeSingleLine(error instanceof Error ? error.message : typeof error === "string" ? error : "");
+  return safeChatSpeechFailureMessages.has(message) ? message : "Playback failed; details omitted.";
+};
+
 export interface ChatSpeechQueueEvent {
   phase: "started" | "spoken" | "failed";
   message: ChatMessage;
@@ -91,7 +96,7 @@ export const useChatSpeechQueue = (
       .catch((error) => {
         failed = true;
         onSpeechEvent?.({ phase: "failed", message, textLength: text.length });
-        console.warn("Chat speech failed", error);
+        console.warn("Chat speech failed", formatChatSpeechFailureLogMessage(error));
       })
       .finally(() => {
         if (!failed) {
@@ -102,5 +107,19 @@ export const useChatSpeechQueue = (
       });
   }, [engine, onSpeechEvent, setState, state]);
 };
+
+const safeChatSpeechFailureMessages = new Set([
+  "Web speech synthesis is unavailable.",
+  "Web speech synthesis failed.",
+  "Web speech synthesis timed out.",
+  "Native chat speech module is unavailable.",
+  "Native chat speech failed.",
+  "Native chat speech timed out.",
+  "Text-to-speech engine is not available",
+  "Text-to-speech engine is not ready",
+  "Text-to-speech engine rejected the utterance"
+]);
+
+const normalizeSingleLine = (value: string): string => value.replace(/\s+/g, " ").trim().slice(0, 180);
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
