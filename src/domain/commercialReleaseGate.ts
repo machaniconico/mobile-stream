@@ -256,6 +256,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
     (status === "confirmed" || status === "cancelled") &&
     typeof lastAt === "string" &&
     Number.isFinite(Date.parse(lastAt)) &&
+    hasPublicLaunchConfirmationTimestampEvidence(lastAt, bundle.generatedAt) &&
     typeof lastMessage === "string" &&
     hasPublicLaunchConfirmationAuditEvidence(lastMessage);
 
@@ -287,6 +288,12 @@ const hasPublicLaunchConfirmationAuditEvidence = (message: string): boolean => {
 
 const hasCleanPublicLaunchConfirmationChecklist = (message: string): boolean =>
   /Checklist:\s*\d+\s+pass(?:es)?\s*\/\s*0\s+warn(?:ings)?\s*\/\s*0\s+fail(?:ures)?/i.test(message);
+
+const hasPublicLaunchConfirmationTimestampEvidence = (lastAt: string, generatedAt: string): boolean => {
+  const lastAtMs = Date.parse(lastAt);
+  const generatedAtMs = Date.parse(generatedAt);
+  return Number.isFinite(lastAtMs) && Number.isFinite(generatedAtMs) && lastAtMs <= generatedAtMs;
+};
 
 const createSceneFingerprintIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
   if (bundle.app.bundleVersion < 53) {
