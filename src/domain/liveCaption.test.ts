@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clearLiveCaptionCues,
   createDefaultLiveCaptionState,
+  formatLiveCaptionFailureLogMessage,
   ingestLiveCaptionCue,
   selectLiveCaptionCues,
   setLiveCaptionStatus,
@@ -103,5 +104,29 @@ describe("liveCaption", () => {
     expect(cleared.transcriptCount).toBe(0);
     expect(disabled.status).toBe("idle");
     expect(disabled.errorMessage).toBe("");
+  });
+
+  it("keeps known caption errors while dropping arbitrary recognition details", () => {
+    const enabled = updateLiveCaptionSettings(createDefaultLiveCaptionState(), { enabled: true });
+    const known = setLiveCaptionStatus(enabled, "error", "Microphone permission is required for live captions.");
+    const unsafe = setLiveCaptionStatus(
+      enabled,
+      "error",
+      "recognizer failed after hearing private caption Authorization: Bearer caption-secret-token-12345"
+    );
+
+    expect(known.errorMessage).toBe("Microphone permission is required for live captions.");
+    expect(unsafe.errorMessage).toBe("Speech recognition failed. Details omitted.");
+    expect(unsafe.errorMessage).not.toContain("private caption");
+    expect(unsafe.errorMessage).not.toContain("caption-secret-token");
+  });
+
+  it("formats live caption stop failures without retaining raw error text", () => {
+    const safe = formatLiveCaptionFailureLogMessage(new Error("Speech recognition network request timed out."));
+    const unsafe = formatLiveCaptionFailureLogMessage(new Error("caption leaked my private phrase"));
+
+    expect(safe).toBe("Speech recognition network request timed out.");
+    expect(unsafe).toBe("Speech recognition failed. Details omitted.");
+    expect(unsafe).not.toContain("private phrase");
   });
 });

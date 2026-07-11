@@ -41,7 +41,7 @@ describe("liveCaptionDiagnostics", () => {
 
     expect(unsupported.status).toBe("fail");
     expect(errored.status).toBe("fail");
-    expect(errored.summary).toBe("denied");
+    expect(errored.summary).toBe("Speech recognition failed. Details omitted.");
   });
 
   it("warns until a final caption cue is confirmed", () => {

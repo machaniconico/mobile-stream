@@ -40,7 +40,9 @@ describe("App OAuth credential state", () => {
     const chatSpeechSource = readFileSync(new URL("../native/ChatSpeechEngine.ts", import.meta.url), "utf8");
 
     expect(source).toContain("formatChatSpeechFailureLogMessage(error)");
+    expect(source).toContain("formatLiveCaptionFailureLogMessage(error)");
     expect(source).not.toContain('console.warn("Chat speech stop failed", error)');
+    expect(source).not.toContain('console.warn("Live caption stop failed", error)');
     expect(chatSpeechSource).toContain('console.warn("Chat speech failed", formatChatSpeechFailureLogMessage(error))');
     expect(chatSpeechSource).not.toContain('console.warn("Chat speech failed", error)');
   });

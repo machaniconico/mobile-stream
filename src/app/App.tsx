@@ -22,6 +22,7 @@ import {
 import {
   clearLiveCaptionCues,
   createDefaultLiveCaptionState,
+  formatLiveCaptionFailureLogMessage,
   ingestLiveCaptionCue,
   selectLiveCaptionCues,
   setLiveCaptionStatus,
@@ -666,7 +667,7 @@ export const App = () => {
   }, [chatSpeechEngine]);
 
   const clearLiveCaptions = useCallback(() => {
-    void liveCaptionEngine.stop().catch((error) => console.warn("Live caption stop failed", error));
+    void liveCaptionEngine.stop().catch((error) => console.warn("Live caption stop failed", formatLiveCaptionFailureLogMessage(error)));
     setLiveCaption((current) => setLiveCaptionStatus(clearLiveCaptionCues(current), "idle"));
   }, [liveCaptionEngine]);
 

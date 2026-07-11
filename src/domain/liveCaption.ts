@@ -53,7 +53,7 @@ export const createDefaultLiveCaptionState = (
   settings: createDefaultLiveCaptionSettings(overrides.settings),
   status: overrides.status ?? "idle",
   cues: normalizeCaptionCues(overrides.cues ?? [], createDefaultLiveCaptionSettings(overrides.settings)),
-  errorMessage: normalizeWhitespace(overrides.errorMessage ?? ""),
+  errorMessage: formatLiveCaptionStatusMessage(overrides.status ?? "idle", overrides.errorMessage ?? ""),
   updatedAt: finiteNumber(overrides.updatedAt, 0),
   transcriptCount: Math.round(clamp(finiteNumber(overrides.transcriptCount, 0), 0, Number.MAX_SAFE_INTEGER))
 });
@@ -80,8 +80,14 @@ export const setLiveCaptionStatus = (
 ): LiveCaptionState => ({
   ...state,
   status,
-  errorMessage: status === "error" || status === "unsupported" ? normalizeWhitespace(errorMessage) : ""
+  errorMessage: formatLiveCaptionStatusMessage(status, errorMessage)
 });
+
+export const formatLiveCaptionFailureLogMessage = (error: unknown): string =>
+  formatLiveCaptionStatusMessage(
+    "error",
+    error instanceof Error ? error.message : typeof error === "string" ? error : ""
+  );
 
 export const ingestLiveCaptionCue = (
   state: LiveCaptionState,
@@ -183,6 +189,42 @@ const normalizeCaptionText = (value: string): string =>
   normalizeWhitespace(redactSensitiveText(value).replace(/https?:\/\/\S+/gi, "[link]"));
 
 const normalizeCaptionLabel = (value: string): string => normalizeWhitespace(redactSensitiveText(value)).slice(0, 48);
+
+const formatLiveCaptionStatusMessage = (status: LiveCaptionStatus, errorMessage: string): string => {
+  if (status !== "error" && status !== "unsupported") {
+    return "";
+  }
+
+  const safeMessage = normalizeWhitespace(redactSensitiveText(errorMessage));
+  if (safeLiveCaptionStatusMessages.has(safeMessage) || /^Speech recognition failed with Android error code \d+\.$/.test(safeMessage)) {
+    return safeMessage;
+  }
+
+  return status === "unsupported"
+    ? "Speech recognition is not available for live captions."
+    : "Speech recognition failed. Details omitted.";
+};
+
+const safeLiveCaptionStatusMessages = new Set([
+  "",
+  "Speech recognition is not available in this browser.",
+  "Browser speech recognition is not available.",
+  "Native speech recognition is not linked in this build.",
+  "Android speech recognition service is not available on this device.",
+  "iOS speech recognition is not available on this device.",
+  "iOS speech recognition is currently unavailable.",
+  "Speech recognition and microphone permission are required for live captions.",
+  "Speech recognition permission is required for live captions.",
+  "Microphone permission is required for live captions.",
+  "Microphone audio input is unavailable for live captions.",
+  "Audio recording failed during speech recognition.",
+  "Network error occurred during speech recognition.",
+  "Speech recognition network request timed out.",
+  "Speech recognition service returned an error.",
+  "Speech recognition is temporarily rate limited.",
+  "Requested caption language is not supported on this device.",
+  "Requested caption language is unavailable on this device."
+]);
 
 const normalizeLanguage = (value: string): string => {
   const clean = normalizeWhitespace(value).replace(/_/g, "-");
