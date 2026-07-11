@@ -2394,6 +2394,37 @@ describe("commercial release gate", () => {
     expect(formatCommercialReleaseGate(gate)).toContain("Support bundle privacy");
   });
 
+  it("blocks support bundles that contain serialized snake_case credential fields", () => {
+    const bundle = supportBundle();
+    const mutableBundle = bundle as unknown as {
+      diagnostics: {
+        api: {
+          serialized: string;
+          formBody: string;
+        };
+      };
+    };
+    mutableBundle.diagnostics = {
+      api: {
+        serialized:
+          '{"api_key":"platform-api-key-secret","oauth_token":"platform-oauth-token-secret","auth_token":"platform-auth-token-secret","bearer_token":"platform-bearer-token-secret"}',
+        formBody:
+          "api_key=form-api-key-secret&oauth_token=form-oauth-token-secret auth_token=form-auth-token-secret bearer_token=form-bearer-token-secret"
+      }
+    };
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "support-bundle-sensitive-data",
+        detail: expect.stringContaining("unredacted token pattern")
+      })
+    );
+  });
+
   it("allows support bundles with redacted sensitive placeholders", () => {
     const bundle = supportBundle();
     const mutableBundle = bundle as unknown as {
