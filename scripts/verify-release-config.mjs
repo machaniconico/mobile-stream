@@ -340,6 +340,8 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "native-caption-overlay-summary-missing");
     expectIncludes(files.commercialReleaseGateDomain, "textOverlayQueuedTimedManualSourceCount");
     expectIncludes(files.commercialReleaseGateDomain, "textOverlayExpiredTimedManualSourceCount");
+    expectIncludes(files.commercialReleaseGateDomain, "textOverlayRenderVisibleSourceCount");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks contradictory passing text overlay evidence without program-output proof");
     expectIncludes(files.commercialReleaseGateDomain, "chat-overlay-evidence-failed");
     expectIncludes(files.commercialReleaseGateDomain, "liveCaptionFinalCueCount");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks contradictory passing live-caption evidence without final cue proof");

@@ -371,6 +371,15 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
     );
   }
 
+  if ((summary.textOverlayVisibleSourceCount ?? 0) > 0 && (summary.textOverlayRenderVisibleSourceCount ?? 0) <= 0) {
+    return failIssue(
+      "text-overlay-evidence-incomplete",
+      "Text overlay evidence",
+      summary.textOverlaySummary || "Visible text overlays are missing program-output proof.",
+      summary.textOverlayRecommendation || "Confirm visible text overlay output before approving release."
+    );
+  }
+
   if (
     status === "warn" ||
     (summary.textOverlayQueuedTimedManualSourceCount ?? 0) > 0 ||

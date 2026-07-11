@@ -326,6 +326,32 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks contradictory passing text overlay evidence without program-output proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          textOverlayStatus: "pass",
+          textOverlayVisibleSourceCount: 1,
+          textOverlayVisibleManualSourceCount: 1,
+          textOverlayRenderVisibleSourceCount: 0,
+          textOverlaySummary: "Text overlay is marked pass without program-output proof.",
+          textOverlayRecommendation: "Show the intended text overlay before release approval."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "text-overlay-evidence-incomplete",
+        severity: "fail",
+        detail: "Text overlay is marked pass without program-output proof."
+      })
+    );
+  });
+
   it("blocks release when chat overlay evidence reports layout or transparency risk", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
