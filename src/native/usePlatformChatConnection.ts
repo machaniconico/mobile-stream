@@ -57,7 +57,7 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages, autoReco
   const reconnectStateRef = useRef(createInitialPlatformChatReconnectState());
   const activeRef = useRef(false);
   const connectionIdRef = useRef(0);
-  const connectionKeyRef = useRef(platformConnectionKey(settings, auth));
+  const connectionKeyRef = useRef(createPlatformChatConnectionKey(settings, auth));
   const youtubeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectTimerKeyRef = useRef<string | null>(null);
@@ -352,7 +352,7 @@ export const usePlatformChatConnection = ({ settings, auth, onMessages, autoReco
   ]);
 
   useEffect(() => {
-    const nextKey = platformConnectionKey(settings, auth);
+    const nextKey = createPlatformChatConnectionKey(settings, auth);
     if (connectionKeyRef.current === nextKey) {
       return;
     }
@@ -388,15 +388,26 @@ const isCurrentConnection = (
   connectionId: number
 ): boolean => activeRef.current && connectionIdRef.current === connectionId;
 
-const platformConnectionKey = (settings: PlatformChatSettings, auth: PlatformChatAuthSession): string => {
+export const createPlatformChatConnectionKey = (settings: PlatformChatSettings, auth: PlatformChatAuthSession): string => {
   const normalizedAuth = normalizePlatformChatAuthSession(auth);
   return [
     settings.enabled ? "1" : "0",
     settings.platform,
     settings.youtubeLiveChatId,
     settings.twitchChannel,
-    normalizedAuth.youtubeAccessToken,
-    normalizedAuth.twitchOauthToken,
+    authTokenFingerprint(normalizedAuth.youtubeAccessToken),
+    authTokenFingerprint(normalizedAuth.twitchOauthToken),
     normalizedAuth.twitchLogin
   ].join("\u001f");
+};
+
+const authTokenFingerprint = (token: string): string => (token ? `token-${hashString(token)}` : "none");
+
+const hashString = (value: string): string => {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
 };
