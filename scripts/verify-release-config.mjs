@@ -565,6 +565,8 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScript, "rtmpPublishUrlPattern");
     expectIncludes(files.sensitiveTextDomain, "twitchIrcOauthPattern");
     expectIncludes(files.sensitiveTextDomain, "rtmpPublishUrlPattern");
+    expectIncludes(files.sensitiveTextDomain, "sensitiveStructuredHeaderPattern");
+    expectIncludes(files.sensitiveTextDomainTest, "redacts structured credential headers in JSON objects and bracket assignments");
     expectIncludes(files.sensitiveTextDomainTest, "redacts Twitch IRC oauth commands and RTMP publish URL stream keys");
   }),
   check("Quick text preset actions are locked for Web and React Native release builds", () => {

@@ -135,6 +135,21 @@ describe("sensitive text redaction", () => {
     expect(redacted).not.toContain("oauth123");
   });
 
+  it("redacts structured credential headers in JSON objects and bracket assignments", () => {
+    const text =
+      '{"X-API-Key":"alpha-alpha-alpha-1234","Authorization":"Bearer bravo-bravo-bravo-1234"} ' +
+      'headers["Client-Secret"] = "charlie-charlie-1234";';
+
+    const redacted = redactSensitiveText(text);
+
+    expect(redacted).toContain('"X-API-Key":"[redacted]"');
+    expect(redacted).toContain('"Authorization":"[redacted]"');
+    expect(redacted).toContain('headers["Client-Secret"] = "[redacted]"');
+    expect(redacted).not.toContain("alpha-alpha-alpha-1234");
+    expect(redacted).not.toContain("bravo-bravo-bravo-1234");
+    expect(redacted).not.toContain("charlie-charlie-1234");
+  });
+
   it("redacts Twitch IRC oauth commands and RTMP publish URL stream keys", () => {
     const text =
       "PASS oauth:twitch-oauth-secret-1234 " +
