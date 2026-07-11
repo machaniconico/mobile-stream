@@ -345,6 +345,8 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "chat-overlay-evidence-failed");
     expectIncludes(files.commercialReleaseGateDomain, "liveCaptionFinalCueCount");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks contradictory passing live-caption evidence without final cue proof");
+    expectIncludes(files.commercialReleaseGateDomain, "platformPublishingFreshnessAgeMinutes");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks contradictory fresh platform publishing evidence outside the release window");
     expectIncludes(files.commercialReleaseGateDomain, "android-publisher-mode-not-commercial");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 55");

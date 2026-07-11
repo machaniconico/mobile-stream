@@ -811,6 +811,30 @@ describe("commercial release gate", () => {
     expect(formatCommercialReleaseGate(gate)).toContain("Refresh YouTube status within 10 minutes");
   });
 
+  it("blocks contradictory fresh platform publishing evidence outside the release window", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          platformPublishingFreshnessStatus: "fresh",
+          platformPublishingFreshnessAgeMinutes: 11,
+          platformPublishingFreshnessSummary: "YouTube dashboard status was checked 11 minutes ago.",
+          platformPublishingFreshnessRecommendation: "Refresh YouTube status within 10 minutes of release approval."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "platform-publishing-freshness",
+        severity: "fail",
+        detail: "YouTube dashboard status was checked 11 minutes ago."
+      })
+    );
+  });
+
   it("blocks stale retained validation runs", () => {
     const bundle = supportBundle({
       summary: {

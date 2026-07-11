@@ -520,7 +520,27 @@ const createLiveCaptionEvidenceIssue = (bundle: SupportBundle): CommercialReleas
 
 const createPlatformPublishingFreshnessIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
   const status = bundle.summary.platformPublishingFreshnessStatus;
-  if (status === "fresh" || status === "not-applicable") {
+  if (status === "fresh") {
+    const ageMinutes = bundle.summary.platformPublishingFreshnessAgeMinutes;
+    if (
+      typeof ageMinutes === "number" &&
+      Number.isInteger(ageMinutes) &&
+      ageMinutes >= 0 &&
+      ageMinutes <= platformPublishingDashboardMaxAgeMinutes
+    ) {
+      return null;
+    }
+    return failIssue(
+      "platform-publishing-freshness",
+      "Platform publishing freshness",
+      bundle.summary.platformPublishingFreshnessSummary ||
+        `Platform publishing freshness is marked fresh without a valid <=${platformPublishingDashboardMaxAgeMinutes}m age.`,
+      bundle.summary.platformPublishingFreshnessRecommendation ||
+        "Refresh YouTube Live or Twitch publishing status immediately before commercial release approval."
+    );
+  }
+
+  if (status === "not-applicable") {
     return null;
   }
 
