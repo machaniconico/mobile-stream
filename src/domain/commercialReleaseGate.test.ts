@@ -1172,6 +1172,35 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks monitor-hold summary claims when bitrate or FPS telemetry is missing", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              monitorHoldAverageBitrateKbps: 0,
+              monitorHoldMinimumBitrateKbps: 0,
+              monitorHoldAverageFps: 0,
+              monitorHoldMinimumFps: 0
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS stable monitor-hold proof")
+      })
+    );
+  });
+
   it("blocks avatar-motion summary claims when the manifest lacks fresh tracking runtime proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({

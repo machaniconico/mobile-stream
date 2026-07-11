@@ -1198,7 +1198,14 @@ const isManifestMonitorHoldPass = (run: ValidationEvidenceManifestRun | undefine
   isAtLeastFiniteNumber(run?.monitorHoldSampleCount, minimumValidationMonitorSampleCount) &&
   isAtLeastFiniteNumber(run?.monitorHoldDurationSeconds, minimumValidationMonitorDurationSeconds) &&
   run?.monitorHoldStability === "stable" &&
+  hasManifestMonitorHoldMediaTelemetryProof(run) &&
   hasZeroManifestMonitorHoldInstability(run);
+
+const hasManifestMonitorHoldMediaTelemetryProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  isPositiveFiniteNumber(run?.monitorHoldAverageBitrateKbps) &&
+  isPositiveFiniteNumber(run?.monitorHoldMinimumBitrateKbps) &&
+  isPositiveFiniteNumber(run?.monitorHoldAverageFps) &&
+  isPositiveFiniteNumber(run?.monitorHoldMinimumFps);
 
 const hasZeroManifestMonitorHoldInstability = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isZeroFiniteNumber(run?.monitorHoldDroppedFrameIncrease) && isZeroFiniteNumber(run?.monitorHoldObservedReconnectAttempts);

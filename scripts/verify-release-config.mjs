@@ -392,6 +392,8 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "monitorHoldSampleCount");
     expectIncludes(files.streamValidationEvidenceDomain, "monitorHoldDroppedFrameIncrease");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestMonitorHoldPass");
+    expectIncludes(files.commercialReleaseGateDomain, "hasManifestMonitorHoldMediaTelemetryProof");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks monitor-hold summary claims when bitrate or FPS telemetry is missing");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-monitor-hold");
     expectIncludes(files.streamValidationEvidenceDomain, "audioNativeMonitorWrittenFrames");
     expectIncludes(files.streamValidationEvidenceDomain, "audioNativeMonitorRouteMatchesOutput");
