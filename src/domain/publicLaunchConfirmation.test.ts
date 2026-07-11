@@ -113,4 +113,44 @@ describe("publicLaunchConfirmation", () => {
     );
     expect(formatPublicLaunchConfirmationCancelMessage(confirmation!)).not.toContain("secret-stream-key");
   });
+
+  it("redacts sensitive values from confirmation prompts and retained audit evidence", () => {
+    const profile = createDefaultStudioProfile();
+    profile.destination.platform = "youtube-live";
+    profile.destination.name =
+      "YouTube mobilelivecaster://oauth/youtube?code=oauthcodeabcdefghijklmnopqrstuvwxyz&state=stateabcdefghijklmnopqrstuvwxyz";
+    profile.platformPublishing.privacyStatus = "public";
+    profile.platformPublishing.youtubeBroadcastId = "broadcast-id";
+    profile.platformPublishing.youtubeStreamId = "stream-id";
+    profile.platformPublishing.youtubeBroadcastPrivacyStatus = "public";
+    profile.platformPublishing.youtubeBroadcastStatus =
+      "ready https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyzABCDE";
+
+    const confirmation = createPublicLaunchConfirmation(profile, {
+      canStart: true,
+      status: "ready",
+      passCount: 7,
+      warningCount: 0,
+      failCount: 0,
+      summary: "Checked Authorization: Bearer abcdefghijklmnopqrstuvwxyz1234567890."
+    });
+
+    expect(confirmation?.message).toContain("[oauth callback redacted]");
+    expect(confirmation?.message).toContain("[discord webhook redacted]");
+    expect(confirmation?.message).toContain("Bearer [redacted]");
+    expect(confirmation?.message).not.toContain("oauthcodeabcdefghijklmnopqrstuvwxyz");
+    expect(confirmation?.message).not.toContain("abcdefghijklmnopqrstuvwxyzABCDE");
+    expect(confirmation?.message).not.toContain("abcdefghijklmnopqrstuvwxyz1234567890");
+
+    const acceptedMessage = formatPublicLaunchConfirmationEventMessage(confirmation!);
+
+    expect(acceptedMessage).toContain("Target:");
+    expect(acceptedMessage).toContain("Checklist:");
+    expect(acceptedMessage).toContain("[oauth callback redacted]");
+    expect(acceptedMessage).toContain("[discord webhook redacted]");
+    expect(acceptedMessage).toContain("Bearer [redacted]");
+    expect(acceptedMessage).not.toContain("oauthcodeabcdefghijklmnopqrstuvwxyz");
+    expect(acceptedMessage).not.toContain("abcdefghijklmnopqrstuvwxyzABCDE");
+    expect(acceptedMessage).not.toContain("abcdefghijklmnopqrstuvwxyz1234567890");
+  });
 });

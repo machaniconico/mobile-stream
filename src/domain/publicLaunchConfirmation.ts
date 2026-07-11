@@ -1,6 +1,7 @@
 import type { PublicLaunchChecklist } from "./publicLaunchChecklist";
 import { shouldApplyPublicLaunchStartLock } from "./publicLaunchChecklist";
 import type { StudioProfile } from "./profiles";
+import { redactSensitiveText } from "./sensitiveText";
 
 export interface PublicLaunchConfirmation {
   required: true;
@@ -97,7 +98,7 @@ const createChecklistSummary = (checklist: PublicLaunchConfirmationChecklist): s
   return `${countSummary}${summary}`;
 };
 
-const normalizeAuditText = (value: string): string => value.trim().replace(/\s+/g, " ");
+const normalizeAuditText = (value: string): string => redactSensitiveText(value.trim().replace(/\s+/g, " "));
 
 const createAuditEvidenceFragment = (label: string, value: string | undefined): string =>
-  value ? `${label}: ${value.replace(/[.。]+$/u, "")}.` : "";
+  value ? `${label}: ${normalizeAuditText(value).replace(/[.。]+$/u, "")}.` : "";
