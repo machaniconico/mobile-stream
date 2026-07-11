@@ -397,6 +397,8 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "isManifestMonitorHoldPass");
     expectIncludes(files.commercialReleaseGateDomain, "hasManifestMonitorHoldMediaTelemetryProof");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks monitor-hold summary claims when bitrate or FPS telemetry is missing");
+    expectIncludes(files.commercialReleaseBundleScript, "hasMonitorHoldMediaTelemetryProof");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks monitor-hold claims when retained manifests lack bitrate or FPS telemetry proof");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-monitor-hold");
     expectIncludes(files.streamValidationEvidenceDomain, "audioNativeMonitorWrittenFrames");
     expectIncludes(files.streamValidationEvidenceDomain, "audioNativeMonitorRouteMatchesOutput");

@@ -993,6 +993,27 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("stable duration, sample count");
   });
 
+  it("blocks monitor-hold claims when retained manifests lack bitrate or FPS telemetry proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            monitorHoldAverageBitrateKbps: 0,
+            monitorHoldMinimumBitrateKbps: 0,
+            monitorHoldAverageFps: 0,
+            monitorHoldMinimumFps: 0
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("positive bitrate/FPS telemetry");
+  });
+
   it("uses the latest eligible platform row for monitor-hold manifest proof", () => {
     writeBundle({
       summary: {

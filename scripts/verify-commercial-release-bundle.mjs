@@ -831,6 +831,7 @@ function validationManifestIssue(bundle) {
           isAtLeastNumber(run?.monitorHoldSampleCount, minimumValidationMonitorSampleCount) &&
           isAtLeastNumber(run?.monitorHoldDurationSeconds, minimumValidationMonitorDurationSeconds) &&
           run?.monitorHoldStability === "stable" &&
+          hasMonitorHoldMediaTelemetryProof(run) &&
           isZeroNumber(run?.monitorHoldDroppedFrameIncrease) &&
           isZeroNumber(run?.monitorHoldObservedReconnectAttempts)
       )
@@ -843,8 +844,8 @@ function validationManifestIssue(bundle) {
     return fail(
       "validation-evidence-manifest-monitor-hold",
       "Validation evidence manifest",
-      "The manifest does not back claimed monitor-hold evidence with stable duration, sample count, zero dropped frames, and zero reconnects.",
-      "Export a support bundle v55 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry."
+      "The manifest does not back claimed monitor-hold evidence with stable duration, sample count, positive bitrate/FPS telemetry, zero dropped frames, and zero reconnects.",
+      "Export a support bundle v55 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry including bitrate/FPS proof."
     );
   }
   const eligibleAudioPlatforms = new Set(
@@ -1309,6 +1310,15 @@ function hasNativeRuntimeVideoFrameIntervalProof(run) {
     isPositiveNumber(run?.nativeRuntimeVideoFrameIntervalAverageMs) &&
     isPositiveNumber(run?.nativeRuntimeVideoFrameIntervalMaxMs) &&
     isNonNegativeNumber(run?.nativeRuntimeVideoFrameIntervalJitterMs)
+  );
+}
+
+function hasMonitorHoldMediaTelemetryProof(run) {
+  return (
+    isPositiveNumber(run?.monitorHoldAverageBitrateKbps) &&
+    isPositiveNumber(run?.monitorHoldMinimumBitrateKbps) &&
+    isPositiveNumber(run?.monitorHoldAverageFps) &&
+    isPositiveNumber(run?.monitorHoldMinimumFps)
   );
 }
 
