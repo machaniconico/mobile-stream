@@ -148,6 +148,55 @@ describe("stream session log", () => {
     });
   });
 
+  it("redacts sensitive values from retained session event text", () => {
+    const oauthUrl =
+      "mobilelivecaster://oauth/youtube?code=oauthcodeabcdefghijklmnopqrstuvwxyz&state=stateabcdefghijklmnopqrstuvwxyz";
+    const bearer = "Authorization: Bearer abcdefghijklmnopqrstuvwxyz1234567890";
+    const webhook = "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyzABCDE";
+    const streamKey = "plain-session-stream-key-12345";
+    const events = [
+      createStreamStatusEvent(null, snapshot("failed", { message: `Failed callback ${oauthUrl}` }), new Date("2026-06-23T00:00:00.000Z"))!,
+      createStreamOperationEvent("start", "failed", `Start failed: ${bearer}`, new Date("2026-06-23T00:00:01.000Z")),
+      createStreamChatEvent("auto-connect-skipped", `Chat skipped after ${oauthUrl}`, "warn", new Date("2026-06-23T00:00:02.000Z")),
+      createStreamPlatformApiOperationEvent(
+        {
+          label: `OAuth callback ${webhook}`,
+          phase: "failed",
+          message: `Callback failed ${oauthUrl}`,
+          retryDelayLabel: `30s ${bearer}`
+        },
+        new Date("2026-06-23T00:00:03.000Z")
+      ),
+      createStreamAnnouncementAutoPostEvent(
+        {
+          phase: "failed",
+          message: `Announcement webhook failed ${webhook}`
+        },
+        new Date("2026-06-23T00:00:04.000Z")
+      )
+    ];
+    const appended = appendStreamSessionEvent([], {
+      id: `raw-event:${webhook}:${streamKey}`,
+      at: "2026-06-23T00:00:05.000Z",
+      kind: "operation",
+      severity: "warn",
+      title: `Raw title ${webhook} ${streamKey}`,
+      message: `Raw message ${oauthUrl} ${bearer} ${streamKey}`
+    }, { redactionSecrets: [streamKey] });
+    const retainedText = [...events, ...appended].flatMap((event) => [event.id, event.title, event.message]).join(" ");
+
+    expect(retainedText).toContain("[oauth callback redacted]");
+    expect(retainedText).toContain("Bearer [redacted]");
+    expect(retainedText).toContain("[discord webhook redacted]");
+    expect(retainedText).not.toContain("oauthcodeabcdefghijklmnopqrstuvwxyz");
+    expect(retainedText).not.toContain("abcdefghijklmnopqrstuvwxyz1234567890");
+    expect(retainedText).not.toContain("abcdefghijklmnopqrstuvwxyzABCDE");
+    expect(retainedText).not.toContain(streamKey);
+    expect(events[3].title).toContain("[discord webhook redacted]");
+    expect(appended[0].id).toContain("[discord webhook redacted]");
+    expect(appended[0].title).toContain("[discord webhook redacted]");
+  });
+
   it("creates privacy shield safety events", () => {
     const armed = createStreamSafetyEvent(
       "privacy-shield-armed",

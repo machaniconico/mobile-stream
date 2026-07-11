@@ -12,7 +12,12 @@ export interface StreamSessionLog {
   recordEvent(event: StreamSessionEvent | null): void;
 }
 
-export const useStreamSessionLog = (snapshot: NativeEngineSnapshot): StreamSessionLog => {
+const emptyRedactionSecrets: string[] = [];
+
+export const useStreamSessionLog = (
+  snapshot: NativeEngineSnapshot,
+  redactionSecrets: string[] = emptyRedactionSecrets
+): StreamSessionLog => {
   const [events, setEvents] = useState<StreamSessionEvent[]>([]);
   const previousSnapshot = useRef<StreamSessionSnapshot | null>(null);
 
@@ -20,8 +25,8 @@ export const useStreamSessionLog = (snapshot: NativeEngineSnapshot): StreamSessi
     if (!event) {
       return;
     }
-    setEvents((current) => appendStreamSessionEvent(current, event));
-  }, []);
+    setEvents((current) => appendStreamSessionEvent(current, event, { redactionSecrets }));
+  }, [redactionSecrets]);
 
   useEffect(() => {
     const event = createStreamStatusEvent(previousSnapshot.current, snapshot);

@@ -288,7 +288,11 @@ export const App = () => {
   const [streamValidationRuns, setStreamValidationRuns] = useState<StreamValidationRun[]>(() =>
     normalizeStreamValidationRuns(initialStreamValidationRuns)
   );
-  const { events: streamSessionEvents, recordEvent: recordStreamSessionEvent } = useStreamSessionLog(snapshot);
+  const streamSessionRedactionSecrets = useMemo(() => [profile.destination.streamKey], [profile.destination.streamKey]);
+  const { events: streamSessionEvents, recordEvent: recordStreamSessionEvent } = useStreamSessionLog(
+    snapshot,
+    streamSessionRedactionSecrets
+  );
   const recordAudioLevelSample = useCallback((level: number, source: StreamAudioLevelSource) => {
     audioLevelSamplesRef.current = appendStreamAudioLevelSample(
       audioLevelSamplesRef.current,

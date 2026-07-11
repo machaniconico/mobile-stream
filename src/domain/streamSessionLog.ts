@@ -25,6 +25,11 @@ export interface StreamSessionEvent {
   message: string;
 }
 
+export interface StreamSessionAppendOptions {
+  maxEvents?: number;
+  redactionSecrets?: string[];
+}
+
 export interface StreamSessionSnapshot {
   state: {
     status: StreamStatus;
@@ -74,8 +79,11 @@ export const maxStreamSessionEvents = 50;
 export const appendStreamSessionEvent = (
   events: StreamSessionEvent[],
   event: StreamSessionEvent,
-  maxEvents = maxStreamSessionEvents
-): StreamSessionEvent[] => [...events, event].slice(-Math.max(1, maxEvents));
+  options: number | StreamSessionAppendOptions = {}
+): StreamSessionEvent[] => {
+  const { maxEvents, redactionSecrets } = normalizeAppendOptions(options);
+  return [...events, sanitizeStreamSessionEvent(event, redactionSecrets)].slice(-Math.max(1, maxEvents));
+};
 
 export const createStreamStatusEvent = (
   previous: StreamSessionSnapshot | null,
@@ -93,7 +101,7 @@ export const createStreamStatusEvent = (
     kind: "status",
     severity: statusSeverity(next.state.status),
     title: `Stream ${next.state.status}`,
-    message: statusMessage(previousStatus, next.state.status, next.health.message)
+    message: sanitizeEventText(statusMessage(previousStatus, next.state.status, next.health.message))
   };
 };
 
@@ -108,7 +116,7 @@ export const createStreamOperationEvent = (
   kind: "operation",
   severity: phase === "failed" ? "fail" : "info",
   title: `${operationLabel(action)} ${phase}`,
-  message
+  message: sanitizeEventText(message)
 });
 
 export const createStreamRecoveryEvent = (
@@ -129,7 +137,7 @@ export const createStreamRecoveryEvent = (
     kind: "recovery",
     severity: decision.command === "stop" ? "fail" : "warn",
     title: recoveryTitle(decision.command),
-    message: recoveryMessage(decision)
+    message: sanitizeEventText(recoveryMessage(decision))
   };
 };
 
@@ -146,8 +154,8 @@ export const createStreamQualityAutomationEvent = (
     at: now.toISOString(),
     kind: "quality",
     severity: decision.severity,
-    title: decision.title,
-    message: `${decision.summary} ${decision.action}${decision.reason ? ` Reason: ${decision.reason}` : ""}`
+    title: sanitizeEventText(decision.title),
+    message: sanitizeEventText(`${decision.summary} ${decision.action}${decision.reason ? ` Reason: ${decision.reason}` : ""}`)
   };
 };
 
@@ -162,7 +170,7 @@ export const createStreamChatEvent = (
   kind: "chat",
   severity,
   title: chatEventTitle(phase),
-  message
+  message: sanitizeEventText(message)
 });
 
 export const createStreamChatReconnectEvent = (
@@ -216,9 +224,9 @@ export const createStreamPlatformApiOperationEvent = (
   input: StreamPlatformApiOperationEventInput,
   now: Date = new Date()
 ): StreamSessionEvent => {
-  const label = sanitizeSingleLine(input.label) || "Platform API operation";
-  const message = sanitizeSingleLine(input.message ?? "");
-  const retryDelay = sanitizeSingleLine(input.retryDelayLabel ?? "");
+  const label = sanitizeEventText(input.label) || "Platform API operation";
+  const message = sanitizeEventText(input.message ?? "");
+  const retryDelay = sanitizeEventText(input.retryDelayLabel ?? "");
   return {
     id: createEventId(now, "platform-api", input.phase, label),
     at: now.toISOString(),
@@ -241,7 +249,7 @@ export const createStreamAnnouncementAutoPostEvent = (
   kind: "announcement",
   severity: input.phase === "failed" ? "warn" : "info",
   title: input.phase === "posted" ? "Discord announcement posted" : "Discord announcement failed",
-  message: sanitizeSingleLine(input.message)
+  message: sanitizeEventText(input.message)
 });
 
 export const createStreamSafetyEvent = (
@@ -254,10 +262,39 @@ export const createStreamSafetyEvent = (
   kind: "safety",
   severity: safetyEventSeverity(phase),
   title: safetyEventTitle(phase),
-  message: sanitizeSafetyEventMessage(message)
+  message: sanitizeEventText(message)
 });
 
-const sanitizeSafetyEventMessage = (message: string): string => sanitizeSingleLine(redactSensitiveText(message));
+const sanitizeStreamSessionEvent = (event: StreamSessionEvent, redactionSecrets: string[] = []): StreamSessionEvent => ({
+  ...event,
+  id: sanitizeEventText(event.id, redactionSecrets),
+  title: sanitizeEventText(event.title, redactionSecrets),
+  message: sanitizeEventText(event.message, redactionSecrets)
+});
+
+const normalizeAppendOptions = (options: number | StreamSessionAppendOptions): Required<StreamSessionAppendOptions> => {
+  if (typeof options === "number") {
+    return {
+      maxEvents: options,
+      redactionSecrets: []
+    };
+  }
+  return {
+    maxEvents: options.maxEvents ?? maxStreamSessionEvents,
+    redactionSecrets: compactRedactionSecrets(options.redactionSecrets ?? [])
+  };
+};
+
+const sanitizeEventText = (value: string, redactionSecrets: string[] = []): string =>
+  sanitizeSingleLine(redactKnownSecrets(redactSensitiveText(value), redactionSecrets));
+
+const redactKnownSecrets = (value: string, redactionSecrets: string[]): string =>
+  redactionSecrets.reduce((current, secret) => current.replace(new RegExp(escapeRegExp(secret), "g"), "[redacted]"), value);
+
+const compactRedactionSecrets = (secrets: string[]): string[] =>
+  Array.from(new Set(secrets.map((secret) => secret.trim()).filter(Boolean))).sort((a, b) => b.length - a.length);
+
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const safetyEventSeverity = (phase: StreamSafetyEventPhase): StreamSessionEventSeverity => {
   if (phase === "privacy-shield-failed") {
@@ -368,6 +405,6 @@ const recoveryMessage = (decision: StreamRecoveryAutomationDecision): string => 
 };
 
 const createEventId = (now: Date, ...parts: Array<string | number>): string =>
-  [now.toISOString(), ...parts].join(":");
+  sanitizeEventText([now.toISOString(), ...parts].join(":"));
 
 const sanitizeSingleLine = (value: string): string => value.replace(/\s+/g, " ").trim();
