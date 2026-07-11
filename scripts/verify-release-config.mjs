@@ -39,6 +39,7 @@ const files = {
   browserUiRequiredTextScript: read("scripts/browser-ui-required-text.mjs"),
   verifyUiScript: read("scripts/verify-ui.mjs"),
   commercialReleaseBundleScript: read("scripts/verify-commercial-release-bundle.mjs"),
+  commercialReleaseBundleScriptTest: read("scripts/verify-commercial-release-bundle.test.mjs"),
   releaseUrlPolicyScript: read("scripts/release-url-policy.mjs"),
   iosReleaseConfigScript: read("scripts/ios-release-config.mjs"),
   createIosExportOptionsScript: read("scripts/create-ios-export-options.mjs"),
@@ -353,6 +354,8 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks first-party platform dashboard manifest rows marked not-applicable");
     expectIncludes(files.commercialReleaseGateDomain, "android-publisher-mode-not-commercial");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
+    expectIncludes(files.commercialReleaseBundleScript, "isFirstPartyManifestPublishingDestination");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks first-party platform dashboard manifests marked not-applicable");
     expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 55");
     expectIncludes(files.commercialReleaseBundleScript, "--allow-warnings is not supported for commercial release approval");
     expectIncludes(files.commercialReleaseBundleScript, "warningCount === 0");

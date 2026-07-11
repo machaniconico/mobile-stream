@@ -1541,6 +1541,26 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("fresh checked-at proof");
   });
 
+  it("blocks first-party platform dashboard manifests marked not-applicable", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            platformPublishingFreshnessStatus: "not-applicable",
+            platformPublishingFreshnessAgeMinutes: null,
+            platformPublishingCheckedAt: ""
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("fresh checked-at proof");
+  });
+
   it("blocks same-run platform ingest claims when retained manifests lack native send proof", () => {
     writeBundle({
       summary: {

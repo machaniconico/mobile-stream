@@ -1221,7 +1221,7 @@ function youtubePublishingProofRequirements(bundle) {
 
 function isManifestPlatformPublishingPass(run, expectedYouTubePublishing = emptyYouTubePublishingProofRequirements) {
   if (run?.platformPublishingFreshnessStatus === "not-applicable") {
-    return true;
+    return !isFirstPartyManifestPublishingDestination(run);
   }
   return (
     run?.platformPublishingStatus === "pass" &&
@@ -1534,6 +1534,14 @@ function hasReadyVrmMotionProof(run) {
 function isManifestPlatformIngestProofRequired(run) {
   const target = normalizeTargetPlatformLabel(run?.targetPlatform);
   return target === "youtube live" || target.includes("youtube") || target === "twitch" || target.includes("twitch");
+}
+
+function isFirstPartyManifestPublishingDestination(run) {
+  return (
+    run?.platformPublishingPlatform === "youtube-live" ||
+    run?.platformPublishingPlatform === "twitch" ||
+    isManifestPlatformIngestProofRequired(run)
+  );
 }
 
 function isManifestPlatformIdentityPass(run, expectedYouTubePublishing = emptyYouTubePublishingProofRequirements) {
