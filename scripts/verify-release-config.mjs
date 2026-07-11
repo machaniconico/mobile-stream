@@ -550,8 +550,12 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "endsWith(\".jsbundle\")");
     expectIncludes(files.commercialReleaseGateDomain, "api_key");
     expectIncludes(files.commercialReleaseGateDomain, "sensitiveHeaderPattern");
+    expectIncludes(files.commercialReleaseGateDomain, "twitchIrcOauthPattern");
+    expectIncludes(files.commercialReleaseGateDomain, "rtmpPublishUrlPattern");
     expectIncludes(files.commercialReleaseBundleScript, "api_key");
     expectIncludes(files.commercialReleaseBundleScript, "sensitiveHeaderPattern");
+    expectIncludes(files.commercialReleaseBundleScript, "twitchIrcOauthPattern");
+    expectIncludes(files.commercialReleaseBundleScript, "rtmpPublishUrlPattern");
   }),
   check("Quick text preset actions are locked for Web and React Native release builds", () => {
     expectIncludes(files.sceneDomain, 'export type QuickTextOverlayPresetAction = "show" | "queue" | "pin";');

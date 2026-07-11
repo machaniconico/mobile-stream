@@ -396,6 +396,23 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("unredacted sensitive value");
   });
 
+  it("blocks unredacted Twitch IRC oauth tokens and RTMP publish URLs", () => {
+    writeBundle({
+      diagnostics: {
+        ingest: {
+          twitchIrc: "PASS oauth:token-token-1234",
+          publishUrl: "rtmps://a.rtmps.youtube.com/live2/abcd-efgh-ijkl-mnop-qrst"
+        }
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Support bundle privacy");
+    expect(result.stdout).toContain("unredacted sensitive value");
+  });
+
   it("blocks unredacted contact details in release support bundles", () => {
     writeBundle({
       diagnostics: {

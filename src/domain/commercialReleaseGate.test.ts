@@ -2536,6 +2536,35 @@ describe("commercial release gate", () => {
     expect(gate.issues.map((issue) => issue.code)).toContain("support-bundle-sensitive-data");
   });
 
+  it("blocks support bundles that contain Twitch IRC oauth tokens or RTMP publish URLs", () => {
+    const bundle = supportBundle();
+    const mutableBundle = bundle as unknown as {
+      diagnostics: {
+        ingest: {
+          twitchIrc: string;
+          publishUrl: string;
+        };
+      };
+    };
+    mutableBundle.diagnostics = {
+      ingest: {
+        twitchIrc: "PASS oauth:token-token-1234",
+        publishUrl: "rtmps://a.rtmps.youtube.com/live2/abcd-efgh-ijkl-mnop-qrst"
+      }
+    };
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "support-bundle-sensitive-data",
+        detail: expect.stringContaining("unredacted token pattern")
+      })
+    );
+  });
+
   it("blocks support bundles that contain unredacted contact details", () => {
     const bundle = supportBundle();
     const mutableBundle = bundle as unknown as {
