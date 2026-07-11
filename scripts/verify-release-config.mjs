@@ -491,6 +491,8 @@ const checks = [
     expectIncludes(files.storeSubmissionScript, "OAuth callback URL");
     expectIncludes(files.storeSubmissionScript, "Discord webhook URL");
     expectIncludes(files.storeSubmissionScript, "Google API key");
+    expectIncludes(files.storeSubmissionScript, "OpenAI API key");
+    expectIncludes(files.storeSubmissionScript, "GitHub token");
     expectIncludes(files.storeSubmissionScript, "JWT token");
     expectIncludes(files.storeSubmissionScript, "private key block");
     expectIncludes(files.storeSubmissionScript, "x-api-key");

@@ -168,6 +168,20 @@ describe("store submission checklist verifier", () => {
     expect(result.stderr).toContain("Store submission metadata contains possible JWT token");
   });
 
+  it("rejects OpenAI API keys in store metadata", () => {
+    const openAiKey = ["sk", "-proj-", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"].join("");
+    writeStoreSubmissionFiles({
+      playStore: {
+        dataSafetyNotes: `No sale of data. Remove ${openAiKey} before review.`
+      }
+    });
+
+    const result = runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Store submission metadata contains possible OpenAI API key");
+  });
+
   it("rejects personal contact details and protocol-less links in public store metadata copy", () => {
     writeStoreSubmissionFiles({
       appStore: {
@@ -305,6 +319,19 @@ describe("store submission checklist verifier", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`Store submission review document metadata mismatch for ${reviewDocument}.`);
     expect(result.stderr).toContain("Store submission metadata contains possible private key block");
+  });
+
+  it("rejects GitHub tokens added to review documents", () => {
+    writeStoreSubmissionFiles();
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    const githubToken = ["gh", "p_", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000"].join("");
+    writeFileSync(reviewDocument, `Updated review: remove ${githubToken} before submission.`);
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission review document metadata mismatch for ${reviewDocument}.`);
+    expect(result.stderr).toContain("Store submission metadata contains possible GitHub token");
   });
 
   it("rejects verification when git commit provenance is missing", () => {

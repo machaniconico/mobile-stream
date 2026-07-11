@@ -87,6 +87,14 @@ const sensitivePatterns = [
     pattern: /\bAIza[0-9A-Za-z_-]{30,}\b/
   },
   {
+    label: "OpenAI API key",
+    pattern: /\bsk-(?:proj-)?[A-Za-z0-9_-]{32,}\b/
+  },
+  {
+    label: "GitHub token",
+    pattern: /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{30,}\b/
+  },
+  {
     label: "JWT token",
     pattern: /\beyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\b/
   },
