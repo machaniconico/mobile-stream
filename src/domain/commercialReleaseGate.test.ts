@@ -2348,6 +2348,34 @@ describe("commercial release gate", () => {
     expect(gate.issues.map((issue) => issue.code)).toContain("support-bundle-sensitive-data");
   });
 
+  it("blocks support bundles that contain unredacted credential-bearing OAuth or webhook URLs", () => {
+    const bundle = supportBundle();
+    const mutableBundle = bundle as unknown as {
+      diagnostics: {
+        oauth: {
+          callbackUrl: string;
+          authorizationUrl: string;
+          webhookUrl: string;
+        };
+      };
+    };
+    mutableBundle.diagnostics = {
+      oauth: {
+        callbackUrl: "mobilelivecaster://oauth/youtube?code=oauth-code-secret&state=oauth-state-secret",
+        authorizationUrl:
+          "https://accounts.google.com/o/oauth2/v2/auth?client_id=yt-client&redirect_uri=com.mobilelivecaster.app%3A%2Foauth%2Fyoutube&response_type=code&state=authorization-state-secret&code_challenge=pkce-challenge-secret&code_challenge_method=S256",
+        webhookUrl:
+          "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz.ABCDEFGHIJKLMNOPQRSTUVWXYZ_1234567890"
+      }
+    };
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues.map((issue) => issue.code)).toContain("support-bundle-sensitive-data");
+  });
+
   it("blocks support bundles that contain unredacted contact details", () => {
     const bundle = supportBundle();
     const mutableBundle = bundle as unknown as {
