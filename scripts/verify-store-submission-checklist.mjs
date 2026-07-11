@@ -67,6 +67,22 @@ const sensitivePatterns = [
       /(?:\b|["'])(?:Authorization|x-api-key|api-key|client-secret|stream-key|oauth-token|auth-token|bearer-token|access-token|refresh-token|id-token|device-code|user-code)(?:\b|["'])\s*\]?\s*[:=]\s*["'](?:(?:Bearer|OAuth)\s+)?[A-Za-z0-9._~+/=-]{12,}["']/i
   },
   {
+    label: "OAuth callback URL",
+    pattern: /\b(?:mobilelivecaster:\/\/oauth\/|com\.mobilelivecaster\.app:\/oauth\/)[^\s<>"']*[?#][^\s<>"']+/i
+  },
+  {
+    label: "OAuth authorization URL",
+    pattern: /\bhttps:\/\/(?:accounts\.google\.com\/o\/oauth2\/v2\/auth|id\.twitch\.tv\/oauth2\/authorize)\?[^\s<>"']+/i
+  },
+  {
+    label: "OAuth device activation URL",
+    pattern: /\bhttps:\/\/(?:www\.)?twitch\.tv\/activate\?[^\s<>"']+/i
+  },
+  {
+    label: "Discord webhook URL",
+    pattern: /\bhttps:\/\/(?:discord(?:app)?\.com)\/api\/webhooks\/\d{5,32}\/[A-Za-z0-9._-]{20,}/i
+  },
+  {
     label: "Twitch IRC oauth token",
     pattern: /\boauth:[A-Za-z0-9._~+/=-]{12,}/i
   },

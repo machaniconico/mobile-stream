@@ -133,6 +133,21 @@ describe("store submission checklist verifier", () => {
     expect(result.stderr).toContain("Store submission metadata contains possible structured credential header");
   });
 
+  it("rejects OAuth authorization URLs and Discord webhooks in store metadata", () => {
+    writeStoreSubmissionFiles({
+      playStore: {
+        dataSafetyNotes:
+          "No sale of data. Remove https://accounts.google.com/o/oauth2/v2/auth?client_id=yt-client&state=oauth-state-1234&code_challenge=pkce-challenge-1234 and https://discord.com/api/webhooks/123456789012345678/alpha-alpha-alpha-alpha-alpha before review."
+      }
+    });
+
+    const result = runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Store submission metadata contains possible OAuth authorization URL");
+    expect(result.stderr).toContain("Store submission metadata contains possible Discord webhook URL");
+  });
+
   it("rejects personal contact details and protocol-less links in public store metadata copy", () => {
     writeStoreSubmissionFiles({
       appStore: {
@@ -237,6 +252,22 @@ describe("store submission checklist verifier", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`Store submission review document metadata mismatch for ${reviewDocument}.`);
     expect(result.stderr).toContain("Store submission metadata contains possible structured credential header");
+  });
+
+  it("rejects OAuth callback and device activation URLs added to review documents", () => {
+    writeStoreSubmissionFiles();
+    expect(runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]).status).toBe(0);
+
+    writeFileSync(
+      reviewDocument,
+      "Updated review: mobilelivecaster://oauth/youtube?code=oauth-code-1234&state=oauth-state-1234 https://www.twitch.tv/activate?device-code=ABCD-EFGH."
+    );
+    const result = runVerifier(["--verify", "--allow-dirty", "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Store submission review document metadata mismatch for ${reviewDocument}.`);
+    expect(result.stderr).toContain("Store submission metadata contains possible OAuth callback URL");
+    expect(result.stderr).toContain("Store submission metadata contains possible OAuth device activation URL");
   });
 
   it("rejects verification when git commit provenance is missing", () => {

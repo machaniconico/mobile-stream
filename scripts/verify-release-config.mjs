@@ -487,6 +487,9 @@ const checks = [
     expectIncludes(files.storeSubmissionScript, "bearer_token");
     expectIncludes(files.storeSubmissionScript, "credential header");
     expectIncludes(files.storeSubmissionScript, "structured credential header");
+    expectIncludes(files.storeSubmissionScript, "OAuth authorization URL");
+    expectIncludes(files.storeSubmissionScript, "OAuth callback URL");
+    expectIncludes(files.storeSubmissionScript, "Discord webhook URL");
     expectIncludes(files.storeSubmissionScript, "x-api-key");
     expectIncludes(files.storeSubmissionScript, "reviewDocuments");
     expectIncludes(files.storeSubmissionScript, "requireRealDeviceScreenshots");
