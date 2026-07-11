@@ -104,6 +104,21 @@ describe("store submission checklist verifier", () => {
     expect(result.stderr).toContain("Store submission metadata contains possible OAuth/access/refresh/client secret");
   });
 
+  it("rejects unredacted credential headers and camelCase token fields in store metadata", () => {
+    writeStoreSubmissionFiles({
+      playStore: {
+        dataSafetyNotes:
+          "No sale of data. Remove authToken=token-token-1234, bearer_token=token-token-1234, and X-API-Key: token-token-1234 before review."
+      }
+    });
+
+    const result = runVerifier(["--write", "--allow-dirty", "--metadata", metadataPath, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Store submission metadata contains possible OAuth/access/refresh/client secret");
+    expect(result.stderr).toContain("Store submission metadata contains possible credential header");
+  });
+
   it("rejects personal contact details and protocol-less links in public store metadata copy", () => {
     writeStoreSubmissionFiles({
       appStore: {

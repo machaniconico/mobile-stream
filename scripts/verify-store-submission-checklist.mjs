@@ -53,7 +53,13 @@ const sensitivePatterns = [
   },
   {
     label: "OAuth/access/refresh/client secret",
-    pattern: /\b(?:access_token|refresh_token|id_token|oauth_token|client_secret|api_key|private_key|device_code|stream_key|password)\b\s*[:=]\s*["']?[A-Za-z0-9._~+/=:-]{8,}/i
+    pattern:
+      /\b(?:access_token|refresh_token|id_token|oauth_token|auth_token|bearer_token|client_secret|api_key|private_key|device_code|stream_key|accessToken|refreshToken|idToken|oauthToken|authToken|bearerToken|clientSecret|apiKey|privateKey|deviceCode|streamKey|password)\b\s*[:=]\s*["']?[A-Za-z0-9._~+/=:-]{8,}/i
+  },
+  {
+    label: "credential header",
+    pattern:
+      /\b(?:x-api-key|api-key|client-secret|stream-key|oauth-token|auth-token|bearer-token|access-token|refresh-token|id-token|device-code|user-code)\b\s*:\s*["']?[A-Za-z0-9._~+/=:-]{8,}/i
   },
   {
     label: "Twitch IRC oauth token",
