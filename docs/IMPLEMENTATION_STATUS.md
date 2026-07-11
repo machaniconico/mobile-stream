@@ -86,7 +86,7 @@
 - Platform chat adapter model for YouTube LiveChatMessages responses and Twitch EventSub chat notifications, including privacy-safe connection failure messages, reconnect audit reasons, and fingerprinted in-memory connection identities that avoid duplicating raw OAuth tokens.
 - Platform chat adapter settings persisted with the shared studio profile on web and mobile.
 - OAuth chat authorization layer for YouTube PKCE authorization-code callbacks, Twitch implicit callbacks, and Twitch Device Code Flow, with tokens kept out of persisted profiles.
-- Secure mobile OAuth credential persistence through Keychain/Android Keystore-backed native storage.
+- Secure mobile OAuth credential persistence through Keychain/Android Keystore-backed native storage, with visible safe warnings if credential clearing cannot be persisted.
 - YouTube/Twitch OAuth refresh-token rotation and hourly Twitch token validation scheduling for mobile chat authorization, with bounded background retry scheduling for retryable secure-storage sync failures and `Retry-After`.
 - Web and React Native platform API operations use a visible shared single-flight guard to reject and UI-lock overlapping stream-key, publishing, broadcast lifecycle, OAuth exchange, and mobile secure-storage maintenance requests while showing the active operation label and retaining session audit events with safe retry guidance.
 - Platform-specific OAuth credential store for retaining YouTube and Twitch credentials at the same time, with legacy single-credential mobile storage migration.

@@ -536,6 +536,7 @@ export const MobileApp = () => {
       platformChatOAuthCredentialsRef.current = nextCredentials;
       return nextCredentials;
     });
+    let secureStoreUpdateFailed = false;
     if (platform) {
       setPlatformChatAuth((current) =>
         normalizePlatformChatAuthSession({
@@ -544,12 +545,24 @@ export const MobileApp = () => {
           twitchLogin: platform === "twitch" ? "" : current.twitchLogin
         })
       );
-      await saveSecureOAuthCredentials(nextCredentials).catch(() => undefined);
+      try {
+        await saveSecureOAuthCredentials(nextCredentials);
+      } catch {
+        secureStoreUpdateFailed = true;
+      }
     } else {
       setPlatformChatAuth(createDefaultPlatformChatAuthSession());
-      await clearSecureOAuthCredential().catch(() => undefined);
+      try {
+        await clearSecureOAuthCredential();
+      } catch {
+        secureStoreUpdateFailed = true;
+      }
     }
-    setPlatformChatOAuthStatus(status);
+    setPlatformChatOAuthStatus(
+      secureStoreUpdateFailed
+        ? `${status} Secure storage update failed; saved OAuth credentials may still exist on this device. Reconnect this platform or clear all OAuth credentials again before relying on this device.`
+        : status
+    );
   }, [clearPlatformChatOAuthSyncRetry]);
 
   const runPlatformApiOperation = useCallback(async <T,>(label: string, operation: () => Promise<T>): Promise<T> => {

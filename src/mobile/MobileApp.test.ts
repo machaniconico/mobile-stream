@@ -12,6 +12,17 @@ describe("MobileApp OAuth credential state", () => {
     expect(source).not.toContain("...platformChatOAuthCredentials,\n          [platform]: null");
   });
 
+  it("does not silently ignore secure-storage failures when clearing OAuth credentials", () => {
+    const source = readFileSync(new URL("./MobileApp.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("let secureStoreUpdateFailed = false;");
+    expect(source).toContain("secureStoreUpdateFailed = true;");
+    expect(source).toContain("saved OAuth credentials may still exist on this device");
+    expect(source).not.toContain("Secure storage update failed: ${");
+    expect(source).not.toContain("await saveSecureOAuthCredentials(nextCredentials).catch(() => undefined)");
+    expect(source).not.toContain("await clearSecureOAuthCredential().catch(() => undefined)");
+  });
+
   it("hooks Discord announcement autopost to native platform-visible live success signals", () => {
     const source = readFileSync(new URL("./MobileApp.tsx", import.meta.url), "utf8");
 

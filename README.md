@@ -76,7 +76,7 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - YouTube LiveChatMessages and Twitch EventSub chat payload adapters feeding the shared read-aloud queue.
 - Durable platform chat adapter settings through the shared profile store, with privacy-safe connection failure and reconnect audit reasons for YouTube/Twitch chat, and fingerprinted in-memory connection identities that avoid duplicating raw OAuth tokens.
 - OAuth chat authorization controls for YouTube PKCE authorization-code callbacks, Twitch implicit callbacks, and Twitch Device Code Flow, feeding YouTube live chat polling and Twitch IRC WebSocket ingestion.
-- Keychain/Android Keystore-backed mobile OAuth credential storage, with YouTube/Twitch refresh-token rotation and periodic Twitch token validation.
+- Keychain/Android Keystore-backed mobile OAuth credential storage, with YouTube/Twitch refresh-token rotation, periodic Twitch token validation, and visible safe warnings if secure-storage credential clearing cannot be persisted.
 - Mobile OAuth callback deep links for `mobilelivecaster://oauth/*` and `com.mobilelivecaster.app:/oauth/*`.
 - Mock Go Live, Stop, and Reconnect controls.
 - iOS ReplayKit Broadcast Upload Extension target and startup bridge.
