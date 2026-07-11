@@ -51,6 +51,27 @@ describe("sensitive text redaction", () => {
     expect(redacted).not.toContain("twitch-state-secret");
   });
 
+  it("redacts OAuth device-code values and activation URLs", () => {
+    const activationUrl = "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH";
+    const text =
+      `${activationUrl}. device_code=device-secret user_code=user-secret ` +
+      '{"deviceCode":"camel-device-secret","userCode":"camel-user-secret","verificationUriComplete":"https://www.twitch.tv/activate?device-code=IJKL-MNOP"}';
+
+    const redacted = redactSensitiveText(text);
+
+    expect(redacted).toContain("[oauth device activation redacted].");
+    expect(redacted).toContain("device_code=[redacted]");
+    expect(redacted).toContain("user_code=[redacted]");
+    expect(redacted).toContain('"deviceCode":"[redacted]"');
+    expect(redacted).toContain('"userCode":"[redacted]"');
+    expect(redacted).toContain('"verificationUriComplete":"[redacted]"');
+    expect(redacted).not.toContain("www.twitch.tv/activate");
+    expect(redacted).not.toContain("ABCD-EFGH");
+    expect(redacted).not.toContain("user-secret");
+    expect(redacted).not.toContain("camel-device-secret");
+    expect(redacted).not.toContain("camel-user-secret");
+  });
+
   it("redacts Discord webhook URLs as whole credential tokens", () => {
     const webhookUrl =
       "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz.ABCDEFGHIJKLMNOPQRSTUVWXYZ_1234567890";

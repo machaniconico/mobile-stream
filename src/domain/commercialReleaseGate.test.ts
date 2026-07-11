@@ -2323,6 +2323,31 @@ describe("commercial release gate", () => {
     expect(gate.issues.map((issue) => issue.code)).not.toContain("support-bundle-sensitive-data");
   });
 
+  it("blocks support bundles that contain unredacted OAuth device-code evidence", () => {
+    const bundle = supportBundle();
+    const mutableBundle = bundle as unknown as {
+      diagnostics: {
+        oauth: {
+          lastError: string;
+          payload: string;
+        };
+      };
+    };
+    mutableBundle.diagnostics = {
+      oauth: {
+        lastError: "Twitch device OAuth failed with user_code=device-user-secret",
+        payload:
+          '{"userCode":"camel-user-secret","verificationUriComplete":"https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH"}'
+      }
+    };
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues.map((issue) => issue.code)).toContain("support-bundle-sensitive-data");
+  });
+
   it("blocks support bundles that contain unredacted contact details", () => {
     const bundle = supportBundle();
     const mutableBundle = bundle as unknown as {

@@ -1480,6 +1480,9 @@ const sensitivePropertyNames = new Set([
   "idtoken",
   "codeverifier",
   "devicecode",
+  "usercode",
+  "verificationuri",
+  "verificationuricomplete",
   "clientsecret",
   "streamkey",
   "authorization",
@@ -1494,6 +1497,9 @@ const sensitivePropertySuffixes = [
   "idtoken",
   "codeverifier",
   "devicecode",
+  "usercode",
+  "verificationuri",
+  "verificationuricomplete",
   "clientsecret",
   "streamkey",
   "authorization",
@@ -1504,11 +1510,12 @@ const sensitivePropertySuffixes = [
   "secret"
 ];
 const sensitiveAssignmentPattern =
-  /\b([A-Za-z0-9_.-]*(?:access_token|refresh_token|id_token|code|code_verifier|device_code|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|clientSecret|streamKey|oauthToken|authToken|bearerToken|apiKey|secret))=([^&#\s"']+)/gi;
+  /\b([A-Za-z0-9_.-]*(?:access_token|refresh_token|id_token|code|code_verifier|device_code|user_code|verification_uri|verification_uri_complete|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|userCode|verificationUri|verificationUriComplete|clientSecret|streamKey|oauthToken|authToken|bearerToken|apiKey|secret))=([^&#\s"']+)/gi;
 const sensitiveJsonPattern =
-  /["']([A-Za-z0-9_.-]*(?:access_token|refresh_token|id_token|code_verifier|device_code|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|clientSecret|streamKey|oauthToken|authToken|bearerToken|apiKey|authorization|secret))["']\s*:\s*["']([^"']+)["']/gi;
+  /["']([A-Za-z0-9_.-]*(?:access_token|refresh_token|id_token|code_verifier|device_code|user_code|verification_uri|verification_uri_complete|client_secret|stream_key|accessToken|refreshToken|idToken|codeVerifier|deviceCode|userCode|verificationUri|verificationUriComplete|clientSecret|streamKey|oauthToken|authToken|bearerToken|apiKey|authorization|secret))["']\s*:\s*["']([^"']+)["']/gi;
 const authorizationHeaderPattern = /\bAuthorization\s*:\s*(Bearer|OAuth)\s+([^\s,;]+)/gi;
 const bearerTokenPattern = /\b(Bearer|OAuth)\s+([A-Za-z0-9._~+/=-]{12,})/g;
+const oauthDeviceActivationPattern = /\bhttps:\/\/(?:www\.)?twitch\.tv\/activate\?[^\s<>"']+/gi;
 const emailAddressPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const inviteLinkPattern = /\b(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/[A-Za-z0-9-]{2,}\b/gi;
 const phoneLikePattern = /(^|[^\w+])(\+?\d[\d\s().-]{7,}\d)(?=$|[^\w])/g;
@@ -1579,7 +1586,8 @@ const hasSensitiveTextLeak = (value: string): boolean =>
   hasUnredactedMatch(value, sensitiveAssignmentPattern) ||
   hasUnredactedMatch(value, sensitiveJsonPattern) ||
   hasUnredactedMatch(value, authorizationHeaderPattern) ||
-  hasUnredactedMatch(value, bearerTokenPattern);
+  hasUnredactedMatch(value, bearerTokenPattern) ||
+  hasPatternMatch(value, oauthDeviceActivationPattern);
 
 const hasUnredactedMatch = (value: string, pattern: RegExp): boolean => {
   pattern.lastIndex = 0;

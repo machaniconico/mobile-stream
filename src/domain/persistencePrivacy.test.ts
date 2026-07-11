@@ -31,13 +31,16 @@ describe("persistence privacy", () => {
       "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz.ABCDEFGHIJKLMNOPQRSTUVWXYZ_1234567890";
     const authorizationUrl =
       "https://accounts.google.com/o/oauth2/v2/auth?client_id=yt-client&redirect_uri=com.mobilelivecaster.app%3A%2Foauth%2Fyoutube&response_type=code&state=oauth-state-secret&code_challenge=pkce-challenge-secret&code_challenge_method=S256";
+    const activationUrl = "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH";
     const value = {
       note: "Authorization: Bearer youtube-access-token-secret",
-      callback: "mobilelivecaster://oauth/youtube?code=oauth-code-secret&device_code=device-secret",
+      callback: "mobilelivecaster://oauth/youtube?code=oauth-code-secret&device_code=device-secret&user_code=user-secret",
       authorizationUrl,
+      activationUrl,
       webhook: `Discord delivery failed for ${webhookUrl}`,
       payload: {
-        clientSecret: '{"client_secret":"client-secret-value","refresh_token":"refresh-secret"}'
+        clientSecret:
+          '{"client_secret":"client-secret-value","refresh_token":"refresh-secret","userCode":"camel-user-secret"}'
       }
     };
 
@@ -47,16 +50,21 @@ describe("persistence privacy", () => {
     expect(json).not.toContain("youtube-access-token-secret");
     expect(json).not.toContain("oauth-code-secret");
     expect(json).not.toContain("device-secret");
+    expect(json).not.toContain("user-secret");
+    expect(json).not.toContain("camel-user-secret");
     expect(json).not.toContain("mobilelivecaster://oauth");
     expect(json).not.toContain("accounts.google.com/o/oauth2/v2/auth");
     expect(json).not.toContain("oauth-state-secret");
     expect(json).not.toContain("pkce-challenge-secret");
+    expect(json).not.toContain("www.twitch.tv/activate");
+    expect(json).not.toContain("ABCD-EFGH");
     expect(json).not.toContain(webhookUrl);
     expect(json).not.toContain("discord.com/api/webhooks/123456789012345678");
     expect(json).not.toContain("client-secret-value");
     expect(json).not.toContain("refresh-secret");
     expect(json).toContain("[redacted]");
     expect(json).toContain("[oauth authorization redacted]");
+    expect(json).toContain("[oauth device activation redacted]");
     expect(json).toContain("[discord webhook redacted]");
   });
 

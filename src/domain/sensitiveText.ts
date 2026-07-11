@@ -7,6 +7,9 @@ const sensitiveQueryKeys = [
   "code",
   "code_verifier",
   "device_code",
+  "user_code",
+  "verification_uri",
+  "verification_uri_complete",
   "client_secret",
   "stream_key",
   "api_key",
@@ -18,6 +21,9 @@ const sensitiveQueryKeys = [
   "idToken",
   "codeVerifier",
   "deviceCode",
+  "userCode",
+  "verificationUri",
+  "verificationUriComplete",
   "clientSecret",
   "streamKey",
   "apiKey",
@@ -33,6 +39,9 @@ const sensitiveNamedCredentialPattern = [
   "id_token",
   "code_verifier",
   "device_code",
+  "user_code",
+  "verification_uri",
+  "verification_uri_complete",
   "client_secret",
   "stream_key",
   "api_key",
@@ -44,6 +53,9 @@ const sensitiveNamedCredentialPattern = [
   "idToken",
   "codeVerifier",
   "deviceCode",
+  "userCode",
+  "verificationUri",
+  "verificationUriComplete",
   "clientSecret",
   "streamKey",
   "apiKey",
@@ -58,6 +70,7 @@ const redactedInvite = "[invite redacted]";
 const redactedPhone = "[phone redacted]";
 const redactedOAuthCallback = "[oauth callback redacted]";
 const redactedOAuthAuthorization = "[oauth authorization redacted]";
+const redactedOAuthDeviceActivation = "[oauth device activation redacted]";
 const redactedDiscordWebhook = "[discord webhook redacted]";
 
 const emailPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
@@ -67,6 +80,7 @@ const oauthCallbackPattern =
   /\b(?:mobilelivecaster:\/\/oauth\/|com\.mobilelivecaster\.app:\/oauth\/)[^\s<>"']*[?#][^\s<>"']+/gi;
 const oauthAuthorizationPattern =
   /\bhttps:\/\/(?:accounts\.google\.com\/o\/oauth2\/v2\/auth|id\.twitch\.tv\/oauth2\/authorize)\?[^\s<>"']+/gi;
+const oauthDeviceActivationPattern = /\bhttps:\/\/(?:www\.)?twitch\.tv\/activate\?[^\s<>"']+/gi;
 const discordWebhookPattern =
   /\bhttps:\/\/(?:discord(?:app)?\.com)\/api\/webhooks\/\d{5,32}\/[A-Za-z0-9._-]{20,}/gi;
 
@@ -78,6 +92,7 @@ export const redactSensitiveText = (value: string): string => {
   return value
     .replace(oauthCallbackPattern, redactOAuthCallbackCandidate)
     .replace(oauthAuthorizationPattern, redactOAuthAuthorizationCandidate)
+    .replace(oauthDeviceActivationPattern, redactOAuthDeviceActivationCandidate)
     .replace(discordWebhookPattern, redactDiscordWebhookCandidate)
     .replace(new RegExp(`([?&#](${sensitiveKeyPattern})=)([^&#\\s]+)`, "gi"), `$1${redacted}`)
     .replace(new RegExp(`\\b(${sensitiveKeyPattern})=([^&\\s]+)`, "gi"), `$1=${redacted}`)
@@ -99,6 +114,11 @@ const redactOAuthCallbackCandidate = (token: string): string => {
 const redactOAuthAuthorizationCandidate = (token: string): string => {
   const trailing = token.match(/[),.;:!?]+$/)?.[0] ?? "";
   return `${redactedOAuthAuthorization}${trailing}`;
+};
+
+const redactOAuthDeviceActivationCandidate = (token: string): string => {
+  const trailing = token.match(/[),.;:!?]+$/)?.[0] ?? "";
+  return `${redactedOAuthDeviceActivation}${trailing}`;
 };
 
 const redactDiscordWebhookCandidate = (token: string): string => {

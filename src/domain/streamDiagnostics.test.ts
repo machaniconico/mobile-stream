@@ -1637,7 +1637,7 @@ describe("stream diagnostics", () => {
     mutableReport.diagnostics.telemetry.message =
       "Contact viewer@example.com / 090-1234-5678 / discord.gg/privateRoom / https://discord.com/api/webhooks/123456789012345678/diagnosticWebhookTokenValue1234567890";
     mutableReport.diagnostics.session.historySummary.summary =
-      "Inspect www.example.org/private, example.tv/show, and a.rtmps.youtube.com/private";
+      "Inspect www.example.org/private, example.tv/show, a.rtmps.youtube.com/private, and https://www.twitch.tv/activate?public=true&device-code=DIAG-CODE";
     mutableReport.diagnostics.session.historySummary.recommendation =
       "callback mobilelivecaster://oauth/twitch?access_token=diagnostic-oauth-token-secret";
     mutableReport.diagnostics.api = {
@@ -1660,6 +1660,8 @@ describe("stream diagnostics", () => {
     expect(exported).not.toContain("diagnostic-custom-token-secret");
     expect(exported).not.toContain("id.twitch.tv/oauth2/authorize");
     expect(exported).not.toContain("diagnostic-state-secret");
+    expect(exported).not.toContain("www.twitch.tv/activate");
+    expect(exported).not.toContain("DIAG-CODE");
     expect(exported).not.toContain("mobilelivecaster://oauth");
     expect(exported).not.toContain("viewer@example.com");
     expect(exported).not.toContain("090-1234-5678");

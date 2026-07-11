@@ -910,7 +910,7 @@ describe("support bundle", () => {
     mutableBundle.preflight.primaryAction =
       "Contact viewer@example.com / 090-1234-5678 / discord.gg/privateRoom / https://discord.com/api/webhooks/123456789012345678/supportWebhookTokenValue1234567890";
     mutableBundle.diagnostics.session.historySummary.summary =
-      "Inspect www.example.org/private, example.tv/show, and a.rtmps.youtube.com/private";
+      "Inspect www.example.org/private, example.tv/show, a.rtmps.youtube.com/private, and https://www.twitch.tv/activate?public=true&device-code=SUPPORT-CODE";
     mutableBundle.diagnostics.session.historySummary.recommendation =
       "callback mobilelivecaster://oauth/youtube?code=support-oauth-code-secret";
     mutableBundle.diagnostics.api = {
@@ -933,6 +933,8 @@ describe("support bundle", () => {
     expect(exported).not.toContain("accounts.google.com/o/oauth2/v2/auth");
     expect(exported).not.toContain("support-state-secret");
     expect(exported).not.toContain("support-pkce-secret");
+    expect(exported).not.toContain("www.twitch.tv/activate");
+    expect(exported).not.toContain("SUPPORT-CODE");
     expect(exported).not.toContain("mobilelivecaster://oauth");
     expect(exported).not.toContain("viewer@example.com");
     expect(exported).not.toContain("090-1234-5678");
