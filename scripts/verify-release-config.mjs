@@ -476,6 +476,10 @@ const checks = [
     expectIncludes(files.storeSubmissionScript, "readPngEvidence");
     expectIncludes(files.storeSubmissionScript, "privacyPolicyUrl");
     expectIncludes(files.storeSubmissionScript, "dataSafetyNotes");
+    expectIncludes(files.storeSubmissionScript, "authToken");
+    expectIncludes(files.storeSubmissionScript, "bearer_token");
+    expectIncludes(files.storeSubmissionScript, "credential header");
+    expectIncludes(files.storeSubmissionScript, "x-api-key");
     expectIncludes(files.storeSubmissionScript, "reviewDocuments");
     expectIncludes(files.storeSubmissionScript, "requireRealDeviceScreenshots");
     expectIncludes(files.storeSubmissionScript, "sha256");
@@ -538,9 +542,16 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "Package ${label} references artifact not present in package");
     expectIncludes(files.releaseEvidencePackageScript, "Package ${label} metadata mismatch");
     expectIncludes(files.releaseEvidencePackageScript, "sensitiveJsonPattern");
+    expectIncludes(files.releaseEvidencePackageScript, "api_key");
+    expectIncludes(files.releaseEvidencePackageScript, "sensitiveHeaderPattern");
+    expectIncludes(files.releaseEvidencePackageScript, "contains a sensitive header value");
     expectIncludes(files.releaseEvidencePackageScript, "isGeneratedReactNativeBundlePath");
     expectIncludes(files.releaseEvidencePackageScript, "artifacts/.artifacts/rn/");
     expectIncludes(files.releaseEvidencePackageScript, "endsWith(\".jsbundle\")");
+    expectIncludes(files.commercialReleaseGateDomain, "api_key");
+    expectIncludes(files.commercialReleaseGateDomain, "sensitiveHeaderPattern");
+    expectIncludes(files.commercialReleaseBundleScript, "api_key");
+    expectIncludes(files.commercialReleaseBundleScript, "sensitiveHeaderPattern");
   }),
   check("Quick text preset actions are locked for Web and React Native release builds", () => {
     expectIncludes(files.sceneDomain, 'export type QuickTextOverlayPresetAction = "show" | "queue" | "pin";');
