@@ -265,7 +265,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
     (status === "confirmed" || status === "cancelled") &&
     typeof lastAt === "string" &&
     Number.isFinite(Date.parse(lastAt)) &&
-    hasPublicLaunchConfirmationTimestampEvidence(lastAt, bundle.generatedAt) &&
+    hasPublicLaunchConfirmationTimestampEvidence(lastAt, bundle.generatedAt, summary.platformPublishingFreshnessCheckedAt) &&
     typeof lastMessage === "string" &&
     hasPublicLaunchConfirmationAuditEvidence(lastMessage, expectedTargetPlatformForBundle(bundle));
 
@@ -314,10 +314,18 @@ const hasPublicLaunchConfirmationTargetEvidence = (message: string, expectedTarg
 const hasCleanPublicLaunchConfirmationChecklist = (message: string): boolean =>
   /Checklist:\s*\d+\s+pass(?:es)?\s*\/\s*0\s+warn(?:ings)?\s*\/\s*0\s+fail(?:ures)?/i.test(message);
 
-const hasPublicLaunchConfirmationTimestampEvidence = (lastAt: string, generatedAt: string): boolean => {
+const hasPublicLaunchConfirmationTimestampEvidence = (
+  lastAt: string,
+  generatedAt: string,
+  platformPublishingCheckedAt: unknown
+): boolean => {
   const lastAtMs = Date.parse(lastAt);
   const generatedAtMs = Date.parse(generatedAt);
-  return Number.isFinite(lastAtMs) && Number.isFinite(generatedAtMs) && lastAtMs <= generatedAtMs;
+  if (!Number.isFinite(lastAtMs) || !Number.isFinite(generatedAtMs) || lastAtMs > generatedAtMs) {
+    return false;
+  }
+  const checkedAtMs = Date.parse(String(platformPublishingCheckedAt ?? ""));
+  return !Number.isFinite(checkedAtMs) || lastAtMs >= checkedAtMs;
 };
 
 const createSceneFingerprintIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {

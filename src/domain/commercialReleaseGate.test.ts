@@ -65,7 +65,7 @@ describe("commercial release gate", () => {
         summary: {
           publicLaunchConfirmationEventCount: 2,
           publicLaunchLastConfirmationStatus: "cancelled",
-          publicLaunchLastConfirmationAt: "2026-06-23T11:28:00.000Z",
+          publicLaunchLastConfirmationAt: "2026-06-23T11:29:30.000Z",
           publicLaunchLastConfirmationMessage:
             "YouTube Public launch confirmation was cancelled by the operator. Target: YouTube Live, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status testing. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready."
         }
@@ -175,13 +175,37 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("accepts confirmed public launch events with retained target and checklist audit evidence", () => {
+  it("blocks public launch confirmation events recorded before the latest platform dashboard evidence", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         summary: {
           publicLaunchConfirmationEventCount: 1,
           publicLaunchLastConfirmationStatus: "confirmed",
           publicLaunchLastConfirmationAt: "2026-06-23T11:28:00.000Z",
+          platformPublishingFreshnessCheckedAt: "2026-06-23T11:29:00.000Z",
+          publicLaunchLastConfirmationMessage:
+            "YouTube Public launch confirmation was accepted by the operator. Target: YouTube Live, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status testing. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "public-launch-confirmation-evidence"
+      })
+    );
+  });
+
+  it("accepts confirmed public launch events with retained target and checklist audit evidence", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          publicLaunchConfirmationEventCount: 1,
+          publicLaunchLastConfirmationStatus: "confirmed",
+          publicLaunchLastConfirmationAt: "2026-06-23T11:29:30.000Z",
           publicLaunchLastConfirmationMessage:
             "YouTube Public launch confirmation was accepted by the operator. Target: YouTube Live, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status testing. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready."
         }
@@ -204,7 +228,7 @@ describe("commercial release gate", () => {
         "OAuth callback mobilelivecaster://oauth/youtube?code=oauthcodeabcdefghijklmnopqrstuvwxyz&state=stateabcdefghijklmnopqrstuvwxyz was already cleared.",
         "Checklist: 9 pass / 0 warn / 0 fail, checked Authorization: Bearer abcdefghijklmnopqrstuvwxyz1234567890."
       ].join(" "),
-      new Date("2026-06-23T11:28:00.000Z")
+      new Date("2026-06-23T11:29:30.000Z")
     );
 
     const gate = createCommercialReleaseGate(
@@ -3488,7 +3512,7 @@ const supportBundle = ({
       publicLaunchStartLockAction: "Go Live while dashboard freshness remains current.",
       publicLaunchConfirmationEventCount: 1,
       publicLaunchLastConfirmationStatus: "confirmed",
-      publicLaunchLastConfirmationAt: "2026-06-23T11:28:00.000Z",
+      publicLaunchLastConfirmationAt: "2026-06-23T11:29:30.000Z",
       publicLaunchLastConfirmationMessage:
         "YouTube Public launch confirmation was accepted by the operator. Target: YouTube Live, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status testing. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready.",
       sceneFingerprint: "scene1-ready",

@@ -477,8 +477,10 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks public launch confirmation events without clean checklist counts");
     expectIncludes(files.commercialReleaseGateDomain, "hasPublicLaunchConfirmationTimestampEvidence");
     expectIncludes(files.commercialReleaseGateDomainTest, "recorded after the support bundle was generated");
+    expectIncludes(files.commercialReleaseGateDomainTest, "recorded before the latest platform dashboard evidence");
     expectIncludes(files.commercialReleaseBundleScript, "hasPublicLaunchConfirmationTimestampEvidence");
     expectIncludes(files.commercialReleaseBundleScriptTest, "recorded after the support bundle was generated");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "recorded before the latest platform dashboard evidence");
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutConnectionPhase");
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutPlatformChatEnabled");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestChatReadoutPass");

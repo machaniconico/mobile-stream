@@ -457,7 +457,7 @@ function publicLaunchConfirmationEvidenceIssue(bundle) {
     (status === "confirmed" || status === "cancelled") &&
     typeof lastAt === "string" &&
     Number.isFinite(Date.parse(lastAt)) &&
-    hasPublicLaunchConfirmationTimestampEvidence(lastAt, bundle?.generatedAt) &&
+    hasPublicLaunchConfirmationTimestampEvidence(lastAt, bundle?.generatedAt, summary.platformPublishingFreshnessCheckedAt) &&
     typeof lastMessage === "string" &&
     hasPublicLaunchConfirmationAuditEvidence(lastMessage, expectedTargetPlatformForBundle(bundle));
 
@@ -507,10 +507,14 @@ function hasCleanPublicLaunchConfirmationChecklist(message) {
   return /Checklist:\s*\d+\s+pass(?:es)?\s*\/\s*0\s+warn(?:ings)?\s*\/\s*0\s+fail(?:ures)?/i.test(message);
 }
 
-function hasPublicLaunchConfirmationTimestampEvidence(lastAt, generatedAt) {
+function hasPublicLaunchConfirmationTimestampEvidence(lastAt, generatedAt, platformPublishingCheckedAt) {
   const lastAtMs = Date.parse(lastAt);
   const generatedAtMs = Date.parse(generatedAt);
-  return Number.isFinite(lastAtMs) && Number.isFinite(generatedAtMs) && lastAtMs <= generatedAtMs;
+  if (!Number.isFinite(lastAtMs) || !Number.isFinite(generatedAtMs) || lastAtMs > generatedAtMs) {
+    return false;
+  }
+  const checkedAtMs = Date.parse(String(platformPublishingCheckedAt ?? ""));
+  return !Number.isFinite(checkedAtMs) || lastAtMs >= checkedAtMs;
 }
 
 function sceneFingerprintIssue(bundle) {
