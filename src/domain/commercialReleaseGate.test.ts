@@ -36,6 +36,29 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks support bundles without an accepted final public launch confirmation", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          publicLaunchConfirmationEventCount: 0,
+          publicLaunchLastConfirmationStatus: "none",
+          publicLaunchLastConfirmationAt: null,
+          publicLaunchLastConfirmationMessage: ""
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "public-launch-confirmation-evidence",
+        detail: "The support bundle is missing valid public launch confirmation summary evidence."
+      })
+    );
+  });
+
   it("blocks support bundles whose latest public launch confirmation was cancelled", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -3439,10 +3462,11 @@ const supportBundle = ({
       publicLaunchStartLockBlocked: false,
       publicLaunchStartLockSummary: "Public start lock is clear.",
       publicLaunchStartLockAction: "Go Live while dashboard freshness remains current.",
-      publicLaunchConfirmationEventCount: 0,
-      publicLaunchLastConfirmationStatus: "none",
-      publicLaunchLastConfirmationAt: null,
-      publicLaunchLastConfirmationMessage: "",
+      publicLaunchConfirmationEventCount: 1,
+      publicLaunchLastConfirmationStatus: "confirmed",
+      publicLaunchLastConfirmationAt: "2026-06-23T11:28:00.000Z",
+      publicLaunchLastConfirmationMessage:
+        "YouTube Public launch confirmation was accepted by the operator. Target: YouTube Live, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status testing. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready.",
       sceneFingerprint: "scene1-ready",
       textOverlayStatus: "pass",
       textOverlaySourceCount: 2,

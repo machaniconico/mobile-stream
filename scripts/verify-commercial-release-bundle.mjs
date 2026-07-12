@@ -451,7 +451,6 @@ function publicLaunchConfirmationEvidenceIssue(bundle) {
   const lastMessage = summary.publicLaunchLastConfirmationMessage;
   const hasValidCount = Number.isInteger(count) && count >= 0;
   const hasValidStatus = status === "confirmed" || status === "cancelled" || status === "none";
-  const hasNoConfirmation = count === 0 && status === "none" && lastAt === null && typeof lastMessage === "string";
   const hasConfirmation =
     typeof count === "number" &&
     count > 0 &&
@@ -462,7 +461,7 @@ function publicLaunchConfirmationEvidenceIssue(bundle) {
     typeof lastMessage === "string" &&
     hasPublicLaunchConfirmationAuditEvidence(lastMessage);
 
-  if (!hasValidCount || !hasValidStatus || (!hasNoConfirmation && !hasConfirmation)) {
+  if (!hasValidCount || !hasValidStatus || !hasConfirmation) {
     return fail(
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",

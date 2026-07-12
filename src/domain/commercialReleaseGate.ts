@@ -259,7 +259,6 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
   const lastMessage = summary.publicLaunchLastConfirmationMessage;
   const hasValidCount = typeof count === "number" && Number.isInteger(count) && count >= 0;
   const hasValidStatus = status === "confirmed" || status === "cancelled" || status === "none";
-  const hasNoConfirmation = count === 0 && status === "none" && lastAt === null && typeof lastMessage === "string";
   const hasConfirmation =
     typeof count === "number" &&
     count > 0 &&
@@ -270,7 +269,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
     typeof lastMessage === "string" &&
     hasPublicLaunchConfirmationAuditEvidence(lastMessage);
 
-  if (!hasValidCount || !hasValidStatus || (!hasNoConfirmation && !hasConfirmation)) {
+  if (!hasValidCount || !hasValidStatus || !hasConfirmation) {
     return failIssue(
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",

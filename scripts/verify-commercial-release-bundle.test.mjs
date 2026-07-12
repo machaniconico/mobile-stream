@@ -87,6 +87,23 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Public launch confirmation audit");
   });
 
+  it("blocks support bundles without an accepted final public launch confirmation", () => {
+    writeBundle({
+      summary: {
+        publicLaunchConfirmationEventCount: 0,
+        publicLaunchLastConfirmationStatus: "none",
+        publicLaunchLastConfirmationAt: null,
+        publicLaunchLastConfirmationMessage: ""
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Public launch confirmation audit");
+    expect(result.stdout).toContain("The support bundle is missing valid public launch confirmation summary evidence.");
+  });
+
   it("blocks support bundles generated after the verifier time", () => {
     writeBundle({
       generatedAt: new Date(Date.now() + 60_000).toISOString()
@@ -2201,10 +2218,11 @@ const createBundle = (patch = {}) => {
     publicLaunchStartLockBlocked: false,
     publicLaunchStartLockSummary: "Public start lock is clear.",
     publicLaunchStartLockAction: "Go Live while dashboard freshness remains current.",
-    publicLaunchConfirmationEventCount: 0,
-    publicLaunchLastConfirmationStatus: "none",
-    publicLaunchLastConfirmationAt: null,
-    publicLaunchLastConfirmationMessage: "",
+    publicLaunchConfirmationEventCount: 1,
+    publicLaunchLastConfirmationStatus: "confirmed",
+    publicLaunchLastConfirmationAt: generatedAt,
+    publicLaunchLastConfirmationMessage:
+      "YouTube Public launch confirmation was accepted by the operator. Target: YouTube Live, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status testing. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready.",
     sceneFingerprint: "scene1-ready",
     textOverlayStatus: "pass",
     textOverlaySourceCount: 2,
