@@ -14,6 +14,7 @@ const dashboardPlatforms = new Set(["youtube", "twitch"]);
 const dashboardScreenshotMinimumShortEdge = 720;
 const dashboardScreenshotMinimumLongEdge = 1280;
 export const dashboardScreenshotStatusMaxSkewMinutes = 10;
+const dashboardEvidenceFutureSkewToleranceMs = 2 * 60 * 1000;
 const badYoutubeBroadcastStatuses = new Set(["complete", "failed", "revoked"]);
 const badYoutubeStreamStatuses = new Set(["inactive", "error"]);
 const badIdentityMarkers = new Set(["-", "mock", "n/a", "na", "none", "null", "placeholder", "test", "unknown"]);
@@ -80,7 +81,13 @@ export function readDashboardEvidenceManifest(manifestPath = dashboardEvidenceMa
 
 export function validateDashboardEvidenceManifest(
   manifest,
-  { manifestPath = dashboardEvidenceManifestPath, currentCommit = "", allowDirty = true, allowCommitMismatch = true } = {}
+  {
+    manifestPath = dashboardEvidenceManifestPath,
+    currentCommit = "",
+    allowDirty = true,
+    allowCommitMismatch = true,
+    now = new Date()
+  } = {}
 ) {
   const failures = [];
   if (manifest?.app !== "MobileLiveCaster" || manifest?.type !== "platform-dashboard-evidence-manifest" || manifest?.reportVersion !== 1) {
@@ -99,8 +106,9 @@ export function validateDashboardEvidenceManifest(
   );
 
   const seen = new Set();
+  const verificationTimeMs = dashboardTimestampMs(now) ?? Date.now();
   for (const artifact of manifest.artifacts) {
-    validateDashboardArtifact(artifact, failures);
+    validateDashboardArtifact(artifact, failures, verificationTimeMs);
     const key = `${artifact?.platform}:${artifact?.kind}:${artifact?.path}`;
     if (seen.has(key)) {
       failures.push(`Dashboard evidence manifest contains duplicate artifact ${key}.`);
@@ -231,7 +239,7 @@ function createDashboardArtifactRecord({ platform, kind, path, capturedAt }) {
   };
 }
 
-function validateDashboardArtifact(artifact, failures) {
+function validateDashboardArtifact(artifact, failures, verificationTimeMs) {
   const expected = evidenceKinds[artifact?.kind];
   if (!dashboardPlatforms.has(artifact?.platform) || !expected) {
     failures.push(`Dashboard evidence artifact has unsupported platform/kind: ${JSON.stringify(artifact?.platform)}/${JSON.stringify(artifact?.kind)}.`);
@@ -282,8 +290,16 @@ function validateDashboardArtifact(artifact, failures) {
       }
       validateDashboardScreenshotDimensions(normalizedArtifact, pngEvidence, failures);
     }
-    if (!normalizeDashboardTimestamp(artifact.capturedAt)) {
+    const capturedAt = normalizeDashboardTimestamp(artifact.capturedAt);
+    if (!capturedAt) {
       failures.push(`Dashboard evidence screenshot ${relativePath} must include a valid capturedAt timestamp.`);
+    } else {
+      validateDashboardEvidenceNotFuture(
+        capturedAt,
+        `Dashboard evidence screenshot ${relativePath} capturedAt`,
+        failures,
+        verificationTimeMs
+      );
     }
   }
   if (artifact.kind === "statusJson") {
@@ -295,6 +311,24 @@ function validateDashboardArtifact(artifact, failures) {
     if (artifact.statusSummary !== statusJsonSummary.statusSummary) {
       failures.push(`Dashboard evidence status JSON summary mismatch for ${relativePath}.`);
     }
+    if (normalizeDashboardTimestamp(statusJsonSummary.checkedAt)) {
+      validateDashboardEvidenceNotFuture(
+        statusJsonSummary.checkedAt,
+        `Dashboard evidence status JSON ${relativePath} checkedAt`,
+        failures,
+        verificationTimeMs
+      );
+    }
+  }
+}
+
+function validateDashboardEvidenceNotFuture(timestamp, label, failures, verificationTimeMs) {
+  const timestampMs = dashboardTimestampMs(timestamp);
+  if (timestampMs === null || !Number.isFinite(verificationTimeMs)) {
+    return;
+  }
+  if (timestampMs - verificationTimeMs > dashboardEvidenceFutureSkewToleranceMs) {
+    failures.push(`${label} is after the verification time.`);
   }
 }
 
@@ -393,6 +427,11 @@ function validateDashboardScreenshotDimensions(artifact, dimensions, failures) {
       `Dashboard evidence screenshot ${artifact.path} must be at least ${dashboardScreenshotMinimumShortEdge}px on the short edge and ${dashboardScreenshotMinimumLongEdge}px on the long edge.`
     );
   }
+}
+
+function dashboardTimestampMs(value) {
+  const timestamp = value instanceof Date ? value.getTime() : Date.parse(String(value ?? ""));
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function createReleaseArtifactRecord(group, path) {

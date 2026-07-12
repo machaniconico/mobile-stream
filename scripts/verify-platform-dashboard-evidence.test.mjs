@@ -169,6 +169,26 @@ describe("platform dashboard evidence verifier", () => {
     expect(result.stderr).toContain(`youtube dashboard screenshot evidence must include a capturedAt timestamp: ${youtubeScreenshot}`);
   });
 
+  it("rejects dashboard screenshots captured after verification time", () => {
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(youtubeScreenshot, dashboardPngBytes);
+    const futureCapturedAt = new Date(Date.now() + 5 * 60_000).toISOString();
+
+    const result = runVerifier([
+      "--write",
+      "--allow-dirty",
+      "--youtube-screenshot",
+      youtubeScreenshot,
+      "--youtube-screenshot-captured-at",
+      futureCapturedAt,
+      "--manifest",
+      manifestPath
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence screenshot ${youtubeScreenshot} capturedAt is after the verification time.`);
+  });
+
   it("rejects dashboard screenshots that are not fresh against status JSON", () => {
     writeEvidenceFiles();
 
@@ -647,6 +667,16 @@ describe("platform dashboard evidence verifier", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(`Dashboard evidence status JSON ${youtubeJson} has an invalid checkedAt timestamp.`);
+  });
+
+  it("rejects dashboard status JSON checked after verification time", () => {
+    const futureCheckedAt = new Date(Date.now() + 5 * 60_000).toISOString();
+    writeEvidenceFiles({ checkedAt: futureCheckedAt });
+
+    const result = runVerifier(["--write", "--allow-dirty", "--youtube-json", youtubeJson, "--manifest", manifestPath]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`Dashboard evidence status JSON ${youtubeJson} checkedAt is after the verification time.`);
   });
 
   it("rejects empty dashboard evidence during manifest verification", () => {

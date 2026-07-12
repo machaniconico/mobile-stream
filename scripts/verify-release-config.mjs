@@ -535,6 +535,9 @@ const checks = [
     expectIncludes(files.dashboardEvidenceScript, "readPngEvidence");
     expectIncludes(files.dashboardEvidenceScript, "dashboardScreenshotMinimumShortEdge");
     expectIncludes(files.dashboardEvidenceScript, "Dashboard evidence screenshot dimensions mismatch");
+    expectIncludes(files.dashboardEvidenceScript, "dashboardEvidenceFutureSkewToleranceMs");
+    expectIncludes(files.dashboardEvidenceScript, "validateDashboardEvidenceNotFuture");
+    expectIncludes(files.dashboardEvidenceScript, "is after the verification time");
     expectIncludes(files.dashboardEvidenceScript, "statusSummary");
     expectIncludes(files.dashboardEvidenceScript, "must include YouTube broadcastStatus");
     expectIncludes(files.dashboardEvidenceScript, "YouTube broadcastId");
