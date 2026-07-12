@@ -995,6 +995,7 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle, n
 
   const expectedNativeOverlays = nativeCompositionOverlayProofRequirements(summary);
   const expectedYouTubePublishing = youtubePublishingProofRequirements(bundle);
+  const expectedTwitchPublishing = twitchPublishingProofRequirements(bundle);
   const claimChecks: Array<[boolean, string, boolean]> = [
     [summary.validationEvidenceIosPass, "iOS validation pass", isManifestRunPass(iosRun)],
     [summary.validationEvidenceAndroidPass, "Android validation pass", isManifestRunPass(androidRun)],
@@ -1029,22 +1030,22 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle, n
     [
       summary.validationEvidencePlatformPublishingIosPass,
       "iOS platform dashboard proof",
-      isManifestPlatformPublishingPass(iosRun, expectedYouTubePublishing)
+      isManifestPlatformPublishingPass(iosRun, expectedYouTubePublishing, expectedTwitchPublishing)
     ],
     [
       summary.validationEvidencePlatformPublishingAndroidPass,
       "Android platform dashboard proof",
-      isManifestPlatformPublishingPass(androidRun, expectedYouTubePublishing)
+      isManifestPlatformPublishingPass(androidRun, expectedYouTubePublishing, expectedTwitchPublishing)
     ],
     [
       summary.validationEvidencePlatformIngestIosPass,
       "iOS same-run platform ingest proof",
-      isManifestPlatformIngestPass(iosRun, expectedNativeOverlays, expectedYouTubePublishing)
+      isManifestPlatformIngestPass(iosRun, expectedNativeOverlays, expectedYouTubePublishing, expectedTwitchPublishing)
     ],
     [
       summary.validationEvidencePlatformIngestAndroidPass,
       "Android same-run platform ingest proof",
-      isManifestPlatformIngestPass(androidRun, expectedNativeOverlays, expectedYouTubePublishing)
+      isManifestPlatformIngestPass(androidRun, expectedNativeOverlays, expectedYouTubePublishing, expectedTwitchPublishing)
     ]
   ];
   for (const [claimed, label, backedByManifest] of claimChecks) {
@@ -1137,18 +1138,21 @@ const getValidationEvidencePlatformIngestPasses = (bundle: SupportBundle): { ios
     : new Map<string, ValidationEvidenceManifestRun>();
   const expectedNativeOverlays = nativeCompositionOverlayProofRequirements(bundle.summary);
   const expectedYouTubePublishing = youtubePublishingProofRequirements(bundle);
+  const expectedTwitchPublishing = twitchPublishingProofRequirements(bundle);
   return {
     ios: resolveValidationEvidencePlatformIngestPass(
       bundle.summary.validationEvidencePlatformIngestIosPass,
       latestRuns.get("ios"),
       expectedNativeOverlays,
-      expectedYouTubePublishing
+      expectedYouTubePublishing,
+      expectedTwitchPublishing
     ),
     android: resolveValidationEvidencePlatformIngestPass(
       bundle.summary.validationEvidencePlatformIngestAndroidPass,
       latestRuns.get("android"),
       expectedNativeOverlays,
-      expectedYouTubePublishing
+      expectedYouTubePublishing,
+      expectedTwitchPublishing
     )
   };
 };
@@ -1157,11 +1161,12 @@ const resolveValidationEvidencePlatformIngestPass = (
   summaryValue: unknown,
   manifestRun: ValidationEvidenceManifestRun | undefined,
   expectedNativeOverlays: NativeOverlayProofRequirements = emptyNativeOverlayProofRequirements,
-  expectedYouTubePublishing: YouTubePublishingProofRequirements = emptyYouTubePublishingProofRequirements
+  expectedYouTubePublishing: YouTubePublishingProofRequirements = emptyYouTubePublishingProofRequirements,
+  expectedTwitchPublishing: TwitchPublishingProofRequirements = emptyTwitchPublishingProofRequirements
 ): boolean =>
   typeof summaryValue === "boolean"
     ? summaryValue
-    : isManifestPlatformIngestPass(manifestRun, expectedNativeOverlays, expectedYouTubePublishing);
+    : isManifestPlatformIngestPass(manifestRun, expectedNativeOverlays, expectedYouTubePublishing, expectedTwitchPublishing);
 
 const createRetainedStaleEvidenceIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
   if (bundle.summary.validationEvidenceStaleRunCount <= 0) {
@@ -1446,9 +1451,21 @@ interface YouTubePublishingProofRequirements {
   broadcastPrivacyStatus: string | null;
 }
 
+interface TwitchPublishingProofRequirements {
+  category: string | null;
+  categoryId: string | null;
+  language: string | null;
+}
+
 const emptyYouTubePublishingProofRequirements: YouTubePublishingProofRequirements = {
   boundStreamId: null,
   broadcastPrivacyStatus: null
+};
+
+const emptyTwitchPublishingProofRequirements: TwitchPublishingProofRequirements = {
+  category: null,
+  categoryId: null,
+  language: null
 };
 
 const nativeCompositionOverlayProofRequirements = (summary: SupportBundle["summary"]): NativeOverlayProofRequirements => ({
@@ -1461,6 +1478,12 @@ const nativeCompositionOverlayProofRequirements = (summary: SupportBundle["summa
 const youtubePublishingProofRequirements = (bundle: SupportBundle): YouTubePublishingProofRequirements => ({
   boundStreamId: nonEmptyText(bundle.profile?.platformPublishing?.youtubeBroadcastBoundStreamId),
   broadcastPrivacyStatus: nonEmptyText(bundle.profile?.platformPublishing?.privacyStatus)
+});
+
+const twitchPublishingProofRequirements = (bundle: SupportBundle): TwitchPublishingProofRequirements => ({
+  category: nonEmptyText(bundle.profile?.platformPublishing?.twitchCategory),
+  categoryId: nonEmptyText(bundle.profile?.platformPublishing?.twitchCategoryId),
+  language: nonEmptyText(bundle.profile?.platformPublishing?.twitchLanguage)
 });
 
 const nonNegativeSummaryCount = (value: unknown): number =>
@@ -1740,19 +1763,21 @@ const hasControlledWeakNetworkProfile = (networkProfile: unknown): boolean => {
 
 const isManifestPlatformPublishingPass = (
   run: ValidationEvidenceManifestRun | undefined,
-  expectedYouTubePublishing: YouTubePublishingProofRequirements = emptyYouTubePublishingProofRequirements
+  expectedYouTubePublishing: YouTubePublishingProofRequirements = emptyYouTubePublishingProofRequirements,
+  expectedTwitchPublishing: TwitchPublishingProofRequirements = emptyTwitchPublishingProofRequirements
 ): boolean =>
   (run?.platformPublishingFreshnessStatus === "not-applicable" && !isFirstPartyManifestPublishingDestination(run)) ||
   (isManifestFeaturePass(run?.platformPublishingStatus) &&
     run?.platformPublishingFreshnessStatus === "fresh" &&
     isNonEmptyIsoDate(run.platformPublishingCheckedAt) &&
     isAtMostFiniteNumber(run.platformPublishingFreshnessAgeMinutes, platformPublishingDashboardMaxAgeMinutes) &&
-    isManifestPlatformIdentityPass(run, expectedYouTubePublishing));
+    isManifestPlatformIdentityPass(run, expectedYouTubePublishing, expectedTwitchPublishing));
 
 const isManifestPlatformIngestPass = (
   run: ValidationEvidenceManifestRun | undefined,
   expectedNativeOverlays: NativeOverlayProofRequirements = emptyNativeOverlayProofRequirements,
-  expectedYouTubePublishing: YouTubePublishingProofRequirements = emptyYouTubePublishingProofRequirements
+  expectedYouTubePublishing: YouTubePublishingProofRequirements = emptyYouTubePublishingProofRequirements,
+  expectedTwitchPublishing: TwitchPublishingProofRequirements = emptyTwitchPublishingProofRequirements
 ): boolean => {
   if (!run) {
     return false;
@@ -1762,7 +1787,7 @@ const isManifestPlatformIngestPass = (
   }
   return (
     isManifestNativeRuntimePass(run, expectedNativeOverlays) &&
-    isManifestPlatformPublishingPass(run, expectedYouTubePublishing) &&
+    isManifestPlatformPublishingPass(run, expectedYouTubePublishing, expectedTwitchPublishing) &&
     isManifestPlatformPublishingTimestampConsistent(run)
   );
 };
@@ -1799,7 +1824,8 @@ const isFirstPartyManifestPublishingDestination = (run: ValidationEvidenceManife
 
 const isManifestPlatformIdentityPass = (
   run: ValidationEvidenceManifestRun,
-  expectedYouTubePublishing: YouTubePublishingProofRequirements = emptyYouTubePublishingProofRequirements
+  expectedYouTubePublishing: YouTubePublishingProofRequirements = emptyYouTubePublishingProofRequirements,
+  expectedTwitchPublishing: TwitchPublishingProofRequirements = emptyTwitchPublishingProofRequirements
 ): boolean => {
   if (run.platformPublishingPlatform === "youtube-live") {
     return (
@@ -1821,7 +1847,9 @@ const isManifestPlatformIdentityPass = (
       nonEmptyText(run.platformPublishingTwitchChannelTitle) !== null &&
       nonEmptyText(run.platformPublishingTwitchChannelCategory) !== null &&
       nonEmptyText(run.platformPublishingTwitchChannelCategoryId) !== null &&
-      nonEmptyText(run.platformPublishingTwitchChannelLanguage) !== null
+      nonEmptyText(run.platformPublishingTwitchChannelLanguage) !== null &&
+      hasExpectedTwitchCategoryProof(run, expectedTwitchPublishing) &&
+      hasExpectedTwitchLanguageProof(run, expectedTwitchPublishing)
     );
   }
   return false;
@@ -1849,6 +1877,39 @@ const hasExpectedYouTubePrivacyProof = (
   return (
     !expectedYouTubePublishing.broadcastPrivacyStatus ||
     normalizeStatusLabel(manifestPrivacyStatus) === normalizeStatusLabel(expectedYouTubePublishing.broadcastPrivacyStatus)
+  );
+};
+
+const hasExpectedTwitchCategoryProof = (
+  run: ValidationEvidenceManifestRun,
+  expectedTwitchPublishing: TwitchPublishingProofRequirements
+): boolean => {
+  const manifestCategoryId = nonEmptyText(run.platformPublishingTwitchChannelCategoryId);
+  if (!manifestCategoryId) {
+    return false;
+  }
+  if (expectedTwitchPublishing.categoryId) {
+    return normalizeStatusLabel(manifestCategoryId) === normalizeStatusLabel(expectedTwitchPublishing.categoryId);
+  }
+  const manifestCategory = nonEmptyText(run.platformPublishingTwitchChannelCategory);
+  return Boolean(
+    manifestCategory &&
+      (!expectedTwitchPublishing.category ||
+        normalizeStatusLabel(manifestCategory) === normalizeStatusLabel(expectedTwitchPublishing.category))
+  );
+};
+
+const hasExpectedTwitchLanguageProof = (
+  run: ValidationEvidenceManifestRun,
+  expectedTwitchPublishing: TwitchPublishingProofRequirements
+): boolean => {
+  const manifestLanguage = nonEmptyText(run.platformPublishingTwitchChannelLanguage);
+  if (!manifestLanguage) {
+    return false;
+  }
+  return (
+    !expectedTwitchPublishing.language ||
+    normalizeStatusLabel(manifestLanguage) === normalizeStatusLabel(expectedTwitchPublishing.language)
   );
 };
 

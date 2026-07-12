@@ -1031,6 +1031,7 @@ function validationManifestIssue(bundle) {
   }
   const expectedNativeOverlays = nativeCompositionOverlayProofRequirements(summary);
   const expectedYouTubePublishing = youtubePublishingProofRequirements(bundle);
+  const expectedTwitchPublishing = twitchPublishingProofRequirements(bundle);
   const eligibleNativeRuntimePlatforms = new Set(
     latestEligibleRuns
       .filter(
@@ -1174,7 +1175,7 @@ function validationManifestIssue(bundle) {
         (run) =>
           run?.eligible === true &&
           run?.result === "pass" &&
-          isManifestPlatformPublishingPass(run, expectedYouTubePublishing)
+          isManifestPlatformPublishingPass(run, expectedYouTubePublishing, expectedTwitchPublishing)
       )
       .map((run) => run.devicePlatform)
   );
@@ -1195,7 +1196,7 @@ function validationManifestIssue(bundle) {
         (run) =>
           run?.eligible === true &&
           run?.result === "pass" &&
-          isManifestPlatformIngestPass(run, expectedNativeOverlays, expectedYouTubePublishing)
+          isManifestPlatformIngestPass(run, expectedNativeOverlays, expectedYouTubePublishing, expectedTwitchPublishing)
       )
       .map((run) => run.devicePlatform)
   );
@@ -1285,6 +1286,7 @@ function validationManifestIntegrityIssue(bundle, now) {
 
   const expectedNativeOverlays = nativeCompositionOverlayProofRequirements(summary);
   const expectedYouTubePublishing = youtubePublishingProofRequirements(bundle);
+  const expectedTwitchPublishing = twitchPublishingProofRequirements(bundle);
   const claimChecks = [
     [summary.validationEvidenceIosPass, "iOS validation pass", isManifestRunPass(iosRun)],
     [summary.validationEvidenceAndroidPass, "Android validation pass", isManifestRunPass(androidRun)],
@@ -1300,17 +1302,17 @@ function validationManifestIntegrityIssue(bundle, now) {
     [summary.validationEvidenceAudioAndroidPass, "Android mic/headphone proof", isManifestAudioPass(androidRun)],
     [summary.validationEvidenceChatReadoutIosPass, "iOS spoken chat-readout proof", isManifestChatReadoutPass(iosRun)],
     [summary.validationEvidenceChatReadoutAndroidPass, "Android spoken chat-readout proof", isManifestChatReadoutPass(androidRun)],
-    [summary.validationEvidencePlatformPublishingIosPass, "iOS platform dashboard proof", isManifestPlatformPublishingPass(iosRun, expectedYouTubePublishing)],
-    [summary.validationEvidencePlatformPublishingAndroidPass, "Android platform dashboard proof", isManifestPlatformPublishingPass(androidRun, expectedYouTubePublishing)],
+    [summary.validationEvidencePlatformPublishingIosPass, "iOS platform dashboard proof", isManifestPlatformPublishingPass(iosRun, expectedYouTubePublishing, expectedTwitchPublishing)],
+    [summary.validationEvidencePlatformPublishingAndroidPass, "Android platform dashboard proof", isManifestPlatformPublishingPass(androidRun, expectedYouTubePublishing, expectedTwitchPublishing)],
     [
       summary.validationEvidencePlatformIngestIosPass,
       "iOS same-run platform ingest proof",
-      isManifestPlatformIngestPass(iosRun, expectedNativeOverlays, expectedYouTubePublishing)
+      isManifestPlatformIngestPass(iosRun, expectedNativeOverlays, expectedYouTubePublishing, expectedTwitchPublishing)
     ],
     [
       summary.validationEvidencePlatformIngestAndroidPass,
       "Android same-run platform ingest proof",
-      isManifestPlatformIngestPass(androidRun, expectedNativeOverlays, expectedYouTubePublishing)
+      isManifestPlatformIngestPass(androidRun, expectedNativeOverlays, expectedYouTubePublishing, expectedTwitchPublishing)
     ]
   ];
   for (const [claimed, label, backedByManifest] of claimChecks) {
@@ -1405,18 +1407,21 @@ function validationEvidencePlatformIngestPasses(bundle) {
     : new Map();
   const expectedNativeOverlays = nativeCompositionOverlayProofRequirements(summary);
   const expectedYouTubePublishing = youtubePublishingProofRequirements(bundle);
+  const expectedTwitchPublishing = twitchPublishingProofRequirements(bundle);
   return {
     ios: resolveValidationEvidencePlatformIngestPass(
       summary.validationEvidencePlatformIngestIosPass,
       latestRuns.get("ios"),
       expectedNativeOverlays,
-      expectedYouTubePublishing
+      expectedYouTubePublishing,
+      expectedTwitchPublishing
     ),
     android: resolveValidationEvidencePlatformIngestPass(
       summary.validationEvidencePlatformIngestAndroidPass,
       latestRuns.get("android"),
       expectedNativeOverlays,
-      expectedYouTubePublishing
+      expectedYouTubePublishing,
+      expectedTwitchPublishing
     )
   };
 }
@@ -1425,11 +1430,12 @@ function resolveValidationEvidencePlatformIngestPass(
   summaryValue,
   manifestRun,
   expectedNativeOverlays = emptyNativeOverlayProofRequirements,
-  expectedYouTubePublishing = emptyYouTubePublishingProofRequirements
+  expectedYouTubePublishing = emptyYouTubePublishingProofRequirements,
+  expectedTwitchPublishing = emptyTwitchPublishingProofRequirements
 ) {
   return typeof summaryValue === "boolean"
     ? summaryValue
-    : isManifestPlatformIngestPass(manifestRun, expectedNativeOverlays, expectedYouTubePublishing);
+    : isManifestPlatformIngestPass(manifestRun, expectedNativeOverlays, expectedYouTubePublishing, expectedTwitchPublishing);
 }
 
 function staleEvidenceIssue(bundle) {
@@ -1624,6 +1630,12 @@ const emptyYouTubePublishingProofRequirements = {
   broadcastPrivacyStatus: null
 };
 
+const emptyTwitchPublishingProofRequirements = {
+  category: null,
+  categoryId: null,
+  language: null
+};
+
 function youtubePublishingProofRequirements(bundle) {
   return {
     boundStreamId: text(bundle?.profile?.platformPublishing?.youtubeBroadcastBoundStreamId) || null,
@@ -1631,7 +1643,19 @@ function youtubePublishingProofRequirements(bundle) {
   };
 }
 
-function isManifestPlatformPublishingPass(run, expectedYouTubePublishing = emptyYouTubePublishingProofRequirements) {
+function twitchPublishingProofRequirements(bundle) {
+  return {
+    category: text(bundle?.profile?.platformPublishing?.twitchCategory) || null,
+    categoryId: text(bundle?.profile?.platformPublishing?.twitchCategoryId) || null,
+    language: text(bundle?.profile?.platformPublishing?.twitchLanguage) || null
+  };
+}
+
+function isManifestPlatformPublishingPass(
+  run,
+  expectedYouTubePublishing = emptyYouTubePublishingProofRequirements,
+  expectedTwitchPublishing = emptyTwitchPublishingProofRequirements
+) {
   if (run?.platformPublishingFreshnessStatus === "not-applicable") {
     return !isFirstPartyManifestPublishingDestination(run);
   }
@@ -1640,7 +1664,7 @@ function isManifestPlatformPublishingPass(run, expectedYouTubePublishing = empty
     run?.platformPublishingFreshnessStatus === "fresh" &&
     isNonEmptyIsoDate(run?.platformPublishingCheckedAt) &&
     isAtMostNumber(run?.platformPublishingFreshnessAgeMinutes, platformPublishingDashboardMaxAgeMinutes) &&
-    isManifestPlatformIdentityPass(run, expectedYouTubePublishing)
+    isManifestPlatformIdentityPass(run, expectedYouTubePublishing, expectedTwitchPublishing)
   );
 }
 
@@ -1680,7 +1704,8 @@ function hasControlledWeakNetworkProfile(networkProfile) {
 function isManifestPlatformIngestPass(
   run,
   expectedNativeOverlays = emptyNativeOverlayProofRequirements,
-  expectedYouTubePublishing = emptyYouTubePublishingProofRequirements
+  expectedYouTubePublishing = emptyYouTubePublishingProofRequirements,
+  expectedTwitchPublishing = emptyTwitchPublishingProofRequirements
 ) {
   if (!run) {
     return false;
@@ -1690,7 +1715,7 @@ function isManifestPlatformIngestPass(
   }
   return (
     isManifestNativeRuntimePass(run, expectedNativeOverlays) &&
-    isManifestPlatformPublishingPass(run, expectedYouTubePublishing) &&
+    isManifestPlatformPublishingPass(run, expectedYouTubePublishing, expectedTwitchPublishing) &&
     isManifestPlatformPublishingTimestampConsistent(run)
   );
 }
@@ -2007,7 +2032,11 @@ function isFirstPartyManifestPublishingDestination(run) {
   );
 }
 
-function isManifestPlatformIdentityPass(run, expectedYouTubePublishing = emptyYouTubePublishingProofRequirements) {
+function isManifestPlatformIdentityPass(
+  run,
+  expectedYouTubePublishing = emptyYouTubePublishingProofRequirements,
+  expectedTwitchPublishing = emptyTwitchPublishingProofRequirements
+) {
   if (run?.platformPublishingPlatform === "youtube-live") {
     return (
       run.platformPublishingYoutubeHasBroadcastId === true &&
@@ -2028,7 +2057,9 @@ function isManifestPlatformIdentityPass(run, expectedYouTubePublishing = emptyYo
       nonEmptyText(run.platformPublishingTwitchChannelTitle) !== null &&
       nonEmptyText(run.platformPublishingTwitchChannelCategory) !== null &&
       nonEmptyText(run.platformPublishingTwitchChannelCategoryId) !== null &&
-      nonEmptyText(run.platformPublishingTwitchChannelLanguage) !== null
+      nonEmptyText(run.platformPublishingTwitchChannelLanguage) !== null &&
+      hasExpectedTwitchCategoryProof(run, expectedTwitchPublishing) &&
+      hasExpectedTwitchLanguageProof(run, expectedTwitchPublishing)
     );
   }
   return false;
@@ -2051,6 +2082,29 @@ function hasExpectedYouTubePrivacyProof(run, expectedYouTubePublishing) {
     !expectedYouTubePublishing.broadcastPrivacyStatus ||
     statusLabel(manifestPrivacyStatus) === statusLabel(expectedYouTubePublishing.broadcastPrivacyStatus)
   );
+}
+
+function hasExpectedTwitchCategoryProof(run, expectedTwitchPublishing) {
+  const manifestCategoryId = nonEmptyText(run?.platformPublishingTwitchChannelCategoryId);
+  if (!manifestCategoryId) {
+    return false;
+  }
+  if (expectedTwitchPublishing.categoryId) {
+    return statusLabel(manifestCategoryId) === statusLabel(expectedTwitchPublishing.categoryId);
+  }
+  const manifestCategory = nonEmptyText(run?.platformPublishingTwitchChannelCategory);
+  return Boolean(
+    manifestCategory &&
+      (!expectedTwitchPublishing.category || statusLabel(manifestCategory) === statusLabel(expectedTwitchPublishing.category))
+  );
+}
+
+function hasExpectedTwitchLanguageProof(run, expectedTwitchPublishing) {
+  const manifestLanguage = nonEmptyText(run?.platformPublishingTwitchChannelLanguage);
+  if (!manifestLanguage) {
+    return false;
+  }
+  return !expectedTwitchPublishing.language || statusLabel(manifestLanguage) === statusLabel(expectedTwitchPublishing.language);
 }
 
 function isNonEmptyIsoDate(value) {
