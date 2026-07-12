@@ -215,6 +215,8 @@ const checks = [
     expectIncludes(files.releaseReportScript, "Browser UI evidence");
     expectIncludes(files.releaseReportScript, "Report finishedAt timestamp is before startedAt.");
     expectIncludes(files.releaseReportScript, "Report durationMs does not match startedAt/finishedAt.");
+    expectIncludes(files.releaseReportScript, "validateGateTiming");
+    expectIncludes(files.releaseReportScript, "Gate ${label} durationMs does not match startedAt/finishedAt.");
     expectIncludes(files.releaseReportScript, "Browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");
     expectIncludes(files.releaseReportScript, "Browser UI evidence finishedAt timestamp is missing or invalid.");
     expectIncludes(files.releaseReportScript, "Browser UI evidence for ${viewport.name} is missing text");
@@ -522,7 +524,9 @@ const checks = [
     expectIncludes(files.releaseEvidencePackageScript, "validatePackagedPhysicalDevicePreflightArtifactPath");
     expectIncludes(files.releaseEvidencePackageScript, "Package manifest generatedAt timestamp is missing or invalid");
     expectIncludes(files.releaseEvidencePackageScript, "validateCommercialReleaseReportTiming");
+    expectIncludes(files.releaseEvidencePackageScript, "validateCommercialReleaseReportGateTiming");
     expectIncludes(files.releaseEvidencePackageScript, "durationMs does not match startedAt/finishedAt");
+    expectIncludes(files.releaseEvidencePackageScript, "gate ${gateLabel} durationMs does not match startedAt/finishedAt");
     expectIncludes(files.releaseEvidencePackageScript, "Release evidence package contains unmanifested file");
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence is not a MobileLiveCaster browser-ui-verification reportVersion 1 file.");
     expectIncludes(files.releaseEvidencePackageScript, "Package browser UI evidence target must be a loopback http(s) URL.");

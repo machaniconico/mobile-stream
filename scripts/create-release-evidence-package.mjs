@@ -591,6 +591,7 @@ function validatePackageManifestGitAgainstReport(manifest, report, failures) {
 function validateCommercialPackageableReleaseReport(report, label = "Release report") {
   const failures = [];
   validateCommercialReleaseReportTiming(report, label, failures);
+  validateCommercialReleaseReportGateTiming(report, label, failures);
   validateManifestGitProvenance(
     report?.git,
     { label, currentCommit: "", allowDirty: false, allowCommitMismatch: true },
@@ -617,6 +618,36 @@ function validateCommercialPackageableReleaseReport(report, label = "Release rep
     failures.push(`${label} clean git worktree gate must be passed for commercial package evidence.`);
   }
   return failures;
+}
+
+function validateCommercialReleaseReportGateTiming(report, label, failures) {
+  const gates = Array.isArray(report?.gates) ? report.gates : [];
+  for (const gate of gates) {
+    const gateLabel = JSON.stringify(gate?.label || "-");
+    const startedAt = timestampMs(gate?.startedAt);
+    const finishedAt = timestampMs(gate?.finishedAt);
+    if (startedAt === null) {
+      failures.push(`${label} gate ${gateLabel} startedAt timestamp is missing or invalid.`);
+    }
+    if (finishedAt === null) {
+      failures.push(`${label} gate ${gateLabel} finishedAt timestamp is missing or invalid.`);
+      continue;
+    }
+    if (startedAt !== null && finishedAt < startedAt) {
+      failures.push(`${label} gate ${gateLabel} finishedAt timestamp is before startedAt.`);
+    }
+    if (!Number.isFinite(gate?.durationMs) || gate.durationMs < 0) {
+      failures.push(`${label} gate ${gateLabel} durationMs is missing or invalid.`);
+      continue;
+    }
+    if (startedAt === null || finishedAt < startedAt) {
+      continue;
+    }
+    const observedDurationMs = finishedAt - startedAt;
+    if (Math.abs(observedDurationMs - gate.durationMs) > 1_000) {
+      failures.push(`${label} gate ${gateLabel} durationMs does not match startedAt/finishedAt.`);
+    }
+  }
 }
 
 function validateCommercialReleaseReportTiming(report, label, failures) {

@@ -622,6 +622,49 @@ describe("release evidence package creator", () => {
     expect(failures).toContain("Packaged release report durationMs does not match startedAt/finishedAt.");
   });
 
+  it("rejects packaged release report gates whose finishedAt is before startedAt", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const gate = packagedReport.gates.find(
+      (entry) => entry.label === "Verify browser UI evidence" || entry.label === "Verify browser UI"
+    );
+    gate.finishedAt = new Date(Date.parse(gate.startedAt) - 1_000).toISOString();
+    gate.durationMs = 0;
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+    refreshPackagedSourceReportEvidence();
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      `Packaged release report gate ${JSON.stringify(gate.label)} finishedAt timestamp is before startedAt.`
+    );
+  });
+
+  it("rejects packaged release report gates whose duration does not match timestamps", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const gate = packagedReport.gates.find(
+      (entry) => entry.label === "Verify browser UI evidence" || entry.label === "Verify browser UI"
+    );
+    gate.durationMs = 60_000;
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+    refreshPackagedSourceReportEvidence();
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain(
+      `Packaged release report gate ${JSON.stringify(gate.label)} durationMs does not match startedAt/finishedAt.`
+    );
+  });
+
   it("rejects packaged release reports whose git dirty-state provenance is missing", () => {
     resetPackageDir();
     writeReportFixture();

@@ -215,9 +215,34 @@ function validateGates(report, options, fail) {
     if (gate?.status !== "passed" && !allowedDirtySkip) {
       fail(`Gate ${JSON.stringify(gate?.label || "-")} must be passed, got ${JSON.stringify(gate?.status)}.`);
     }
-    if (!Number.isFinite(gate?.durationMs) || gate.durationMs < 0) {
-      fail(`Gate ${JSON.stringify(gate?.label || "-")} is missing a valid durationMs.`);
-    }
+    validateGateTiming(gate, fail);
+  }
+}
+
+function validateGateTiming(gate, fail) {
+  const label = JSON.stringify(gate?.label || "-");
+  const startedAt = timestampMs(gate?.startedAt);
+  const finishedAt = timestampMs(gate?.finishedAt);
+  if (startedAt === null) {
+    fail(`Gate ${label} startedAt timestamp is missing or invalid.`);
+  }
+  if (finishedAt === null) {
+    fail(`Gate ${label} finishedAt timestamp is missing or invalid.`);
+    return;
+  }
+  if (startedAt !== null && finishedAt < startedAt) {
+    fail(`Gate ${label} finishedAt timestamp is before startedAt.`);
+  }
+  if (!Number.isFinite(gate?.durationMs) || gate.durationMs < 0) {
+    fail(`Gate ${label} is missing a valid durationMs.`);
+    return;
+  }
+  if (startedAt === null || finishedAt < startedAt) {
+    return;
+  }
+  const observedDurationMs = finishedAt - startedAt;
+  if (Math.abs(observedDurationMs - gate.durationMs) > 1_000) {
+    fail(`Gate ${label} durationMs does not match startedAt/finishedAt.`);
   }
 }
 
