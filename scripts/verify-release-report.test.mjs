@@ -350,6 +350,23 @@ describe("release report verifier", () => {
     expect(failures.join("\n")).toContain("Release report support bundle platform-publishing-freshness");
   });
 
+  it("rejects release reports whose retained validation manifest was created after the report finished", () => {
+    const report = createReport();
+    const supportBundle = JSON.parse(readFileSync(report.supportBundle.path, "utf8"));
+    supportBundle.generatedAt = report.finishedAt;
+    supportBundle.summary.validationEvidenceRunManifest[0].createdAt = new Date(
+      Date.parse(report.finishedAt) + 60_000
+    ).toISOString();
+    writeFileSync(report.supportBundle.path, JSON.stringify(supportBundle, null, 2));
+    report.supportBundle.sha256 = fileSha256(report.supportBundle.path);
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures.join("\n")).toContain("Release report support bundle commercial release gate must be ready, got blocked:");
+    expect(failures.join("\n")).toContain("Release report support bundle validation-evidence-manifest-integrity");
+    expect(failures.join("\n")).toContain("manifest run(s) are dated after the verifier time");
+  });
+
   it("rejects symlinked support bundles before reading linked targets", () => {
     const report = createReport();
     const supportBundlePath = ".artifacts/release-report-test/support-bundle.json";
@@ -1266,8 +1283,8 @@ function commercialSupportBundleFixture(patch = {}) {
     platformPublishingFreshnessSummary: "YouTube dashboard status was checked 0 minutes ago.",
     platformPublishingFreshnessRecommendation: "Keep this fresh dashboard snapshot with the release-candidate validation run.",
     validationEvidenceRunManifest: [
-      supportBundleManifestRun("ios", "svr1-ios"),
-      supportBundleManifestRun("android", "svr1-android")
+      supportBundleManifestRun("ios", "svr1-ios", generatedAt),
+      supportBundleManifestRun("android", "svr1-android", generatedAt)
     ]
   };
 
@@ -1361,8 +1378,7 @@ function supportBundleSessionDiagnostics({ historySummary = {}, lastSummary = nu
   };
 }
 
-function supportBundleManifestRun(devicePlatform, fingerprint) {
-  const capturedAt = new Date().toISOString();
+function supportBundleManifestRun(devicePlatform, fingerprint, capturedAt = new Date().toISOString()) {
   return {
     id: `validation-${devicePlatform}`,
     fingerprint,

@@ -1176,6 +1176,55 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks retained manifest runs dated after support bundle generation", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", createdAt: "2026-06-23T11:45:00.000Z" }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("manifest run(s) are dated after support bundle generatedAt")
+      })
+    );
+  });
+
+  it("blocks retained manifest runs dated after the verifier time", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        generatedAt: "2026-06-23T12:00:00.000Z",
+        summary: {
+          platformPublishingFreshnessCheckedAt: "2026-06-23T11:59:00.000Z",
+          platformPublishingFreshnessAgeMinutes: 1,
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios", createdAt: "2026-06-23T12:01:00.000Z" }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("manifest run(s) are dated after the verifier time")
+      })
+    );
+  });
+
   it("blocks old support bundle schema versions without retained-run manifests", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -3610,6 +3659,7 @@ const manifestRunWithoutFaceLandmarkProof = (
 const manifestRun = ({
   devicePlatform,
   fingerprint,
+  createdAt = "2026-06-23T11:00:00.000Z",
   eligible = true,
   result = "pass",
   physicalDevice = true,
@@ -3792,6 +3842,7 @@ const manifestRun = ({
 }: {
   devicePlatform: "ios" | "android";
   fingerprint: string;
+  createdAt?: ValidationManifestRun["createdAt"];
   eligible?: ValidationManifestRun["eligible"];
   result?: ValidationManifestRun["result"];
   physicalDevice?: ValidationManifestRun["physicalDevice"];
@@ -3973,7 +4024,7 @@ const manifestRun = ({
 }): ValidationManifestRun => ({
   id: `validation-${devicePlatform}`,
   fingerprint,
-  createdAt: "2026-06-23T11:00:00.000Z",
+  createdAt,
   ageDays: 0,
   fresh,
   matchesScope,

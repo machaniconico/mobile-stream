@@ -372,10 +372,14 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks fresh platform publishing evidence without checked-at timestamp proof");
     expectIncludes(files.commercialReleaseBundleScript, "checkedAtMs > now.getTime()");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks fresh platform publishing evidence checked after the verifier time");
-    expectIncludes(files.commercialReleaseBundleScript, "validationManifestIntegrityIssue(bundle)");
+    expectIncludes(files.commercialReleaseBundleScript, "validationManifestIntegrityIssue(bundle, now)");
     expectIncludes(files.commercialReleaseBundleScript, "stale run count summary=");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks retained stale runs hidden by summary count tampering");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks validation build claims not backed by latest manifest rows");
+    expectIncludes(files.commercialReleaseGateDomain, "manifest run(s) are dated after the verifier time");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks retained manifest runs dated after the verifier time");
+    expectIncludes(files.commercialReleaseBundleScript, "manifest run(s) are dated after support bundle generatedAt");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks retained manifest runs dated after support bundle generation");
     expectIncludes(files.commercialReleaseGateDomain, "android-publisher-mode-not-commercial");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "isFirstPartyManifestPublishingDestination");

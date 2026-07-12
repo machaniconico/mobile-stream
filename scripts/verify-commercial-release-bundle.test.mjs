@@ -1257,6 +1257,46 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Can release: no");
   });
 
+  it("blocks retained manifest runs dated after support bundle generation", () => {
+    const generatedAt = new Date(Date.now() - 120_000).toISOString();
+    writeBundle({
+      generatedAt,
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { createdAt: new Date(Date.now() - 60_000).toISOString() }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[FAIL] Validation evidence manifest");
+    expect(result.stdout).toContain("manifest run(s) are dated after support bundle generatedAt");
+    expect(result.stdout).toContain("Can release: no");
+  });
+
+  it("blocks retained manifest runs dated after the verifier time", () => {
+    const generatedAt = new Date().toISOString();
+    writeBundle({
+      generatedAt,
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { createdAt: new Date(Date.now() + 60_000).toISOString() }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[FAIL] Validation evidence manifest");
+    expect(result.stdout).toContain("manifest run(s) are dated after the verifier time");
+    expect(result.stdout).toContain("Can release: no");
+  });
+
   it("blocks validation build claims not backed by latest manifest rows", () => {
     writeBundle({
       summary: {

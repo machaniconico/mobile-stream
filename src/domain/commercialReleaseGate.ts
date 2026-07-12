@@ -81,7 +81,7 @@ export const createCommercialReleaseGate = (
     createValidationEvidenceCoverageIssue(bundle),
     createValidationEvidenceManifestIssue(bundle),
     createValidationEvidenceSceneManifestIssue(bundle),
-    createValidationEvidenceManifestIntegrityIssue(bundle),
+    createValidationEvidenceManifestIntegrityIssue(bundle, now),
     createValidationEvidenceQualityAutomationIssue(bundle),
     createValidationEvidenceFeatureIssue(bundle),
     createRetainedStaleEvidenceIssue(bundle)
@@ -850,7 +850,7 @@ const createValidationEvidenceSceneManifestIssue = (bundle: SupportBundle): Comm
   );
 };
 
-const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle, now: Date): CommercialReleaseGateIssue | null => {
   const manifest = bundle.summary.validationEvidenceRunManifest;
   if (!Array.isArray(manifest) || manifest.length === 0) {
     return null;
@@ -864,6 +864,24 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle): 
   const androidRun = latestRuns.get("android");
   const derivedEligibleRunCount = manifest.filter((run) => isManifestRunFreshInScope(run, manifestScope)).length;
   const derivedStaleRunCount = manifest.filter((run) => run.fresh !== true).length;
+  const bundleGeneratedAtMs = Date.parse(bundle.generatedAt);
+  const futureVerifierRunCount = manifest.filter((run) => {
+    const createdAtMs = manifestRunCreatedAtMs(run);
+    return Number.isFinite(createdAtMs) && createdAtMs > now.getTime();
+  }).length;
+  const futureBundleRunCount = Number.isFinite(bundleGeneratedAtMs)
+    ? manifest.filter((run) => {
+        const createdAtMs = manifestRunCreatedAtMs(run);
+        return Number.isFinite(createdAtMs) && createdAtMs > bundleGeneratedAtMs;
+      }).length
+    : 0;
+
+  if (futureVerifierRunCount > 0) {
+    mismatches.push(`${futureVerifierRunCount} manifest run(s) are dated after the verifier time`);
+  }
+  if (futureBundleRunCount > 0) {
+    mismatches.push(`${futureBundleRunCount} manifest run(s) are dated after support bundle generatedAt`);
+  }
 
   if (derivedEligibleRunCount !== summary.validationEvidenceEligibleRunCount) {
     mismatches.push(
@@ -1188,6 +1206,8 @@ const expectedTransportForBundle = (bundle: SupportBundle): string | null => {
 
 const isManifestRunFreshAndScopeClaimed = (run: ValidationEvidenceManifestRun): boolean =>
   run.fresh === true && run.matchesScope === true && Number.isFinite(Date.parse(run.createdAt));
+
+const manifestRunCreatedAtMs = (run: ValidationEvidenceManifestRun): number => Date.parse(String(run.createdAt));
 
 const isManifestRunFreshInScope = (
   run: ValidationEvidenceManifestRun,

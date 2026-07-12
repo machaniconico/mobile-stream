@@ -173,7 +173,7 @@ export function createCommercialReleaseGate(bundle, { now, maxBundleAgeHours = d
     validationEvidenceIssue(bundle),
     validationCoverageIssue(bundle),
     validationManifestIssue(bundle),
-    validationManifestIntegrityIssue(bundle),
+    validationManifestIntegrityIssue(bundle, now),
     validationSceneManifestIssue(bundle),
     validationQualityAutomationIssue(bundle),
     validationFeatureIssue(bundle),
@@ -1145,7 +1145,7 @@ function validationManifestIssue(bundle) {
   return null;
 }
 
-function validationManifestIntegrityIssue(bundle) {
+function validationManifestIntegrityIssue(bundle, now) {
   const summary = bundle?.summary ?? {};
   const manifest = summary.validationEvidenceRunManifest;
   if (!Array.isArray(manifest) || manifest.length === 0) {
@@ -1159,6 +1159,24 @@ function validationManifestIntegrityIssue(bundle) {
   const androidRun = latestRuns.get("android");
   const derivedEligibleRunCount = manifest.filter((run) => isManifestRunFreshInScope(run, manifestScope)).length;
   const derivedStaleRunCount = manifest.filter((run) => run?.fresh !== true).length;
+  const bundleGeneratedAtMs = Date.parse(String(bundle?.generatedAt ?? ""));
+  const futureVerifierRunCount = manifest.filter((run) => {
+    const createdAtMs = manifestRunCreatedAtMs(run);
+    return Number.isFinite(createdAtMs) && createdAtMs > now.getTime();
+  }).length;
+  const futureBundleRunCount = Number.isFinite(bundleGeneratedAtMs)
+    ? manifest.filter((run) => {
+        const createdAtMs = manifestRunCreatedAtMs(run);
+        return Number.isFinite(createdAtMs) && createdAtMs > bundleGeneratedAtMs;
+      }).length
+    : 0;
+
+  if (futureVerifierRunCount > 0) {
+    mismatches.push(`${futureVerifierRunCount} manifest run(s) are dated after the verifier time`);
+  }
+  if (futureBundleRunCount > 0) {
+    mismatches.push(`${futureBundleRunCount} manifest run(s) are dated after support bundle generatedAt`);
+  }
 
   if (derivedEligibleRunCount !== number(summary.validationEvidenceEligibleRunCount)) {
     mismatches.push(`eligible run count summary=${number(summary.validationEvidenceEligibleRunCount)} manifest=${derivedEligibleRunCount}`);
@@ -1977,6 +1995,10 @@ function isDiagnosticStatus(value) {
 
 function isManifestRunFreshAndScopeClaimed(run) {
   return run?.fresh === true && run?.matchesScope === true && Number.isFinite(Date.parse(String(run?.createdAt)));
+}
+
+function manifestRunCreatedAtMs(run) {
+  return Date.parse(String(run?.createdAt ?? ""));
 }
 
 function isManifestRunFreshInScope(run, manifestScope = emptyExpectedManifestScope) {

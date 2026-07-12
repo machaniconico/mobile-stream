@@ -658,8 +658,8 @@ function writeSupportBundleFixture({ generatedAt = new Date().toISOString() } = 
           platformPublishingFreshnessSummary: "YouTube dashboard status was checked 0 minutes ago.",
           platformPublishingFreshnessRecommendation: "Keep this fresh dashboard snapshot with the release-candidate validation run.",
           validationEvidenceRunManifest: [
-            supportBundleManifestRun("ios", "svr1-ios"),
-            supportBundleManifestRun("android", "svr1-android")
+            supportBundleManifestRun("ios", "svr1-ios", generatedAt),
+            supportBundleManifestRun("android", "svr1-android", generatedAt)
           ]
         }
       },
@@ -742,8 +742,7 @@ iPhone 16 Pro (18.0) (B50D8051-8C22-4E18-A95B-C3AFB39F9451)
   };
 }
 
-function supportBundleManifestRun(devicePlatform, fingerprint) {
-  const capturedAt = new Date().toISOString();
+function supportBundleManifestRun(devicePlatform, fingerprint, capturedAt = new Date().toISOString()) {
   return {
     id: `validation-${devicePlatform}`,
     fingerprint,
