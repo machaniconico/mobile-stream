@@ -263,6 +263,7 @@ export const MobileApp = () => {
   const platformChatOAuthSyncRetryUntil = useRef(0);
   const platformChatOAuthSyncRequest = useRef<(() => void) | null>(null);
   const audioLevelSamplesRef = useRef<StreamAudioLevelSample[]>([]);
+  const nativeAudioLevelTimestampRef = useRef(0);
   const readiness = useMemo(() => createReadinessReport(scene, profile), [scene, profile]);
   const persistedDiagnosticSecrets = useMemo(
     () =>
@@ -339,18 +340,58 @@ export const MobileApp = () => {
     snapshot,
     streamSessionRedactionSecrets
   );
-  const recordAudioLevelSample = useCallback((level: number, source: StreamAudioLevelSource) => {
+  const recordAudioLevelSample = useCallback((
+    level: number,
+    source: StreamAudioLevelSource,
+    at: Date = new Date(),
+    peakLevel?: number,
+    pcmSampleCount?: number,
+    clippedPcmSampleCount?: number
+  ) => {
     audioLevelSamplesRef.current = appendStreamAudioLevelSample(
       audioLevelSamplesRef.current,
-      createStreamAudioLevelSample(level, source)
+      createStreamAudioLevelSample(level, source, at, {
+        peakLevel,
+        pcmSampleCount,
+        clippedPcmSampleCount
+      })
     );
   }, []);
   const getAudioLevelSamples = useCallback(() => audioLevelSamplesRef.current, []);
   useEffect(() => {
     if (snapshot.state.status === "preparing") {
       audioLevelSamplesRef.current = [];
+      nativeAudioLevelTimestampRef.current = 0;
     }
   }, [snapshot.state.status]);
+  useEffect(() => {
+    const audio = snapshot.nativeRuntime?.audioProcessing;
+    const updatedAt = audio?.micLevelUpdatedAt ?? 0;
+    if (
+      (audio?.micSampleCount ?? 0) <= 0 ||
+      updatedAt <= 0 ||
+      !Number.isFinite(updatedAt) ||
+      updatedAt <= nativeAudioLevelTimestampRef.current
+    ) {
+      return;
+    }
+
+    nativeAudioLevelTimestampRef.current = updatedAt;
+    recordAudioLevelSample(
+      audio?.micRmsLevel ?? 0,
+      "native-pcm",
+      new Date(updatedAt),
+      audio?.micPeakLevel ?? audio?.micRmsLevel ?? 0,
+      audio?.micSampleCount ?? 0,
+      audio?.micClippedSampleCount ?? 0
+    );
+  }, [
+    recordAudioLevelSample,
+    snapshot.nativeRuntime?.audioProcessing?.micLevelUpdatedAt,
+    snapshot.nativeRuntime?.audioProcessing?.micPeakLevel,
+    snapshot.nativeRuntime?.audioProcessing?.micRmsLevel,
+    snapshot.nativeRuntime?.audioProcessing?.micSampleCount
+  ]);
   const recordChatSpeechEvent = useCallback(
     (event: ChatSpeechQueueEvent) => {
       recordStreamSessionEvent(
@@ -1047,8 +1088,6 @@ export const MobileApp = () => {
                 blink: nextTracking.blink
               }
             : blinkedAvatar;
-          recordAudioLevelSample(nextAvatar.mouthOpen, trackingProfile.enabled ? "face-tracking" : "manual");
-
           updateActiveSceneDocument((currentScene) => {
             const withAvatar = applyAvatarRuntime(currentScene, nextAvatar.expression, nextAvatar.mouthOpen, nextAvatar.blink);
             return trackingProfile.enabled
@@ -1063,10 +1102,9 @@ export const MobileApp = () => {
       });
     }, 140);
     return () => clearInterval(timer);
-  }, [faceTrackingInput, profile.faceTracking, recordAudioLevelSample, updateActiveSceneDocument]);
+  }, [faceTrackingInput, profile.faceTracking, updateActiveSceneDocument]);
 
   const updateMicLevel = (level: number) => {
-    recordAudioLevelSample(level, "manual");
     setAvatarRuntime((current) => {
       const next = { ...current, mouthOpen: level };
       updateActiveSceneDocument((currentScene) => applyAvatarRuntime(currentScene, next.expression, next.mouthOpen, next.blink));

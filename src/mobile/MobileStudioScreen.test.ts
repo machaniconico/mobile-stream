@@ -67,6 +67,12 @@ describe("MobileStudioScreen subtitle and text controls", () => {
     expect(source).toContain("lowPowerMode");
   });
 
+  it("labels real PCM evidence in mobile audio diagnostics", () => {
+    expect(source).toContain("audioSilenceGuard.evidenceSource");
+    expect(source).toContain("nativeClippedSamplePercent");
+    expect(source).toContain('label="Audio silence"');
+  });
+
   it("shows and applies the active platform quality recommendation", () => {
     expect(source).toContain("createPlatformQualityRecommendation(profile)");
     expect(source).toContain("platformQualityRecommendation.platformLabel} target");

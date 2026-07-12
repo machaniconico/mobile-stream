@@ -191,6 +191,11 @@ const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
     micEffectsProcessedSamples: 24_576,
     micEffectsGatedSamples: 64,
     micEffectsLimitedSamples: 2,
+    micRmsLevel: 0.18,
+    micPeakLevel: 0.62,
+    micSampleCount: 44_100,
+    micClippedSampleCount: 0,
+    micLevelUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
     monitorEnabled: true,
     monitorRunning: true,
     monitorVolume: 0.45,
@@ -471,7 +476,7 @@ describe("stream validation evidence", () => {
     expect(summary.latestChatReadout?.status).toBe("warn");
   });
 
-  it("copies retained audio meter and spoken chat counts into validation evidence", () => {
+  it("prefers current native PCM over retained audio from an older session", () => {
     const scene = nativeReadyScene();
     const profile = commercialProfileWithKey("validation-key");
     const readiness = createReadinessReport(scene, profile);
@@ -539,13 +544,20 @@ describe("stream validation evidence", () => {
       monitorLatencyBudgetMs: 180,
       monitorLatencySource: "manual",
       bluetoothRoute: false,
-      levelSampleCount: 2,
-      peakLevel: 0.8,
+      levelSource: "native-pcm",
+      levelSampleCount: 44_100,
+      peakLevel: 0.62,
       activeLevelPercent: 100
     });
     expect(formatStreamValidationRunAudioLabel(run)).toBe(
-      "audio pass / broadcast / monitor on / headphones-only yes / route pass Wired headphones / headphones yes / stale no / native monitor running 24576/0 frames Wired headphones route-match yes / latency 92ms pass/180ms manual / samples 2 / peak 80%"
+      "audio pass / broadcast / monitor on / headphones-only yes / route pass Wired headphones / headphones yes / stale no / native monitor running 24576/0 frames Wired headphones route-match yes / latency 92ms pass/180ms manual / meter native-pcm / samples 44100 / peak 62%"
     );
+    const legacyRun = JSON.parse(JSON.stringify(run));
+    delete legacyRun.audio.levelSource;
+    const [normalizedLegacyRun] = normalizeStreamValidationRuns([legacyRun]);
+    const legacySummary = summarizeStreamValidationEvidence([normalizedLegacyRun], { now: validationNow });
+    expect(normalizedLegacyRun.audio?.levelSource).toBe("none");
+    expect(legacySummary.audioIosPass).toBe(false);
     expect(run.chatReadout).toMatchObject({
       platformChatEnabled: true,
       readerEnabled: true,
@@ -554,7 +566,8 @@ describe("stream validation evidence", () => {
       spokenMessageCount: 1,
       speechFailureCount: 0
     });
-    expect(run.audio?.summary).toContain("Audio meter retained 2 sam");
+    expect(run.audio?.summary).not.toContain("Audio meter retained 2 sam");
+    expect(run.audio?.summary).toContain("broadcast mic effects are active");
     expect(run.chatReadout?.summary).toContain("Chat speech retained 1 spoken / 0 failed");
   });
 

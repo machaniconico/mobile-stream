@@ -37,7 +37,9 @@ describe("native text overlay rendering", () => {
     expect(handler).toContain("lastRejectedRenderGraphUpdateKey != nextRenderGraphUpdateKey");
     expect(handler).toContain("liveRenderGraphRejectedUpdateCount += 1");
     expect(handler).toContain("liveRenderGraphReloadCount += 1");
-    expect(handler).toContain("saveRuntimeState(sceneCompositionSummary: finalSceneCompositionSummary)");
+    expect(handler).toMatch(
+      /saveRuntimeState\(\s*sceneCompositionSummary: finalSceneCompositionSummary,\s*audioEncoderStats: finalAudioEncoderStats\s*\)/,
+    );
     expect(handler).toContain("saveRuntimeState()");
     expect(handler).toContain('"liveRenderGraphReloadCount": liveRenderGraphReloadCount');
     expect(handler).toContain('"liveRenderGraphRejectedUpdateCount": liveRenderGraphRejectedUpdateCount');

@@ -15,23 +15,35 @@ import type { StreamSessionEvent } from "./streamSessionLog";
 export type StreamSessionEndReason = "stopped" | "failed";
 export type StreamSessionOutcome = "clean" | "warn" | "fail";
 export type StreamSessionNativeRuntimeStatus = "pass" | "warn" | "fail";
-export type StreamAudioLevelSource = "manual" | "face-tracking";
+export type StreamAudioLevelSource = "manual" | "face-tracking" | "native-pcm";
 type StreamSessionNativeRuntimeEncoderProbeStatus =
   NonNullable<NativeRuntimeTelemetry["encoderProbe"]>["status"] | "missing";
 
 export interface StreamAudioLevelSample {
   at: string;
   level: number;
+  peakLevel?: number;
+  pcmSampleCount?: number;
+  clippedPcmSampleCount?: number;
   source: StreamAudioLevelSource;
 }
 
+export interface StreamAudioLevelSampleDetails {
+  peakLevel?: number;
+  pcmSampleCount?: number;
+  clippedPcmSampleCount?: number;
+}
+
 export interface StreamSessionAudioLevelSummary {
+  evidenceSource: "native-pcm" | "simulated" | "none";
   sampleCount: number;
+  pcmSampleCount: number;
   averageLevel: number;
   peakLevel: number;
   activeSampleCount: number;
   activePercent: number;
   clippedSampleCount: number;
+  clippedPcmSampleCount: number;
   summary: string;
   recommendation: string;
 }
@@ -143,6 +155,21 @@ export interface StreamSessionNativeRuntimeSummary {
   monitorDroppedBuffers: number;
   monitorEstimatedLatencyMs: number;
   monitorLatencySource: string;
+  micRmsLevel?: number;
+  micPeakLevel?: number;
+  micSampleCount?: number;
+  micClippedSampleCount?: number;
+  micLevelUpdatedAt?: number;
+  appAudioRmsLevel?: number;
+  appAudioPeakLevel?: number;
+  appAudioSampleCount?: number;
+  appAudioClippedSampleCount?: number;
+  appAudioLevelUpdatedAt?: number;
+  mixedAudioRmsLevel?: number;
+  mixedAudioPeakLevel?: number;
+  mixedAudioSampleCount?: number;
+  mixedAudioClippedSampleCount?: number;
+  mixedAudioLevelUpdatedAt?: number;
   issueCount: number;
   summary: string;
   recommendation: string;
@@ -198,10 +225,18 @@ export const maxStreamAudioLevelSamples = 600;
 export const createStreamAudioLevelSample = (
   level: number,
   source: StreamAudioLevelSource,
-  now: Date = new Date()
+  now: Date = new Date(),
+  details: StreamAudioLevelSampleDetails = {}
 ): StreamAudioLevelSample => ({
   at: now.toISOString(),
   level: clamp01(level),
+  ...(details.peakLevel === undefined ? {} : { peakLevel: clamp01(details.peakLevel) }),
+  ...(details.pcmSampleCount === undefined
+    ? {}
+    : { pcmSampleCount: normalizeNonNegativeInteger(details.pcmSampleCount) }),
+  ...(details.clippedPcmSampleCount === undefined
+    ? {}
+    : { clippedPcmSampleCount: normalizeNonNegativeInteger(details.clippedPcmSampleCount) }),
   source
 });
 
@@ -220,33 +255,50 @@ export const summarizeStreamAudioLevels = (
 
   if (normalized.length === 0) {
     return {
+      evidenceSource: "none",
       sampleCount: 0,
+      pcmSampleCount: 0,
       averageLevel: 0,
       peakLevel: 0,
       activeSampleCount: 0,
       activePercent: 0,
       clippedSampleCount: 0,
-      summary: "No lip-sync audio level samples were retained.",
-      recommendation: "Capture a spoken private stream segment so mic FX and mouth-motion levels can be reviewed."
+      clippedPcmSampleCount: 0,
+      summary: "No audio level samples were retained.",
+      recommendation: "Capture a spoken private stream segment so the broadcast audio path can be reviewed."
     };
   }
 
   const sampleCount = normalized.length;
+  const nativeSamples = normalized.filter((sample) => sample.source === "native-pcm");
+  const pcmSampleCount = nativeSamples.reduce(
+    (total, sample) => total + normalizeNonNegativeInteger(sample.pcmSampleCount),
+    0
+  );
+  const clippedPcmSampleCount = nativeSamples.reduce(
+    (total, sample) => total + normalizeNonNegativeInteger(sample.clippedPcmSampleCount),
+    0
+  );
   const totalLevel = normalized.reduce((total, sample) => total + sample.level, 0);
   const averageLevel = roundLevel(totalLevel / sampleCount);
-  const peakLevel = roundLevel(Math.max(...normalized.map((sample) => sample.level)));
+  const peakLevel = roundLevel(Math.max(...normalized.map((sample) => sample.peakLevel ?? sample.level)));
   const activeSampleCount = normalized.filter((sample) => sample.level >= 0.05).length;
   const activePercent = Math.round((activeSampleCount / sampleCount) * 100);
-  const clippedSampleCount = normalized.filter((sample) => sample.level >= 0.98).length;
+  const clippedSampleCount = nativeSamples.length > 0
+    ? clippedPcmSampleCount
+    : normalized.filter((sample) => (sample.peakLevel ?? sample.level) >= 0.98).length;
 
   return {
+    evidenceSource: normalized.some((sample) => sample.source === "native-pcm") ? "native-pcm" : "simulated",
     sampleCount,
+    pcmSampleCount,
     averageLevel,
     peakLevel,
     activeSampleCount,
     activePercent,
     clippedSampleCount,
-    summary: `Audio meter retained ${sampleCount} sample${sampleCount === 1 ? "" : "s"}; average ${Math.round(averageLevel * 100)}%, peak ${Math.round(peakLevel * 100)}%, active ${activePercent}%.`,
+    clippedPcmSampleCount,
+    summary: `Audio meter retained ${sampleCount} sample${sampleCount === 1 ? "" : "s"}${pcmSampleCount > 0 ? ` / ${pcmSampleCount} PCM samples` : ""}; average ${Math.round(averageLevel * 100)}%, peak ${Math.round(peakLevel * 100)}%, active ${activePercent}%.`,
     recommendation:
       clippedSampleCount > 0
         ? "Lower mic gain or compression and repeat the private audio monitor check."
@@ -473,8 +525,13 @@ export const createStreamSessionSummary = ({
   const chatSpeechStartedCount = sessionEvents.filter(isChatSpeechStartedEvent).length;
   const chatSpeechSpokenCount = sessionEvents.filter(isChatSpeechSpokenEvent).length;
   const chatSpeechFailureCount = sessionEvents.filter(isChatSpeechFailureEvent).length;
+  const currentAudioLevelSamples = audioLevelSamples.filter(
+    (sample) => sample.at >= startedAt && sample.at <= endedAtIso
+  );
   const audioLevel = summarizeStreamAudioLevels(
-    audioLevelSamples.filter((sample) => sample.at >= startedAt && sample.at <= endedAtIso)
+    nativeRuntimeTelemetry
+      ? currentAudioLevelSamples.filter((sample) => sample.source === "native-pcm")
+      : currentAudioLevelSamples
   );
   const nativeRuntime = createNativeRuntimeSessionSummary(nativeRuntimeTelemetry);
   const outcome = createOutcome(endReason, health, warningCount, failureCount, nativeRuntime, audioLevel, chatSpeechFailureCount);
@@ -846,6 +903,26 @@ export const createNativeRuntimeSessionSummary = (
       incompleteVrmModelMetadata ||
       incompleteVrmRenderability ||
       incompleteVrmPoseMapping);
+  const mixedAudioSampleCount = normalizeNonNegativeInteger(runtime.audioProcessing?.mixedAudioSampleCount);
+  const micSampleCount = normalizeNonNegativeInteger(runtime.audioProcessing?.micSampleCount);
+  const micLevelUpdatedAt = normalizeNonNegativeInteger(runtime.audioProcessing?.micLevelUpdatedAt);
+  const nativeAudioMeterReported =
+    runtime.audioProcessing?.micSampleCount !== undefined ||
+    runtime.audioProcessing?.micLevelUpdatedAt !== undefined;
+  const nativeMicExpected =
+    runtime.audioProcessing?.broadcastMicMuted !== true &&
+    (runtime.audioProcessing?.broadcastMicVolume ?? 1) > 0;
+  const nativeAudioMeterMissing =
+    nativeAudioMeterReported && nativeMicExpected && (micSampleCount <= 0 || micLevelUpdatedAt <= 0);
+  const nativeAudioMeterStale =
+    nativeAudioMeterReported &&
+    nativeMicExpected &&
+    micLevelUpdatedAt > 0 &&
+    (runtime.updatedAt - micLevelUpdatedAt > 3_000 || micLevelUpdatedAt - runtime.updatedAt > 3_000);
+  const nativeAudioClippedSampleCount = mixedAudioSampleCount > 0
+    ? normalizeNonNegativeInteger(runtime.audioProcessing?.mixedAudioClippedSampleCount)
+    : normalizeNonNegativeInteger(runtime.audioProcessing?.micClippedSampleCount);
+  const nativeAudioClipping = nativeAudioClippedSampleCount > 0;
   const status: StreamSessionNativeRuntimeStatus = failed
     ? "fail"
     : stale ||
@@ -860,7 +937,10 @@ export const createNativeRuntimeSessionSummary = (
         invalidNativeEncoderBackends ||
         missingLive2DPoses ||
         missingVrmPoses ||
-        incompleteVrmRendering
+        incompleteVrmRendering ||
+        nativeAudioMeterMissing ||
+        nativeAudioMeterStale ||
+        nativeAudioClipping
       ? "warn"
       : "pass";
   const issueCount = [
@@ -877,7 +957,10 @@ export const createNativeRuntimeSessionSummary = (
     invalidNativeEncoderBackends,
     missingLive2DPoses,
     missingVrmPoses,
-    incompleteVrmRendering
+    incompleteVrmRendering,
+    nativeAudioMeterMissing,
+    nativeAudioMeterStale,
+    nativeAudioClipping
   ].filter(Boolean).length;
   const queue = `${runtime.publisher.itemsInCache}/${runtime.publisher.cacheSize}`;
 
@@ -988,6 +1071,21 @@ export const createNativeRuntimeSessionSummary = (
     monitorDroppedBuffers: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorDroppedBuffers),
     monitorEstimatedLatencyMs: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorEstimatedLatencyMs),
     monitorLatencySource: normalizeSafeSummaryString(runtime.audioProcessing?.monitorLatencySource, ""),
+    micRmsLevel: normalizeAudioMeterLevel(runtime.audioProcessing?.micRmsLevel),
+    micPeakLevel: normalizeAudioMeterLevel(runtime.audioProcessing?.micPeakLevel),
+    micSampleCount,
+    micClippedSampleCount: normalizeNonNegativeInteger(runtime.audioProcessing?.micClippedSampleCount),
+    micLevelUpdatedAt,
+    appAudioRmsLevel: normalizeAudioMeterLevel(runtime.audioProcessing?.appAudioRmsLevel),
+    appAudioPeakLevel: normalizeAudioMeterLevel(runtime.audioProcessing?.appAudioPeakLevel),
+    appAudioSampleCount: normalizeNonNegativeInteger(runtime.audioProcessing?.appAudioSampleCount),
+    appAudioClippedSampleCount: normalizeNonNegativeInteger(runtime.audioProcessing?.appAudioClippedSampleCount),
+    appAudioLevelUpdatedAt: normalizeNonNegativeInteger(runtime.audioProcessing?.appAudioLevelUpdatedAt),
+    mixedAudioRmsLevel: normalizeAudioMeterLevel(runtime.audioProcessing?.mixedAudioRmsLevel),
+    mixedAudioPeakLevel: normalizeAudioMeterLevel(runtime.audioProcessing?.mixedAudioPeakLevel),
+    mixedAudioSampleCount,
+    mixedAudioClippedSampleCount: normalizeNonNegativeInteger(runtime.audioProcessing?.mixedAudioClippedSampleCount),
+    mixedAudioLevelUpdatedAt: normalizeNonNegativeInteger(runtime.audioProcessing?.mixedAudioLevelUpdatedAt),
     issueCount,
     summary:
       status === "fail"
@@ -1213,7 +1311,19 @@ const normalizeAudioLevelSample = (value: unknown): StreamAudioLevelSample | nul
   return {
     at,
     level: clamp01(typeof value.level === "number" ? value.level : 0),
-    source: value.source === "face-tracking" ? "face-tracking" : "manual"
+    ...(typeof value.peakLevel === "number" ? { peakLevel: clamp01(value.peakLevel) } : {}),
+    ...(value.pcmSampleCount === undefined
+      ? {}
+      : { pcmSampleCount: normalizeNonNegativeInteger(value.pcmSampleCount) }),
+    ...(value.clippedPcmSampleCount === undefined
+      ? {}
+      : { clippedPcmSampleCount: normalizeNonNegativeInteger(value.clippedPcmSampleCount) }),
+    source:
+      value.source === "native-pcm"
+        ? "native-pcm"
+        : value.source === "face-tracking"
+          ? "face-tracking"
+          : "manual"
   };
 };
 
@@ -1222,12 +1332,20 @@ const normalizeAudioLevelSummary = (value: unknown): StreamSessionAudioLevelSumm
     return summarizeStreamAudioLevels([]);
   }
   return {
+    evidenceSource:
+      value.evidenceSource === "native-pcm"
+        ? "native-pcm"
+        : value.evidenceSource === "simulated" || normalizeNonNegativeInteger(value.sampleCount) > 0
+          ? "simulated"
+          : "none",
     sampleCount: normalizeNonNegativeInteger(value.sampleCount),
+    pcmSampleCount: normalizeNonNegativeInteger(value.pcmSampleCount),
     averageLevel: clamp01(typeof value.averageLevel === "number" ? value.averageLevel : 0),
     peakLevel: clamp01(typeof value.peakLevel === "number" ? value.peakLevel : 0),
     activeSampleCount: normalizeNonNegativeInteger(value.activeSampleCount),
     activePercent: Math.min(100, normalizeNonNegativeInteger(value.activePercent)),
     clippedSampleCount: normalizeNonNegativeInteger(value.clippedSampleCount),
+    clippedPcmSampleCount: normalizeNonNegativeInteger(value.clippedPcmSampleCount),
     summary:
       typeof value.summary === "string"
         ? normalizeSafeSummaryString(value.summary, "")
@@ -1364,6 +1482,21 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     monitorDroppedBuffers: normalizeNonNegativeInteger(value.monitorDroppedBuffers),
     monitorEstimatedLatencyMs: normalizeNonNegativeInteger(value.monitorEstimatedLatencyMs),
     monitorLatencySource: normalizeSafeSummaryString(value.monitorLatencySource, ""),
+    micRmsLevel: normalizeAudioMeterLevel(value.micRmsLevel),
+    micPeakLevel: normalizeAudioMeterLevel(value.micPeakLevel),
+    micSampleCount: normalizeNonNegativeInteger(value.micSampleCount),
+    micClippedSampleCount: normalizeNonNegativeInteger(value.micClippedSampleCount),
+    micLevelUpdatedAt: normalizeNonNegativeInteger(value.micLevelUpdatedAt),
+    appAudioRmsLevel: normalizeAudioMeterLevel(value.appAudioRmsLevel),
+    appAudioPeakLevel: normalizeAudioMeterLevel(value.appAudioPeakLevel),
+    appAudioSampleCount: normalizeNonNegativeInteger(value.appAudioSampleCount),
+    appAudioClippedSampleCount: normalizeNonNegativeInteger(value.appAudioClippedSampleCount),
+    appAudioLevelUpdatedAt: normalizeNonNegativeInteger(value.appAudioLevelUpdatedAt),
+    mixedAudioRmsLevel: normalizeAudioMeterLevel(value.mixedAudioRmsLevel),
+    mixedAudioPeakLevel: normalizeAudioMeterLevel(value.mixedAudioPeakLevel),
+    mixedAudioSampleCount: normalizeNonNegativeInteger(value.mixedAudioSampleCount),
+    mixedAudioClippedSampleCount: normalizeNonNegativeInteger(value.mixedAudioClippedSampleCount),
+    mixedAudioLevelUpdatedAt: normalizeNonNegativeInteger(value.mixedAudioLevelUpdatedAt),
     issueCount: normalizeNonNegativeInteger(value.issueCount),
     summary:
       typeof value.summary === "string"
@@ -1439,6 +1572,9 @@ const normalizeNonNegativeInteger = (value: unknown): number =>
 
 const normalizeNonNegativeNumber = (value: unknown): number =>
   Math.max(0, typeof value === "number" && Number.isFinite(value) ? value : 0);
+
+const normalizeAudioMeterLevel = (value: unknown): number =>
+  clamp01(typeof value === "number" ? value : 0);
 
 const normalizeSafeSummaryString = (value: unknown, fallback: string): string =>
   typeof value === "string" && value.trim() ? redactSecretsFromText(value) : fallback;

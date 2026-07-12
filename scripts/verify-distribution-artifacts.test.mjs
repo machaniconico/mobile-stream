@@ -2,7 +2,13 @@ import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { inspectAndroidDebugApkContent, inspectAndroidDebugApkFile } from "./verify-distribution-artifacts.mjs";
+import {
+  configuredAndroidBuildToolsVersion,
+  inspectAndroidDebugApkContent,
+  inspectAndroidDebugApkFile,
+  normalizeAndroidBuildToolsVersion,
+  resolveAndroidApkSignerPath
+} from "./verify-distribution-artifacts.mjs";
 import { createAndroidDebugApkFixture } from "./native-build-test-fixtures.mjs";
 
 const fixtureRoot = ".artifacts/verify-distribution-artifacts-test";
@@ -14,6 +20,81 @@ const minimumDistributionArtifactBytes = 1_048_576;
 describe("distribution artifact verifier", () => {
   afterEach(() => {
     rmSync(fixtureRoot, { recursive: true, force: true });
+  });
+
+  it("prefers the configured Build Tools version across Android SDK roots", () => {
+    const firstRoot = resolve(`${fixtureRoot}/sdk-first`);
+    const secondRoot = resolve(`${fixtureRoot}/sdk-second`);
+    const firstSigner = `${firstRoot}/build-tools/36.1.0/apksigner`;
+    const preferredSigner = `${secondRoot}/build-tools/36.0.0/apksigner`;
+    mkdirSync(resolve(firstSigner, ".."), { recursive: true });
+    mkdirSync(resolve(preferredSigner, ".."), { recursive: true });
+    writeFileSync(firstSigner, "");
+    writeFileSync(preferredSigner, "");
+
+    expect(
+      resolveAndroidApkSignerPath({
+        roots: [firstRoot, secondRoot],
+        preferredVersion: "36.0.0",
+        platform: "darwin"
+      })
+    ).toBe(preferredSigner);
+  });
+
+  it("does not fall back to another Build Tools version and supports Windows apksigner", () => {
+    const sdkRoot = resolve(`${fixtureRoot}/sdk-strict`);
+    const otherSigner = `${sdkRoot}/build-tools/36.1.0/apksigner`;
+    const windowsSigner = `${sdkRoot}/build-tools/36.0.0/apksigner.bat`;
+    mkdirSync(resolve(otherSigner, ".."), { recursive: true });
+    writeFileSync(otherSigner, "");
+
+    expect(
+      resolveAndroidApkSignerPath({
+        roots: [sdkRoot],
+        preferredVersion: "36.0.0",
+        platform: "darwin"
+      })
+    ).toBe("");
+
+    mkdirSync(resolve(windowsSigner, ".."), { recursive: true });
+    writeFileSync(windowsSigner, "");
+    expect(
+      resolveAndroidApkSignerPath({
+        roots: [sdkRoot],
+        preferredVersion: "36.0.0",
+        platform: "win32"
+      })
+    ).toBe(windowsSigner);
+  });
+
+  it("reads the shared Build Tools version file", () => {
+    const versionPath = `${fixtureRoot}/build-tools-version.txt`;
+    mkdirSync(fixtureRoot, { recursive: true });
+    writeFileSync(versionPath, "36.0.0\n");
+
+    expect(configuredAndroidBuildToolsVersion({ versionPath })).toBe("36.0.0");
+    writeFileSync(versionPath, "../../escape\n");
+    expect(() => configuredAndroidBuildToolsVersion({ versionPath })).toThrow("Invalid Android Build Tools version");
+    writeFileSync(versionPath, "\uFEFF36.0.0\n");
+    expect(() => configuredAndroidBuildToolsVersion({ versionPath })).toThrow("must not contain a UTF-8 BOM");
+    rmSync(versionPath);
+    expect(() => configuredAndroidBuildToolsVersion({ versionPath })).toThrow("does not exist");
+  });
+
+  it("rejects Build Tools version path traversal before resolving apksigner", () => {
+    const sdkRoot = resolve(`${fixtureRoot}/sdk-secure`);
+    const escapedSigner = `${sdkRoot}/escape/apksigner`;
+    mkdirSync(resolve(escapedSigner, ".."), { recursive: true });
+    writeFileSync(escapedSigner, "");
+
+    expect(normalizeAndroidBuildToolsVersion("../../escape")).toBe("");
+    expect(() =>
+      resolveAndroidApkSignerPath({
+        roots: [sdkRoot],
+        preferredVersion: "../../escape",
+        platform: "darwin"
+      })
+    ).toThrow("Invalid Android Build Tools version");
   });
 
   it("recognizes a structured Android debug APK", () => {

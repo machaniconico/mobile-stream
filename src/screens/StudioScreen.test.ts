@@ -41,6 +41,12 @@ describe("web stream announcement UI", () => {
     expect(studioSource).toContain("lowPowerMode");
   });
 
+  it("labels real PCM evidence in audio diagnostics", () => {
+    expect(studioSource).toContain("audioSilenceGuard.evidenceSource");
+    expect(studioSource).toContain("nativeClippedSamplePercent");
+    expect(studioSource).toContain("Audio silence");
+  });
+
   it("shows and applies the active platform quality recommendation", () => {
     expect(setupSource).toContain("createPlatformQualityRecommendation(profile)");
     expect(setupSource).toContain("platform-quality-recommendation");

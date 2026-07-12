@@ -54,4 +54,15 @@ describe("MobileApp OAuth credential state", () => {
     expect(source).toContain('fps: profile.androidPublisherMode === "rootencoder"');
     expect(source).toContain("{ videoBitrate: false, audioBitrate: false, fps: false }");
   });
+
+  it("records native PCM meter evidence instead of face-motion samples", () => {
+    const source = readFileSync(new URL("./MobileApp.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain('"native-pcm"');
+    expect(source).toContain("audio?.micRmsLevel");
+    expect(source).toContain("audio?.micPeakLevel");
+    expect(source).toContain("audio?.micLevelUpdatedAt");
+    expect(source).not.toContain('recordAudioLevelSample(nextAvatar.mouthOpen');
+    expect(source).not.toContain('recordAudioLevelSample(level, "manual")');
+  });
 });

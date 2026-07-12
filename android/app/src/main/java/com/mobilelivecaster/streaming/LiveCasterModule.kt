@@ -321,6 +321,21 @@ data class NativeRuntimeAudioProcessing(
     val micEffectsProcessedSamples: Long = 0,
     val micEffectsGatedSamples: Long = 0,
     val micEffectsLimitedSamples: Long = 0,
+    val micRmsLevel: Float = 0f,
+    val micPeakLevel: Float = 0f,
+    val micSampleCount: Long = 0L,
+    val micClippedSampleCount: Long = 0L,
+    val micLevelUpdatedAt: Long = 0L,
+    val appAudioRmsLevel: Float = 0f,
+    val appAudioPeakLevel: Float = 0f,
+    val appAudioSampleCount: Long = 0L,
+    val appAudioClippedSampleCount: Long = 0L,
+    val appAudioLevelUpdatedAt: Long = 0L,
+    val mixedAudioRmsLevel: Float = 0f,
+    val mixedAudioPeakLevel: Float = 0f,
+    val mixedAudioSampleCount: Long = 0L,
+    val mixedAudioClippedSampleCount: Long = 0L,
+    val mixedAudioLevelUpdatedAt: Long = 0L,
     val monitorEnabled: Boolean = false,
     val monitorRunning: Boolean = false,
     val monitorVolume: Float = 0f,
@@ -349,6 +364,21 @@ data class NativeRuntimeAudioProcessing(
         putDouble("micEffectsProcessedSamples", micEffectsProcessedSamples.toDouble())
         putDouble("micEffectsGatedSamples", micEffectsGatedSamples.toDouble())
         putDouble("micEffectsLimitedSamples", micEffectsLimitedSamples.toDouble())
+        putDouble("micRmsLevel", micRmsLevel.toDouble())
+        putDouble("micPeakLevel", micPeakLevel.toDouble())
+        putDouble("micSampleCount", micSampleCount.toDouble())
+        putDouble("micClippedSampleCount", micClippedSampleCount.toDouble())
+        putDouble("micLevelUpdatedAt", micLevelUpdatedAt.toDouble())
+        putDouble("appAudioRmsLevel", appAudioRmsLevel.toDouble())
+        putDouble("appAudioPeakLevel", appAudioPeakLevel.toDouble())
+        putDouble("appAudioSampleCount", appAudioSampleCount.toDouble())
+        putDouble("appAudioClippedSampleCount", appAudioClippedSampleCount.toDouble())
+        putDouble("appAudioLevelUpdatedAt", appAudioLevelUpdatedAt.toDouble())
+        putDouble("mixedAudioRmsLevel", mixedAudioRmsLevel.toDouble())
+        putDouble("mixedAudioPeakLevel", mixedAudioPeakLevel.toDouble())
+        putDouble("mixedAudioSampleCount", mixedAudioSampleCount.toDouble())
+        putDouble("mixedAudioClippedSampleCount", mixedAudioClippedSampleCount.toDouble())
+        putDouble("mixedAudioLevelUpdatedAt", mixedAudioLevelUpdatedAt.toDouble())
         putBoolean("monitorEnabled", monitorEnabled)
         putBoolean("monitorRunning", monitorRunning)
         putDouble("monitorVolume", monitorVolume.toDouble())

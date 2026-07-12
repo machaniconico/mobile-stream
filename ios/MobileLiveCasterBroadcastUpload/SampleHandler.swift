@@ -976,6 +976,129 @@ fileprivate struct BroadcastMicrophoneMonitorSnapshot: Equatable {
     let lastError: String
 }
 
+fileprivate struct BroadcastAudioLevelMeasurement: Equatable {
+    let rmsLevel: Float
+    let peakLevel: Float
+    let sampleCount: Int
+    let clippedSampleCount: Int
+    let updatedAt: Double
+
+    init(
+        samples: [Float],
+        levelGain: Float = 1,
+        clippingGain: Float? = nil,
+        clippedSampleCount: Int? = nil
+    ) {
+        var sumOfSquares = 0.0
+        var peakLevel: Float = 0
+        var measuredClippedSampleCount = 0
+        let effectiveClippingGain = clippingGain ?? levelGain
+
+        for sample in samples {
+            let levelSample = sample * levelGain
+            let magnitude: Float
+            if levelSample.isFinite {
+                magnitude = Swift.min(Float(1), abs(levelSample))
+            } else {
+                magnitude = 1
+            }
+            sumOfSquares += Double(magnitude) * Double(magnitude)
+            peakLevel = Swift.max(peakLevel, magnitude)
+
+            if clippedSampleCount == nil {
+                let clippingSample = sample * effectiveClippingGain
+                if !clippingSample.isFinite || abs(clippingSample) >= 1 {
+                    measuredClippedSampleCount += 1
+                }
+            }
+        }
+
+        let rmsLevel = samples.isEmpty
+            ? 0
+            : Float(sqrt(sumOfSquares / Double(samples.count)))
+        self.rmsLevel = Swift.min(Float(1), Swift.max(Float(0), rmsLevel))
+        self.peakLevel = Swift.min(Float(1), Swift.max(Float(0), peakLevel))
+        sampleCount = samples.count
+        self.clippedSampleCount = clippedSampleCount ?? measuredClippedSampleCount
+        updatedAt = samples.isEmpty ? 0 : Date().timeIntervalSince1970 * 1000
+    }
+
+    init(
+        rmsLevel: Float,
+        peakLevel: Float,
+        sampleCount: Int,
+        clippedSampleCount: Int,
+        updatedAt: Double
+    ) {
+        self.rmsLevel = Swift.min(Float(1), Swift.max(Float(0), rmsLevel))
+        self.peakLevel = Swift.min(Float(1), Swift.max(Float(0), peakLevel))
+        self.sampleCount = sampleCount
+        self.clippedSampleCount = clippedSampleCount
+        self.updatedAt = updatedAt
+    }
+}
+
+fileprivate struct BroadcastAudioLevelWindow: Equatable {
+    private static let durationMs = 1_000.0
+
+    private var startedAt: Double?
+    private var lastMeasurementAt: Double?
+    private var weightedSquareSum = 0.0
+    private var peakLevel: Float = 0
+    private var sampleCount = 0
+    private var clippedSampleCount = 0
+
+    mutating func append(_ measurement: BroadcastAudioLevelMeasurement) -> BroadcastAudioLevelMeasurement? {
+        guard measurement.sampleCount > 0 else {
+            return nil
+        }
+
+        if let startedAt, measurement.updatedAt - startedAt >= Self.durationMs {
+            let completedMeasurement = makeMeasurement()
+            reset()
+            accumulate(measurement)
+            return completedMeasurement
+        }
+
+        accumulate(measurement)
+        return nil
+    }
+
+    private mutating func accumulate(_ measurement: BroadcastAudioLevelMeasurement) {
+        if startedAt == nil {
+            startedAt = measurement.updatedAt
+        }
+        lastMeasurementAt = measurement.updatedAt
+        let rmsLevel = Double(measurement.rmsLevel)
+        weightedSquareSum += rmsLevel * rmsLevel * Double(measurement.sampleCount)
+        peakLevel = Swift.max(peakLevel, measurement.peakLevel)
+        sampleCount += measurement.sampleCount
+        clippedSampleCount += measurement.clippedSampleCount
+    }
+
+    private func makeMeasurement() -> BroadcastAudioLevelMeasurement {
+        let rmsLevel = sampleCount > 0
+            ? Float(sqrt(weightedSquareSum / Double(sampleCount)))
+            : 0
+        return BroadcastAudioLevelMeasurement(
+            rmsLevel: rmsLevel,
+            peakLevel: peakLevel,
+            sampleCount: sampleCount,
+            clippedSampleCount: clippedSampleCount,
+            updatedAt: lastMeasurementAt ?? 0
+        )
+    }
+
+    private mutating func reset() {
+        startedAt = nil
+        lastMeasurementAt = nil
+        weightedSquareSum = 0
+        peakLevel = 0
+        sampleCount = 0
+        clippedSampleCount = 0
+    }
+}
+
 struct BroadcastAudioEncoderStats: Equatable {
     private(set) var encodedFrames: Int = 0
     private(set) var appFrames: Int = 0
@@ -1006,6 +1129,24 @@ struct BroadcastAudioEncoderStats: Equatable {
     private(set) var monitorEstimatedLatencyMs = 0
     private(set) var monitorLatencySource = ""
     private(set) var monitorLastError = ""
+    private(set) var micRmsLevel: Float = 0
+    private(set) var micPeakLevel: Float = 0
+    private(set) var micSampleCount = 0
+    private(set) var micClippedSampleCount = 0
+    private(set) var micLevelUpdatedAt: Double = 0
+    private(set) var appAudioRmsLevel: Float = 0
+    private(set) var appAudioPeakLevel: Float = 0
+    private(set) var appAudioSampleCount = 0
+    private(set) var appAudioClippedSampleCount = 0
+    private(set) var appAudioLevelUpdatedAt: Double = 0
+    private(set) var mixedAudioRmsLevel: Float = 0
+    private(set) var mixedAudioPeakLevel: Float = 0
+    private(set) var mixedAudioSampleCount = 0
+    private(set) var mixedAudioClippedSampleCount = 0
+    private(set) var mixedAudioLevelUpdatedAt: Double = 0
+    private var micLevelWindow = BroadcastAudioLevelWindow()
+    private var appAudioLevelWindow = BroadcastAudioLevelWindow()
+    private var mixedAudioLevelWindow = BroadcastAudioLevelWindow()
 
     mutating func configureMicEffects(_ configuration: BroadcastMicEffectsConfiguration) {
         micEffectsEnabled = configuration.enabled
@@ -1074,6 +1215,39 @@ struct BroadcastAudioEncoderStats: Equatable {
         monitorLastError = snapshot.lastError
     }
 
+    fileprivate mutating func recordMicrophoneLevel(_ measurement: BroadcastAudioLevelMeasurement) {
+        guard let completedMeasurement = micLevelWindow.append(measurement) else {
+            return
+        }
+        micRmsLevel = completedMeasurement.rmsLevel
+        micPeakLevel = completedMeasurement.peakLevel
+        micSampleCount = completedMeasurement.sampleCount
+        micClippedSampleCount = completedMeasurement.clippedSampleCount
+        micLevelUpdatedAt = completedMeasurement.updatedAt
+    }
+
+    fileprivate mutating func recordAppAudioLevel(_ measurement: BroadcastAudioLevelMeasurement) {
+        guard let completedMeasurement = appAudioLevelWindow.append(measurement) else {
+            return
+        }
+        appAudioRmsLevel = completedMeasurement.rmsLevel
+        appAudioPeakLevel = completedMeasurement.peakLevel
+        appAudioSampleCount = completedMeasurement.sampleCount
+        appAudioClippedSampleCount = completedMeasurement.clippedSampleCount
+        appAudioLevelUpdatedAt = completedMeasurement.updatedAt
+    }
+
+    fileprivate mutating func recordMixedAudioLevel(_ measurement: BroadcastAudioLevelMeasurement) {
+        guard let completedMeasurement = mixedAudioLevelWindow.append(measurement) else {
+            return
+        }
+        mixedAudioRmsLevel = completedMeasurement.rmsLevel
+        mixedAudioPeakLevel = completedMeasurement.peakLevel
+        mixedAudioSampleCount = completedMeasurement.sampleCount
+        mixedAudioClippedSampleCount = completedMeasurement.clippedSampleCount
+        mixedAudioLevelUpdatedAt = completedMeasurement.updatedAt
+    }
+
     mutating func recordStatus(_ status: OSStatus) {
         lastStatus = status
     }
@@ -1090,6 +1264,21 @@ struct BroadcastAudioEncoderStats: Equatable {
             "channelCount": channelCount,
             "lastPresentationTimeSeconds": lastPresentationTimeSeconds,
             "lastStatus": lastStatus,
+            "micRmsLevel": micRmsLevel,
+            "micPeakLevel": micPeakLevel,
+            "micSampleCount": micSampleCount,
+            "micClippedSampleCount": micClippedSampleCount,
+            "micLevelUpdatedAt": micLevelUpdatedAt,
+            "appAudioRmsLevel": appAudioRmsLevel,
+            "appAudioPeakLevel": appAudioPeakLevel,
+            "appAudioSampleCount": appAudioSampleCount,
+            "appAudioClippedSampleCount": appAudioClippedSampleCount,
+            "appAudioLevelUpdatedAt": appAudioLevelUpdatedAt,
+            "mixedAudioRmsLevel": mixedAudioRmsLevel,
+            "mixedAudioPeakLevel": mixedAudioPeakLevel,
+            "mixedAudioSampleCount": mixedAudioSampleCount,
+            "mixedAudioClippedSampleCount": mixedAudioClippedSampleCount,
+            "mixedAudioLevelUpdatedAt": mixedAudioLevelUpdatedAt,
             "micEffects": [
                 "enabled": micEffectsEnabled,
                 "presetId": micEffectsPresetId,
@@ -2676,6 +2865,13 @@ final class BroadcastAudioEncoder {
     private func appendPCMFrame(_ frame: BroadcastPCMAudioFrame, source: BroadcastAudioSource) {
         switch source {
         case .app:
+            let levelMeasurement = BroadcastAudioLevelMeasurement(
+                samples: frame.samples,
+                levelGain: appGain
+            )
+            statsLock.performLocked {
+                self.currentStats.recordAppAudioLevel(levelMeasurement)
+            }
             appPCMQueue.append(contentsOf: frame.samples)
         case .microphone:
             let processedFrame = microphoneProcessor.process(
@@ -2683,8 +2879,13 @@ final class BroadcastAudioEncoder {
                 channelCount: frame.channelCount,
                 sampleRate: frame.sampleRate
             )
+            let levelMeasurement = BroadcastAudioLevelMeasurement(
+                samples: processedFrame.samples,
+                levelGain: microphoneGain
+            )
             statsLock.performLocked {
                 self.currentStats.recordMicrophoneProcessing(processedFrame)
+                self.currentStats.recordMicrophoneLevel(levelMeasurement)
             }
             let monitorSnapshot = microphoneMonitor.write(
                 samples: processedFrame.samples,
@@ -2729,9 +2930,20 @@ final class BroadcastAudioEncoder {
                 : [Float](repeating: 0, count: chunkSamples)
 
             var mixedSamples = [Float](repeating: 0, count: chunkSamples)
+            var mixedClippedSampleCount = 0
             for index in 0..<chunkSamples {
                 let mixed = appSamples[index] * appGain + microphoneSamples[index] * microphoneGain
+                if !mixed.isFinite || abs(mixed) >= 1 {
+                    mixedClippedSampleCount += 1
+                }
                 mixedSamples[index] = Swift.min(Float(1), Swift.max(Float(-1), mixed))
+            }
+            let levelMeasurement = BroadcastAudioLevelMeasurement(
+                samples: mixedSamples,
+                clippedSampleCount: mixedClippedSampleCount
+            )
+            statsLock.performLocked {
+                self.currentStats.recordMixedAudioLevel(levelMeasurement)
             }
 
             outputFrames.append(contentsOf: try encodeMixedSamples(mixedSamples, inputFormat: mixerInputFormat))
@@ -5263,6 +5475,7 @@ final class BroadcastUploadPipeline {
         }
 
         let finalSceneCompositionSummary = sceneCompositionSummary()
+        let finalAudioEncoderStats = audioEncoder?.stats
         stats.stop()
         videoEncoder?.finish()
         videoEncoder = nil
@@ -5279,7 +5492,10 @@ final class BroadcastUploadPipeline {
         publisher = nil
         state = .stopped
         logger.info("Broadcast upload stopped frames=\(self.stats.videoFrames) dropped=\(self.stats.droppedSamples)")
-        saveRuntimeState(sceneCompositionSummary: finalSceneCompositionSummary)
+        saveRuntimeState(
+            sceneCompositionSummary: finalSceneCompositionSummary,
+            audioEncoderStats: finalAudioEncoderStats
+        )
     }
 
     func consumeVideo(_ sampleBuffer: CMSampleBuffer) {
@@ -5332,6 +5548,7 @@ final class BroadcastUploadPipeline {
 
     private func saveRuntimeState(
         sceneCompositionSummary snapshotSceneCompositionSummary: BroadcastSceneCompositionSummary? = nil,
+        audioEncoderStats overrideAudioEncoderStats: BroadcastAudioEncoderStats? = nil,
         handoffID: String? = nil
     ) {
         BroadcastSharedStore.saveRuntimeState(
@@ -5339,7 +5556,7 @@ final class BroadcastUploadPipeline {
             configuration: configuration,
             stats: stats,
             videoEncoderStats: videoEncoder?.stats,
-            audioEncoderStats: audioEncoder?.stats,
+            audioEncoderStats: overrideAudioEncoderStats ?? audioEncoder?.stats,
             publisherStats: publisher?.stats,
             sceneCompositionSummary: snapshotSceneCompositionSummary ?? sceneCompositionSummary(),
             handoffID: handoffID

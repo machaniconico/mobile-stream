@@ -246,7 +246,77 @@ export interface NativeRuntimeAudioProcessing {
   broadcastAppAudioMuted?: boolean;
   broadcastChatReadoutVolume?: number;
   broadcastChatReadoutMuted?: boolean;
+  micRmsLevel?: number;
+  micPeakLevel?: number;
+  micSampleCount?: number;
+  micClippedSampleCount?: number;
+  micLevelUpdatedAt?: number;
+  appAudioRmsLevel?: number;
+  appAudioPeakLevel?: number;
+  appAudioSampleCount?: number;
+  appAudioClippedSampleCount?: number;
+  appAudioLevelUpdatedAt?: number;
+  mixedAudioRmsLevel?: number;
+  mixedAudioPeakLevel?: number;
+  mixedAudioSampleCount?: number;
+  mixedAudioClippedSampleCount?: number;
+  mixedAudioLevelUpdatedAt?: number;
 }
+
+export const normalizeNativeRuntimeAudioProcessing = (
+  audioProcessing: Partial<NativeRuntimeAudioProcessing> | null | undefined
+): NativeRuntimeAudioProcessing => ({
+  micEffectsEnabled: audioProcessing?.micEffectsEnabled ?? false,
+  micEffectsPresetId: audioProcessing?.micEffectsPresetId ?? "clean",
+  micEffectsProcessedFrames: normalizeNativeAudioCount(audioProcessing?.micEffectsProcessedFrames),
+  micEffectsProcessedSamples: normalizeNativeAudioCount(audioProcessing?.micEffectsProcessedSamples),
+  micEffectsGatedSamples: normalizeNativeAudioCount(audioProcessing?.micEffectsGatedSamples),
+  micEffectsLimitedSamples: normalizeNativeAudioCount(audioProcessing?.micEffectsLimitedSamples),
+  monitorEnabled: audioProcessing?.monitorEnabled ?? false,
+  monitorRunning: audioProcessing?.monitorRunning ?? false,
+  monitorVolume: normalizeNativeAudioLevel(audioProcessing?.monitorVolume),
+  monitorHeadphonesOnly: audioProcessing?.monitorHeadphonesOnly ?? true,
+  monitorRoute: audioProcessing?.monitorRoute ?? "unknown",
+  monitorOutputName: audioProcessing?.monitorOutputName ?? "Unknown",
+  monitorHeadphonesConnected: audioProcessing?.monitorHeadphonesConnected ?? false,
+  monitorWrittenFrames: normalizeNativeAudioCount(audioProcessing?.monitorWrittenFrames),
+  monitorDroppedFrames: normalizeNativeAudioCount(audioProcessing?.monitorDroppedFrames),
+  monitorWrittenBuffers: normalizeNativeAudioCount(audioProcessing?.monitorWrittenBuffers),
+  monitorDroppedBuffers: normalizeNativeAudioCount(audioProcessing?.monitorDroppedBuffers),
+  monitorEstimatedLatencyMs: normalizeNativeAudioCount(audioProcessing?.monitorEstimatedLatencyMs),
+  monitorLatencySource: audioProcessing?.monitorLatencySource ?? "",
+  monitorLastError: audioProcessing?.monitorLastError ?? "",
+  broadcastMicVolume: normalizeNativeAudioLevel(audioProcessing?.broadcastMicVolume, 1),
+  broadcastMicMuted: audioProcessing?.broadcastMicMuted ?? false,
+  broadcastAppAudioVolume: normalizeNativeAudioLevel(audioProcessing?.broadcastAppAudioVolume, 0.85),
+  broadcastAppAudioMuted: audioProcessing?.broadcastAppAudioMuted ?? false,
+  broadcastChatReadoutVolume: normalizeNativeAudioLevel(audioProcessing?.broadcastChatReadoutVolume, 0.85),
+  broadcastChatReadoutMuted: audioProcessing?.broadcastChatReadoutMuted ?? false,
+  micRmsLevel: normalizeNativeAudioLevel(audioProcessing?.micRmsLevel),
+  micPeakLevel: normalizeNativeAudioLevel(audioProcessing?.micPeakLevel),
+  micSampleCount: normalizeNativeAudioCount(audioProcessing?.micSampleCount),
+  micClippedSampleCount: normalizeNativeAudioCount(audioProcessing?.micClippedSampleCount),
+  micLevelUpdatedAt: normalizeNativeAudioTimestamp(audioProcessing?.micLevelUpdatedAt),
+  appAudioRmsLevel: normalizeNativeAudioLevel(audioProcessing?.appAudioRmsLevel),
+  appAudioPeakLevel: normalizeNativeAudioLevel(audioProcessing?.appAudioPeakLevel),
+  appAudioSampleCount: normalizeNativeAudioCount(audioProcessing?.appAudioSampleCount),
+  appAudioClippedSampleCount: normalizeNativeAudioCount(audioProcessing?.appAudioClippedSampleCount),
+  appAudioLevelUpdatedAt: normalizeNativeAudioTimestamp(audioProcessing?.appAudioLevelUpdatedAt),
+  mixedAudioRmsLevel: normalizeNativeAudioLevel(audioProcessing?.mixedAudioRmsLevel),
+  mixedAudioPeakLevel: normalizeNativeAudioLevel(audioProcessing?.mixedAudioPeakLevel),
+  mixedAudioSampleCount: normalizeNativeAudioCount(audioProcessing?.mixedAudioSampleCount),
+  mixedAudioClippedSampleCount: normalizeNativeAudioCount(audioProcessing?.mixedAudioClippedSampleCount),
+  mixedAudioLevelUpdatedAt: normalizeNativeAudioTimestamp(audioProcessing?.mixedAudioLevelUpdatedAt)
+});
+
+const normalizeNativeAudioLevel = (value: unknown, fallback = 0): number =>
+  Math.min(1, Math.max(0, normalizeFiniteNumber(value, fallback)));
+
+const normalizeNativeAudioCount = (value: unknown): number =>
+  Math.max(0, Math.round(normalizeFiniteNumber(value, 0)));
+
+const normalizeNativeAudioTimestamp = (value: unknown): number =>
+  Math.max(0, Math.round(normalizeFiniteNumber(value, 0)));
 
 export interface NativeRuntimeTelemetry {
   platform: NativeRuntimePlatform;

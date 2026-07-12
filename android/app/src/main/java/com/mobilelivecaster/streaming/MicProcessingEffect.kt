@@ -13,6 +13,7 @@ import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.math.tanh
 
 class MicProcessingEffect(
@@ -41,6 +42,12 @@ class MicProcessingEffect(
     private var monitorDroppedBuffers = 0L
     private var monitorBufferSizeInBytes = 0
     private var monitorLastError = ""
+    private val micLevelWindowTargetSampleCount = sampleRate.toLong() * channelCount.toLong()
+    private var micLevelWindowSquaredLevelSum = 0.0
+    private var micLevelWindowPeakLevel = 0f
+    private var micLevelWindowSampleCount = 0L
+    private var micLevelWindowClippedSampleCount = 0L
+    @Volatile private var micLevelSnapshot = MicLevelSnapshot()
 
     override fun process(pcmBuffer: ByteArray): ByteArray {
         val processed = pcmBuffer.copyOf()
@@ -56,7 +63,8 @@ class MicProcessingEffect(
         }
 
         writeMonitor(processed, currentSettings)
-        applyVolume(processed, currentMixer.mic.effectiveVolume())
+        val levelStats = applyVolume(processed, currentMixer.mic.effectiveVolume(), measureLevel = true)
+        accumulateMicLevelWindow(levelStats)
         return processed
     }
 
@@ -66,6 +74,7 @@ class MicProcessingEffect(
         val preferredDevice = headphoneOutputDevice()
         val outputDevice = preferredDevice ?: currentOutputDevice()
         val estimatedLatencyMs = monitorEstimatedLatencyMs()
+        val currentMicLevel = micLevelSnapshot
         return NativeRuntimeAudioProcessing(
             micEffectsEnabled = currentSettings.enabled,
             micEffectsPresetId = currentSettings.presetId,
@@ -73,6 +82,11 @@ class MicProcessingEffect(
             micEffectsProcessedSamples = micEffectsProcessedSamples,
             micEffectsGatedSamples = micEffectsGatedSamples,
             micEffectsLimitedSamples = micEffectsLimitedSamples,
+            micRmsLevel = currentMicLevel.rmsLevel,
+            micPeakLevel = currentMicLevel.peakLevel,
+            micSampleCount = currentMicLevel.sampleCount,
+            micClippedSampleCount = currentMicLevel.clippedSampleCount,
+            micLevelUpdatedAt = currentMicLevel.updatedAt,
             monitorEnabled = currentSettings.monitorEnabled,
             monitorRunning = monitorTrack?.playState == AudioTrack.PLAYSTATE_PLAYING,
             monitorVolume = currentSettings.monitorVolume,
@@ -245,15 +259,73 @@ class MicProcessingEffect(
         return track
     }
 
-    private fun applyVolume(pcmBuffer: ByteArray, volume: Float) {
+    private fun applyVolume(
+        pcmBuffer: ByteArray,
+        volume: Float,
+        measureLevel: Boolean = false
+    ): MicLevelStats {
         var index = 0
+        var sampleCount = 0L
+        var clippedSampleCount = 0L
+        var squaredLevelSum = 0.0
+        var peakLevel = 0f
         while (index + 1 < pcmBuffer.size) {
             val sample = ((pcmBuffer[index + 1].toInt() shl 8) or (pcmBuffer[index].toInt() and 0xff)).toShort().toInt()
-            val output = (sample * volume).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+            val scaledSample = sample * volume
+            val outputValue = scaledSample.toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+            val output = outputValue.toShort()
             pcmBuffer[index] = (output.toInt() and 0xff).toByte()
             pcmBuffer[index + 1] = ((output.toInt() shr 8) and 0xff).toByte()
+            if (measureLevel) {
+                val normalizedLevel = abs(outputValue / 32768f).coerceIn(0f, 1f)
+                squaredLevelSum += normalizedLevel.toDouble() * normalizedLevel.toDouble()
+                peakLevel = max(peakLevel, normalizedLevel)
+                sampleCount += 1
+                if (
+                    abs(scaledSample) > Short.MAX_VALUE.toFloat() ||
+                    outputValue == Short.MIN_VALUE.toInt() ||
+                    outputValue == Short.MAX_VALUE.toInt()
+                ) {
+                    clippedSampleCount += 1
+                }
+            }
             index += 2
         }
+        return MicLevelStats(
+            squaredLevelSum = squaredLevelSum,
+            peakLevel = peakLevel.coerceIn(0f, 1f),
+            sampleCount = sampleCount,
+            clippedSampleCount = clippedSampleCount
+        )
+    }
+
+    private fun accumulateMicLevelWindow(stats: MicLevelStats) {
+        if (stats.sampleCount == 0L) {
+            return
+        }
+        micLevelWindowSquaredLevelSum += stats.squaredLevelSum
+        micLevelWindowPeakLevel = max(micLevelWindowPeakLevel, stats.peakLevel)
+        micLevelWindowSampleCount += stats.sampleCount
+        micLevelWindowClippedSampleCount += stats.clippedSampleCount
+
+        if (micLevelWindowSampleCount < micLevelWindowTargetSampleCount) {
+            return
+        }
+
+        val rmsLevel = sqrt(
+            micLevelWindowSquaredLevelSum / micLevelWindowSampleCount.toDouble()
+        ).toFloat().coerceIn(0f, 1f)
+        micLevelSnapshot = MicLevelSnapshot(
+            rmsLevel = rmsLevel,
+            peakLevel = micLevelWindowPeakLevel.coerceIn(0f, 1f),
+            sampleCount = micLevelWindowSampleCount,
+            clippedSampleCount = micLevelWindowClippedSampleCount,
+            updatedAt = System.currentTimeMillis()
+        )
+        micLevelWindowSquaredLevelSum = 0.0
+        micLevelWindowPeakLevel = 0f
+        micLevelWindowSampleCount = 0L
+        micLevelWindowClippedSampleCount = 0L
     }
 
     private fun releaseMonitor() {
@@ -308,5 +380,20 @@ class MicProcessingEffect(
         val processedSamples: Int,
         val gatedSamples: Int,
         val limitedSamples: Int
+    )
+
+    private data class MicLevelStats(
+        val squaredLevelSum: Double,
+        val peakLevel: Float,
+        val sampleCount: Long,
+        val clippedSampleCount: Long
+    )
+
+    private data class MicLevelSnapshot(
+        val rmsLevel: Float = 0f,
+        val peakLevel: Float = 0f,
+        val sampleCount: Long = 0L,
+        val clippedSampleCount: Long = 0L,
+        val updatedAt: Long = 0L
     )
 }

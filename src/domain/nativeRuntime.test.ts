@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { normalizeNativeRuntimeDevice } from "./nativeRuntime";
+import {
+  normalizeNativeRuntimeAudioProcessing,
+  normalizeNativeRuntimeDevice
+} from "./nativeRuntime";
 
 describe("native runtime device telemetry", () => {
   it("normalizes valid device resource telemetry", () => {
@@ -59,5 +62,44 @@ describe("native runtime device telemetry", () => {
         sampledAt: 0
       })?.batteryLevelPercent
     ).toBe(-1);
+  });
+});
+
+describe("native runtime audio telemetry", () => {
+  it("normalizes PCM levels, counters, and timestamps", () => {
+    const audio = normalizeNativeRuntimeAudioProcessing({
+      micRmsLevel: 0.24,
+      micPeakLevel: 1.4,
+      micSampleCount: 2_048.4,
+      micClippedSampleCount: 3.2,
+      micLevelUpdatedAt: 1_784_000_000_000.4,
+      appAudioRmsLevel: Number.NaN,
+      mixedAudioPeakLevel: -0.5
+    });
+
+    expect(audio).toMatchObject({
+      micRmsLevel: 0.24,
+      micPeakLevel: 1,
+      micSampleCount: 2_048,
+      micClippedSampleCount: 3,
+      micLevelUpdatedAt: 1_784_000_000_000,
+      appAudioRmsLevel: 0,
+      mixedAudioPeakLevel: 0
+    });
+  });
+
+  it("provides conservative defaults for native versions without PCM metering", () => {
+    expect(normalizeNativeRuntimeAudioProcessing(undefined)).toMatchObject({
+      micEffectsEnabled: false,
+      monitorHeadphonesOnly: true,
+      broadcastMicVolume: 1,
+      micRmsLevel: 0,
+      micPeakLevel: 0,
+      micSampleCount: 0,
+      micClippedSampleCount: 0,
+      micLevelUpdatedAt: 0,
+      appAudioSampleCount: 0,
+      mixedAudioSampleCount: 0
+    });
   });
 });

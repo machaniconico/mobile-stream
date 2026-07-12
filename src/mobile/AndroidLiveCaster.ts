@@ -2,7 +2,10 @@ import { NativeEventEmitter, NativeModules, Platform } from "react-native";
 import type { RenderGraphRuntime, SceneDocument } from "../domain/scene";
 import { toRenderGraph } from "../domain/scene";
 import type { StudioProfile } from "../domain/profiles";
-import { normalizeNativeRuntimeDevice } from "../domain/nativeRuntime";
+import {
+  normalizeNativeRuntimeAudioProcessing,
+  normalizeNativeRuntimeDevice
+} from "../domain/nativeRuntime";
 import type { LiveCasterNative, NativeEngineSnapshot, NativeRuntimeTelemetry } from "../native/LiveCasterNative";
 import { initialStreamState, type StreamHealth } from "../domain/streamState";
 
@@ -258,34 +261,7 @@ const normalizeNativeRuntime = (
           vrmRenderFailureCount: runtime.composition?.vrmRenderFailureCount ?? 0,
           message: runtime.composition?.message ?? ""
         },
-        audioProcessing: {
-          micEffectsEnabled: runtime.audioProcessing?.micEffectsEnabled ?? false,
-          micEffectsPresetId: runtime.audioProcessing?.micEffectsPresetId ?? "clean",
-          micEffectsProcessedFrames: runtime.audioProcessing?.micEffectsProcessedFrames ?? 0,
-          micEffectsProcessedSamples: runtime.audioProcessing?.micEffectsProcessedSamples ?? 0,
-          micEffectsGatedSamples: runtime.audioProcessing?.micEffectsGatedSamples ?? 0,
-          micEffectsLimitedSamples: runtime.audioProcessing?.micEffectsLimitedSamples ?? 0,
-          monitorEnabled: runtime.audioProcessing?.monitorEnabled ?? false,
-          monitorRunning: runtime.audioProcessing?.monitorRunning ?? false,
-          monitorVolume: runtime.audioProcessing?.monitorVolume ?? 0,
-          monitorHeadphonesOnly: runtime.audioProcessing?.monitorHeadphonesOnly ?? true,
-          monitorRoute: runtime.audioProcessing?.monitorRoute ?? "unknown",
-          monitorOutputName: runtime.audioProcessing?.monitorOutputName ?? "Unknown",
-          monitorHeadphonesConnected: runtime.audioProcessing?.monitorHeadphonesConnected ?? false,
-          monitorWrittenFrames: runtime.audioProcessing?.monitorWrittenFrames ?? 0,
-          monitorDroppedFrames: runtime.audioProcessing?.monitorDroppedFrames ?? 0,
-          monitorWrittenBuffers: runtime.audioProcessing?.monitorWrittenBuffers ?? 0,
-          monitorDroppedBuffers: runtime.audioProcessing?.monitorDroppedBuffers ?? 0,
-          monitorEstimatedLatencyMs: runtime.audioProcessing?.monitorEstimatedLatencyMs ?? 0,
-          monitorLatencySource: runtime.audioProcessing?.monitorLatencySource ?? "",
-          monitorLastError: runtime.audioProcessing?.monitorLastError ?? "",
-          broadcastMicVolume: runtime.audioProcessing?.broadcastMicVolume ?? 1,
-          broadcastMicMuted: runtime.audioProcessing?.broadcastMicMuted ?? false,
-          broadcastAppAudioVolume: runtime.audioProcessing?.broadcastAppAudioVolume ?? 0.85,
-          broadcastAppAudioMuted: runtime.audioProcessing?.broadcastAppAudioMuted ?? false,
-          broadcastChatReadoutVolume: runtime.audioProcessing?.broadcastChatReadoutVolume ?? 0.85,
-          broadcastChatReadoutMuted: runtime.audioProcessing?.broadcastChatReadoutMuted ?? false
-        },
+        audioProcessing: normalizeNativeRuntimeAudioProcessing(runtime.audioProcessing),
         message: runtime.message ?? ""
       }
     : null;

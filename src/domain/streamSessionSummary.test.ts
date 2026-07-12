@@ -3,10 +3,12 @@ import { type StreamHealthSample } from "./streamHealthHistory";
 import { type StreamSessionEvent } from "./streamSessionLog";
 import {
   appendStreamSessionSummary,
+  createStreamAudioLevelSample,
   createStreamSessionHistorySummary,
   createStreamSessionSummary,
   mergeStreamSessionSummaries,
-  normalizeStreamSessionSummaries
+  normalizeStreamSessionSummaries,
+  summarizeStreamAudioLevels
 } from "./streamSessionSummary";
 
 const sample = (elapsedSeconds: number, update: Partial<StreamHealthSample> = {}): StreamHealthSample => ({
@@ -31,6 +33,43 @@ const event = (update: Partial<StreamSessionEvent> = {}): StreamSessionEvent => 
 });
 
 describe("stream session summary", () => {
+  it("keeps native PCM RMS and peak evidence separate", () => {
+    const summary = summarizeStreamAudioLevels([
+      createStreamAudioLevelSample(0.12, "native-pcm", new Date("2026-06-23T00:00:01.000Z"), {
+        peakLevel: 0.72,
+        pcmSampleCount: 1_000,
+        clippedPcmSampleCount: 0
+      }),
+      createStreamAudioLevelSample(0.18, "native-pcm", new Date("2026-06-23T00:00:02.000Z"), {
+        peakLevel: 0.99,
+        pcmSampleCount: 1_000,
+        clippedPcmSampleCount: 1
+      })
+    ]);
+
+    expect(summary.averageLevel).toBe(0.15);
+    expect(summary.peakLevel).toBe(0.99);
+    expect(summary.activePercent).toBe(100);
+    expect(summary.clippedSampleCount).toBe(1);
+    expect(summary.pcmSampleCount).toBe(2_000);
+    expect(summary.clippedPcmSampleCount).toBe(1);
+    expect(summary.evidenceSource).toBe("native-pcm");
+  });
+
+  it("does not infer native clipping from a high but unclipped peak", () => {
+    const summary = summarizeStreamAudioLevels([
+      createStreamAudioLevelSample(0.2, "native-pcm", new Date("2026-06-23T00:00:01.000Z"), {
+        peakLevel: 0.99,
+        pcmSampleCount: 44_100,
+        clippedPcmSampleCount: 0
+      })
+    ]);
+
+    expect(summary.peakLevel).toBe(0.99);
+    expect(summary.clippedSampleCount).toBe(0);
+    expect(summary.clippedPcmSampleCount).toBe(0);
+  });
+
   it("returns null when no health samples were captured", () => {
     expect(
       createStreamSessionSummary({
@@ -192,6 +231,7 @@ describe("stream session summary", () => {
     const history = createStreamSessionHistorySummary([summary]);
 
     expect(summary.audioLevel.sampleCount).toBe(2);
+    expect(summary.audioLevel.evidenceSource).toBe("simulated");
     expect(summary.audioLevel.peakLevel).toBe(0.75);
     expect(summary.audioLevel.activePercent).toBe(100);
     expect(summary.chatSpeechStartedCount).toBe(1);
@@ -280,10 +320,14 @@ describe("stream session summary", () => {
       target: { bitrateKbps: 3500, fps: 30 },
       endReason: "stopped",
       endedAt: new Date("2026-06-23T00:00:05.000Z"),
+      audioLevelSamples: [
+        { at: "2026-06-23T00:00:02.000Z", level: 1, source: "manual" },
+        { at: "2026-06-23T00:00:03.000Z", level: 0.2, peakLevel: 0.5, source: "native-pcm" }
+      ],
       nativeRuntime: {
         platform: "android",
         runtimeStatus: "live",
-        updatedAt: Date.now(),
+        updatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
         stale: false,
         elapsedSeconds: 4,
         videoFrames: 92,
@@ -343,6 +387,11 @@ describe("stream session summary", () => {
           micEffectsProcessedSamples: 12_288,
           micEffectsGatedSamples: 0,
           micEffectsLimitedSamples: 1,
+          micRmsLevel: 0.18,
+          micPeakLevel: 0.72,
+          micSampleCount: 12_288,
+          micClippedSampleCount: 0,
+          micLevelUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
           monitorEnabled: true,
           monitorRunning: true,
           monitorVolume: 0.5,
@@ -374,6 +423,14 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.monitorDroppedFrames).toBe(0);
     expect(summary?.nativeRuntime?.monitorEstimatedLatencyMs).toBe(142);
     expect(summary?.nativeRuntime?.monitorLatencySource).toBe("android-audiotrack-buffer");
+    expect(summary?.nativeRuntime?.micRmsLevel).toBe(0.18);
+    expect(summary?.nativeRuntime?.micPeakLevel).toBe(0.72);
+    expect(summary?.nativeRuntime?.micSampleCount).toBe(12288);
+    expect(summary?.nativeRuntime?.micClippedSampleCount).toBe(0);
+    expect(summary?.audioLevel.sampleCount).toBe(1);
+    expect(summary?.audioLevel.evidenceSource).toBe("native-pcm");
+    expect(summary?.audioLevel.peakLevel).toBe(0.5);
+    expect(summary?.audioLevel.clippedSampleCount).toBe(0);
     expect(summary?.nativeRuntime?.encoderProbeStatus).toBe("pass");
     expect(summary?.nativeRuntime?.encoderProbeVideoBackend).toBe("mediacodec-h264");
     expect(summary?.nativeRuntime?.encoderProbeMessage).toContain("Authorization: Bearer [redacted]");

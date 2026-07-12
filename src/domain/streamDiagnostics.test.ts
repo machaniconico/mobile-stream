@@ -300,6 +300,56 @@ describe("stream diagnostics", () => {
     expect(diagnostics.checks.find((check) => check.code === "broadcast-audio-guard-fail")?.status).toBe("fail");
   });
 
+  it("fails diagnostics when measured broadcast PCM is clipping", () => {
+    const scene = createDefaultScene();
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30 }),
+      nativeRuntime: nativeRuntimeWithAudioProcessing(
+        nativeAudioProcessing({
+          mixedAudioSampleCount: 10_000,
+          mixedAudioClippedSampleCount: 120,
+          mixedAudioPeakLevel: 1,
+          mixedAudioLevelUpdatedAt: Date.parse("2026-06-23T00:00:10.000Z")
+        })
+      )
+    });
+
+    expect(diagnostics.audio.audioGuard.status).toBe("fail");
+    expect(diagnostics.audio.audioGuard.nativeClippedSamplePercent).toBe(1.2);
+    expect(diagnostics.audio.audioGuard.summary).toContain("PCM is clipping");
+    expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
+      "Native PCM mix: RMS 0% / peak 100% / samples 10000 / clipped 120"
+    );
+  });
+
+  it("does not pass an old clean PCM peak window as current evidence", () => {
+    const scene = createDefaultScene();
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30 }),
+      nativeRuntime: nativeRuntimeWithAudioProcessing(
+        nativeAudioProcessing({
+          micRmsLevel: 0.18,
+          micPeakLevel: 0.62,
+          micSampleCount: 44_100,
+          micClippedSampleCount: 0,
+          micLevelUpdatedAt: Date.parse("2026-06-23T00:00:05.000Z")
+        })
+      )
+    });
+
+    expect(diagnostics.audio.audioGuard.status).toBe("warn");
+    expect(diagnostics.audio.audioGuard.nativeMeterStale).toBe(true);
+    expect(diagnostics.audio.audioGuard.summary).toContain("stale");
+  });
+
   it("warns when the last retained audio meter summary clipped", () => {
     const scene = createDefaultScene();
     const profile = createDefaultStudioProfile();
@@ -382,7 +432,8 @@ describe("stream diagnostics", () => {
       [],
       null,
       {
-        audioLevelSamples: []
+        audioLevelSamples: [],
+        now: new Date("2026-06-23T00:00:30.000Z")
       }
     );
 
@@ -420,10 +471,11 @@ describe("stream diagnostics", () => {
       null,
       {
         audioLevelSamples: [
-          createStreamAudioLevelSample(0.12, "manual", new Date("2026-06-23T00:00:02.000Z")),
-          createStreamAudioLevelSample(0.18, "manual", new Date("2026-06-23T00:00:03.000Z")),
-          createStreamAudioLevelSample(0.24, "manual", new Date("2026-06-23T00:00:04.000Z"))
-        ]
+          createStreamAudioLevelSample(0.12, "manual", new Date("2026-06-23T00:00:27.000Z")),
+          createStreamAudioLevelSample(0.18, "manual", new Date("2026-06-23T00:00:28.000Z")),
+          createStreamAudioLevelSample(0.24, "manual", new Date("2026-06-23T00:00:29.000Z"))
+        ],
+        now: new Date("2026-06-23T00:00:30.000Z")
       }
     );
 

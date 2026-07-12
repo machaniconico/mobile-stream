@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, env, exit } from "node:process";
@@ -363,22 +363,46 @@ function hasDexMagic(content) {
   return Boolean(content && content.length >= 8 && /^dex\n\d{3}\u0000$/u.test(content.subarray(0, 8).toString("ascii")));
 }
 
-export function resolveAndroidApkSignerPath() {
-  const roots = new Set([env.ANDROID_HOME, env.ANDROID_SDK_ROOT, androidSdkRootFromLocalProperties(), join(homedir(), "Library/Android/sdk"), join(homedir(), "Android/Sdk")].filter(Boolean));
+export function resolveAndroidApkSignerPath(options = {}) {
+  const configuredVersion = options.preferredVersion ?? configuredAndroidBuildToolsVersion();
+  const preferredVersion = normalizeAndroidBuildToolsVersion(configuredVersion);
+  if (!preferredVersion) {
+    throw new Error(`Invalid Android Build Tools version: ${JSON.stringify(configuredVersion)}`);
+  }
+  const roots = options.roots ?? [
+    ...new Set(
+      [env.ANDROID_HOME, env.ANDROID_SDK_ROOT, androidSdkRootFromLocalProperties(), join(homedir(), "Library/Android/sdk"), join(homedir(), "Android/Sdk")].filter(Boolean)
+    )
+  ];
+  const executableName = (options.platform ?? process.platform) === "win32" ? "apksigner.bat" : "apksigner";
   for (const root of roots) {
-    const buildToolsPath = join(root, "build-tools");
-    if (!existsSync(buildToolsPath)) {
-      continue;
-    }
-    const versions = readdirSync(buildToolsPath).sort((left, right) => right.localeCompare(left, undefined, { numeric: true }));
-    for (const version of versions) {
-      const candidate = join(buildToolsPath, version, process.platform === "win32" ? "apksigner.bat" : "apksigner");
-      if (existsSync(candidate)) {
-        return candidate;
-      }
+    const buildToolsPath = resolve(root, "build-tools");
+    const preferredCandidate = resolve(buildToolsPath, preferredVersion, executableName);
+    if (preferredCandidate.startsWith(`${buildToolsPath}${sep}`) && existsSync(preferredCandidate)) {
+      return preferredCandidate;
     }
   }
   return "";
+}
+
+export function configuredAndroidBuildToolsVersion({ versionPath = "android/build-tools-version.txt" } = {}) {
+  if (!existsSync(versionPath)) {
+    throw new Error(`Android Build Tools version file does not exist: ${versionPath}`);
+  }
+  const rawVersion = readFileSync(versionPath, "utf8");
+  if (rawVersion.startsWith("\uFEFF")) {
+    throw new Error("Android Build Tools version file must not contain a UTF-8 BOM");
+  }
+  const configuredVersion = normalizeAndroidBuildToolsVersion(rawVersion);
+  if (!configuredVersion) {
+    throw new Error(`Invalid Android Build Tools version in ${versionPath}`);
+  }
+  return configuredVersion;
+}
+
+export function normalizeAndroidBuildToolsVersion(value) {
+  const normalized = String(value || "").trim();
+  return /^\d+(?:\.\d+){1,3}(?:-[A-Za-z0-9][A-Za-z0-9.-]*)?$/u.test(normalized) ? normalized : "";
 }
 
 function androidSdkRootFromLocalProperties() {

@@ -441,10 +441,10 @@ const deviceResourceMetricLabel = (diagnostics: StreamDiagnostics): string => {
 };
 
 const audioGuardMetricLabel = (diagnostics: StreamDiagnostics): string =>
-  `${diagnostics.audio.audioGuard.status} / limiter ${diagnostics.audio.audioGuard.nativeLimitedSamplePercent}% / peak ${Math.round(diagnostics.audio.audioGuard.lastSessionPeakLevel * 100)}%`;
+  `${diagnostics.audio.audioGuard.status} / ${diagnostics.audio.audioGuard.nativeMeterStale ? "stale" : "fresh"} / clip ${diagnostics.audio.audioGuard.nativeClippedSamplePercent}% / limiter ${diagnostics.audio.audioGuard.nativeLimitedSamplePercent}% / peak ${Math.round(diagnostics.audio.audioGuard.lastSessionPeakLevel * 100)}%`;
 
 const audioSilenceGuardMetricLabel = (diagnostics: StreamDiagnostics): string =>
-  `${diagnostics.audio.audioSilenceGuard.status} / samples ${diagnostics.audio.audioSilenceGuard.sampleCount} / active ${diagnostics.audio.audioSilenceGuard.activePercent}% / peak ${Math.round(diagnostics.audio.audioSilenceGuard.peakLevel * 100)}%`;
+  `${diagnostics.audio.audioSilenceGuard.status} / ${diagnostics.audio.audioSilenceGuard.evidenceSource} / samples ${diagnostics.audio.audioSilenceGuard.sampleCount} / active ${diagnostics.audio.audioSilenceGuard.activePercent}% / peak ${Math.round(diagnostics.audio.audioSilenceGuard.peakLevel * 100)}%`;
 
 const qualityAdvisorTargetLabel = (diagnostics: StreamDiagnostics): string =>
   diagnostics.qualityAdvisor.suggestedTarget

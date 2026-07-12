@@ -64,6 +64,10 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
       nativeProcessedSamples: 24_576,
       nativeLimitedSamples: 2,
       nativeLimitedSamplePercent: 0,
+      nativeMeterSampleCount: 24_576,
+      nativeClippedSamples: 0,
+      nativeClippedSamplePercent: 0,
+      nativeMeterStale: false,
       lastSessionPeakLevel: 0.82,
       lastSessionClippedSampleCount: 0,
       summary: "Native mic limiter is below threshold at 0%.",
@@ -71,6 +75,7 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
     },
     audioSilenceGuard: {
       status: "pass",
+      evidenceSource: "native-pcm",
       sampleCount: 12,
       activePercent: 92,
       peakLevel: 0.62,

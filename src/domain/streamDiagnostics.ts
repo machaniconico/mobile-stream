@@ -138,6 +138,10 @@ export interface BroadcastAudioGuardDiagnostics {
   nativeProcessedSamples: number;
   nativeLimitedSamples: number;
   nativeLimitedSamplePercent: number;
+  nativeMeterSampleCount: number;
+  nativeClippedSamples: number;
+  nativeClippedSamplePercent: number;
+  nativeMeterStale: boolean;
   lastSessionPeakLevel: number;
   lastSessionClippedSampleCount: number;
   summary: string;
@@ -304,6 +308,7 @@ export const createStreamDiagnostics = (
   const estimatedUploadKbps = Math.round((targetVideoBitrateKbps + targetAudioBitrateKbps) * 1.25);
   const sanitizedHealthMessage = redactStreamKeyOccurrences(snapshot.health.message, destination.streamKey);
   const nativeRuntime = sanitizeNativeRuntime(snapshot.nativeRuntime ?? null, destination.streamKey);
+  const nowMs = toTimestampMs(options.now ?? Date.now());
   const sanitizedSessionEvents = sessionEvents.map((event) => sanitizeSessionEvent(event, destination.streamKey));
   const recoveryPolicy = createDefaultStreamRecoveryPolicy();
   const recoveryStatus = createStreamRecoveryStatus(snapshot, quality, recoveryPolicy);
@@ -326,17 +331,18 @@ export const createStreamDiagnostics = (
   const platformPublishing = createPlatformPublishingDiagnostics(destination.platform, profile.platformPublishing);
   const audioRoute = normalizeAudioRouteState(options.audioRoute ?? createDefaultAudioRouteState());
   const monitorSafety = createAudioMonitorSafetyStatus(micEffects, audioRoute);
-  const audioGuard = createBroadcastAudioGuardDiagnostics(nativeRuntime?.audioProcessing ?? null, sessionSummaries[0]?.audioLevel ?? null);
+  const audioGuard = createBroadcastAudioGuardDiagnostics(nativeRuntime, sessionSummaries[0]?.audioLevel ?? null);
   const audioSilenceGuard = createBroadcastAudioSilenceGuardDiagnostics({
     samples: options.audioLevelSamples ?? [],
     healthSamples,
     broadcastMixer,
     streamStatus: snapshot.state.status,
-    elapsedSeconds: snapshot.health.elapsedSeconds
+    elapsedSeconds: snapshot.health.elapsedSeconds,
+    nativeRuntime,
+    now: nowMs
   });
   const effectiveReadiness = createEffectiveReadiness(readiness, faceTracking);
   const effectiveNativeComposition = createEffectiveNativeComposition(nativeComposition, faceTracking);
-  const nowMs = toTimestampMs(options.now ?? Date.now());
   const textOverlay = createTextOverlayDiagnostics(scene, effectiveReadiness, nowMs);
   const liveCaption = createLiveCaptionDiagnostics(scene, options.liveCaption ?? null, nowMs);
   const checks = [
@@ -691,7 +697,10 @@ export const formatStreamDiagnosticReport = (
     `- Mic effects: ${diagnostics.audio.micEffectsEnabled ? "on" : "off"} / preset ${diagnostics.audio.presetId} / gain ${diagnostics.audio.inputGainDb} dB / compression ${diagnostics.audio.compression}`,
     `- Broadcast mix: ${diagnostics.audio.broadcastMixerSummary}`,
     `- Peak guard: ${diagnostics.audio.audioGuard.status} / ${diagnostics.audio.audioGuard.summary} Action: ${diagnostics.audio.audioGuard.recommendation}`,
-    `- Silence guard: ${diagnostics.audio.audioSilenceGuard.status} / ${diagnostics.audio.audioSilenceGuard.summary} Action: ${diagnostics.audio.audioSilenceGuard.recommendation}`,
+    `- Silence guard: ${diagnostics.audio.audioSilenceGuard.status} / evidence ${diagnostics.audio.audioSilenceGuard.evidenceSource} / ${diagnostics.audio.audioSilenceGuard.summary} Action: ${diagnostics.audio.audioSilenceGuard.recommendation}`,
+    `- Native PCM mic: RMS ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.micRmsLevel ?? 0) * 100)}% / peak ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.micPeakLevel ?? 0) * 100)}% / samples ${diagnostics.nativeRuntime?.audioProcessing?.micSampleCount ?? 0} / clipped ${diagnostics.nativeRuntime?.audioProcessing?.micClippedSampleCount ?? 0}`,
+    `- Native PCM app: RMS ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.appAudioRmsLevel ?? 0) * 100)}% / peak ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.appAudioPeakLevel ?? 0) * 100)}% / samples ${diagnostics.nativeRuntime?.audioProcessing?.appAudioSampleCount ?? 0} / clipped ${diagnostics.nativeRuntime?.audioProcessing?.appAudioClippedSampleCount ?? 0}`,
+    `- Native PCM mix: RMS ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.mixedAudioRmsLevel ?? 0) * 100)}% / peak ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.mixedAudioPeakLevel ?? 0) * 100)}% / samples ${diagnostics.nativeRuntime?.audioProcessing?.mixedAudioSampleCount ?? 0} / clipped ${diagnostics.nativeRuntime?.audioProcessing?.mixedAudioClippedSampleCount ?? 0}`,
     `- Monitor: ${diagnostics.audio.monitorEnabled ? "on" : "off"} / volume ${Math.round(diagnostics.audio.monitorVolume * 100)}% / headphones-only ${diagnostics.audio.monitorHeadphonesOnly ? "yes" : "no"}`,
     `- Monitor route: ${diagnostics.audio.monitorSafety.status} / ${diagnostics.audio.monitorSafety.outputName} / headphones ${diagnostics.audio.monitorSafety.headphonesConnected ? "yes" : "no"} / stale ${diagnostics.audio.monitorSafety.stale ? "yes" : "no"}`,
     `- Route action: ${diagnostics.audio.monitorSafety.recommendation}`,
@@ -1024,7 +1033,7 @@ const formatValidationFaceTracking = (diagnostics: StreamDiagnostics): string =>
 
 const formatValidationAudio = (diagnostics: StreamDiagnostics): string =>
   diagnostics.validationEvidence.latestAudio
-    ? `${diagnostics.validationEvidence.audioRunCount} retained / ${diagnostics.validationEvidence.audioReadyCount} ready / ${diagnostics.validationEvidence.audioWarningCount} warn / iOS ${diagnostics.validationEvidence.audioIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.audioAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestAudio.status} ${diagnostics.validationEvidence.latestAudio.presetId} / monitor ${diagnostics.validationEvidence.latestAudio.monitorEnabled ? "on" : "off"} / headphones-only ${diagnostics.validationEvidence.latestAudio.monitorHeadphonesOnly ? "yes" : "no"} / route ${diagnostics.validationEvidence.latestAudio.monitorRouteStatus} ${diagnostics.validationEvidence.latestAudio.outputName} / native monitor ${diagnostics.validationEvidence.latestAudio.nativeMonitorReported ? (diagnostics.validationEvidence.latestAudio.nativeMonitorRunning ? "running" : "reported") : "missing"} ${diagnostics.validationEvidence.latestAudio.nativeMonitorWrittenFrames}/${diagnostics.validationEvidence.latestAudio.nativeMonitorDroppedFrames} frames / samples ${diagnostics.validationEvidence.latestAudio.levelSampleCount} / peak ${Math.round(diagnostics.validationEvidence.latestAudio.peakLevel * 100)}%`
+    ? `${diagnostics.validationEvidence.audioRunCount} retained / ${diagnostics.validationEvidence.audioReadyCount} ready / ${diagnostics.validationEvidence.audioWarningCount} warn / iOS ${diagnostics.validationEvidence.audioIosPass ? "pass" : "missing"} / Android ${diagnostics.validationEvidence.audioAndroidPass ? "pass" : "missing"} / latest ${diagnostics.validationEvidence.latestAudio.status} ${diagnostics.validationEvidence.latestAudio.presetId} / monitor ${diagnostics.validationEvidence.latestAudio.monitorEnabled ? "on" : "off"} / headphones-only ${diagnostics.validationEvidence.latestAudio.monitorHeadphonesOnly ? "yes" : "no"} / route ${diagnostics.validationEvidence.latestAudio.monitorRouteStatus} ${diagnostics.validationEvidence.latestAudio.outputName} / native monitor ${diagnostics.validationEvidence.latestAudio.nativeMonitorReported ? (diagnostics.validationEvidence.latestAudio.nativeMonitorRunning ? "running" : "reported") : "missing"} ${diagnostics.validationEvidence.latestAudio.nativeMonitorWrittenFrames}/${diagnostics.validationEvidence.latestAudio.nativeMonitorDroppedFrames} frames / meter ${diagnostics.validationEvidence.latestAudio.levelSource} / samples ${diagnostics.validationEvidence.latestAudio.levelSampleCount} / peak ${Math.round(diagnostics.validationEvidence.latestAudio.peakLevel * 100)}%`
     : "-";
 
 const formatBroadcastMixerSummary = (mixer: BroadcastMixerProfile): string =>
@@ -1037,15 +1046,87 @@ const formatBroadcastMixerSummary = (mixer: BroadcastMixerProfile): string =>
     .join(" / ");
 
 const createBroadcastAudioGuardDiagnostics = (
-  audioProcessing: NativeRuntimeTelemetry["audioProcessing"] | null | undefined,
+  nativeRuntime: NativeRuntimeTelemetry | null | undefined,
   lastAudioLevel: StreamSessionAudioLevelSummary | null | undefined
 ): BroadcastAudioGuardDiagnostics => {
+  const audioProcessing = nativeRuntime?.audioProcessing;
   const nativeProcessedSamples = Math.max(0, Math.round(audioProcessing?.micEffectsProcessedSamples ?? 0));
   const nativeLimitedSamples = Math.max(0, Math.round(audioProcessing?.micEffectsLimitedSamples ?? 0));
   const nativeLimitedSamplePercent =
     nativeProcessedSamples > 0 ? Math.round((nativeLimitedSamples / nativeProcessedSamples) * 1000) / 10 : 0;
+  const mixedSampleCount = Math.max(0, Math.round(audioProcessing?.mixedAudioSampleCount ?? 0));
+  const nativeMeterSampleCount = mixedSampleCount > 0
+    ? mixedSampleCount
+    : Math.max(0, Math.round(audioProcessing?.micSampleCount ?? 0));
+  const nativeClippedSamples = mixedSampleCount > 0
+    ? Math.max(0, Math.round(audioProcessing?.mixedAudioClippedSampleCount ?? 0))
+    : Math.max(0, Math.round(audioProcessing?.micClippedSampleCount ?? 0));
+  const nativeClippedSamplePercent = nativeMeterSampleCount > 0
+    ? Math.round((nativeClippedSamples / nativeMeterSampleCount) * 10_000) / 100
+    : 0;
+  const nativeMeterUpdatedAt = mixedSampleCount > 0
+    ? Math.max(0, Math.round(audioProcessing?.mixedAudioLevelUpdatedAt ?? 0))
+    : Math.max(0, Math.round(audioProcessing?.micLevelUpdatedAt ?? 0));
+  const nativeRuntimeUpdatedAt = Math.max(0, Math.round(nativeRuntime?.updatedAt ?? 0));
+  const nativeMeterStale =
+    nativeMeterSampleCount > 0 &&
+    (nativeRuntime?.stale === true ||
+      nativeMeterUpdatedAt <= 0 ||
+      nativeRuntimeUpdatedAt - nativeMeterUpdatedAt > 3_000 ||
+      nativeMeterUpdatedAt - nativeRuntimeUpdatedAt > 3_000);
   const lastSessionPeakLevel = lastAudioLevel?.peakLevel ?? 0;
   const lastSessionClippedSampleCount = lastAudioLevel?.clippedSampleCount ?? 0;
+
+  if (nativeMeterStale) {
+    return {
+      status: "warn",
+      nativeProcessedSamples,
+      nativeLimitedSamples,
+      nativeLimitedSamplePercent,
+      nativeMeterSampleCount,
+      nativeClippedSamples,
+      nativeClippedSamplePercent,
+      nativeMeterStale,
+      lastSessionPeakLevel,
+      lastSessionClippedSampleCount,
+      summary: "Native broadcast PCM peak/clipping telemetry is stale.",
+      recommendation: "Restore current audio telemetry before using peak or clipping evidence for a public stream."
+    };
+  }
+
+  if (nativeMeterSampleCount > 0 && nativeClippedSamplePercent >= 1) {
+    return {
+      status: "fail",
+      nativeProcessedSamples,
+      nativeLimitedSamples,
+      nativeLimitedSamplePercent,
+      nativeMeterSampleCount,
+      nativeClippedSamples,
+      nativeClippedSamplePercent,
+      nativeMeterStale,
+      lastSessionPeakLevel,
+      lastSessionClippedSampleCount,
+      summary: `Native broadcast PCM is clipping at ${nativeClippedSamplePercent}% of measured samples.`,
+      recommendation: "Lower mic or app-audio gain before continuing the public stream."
+    };
+  }
+
+  if (nativeClippedSamples > 0) {
+    return {
+      status: "warn",
+      nativeProcessedSamples,
+      nativeLimitedSamples,
+      nativeLimitedSamplePercent,
+      nativeMeterSampleCount,
+      nativeClippedSamples,
+      nativeClippedSamplePercent,
+      nativeMeterStale,
+      lastSessionPeakLevel,
+      lastSessionClippedSampleCount,
+      summary: `Native broadcast PCM recorded ${nativeClippedSamples} clipped sample${nativeClippedSamples === 1 ? "" : "s"} (${nativeClippedSamplePercent}%).`,
+      recommendation: "Reduce the loudest broadcast mixer channel slightly and repeat the private audio check."
+    };
+  }
 
   if (nativeProcessedSamples > 0 && nativeLimitedSamplePercent >= 5) {
     return {
@@ -1053,6 +1134,10 @@ const createBroadcastAudioGuardDiagnostics = (
       nativeProcessedSamples,
       nativeLimitedSamples,
       nativeLimitedSamplePercent,
+      nativeMeterSampleCount,
+      nativeClippedSamples,
+      nativeClippedSamplePercent,
+      nativeMeterStale,
       lastSessionPeakLevel,
       lastSessionClippedSampleCount,
       summary: `Native mic limiter is catching ${nativeLimitedSamplePercent}% of processed samples.`,
@@ -1066,6 +1151,10 @@ const createBroadcastAudioGuardDiagnostics = (
       nativeProcessedSamples,
       nativeLimitedSamples,
       nativeLimitedSamplePercent,
+      nativeMeterSampleCount,
+      nativeClippedSamples,
+      nativeClippedSamplePercent,
+      nativeMeterStale,
       lastSessionPeakLevel,
       lastSessionClippedSampleCount,
       summary: `Native mic limiter is catching ${nativeLimitedSamplePercent}% of processed samples.`,
@@ -1079,6 +1168,10 @@ const createBroadcastAudioGuardDiagnostics = (
       nativeProcessedSamples,
       nativeLimitedSamples,
       nativeLimitedSamplePercent,
+      nativeMeterSampleCount,
+      nativeClippedSamples,
+      nativeClippedSamplePercent,
+      nativeMeterStale,
       lastSessionPeakLevel,
       lastSessionClippedSampleCount,
       summary: `Last session peaked at ${Math.round(lastSessionPeakLevel * 100)}% with ${lastSessionClippedSampleCount} clipped meter sample${lastSessionClippedSampleCount === 1 ? "" : "s"}.`,
@@ -1092,6 +1185,10 @@ const createBroadcastAudioGuardDiagnostics = (
       nativeProcessedSamples,
       nativeLimitedSamples,
       nativeLimitedSamplePercent,
+      nativeMeterSampleCount,
+      nativeClippedSamples,
+      nativeClippedSamplePercent,
+      nativeMeterStale,
       lastSessionPeakLevel,
       lastSessionClippedSampleCount,
       summary: "No native limiter or retained meter evidence yet.",
@@ -1104,6 +1201,10 @@ const createBroadcastAudioGuardDiagnostics = (
     nativeProcessedSamples,
     nativeLimitedSamples,
     nativeLimitedSamplePercent,
+    nativeMeterSampleCount,
+    nativeClippedSamples,
+    nativeClippedSamplePercent,
+    nativeMeterStale,
     lastSessionPeakLevel,
     lastSessionClippedSampleCount,
     summary:

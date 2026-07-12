@@ -92,6 +92,7 @@ export interface StreamValidationAudioSummary {
   bluetoothRoute: boolean;
   bluetoothTuningReviewed: boolean;
   monitorTuningNote: string;
+  levelSource: "native-pcm" | "simulated" | "none";
   levelSampleCount: number;
   averageLevel: number;
   peakLevel: number;
@@ -506,7 +507,7 @@ export const formatStreamValidationRunAudioLabel = (run: StreamValidationRun): s
     audio.monitorHeadphonesOnly ? "yes" : "no"
   } / route ${audio.monitorRouteStatus} ${audio.outputName} / headphones ${audio.headphonesConnected ? "yes" : "no"} / stale ${
     audio.routeStale ? "yes" : "no"
-  }${nativeMonitor}${latency} / samples ${audio.levelSampleCount} / peak ${Math.round(audio.peakLevel * 100)}%`;
+  }${nativeMonitor}${latency} / meter ${audio.levelSource} / samples ${audio.levelSampleCount} / peak ${Math.round(audio.peakLevel * 100)}%`;
 };
 
 export type StreamValidationAudioMonitorPreview = Pick<
@@ -1775,6 +1776,8 @@ const isChatReadoutEvidencePass = (chatReadout: StreamValidationChatReadoutSumma
 
 const isAudioEvidencePass = (audio: StreamValidationAudioSummary | null | undefined): boolean =>
   audio?.status === "pass" &&
+  audio.levelSource === "native-pcm" &&
+  audio.levelSampleCount > 0 &&
   audio.nativeMonitorReported &&
   audio.nativeMonitorWrittenFrames > 0 &&
   audio.nativeMonitorWrittenBuffers > 0 &&
@@ -2325,6 +2328,15 @@ const createAudioValidationSummary = (
 ): StreamValidationAudioSummary => {
   const item = findRunbookItem(diagnostics, "audio");
   const audioLevel = diagnostics.session.lastSummary?.audioLevel ?? null;
+  const runtimeAudio = diagnostics.nativeRuntime?.audioProcessing;
+  const micLevelUpdatedAt = runtimeAudio?.micLevelUpdatedAt ?? 0;
+  const runtimeUpdatedAt = diagnostics.nativeRuntime?.updatedAt ?? 0;
+  const currentNativePcmAvailable =
+    Boolean(diagnostics.nativeRuntime && !diagnostics.nativeRuntime.stale) &&
+    (runtimeAudio?.micSampleCount ?? 0) > 0 &&
+    micLevelUpdatedAt > 0 &&
+    runtimeUpdatedAt - micLevelUpdatedAt <= 3_000 &&
+    micLevelUpdatedAt - runtimeUpdatedAt <= 3_000;
   const nativeMonitor = createNativeMonitorEvidence(diagnostics);
   const monitorTuning = createMonitorLatencyEvidence(diagnostics, audioMonitorTuning, secrets);
   const baseStatus = item?.status ?? "pending";
@@ -2338,14 +2350,31 @@ const createAudioValidationSummary = (
     diagnostics.audio.monitorHeadphonesOnly,
     nativeMonitorRouteMatchesOutput
   );
-  const status = combineAudioValidationStatus(baseStatus, nativeMonitorPass, monitorTuning.monitorLatencyStatus);
+  const retainedAudioLevel = diagnostics.nativeRuntime ? null : audioLevel;
+  const levelSource = currentNativePcmAvailable
+    ? "native-pcm"
+    : retainedAudioLevel && retainedAudioLevel.sampleCount > 0
+      ? retainedAudioLevel.evidenceSource
+      : "none";
+  const levelSampleCount = currentNativePcmAvailable
+    ? Math.max(0, Math.round(runtimeAudio?.micSampleCount ?? 0))
+    : retainedAudioLevel?.pcmSampleCount || retainedAudioLevel?.sampleCount || 0;
+  const nativePcmPass = !diagnostics.nativeRuntime || currentNativePcmAvailable;
+  const status = combineAudioValidationStatus(
+    baseStatus,
+    nativeMonitorPass,
+    monitorTuning.monitorLatencyStatus,
+    nativePcmPass
+  );
   const nativeMonitorSummary = createNativeMonitorProofSummary(
     nativeMonitor,
     diagnostics.audio.monitorSafety.outputName,
     nativeMonitorRouteMatchesOutput
   );
   const audioRecommendation =
-    baseStatus !== "pass"
+    !nativePcmPass
+      ? "Record a private spoken segment with fresh native PCM meter evidence before approving device audio."
+      : baseStatus !== "pass"
       ? item?.action ?? "Repeat validation with mic effects and headphone monitoring checked."
       : baseStatus === "pass" && !nativeMonitorPass
         ? nativeMonitorRouteMismatch
@@ -2389,13 +2418,23 @@ const createAudioValidationSummary = (
     bluetoothRoute: monitorTuning.bluetoothRoute,
     bluetoothTuningReviewed: monitorTuning.bluetoothTuningReviewed,
     monitorTuningNote: monitorTuning.monitorTuningNote,
-    levelSampleCount: audioLevel?.sampleCount ?? 0,
-    averageLevel: audioLevel?.averageLevel ?? 0,
-    peakLevel: audioLevel?.peakLevel ?? 0,
-    activeLevelPercent: audioLevel?.activePercent ?? 0,
-    clippedLevelCount: audioLevel?.clippedSampleCount ?? 0,
+    levelSource,
+    levelSampleCount,
+    averageLevel: currentNativePcmAvailable
+      ? runtimeAudio?.micRmsLevel ?? 0
+      : retainedAudioLevel?.averageLevel ?? 0,
+    peakLevel: currentNativePcmAvailable
+      ? runtimeAudio?.micPeakLevel ?? 0
+      : retainedAudioLevel?.peakLevel ?? 0,
+    activeLevelPercent:
+      currentNativePcmAvailable
+        ? (runtimeAudio?.micRmsLevel ?? 0) >= 0.05 ? 100 : 0
+        : retainedAudioLevel?.activePercent ?? 0,
+    clippedLevelCount: currentNativePcmAvailable
+      ? Math.max(0, Math.round(runtimeAudio?.micClippedSampleCount ?? 0))
+      : retainedAudioLevel?.clippedPcmSampleCount ?? retainedAudioLevel?.clippedSampleCount ?? 0,
     summary: sanitizeStoredText(
-      `${nativeMonitorRouteMismatchSummary}${audioLevel && audioLevel.sampleCount > 0 ? `${audioLevel.summary} ` : ""}${
+      `${nativeMonitorRouteMismatchSummary}${retainedAudioLevel && retainedAudioLevel.sampleCount > 0 ? `${retainedAudioLevel.summary} ` : ""}${
         item?.detail ?? "No mic FX/headphone monitor validation retained."
       } ${nativeMonitorSummary} ${monitorTuning.summary}`,
       secrets
@@ -2410,7 +2449,8 @@ const createAudioValidationSummary = (
 const combineAudioValidationStatus = (
   baseStatus: StreamValidationFeatureStatus,
   nativeMonitorPass: boolean,
-  latencyStatus: StreamValidationFeatureStatus
+  latencyStatus: StreamValidationFeatureStatus,
+  nativePcmPass: boolean
 ): StreamValidationFeatureStatus => {
   if (baseStatus === "fail") {
     return "fail";
@@ -2418,7 +2458,7 @@ const combineAudioValidationStatus = (
   if (baseStatus === "pending") {
     return "pending";
   }
-  if (baseStatus === "warn" || !nativeMonitorPass) {
+  if (baseStatus === "warn" || !nativeMonitorPass || !nativePcmPass) {
     return "warn";
   }
   if (latencyStatus === "fail") {
@@ -3421,6 +3461,12 @@ const normalizeAudioValidationSummary = (value: unknown): StreamValidationAudioS
     bluetoothRoute,
     bluetoothTuningReviewed: value.bluetoothTuningReviewed === true || (bluetoothRoute === false && value.bluetoothTuningReviewed !== false),
     monitorTuningNote: normalizeOptionalText(value.monitorTuningNote),
+    levelSource:
+      value.levelSource === "native-pcm"
+        ? "native-pcm"
+        : value.levelSource === "simulated"
+          ? "simulated"
+          : "none",
     levelSampleCount: normalizeCount(value.levelSampleCount),
     averageLevel: normalizeFiniteNumber(value.averageLevel, 0, 0, 1),
     peakLevel: normalizeFiniteNumber(value.peakLevel, 0, 0, 1),
