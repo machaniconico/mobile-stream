@@ -1,4 +1,5 @@
 import type { QualityProfile } from "./profiles";
+import type { NativeRuntimeDevice, NativeRuntimeTelemetry } from "./nativeRuntime";
 import type { StreamHealth, StreamStatus } from "./streamState";
 
 export type StreamQualityIncidentCode =
@@ -8,6 +9,12 @@ export type StreamQualityIncidentCode =
   | "fps-missing"
   | "fps-critical"
   | "fps-low"
+  | "thermal-fair"
+  | "thermal-serious"
+  | "thermal-critical"
+  | "battery-low"
+  | "battery-critical"
+  | "low-power-mode"
   | "dropped-frames"
   | "reconnects";
 export type StreamQualityIncidentSeverity = "warn" | "fail";
@@ -25,6 +32,7 @@ export interface StreamQualityIncidentSnapshot {
     status: StreamStatus;
   };
   health: StreamHealth;
+  nativeRuntime?: Pick<NativeRuntimeTelemetry, "device"> | null;
 }
 
 export interface StreamQualityIncidentThresholds {
@@ -61,6 +69,7 @@ export const createStreamQualityIncidents = (
   return [
     createBitrateIncident(snapshot.health, thresholds),
     createFpsIncident(snapshot.health, quality.fps, thresholds),
+    ...createDeviceResourceIncidents(snapshot.nativeRuntime?.device),
     createDroppedFramesIncident(snapshot.health),
     createReconnectIncident(snapshot.health)
   ].filter((incident): incident is StreamQualityIncident => Boolean(incident));
@@ -153,6 +162,94 @@ const createFpsIncident = (
 
   return null;
 };
+
+const createDeviceResourceIncidents = (
+  device: NativeRuntimeDevice | undefined
+): StreamQualityIncident[] => {
+  if (!device) {
+    return [];
+  }
+
+  return [
+    createThermalIncident(device),
+    createBatteryIncident(device),
+    createLowPowerModeIncident(device)
+  ].filter((incident): incident is StreamQualityIncident => Boolean(incident));
+};
+
+const createThermalIncident = (device: NativeRuntimeDevice): StreamQualityIncident | null => {
+  if (device.thermalState === "critical") {
+    return {
+      code: "thermal-critical",
+      severity: "fail",
+      label: "Thermal critical",
+      message: "The operating system reports critical thermal pressure.",
+      recommendation: "Stop the stream if the device does not cool immediately, remove the case, and avoid charging until temperature drops."
+    };
+  }
+
+  if (device.thermalState === "serious") {
+    return {
+      code: "thermal-serious",
+      severity: "fail",
+      label: "Thermal pressure",
+      message: "The operating system reports serious thermal pressure that can throttle capture and encoding.",
+      recommendation: "Lower the stream to 30 fps and a safer bitrate now; stop if thermal pressure continues to rise."
+    };
+  }
+
+  if (device.thermalState === "fair") {
+    return {
+      code: "thermal-fair",
+      severity: "warn",
+      label: "Device warming",
+      message: "The operating system reports elevated thermal pressure.",
+      recommendation: "Improve airflow and watch FPS; reduce scene complexity or quality if the device reaches serious pressure."
+    };
+  }
+
+  return null;
+};
+
+const createBatteryIncident = (device: NativeRuntimeDevice): StreamQualityIncident | null => {
+  const externallyPowered = device.charging || device.powerSource === "wired" || device.powerSource === "wireless";
+  if (device.batteryLevelPercent < 0 || externallyPowered) {
+    return null;
+  }
+
+  if (device.batteryLevelPercent <= 10) {
+    return {
+      code: "battery-critical",
+      severity: "fail",
+      label: "Battery critical",
+      message: `Battery is ${device.batteryLevelPercent}% and the device is not externally powered.`,
+      recommendation: "Connect a stable power source or stop the stream before the device shuts down."
+    };
+  }
+
+  if (device.batteryLevelPercent <= 20) {
+    return {
+      code: "battery-low",
+      severity: "warn",
+      label: "Battery low",
+      message: `Battery is ${device.batteryLevelPercent}% and the device is not externally powered.`,
+      recommendation: "Connect power before a long stream and monitor temperature while charging."
+    };
+  }
+
+  return null;
+};
+
+const createLowPowerModeIncident = (device: NativeRuntimeDevice): StreamQualityIncident | null =>
+  device.lowPowerMode
+    ? {
+        code: "low-power-mode",
+        severity: "warn",
+        label: "Power saving enabled",
+        message: "The operating system power-saving mode is active and may reduce CPU or GPU performance.",
+        recommendation: "Disable power saving before a long stream or use a 30 fps quality target."
+      }
+    : null;
 
 const createDroppedFramesIncident = (health: StreamHealth): StreamQualityIncident | null => {
   if (health.droppedFrames <= 0) {

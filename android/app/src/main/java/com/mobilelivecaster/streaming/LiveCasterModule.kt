@@ -383,6 +383,7 @@ data class NativeRuntimeTelemetry(
     val droppedFrames: Long = 0,
     val publisher: NativeRuntimePublisher = NativeRuntimePublisher(),
     val encoderProbe: NativeRuntimeEncoderProbe? = null,
+    val device: NativeRuntimeDevice? = null,
     val composition: NativeRuntimeComposition = NativeRuntimeComposition(),
     val audioProcessing: NativeRuntimeAudioProcessing? = null,
     val message: String = ""
@@ -398,6 +399,7 @@ data class NativeRuntimeTelemetry(
         putDouble("droppedFrames", droppedFrames.toDouble())
         putMap("publisher", publisher.asWritableMap())
         encoderProbe?.let { putMap("encoderProbe", it.asWritableMap()) }
+        device?.let { putMap("device", it.asWritableMap()) }
         putMap("composition", composition.asWritableMap())
         audioProcessing?.let { putMap("audioProcessing", it.asWritableMap()) }
         putString("message", message)
@@ -551,7 +553,13 @@ object LiveCasterSession {
         status = LiveCasterStatus.Idle
         health = LiveCasterHealth(message = "Ready")
         startedAtMillis = null
-        nativeRuntime = null
+        nativeRuntime = nativeRuntime?.copy(
+            runtimeStatus = status.jsValue,
+            updatedAt = System.currentTimeMillis(),
+            stale = false,
+            elapsedSeconds = 0,
+            message = health.message
+        )
         captureResultCode = null
         captureData = null
         emit()
@@ -575,6 +583,7 @@ object LiveCasterSession {
                     lastError = safeMessage
                 ),
                 encoderProbe = current.encoderProbe,
+                device = current.device,
                 composition = current.composition,
                 audioProcessing = current.audioProcessing,
                 message = safeMessage
@@ -609,6 +618,7 @@ object LiveCasterSession {
         congested: Boolean? = null,
         lastError: String? = null,
         audioProcessing: NativeRuntimeAudioProcessing? = null,
+        device: NativeRuntimeDevice? = null,
         message: String = health.message
     ) {
         val current = nativeRuntime
@@ -649,6 +659,7 @@ object LiveCasterSession {
             droppedFrames = droppedVideoFrames ?: current?.droppedFrames ?: health.droppedFrames.toLong(),
             publisher = nextPublisher,
             encoderProbe = encoderProbe ?: current?.encoderProbe,
+            device = device ?: current?.device,
             composition = nextComposition,
             audioProcessing = audioProcessing ?: current?.audioProcessing,
             message = redactSensitiveText(message)

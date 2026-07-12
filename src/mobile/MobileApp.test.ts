@@ -44,4 +44,14 @@ describe("MobileApp OAuth credential state", () => {
     expect(source).toContain("formatStreamAnnouncementAuditMessage(preview, result.message)");
     expect(source).not.toContain("Content: ${preview.text}");
   });
+
+  it("gates live quality changes by the active native encoder capability", () => {
+    const source = readFileSync(new URL("./MobileApp.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain('snapshot.platform === "android"');
+    expect(source).toContain("videoBitrate: true");
+    expect(source).toContain("audioBitrate: false");
+    expect(source).toContain('fps: profile.androidPublisherMode === "rootencoder"');
+    expect(source).toContain("{ videoBitrate: false, audioBitrate: false, fps: false }");
+  });
 });

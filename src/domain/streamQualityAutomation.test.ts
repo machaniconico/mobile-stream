@@ -9,6 +9,7 @@ import {
 import { createStreamQualityIncidents } from "./streamQualityIncidents";
 import { createStreamRecoveryStatus } from "./streamRecovery";
 import { initialStreamState, type StreamHealth } from "./streamState";
+import type { NativeRuntimeDevice } from "./nativeRuntime";
 
 const quality = (id: QualityProfile["id"]): QualityProfile => {
   const profile = qualityProfiles.find((item) => item.id === id);
@@ -29,8 +30,15 @@ const snapshot = (target: QualityProfile, update: Partial<StreamHealth> = {}) =>
   }
 });
 
-const advisorFor = (target: QualityProfile, health: Partial<StreamHealth> = {}) => {
-  const liveSnapshot = snapshot(target, health);
+const advisorFor = (
+  target: QualityProfile,
+  health: Partial<StreamHealth> = {},
+  device?: NativeRuntimeDevice
+) => {
+  const liveSnapshot = {
+    ...snapshot(target, health),
+    nativeRuntime: device ? { device } : null
+  };
   const incidents = createStreamQualityIncidents(liveSnapshot, target);
   const recovery = createStreamRecoveryStatus(liveSnapshot, target);
   const samples = [
@@ -48,6 +56,17 @@ const advisorFor = (target: QualityProfile, health: Partial<StreamHealth> = {}) 
     recovery
   });
 };
+
+const device = (update: Partial<NativeRuntimeDevice> = {}): NativeRuntimeDevice => ({
+  thermalState: "nominal",
+  thermalStatusCode: 0,
+  batteryLevelPercent: 80,
+  charging: false,
+  lowPowerMode: false,
+  powerSource: "battery",
+  sampledAt: Date.parse("2026-07-13T00:00:00.000Z"),
+  ...update
+});
 
 describe("stream quality automation", () => {
   it("stays idle for a healthy quality target", () => {
@@ -96,6 +115,43 @@ describe("stream quality automation", () => {
     expect(decision.command).toBe("apply-live-target");
     expect(decision.severity).toBe("warn");
     expect(decision.suggestedTarget?.profileId).toBe("quality-balanced");
+  });
+
+  it("arms a 30 fps restart target when live FPS changes are unsupported", () => {
+    const advisor = advisorFor(
+      quality("quality-motion"),
+      {},
+      device({ thermalState: "serious" })
+    );
+    const decision = createStreamQualityAutomationDecision({
+      advisor,
+      streamStatus: "live",
+      elapsedSeconds: 20,
+      canApplyLiveTarget: false
+    });
+
+    expect(decision.command).toBe("alert");
+    expect(decision.title).toBe("Quality downgrade armed");
+    expect(decision.suggestedTarget?.profileId).toBe("quality-balanced");
+    expect(decision.reason).toContain("Thermal pressure");
+  });
+
+  it("alerts instead of auto-changing quality for critical device shutdown risk", () => {
+    const advisor = advisorFor(
+      quality("quality-motion"),
+      {},
+      device({ thermalState: "critical" })
+    );
+    const decision = createStreamQualityAutomationDecision({
+      advisor,
+      streamStatus: "live",
+      elapsedSeconds: 20,
+      canApplyLiveTarget: true
+    });
+
+    expect(decision.command).toBe("alert");
+    expect(decision.severity).toBe("fail");
+    expect(decision.action).toContain("Cool the device");
   });
 
   it("keeps live downgrade armed when the safer target changes resolution", () => {

@@ -83,6 +83,8 @@ The current implementation includes a verified TypeScript/Vite prototype and a R
 - iOS Broadcast Upload Extension H.264/AAC encode path with app/mic audio mixing.
 - iOS RTMP/RTMPS publisher foundation with reconnect backoff state.
 - iOS host app telemetry bridge that polls Broadcast Upload Extension runtime state for FPS, bitrate, drops, reconnects, errors, native composition status, self-monitor latency estimates, and still-image asset loaded/missing counts.
+- iOS start and reconnect remain `preparing`/`reconnecting` after the system Broadcast Picker opens and only become `live` after the current handoff receives `NetStream.Publish.Start` from the RTMP server and the current publish generation newly sends both video and audio; stale handoffs and prior-generation counters cannot satisfy recovery proof, publish rejection/extension startup failure reaches the host, and terminal publisher failure no longer leaves a false-live state.
+- iOS/Android device resource telemetry for OS thermal pressure, battery capacity, charging/power source, and power-saving mode; serious heat arms a safer 30 fps target and only applies live changes supported by the active native encoder, while critical heat or unplugged critical battery produces a stop-first safety alert.
 - Android MediaProjection service skeleton.
 - React Native host app scaffold with standard `ios/` and `android/` projects.
 - React Native mobile Studio screen using the shared domain model and mock engine.

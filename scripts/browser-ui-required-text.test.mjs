@@ -13,6 +13,7 @@ describe("browser UI required text checks", () => {
       "Face input",
       "Head range",
       "Rig quality",
+      "Device resources",
       "Subtitle",
       "Quick text",
       "Text deck",

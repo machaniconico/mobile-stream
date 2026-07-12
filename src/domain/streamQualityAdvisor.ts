@@ -31,6 +31,12 @@ export interface StreamQualityAdvisorRecommendation {
   suggestedTarget: StreamQualityAdvisorTarget | null;
 }
 
+export interface StreamQualityLiveUpdateCapabilities {
+  videoBitrate: boolean;
+  audioBitrate: boolean;
+  fps: boolean;
+}
+
 export const createStreamQualityAdvisor = ({
   quality,
   incidents,
@@ -50,6 +56,7 @@ export const createStreamQualityAdvisor = ({
   const hasCriticalIncident = incidents.some((incident) => incident.severity === "fail");
   const hasWarningIncident = incidents.some((incident) => incident.severity === "warn");
   const hasReconnectRisk = hasAnyIncident(incidents, ["reconnects"]) || history.observedReconnectAttempts > 0;
+  const hasCriticalDevicePressure = hasAnyIncident(incidents, ["thermal-critical", "battery-critical"]);
 
   if (recovery.recommendedAction === "stop") {
     return createRecommendation({
@@ -58,6 +65,19 @@ export const createStreamQualityAdvisor = ({
       summary: "Stop recommended before quality tuning.",
       reason: recovery.message,
       recommendation: "Stop the stream, verify ingest health, then restart with the suggested lower quality target.",
+      currentTarget,
+      suggestedTarget
+    });
+  }
+
+  if (hasCriticalDevicePressure) {
+    return createRecommendation({
+      action: "stop",
+      severity: "fail",
+      summary: "Stop recommended for device safety.",
+      reason: incidentReason(incidents),
+      recommendation:
+        "Cool the device or connect stable power before continuing. Do not rely on an automatic quality change when shutdown risk is critical.",
       currentTarget,
       suggestedTarget
     });
@@ -141,14 +161,23 @@ export const applyStreamQualityAdvisorTarget = (
 
 export const canApplyStreamQualityAdvisorTargetLive = (
   profile: StudioProfile,
-  target: StreamQualityAdvisorTarget | null
+  target: StreamQualityAdvisorTarget | null,
+  capabilities: StreamQualityLiveUpdateCapabilities = {
+    videoBitrate: false,
+    audioBitrate: false,
+    fps: false
+  }
 ): boolean =>
   Boolean(
     target &&
       target.width === profile.quality.width &&
       target.height === profile.quality.height &&
       target.videoBitrateKbps <= profile.quality.videoBitrateKbps &&
-      target.fps <= profile.quality.fps
+      target.audioBitrateKbps <= profile.quality.audioBitrateKbps &&
+      target.fps <= profile.quality.fps &&
+      (target.videoBitrateKbps === profile.quality.videoBitrateKbps || capabilities.videoBitrate) &&
+      (target.audioBitrateKbps === profile.quality.audioBitrateKbps || capabilities.audioBitrate) &&
+      (target.fps === profile.quality.fps || capabilities.fps)
   );
 
 const createRecommendation = (recommendation: StreamQualityAdvisorRecommendation): StreamQualityAdvisorRecommendation =>
@@ -176,7 +205,19 @@ const chooseLowerProfile = (
   incidents: StreamQualityIncident[],
   availableProfiles: QualityProfile[]
 ): QualityProfile | null => {
-  const preferThirtyFps = quality.fps > 30 || hasAnyIncident(incidents, ["fps-critical", "fps-low", "fps-missing"]);
+  const preferThirtyFps =
+    quality.fps > 30 ||
+    hasAnyIncident(incidents, [
+      "fps-critical",
+      "fps-low",
+      "fps-missing",
+      "thermal-fair",
+      "thermal-serious",
+      "thermal-critical",
+      "battery-low",
+      "battery-critical",
+      "low-power-mode"
+    ]);
   const candidates = availableProfiles
     .filter((profile) => profile.id !== quality.id)
     .filter((profile) => profile.videoBitrateKbps < quality.videoBitrateKbps)
@@ -189,9 +230,10 @@ const chooseLowerProfile = (
 const createCustomLowerTarget = (quality: QualityProfile): StreamQualityAdvisorTarget => {
   const videoBitrateKbps = roundToHundred(Math.max(900, Math.round(quality.videoBitrateKbps * 0.72)));
   const fps = quality.fps > 30 ? 30 : quality.fps;
+  const portrait = quality.height > quality.width;
   return {
     profileId: null,
-    profileName: `Custom safer ${quality.height}p${fps}`,
+    profileName: `Custom safer ${Math.min(quality.width, quality.height)}p${fps}${portrait ? " Portrait" : ""}`,
     width: quality.width,
     height: quality.height,
     fps,

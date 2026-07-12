@@ -3,6 +3,7 @@ import type { RenderGraphRuntime, SceneDocument } from "../domain/scene";
 import { toRenderGraph } from "../domain/scene";
 import type { StudioProfile } from "../domain/profiles";
 import { initialStreamState, type StreamHealth } from "../domain/streamState";
+import { normalizeNativeRuntimeDevice } from "../domain/nativeRuntime";
 import type { LiveCasterNative, NativeEngineSnapshot, NativeRuntimeTelemetry } from "../native/LiveCasterNative";
 
 interface IOSLiveCasterModule {
@@ -150,8 +151,12 @@ const normalizeNativeRuntime = (
         videoFrames: runtime.videoFrames ?? 0,
         encodedBytes: runtime.encodedBytes ?? 0,
         droppedFrames: runtime.droppedFrames ?? 0,
+        device: normalizeNativeRuntimeDevice(runtime.device),
         publisher: {
           state: runtime.publisher?.state ?? "",
+          publishGeneration: runtime.publisher?.publishGeneration ?? 0,
+          currentPublishVideoFrames: runtime.publisher?.currentPublishVideoFrames ?? 0,
+          currentPublishAudioFrames: runtime.publisher?.currentPublishAudioFrames ?? 0,
           videoEncoderBackend: runtime.publisher?.videoEncoderBackend ?? "",
           audioEncoderBackend: runtime.publisher?.audioEncoderBackend ?? "",
           reconnectAttempts: runtime.publisher?.reconnectAttempts ?? 0,

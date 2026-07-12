@@ -46,4 +46,10 @@ describe("App OAuth credential state", () => {
     expect(chatSpeechSource).toContain('console.warn("Chat speech failed", formatChatSpeechFailureLogMessage(error))');
     expect(chatSpeechSource).not.toContain('console.warn("Chat speech failed", error)');
   });
+
+  it("declares the browser mock encoder as fully live-updatable", () => {
+    const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("{ videoBitrate: true, audioBitrate: true, fps: true }");
+  });
 });

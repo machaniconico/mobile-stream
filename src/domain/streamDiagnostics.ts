@@ -633,8 +633,9 @@ export const formatStreamDiagnosticReport = (
     "Native Runtime",
     `- Platform: ${diagnostics.nativeRuntime?.platform ?? "-"}`,
     `- Runtime status: ${diagnostics.nativeRuntime?.runtimeStatus ?? "-"}`,
-    `- Publisher: ${diagnostics.nativeRuntime?.publisher.state || "-"} / cache ${diagnostics.nativeRuntime?.publisher.itemsInCache ?? 0}/${diagnostics.nativeRuntime?.publisher.cacheSize ?? 0} / congested ${diagnostics.nativeRuntime?.publisher.congested ? "yes" : "no"}`,
+    `- Publisher: ${diagnostics.nativeRuntime?.publisher.state || "-"} / generation ${diagnostics.nativeRuntime?.publisher.publishGeneration ?? 0} / current media ${diagnostics.nativeRuntime?.publisher.currentPublishVideoFrames ?? 0} video ${diagnostics.nativeRuntime?.publisher.currentPublishAudioFrames ?? 0} audio / cache ${diagnostics.nativeRuntime?.publisher.itemsInCache ?? 0}/${diagnostics.nativeRuntime?.publisher.cacheSize ?? 0} / congested ${diagnostics.nativeRuntime?.publisher.congested ? "yes" : "no"}`,
     `- Composition: ${diagnostics.nativeRuntime?.composition.status ?? "-"} / ${diagnostics.nativeRuntime?.composition.message || "-"}`,
+    `- Device resources: ${formatNativeDeviceResources(diagnostics.nativeRuntime)}`,
     `- Composition overlays: applied ${diagnostics.nativeRuntime?.composition.appliedCount ?? 0}${formatKinds(diagnostics.nativeRuntime?.composition.appliedKinds)} / skipped ${diagnostics.nativeRuntime?.composition.skippedCount ?? 0}${formatKinds(diagnostics.nativeRuntime?.composition.skippedKinds)}`,
     `- Composition assets: ${diagnostics.nativeRuntime?.composition.stillImageAssetLoadedCount ?? 0}/${diagnostics.nativeRuntime?.composition.stillImageAssetCount ?? 0} loaded / ${diagnostics.nativeRuntime?.composition.stillImageAssetDecodedCount ?? 0} decoded / decoded pixels ${diagnostics.nativeRuntime?.composition.stillImageAssetDecodedPixelCount ?? 0} / ${diagnostics.nativeRuntime?.composition.stillImageAssetCompositedCount ?? 0} composited / composited pixels ${diagnostics.nativeRuntime?.composition.stillImageAssetCompositedPixelCount ?? 0} / runtime ${diagnostics.nativeRuntime?.composition.runtimeCompositorBackend ?? "none"} ${diagnostics.nativeRuntime?.composition.runtimeCompositedFrameCount ?? 0} frames ${diagnostics.nativeRuntime?.composition.runtimeDroppedFrameCount ?? 0} dropped ${diagnostics.nativeRuntime?.composition.runtimeCompositionFailureCount ?? 0} failures live reloads ${diagnostics.nativeRuntime?.composition.liveRenderGraphReloadCount ?? 0} rejected ${diagnostics.nativeRuntime?.composition.liveRenderGraphRejectedUpdateCount ?? 0} / ${diagnostics.nativeRuntime?.composition.stillImageAssetMissingCount ?? 0} missing / app-group ${diagnostics.nativeRuntime?.composition.stillImageAssetAppGroupLoadedCount ?? 0}/${diagnostics.nativeRuntime?.composition.stillImageAssetAppGroupCount ?? 0} loaded / ${diagnostics.nativeRuntime?.composition.stillImageAssetAppGroupDecodedCount ?? 0} decoded / decoded pixels ${diagnostics.nativeRuntime?.composition.stillImageAssetAppGroupDecodedPixelCount ?? 0} / ${diagnostics.nativeRuntime?.composition.stillImageAssetAppGroupCompositedCount ?? 0} composited / composited pixels ${diagnostics.nativeRuntime?.composition.stillImageAssetAppGroupCompositedPixelCount ?? 0}`,
     `- Composition Live2D: ${diagnostics.nativeRuntime?.composition.live2dActivePoseCount ?? 0}/${diagnostics.nativeRuntime?.composition.live2dSourceCount ?? 0} active / payloads ${diagnostics.nativeRuntime?.composition.live2dPosePayloadCount ?? 0} / missing ${diagnostics.nativeRuntime?.composition.live2dMissingPoseCount ?? 0}`,
@@ -1372,6 +1373,19 @@ const sanitizeNativeRuntime = (
           : undefined
       }
     : null;
+
+const formatNativeDeviceResources = (runtime: NativeRuntimeTelemetry | null): string => {
+  const device = runtime?.device;
+  if (!device) {
+    return "not reported";
+  }
+  const battery = device.batteryLevelPercent >= 0 ? `${device.batteryLevelPercent}%` : "unknown";
+  const sampledDate = new Date(device.sampledAt);
+  const sampledAt = device.sampledAt > 0 && Number.isFinite(sampledDate.getTime())
+    ? sampledDate.toISOString()
+    : "unknown";
+  return `thermal ${device.thermalState} (${device.thermalStatusCode}) / battery ${battery} / charging ${device.charging ? "yes" : "no"} / source ${device.powerSource} / low power ${device.lowPowerMode ? "yes" : "no"} / sampled ${sampledAt}`;
+};
 
 const formatAdvisorTarget = (target: StreamQualityAdvisorRecommendation["currentTarget"]): string =>
   `${target.profileName} (${target.width}x${target.height} / ${target.fps}fps / ${target.videoBitrateKbps} kbps, upload ${target.estimatedUploadKbps} kbps)`;

@@ -470,6 +470,16 @@ const nativeRuntimeMetricLabel = (diagnostics: StreamDiagnostics): string =>
       })} / ${liveRenderGraphMetricLabel(diagnostics.nativeRuntime.composition)} / assets ${diagnostics.nativeRuntime.composition.stillImageAssetLoadedCount ?? 0}/${diagnostics.nativeRuntime.composition.stillImageAssetCount ?? 0} decoded ${diagnostics.nativeRuntime.composition.stillImageAssetDecodedCount ?? 0} decoded pixels ${diagnostics.nativeRuntime.composition.stillImageAssetDecodedPixelCount ?? 0} composited ${diagnostics.nativeRuntime.composition.stillImageAssetCompositedCount ?? 0} composited pixels ${diagnostics.nativeRuntime.composition.stillImageAssetCompositedPixelCount ?? 0} / app-group ${diagnostics.nativeRuntime.composition.stillImageAssetAppGroupLoadedCount ?? 0}/${diagnostics.nativeRuntime.composition.stillImageAssetAppGroupCount ?? 0} loaded ${diagnostics.nativeRuntime.composition.stillImageAssetAppGroupDecodedCount ?? 0} decoded pixels ${diagnostics.nativeRuntime.composition.stillImageAssetAppGroupDecodedPixelCount ?? 0} ${diagnostics.nativeRuntime.composition.stillImageAssetAppGroupCompositedCount ?? 0} composited pixels ${diagnostics.nativeRuntime.composition.stillImageAssetAppGroupCompositedPixelCount ?? 0} / ${live2dPoseMetricLabel(diagnostics.nativeRuntime.composition)} / vrm ${diagnostics.nativeRuntime.composition.vrmActivePoseCount ?? 0}/${diagnostics.nativeRuntime.composition.vrmSourceCount ?? 0} active payloads ${diagnostics.nativeRuntime.composition.vrmPosePayloadCount ?? 0} renderer ${diagnostics.nativeRuntime.composition.vrmRendererStatus ?? ((diagnostics.nativeRuntime.composition.vrmSourceCount ?? 0) > 0 ? "unavailable" : "not-required")} ${diagnostics.nativeRuntime.composition.vrmRenderedSourceCount ?? 0}/${diagnostics.nativeRuntime.composition.vrmSourceCount ?? 0} models ${diagnostics.nativeRuntime.composition.vrmModelLoadedCount ?? 0} bones ${diagnostics.nativeRuntime.composition.vrmHumanoidBoneCount ?? 0} expressions ${diagnostics.nativeRuntime.composition.vrmExpressionCount ?? 0} ${vrmRenderabilityMetricLabel(diagnostics.nativeRuntime.composition)} pose ${(diagnostics.nativeRuntime.composition.vrmPoseBoneAppliedCount ?? 0)}/${diagnostics.nativeRuntime.composition.vrmPoseBoneCount ?? 0} bones ${(diagnostics.nativeRuntime.composition.vrmPoseExpressionAppliedCount ?? 0)}/${diagnostics.nativeRuntime.composition.vrmPoseExpressionCount ?? 0} expressions${diagnostics.nativeRuntime.audioProcessing?.micEffectsEnabled ? ` / mic fx ${diagnostics.nativeRuntime.audioProcessing.micEffectsPresetId} ${diagnostics.nativeRuntime.audioProcessing.micEffectsProcessedFrames}` : ""}${nativeRuntimeMonitorMetricLabel(diagnostics)}${diagnostics.nativeRuntime.stale ? " / stale" : ""}${diagnostics.nativeRuntime.publisher.congested ? " / congested" : ""}`
     : "Not linked";
 
+const deviceResourceMetricLabel = (diagnostics: StreamDiagnostics): string => {
+  const device = diagnostics.nativeRuntime?.device;
+  if (!device) {
+    return "Not reported";
+  }
+  const battery = device.batteryLevelPercent >= 0 ? `${device.batteryLevelPercent}%` : "unknown";
+  const power = device.charging ? `charging ${device.powerSource}` : device.powerSource;
+  return `${device.thermalState} / battery ${battery} / ${power} / ${device.lowPowerMode ? "low power" : "normal power"}`;
+};
+
 const audioGuardMetricLabel = (diagnostics: StreamDiagnostics): string =>
   `${diagnostics.audio.audioGuard.status} / limiter ${diagnostics.audio.audioGuard.nativeLimitedSamplePercent}% / peak ${Math.round(diagnostics.audio.audioGuard.lastSessionPeakLevel * 100)}%`;
 
@@ -2538,6 +2548,8 @@ const StreamDiagnosticsPanel = ({
         <strong>{platformPublishingFreshnessMetricLabel(diagnostics, platformPublishingFreshness)}</strong>
         <span>Native runtime</span>
         <strong>{nativeRuntimeMetricLabel(diagnostics)}</strong>
+        <span>Device resources</span>
+        <strong>{deviceResourceMetricLabel(diagnostics)}</strong>
         <span>Recovery</span>
         <strong>{recoveryMetricLabel(diagnostics)}</strong>
         <span>History</span>

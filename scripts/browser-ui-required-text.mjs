@@ -8,6 +8,7 @@ export const requiredBrowserUiTextChecks = [
   "Face input",
   "Head range",
   "Rig quality",
+  "Device resources",
   "Subtitle",
   "Quick text",
   "Text deck",

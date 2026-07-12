@@ -966,7 +966,8 @@ export const App = () => {
         elapsedSeconds: snapshot.health.elapsedSeconds,
         canApplyLiveTarget: canApplyStreamQualityAdvisorTargetLive(
           profile,
-          qualityAutomationDiagnostics.qualityAdvisor.suggestedTarget
+          qualityAutomationDiagnostics.qualityAdvisor.suggestedTarget,
+          { videoBitrate: true, audioBitrate: true, fps: true }
         )
       }),
     [profile, qualityAutomationDiagnostics.qualityAdvisor, snapshot.health.elapsedSeconds, snapshot.state.status]

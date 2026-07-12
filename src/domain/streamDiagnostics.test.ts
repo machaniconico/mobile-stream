@@ -1048,6 +1048,53 @@ describe("stream diagnostics", () => {
     expect(report).toContain("Composition VRM: 1/1 active / payloads 1 / missing 0");
   });
 
+  it("surfaces device resource pressure and feeds it into the quality advisor", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      quality: {
+        ...createDefaultStudioProfile().quality,
+        id: "quality-motion",
+        name: "Motion 720p60",
+        fps: 60 as const,
+        videoBitrateKbps: 5500,
+        audioBitrateKbps: 160
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const nativeRuntime = nativeRuntimeWithAudioProcessing(undefined);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 5500, fps: 60, elapsedSeconds: 20, message: "Live" }),
+      nativeRuntime: {
+        ...nativeRuntime,
+        device: {
+          thermalState: "serious",
+          thermalStatusCode: 3,
+          batteryLevelPercent: 42,
+          charging: false,
+          lowPowerMode: false,
+          powerSource: "battery",
+          sampledAt: Date.parse("2026-07-13T00:00:00.000Z")
+        }
+      }
+    });
+
+    expect(diagnostics.nativeRuntime?.device).toMatchObject({
+      thermalState: "serious",
+      batteryLevelPercent: 42,
+      powerSource: "battery"
+    });
+    expect(diagnostics.qualityIncidents.incidents).toContainEqual(
+      expect.objectContaining({ code: "thermal-serious", severity: "fail" })
+    );
+    expect(diagnostics.qualityAdvisor.action).toBe("lower-quality");
+    expect(diagnostics.qualityAdvisor.suggestedTarget?.profileId).toBe("quality-balanced");
+    expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
+      "Device resources: thermal serious (3) / battery 42% / charging no / source battery / low power no / sampled 2026-07-13T00:00:00.000Z"
+    );
+  });
+
   it("keeps MediaCodec configure probe separate from the active Android publisher backend", () => {
     const scene = createDefaultScene();
     const profile = createDefaultStudioProfile();

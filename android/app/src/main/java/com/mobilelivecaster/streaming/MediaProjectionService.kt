@@ -50,6 +50,7 @@ class MediaProjectionService : Service(), ConnectChecker {
     private var lastKnownBitrate = 0L
     private var lastNativeFps = 0
     private val videoFrameIntervalTracker = VideoFrameIntervalTracker()
+    private val deviceResourceMonitor by lazy { DeviceResourceMonitor(applicationContext) }
     private val mediaProjectionManager: MediaProjectionManager by lazy {
         applicationContext.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
     }
@@ -96,6 +97,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             LiveCasterSession.updateNativeRuntime(
                 publisherState = "preparing",
                 encoderProbe = encoderProbe,
+                device = deviceResourceMonitor.snapshot(),
                 message = encoderProbe.message
             )
             val projection = mediaProjectionManager.getMediaProjection(resultCode, captureData)
@@ -417,6 +419,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             congested = snapshot?.congested,
             lastError = lastError ?: snapshot?.lastError,
             audioProcessing = snapshot?.audioProcessing,
+            device = deviceResourceMonitor.snapshot(),
             message = message
         )
     }
@@ -461,6 +464,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             congested = client?.hasCongestion(),
             lastError = lastError,
             audioProcessing = micProcessingEffect?.snapshot(),
+            device = deviceResourceMonitor.snapshot(),
             message = message
         )
     }

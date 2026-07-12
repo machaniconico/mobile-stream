@@ -128,6 +128,8 @@
   - active stream quality incident panel with operator recommendations
   - stream session event timeline for live support diagnostics
   - shared quality profiles and landscape 16:9 / portrait 9:16 custom 540p/720p/1080p, 30/60 fps, video/audio bitrate, and estimated upload-target controls with safe persisted-value normalization, YouTube/Twitch H.264/AAC recommendation matching, one-tap platform targets, and platform-limit readiness checks
+  - native iOS/Android thermal, battery, charging/power-source, and low-power telemetry with live quality pressure incidents; serious heat arms a 30 fps target and live application is capability-gated by the active encoder, while critical heat or unplugged critical battery remains an explicit stop-first alert
+  - iOS Broadcast Picker start/reconnect remains preparing/reconnecting until the current handoff receives RTMP `NetStream.Publish.Start` and its current publish generation newly sends both video and audio; stale handoff telemetry, publish rejection, extension startup failure, and publisher retry exhaustion propagate safely instead of leaving the host falsely live
   - chat reader panel with test comments, platform adapter ingest, safety controls, speech settings, recent comment pin/unpin controls, stream-stop chat auto-disconnect/readout silence, and queued/recent/pinned comment privacy reset
   - Go Live, Stop, Reconnect mock controls
 - React Native mobile readiness panel, Go Live preflight banner, and invalid-profile blocking.

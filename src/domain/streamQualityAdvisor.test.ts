@@ -10,6 +10,7 @@ import { createStreamQualityIncidents } from "./streamQualityIncidents";
 import { createStreamRecoveryStatus } from "./streamRecovery";
 import { initialStreamState, type StreamHealth } from "./streamState";
 import type { StreamHealthSample } from "./streamHealthHistory";
+import type { NativeRuntimeDevice } from "./nativeRuntime";
 
 const quality = (id: QualityProfile["id"]): QualityProfile => {
   const profile = qualityProfiles.find((item) => item.id === id);
@@ -39,8 +40,15 @@ const historyFor = (target: QualityProfile, health: Partial<StreamHealth> = {}) 
   });
 };
 
-const advisorFor = (target: QualityProfile, health: Partial<StreamHealth> = {}) => {
-  const liveSnapshot = snapshot(target, health);
+const advisorFor = (
+  target: QualityProfile,
+  health: Partial<StreamHealth> = {},
+  device?: NativeRuntimeDevice
+) => {
+  const liveSnapshot = {
+    ...snapshot(target, health),
+    nativeRuntime: device ? { device } : null
+  };
   const incidents = createStreamQualityIncidents(liveSnapshot, target);
   const recovery = createStreamRecoveryStatus(liveSnapshot, target);
   const history = historyFor(target, health);
@@ -51,6 +59,17 @@ const advisorFor = (target: QualityProfile, health: Partial<StreamHealth> = {}) 
     recovery
   });
 };
+
+const device = (update: Partial<NativeRuntimeDevice> = {}): NativeRuntimeDevice => ({
+  thermalState: "nominal",
+  thermalStatusCode: 0,
+  batteryLevelPercent: 80,
+  charging: false,
+  lowPowerMode: false,
+  powerSource: "battery",
+  sampledAt: Date.parse("2026-07-13T00:00:00.000Z"),
+  ...update
+});
 
 describe("stream quality advisor", () => {
   it("maintains a healthy live quality target", () => {
@@ -99,6 +118,32 @@ describe("stream quality advisor", () => {
     expect(recommendation.summary).toContain("Telemetry is missing");
   });
 
+  it("lowers a 60 fps target under serious thermal pressure", () => {
+    const recommendation = advisorFor(
+      quality("quality-motion"),
+      {},
+      device({ thermalState: "serious" })
+    );
+
+    expect(recommendation.action).toBe("lower-quality");
+    expect(recommendation.severity).toBe("fail");
+    expect(recommendation.suggestedTarget?.profileId).toBe("quality-balanced");
+    expect(recommendation.reason).toContain("Thermal pressure");
+  });
+
+  it("recommends stopping for critical thermal or battery shutdown risk", () => {
+    for (const deviceState of [
+      device({ thermalState: "critical" }),
+      device({ batteryLevelPercent: 5 })
+    ]) {
+      const recommendation = advisorFor(quality("quality-motion"), {}, deviceState);
+
+      expect(recommendation.action).toBe("stop");
+      expect(recommendation.severity).toBe("fail");
+      expect(recommendation.summary).toBe("Stop recommended for device safety.");
+    }
+  });
+
   it("applies an existing suggested quality profile to the studio profile", () => {
     const profile = {
       ...createDefaultStudioProfile(),
@@ -130,7 +175,22 @@ describe("stream quality advisor", () => {
     expect(updated.quality.videoBitrateKbps).toBe(2500);
   });
 
-  it("allows live target changes only when resolution does not change and quality moves downward", () => {
+  it("labels custom portrait fallback targets by their short edge", () => {
+    const portrait: QualityProfile = {
+      id: "quality-custom-portrait",
+      name: "Custom portrait",
+      width: 540,
+      height: 960,
+      fps: 60,
+      videoBitrateKbps: 1800,
+      audioBitrateKbps: 128
+    };
+    const recommendation = advisorFor(portrait, {}, device({ thermalState: "serious" }));
+
+    expect(recommendation.suggestedTarget?.profileName).toBe("Custom safer 540p30 Portrait");
+  });
+
+  it("allows live changes only when every changed encoder setting is supported", () => {
     const motionProfile = {
       ...createDefaultStudioProfile(),
       quality: quality("quality-motion")
@@ -140,13 +200,50 @@ describe("stream quality advisor", () => {
       quality: quality("quality-sharp")
     };
 
-    expect(canApplyStreamQualityAdvisorTargetLive(motionProfile, advisorFor(quality("quality-motion"), {
+    const motionTarget = advisorFor(quality("quality-motion"), {
       bitrateKbps: 1200,
       fps: 18
-    }).suggestedTarget)).toBe(true);
-    expect(canApplyStreamQualityAdvisorTargetLive(sharpProfile, advisorFor(quality("quality-sharp"), {
+    }).suggestedTarget;
+    const sharpTarget = advisorFor(quality("quality-sharp"), {
       bitrateKbps: 1200,
       fps: 18
-    }).suggestedTarget)).toBe(false);
+    }).suggestedTarget;
+    const bitrateOnlyTarget = {
+      ...advisorFor(quality("quality-balanced"), { droppedFrames: 1 }).suggestedTarget!,
+      width: motionProfile.quality.width,
+      height: motionProfile.quality.height,
+      fps: motionProfile.quality.fps,
+      audioBitrateKbps: motionProfile.quality.audioBitrateKbps
+    };
+
+    expect(canApplyStreamQualityAdvisorTargetLive(motionProfile, motionTarget)).toBe(false);
+    expect(
+      canApplyStreamQualityAdvisorTargetLive(motionProfile, motionTarget, {
+        videoBitrate: true,
+        audioBitrate: true,
+        fps: true
+      })
+    ).toBe(true);
+    expect(
+      canApplyStreamQualityAdvisorTargetLive(motionProfile, motionTarget, {
+        videoBitrate: true,
+        audioBitrate: false,
+        fps: false
+      })
+    ).toBe(false);
+    expect(
+      canApplyStreamQualityAdvisorTargetLive(motionProfile, bitrateOnlyTarget, {
+        videoBitrate: true,
+        audioBitrate: false,
+        fps: false
+      })
+    ).toBe(true);
+    expect(
+      canApplyStreamQualityAdvisorTargetLive(sharpProfile, sharpTarget, {
+        videoBitrate: true,
+        audioBitrate: true,
+        fps: true
+      })
+    ).toBe(false);
   });
 });

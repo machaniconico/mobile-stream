@@ -60,6 +60,13 @@ describe("MobileStudioScreen subtitle and text controls", () => {
     expect(source).toContain("aspectRatio: quality.width / quality.height");
   });
 
+  it("shows native device resource telemetry in diagnostics", () => {
+    expect(source).toContain("deviceResourceMetricLabel");
+    expect(source).toContain('label="Device resources"');
+    expect(source).toContain("batteryLevelPercent");
+    expect(source).toContain("lowPowerMode");
+  });
+
   it("shows and applies the active platform quality recommendation", () => {
     expect(source).toContain("createPlatformQualityRecommendation(profile)");
     expect(source).toContain("platformQualityRecommendation.platformLabel} target");

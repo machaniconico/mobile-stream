@@ -1352,7 +1352,14 @@ export const MobileApp = () => {
         elapsedSeconds: snapshot.health.elapsedSeconds,
         canApplyLiveTarget: canApplyStreamQualityAdvisorTargetLive(
           profile,
-          qualityAutomationDiagnostics.qualityAdvisor.suggestedTarget
+          qualityAutomationDiagnostics.qualityAdvisor.suggestedTarget,
+          snapshot.platform === "android"
+            ? {
+                videoBitrate: true,
+                audioBitrate: false,
+                fps: profile.androidPublisherMode === "rootencoder"
+              }
+            : { videoBitrate: false, audioBitrate: false, fps: false }
         )
       }),
     [profile, qualityAutomationDiagnostics.qualityAdvisor, snapshot.health.elapsedSeconds, snapshot.state.status]

@@ -34,6 +34,13 @@ describe("web stream announcement UI", () => {
     expect(studioSource).toContain('aspectRatio: `${quality.width} / ${quality.height}`');
   });
 
+  it("shows native device resource telemetry in diagnostics", () => {
+    expect(studioSource).toContain("deviceResourceMetricLabel");
+    expect(studioSource).toContain("Device resources");
+    expect(studioSource).toContain("batteryLevelPercent");
+    expect(studioSource).toContain("lowPowerMode");
+  });
+
   it("shows and applies the active platform quality recommendation", () => {
     expect(setupSource).toContain("createPlatformQualityRecommendation(profile)");
     expect(setupSource).toContain("platform-quality-recommendation");

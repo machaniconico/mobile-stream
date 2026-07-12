@@ -7,6 +7,7 @@ import {
   type StreamQualityIncidentSnapshot
 } from "./streamQualityIncidents";
 import { initialStreamState, type StreamHealth } from "./streamState";
+import type { NativeRuntimeDevice } from "./nativeRuntime";
 
 const quality = createDefaultStudioProfile().quality;
 
@@ -17,10 +18,23 @@ const health = (update: Partial<StreamHealth> = {}): StreamHealth => ({
 
 const snapshot = (
   status: StreamQualityIncidentSnapshot["state"]["status"],
-  update: Partial<StreamHealth> = {}
+  update: Partial<StreamHealth> = {},
+  device?: NativeRuntimeDevice
 ): StreamQualityIncidentSnapshot => ({
   state: { status },
-  health: health(update)
+  health: health(update),
+  nativeRuntime: device ? { device } : null
+});
+
+const device = (update: Partial<NativeRuntimeDevice> = {}): NativeRuntimeDevice => ({
+  thermalState: "nominal",
+  thermalStatusCode: 0,
+  batteryLevelPercent: 80,
+  charging: false,
+  lowPowerMode: false,
+  powerSource: "battery",
+  sampledAt: Date.parse("2026-07-13T00:00:00.000Z"),
+  ...update
 });
 
 describe("stream quality incidents", () => {
@@ -101,5 +115,68 @@ describe("stream quality incidents", () => {
 
     expect(incidents.map((incident) => incident.code)).toEqual(["bitrate-critical", "fps-critical", "dropped-frames"]);
     expect(summarizeStreamQualityIncidents(incidents)).toBe("2 critical quality incidents and 1 warning active.");
+  });
+
+  it("reports warming, low battery, and power-saving pressure", () => {
+    const incidents = createStreamQualityIncidents(
+      snapshot(
+        "live",
+        { bitrateKbps: quality.videoBitrateKbps, fps: quality.fps, elapsedSeconds: 30 },
+        device({ thermalState: "fair", batteryLevelPercent: 18, lowPowerMode: true })
+      ),
+      quality
+    );
+
+    expect(incidents.map((incident) => incident.code)).toEqual([
+      "thermal-fair",
+      "battery-low",
+      "low-power-mode"
+    ]);
+    expect(incidents.every((incident) => incident.severity === "warn")).toBe(true);
+  });
+
+  it("treats serious thermal pressure as a critical quality incident", () => {
+    const incidents = createStreamQualityIncidents(
+      snapshot(
+        "live",
+        { bitrateKbps: quality.videoBitrateKbps, fps: quality.fps, elapsedSeconds: 30 },
+        device({ thermalState: "serious" })
+      ),
+      quality
+    );
+
+    expect(incidents).toContainEqual(expect.objectContaining({ code: "thermal-serious", severity: "fail" }));
+  });
+
+  it("fails closed for critical heat and an unplugged critical battery", () => {
+    const incidents = createStreamQualityIncidents(
+      snapshot(
+        "reconnecting",
+        { bitrateKbps: quality.videoBitrateKbps, fps: quality.fps, elapsedSeconds: 30 },
+        device({ thermalState: "critical", batteryLevelPercent: 5 })
+      ),
+      quality
+    );
+
+    expect(incidents.map((incident) => incident.code)).toEqual(["thermal-critical", "battery-critical"]);
+    expect(incidents.every((incident) => incident.severity === "fail")).toBe(true);
+  });
+
+  it("does not warn about low battery while externally powered or when the stream is idle", () => {
+    const powered = createStreamQualityIncidents(
+      snapshot(
+        "live",
+        { bitrateKbps: quality.videoBitrateKbps, fps: quality.fps, elapsedSeconds: 30 },
+        device({ batteryLevelPercent: 5, charging: false, powerSource: "wired" })
+      ),
+      quality
+    );
+    const idle = createStreamQualityIncidents(
+      snapshot("idle", { elapsedSeconds: 30 }, device({ thermalState: "critical", batteryLevelPercent: 5 })),
+      quality
+    );
+
+    expect(powered).toEqual([]);
+    expect(idle).toEqual([]);
   });
 });

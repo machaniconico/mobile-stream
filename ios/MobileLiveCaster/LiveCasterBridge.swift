@@ -650,6 +650,7 @@ final class LiveCasterNative: RCTEventEmitter {
             }
 
             self.status = .preparing
+            self.startedAt = nil
             self.health.message = "Opening iOS broadcast picker"
             self.sharedStore.clearRuntimeState()
             self.lastRuntimeUpdatedAt = 0
@@ -665,8 +666,6 @@ final class LiveCasterNative: RCTEventEmitter {
                 do {
                     try self.openBroadcastPicker()
                     self.stateQueue.async {
-                        self.status = .live
-                        self.startedAt = Date()
                         self.health.message = "Broadcast picker opened; confirm Start Broadcast in iOS"
                         self.startRuntimePollingLocked()
                         let snapshot = self.snapshotLocked()
@@ -754,8 +753,6 @@ final class LiveCasterNative: RCTEventEmitter {
                 do {
                     try self.openBroadcastPicker()
                     self.stateQueue.async {
-                        self.status = .live
-                        self.startedAt = self.startedAt ?? Date()
                         self.health.message = "Broadcast picker reopened"
                         self.startRuntimePollingLocked()
                         let snapshot = self.snapshotLocked()
@@ -1086,6 +1083,13 @@ final class LiveCasterNative: RCTEventEmitter {
             }
             return
         }
+        guard runtimeStateMatchesCurrentHandoffLocked(runtimeState) else {
+            if status == .live || status == .preparing || status == .reconnecting {
+                health.message = "Waiting for current iOS broadcast handoff telemetry"
+                emitSnapshot(snapshotLocked())
+            }
+            return
+        }
 
         if !Self.isRuntimeStateFresh(runtimeState), status == .live || status == .preparing || status == .reconnecting {
             health.message = "iOS broadcast extension telemetry is stale"
@@ -1109,6 +1113,9 @@ final class LiveCasterNative: RCTEventEmitter {
         guard let runtimeState = sharedStore.loadRuntimeState() else {
             return false
         }
+        guard runtimeStateMatchesCurrentHandoffLocked(runtimeState) else {
+            return false
+        }
         guard allowStale || Self.isRuntimeStateFresh(runtimeState) else {
             return false
         }
@@ -1123,6 +1130,13 @@ final class LiveCasterNative: RCTEventEmitter {
         return true
     }
 
+    private func runtimeStateMatchesCurrentHandoffLocked(_ runtimeState: [String: Any]) -> Bool {
+        guard let expectedHandoffID = broadcastHandoffID else {
+            return false
+        }
+        return runtimeState.stringValue("handoffId") == expectedHandoffID
+    }
+
     private func applyRuntimeStateLocked(_ runtimeState: [String: Any]) {
         let updatedAt = runtimeState.doubleValue("updatedAt")
         let shouldRefreshCounters = updatedAt == 0 || updatedAt != lastRuntimeUpdatedAt
@@ -1131,7 +1145,10 @@ final class LiveCasterNative: RCTEventEmitter {
         }
 
         let runtimeStatus = runtimeState.stringValue("status", fallback: status.rawValue)
-        status = LiveCasterStatus(runtimeStatus: runtimeStatus) ?? status
+        let reportedStatus = LiveCasterStatus(runtimeStatus: runtimeStatus)
+        if !(status == .reconnecting && reportedStatus == .preparing) {
+            status = reportedStatus ?? status
+        }
         if status == .live, startedAt == nil {
             startedAt = Date()
         }
@@ -1209,6 +1226,62 @@ final class LiveCasterNative: RCTEventEmitter {
         return "\(telemetryPrefix): \(publisherSummary)"
     }
 
+    private static func deviceResourceMap() -> [String: Any] {
+        let sample = {
+            let processInfo = ProcessInfo.processInfo
+            let thermalState = processInfo.thermalState
+            let normalizedThermalState: String
+            switch thermalState {
+            case .nominal:
+                normalizedThermalState = "nominal"
+            case .fair:
+                normalizedThermalState = "fair"
+            case .serious:
+                normalizedThermalState = "serious"
+            case .critical:
+                normalizedThermalState = "critical"
+            @unknown default:
+                normalizedThermalState = "unknown"
+            }
+
+            let device = UIDevice.current
+            if !device.isBatteryMonitoringEnabled {
+                device.isBatteryMonitoringEnabled = true
+            }
+            let batteryState = device.batteryState
+            let batteryLevel = device.batteryLevel
+            let batteryLevelPercent = batteryState == .unknown || !batteryLevel.isFinite || batteryLevel < 0
+                ? -1
+                : Swift.min(100, Swift.max(0, Int((batteryLevel * 100).rounded())))
+            let charging = batteryState == .charging || batteryState == .full
+            let powerSource: String
+            switch batteryState {
+            case .unplugged:
+                powerSource = "battery"
+            case .charging, .full, .unknown:
+                powerSource = "unknown"
+            @unknown default:
+                powerSource = "unknown"
+            }
+
+            return [
+                "thermalState": normalizedThermalState,
+                "thermalStatusCode": thermalState.rawValue,
+                "batteryLevelPercent": batteryLevelPercent,
+                "charging": charging,
+                "lowPowerMode": processInfo.isLowPowerModeEnabled,
+                "powerSource": powerSource,
+                "sampledAt": Date().timeIntervalSince1970 * 1000
+            ]
+        }
+
+        // UIDevice battery properties are UIKit state and must be read on the main queue.
+        if Thread.isMainThread {
+            return sample()
+        }
+        return DispatchQueue.main.sync(execute: sample)
+    }
+
     private static func nativeRuntimeMap(
         _ runtimeState: [String: Any],
         status: LiveCasterStatus,
@@ -1256,6 +1329,7 @@ final class LiveCasterNative: RCTEventEmitter {
             "videoFrames": stats.intValue("videoFrames"),
             "encodedBytes": videoEncoder.intValue("encodedBytes", fallback: publisher.intValue("videoBytesSent")),
             "droppedFrames": stats.intValue("droppedSamples") + publisher.intValue("droppedVideoFrames"),
+            "device": deviceResourceMap(),
             "publisher": [
                 "state": publisherState,
                 "videoEncoderBackend": videoEncoder.stringValue("backend", fallback: "none"),
@@ -1263,6 +1337,9 @@ final class LiveCasterNative: RCTEventEmitter {
                 "reconnectAttempts": publisher.intValue("reconnectAttempts"),
                 "sentVideoFrames": publisher.intValue("videoMessagesSent"),
                 "sentAudioFrames": publisher.intValue("audioMessagesSent"),
+                "currentPublishVideoFrames": publisher.intValue("currentPublishVideoMessagesSent"),
+                "currentPublishAudioFrames": publisher.intValue("currentPublishAudioMessagesSent"),
+                "publishGeneration": publisher.intValue("publishGeneration"),
                 "droppedVideoFrames": publisher.intValue("droppedVideoFrames"),
                 "droppedAudioFrames": publisher.intValue("droppedAudioFrames"),
                 "bytesWritten": publisher.intValue("bytesWritten", fallback: publisher.intValue("videoBytesSent")),

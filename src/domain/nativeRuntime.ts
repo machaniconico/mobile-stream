@@ -1,5 +1,53 @@
 export type NativeRuntimeCompositionStatus = "unknown" | "screen-only" | "applied" | "pending" | "failed";
 export type NativeRuntimePlatform = "ios" | "android";
+export type NativeRuntimeThermalState = "unknown" | "nominal" | "fair" | "serious" | "critical";
+export type NativeRuntimePowerSource = "unknown" | "battery" | "wired" | "wireless";
+
+export interface NativeRuntimeDevice {
+  thermalState: NativeRuntimeThermalState;
+  thermalStatusCode: number;
+  batteryLevelPercent: number;
+  charging: boolean;
+  lowPowerMode: boolean;
+  powerSource: NativeRuntimePowerSource;
+  sampledAt: number;
+}
+
+const nativeThermalStates = new Set<NativeRuntimeThermalState>([
+  "unknown",
+  "nominal",
+  "fair",
+  "serious",
+  "critical"
+]);
+const nativePowerSources = new Set<NativeRuntimePowerSource>(["unknown", "battery", "wired", "wireless"]);
+
+export const normalizeNativeRuntimeDevice = (
+  device: Partial<NativeRuntimeDevice> | null | undefined
+): NativeRuntimeDevice | undefined => {
+  if (!device) {
+    return undefined;
+  }
+
+  const batteryLevelPercent = normalizeFiniteNumber(device.batteryLevelPercent, -1);
+  return {
+    thermalState: nativeThermalStates.has(device.thermalState as NativeRuntimeThermalState)
+      ? (device.thermalState as NativeRuntimeThermalState)
+      : "unknown",
+    thermalStatusCode: Math.round(normalizeFiniteNumber(device.thermalStatusCode, -1)),
+    batteryLevelPercent:
+      batteryLevelPercent < 0 ? -1 : Math.round(Math.min(100, batteryLevelPercent)),
+    charging: device.charging === true,
+    lowPowerMode: device.lowPowerMode === true,
+    powerSource: nativePowerSources.has(device.powerSource as NativeRuntimePowerSource)
+      ? (device.powerSource as NativeRuntimePowerSource)
+      : "unknown",
+    sampledAt: Math.max(0, Math.round(normalizeFiniteNumber(device.sampledAt, 0)))
+  };
+};
+
+const normalizeFiniteNumber = (value: unknown, fallback: number): number =>
+  typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
 const productionVrmRendererBackendsByPlatform: Record<NativeRuntimePlatform, Set<string>> = {
   ios: new Set(["metal", "metal-scene-kit", "scene-kit"]),
@@ -127,6 +175,9 @@ export interface NativeRuntimeComposition {
 
 export interface NativeRuntimePublisher {
   state: string;
+  publishGeneration?: number;
+  currentPublishVideoFrames?: number;
+  currentPublishAudioFrames?: number;
   videoEncoderBackend?: string;
   audioEncoderBackend?: string;
   reconnectAttempts: number;
@@ -208,6 +259,7 @@ export interface NativeRuntimeTelemetry {
   droppedFrames: number;
   publisher: NativeRuntimePublisher;
   encoderProbe?: NativeRuntimeEncoderProbe | null;
+  device?: NativeRuntimeDevice;
   composition: NativeRuntimeComposition;
   audioProcessing?: NativeRuntimeAudioProcessing;
   message: string;

@@ -786,14 +786,16 @@ final class BroadcastSharedStore {
         videoEncoderStats: BroadcastVideoEncoderStats?,
         audioEncoderStats: BroadcastAudioEncoderStats?,
         publisherStats: BroadcastRTMPPublisherStats?,
-        sceneCompositionSummary: BroadcastSceneCompositionSummary?
+        sceneCompositionSummary: BroadcastSceneCompositionSummary?,
+        handoffID: String? = nil
     ) {
         guard let defaults else {
             return
         }
 
+        let effectiveRuntimeState = effectiveRuntimeState(state: state, publisherStats: publisherStats)
         var payload: [String: Any] = [
-            "status": state.sharedStatus,
+            "status": effectiveRuntimeState.status,
             "updatedAt": Date().timeIntervalSince1970 * 1000,
             "stats": stats.asDictionary()
         ]
@@ -814,8 +816,12 @@ final class BroadcastSharedStore {
             payload["sceneComposition"] = sceneCompositionSummary.asDictionary()
         }
 
-        if case .failed(let message) = state {
-            payload["error"] = message
+        if let error = effectiveRuntimeState.error {
+            payload["error"] = error
+        }
+
+        if let effectiveHandoffID = configuration?.handoffID ?? handoffID {
+            payload["handoffId"] = effectiveHandoffID
         }
 
         if let configuration {
@@ -833,6 +839,40 @@ final class BroadcastSharedStore {
 
         defaults.set(payload, forKey: broadcastRuntimeStateKey)
         defaults.synchronize()
+    }
+
+    static func effectiveRuntimeState(
+        state: BroadcastUploadState,
+        publisherStats: BroadcastRTMPPublisherStats?
+    ) -> (status: String, error: String?) {
+        switch state {
+        case .idle, .stopped, .paused:
+            return (state.sharedStatus, nil)
+        case .failed(let message):
+            return ("failed", message)
+        case .starting, .running:
+            break
+        }
+
+        guard let publisherStats else {
+            return ("preparing", nil)
+        }
+
+        switch publisherStats.state {
+        case .failed:
+            return ("failed", publisherStats.lastError)
+        case .reconnecting:
+            return ("reconnecting", nil)
+        case .published:
+            let hasPublishedMedia = publisherStats.currentPublishVideoMessagesSent > 0 &&
+                publisherStats.currentPublishAudioMessagesSent > 0
+            if hasPublishedMedia {
+                return ("live", nil)
+            }
+            return publisherStats.reconnectAttempts > 0 ? ("reconnecting", nil) : ("preparing", nil)
+        case .idle, .connecting, .handshaking, .publishing, .stopped:
+            return publisherStats.reconnectAttempts > 0 ? ("reconnecting", nil) : ("preparing", nil)
+        }
     }
 }
 
@@ -1091,6 +1131,9 @@ enum BroadcastRTMPPublisherState: String, Equatable {
 
 struct BroadcastRTMPPublisherStats: Equatable {
     private(set) var state: BroadcastRTMPPublisherState = .idle
+    private(set) var publishGeneration: Int = 0
+    private(set) var currentPublishVideoMessagesSent: Int = 0
+    private(set) var currentPublishAudioMessagesSent: Int = 0
     private(set) var videoMessagesSent: Int = 0
     private(set) var videoBytesSent: Int = 0
     private(set) var droppedVideoFrames: Int = 0
@@ -1113,17 +1156,22 @@ struct BroadcastRTMPPublisherStats: Equatable {
 
     mutating func recordPublishedStream(_ nextStreamId: Int) {
         streamId = nextStreamId
+        publishGeneration += 1
+        currentPublishVideoMessagesSent = 0
+        currentPublishAudioMessagesSent = 0
         state = .published
     }
 
     mutating func recordVideoMessage(bytes: Int, timestampMs: Int) {
         videoMessagesSent += 1
+        currentPublishVideoMessagesSent += 1
         videoBytesSent += bytes
         lastTimestampMs = timestampMs
     }
 
     mutating func recordAudioMessage(bytes: Int, timestampMs: Int) {
         audioMessagesSent += 1
+        currentPublishAudioMessagesSent += 1
         audioBytesSent += bytes
         lastTimestampMs = timestampMs
     }
@@ -1161,6 +1209,9 @@ struct BroadcastRTMPPublisherStats: Equatable {
     func asDictionary() -> [String: Any] {
         [
             "state": state.rawValue,
+            "publishGeneration": publishGeneration,
+            "currentPublishVideoMessagesSent": currentPublishVideoMessagesSent,
+            "currentPublishAudioMessagesSent": currentPublishAudioMessagesSent,
             "videoMessagesSent": videoMessagesSent,
             "videoBytesSent": videoBytesSent,
             "droppedVideoFrames": droppedVideoFrames,
@@ -1369,6 +1420,7 @@ final class BroadcastRTMPPublisher {
             let streamId = try waitForCreateStreamResult(transactionId: 4)
             messageStreamId = UInt32(streamId)
             try sendCommand(name: "publish", transactionId: 5, commandObject: .null, arguments: [.string(target.streamName), .string("live")], messageStreamId: messageStreamId)
+            try waitForPublishStart()
             statsLock.performLocked {
                 self.currentStats.recordReconnectSuccess()
                 self.currentStats.recordPublishedStream(streamId)
@@ -1599,6 +1651,52 @@ final class BroadcastRTMPPublisher {
                     throw BroadcastRTMPPublisherError.createStreamFailed
                 }
                 return parsed
+            }
+        }
+    }
+
+    private func waitForPublishStart() throws {
+        while true {
+            let message = try readMessage()
+            guard message.typeId == 20 || message.typeId == 17 else {
+                continue
+            }
+            var reader = RTMPAMF0Reader(data: message.typeId == 17 ? Data(message.payload.dropFirst()) : message.payload)
+            let values = reader.readAll()
+            guard !values.isEmpty else {
+                continue
+            }
+            if values[0] == .string("_error") {
+                throw BroadcastRTMPPublisherError.commandRejected(String(describing: values))
+            }
+            guard values[0] == .string("onStatus") else {
+                continue
+            }
+            guard let statusObject = values.compactMap({ value -> [String: RTMPAMF0Value]? in
+                if case .object(let object) = value {
+                    return object
+                }
+                return nil
+            }).last else {
+                continue
+            }
+            let code: String
+            if case .some(.string(let value)) = statusObject["code"] {
+                code = value
+            } else {
+                code = ""
+            }
+            if code == "NetStream.Publish.Start" {
+                return
+            }
+            let level: String
+            if case .some(.string(let value)) = statusObject["level"] {
+                level = value
+            } else {
+                level = ""
+            }
+            if level.lowercased() == "error" || code.hasPrefix("NetStream.Publish.") {
+                throw BroadcastRTMPPublisherError.commandRejected(code.isEmpty ? String(describing: statusObject) : code)
             }
         }
     }
@@ -5085,6 +5183,7 @@ final class BroadcastUploadPipeline {
 
     func start(setupInfo: [String: NSObject]) -> Result<Void, Error> {
         state = .starting
+        let attemptedHandoffID = setupInfo["handoffId"] as? String
 
         do {
             let nextConfiguration = try BroadcastUploadConfiguration(setupInfo: setupInfo)
@@ -5133,7 +5232,7 @@ final class BroadcastUploadPipeline {
             configuration = nil
             state = .failed(message)
             logger.error("Broadcast upload failed to start: \(message, privacy: .public)")
-            saveRuntimeState()
+            saveRuntimeState(handoffID: attemptedHandoffID)
             return .failure(error)
         }
     }
@@ -5231,7 +5330,10 @@ final class BroadcastUploadPipeline {
         saveRuntimeState()
     }
 
-    private func saveRuntimeState(sceneCompositionSummary snapshotSceneCompositionSummary: BroadcastSceneCompositionSummary? = nil) {
+    private func saveRuntimeState(
+        sceneCompositionSummary snapshotSceneCompositionSummary: BroadcastSceneCompositionSummary? = nil,
+        handoffID: String? = nil
+    ) {
         BroadcastSharedStore.saveRuntimeState(
             state: state,
             configuration: configuration,
@@ -5239,7 +5341,8 @@ final class BroadcastUploadPipeline {
             videoEncoderStats: videoEncoder?.stats,
             audioEncoderStats: audioEncoder?.stats,
             publisherStats: publisher?.stats,
-            sceneCompositionSummary: snapshotSceneCompositionSummary ?? sceneCompositionSummary()
+            sceneCompositionSummary: snapshotSceneCompositionSummary ?? sceneCompositionSummary(),
+            handoffID: handoffID
         )
     }
 
