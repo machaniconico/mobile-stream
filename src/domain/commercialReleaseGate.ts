@@ -329,7 +329,7 @@ const hasPublicLaunchConfirmationSafetyEvidence = (message: string, expectedTarg
     return (
       /\bcategory\s+(?!id selected\b)(?!unknown category\b)\S+/.test(normalizedMessage) &&
       normalizedMessage.includes("category id selected") &&
-      /\bchannel status\s+(?!unknown\b)\S+/.test(normalizedMessage)
+      /\bchannel status\s+(?:offline|not[-\s]live)\b/.test(normalizedMessage)
     );
   }
   if (!expectedTarget.includes("youtube")) {

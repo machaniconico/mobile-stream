@@ -203,6 +203,35 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks Twitch public launch confirmation events when the retained channel status is already live", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        destination: {
+          platform: "twitch",
+          protocol: "rtmps"
+        },
+        summary: {
+          publicLaunchConfirmationEventCount: 1,
+          publicLaunchLastConfirmationStatus: "confirmed",
+          publicLaunchLastConfirmationAt: "2026-06-23T11:29:30.000Z",
+          publicLaunchLastConfirmationMessage:
+            "Twitch launch confirmation was accepted by the operator. Target: Twitch Auto, category Just Chatting, category ID selected, channel status live. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready.",
+          platformPublishingFreshnessSummary: "Twitch dashboard status was checked 1 minutes ago.",
+          validationEvidenceRunManifest: [twitchManifestRun("ios", "svr1-ios"), twitchManifestRun("android", "svr1-android")]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "public-launch-confirmation-evidence"
+      })
+    );
+  });
+
   it("accepts Twitch confirmation evidence with retained category and channel audit fragments", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({

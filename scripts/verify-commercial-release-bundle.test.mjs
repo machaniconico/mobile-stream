@@ -233,6 +233,36 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("The support bundle is missing valid public launch confirmation summary evidence.");
   });
 
+  it("blocks Twitch public launch confirmation events when the retained channel status is already live", () => {
+    writeBundle({
+      profile: {
+        androidPublisherMode: "mediacodec",
+        destination: {
+          platform: "twitch",
+          protocol: "rtmps"
+        },
+        platformPublishing: {
+          privacyStatus: "public",
+          youtubeBroadcastBoundStreamId: "stream-1"
+        }
+      },
+      summary: {
+        publicLaunchConfirmationEventCount: 1,
+        publicLaunchLastConfirmationStatus: "confirmed",
+        publicLaunchLastConfirmationMessage:
+          "Twitch launch confirmation was accepted by the operator. Target: Twitch Auto, category Just Chatting, category ID selected, channel status live. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready.",
+        platformPublishingFreshnessSummary: "Twitch dashboard status was checked 1 minutes ago.",
+        validationEvidenceRunManifest: [twitchManifestRun("ios", "svr1-ios"), twitchManifestRun("android", "svr1-android")]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Public launch confirmation audit");
+    expect(result.stdout).toContain("The support bundle is missing valid public launch confirmation summary evidence.");
+  });
+
   it("accepts Twitch confirmation evidence with retained category and channel audit fragments", () => {
     writeBundle({
       profile: {
