@@ -1235,6 +1235,47 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("release warning");
   });
 
+  it("blocks retained stale runs hidden by summary count tampering", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunCount: 3,
+        validationEvidenceEligibleRunCount: 2,
+        validationEvidenceStaleRunCount: 0,
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios"),
+          manifestRun("android", "svr1-android"),
+          manifestRun("ios", "svr1-ios-stale", { eligible: false, fresh: false })
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[FAIL] Validation evidence manifest");
+    expect(result.stdout).toContain("stale run count summary=0 manifest=1");
+    expect(result.stdout).toContain("Can release: no");
+  });
+
+  it("blocks validation build claims not backed by latest manifest rows", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceConsistentAppBuild: "rc-1",
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { appBuild: "rc-2" }),
+          manifestRun("android", "svr1-android", { appBuild: "rc-2" })
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[FAIL] Validation evidence manifest");
+    expect(result.stdout).toContain("summary build rc-1 is not backed");
+    expect(result.stdout).toContain("Can release: no");
+  });
+
   it("blocks stale retained validation runs", () => {
     writeBundle({
       summary: {

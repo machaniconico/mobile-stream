@@ -372,6 +372,10 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks fresh platform publishing evidence without checked-at timestamp proof");
     expectIncludes(files.commercialReleaseBundleScript, "checkedAtMs > now.getTime()");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks fresh platform publishing evidence checked after the verifier time");
+    expectIncludes(files.commercialReleaseBundleScript, "validationManifestIntegrityIssue(bundle)");
+    expectIncludes(files.commercialReleaseBundleScript, "stale run count summary=");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks retained stale runs hidden by summary count tampering");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks validation build claims not backed by latest manifest rows");
     expectIncludes(files.commercialReleaseGateDomain, "android-publisher-mode-not-commercial");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "isFirstPartyManifestPublishingDestination");

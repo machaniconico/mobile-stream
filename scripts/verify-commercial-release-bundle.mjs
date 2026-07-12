@@ -173,6 +173,7 @@ export function createCommercialReleaseGate(bundle, { now, maxBundleAgeHours = d
     validationEvidenceIssue(bundle),
     validationCoverageIssue(bundle),
     validationManifestIssue(bundle),
+    validationManifestIntegrityIssue(bundle),
     validationSceneManifestIssue(bundle),
     validationQualityAutomationIssue(bundle),
     validationFeatureIssue(bundle),
@@ -1144,6 +1145,99 @@ function validationManifestIssue(bundle) {
   return null;
 }
 
+function validationManifestIntegrityIssue(bundle) {
+  const summary = bundle?.summary ?? {};
+  const manifest = summary.validationEvidenceRunManifest;
+  if (!Array.isArray(manifest) || manifest.length === 0) {
+    return null;
+  }
+
+  const mismatches = [];
+  const manifestScope = createExpectedManifestScope(bundle);
+  const latestRuns = latestEligibleManifestRunsByPlatform(manifest, manifestScope);
+  const iosRun = latestRuns.get("ios");
+  const androidRun = latestRuns.get("android");
+  const derivedEligibleRunCount = manifest.filter((run) => isManifestRunFreshInScope(run, manifestScope)).length;
+  const derivedStaleRunCount = manifest.filter((run) => run?.fresh !== true).length;
+
+  if (derivedEligibleRunCount !== number(summary.validationEvidenceEligibleRunCount)) {
+    mismatches.push(`eligible run count summary=${number(summary.validationEvidenceEligibleRunCount)} manifest=${derivedEligibleRunCount}`);
+  }
+  if (derivedStaleRunCount !== number(summary.validationEvidenceStaleRunCount)) {
+    mismatches.push(`stale run count summary=${number(summary.validationEvidenceStaleRunCount)} manifest=${derivedStaleRunCount}`);
+  }
+
+  const eligibilityFlagMismatchCount = manifest.filter((run) => run?.eligible !== isManifestRunFreshInScope(run, manifestScope)).length;
+  if (eligibilityFlagMismatchCount > 0) {
+    mismatches.push(`${eligibilityFlagMismatchCount} manifest eligible flag(s) do not match fresh destination/protocol/scene scope state`);
+  }
+
+  const expectedBuild = text(summary.validationEvidenceConsistentAppBuild);
+  if (expectedBuild) {
+    const expected = normalizeBuildLabel(expectedBuild);
+    if (!iosRun || !androidRun || normalizeBuildLabel(iosRun.appBuild) !== expected || normalizeBuildLabel(androidRun.appBuild) !== expected) {
+      mismatches.push(`summary build ${expectedBuild} is not backed by latest manifest iOS/Android app-build rows`);
+    }
+  }
+
+  const manifestBuildMismatch = Boolean(
+    iosRun &&
+      androidRun &&
+      normalizeBuildLabel(iosRun.appBuild) !== normalizeBuildLabel(androidRun.appBuild)
+  );
+  if (summary.validationEvidenceAppBuildMismatch !== true && manifestBuildMismatch) {
+    mismatches.push(`summary reports same build but manifest latest iOS/Android builds are ${iosRun?.appBuild} / ${androidRun?.appBuild}`);
+  }
+
+  const expectedNativeOverlays = nativeCompositionOverlayProofRequirements(summary);
+  const expectedYouTubePublishing = youtubePublishingProofRequirements(bundle);
+  const claimChecks = [
+    [summary.validationEvidenceIosPass, "iOS validation pass", isManifestRunPass(iosRun)],
+    [summary.validationEvidenceAndroidPass, "Android validation pass", isManifestRunPass(androidRun)],
+    [summary.validationEvidencePhysicalDeviceIosPass, "iOS physical-device proof", isManifestPhysicalRunPass(iosRun)],
+    [summary.validationEvidencePhysicalDeviceAndroidPass, "Android physical-device proof", isManifestPhysicalRunPass(androidRun)],
+    [summary.validationEvidenceNativeRuntimeIosPass, "iOS native runtime proof", isManifestNativeRuntimePass(iosRun, expectedNativeOverlays)],
+    [summary.validationEvidenceNativeRuntimeAndroidPass, "Android native runtime proof", isManifestNativeRuntimePass(androidRun, expectedNativeOverlays)],
+    [summary.validationEvidenceMonitorHoldIosPass, "iOS stable monitor-hold proof", isManifestMonitorHoldPass(iosRun)],
+    [summary.validationEvidenceMonitorHoldAndroidPass, "Android stable monitor-hold proof", isManifestMonitorHoldPass(androidRun)],
+    [summary.validationEvidenceFaceTrackingIosPass, "iOS avatar-motion proof", isManifestAvatarMotionPass(iosRun)],
+    [summary.validationEvidenceFaceTrackingAndroidPass, "Android avatar-motion proof", isManifestAvatarMotionPass(androidRun)],
+    [summary.validationEvidenceAudioIosPass, "iOS mic/headphone proof", isManifestAudioPass(iosRun)],
+    [summary.validationEvidenceAudioAndroidPass, "Android mic/headphone proof", isManifestAudioPass(androidRun)],
+    [summary.validationEvidenceChatReadoutIosPass, "iOS spoken chat-readout proof", isManifestChatReadoutPass(iosRun)],
+    [summary.validationEvidenceChatReadoutAndroidPass, "Android spoken chat-readout proof", isManifestChatReadoutPass(androidRun)],
+    [summary.validationEvidencePlatformPublishingIosPass, "iOS platform dashboard proof", isManifestPlatformPublishingPass(iosRun, expectedYouTubePublishing)],
+    [summary.validationEvidencePlatformPublishingAndroidPass, "Android platform dashboard proof", isManifestPlatformPublishingPass(androidRun, expectedYouTubePublishing)],
+    [
+      summary.validationEvidencePlatformIngestIosPass,
+      "iOS same-run platform ingest proof",
+      isManifestPlatformIngestPass(iosRun, expectedNativeOverlays, expectedYouTubePublishing)
+    ],
+    [
+      summary.validationEvidencePlatformIngestAndroidPass,
+      "Android same-run platform ingest proof",
+      isManifestPlatformIngestPass(androidRun, expectedNativeOverlays, expectedYouTubePublishing)
+    ]
+  ];
+  for (const [claimed, label, backedByManifest] of claimChecks) {
+    if (claimed === true && !backedByManifest) {
+      mismatches.push(`${label} is claimed by summary but not backed by the latest manifest row`);
+    }
+  }
+
+  if (mismatches.length === 0) {
+    return null;
+  }
+
+  const detail = mismatches.slice(0, 4).join("; ");
+  return fail(
+    "validation-evidence-manifest-integrity",
+    "Validation evidence manifest",
+    `${detail}${mismatches.length > 4 ? `; ${mismatches.length - 4} more mismatch(es)` : ""}.`,
+    "Export a fresh support bundle from the release-candidate build so summary validation claims are regenerated from the retained-run manifest."
+  );
+}
+
 function validationFeatureIssue(bundle) {
   const summary = bundle?.summary ?? {};
   const platformIngestPasses = validationEvidencePlatformIngestPasses(bundle);
@@ -1341,6 +1435,70 @@ function latestEligibleManifestRunsByPlatform(manifest, manifestScope = emptyExp
     }
   }
   return runsByPlatform;
+}
+
+function isManifestRunPass(run) {
+  return run?.result === "pass";
+}
+
+function isManifestPhysicalRunPass(run) {
+  return isManifestRunPass(run) && run?.physicalDevice === true && run?.physicalDeviceStatus === "pass";
+}
+
+function isManifestMonitorHoldPass(run) {
+  return (
+    run?.monitorHoldStatus === "pass" &&
+    isAtLeastNumber(run?.monitorHoldSampleCount, minimumValidationMonitorSampleCount) &&
+    isAtLeastNumber(run?.monitorHoldDurationSeconds, minimumValidationMonitorDurationSeconds) &&
+    run?.monitorHoldStability === "stable" &&
+    hasMonitorHoldMediaTelemetryProof(run) &&
+    isZeroNumber(run?.monitorHoldDroppedFrameIncrease) &&
+    isZeroNumber(run?.monitorHoldObservedReconnectAttempts)
+  );
+}
+
+function isManifestAudioPass(run) {
+  return (
+    run?.audioStatus === "pass" &&
+    isPositiveNumber(run?.audioNativeMonitorWrittenFrames) &&
+    isPositiveNumber(run?.audioNativeMonitorWrittenBuffers) &&
+    isZeroNumber(run?.audioNativeMonitorDroppedFrames) &&
+    isZeroNumber(run?.audioNativeMonitorDroppedBuffers) &&
+    text(run?.audioOutputRoute) &&
+    text(run?.audioNativeMonitorRoute) &&
+    run?.audioNativeMonitorRouteMatchesOutput === true &&
+    run?.audioMonitorLatencyStatus === "pass" &&
+    typeof run.audioMonitorLatencyMs === "number" &&
+    Number.isFinite(run.audioMonitorLatencyMs) &&
+    isPositiveNumber(run.audioMonitorLatencyBudgetMs) &&
+    run.audioMonitorLatencyMs <= run.audioMonitorLatencyBudgetMs &&
+    text(run.audioMonitorLatencySource) &&
+    (run.audioBluetoothRoute !== true || (run.audioBluetoothTuningReviewed === true && text(run.audioMonitorTuningNote))) &&
+    run.audioNativeMonitorHeadphonesConnected === true
+  );
+}
+
+function isManifestAvatarMotionPass(run) {
+  return (
+    run?.faceTrackingStatus === "pass" &&
+    run?.faceTrackingRuntimeFresh === true &&
+    hasReadyFaceLandmarks(run) &&
+    hasMotionAttenuationProof(run) &&
+    isPositiveNumber(run?.faceTrackingActiveMotionCount) &&
+    (hasReadyPngTuberMotionProof(run) || hasReadyVrmMotionProof(run))
+  );
+}
+
+function isManifestChatReadoutPass(run) {
+  return (
+    run?.chatReadoutStatus === "pass" &&
+    run?.chatReadoutPlatformChatEnabled === true &&
+    run?.chatReadoutReaderEnabled === true &&
+    statusLabel(run?.chatReadoutConnectionPhase) === "connected" &&
+    nonEmptyText(run?.chatReadoutConnectionLabel) !== null &&
+    number(run?.chatReadoutSpokenMessageCount) > 0 &&
+    isZeroNumber(run?.chatReadoutSpeechFailureCount)
+  );
 }
 
 const emptyExpectedManifestScope = {
@@ -1851,6 +2009,10 @@ function normalizeTargetPlatformLabel(value) {
 
 function normalizeTransportLabel(value) {
   return typeof value === "string" ? value.trim().toUpperCase() : "";
+}
+
+function normalizeBuildLabel(value) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
 function hasLoadedAllNativeRuntimeAssets(run) {
