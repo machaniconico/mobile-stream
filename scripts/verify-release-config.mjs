@@ -472,6 +472,7 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks public launch confirmation events whose target differs from the current profile");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks public launch confirmation events without clean checklist counts");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks YouTube public launch confirmation events without dashboard safety audit fragments");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks YouTube public launch confirmation events when the retained broadcast status is already live");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks Twitch public launch confirmation events without channel safety audit fragments");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks Twitch public launch confirmation events when the retained channel status is already live");
     expectIncludes(files.commercialReleaseBundleScript, "hasCleanPublicLaunchConfirmationChecklist");
@@ -479,6 +480,7 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks public launch confirmation events whose target differs from the current profile");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks public launch confirmation events without clean checklist counts");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks YouTube public launch confirmation events without dashboard safety audit fragments");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks YouTube public launch confirmation events when the retained broadcast status is already live");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks Twitch public launch confirmation events without channel safety audit fragments");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks Twitch public launch confirmation events when the retained channel status is already live");
     expectIncludes(files.commercialReleaseGateDomain, "hasPublicLaunchConfirmationTimestampEvidence");

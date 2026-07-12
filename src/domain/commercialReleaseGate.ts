@@ -340,7 +340,7 @@ const hasPublicLaunchConfirmationSafetyEvidence = (message: string, expectedTarg
     normalizedMessage.includes("dashboard privacy public") &&
     normalizedMessage.includes("broadcast selected") &&
     normalizedMessage.includes("stream selected") &&
-    /broadcast status\s+\S+/.test(normalizedMessage)
+    /\bbroadcast status\s+(?:ready|testing)\b/.test(normalizedMessage)
   );
 };
 

@@ -174,6 +174,29 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks YouTube public launch confirmation events when the retained broadcast status is already live", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          publicLaunchConfirmationEventCount: 1,
+          publicLaunchLastConfirmationStatus: "confirmed",
+          publicLaunchLastConfirmationAt: "2026-06-23T11:29:30.000Z",
+          publicLaunchLastConfirmationMessage:
+            "YouTube Public launch confirmation was accepted by the operator. Target: YouTube Live, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status live. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "public-launch-confirmation-evidence"
+      })
+    );
+  });
+
   it("blocks Twitch public launch confirmation events without channel safety audit fragments", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
