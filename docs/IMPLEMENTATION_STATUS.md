@@ -127,7 +127,7 @@
   - stream diagnostics panel with endpoint/quality/telemetry/history/quality-advisor/last-session checks, suggested-quality apply, JSON report export, and support bundle export
   - active stream quality incident panel with operator recommendations
   - stream session event timeline for live support diagnostics
-  - shared quality profiles and custom 540p/720p/1080p, 30/60 fps, video/audio bitrate, and estimated upload-target controls with safe persisted-value normalization
+  - shared quality profiles and custom 540p/720p/1080p, 30/60 fps, video/audio bitrate, and estimated upload-target controls with safe persisted-value normalization, YouTube/Twitch H.264/AAC recommendation matching, one-tap platform targets, and platform-limit readiness checks
   - chat reader panel with test comments, platform adapter ingest, safety controls, speech settings, recent comment pin/unpin controls, stream-stop chat auto-disconnect/readout silence, and queued/recent/pinned comment privacy reset
   - Go Live, Stop, Reconnect mock controls
 - React Native mobile readiness panel, Go Live preflight banner, and invalid-profile blocking.

@@ -3,6 +3,27 @@ import { addSource, createDefaultScene, createSource, createTextOverlayPresetSou
 import { applyDestinationPreset, createDefaultStudioProfile, legacyCustomDestinationProfile } from "./profiles";
 import { createReadinessReport } from "./readiness";
 
+const createReadyPlatformProfile = (
+  presetId: "youtube-live-rtmps" | "twitch-auto",
+  qualityUpdate: Partial<ReturnType<typeof createDefaultStudioProfile>["quality"]>
+) => {
+  const profile = applyDestinationPreset(createDefaultStudioProfile(), presetId);
+
+  return {
+    ...profile,
+    destination: {
+      ...profile.destination,
+      streamKey: "ready-stream-key"
+    },
+    quality: {
+      ...profile.quality,
+      id: "quality-custom",
+      name: "Custom test quality",
+      ...qualityUpdate
+    }
+  };
+};
+
 describe("stream readiness", () => {
   it("blocks the default profile until a stream key is set", () => {
     const report = createReadinessReport(createDefaultScene(), createDefaultStudioProfile());
@@ -74,6 +95,55 @@ describe("stream readiness", () => {
     expect(report.canStart).toBe(true);
     expect(report.errorCount).toBe(0);
     expect(report.issues.map((issue) => issue.code)).toContain("rtmp-not-encrypted");
+  });
+
+  it.each([
+    {
+      code: "quality-twitch-video-bitrate",
+      severity: "warning" as const,
+      quality: { videoBitrateKbps: 6001 },
+      message: "6000 kbps classic broadcast guidance"
+    },
+    {
+      code: "quality-twitch-audio-bitrate",
+      severity: "error" as const,
+      quality: { audioBitrateKbps: 161 },
+      message: "160 kbps classic broadcast limit"
+    },
+    {
+      code: "quality-twitch-resolution",
+      severity: "warning" as const,
+      quality: { width: 2560, height: 1440 },
+      message: "1920x1080 classic broadcast guidance"
+    }
+  ])("maps $code to readiness quality issues", ({ code, severity, quality, message }) => {
+    const report = createReadinessReport(
+      createDefaultScene(),
+      createReadyPlatformProfile("twitch-auto", quality)
+    );
+
+    expect(report.issues).toContainEqual({
+      code,
+      severity,
+      field: "quality",
+      message: expect.stringContaining(message)
+    });
+    expect(report.canStart).toBe(severity !== "error");
+  });
+
+  it("maps the YouTube app-tested mobile resolution warning to readiness quality", () => {
+    const report = createReadinessReport(
+      createDefaultScene(),
+      createReadyPlatformProfile("youtube-live-rtmps", { width: 2560, height: 1440 })
+    );
+
+    expect(report.issues).toContainEqual({
+      code: "quality-youtube-mobile-resolution",
+      severity: "warning",
+      field: "quality",
+      message: expect.stringContaining("app-tested mobile H.264 range")
+    });
+    expect(report.canStart).toBe(true);
   });
 
   it("blocks protocol mismatches", () => {

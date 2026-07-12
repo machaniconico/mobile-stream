@@ -22,4 +22,12 @@ describe("web stream announcement UI", () => {
     expect(setupSource).toContain("applyCustomQualitySettings(profile, update)");
     expect(setupSource).toContain("Upload target");
   });
+
+  it("shows and applies the active platform quality recommendation", () => {
+    expect(setupSource).toContain("createPlatformQualityRecommendation(profile)");
+    expect(setupSource).toContain("platform-quality-recommendation");
+    expect(setupSource).toContain("applyPlatformQualityRecommendation(profile)");
+    expect(setupSource).toContain("platformQualityRecommendation.changes.map");
+    expect(setupSource).toContain("Apply ${platformQualityRecommendation.platformLabel} target");
+  });
 });

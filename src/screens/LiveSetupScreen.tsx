@@ -1,4 +1,4 @@
-import { Megaphone, Settings, ShieldCheck, Trash2 } from "lucide-react";
+import { Gauge, Megaphone, Settings, ShieldCheck, Trash2 } from "lucide-react";
 import { createDiagnosticRedactionSecrets } from "../domain/diagnosticSecrets";
 import {
   applyCustomQualitySettings,
@@ -17,6 +17,10 @@ import {
   type StreamProtocol
 } from "../domain/profiles";
 import type { YouTubeBroadcastTransitionStatus } from "../domain/platformPublishing";
+import {
+  applyPlatformQualityRecommendation,
+  createPlatformQualityRecommendation
+} from "../domain/platformQualityRecommendation";
 import type { PlatformChatOAuthCredentialStore } from "../domain/platformChatOAuth";
 import {
   createYouTubeBroadcastTransitionPreflightReport,
@@ -89,6 +93,8 @@ export const LiveSetupScreen = ({
   const estimatedUploadKbps = Math.round(
     (profile.quality.videoBitrateKbps + profile.quality.audioBitrateKbps) * 1.25
   );
+  const platformQualityRecommendation = createPlatformQualityRecommendation(profile);
+  const platformQualityTarget = platformQualityRecommendation.target;
   const youtubeTransitionReport = (transitionStatus: YouTubeBroadcastTransitionStatus) =>
     createYouTubeBroadcastTransitionPreflightReport({
       profile,
@@ -633,6 +639,46 @@ export const LiveSetupScreen = ({
           <strong>{estimatedUploadKbps} kbps</strong>
         </span>
       </div>
+
+      {platformQualityTarget ? (
+        <section
+          className={`platform-quality-recommendation ${platformQualityRecommendation.status}`}
+          aria-label={`${platformQualityRecommendation.platformLabel} quality recommendation`}
+          aria-live="polite"
+        >
+          <div className="platform-quality-header">
+            <span>{platformQualityRecommendation.platformLabel} target</span>
+            <strong>{platformQualityRecommendation.status === "matched" ? "MATCHED" : "TUNE"}</strong>
+          </div>
+          <div className="platform-quality-target">
+            <span>{platformQualityTarget.width}x{platformQualityTarget.height}</span>
+            <span>{platformQualityTarget.fps} fps</span>
+            <span>Video {platformQualityTarget.videoBitrateKbps} kbps</span>
+            <span>Audio {platformQualityTarget.audioBitrateKbps} kbps</span>
+            <span>Upload {platformQualityRecommendation.estimatedUploadKbps} kbps</span>
+          </div>
+          <small>{platformQualityRecommendation.sourceLabel}</small>
+          <p>{platformQualityRecommendation.summary}</p>
+          {platformQualityRecommendation.changes.length > 0 ? (
+            <div className="platform-quality-changes">
+              {platformQualityRecommendation.changes.map((change) => (
+                <span key={change}>{change}</span>
+              ))}
+            </div>
+          ) : null}
+          <button
+            className="secondary-action platform-quality-action"
+            type="button"
+            disabled={locked || platformQualityRecommendation.status === "matched"}
+            onClick={() => onProfileChange(applyPlatformQualityRecommendation(profile))}
+          >
+            <Gauge size={15} />
+            {platformQualityRecommendation.status === "matched"
+              ? `${platformQualityRecommendation.platformLabel} target matched`
+              : `Apply ${platformQualityRecommendation.platformLabel} target`}
+          </button>
+        </section>
+      ) : null}
 
       <div className="segmented-control">
         <button

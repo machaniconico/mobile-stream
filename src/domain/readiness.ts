@@ -7,6 +7,7 @@ import { createLive2DModelAssetReport } from "./live2dModel";
 import { createVrmModelAssetReport } from "./vrmModel";
 import { redactSecretsFromText } from "./persistencePrivacy";
 import { redactSensitiveText } from "./sensitiveText";
+import { createPlatformQualitySafetyIssues } from "./platformQualityRecommendation";
 
 type SceneSource = SceneDocument["sources"][number];
 type AvatarSceneSource = Extract<SceneSource, { kind: "pngtuber" | "live2d" | "vrm" }>;
@@ -287,6 +288,15 @@ const validateQuality = (profile: StudioProfile): ReadinessIssue[] => {
       message: "60 fps streams usually need at least 4500 kbps."
     });
   }
+
+  issues.push(
+    ...createPlatformQualitySafetyIssues(profile).map(
+      (issue): ReadinessIssue => ({
+        ...issue,
+        field: "quality"
+      })
+    )
+  );
 
   return issues;
 };

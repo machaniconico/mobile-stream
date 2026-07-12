@@ -25,6 +25,10 @@ import type {
 } from "../domain/platformChatOAuth";
 import type { YouTubeBroadcastTransitionStatus } from "../domain/platformPublishing";
 import {
+  applyPlatformQualityRecommendation,
+  createPlatformQualityRecommendation
+} from "../domain/platformQualityRecommendation";
+import {
   assessPlatformPublishingFreshness,
   type PlatformPublishingFreshness,
   type PlatformPublishingFreshnessStatus
@@ -524,6 +528,8 @@ export const MobileStudioScreen = ({
   const platformApiBusy = Boolean(platformApiOperationLabel);
   const setupLocked = isLive || isBusy || operationBusy || platformApiBusy;
   const customQualityActive = !qualityProfiles.some((quality) => quality.id === profile.quality.id);
+  const platformQualityRecommendation = createPlatformQualityRecommendation(profile);
+  const platformQualityTarget = platformQualityRecommendation.target;
   const sceneSwitchLocked = isBusy || operationBusy || platformApiBusy;
   const quickSubtitleLocked = isBusy || operationBusy || platformApiBusy;
   const updateSelectedIllustrationRig = (key: keyof AvatarIllustrationRig, value: number) => {
@@ -2816,6 +2822,62 @@ export const MobileStudioScreen = ({
               </View>
             </View>
           </View>
+
+          {platformQualityTarget ? (
+            <View
+              style={[
+                styles.platformQualityRecommendation,
+                platformQualityRecommendation.status === "matched"
+                  ? styles.platformQualityRecommendationMatched
+                  : styles.platformQualityRecommendationAdjust
+              ]}
+            >
+              <View
+                accessible
+                accessibilityRole="summary"
+                accessibilityLabel={`${platformQualityRecommendation.platformLabel} quality recommendation, ${platformQualityRecommendation.status}`}
+                style={styles.platformQualityContent}
+              >
+                <View style={styles.platformQualityHeader}>
+                  <Text style={styles.platformQualityTitle}>{platformQualityRecommendation.platformLabel} target</Text>
+                  <Text
+                    style={[
+                      styles.platformQualityStatus,
+                      platformQualityRecommendation.status === "matched"
+                        ? styles.platformQualityStatusMatched
+                        : styles.platformQualityStatusAdjust
+                    ]}
+                  >
+                    {platformQualityRecommendation.status === "matched" ? "MATCHED" : "TUNE"}
+                  </Text>
+                </View>
+                <Text style={styles.platformQualityTarget}>
+                  {platformQualityTarget.width}x{platformQualityTarget.height} / {platformQualityTarget.fps}fps / Video{" "}
+                  {platformQualityTarget.videoBitrateKbps} / Audio {platformQualityTarget.audioBitrateKbps} kbps
+                </Text>
+                <Text style={styles.platformQualityUpload}>
+                  Upload target {platformQualityRecommendation.estimatedUploadKbps} kbps
+                </Text>
+                <Text style={styles.platformQualitySource}>{platformQualityRecommendation.sourceLabel}</Text>
+                <Text style={styles.platformQualitySummary}>{platformQualityRecommendation.summary}</Text>
+                {platformQualityRecommendation.changes.map((change) => (
+                  <Text key={change} style={styles.platformQualityChange}>
+                    {change}
+                  </Text>
+                ))}
+              </View>
+              <ActionButton
+                label={
+                  platformQualityRecommendation.status === "matched"
+                    ? `${platformQualityRecommendation.platformLabel} target matched`
+                    : `Apply ${platformQualityRecommendation.platformLabel} target`
+                }
+                variant={platformQualityRecommendation.status === "matched" ? "default" : "active"}
+                disabled={setupLocked || platformQualityRecommendation.status === "matched"}
+                onPress={() => onProfileChange(applyPlatformQualityRecommendation(profile))}
+              />
+            </View>
+          ) : null}
 
           <ReadinessPanel readiness={readiness} />
         </Panel>
@@ -6543,5 +6605,74 @@ const styles = StyleSheet.create({
     color: "#f8fafc",
     fontSize: 12,
     fontWeight: "900"
+  },
+  platformQualityRecommendation: {
+    gap: 7,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    paddingVertical: 10
+  },
+  platformQualityRecommendationMatched: {
+    borderColor: "rgba(34, 197, 94, 0.42)"
+  },
+  platformQualityRecommendationAdjust: {
+    borderColor: "rgba(245, 158, 11, 0.48)"
+  },
+  platformQualityContent: {
+    gap: 7
+  },
+  platformQualityHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8
+  },
+  platformQualityTitle: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  platformQualityStatus: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    fontSize: 10,
+    fontWeight: "900"
+  },
+  platformQualityStatusMatched: {
+    borderColor: "#22c55e",
+    color: "#bbf7d0"
+  },
+  platformQualityStatusAdjust: {
+    borderColor: "#f59e0b",
+    color: "#fde68a"
+  },
+  platformQualityTarget: {
+    color: "#f8fafc",
+    fontSize: 12,
+    fontWeight: "900",
+    lineHeight: 17
+  },
+  platformQualityUpload: {
+    color: "#d4d4d8",
+    fontSize: 11,
+    fontWeight: "800"
+  },
+  platformQualitySource: {
+    color: "#a1a1aa",
+    fontSize: 11,
+    fontWeight: "700"
+  },
+  platformQualitySummary: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    lineHeight: 17
+  },
+  platformQualityChange: {
+    color: "#fde68a",
+    fontSize: 11,
+    lineHeight: 16
   }
 });

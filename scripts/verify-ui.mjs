@@ -234,16 +234,52 @@ async function verifyQualityInteraction(page, viewportName) {
     throw new Error(`Custom quality did not replace the preset selection at ${viewportName}.`);
   }
 
-  const readout = normalizeTextForReport(await setupPanel.locator(".quality-readout").innerText());
+  const customReadout = normalizeTextForReport(await setupPanel.locator(".quality-readout").innerText());
+  const recommendation = setupPanel.locator(".platform-quality-recommendation");
+  await recommendation.getByText("TUNE", { exact: true }).waitFor({ timeout: 10_000 });
+  const recommendationBeforeApply = normalizeTextForReport(await recommendation.innerText());
+  for (const value of ["960x540", "60 fps", "Video 6000 kbps", "Audio 128 kbps", "Upload 7660 kbps"]) {
+    if (!recommendationBeforeApply.includes(value)) {
+      throw new Error(`Platform quality recommendation is missing "${value}" at ${viewportName}.`);
+    }
+  }
+
+  await recommendation.locator(".platform-quality-action").click();
+  const recommendedValues = ["960x540", "60 fps", "6000 kbps", "128 kbps", "7660 kbps"];
+  await page.waitForFunction(
+    (values) => {
+      const panels = Array.from(document.querySelectorAll(".control-panel"));
+      const panel = panels.find((item) => item.textContent?.includes("Live Setup"));
+      const readout = panel?.querySelector(".quality-readout")?.textContent ?? "";
+      const recommendationText = panel?.querySelector(".platform-quality-recommendation")?.textContent ?? "";
+      return values.every((value) => readout.includes(value)) && recommendationText.includes("MATCHED");
+    },
+    recommendedValues,
+    { timeout: 10_000 }
+  );
+
+  const recommendedReadout = normalizeTextForReport(await setupPanel.locator(".quality-readout").innerText());
   return {
     presetProof: "quality-sharp",
     customPresetValue: presetValue,
-    resolution: "960x540",
-    fps: 60,
-    videoBitrateKbps: 5000,
-    audioBitrateKbps: 192,
-    estimatedUploadKbps: 6490,
-    readout
+    custom: {
+      resolution: "960x540",
+      fps: 60,
+      videoBitrateKbps: 5000,
+      audioBitrateKbps: 192,
+      estimatedUploadKbps: 6490,
+      readout: customReadout
+    },
+    recommendation: {
+      statusBeforeApply: "adjust",
+      statusAfterApply: "matched",
+      resolution: "960x540",
+      fps: 60,
+      videoBitrateKbps: 6000,
+      audioBitrateKbps: 128,
+      estimatedUploadKbps: 7660,
+      readout: recommendedReadout
+    }
   };
 }
 

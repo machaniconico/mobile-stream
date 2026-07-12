@@ -48,4 +48,13 @@ describe("MobileStudioScreen subtitle and text controls", () => {
     expect(source).toContain('accessibilityRole="radio"');
     expect(source).toContain("accessibilityState={{ selected, disabled: setupLocked }}");
   });
+
+  it("shows and applies the active platform quality recommendation", () => {
+    expect(source).toContain("createPlatformQualityRecommendation(profile)");
+    expect(source).toContain("platformQualityRecommendation.platformLabel} target");
+    expect(source).toContain("platformQualityRecommendation.status === \"matched\"");
+    expect(source).toContain("applyPlatformQualityRecommendation(profile)");
+    expect(source).toContain("platformQualityRecommendation.changes.map");
+    expect(source).toContain('accessibilityRole="summary"');
+  });
 });
