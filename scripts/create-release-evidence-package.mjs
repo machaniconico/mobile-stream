@@ -590,6 +590,7 @@ function validatePackageManifestGitAgainstReport(manifest, report, failures) {
 
 function validateCommercialPackageableReleaseReport(report, label = "Release report") {
   const failures = [];
+  validateCommercialReleaseReportTiming(report, label, failures);
   validateManifestGitProvenance(
     report?.git,
     { label, currentCommit: "", allowDirty: false, allowCommitMismatch: true },
@@ -616,6 +617,32 @@ function validateCommercialPackageableReleaseReport(report, label = "Release rep
     failures.push(`${label} clean git worktree gate must be passed for commercial package evidence.`);
   }
   return failures;
+}
+
+function validateCommercialReleaseReportTiming(report, label, failures) {
+  const startedAt = timestampMs(report?.startedAt);
+  const finishedAt = timestampMs(report?.finishedAt);
+  if (startedAt === null) {
+    failures.push(`${label} startedAt timestamp is missing or invalid.`);
+  }
+  if (finishedAt === null) {
+    failures.push(`${label} finishedAt timestamp is missing or invalid.`);
+    return;
+  }
+  if (startedAt !== null && finishedAt < startedAt) {
+    failures.push(`${label} finishedAt timestamp is before startedAt.`);
+  }
+  if (!Number.isFinite(report?.durationMs) || report.durationMs < 0) {
+    failures.push(`${label} durationMs is missing or invalid.`);
+    return;
+  }
+  if (startedAt === null || finishedAt < startedAt) {
+    return;
+  }
+  const observedDurationMs = finishedAt - startedAt;
+  if (Math.abs(observedDurationMs - report.durationMs) > 1_000) {
+    failures.push(`${label} durationMs does not match startedAt/finishedAt.`);
+  }
 }
 
 function readPackagedSupportBundle(manifest, packageDir, failures) {
@@ -2285,6 +2312,11 @@ function isSha256(value) {
 
 function validTimestamp(value) {
   return typeof value === "string" && value.trim() && Number.isFinite(Date.parse(value));
+}
+
+function timestampMs(value) {
+  const timestamp = Date.parse(String(value ?? ""));
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function stringValue(value) {

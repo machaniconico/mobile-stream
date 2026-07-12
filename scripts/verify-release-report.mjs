@@ -137,13 +137,40 @@ export function validateReport(report, options) {
 }
 
 function validateReportAge(report, options, fail) {
+  const startedAt = timestampMs(report?.startedAt);
+  const finishedAt = timestampMs(report?.finishedAt);
+  if (startedAt === null) {
+    fail("Report startedAt timestamp is missing or invalid.");
+  }
+  if (finishedAt === null) {
+    fail("Report finishedAt timestamp is missing or invalid.");
+    return;
+  }
+  if (startedAt !== null && finishedAt < startedAt) {
+    fail("Report finishedAt timestamp is before startedAt.");
+  }
+  validateReportDuration(report, startedAt, finishedAt, fail);
+
   const ageHours = ageInHours(report?.finishedAt, new Date());
   if (ageHours === null) {
-    fail("Report finishedAt timestamp is missing or invalid.");
     return;
   }
   if (ageHours > options.maxAgeHours) {
     fail(`Report is ${ageHours}h old, above the ${options.maxAgeHours}h release-report gate.`);
+  }
+}
+
+function validateReportDuration(report, startedAt, finishedAt, fail) {
+  if (!Number.isFinite(report?.durationMs) || report.durationMs < 0) {
+    fail("Report durationMs is missing or invalid.");
+    return;
+  }
+  if (startedAt === null || finishedAt === null || finishedAt < startedAt) {
+    return;
+  }
+  const observedDurationMs = finishedAt - startedAt;
+  if (Math.abs(observedDurationMs - report.durationMs) > 1_000) {
+    fail("Report durationMs does not match startedAt/finishedAt.");
   }
 }
 
@@ -809,8 +836,8 @@ function commandOutput(command, args) {
 }
 
 function ageInHours(value, now) {
-  const timestamp = Date.parse(String(value));
-  if (!Number.isFinite(timestamp)) {
+  const timestamp = timestampMs(value);
+  if (timestamp === null) {
     return null;
   }
   const ageMs = now.getTime() - timestamp;
@@ -818,6 +845,11 @@ function ageInHours(value, now) {
     return null;
   }
   return Math.floor(ageMs / 3_600_000);
+}
+
+function timestampMs(value) {
+  const timestamp = Date.parse(String(value));
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function isSha256(value) {

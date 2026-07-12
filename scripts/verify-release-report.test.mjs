@@ -96,6 +96,21 @@ describe("release report verifier", () => {
     expect(failures).toEqual([]);
   });
 
+  it("rejects release reports whose finishedAt is before startedAt", () => {
+    const report = createReport();
+    report.finishedAt = new Date(Date.parse(report.startedAt) - 1_000).toISOString();
+    report.durationMs = 0;
+
+    expect(validateReport(report, reportOptions())).toContain("Report finishedAt timestamp is before startedAt.");
+  });
+
+  it("rejects release reports whose duration does not match startedAt and finishedAt", () => {
+    const report = createReport();
+    report.durationMs = 60_000;
+
+    expect(validateReport(report, reportOptions())).toContain("Report durationMs does not match startedAt/finishedAt.");
+  });
+
   it.each(["Build Android native debug app", "Build iOS native simulator app"])(
     "rejects release reports missing required native build gate %s",
     (label) => {
@@ -866,6 +881,7 @@ function createReport({
     status: "passed",
     startedAt: reportStartedAt,
     finishedAt: reportFinishedAt,
+    durationMs: Date.parse(reportFinishedAt) - Date.parse(reportStartedAt),
     git: {
       commit: currentCommit(),
       branch: "main",

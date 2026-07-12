@@ -354,6 +354,7 @@ function createReport() {
     status: "passed",
     startedAt: reportStartedAt,
     finishedAt: reportFinishedAt,
+    durationMs: Date.parse(reportFinishedAt) - Date.parse(reportStartedAt),
     git: {
       commit: currentCommit(),
       branch: "main",

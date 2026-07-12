@@ -581,6 +581,47 @@ describe("release evidence package creator", () => {
     expect(failures).toContain("Package manifest generatedAt is before the packaged release report finishedAt.");
   });
 
+  it("rejects packaged release reports whose finishedAt is before startedAt", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    packagedReport.finishedAt = new Date(Date.parse(packagedReport.startedAt) - 1_000).toISOString();
+    packagedReport.durationMs = 0;
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+    manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+    manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Packaged release report finishedAt timestamp is before startedAt.");
+  });
+
+  it("rejects packaged release reports whose duration does not match timestamps", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const manifestPath = `${packageDir}/${releaseEvidencePackageManifestName}`;
+    const packagedReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    packagedReport.durationMs = 60_000;
+    writeFileSync(packagedReportPath, JSON.stringify(packagedReport, null, 2));
+    manifest.sourceReport.bytes = readFileSync(packagedReportPath).byteLength;
+    manifest.sourceReport.sha256 = fileSha256(packagedReportPath);
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures).toContain("Packaged release report durationMs does not match startedAt/finishedAt.");
+  });
+
   it("rejects packaged release reports whose git dirty-state provenance is missing", () => {
     resetPackageDir();
     writeReportFixture();
@@ -2536,6 +2577,7 @@ function writeReportFixture({ skipUi = true, uiEvidencePath = ".artifacts/releas
         status: "passed",
         startedAt: reportStartedAt,
         finishedAt: reportFinishedAt,
+        durationMs: Date.parse(reportFinishedAt) - Date.parse(reportStartedAt),
         git: {
           commit: currentCommit(),
           branch: "main",
