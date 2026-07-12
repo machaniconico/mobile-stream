@@ -151,6 +151,24 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("The support bundle is missing valid public launch confirmation summary evidence.");
   });
 
+  it("blocks public launch confirmation events whose target differs from the current profile", () => {
+    writeBundle({
+      summary: {
+        publicLaunchConfirmationEventCount: 1,
+        publicLaunchLastConfirmationStatus: "confirmed",
+        publicLaunchLastConfirmationAt: "2026-06-23T11:28:00.000Z",
+        publicLaunchLastConfirmationMessage:
+          "Twitch Public launch confirmation was accepted by the operator. Target: Twitch, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status testing. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready."
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Public launch confirmation audit");
+    expect(result.stdout).toContain("The support bundle is missing valid public launch confirmation summary evidence.");
+  });
+
   it("blocks public launch confirmation events without clean checklist counts", () => {
     writeBundle({
       summary: {

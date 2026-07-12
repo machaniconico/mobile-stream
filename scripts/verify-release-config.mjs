@@ -469,9 +469,11 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "chatReadoutSpeechFailureCount");
     expectIncludes(files.commercialReleaseGateDomain, "hasCleanPublicLaunchConfirmationChecklist");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks support bundles without an accepted final public launch confirmation");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks public launch confirmation events whose target differs from the current profile");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks public launch confirmation events without clean checklist counts");
     expectIncludes(files.commercialReleaseBundleScript, "hasCleanPublicLaunchConfirmationChecklist");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks support bundles without an accepted final public launch confirmation");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks public launch confirmation events whose target differs from the current profile");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks public launch confirmation events without clean checklist counts");
     expectIncludes(files.commercialReleaseGateDomain, "hasPublicLaunchConfirmationTimestampEvidence");
     expectIncludes(files.commercialReleaseGateDomainTest, "recorded after the support bundle was generated");

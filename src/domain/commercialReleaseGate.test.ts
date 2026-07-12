@@ -105,6 +105,29 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks public launch confirmation events whose target differs from the current profile", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          publicLaunchConfirmationEventCount: 1,
+          publicLaunchLastConfirmationStatus: "confirmed",
+          publicLaunchLastConfirmationAt: "2026-06-23T11:28:00.000Z",
+          publicLaunchLastConfirmationMessage:
+            "Twitch Public launch confirmation was accepted by the operator. Target: Twitch, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status testing. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "public-launch-confirmation-evidence"
+      })
+    );
+  });
+
   it("blocks public launch confirmation events without clean checklist counts", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -177,7 +200,8 @@ describe("commercial release gate", () => {
       "public-launch-confirmed",
       [
         "YouTube Public launch confirmation was accepted by the operator.",
-        "Target: YouTube mobilelivecaster://oauth/youtube?code=oauthcodeabcdefghijklmnopqrstuvwxyz&state=stateabcdefghijklmnopqrstuvwxyz, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status testing.",
+        "Target: YouTube Live, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status testing.",
+        "OAuth callback mobilelivecaster://oauth/youtube?code=oauthcodeabcdefghijklmnopqrstuvwxyz&state=stateabcdefghijklmnopqrstuvwxyz was already cleared.",
         "Checklist: 9 pass / 0 warn / 0 fail, checked Authorization: Bearer abcdefghijklmnopqrstuvwxyz1234567890."
       ].join(" "),
       new Date("2026-06-23T11:28:00.000Z")

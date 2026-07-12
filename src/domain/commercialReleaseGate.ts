@@ -267,7 +267,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
     Number.isFinite(Date.parse(lastAt)) &&
     hasPublicLaunchConfirmationTimestampEvidence(lastAt, bundle.generatedAt) &&
     typeof lastMessage === "string" &&
-    hasPublicLaunchConfirmationAuditEvidence(lastMessage);
+    hasPublicLaunchConfirmationAuditEvidence(lastMessage, expectedTargetPlatformForBundle(bundle));
 
   if (!hasValidCount || !hasValidStatus || !hasConfirmation) {
     return failIssue(
@@ -290,9 +290,25 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
   return null;
 };
 
-const hasPublicLaunchConfirmationAuditEvidence = (message: string): boolean => {
+const hasPublicLaunchConfirmationAuditEvidence = (message: string, expectedTargetPlatform: string | null): boolean => {
   const normalizedMessage = message.trim();
-  return normalizedMessage.includes("Target: ") && hasCleanPublicLaunchConfirmationChecklist(normalizedMessage);
+  return (
+    hasPublicLaunchConfirmationTargetEvidence(normalizedMessage, expectedTargetPlatform) &&
+    hasCleanPublicLaunchConfirmationChecklist(normalizedMessage)
+  );
+};
+
+const hasPublicLaunchConfirmationTargetEvidence = (message: string, expectedTargetPlatform: string | null): boolean => {
+  const match = /\bTarget:\s*([^,\n.;]+)/i.exec(message);
+  const target = nonEmptyText(match?.[1]);
+  if (!target) {
+    return false;
+  }
+  const expectedTarget = normalizeTargetPlatformLabel(expectedTargetPlatform);
+  if (!expectedTarget) {
+    return true;
+  }
+  return normalizeTargetPlatformLabel(target) === expectedTarget;
 };
 
 const hasCleanPublicLaunchConfirmationChecklist = (message: string): boolean =>
