@@ -53,6 +53,7 @@ export interface QualityProfile {
 }
 
 export type QualityResolutionId = "540p" | "720p" | "1080p";
+export type QualityOrientation = "landscape" | "portrait";
 
 export interface QualityResolutionOption {
   id: QualityResolutionId;
@@ -447,6 +448,22 @@ export const qualityResolutionOptions: QualityResolutionOption[] = [
   { id: "1080p", label: "1080p", width: 1920, height: 1080 }
 ];
 
+export function getQualityOrientation(
+  quality: Pick<QualityProfile, "width" | "height">
+): QualityOrientation {
+  return quality.height > quality.width ? "portrait" : "landscape";
+}
+
+export function getQualityResolutionOptions(
+  orientation: QualityOrientation
+): QualityResolutionOption[] {
+  return qualityResolutionOptions.map((option) =>
+    orientation === "portrait"
+      ? { ...option, width: option.height, height: option.width }
+      : { ...option }
+  );
+}
+
 export const qualitySettingsLimits: {
   videoBitrateKbps: QualitySettingRange;
   audioBitrateKbps: QualitySettingRange;
@@ -459,6 +476,20 @@ export const applyCustomQualitySettings = (profile: StudioProfile, update: Quali
   ...profile,
   quality: createCustomQualityProfile(update, normalizeQualityProfile(profile.quality))
 });
+
+export function applyQualityOrientation(
+  profile: StudioProfile,
+  orientation: QualityOrientation
+): StudioProfile {
+  if (getQualityOrientation(profile.quality) === orientation) {
+    return profile;
+  }
+
+  return applyCustomQualitySettings(profile, {
+    width: profile.quality.height,
+    height: profile.quality.width
+  });
+}
 
 export const normalizeQualityProfile = (
   quality: Partial<QualityProfile> | null | undefined
@@ -481,8 +512,21 @@ const createCustomQualityProfile = (
   update: QualitySettingsUpdate,
   fallback: QualityProfile
 ): QualityProfile => {
-  const width = normalizeEvenDimension(update.width, fallback.width, 640, 3840);
-  const height = normalizeEvenDimension(update.height, fallback.height, 360, 2160);
+  const requestedWidth = finiteDimensionOrFallback(update.width, fallback.width);
+  const requestedHeight = finiteDimensionOrFallback(update.height, fallback.height);
+  const orientation = getQualityOrientation({ width: requestedWidth, height: requestedHeight });
+  const width = normalizeEvenDimension(
+    requestedWidth,
+    fallback.width,
+    orientation === "portrait" ? 360 : 640,
+    orientation === "portrait" ? 2160 : 3840
+  );
+  const height = normalizeEvenDimension(
+    requestedHeight,
+    fallback.height,
+    orientation === "portrait" ? 640 : 360,
+    orientation === "portrait" ? 3840 : 2160
+  );
   const fps = normalizeQualityFps(update.fps, fallback.fps);
   const videoBitrateKbps = normalizeIntegerSetting(
     update.videoBitrateKbps,
@@ -497,7 +541,7 @@ const createCustomQualityProfile = (
 
   return {
     id: "quality-custom",
-    name: `Custom ${height}p${fps}`,
+    name: `Custom ${Math.min(width, height)}p${fps}${orientation === "portrait" ? " Portrait" : ""}`,
     width,
     height,
     fps,
@@ -514,8 +558,11 @@ const hasCustomQualitySettings = (quality: Partial<QualityProfile>): boolean =>
   quality.videoBitrateKbps !== undefined ||
   quality.audioBitrateKbps !== undefined;
 
+const finiteDimensionOrFallback = (value: unknown, fallback: number): number =>
+  typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
 const normalizeEvenDimension = (value: unknown, fallback: number, min: number, max: number): number => {
-  const finiteValue = typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  const finiteValue = finiteDimensionOrFallback(value, fallback);
   return Math.round(Math.max(min, Math.min(max, finiteValue)) / 2) * 2;
 };
 

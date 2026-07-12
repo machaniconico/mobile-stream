@@ -1,18 +1,21 @@
-import { Gauge, Megaphone, Settings, ShieldCheck, Trash2 } from "lucide-react";
+import { Gauge, Megaphone, RectangleHorizontal, RectangleVertical, Settings, ShieldCheck, Trash2 } from "lucide-react";
 import { createDiagnosticRedactionSecrets } from "../domain/diagnosticSecrets";
 import {
   applyCustomQualitySettings,
   applyDestinationPreset,
+  applyQualityOrientation,
   destinationPresets,
   getDestinationPreset,
+  getQualityOrientation,
+  getQualityResolutionOptions,
   markDestinationCustom,
   qualityProfiles,
-  qualityResolutionOptions,
   qualitySettingsLimits,
   redactStreamKey,
   serverUrlWithProtocol,
   type AndroidPublisherMode,
   type DestinationPresetId,
+  type QualityOrientation,
   type StudioProfile,
   type StreamProtocol
 } from "../domain/profiles";
@@ -87,7 +90,9 @@ export const LiveSetupScreen = ({
   const webhookUrlPresent = Boolean(profile.streamAnnouncement.discordWebhookUrl.trim());
   const webhookUrlValid = isValidDiscordWebhookUrl(profile.streamAnnouncement.discordWebhookUrl);
   const activeQualityPreset = qualityProfiles.find((quality) => quality.id === profile.quality.id);
-  const activeQualityResolution = qualityResolutionOptions.find(
+  const qualityOrientation = getQualityOrientation(profile.quality);
+  const orientedQualityResolutionOptions = getQualityResolutionOptions(qualityOrientation);
+  const activeQualityResolution = orientedQualityResolutionOptions.find(
     (resolution) => resolution.width === profile.quality.width && resolution.height === profile.quality.height
   );
   const estimatedUploadKbps = Math.round(
@@ -167,6 +172,12 @@ export const LiveSetupScreen = ({
       return;
     }
     onProfileChange(applyCustomQualitySettings(profile, update));
+  };
+  const updateQualityOrientation = (orientation: QualityOrientation) => {
+    if (locked) {
+      return;
+    }
+    onProfileChange(applyQualityOrientation(profile, orientation));
   };
   const updateAndroidPublisherMode = (androidPublisherMode: AndroidPublisherMode) => {
     if (locked) {
@@ -552,13 +563,38 @@ export const LiveSetupScreen = ({
 
       <fieldset className="quality-custom-settings" disabled={locked}>
         <legend>Custom quality</legend>
+        <div className="quality-orientation-control">
+          <span>Orientation</span>
+          <div className="quality-orientation-buttons" role="radiogroup" aria-label="stream orientation">
+            <button
+              className={`segmented-button ${qualityOrientation === "landscape" ? "active" : ""}`}
+              type="button"
+              role="radio"
+              aria-checked={qualityOrientation === "landscape"}
+              onClick={() => updateQualityOrientation("landscape")}
+            >
+              <RectangleHorizontal size={16} />
+              Landscape
+            </button>
+            <button
+              className={`segmented-button ${qualityOrientation === "portrait" ? "active" : ""}`}
+              type="button"
+              role="radio"
+              aria-checked={qualityOrientation === "portrait"}
+              onClick={() => updateQualityOrientation("portrait")}
+            >
+              <RectangleVertical size={16} />
+              Portrait
+            </button>
+          </div>
+        </div>
         <div className="quality-custom-grid">
           <label className="field">
             <span>Resolution</span>
             <select
               value={activeQualityResolution?.id ?? "current"}
               onChange={(event) => {
-                const resolution = qualityResolutionOptions.find((item) => item.id === event.target.value);
+                const resolution = orientedQualityResolutionOptions.find((item) => item.id === event.target.value);
                 if (resolution) {
                   updateQuality({ width: resolution.width, height: resolution.height });
                 }
@@ -569,7 +605,7 @@ export const LiveSetupScreen = ({
                   {profile.quality.width}x{profile.quality.height}
                 </option>
               ) : null}
-              {qualityResolutionOptions.map((resolution) => (
+              {orientedQualityResolutionOptions.map((resolution) => (
                 <option key={resolution.id} value={resolution.id}>
                   {resolution.label} ({resolution.width}x{resolution.height})
                 </option>

@@ -390,13 +390,17 @@ select:focus-visible {
 .program-stage {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
   overflow: hidden;
   background:
     linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
     #0d0d13;
   background-size: 56px 56px;
+}
+
+.program-stage.portrait {
+  width: min(100%, 420px);
+  margin-inline: auto;
 }
 
 .program-transition-layer {
@@ -1979,6 +1983,28 @@ select:focus-visible {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 8px;
+}
+
+.quality-orientation-control {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.quality-orientation-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.quality-orientation-buttons .segmented-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
 }
 
 .quality-range-field span {

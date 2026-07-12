@@ -47,6 +47,7 @@ import type {
   BroadcastMixerChannelId,
   DestinationPresetId,
   MicEffectPresetId,
+  QualityOrientation,
   QualitySettingsUpdate,
   StudioProfile,
   StreamProtocol
@@ -56,12 +57,14 @@ import {
   applyCustomQualitySettings,
   applyDestinationPreset,
   applyMicEffectPreset,
+  applyQualityOrientation,
   broadcastMixerChannels,
   destinationPresets,
+  getQualityOrientation,
+  getQualityResolutionOptions,
   markDestinationCustom,
   micEffectPresets,
   qualityProfiles,
-  qualityResolutionOptions,
   qualitySettingsLimits,
   redactStreamKey,
   serverUrlWithProtocol
@@ -528,6 +531,8 @@ export const MobileStudioScreen = ({
   const platformApiBusy = Boolean(platformApiOperationLabel);
   const setupLocked = isLive || isBusy || operationBusy || platformApiBusy;
   const customQualityActive = !qualityProfiles.some((quality) => quality.id === profile.quality.id);
+  const qualityOrientation = getQualityOrientation(profile.quality);
+  const orientedQualityResolutionOptions = getQualityResolutionOptions(qualityOrientation);
   const platformQualityRecommendation = createPlatformQualityRecommendation(profile);
   const platformQualityTarget = platformQualityRecommendation.target;
   const sceneSwitchLocked = isBusy || operationBusy || platformApiBusy;
@@ -847,6 +852,12 @@ export const MobileStudioScreen = ({
     }
     onProfileChange(applyCustomQualitySettings(profile, update));
   };
+  const updateQualityOrientation = (orientation: QualityOrientation) => {
+    if (setupLocked) {
+      return;
+    }
+    onProfileChange(applyQualityOrientation(profile, orientation));
+  };
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
     if (setupLocked) {
       return;
@@ -1152,6 +1163,7 @@ export const MobileStudioScreen = ({
         <Panel title="Program">
           <ProgramPreview
             scene={scene}
+            quality={profile.quality}
             selectedSourceId={selectedSource.id}
             chatMessages={chatOverlayMessages}
             captions={liveCaptionCues}
@@ -2737,9 +2749,37 @@ export const MobileStudioScreen = ({
               </Text>
             </View>
 
+            <Label text="Orientation" />
+            <View style={styles.qualityOptionRow} accessibilityRole="radiogroup">
+              {(["landscape", "portrait"] as const).map((orientation) => {
+                const selected = qualityOrientation === orientation;
+                return (
+                  <Pressable
+                    key={orientation}
+                    hitSlop={8}
+                    accessibilityRole="radio"
+                    accessibilityLabel={`${orientation} stream orientation`}
+                    accessibilityState={{ selected, disabled: setupLocked }}
+                    disabled={setupLocked}
+                    style={[
+                      styles.qualityOption,
+                      selected && styles.qualityOptionActive,
+                      setupLocked && styles.disabledButton
+                    ]}
+                    onPress={() => updateQualityOrientation(orientation)}
+                  >
+                    <Text style={[styles.qualityOptionText, selected && styles.qualityOptionTextActive]}>
+                      {orientation === "landscape" ? "Landscape" : "Portrait"}
+                    </Text>
+                    <Text style={styles.qualityOptionMeta}>{orientation === "landscape" ? "16:9" : "9:16"}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
             <Label text="Resolution" />
             <View style={styles.qualityOptionRow} accessibilityRole="radiogroup">
-              {qualityResolutionOptions.map((resolution) => {
+              {orientedQualityResolutionOptions.map((resolution) => {
                 const selected = resolution.width === profile.quality.width && resolution.height === profile.quality.height;
                 return (
                   <Pressable
@@ -4010,6 +4050,7 @@ const resolveNativeImageAspectRatio = (uri: string): Promise<number | null> => {
 
 const ProgramPreview = ({
   scene,
+  quality,
   selectedSourceId,
   chatMessages,
   captions,
@@ -4019,6 +4060,7 @@ const ProgramPreview = ({
   onSelectSource
 }: {
   scene: SceneDocument;
+  quality: StudioProfile["quality"];
   selectedSourceId: string;
   chatMessages: ReturnType<typeof selectChatOverlayMessages>;
   captions: CaptionOverlayCue[];
@@ -4028,8 +4070,16 @@ const ProgramPreview = ({
   onSelectSource(sourceId: string): void;
 }) => {
   const transitionOpacity = useSceneTransitionOpacity(transitionPreview);
+  const portrait = quality.height > quality.width;
   return (
-    <View style={styles.previewStage}>
+    <View
+      accessibilityLabel={`program output preview ${quality.width} by ${quality.height} ${portrait ? "portrait" : "landscape"}`}
+      style={[
+        styles.previewStage,
+        { aspectRatio: quality.width / quality.height },
+        portrait && styles.previewStagePortrait
+      ]}
+    >
       <ScenePreviewLayer
         scene={scene}
         selectedSourceId={selectedSourceId}
@@ -5393,10 +5443,14 @@ const styles = StyleSheet.create({
   previewStage: {
     position: "relative",
     width: "100%",
-    aspectRatio: 16 / 9,
     overflow: "hidden",
     borderRadius: 8,
     backgroundColor: "#0d0d13"
+  },
+  previewStagePortrait: {
+    width: "68%",
+    maxWidth: 420,
+    alignSelf: "center"
   },
   previewTransitionLayer: {
     position: "absolute",

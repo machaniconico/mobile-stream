@@ -212,12 +212,17 @@ async function verifyQualityInteraction(page, viewportName) {
   const videoBitrate = customSettings.locator('input[type="range"]').nth(0);
   const audioBitrate = customSettings.locator('input[type="range"]').nth(1);
 
+  const portraitOrientation = customSettings.locator(".quality-orientation-buttons").getByRole("radio", { name: "Portrait" });
+  await portraitOrientation.click();
+  if ((await portraitOrientation.getAttribute("aria-checked")) !== "true") {
+    throw new Error(`Portrait stream orientation was not selected at ${viewportName}.`);
+  }
   await resolution.selectOption("540p");
   await frameRate.selectOption("60");
   await setRangeInputValue(videoBitrate, 5000);
   await setRangeInputValue(audioBitrate, 192);
 
-  const expectedValues = ["960x540", "60 fps", "5000 kbps", "192 kbps", "6490 kbps"];
+  const expectedValues = ["540x960", "60 fps", "5000 kbps", "192 kbps", "6490 kbps"];
   await page.waitForFunction(
     (values) => {
       const panels = Array.from(document.querySelectorAll(".control-panel"));
@@ -238,14 +243,14 @@ async function verifyQualityInteraction(page, viewportName) {
   const recommendation = setupPanel.locator(".platform-quality-recommendation");
   await recommendation.getByText("TUNE", { exact: true }).waitFor({ timeout: 10_000 });
   const recommendationBeforeApply = normalizeTextForReport(await recommendation.innerText());
-  for (const value of ["960x540", "60 fps", "Video 6000 kbps", "Audio 128 kbps", "Upload 7660 kbps"]) {
+  for (const value of ["540x960", "60 fps", "Video 6000 kbps", "Audio 128 kbps", "Upload 7660 kbps"]) {
     if (!recommendationBeforeApply.includes(value)) {
       throw new Error(`Platform quality recommendation is missing "${value}" at ${viewportName}.`);
     }
   }
 
   await recommendation.locator(".platform-quality-action").click();
-  const recommendedValues = ["960x540", "60 fps", "6000 kbps", "128 kbps", "7660 kbps"];
+  const recommendedValues = ["540x960", "60 fps", "6000 kbps", "128 kbps", "7660 kbps"];
   await page.waitForFunction(
     (values) => {
       const panels = Array.from(document.querySelectorAll(".control-panel"));
@@ -263,7 +268,8 @@ async function verifyQualityInteraction(page, viewportName) {
     presetProof: "quality-sharp",
     customPresetValue: presetValue,
     custom: {
-      resolution: "960x540",
+      orientation: "portrait",
+      resolution: "540x960",
       fps: 60,
       videoBitrateKbps: 5000,
       audioBitrateKbps: 192,
@@ -273,7 +279,8 @@ async function verifyQualityInteraction(page, viewportName) {
     recommendation: {
       statusBeforeApply: "adjust",
       statusAfterApply: "matched",
-      resolution: "960x540",
+      orientation: "portrait",
+      resolution: "540x960",
       fps: 60,
       videoBitrateKbps: 6000,
       audioBitrateKbps: 128,

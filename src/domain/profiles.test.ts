@@ -4,9 +4,12 @@ import {
   applyDestinationPreset,
   applyEmergencyBroadcastMute,
   applyMicEffectPreset,
+  applyQualityOrientation,
   buildPublishUrl,
   clearStreamKey,
   createDefaultStudioProfile,
+  getQualityOrientation,
+  getQualityResolutionOptions,
   markDestinationCustom,
   normalizeDestinationProfile,
   normalizeQualityProfile,
@@ -63,6 +66,78 @@ describe("studio profiles", () => {
       videoBitrateKbps: { min: 900, max: 12000, step: 100 },
       audioBitrateKbps: { min: 64, max: 320, step: 32 }
     });
+  });
+
+  it("derives portrait only when height is greater than width", () => {
+    expect(getQualityOrientation({ width: 1280, height: 720 })).toBe("landscape");
+    expect(getQualityOrientation({ width: 720, height: 1280 })).toBe("portrait");
+    expect(getQualityOrientation({ width: 1080, height: 1080 })).toBe("landscape");
+  });
+
+  it("returns fresh orientation-specific resolution options", () => {
+    const landscapeOptions = getQualityResolutionOptions("landscape");
+    const portraitOptions = getQualityResolutionOptions("portrait");
+
+    expect(landscapeOptions).toEqual(qualityResolutionOptions);
+    expect(portraitOptions).toEqual([
+      { id: "540p", label: "540p", width: 540, height: 960 },
+      { id: "720p", label: "720p", width: 720, height: 1280 },
+      { id: "1080p", label: "1080p", width: 1080, height: 1920 }
+    ]);
+    expect(landscapeOptions).not.toBe(qualityResolutionOptions);
+    expect(landscapeOptions[0]).not.toBe(qualityResolutionOptions[0]);
+
+    landscapeOptions[0].width = 1;
+    portraitOptions[0].height = 1;
+
+    expect(qualityResolutionOptions[0]).toEqual({
+      id: "540p",
+      label: "540p",
+      width: 960,
+      height: 540
+    });
+    expect(getQualityResolutionOptions("portrait")[0]).toEqual({
+      id: "540p",
+      label: "540p",
+      width: 540,
+      height: 960
+    });
+  });
+
+  it("preserves profile identity when applying its current orientation", () => {
+    const landscapeProfile = createDefaultStudioProfile();
+    const portraitProfile = applyQualityOrientation(landscapeProfile, "portrait");
+
+    expect(applyQualityOrientation(landscapeProfile, "landscape")).toBe(landscapeProfile);
+    expect(applyQualityOrientation(portraitProfile, "portrait")).toBe(portraitProfile);
+  });
+
+  it("immutably swaps quality dimensions while preserving encoding settings", () => {
+    const profile = applyCustomQualitySettings(createDefaultStudioProfile(), {
+      width: 960,
+      height: 540,
+      fps: 60,
+      videoBitrateKbps: 6000,
+      audioBitrateKbps: 192
+    });
+    const originalQuality = profile.quality;
+
+    const updated = applyQualityOrientation(profile, "portrait");
+
+    expect(updated).not.toBe(profile);
+    expect(updated.quality).not.toBe(originalQuality);
+    expect(updated.quality).toEqual({
+      id: "quality-custom",
+      name: "Custom 540p60 Portrait",
+      width: 540,
+      height: 960,
+      fps: 60,
+      videoBitrateKbps: 6000,
+      audioBitrateKbps: 192
+    });
+    expect(profile.quality).toBe(originalQuality);
+    expect(profile.quality.width).toBe(960);
+    expect(profile.quality.height).toBe(540);
   });
 
   it("applies custom quality settings without mutating the source profile", () => {

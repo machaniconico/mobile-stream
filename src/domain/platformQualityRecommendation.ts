@@ -1,4 +1,10 @@
-import type { QualityProfile, StreamPlatform, StudioProfile } from "./profiles";
+import {
+  getQualityOrientation,
+  type QualityOrientation,
+  type QualityProfile,
+  type StreamPlatform,
+  type StudioProfile
+} from "./profiles";
 
 export type PlatformQualityRecommendationStatus = "not-applicable" | "matched" | "adjust";
 
@@ -33,7 +39,9 @@ interface PlatformGuidance {
 interface ResolutionTarget {
   width: number;
   height: number;
+  shortEdge: 540 | 720 | 1080;
   tier: ResolutionTier;
+  orientation: QualityOrientation;
 }
 
 const guidanceByPlatform: Record<GuidedPlatform, PlatformGuidance> = {
@@ -78,10 +86,12 @@ export const createPlatformQualityRecommendation = (
   }
 
   const guidance = guidanceByPlatform[platform];
-  const resolution = resolutionTargetForHeight(profile.quality.height);
+  const resolution = resolutionTargetForQuality(profile.quality);
   const target: QualityProfile = {
     id: guidance.targetId,
-    name: `${guidance.platformLabel} ${resolution.height}p${profile.quality.fps}`,
+    name: `${guidance.platformLabel} ${resolution.shortEdge}p${profile.quality.fps}${
+      resolution.orientation === "portrait" ? " Portrait" : ""
+    }`,
     width: resolution.width,
     height: resolution.height,
     fps: profile.quality.fps,
@@ -122,7 +132,10 @@ export const applyPlatformQualityRecommendation = (profile: StudioProfile): Stud
 export const createPlatformQualitySafetyIssues = (profile: StudioProfile): PlatformQualitySafetyIssue[] => {
   const { platform } = profile.destination;
   const { quality } = profile;
-  const exceeds1080p = quality.width > 1920 || quality.height > 1080;
+  const orientation = getQualityOrientation(quality);
+  const longEdge = Math.max(quality.width, quality.height);
+  const shortEdge = Math.min(quality.width, quality.height);
+  const exceeds1080p = longEdge > 1920 || shortEdge > 1080;
 
   if (platform === "twitch") {
     const issues: PlatformQualitySafetyIssue[] = [];
@@ -151,6 +164,15 @@ export const createPlatformQualitySafetyIssues = (profile: StudioProfile): Platf
       });
     }
 
+    if (orientation === "portrait") {
+      issues.push({
+        code: "quality-twitch-portrait-single-track",
+        severity: "warning",
+        message:
+          "Portrait output is a single classic RTMP track; it does not enable Twitch Dual Format/Enhanced Broadcasting."
+      });
+    }
+
     return issues;
   }
 
@@ -167,17 +189,35 @@ export const createPlatformQualitySafetyIssues = (profile: StudioProfile): Platf
   return [];
 };
 
-const resolutionTargetForHeight = (height: number): ResolutionTarget => {
-  if (height <= 540) {
-    return { width: 960, height: 540, tier: "up-to-720" };
+const resolutionTargetForQuality = (
+  quality: Pick<QualityProfile, "width" | "height">
+): ResolutionTarget => {
+  const orientation = getQualityOrientation(quality);
+  const shortEdge = Math.min(quality.width, quality.height);
+
+  if (shortEdge <= 540) {
+    return createResolutionTarget(960, 540, "up-to-720", orientation);
   }
 
-  if (height <= 720) {
-    return { width: 1280, height: 720, tier: "up-to-720" };
+  if (shortEdge <= 720) {
+    return createResolutionTarget(1280, 720, "up-to-720", orientation);
   }
 
-  return { width: 1920, height: 1080, tier: "1080" };
+  return createResolutionTarget(1920, 1080, "1080", orientation);
 };
+
+const createResolutionTarget = (
+  landscapeWidth: number,
+  landscapeHeight: 540 | 720 | 1080,
+  tier: ResolutionTier,
+  orientation: QualityOrientation
+): ResolutionTarget => ({
+  width: orientation === "portrait" ? landscapeHeight : landscapeWidth,
+  height: orientation === "portrait" ? landscapeWidth : landscapeHeight,
+  shortEdge: landscapeHeight,
+  tier,
+  orientation
+});
 
 const describeQualityChanges = (current: QualityProfile, target: QualityProfile): string[] => {
   const changes: string[] = [];

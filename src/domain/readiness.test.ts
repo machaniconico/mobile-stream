@@ -146,6 +146,21 @@ describe("stream readiness", () => {
     expect(report.canStart).toBe(true);
   });
 
+  it("warns that a Twitch portrait stream is a single classic RTMP track", () => {
+    const report = createReadinessReport(
+      createDefaultScene(),
+      createReadyPlatformProfile("twitch-auto", { width: 720, height: 1280 })
+    );
+
+    expect(report.issues).toContainEqual({
+      code: "quality-twitch-portrait-single-track",
+      severity: "warning",
+      field: "quality",
+      message: expect.stringContaining("does not enable Twitch Dual Format")
+    });
+    expect(report.canStart).toBe(true);
+  });
+
   it("blocks protocol mismatches", () => {
     const profile = {
       ...createDefaultStudioProfile(),

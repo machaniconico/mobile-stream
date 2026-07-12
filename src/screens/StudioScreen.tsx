@@ -1083,6 +1083,7 @@ export const StudioScreen = ({
         <section className="program-column" aria-label="program preview">
           <ProgramPreview
             scene={scene}
+            quality={profile.quality}
             selectedSourceId={selectedSource.id}
             chatMessages={chatOverlayMessages}
             captions={liveCaptionCues}
@@ -3678,6 +3679,7 @@ const isCrossOriginHttpUri = (uri: string): boolean => {
 
 interface ProgramPreviewProps {
   scene: SceneDocument;
+  quality: StudioProfile["quality"];
   selectedSourceId: string;
   chatMessages: ReturnType<typeof selectChatOverlayMessages>;
   captions: CaptionOverlayCue[];
@@ -3689,6 +3691,7 @@ interface ProgramPreviewProps {
 
 const ProgramPreview = ({
   scene,
+  quality,
   selectedSourceId,
   chatMessages,
   captions,
@@ -3698,15 +3701,20 @@ const ProgramPreview = ({
   onSelectSource
 }: ProgramPreviewProps) => {
   const transitionOpacity = useSceneTransitionOpacity(transitionPreview);
+  const portrait = quality.height > quality.width;
   return (
     <div className="program-preview">
       <div className="preview-toolbar">
         <span>{scene.name}</span>
         <span>
-          {scene.canvas.width}x{scene.canvas.height} / {scene.canvas.fps}fps
+          {quality.width}x{quality.height} / {quality.fps}fps
         </span>
       </div>
-      <div className="program-stage">
+      <div
+        className={`program-stage ${portrait ? "portrait" : "landscape"}`}
+        style={{ aspectRatio: `${quality.width} / ${quality.height}` }}
+        aria-label={`program output preview ${quality.width} by ${quality.height} ${portrait ? "portrait" : "landscape"}`}
+      >
         <ScenePreviewLayer
           scene={scene}
           selectedSourceId={selectedSourceId}

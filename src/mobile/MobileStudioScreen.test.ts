@@ -41,12 +41,23 @@ describe("MobileStudioScreen subtitle and text controls", () => {
 
   it("exposes preset and custom stream quality controls with accessible selection state", () => {
     expect(source).toContain('text="Quality presets"');
-    expect(source).toContain("qualityResolutionOptions.map");
+    expect(source).toContain("orientedQualityResolutionOptions.map");
     expect(source).toContain('label="Video bitrate (kbps)"');
     expect(source).toContain('label="Audio bitrate (kbps)"');
     expect(source).toContain("applyCustomQualitySettings(profile, update)");
     expect(source).toContain('accessibilityRole="radio"');
     expect(source).toContain("accessibilityState={{ selected, disabled: setupLocked }}");
+  });
+
+  it("switches between accessible landscape and portrait stream output", () => {
+    expect(source).toContain("getQualityOrientation(profile.quality)");
+    expect(source).toContain("getQualityResolutionOptions(qualityOrientation)");
+    expect(source).toContain("applyQualityOrientation(profile, orientation)");
+    expect(source).toContain('accessibilityLabel={`${orientation} stream orientation`}');
+    expect(source).toContain('orientation === "landscape" ? "16:9" : "9:16"');
+    expect(source).toContain("quality={profile.quality}");
+    expect(source).toContain("portrait && styles.previewStagePortrait");
+    expect(source).toContain("aspectRatio: quality.width / quality.height");
   });
 
   it("shows and applies the active platform quality recommendation", () => {

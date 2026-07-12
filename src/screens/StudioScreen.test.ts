@@ -15,12 +15,23 @@ describe("web stream announcement UI", () => {
   });
 
   it("exposes professional custom stream quality controls in live setup", () => {
-    expect(setupSource).toContain("qualityResolutionOptions.map");
+    expect(setupSource).toContain("orientedQualityResolutionOptions.map");
     expect(setupSource).toContain('type="range"');
     expect(setupSource).toContain("qualitySettingsLimits.videoBitrateKbps");
     expect(setupSource).toContain("qualitySettingsLimits.audioBitrateKbps");
     expect(setupSource).toContain("applyCustomQualitySettings(profile, update)");
     expect(setupSource).toContain("Upload target");
+  });
+
+  it("switches between landscape and portrait stream output", () => {
+    expect(setupSource).toContain("getQualityOrientation(profile.quality)");
+    expect(setupSource).toContain("getQualityResolutionOptions(qualityOrientation)");
+    expect(setupSource).toContain("applyQualityOrientation(profile, orientation)");
+    expect(setupSource).toContain('role="radiogroup" aria-label="stream orientation"');
+    expect(setupSource).toContain("RectangleVertical");
+    expect(studioSource).toContain("quality={profile.quality}");
+    expect(studioSource).toContain('program-stage ${portrait ? "portrait" : "landscape"}');
+    expect(studioSource).toContain('aspectRatio: `${quality.width} / ${quality.height}`');
   });
 
   it("shows and applies the active platform quality recommendation", () => {
