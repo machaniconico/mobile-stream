@@ -199,6 +199,37 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks public launch confirmation events recorded before the latest validation manifest evidence", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          publicLaunchConfirmationEventCount: 1,
+          publicLaunchLastConfirmationStatus: "confirmed",
+          publicLaunchLastConfirmationAt: "2026-06-23T11:29:30.000Z",
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              createdAt: "2026-06-23T11:29:45.000Z"
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ],
+          publicLaunchLastConfirmationMessage:
+            "YouTube Public launch confirmation was accepted by the operator. Target: YouTube Live, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status testing. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "public-launch-confirmation-evidence"
+      })
+    );
+  });
+
   it("accepts confirmed public launch events with retained target and checklist audit evidence", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({

@@ -457,7 +457,13 @@ function publicLaunchConfirmationEvidenceIssue(bundle) {
     (status === "confirmed" || status === "cancelled") &&
     typeof lastAt === "string" &&
     Number.isFinite(Date.parse(lastAt)) &&
-    hasPublicLaunchConfirmationTimestampEvidence(lastAt, bundle?.generatedAt, summary.platformPublishingFreshnessCheckedAt) &&
+    hasPublicLaunchConfirmationTimestampEvidence(
+      lastAt,
+      bundle?.generatedAt,
+      summary.platformPublishingFreshnessCheckedAt,
+      summary.validationEvidenceRunManifest,
+      createExpectedManifestScope(bundle)
+    ) &&
     typeof lastMessage === "string" &&
     hasPublicLaunchConfirmationAuditEvidence(lastMessage, expectedTargetPlatformForBundle(bundle));
 
@@ -507,14 +513,38 @@ function hasCleanPublicLaunchConfirmationChecklist(message) {
   return /Checklist:\s*\d+\s+pass(?:es)?\s*\/\s*0\s+warn(?:ings)?\s*\/\s*0\s+fail(?:ures)?/i.test(message);
 }
 
-function hasPublicLaunchConfirmationTimestampEvidence(lastAt, generatedAt, platformPublishingCheckedAt) {
+function hasPublicLaunchConfirmationTimestampEvidence(
+  lastAt,
+  generatedAt,
+  platformPublishingCheckedAt,
+  validationEvidenceRunManifest,
+  manifestScope
+) {
   const lastAtMs = Date.parse(lastAt);
   const generatedAtMs = Date.parse(generatedAt);
   if (!Number.isFinite(lastAtMs) || !Number.isFinite(generatedAtMs) || lastAtMs > generatedAtMs) {
     return false;
   }
   const checkedAtMs = Date.parse(String(platformPublishingCheckedAt ?? ""));
-  return !Number.isFinite(checkedAtMs) || lastAtMs >= checkedAtMs;
+  if (Number.isFinite(checkedAtMs) && lastAtMs < checkedAtMs) {
+    return false;
+  }
+  const latestValidationRunMs = latestInScopeValidationRunCreatedAtMs(validationEvidenceRunManifest, manifestScope);
+  return latestValidationRunMs === null || lastAtMs >= latestValidationRunMs;
+}
+
+function latestInScopeValidationRunCreatedAtMs(validationEvidenceRunManifest, manifestScope) {
+  if (!Array.isArray(validationEvidenceRunManifest)) {
+    return null;
+  }
+  const timestamps = validationEvidenceRunManifest
+    .filter((run) => isManifestRunFreshInScope(run, manifestScope))
+    .map((run) => manifestRunCreatedAtMs(run))
+    .filter(Number.isFinite);
+  if (timestamps.length === 0) {
+    return null;
+  }
+  return Math.max(...timestamps);
 }
 
 function sceneFingerprintIssue(bundle) {

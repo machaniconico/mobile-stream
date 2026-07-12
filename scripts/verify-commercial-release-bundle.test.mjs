@@ -225,6 +225,29 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("The support bundle is missing valid public launch confirmation summary evidence.");
   });
 
+  it("blocks public launch confirmation events recorded before the latest validation manifest evidence", () => {
+    writeBundle({
+      generatedAt: "2026-06-23T11:30:00.000Z",
+      summary: {
+        publicLaunchConfirmationEventCount: 1,
+        publicLaunchLastConfirmationStatus: "confirmed",
+        publicLaunchLastConfirmationAt: "2026-06-23T11:29:30.000Z",
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { createdAt: "2026-06-23T11:29:45.000Z" }),
+          manifestRun("android", "svr1-android")
+        ],
+        publicLaunchLastConfirmationMessage:
+          "YouTube Public launch confirmation was accepted by the operator. Target: YouTube Live, app privacy public, dashboard privacy public, broadcast selected, stream selected, broadcast status testing. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready."
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Public launch confirmation audit");
+    expect(result.stdout).toContain("The support bundle is missing valid public launch confirmation summary evidence.");
+  });
+
   it("accepts confirmed public launch events with retained target and checklist audit evidence", () => {
     writeBundle({
       summary: {

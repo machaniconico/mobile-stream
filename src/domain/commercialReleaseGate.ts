@@ -265,7 +265,13 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
     (status === "confirmed" || status === "cancelled") &&
     typeof lastAt === "string" &&
     Number.isFinite(Date.parse(lastAt)) &&
-    hasPublicLaunchConfirmationTimestampEvidence(lastAt, bundle.generatedAt, summary.platformPublishingFreshnessCheckedAt) &&
+    hasPublicLaunchConfirmationTimestampEvidence(
+      lastAt,
+      bundle.generatedAt,
+      summary.platformPublishingFreshnessCheckedAt,
+      summary.validationEvidenceRunManifest,
+      createExpectedManifestScope(bundle)
+    ) &&
     typeof lastMessage === "string" &&
     hasPublicLaunchConfirmationAuditEvidence(lastMessage, expectedTargetPlatformForBundle(bundle));
 
@@ -317,7 +323,9 @@ const hasCleanPublicLaunchConfirmationChecklist = (message: string): boolean =>
 const hasPublicLaunchConfirmationTimestampEvidence = (
   lastAt: string,
   generatedAt: string,
-  platformPublishingCheckedAt: unknown
+  platformPublishingCheckedAt: unknown,
+  validationEvidenceRunManifest: unknown,
+  manifestScope: ExpectedManifestScope
 ): boolean => {
   const lastAtMs = Date.parse(lastAt);
   const generatedAtMs = Date.parse(generatedAt);
@@ -325,7 +333,28 @@ const hasPublicLaunchConfirmationTimestampEvidence = (
     return false;
   }
   const checkedAtMs = Date.parse(String(platformPublishingCheckedAt ?? ""));
-  return !Number.isFinite(checkedAtMs) || lastAtMs >= checkedAtMs;
+  if (Number.isFinite(checkedAtMs) && lastAtMs < checkedAtMs) {
+    return false;
+  }
+  const latestValidationRunMs = latestInScopeValidationRunCreatedAtMs(validationEvidenceRunManifest, manifestScope);
+  return latestValidationRunMs === null || lastAtMs >= latestValidationRunMs;
+};
+
+const latestInScopeValidationRunCreatedAtMs = (
+  validationEvidenceRunManifest: unknown,
+  manifestScope: ExpectedManifestScope
+): number | null => {
+  if (!Array.isArray(validationEvidenceRunManifest)) {
+    return null;
+  }
+  const timestamps = validationEvidenceRunManifest
+    .filter((run): run is ValidationEvidenceManifestRun => isManifestRunFreshInScope(run as ValidationEvidenceManifestRun, manifestScope))
+    .map((run) => manifestRunCreatedAtMs(run))
+    .filter(Number.isFinite);
+  if (timestamps.length === 0) {
+    return null;
+  }
+  return Math.max(...timestamps);
 };
 
 const createSceneFingerprintIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
