@@ -2043,6 +2043,42 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Twitch dashboard status and Twitch title/category/language metadata");
   });
 
+  it("blocks Twitch platform dashboard claims when retained channel title length does not match the profile", () => {
+    writeBundle({
+      profile: {
+        androidPublisherMode: "mediacodec",
+        destination: {
+          platform: "twitch",
+          protocol: "rtmps"
+        },
+        platformPublishing: {
+          privacyStatus: "public",
+          youtubeBroadcastBoundStreamId: "stream-1",
+          titleLength: "Release rehearsal".length,
+          twitchCategory: "Just Chatting",
+          twitchCategoryId: "509658",
+          twitchLanguage: "ja"
+        }
+      },
+      summary: {
+        publicLaunchLastConfirmationMessage:
+          "Twitch launch confirmation was accepted by the operator. Target: Twitch Auto, category Just Chatting, category ID selected, channel status offline. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready.",
+        platformPublishingFreshnessSummary: "Twitch dashboard status was checked 1 minutes ago.",
+        validationEvidenceRunManifest: [
+          twitchManifestRun("ios", "svr1-ios", {
+            platformPublishingTwitchChannelTitle: "Different title"
+          }),
+          twitchManifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Twitch dashboard status and Twitch title/category/language metadata");
+  });
+
   it("blocks support bundles that still select the RootEncoder compatibility publisher", () => {
     writeBundle({
       profile: {
@@ -2561,6 +2597,7 @@ const createBundle = (patch = {}) => {
       platformPublishing: {
         privacyStatus: "public",
         youtubeBroadcastBoundStreamId: "stream-1",
+        titleLength: "Release rehearsal".length,
         twitchCategory: "Just Chatting",
         twitchCategoryId: "509658",
         twitchLanguage: "ja"

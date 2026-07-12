@@ -1452,6 +1452,7 @@ interface YouTubePublishingProofRequirements {
 }
 
 interface TwitchPublishingProofRequirements {
+  titleLength: number | null;
   category: string | null;
   categoryId: string | null;
   language: string | null;
@@ -1463,6 +1464,7 @@ const emptyYouTubePublishingProofRequirements: YouTubePublishingProofRequirement
 };
 
 const emptyTwitchPublishingProofRequirements: TwitchPublishingProofRequirements = {
+  titleLength: null,
   category: null,
   categoryId: null,
   language: null
@@ -1481,6 +1483,7 @@ const youtubePublishingProofRequirements = (bundle: SupportBundle): YouTubePubli
 });
 
 const twitchPublishingProofRequirements = (bundle: SupportBundle): TwitchPublishingProofRequirements => ({
+  titleLength: positiveIntegerOrNull(bundle.profile?.platformPublishing?.titleLength),
   category: nonEmptyText(bundle.profile?.platformPublishing?.twitchCategory),
   categoryId: nonEmptyText(bundle.profile?.platformPublishing?.twitchCategoryId),
   language: nonEmptyText(bundle.profile?.platformPublishing?.twitchLanguage)
@@ -1488,6 +1491,9 @@ const twitchPublishingProofRequirements = (bundle: SupportBundle): TwitchPublish
 
 const nonNegativeSummaryCount = (value: unknown): number =>
   typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+
+const positiveIntegerOrNull = (value: unknown): number | null =>
+  typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
 
 const hasManifestNativeOverlayProof = (
   run: ValidationEvidenceManifestRun | undefined,
@@ -1848,6 +1854,7 @@ const isManifestPlatformIdentityPass = (
       nonEmptyText(run.platformPublishingTwitchChannelCategory) !== null &&
       nonEmptyText(run.platformPublishingTwitchChannelCategoryId) !== null &&
       nonEmptyText(run.platformPublishingTwitchChannelLanguage) !== null &&
+      hasExpectedTwitchTitleProof(run, expectedTwitchPublishing) &&
       hasExpectedTwitchCategoryProof(run, expectedTwitchPublishing) &&
       hasExpectedTwitchLanguageProof(run, expectedTwitchPublishing)
     );
@@ -1897,6 +1904,17 @@ const hasExpectedTwitchCategoryProof = (
       (!expectedTwitchPublishing.category ||
         normalizeStatusLabel(manifestCategory) === normalizeStatusLabel(expectedTwitchPublishing.category))
   );
+};
+
+const hasExpectedTwitchTitleProof = (
+  run: ValidationEvidenceManifestRun,
+  expectedTwitchPublishing: TwitchPublishingProofRequirements
+): boolean => {
+  const manifestTitle = nonEmptyText(run.platformPublishingTwitchChannelTitle);
+  if (!manifestTitle) {
+    return false;
+  }
+  return expectedTwitchPublishing.titleLength === null || manifestTitle.length === expectedTwitchPublishing.titleLength;
 };
 
 const hasExpectedTwitchLanguageProof = (

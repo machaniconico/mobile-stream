@@ -518,14 +518,18 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingTwitchChannelLanguage");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestPlatformIdentityPass");
     expectIncludes(files.commercialReleaseGateDomain, "hasExpectedYouTubeBoundStreamProof");
+    expectIncludes(files.commercialReleaseGateDomain, "hasExpectedTwitchTitleProof");
     expectIncludes(files.commercialReleaseGateDomain, "hasExpectedTwitchCategoryProof");
     expectIncludes(files.commercialReleaseGateDomain, "hasExpectedTwitchLanguageProof");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks YouTube platform dashboard claims when retained bound stream proof does not match the profile");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks Twitch platform dashboard claims when retained channel metadata does not match the profile");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks Twitch platform dashboard claims when retained channel title length does not match the profile");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-platform-dashboard");
+    expectIncludes(files.commercialReleaseBundleScript, "hasExpectedTwitchTitleProof");
     expectIncludes(files.commercialReleaseBundleScript, "hasExpectedTwitchCategoryProof");
     expectIncludes(files.commercialReleaseBundleScript, "hasExpectedTwitchLanguageProof");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks Twitch platform dashboard claims when retained channel metadata does not match the profile");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks Twitch platform dashboard claims when retained channel title length does not match the profile");
     expectIncludes(files.sourceSecretsScript, "Source secret scan failed");
     expectIncludes(files.sourceSecretsScript, "discord-webhook-url");
     expectIncludes(files.sourceSecretsScript, "authorization-header-token");

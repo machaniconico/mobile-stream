@@ -1631,6 +1631,7 @@ const emptyYouTubePublishingProofRequirements = {
 };
 
 const emptyTwitchPublishingProofRequirements = {
+  titleLength: null,
   category: null,
   categoryId: null,
   language: null
@@ -1645,10 +1646,15 @@ function youtubePublishingProofRequirements(bundle) {
 
 function twitchPublishingProofRequirements(bundle) {
   return {
+    titleLength: positiveIntegerOrNull(bundle?.profile?.platformPublishing?.titleLength),
     category: text(bundle?.profile?.platformPublishing?.twitchCategory) || null,
     categoryId: text(bundle?.profile?.platformPublishing?.twitchCategoryId) || null,
     language: text(bundle?.profile?.platformPublishing?.twitchLanguage) || null
   };
+}
+
+function positiveIntegerOrNull(value) {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
 }
 
 function isManifestPlatformPublishingPass(
@@ -2058,6 +2064,7 @@ function isManifestPlatformIdentityPass(
       nonEmptyText(run.platformPublishingTwitchChannelCategory) !== null &&
       nonEmptyText(run.platformPublishingTwitchChannelCategoryId) !== null &&
       nonEmptyText(run.platformPublishingTwitchChannelLanguage) !== null &&
+      hasExpectedTwitchTitleProof(run, expectedTwitchPublishing) &&
       hasExpectedTwitchCategoryProof(run, expectedTwitchPublishing) &&
       hasExpectedTwitchLanguageProof(run, expectedTwitchPublishing)
     );
@@ -2097,6 +2104,14 @@ function hasExpectedTwitchCategoryProof(run, expectedTwitchPublishing) {
     manifestCategory &&
       (!expectedTwitchPublishing.category || statusLabel(manifestCategory) === statusLabel(expectedTwitchPublishing.category))
   );
+}
+
+function hasExpectedTwitchTitleProof(run, expectedTwitchPublishing) {
+  const manifestTitle = nonEmptyText(run?.platformPublishingTwitchChannelTitle);
+  if (!manifestTitle) {
+    return false;
+  }
+  return expectedTwitchPublishing.titleLength === null || manifestTitle.length === expectedTwitchPublishing.titleLength;
 }
 
 function hasExpectedTwitchLanguageProof(run, expectedTwitchPublishing) {
