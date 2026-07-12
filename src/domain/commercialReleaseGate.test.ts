@@ -2984,6 +2984,37 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks Twitch platform dashboard claims when retained viewer count is invalid", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        destination: {
+          platform: "twitch",
+          protocol: "rtmps"
+        },
+        summary: {
+          publicLaunchLastConfirmationMessage:
+            "Twitch launch confirmation was accepted by the operator. Target: Twitch Auto, category Just Chatting, category ID selected, channel status offline. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready.",
+          platformPublishingFreshnessSummary: "Twitch dashboard status was checked 1 minutes ago.",
+          validationEvidenceRunManifest: [
+            twitchManifestRun("ios", "svr1-ios", {
+              platformPublishingTwitchViewerCount: -1
+            }),
+            twitchManifestRun("android", "svr1-android")
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS platform dashboard proof")
+      })
+    );
+  });
+
   it("blocks platform dashboard summary claims when the manifest keeps unhealthy destination state", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({

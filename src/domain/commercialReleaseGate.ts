@@ -1854,6 +1854,7 @@ const isManifestPlatformIdentityPass = (
       nonEmptyText(run.platformPublishingTwitchChannelCategory) !== null &&
       nonEmptyText(run.platformPublishingTwitchChannelCategoryId) !== null &&
       nonEmptyText(run.platformPublishingTwitchChannelLanguage) !== null &&
+      isNonNegativeFiniteNumber(run.platformPublishingTwitchViewerCount) &&
       hasExpectedTwitchTitleProof(run, expectedTwitchPublishing) &&
       hasExpectedTwitchCategoryProof(run, expectedTwitchPublishing) &&
       hasExpectedTwitchLanguageProof(run, expectedTwitchPublishing)

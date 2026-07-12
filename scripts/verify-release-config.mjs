@@ -516,6 +516,7 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingYoutubeBoundStreamId");
     expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingYoutubeBroadcastPrivacyStatus");
     expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingTwitchChannelLanguage");
+    expectIncludes(files.streamValidationEvidenceDomain, "platformPublishingTwitchViewerCount");
     expectIncludes(files.commercialReleaseGateDomain, "isManifestPlatformIdentityPass");
     expectIncludes(files.commercialReleaseGateDomain, "hasExpectedYouTubeBoundStreamProof");
     expectIncludes(files.commercialReleaseGateDomain, "hasExpectedTwitchTitleProof");
@@ -524,12 +525,15 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks YouTube platform dashboard claims when retained bound stream proof does not match the profile");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks Twitch platform dashboard claims when retained channel metadata does not match the profile");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks Twitch platform dashboard claims when retained channel title length does not match the profile");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks Twitch platform dashboard claims when retained viewer count is invalid");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-platform-dashboard");
+    expectIncludes(files.commercialReleaseBundleScript, "isNonNegativeNumber(run.platformPublishingTwitchViewerCount)");
     expectIncludes(files.commercialReleaseBundleScript, "hasExpectedTwitchTitleProof");
     expectIncludes(files.commercialReleaseBundleScript, "hasExpectedTwitchCategoryProof");
     expectIncludes(files.commercialReleaseBundleScript, "hasExpectedTwitchLanguageProof");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks Twitch platform dashboard claims when retained channel metadata does not match the profile");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks Twitch platform dashboard claims when retained channel title length does not match the profile");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks Twitch platform dashboard claims when retained viewer count is invalid");
     expectIncludes(files.sourceSecretsScript, "Source secret scan failed");
     expectIncludes(files.sourceSecretsScript, "discord-webhook-url");
     expectIncludes(files.sourceSecretsScript, "authorization-header-token");
