@@ -150,8 +150,8 @@ const createBundleAgeIssue = (
   now: Date,
   maxBundleAgeHours: number
 ): CommercialReleaseGateIssue | null => {
-  const ageHours = ageInHours(bundle.generatedAt, now);
-  if (ageHours === null) {
+  const generatedAtMs = Date.parse(bundle.generatedAt);
+  if (!Number.isFinite(generatedAtMs)) {
     return failIssue(
       "bundle-generated-at-invalid",
       "Support bundle freshness",
@@ -159,6 +159,15 @@ const createBundleAgeIssue = (
       "Export a fresh support bundle from the release candidate build."
     );
   }
+  if (generatedAtMs > now.getTime()) {
+    return failIssue(
+      "bundle-generated-at-future",
+      "Support bundle freshness",
+      "The support bundle generatedAt timestamp is in the future.",
+      "Export a support bundle after the release-candidate validation run completes, then verify it on the same clock."
+    );
+  }
+  const ageHours = Math.floor((now.getTime() - generatedAtMs) / 3_600_000);
   if (ageHours > maxBundleAgeHours) {
     return failIssue(
       "bundle-stale",

@@ -732,6 +732,25 @@ describe("release evidence package creator", () => {
     expect(failures.join("\n")).toContain("Package support bundle stream-session-recovery-events-present");
   });
 
+  it("rejects packaged support bundles generated after the release report finished", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedReportPath = `${packageDir}/release-candidate-report.json`;
+    const packagedSupportBundlePath = `${packageDir}/support-bundle/support-bundle.json`;
+    const releaseReport = JSON.parse(readFileSync(packagedReportPath, "utf8"));
+    const supportBundle = JSON.parse(readFileSync(packagedSupportBundlePath, "utf8"));
+    supportBundle.generatedAt = new Date(Date.parse(releaseReport.finishedAt) + 60_000).toISOString();
+    writeFileSync(packagedSupportBundlePath, JSON.stringify(supportBundle, null, 2));
+    refreshPackagedSupportBundleEvidence(packagedSupportBundlePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain("Package support bundle commercial release gate must be ready, got blocked:");
+    expect(failures.join("\n")).toContain("Package support bundle bundle-generated-at-future");
+  });
+
   it("rejects packaged stale retained validation runs", () => {
     resetPackageDir();
     writeReportFixture();

@@ -279,8 +279,8 @@ function bundleIdentityIssue(bundle) {
 }
 
 function bundleAgeIssue(bundle, now, maxBundleAgeHours) {
-  const ageHours = ageInHours(bundle?.generatedAt, now);
-  if (ageHours === null) {
+  const generatedAtMs = Date.parse(String(bundle?.generatedAt ?? ""));
+  if (!Number.isFinite(generatedAtMs)) {
     return fail(
       "bundle-generated-at-invalid",
       "Support bundle freshness",
@@ -288,6 +288,15 @@ function bundleAgeIssue(bundle, now, maxBundleAgeHours) {
       "Export a fresh support bundle from the release candidate build."
     );
   }
+  if (generatedAtMs > now.getTime()) {
+    return fail(
+      "bundle-generated-at-future",
+      "Support bundle freshness",
+      "The support bundle generatedAt timestamp is in the future.",
+      "Export a support bundle after the release-candidate validation run completes, then verify it on the same clock."
+    );
+  }
+  const ageHours = Math.floor((now.getTime() - generatedAtMs) / 3_600_000);
   if (ageHours > maxBundleAgeHours) {
     return fail(
       "bundle-stale",

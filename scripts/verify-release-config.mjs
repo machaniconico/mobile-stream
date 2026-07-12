@@ -340,6 +340,7 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "androidPublisherMode: StreamDiagnostics");
     expectIncludes(files.streamValidationEvidenceDomain, "androidPublisherModeAndroidPass");
     expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 55");
+    expectIncludes(files.commercialReleaseGateDomain, "bundle-generated-at-future");
     expectIncludes(files.commercialReleaseGateDomain, "scene-fingerprint-missing");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scene-fingerprint");
     expectIncludes(files.commercialReleaseGateDomain, "native-caption-overlay-summary-missing");
@@ -352,6 +353,7 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "stream-session-recovery-evidence-failed");
     expectIncludes(files.commercialReleaseGateDomain, "stream-session-recovery-events-present");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks support bundles with failed completed stream-session evidence");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks support bundles generated after the verifier time");
     expectIncludes(files.commercialReleaseGateDomain, "liveCaptionFinalCueCount");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks contradictory passing live-caption evidence without final cue proof");
     expectIncludes(files.commercialReleaseGateDomain, "platformPublishingFreshnessAgeMinutes");
@@ -371,6 +373,7 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScript, "isFirstPartyManifestPublishingDestination");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks first-party platform dashboard manifests marked not-applicable");
     expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 55");
+    expectIncludes(files.commercialReleaseBundleScript, "bundle-generated-at-future");
     expectIncludes(files.commercialReleaseBundleScript, "--allow-warnings is not supported for commercial release approval");
     expectIncludes(files.commercialReleaseBundleScript, "warningCount === 0");
     expectIncludes(files.commercialReleaseBundleScript, "scene-fingerprint-missing");
@@ -381,6 +384,7 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScript, "streamSessionRecoveryEvidenceIssue(bundle)");
     expectIncludes(files.commercialReleaseBundleScript, "stream-session-recovery-evidence-failed");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks support bundles with recovery events before commercial release");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks support bundles generated after the verifier time");
     expectIncludes(files.commercialReleaseBundleScript, "android-publisher-mode-not-commercial");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "hasAndroidMediaCodecCompositorProof(run)");

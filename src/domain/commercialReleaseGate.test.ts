@@ -897,6 +897,24 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks support bundles generated after the verifier time", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        generatedAt: "2026-06-23T12:01:00.000Z"
+      }),
+      { now, maxBundleAgeHours: 24 }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "bundle-generated-at-future",
+        detail: "The support bundle generatedAt timestamp is in the future."
+      })
+    );
+  });
+
   it("blocks release when current platform publishing status is stale even if retained evidence is complete", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({

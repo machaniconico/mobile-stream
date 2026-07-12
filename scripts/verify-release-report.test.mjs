@@ -320,6 +320,19 @@ describe("release report verifier", () => {
     expect(failures.join("\n")).toContain("Release report support bundle stream-session-recovery-events-present");
   });
 
+  it("rejects release reports whose support bundle was generated after the report finished", () => {
+    const report = createReport({
+      supportBundlePatch: {
+        generatedAt: new Date(Date.now() + 60_000).toISOString()
+      }
+    });
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures.join("\n")).toContain("Release report support bundle commercial release gate must be ready, got blocked:");
+    expect(failures.join("\n")).toContain("Release report support bundle bundle-generated-at-future");
+  });
+
   it("rejects symlinked support bundles before reading linked targets", () => {
     const report = createReport();
     const supportBundlePath = ".artifacts/release-report-test/support-bundle.json";

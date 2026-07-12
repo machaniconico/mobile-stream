@@ -87,6 +87,18 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Public launch confirmation audit");
   });
 
+  it("blocks support bundles generated after the verifier time", () => {
+    writeBundle({
+      generatedAt: new Date(Date.now() + 60_000).toISOString()
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[FAIL] Support bundle freshness");
+    expect(result.stdout).toContain("The support bundle generatedAt timestamp is in the future.");
+  });
+
   it("blocks support bundles whose latest public launch confirmation was cancelled", () => {
     writeBundle({
       summary: {
