@@ -2343,6 +2343,11 @@ function commercialSupportBundleFixture() {
       validationEvidencePlatformPublishingAndroidPass: true,
       validationEvidencePlatformIngestIosPass: true,
       validationEvidencePlatformIngestAndroidPass: true,
+      platformPublishingFreshnessStatus: "fresh",
+      platformPublishingFreshnessCheckedAt: capturedAt,
+      platformPublishingFreshnessAgeMinutes: 0,
+      platformPublishingFreshnessSummary: "YouTube dashboard status was checked 0 minutes ago.",
+      platformPublishingFreshnessRecommendation: "Keep this fresh dashboard snapshot with the release-candidate validation run.",
       validationEvidenceRunManifest: [
         supportBundleManifestRun("ios", "svr1-ios"),
         supportBundleManifestRun("android", "svr1-android")

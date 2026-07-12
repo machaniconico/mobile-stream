@@ -7,6 +7,7 @@ const minimumSupportBundleVersion = 55;
 const minimumValidationMonitorDurationSeconds = 60;
 const minimumValidationMonitorSampleCount = 3;
 const platformPublishingDashboardMaxAgeMinutes = 10;
+const platformPublishingFreshnessFutureSkewToleranceMs = 2 * 60 * 1000;
 const defaultMaxBundleAgeHours = 24;
 const destinationTargetPlatformLabels = {
   "youtube-live": "YouTube Live",
@@ -164,6 +165,7 @@ export function createCommercialReleaseGate(bundle, { now, maxBundleAgeHours = d
     textOverlayEvidenceIssue(bundle),
     chatOverlayEvidenceIssue(bundle),
     liveCaptionEvidenceIssue(bundle),
+    platformPublishingFreshnessIssue(bundle),
     validationIssue(bundle),
     validationRunbookIssue(bundle),
     rehearsalIssue(bundle),
@@ -640,6 +642,83 @@ function liveCaptionEvidenceIssue(bundle) {
   }
 
   return null;
+}
+
+function platformPublishingFreshnessIssue(bundle) {
+  const summary = bundle?.summary ?? {};
+  const status = summary.platformPublishingFreshnessStatus;
+  if (status === "fresh") {
+    if (
+      hasPlatformPublishingFreshnessTimestampProof(
+        bundle?.generatedAt,
+        summary.platformPublishingFreshnessCheckedAt,
+        summary.platformPublishingFreshnessAgeMinutes
+      )
+    ) {
+      return null;
+    }
+    return fail(
+      "platform-publishing-freshness",
+      "Platform publishing freshness",
+      text(summary.platformPublishingFreshnessSummary) ||
+        `Platform publishing freshness is marked fresh without valid checked-at and <=${platformPublishingDashboardMaxAgeMinutes}m age evidence.`,
+      text(summary.platformPublishingFreshnessRecommendation) ||
+        "Refresh YouTube Live or Twitch publishing status immediately before commercial release approval."
+    );
+  }
+
+  if (status === "not-applicable") {
+    if (isFirstPartyPublishingDestination(bundle)) {
+      return fail(
+        "platform-publishing-freshness",
+        "Platform publishing freshness",
+        text(summary.platformPublishingFreshnessSummary) ||
+          "YouTube/Twitch publishing freshness cannot be marked not-applicable for a platform-visible destination.",
+        text(summary.platformPublishingFreshnessRecommendation) ||
+          "Refresh YouTube Live or Twitch publishing status immediately before commercial release approval."
+      );
+    }
+    return null;
+  }
+
+  return fail(
+    "platform-publishing-freshness",
+    "Platform publishing freshness",
+    text(summary.platformPublishingFreshnessSummary) || `Platform publishing freshness is ${status || "missing"}.`,
+    text(summary.platformPublishingFreshnessRecommendation) ||
+      "Refresh YouTube Live or Twitch publishing status immediately before commercial release approval."
+  );
+}
+
+function hasPlatformPublishingFreshnessTimestampProof(generatedAt, checkedAt, ageMinutes) {
+  const generatedAtMs = Date.parse(String(generatedAt ?? ""));
+  const checkedAtMs = Date.parse(String(checkedAt ?? ""));
+  if (!Number.isFinite(generatedAtMs) || !Number.isFinite(checkedAtMs)) {
+    return false;
+  }
+  if (checkedAtMs - generatedAtMs > platformPublishingFreshnessFutureSkewToleranceMs) {
+    return false;
+  }
+  const observedAgeMinutes = Math.floor(Math.max(0, generatedAtMs - checkedAtMs) / 60000);
+  return (
+    Number.isInteger(ageMinutes) &&
+    ageMinutes >= 0 &&
+    ageMinutes <= platformPublishingDashboardMaxAgeMinutes &&
+    Math.abs(observedAgeMinutes - ageMinutes) <= 1
+  );
+}
+
+function isFirstPartyPublishingDestination(bundle) {
+  const platform =
+    bundle?.target?.platform ?? bundle?.profile?.destination?.platform ?? bundle?.platformPublishing?.platform;
+  const targetPlatform =
+    bundle?.summary?.targetPlatform ?? bundle?.target?.platformLabel ?? bundle?.profile?.name ?? "";
+  return (
+    platform === "youtube-live" ||
+    platform === "twitch" ||
+    normalizeTargetPlatformLabel(targetPlatform).includes("youtube") ||
+    normalizeTargetPlatformLabel(targetPlatform).includes("twitch")
+  );
 }
 
 function validationIssue(bundle) {

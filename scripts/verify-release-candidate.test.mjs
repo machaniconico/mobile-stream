@@ -629,6 +629,7 @@ function writeSupportBundleFixture(patch = {}) {
 }
 
 function commercialSupportBundleFixture(patch = {}) {
+  const generatedAt = patch.generatedAt ?? new Date().toISOString();
   const summary = {
     preflightStatus: "ready",
     publicLaunchStatus: "ready",
@@ -731,6 +732,11 @@ function commercialSupportBundleFixture(patch = {}) {
     validationEvidencePlatformPublishingAndroidPass: true,
     validationEvidencePlatformIngestIosPass: true,
     validationEvidencePlatformIngestAndroidPass: true,
+    platformPublishingFreshnessStatus: "fresh",
+    platformPublishingFreshnessCheckedAt: generatedAt,
+    platformPublishingFreshnessAgeMinutes: 0,
+    platformPublishingFreshnessSummary: "YouTube dashboard status was checked 0 minutes ago.",
+    platformPublishingFreshnessRecommendation: "Keep this fresh dashboard snapshot with the release-candidate validation run.",
     validationEvidenceRunManifest: [
       supportBundleManifestRun("ios", "svr1-ios"),
       supportBundleManifestRun("android", "svr1-android")
@@ -739,7 +745,7 @@ function commercialSupportBundleFixture(patch = {}) {
 
   return {
     app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 55 },
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     fixture: true,
     profile: {
       androidPublisherMode: "mediacodec"

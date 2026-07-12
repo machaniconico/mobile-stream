@@ -436,6 +436,7 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceLatestPlatformPublishingStatus).toBeNull();
     expect(bundle.summary.validationEvidencePlatformPublishingFreshnessStatus).toBeNull();
     expect(bundle.summary.platformPublishingFreshnessStatus).toBe("missing");
+    expect(bundle.summary.platformPublishingFreshnessCheckedAt).toBe("");
     expect(formatSupportBundle(bundle)).toContain("Completed summaries: 1");
     expect(formatSupportBundle(bundle)).toContain("Public Launch Checklist");
     expect(formatSupportBundle(bundle)).toContain("Public launch:");
@@ -495,7 +496,9 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Evidence platform dashboard: 0 retained / 0 ready / 0 fresh / 0 freshness warn / 0 warn / 0 fail");
     expect(formatSupportBundle(bundle)).toContain("Evidence platform ingest: 0 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing");
     expect(formatSupportBundle(bundle)).toContain("Evidence platform dashboard freshness: - / -");
-    expect(formatSupportBundle(bundle)).toContain("Publishing status freshness: missing / YouTube dashboard status has no checked-at timestamp.");
+    expect(formatSupportBundle(bundle)).toContain(
+      "Publishing status freshness: missing / checked - / YouTube dashboard status has no checked-at timestamp."
+    );
   });
 
   it("keeps blocking chat overlay readiness evidence as failed support-bundle evidence", () => {
@@ -726,6 +729,7 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidencePlatformPublishingFreshnessAgeMinutes).toBe(1);
     expect(bundle.summary.validationEvidencePlatformPublishingFreshnessSummary).toContain("1 minutes ago");
     expect(bundle.summary.platformPublishingFreshnessStatus).toBe("stale");
+    expect(bundle.summary.platformPublishingFreshnessCheckedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeSentVideoFrames).toBe(0);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeSentAudioFrames).toBe(0);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeBytesWritten).toBe(0);
@@ -822,7 +826,7 @@ describe("support bundle", () => {
     expect(text).toContain("Evidence quality automation: 1 retained / live 1 / next-start 0 / failed 0");
     expect(text).toContain("Evidence platform ingest: 1 retained / 0 ready / 1 warn / 0 fail / iOS missing / Android missing");
     expect(text).toContain("Evidence platform dashboard freshness: fresh / YouTube dashboard status was checked 1 minutes ago.");
-    expect(text).toContain("Publishing status freshness: stale / YouTube dashboard status is 20 minutes old.");
+    expect(text).toContain("Publishing status freshness: stale / checked 2026-06-23T00:00:00.000Z / YouTube dashboard status is 20 minutes old.");
   });
 
   it("keeps commercial validation preflight blocks in support bundles", () => {

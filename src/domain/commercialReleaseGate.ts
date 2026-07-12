@@ -533,10 +533,11 @@ const createPlatformPublishingFreshnessIssue = (bundle: SupportBundle): Commerci
   if (status === "fresh") {
     const ageMinutes = bundle.summary.platformPublishingFreshnessAgeMinutes;
     if (
-      typeof ageMinutes === "number" &&
-      Number.isInteger(ageMinutes) &&
-      ageMinutes >= 0 &&
-      ageMinutes <= platformPublishingDashboardMaxAgeMinutes
+      hasPlatformPublishingFreshnessTimestampProof(
+        bundle.generatedAt,
+        bundle.summary.platformPublishingFreshnessCheckedAt,
+        ageMinutes
+      )
     ) {
       return null;
     }
@@ -544,7 +545,7 @@ const createPlatformPublishingFreshnessIssue = (bundle: SupportBundle): Commerci
       "platform-publishing-freshness",
       "Platform publishing freshness",
       bundle.summary.platformPublishingFreshnessSummary ||
-        `Platform publishing freshness is marked fresh without a valid <=${platformPublishingDashboardMaxAgeMinutes}m age.`,
+        `Platform publishing freshness is marked fresh without valid checked-at and <=${platformPublishingDashboardMaxAgeMinutes}m age evidence.`,
       bundle.summary.platformPublishingFreshnessRecommendation ||
         "Refresh YouTube Live or Twitch publishing status immediately before commercial release approval."
     );
@@ -570,6 +571,31 @@ const createPlatformPublishingFreshnessIssue = (bundle: SupportBundle): Commerci
     bundle.summary.platformPublishingFreshnessSummary || `Platform publishing freshness is ${status || "missing"}.`,
     bundle.summary.platformPublishingFreshnessRecommendation ||
       "Refresh YouTube Live or Twitch publishing status immediately before commercial release approval."
+  );
+};
+
+const platformPublishingFreshnessFutureSkewToleranceMs = 2 * 60 * 1000;
+
+const hasPlatformPublishingFreshnessTimestampProof = (
+  generatedAt: string,
+  checkedAt: unknown,
+  ageMinutes: unknown
+): boolean => {
+  const generatedAtMs = Date.parse(generatedAt);
+  const checkedAtMs = Date.parse(String(checkedAt ?? ""));
+  if (!Number.isFinite(generatedAtMs) || !Number.isFinite(checkedAtMs)) {
+    return false;
+  }
+  if (checkedAtMs - generatedAtMs > platformPublishingFreshnessFutureSkewToleranceMs) {
+    return false;
+  }
+  const observedAgeMinutes = Math.floor(Math.max(0, generatedAtMs - checkedAtMs) / 60_000);
+  return (
+    typeof ageMinutes === "number" &&
+    Number.isInteger(ageMinutes) &&
+    ageMinutes >= 0 &&
+    ageMinutes <= platformPublishingDashboardMaxAgeMinutes &&
+    Math.abs(observedAgeMinutes - ageMinutes) <= 1
   );
 };
 

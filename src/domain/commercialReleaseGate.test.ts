@@ -882,6 +882,29 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks fresh platform publishing evidence without checked-at timestamp proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          platformPublishingFreshnessStatus: "fresh",
+          platformPublishingFreshnessCheckedAt: "",
+          platformPublishingFreshnessAgeMinutes: 1,
+          platformPublishingFreshnessSummary: "YouTube dashboard status was checked 1 minutes ago.",
+          platformPublishingFreshnessRecommendation: "Refresh YouTube status within 10 minutes of release approval."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "platform-publishing-freshness",
+        label: "Platform publishing freshness"
+      })
+    );
+  });
+
   it("blocks not-applicable platform publishing freshness for first-party destinations", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -3359,6 +3382,7 @@ const supportBundle = ({
       validationEvidencePlatformIngestIosPass: true,
       validationEvidencePlatformIngestAndroidPass: true,
       platformPublishingFreshnessStatus: "fresh",
+      platformPublishingFreshnessCheckedAt: "2026-06-23T11:29:00.000Z",
       platformPublishingFreshnessAgeMinutes: 1,
       platformPublishingFreshnessSummary: "YouTube dashboard status was checked 1 minutes ago.",
       platformPublishingFreshnessRecommendation: "Keep this fresh dashboard snapshot with the release-candidate validation run.",

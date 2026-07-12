@@ -1720,6 +1720,23 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("fresh checked-at proof");
   });
 
+  it("blocks fresh platform publishing evidence without checked-at timestamp proof", () => {
+    writeBundle({
+      summary: {
+        platformPublishingFreshnessStatus: "fresh",
+        platformPublishingFreshnessCheckedAt: "",
+        platformPublishingFreshnessAgeMinutes: 1,
+        platformPublishingFreshnessSummary: "YouTube dashboard status was checked 1 minutes ago.",
+        platformPublishingFreshnessRecommendation: "Refresh YouTube status within 10 minutes of release approval."
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Platform publishing freshness");
+  });
+
   it("blocks first-party platform dashboard manifests marked not-applicable", () => {
     writeBundle({
       summary: {
@@ -1935,6 +1952,11 @@ const writeBundle = (patch = {}) => {
 };
 
 const createBundle = (patch = {}) => {
+  const generatedAt = patch.generatedAt ?? new Date().toISOString();
+  const generatedAtMs = Date.parse(String(generatedAt));
+  const platformPublishingFreshnessCheckedAt = Number.isFinite(generatedAtMs)
+    ? new Date(generatedAtMs - 60_000).toISOString()
+    : "2026-06-23T11:29:00.000Z";
   const summary = {
     preflightStatus: "ready",
     publicLaunchStatus: "ready",
@@ -2040,6 +2062,11 @@ const createBundle = (patch = {}) => {
     validationEvidencePlatformPublishingAndroidPass: true,
     validationEvidencePlatformIngestIosPass: true,
     validationEvidencePlatformIngestAndroidPass: true,
+    platformPublishingFreshnessStatus: "fresh",
+    platformPublishingFreshnessCheckedAt,
+    platformPublishingFreshnessAgeMinutes: 1,
+    platformPublishingFreshnessSummary: "YouTube dashboard status was checked 1 minutes ago.",
+    platformPublishingFreshnessRecommendation: "Keep this fresh dashboard snapshot with the release-candidate validation run.",
     validationEvidenceRunManifest: [
       manifestRun("ios", "svr1-ios"),
       manifestRun("android", "svr1-android")
@@ -2052,7 +2079,7 @@ const createBundle = (patch = {}) => {
       reportVersion: 1,
       bundleVersion: 55
     },
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     profile: {
       androidPublisherMode: "mediacodec",
       destination: {

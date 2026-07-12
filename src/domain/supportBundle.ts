@@ -563,6 +563,7 @@ export interface SupportBundle {
     nativeRuntimeQueuedItems: number;
     nativeRuntimeCacheSize: number;
     platformPublishingFreshnessStatus: PlatformPublishingFreshnessStatus;
+    platformPublishingFreshnessCheckedAt: string;
     platformPublishingFreshnessAgeMinutes: number | null;
     platformPublishingFreshnessSummary: string;
     platformPublishingFreshnessRecommendation: string;
@@ -1321,6 +1322,7 @@ export const createSupportBundle = ({
       nativeRuntimeQueuedItems: diagnostics.nativeRuntime?.publisher.itemsInCache ?? 0,
       nativeRuntimeCacheSize: diagnostics.nativeRuntime?.publisher.cacheSize ?? 0,
       platformPublishingFreshnessStatus: platformPublishingFreshness.status,
+      platformPublishingFreshnessCheckedAt: platformPublishingFreshness.checkedAt,
       platformPublishingFreshnessAgeMinutes: platformPublishingFreshness.ageMinutes,
       platformPublishingFreshnessSummary: platformPublishingFreshness.summary,
       platformPublishingFreshnessRecommendation: platformPublishingFreshness.recommendation,
@@ -1546,7 +1548,7 @@ export const formatSupportBundle = (bundle: SupportBundle, options: SupportBundl
     `- Platform chat: ${bundle.profile.platformChat.enabled ? bundle.profile.platformChat.platform : "off"}`,
     `- Publishing: title ${bundle.profile.platformPublishing.titleLength} chars / description ${bundle.profile.platformPublishing.descriptionLength} chars`,
     `- Publishing status checked: YouTube ${bundle.profile.platformPublishing.youtubeStatusCheckedAt || "-"} / Twitch ${bundle.profile.platformPublishing.twitchStatusCheckedAt || "-"}`,
-    `- Publishing status freshness: ${bundle.summary.platformPublishingFreshnessStatus} / ${bundle.summary.platformPublishingFreshnessSummary}`,
+    `- Publishing status freshness: ${bundle.summary.platformPublishingFreshnessStatus} / checked ${bundle.summary.platformPublishingFreshnessCheckedAt || "-"} / ${bundle.summary.platformPublishingFreshnessSummary}`,
     `- Publishing freshness action: ${bundle.summary.platformPublishingFreshnessRecommendation}`
   ].join("\n");
 
