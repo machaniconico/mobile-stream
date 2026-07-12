@@ -471,10 +471,12 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks support bundles without an accepted final public launch confirmation");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks public launch confirmation events whose target differs from the current profile");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks public launch confirmation events without clean checklist counts");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks YouTube public launch confirmation events without dashboard safety audit fragments");
     expectIncludes(files.commercialReleaseBundleScript, "hasCleanPublicLaunchConfirmationChecklist");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks support bundles without an accepted final public launch confirmation");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks public launch confirmation events whose target differs from the current profile");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks public launch confirmation events without clean checklist counts");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks YouTube public launch confirmation events without dashboard safety audit fragments");
     expectIncludes(files.commercialReleaseGateDomain, "hasPublicLaunchConfirmationTimestampEvidence");
     expectIncludes(files.commercialReleaseGateDomainTest, "recorded after the support bundle was generated");
     expectIncludes(files.commercialReleaseGateDomainTest, "recorded before the latest platform dashboard evidence");

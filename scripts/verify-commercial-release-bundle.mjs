@@ -492,6 +492,7 @@ function hasPublicLaunchConfirmationAuditEvidence(message, expectedTargetPlatfor
   const normalizedMessage = message.trim();
   return (
     hasPublicLaunchConfirmationTargetEvidence(normalizedMessage, expectedTargetPlatform) &&
+    hasPublicLaunchConfirmationSafetyEvidence(normalizedMessage, expectedTargetPlatform) &&
     hasCleanPublicLaunchConfirmationChecklist(normalizedMessage)
   );
 }
@@ -507,6 +508,21 @@ function hasPublicLaunchConfirmationTargetEvidence(message, expectedTargetPlatfo
     return true;
   }
   return normalizeTargetPlatformLabel(target) === expectedTarget;
+}
+
+function hasPublicLaunchConfirmationSafetyEvidence(message, expectedTargetPlatform) {
+  const expectedTarget = normalizeTargetPlatformLabel(expectedTargetPlatform);
+  if (!expectedTarget.includes("youtube")) {
+    return true;
+  }
+  const normalizedMessage = statusLabel(message);
+  return (
+    normalizedMessage.includes("app privacy public") &&
+    normalizedMessage.includes("dashboard privacy public") &&
+    normalizedMessage.includes("broadcast selected") &&
+    normalizedMessage.includes("stream selected") &&
+    /broadcast status\s+\S+/.test(normalizedMessage)
+  );
 }
 
 function hasCleanPublicLaunchConfirmationChecklist(message) {
