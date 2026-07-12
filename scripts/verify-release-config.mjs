@@ -496,9 +496,13 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "isManifestChatReadoutPass");
     expectIncludes(files.commercialReleaseGateDomain, "chatReadoutReaderEnabled === true");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks chat-readout summary claims when the manifest lacks connected platform chat proof");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks chat-readout summary claims when the manifest lacks retained connection message proof");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks chat-readout summary counters that do not match retained manifest rows");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-chat-readout");
-    expectIncludes(files.commercialReleaseBundleScript, "connected platform chat, enabled reader");
+    expectIncludes(files.commercialReleaseBundleScript, "connected platform chat label/message proof, enabled reader");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks chat readout claims when retained manifests lack connected platform chat proof");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks chat readout claims when retained manifests lack connection message proof");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks chat readout summary counters that do not match retained manifest rows");
     expectIncludes(files.commercialReleaseGateDomain, "hasControlledWeakNetworkProfile");
     expectIncludes(files.commercialReleaseGateDomainTest, "quality automation proof was recorded under a normal network profile");
     expectIncludes(files.commercialReleaseBundleScript, "hasControlledWeakNetworkProfile");

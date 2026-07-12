@@ -210,6 +210,7 @@ const readyDiagnostics = (): PublicLaunchChecklistInput["diagnostics"] => ({
       readerEnabled: true,
       connectionPhase: "connected",
       connectionLabel: "YouTube Live chat",
+      connectionMessage: "YouTube Live chat is connected.",
       spokenMessageCount: 1,
       speechFailureCount: 0,
       summary: "Chat readout retained 1 spoken / 0 failed.",

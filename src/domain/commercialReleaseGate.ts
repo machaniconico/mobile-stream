@@ -943,6 +943,10 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle, n
   const androidRun = latestRuns.get("android");
   const derivedEligibleRunCount = manifest.filter((run) => isManifestRunFreshInScope(run, manifestScope)).length;
   const derivedStaleRunCount = manifest.filter((run) => run.fresh !== true).length;
+  const scopedChatReadoutRuns = manifest.filter((run) => isManifestRunInScope(run, manifestScope) && hasManifestChatReadoutEvidence(run));
+  const derivedChatReadoutRunCount = scopedChatReadoutRuns.length;
+  const derivedChatReadoutReadyCount = scopedChatReadoutRuns.filter((run) => isManifestChatReadoutPass(run)).length;
+  const derivedChatReadoutWarningCount = scopedChatReadoutRuns.filter((run) => !isManifestChatReadoutPass(run)).length;
   const bundleGeneratedAtMs = Date.parse(bundle.generatedAt);
   const futureVerifierRunCount = manifest.filter((run) => {
     const createdAtMs = manifestRunCreatedAtMs(run);
@@ -969,6 +973,21 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle, n
   }
   if (derivedStaleRunCount !== summary.validationEvidenceStaleRunCount) {
     mismatches.push(`stale run count summary=${summary.validationEvidenceStaleRunCount} manifest=${derivedStaleRunCount}`);
+  }
+  if (derivedChatReadoutRunCount !== summary.validationEvidenceChatReadoutRunCount) {
+    mismatches.push(
+      `chat readout run count summary=${summary.validationEvidenceChatReadoutRunCount} manifest=${derivedChatReadoutRunCount}`
+    );
+  }
+  if (derivedChatReadoutReadyCount !== summary.validationEvidenceChatReadoutReadyCount) {
+    mismatches.push(
+      `chat readout ready count summary=${summary.validationEvidenceChatReadoutReadyCount} manifest=${derivedChatReadoutReadyCount}`
+    );
+  }
+  if (derivedChatReadoutWarningCount !== summary.validationEvidenceChatReadoutWarningCount) {
+    mismatches.push(
+      `chat readout warning count summary=${summary.validationEvidenceChatReadoutWarningCount} manifest=${derivedChatReadoutWarningCount}`
+    );
   }
 
   const eligibilityFlagMismatchCount = manifest.filter((run) => run.eligible !== isManifestRunFreshInScope(run, manifestScope)).length;
@@ -1297,6 +1316,11 @@ const isManifestRunFreshInScope = (
   run: ValidationEvidenceManifestRun,
   manifestScope: ExpectedManifestScope = emptyExpectedManifestScope
 ): boolean => isManifestRunFreshAndScopeClaimed(run) && isManifestRunDestinationScopePass(run, manifestScope);
+
+const isManifestRunInScope = (
+  run: ValidationEvidenceManifestRun,
+  manifestScope: ExpectedManifestScope = emptyExpectedManifestScope
+): boolean => run.matchesScope === true && isManifestRunDestinationScopePass(run, manifestScope);
 
 const isManifestRunDestinationScopePass = (
   run: ValidationEvidenceManifestRun,
@@ -1729,8 +1753,15 @@ const isManifestChatReadoutPass = (run: ValidationEvidenceManifestRun | undefine
   run?.chatReadoutReaderEnabled === true &&
   normalizeStatusLabel(run?.chatReadoutConnectionPhase) === "connected" &&
   Boolean(nonEmptyText(run?.chatReadoutConnectionLabel)) &&
+  Boolean(nonEmptyText(run?.chatReadoutConnectionMessage)) &&
   Number(run?.chatReadoutSpokenMessageCount) > 0 &&
   hasZeroManifestChatSpeechFailures(run);
+
+const hasManifestChatReadoutEvidence = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  run?.chatReadoutStatus === "pass" ||
+  run?.chatReadoutStatus === "warn" ||
+  run?.chatReadoutStatus === "fail" ||
+  run?.chatReadoutStatus === "pending";
 
 const hasZeroManifestChatSpeechFailures = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   typeof run?.chatReadoutSpeechFailureCount === "number" &&

@@ -1153,6 +1153,7 @@ function validationManifestIssue(bundle) {
           run?.chatReadoutReaderEnabled === true &&
           statusLabel(run?.chatReadoutConnectionPhase) === "connected" &&
           nonEmptyText(run?.chatReadoutConnectionLabel) !== null &&
+          nonEmptyText(run?.chatReadoutConnectionMessage) !== null &&
           number(run?.chatReadoutSpokenMessageCount) > 0 &&
           isZeroNumber(run?.chatReadoutSpeechFailureCount)
       )
@@ -1165,8 +1166,8 @@ function validationManifestIssue(bundle) {
     return fail(
       "validation-evidence-manifest-chat-readout",
       "Validation evidence manifest",
-      "The manifest does not back claimed chat readout evidence with connected platform chat, enabled reader, spoken-message success, and zero speech failures.",
-      "Export a support bundle v55 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout and native/browser speech output exercised."
+      "The manifest does not back claimed chat readout evidence with connected platform chat label/message proof, enabled reader, spoken-message success, and zero speech failures.",
+      "Export a support bundle v55 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout connection label/message proof and native/browser speech output exercised."
     );
   }
   const eligiblePlatformDashboardPlatforms = new Set(
@@ -1236,6 +1237,10 @@ function validationManifestIntegrityIssue(bundle, now) {
   const androidRun = latestRuns.get("android");
   const derivedEligibleRunCount = manifest.filter((run) => isManifestRunFreshInScope(run, manifestScope)).length;
   const derivedStaleRunCount = manifest.filter((run) => run?.fresh !== true).length;
+  const scopedChatReadoutRuns = manifest.filter((run) => isManifestRunInScope(run, manifestScope) && hasManifestChatReadoutEvidence(run));
+  const derivedChatReadoutRunCount = scopedChatReadoutRuns.length;
+  const derivedChatReadoutReadyCount = scopedChatReadoutRuns.filter((run) => isManifestChatReadoutPass(run)).length;
+  const derivedChatReadoutWarningCount = scopedChatReadoutRuns.filter((run) => !isManifestChatReadoutPass(run)).length;
   const bundleGeneratedAtMs = Date.parse(String(bundle?.generatedAt ?? ""));
   const futureVerifierRunCount = manifest.filter((run) => {
     const createdAtMs = manifestRunCreatedAtMs(run);
@@ -1260,6 +1265,15 @@ function validationManifestIntegrityIssue(bundle, now) {
   }
   if (derivedStaleRunCount !== number(summary.validationEvidenceStaleRunCount)) {
     mismatches.push(`stale run count summary=${number(summary.validationEvidenceStaleRunCount)} manifest=${derivedStaleRunCount}`);
+  }
+  if (derivedChatReadoutRunCount !== number(summary.validationEvidenceChatReadoutRunCount)) {
+    mismatches.push(`chat readout run count summary=${number(summary.validationEvidenceChatReadoutRunCount)} manifest=${derivedChatReadoutRunCount}`);
+  }
+  if (derivedChatReadoutReadyCount !== number(summary.validationEvidenceChatReadoutReadyCount)) {
+    mismatches.push(`chat readout ready count summary=${number(summary.validationEvidenceChatReadoutReadyCount)} manifest=${derivedChatReadoutReadyCount}`);
+  }
+  if (derivedChatReadoutWarningCount !== number(summary.validationEvidenceChatReadoutWarningCount)) {
+    mismatches.push(`chat readout warning count summary=${number(summary.validationEvidenceChatReadoutWarningCount)} manifest=${derivedChatReadoutWarningCount}`);
   }
 
   const eligibilityFlagMismatchCount = manifest.filter((run) => run?.eligible !== isManifestRunFreshInScope(run, manifestScope)).length;
@@ -1596,8 +1610,18 @@ function isManifestChatReadoutPass(run) {
     run?.chatReadoutReaderEnabled === true &&
     statusLabel(run?.chatReadoutConnectionPhase) === "connected" &&
     nonEmptyText(run?.chatReadoutConnectionLabel) !== null &&
+    nonEmptyText(run?.chatReadoutConnectionMessage) !== null &&
     number(run?.chatReadoutSpokenMessageCount) > 0 &&
     isZeroNumber(run?.chatReadoutSpeechFailureCount)
+  );
+}
+
+function hasManifestChatReadoutEvidence(run) {
+  return (
+    run?.chatReadoutStatus === "pass" ||
+    run?.chatReadoutStatus === "warn" ||
+    run?.chatReadoutStatus === "fail" ||
+    run?.chatReadoutStatus === "pending"
   );
 }
 
@@ -2150,6 +2174,10 @@ function manifestRunCreatedAtMs(run) {
 
 function isManifestRunFreshInScope(run, manifestScope = emptyExpectedManifestScope) {
   return isManifestRunFreshAndScopeClaimed(run) && isManifestRunDestinationScopePass(run, manifestScope);
+}
+
+function isManifestRunInScope(run, manifestScope = emptyExpectedManifestScope) {
+  return run?.matchesScope === true && isManifestRunDestinationScopePass(run, manifestScope);
 }
 
 function isManifestRunDestinationScopePass(run, { targetPlatform, transport, sceneFingerprint }) {

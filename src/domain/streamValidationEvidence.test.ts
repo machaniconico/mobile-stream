@@ -550,11 +550,84 @@ describe("stream validation evidence", () => {
       platformChatEnabled: true,
       readerEnabled: true,
       connectionPhase: "connected",
+      connectionMessage: "YouTube Live chat is connected.",
       spokenMessageCount: 1,
       speechFailureCount: 0
     });
     expect(run.audio?.summary).toContain("Audio meter retained 2 sam");
     expect(run.chatReadout?.summary).toContain("Chat speech retained 1 spoken / 0 failed");
+  });
+
+  it("does not count connected chat readout evidence as ready without retained connection message proof", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const sessionSummary = createStreamSessionSummary({
+      events: [
+        {
+          id: "chat-speech-spoken",
+          at: "2026-06-23T00:00:03.000Z",
+          kind: "chat",
+          severity: "info",
+          title: "Chat speech spoken",
+          message: "Chat readout finished speaking a youtube message."
+        }
+      ],
+      healthSamples: [healthSample(1), healthSample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!sessionSummary) {
+      throw new Error("Expected spoken chat session summary.");
+    }
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: nativeMonitorRuntime("ios")
+      },
+      [],
+      stableMonitorSamples(),
+      [sessionSummary],
+      [],
+      null,
+      {
+        ...connectedChatOptions,
+        platformChatConnection: {
+          ...connectedChatOptions.platformChatConnection,
+          message: ""
+        },
+        now: new Date("2026-06-23T00:00:00.500Z")
+      }
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.chatReadout).toMatchObject({
+      status: "pass",
+      connectionPhase: "connected",
+      connectionLabel: "Connected",
+      connectionMessage: "",
+      spokenMessageCount: 1,
+      speechFailureCount: 0
+    });
+    expect(summary.chatReadoutReadyCount).toBe(0);
+    expect(summary.chatReadoutIosPass).toBe(false);
+    expect(summary.runManifest[0]).toMatchObject({
+      chatReadoutConnectionLabel: "Connected",
+      chatReadoutConnectionMessage: ""
+    });
   });
 
   it("requires measured monitor latency before audio evidence can pass", () => {
@@ -2658,6 +2731,7 @@ describe("stream validation evidence", () => {
       chatReadoutReaderEnabled: true,
       chatReadoutConnectionPhase: "connected",
       chatReadoutConnectionLabel: "Connected",
+      chatReadoutConnectionMessage: "YouTube Live chat is connected.",
       chatReadoutSpokenMessageCount: 1,
       chatReadoutSpeechFailureCount: 0
     });

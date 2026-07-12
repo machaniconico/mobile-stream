@@ -107,6 +107,7 @@ export interface StreamValidationChatReadoutSummary {
   readerEnabled: boolean;
   connectionPhase: string;
   connectionLabel: string;
+  connectionMessage: string;
   spokenMessageCount: number;
   speechFailureCount: number;
   summary: string;
@@ -353,6 +354,7 @@ export interface StreamValidationEvidenceRunManifestItem {
   chatReadoutReaderEnabled: boolean;
   chatReadoutConnectionPhase: string;
   chatReadoutConnectionLabel: string;
+  chatReadoutConnectionMessage: string;
   chatReadoutSpokenMessageCount: number;
   chatReadoutSpeechFailureCount: number;
   qualityAutomationStatus: StreamValidationQualityAutomationSummary["status"] | null;
@@ -1766,6 +1768,8 @@ const isChatReadoutEvidencePass = (chatReadout: StreamValidationChatReadoutSumma
   chatReadout.platformChatEnabled === true &&
   chatReadout.readerEnabled === true &&
   chatReadout.connectionPhase === "connected" &&
+  normalizeText(chatReadout.connectionLabel, "") !== "" &&
+  normalizeText(chatReadout.connectionMessage, "") !== "" &&
   chatReadout.spokenMessageCount > 0 &&
   chatReadout.speechFailureCount === 0;
 
@@ -2747,6 +2751,7 @@ const createChatReadoutValidationSummary = (
     readerEnabled: diagnostics.chatReadout.readerEnabled,
     connectionPhase: diagnostics.chatReadout.connectionPhase,
     connectionLabel: diagnostics.chatReadout.connectionLabel,
+    connectionMessage: sanitizeStoredText(diagnostics.chatReadout.connectionMessage, secrets),
     spokenMessageCount: lastSummary?.chatSpeechSpokenCount ?? 0,
     speechFailureCount: lastSummary?.chatSpeechFailureCount ?? 0,
     summary: sanitizeStoredText(
@@ -3034,6 +3039,7 @@ const createEvidenceRunManifestItem = (
     chatReadoutReaderEnabled: run.chatReadout?.readerEnabled ?? false,
     chatReadoutConnectionPhase: run.chatReadout?.connectionPhase ?? "",
     chatReadoutConnectionLabel: run.chatReadout?.connectionLabel ?? "",
+    chatReadoutConnectionMessage: run.chatReadout?.connectionMessage ?? "",
     chatReadoutSpokenMessageCount: run.chatReadout?.spokenMessageCount ?? 0,
     chatReadoutSpeechFailureCount: run.chatReadout?.speechFailureCount ?? 0,
     qualityAutomationStatus: run.qualityAutomation?.status ?? null,
@@ -3458,6 +3464,7 @@ const normalizeChatReadoutValidationSummary = (value: unknown): StreamValidation
     readerEnabled: value.readerEnabled === true,
     connectionPhase: normalizeText(value.connectionPhase, "unknown"),
     connectionLabel: normalizeText(value.connectionLabel, ""),
+    connectionMessage: normalizeText(value.connectionMessage, ""),
     spokenMessageCount: normalizeCount(value.spokenMessageCount),
     speechFailureCount: normalizeCount(value.speechFailureCount),
     summary: normalizeText(value.summary, "No chat readout validation evidence retained."),

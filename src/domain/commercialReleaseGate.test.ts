@@ -1275,6 +1275,9 @@ describe("commercial release gate", () => {
       summary: {
         validationEvidenceRunCount: 3,
         validationEvidenceStaleRunCount: 1,
+        validationEvidenceChatReadoutRunCount: 3,
+        validationEvidenceChatReadoutReadyCount: 3,
+        validationEvidenceChatReadoutWarningCount: 0,
         validationEvidenceRunManifest: [
           manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
           manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" }),
@@ -2712,6 +2715,67 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks chat-readout summary claims when the manifest lacks retained connection message proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              chatReadoutConnectionMessage: ""
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS spoken chat-readout proof")
+      })
+    );
+  });
+
+  it("blocks chat-readout summary counters that do not match retained manifest rows", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunCount: 3,
+          validationEvidenceEligibleRunCount: 3,
+          validationEvidenceChatReadoutRunCount: 3,
+          validationEvidenceChatReadoutReadyCount: 3,
+          validationEvidenceChatReadoutWarningCount: 0,
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" }),
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios-chat-warn",
+              createdAt: "2026-06-23T10:00:00.000Z",
+              result: "warn",
+              chatReadoutStatus: "warn",
+              chatReadoutConnectionMessage: ""
+            })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("chat readout ready count summary=3 manifest=2")
+      })
+    );
+  });
+
   it("blocks chat-readout summary claims when the manifest keeps speech failures", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -3904,6 +3968,9 @@ const supportBundle = ({
       validationEvidenceFaceTrackingAndroidPass: true,
       validationEvidenceAudioIosPass: true,
       validationEvidenceAudioAndroidPass: true,
+      validationEvidenceChatReadoutRunCount: 2,
+      validationEvidenceChatReadoutReadyCount: 2,
+      validationEvidenceChatReadoutWarningCount: 0,
       validationEvidenceChatReadoutIosPass: true,
       validationEvidenceChatReadoutAndroidPass: true,
       validationEvidencePlatformPublishingIosPass: true,
@@ -4202,6 +4269,7 @@ const manifestRun = ({
   chatReadoutReaderEnabled = true,
   chatReadoutConnectionPhase = "connected",
   chatReadoutConnectionLabel = "Connected",
+  chatReadoutConnectionMessage = "YouTube Live chat is connected.",
   chatReadoutSpokenMessageCount = 1,
   chatReadoutSpeechFailureCount = 0,
   qualityAutomationStatus = "pass",
@@ -4384,6 +4452,7 @@ const manifestRun = ({
   chatReadoutReaderEnabled?: ValidationManifestRun["chatReadoutReaderEnabled"];
   chatReadoutConnectionPhase?: ValidationManifestRun["chatReadoutConnectionPhase"];
   chatReadoutConnectionLabel?: ValidationManifestRun["chatReadoutConnectionLabel"];
+  chatReadoutConnectionMessage?: ValidationManifestRun["chatReadoutConnectionMessage"];
   chatReadoutSpokenMessageCount?: ValidationManifestRun["chatReadoutSpokenMessageCount"];
   chatReadoutSpeechFailureCount?: ValidationManifestRun["chatReadoutSpeechFailureCount"];
   qualityAutomationStatus?: ValidationManifestRun["qualityAutomationStatus"];
@@ -4570,6 +4639,7 @@ const manifestRun = ({
   chatReadoutReaderEnabled,
   chatReadoutConnectionPhase,
   chatReadoutConnectionLabel,
+  chatReadoutConnectionMessage,
   chatReadoutSpokenMessageCount,
   chatReadoutSpeechFailureCount,
   qualityAutomationStatus,

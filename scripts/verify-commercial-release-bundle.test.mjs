@@ -1852,7 +1852,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("connected platform chat, enabled reader, spoken-message success");
+    expect(result.stdout).toContain("connected platform chat label/message proof, enabled reader, spoken-message success");
   });
 
   it("blocks chat readout claims when retained manifests lack connected platform chat proof", () => {
@@ -1868,7 +1868,50 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("connected platform chat, enabled reader, spoken-message success");
+    expect(result.stdout).toContain("connected platform chat label/message proof, enabled reader, spoken-message success");
+  });
+
+  it("blocks chat readout claims when retained manifests lack connection message proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { chatReadoutConnectionMessage: "" }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("connected platform chat label/message proof, enabled reader, spoken-message success");
+  });
+
+  it("blocks chat readout summary counters that do not match retained manifest rows", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunCount: 3,
+        validationEvidenceEligibleRunCount: 3,
+        validationEvidenceChatReadoutRunCount: 3,
+        validationEvidenceChatReadoutReadyCount: 3,
+        validationEvidenceChatReadoutWarningCount: 0,
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios"),
+          manifestRun("android", "svr1-android"),
+          manifestRun("ios", "svr1-ios-chat-warn", {
+            createdAt: "2026-06-23T10:00:00.000Z",
+            result: "warn",
+            chatReadoutStatus: "warn",
+            chatReadoutConnectionMessage: ""
+          })
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("chat readout ready count summary=3 manifest=2");
   });
 
   it("blocks chat readout claims when retained manifests keep speech failures", () => {
@@ -1884,7 +1927,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("connected platform chat, enabled reader, spoken-message success");
+    expect(result.stdout).toContain("connected platform chat label/message proof, enabled reader, spoken-message success");
   });
 
   it("blocks retained manifests without controlled weak-network quality automation proof", () => {
@@ -2616,6 +2659,9 @@ const createBundle = (patch = {}) => {
     validationEvidenceFaceTrackingAndroidPass: true,
     validationEvidenceAudioIosPass: true,
     validationEvidenceAudioAndroidPass: true,
+    validationEvidenceChatReadoutRunCount: 2,
+    validationEvidenceChatReadoutReadyCount: 2,
+    validationEvidenceChatReadoutWarningCount: 0,
     validationEvidenceChatReadoutIosPass: true,
     validationEvidenceChatReadoutAndroidPass: true,
     validationEvidencePlatformPublishingIosPass: true,
@@ -2816,6 +2862,7 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   chatReadoutReaderEnabled: true,
   chatReadoutConnectionPhase: "connected",
   chatReadoutConnectionLabel: "Connected",
+  chatReadoutConnectionMessage: "YouTube Live chat is connected.",
   chatReadoutSpokenMessageCount: 1,
   chatReadoutSpeechFailureCount: 0,
   qualityAutomationStatus: "pass",
