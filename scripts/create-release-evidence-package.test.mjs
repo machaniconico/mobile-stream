@@ -698,6 +698,40 @@ describe("release evidence package creator", () => {
     expect(failures.join("\n")).toContain("Package support bundle validation-evidence-not-ready");
   });
 
+  it("rejects packaged support bundles that retain stream-session recovery events", () => {
+    resetPackageDir();
+    writeReportFixture();
+    createReleaseEvidencePackage({ reportPath, outputDir: packageDir, allowDirty: true });
+
+    const packagedSupportBundlePath = `${packageDir}/support-bundle/support-bundle.json`;
+    const supportBundle = JSON.parse(readFileSync(packagedSupportBundlePath, "utf8"));
+    supportBundle.diagnostics = {
+      session: supportBundleSessionDiagnostics({
+        historySummary: {
+          stability: "watch",
+          totalRecoveryEvents: 1
+        },
+        lastSummary: {
+          outcome: "warn",
+          failureCount: 0,
+          recoveryEventCount: 1,
+          operationFailureCount: 0,
+          platformApiFailureCount: 0,
+          qualityUpdateFailureCount: 0,
+          chatReconnectFailureCount: 0,
+          chatSpeechFailureCount: 0
+        }
+      })
+    };
+    writeFileSync(packagedSupportBundlePath, JSON.stringify(supportBundle, null, 2));
+    refreshPackagedSupportBundleEvidence(packagedSupportBundlePath);
+
+    const failures = validateReleaseEvidencePackage({ packageDir });
+
+    expect(failures.join("\n")).toContain("Package support bundle commercial release gate must be ready, got blocked:");
+    expect(failures.join("\n")).toContain("Package support bundle stream-session-recovery-events-present");
+  });
+
   it("rejects packaged stale retained validation runs", () => {
     resetPackageDir();
     writeReportFixture();
@@ -2437,6 +2471,70 @@ function commercialSupportBundleFixture() {
         supportBundleManifestRun("android", "svr1-android")
       ]
     }
+  };
+}
+
+function supportBundleSessionDiagnostics({ historySummary = {}, lastSummary = null } = {}) {
+  return {
+    events: [],
+    summaries: [],
+    historySummary: {
+      totalSessions: 1,
+      cleanCount: 1,
+      warningCount: 0,
+      failureCount: 0,
+      cleanRate: 100,
+      averageDurationSeconds: 300,
+      totalWarningEvents: 0,
+      totalFailureEvents: 0,
+      totalRecoveryEvents: 0,
+      totalPlatformApiEvents: 0,
+      totalPlatformApiFailures: 0,
+      totalQualityEvents: 0,
+      totalQualityLiveUpdates: 0,
+      totalQualityNextTargets: 0,
+      totalQualityUpdateFailures: 0,
+      totalChatEvents: 0,
+      totalChatReconnectEvents: 0,
+      totalChatReconnectFailures: 0,
+      totalChatSpeechStarted: 0,
+      totalChatSpeechSpoken: 0,
+      totalChatSpeechFailures: 0,
+      stability: "watch",
+      summary: "Recent stream history needs watch: 100% clean across 1 sessions.",
+      recommendation: "Capture at least three clean sessions before treating this setup as a baseline.",
+      ...historySummary
+    },
+    lastSummary: lastSummary
+      ? {
+          id: "session-1",
+          startedAt: "2026-06-23T11:00:00.000Z",
+          endedAt: "2026-06-23T11:05:00.000Z",
+          endReason: "stopped",
+          outcome: "clean",
+          durationSeconds: 300,
+          eventCount: 0,
+          warningCount: 0,
+          failureCount: 0,
+          recoveryEventCount: 0,
+          operationFailureCount: 0,
+          platformApiEventCount: 0,
+          platformApiFailureCount: 0,
+          qualityEventCount: 0,
+          qualityLiveUpdateCount: 0,
+          qualityNextTargetCount: 0,
+          qualityUpdateFailureCount: 0,
+          chatEventCount: 0,
+          chatReconnectEventCount: 0,
+          chatReconnectFailureCount: 0,
+          chatSpeechStartedCount: 0,
+          chatSpeechSpokenCount: 0,
+          chatSpeechFailureCount: 0,
+          summary: "Clean session.",
+          recommendation: "Keep this profile as a known-good baseline.",
+          ...lastSummary
+        }
+      : null
   };
 }
 
