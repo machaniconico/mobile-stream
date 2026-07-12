@@ -2182,6 +2182,22 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("fresh checked-at proof");
   });
 
+  it("blocks platform dashboard claims when retained observed dashboard age is inconsistent", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { platformPublishingObservedAgeMinutes: 6 }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("fresh checked-at proof");
+  });
+
   it("blocks fresh platform publishing evidence without checked-at timestamp proof", () => {
     writeBundle({
       summary: {
@@ -2271,7 +2287,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("native publisher/compositor overlay telemetry");
   });
 
-  it("blocks same-run platform ingest claims when dashboard timing does not match the retained run", () => {
+  it("blocks platform dashboard claims when dashboard timing does not match the retained run", () => {
     writeBundle({
       summary: {
         validationEvidenceRunManifest: [
@@ -2287,10 +2303,10 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("same-run native send telemetry");
+    expect(result.stdout).toContain("fresh checked-at proof");
   });
 
-  it("blocks same-run platform ingest claims when retained observed dashboard age is inconsistent", () => {
+  it("blocks platform dashboard claims before same-run ingest when retained observed dashboard age is inconsistent", () => {
     writeBundle({
       summary: {
         validationEvidenceRunManifest: [
@@ -2303,7 +2319,7 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("same-run native send telemetry");
+    expect(result.stdout).toContain("fresh checked-at proof");
   });
 
   it("blocks release when the launch rehearsal is not ready", () => {

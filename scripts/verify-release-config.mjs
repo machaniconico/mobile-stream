@@ -534,6 +534,8 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks Twitch platform dashboard claims when retained channel metadata does not match the profile");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks Twitch platform dashboard claims when retained channel title length does not match the profile");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks Twitch platform dashboard claims when retained viewer count is invalid");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks platform dashboard summary claims when retained observed dashboard age is inconsistent");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks platform dashboard claims when retained observed dashboard age is inconsistent");
     expectIncludes(files.sourceSecretsScript, "Source secret scan failed");
     expectIncludes(files.sourceSecretsScript, "discord-webhook-url");
     expectIncludes(files.sourceSecretsScript, "authorization-header-token");

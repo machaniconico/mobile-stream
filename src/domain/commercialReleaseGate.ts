@@ -1777,6 +1777,7 @@ const isManifestPlatformPublishingPass = (
     run?.platformPublishingFreshnessStatus === "fresh" &&
     isNonEmptyIsoDate(run.platformPublishingCheckedAt) &&
     isAtMostFiniteNumber(run.platformPublishingFreshnessAgeMinutes, platformPublishingDashboardMaxAgeMinutes) &&
+    isManifestPlatformPublishingTimestampConsistent(run) &&
     isManifestPlatformIdentityPass(run, expectedYouTubePublishing, expectedTwitchPublishing));
 
 const isManifestPlatformIngestPass = (

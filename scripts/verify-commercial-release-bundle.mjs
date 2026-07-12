@@ -1670,6 +1670,7 @@ function isManifestPlatformPublishingPass(
     run?.platformPublishingFreshnessStatus === "fresh" &&
     isNonEmptyIsoDate(run?.platformPublishingCheckedAt) &&
     isAtMostNumber(run?.platformPublishingFreshnessAgeMinutes, platformPublishingDashboardMaxAgeMinutes) &&
+    isManifestPlatformPublishingTimestampConsistent(run) &&
     isManifestPlatformIdentityPass(run, expectedYouTubePublishing, expectedTwitchPublishing)
   );
 }

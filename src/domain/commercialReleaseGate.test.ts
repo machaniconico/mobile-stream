@@ -3095,6 +3095,32 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks platform dashboard summary claims when retained observed dashboard age is inconsistent", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              platformPublishingObservedAgeMinutes: 6
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS platform dashboard proof")
+      })
+    );
+  });
+
   it("blocks same-run platform ingest claims when the manifest lacks native send proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -3122,7 +3148,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks same-run platform ingest claims when dashboard timing does not match the retained run", () => {
+  it("blocks platform dashboard summary claims when dashboard timing does not match the retained run", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         summary: {
@@ -3144,12 +3170,12 @@ describe("commercial release gate", () => {
     expect(gate.issues).toContainEqual(
       expect.objectContaining({
         code: "validation-evidence-manifest-integrity",
-        detail: expect.stringContaining("iOS same-run platform ingest proof")
+        detail: expect.stringContaining("iOS platform dashboard proof")
       })
     );
   });
 
-  it("blocks same-run platform ingest claims when retained observed dashboard age is inconsistent", () => {
+  it("blocks platform dashboard summary claims before same-run ingest when retained observed dashboard age is inconsistent", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         summary: {
@@ -3170,7 +3196,7 @@ describe("commercial release gate", () => {
     expect(gate.issues).toContainEqual(
       expect.objectContaining({
         code: "validation-evidence-manifest-integrity",
-        detail: expect.stringContaining("iOS same-run platform ingest proof")
+        detail: expect.stringContaining("iOS platform dashboard proof")
       })
     );
   });
