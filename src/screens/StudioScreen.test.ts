@@ -13,4 +13,13 @@ describe("web stream announcement UI", () => {
     expect(setupSource).toContain("streamAnnouncementPreview.truncated");
     expect(setupSource).toContain("announcement shortened to Discord limit");
   });
+
+  it("exposes professional custom stream quality controls in live setup", () => {
+    expect(setupSource).toContain("qualityResolutionOptions.map");
+    expect(setupSource).toContain('type="range"');
+    expect(setupSource).toContain("qualitySettingsLimits.videoBitrateKbps");
+    expect(setupSource).toContain("qualitySettingsLimits.audioBitrateKbps");
+    expect(setupSource).toContain("applyCustomQualitySettings(profile, update)");
+    expect(setupSource).toContain("Upload target");
+  });
 });

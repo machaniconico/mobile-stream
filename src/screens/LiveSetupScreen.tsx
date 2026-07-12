@@ -1,11 +1,14 @@
 import { Megaphone, Settings, ShieldCheck, Trash2 } from "lucide-react";
 import { createDiagnosticRedactionSecrets } from "../domain/diagnosticSecrets";
 import {
+  applyCustomQualitySettings,
   applyDestinationPreset,
   destinationPresets,
   getDestinationPreset,
   markDestinationCustom,
   qualityProfiles,
+  qualityResolutionOptions,
+  qualitySettingsLimits,
   redactStreamKey,
   serverUrlWithProtocol,
   type AndroidPublisherMode,
@@ -79,6 +82,13 @@ export const LiveSetupScreen = ({
   });
   const webhookUrlPresent = Boolean(profile.streamAnnouncement.discordWebhookUrl.trim());
   const webhookUrlValid = isValidDiscordWebhookUrl(profile.streamAnnouncement.discordWebhookUrl);
+  const activeQualityPreset = qualityProfiles.find((quality) => quality.id === profile.quality.id);
+  const activeQualityResolution = qualityResolutionOptions.find(
+    (resolution) => resolution.width === profile.quality.width && resolution.height === profile.quality.height
+  );
+  const estimatedUploadKbps = Math.round(
+    (profile.quality.videoBitrateKbps + profile.quality.audioBitrateKbps) * 1.25
+  );
   const youtubeTransitionReport = (transitionStatus: YouTubeBroadcastTransitionStatus) =>
     createYouTubeBroadcastTransitionPreflightReport({
       profile,
@@ -141,6 +151,16 @@ export const LiveSetupScreen = ({
         ...update
       }
     });
+  };
+  const updateQuality = (
+    update: Partial<
+      Pick<StudioProfile["quality"], "width" | "height" | "fps" | "videoBitrateKbps" | "audioBitrateKbps">
+    >
+  ) => {
+    if (locked) {
+      return;
+    }
+    onProfileChange(applyCustomQualitySettings(profile, update));
   };
   const updateAndroidPublisherMode = (androidPublisherMode: AndroidPublisherMode) => {
     if (locked) {
@@ -504,15 +524,18 @@ export const LiveSetupScreen = ({
       </div>
 
       <label className="field">
-        <span>Quality</span>
+        <span>Quality preset</span>
         <select
-          value={profile.quality.id}
+          value={activeQualityPreset?.id ?? "quality-custom"}
           disabled={locked}
           onChange={(event) => {
-            const quality = qualityProfiles.find((item) => item.id === event.target.value) ?? qualityProfiles[0];
-            onProfileChange({ ...profile, quality });
+            const quality = qualityProfiles.find((item) => item.id === event.target.value);
+            if (quality) {
+              onProfileChange({ ...profile, quality });
+            }
           }}
         >
+          {!activeQualityPreset ? <option value="quality-custom">Custom</option> : null}
           {qualityProfiles.map((quality) => (
             <option key={quality.id} value={quality.id}>
               {quality.name}
@@ -521,10 +544,94 @@ export const LiveSetupScreen = ({
         </select>
       </label>
 
-      <div className="quality-readout">
-        <span>{profile.quality.width}x{profile.quality.height}</span>
-        <span>{profile.quality.fps}fps</span>
-        <span>{profile.quality.videoBitrateKbps} kbps</span>
+      <fieldset className="quality-custom-settings" disabled={locked}>
+        <legend>Custom quality</legend>
+        <div className="quality-custom-grid">
+          <label className="field">
+            <span>Resolution</span>
+            <select
+              value={activeQualityResolution?.id ?? "current"}
+              onChange={(event) => {
+                const resolution = qualityResolutionOptions.find((item) => item.id === event.target.value);
+                if (resolution) {
+                  updateQuality({ width: resolution.width, height: resolution.height });
+                }
+              }}
+            >
+              {!activeQualityResolution ? (
+                <option value="current">
+                  {profile.quality.width}x{profile.quality.height}
+                </option>
+              ) : null}
+              {qualityResolutionOptions.map((resolution) => (
+                <option key={resolution.id} value={resolution.id}>
+                  {resolution.label} ({resolution.width}x{resolution.height})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Frame rate</span>
+            <select value={profile.quality.fps} onChange={(event) => updateQuality({ fps: Number(event.target.value) as 30 | 60 })}>
+              <option value={30}>30 fps</option>
+              <option value={60}>60 fps</option>
+            </select>
+          </label>
+
+          <label className="field quality-range-field">
+            <span>
+              Video bitrate
+              <output>{profile.quality.videoBitrateKbps} kbps</output>
+            </span>
+            <input
+              type="range"
+              min={qualitySettingsLimits.videoBitrateKbps.min}
+              max={qualitySettingsLimits.videoBitrateKbps.max}
+              step={qualitySettingsLimits.videoBitrateKbps.step}
+              value={profile.quality.videoBitrateKbps}
+              onChange={(event) => updateQuality({ videoBitrateKbps: Number(event.target.value) })}
+            />
+          </label>
+
+          <label className="field quality-range-field">
+            <span>
+              Audio bitrate
+              <output>{profile.quality.audioBitrateKbps} kbps</output>
+            </span>
+            <input
+              type="range"
+              min={qualitySettingsLimits.audioBitrateKbps.min}
+              max={qualitySettingsLimits.audioBitrateKbps.max}
+              step={qualitySettingsLimits.audioBitrateKbps.step}
+              value={profile.quality.audioBitrateKbps}
+              onChange={(event) => updateQuality({ audioBitrateKbps: Number(event.target.value) })}
+            />
+          </label>
+        </div>
+      </fieldset>
+
+      <div className="quality-readout" aria-live="polite">
+        <span>
+          <small>Output</small>
+          <strong>{profile.quality.width}x{profile.quality.height}</strong>
+        </span>
+        <span>
+          <small>Frame rate</small>
+          <strong>{profile.quality.fps} fps</strong>
+        </span>
+        <span>
+          <small>Video</small>
+          <strong>{profile.quality.videoBitrateKbps} kbps</strong>
+        </span>
+        <span>
+          <small>Audio</small>
+          <strong>{profile.quality.audioBitrateKbps} kbps</strong>
+        </span>
+        <span>
+          <small>Upload target</small>
+          <strong>{estimatedUploadKbps} kbps</strong>
+        </span>
       </div>
 
       <div className="segmented-control">

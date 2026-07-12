@@ -52,6 +52,25 @@ export interface QualityProfile {
   audioBitrateKbps: number;
 }
 
+export type QualityResolutionId = "540p" | "720p" | "1080p";
+
+export interface QualityResolutionOption {
+  id: QualityResolutionId;
+  label: string;
+  width: number;
+  height: number;
+}
+
+export interface QualitySettingRange {
+  min: number;
+  max: number;
+  step: number;
+}
+
+export type QualitySettingsUpdate = Partial<
+  Pick<QualityProfile, "width" | "height" | "fps" | "videoBitrateKbps" | "audioBitrateKbps">
+>;
+
 export interface AvatarProfile {
   id: string;
   name: string;
@@ -422,6 +441,96 @@ export const qualityProfiles: QualityProfile[] = [
   }
 ];
 
+export const qualityResolutionOptions: QualityResolutionOption[] = [
+  { id: "540p", label: "540p", width: 960, height: 540 },
+  { id: "720p", label: "720p", width: 1280, height: 720 },
+  { id: "1080p", label: "1080p", width: 1920, height: 1080 }
+];
+
+export const qualitySettingsLimits: {
+  videoBitrateKbps: QualitySettingRange;
+  audioBitrateKbps: QualitySettingRange;
+} = {
+  videoBitrateKbps: { min: 900, max: 12000, step: 100 },
+  audioBitrateKbps: { min: 64, max: 320, step: 32 }
+};
+
+export const applyCustomQualitySettings = (profile: StudioProfile, update: QualitySettingsUpdate): StudioProfile => ({
+  ...profile,
+  quality: createCustomQualityProfile(update, normalizeQualityProfile(profile.quality))
+});
+
+export const normalizeQualityProfile = (
+  quality: Partial<QualityProfile> | null | undefined
+): QualityProfile => {
+  const fallback = qualityProfiles[0];
+  const preset = qualityProfiles.find((qualityProfile) => qualityProfile.id === quality?.id);
+
+  if (preset) {
+    return preset;
+  }
+
+  if (!quality || !hasCustomQualitySettings(quality)) {
+    return fallback;
+  }
+
+  return createCustomQualityProfile(quality, fallback);
+};
+
+const createCustomQualityProfile = (
+  update: QualitySettingsUpdate,
+  fallback: QualityProfile
+): QualityProfile => {
+  const width = normalizeEvenDimension(update.width, fallback.width, 640, 3840);
+  const height = normalizeEvenDimension(update.height, fallback.height, 360, 2160);
+  const fps = normalizeQualityFps(update.fps, fallback.fps);
+  const videoBitrateKbps = normalizeIntegerSetting(
+    update.videoBitrateKbps,
+    fallback.videoBitrateKbps,
+    qualitySettingsLimits.videoBitrateKbps
+  );
+  const audioBitrateKbps = normalizeIntegerSetting(
+    update.audioBitrateKbps,
+    fallback.audioBitrateKbps,
+    qualitySettingsLimits.audioBitrateKbps
+  );
+
+  return {
+    id: "quality-custom",
+    name: `Custom ${height}p${fps}`,
+    width,
+    height,
+    fps,
+    videoBitrateKbps,
+    audioBitrateKbps
+  };
+};
+
+const hasCustomQualitySettings = (quality: Partial<QualityProfile>): boolean =>
+  typeof quality.id === "string" ||
+  quality.width !== undefined ||
+  quality.height !== undefined ||
+  quality.fps !== undefined ||
+  quality.videoBitrateKbps !== undefined ||
+  quality.audioBitrateKbps !== undefined;
+
+const normalizeEvenDimension = (value: unknown, fallback: number, min: number, max: number): number => {
+  const finiteValue = typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  return Math.round(Math.max(min, Math.min(max, finiteValue)) / 2) * 2;
+};
+
+const normalizeQualityFps = (value: unknown, fallback: 30 | 60): 30 | 60 =>
+  value === 30 || value === 60 ? value : fallback;
+
+const normalizeIntegerSetting = (
+  value: unknown,
+  fallback: number,
+  limits: QualitySettingRange
+): number => {
+  const finiteValue = typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  return Math.round(Math.max(limits.min, Math.min(limits.max, finiteValue)));
+};
+
 export const defaultAvatarProfile: AvatarProfile = {
   id: "avatar-default",
   name: "Default PNGTuber",
@@ -577,8 +686,7 @@ export const redactStreamKey = (streamKey: string): string => {
 
 export const normalizeStudioProfile = (profile: Partial<StudioProfile> | null | undefined): StudioProfile => {
   const fallback = createDefaultStudioProfile();
-  const quality =
-    qualityProfiles.find((qualityProfile) => qualityProfile.id === profile?.quality?.id) ?? profile?.quality ?? fallback.quality;
+  const quality = normalizeQualityProfile(profile?.quality);
   const persistedDestination = profile?.destination;
   const preset =
     getDestinationPreset(persistedDestination?.presetId) ??

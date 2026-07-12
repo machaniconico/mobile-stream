@@ -95,6 +95,7 @@ export async function verifyUi({
       }
 
       const quickTextInteraction = await verifyQuickTextInteraction(page, viewport.name);
+      const qualityInteraction = await verifyQualityInteraction(page, viewport.name);
       const horizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 2);
       if (horizontalOverflow) {
         throw new Error(`Horizontal overflow detected at ${viewport.name}`);
@@ -111,6 +112,7 @@ export async function verifyUi({
         targetIdentity,
         requiredTextChecks: checks,
         quickTextInteraction,
+        qualityInteraction,
         horizontalOverflow: false,
         rigQualityProgressBarCount,
         screenshot
@@ -194,6 +196,65 @@ async function verifyQuickTextInteraction(page, viewportName) {
     programText: programTextContent,
     previewText
   };
+}
+
+async function verifyQualityInteraction(page, viewportName) {
+  const setupPanel = page.locator(".control-panel").filter({ hasText: "Live Setup" }).first();
+  await setupPanel.waitFor({ timeout: 10_000 });
+
+  const preset = setupPanel.locator("label.field").filter({ hasText: "Quality preset" }).locator("select").first();
+  await preset.selectOption("quality-sharp");
+  await setupPanel.locator(".quality-readout").getByText("1920x1080", { exact: true }).waitFor({ timeout: 10_000 });
+
+  const customSettings = setupPanel.locator(".quality-custom-settings");
+  const resolution = customSettings.locator("select").nth(0);
+  const frameRate = customSettings.locator("select").nth(1);
+  const videoBitrate = customSettings.locator('input[type="range"]').nth(0);
+  const audioBitrate = customSettings.locator('input[type="range"]').nth(1);
+
+  await resolution.selectOption("540p");
+  await frameRate.selectOption("60");
+  await setRangeInputValue(videoBitrate, 5000);
+  await setRangeInputValue(audioBitrate, 192);
+
+  const expectedValues = ["960x540", "60 fps", "5000 kbps", "192 kbps", "6490 kbps"];
+  await page.waitForFunction(
+    (values) => {
+      const panels = Array.from(document.querySelectorAll(".control-panel"));
+      const panel = panels.find((item) => item.textContent?.includes("Live Setup"));
+      const readout = panel?.querySelector(".quality-readout")?.textContent ?? "";
+      return values.every((value) => readout.includes(value));
+    },
+    expectedValues,
+    { timeout: 10_000 }
+  );
+
+  const presetValue = await preset.inputValue();
+  if (presetValue !== "quality-custom") {
+    throw new Error(`Custom quality did not replace the preset selection at ${viewportName}.`);
+  }
+
+  const readout = normalizeTextForReport(await setupPanel.locator(".quality-readout").innerText());
+  return {
+    presetProof: "quality-sharp",
+    customPresetValue: presetValue,
+    resolution: "960x540",
+    fps: 60,
+    videoBitrateKbps: 5000,
+    audioBitrateKbps: 192,
+    estimatedUploadKbps: 6490,
+    readout
+  };
+}
+
+async function setRangeInputValue(locator, value) {
+  await locator.evaluate((element, nextValue) => {
+    const input = element;
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    valueSetter?.call(input, String(nextValue));
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }, value);
 }
 
 function finishReport(report, status, error = null) {

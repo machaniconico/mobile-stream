@@ -39,9 +39,17 @@ import {
   createYouTubeBroadcastTransitionPreflightReport,
   type PlatformPublishingPreflightReport
 } from "../domain/platformPublishingPreflight";
-import type { BroadcastMixerChannelId, DestinationPresetId, MicEffectPresetId, StudioProfile, StreamProtocol } from "../domain/profiles";
+import type {
+  BroadcastMixerChannelId,
+  DestinationPresetId,
+  MicEffectPresetId,
+  QualitySettingsUpdate,
+  StudioProfile,
+  StreamProtocol
+} from "../domain/profiles";
 import { getPlatformChatConnectionStatus, type PlatformChatSettings } from "../domain/platformChat";
 import {
+  applyCustomQualitySettings,
   applyDestinationPreset,
   applyMicEffectPreset,
   broadcastMixerChannels,
@@ -49,6 +57,8 @@ import {
   markDestinationCustom,
   micEffectPresets,
   qualityProfiles,
+  qualityResolutionOptions,
+  qualitySettingsLimits,
   redactStreamKey,
   serverUrlWithProtocol
 } from "../domain/profiles";
@@ -513,6 +523,7 @@ export const MobileStudioScreen = ({
   const operationBusy = operationStatus?.kind === "pending";
   const platformApiBusy = Boolean(platformApiOperationLabel);
   const setupLocked = isLive || isBusy || operationBusy || platformApiBusy;
+  const customQualityActive = !qualityProfiles.some((quality) => quality.id === profile.quality.id);
   const sceneSwitchLocked = isBusy || operationBusy || platformApiBusy;
   const quickSubtitleLocked = isBusy || operationBusy || platformApiBusy;
   const updateSelectedIllustrationRig = (key: keyof AvatarIllustrationRig, value: number) => {
@@ -823,6 +834,12 @@ export const MobileStudioScreen = ({
         ...update
       }
     });
+  };
+  const updateQuality = (update: QualitySettingsUpdate) => {
+    if (setupLocked) {
+      return;
+    }
+    onProfileChange(applyCustomQualitySettings(profile, update));
   };
   const updateMicEffects = (update: Partial<StudioProfile["micEffects"]>) => {
     if (setupLocked) {
@@ -2678,13 +2695,20 @@ export const MobileStudioScreen = ({
             {platformApiOperationLabel ? `Running ${platformApiOperationLabel}. ${platformPublishingStatus}` : platformPublishingStatus}
           </Text>
 
-          <Label text="Quality" />
+          <Label text="Quality presets" />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.qualityRow}>
             {qualityProfiles.map((quality) => (
               <Pressable
                 key={quality.id}
                 hitSlop={8}
-                style={[styles.qualityChip, quality.id === profile.quality.id && styles.qualityChipActive]}
+                accessibilityRole="button"
+                accessibilityLabel={`${quality.name}, ${quality.width} by ${quality.height}, ${quality.fps} frames per second, ${quality.videoBitrateKbps} kilobits per second`}
+                accessibilityState={{ selected: quality.id === profile.quality.id, disabled: setupLocked }}
+                style={[
+                  styles.qualityChip,
+                  quality.id === profile.quality.id && styles.qualityChipActive,
+                  setupLocked && styles.disabledButton
+                ]}
                 disabled={setupLocked}
                 onPress={() => onProfileChange({ ...profile, quality })}
               >
@@ -2692,9 +2716,106 @@ export const MobileStudioScreen = ({
                 <Text style={styles.qualityMeta}>
                   {quality.width}x{quality.height} / {quality.fps}fps
                 </Text>
+                <Text style={styles.qualityMeta}>
+                  Video {quality.videoBitrateKbps} / Audio {quality.audioBitrateKbps} kbps
+                </Text>
               </Pressable>
             ))}
           </ScrollView>
+
+          <View style={styles.qualityEditor} accessibilityLabel="custom stream quality settings">
+            <View style={styles.qualityEditorHeader}>
+              <Text style={styles.qualityEditorTitle}>Custom quality</Text>
+              <Text style={[styles.qualityModeBadge, customQualityActive && styles.qualityModeBadgeActive]}>
+                {customQualityActive ? "CUSTOM" : "PRESET"}
+              </Text>
+            </View>
+
+            <Label text="Resolution" />
+            <View style={styles.qualityOptionRow} accessibilityRole="radiogroup">
+              {qualityResolutionOptions.map((resolution) => {
+                const selected = resolution.width === profile.quality.width && resolution.height === profile.quality.height;
+                return (
+                  <Pressable
+                    key={resolution.id}
+                    accessibilityRole="radio"
+                    accessibilityLabel={`${resolution.label} resolution`}
+                    accessibilityState={{ selected, disabled: setupLocked }}
+                    disabled={setupLocked}
+                    style={[
+                      styles.qualityOption,
+                      selected && styles.qualityOptionActive,
+                      setupLocked && styles.disabledButton
+                    ]}
+                    onPress={() => updateQuality({ width: resolution.width, height: resolution.height })}
+                  >
+                    <Text style={[styles.qualityOptionText, selected && styles.qualityOptionTextActive]}>{resolution.label}</Text>
+                    <Text style={styles.qualityOptionMeta}>
+                      {resolution.width}x{resolution.height}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Label text="Frame rate" />
+            <View style={styles.qualityOptionRow} accessibilityRole="radiogroup">
+              {([30, 60] as const).map((fps) => {
+                const selected = profile.quality.fps === fps;
+                return (
+                  <Pressable
+                    key={fps}
+                    accessibilityRole="radio"
+                    accessibilityLabel={`${fps} frames per second`}
+                    accessibilityState={{ selected, disabled: setupLocked }}
+                    disabled={setupLocked}
+                    style={[
+                      styles.qualityOption,
+                      selected && styles.qualityOptionActive,
+                      setupLocked && styles.disabledButton
+                    ]}
+                    onPress={() => updateQuality({ fps })}
+                  >
+                    <Text style={[styles.qualityOptionText, selected && styles.qualityOptionTextActive]}>{fps} fps</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <NumberStepper
+              label="Video bitrate (kbps)"
+              value={profile.quality.videoBitrateKbps}
+              min={qualitySettingsLimits.videoBitrateKbps.min}
+              max={qualitySettingsLimits.videoBitrateKbps.max}
+              step={qualitySettingsLimits.videoBitrateKbps.step}
+              disabled={setupLocked}
+              onChange={(videoBitrateKbps) => updateQuality({ videoBitrateKbps })}
+            />
+            <NumberStepper
+              label="Audio bitrate (kbps)"
+              value={profile.quality.audioBitrateKbps}
+              min={qualitySettingsLimits.audioBitrateKbps.min}
+              max={qualitySettingsLimits.audioBitrateKbps.max}
+              step={qualitySettingsLimits.audioBitrateKbps.step}
+              disabled={setupLocked}
+              onChange={(audioBitrateKbps) => updateQuality({ audioBitrateKbps })}
+            />
+
+            <View style={styles.qualitySummaryRow}>
+              <View style={styles.qualitySummaryMetric}>
+                <Text style={styles.qualitySummaryLabel}>OUTPUT</Text>
+                <Text style={styles.qualitySummaryValue}>
+                  {profile.quality.width}x{profile.quality.height}@{profile.quality.fps}
+                </Text>
+              </View>
+              <View style={styles.qualitySummaryMetric}>
+                <Text style={styles.qualitySummaryLabel}>UPLOAD TARGET</Text>
+                <Text style={styles.qualitySummaryValue}>
+                  {Math.round((profile.quality.videoBitrateKbps + profile.quality.audioBitrateKbps) * 1.25)} kbps
+                </Text>
+              </View>
+            </View>
+          </View>
 
           <ReadinessPanel readiness={readiness} />
         </Panel>
@@ -4254,6 +4375,9 @@ const ActionButton = ({
 }) => (
   <Pressable
     hitSlop={8}
+    accessibilityRole="button"
+    accessibilityLabel={label}
+    accessibilityState={{ disabled: Boolean(disabled) }}
     disabled={disabled}
     style={[
       styles.actionButton,
@@ -4269,8 +4393,26 @@ const ActionButton = ({
   </Pressable>
 );
 
-const IconButton = ({ label, disabled, onPress }: { label: string; disabled?: boolean; onPress(): void }) => (
-  <Pressable hitSlop={8} disabled={disabled} style={[styles.iconButton, disabled && styles.disabledButton]} onPress={onPress}>
+const IconButton = ({
+  label,
+  accessibilityLabel = label,
+  disabled,
+  onPress
+}: {
+  label: string;
+  accessibilityLabel?: string;
+  disabled?: boolean;
+  onPress(): void;
+}) => (
+  <Pressable
+    hitSlop={8}
+    accessibilityRole="button"
+    accessibilityLabel={accessibilityLabel}
+    accessibilityState={{ disabled: Boolean(disabled) }}
+    disabled={disabled}
+    style={[styles.iconButton, disabled && styles.disabledButton]}
+    onPress={onPress}
+  >
     <Text style={styles.iconButtonText}>{label}</Text>
   </Pressable>
 );
@@ -4342,11 +4484,11 @@ const NumberStepper = ({
         <Text style={styles.stepperValue}>{Number.isInteger(value) ? value : value.toFixed(2)}</Text>
       </View>
       <View style={styles.stepperControls}>
-        <IconButton label="-" disabled={disabled} onPress={() => set(-step)} />
+        <IconButton label="-" accessibilityLabel={`Decrease ${label}`} disabled={disabled} onPress={() => set(-step)} />
         <View style={styles.stepperTrack}>
           <View style={[styles.stepperFill, { width: `${Math.round(((value - min) / (max - min)) * 100)}%` }]} />
         </View>
-        <IconButton label="+" disabled={disabled} onPress={() => set(step)} />
+        <IconButton label="+" accessibilityLabel={`Increase ${label}`} disabled={disabled} onPress={() => set(step)} />
       </View>
     </View>
   );
@@ -6294,7 +6436,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#20202a"
   },
   qualityChipActive: {
-    borderColor: "#2dd4bf"
+    borderColor: "#2dd4bf",
+    backgroundColor: "#0f2927"
   },
   qualityText: {
     color: "#f8fafc",
@@ -6304,5 +6447,101 @@ const styles = StyleSheet.create({
     marginTop: 4,
     color: "#a1a1aa",
     fontSize: 12
+  },
+  qualityEditor: {
+    gap: 8,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: "#343442",
+    paddingTop: 12
+  },
+  qualityEditorHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8
+  },
+  qualityEditorTitle: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  qualityModeBadge: {
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    color: "#a1a1aa",
+    backgroundColor: "#18181f",
+    fontSize: 10,
+    fontWeight: "900"
+  },
+  qualityModeBadgeActive: {
+    borderColor: "#2dd4bf",
+    color: "#99f6e4",
+    backgroundColor: "#0f2927"
+  },
+  qualityOptionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  qualityOption: {
+    minWidth: 92,
+    minHeight: 46,
+    flexGrow: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#343442",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: "#18181f"
+  },
+  qualityOptionActive: {
+    borderColor: "#2dd4bf",
+    backgroundColor: "#0f2927"
+  },
+  qualityOptionText: {
+    color: "#d4d4d8",
+    fontSize: 12,
+    fontWeight: "900",
+    textAlign: "center"
+  },
+  qualityOptionTextActive: {
+    color: "#ccfbf1"
+  },
+  qualityOptionMeta: {
+    marginTop: 2,
+    color: "#71717a",
+    fontSize: 10,
+    fontWeight: "700"
+  },
+  qualitySummaryRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  qualitySummaryMetric: {
+    minWidth: 140,
+    minHeight: 48,
+    flex: 1,
+    justifyContent: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#343442",
+    paddingTop: 7
+  },
+  qualitySummaryLabel: {
+    color: "#71717a",
+    fontSize: 9,
+    fontWeight: "900"
+  },
+  qualitySummaryValue: {
+    marginTop: 2,
+    color: "#f8fafc",
+    fontSize: 12,
+    fontWeight: "900"
   }
 });

@@ -38,4 +38,14 @@ describe("MobileStudioScreen subtitle and text controls", () => {
     expect(source).toContain("streamAnnouncementPreview.truncated");
     expect(source).toContain("announcement shortened to Discord limit");
   });
+
+  it("exposes preset and custom stream quality controls with accessible selection state", () => {
+    expect(source).toContain('text="Quality presets"');
+    expect(source).toContain("qualityResolutionOptions.map");
+    expect(source).toContain('label="Video bitrate (kbps)"');
+    expect(source).toContain('label="Audio bitrate (kbps)"');
+    expect(source).toContain("applyCustomQualitySettings(profile, update)");
+    expect(source).toContain('accessibilityRole="radio"');
+    expect(source).toContain("accessibilityState={{ selected, disabled: setupLocked }}");
+  });
 });
