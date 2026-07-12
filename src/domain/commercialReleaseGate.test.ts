@@ -183,6 +183,73 @@ describe("commercial release gate", () => {
     expect(gate.issues.map((issue) => issue.code)).not.toContain("public-launch-confirmation-evidence");
   });
 
+  it("blocks support bundles with failed completed stream-session evidence", () => {
+    const bundle = supportBundle() as SupportBundle & { diagnostics: SupportBundle["diagnostics"] };
+    bundle.diagnostics = {
+      session: sessionDiagnostics({
+        historySummary: {
+          stability: "unstable",
+          failureCount: 1,
+          totalFailureEvents: 2
+        },
+        lastSummary: {
+          outcome: "fail",
+          failureCount: 1,
+          recoveryEventCount: 0,
+          operationFailureCount: 1,
+          platformApiFailureCount: 0,
+          qualityUpdateFailureCount: 0,
+          chatReconnectFailureCount: 0,
+          chatSpeechFailureCount: 0
+        }
+      })
+    } as SupportBundle["diagnostics"];
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "stream-session-recovery-evidence-failed",
+        label: "Stream session recovery evidence"
+      })
+    );
+  });
+
+  it("blocks support bundles with recovery events before commercial release", () => {
+    const bundle = supportBundle() as SupportBundle & { diagnostics: SupportBundle["diagnostics"] };
+    bundle.diagnostics = {
+      session: sessionDiagnostics({
+        historySummary: {
+          stability: "watch",
+          totalRecoveryEvents: 1
+        },
+        lastSummary: {
+          outcome: "warn",
+          failureCount: 0,
+          recoveryEventCount: 1,
+          operationFailureCount: 0,
+          platformApiFailureCount: 0,
+          qualityUpdateFailureCount: 0,
+          chatReconnectFailureCount: 0,
+          chatSpeechFailureCount: 0
+        }
+      })
+    } as SupportBundle["diagnostics"];
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "stream-session-recovery-events-present",
+        detail: "Recent stream session evidence includes 1 recovery event(s); latest session includes 1."
+      })
+    );
+  });
+
   it("blocks v54 support bundles because native caption overlay proof requires v55", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -3396,6 +3463,75 @@ const supportBundle = ({
       fingerprint: "scene1-ready"
     }
   }) as SupportBundle;
+
+const sessionDiagnostics = ({
+  historySummary = {},
+  lastSummary = null
+}: {
+  historySummary?: Partial<SupportBundle["diagnostics"]["session"]["historySummary"]>;
+  lastSummary?: Partial<NonNullable<SupportBundle["diagnostics"]["session"]["lastSummary"]>> | null;
+} = {}): SupportBundle["diagnostics"]["session"] =>
+  ({
+    events: [],
+    summaries: [],
+    historySummary: {
+      totalSessions: 1,
+      cleanCount: 1,
+      warningCount: 0,
+      failureCount: 0,
+      cleanRate: 100,
+      averageDurationSeconds: 300,
+      totalWarningEvents: 0,
+      totalFailureEvents: 0,
+      totalRecoveryEvents: 0,
+      totalPlatformApiEvents: 0,
+      totalPlatformApiFailures: 0,
+      totalQualityEvents: 0,
+      totalQualityLiveUpdates: 0,
+      totalQualityNextTargets: 0,
+      totalQualityUpdateFailures: 0,
+      totalChatEvents: 0,
+      totalChatReconnectEvents: 0,
+      totalChatReconnectFailures: 0,
+      totalChatSpeechStarted: 0,
+      totalChatSpeechSpoken: 0,
+      totalChatSpeechFailures: 0,
+      stability: "watch",
+      summary: "Recent stream history needs watch: 100% clean across 1 sessions.",
+      recommendation: "Capture at least three clean sessions before treating this setup as a baseline.",
+      ...historySummary
+    },
+    lastSummary: lastSummary
+      ? ({
+          id: "session-1",
+          startedAt: "2026-06-23T11:00:00.000Z",
+          endedAt: "2026-06-23T11:05:00.000Z",
+          endReason: "stopped",
+          outcome: "clean",
+          durationSeconds: 300,
+          eventCount: 0,
+          warningCount: 0,
+          failureCount: 0,
+          recoveryEventCount: 0,
+          operationFailureCount: 0,
+          platformApiEventCount: 0,
+          platformApiFailureCount: 0,
+          qualityEventCount: 0,
+          qualityLiveUpdateCount: 0,
+          qualityNextTargetCount: 0,
+          qualityUpdateFailureCount: 0,
+          chatEventCount: 0,
+          chatReconnectEventCount: 0,
+          chatReconnectFailureCount: 0,
+          chatSpeechStartedCount: 0,
+          chatSpeechSpokenCount: 0,
+          chatSpeechFailureCount: 0,
+          summary: "Clean session.",
+          recommendation: "Keep this profile as a known-good baseline.",
+          ...lastSummary
+        } as NonNullable<SupportBundle["diagnostics"]["session"]["lastSummary"]>)
+      : null
+  }) as SupportBundle["diagnostics"]["session"];
 
 type ValidationManifestRun = SupportBundle["summary"]["validationEvidenceRunManifest"][number];
 

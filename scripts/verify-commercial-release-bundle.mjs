@@ -160,6 +160,7 @@ export function createCommercialReleaseGate(bundle, { now, maxBundleAgeHours = d
     androidPublisherModeIssue(bundle),
     publicLaunchIssue(bundle),
     publicLaunchConfirmationEvidenceIssue(bundle),
+    streamSessionRecoveryEvidenceIssue(bundle),
     sceneFingerprintIssue(bundle),
     nativeCaptionOverlaySummaryIssue(bundle),
     textOverlayEvidenceIssue(bundle),
@@ -320,6 +321,56 @@ function nativeCaptionOverlaySummaryIssue(bundle) {
     "The support bundle is missing native caption overlay count summary evidence.",
     "Export a support bundle v55 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
   );
+}
+
+function streamSessionRecoveryEvidenceIssue(bundle) {
+  const session = bundle?.diagnostics?.session;
+  if (!session) {
+    return null;
+  }
+
+  const history = session.historySummary ?? {};
+  const lastSummary = session.lastSummary ?? null;
+  const totalFailureEvents = number(history.totalFailureEvents);
+  const totalRecoveryEvents = number(history.totalRecoveryEvents);
+  const lastFailureEvents = number(lastSummary?.failureCount);
+  const lastRecoveryEvents = number(lastSummary?.recoveryEventCount);
+  const lastOperationFailures = number(lastSummary?.operationFailureCount);
+  const lastPlatformApiFailures = number(lastSummary?.platformApiFailureCount);
+  const lastQualityUpdateFailures = number(lastSummary?.qualityUpdateFailureCount);
+  const lastChatReconnectFailures = number(lastSummary?.chatReconnectFailureCount);
+  const lastChatSpeechFailures = number(lastSummary?.chatSpeechFailureCount);
+
+  if (
+    history.stability === "unstable" ||
+    number(history.failureCount) > 0 ||
+    totalFailureEvents > 0 ||
+    lastSummary?.outcome === "fail" ||
+    lastFailureEvents > 0 ||
+    lastOperationFailures > 0 ||
+    lastPlatformApiFailures > 0 ||
+    lastQualityUpdateFailures > 0 ||
+    lastChatReconnectFailures > 0 ||
+    lastChatSpeechFailures > 0
+  ) {
+    return fail(
+      "stream-session-recovery-evidence-failed",
+      "Stream session recovery evidence",
+      `Recent stream session evidence is not clean: history ${text(history.stability) || "unknown"}, ${number(history.failureCount)} failed session(s), ${totalFailureEvents} failure event(s), last outcome ${text(lastSummary?.outcome) || "-"}.`,
+      "Repeat private RTMP(S) validation until the latest completed session has no failed operations, chat readout failures, quality-update failures, or failed recovery evidence."
+    );
+  }
+
+  if (totalRecoveryEvents > 0 || lastRecoveryEvents > 0) {
+    return fail(
+      "stream-session-recovery-events-present",
+      "Stream session recovery evidence",
+      `Recent stream session evidence includes ${totalRecoveryEvents} recovery event(s); latest session includes ${lastRecoveryEvents}.`,
+      "Repeat a clean private stream without automatic recovery before approving the build for platform-visible release."
+    );
+  }
+
+  return null;
 }
 
 function preflightIssue(bundle) {

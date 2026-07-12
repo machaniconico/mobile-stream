@@ -67,6 +67,7 @@ export const createCommercialReleaseGate = (
     createAndroidPublisherModeIssue(bundle),
     createPublicLaunchIssue(bundle),
     createPublicLaunchConfirmationEvidenceIssue(bundle),
+    createStreamSessionRecoveryEvidenceIssue(bundle),
     createSceneFingerprintIssue(bundle),
     createNativeCaptionOverlaySummaryIssue(bundle),
     createTextOverlayEvidenceIssue(bundle),
@@ -334,6 +335,56 @@ const createNativeCaptionOverlaySummaryIssue = (bundle: SupportBundle): Commerci
     "The support bundle is missing native caption overlay count summary evidence.",
     "Export a support bundle v55 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
   );
+};
+
+const createStreamSessionRecoveryEvidenceIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+  const session = bundle.diagnostics?.session;
+  if (!session) {
+    return null;
+  }
+
+  const history = session.historySummary;
+  const lastSummary = session.lastSummary;
+  const totalFailureEvents = history?.totalFailureEvents ?? 0;
+  const totalRecoveryEvents = history?.totalRecoveryEvents ?? 0;
+  const lastFailureEvents = lastSummary?.failureCount ?? 0;
+  const lastRecoveryEvents = lastSummary?.recoveryEventCount ?? 0;
+  const lastOperationFailures = lastSummary?.operationFailureCount ?? 0;
+  const lastPlatformApiFailures = lastSummary?.platformApiFailureCount ?? 0;
+  const lastQualityUpdateFailures = lastSummary?.qualityUpdateFailureCount ?? 0;
+  const lastChatReconnectFailures = lastSummary?.chatReconnectFailureCount ?? 0;
+  const lastChatSpeechFailures = lastSummary?.chatSpeechFailureCount ?? 0;
+
+  if (
+    history?.stability === "unstable" ||
+    (history?.failureCount ?? 0) > 0 ||
+    totalFailureEvents > 0 ||
+    lastSummary?.outcome === "fail" ||
+    lastFailureEvents > 0 ||
+    lastOperationFailures > 0 ||
+    lastPlatformApiFailures > 0 ||
+    lastQualityUpdateFailures > 0 ||
+    lastChatReconnectFailures > 0 ||
+    lastChatSpeechFailures > 0
+  ) {
+    return failIssue(
+      "stream-session-recovery-evidence-failed",
+      "Stream session recovery evidence",
+      `Recent stream session evidence is not clean: history ${history?.stability ?? "unknown"}, ${history?.failureCount ?? 0} failed session(s), ${totalFailureEvents} failure event(s), last outcome ${lastSummary?.outcome ?? "-"}.`,
+      "Repeat private RTMP(S) validation until the latest completed session has no failed operations, chat readout failures, quality-update failures, or failed recovery evidence."
+    );
+  }
+
+  if (totalRecoveryEvents > 0 || lastRecoveryEvents > 0) {
+    return failIssue(
+      "stream-session-recovery-events-present",
+      "Stream session recovery evidence",
+      `Recent stream session evidence includes ${totalRecoveryEvents} recovery event(s); latest session includes ${lastRecoveryEvents}.`,
+      "Repeat a clean private stream without automatic recovery before approving the build for platform-visible release."
+    );
+  }
+
+  return null;
 };
 
 const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {

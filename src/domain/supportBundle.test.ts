@@ -446,6 +446,8 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("Last confirmation evidence: YouTube Public launch confirmation was cancelled");
     expect(formatSupportBundle(bundle)).not.toContain(streamKey);
     expect(formatSupportBundle(bundle)).toContain("Clean rate: 0%");
+    expect(formatSupportBundle(bundle)).toContain("Session incidents:");
+    expect(formatSupportBundle(bundle)).toContain("Last incidents:");
     expect(formatSupportBundle(bundle)).toContain("Platform API history: 1 events / 0 failed");
     expect(formatSupportBundle(bundle)).toContain("Last platform API: 1 events / 0 failed");
     expect(formatSupportBundle(bundle)).toContain("Chat readout history: 1 events / 1 reconnects / 0 exhausted");

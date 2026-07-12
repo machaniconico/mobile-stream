@@ -348,6 +348,10 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "textOverlayRenderVisibleSourceCount");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks contradictory passing text overlay evidence without program-output proof");
     expectIncludes(files.commercialReleaseGateDomain, "chat-overlay-evidence-failed");
+    expectIncludes(files.commercialReleaseGateDomain, "createStreamSessionRecoveryEvidenceIssue");
+    expectIncludes(files.commercialReleaseGateDomain, "stream-session-recovery-evidence-failed");
+    expectIncludes(files.commercialReleaseGateDomain, "stream-session-recovery-events-present");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks support bundles with failed completed stream-session evidence");
     expectIncludes(files.commercialReleaseGateDomain, "liveCaptionFinalCueCount");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks contradictory passing live-caption evidence without final cue proof");
     expectIncludes(files.commercialReleaseGateDomain, "platformPublishingFreshnessAgeMinutes");
@@ -374,6 +378,9 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScript, "textOverlayExpiredTimedManualSourceCount");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-scene-fingerprint");
     expectIncludes(files.commercialReleaseBundleScript, "native-caption-overlay-summary-missing");
+    expectIncludes(files.commercialReleaseBundleScript, "streamSessionRecoveryEvidenceIssue(bundle)");
+    expectIncludes(files.commercialReleaseBundleScript, "stream-session-recovery-evidence-failed");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks support bundles with recovery events before commercial release");
     expectIncludes(files.commercialReleaseBundleScript, "android-publisher-mode-not-commercial");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "hasAndroidMediaCodecCompositorProof(run)");
