@@ -315,15 +315,26 @@ const hasPublicLaunchConfirmationTargetEvidence = (message: string, expectedTarg
   if (!expectedTarget) {
     return true;
   }
-  return normalizeTargetPlatformLabel(target) === expectedTarget;
+  const normalizedTarget = normalizeTargetPlatformLabel(target);
+  if (expectedTarget === "twitch") {
+    return normalizedTarget === "twitch" || normalizedTarget.startsWith("twitch ");
+  }
+  return normalizedTarget === expectedTarget;
 };
 
 const hasPublicLaunchConfirmationSafetyEvidence = (message: string, expectedTargetPlatform: string | null): boolean => {
   const expectedTarget = normalizeTargetPlatformLabel(expectedTargetPlatform);
+  const normalizedMessage = normalizeStatusLabel(message);
+  if (expectedTarget === "twitch") {
+    return (
+      /\bcategory\s+(?!id selected\b)(?!unknown category\b)\S+/.test(normalizedMessage) &&
+      normalizedMessage.includes("category id selected") &&
+      /\bchannel status\s+(?!unknown\b)\S+/.test(normalizedMessage)
+    );
+  }
   if (!expectedTarget.includes("youtube")) {
     return true;
   }
-  const normalizedMessage = normalizeStatusLabel(message);
   return (
     normalizedMessage.includes("app privacy public") &&
     normalizedMessage.includes("dashboard privacy public") &&

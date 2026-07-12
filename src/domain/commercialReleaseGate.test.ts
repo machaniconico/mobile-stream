@@ -174,6 +174,60 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks Twitch public launch confirmation events without channel safety audit fragments", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        destination: {
+          platform: "twitch",
+          protocol: "rtmps"
+        },
+        summary: {
+          publicLaunchConfirmationEventCount: 1,
+          publicLaunchLastConfirmationStatus: "confirmed",
+          publicLaunchLastConfirmationAt: "2026-06-23T11:29:30.000Z",
+          publicLaunchLastConfirmationMessage:
+            "Twitch launch confirmation was accepted by the operator. Target: Twitch Auto. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready.",
+          platformPublishingFreshnessSummary: "Twitch dashboard status was checked 1 minutes ago.",
+          validationEvidenceRunManifest: [twitchManifestRun("ios", "svr1-ios"), twitchManifestRun("android", "svr1-android")]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "public-launch-confirmation-evidence"
+      })
+    );
+  });
+
+  it("accepts Twitch confirmation evidence with retained category and channel audit fragments", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        destination: {
+          platform: "twitch",
+          protocol: "rtmps"
+        },
+        summary: {
+          publicLaunchConfirmationEventCount: 1,
+          publicLaunchLastConfirmationStatus: "confirmed",
+          publicLaunchLastConfirmationAt: "2026-06-23T11:29:30.000Z",
+          publicLaunchLastConfirmationMessage:
+            "Twitch launch confirmation was accepted by the operator. Target: Twitch Auto, category Just Chatting, category ID selected, channel status offline. Checklist: 9 pass / 0 warn / 0 fail, Public launch checklist is ready.",
+          platformPublishingFreshnessSummary: "Twitch dashboard status was checked 1 minutes ago.",
+          validationEvidenceRunManifest: [twitchManifestRun("ios", "svr1-ios"), twitchManifestRun("android", "svr1-android")]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("ready");
+    expect(gate.canRelease).toBe(true);
+    expect(gate.issues.map((issue) => issue.code)).not.toContain("public-launch-confirmation-evidence");
+  });
+
   it("blocks public launch confirmation events recorded after the support bundle was generated", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -3781,6 +3835,27 @@ const manifestRunWithoutFaceLandmarkProof = (
   } = manifestRun(patch);
   return run as ValidationManifestRun;
 };
+
+const twitchManifestRun = (
+  devicePlatform: ValidationManifestRun["devicePlatform"],
+  fingerprint: string,
+  patch: Partial<Parameters<typeof manifestRun>[0]> = {}
+): ValidationManifestRun =>
+  manifestRun({
+    devicePlatform,
+    fingerprint,
+    targetPlatform: "Twitch",
+    platformPublishingPlatform: "twitch",
+    platformPublishingTwitchLiveStatus: "live",
+    platformPublishingTwitchStartedAt: "2026-06-23T10:58:00.000Z",
+    platformPublishingTwitchHasCategoryId: true,
+    platformPublishingTwitchChannelTitle: "Release rehearsal",
+    platformPublishingTwitchChannelCategory: "Just Chatting",
+    platformPublishingTwitchChannelCategoryId: "509658",
+    platformPublishingTwitchChannelLanguage: "ja",
+    platformPublishingTwitchViewerCount: 1,
+    ...patch
+  });
 
 const manifestRun = ({
   devicePlatform,

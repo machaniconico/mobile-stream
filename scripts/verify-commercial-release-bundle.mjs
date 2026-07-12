@@ -507,15 +507,26 @@ function hasPublicLaunchConfirmationTargetEvidence(message, expectedTargetPlatfo
   if (!expectedTarget) {
     return true;
   }
-  return normalizeTargetPlatformLabel(target) === expectedTarget;
+  const normalizedTarget = normalizeTargetPlatformLabel(target);
+  if (expectedTarget === "twitch") {
+    return normalizedTarget === "twitch" || normalizedTarget.startsWith("twitch ");
+  }
+  return normalizedTarget === expectedTarget;
 }
 
 function hasPublicLaunchConfirmationSafetyEvidence(message, expectedTargetPlatform) {
   const expectedTarget = normalizeTargetPlatformLabel(expectedTargetPlatform);
+  const normalizedMessage = statusLabel(message);
+  if (expectedTarget === "twitch") {
+    return (
+      /\bcategory\s+(?!id selected\b)(?!unknown category\b)\S+/.test(normalizedMessage) &&
+      normalizedMessage.includes("category id selected") &&
+      /\bchannel status\s+(?!unknown\b)\S+/.test(normalizedMessage)
+    );
+  }
   if (!expectedTarget.includes("youtube")) {
     return true;
   }
-  const normalizedMessage = statusLabel(message);
   return (
     normalizedMessage.includes("app privacy public") &&
     normalizedMessage.includes("dashboard privacy public") &&
