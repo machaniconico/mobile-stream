@@ -166,7 +166,7 @@ export function createCommercialReleaseGate(bundle, { now, maxBundleAgeHours = d
     textOverlayEvidenceIssue(bundle),
     chatOverlayEvidenceIssue(bundle),
     liveCaptionEvidenceIssue(bundle),
-    platformPublishingFreshnessIssue(bundle),
+    platformPublishingFreshnessIssue(bundle, now),
     validationIssue(bundle),
     validationRunbookIssue(bundle),
     rehearsalIssue(bundle),
@@ -704,7 +704,7 @@ function liveCaptionEvidenceIssue(bundle) {
   return null;
 }
 
-function platformPublishingFreshnessIssue(bundle) {
+function platformPublishingFreshnessIssue(bundle, now) {
   const summary = bundle?.summary ?? {};
   const status = summary.platformPublishingFreshnessStatus;
   if (status === "fresh") {
@@ -712,7 +712,8 @@ function platformPublishingFreshnessIssue(bundle) {
       hasPlatformPublishingFreshnessTimestampProof(
         bundle?.generatedAt,
         summary.platformPublishingFreshnessCheckedAt,
-        summary.platformPublishingFreshnessAgeMinutes
+        summary.platformPublishingFreshnessAgeMinutes,
+        now
       )
     ) {
       return null;
@@ -750,10 +751,13 @@ function platformPublishingFreshnessIssue(bundle) {
   );
 }
 
-function hasPlatformPublishingFreshnessTimestampProof(generatedAt, checkedAt, ageMinutes) {
+function hasPlatformPublishingFreshnessTimestampProof(generatedAt, checkedAt, ageMinutes, now) {
   const generatedAtMs = Date.parse(String(generatedAt ?? ""));
   const checkedAtMs = Date.parse(String(checkedAt ?? ""));
   if (!Number.isFinite(generatedAtMs) || !Number.isFinite(checkedAtMs)) {
+    return false;
+  }
+  if (checkedAtMs > now.getTime()) {
     return false;
   }
   if (checkedAtMs - generatedAtMs > platformPublishingFreshnessFutureSkewToleranceMs) {

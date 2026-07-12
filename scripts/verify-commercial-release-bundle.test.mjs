@@ -1810,6 +1810,25 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Platform publishing freshness");
   });
 
+  it("blocks fresh platform publishing evidence checked after the verifier time", () => {
+    const generatedAt = new Date().toISOString();
+    writeBundle({
+      generatedAt,
+      summary: {
+        platformPublishingFreshnessStatus: "fresh",
+        platformPublishingFreshnessCheckedAt: new Date(Date.now() + 60_000).toISOString(),
+        platformPublishingFreshnessAgeMinutes: 0,
+        platformPublishingFreshnessSummary: "YouTube dashboard status was checked 0 minutes ago.",
+        platformPublishingFreshnessRecommendation: "Refresh YouTube status within 10 minutes of release approval."
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Platform publishing freshness");
+  });
+
   it("blocks first-party platform dashboard manifests marked not-applicable", () => {
     writeBundle({
       summary: {

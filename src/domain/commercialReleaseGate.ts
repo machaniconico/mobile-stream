@@ -73,7 +73,7 @@ export const createCommercialReleaseGate = (
     createTextOverlayEvidenceIssue(bundle),
     createChatOverlayEvidenceIssue(bundle),
     createLiveCaptionEvidenceIssue(bundle),
-    createPlatformPublishingFreshnessIssue(bundle),
+    createPlatformPublishingFreshnessIssue(bundle, now),
     createValidationIssue(bundle),
     createValidationRunbookIssue(bundle),
     createRehearsalIssue(bundle),
@@ -588,7 +588,7 @@ const createLiveCaptionEvidenceIssue = (bundle: SupportBundle): CommercialReleas
   return null;
 };
 
-const createPlatformPublishingFreshnessIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+const createPlatformPublishingFreshnessIssue = (bundle: SupportBundle, now: Date): CommercialReleaseGateIssue | null => {
   const status = bundle.summary.platformPublishingFreshnessStatus;
   if (status === "fresh") {
     const ageMinutes = bundle.summary.platformPublishingFreshnessAgeMinutes;
@@ -596,7 +596,8 @@ const createPlatformPublishingFreshnessIssue = (bundle: SupportBundle): Commerci
       hasPlatformPublishingFreshnessTimestampProof(
         bundle.generatedAt,
         bundle.summary.platformPublishingFreshnessCheckedAt,
-        ageMinutes
+        ageMinutes,
+        now
       )
     ) {
       return null;
@@ -639,11 +640,15 @@ const platformPublishingFreshnessFutureSkewToleranceMs = 2 * 60 * 1000;
 const hasPlatformPublishingFreshnessTimestampProof = (
   generatedAt: string,
   checkedAt: unknown,
-  ageMinutes: unknown
+  ageMinutes: unknown,
+  now: Date
 ): boolean => {
   const generatedAtMs = Date.parse(generatedAt);
   const checkedAtMs = Date.parse(String(checkedAt ?? ""));
   if (!Number.isFinite(generatedAtMs) || !Number.isFinite(checkedAtMs)) {
+    return false;
+  }
+  if (checkedAtMs > now.getTime()) {
     return false;
   }
   if (checkedAtMs - generatedAtMs > platformPublishingFreshnessFutureSkewToleranceMs) {

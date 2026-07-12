@@ -361,13 +361,17 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "hasPlatformPublishingFreshnessTimestampProof");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks contradictory fresh platform publishing evidence outside the release window");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks fresh platform publishing evidence without checked-at timestamp proof");
+    expectIncludes(files.commercialReleaseGateDomain, "checkedAtMs > now.getTime()");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks fresh platform publishing evidence checked after the verifier time");
     expectIncludes(files.commercialReleaseGateDomain, "isFirstPartyPublishingDestination");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks not-applicable platform publishing freshness for first-party destinations");
     expectIncludes(files.commercialReleaseGateDomain, "isFirstPartyManifestPublishingDestination");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks first-party platform dashboard manifest rows marked not-applicable");
-    expectIncludes(files.commercialReleaseBundleScript, "platformPublishingFreshnessIssue(bundle)");
+    expectIncludes(files.commercialReleaseBundleScript, "platformPublishingFreshnessIssue(bundle, now)");
     expectIncludes(files.commercialReleaseBundleScript, "hasPlatformPublishingFreshnessTimestampProof");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks fresh platform publishing evidence without checked-at timestamp proof");
+    expectIncludes(files.commercialReleaseBundleScript, "checkedAtMs > now.getTime()");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks fresh platform publishing evidence checked after the verifier time");
     expectIncludes(files.commercialReleaseGateDomain, "android-publisher-mode-not-commercial");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "isFirstPartyManifestPublishingDestination");

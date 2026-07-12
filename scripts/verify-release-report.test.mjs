@@ -333,6 +333,23 @@ describe("release report verifier", () => {
     expect(failures.join("\n")).toContain("Release report support bundle bundle-generated-at-future");
   });
 
+  it("rejects release reports whose support bundle freshness proof was checked after the report finished", () => {
+    const report = createReport();
+    const supportBundle = JSON.parse(readFileSync(report.supportBundle.path, "utf8"));
+    supportBundle.generatedAt = report.finishedAt;
+    supportBundle.summary.platformPublishingFreshnessCheckedAt = new Date(
+      Date.parse(report.finishedAt) + 60_000
+    ).toISOString();
+    supportBundle.summary.platformPublishingFreshnessAgeMinutes = 0;
+    writeFileSync(report.supportBundle.path, JSON.stringify(supportBundle, null, 2));
+    report.supportBundle.sha256 = fileSha256(report.supportBundle.path);
+
+    const failures = validateReport(report, reportOptions());
+
+    expect(failures.join("\n")).toContain("Release report support bundle commercial release gate must be ready, got blocked:");
+    expect(failures.join("\n")).toContain("Release report support bundle platform-publishing-freshness");
+  });
+
   it("rejects symlinked support bundles before reading linked targets", () => {
     const report = createReport();
     const supportBundlePath = ".artifacts/release-report-test/support-bundle.json";

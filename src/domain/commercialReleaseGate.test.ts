@@ -990,6 +990,31 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks fresh platform publishing evidence checked after the verifier time", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        generatedAt: "2026-06-23T12:00:00.000Z",
+        summary: {
+          platformPublishingFreshnessStatus: "fresh",
+          platformPublishingFreshnessCheckedAt: "2026-06-23T12:01:00.000Z",
+          platformPublishingFreshnessAgeMinutes: 0,
+          platformPublishingFreshnessSummary: "YouTube dashboard status was checked 0 minutes ago.",
+          platformPublishingFreshnessRecommendation: "Refresh YouTube status within 10 minutes of release approval."
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.canRelease).toBe(false);
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "platform-publishing-freshness",
+        label: "Platform publishing freshness"
+      })
+    );
+  });
+
   it("blocks not-applicable platform publishing freshness for first-party destinations", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
