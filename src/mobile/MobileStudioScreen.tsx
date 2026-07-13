@@ -561,6 +561,7 @@ export const MobileStudioScreen = ({
   } | null>(null);
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
   const isBusy = snapshot.state.status === "preparing" || snapshot.state.status === "stopping";
+  const canStop = isLive || snapshot.state.status === "failed";
   const operationBusy = operationStatus?.kind === "pending";
   const platformApiBusy = Boolean(platformApiOperationLabel);
   const setupLocked = isLive || isBusy || operationBusy || platformApiBusy;
@@ -1210,7 +1211,7 @@ export const MobileStudioScreen = ({
 
         <View style={styles.transport}>
           <ActionButton label="Go Live" variant="primary" disabled={!canGoLive} onPress={onStart} />
-          <ActionButton label="Stop" variant="danger" disabled={operationBusy || isBusy || !isLive} onPress={onStop} />
+          <ActionButton label="Stop" variant="danger" disabled={operationBusy || isBusy || !canStop} onPress={onStop} />
           <ActionButton label="Shield" variant="danger" onPress={onPrivacyShieldActivate} />
           <ActionButton label="Reconnect" disabled={operationBusy || !isLive} onPress={onReconnect} />
           <ActionButton

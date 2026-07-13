@@ -44,8 +44,15 @@ describe("iOS broadcast credential handoff", () => {
     expect(bridge).toContain("saveConfigurationMetadata(");
   });
 
-  it("clears only the active generation on stop, expiry, failure, and completion", () => {
-    expect(bridge).toContain('reject("broadcast_credential_clear_failed"');
+  it("clears only the active generation after confirmed stop, expiry, failure, and completion", () => {
+    const stop = swiftFunctionBlock(bridge, "func stop(");
+    const confirmedStop = swiftFunctionBlock(bridge, "private func completeStopAcknowledgementLocked()");
+
+    expect(stop).toContain("saveControlAction(.stop, handoffID: handoffID)");
+    expect(stop).toContain("pendingStopHandoffID = handoffID");
+    expect(stop).not.toContain("clearBroadcastHandoffLocked()");
+    expect(confirmedStop).toContain("if broadcastHandoffID == handoffID");
+    expect(confirmedStop).toContain("try clearBroadcastHandoffLocked()");
     expect(bridge).toContain("scheduleCredentialCleanupLocked(");
     expect(broadcastHandler).toContain("expectedHandoffID: String");
     expect(broadcastHandler).toContain("expectedHandoffID != handoffID");

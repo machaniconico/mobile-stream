@@ -7,10 +7,10 @@ import UIKit
 private let liveCasterAppGroup = "group.com.mobilelivecaster.app"
 private let liveCasterBroadcastExtensionId = "com.mobilelivecaster.app.BroadcastUpload"
 private let broadcastConfigurationKey = "MobileLiveCaster.broadcastConfiguration.v1"
-private let broadcastControlKey = "MobileLiveCaster.broadcastControl.v1"
 private let broadcastRuntimeStateKey = "MobileLiveCaster.broadcastRuntimeState.v1"
 private let broadcastRuntimeStateStaleMillis: Double = 10_000
 private let broadcastCredentialLifetimeMillis: Double = 10 * 60 * 1000
+private let broadcastStopAcknowledgementTimeoutMillis: Double = 12_000
 
 enum LiveCasterStatus: String {
     case idle
@@ -69,6 +69,8 @@ enum LiveCasterNativeError: LocalizedError {
     case presentationUnavailable
     case broadcastButtonUnavailable
     case qualityDestinationChange
+    case broadcastStopPending
+    case broadcastAlreadyActive
 
     var errorDescription: String? {
         switch self {
@@ -88,6 +90,10 @@ enum LiveCasterNativeError: LocalizedError {
             return "Could not open the iOS broadcast picker"
         case .qualityDestinationChange:
             return "Quality update cannot change the stream destination"
+        case .broadcastStopPending:
+            return "Wait for the current iOS broadcast to finish stopping before starting again"
+        case .broadcastAlreadyActive:
+            return "Stop the current iOS broadcast before preparing another one"
         }
     }
 
@@ -109,6 +115,10 @@ enum LiveCasterNativeError: LocalizedError {
             return "broadcast_button_unavailable"
         case .qualityDestinationChange:
             return "quality_destination_change"
+        case .broadcastStopPending:
+            return "broadcast_stop_pending"
+        case .broadcastAlreadyActive:
+            return "broadcast_already_active"
         }
     }
 }
@@ -420,6 +430,11 @@ struct LiveCasterBroadcastMixerChannelConfiguration {
     }
 }
 
+private struct LiveCasterPersistedBroadcastHandoff {
+    let handoffID: String
+    let expiresAt: Double
+}
+
 final class LiveCasterSharedStore {
     private var defaults: UserDefaults? {
         UserDefaults(suiteName: liveCasterAppGroup)
@@ -496,6 +511,25 @@ final class LiveCasterSharedStore {
         defaults?.dictionary(forKey: broadcastRuntimeStateKey)
     }
 
+    fileprivate func loadPersistedBroadcastHandoff() -> LiveCasterPersistedBroadcastHandoff? {
+        guard
+            let payload = defaults?.dictionary(forKey: broadcastConfigurationKey),
+            (payload["schemaVersion"] as? NSNumber)?.intValue == 1,
+            payload["preferredExtension"] as? String == liveCasterBroadcastExtensionId,
+            let rawHandoffID = payload["handoffId"] as? String,
+            let handoffUUID = UUID(uuidString: rawHandoffID),
+            let expiresAt = (payload["expiresAt"] as? NSNumber)?.doubleValue,
+            expiresAt.isFinite,
+            expiresAt > 0
+        else {
+            return nil
+        }
+        return LiveCasterPersistedBroadcastHandoff(
+            handoffID: handoffUUID.uuidString.lowercased(),
+            expiresAt: expiresAt
+        )
+    }
+
     func clearRuntimeState() {
         guard let defaults else {
             return
@@ -504,18 +538,12 @@ final class LiveCasterSharedStore {
         defaults.synchronize()
     }
 
-    func saveControlAction(_ action: String) {
-        guard let defaults else {
-            return
-        }
-        defaults.set(
-            [
-                "action": action,
-                "requestedAt": Date().timeIntervalSince1970 * 1000
-            ],
-            forKey: broadcastControlKey
-        )
-        defaults.synchronize()
+    func saveControlAction(_ action: LiveCasterBroadcastControlAction, handoffID: String) throws {
+        try LiveCasterBroadcastControlStore.request(action, handoffID: handoffID)
+    }
+
+    func clearControlAction(handoffID: String? = nil) {
+        LiveCasterBroadcastControlStore.clear(handoffID: handoffID)
     }
 }
 
@@ -533,12 +561,16 @@ final class LiveCasterNative: RCTEventEmitter {
     private var broadcastHandoffID: String?
     private var broadcastHandoffExpiresAt: Double?
     private var credentialCleanupWorkItem: DispatchWorkItem?
+    private var stopAcknowledgementWorkItem: DispatchWorkItem?
+    private var pendingStopHandoffID: String?
+    private var stopAcknowledgementTimedOut = false
     private var lastRuntimeUpdatedAt: Double = 0
     private var nativeRuntime: [String: Any]?
 
     deinit {
         runtimePoller?.cancel()
         credentialCleanupWorkItem?.cancel()
+        stopAcknowledgementWorkItem?.cancel()
     }
 
     @objc
@@ -568,6 +600,7 @@ final class LiveCasterNative: RCTEventEmitter {
                 resolve(nil)
                 return
             }
+            _ = self.restorePersistedBroadcastStateLocked()
             _ = self.refreshRuntimeStateFromStoreLocked(allowStale: false, emitSnapshot: false)
             resolve(self.snapshotLocked())
         }
@@ -591,6 +624,17 @@ final class LiveCasterNative: RCTEventEmitter {
         stateQueue.async { [weak self] in
             guard let self else {
                 resolve(nil)
+                return
+            }
+            _ = self.restorePersistedBroadcastStateLocked()
+            guard self.pendingStopHandoffID == nil else {
+                let error = LiveCasterNativeError.broadcastStopPending
+                reject(error.code, error.localizedDescription, error)
+                return
+            }
+            guard !self.hasActiveBroadcastHandoffLocked() else {
+                let error = LiveCasterNativeError.broadcastAlreadyActive
+                reject(error.code, error.localizedDescription, error)
                 return
             }
             do {
@@ -632,6 +676,11 @@ final class LiveCasterNative: RCTEventEmitter {
         stateQueue.async { [weak self] in
             guard let self else {
                 resolve(nil)
+                return
+            }
+            guard self.pendingStopHandoffID == nil else {
+                let error = LiveCasterNativeError.broadcastStopPending
+                reject(error.code, error.localizedDescription, error)
                 return
             }
             guard let preparedConfiguration = self.preparedConfiguration else {
@@ -694,23 +743,33 @@ final class LiveCasterNative: RCTEventEmitter {
                 resolve(nil)
                 return
             }
-            self.sharedStore.saveControlAction("stop")
-            let cleanupResult = Result { try self.clearBroadcastHandoffLocked() }
-            self.stopRuntimePollingLocked()
-            self.status = .idle
-            self.startedAt = nil
-            self.lastRuntimeUpdatedAt = 0
-            self.nativeRuntime = nil
-            self.health = LiveCasterHealth(message: "Stop requested; end iOS system broadcast if it is still active")
+            _ = self.restorePersistedBroadcastStateLocked()
+            guard let handoffID = self.broadcastHandoffID else {
+                self.stopRuntimePollingLocked()
+                self.status = .idle
+                self.startedAt = nil
+                self.health = LiveCasterHealth(message: "Ready")
+                let snapshot = self.snapshotLocked()
+                self.emitSnapshot(snapshot)
+                resolve(snapshot)
+                return
+            }
+            do {
+                try self.sharedStore.saveControlAction(.stop, handoffID: handoffID)
+            } catch {
+                let message = self.redactSensitiveTextLocked(error.localizedDescription)
+                reject("broadcast_stop_request_failed", message, error)
+                return
+            }
+            self.pendingStopHandoffID = handoffID
+            self.stopAcknowledgementTimedOut = false
+            self.status = .stopping
+            self.health.message = "Stopping iOS broadcast and waiting for extension confirmation"
+            self.startRuntimePollingLocked()
+            self.scheduleStopAcknowledgementTimeoutLocked(handoffID: handoffID)
             let snapshot = self.snapshotLocked()
             self.emitSnapshot(snapshot)
-            switch cleanupResult {
-            case .success:
-                resolve(snapshot)
-            case .failure(let error):
-                let message = self.redactSensitiveTextLocked(error.localizedDescription)
-                reject("broadcast_credential_clear_failed", message, error)
-            }
+            resolve(snapshot)
         }
     }
 
@@ -722,6 +781,11 @@ final class LiveCasterNative: RCTEventEmitter {
         stateQueue.async { [weak self] in
             guard let self else {
                 resolve(nil)
+                return
+            }
+            guard self.pendingStopHandoffID == nil else {
+                let error = LiveCasterNativeError.broadcastStopPending
+                reject(error.code, error.localizedDescription, error)
                 return
             }
             guard let preparedConfiguration = self.preparedConfiguration else {
@@ -849,11 +913,77 @@ final class LiveCasterNative: RCTEventEmitter {
         }
     }
 
+    @discardableResult
+    private func restorePersistedBroadcastStateLocked() -> Bool {
+        if broadcastHandoffID != nil {
+            return true
+        }
+        guard let persistedHandoff = sharedStore.loadPersistedBroadcastHandoff() else {
+            return false
+        }
+
+        let runtimeState = sharedStore.loadRuntimeState()
+        let matchingRuntimeState = runtimeState.flatMap { state in
+            state.stringValue("handoffId") == persistedHandoff.handoffID ? state : nil
+        }
+        if let matchingRuntimeState {
+            let reportedStatus = LiveCasterStatus(
+                runtimeStatus: matchingRuntimeState.stringValue("status")
+            )
+            if reportedStatus == .idle || reportedStatus == .failed {
+                sharedStore.clearControlAction(handoffID: persistedHandoff.handoffID)
+                try? sharedStore.clearConfiguration(handoffID: persistedHandoff.handoffID)
+                status = reportedStatus ?? .idle
+                startedAt = nil
+                health.message = reportedStatus == .failed
+                    ? "Previous iOS broadcast extension ended with a failure"
+                    : "Ready"
+                return false
+            }
+        }
+
+        broadcastHandoffID = persistedHandoff.handoffID
+        broadcastHandoffExpiresAt = persistedHandoff.expiresAt
+        if let matchingRuntimeState, Self.isRuntimeStateFresh(matchingRuntimeState) {
+            applyRuntimeStateLocked(matchingRuntimeState)
+        } else {
+            status = .reconnecting
+            startedAt = nil
+            health.message = "Restored previous iOS broadcast; waiting for extension telemetry"
+            if let matchingRuntimeState {
+                nativeRuntime = Self.nativeRuntimeMap(
+                    matchingRuntimeState,
+                    status: status,
+                    stale: true,
+                    message: health.message,
+                    streamKey: "",
+                    publishURL: ""
+                )
+            }
+        }
+        startRuntimePollingLocked()
+        return true
+    }
+
+    private func hasActiveBroadcastHandoffLocked() -> Bool {
+        guard broadcastHandoffID != nil else {
+            return false
+        }
+        return status == .live ||
+            status == .preparing ||
+            status == .reconnecting ||
+            status == .stopping
+    }
+
     private func beginBroadcastHandoffLocked(
         _ configuration: LiveCasterPreparedConfiguration,
         renderGraphJSON: String
     ) throws {
+        guard pendingStopHandoffID == nil else {
+            throw LiveCasterNativeError.broadcastStopPending
+        }
         try sharedStore.cleanupExpiredCredentials()
+        sharedStore.clearControlAction()
         if broadcastHandoffID != nil {
             try clearBroadcastHandoffLocked()
         }
@@ -896,6 +1026,112 @@ final class LiveCasterNative: RCTEventEmitter {
             )
             throw error
         }
+    }
+
+    private func scheduleStopAcknowledgementTimeoutLocked(handoffID: String) {
+        stopAcknowledgementWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, self.pendingStopHandoffID == handoffID else {
+                return
+            }
+            _ = self.refreshRuntimeStateFromStoreLocked(allowStale: true, emitSnapshot: false)
+            guard self.pendingStopHandoffID == handoffID else {
+                self.emitSnapshot(self.snapshotLocked())
+                return
+            }
+            guard self.hasFreshActiveRuntimeLocked(handoffID: handoffID) else {
+                self.recoverUnresponsiveStopLocked(handoffID: handoffID)
+                self.emitSnapshot(self.snapshotLocked())
+                return
+            }
+            self.stopAcknowledgementTimedOut = true
+            self.status = .failed
+            self.health.message = "iOS broadcast stop was not confirmed. Retry Stop or use the iOS system broadcast control"
+            self.emitSnapshot(self.snapshotLocked())
+        }
+        stopAcknowledgementWorkItem = workItem
+        stateQueue.asyncAfter(
+            deadline: .now() + .milliseconds(Int(broadcastStopAcknowledgementTimeoutMillis)),
+            execute: workItem
+        )
+    }
+
+    private func hasFreshActiveRuntimeLocked(handoffID: String) -> Bool {
+        guard
+            let runtimeState = sharedStore.loadRuntimeState(),
+            runtimeState.stringValue("handoffId") == handoffID,
+            Self.isRuntimeStateFresh(runtimeState)
+        else {
+            return false
+        }
+        guard let runtimeStatus = LiveCasterStatus(runtimeStatus: runtimeState.stringValue("status")) else {
+            return true
+        }
+        return runtimeStatus != .idle && runtimeStatus != .failed
+    }
+
+    private func recoverUnresponsiveStopLocked(handoffID: String) {
+        pendingStopHandoffID = nil
+        stopAcknowledgementTimedOut = false
+        stopAcknowledgementWorkItem?.cancel()
+        stopAcknowledgementWorkItem = nil
+        sharedStore.clearControlAction(handoffID: handoffID)
+        var cleanupRequiresRetry = false
+        if broadcastHandoffID == handoffID {
+            do {
+                try clearBroadcastHandoffLocked()
+            } catch {
+                cleanupRequiresRetry = true
+            }
+        }
+        sharedStore.clearRuntimeState()
+        lastRuntimeUpdatedAt = 0
+        nativeRuntime = nil
+        status = .idle
+        startedAt = nil
+        stopRuntimePollingLocked()
+        health = LiveCasterHealth(
+            message: cleanupRequiresRetry
+                ? "Unresponsive iOS broadcast state cleared; credential cleanup will retry"
+                : "Unresponsive iOS broadcast state cleared; ready to start again"
+        )
+    }
+
+    private func completeStopAcknowledgementLocked() {
+        let handoffID = pendingStopHandoffID
+        pendingStopHandoffID = nil
+        stopAcknowledgementTimedOut = false
+        stopAcknowledgementWorkItem?.cancel()
+        stopAcknowledgementWorkItem = nil
+        sharedStore.clearControlAction(handoffID: handoffID)
+        if broadcastHandoffID == handoffID {
+            do {
+                try clearBroadcastHandoffLocked()
+            } catch {
+                health.message = "Broadcast stopped; credential cleanup will retry"
+            }
+        }
+        status = .idle
+        startedAt = nil
+        stopRuntimePollingLocked()
+        if !health.message.contains("cleanup") {
+            health.message = "iOS broadcast extension confirmed stop"
+        }
+    }
+
+    private func runtimePollingRequiredLocked() -> Bool {
+        pendingStopHandoffID != nil ||
+            status == .live ||
+            status == .preparing ||
+            status == .reconnecting ||
+            status == .stopping
+    }
+
+    private func stopConfirmationMessageLocked(waitingMessage: String) -> String {
+        if stopAcknowledgementTimedOut {
+            return "iOS broadcast stop was not confirmed. Retry Stop or use the iOS system broadcast control"
+        }
+        return pendingStopHandoffID == nil ? waitingMessage : "Waiting for iOS broadcast extension stop confirmation"
     }
 
     private func scheduleCredentialCleanupLocked(
@@ -1077,22 +1313,28 @@ final class LiveCasterNative: RCTEventEmitter {
 
     private func pollRuntimeStateLocked() {
         guard let runtimeState = sharedStore.loadRuntimeState() else {
-            if status == .live || status == .preparing || status == .reconnecting {
-                health.message = "Waiting for iOS broadcast extension telemetry"
+            if runtimePollingRequiredLocked() {
+                health.message = stopConfirmationMessageLocked(
+                    waitingMessage: "Waiting for iOS broadcast extension telemetry"
+                )
                 emitSnapshot(snapshotLocked())
             }
             return
         }
         guard runtimeStateMatchesCurrentHandoffLocked(runtimeState) else {
-            if status == .live || status == .preparing || status == .reconnecting {
-                health.message = "Waiting for current iOS broadcast handoff telemetry"
+            if runtimePollingRequiredLocked() {
+                health.message = stopConfirmationMessageLocked(
+                    waitingMessage: "Waiting for current iOS broadcast handoff telemetry"
+                )
                 emitSnapshot(snapshotLocked())
             }
             return
         }
 
-        if !Self.isRuntimeStateFresh(runtimeState), status == .live || status == .preparing || status == .reconnecting {
-            health.message = "iOS broadcast extension telemetry is stale"
+        if !Self.isRuntimeStateFresh(runtimeState), runtimePollingRequiredLocked() {
+            health.message = stopConfirmationMessageLocked(
+                waitingMessage: "iOS broadcast extension telemetry is stale"
+            )
             nativeRuntime = Self.nativeRuntimeMap(
                 runtimeState,
                 status: status,
@@ -1121,7 +1363,7 @@ final class LiveCasterNative: RCTEventEmitter {
         }
 
         applyRuntimeStateLocked(runtimeState)
-        if status == .live || status == .preparing || status == .reconnecting {
+        if runtimePollingRequiredLocked() {
             startRuntimePollingLocked()
         }
         if shouldEmitSnapshot {
@@ -1146,7 +1388,15 @@ final class LiveCasterNative: RCTEventEmitter {
 
         let runtimeStatus = runtimeState.stringValue("status", fallback: status.rawValue)
         let reportedStatus = LiveCasterStatus(runtimeStatus: runtimeStatus)
-        if !(status == .reconnecting && reportedStatus == .preparing) {
+        if pendingStopHandoffID != nil {
+            if reportedStatus == .idle {
+                status = .idle
+            } else if reportedStatus == .failed || stopAcknowledgementTimedOut {
+                status = .failed
+            } else {
+                status = .stopping
+            }
+        } else if !(status == .reconnecting && reportedStatus == .preparing) {
             status = reportedStatus ?? status
         }
         if status == .live, startedAt == nil {
@@ -1194,7 +1444,15 @@ final class LiveCasterNative: RCTEventEmitter {
             publishURL: preparedConfiguration?.publishURL ?? ""
         )
 
-        if status == .failed {
+        if pendingStopHandoffID != nil && status == .stopping {
+            health.message = "Stopping iOS broadcast and waiting for extension confirmation"
+        } else if pendingStopHandoffID != nil && stopAcknowledgementTimedOut {
+            health.message = "iOS broadcast stop was not confirmed. Stop it from the iOS system broadcast control before starting again"
+        }
+
+        if status == .idle, pendingStopHandoffID != nil {
+            completeStopAcknowledgementLocked()
+        } else if status == .failed, pendingStopHandoffID == nil {
             health.message = errorMessage.isEmpty ? health.message : errorMessage
             stopRuntimePollingLocked()
         } else if status == .idle {

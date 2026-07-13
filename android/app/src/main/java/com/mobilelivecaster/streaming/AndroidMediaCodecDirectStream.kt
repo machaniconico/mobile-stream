@@ -220,6 +220,14 @@ internal class AndroidMediaCodecDirectStream(
         }
     }
 
+    fun reconnectPublisher() {
+        val currentProfile = profile ?: throw IllegalStateException("Direct MediaCodec profile is unavailable")
+        check(running.get()) { "Direct MediaCodec stream is not running" }
+        check(publisherConfigured) { "Direct MediaCodec publisher is not configured" }
+        publisher.reconnect(currentProfile.endpoint)
+        requestKeyFrame()
+    }
+
     fun snapshot(): AndroidMediaCodecDirectStreamSnapshot {
         val publisherSnapshot = publisher.snapshot()
         val counters = synchronized(counterLock) {

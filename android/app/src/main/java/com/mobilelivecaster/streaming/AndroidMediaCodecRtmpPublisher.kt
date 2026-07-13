@@ -58,6 +58,11 @@ class AndroidMediaCodecRtmpPublisher(connectChecker: ConnectChecker) {
         runCatching { client.disconnect() }
     }
 
+    fun reconnect(endpoint: String) {
+        require(configured) { "Android MediaCodec RTMP publisher must be configured before reconnect" }
+        client.reConnect(0L, endpoint)
+    }
+
     fun sendVideo(buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
         if (!client.isStreaming || info.size <= 0 || info.isCodecConfigFrame()) return
         val frame = encodedFrame(buffer, info) ?: return

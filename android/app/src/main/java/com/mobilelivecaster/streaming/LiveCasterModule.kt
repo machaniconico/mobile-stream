@@ -582,6 +582,11 @@ data class LiveCasterProfile(
     val broadcastMixer: BroadcastMixerProfile
 )
 
+data class LiveCasterCaptureConsent(
+    val resultCode: Int,
+    val data: Intent
+)
+
 data class MicEffectsProfile(
     val enabled: Boolean = false,
     val presetId: String = "clean",
@@ -683,6 +688,18 @@ object LiveCasterSession {
         captureData = data
     }
 
+    fun consumeCaptureConsent(): LiveCasterCaptureConsent? {
+        val resultCode = captureResultCode ?: return null
+        val data = captureData ?: return null
+        clearCaptureConsent()
+        return LiveCasterCaptureConsent(resultCode, data)
+    }
+
+    fun clearCaptureConsent() {
+        captureResultCode = null
+        captureData = null
+    }
+
     fun markStarting() {
         setStatus(LiveCasterStatus.Preparing, "Starting Android screen encoder")
     }
@@ -721,8 +738,7 @@ object LiveCasterSession {
             ),
             message = health.message
         )
-        captureResultCode = null
-        captureData = null
+        clearCaptureConsent()
         emit()
     }
 

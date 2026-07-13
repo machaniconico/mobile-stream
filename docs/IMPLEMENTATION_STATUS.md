@@ -133,7 +133,8 @@
   - shared quality profiles and landscape 16:9 / portrait 9:16 custom 540p/720p/1080p, 30/60 fps, video/audio bitrate, and estimated upload-target controls with safe persisted-value normalization, YouTube/Twitch H.264/AAC recommendation matching, one-tap platform targets, and platform-limit readiness checks
   - native iOS/Android thermal, battery, charging/power-source, and low-power telemetry with live quality pressure incidents; serious heat arms a 30 fps target and live application is capability-gated by the active encoder, while critical heat or unplugged critical battery remains an explicit stop-first alert
   - one-second native encoder-path PCM telemetry windows for microphone RMS, peak, sample/clip counts, and independent audio freshness on iOS/Android, plus ReplayKit app-audio and final-mix telemetry on iOS; mobile silence diagnostics reject face-motion/manual evidence and current-window clipping is surfaced through the peak guard
-  - iOS Broadcast Picker start/reconnect remains preparing/reconnecting until the current handoff receives RTMP `NetStream.Publish.Start` and its current publish generation newly sends both video and audio; stale handoff telemetry, publish rejection, extension startup failure, and publisher retry exhaustion propagate safely instead of leaving the host falsely live
+- iOS Broadcast Picker start/reconnect remains preparing/reconnecting until the current handoff receives RTMP `NetStream.Publish.Start` and its current publish generation newly sends both video and audio; stale handoff telemetry, publish rejection, extension startup failure, and publisher retry exhaustion propagate safely instead of leaving the host falsely live
+- iOS host Stop uses an expiry-bound, UUID-scoped App Group control command consumed once by the matching Broadcast Upload Extension; it restores persisted active handoffs after a host relaunch, stays stopping until the extension drains/stops encoders and RTMP, and provides retry plus stale-state recovery after a fail-visible acknowledgement timeout
   - chat reader panel with test comments, platform adapter ingest, safety controls, speech settings, recent comment pin/unpin controls, stream-stop chat auto-disconnect/readout silence, and queued/recent/pinned comment privacy reset
   - Go Live, Stop, Reconnect mock controls
 - React Native mobile readiness panel, Go Live preflight banner, and invalid-profile blocking.
@@ -164,6 +165,7 @@
 - Android MediaProjection service skeleton.
 - Android `LiveCasterNative` React Native module registered in the host app.
 - Android MediaProjection consent flow from React Native.
+- Android 14+ MediaProjection lifecycle compliance: consent is consumed once, a generation-safe `MediaProjection.Callback` is registered before virtual-display creation, system/user revocation releases capture and requires fresh consent, and direct MediaCodec reconnects preserve capture while reconnecting only RTMP
 - Android foreground streaming service with `mediaProjection|microphone` service type.
 - Android RTMP/RTMPS publishing path through RootEncoder, using screen capture and microphone input.
 - Android first-party `MediaCodecList` / `MediaCodec.configure` probe for requested H.264 surface-input and AAC encoder settings, surfaced separately from the active RootEncoder publisher backend in native runtime, validation-run manifest, and support-bundle evidence.

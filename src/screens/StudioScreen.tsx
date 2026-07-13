@@ -627,6 +627,7 @@ export const StudioScreen = ({
   const selectedSource = scene.sources.find((source) => source.id === selectedSourceId) ?? scene.sources[0];
   const isLive = snapshot.state.status === "live" || snapshot.state.status === "reconnecting";
   const isBusy = snapshot.state.status === "preparing" || snapshot.state.status === "stopping";
+  const canStop = isLive || snapshot.state.status === "failed";
   const operationBusy = operationStatus?.kind === "pending";
   const platformApiBusy = Boolean(platformApiOperationLabel);
   const setupLocked = isLive || isBusy || operationBusy || platformApiBusy;
@@ -1137,7 +1138,7 @@ export const StudioScreen = ({
               <Play size={18} />
               <span>Go Live</span>
             </button>
-            <button className="danger-action" type="button" disabled={operationBusy || isBusy || !isLive} onClick={onStop}>
+            <button className="danger-action" type="button" disabled={operationBusy || isBusy || !canStop} onClick={onStop}>
               <Square size={18} />
               <span>Stop</span>
             </button>

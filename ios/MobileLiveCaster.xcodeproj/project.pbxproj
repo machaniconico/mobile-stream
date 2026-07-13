@@ -33,6 +33,8 @@
 		C10000000000000000000001 /* LiveCasterBroadcastCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000011 /* LiveCasterBroadcastCredentialStore.swift */; };
 		C10000000000000000000002 /* LiveCasterBroadcastCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000011 /* LiveCasterBroadcastCredentialStore.swift */; };
 		D10000000000000000000001 /* LiveCasterDiagnosticHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000011 /* LiveCasterDiagnosticHistoryStore.swift */; };
+		E10000000000000000000001 /* LiveCasterBroadcastControlStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000011 /* LiveCasterBroadcastControlStore.swift */; };
+		E10000000000000000000002 /* LiveCasterBroadcastControlStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000011 /* LiveCasterBroadcastControlStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -92,6 +94,7 @@
 		B10000000000000000000017 /* MobileLiveCasterBroadcastUpload.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MobileLiveCasterBroadcastUpload.entitlements; sourceTree = "<group>"; };
 		C10000000000000000000011 /* LiveCasterBroadcastCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LiveCasterBroadcastCredentialStore.swift; path = MobileLiveCaster/LiveCasterBroadcastCredentialStore.swift; sourceTree = "<group>"; };
 		D10000000000000000000011 /* LiveCasterDiagnosticHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LiveCasterDiagnosticHistoryStore.swift; path = MobileLiveCaster/LiveCasterDiagnosticHistoryStore.swift; sourceTree = "<group>"; };
+		E10000000000000000000011 /* LiveCasterBroadcastControlStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LiveCasterBroadcastControlStore.swift; path = MobileLiveCaster/LiveCasterBroadcastControlStore.swift; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -122,6 +125,7 @@
 				A10000000000000000000011 /* LiveCasterBridge.swift */,
 				C10000000000000000000011 /* LiveCasterBroadcastCredentialStore.swift */,
 				D10000000000000000000011 /* LiveCasterDiagnosticHistoryStore.swift */,
+				E10000000000000000000011 /* LiveCasterBroadcastControlStore.swift */,
 				A10000000000000000000012 /* LiveCasterSecureStore.swift */,
 				A10000000000000000000013 /* LiveCasterSecureStoreBridge.m */,
 				A10000000000000000000014 /* LiveCasterSpeech.swift */,
@@ -387,6 +391,7 @@
 				A10000000000000000000001 /* LiveCasterBridge.swift in Sources */,
 				C10000000000000000000001 /* LiveCasterBroadcastCredentialStore.swift in Sources */,
 				D10000000000000000000001 /* LiveCasterDiagnosticHistoryStore.swift in Sources */,
+				E10000000000000000000001 /* LiveCasterBroadcastControlStore.swift in Sources */,
 				A10000000000000000000002 /* LiveCasterSecureStore.swift in Sources */,
 				A10000000000000000000003 /* LiveCasterSecureStoreBridge.m in Sources */,
 				A10000000000000000000004 /* LiveCasterSpeech.swift in Sources */,
@@ -411,6 +416,7 @@
 				B40000000000000000000001 /* LiveVideoBitrateTracker.swift in Sources */,
 				B50000000000000000000001 /* NativeAdaptiveBitrateController.swift in Sources */,
 				C10000000000000000000002 /* LiveCasterBroadcastCredentialStore.swift in Sources */,
+				E10000000000000000000002 /* LiveCasterBroadcastControlStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

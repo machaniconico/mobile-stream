@@ -17,7 +17,9 @@ private let broadcastConfigurationKey = "MobileLiveCaster.broadcastConfiguration
 private let broadcastRuntimeStateKey = "MobileLiveCaster.broadcastRuntimeState.v1"
 
 final class SampleHandler: RPBroadcastSampleHandler {
-    private let pipeline = BroadcastUploadPipeline()
+    private lazy var pipeline = BroadcastUploadPipeline { [weak self] command in
+        self?.handleControlCommand(command)
+    }
     private let logger = Logger(subsystem: "MobileLiveCaster", category: "BroadcastUploadLifecycle")
     private var activeHandoffID: String?
 
@@ -56,6 +58,9 @@ final class SampleHandler: RPBroadcastSampleHandler {
         pipeline.stop()
         let handoffID = activeHandoffID
         activeHandoffID = nil
+        if let handoffID {
+            LiveCasterBroadcastControlStore.clear(handoffID: handoffID)
+        }
         clearCredential(handoffID: handoffID)
     }
 
@@ -80,6 +85,27 @@ final class SampleHandler: RPBroadcastSampleHandler {
             try BroadcastSharedStore.clearCredential(handoffID: handoffID)
         } catch {
             logger.error("Broadcast handoff cleanup failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func handleControlCommand(_ command: LiveCasterBroadcastControlCommand) {
+        guard command.action == .stop else {
+            return
+        }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.activeHandoffID == command.handoffID else {
+                return
+            }
+            self.pipeline.stop()
+            let handoffID = self.activeHandoffID
+            self.activeHandoffID = nil
+            self.clearCredential(handoffID: handoffID)
+            let error = NSError(
+                domain: "com.mobilelivecaster.broadcast-control",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Broadcast stopped from MobileLiveCaster"]
+            )
+            self.finishBroadcastWithError(error)
         }
     }
 }
@@ -5653,6 +5679,11 @@ final class BroadcastUploadPipeline {
     private var mediaContinuityTracker = BroadcastMediaContinuityTracker()
     private let adaptiveBitrateLock = NSLock()
     private var adaptiveBitrateController = NativeAdaptiveBitrateController()
+    private let controlActionHandler: (LiveCasterBroadcastControlCommand) -> Void
+
+    init(controlActionHandler: @escaping (LiveCasterBroadcastControlCommand) -> Void = { _ in }) {
+        self.controlActionHandler = controlActionHandler
+    }
 
     var isRunning: Bool {
         state.acceptsSamples
@@ -5894,6 +5925,13 @@ final class BroadcastUploadPipeline {
         timer.schedule(deadline: .now() + 1, repeating: 1, leeway: .milliseconds(100))
         timer.setEventHandler { [weak self, weak publisher] in
             guard let self, let publisher else {
+                return
+            }
+            if
+                let handoffID = self.configuration?.handoffID,
+                let command = LiveCasterBroadcastControlStore.consume(expectedHandoffID: handoffID)
+            {
+                self.controlActionHandler(command)
                 return
             }
             self.mediaContinuityLock.performLocked {

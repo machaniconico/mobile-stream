@@ -38,6 +38,9 @@ class MediaProjectionService : Service(), ConnectChecker {
     }
 
     private var mediaProjection: MediaProjection? = null
+    private var mediaProjectionCallback: MediaProjection.Callback? = null
+    private var mediaProjectionSessionToken: MediaProjectionSessionToken? = null
+    private val mediaProjectionSessionGuard = MediaProjectionSessionGuard()
     private var genericStream: GenericStream? = null
     private var directMediaCodecStream: AndroidMediaCodecDirectStream? = null
     private var micProcessingEffect: MicProcessingEffect? = null
@@ -99,11 +102,10 @@ class MediaProjectionService : Service(), ConnectChecker {
 
     private fun startStreamFromSession(resetReconnectAttempts: Boolean = true) {
         val profile = LiveCasterSession.profile
-        val resultCode = LiveCasterSession.captureResultCode
-        val captureData = LiveCasterSession.captureData
+        val captureConsent = LiveCasterSession.consumeCaptureConsent()
 
-        if (profile == null || resultCode == null || captureData == null) {
-            LiveCasterSession.fail("Screen capture consent or stream profile is missing")
+        if (profile == null || captureConsent == null) {
+            LiveCasterSession.fail("Screen capture consent expired. Start again and approve screen sharing")
             stopSelf()
             return
         }
@@ -135,10 +137,9 @@ class MediaProjectionService : Service(), ConnectChecker {
                 device = deviceResourceMonitor.snapshot(),
                 message = encoderProbe.message
             )
-            val projection = mediaProjectionManager.getMediaProjection(resultCode, captureData)
+            val projection = mediaProjectionManager.getMediaProjection(captureConsent.resultCode, captureConsent.data)
                 ?: throw IllegalStateException("Could not create MediaProjection")
-            mediaProjection?.stop()
-            mediaProjection = projection
+            attachMediaProjection(projection)
 
             if (streamProfile.androidPublisherMode == "mediacodec") {
                 startDirectMediaCodecStream(projection, streamProfile)
@@ -288,10 +289,19 @@ class MediaProjectionService : Service(), ConnectChecker {
         val directStream = directMediaCodecStream
         val endpoint = LiveCasterSession.profile?.endpoint
         if (directStream != null) {
-            avSyncAccumulator.retain(directStream.snapshot().avSync)
-            directStream.stop()
-            directMediaCodecStream = null
-            startStreamFromSession(resetReconnectAttempts = false)
+            try {
+                directStream.reconnectPublisher()
+                LiveCasterSession.updateHealth(
+                    reconnectAttempts = reconnectAttempts,
+                    message = "Reconnecting publisher (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})"
+                )
+                updateNativeRuntimeFromDirectStream(
+                    publisherState = "reconnecting",
+                    message = LiveCasterSession.health.message
+                )
+            } catch (error: Throwable) {
+                scheduleReconnect(error.message ?: "Direct publisher reconnect failed")
+            }
             return
         }
         if (stream == null || endpoint == null) {
@@ -702,6 +712,7 @@ class MediaProjectionService : Service(), ConnectChecker {
         stopContinuityHeartbeat()
         captureFinalContinuitySample()
         releaseStreamResources()
+        LiveCasterSession.clearCaptureConsent()
         LiveCasterSession.fail(message)
         stopSelf()
     }
@@ -714,9 +725,51 @@ class MediaProjectionService : Service(), ConnectChecker {
         genericStream = null
         micProcessingEffect?.release()
         micProcessingEffect = null
-        mediaProjection?.stop()
-        mediaProjection = null
+        releaseMediaProjection()
         stopForeground(STOP_FOREGROUND_REMOVE)
+    }
+
+    private fun attachMediaProjection(projection: MediaProjection) {
+        releaseMediaProjection()
+        val token = mediaProjectionSessionGuard.attach()
+        val callback = object : MediaProjection.Callback() {
+            override fun onStop() {
+                if (mediaProjectionSessionGuard.recordStopped(token) != MediaProjectionStopDisposition.UNEXPECTED) {
+                    return
+                }
+                handleUnexpectedMediaProjectionStop()
+            }
+        }
+        projection.registerCallback(callback, continuityHandler)
+        mediaProjection = projection
+        mediaProjectionCallback = callback
+        mediaProjectionSessionToken = token
+    }
+
+    private fun releaseMediaProjection() {
+        val projection = mediaProjection
+        val callback = mediaProjectionCallback
+        val token = mediaProjectionSessionToken
+        if (projection != null && token != null) {
+            mediaProjectionSessionGuard.expectStop(token)
+        }
+        if (projection != null && callback != null) {
+            runCatching { projection.unregisterCallback(callback) }
+        }
+        runCatching { projection?.stop() }
+        if (token != null) {
+            mediaProjectionSessionGuard.detach(token)
+        }
+        mediaProjection = null
+        mediaProjectionCallback = null
+        mediaProjectionSessionToken = null
+    }
+
+    private fun handleUnexpectedMediaProjectionStop() {
+        if (userRequestedStop || terminalFailure) {
+            return
+        }
+        stopStreamAfterFailure("Screen sharing ended or the device was locked. Start again and approve screen sharing")
     }
 
     private fun startContinuityHeartbeat() {
@@ -800,6 +853,7 @@ class MediaProjectionService : Service(), ConnectChecker {
     override fun onConnectionSuccess() {
         reconnectAttempts = 0
         nativePublishGeneration += 1
+        directMediaCodecStream?.requestKeyFrame()
         LiveCasterSession.markLive(liveMessage("Live"))
         updateNativeRuntimeFromActiveStream(publisherState = "published", lastError = "", message = LiveCasterSession.health.message)
     }
