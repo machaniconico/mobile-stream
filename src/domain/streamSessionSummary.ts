@@ -200,6 +200,14 @@ export interface StreamSessionNativeRuntimeSummary {
   monitorDroppedBuffers: number;
   monitorEstimatedLatencyMs: number;
   monitorLatencySource: string;
+  monitorLifecycleEventCount: number;
+  monitorRouteChangeCount: number;
+  monitorInterruptionCount: number;
+  monitorRecoveryCount: number;
+  monitorRecoveryFailureCount: number;
+  monitorLastRecoveryReason: string;
+  monitorLastRecoveryAt: number;
+  monitorSuspended: boolean;
   micRmsLevel?: number;
   micPeakLevel?: number;
   micSampleCount?: number;
@@ -1310,6 +1318,14 @@ export const createNativeRuntimeSessionSummary = (
     monitorDroppedBuffers: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorDroppedBuffers),
     monitorEstimatedLatencyMs: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorEstimatedLatencyMs),
     monitorLatencySource: normalizeSafeSummaryString(runtime.audioProcessing?.monitorLatencySource, ""),
+    monitorLifecycleEventCount: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorLifecycleEventCount),
+    monitorRouteChangeCount: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorRouteChangeCount),
+    monitorInterruptionCount: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorInterruptionCount),
+    monitorRecoveryCount: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorRecoveryCount),
+    monitorRecoveryFailureCount: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorRecoveryFailureCount),
+    monitorLastRecoveryReason: normalizeSafeSummaryString(runtime.audioProcessing?.monitorLastRecoveryReason, ""),
+    monitorLastRecoveryAt: normalizeNonNegativeInteger(runtime.audioProcessing?.monitorLastRecoveryAt),
+    monitorSuspended: runtime.audioProcessing?.monitorSuspended === true,
     micRmsLevel: normalizeAudioMeterLevel(runtime.audioProcessing?.micRmsLevel),
     micPeakLevel: normalizeAudioMeterLevel(runtime.audioProcessing?.micPeakLevel),
     micSampleCount,
@@ -1870,6 +1886,14 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     monitorDroppedBuffers: normalizeNonNegativeInteger(value.monitorDroppedBuffers),
     monitorEstimatedLatencyMs: normalizeNonNegativeInteger(value.monitorEstimatedLatencyMs),
     monitorLatencySource: normalizeSafeSummaryString(value.monitorLatencySource, ""),
+    monitorLifecycleEventCount: normalizeNonNegativeInteger(value.monitorLifecycleEventCount),
+    monitorRouteChangeCount: normalizeNonNegativeInteger(value.monitorRouteChangeCount),
+    monitorInterruptionCount: normalizeNonNegativeInteger(value.monitorInterruptionCount),
+    monitorRecoveryCount: normalizeNonNegativeInteger(value.monitorRecoveryCount),
+    monitorRecoveryFailureCount: normalizeNonNegativeInteger(value.monitorRecoveryFailureCount),
+    monitorLastRecoveryReason: normalizeSafeSummaryString(value.monitorLastRecoveryReason, ""),
+    monitorLastRecoveryAt: normalizeNonNegativeInteger(value.monitorLastRecoveryAt),
+    monitorSuspended: value.monitorSuspended === true,
     micRmsLevel: normalizeAudioMeterLevel(value.micRmsLevel),
     micPeakLevel: normalizeAudioMeterLevel(value.micPeakLevel),
     micSampleCount: normalizeNonNegativeInteger(value.micSampleCount),

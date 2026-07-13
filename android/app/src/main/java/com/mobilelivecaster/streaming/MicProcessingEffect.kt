@@ -2,10 +2,12 @@ package com.mobilelivecaster.streaming
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.os.SystemClock
 import com.pedro.encoder.input.audio.CustomAudioEffect
 import kotlin.math.PI
 import kotlin.math.abs
@@ -31,7 +33,15 @@ class MicProcessingEffect(
     private val robotStep = (2.0 * PI * 32.0 / sampleRate).toFloat()
     private var robotPhase = 0f
     private var sampleCursor = 0L
+    private val monitorTrackLock = Any()
+    private val monitorCallbackLock = Any()
+    private val monitorRecoveryState = AudioMonitorRecoveryState()
+    @Volatile private var monitorReleased = false
+    private var monitorDeviceCallbackRegistered = false
     private var monitorTrack: AudioTrack? = null
+    private var monitorPreferredDeviceId: Int? = null
+    private var monitorRoutedDeviceId: Int? = null
+    private var monitorCreateRetryAfterElapsedMs = 0L
     private var micEffectsProcessedFrames = 0L
     private var micEffectsProcessedSamples = 0L
     private var micEffectsGatedSamples = 0L
@@ -59,6 +69,26 @@ class MicProcessingEffect(
     private var mixedAudioLevelWindowClippedSampleCount = 0L
     @Volatile private var mixedAudioLevelSnapshot = MicLevelSnapshot()
 
+    private val audioDeviceCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+            monitorRecoveryState.recordAudioDevicesAdded(
+                addedDevices.asSequence().filter { it.isSink }.map { it.id }.toSet()
+            )
+        }
+
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+            monitorRecoveryState.recordAudioDevicesRemoved(
+                removedDevices.asSequence().filter { it.isSink }.map { it.id }.toSet()
+            )
+        }
+    }
+
+    init {
+        if (isMonitorActive(settings)) {
+            activateMonitor()
+        }
+    }
+
     override fun process(pcmBuffer: ByteArray): ByteArray {
         val processed = pcmBuffer.copyOf()
         val currentSettings = settings
@@ -72,7 +102,7 @@ class MicProcessingEffect(
             micEffectsLimitedSamples += stats.limitedSamples.toLong()
         }
 
-        writeMonitor(processed, currentSettings)
+        writeMonitor(processed)
         val levelStats = applyVolume(processed, currentMixer.mic.effectiveVolume(), measureLevel = true)
         accumulateMicLevelWindow(levelStats)
         return processed
@@ -100,9 +130,8 @@ class MicProcessingEffect(
     fun snapshot(): NativeRuntimeAudioProcessing {
         val currentSettings = settings
         val currentMixer = broadcastMixer
-        val preferredDevice = headphoneOutputDevice()
-        val outputDevice = preferredDevice ?: currentOutputDevice()
-        val estimatedLatencyMs = monitorEstimatedLatencyMs()
+        val monitorRuntime = monitorRuntimeSnapshot()
+        val monitorRecovery = monitorRecoveryState.snapshot()
         val currentMicLevel = micLevelSnapshot
         val currentAppAudioLevel = appAudioLevelSnapshot
         val currentMixedAudioLevel = mixedAudioLevelSnapshot
@@ -129,19 +158,27 @@ class MicProcessingEffect(
             mixedAudioClippedSampleCount = currentMixedAudioLevel.clippedSampleCount,
             mixedAudioLevelUpdatedAt = currentMixedAudioLevel.updatedAt,
             monitorEnabled = currentSettings.monitorEnabled,
-            monitorRunning = monitorTrack?.playState == AudioTrack.PLAYSTATE_PLAYING,
+            monitorRunning = monitorRuntime.running && !monitorRecovery.suspended,
             monitorVolume = currentSettings.monitorVolume,
             monitorHeadphonesOnly = currentSettings.monitorHeadphonesOnly,
-            monitorRoute = outputDevice?.routeKind() ?: "unknown",
-            monitorOutputName = outputDevice?.productName?.toString()?.takeIf { it.isNotBlank() } ?: "Unknown",
-            monitorHeadphonesConnected = preferredDevice != null,
-            monitorWrittenFrames = monitorWrittenFrames,
-            monitorDroppedFrames = monitorDroppedFrames,
-            monitorWrittenBuffers = monitorWrittenBuffers,
-            monitorDroppedBuffers = monitorDroppedBuffers,
-            monitorEstimatedLatencyMs = estimatedLatencyMs,
-            monitorLatencySource = if (estimatedLatencyMs > 0) "android-audiotrack-buffer" else "",
-            monitorLastError = monitorLastError,
+            monitorRoute = monitorRuntime.route,
+            monitorOutputName = monitorRuntime.outputName,
+            monitorHeadphonesConnected = monitorRuntime.headphonesConnected,
+            monitorWrittenFrames = monitorRuntime.writtenFrames,
+            monitorDroppedFrames = monitorRuntime.droppedFrames,
+            monitorWrittenBuffers = monitorRuntime.writtenBuffers,
+            monitorDroppedBuffers = monitorRuntime.droppedBuffers,
+            monitorEstimatedLatencyMs = monitorRuntime.estimatedLatencyMs,
+            monitorLatencySource = if (monitorRuntime.estimatedLatencyMs > 0) "android-audiotrack-buffer" else "",
+            monitorLastError = monitorRuntime.lastError,
+            monitorLifecycleEventCount = monitorRecovery.lifecycleEventCount,
+            monitorRouteChangeCount = monitorRecovery.routeChangeCount,
+            monitorInterruptionCount = monitorRecovery.interruptionCount,
+            monitorRecoveryCount = monitorRecovery.recoveryCount,
+            monitorRecoveryFailureCount = monitorRecovery.recoveryFailureCount,
+            monitorLastRecoveryReason = monitorRecovery.lastRecoveryReason,
+            monitorLastRecoveryAt = monitorRecovery.lastRecoveryAt,
+            monitorSuspended = monitorRecovery.suspended,
             broadcastMicVolume = currentMixer.mic.volume,
             broadcastMicMuted = currentMixer.mic.muted,
             broadcastAppAudioVolume = currentMixer.appAudio.volume,
@@ -151,16 +188,30 @@ class MicProcessingEffect(
         )
     }
 
+    @Synchronized
     fun updateProfile(nextSettings: MicEffectsProfile, nextBroadcastMixer: BroadcastMixerProfile) {
-        settings = nextSettings
+        val wasMonitorActive = isMonitorActive(settings)
+        val willMonitorBeActive = isMonitorActive(nextSettings)
         broadcastMixer = nextBroadcastMixer
-        if (!nextSettings.monitorEnabled || nextSettings.monitorVolume <= 0f) {
-            releaseMonitor()
+        if (!wasMonitorActive && willMonitorBeActive) {
+            activateMonitor()
+            settings = nextSettings
+            return
+        }
+        settings = nextSettings
+        if (!willMonitorBeActive) {
+            deactivateMonitor()
         }
     }
 
+    @Synchronized
     fun release() {
-        releaseMonitor()
+        monitorReleased = true
+        monitorRecoveryState.release()
+        unregisterAudioDeviceCallback()
+        synchronized(monitorTrackLock) {
+            releaseMonitorTrackLocked()
+        }
     }
 
     private fun processSamples(pcmBuffer: ByteArray, currentSettings: MicEffectsProfile, outputVolume: Float): MicProcessingStats {
@@ -216,89 +267,247 @@ class MicProcessingEffect(
     private fun softLimit(value: Float): Float =
         (tanh((value * 1.25f).toDouble()) / tanh(1.25)).toFloat().coerceIn(-1f, 1f)
 
-    private fun writeMonitor(processed: ByteArray, currentSettings: MicEffectsProfile) {
-        if (!currentSettings.monitorEnabled || currentSettings.monitorVolume <= 0f) {
-            monitorLastError = ""
-            releaseMonitor()
-            return
-        }
-
-        val frameCount = (processed.size / bytesPerFrame()).coerceAtLeast(0)
-        val preferredDevice = headphoneOutputDevice()
-        if (currentSettings.monitorHeadphonesOnly && preferredDevice == null) {
-            monitorDroppedFrames += frameCount.toLong()
-            monitorDroppedBuffers += 1
-            monitorLastError = "Headphones-only monitor blocked without a headphone output."
-            releaseMonitor()
-            return
-        }
-
-        val track = ensureMonitorTrack(preferredDevice)
-        if (track == null) {
-            monitorDroppedFrames += frameCount.toLong()
-            monitorDroppedBuffers += 1
-            monitorLastError = "AudioTrack monitor output is unavailable."
-            return
-        }
-        val monitorBuffer = processed.copyOf()
-        applyVolume(monitorBuffer, currentSettings.monitorVolume)
-        val writtenBytes = track.write(monitorBuffer, 0, monitorBuffer.size, AudioTrack.WRITE_NON_BLOCKING)
-        if (writtenBytes > 0) {
-            val writtenFrames = (writtenBytes / bytesPerFrame()).coerceAtLeast(0)
-            monitorWrittenFrames += writtenFrames.toLong()
-            monitorWrittenBuffers += 1
-            val droppedFrames = frameCount - writtenFrames
-            if (droppedFrames > 0) {
-                monitorDroppedFrames += droppedFrames.toLong()
-                monitorDroppedBuffers += 1
-                monitorLastError = "Monitor write was partially accepted."
-            } else {
+    private fun writeMonitor(processed: ByteArray) {
+        synchronized(monitorTrackLock) {
+            val currentSettings = settings
+            if (monitorReleased || !isMonitorActive(currentSettings)) {
                 monitorLastError = ""
+                releaseMonitorTrackLocked()
+                return@synchronized
             }
-        } else {
-            monitorDroppedFrames += frameCount.toLong()
-            monitorDroppedBuffers += 1
-            monitorLastError = "Monitor write was not accepted by AudioTrack."
+
+            val frameCount = (processed.size / bytesPerFrame()).coerceAtLeast(0)
+            val preferredDevice = headphoneOutputDevice()
+            if (currentSettings.monitorHeadphonesOnly && preferredDevice == null) {
+                monitorDroppedFrames += frameCount.toLong()
+                monitorDroppedBuffers += 1L
+                monitorLastError = "Headphones-only monitor blocked without a headphone output."
+                monitorRecoveryState.markUnavailable()
+                releaseMonitorTrackLocked()
+                return@synchronized
+            }
+
+            val track = ensureMonitorTrackLocked(
+                preferredDevice = preferredDevice,
+                requireHeadphones = currentSettings.monitorHeadphonesOnly
+            )
+            if (track == null) {
+                monitorDroppedFrames += frameCount.toLong()
+                monitorDroppedBuffers += 1L
+                if (monitorLastError.isBlank()) {
+                    monitorLastError = "AudioTrack monitor output is unavailable."
+                }
+                return@synchronized
+            }
+
+            val monitorBuffer = processed.copyOf()
+            applyVolume(monitorBuffer, currentSettings.monitorVolume)
+            val writeResult = runCatching {
+                track.write(monitorBuffer, 0, monitorBuffer.size, AudioTrack.WRITE_NON_BLOCKING)
+            }
+            if (writeResult.isFailure) {
+                monitorDroppedFrames += frameCount.toLong()
+                monitorDroppedBuffers += 1L
+                monitorLastError = "Monitor write failed: ${writeResult.exceptionOrNull()?.message ?: "unknown error"}"
+                monitorRecoveryState.recordInterruption("audio-track-write-failed")
+                releaseMonitorTrackLocked()
+                return@synchronized
+            }
+
+            val writtenBytes = writeResult.getOrThrow()
+            if (writtenBytes > 0) {
+                val writtenFrames = (writtenBytes / bytesPerFrame()).coerceAtLeast(0)
+                monitorWrittenFrames += writtenFrames.toLong()
+                monitorWrittenBuffers += 1L
+                val droppedFrames = frameCount - writtenFrames
+                if (droppedFrames > 0) {
+                    monitorDroppedFrames += droppedFrames.toLong()
+                    monitorDroppedBuffers += 1L
+                    monitorLastError = "Monitor write was partially accepted."
+                } else {
+                    monitorLastError = ""
+                }
+            } else {
+                monitorDroppedFrames += frameCount.toLong()
+                monitorDroppedBuffers += 1L
+                monitorLastError = "Monitor write was not accepted by AudioTrack."
+                if (writtenBytes < 0) {
+                    monitorRecoveryState.recordInterruption("audio-track-write-failed")
+                    releaseMonitorTrackLocked()
+                }
+                return@synchronized
+            }
+
+            monitorTrackInvalidReason(track)?.let { reason ->
+                monitorRecoveryState.recordInterruption(reason)
+                releaseMonitorTrackLocked()
+                return@synchronized
+            }
+            val routedDeviceId = routedDeviceId(track)
+            if (
+                monitorRoutedDeviceId != null &&
+                routedDeviceId != null &&
+                monitorRoutedDeviceId != routedDeviceId
+            ) {
+                monitorRecoveryState.recordObservedOutputDeviceChange()
+                releaseMonitorTrackLocked()
+            } else if (monitorRoutedDeviceId == null) {
+                monitorRoutedDeviceId = routedDeviceId
+            }
         }
     }
 
-    private fun ensureMonitorTrack(preferredDevice: AudioDeviceInfo?): AudioTrack? {
+    private fun ensureMonitorTrackLocked(
+        preferredDevice: AudioDeviceInfo?,
+        requireHeadphones: Boolean
+    ): AudioTrack? {
         val currentTrack = monitorTrack
-        if (currentTrack != null && currentTrack.state == AudioTrack.STATE_INITIALIZED) {
-            preferredDevice?.let { currentTrack.setPreferredDevice(it) }
-            return currentTrack
+        if (currentTrack != null) {
+            val invalidReason = monitorTrackInvalidReason(currentTrack)
+            val preferredDeviceChanged = monitorPreferredDeviceId != preferredDevice?.id
+            val currentRoutedDevice = routedDevice(currentTrack)
+            val currentRoutedDeviceId = currentRoutedDevice?.id
+            val routedDeviceChanged = monitorRoutedDeviceId != null &&
+                currentRoutedDeviceId != null &&
+                monitorRoutedDeviceId != currentRoutedDeviceId
+            when {
+                invalidReason != null -> {
+                    monitorRecoveryState.recordInterruption(invalidReason)
+                    releaseMonitorTrackLocked()
+                }
+                preferredDeviceChanged || routedDeviceChanged -> {
+                    monitorRecoveryState.recordObservedOutputDeviceChange()
+                    releaseMonitorTrackLocked()
+                }
+                requireHeadphones && currentRoutedDevice?.isHeadphoneOutput() != true -> {
+                    monitorLastError = "AudioTrack did not confirm a headphone output route."
+                    monitorRecoveryState.recordObservedOutputDeviceChange("unsafe-output-route")
+                    releaseMonitorTrackLocked()
+                }
+                monitorRecoveryState.pendingRecovery() != null -> releaseMonitorTrackLocked()
+                else -> {
+                    if (monitorRoutedDeviceId == null) {
+                        monitorRoutedDeviceId = currentRoutedDeviceId
+                    }
+                    return currentTrack
+                }
+            }
         }
 
+        if (SystemClock.elapsedRealtime() < monitorCreateRetryAfterElapsedMs) {
+            return null
+        }
+        val recoveryRequest = monitorRecoveryState.pendingRecovery()
+        val createdTrack = createMonitorTrackLocked(preferredDevice, requireHeadphones)
+        if (createdTrack == null) {
+            recoveryRequest?.let(monitorRecoveryState::recordRecoveryFailure)
+            monitorRecoveryState.markUnavailable()
+            monitorCreateRetryAfterElapsedMs = SystemClock.elapsedRealtime() + MONITOR_CREATE_RETRY_DELAY_MS
+            return null
+        }
+        if (recoveryRequest != null) {
+            if (!monitorRecoveryState.recordRecoverySuccess(recoveryRequest)) {
+                safelyReleaseTrack(createdTrack.track)
+                return null
+            }
+        } else if (monitorRecoveryState.pendingRecovery() != null) {
+            safelyReleaseTrack(createdTrack.track)
+            return null
+        }
+
+        monitorTrack = createdTrack.track
+        monitorBufferSizeInBytes = createdTrack.bufferSizeInBytes
+        monitorPreferredDeviceId = preferredDevice?.id
+        monitorRoutedDeviceId = createdTrack.routedDeviceId
+        monitorCreateRetryAfterElapsedMs = 0L
+        monitorRecoveryState.markAvailableWithoutRecovery()
+        return createdTrack.track
+    }
+
+    private fun createMonitorTrackLocked(
+        preferredDevice: AudioDeviceInfo?,
+        requireHeadphones: Boolean
+    ): CreatedMonitorTrack? {
         val minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelMask, AudioFormat.ENCODING_PCM_16BIT)
         if (minBufferSize <= 0) {
+            monitorLastError = "AudioTrack minimum buffer size is unavailable."
             return null
         }
 
         val bufferSizeInBytes = max(minBufferSize, sampleRate / 5 * channelCount * 2)
-        val track = AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build()
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(sampleRate)
-                    .setChannelMask(channelMask)
-                    .build()
-            )
-            .setBufferSizeInBytes(bufferSizeInBytes)
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .build()
-
-        preferredDevice?.let { track.setPreferredDevice(it) }
-        track.play()
-        monitorTrack = track
-        monitorBufferSizeInBytes = bufferSizeInBytes
-        return track
+        val trackResult = runCatching {
+            AudioTrack.Builder()
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(sampleRate)
+                        .setChannelMask(channelMask)
+                        .build()
+                )
+                .setBufferSizeInBytes(bufferSizeInBytes)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .build()
+        }
+        val track = trackResult.getOrElse { error ->
+            monitorLastError = "AudioTrack creation failed: ${error.message ?: "unknown error"}"
+            return null
+        }
+        if (track.state != AudioTrack.STATE_INITIALIZED) {
+            monitorLastError = "AudioTrack monitor output is uninitialized."
+            safelyReleaseTrack(track)
+            return null
+        }
+        if (preferredDevice != null && !runCatching { track.setPreferredDevice(preferredDevice) }.getOrDefault(false)) {
+            monitorLastError = "AudioTrack could not select the requested output device."
+            safelyReleaseTrack(track)
+            return null
+        }
+        val playResult = runCatching { track.play() }
+        if (playResult.isFailure || track.playState != AudioTrack.PLAYSTATE_PLAYING) {
+            monitorLastError = "AudioTrack monitor output could not start."
+            safelyReleaseTrack(track)
+            return null
+        }
+        val routedDevice = if (requireHeadphones) {
+            resolveHeadphoneRoute(track)
+        } else {
+            routedDevice(track)
+        }
+        if (requireHeadphones && routedDevice?.isHeadphoneOutput() != true) {
+            monitorLastError = "AudioTrack did not confirm a headphone output route."
+            safelyReleaseTrack(track)
+            return null
+        }
+        return CreatedMonitorTrack(track, bufferSizeInBytes, routedDevice?.id)
     }
+
+    private fun monitorTrackInvalidReason(track: AudioTrack): String? = when {
+        runCatching { track.state }.getOrDefault(AudioTrack.STATE_UNINITIALIZED) != AudioTrack.STATE_INITIALIZED ->
+            "audio-track-uninitialized"
+        runCatching { track.playState }.getOrDefault(AudioTrack.PLAYSTATE_STOPPED) != AudioTrack.PLAYSTATE_PLAYING ->
+            "audio-track-stopped"
+        else -> null
+    }
+
+    private fun resolveHeadphoneRoute(track: AudioTrack): AudioDeviceInfo? {
+        routedDevice(track)?.let { return it }
+        val silence = ByteArray(bytesPerFrame() * MONITOR_ROUTE_PROBE_FRAMES)
+        val writtenBytes = runCatching {
+            track.write(silence, 0, silence.size, AudioTrack.WRITE_BLOCKING)
+        }.getOrDefault(AudioTrack.ERROR)
+        return if (writtenBytes > 0) routedDevice(track) else null
+    }
+
+    private fun routedDevice(track: AudioTrack): AudioDeviceInfo? =
+        runCatching { track.routedDevice }.getOrNull()
+
+    private fun routedDeviceId(track: AudioTrack): Int? = routedDevice(track)?.id
 
     private fun applyVolume(
         pcmBuffer: ByteArray,
@@ -425,14 +634,97 @@ class MicProcessingEffect(
         mixedAudioLevelWindowClippedSampleCount = 0L
     }
 
-    private fun releaseMonitor() {
-        monitorTrack?.run {
-            pause()
-            flush()
-            release()
+    private fun activateMonitor() {
+        if (monitorReleased) {
+            return
         }
+        monitorRecoveryState.activate(connectedOutputDeviceIds())
+        synchronized(monitorTrackLock) {
+            monitorCreateRetryAfterElapsedMs = 0L
+        }
+        registerAudioDeviceCallback()
+    }
+
+    private fun deactivateMonitor() {
+        monitorRecoveryState.deactivate()
+        unregisterAudioDeviceCallback()
+        synchronized(monitorTrackLock) {
+            monitorLastError = ""
+            monitorCreateRetryAfterElapsedMs = 0L
+            releaseMonitorTrackLocked()
+        }
+    }
+
+    private fun registerAudioDeviceCallback() {
+        synchronized(monitorCallbackLock) {
+            if (monitorReleased || monitorDeviceCallbackRegistered) {
+                return
+            }
+            runCatching {
+                audioManager.registerAudioDeviceCallback(audioDeviceCallback, null)
+            }.onSuccess {
+                monitorDeviceCallbackRegistered = true
+            }.onFailure { error ->
+                synchronized(monitorTrackLock) {
+                    monitorLastError = "Audio device monitoring is unavailable: ${error.message ?: "unknown error"}"
+                }
+            }
+        }
+    }
+
+    private fun unregisterAudioDeviceCallback() {
+        synchronized(monitorCallbackLock) {
+            if (!monitorDeviceCallbackRegistered) {
+                return
+            }
+            runCatching { audioManager.unregisterAudioDeviceCallback(audioDeviceCallback) }
+            monitorDeviceCallbackRegistered = false
+        }
+    }
+
+    private fun connectedOutputDeviceIds(): Set<Int> =
+        runCatching {
+            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                .asSequence()
+                .filter { it.isSink }
+                .map { it.id }
+                .toSet()
+        }.getOrDefault(emptySet())
+
+    private fun releaseMonitorTrackLocked() {
+        monitorTrack?.let(::safelyReleaseTrack)
         monitorTrack = null
         monitorBufferSizeInBytes = 0
+        monitorPreferredDeviceId = null
+        monitorRoutedDeviceId = null
+    }
+
+    private fun safelyReleaseTrack(track: AudioTrack) {
+        runCatching { track.pause() }
+        runCatching { track.flush() }
+        runCatching { track.release() }
+    }
+
+    private fun monitorRuntimeSnapshot(): MonitorRuntimeSnapshot = synchronized(monitorTrackLock) {
+        val preferredDevice = headphoneOutputDevice()
+        val routedDevice = monitorTrack?.let { track -> runCatching { track.routedDevice }.getOrNull() }
+        val outputDevice = routedDevice ?: preferredDevice ?: currentOutputDevice()
+        MonitorRuntimeSnapshot(
+            running = monitorTrack?.let { track ->
+                runCatching {
+                    track.state == AudioTrack.STATE_INITIALIZED && track.playState == AudioTrack.PLAYSTATE_PLAYING
+                }.getOrDefault(false)
+            } ?: false,
+            route = outputDevice?.routeKind() ?: "unknown",
+            outputName = outputDevice?.productName?.toString()?.takeIf { it.isNotBlank() } ?: "Unknown",
+            headphonesConnected = preferredDevice != null,
+            writtenFrames = monitorWrittenFrames,
+            droppedFrames = monitorDroppedFrames,
+            writtenBuffers = monitorWrittenBuffers,
+            droppedBuffers = monitorDroppedBuffers,
+            estimatedLatencyMs = monitorEstimatedLatencyMsLocked(),
+            lastError = monitorLastError
+        )
     }
 
     private fun headphoneOutputDevice(): AudioDeviceInfo? =
@@ -442,7 +734,9 @@ class MicProcessingEffect(
                 AudioDeviceInfo.TYPE_WIRED_HEADSET,
                 AudioDeviceInfo.TYPE_USB_HEADSET,
                 AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
-                AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> true
+                AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+                AudioDeviceInfo.TYPE_HEARING_AID,
+                AudioDeviceInfo.TYPE_BLE_HEADSET -> true
                 else -> false
             }
         }
@@ -450,7 +744,7 @@ class MicProcessingEffect(
     private fun currentOutputDevice(): AudioDeviceInfo? =
         audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull()
 
-    private fun monitorEstimatedLatencyMs(): Int {
+    private fun monitorEstimatedLatencyMsLocked(): Int {
         if (monitorBufferSizeInBytes <= 0 || sampleRate <= 0) {
             return 0
         }
@@ -460,6 +754,9 @@ class MicProcessingEffect(
 
     private fun bytesPerFrame(): Int = channelCount * 2
 
+    private fun isMonitorActive(profile: MicEffectsProfile): Boolean =
+        profile.monitorEnabled && profile.monitorVolume > 0f
+
     private fun AudioDeviceInfo.routeKind(): String =
         when (type) {
             AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "speaker"
@@ -468,9 +765,23 @@ class MicProcessingEffect(
             AudioDeviceInfo.TYPE_WIRED_HEADSET -> "wired-headphones"
             AudioDeviceInfo.TYPE_USB_HEADSET -> "usb-headset"
             AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "bluetooth-a2dp"
-            AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "bluetooth-sco"
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+            AudioDeviceInfo.TYPE_BLE_HEADSET,
+            AudioDeviceInfo.TYPE_HEARING_AID -> "bluetooth-sco"
             AudioDeviceInfo.TYPE_HDMI -> "hdmi"
             else -> "other"
+        }
+
+    private fun AudioDeviceInfo.isHeadphoneOutput(): Boolean =
+        when (type) {
+            AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+            AudioDeviceInfo.TYPE_WIRED_HEADSET,
+            AudioDeviceInfo.TYPE_USB_HEADSET,
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+            AudioDeviceInfo.TYPE_HEARING_AID,
+            AudioDeviceInfo.TYPE_BLE_HEADSET -> true
+            else -> false
         }
 
     private data class MicProcessingStats(
@@ -493,4 +804,28 @@ class MicProcessingEffect(
         val clippedSampleCount: Long = 0L,
         val updatedAt: Long = 0L
     )
+
+    private data class CreatedMonitorTrack(
+        val track: AudioTrack,
+        val bufferSizeInBytes: Int,
+        val routedDeviceId: Int?
+    )
+
+    private data class MonitorRuntimeSnapshot(
+        val running: Boolean,
+        val route: String,
+        val outputName: String,
+        val headphonesConnected: Boolean,
+        val writtenFrames: Long,
+        val droppedFrames: Long,
+        val writtenBuffers: Long,
+        val droppedBuffers: Long,
+        val estimatedLatencyMs: Int,
+        val lastError: String
+    )
+
+    private companion object {
+        const val MONITOR_CREATE_RETRY_DELAY_MS = 500L
+        const val MONITOR_ROUTE_PROBE_FRAMES = 64
+    }
 }

@@ -1538,6 +1538,14 @@ fileprivate struct BroadcastMicrophoneMonitorSnapshot: Equatable {
     let estimatedLatencyMs: Int
     let latencySource: String
     let lastError: String
+    let lifecycleEventCount: Int
+    let routeChangeCount: Int
+    let interruptionCount: Int
+    let recoveryCount: Int
+    let recoveryFailureCount: Int
+    let lastRecoveryReason: String
+    let lastRecoveryAt: Double
+    let suspended: Bool
 }
 
 fileprivate struct BroadcastAudioLevelMeasurement: Equatable {
@@ -1696,6 +1704,14 @@ struct BroadcastAudioEncoderStats: Equatable {
     private(set) var monitorEstimatedLatencyMs = 0
     private(set) var monitorLatencySource = ""
     private(set) var monitorLastError = ""
+    private(set) var monitorLifecycleEventCount = 0
+    private(set) var monitorRouteChangeCount = 0
+    private(set) var monitorInterruptionCount = 0
+    private(set) var monitorRecoveryCount = 0
+    private(set) var monitorRecoveryFailureCount = 0
+    private(set) var monitorLastRecoveryReason = ""
+    private(set) var monitorLastRecoveryAt: Double = 0
+    private(set) var monitorSuspended = false
     private(set) var micRmsLevel: Float = 0
     private(set) var micPeakLevel: Float = 0
     private(set) var micSampleCount = 0
@@ -1753,6 +1769,14 @@ struct BroadcastAudioEncoderStats: Equatable {
         monitorEstimatedLatencyMs = 0
         monitorLatencySource = ""
         monitorLastError = ""
+        monitorLifecycleEventCount = 0
+        monitorRouteChangeCount = 0
+        monitorInterruptionCount = 0
+        monitorRecoveryCount = 0
+        monitorRecoveryFailureCount = 0
+        monitorLastRecoveryReason = ""
+        monitorLastRecoveryAt = 0
+        monitorSuspended = false
     }
 
     mutating func record(_ frame: BroadcastEncodedAudioFrame) {
@@ -1797,6 +1821,14 @@ struct BroadcastAudioEncoderStats: Equatable {
         monitorEstimatedLatencyMs = snapshot.estimatedLatencyMs
         monitorLatencySource = snapshot.latencySource
         monitorLastError = snapshot.lastError
+        monitorLifecycleEventCount = snapshot.lifecycleEventCount
+        monitorRouteChangeCount = snapshot.routeChangeCount
+        monitorInterruptionCount = snapshot.interruptionCount
+        monitorRecoveryCount = snapshot.recoveryCount
+        monitorRecoveryFailureCount = snapshot.recoveryFailureCount
+        monitorLastRecoveryReason = snapshot.lastRecoveryReason
+        monitorLastRecoveryAt = snapshot.lastRecoveryAt
+        monitorSuspended = snapshot.suspended
     }
 
     fileprivate mutating func recordMicrophoneLevel(_ measurement: BroadcastAudioLevelMeasurement) {
@@ -1891,7 +1923,15 @@ struct BroadcastAudioEncoderStats: Equatable {
                     "droppedBuffers": monitorDroppedBuffers,
                     "estimatedLatencyMs": monitorEstimatedLatencyMs,
                     "latencySource": monitorLatencySource,
-                    "lastError": monitorLastError
+                    "lastError": monitorLastError,
+                    "lifecycleEventCount": monitorLifecycleEventCount,
+                    "routeChangeCount": monitorRouteChangeCount,
+                    "interruptionCount": monitorInterruptionCount,
+                    "recoveryCount": monitorRecoveryCount,
+                    "recoveryFailureCount": monitorRecoveryFailureCount,
+                    "lastRecoveryReason": monitorLastRecoveryReason,
+                    "lastRecoveryAt": monitorLastRecoveryAt,
+                    "suspended": monitorSuspended
                 ]
             ]
         ]
@@ -3271,8 +3311,136 @@ private final class BroadcastMicrophoneProcessor {
     }
 }
 
+fileprivate struct BroadcastAudioMonitorRecoverySnapshot: Equatable {
+    let lifecycleEventCount: Int
+    let routeChangeCount: Int
+    let interruptionCount: Int
+    let recoveryCount: Int
+    let recoveryFailureCount: Int
+    let lastRecoveryReason: String
+    let lastRecoveryAt: Double
+    let suspended: Bool
+}
+
+fileprivate enum BroadcastAudioMonitorRecoveryDecision: Equatable {
+    case ready
+    case suspended
+    case waiting
+    case rebuild(String)
+}
+
+fileprivate struct BroadcastAudioMonitorRecoveryState: Equatable {
+    private(set) var lifecycleEventCount = 0
+    private(set) var routeChangeCount = 0
+    private(set) var interruptionCount = 0
+    private(set) var recoveryCount = 0
+    private(set) var recoveryFailureCount = 0
+    private(set) var lastRecoveryReason = ""
+    private(set) var lastRecoveryAt: Double = 0
+    private(set) var suspended = false
+    private var hasStarted = false
+    private var pendingRecoveryReason: String?
+    private var retryAfterUptime: TimeInterval = 0
+
+    var snapshot: BroadcastAudioMonitorRecoverySnapshot {
+        BroadcastAudioMonitorRecoverySnapshot(
+            lifecycleEventCount: lifecycleEventCount,
+            routeChangeCount: routeChangeCount,
+            interruptionCount: interruptionCount,
+            recoveryCount: recoveryCount,
+            recoveryFailureCount: recoveryFailureCount,
+            lastRecoveryReason: lastRecoveryReason,
+            lastRecoveryAt: lastRecoveryAt,
+            suspended: suspended
+        )
+    }
+
+    mutating func recordRouteChange(_ reason: String) {
+        lifecycleEventCount += 1
+        routeChangeCount += 1
+        requestRecovery(reason)
+    }
+
+    mutating func recordInterruptionBegan() {
+        lifecycleEventCount += 1
+        interruptionCount += 1
+        suspended = true
+        requestRecovery("interruption-began")
+    }
+
+    mutating func recordInterruptionEnded(shouldResume: Bool) {
+        lifecycleEventCount += 1
+        suspended = false
+        requestRecovery(shouldResume ? "interruption-ended-resume" : "interruption-ended")
+    }
+
+    mutating func recordMediaServicesReset() {
+        lifecycleEventCount += 1
+        requestRecovery("media-services-reset")
+    }
+
+    mutating func recordEngineStopped() {
+        guard !suspended, pendingRecoveryReason == nil else {
+            return
+        }
+        lifecycleEventCount += 1
+        interruptionCount += 1
+        requestRecovery("audio-engine-stopped")
+    }
+
+    func decision(nowUptime: TimeInterval) -> BroadcastAudioMonitorRecoveryDecision {
+        if suspended {
+            return .suspended
+        }
+        if pendingRecoveryReason != nil, nowUptime < retryAfterUptime {
+            return .waiting
+        }
+        if let pendingRecoveryReason {
+            return .rebuild(pendingRecoveryReason)
+        }
+        return .ready
+    }
+
+    mutating func recordStarted(recoveryReason: String?, nowEpochMs: Double) {
+        if hasStarted, let recoveryReason {
+            recoveryCount += 1
+            lastRecoveryReason = recoveryReason
+            lastRecoveryAt = nowEpochMs
+        }
+        hasStarted = true
+        pendingRecoveryReason = nil
+        retryAfterUptime = 0
+    }
+
+    mutating func recordRecoveryFailure(
+        reason: String?,
+        nowUptime: TimeInterval,
+        nowEpochMs: Double
+    ) {
+        guard hasStarted, let reason else {
+            return
+        }
+        recoveryFailureCount += 1
+        lastRecoveryReason = reason
+        lastRecoveryAt = nowEpochMs
+        pendingRecoveryReason = reason
+        retryAfterUptime = nowUptime + 0.5
+    }
+
+    private mutating func requestRecovery(_ reason: String) {
+        guard hasStarted else {
+            return
+        }
+        pendingRecoveryReason = reason
+        retryAfterUptime = 0
+    }
+}
+
 private final class BroadcastMicrophoneMonitor {
     private let configuration: BroadcastMicEffectsConfiguration
+    private let recoveryLock = NSLock()
+    private var recoveryState = BroadcastAudioMonitorRecoveryState()
+    private var notificationTokens: [NSObjectProtocol] = []
     private var engine: AVAudioEngine?
     private var player: AVAudioPlayerNode?
     private var format: AVAudioFormat?
@@ -3287,9 +3455,13 @@ private final class BroadcastMicrophoneMonitor {
 
     init(configuration: BroadcastMicEffectsConfiguration) {
         self.configuration = configuration
+        if configuration.monitorEnabled, configuration.monitorVolume > 0 {
+            registerAudioSessionNotifications()
+        }
     }
 
     deinit {
+        notificationTokens.forEach(NotificationCenter.default.removeObserver)
         finish()
     }
 
@@ -3312,8 +3484,57 @@ private final class BroadcastMicrophoneMonitor {
             return snapshot(route: route, running: false)
         }
 
+        if let engine, !engine.isRunning {
+            recoveryLock.performLocked {
+                recoveryState.recordEngineStopped()
+            }
+        }
+
+        let nowUptime = ProcessInfo.processInfo.systemUptime
+        let recoveryDecision = recoveryLock.performLocked {
+            recoveryState.decision(nowUptime: nowUptime)
+        }
+        let recoveryReason: String?
+        switch recoveryDecision {
+        case .suspended:
+            droppedFrames += frameCount
+            droppedBuffers += 1
+            lastError = "Microphone monitor is paused during an audio interruption."
+            finishAudioGraph()
+            return snapshot(route: route, running: false)
+        case .waiting:
+            droppedFrames += frameCount
+            droppedBuffers += 1
+            return snapshot(route: route, running: false)
+        case .rebuild(let reason):
+            recoveryReason = reason
+            finishAudioGraph()
+        case .ready:
+            recoveryReason = nil
+        }
+
         do {
-            try configureIfNeeded(sampleRate: sampleRate, channelCount: inputChannelCount)
+            let didConfigure: Bool
+            do {
+                didConfigure = try configureIfNeeded(sampleRate: sampleRate, channelCount: inputChannelCount)
+            } catch {
+                recoveryLock.performLocked {
+                    recoveryState.recordRecoveryFailure(
+                        reason: recoveryReason,
+                        nowUptime: nowUptime,
+                        nowEpochMs: Date().timeIntervalSince1970 * 1_000
+                    )
+                }
+                throw error
+            }
+            if didConfigure {
+                recoveryLock.performLocked {
+                    recoveryState.recordStarted(
+                        recoveryReason: recoveryReason,
+                        nowEpochMs: Date().timeIntervalSince1970 * 1_000
+                    )
+                }
+            }
             guard let format, let player else {
                 throw BroadcastMicrophoneMonitorError.engineUnavailable
             }
@@ -3341,6 +3562,10 @@ private final class BroadcastMicrophoneMonitor {
     }
 
     func finish() {
+        finishAudioGraph()
+    }
+
+    private func finishAudioGraph() {
         player?.stop()
         engine?.stop()
         if let player {
@@ -3354,14 +3579,18 @@ private final class BroadcastMicrophoneMonitor {
         lastScheduledBufferFrames = 0
     }
 
-    private func configureIfNeeded(sampleRate nextSampleRate: Double, channelCount nextChannelCount: Int) throws {
+    private func configureIfNeeded(sampleRate nextSampleRate: Double, channelCount nextChannelCount: Int) throws -> Bool {
         let resolvedSampleRate = nextSampleRate > 0 ? nextSampleRate : 44100
         let resolvedChannelCount = max(1, min(nextChannelCount, 2))
-        if engine != nil, player != nil, format != nil, sampleRate == resolvedSampleRate, channelCount == resolvedChannelCount {
-            return
+        if engine?.isRunning == true,
+           player != nil,
+           format != nil,
+           sampleRate == resolvedSampleRate,
+           channelCount == resolvedChannelCount {
+            return false
         }
 
-        finish()
+        finishAudioGraph()
         guard let nextFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: resolvedSampleRate,
@@ -3371,7 +3600,7 @@ private final class BroadcastMicrophoneMonitor {
             throw BroadcastMicrophoneMonitorError.formatUnavailable
         }
 
-        try? AVAudioSession.sharedInstance().setActive(true)
+        try AVAudioSession.sharedInstance().setActive(true)
         let nextEngine = AVAudioEngine()
         let nextPlayer = AVAudioPlayerNode()
         nextEngine.attach(nextPlayer)
@@ -3383,6 +3612,7 @@ private final class BroadcastMicrophoneMonitor {
         format = nextFormat
         sampleRate = resolvedSampleRate
         channelCount = resolvedChannelCount
+        return true
     }
 
     private func fill(buffer: AVAudioPCMBuffer, samples: [Float], channelCount: Int, frameCount: Int) throws {
@@ -3405,7 +3635,8 @@ private final class BroadcastMicrophoneMonitor {
     }
 
     private func snapshot(route: BroadcastAudioRoute, running: Bool) -> BroadcastMicrophoneMonitorSnapshot {
-        BroadcastMicrophoneMonitorSnapshot(
+        let recovery = recoveryLock.performLocked { recoveryState.snapshot }
+        return BroadcastMicrophoneMonitorSnapshot(
             enabled: configuration.monitorEnabled,
             running: running,
             volume: configuration.monitorVolume,
@@ -3419,8 +3650,99 @@ private final class BroadcastMicrophoneMonitor {
             droppedBuffers: droppedBuffers,
             estimatedLatencyMs: estimatedLatencyMs(running: running),
             latencySource: running ? "ios-avaudiosession-output-buffer" : "",
-            lastError: lastError
+            lastError: lastError,
+            lifecycleEventCount: recovery.lifecycleEventCount,
+            routeChangeCount: recovery.routeChangeCount,
+            interruptionCount: recovery.interruptionCount,
+            recoveryCount: recovery.recoveryCount,
+            recoveryFailureCount: recovery.recoveryFailureCount,
+            lastRecoveryReason: recovery.lastRecoveryReason,
+            lastRecoveryAt: recovery.lastRecoveryAt,
+            suspended: recovery.suspended
         )
+    }
+
+    private func registerAudioSessionNotifications() {
+        let center = NotificationCenter.default
+        let audioSession = AVAudioSession.sharedInstance()
+        notificationTokens = [
+            center.addObserver(
+                forName: AVAudioSession.interruptionNotification,
+                object: audioSession,
+                queue: nil
+            ) { [weak self] notification in
+                self?.handleInterruption(notification)
+            },
+            center.addObserver(
+                forName: AVAudioSession.routeChangeNotification,
+                object: audioSession,
+                queue: nil
+            ) { [weak self] notification in
+                self?.handleRouteChange(notification)
+            },
+            center.addObserver(
+                forName: AVAudioSession.mediaServicesWereResetNotification,
+                object: audioSession,
+                queue: nil
+            ) { [weak self] _ in
+                self?.recoveryLock.performLocked {
+                    self?.recoveryState.recordMediaServicesReset()
+                }
+            }
+        ]
+    }
+
+    private func handleInterruption(_ notification: Notification) {
+        guard
+            let rawType = (notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue,
+            let type = AVAudioSession.InterruptionType(rawValue: rawType)
+        else {
+            return
+        }
+
+        recoveryLock.performLocked {
+            switch type {
+            case .began:
+                recoveryState.recordInterruptionBegan()
+            case .ended:
+                let rawOptions = (notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? NSNumber)?.uintValue ?? 0
+                let options = AVAudioSession.InterruptionOptions(rawValue: rawOptions)
+                recoveryState.recordInterruptionEnded(shouldResume: options.contains(.shouldResume))
+            @unknown default:
+                recoveryState.recordInterruptionEnded(shouldResume: false)
+            }
+        }
+    }
+
+    private func handleRouteChange(_ notification: Notification) {
+        let rawReason = (notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.uintValue ?? 0
+        let reason = AVAudioSession.RouteChangeReason(rawValue: rawReason)
+        recoveryLock.performLocked {
+            recoveryState.recordRouteChange(Self.routeChangeReasonLabel(reason))
+        }
+    }
+
+    private static func routeChangeReasonLabel(_ reason: AVAudioSession.RouteChangeReason?) -> String {
+        switch reason {
+        case .newDeviceAvailable:
+            return "route-new-device"
+        case .oldDeviceUnavailable:
+            return "route-device-removed"
+        case .categoryChange:
+            return "route-category-change"
+        case .override:
+            return "route-override"
+        case .wakeFromSleep:
+            return "route-wake"
+        case .noSuitableRouteForCategory:
+            return "route-unavailable"
+        case .routeConfigurationChange:
+            return "route-configuration-change"
+        case .unknown, .none:
+            return "route-unknown"
+        @unknown default:
+            return "route-unknown"
+        }
     }
 
     private func estimatedLatencyMs(running: Bool) -> Int {

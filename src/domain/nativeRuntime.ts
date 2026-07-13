@@ -382,6 +382,14 @@ export interface NativeRuntimeAudioProcessing {
   monitorEstimatedLatencyMs: number;
   monitorLatencySource: string;
   monitorLastError: string;
+  monitorLifecycleEventCount?: number;
+  monitorRouteChangeCount?: number;
+  monitorInterruptionCount?: number;
+  monitorRecoveryCount?: number;
+  monitorRecoveryFailureCount?: number;
+  monitorLastRecoveryReason?: string;
+  monitorLastRecoveryAt?: number;
+  monitorSuspended?: boolean;
   broadcastMicVolume?: number;
   broadcastMicMuted?: boolean;
   broadcastAppAudioVolume?: number;
@@ -649,6 +657,14 @@ export const normalizeNativeRuntimeAudioProcessing = (
   monitorEstimatedLatencyMs: normalizeNativeAudioCount(audioProcessing?.monitorEstimatedLatencyMs),
   monitorLatencySource: audioProcessing?.monitorLatencySource ?? "",
   monitorLastError: audioProcessing?.monitorLastError ?? "",
+  monitorLifecycleEventCount: normalizeNativeAudioCount(audioProcessing?.monitorLifecycleEventCount),
+  monitorRouteChangeCount: normalizeNativeAudioCount(audioProcessing?.monitorRouteChangeCount),
+  monitorInterruptionCount: normalizeNativeAudioCount(audioProcessing?.monitorInterruptionCount),
+  monitorRecoveryCount: normalizeNativeAudioCount(audioProcessing?.monitorRecoveryCount),
+  monitorRecoveryFailureCount: normalizeNativeAudioCount(audioProcessing?.monitorRecoveryFailureCount),
+  monitorLastRecoveryReason: audioProcessing?.monitorLastRecoveryReason ?? "",
+  monitorLastRecoveryAt: normalizeNativeAudioTimestamp(audioProcessing?.monitorLastRecoveryAt),
+  monitorSuspended: audioProcessing?.monitorSuspended ?? false,
   broadcastMicVolume: normalizeNativeAudioLevel(audioProcessing?.broadcastMicVolume, 1),
   broadcastMicMuted: audioProcessing?.broadcastMicMuted ?? false,
   broadcastAppAudioVolume: normalizeNativeAudioLevel(audioProcessing?.broadcastAppAudioVolume, 0.85),

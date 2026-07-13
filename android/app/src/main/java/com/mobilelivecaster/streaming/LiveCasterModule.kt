@@ -425,6 +425,14 @@ data class NativeRuntimeAudioProcessing(
     val monitorEstimatedLatencyMs: Int = 0,
     val monitorLatencySource: String = "",
     val monitorLastError: String = "",
+    val monitorLifecycleEventCount: Long = 0L,
+    val monitorRouteChangeCount: Long = 0L,
+    val monitorInterruptionCount: Long = 0L,
+    val monitorRecoveryCount: Long = 0L,
+    val monitorRecoveryFailureCount: Long = 0L,
+    val monitorLastRecoveryReason: String = "",
+    val monitorLastRecoveryAt: Long = 0L,
+    val monitorSuspended: Boolean = false,
     val broadcastMicVolume: Float = 1f,
     val broadcastMicMuted: Boolean = false,
     val broadcastAppAudioVolume: Float = 0.85f,
@@ -475,6 +483,14 @@ data class NativeRuntimeAudioProcessing(
         putInt("monitorEstimatedLatencyMs", monitorEstimatedLatencyMs)
         putString("monitorLatencySource", monitorLatencySource)
         putString("monitorLastError", monitorLastError)
+        putDouble("monitorLifecycleEventCount", monitorLifecycleEventCount.toDouble())
+        putDouble("monitorRouteChangeCount", monitorRouteChangeCount.toDouble())
+        putDouble("monitorInterruptionCount", monitorInterruptionCount.toDouble())
+        putDouble("monitorRecoveryCount", monitorRecoveryCount.toDouble())
+        putDouble("monitorRecoveryFailureCount", monitorRecoveryFailureCount.toDouble())
+        putString("monitorLastRecoveryReason", monitorLastRecoveryReason)
+        putDouble("monitorLastRecoveryAt", monitorLastRecoveryAt.toDouble())
+        putBoolean("monitorSuspended", monitorSuspended)
         putDouble("broadcastMicVolume", broadcastMicVolume.toDouble())
         putBoolean("broadcastMicMuted", broadcastMicMuted)
         putDouble("broadcastAppAudioVolume", broadcastAppAudioVolume.toDouble())

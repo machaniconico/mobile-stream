@@ -295,7 +295,15 @@ describe("native runtime audio telemetry", () => {
       playbackCapturedFrames: 132_300.4,
       playbackDroppedFrames: -2,
       playbackUnderrunFrames: 441.4,
-      playbackBufferedFrames: 882.4
+      playbackBufferedFrames: 882.4,
+      monitorLifecycleEventCount: 4.6,
+      monitorRouteChangeCount: 2.4,
+      monitorInterruptionCount: 1.4,
+      monitorRecoveryCount: 2.4,
+      monitorRecoveryFailureCount: -1,
+      monitorLastRecoveryReason: "route-device-removed",
+      monitorLastRecoveryAt: 1_784_000_000_125.6,
+      monitorSuspended: true
     });
 
     expect(audio).toMatchObject({
@@ -311,7 +319,15 @@ describe("native runtime audio telemetry", () => {
       playbackDroppedFrames: 0,
       playbackUnderrunFrames: 441,
       playbackBufferedFrames: 882,
-      playbackCaptureTelemetryComplete: false
+      playbackCaptureTelemetryComplete: false,
+      monitorLifecycleEventCount: 5,
+      monitorRouteChangeCount: 2,
+      monitorInterruptionCount: 1,
+      monitorRecoveryCount: 2,
+      monitorRecoveryFailureCount: 0,
+      monitorLastRecoveryReason: "route-device-removed",
+      monitorLastRecoveryAt: 1_784_000_000_126,
+      monitorSuspended: true
     });
   });
 
@@ -330,7 +346,15 @@ describe("native runtime audio telemetry", () => {
       playbackCaptureStatus: "unavailable",
       playbackCaptureBackend: "none",
       playbackCapturedFrames: 0,
-      playbackCaptureTelemetryComplete: false
+      playbackCaptureTelemetryComplete: false,
+      monitorLifecycleEventCount: 0,
+      monitorRouteChangeCount: 0,
+      monitorInterruptionCount: 0,
+      monitorRecoveryCount: 0,
+      monitorRecoveryFailureCount: 0,
+      monitorLastRecoveryReason: "",
+      monitorLastRecoveryAt: 0,
+      monitorSuspended: false
     });
   });
 

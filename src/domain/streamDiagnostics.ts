@@ -1600,7 +1600,11 @@ const sanitizeNativeRuntime = (
     audioProcessing: runtime.audioProcessing
       ? {
           ...runtime.audioProcessing,
-          monitorLastError: redactStreamKeyOccurrences(runtime.audioProcessing.monitorLastError, streamKey)
+          monitorLastError: redactStreamKeyOccurrences(runtime.audioProcessing.monitorLastError, streamKey),
+          monitorLastRecoveryReason: redactStreamKeyOccurrences(
+            runtime.audioProcessing.monitorLastRecoveryReason ?? "",
+            streamKey
+          )
         }
       : undefined
   };

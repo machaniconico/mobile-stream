@@ -148,7 +148,15 @@ describe("support bundle", () => {
           playbackCapturedFrames: 132_300,
           playbackDroppedFrames: 441,
           playbackUnderrunFrames: 441,
-          playbackBufferedFrames: 882
+          playbackBufferedFrames: 882,
+          monitorLifecycleEventCount: 4,
+          monitorRouteChangeCount: 2,
+          monitorInterruptionCount: 1,
+          monitorRecoveryCount: 2,
+          monitorRecoveryFailureCount: 1,
+          monitorLastRecoveryReason: "route-device-removed",
+          monitorLastRecoveryAt: Date.parse("2026-06-23T00:00:04.500Z"),
+          monitorSuspended: false
         }),
         message: `Publishing ${streamKey}`
       }
@@ -367,6 +375,16 @@ describe("support bundle", () => {
     expect(bundle.summary.nativeRuntimePlaybackCaptureDropRatio).toBeCloseTo(0.0033, 4);
     expect(bundle.summary.nativeRuntimePlaybackCaptureUnderrunRatio).toBeCloseTo(0.00336, 5);
     expect(bundle.summary.nativeRuntimePlaybackCaptureBufferedMs).toBe(20);
+    expect(bundle.summary).toMatchObject({
+      nativeRuntimeMonitorLifecycleEventCount: 4,
+      nativeRuntimeMonitorRouteChangeCount: 2,
+      nativeRuntimeMonitorInterruptionCount: 1,
+      nativeRuntimeMonitorRecoveryCount: 2,
+      nativeRuntimeMonitorRecoveryFailureCount: 1,
+      nativeRuntimeMonitorLastRecoveryReason: "route-device-removed",
+      nativeRuntimeMonitorLastRecoveryAt: Date.parse("2026-06-23T00:00:04.500Z"),
+      nativeRuntimeMonitorSuspended: false
+    });
     expect(bundle.summary.nativeRuntimeStillImageAssetCount).toBe(1);
     expect(bundle.summary.nativeRuntimeStillImageAssetLoadedCount).toBe(1);
     expect(bundle.summary.nativeRuntimeStillImageAssetMissingCount).toBe(0);
@@ -499,6 +517,9 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain(
       "Android playback capture: ready / capturing android-audio-playback-capture / 44100 Hz / 3.0s / captured 132300 / dropped 441 (0.33%) / underrun 441 (0.34%) / buffered 882 frames (20ms)"
+    );
+    expect(formatSupportBundle(bundle)).toContain(
+      "Audio monitor recovery: events 4 / routes 2 / interruptions 1 / recovered 2 / failed 1 / suspended no / last route-device-removed"
     );
     expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / encoders mediacodec-h264/mediacodec-aac / MediaCodec probe missing none/none / overlays applied 4 kinds caption/chat/pngtuber/text skipped 0 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / runtime android-canvas-mediacodec 144 frames 1 dropped 0 failures live reloads 3 rejected 1 / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing / live2d 0/0 active payloads 0 missing 0 / vrm 1/1 active payloads 1 missing 0 / renderer ready opengl-es rendered 1/1 models 1 versions 1.0 bones 55 expressions 8 mesh primitives 4 triangles 4 unsupported modes 0 skinned 4 skin joints 55 position accessors 4 normals 4 uvs 4 vertices 12480 indices 36240 bounds 4 skin attrs 4 morphs 8 materials 3 transparent materials 1 textures 3 images 3 unsupported image mimes 0 pose bones 7/7 unsupported 0 pose expressions 3/3 unsupported 0 missing 0 failed 0 / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");

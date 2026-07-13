@@ -464,7 +464,15 @@ describe("stream session summary", () => {
           monitorDroppedBuffers: 0,
           monitorEstimatedLatencyMs: 142,
           monitorLatencySource: "android-audiotrack-buffer",
-          monitorLastError: ""
+          monitorLastError: "",
+          monitorLifecycleEventCount: 4,
+          monitorRouteChangeCount: 2,
+          monitorInterruptionCount: 1,
+          monitorRecoveryCount: 2,
+          monitorRecoveryFailureCount: 1,
+          monitorLastRecoveryReason: "route-device-removed",
+          monitorLastRecoveryAt: Date.parse("2026-06-23T00:00:03.750Z"),
+          monitorSuspended: false
         },
         continuity: {
           status: "healthy",
@@ -544,6 +552,16 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.monitorDroppedFrames).toBe(0);
     expect(summary?.nativeRuntime?.monitorEstimatedLatencyMs).toBe(142);
     expect(summary?.nativeRuntime?.monitorLatencySource).toBe("android-audiotrack-buffer");
+    expect(summary?.nativeRuntime).toMatchObject({
+      monitorLifecycleEventCount: 4,
+      monitorRouteChangeCount: 2,
+      monitorInterruptionCount: 1,
+      monitorRecoveryCount: 2,
+      monitorRecoveryFailureCount: 1,
+      monitorLastRecoveryReason: "route-device-removed",
+      monitorLastRecoveryAt: Date.parse("2026-06-23T00:00:03.750Z"),
+      monitorSuspended: false
+    });
     expect(summary?.nativeRuntime?.micRmsLevel).toBe(0.18);
     expect(summary?.nativeRuntime?.micPeakLevel).toBe(0.72);
     expect(summary?.nativeRuntime?.micSampleCount).toBe(12288);
