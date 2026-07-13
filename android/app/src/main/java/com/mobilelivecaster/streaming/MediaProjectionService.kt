@@ -34,6 +34,7 @@ class MediaProjectionService : Service(), ConnectChecker {
         private const val MAX_RECONNECT_ATTEMPTS = 5
         private const val INITIAL_RECONNECT_DELAY_MS = 1_500L
         private const val MAX_RECONNECT_DELAY_MS = 15_000L
+        private const val CONTINUITY_HEARTBEAT_INTERVAL_MS = 1_000L
     }
 
     private var mediaProjection: MediaProjection? = null
@@ -42,6 +43,7 @@ class MediaProjectionService : Service(), ConnectChecker {
     private var micProcessingEffect: MicProcessingEffect? = null
     private var nativeCompositionResult: AndroidCompositionResult? = null
     private val reconnectHandler = Handler(Looper.getMainLooper())
+    private val continuityHandler = Handler(Looper.getMainLooper())
     private var reconnectAttempts = 0
     private var userRequestedStop = false
     private var terminalFailure = false
@@ -50,9 +52,19 @@ class MediaProjectionService : Service(), ConnectChecker {
     private var lastKnownBitrate = 0L
     private var lastNativeFps = 0
     private val videoFrameIntervalTracker = VideoFrameIntervalTracker()
+    private val mediaContinuityTracker = MediaContinuityTracker()
     private val deviceResourceMonitor by lazy { DeviceResourceMonitor(applicationContext) }
     private val mediaProjectionManager: MediaProjectionManager by lazy {
         applicationContext.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+    }
+    private val continuityHeartbeat = object : Runnable {
+        override fun run() {
+            if (userRequestedStop || terminalFailure || (genericStream == null && directMediaCodecStream == null)) {
+                return
+            }
+            updateNativeRuntimeFromActiveStream(message = LiveCasterSession.health.message)
+            continuityHandler.postDelayed(this, CONTINUITY_HEARTBEAT_INTERVAL_MS)
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -70,6 +82,7 @@ class MediaProjectionService : Service(), ConnectChecker {
 
     override fun onDestroy() {
         reconnectHandler.removeCallbacksAndMessages(null)
+        stopContinuityHeartbeat()
         releaseStreamResources()
         super.onDestroy()
     }
@@ -97,6 +110,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             LiveCasterSession.updateNativeRuntime(
                 publisherState = "preparing",
                 encoderProbe = encoderProbe,
+                continuity = mediaContinuityTracker.record(null, null, active = false),
                 device = deviceResourceMonitor.snapshot(),
                 message = encoderProbe.message
             )
@@ -165,6 +179,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             } else {
                 LiveCasterSession.markLive(liveMessage("Connecting"))
             }
+            startContinuityHeartbeat()
         } catch (error: Throwable) {
             val message = error.message ?: "Android screen stream failed"
             if (LiveCasterSession.status == LiveCasterStatus.Reconnecting) {
@@ -201,6 +216,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             LiveCasterSession.markLive(liveMessage("Connecting"))
         }
         updateNativeRuntimeFromDirectStream(publisherState = "connecting", message = LiveCasterSession.health.message)
+        startContinuityHeartbeat()
     }
 
     private fun updateStreamScene() {
@@ -228,7 +244,6 @@ class MediaProjectionService : Service(), ConnectChecker {
         val message = liveMessage("Live scene updated")
         LiveCasterSession.updateHealth(message = message)
         updateNativeRuntimeFromStream(
-            publisherState = if (stream.isStreaming) "published" else null,
             compositionResult = nativeCompositionResult,
             message = message
         )
@@ -276,6 +291,8 @@ class MediaProjectionService : Service(), ConnectChecker {
         terminalFailure = false
         reconnectHandler.removeCallbacksAndMessages(null)
         reconnectAttempts = 0
+        stopContinuityHeartbeat()
+        captureFinalContinuitySample()
         releaseStreamResources()
         LiveCasterSession.markStopped()
         stopSelf()
@@ -312,7 +329,6 @@ class MediaProjectionService : Service(), ConnectChecker {
                 message = message
             )
             updateNativeRuntimeFromStream(
-                publisherState = if (stream.isStreaming) "published" else null,
                 message = message
             )
         } catch (error: Throwable) {
@@ -329,6 +345,7 @@ class MediaProjectionService : Service(), ConnectChecker {
         lastKnownBitrate = 0L
         lastNativeFps = 0
         videoFrameIntervalTracker.reset()
+        mediaContinuityTracker.reset()
     }
 
     private fun recordBitrateSample(bitrate: Long): Long {
@@ -393,9 +410,18 @@ class MediaProjectionService : Service(), ConnectChecker {
         message: String = LiveCasterSession.health.message
     ) {
         val snapshot = directMediaCodecStream?.snapshot()
+        val resolvedPublisherState = publisherState
+            ?: snapshot?.publisherState
+            ?: LiveCasterSession.nativeRuntime?.publisher?.state
+            ?: ""
+        val continuity = mediaContinuityTracker.record(
+            snapshot?.sentVideoFrames,
+            snapshot?.sentAudioFrames,
+            active = LiveCasterSession.status == LiveCasterStatus.Live && resolvedPublisherState == "published"
+        )
         val videoFrameInterval = videoFrameIntervalTracker.record(snapshot?.sentVideoFrames)
         LiveCasterSession.updateNativeRuntime(
-            publisherState = publisherState ?: snapshot?.publisherState,
+            publisherState = resolvedPublisherState,
             compositionResult = compositionResult ?: nativeCompositionResult,
             runtimeCompositorBackend = snapshot?.runtimeCompositorBackend,
             runtimeCompositedFrameCount = snapshot?.runtimeCompositedFrameCount,
@@ -419,6 +445,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             congested = snapshot?.congested,
             lastError = lastError ?: snapshot?.lastError,
             audioProcessing = snapshot?.audioProcessing,
+            continuity = continuity,
             device = deviceResourceMonitor.snapshot(),
             message = message
         )
@@ -437,10 +464,19 @@ class MediaProjectionService : Service(), ConnectChecker {
         val sentAudioFrames = client?.getSentAudioFrames()
         val droppedVideoFrames = client?.getDroppedVideoFrames()
         val droppedAudioFrames = client?.getDroppedAudioFrames()
+        val previousPublisherState = LiveCasterSession.nativeRuntime?.publisher?.state.orEmpty()
+        val resolvedPublisherState = publisherState
+            ?: previousPublisherState.takeIf { it.isNotBlank() }
+            ?: if (genericStream?.isStreaming == true) "connecting" else ""
+        val continuity = mediaContinuityTracker.record(
+            sentVideoFrames,
+            sentAudioFrames,
+            active = LiveCasterSession.status == LiveCasterStatus.Live && resolvedPublisherState == "published"
+        )
         val videoFrameInterval = videoFrameIntervalTracker.record(sentVideoFrames)
         val estimatedBytes = estimatedBytesWritten.takeIf { it > 0L }
         LiveCasterSession.updateNativeRuntime(
-            publisherState = publisherState,
+            publisherState = resolvedPublisherState,
             compositionResult = compositionResult,
             runtimeCompositorBackend = "rootencoder-gl",
             runtimeCompositedFrameCount = sentVideoFrames,
@@ -464,6 +500,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             congested = client?.hasCongestion(),
             lastError = lastError,
             audioProcessing = micProcessingEffect?.snapshot(),
+            continuity = continuity,
             device = deviceResourceMonitor.snapshot(),
             message = message
         )
@@ -473,6 +510,8 @@ class MediaProjectionService : Service(), ConnectChecker {
         userRequestedStop = true
         terminalFailure = true
         reconnectHandler.removeCallbacksAndMessages(null)
+        stopContinuityHeartbeat()
+        captureFinalContinuitySample()
         releaseStreamResources()
         LiveCasterSession.fail(message)
         stopSelf()
@@ -489,6 +528,21 @@ class MediaProjectionService : Service(), ConnectChecker {
         mediaProjection?.stop()
         mediaProjection = null
         stopForeground(STOP_FOREGROUND_REMOVE)
+    }
+
+    private fun startContinuityHeartbeat() {
+        continuityHandler.removeCallbacks(continuityHeartbeat)
+        continuityHandler.postDelayed(continuityHeartbeat, CONTINUITY_HEARTBEAT_INTERVAL_MS)
+    }
+
+    private fun stopContinuityHeartbeat() {
+        continuityHandler.removeCallbacks(continuityHeartbeat)
+    }
+
+    private fun captureFinalContinuitySample() {
+        if (genericStream != null || directMediaCodecStream != null) {
+            updateNativeRuntimeFromActiveStream(message = LiveCasterSession.health.message)
+        }
     }
 
     private fun scheduleReconnect(reason: String) {
@@ -668,4 +722,141 @@ private class VideoFrameIntervalTracker {
             jitterMs = (maxIntervalMs - safeMinMs).coerceAtLeast(0.0)
         )
     }
+}
+
+internal class MediaContinuityTracker(
+    private val stallThresholdMs: Long = 5_000L,
+    private val elapsedRealtimeMs: () -> Long = SystemClock::elapsedRealtime,
+    private val wallClockMs: () -> Long = System::currentTimeMillis
+) {
+    private var initialized = false
+    private var wasActive = false
+    private var activeSinceElapsedMs = 0L
+    private var lastVideoFrames: Long? = null
+    private var lastAudioFrames: Long? = null
+    private var lastVideoAdvancedElapsedMs = 0L
+    private var lastAudioAdvancedElapsedMs = 0L
+    private var videoLastAdvancedAt = 0L
+    private var audioLastAdvancedAt = 0L
+    private var videoStalled = false
+    private var audioStalled = false
+    private var videoStallCount = 0L
+    private var audioStallCount = 0L
+    private var maxVideoStallDurationMs = 0L
+    private var maxAudioStallDurationMs = 0L
+
+    @Synchronized
+    fun reset() {
+        val nowElapsedMs = elapsedRealtimeMs()
+        val nowWallMs = wallClockMs()
+        initialized = true
+        wasActive = false
+        activeSinceElapsedMs = nowElapsedMs
+        lastVideoFrames = null
+        lastAudioFrames = null
+        lastVideoAdvancedElapsedMs = nowElapsedMs
+        lastAudioAdvancedElapsedMs = nowElapsedMs
+        videoLastAdvancedAt = nowWallMs
+        audioLastAdvancedAt = nowWallMs
+        videoStalled = false
+        audioStalled = false
+        videoStallCount = 0L
+        audioStallCount = 0L
+        maxVideoStallDurationMs = 0L
+        maxAudioStallDurationMs = 0L
+    }
+
+    @Synchronized
+    fun record(videoFrames: Long?, audioFrames: Long?, active: Boolean): NativeRuntimeContinuity {
+        if (!initialized) {
+            reset()
+        }
+        val nowElapsedMs = elapsedRealtimeMs()
+        val nowWallMs = wallClockMs()
+
+        if (!active) {
+            wasActive = false
+            lastVideoFrames = videoFrames ?: lastVideoFrames
+            lastAudioFrames = audioFrames ?: lastAudioFrames
+            activeSinceElapsedMs = nowElapsedMs
+            lastVideoAdvancedElapsedMs = nowElapsedMs
+            lastAudioAdvancedElapsedMs = nowElapsedMs
+            videoLastAdvancedAt = nowWallMs
+            audioLastAdvancedAt = nowWallMs
+            videoStalled = false
+            audioStalled = false
+            return snapshot("inactive", 0L, 0L)
+        }
+
+        if (!wasActive) {
+            wasActive = true
+            activeSinceElapsedMs = nowElapsedMs
+            lastVideoFrames = videoFrames
+            lastAudioFrames = audioFrames
+            lastVideoAdvancedElapsedMs = nowElapsedMs
+            lastAudioAdvancedElapsedMs = nowElapsedMs
+            videoLastAdvancedAt = nowWallMs
+            audioLastAdvancedAt = nowWallMs
+            videoStalled = false
+            audioStalled = false
+            return snapshot("warming-up", 0L, 0L)
+        }
+
+        val previousVideoFrames = lastVideoFrames
+        if (videoFrames != null) {
+            if (previousVideoFrames == null || videoFrames != previousVideoFrames) {
+                lastVideoAdvancedElapsedMs = nowElapsedMs
+                videoLastAdvancedAt = nowWallMs
+                videoStalled = false
+            }
+            lastVideoFrames = videoFrames
+        }
+        val previousAudioFrames = lastAudioFrames
+        if (audioFrames != null) {
+            if (previousAudioFrames == null || audioFrames != previousAudioFrames) {
+                lastAudioAdvancedElapsedMs = nowElapsedMs
+                audioLastAdvancedAt = nowWallMs
+                audioStalled = false
+            }
+            lastAudioFrames = audioFrames
+        }
+
+        val videoDurationMs = (nowElapsedMs - lastVideoAdvancedElapsedMs).coerceAtLeast(0L)
+        val audioDurationMs = (nowElapsedMs - lastAudioAdvancedElapsedMs).coerceAtLeast(0L)
+        val nextVideoStalled = videoDurationMs >= stallThresholdMs
+        val nextAudioStalled = audioDurationMs >= stallThresholdMs
+        if (nextVideoStalled && !videoStalled) videoStallCount += 1L
+        if (nextAudioStalled && !audioStalled) audioStallCount += 1L
+        videoStalled = nextVideoStalled
+        audioStalled = nextAudioStalled
+        if (nextVideoStalled) maxVideoStallDurationMs = maxOf(maxVideoStallDurationMs, videoDurationMs)
+        if (nextAudioStalled) maxAudioStallDurationMs = maxOf(maxAudioStallDurationMs, audioDurationMs)
+
+        val warmingUp = nowElapsedMs - activeSinceElapsedMs < stallThresholdMs &&
+            (lastVideoFrames ?: 0L) <= 0L &&
+            (lastAudioFrames ?: 0L) <= 0L
+        val status = when {
+            videoStalled && audioStalled -> "both-stalled"
+            videoStalled -> "video-stalled"
+            audioStalled -> "audio-stalled"
+            warmingUp -> "warming-up"
+            else -> "healthy"
+        }
+        return snapshot(status, videoDurationMs, audioDurationMs)
+    }
+
+    private fun snapshot(status: String, videoDurationMs: Long, audioDurationMs: Long) = NativeRuntimeContinuity(
+        status = status,
+        videoStalled = videoStalled,
+        audioStalled = audioStalled,
+        videoLastAdvancedAt = videoLastAdvancedAt,
+        audioLastAdvancedAt = audioLastAdvancedAt,
+        videoStallDurationMs = videoDurationMs,
+        audioStallDurationMs = audioDurationMs,
+        videoStallCount = videoStallCount,
+        audioStallCount = audioStallCount,
+        maxVideoStallDurationMs = maxVideoStallDurationMs,
+        maxAudioStallDurationMs = maxAudioStallDurationMs,
+        stallThresholdMs = stallThresholdMs
+    )
 }

@@ -33,6 +33,24 @@ const nativeReadyScene = () =>
       : source
   );
 
+const healthyContinuity = (
+  overrides: Partial<NonNullable<NativeRuntimeTelemetry["continuity"]>> = {}
+): NonNullable<NativeRuntimeTelemetry["continuity"]> => ({
+  status: "healthy",
+  videoStalled: false,
+  audioStalled: false,
+  videoLastAdvancedAt: Date.parse("2026-06-23T00:00:09.800Z"),
+  audioLastAdvancedAt: Date.parse("2026-06-23T00:00:09.900Z"),
+  videoStallDurationMs: 200,
+  audioStallDurationMs: 100,
+  videoStallCount: 0,
+  audioStallCount: 0,
+  maxVideoStallDurationMs: 0,
+  maxAudioStallDurationMs: 0,
+  stallThresholdMs: 5_000,
+  ...overrides
+});
+
 const nativeRuntimeWithAudioProcessing = (
   audioProcessing: NativeRuntimeTelemetry["audioProcessing"]
 ): NativeRuntimeTelemetry => ({
@@ -86,6 +104,7 @@ const nativeRuntimeWithAudioProcessing = (
     message: "Native overlays applied"
   },
   audioProcessing,
+  continuity: healthyContinuity(),
   message: "Native runtime live"
 });
 
@@ -794,7 +813,7 @@ describe("stream diagnostics", () => {
       "Evidence monitor hold: 1 retained / 0 ready / 1 warn / 0 fail / iOS missing / Android missing / latest warn 0s 0 samples"
     );
     expect(report).toContain(
-      "Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / sent 0 video 0 audio / bytes 0"
+      "Evidence native runtime: 1 retained / 0 ready / 1 warn / 0 fail / iOS missing / Android missing / latest warn ios / sent 0 video 0 audio / bytes 0"
     );
     expect(report).toContain(
       "primitives 0 triangles 0 unsupported modes 0 skinned 0 joints 0 position accessors 0 normals 0 uvs 0 vertices 0 indices 0 bounds 0 skin attrs 0 morphs 0 materials 0 transparent materials 0 textures 0 images 0 unsupported image mimes 0 pose bones 0/0 pose expressions 0/0"
@@ -1083,6 +1102,10 @@ describe("stream diagnostics", () => {
           vrmRenderFailureCount: 0,
           message: `Native overlays applied for ${demoStreamKey}`
         },
+        continuity: healthyContinuity({
+          videoLastAdvancedAt: Date.now() - 200,
+          audioLastAdvancedAt: Date.now() - 100
+        }),
         message: `iOS extension live for ${demoStreamKey}`
       }
     });
@@ -1098,6 +1121,31 @@ describe("stream diagnostics", () => {
       "Composition assets: 2/2 loaded / 2 decoded / decoded pixels 1843200 / 2 composited / composited pixels 1843200 / runtime ios-replaykit-coregraphics 600 frames 0 dropped 0 failures live reloads 0 rejected 0 / 0 missing"
     );
     expect(report).toContain("Composition VRM: 1/1 active / payloads 1 / missing 0");
+    expect(report).toContain("Media continuity: healthy");
+  });
+
+  it("warns when native video stops advancing and retains the incident duration", () => {
+    const scene = nativeReadyScene();
+    const profile = createDefaultStudioProfile();
+    const diagnostics = createStreamDiagnostics(scene, profile, createReadinessReport(scene, profile), {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 4_500, fps: 30, elapsedSeconds: 20 }),
+      nativeRuntime: {
+        ...nativeRuntimeWithAudioProcessing(nativeAudioProcessing()),
+        continuity: healthyContinuity({
+          status: "video-stalled",
+          videoStalled: true,
+          videoStallDurationMs: 6_200,
+          videoStallCount: 1,
+          maxVideoStallDurationMs: 6_200
+        })
+      }
+    });
+
+    expect(diagnostics.checks.find((check) => check.code === "native-runtime-continuity-video-stalled")).toMatchObject({
+      status: "warn",
+      message: expect.stringContaining("video has stopped advancing for 6200 ms")
+    });
   });
 
   it("surfaces device resource pressure and feeds it into the quality advisor", () => {

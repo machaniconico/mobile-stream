@@ -155,7 +155,8 @@ describe("iOS native publish state contract", () => {
 
     expect(connectionFailure).toContain("ReconnectPolicy.maxAttempts");
     expect(connectionFailure).toContain("self.currentStats.fail(message)");
-    expect(pipelineSave).toContain("publisherStats: publisher?.stats");
+    expect(pipelineSave).toContain("let effectivePublisherStats = overridePublisherStats ?? publisher?.stats");
+    expect(pipelineSave).toContain("publisherStats: effectivePublisherStats");
     expect(sharedStoreSave).toContain(
       "effectiveRuntimeState(state: state, publisherStats: publisherStats)"
     );

@@ -47,6 +47,13 @@ describe("web stream announcement UI", () => {
     expect(studioSource).toContain("Audio silence");
   });
 
+  it("shows current and retained native media continuity evidence", () => {
+    expect(studioSource).toContain("nativeRuntimeContinuityMetricLabel");
+    expect(studioSource).toContain("continuity ${continuity.status} incidents");
+    expect(studioSource).toContain("continuity ${summary.nativeRuntime.continuityStatus} incidents");
+    expect(studioSource).toContain("continuity ${run.nativeRuntime.continuityStatus} incidents");
+  });
+
   it("shows and applies the active platform quality recommendation", () => {
     expect(setupSource).toContain("createPlatformQualityRecommendation(profile)");
     expect(setupSource).toContain("platform-quality-recommendation");

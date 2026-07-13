@@ -34,6 +34,7 @@ import {
   isProductionNativeAudioEncoderBackend,
   isProductionNativeVideoEncoderBackend,
   isProductionVrmRendererBackend,
+  normalizeNativeRuntimeContinuity,
   type NativeRuntimeTelemetry
 } from "./nativeRuntime";
 import type { ReadinessReport } from "./readiness";
@@ -640,6 +641,7 @@ export const formatStreamDiagnosticReport = (
     `- Platform: ${diagnostics.nativeRuntime?.platform ?? "-"}`,
     `- Runtime status: ${diagnostics.nativeRuntime?.runtimeStatus ?? "-"}`,
     `- Publisher: ${diagnostics.nativeRuntime?.publisher.state || "-"} / generation ${diagnostics.nativeRuntime?.publisher.publishGeneration ?? 0} / current media ${diagnostics.nativeRuntime?.publisher.currentPublishVideoFrames ?? 0} video ${diagnostics.nativeRuntime?.publisher.currentPublishAudioFrames ?? 0} audio / cache ${diagnostics.nativeRuntime?.publisher.itemsInCache ?? 0}/${diagnostics.nativeRuntime?.publisher.cacheSize ?? 0} / congested ${diagnostics.nativeRuntime?.publisher.congested ? "yes" : "no"}`,
+    `- Media continuity: ${diagnostics.nativeRuntime?.continuity?.status ?? "unknown"} / current ${diagnostics.nativeRuntime?.continuity?.videoStallDurationMs ?? 0}ms video ${diagnostics.nativeRuntime?.continuity?.audioStallDurationMs ?? 0}ms audio / incidents ${diagnostics.nativeRuntime?.continuity?.videoStallCount ?? 0} video ${diagnostics.nativeRuntime?.continuity?.audioStallCount ?? 0} audio / max ${diagnostics.nativeRuntime?.continuity?.maxVideoStallDurationMs ?? 0}ms video ${diagnostics.nativeRuntime?.continuity?.maxAudioStallDurationMs ?? 0}ms audio`,
     `- Composition: ${diagnostics.nativeRuntime?.composition.status ?? "-"} / ${diagnostics.nativeRuntime?.composition.message || "-"}`,
     `- Device resources: ${formatNativeDeviceResources(diagnostics.nativeRuntime)}`,
     `- Composition overlays: applied ${diagnostics.nativeRuntime?.composition.appliedCount ?? 0}${formatKinds(diagnostics.nativeRuntime?.composition.appliedKinds)} / skipped ${diagnostics.nativeRuntime?.composition.skippedCount ?? 0}${formatKinds(diagnostics.nativeRuntime?.composition.skippedKinds)}`,
@@ -2088,6 +2090,50 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
                     : incompleteVrmRendering
                       ? `Native VRM renderer is ${vrmRendererStatus} (${vrmRenderedSourceCount}/${vrmSourceCount} rendered).`
                       : "Native compositor has pending or failed sources.")
+    };
+  }
+  const continuity = normalizeNativeRuntimeContinuity(runtime.continuity);
+  const continuityExpected =
+    runtime.runtimeStatus === "live" ||
+    runtime.runtimeStatus === "reconnecting" ||
+    runtime.publisher.state === "published" ||
+    runtime.publisher.state === "reconnecting";
+  if (continuity.videoStalled || continuity.audioStalled) {
+    const stalledMedia =
+      continuity.videoStalled && continuity.audioStalled
+        ? "video and audio"
+        : continuity.videoStalled
+          ? "video"
+          : "audio";
+    return {
+      code: `native-runtime-continuity-${continuity.status}`,
+      status: "warn",
+      label: "Native runtime",
+      message: `Native publisher ${stalledMedia} has stopped advancing for ${Math.max(continuity.videoStallDurationMs, continuity.audioStallDurationMs)} ms.`
+    };
+  }
+  if (continuityExpected && (continuity.status === "unknown" || continuity.status === "inactive")) {
+    return {
+      code: "native-runtime-continuity-unavailable",
+      status: "warn",
+      label: "Native runtime",
+      message: "Native media continuity telemetry is unavailable while the publisher is active."
+    };
+  }
+  if (continuityExpected && continuity.status === "warming-up") {
+    return {
+      code: "native-runtime-continuity-warming-up",
+      status: "info",
+      label: "Native runtime",
+      message: `Native media continuity watchdog is warming up for ${continuity.stallThresholdMs} ms.`
+    };
+  }
+  if (continuity.videoStallCount > 0 || continuity.audioStallCount > 0) {
+    return {
+      code: "native-runtime-continuity-recovered",
+      status: "warn",
+      label: "Native runtime",
+      message: `Native media recovered after ${continuity.videoStallCount} video and ${continuity.audioStallCount} audio stall incident(s); longest ${continuity.maxVideoStallDurationMs} ms video / ${continuity.maxAudioStallDurationMs} ms audio.`
     };
   }
   return {

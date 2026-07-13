@@ -407,6 +407,20 @@ describe("stream session summary", () => {
           monitorLatencySource: "android-audiotrack-buffer",
           monitorLastError: ""
         },
+        continuity: {
+          status: "healthy",
+          videoStalled: false,
+          audioStalled: false,
+          videoLastAdvancedAt: Date.parse("2026-06-23T00:00:03.800Z"),
+          audioLastAdvancedAt: Date.parse("2026-06-23T00:00:03.900Z"),
+          videoStallDurationMs: 200,
+          audioStallDurationMs: 100,
+          videoStallCount: 1,
+          audioStallCount: 0,
+          maxVideoStallDurationMs: 6_400,
+          maxAudioStallDurationMs: 0,
+          stallThresholdMs: 5_000
+        },
         message: "Live"
       }
     });
@@ -427,6 +441,9 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.micPeakLevel).toBe(0.72);
     expect(summary?.nativeRuntime?.micSampleCount).toBe(12288);
     expect(summary?.nativeRuntime?.micClippedSampleCount).toBe(0);
+    expect(summary?.nativeRuntime?.continuityStatus).toBe("healthy");
+    expect(summary?.nativeRuntime?.videoStallCount).toBe(1);
+    expect(summary?.nativeRuntime?.maxVideoStallDurationMs).toBe(6400);
     expect(summary?.audioLevel.sampleCount).toBe(1);
     expect(summary?.audioLevel.evidenceSource).toBe("native-pcm");
     expect(summary?.audioLevel.peakLevel).toBe(0.5);

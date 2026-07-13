@@ -666,6 +666,20 @@ describe("support bundle", () => {
           vrmRenderFailureCount: 0,
           message: "Native overlays applied"
         },
+        continuity: {
+          status: "healthy",
+          videoStalled: false,
+          audioStalled: false,
+          videoLastAdvancedAt: Date.parse("2026-06-23T00:00:45.000Z"),
+          audioLastAdvancedAt: Date.parse("2026-06-23T00:00:45.000Z"),
+          videoStallDurationMs: 0,
+          audioStallDurationMs: 0,
+          videoStallCount: 0,
+          audioStallCount: 0,
+          maxVideoStallDurationMs: 0,
+          maxAudioStallDurationMs: 0,
+          stallThresholdMs: 5_000
+        },
         message: "Native runtime live"
       }
     }, [
@@ -735,6 +749,10 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeSentVideoFrames).toBe(0);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeSentAudioFrames).toBe(0);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeBytesWritten).toBe(0);
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeContinuityStatus).toBe("healthy");
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeVideoStallCount).toBe(0);
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeAudioStallCount).toBe(0);
+    expect(bundle.summary.nativeRuntimeContinuityStatus).toBe("unknown");
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeLiveRenderGraphReloadCount).toBe(2);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeLiveRenderGraphRejectedUpdateCount).toBe(1);
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeStillImageAssetAppGroupCount).toBe(1);
@@ -772,6 +790,9 @@ describe("support bundle", () => {
       matchesScope: true,
       eligible: true,
       nativeRuntimeStatus: "pass",
+      nativeRuntimeContinuityStatus: "healthy",
+      nativeRuntimeVideoStallCount: 0,
+      nativeRuntimeAudioStallCount: 0,
       nativeRuntimeVideoEncoderBackend: "videotoolbox-h264",
       nativeRuntimeAudioEncoderBackend: "audiotoolbox-aac",
       nativeRuntimeEncoderProbeStatus: "missing",

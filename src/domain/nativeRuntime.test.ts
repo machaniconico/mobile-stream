@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeNativeRuntimeAudioProcessing,
+  normalizeNativeRuntimeContinuity,
   normalizeNativeRuntimeDevice
 } from "./nativeRuntime";
 
@@ -101,5 +102,74 @@ describe("native runtime audio telemetry", () => {
       appAudioSampleCount: 0,
       mixedAudioSampleCount: 0
     });
+  });
+});
+
+describe("native runtime continuity telemetry", () => {
+  it("normalizes current stalls and retained incident counters", () => {
+    expect(
+      normalizeNativeRuntimeContinuity({
+        status: "video-stalled",
+        videoStalled: true,
+        audioStalled: false,
+        videoLastAdvancedAt: 1_784_000_000_000.4,
+        audioLastAdvancedAt: 1_784_000_004_000.4,
+        videoStallDurationMs: 6_100.6,
+        audioStallDurationMs: -2,
+        videoStallCount: 2.2,
+        audioStallCount: 1,
+        maxVideoStallDurationMs: 8_400.2,
+        maxAudioStallDurationMs: Number.NaN,
+        stallThresholdMs: 5_000
+      })
+    ).toEqual({
+      status: "video-stalled",
+      videoStalled: true,
+      audioStalled: false,
+      videoLastAdvancedAt: 1_784_000_000_000,
+      audioLastAdvancedAt: 1_784_000_004_000,
+      videoStallDurationMs: 6_101,
+      audioStallDurationMs: 0,
+      videoStallCount: 2,
+      audioStallCount: 1,
+      maxVideoStallDurationMs: 8_400,
+      maxAudioStallDurationMs: 0,
+      stallThresholdMs: 5_000
+    });
+  });
+
+  it("fails missing and malformed continuity closed without inventing health", () => {
+    expect(normalizeNativeRuntimeContinuity(undefined)).toMatchObject({
+      status: "unknown",
+      videoStalled: false,
+      audioStalled: false,
+      videoStallCount: 0,
+      audioStallCount: 0,
+      stallThresholdMs: 5_000
+    });
+    expect(
+      normalizeNativeRuntimeContinuity({
+        status: "perfect" as "healthy",
+        videoStalled: true,
+        stallThresholdMs: 200
+      })
+    ).toMatchObject({ status: "video-stalled", videoStalled: true, stallThresholdMs: 1_000 });
+  });
+
+  it("resolves contradictory native status and flags toward a stalled state", () => {
+    expect(
+      normalizeNativeRuntimeContinuity({
+        status: "healthy",
+        videoStalled: true
+      })
+    ).toMatchObject({ status: "video-stalled", videoStalled: true, audioStalled: false });
+
+    expect(
+      normalizeNativeRuntimeContinuity({
+        status: "both-stalled",
+        videoStalled: false,
+        audioStalled: false
+      })
+    ).toMatchObject({ status: "both-stalled", videoStalled: true, audioStalled: true });
   });
 });

@@ -7,6 +7,8 @@ import {
   isProductionNativeAudioEncoderBackend,
   isProductionNativeVideoEncoderBackend,
   isProductionVrmRendererBackend,
+  normalizeNativeRuntimeContinuity,
+  type NativeRuntimeContinuityStatus,
   type NativeRuntimeTelemetry
 } from "./nativeRuntime";
 import { redactSecretsFromText } from "./persistencePrivacy";
@@ -170,6 +172,18 @@ export interface StreamSessionNativeRuntimeSummary {
   mixedAudioSampleCount?: number;
   mixedAudioClippedSampleCount?: number;
   mixedAudioLevelUpdatedAt?: number;
+  continuityStatus: NativeRuntimeContinuityStatus;
+  videoStalled: boolean;
+  audioStalled: boolean;
+  videoLastAdvancedAt: number;
+  audioLastAdvancedAt: number;
+  videoStallDurationMs: number;
+  audioStallDurationMs: number;
+  videoStallCount: number;
+  audioStallCount: number;
+  maxVideoStallDurationMs: number;
+  maxAudioStallDurationMs: number;
+  stallThresholdMs: number;
   issueCount: number;
   summary: string;
   recommendation: string;
@@ -923,6 +937,11 @@ export const createNativeRuntimeSessionSummary = (
     ? normalizeNonNegativeInteger(runtime.audioProcessing?.mixedAudioClippedSampleCount)
     : normalizeNonNegativeInteger(runtime.audioProcessing?.micClippedSampleCount);
   const nativeAudioClipping = nativeAudioClippedSampleCount > 0;
+  const continuity = normalizeNativeRuntimeContinuity(runtime.continuity);
+  const continuityMissing = continuity.status === "unknown";
+  const continuityCurrentStall = continuity.videoStalled || continuity.audioStalled;
+  const continuityIncident = continuity.videoStallCount > 0 || continuity.audioStallCount > 0;
+  const continuityIssue = continuityMissing || continuityCurrentStall || continuityIncident;
   const status: StreamSessionNativeRuntimeStatus = failed
     ? "fail"
     : stale ||
@@ -940,7 +959,8 @@ export const createNativeRuntimeSessionSummary = (
         incompleteVrmRendering ||
         nativeAudioMeterMissing ||
         nativeAudioMeterStale ||
-        nativeAudioClipping
+        nativeAudioClipping ||
+        continuityIssue
       ? "warn"
       : "pass";
   const issueCount = [
@@ -960,7 +980,8 @@ export const createNativeRuntimeSessionSummary = (
     incompleteVrmRendering,
     nativeAudioMeterMissing,
     nativeAudioMeterStale,
-    nativeAudioClipping
+    nativeAudioClipping,
+    continuityIssue
   ].filter(Boolean).length;
   const queue = `${runtime.publisher.itemsInCache}/${runtime.publisher.cacheSize}`;
 
@@ -1086,12 +1107,24 @@ export const createNativeRuntimeSessionSummary = (
     mixedAudioSampleCount,
     mixedAudioClippedSampleCount: normalizeNonNegativeInteger(runtime.audioProcessing?.mixedAudioClippedSampleCount),
     mixedAudioLevelUpdatedAt: normalizeNonNegativeInteger(runtime.audioProcessing?.mixedAudioLevelUpdatedAt),
+    continuityStatus: continuity.status,
+    videoStalled: continuity.videoStalled,
+    audioStalled: continuity.audioStalled,
+    videoLastAdvancedAt: continuity.videoLastAdvancedAt,
+    audioLastAdvancedAt: continuity.audioLastAdvancedAt,
+    videoStallDurationMs: continuity.videoStallDurationMs,
+    audioStallDurationMs: continuity.audioStallDurationMs,
+    videoStallCount: continuity.videoStallCount,
+    audioStallCount: continuity.audioStallCount,
+    maxVideoStallDurationMs: continuity.maxVideoStallDurationMs,
+    maxAudioStallDurationMs: continuity.maxAudioStallDurationMs,
+    stallThresholdMs: continuity.stallThresholdMs,
     issueCount,
     summary:
       status === "fail"
         ? `Native runtime ended with a failure on ${runtime.platform}.`
         : status === "warn"
-          ? `Native runtime needs review on ${runtime.platform}: queue ${queue}, composition ${runtime.composition.status}.`
+          ? `Native runtime needs review on ${runtime.platform}: queue ${queue}, composition ${runtime.composition.status}, continuity ${continuity.status}.`
           : `Native runtime ended clean on ${runtime.platform}.`,
     recommendation:
       status === "fail"
@@ -1130,7 +1163,11 @@ export const createNativeRuntimeSessionSummary = (
                                   ? "Confirm the native VRM renderer loads and renders every visible VRM source before retaining production evidence."
                                   : pendingComposition
                                     ? "Review native compositor coverage before treating this scene as production-ready."
-                                    : "Keep this native runtime result as supporting evidence for the destination."
+                                    : continuityIssue
+                                      ? continuityMissing
+                                        ? "Update the native app and repeat the private ingest run so video/audio continuity watchdog evidence is retained."
+                                        : "Repeat the private ingest run after resolving video/audio publisher stalls; production evidence requires zero continuity incidents."
+                                      : "Keep this native runtime result as supporting evidence for the destination."
   };
 };
 
@@ -1497,6 +1534,26 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     mixedAudioSampleCount: normalizeNonNegativeInteger(value.mixedAudioSampleCount),
     mixedAudioClippedSampleCount: normalizeNonNegativeInteger(value.mixedAudioClippedSampleCount),
     mixedAudioLevelUpdatedAt: normalizeNonNegativeInteger(value.mixedAudioLevelUpdatedAt),
+    continuityStatus:
+      value.continuityStatus === "inactive" ||
+      value.continuityStatus === "warming-up" ||
+      value.continuityStatus === "healthy" ||
+      value.continuityStatus === "video-stalled" ||
+      value.continuityStatus === "audio-stalled" ||
+      value.continuityStatus === "both-stalled"
+        ? value.continuityStatus
+        : "unknown",
+    videoStalled: value.videoStalled === true,
+    audioStalled: value.audioStalled === true,
+    videoLastAdvancedAt: normalizeNonNegativeInteger(value.videoLastAdvancedAt),
+    audioLastAdvancedAt: normalizeNonNegativeInteger(value.audioLastAdvancedAt),
+    videoStallDurationMs: normalizeNonNegativeInteger(value.videoStallDurationMs),
+    audioStallDurationMs: normalizeNonNegativeInteger(value.audioStallDurationMs),
+    videoStallCount: normalizeNonNegativeInteger(value.videoStallCount),
+    audioStallCount: normalizeNonNegativeInteger(value.audioStallCount),
+    maxVideoStallDurationMs: normalizeNonNegativeInteger(value.maxVideoStallDurationMs),
+    maxAudioStallDurationMs: normalizeNonNegativeInteger(value.maxAudioStallDurationMs),
+    stallThresholdMs: Math.max(1_000, normalizeNonNegativeInteger(value.stallThresholdMs) || 5_000),
     issueCount: normalizeNonNegativeInteger(value.issueCount),
     summary:
       typeof value.summary === "string"

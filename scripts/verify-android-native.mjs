@@ -34,7 +34,7 @@ export function run(args = []) {
     const startedAt = new Date().toISOString();
     rmSync(resolve(apkPath), { force: true });
     rmSync(resolve(reportPath), { force: true });
-    const command = "source scripts/rn-env.sh && cd android && ./gradlew assembleDebug";
+    const command = "source scripts/rn-env.sh && cd android && ./gradlew assembleDebug testDebugUnitTest";
     const result = spawnSync("bash", ["-lc", command], { cwd: cwd(), stdio: "inherit" });
     if (result.error) {
       throw result.error;

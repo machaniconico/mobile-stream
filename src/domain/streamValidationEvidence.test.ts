@@ -211,6 +211,20 @@ const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
     monitorLatencySource: "",
     monitorLastError: ""
   },
+  continuity: {
+    status: "healthy" as const,
+    videoStalled: false,
+    audioStalled: false,
+    videoLastAdvancedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+    audioLastAdvancedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+    videoStallDurationMs: 0,
+    audioStallDurationMs: 0,
+    videoStallCount: 0,
+    audioStallCount: 0,
+    maxVideoStallDurationMs: 0,
+    maxAudioStallDurationMs: 0,
+    stallThresholdMs: 5_000
+  },
   message: "Live"
 });
 const nativeVrmMonitorRuntime = (platform: "ios" | "android" = "ios") => {
@@ -2655,6 +2669,11 @@ describe("stream validation evidence", () => {
     expect(summary.runManifest.find((run) => run.devicePlatform === "ios")).toMatchObject({
       nativeRuntimePlatform: "ios",
       nativeRuntimeStatus: "pass",
+      nativeRuntimeContinuityStatus: "healthy",
+      nativeRuntimeVideoStallCount: 0,
+      nativeRuntimeAudioStallCount: 0,
+      nativeRuntimeMaxVideoStallDurationMs: 0,
+      nativeRuntimeMaxAudioStallDurationMs: 0,
       nativeRuntimeVideoEncoderBackend: "videotoolbox-h264",
       nativeRuntimeAudioEncoderBackend: "audiotoolbox-aac",
       nativeRuntimeCompositionStatus: "applied",

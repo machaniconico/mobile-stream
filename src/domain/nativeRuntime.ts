@@ -263,6 +263,65 @@ export interface NativeRuntimeAudioProcessing {
   mixedAudioLevelUpdatedAt?: number;
 }
 
+export type NativeRuntimeContinuityStatus =
+  | "unknown"
+  | "inactive"
+  | "warming-up"
+  | "healthy"
+  | "video-stalled"
+  | "audio-stalled"
+  | "both-stalled";
+
+export interface NativeRuntimeContinuity {
+  status: NativeRuntimeContinuityStatus;
+  videoStalled: boolean;
+  audioStalled: boolean;
+  videoLastAdvancedAt: number;
+  audioLastAdvancedAt: number;
+  videoStallDurationMs: number;
+  audioStallDurationMs: number;
+  videoStallCount: number;
+  audioStallCount: number;
+  maxVideoStallDurationMs: number;
+  maxAudioStallDurationMs: number;
+  stallThresholdMs: number;
+}
+
+export const normalizeNativeRuntimeContinuity = (
+  continuity: Partial<NativeRuntimeContinuity> | null | undefined
+): NativeRuntimeContinuity => {
+  const reportedStatus = continuity?.status;
+  const videoStalled =
+    continuity?.videoStalled === true || reportedStatus === "video-stalled" || reportedStatus === "both-stalled";
+  const audioStalled =
+    continuity?.audioStalled === true || reportedStatus === "audio-stalled" || reportedStatus === "both-stalled";
+  const status: NativeRuntimeContinuityStatus =
+    videoStalled && audioStalled
+      ? "both-stalled"
+      : videoStalled
+        ? "video-stalled"
+        : audioStalled
+          ? "audio-stalled"
+          : reportedStatus === "inactive" || reportedStatus === "warming-up" || reportedStatus === "healthy"
+            ? reportedStatus
+            : "unknown";
+
+  return {
+    status,
+    videoStalled,
+    audioStalled,
+    videoLastAdvancedAt: normalizeNativeAudioTimestamp(continuity?.videoLastAdvancedAt),
+    audioLastAdvancedAt: normalizeNativeAudioTimestamp(continuity?.audioLastAdvancedAt),
+    videoStallDurationMs: normalizeNativeAudioCount(continuity?.videoStallDurationMs),
+    audioStallDurationMs: normalizeNativeAudioCount(continuity?.audioStallDurationMs),
+    videoStallCount: normalizeNativeAudioCount(continuity?.videoStallCount),
+    audioStallCount: normalizeNativeAudioCount(continuity?.audioStallCount),
+    maxVideoStallDurationMs: normalizeNativeAudioCount(continuity?.maxVideoStallDurationMs),
+    maxAudioStallDurationMs: normalizeNativeAudioCount(continuity?.maxAudioStallDurationMs),
+    stallThresholdMs: Math.max(1_000, normalizeNativeAudioCount(continuity?.stallThresholdMs) || 5_000)
+  };
+};
+
 export const normalizeNativeRuntimeAudioProcessing = (
   audioProcessing: Partial<NativeRuntimeAudioProcessing> | null | undefined
 ): NativeRuntimeAudioProcessing => ({
@@ -332,5 +391,6 @@ export interface NativeRuntimeTelemetry {
   device?: NativeRuntimeDevice;
   composition: NativeRuntimeComposition;
   audioProcessing?: NativeRuntimeAudioProcessing;
+  continuity?: NativeRuntimeContinuity;
   message: string;
 }

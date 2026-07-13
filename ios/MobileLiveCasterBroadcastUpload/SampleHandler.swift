@@ -714,6 +714,8 @@ struct BroadcastUploadSnapshot: Equatable {
 }
 
 final class BroadcastSharedStore {
+    private static let runtimeStateLock = NSLock()
+
     private static var defaults: UserDefaults? {
         UserDefaults(suiteName: broadcastAppGroup)
     }
@@ -786,9 +788,12 @@ final class BroadcastSharedStore {
         videoEncoderStats: BroadcastVideoEncoderStats?,
         audioEncoderStats: BroadcastAudioEncoderStats?,
         publisherStats: BroadcastRTMPPublisherStats?,
+        continuitySnapshot: BroadcastMediaContinuitySnapshot?,
         sceneCompositionSummary: BroadcastSceneCompositionSummary?,
         handoffID: String? = nil
     ) {
+        runtimeStateLock.lock()
+        defer { runtimeStateLock.unlock() }
         guard let defaults else {
             return
         }
@@ -810,6 +815,10 @@ final class BroadcastSharedStore {
 
         if let publisherStats {
             payload["publisher"] = publisherStats.asDictionary()
+        }
+
+        if let continuitySnapshot {
+            payload["continuity"] = continuitySnapshot.asDictionary()
         }
 
         if let sceneCompositionSummary {
@@ -837,6 +846,21 @@ final class BroadcastSharedStore {
             payload["broadcastMixer"] = configuration.broadcastMixer.asDictionary()
         }
 
+        defaults.set(payload, forKey: broadcastRuntimeStateKey)
+        defaults.synchronize()
+    }
+
+    static func saveContinuitySnapshot(_ continuitySnapshot: BroadcastMediaContinuitySnapshot) {
+        runtimeStateLock.lock()
+        defer { runtimeStateLock.unlock() }
+        guard
+            let defaults,
+            var payload = defaults.dictionary(forKey: broadcastRuntimeStateKey)
+        else {
+            return
+        }
+        payload["updatedAt"] = Date().timeIntervalSince1970 * 1000
+        payload["continuity"] = continuitySnapshot.asDictionary()
         defaults.set(payload, forKey: broadcastRuntimeStateKey)
         defaults.synchronize()
     }
@@ -1546,6 +1570,15 @@ final class BroadcastRTMPPublisher {
         statsLock.performLocked {
             self.currentStats
         }
+    }
+
+    func statsAfterDrainingPendingMedia() -> BroadcastRTMPPublisherStats {
+        let drain = DispatchSemaphore(value: 0)
+        queue.async {
+            drain.signal()
+        }
+        _ = drain.wait(timeout: .now() + 1)
+        return stats
     }
 
     init(configuration: BroadcastUploadConfiguration) throws {
@@ -5371,6 +5404,11 @@ final class BroadcastUploadPipeline {
     private var liveRenderGraphReloadCount = 0
     private var liveRenderGraphRejectedUpdateCount = 0
     private var lastRejectedRenderGraphUpdateKey: String?
+    private let mediaContinuityLock = NSLock()
+    private let mediaContinuityQueue = DispatchQueue(label: "MobileLiveCaster.broadcast.media-continuity")
+    private var mediaContinuityTimer: DispatchSourceTimer?
+    private var mediaContinuityHeartbeatGate = BroadcastMediaContinuityHeartbeatGate()
+    private var mediaContinuityTracker = BroadcastMediaContinuityTracker()
 
     var isRunning: Bool {
         state.acceptsSamples
@@ -5421,12 +5459,14 @@ final class BroadcastUploadPipeline {
             stats.start()
             state = .running
             nextPublisher.start()
+            startMediaContinuityHeartbeat(publisher: nextPublisher)
             logger.info(
                 "Broadcast upload started destination=\(nextConfiguration.destinationName, privacy: .public) scheme=\(nextConfiguration.transportScheme, privacy: .public) size=\(nextConfiguration.width)x\(nextConfiguration.height) fps=\(nextConfiguration.fps) composition=\(nextSceneCompositor.summary.message, privacy: .public)"
             )
             saveRuntimeState()
             return .success(())
         } catch {
+            stopMediaContinuityHeartbeat()
             let message = sanitizeError(error.localizedDescription)
             publisher?.stop()
             publisher = nil
@@ -5455,6 +5495,7 @@ final class BroadcastUploadPipeline {
         }
 
         state = .paused
+        setMediaContinuityEnabled(false)
         logger.info("Broadcast upload paused")
         saveRuntimeState()
     }
@@ -5465,6 +5506,7 @@ final class BroadcastUploadPipeline {
         }
 
         state = .running
+        setMediaContinuityEnabled(true)
         logger.info("Broadcast upload resumed")
         saveRuntimeState()
     }
@@ -5475,11 +5517,21 @@ final class BroadcastUploadPipeline {
         }
 
         let finalSceneCompositionSummary = sceneCompositionSummary()
-        let finalAudioEncoderStats = audioEncoder?.stats
-        stats.stop()
+        stopMediaContinuityHeartbeat()
         videoEncoder?.finish()
-        videoEncoder = nil
+        let finalVideoEncoderStats = videoEncoder?.stats
         audioEncoder?.finish()
+        let finalAudioEncoderStats = audioEncoder?.stats
+        let finalPublisherStats = publisher?.statsAfterDrainingPendingMedia()
+        let finalContinuitySnapshot = mediaContinuityLock.performLocked {
+            mediaContinuityTracker.record(
+                videoMessages: finalPublisherStats?.videoMessagesSent,
+                audioMessages: finalPublisherStats?.audioMessagesSent,
+                active: state == .running && finalPublisherStats?.state == .published
+            )
+        }
+        stats.stop()
+        videoEncoder = nil
         audioEncoder = nil
         sceneCompositor = nil
         activeRenderGraphJSON = nil
@@ -5494,7 +5546,10 @@ final class BroadcastUploadPipeline {
         logger.info("Broadcast upload stopped frames=\(self.stats.videoFrames) dropped=\(self.stats.droppedSamples)")
         saveRuntimeState(
             sceneCompositionSummary: finalSceneCompositionSummary,
-            audioEncoderStats: finalAudioEncoderStats
+            videoEncoderStats: finalVideoEncoderStats,
+            audioEncoderStats: finalAudioEncoderStats,
+            publisherStats: finalPublisherStats,
+            continuitySnapshot: finalContinuitySnapshot
         )
     }
 
@@ -5548,19 +5603,75 @@ final class BroadcastUploadPipeline {
 
     private func saveRuntimeState(
         sceneCompositionSummary snapshotSceneCompositionSummary: BroadcastSceneCompositionSummary? = nil,
+        videoEncoderStats overrideVideoEncoderStats: BroadcastVideoEncoderStats? = nil,
         audioEncoderStats overrideAudioEncoderStats: BroadcastAudioEncoderStats? = nil,
+        publisherStats overridePublisherStats: BroadcastRTMPPublisherStats? = nil,
+        continuitySnapshot overrideContinuitySnapshot: BroadcastMediaContinuitySnapshot? = nil,
         handoffID: String? = nil
     ) {
+        let effectivePublisherStats = overridePublisherStats ?? publisher?.stats
+        let continuitySnapshot = overrideContinuitySnapshot ?? mediaContinuityLock.performLocked {
+            mediaContinuityTracker.record(
+                videoMessages: effectivePublisherStats?.videoMessagesSent,
+                audioMessages: effectivePublisherStats?.audioMessagesSent,
+                active: state == .running && effectivePublisherStats?.state == .published
+            )
+        }
         BroadcastSharedStore.saveRuntimeState(
             state: state,
             configuration: configuration,
             stats: stats,
-            videoEncoderStats: videoEncoder?.stats,
+            videoEncoderStats: overrideVideoEncoderStats ?? videoEncoder?.stats,
             audioEncoderStats: overrideAudioEncoderStats ?? audioEncoder?.stats,
-            publisherStats: publisher?.stats,
+            publisherStats: effectivePublisherStats,
+            continuitySnapshot: continuitySnapshot,
             sceneCompositionSummary: snapshotSceneCompositionSummary ?? sceneCompositionSummary(),
             handoffID: handoffID
         )
+    }
+
+    private func startMediaContinuityHeartbeat(publisher: BroadcastRTMPPublisher) {
+        stopMediaContinuityHeartbeat()
+        let generation = mediaContinuityLock.performLocked { () -> Int in
+            mediaContinuityTracker.reset()
+            return mediaContinuityHeartbeatGate.start()
+        }
+        let timer = DispatchSource.makeTimerSource(queue: mediaContinuityQueue)
+        timer.schedule(deadline: .now() + 1, repeating: 1, leeway: .milliseconds(100))
+        timer.setEventHandler { [weak self, weak publisher] in
+            guard let self, let publisher else {
+                return
+            }
+            self.mediaContinuityLock.performLocked {
+                guard self.mediaContinuityHeartbeatGate.isCurrent(generation) else {
+                    return
+                }
+                let publisherStats = publisher.stats
+                let continuitySnapshot = self.mediaContinuityTracker.record(
+                    videoMessages: publisherStats.videoMessagesSent,
+                    audioMessages: publisherStats.audioMessagesSent,
+                    active: self.mediaContinuityHeartbeatGate.enabled && publisherStats.state == .published
+                )
+                BroadcastSharedStore.saveContinuitySnapshot(continuitySnapshot)
+            }
+        }
+        mediaContinuityTimer = timer
+        timer.resume()
+    }
+
+    private func stopMediaContinuityHeartbeat() {
+        mediaContinuityLock.performLocked {
+            mediaContinuityHeartbeatGate.stop()
+        }
+        mediaContinuityTimer?.setEventHandler {}
+        mediaContinuityTimer?.cancel()
+        mediaContinuityTimer = nil
+    }
+
+    private func setMediaContinuityEnabled(_ enabled: Bool) {
+        mediaContinuityLock.performLocked {
+            mediaContinuityHeartbeatGate.setEnabled(enabled)
+        }
     }
 
     private func sceneCompositionSummary() -> BroadcastSceneCompositionSummary? {

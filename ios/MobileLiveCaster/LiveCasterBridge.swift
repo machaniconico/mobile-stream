@@ -1300,6 +1300,7 @@ final class LiveCasterNative: RCTEventEmitter {
         let broadcastAppAudio = broadcastMixer.dictionaryValue("appAudio")
         let broadcastChatReadout = broadcastMixer.dictionaryValue("chatReadout")
         let publisher = runtimeState.dictionaryValue("publisher")
+        let continuity = runtimeState.dictionaryValue("continuity")
         let sceneComposition = runtimeState.dictionaryValue("sceneComposition")
         let runtimeStatus = redactSensitiveText(runtimeState.stringValue("status", fallback: status.rawValue), streamKey: streamKey, publishURL: publishURL)
         let publisherState = redactSensitiveText(publisher.stringValue("state"), streamKey: streamKey, publishURL: publishURL)
@@ -1355,6 +1356,20 @@ final class LiveCasterNative: RCTEventEmitter {
                     streamKey: streamKey,
                     publishURL: publishURL
                 )
+            ],
+            "continuity": [
+                "status": continuity.stringValue("status", fallback: "unknown"),
+                "videoStalled": continuity.boolValue("videoStalled"),
+                "audioStalled": continuity.boolValue("audioStalled"),
+                "videoLastAdvancedAt": continuity.doubleValue("videoLastAdvancedAt"),
+                "audioLastAdvancedAt": continuity.doubleValue("audioLastAdvancedAt"),
+                "videoStallDurationMs": continuity.intValue("videoStallDurationMs"),
+                "audioStallDurationMs": continuity.intValue("audioStallDurationMs"),
+                "videoStallCount": continuity.intValue("videoStallCount"),
+                "audioStallCount": continuity.intValue("audioStallCount"),
+                "maxVideoStallDurationMs": continuity.intValue("maxVideoStallDurationMs"),
+                "maxAudioStallDurationMs": continuity.intValue("maxAudioStallDurationMs"),
+                "stallThresholdMs": continuity.intValue("stallThresholdMs", fallback: 5_000)
             ],
             "composition": [
                 "status": compositionStatus,

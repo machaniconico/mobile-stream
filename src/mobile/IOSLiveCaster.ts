@@ -5,6 +5,7 @@ import type { StudioProfile } from "../domain/profiles";
 import { initialStreamState, type StreamHealth } from "../domain/streamState";
 import {
   normalizeNativeRuntimeAudioProcessing,
+  normalizeNativeRuntimeContinuity,
   normalizeNativeRuntimeDevice
 } from "../domain/nativeRuntime";
 import type { LiveCasterNative, NativeEngineSnapshot, NativeRuntimeTelemetry } from "../native/LiveCasterNative";
@@ -251,6 +252,7 @@ const normalizeNativeRuntime = (
           message: runtime.composition?.message ?? ""
         },
         audioProcessing: normalizeNativeRuntimeAudioProcessing(runtime.audioProcessing),
+        continuity: normalizeNativeRuntimeContinuity(runtime.continuity),
         message: runtime.message ?? ""
       }
     : null;

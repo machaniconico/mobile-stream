@@ -219,6 +219,11 @@ export interface StreamValidationEvidenceRunManifestItem {
   result: StreamValidationRunResult;
   nativeRuntimePlatform: StreamSessionNativeRuntimeSummary["platform"] | null;
   nativeRuntimeStatus: StreamSessionNativeRuntimeSummary["status"] | null;
+  nativeRuntimeContinuityStatus: StreamSessionNativeRuntimeSummary["continuityStatus"] | null;
+  nativeRuntimeVideoStallCount: number;
+  nativeRuntimeAudioStallCount: number;
+  nativeRuntimeMaxVideoStallDurationMs: number;
+  nativeRuntimeMaxAudioStallDurationMs: number;
   nativeRuntimeVideoEncoderBackend: string | null;
   nativeRuntimeAudioEncoderBackend: string | null;
   nativeRuntimeEncoderProbeStatus: string | null;
@@ -2943,6 +2948,11 @@ const createEvidenceRunManifestItem = (
     result: run.result,
     nativeRuntimePlatform: run.nativeRuntime?.platform ?? null,
     nativeRuntimeStatus: run.nativeRuntime?.status ?? null,
+    nativeRuntimeContinuityStatus: run.nativeRuntime?.continuityStatus ?? null,
+    nativeRuntimeVideoStallCount: run.nativeRuntime?.videoStallCount ?? 0,
+    nativeRuntimeAudioStallCount: run.nativeRuntime?.audioStallCount ?? 0,
+    nativeRuntimeMaxVideoStallDurationMs: run.nativeRuntime?.maxVideoStallDurationMs ?? 0,
+    nativeRuntimeMaxAudioStallDurationMs: run.nativeRuntime?.maxAudioStallDurationMs ?? 0,
     nativeRuntimeVideoEncoderBackend: run.nativeRuntime?.videoEncoderBackend ?? null,
     nativeRuntimeAudioEncoderBackend: run.nativeRuntime?.audioEncoderBackend ?? null,
     nativeRuntimeEncoderProbeStatus: run.nativeRuntime?.encoderProbeStatus ?? null,

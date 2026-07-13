@@ -402,6 +402,36 @@ data class NativeRuntimeAudioProcessing(
     }
 }
 
+data class NativeRuntimeContinuity(
+    val status: String = "unknown",
+    val videoStalled: Boolean = false,
+    val audioStalled: Boolean = false,
+    val videoLastAdvancedAt: Long = 0L,
+    val audioLastAdvancedAt: Long = 0L,
+    val videoStallDurationMs: Long = 0L,
+    val audioStallDurationMs: Long = 0L,
+    val videoStallCount: Long = 0L,
+    val audioStallCount: Long = 0L,
+    val maxVideoStallDurationMs: Long = 0L,
+    val maxAudioStallDurationMs: Long = 0L,
+    val stallThresholdMs: Long = 5_000L
+) {
+    fun asWritableMap(): WritableMap = Arguments.createMap().apply {
+        putString("status", status)
+        putBoolean("videoStalled", videoStalled)
+        putBoolean("audioStalled", audioStalled)
+        putDouble("videoLastAdvancedAt", videoLastAdvancedAt.toDouble())
+        putDouble("audioLastAdvancedAt", audioLastAdvancedAt.toDouble())
+        putDouble("videoStallDurationMs", videoStallDurationMs.toDouble())
+        putDouble("audioStallDurationMs", audioStallDurationMs.toDouble())
+        putDouble("videoStallCount", videoStallCount.toDouble())
+        putDouble("audioStallCount", audioStallCount.toDouble())
+        putDouble("maxVideoStallDurationMs", maxVideoStallDurationMs.toDouble())
+        putDouble("maxAudioStallDurationMs", maxAudioStallDurationMs.toDouble())
+        putDouble("stallThresholdMs", stallThresholdMs.toDouble())
+    }
+}
+
 data class NativeRuntimeTelemetry(
     val platform: String = "android",
     val runtimeStatus: String,
@@ -416,6 +446,7 @@ data class NativeRuntimeTelemetry(
     val device: NativeRuntimeDevice? = null,
     val composition: NativeRuntimeComposition = NativeRuntimeComposition(),
     val audioProcessing: NativeRuntimeAudioProcessing? = null,
+    val continuity: NativeRuntimeContinuity? = null,
     val message: String = ""
 ) {
     fun asWritableMap(): WritableMap = Arguments.createMap().apply {
@@ -432,6 +463,7 @@ data class NativeRuntimeTelemetry(
         device?.let { putMap("device", it.asWritableMap()) }
         putMap("composition", composition.asWritableMap())
         audioProcessing?.let { putMap("audioProcessing", it.asWritableMap()) }
+        continuity?.let { putMap("continuity", it.asWritableMap()) }
         putString("message", message)
     }
 }
@@ -588,6 +620,13 @@ object LiveCasterSession {
             updatedAt = System.currentTimeMillis(),
             stale = false,
             elapsedSeconds = 0,
+            continuity = nativeRuntime?.continuity?.copy(
+                status = "inactive",
+                videoStalled = false,
+                audioStalled = false,
+                videoStallDurationMs = 0L,
+                audioStallDurationMs = 0L
+            ),
             message = health.message
         )
         captureResultCode = null
@@ -616,6 +655,7 @@ object LiveCasterSession {
                 device = current.device,
                 composition = current.composition,
                 audioProcessing = current.audioProcessing,
+                continuity = current.continuity,
                 message = safeMessage
             )
         }
@@ -648,6 +688,7 @@ object LiveCasterSession {
         congested: Boolean? = null,
         lastError: String? = null,
         audioProcessing: NativeRuntimeAudioProcessing? = null,
+        continuity: NativeRuntimeContinuity? = null,
         device: NativeRuntimeDevice? = null,
         message: String = health.message
     ) {
@@ -692,6 +733,7 @@ object LiveCasterSession {
             device = device ?: current?.device,
             composition = nextComposition,
             audioProcessing = audioProcessing ?: current?.audioProcessing,
+            continuity = continuity ?: current?.continuity,
             message = redactSensitiveText(message)
         )
         emit()

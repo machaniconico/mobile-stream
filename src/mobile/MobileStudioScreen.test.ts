@@ -73,6 +73,13 @@ describe("MobileStudioScreen subtitle and text controls", () => {
     expect(source).toContain('label="Audio silence"');
   });
 
+  it("shows current and retained native media continuity evidence", () => {
+    expect(source).toContain("nativeRuntimeContinuityMetricLabel");
+    expect(source).toContain("continuity ${continuity.status} incidents");
+    expect(source).toContain("continuity ${summary.nativeRuntime.continuityStatus} incidents");
+    expect(source).toContain("continuity ${run.nativeRuntime.continuityStatus} incidents");
+  });
+
   it("shows and applies the active platform quality recommendation", () => {
     expect(source).toContain("createPlatformQualityRecommendation(profile)");
     expect(source).toContain("platformQualityRecommendation.platformLabel} target");

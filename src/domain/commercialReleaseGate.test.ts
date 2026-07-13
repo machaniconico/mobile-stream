@@ -4132,6 +4132,11 @@ const manifestRun = ({
   nativeRuntimePlatform,
   androidPublisherMode = devicePlatform === "android" ? "mediacodec" : null,
   nativeRuntimeStatus = "pass",
+  nativeRuntimeContinuityStatus = "healthy",
+  nativeRuntimeVideoStallCount = 0,
+  nativeRuntimeAudioStallCount = 0,
+  nativeRuntimeMaxVideoStallDurationMs = 0,
+  nativeRuntimeMaxAudioStallDurationMs = 0,
   nativeRuntimeVideoEncoderBackend = devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
   nativeRuntimeAudioEncoderBackend = devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
   nativeRuntimeEncoderProbeStatus = "missing",
@@ -4313,6 +4318,11 @@ const manifestRun = ({
   sceneFingerprint?: ValidationManifestRun["sceneFingerprint"];
   targetPlatform?: ValidationManifestRun["targetPlatform"];
   transport?: ValidationManifestRun["transport"];
+  nativeRuntimeContinuityStatus?: ValidationManifestRun["nativeRuntimeContinuityStatus"];
+  nativeRuntimeVideoStallCount?: ValidationManifestRun["nativeRuntimeVideoStallCount"];
+  nativeRuntimeAudioStallCount?: ValidationManifestRun["nativeRuntimeAudioStallCount"];
+  nativeRuntimeMaxVideoStallDurationMs?: ValidationManifestRun["nativeRuntimeMaxVideoStallDurationMs"];
+  nativeRuntimeMaxAudioStallDurationMs?: ValidationManifestRun["nativeRuntimeMaxAudioStallDurationMs"];
   nativeRuntimePlatform?: ValidationManifestRun["nativeRuntimePlatform"];
   androidPublisherMode?: ValidationManifestRun["androidPublisherMode"];
   nativeRuntimeStatus?: ValidationManifestRun["nativeRuntimeStatus"];
@@ -4503,6 +4513,11 @@ const manifestRun = ({
   result,
   nativeRuntimePlatform: nativeRuntimePlatform ?? devicePlatform,
   nativeRuntimeStatus,
+  nativeRuntimeContinuityStatus,
+  nativeRuntimeVideoStallCount,
+  nativeRuntimeAudioStallCount,
+  nativeRuntimeMaxVideoStallDurationMs,
+  nativeRuntimeMaxAudioStallDurationMs,
   nativeRuntimeVideoEncoderBackend,
   nativeRuntimeAudioEncoderBackend,
   nativeRuntimeEncoderProbeStatus,
