@@ -149,6 +149,28 @@ describe("support bundle", () => {
           playbackDroppedFrames: 441,
           playbackUnderrunFrames: 441,
           playbackBufferedFrames: 882,
+          micCaptureStatus: "capturing",
+          micCaptureBackend: "android-audio-record",
+          micCaptureSampleRate: 48_000,
+          micCaptureFallbackFrames: 1_440,
+          micCaptureLifecycleEventCount: 6,
+          micCaptureRouteChangeCount: 2,
+          micCaptureInterruptionCount: 1,
+          micCaptureRecoveryCount: 2,
+          micCaptureRecoveryFailureCount: 1,
+          micCaptureUnrecoveredEventCount: 3,
+          micCaptureLastRecoveryReason: `audio-route-${streamKey}-changed`,
+          micCaptureLastRecoveryAt: Date.parse("2026-06-23T00:00:04.250Z"),
+          micCaptureSuspended: false,
+          playbackCaptureLifecycleEventCount: 5,
+          playbackCaptureRouteChangeCount: 1,
+          playbackCaptureInterruptionCount: 2,
+          playbackCaptureRecoveryCount: 2,
+          playbackCaptureRecoveryFailureCount: 1,
+          playbackCaptureUnrecoveredEventCount: 4,
+          playbackCaptureLastRecoveryReason: `media-projection-${streamKey}-resumed`,
+          playbackCaptureLastRecoveryAt: Date.parse("2026-06-23T00:00:04.400Z"),
+          playbackCaptureSuspended: false,
           monitorLifecycleEventCount: 4,
           monitorRouteChangeCount: 2,
           monitorInterruptionCount: 1,
@@ -249,7 +271,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 61 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 62 });
     expect(bundle.profile.androidPublisherMode).toBe(profile.androidPublisherMode);
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
@@ -295,6 +317,34 @@ describe("support bundle", () => {
     expect(bundle.summary.lastSessionNativeRuntimePlatform).toBe("android");
     expect(bundle.summary.lastSessionNativeRuntimeVideoEncoderBackend).toBe("mediacodec-h264");
     expect(bundle.summary.lastSessionNativeRuntimeAudioEncoderBackend).toBe("mediacodec-aac");
+    expect(bundle.summary).toMatchObject({
+      lastSessionNativeRuntimeMicCaptureStatus: "capturing",
+      lastSessionNativeRuntimeMicCaptureBackend: "android-audio-record",
+      lastSessionNativeRuntimeMicCaptureSampleRate: 48_000,
+      lastSessionNativeRuntimeMicCaptureFallbackFrames: 1_440,
+      lastSessionNativeRuntimeMicCaptureLifecycleEventCount: 6,
+      lastSessionNativeRuntimeMicCaptureRouteChangeCount: 2,
+      lastSessionNativeRuntimeMicCaptureInterruptionCount: 1,
+      lastSessionNativeRuntimeMicCaptureRecoveryCount: 2,
+      lastSessionNativeRuntimeMicCaptureRecoveryFailureCount: 1,
+      lastSessionNativeRuntimeMicCaptureUnrecoveredEventCount: 3,
+      lastSessionNativeRuntimeMicCaptureLastRecoveryReason: `audio-route-${redactStreamKey(streamKey)}-changed`,
+      lastSessionNativeRuntimeMicCaptureLastRecoveryAt: Date.parse("2026-06-23T00:00:04.250Z"),
+      lastSessionNativeRuntimeMicCaptureSuspended: false,
+      lastSessionNativeRuntimePlaybackCaptureStatus: "capturing",
+      lastSessionNativeRuntimePlaybackCaptureBackend: "android-audio-playback-capture",
+      lastSessionNativeRuntimePlaybackCaptureSampleRate: 44_100,
+      lastSessionNativeRuntimePlaybackCaptureLifecycleEventCount: 5,
+      lastSessionNativeRuntimePlaybackCaptureRouteChangeCount: 1,
+      lastSessionNativeRuntimePlaybackCaptureInterruptionCount: 2,
+      lastSessionNativeRuntimePlaybackCaptureRecoveryCount: 2,
+      lastSessionNativeRuntimePlaybackCaptureRecoveryFailureCount: 1,
+      lastSessionNativeRuntimePlaybackCaptureUnrecoveredEventCount: 4,
+      lastSessionNativeRuntimePlaybackCaptureLastRecoveryReason:
+        `media-projection-${redactStreamKey(streamKey)}-resumed`,
+      lastSessionNativeRuntimePlaybackCaptureLastRecoveryAt: Date.parse("2026-06-23T00:00:04.400Z"),
+      lastSessionNativeRuntimePlaybackCaptureSuspended: false
+    });
     expect(bundle.summary.lastSessionNativeRuntimeCongested).toBe(true);
     expect(bundle.summary.lastSessionNativeRuntimeStillImageAssetCount).toBe(1);
     expect(bundle.summary.lastSessionNativeRuntimeStillImageAssetLoadedCount).toBe(1);
@@ -375,6 +425,30 @@ describe("support bundle", () => {
     expect(bundle.summary.nativeRuntimePlaybackCaptureDropRatio).toBeCloseTo(0.0033, 4);
     expect(bundle.summary.nativeRuntimePlaybackCaptureUnderrunRatio).toBeCloseTo(0.00336, 5);
     expect(bundle.summary.nativeRuntimePlaybackCaptureBufferedMs).toBe(20);
+    expect(bundle.summary).toMatchObject({
+      nativeRuntimeMicCaptureStatus: "capturing",
+      nativeRuntimeMicCaptureBackend: "android-audio-record",
+      nativeRuntimeMicCaptureSampleRate: 48_000,
+      nativeRuntimeMicCaptureFallbackFrames: 1_440,
+      nativeRuntimeMicCaptureLifecycleEventCount: 6,
+      nativeRuntimeMicCaptureRouteChangeCount: 2,
+      nativeRuntimeMicCaptureInterruptionCount: 1,
+      nativeRuntimeMicCaptureRecoveryCount: 2,
+      nativeRuntimeMicCaptureRecoveryFailureCount: 1,
+      nativeRuntimeMicCaptureUnrecoveredEventCount: 3,
+      nativeRuntimeMicCaptureLastRecoveryReason: `audio-route-${redactStreamKey(streamKey)}-changed`,
+      nativeRuntimeMicCaptureLastRecoveryAt: Date.parse("2026-06-23T00:00:04.250Z"),
+      nativeRuntimeMicCaptureSuspended: false,
+      nativeRuntimePlaybackCaptureLifecycleEventCount: 5,
+      nativeRuntimePlaybackCaptureRouteChangeCount: 1,
+      nativeRuntimePlaybackCaptureInterruptionCount: 2,
+      nativeRuntimePlaybackCaptureRecoveryCount: 2,
+      nativeRuntimePlaybackCaptureRecoveryFailureCount: 1,
+      nativeRuntimePlaybackCaptureUnrecoveredEventCount: 4,
+      nativeRuntimePlaybackCaptureLastRecoveryReason: `media-projection-${redactStreamKey(streamKey)}-resumed`,
+      nativeRuntimePlaybackCaptureLastRecoveryAt: Date.parse("2026-06-23T00:00:04.400Z"),
+      nativeRuntimePlaybackCaptureSuspended: false
+    });
     expect(bundle.summary).toMatchObject({
       nativeRuntimeMonitorLifecycleEventCount: 4,
       nativeRuntimeMonitorRouteChangeCount: 2,
@@ -517,6 +591,18 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain(
       "Android playback capture: ready / capturing android-audio-playback-capture / 44100 Hz / 3.0s / captured 132300 / dropped 441 (0.33%) / underrun 441 (0.34%) / buffered 882 frames (20ms)"
+    );
+    expect(formatSupportBundle(bundle)).toContain(
+      `Mic capture recovery: capturing android-audio-record / 48000 Hz / fallback 1440 frames / events 6 / routes 2 / interruptions 1 / recovered 2 / failed 1 / unrecovered 3 / suspended no / last audio-route-${redactStreamKey(streamKey)}-changed`
+    );
+    expect(formatSupportBundle(bundle)).toContain(
+      `Playback capture recovery: capturing android-audio-playback-capture / 44100 Hz / events 5 / routes 1 / interruptions 2 / recovered 2 / failed 1 / unrecovered 4 / suspended no / last media-projection-${redactStreamKey(streamKey)}-resumed`
+    );
+    expect(formatSupportBundle(bundle)).toContain(
+      `Last mic capture recovery: capturing android-audio-record / 48000 Hz / fallback 1440 frames / events 6 / routes 2 / interruptions 1 / recovered 2 / failed 1 / unrecovered 3 / suspended no / last audio-route-${redactStreamKey(streamKey)}-changed`
+    );
+    expect(formatSupportBundle(bundle)).toContain(
+      `Last playback capture recovery: capturing android-audio-playback-capture / 44100 Hz / events 5 / routes 1 / interruptions 2 / recovered 2 / failed 1 / unrecovered 4 / suspended no / last media-projection-${redactStreamKey(streamKey)}-resumed`
     );
     expect(formatSupportBundle(bundle)).toContain(
       "Audio monitor recovery: events 4 / routes 2 / interruptions 1 / recovered 2 / failed 1 / suspended no / last route-device-removed"

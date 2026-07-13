@@ -404,6 +404,19 @@ data class NativeRuntimeAudioProcessing(
     val mixedAudioSampleCount: Long = 0L,
     val mixedAudioClippedSampleCount: Long = 0L,
     val mixedAudioLevelUpdatedAt: Long = 0L,
+    val micCaptureStatus: String = "unavailable",
+    val micCaptureBackend: String = "none",
+    val micCaptureSampleRate: Int = 0,
+    val micCaptureLifecycleEventCount: Long = 0L,
+    val micCaptureRouteChangeCount: Long = 0L,
+    val micCaptureInterruptionCount: Long = 0L,
+    val micCaptureRecoveryCount: Long = 0L,
+    val micCaptureRecoveryFailureCount: Long = 0L,
+    val micCaptureUnrecoveredEventCount: Long = 0L,
+    val micCaptureFallbackFrames: Long = 0L,
+    val micCaptureLastRecoveryReason: String = "",
+    val micCaptureLastRecoveryAt: Long = 0L,
+    val micCaptureSuspended: Boolean = false,
     val playbackCaptureStatus: String = "unavailable",
     val playbackCaptureBackend: String = "none",
     val playbackCaptureSampleRate: Int = 0,
@@ -411,6 +424,15 @@ data class NativeRuntimeAudioProcessing(
     val playbackDroppedFrames: Long = 0L,
     val playbackUnderrunFrames: Long = 0L,
     val playbackBufferedFrames: Int = 0,
+    val playbackCaptureLifecycleEventCount: Long = 0L,
+    val playbackCaptureRouteChangeCount: Long = 0L,
+    val playbackCaptureInterruptionCount: Long = 0L,
+    val playbackCaptureRecoveryCount: Long = 0L,
+    val playbackCaptureRecoveryFailureCount: Long = 0L,
+    val playbackCaptureUnrecoveredEventCount: Long = 0L,
+    val playbackCaptureLastRecoveryReason: String = "",
+    val playbackCaptureLastRecoveryAt: Long = 0L,
+    val playbackCaptureSuspended: Boolean = false,
     val monitorEnabled: Boolean = false,
     val monitorRunning: Boolean = false,
     val monitorVolume: Float = 0f,
@@ -462,6 +484,19 @@ data class NativeRuntimeAudioProcessing(
         putDouble("mixedAudioSampleCount", mixedAudioSampleCount.toDouble())
         putDouble("mixedAudioClippedSampleCount", mixedAudioClippedSampleCount.toDouble())
         putDouble("mixedAudioLevelUpdatedAt", mixedAudioLevelUpdatedAt.toDouble())
+        putString("micCaptureStatus", micCaptureStatus)
+        putString("micCaptureBackend", micCaptureBackend)
+        putInt("micCaptureSampleRate", micCaptureSampleRate)
+        putDouble("micCaptureLifecycleEventCount", micCaptureLifecycleEventCount.toDouble())
+        putDouble("micCaptureRouteChangeCount", micCaptureRouteChangeCount.toDouble())
+        putDouble("micCaptureInterruptionCount", micCaptureInterruptionCount.toDouble())
+        putDouble("micCaptureRecoveryCount", micCaptureRecoveryCount.toDouble())
+        putDouble("micCaptureRecoveryFailureCount", micCaptureRecoveryFailureCount.toDouble())
+        putDouble("micCaptureUnrecoveredEventCount", micCaptureUnrecoveredEventCount.toDouble())
+        putDouble("micCaptureFallbackFrames", micCaptureFallbackFrames.toDouble())
+        putString("micCaptureLastRecoveryReason", micCaptureLastRecoveryReason)
+        putDouble("micCaptureLastRecoveryAt", micCaptureLastRecoveryAt.toDouble())
+        putBoolean("micCaptureSuspended", micCaptureSuspended)
         putString("playbackCaptureStatus", playbackCaptureStatus)
         putString("playbackCaptureBackend", playbackCaptureBackend)
         putInt("playbackCaptureSampleRate", playbackCaptureSampleRate)
@@ -469,6 +504,15 @@ data class NativeRuntimeAudioProcessing(
         putDouble("playbackDroppedFrames", playbackDroppedFrames.toDouble())
         putDouble("playbackUnderrunFrames", playbackUnderrunFrames.toDouble())
         putInt("playbackBufferedFrames", playbackBufferedFrames)
+        putDouble("playbackCaptureLifecycleEventCount", playbackCaptureLifecycleEventCount.toDouble())
+        putDouble("playbackCaptureRouteChangeCount", playbackCaptureRouteChangeCount.toDouble())
+        putDouble("playbackCaptureInterruptionCount", playbackCaptureInterruptionCount.toDouble())
+        putDouble("playbackCaptureRecoveryCount", playbackCaptureRecoveryCount.toDouble())
+        putDouble("playbackCaptureRecoveryFailureCount", playbackCaptureRecoveryFailureCount.toDouble())
+        putDouble("playbackCaptureUnrecoveredEventCount", playbackCaptureUnrecoveredEventCount.toDouble())
+        putString("playbackCaptureLastRecoveryReason", playbackCaptureLastRecoveryReason)
+        putDouble("playbackCaptureLastRecoveryAt", playbackCaptureLastRecoveryAt.toDouble())
+        putBoolean("playbackCaptureSuspended", playbackCaptureSuspended)
         putBoolean("monitorEnabled", monitorEnabled)
         putBoolean("monitorRunning", monitorRunning)
         putDouble("monitorVolume", monitorVolume.toDouble())

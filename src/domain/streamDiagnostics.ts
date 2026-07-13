@@ -36,6 +36,7 @@ import {
   isProductionNativeVideoEncoderBackend,
   isProductionVrmRendererBackend,
   normalizeNativeRuntimeAvSync,
+  normalizeNativeRuntimeAudioProcessing,
   normalizeNativeRuntimeBitrateAdaptation,
   normalizeNativeRuntimeContinuity,
   type NativeRuntimeTelemetry
@@ -320,6 +321,9 @@ export const createStreamDiagnostics = (
   const nativeRuntime = sanitizeNativeRuntime(snapshot.nativeRuntime ?? null, destination.streamKey);
   const nowMs = toTimestampMs(options.now ?? Date.now());
   const sanitizedSessionEvents = sessionEvents.map((event) => sanitizeSessionEvent(event, destination.streamKey));
+  const sanitizedSessionSummaries = sessionSummaries.map((summary) =>
+    sanitizeSessionSummaryRecoveryReasons(summary, destination.streamKey)
+  );
   const recoveryPolicy = createDefaultStreamRecoveryPolicy();
   const recoveryStatus = createStreamRecoveryStatus(snapshot, quality, recoveryPolicy);
   const qualityIncidents = createStreamQualityIncidents(snapshot, quality);
@@ -341,7 +345,7 @@ export const createStreamDiagnostics = (
   const platformPublishing = createPlatformPublishingDiagnostics(destination.platform, profile.platformPublishing);
   const audioRoute = normalizeAudioRouteState(options.audioRoute ?? createDefaultAudioRouteState());
   const monitorSafety = createAudioMonitorSafetyStatus(micEffects, audioRoute);
-  const audioGuard = createBroadcastAudioGuardDiagnostics(nativeRuntime, sessionSummaries[0]?.audioLevel ?? null);
+  const audioGuard = createBroadcastAudioGuardDiagnostics(nativeRuntime, sanitizedSessionSummaries[0]?.audioLevel ?? null);
   const audioSilenceGuard = createBroadcastAudioSilenceGuardDiagnostics({
     samples: options.audioLevelSamples ?? [],
     healthSamples,
@@ -386,7 +390,7 @@ export const createStreamDiagnostics = (
     createRecoveryCheck(recoveryStatus)
   ];
   const status = summaryStatus(checks);
-  const sessionHistorySummary = createStreamSessionHistorySummary(sessionSummaries);
+  const sessionHistorySummary = createStreamSessionHistorySummary(sanitizedSessionSummaries);
   const targetPlatform = platformLabels[destination.platform];
   const sceneFingerprint = createSceneCompositionFingerprint(scene);
   const validationEvidence = summarizeStreamValidationEvidence(validationRuns, {
@@ -419,9 +423,9 @@ export const createStreamDiagnostics = (
     },
     session: {
       eventCount: sanitizedSessionEvents.length,
-      summaryCount: sessionSummaries.length,
+      summaryCount: sanitizedSessionSummaries.length,
       historySummary: sessionHistorySummary,
-      lastOutcome: sessionSummaries[0]?.outcome ?? null
+      lastOutcome: sanitizedSessionSummaries[0]?.outcome ?? null
     },
     evidence: validationEvidence,
     faceTracking
@@ -464,9 +468,9 @@ export const createStreamDiagnostics = (
     },
     health: history,
     session: {
-      summaryCount: sessionSummaries.length,
+      summaryCount: sanitizedSessionSummaries.length,
       historySummary: sessionHistorySummary,
-      lastOutcome: sessionSummaries[0]?.outcome ?? null
+      lastOutcome: sanitizedSessionSummaries[0]?.outcome ?? null
     },
     nativeRuntime,
     nativeComposition: effectiveNativeComposition,
@@ -554,8 +558,8 @@ export const createStreamDiagnostics = (
     history,
     session: {
       events: sanitizedSessionEvents,
-      summaries: sessionSummaries,
-      lastSummary: sessionSummaries[0] ?? null,
+      summaries: sanitizedSessionSummaries,
+      lastSummary: sanitizedSessionSummaries[0] ?? null,
       historySummary: sessionHistorySummary
     },
     validationEvidence,
@@ -724,6 +728,8 @@ export const formatStreamDiagnosticReport = (
     `- Native PCM app: RMS ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.appAudioRmsLevel ?? 0) * 100)}% / peak ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.appAudioPeakLevel ?? 0) * 100)}% / samples ${diagnostics.nativeRuntime?.audioProcessing?.appAudioSampleCount ?? 0} / clipped ${diagnostics.nativeRuntime?.audioProcessing?.appAudioClippedSampleCount ?? 0}`,
     `- Native PCM mix: RMS ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.mixedAudioRmsLevel ?? 0) * 100)}% / peak ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.mixedAudioPeakLevel ?? 0) * 100)}% / samples ${diagnostics.nativeRuntime?.audioProcessing?.mixedAudioSampleCount ?? 0} / clipped ${diagnostics.nativeRuntime?.audioProcessing?.mixedAudioClippedSampleCount ?? 0}`,
     `- Android playback capture: ${playbackCapture.ready ? "ready" : "not-ready"} / ${diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureStatus ?? "unavailable"} ${diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureBackend ?? "none"} / ${diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureSampleRate ?? 0} Hz / ${playbackCapture.durationSeconds.toFixed(1)}s / captured ${diagnostics.nativeRuntime?.audioProcessing?.playbackCapturedFrames ?? 0} / dropped ${diagnostics.nativeRuntime?.audioProcessing?.playbackDroppedFrames ?? 0} (${(playbackCapture.dropRatio * 100).toFixed(2)}%) / underrun ${diagnostics.nativeRuntime?.audioProcessing?.playbackUnderrunFrames ?? 0} (${(playbackCapture.underrunRatio * 100).toFixed(2)}%) / buffered ${diagnostics.nativeRuntime?.audioProcessing?.playbackBufferedFrames ?? 0} frames (${Number.isFinite(playbackCapture.bufferedMs) ? `${Math.round(playbackCapture.bufferedMs)}ms` : "n/a"})`,
+    `- Mic capture recovery: events ${diagnostics.nativeRuntime?.audioProcessing?.micCaptureLifecycleEventCount ?? 0} / routes ${diagnostics.nativeRuntime?.audioProcessing?.micCaptureRouteChangeCount ?? 0} / interruptions ${diagnostics.nativeRuntime?.audioProcessing?.micCaptureInterruptionCount ?? 0} / recovered ${diagnostics.nativeRuntime?.audioProcessing?.micCaptureRecoveryCount ?? 0} / failed ${diagnostics.nativeRuntime?.audioProcessing?.micCaptureRecoveryFailureCount ?? 0} / unrecovered ${diagnostics.nativeRuntime?.audioProcessing?.micCaptureUnrecoveredEventCount ?? 0} / suspended ${diagnostics.nativeRuntime?.audioProcessing?.micCaptureSuspended === true ? "yes" : "no"}`,
+    `- Playback capture recovery: events ${diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureLifecycleEventCount ?? 0} / routes ${diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureRouteChangeCount ?? 0} / interruptions ${diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureInterruptionCount ?? 0} / recovered ${diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureRecoveryCount ?? 0} / failed ${diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureRecoveryFailureCount ?? 0} / unrecovered ${diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureUnrecoveredEventCount ?? 0} / suspended ${diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureSuspended === true ? "yes" : "no"}`,
     `- Monitor: ${diagnostics.audio.monitorEnabled ? "on" : "off"} / volume ${Math.round(diagnostics.audio.monitorVolume * 100)}% / headphones-only ${diagnostics.audio.monitorHeadphonesOnly ? "yes" : "no"}`,
     `- Monitor route: ${diagnostics.audio.monitorSafety.status} / ${diagnostics.audio.monitorSafety.outputName} / headphones ${diagnostics.audio.monitorSafety.headphonesConnected ? "yes" : "no"} / stale ${diagnostics.audio.monitorSafety.stale ? "yes" : "no"}`,
     `- Route action: ${diagnostics.audio.monitorSafety.recommendation}`,
@@ -1580,6 +1586,9 @@ const sanitizeNativeRuntime = (
         lastDecisionReason: redactStreamKeyOccurrences(bitrateAdaptation.lastDecisionReason, streamKey)
       })
     : undefined;
+  const audioProcessing = runtime.audioProcessing
+    ? normalizeNativeRuntimeAudioProcessing(runtime.audioProcessing)
+    : undefined;
   return {
     ...runtime,
     message: redactStreamKeyOccurrences(runtime.message, streamKey),
@@ -1597,16 +1606,52 @@ const sanitizeNativeRuntime = (
         redactStreamKeyOccurrences(kind, streamKey)
       )
     },
-    audioProcessing: runtime.audioProcessing
+    audioProcessing: audioProcessing
       ? {
-          ...runtime.audioProcessing,
-          monitorLastError: redactStreamKeyOccurrences(runtime.audioProcessing.monitorLastError, streamKey),
+          ...audioProcessing,
+          monitorLastError: redactStreamKeyOccurrences(audioProcessing.monitorLastError, streamKey),
           monitorLastRecoveryReason: redactStreamKeyOccurrences(
-            runtime.audioProcessing.monitorLastRecoveryReason ?? "",
+            audioProcessing.monitorLastRecoveryReason ?? "",
+            streamKey
+          ),
+          micCaptureLastRecoveryReason: redactStreamKeyOccurrences(
+            audioProcessing.micCaptureLastRecoveryReason ?? "",
+            streamKey
+          ),
+          playbackCaptureLastRecoveryReason: redactStreamKeyOccurrences(
+            audioProcessing.playbackCaptureLastRecoveryReason ?? "",
             streamKey
           )
         }
       : undefined
+  };
+};
+
+const sanitizeSessionSummaryRecoveryReasons = (
+  summary: StreamSessionSummary,
+  streamKey: string
+): StreamSessionSummary => {
+  if (!summary.nativeRuntime) {
+    return summary;
+  }
+
+  return {
+    ...summary,
+    nativeRuntime: {
+      ...summary.nativeRuntime,
+      monitorLastRecoveryReason: redactStreamKeyOccurrences(
+        summary.nativeRuntime.monitorLastRecoveryReason ?? "",
+        streamKey
+      ),
+      micCaptureLastRecoveryReason: redactStreamKeyOccurrences(
+        summary.nativeRuntime.micCaptureLastRecoveryReason ?? "",
+        streamKey
+      ),
+      playbackCaptureLastRecoveryReason: redactStreamKeyOccurrences(
+        summary.nativeRuntime.playbackCaptureLastRecoveryReason ?? "",
+        streamKey
+      )
+    }
   };
 };
 

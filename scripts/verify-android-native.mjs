@@ -11,6 +11,14 @@ import {
 import { inspectAndroidDebugApkFile } from "./verify-distribution-artifacts.mjs";
 
 export const androidNativeVerificationArtifactGroup = "android";
+export const rootEncoderR8SeedsPath =
+  "android/app/build/outputs/mapping/contractMinified/seeds.txt";
+export const rootEncoderAwaitedDisconnectSignature =
+  "com.pedro.rtmp.rtmp.RtmpClient: java.lang.Object disconnect(boolean,kotlin.coroutines.Continuation)";
+export const rootEncoderAwaitedDisconnectContractId = "rootencoder-rtmp-awaited-disconnect-v1";
+export const rootEncoderAwaitedDisconnectSignatureSha256 = createHash("sha256")
+  .update(rootEncoderAwaitedDisconnectSignature)
+  .digest("hex");
 
 if (isDirectRun()) {
   exit(run(argv.slice(2)));
@@ -30,11 +38,14 @@ export function run(args = []) {
     }
     assertNoSymlinkedParentDirectories(apkPath, "Android native debug artifact");
     assertNoSymlinkedParentDirectories(reportPath, "Android native verification report");
+    assertNoSymlinkedParentDirectories(rootEncoderR8SeedsPath, "Android RootEncoder R8 contract seeds");
 
     const startedAt = new Date().toISOString();
     rmSync(resolve(apkPath), { force: true });
     rmSync(resolve(reportPath), { force: true });
-    const command = "source scripts/rn-env.sh && cd android && ./gradlew assembleDebug testDebugUnitTest";
+    rmSync(resolve(rootEncoderR8SeedsPath), { force: true });
+    const command =
+      "source scripts/rn-env.sh && cd android && ./gradlew assembleDebug testDebugUnitTest assembleContractMinified";
     const result = spawnSync("bash", ["-lc", command], { cwd: cwd(), stdio: "inherit" });
     if (result.error) {
       throw result.error;
@@ -42,6 +53,7 @@ export function run(args = []) {
     if (result.status !== 0) {
       throw new Error(`Android Gradle build failed with exit code ${result.status ?? "unknown"}.`);
     }
+    verifyRootEncoderR8Contract();
     const finishedAt = new Date().toISOString();
     const report = createAndroidNativeVerificationReport({
       apkPath,
@@ -63,6 +75,15 @@ export function run(args = []) {
   }
 }
 
+export function verifyRootEncoderR8Contract(seedsPath = rootEncoderR8SeedsPath) {
+  const canonicalSeedsPath = canonicalWorkspaceRelativePath(seedsPath);
+  assertRegularArtifact(canonicalSeedsPath, "Android RootEncoder R8 contract seeds");
+  const seeds = readFileSync(resolve(canonicalSeedsPath), "utf8");
+  if (!seeds.includes(rootEncoderAwaitedDisconnectSignature)) {
+    throw new Error("Minified Android artifact removed the awaited RootEncoder disconnect contract.");
+  }
+}
+
 export function createAndroidNativeVerificationReport({
   apkPath = androidNativeDebugArtifactPath,
   reportPath = androidNativeVerificationArtifactPath,
@@ -70,11 +91,14 @@ export function createAndroidNativeVerificationReport({
   startedAt,
   finishedAt,
   gitCommit,
-  gradleVersion
+  gradleVersion,
+  r8SeedsPath = rootEncoderR8SeedsPath
 }) {
   const canonicalApkPath = canonicalWorkspaceRelativePath(apkPath);
   const canonicalReportPath = canonicalWorkspaceRelativePath(reportPath);
+  const canonicalR8SeedsPath = canonicalWorkspaceRelativePath(r8SeedsPath);
   assertRegularArtifact(canonicalApkPath, "Android native debug artifact");
+  assertRegularArtifact(canonicalR8SeedsPath, "Android RootEncoder R8 contract seeds");
   const inspection = inspectAndroidDebugApkFile(resolve(canonicalApkPath), { displayPath: canonicalApkPath });
   if (inspection.failures.length > 0) {
     throw new Error(inspection.failures.join("\n"));
@@ -82,6 +106,7 @@ export function createAndroidNativeVerificationReport({
   const startedMs = Date.parse(startedAt);
   const finishedMs = Date.parse(finishedAt);
   const apk = fileRecord(canonicalApkPath);
+  const r8Seeds = fileRecord(canonicalR8SeedsPath);
   const report = {
     type: "android-native-verification",
     appName: "MobileLiveCaster",
@@ -95,6 +120,14 @@ export function createAndroidNativeVerificationReport({
     gitCommit,
     gradleVersion,
     reportPath: canonicalReportPath,
+    r8Contract: {
+      variant: "contractMinified",
+      minified: true,
+      verified: true,
+      contractId: rootEncoderAwaitedDisconnectContractId,
+      signatureSha256: rootEncoderAwaitedDisconnectSignatureSha256,
+      seeds: r8Seeds
+    },
     apk: {
       ...apk,
       zipEntryCount: inspection.zipEntryCount,
@@ -126,7 +159,11 @@ export function collectAndroidNativeVerificationArtifactRecords({
   if (failures.length > 0) {
     throw new Error(failures.join("\n"));
   }
-  return [artifactRecord(canonicalReportPath), artifactRecord(report.apk.path)];
+  return [
+    artifactRecord(canonicalReportPath),
+    artifactRecord(report.apk.path),
+    artifactRecord(report.r8Contract.seeds.path)
+  ];
 }
 
 export function validateAndroidNativeVerificationArtifacts(
@@ -180,6 +217,28 @@ export function validateAndroidNativeVerificationArtifacts(
       failures.push("Android native debug APK inspection metadata does not match the native verification report.");
     }
   }
+  const r8SeedsArtifact = artifacts.find(
+    (artifact) =>
+      artifact?.group === androidNativeVerificationArtifactGroup &&
+      artifact?.path === report?.r8Contract?.seeds?.path
+  );
+  if (!r8SeedsArtifact) {
+    failures.push(`Report is missing Android RootEncoder R8 contract artifact ${report?.r8Contract?.seeds?.path || "-"}.`);
+    return failures;
+  }
+  if (
+    r8SeedsArtifact.bytes !== report.r8Contract.seeds.bytes ||
+    r8SeedsArtifact.sha256 !== report.r8Contract.seeds.sha256
+  ) {
+    failures.push("Android RootEncoder R8 contract artifact metadata does not match the native verification report.");
+  }
+  if (existsSync(resolve(report.r8Contract.seeds.path))) {
+    try {
+      verifyRootEncoderR8Contract(report.r8Contract.seeds.path);
+    } catch (error) {
+      failures.push(error instanceof Error ? error.message : String(error));
+    }
+  }
   return failures;
 }
 
@@ -209,6 +268,7 @@ export function validateAndroidNativeVerificationReport(
   const startedAt = Date.parse(String(report?.startedAt || ""));
   const finishedAt = Date.parse(String(report?.finishedAt || ""));
   const modifiedAt = Date.parse(String(report?.apk?.modifiedAt || ""));
+  const r8SeedsModifiedAt = Date.parse(String(report?.r8Contract?.seeds?.modifiedAt || ""));
   if (!Number.isFinite(startedAt) || !Number.isFinite(finishedAt) || finishedAt < startedAt) {
     fail("Android native verification timestamps are missing or invalid.");
   }
@@ -221,6 +281,13 @@ export function validateAndroidNativeVerificationReport(
   if (!Number.isFinite(modifiedAt) || modifiedAt < startedAt - 1_000 || modifiedAt > finishedAt + 1_000) {
     fail("Android native debug APK was not produced during this verification build.");
   }
+  if (
+    !Number.isFinite(r8SeedsModifiedAt) ||
+    r8SeedsModifiedAt < startedAt - 1_000 ||
+    r8SeedsModifiedAt > finishedAt + 1_000
+  ) {
+    fail("Android RootEncoder R8 contract seeds were not produced during this verification build.");
+  }
   const releaseFinishedMs = Date.parse(String(releaseFinishedAt || ""));
   if (Number.isFinite(releaseFinishedMs) && Number.isFinite(finishedAt)) {
     const ageHours = (releaseFinishedMs - finishedAt) / 3_600_000;
@@ -230,11 +297,28 @@ export function validateAndroidNativeVerificationReport(
       fail(`Android native verification is ${Math.round(ageHours * 100) / 100}h old, above the ${maxAgeHours}h release-report gate.`);
     }
   }
-  if (typeof report?.command !== "string" || !report.command.includes("./gradlew assembleDebug")) {
+  if (
+    typeof report?.command !== "string" ||
+    !report.command.includes("./gradlew assembleDebug") ||
+    !report.command.includes("assembleContractMinified")
+  ) {
     fail("Android native verification command is invalid.");
   }
   if (typeof report?.gradleVersion !== "string" || !report.gradleVersion.startsWith("Gradle ")) {
     fail("Android native verification Gradle version is missing or invalid.");
+  }
+  if (
+    report?.r8Contract?.variant !== "contractMinified" ||
+    report?.r8Contract?.minified !== true ||
+    report?.r8Contract?.verified !== true ||
+    report?.r8Contract?.contractId !== rootEncoderAwaitedDisconnectContractId ||
+    report?.r8Contract?.signatureSha256 !== rootEncoderAwaitedDisconnectSignatureSha256 ||
+    report?.r8Contract?.seeds?.path !== rootEncoderR8SeedsPath ||
+    !Number.isInteger(report?.r8Contract?.seeds?.bytes) ||
+    report.r8Contract.seeds.bytes <= 0 ||
+    !/^[a-f0-9]{64}$/u.test(report?.r8Contract?.seeds?.sha256 || "")
+  ) {
+    fail("Android RootEncoder minified disconnect contract evidence is invalid.");
   }
   if (!Number.isInteger(report?.apk?.bytes) || report.apk.bytes <= 1_048_576 || !/^[a-f0-9]{64}$/u.test(report?.apk?.sha256 || "")) {
     fail("Android native verification APK file metadata is invalid.");

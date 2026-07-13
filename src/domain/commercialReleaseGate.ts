@@ -44,7 +44,7 @@ export interface CommercialReleaseGateOptions {
   maxBundleAgeHours?: number;
 }
 
-const minimumSupportBundleVersion = 61;
+const minimumSupportBundleVersion = 62;
 const defaultMaxBundleAgeHours = 24;
 const nativeAdaptiveBitrateEvidenceMaxAgeMs = 30 * 60 * 1_000;
 const nativeAdaptiveBitrateEvidenceFutureSkewMs = 60 * 1_000;
@@ -163,7 +163,7 @@ const createStreamOutputQualityIssue = (bundle: SupportBundle): CommercialReleas
     return failIssue(
       "stream-output-quality",
       "Stream output quality",
-      "Support bundle v61 is missing a valid current output width, height, FPS, or matching resolution label.",
+      "Support bundle v62 is missing a valid current output width, height, FPS, or matching resolution label.",
       "Select the release output quality, record fresh iOS and Android validation runs without changing it, then export a new support bundle."
     );
   }
@@ -305,7 +305,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a v61 support bundle with retained launch, native publisher, overlay, avatar, ingest, encoder, playback-capture, A/V sync, and native output-format proof."
+      "Export a v62 support bundle with retained launch, native publisher, overlay, avatar, ingest, encoder, playback-capture, A/V sync, and native output-format proof."
     );
   }
 
@@ -421,7 +421,7 @@ const createSceneFingerprintIssue = (bundle: SupportBundle): CommercialReleaseGa
     return failIssue(
       "scene-fingerprint-missing",
       "Scene fingerprint",
-      "Support bundle v61 is missing scene composition fingerprint evidence.",
+      "Support bundle v62 is missing scene composition fingerprint evidence.",
       "Export a fresh support bundle from the exact scene/profile intended for release."
     );
   }
@@ -446,7 +446,7 @@ const createNativeCaptionOverlaySummaryIssue = (bundle: SupportBundle): Commerci
     "native-caption-overlay-summary-missing",
     "Native caption overlay evidence",
     "The support bundle is missing native caption overlay count summary evidence.",
-    "Export a support bundle v61 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
+    "Export a support bundle v62 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
   );
 };
 
@@ -532,7 +532,7 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "text-overlay-evidence-missing",
       "Text overlay evidence",
       "The support bundle is missing text overlay launch evidence.",
-      "Export a support bundle v61 or newer so visible manual text, subtitle, ticker, live-caption, native caption overlay kind proof, and avatar-overlap overlay evidence is summarized."
+      "Export a support bundle v62 or newer so visible manual text, subtitle, ticker, live-caption, native caption overlay kind proof, and avatar-overlap overlay evidence is summarized."
     );
   }
 
@@ -598,7 +598,7 @@ const createChatOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "chat-overlay-evidence-missing",
       "Chat overlay evidence",
       "The support bundle is missing chat overlay launch evidence.",
-      "Export a support bundle v61 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap evidence is summarized."
+      "Export a support bundle v62 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap evidence is summarized."
     );
   }
 
@@ -652,7 +652,7 @@ const createLiveCaptionEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "live-caption-evidence-missing",
       "Live caption evidence",
       "The support bundle is missing live caption launch evidence.",
-      "Export a support bundle v61 or newer so live caption enablement, recognition state, source visibility, cue proof, and native caption overlay kind proof are summarized."
+      "Export a support bundle v62 or newer so live caption enablement, recognition state, source visibility, cue proof, and native caption overlay kind proof are summarized."
     );
   }
 
@@ -885,7 +885,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v61 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v62 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -914,7 +914,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-android-publisher-mode",
       "Validation evidence manifest",
       `The latest Android validation manifest row used ${latestRuns.get("android")?.androidPublisherMode || "missing"} publisher mode.`,
-      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v61 or newer."
+      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v62 or newer."
     );
   }
   if (manifest.length !== bundle.summary.validationEvidenceRunCount) {
@@ -950,7 +950,7 @@ const createValidationEvidenceSceneManifestIssue = (bundle: SupportBundle): Comm
     "validation-evidence-manifest-scene-fingerprint",
     "Validation evidence manifest",
     `${mismatchedRuns.length} fresh retained validation run(s) do not match the current scene fingerprint ${sceneFingerprint}.`,
-    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v61 support bundle."
+    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v62 support bundle."
   );
 };
 
@@ -1432,6 +1432,7 @@ const isManifestNativeRuntimePass = (
   hasManifestNativeCompositorDropProof(run) &&
   hasManifestAndroidMediaCodecCompositorProof(run) &&
   hasManifestAndroidPlaybackCaptureProof(run) &&
+  hasManifestAndroidAudioCaptureRecoveryProof(run) &&
   hasManifestIosReplayKitCompositorProof(run) &&
   (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
   hasManifestNativeOverlayProof(run, expectedNativeOverlays) &&
@@ -1530,6 +1531,108 @@ const hasManifestAndroidPlaybackCaptureProof = (run: ValidationEvidenceManifestR
     playbackUnderrunFrames: run.nativeRuntimePlaybackUnderrunFrames,
     playbackBufferedFrames: run.nativeRuntimePlaybackBufferedFrames
   }).ready;
+};
+
+const hasManifestAndroidAudioCaptureRecoveryProof = (
+  run: ValidationEvidenceManifestRun | undefined
+): boolean => {
+  if (run?.devicePlatform !== "android") {
+    return true;
+  }
+  return (
+    hasManifestCaptureRecoveryProof({
+      status: run.nativeRuntimeMicCaptureStatus,
+      backend: run.nativeRuntimeMicCaptureBackend,
+      expectedBackend: "android-audiorecord-microphone",
+      sampleRate: run.nativeRuntimeMicCaptureSampleRate,
+      fallbackFrames: run.nativeRuntimeMicCaptureFallbackFrames,
+      lifecycleEventCount: run.nativeRuntimeMicCaptureLifecycleEventCount,
+      routeChangeCount: run.nativeRuntimeMicCaptureRouteChangeCount,
+      interruptionCount: run.nativeRuntimeMicCaptureInterruptionCount,
+      recoveryCount: run.nativeRuntimeMicCaptureRecoveryCount,
+      recoveryFailureCount: run.nativeRuntimeMicCaptureRecoveryFailureCount,
+      unrecoveredEventCount: run.nativeRuntimeMicCaptureUnrecoveredEventCount,
+      lastRecoveryReason: run.nativeRuntimeMicCaptureLastRecoveryReason,
+      lastRecoveryAt: run.nativeRuntimeMicCaptureLastRecoveryAt,
+      suspended: run.nativeRuntimeMicCaptureSuspended
+    }) &&
+    hasManifestCaptureRecoveryProof({
+      status: run.nativeRuntimePlaybackCaptureStatus,
+      backend: run.nativeRuntimePlaybackCaptureBackend,
+      expectedBackend: "android-audio-playback-capture",
+      sampleRate: run.nativeRuntimePlaybackCaptureSampleRate,
+      lifecycleEventCount: run.nativeRuntimePlaybackCaptureLifecycleEventCount,
+      routeChangeCount: run.nativeRuntimePlaybackCaptureRouteChangeCount,
+      interruptionCount: run.nativeRuntimePlaybackCaptureInterruptionCount,
+      recoveryCount: run.nativeRuntimePlaybackCaptureRecoveryCount,
+      recoveryFailureCount: run.nativeRuntimePlaybackCaptureRecoveryFailureCount,
+      unrecoveredEventCount: run.nativeRuntimePlaybackCaptureUnrecoveredEventCount,
+      lastRecoveryReason: run.nativeRuntimePlaybackCaptureLastRecoveryReason,
+      lastRecoveryAt: run.nativeRuntimePlaybackCaptureLastRecoveryAt,
+      suspended: run.nativeRuntimePlaybackCaptureSuspended
+    })
+  );
+};
+
+const hasManifestCaptureRecoveryProof = ({
+  status,
+  backend,
+  expectedBackend,
+  sampleRate,
+  fallbackFrames,
+  lifecycleEventCount,
+  routeChangeCount,
+  interruptionCount,
+  recoveryCount,
+  recoveryFailureCount,
+  unrecoveredEventCount,
+  lastRecoveryReason,
+  lastRecoveryAt,
+  suspended
+}: {
+  status: unknown;
+  backend: unknown;
+  expectedBackend: string;
+  sampleRate: unknown;
+  fallbackFrames?: unknown;
+  lifecycleEventCount: unknown;
+  routeChangeCount: unknown;
+  interruptionCount: unknown;
+  recoveryCount: unknown;
+  recoveryFailureCount: unknown;
+  unrecoveredEventCount: unknown;
+  lastRecoveryReason: unknown;
+  lastRecoveryAt: unknown;
+  suspended: unknown;
+}): boolean => {
+  const counters = [
+    lifecycleEventCount,
+    routeChangeCount,
+    interruptionCount,
+    recoveryCount,
+    recoveryFailureCount,
+    unrecoveredEventCount,
+    ...(fallbackFrames === undefined ? [] : [fallbackFrames])
+  ];
+  if (!counters.every(isNonNegativeInteger)) {
+    return false;
+  }
+  const eventCount = Number(routeChangeCount) + Number(interruptionCount);
+  const hasRecoveryEvidence =
+    Number(recoveryCount) > 0 &&
+    typeof lastRecoveryReason === "string" &&
+    lastRecoveryReason.trim().length > 0 &&
+    isPositiveInteger(lastRecoveryAt);
+  return (
+    (status === "capturing" || status === "stopped") &&
+    backend === expectedBackend &&
+    isPositiveInteger(sampleRate) &&
+    Number(lifecycleEventCount) >= eventCount &&
+    Number(recoveryFailureCount) === 0 &&
+    Number(unrecoveredEventCount) === 0 &&
+    suspended === false &&
+    (eventCount === 0 || hasRecoveryEvidence)
+  );
 };
 
 const hasManifestIosReplayKitCompositorProof = (run: ValidationEvidenceManifestRun | undefined): boolean => {

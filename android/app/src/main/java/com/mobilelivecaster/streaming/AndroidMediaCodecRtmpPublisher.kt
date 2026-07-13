@@ -26,6 +26,10 @@ class AndroidMediaCodecRtmpPublisher(connectChecker: ConnectChecker) {
     private var lastError = ""
     private val mediaTimestampTracker = MediaTimestampTracker()
 
+    init {
+        AndroidRtmpDisconnectAwaiter.verifyContract()
+    }
+
     fun configure(profile: LiveCasterProfile, sps: ByteBuffer, pps: ByteBuffer, audioSampleRate: Int, audioStereo: Boolean) {
         require(sps.remaining() > 0) { "H.264 SPS is required before RTMP publishing" }
         require(pps.remaining() > 0) { "H.264 PPS is required before RTMP publishing" }
@@ -54,8 +58,8 @@ class AndroidMediaCodecRtmpPublisher(connectChecker: ConnectChecker) {
         }
     }
 
-    fun disconnect() {
-        runCatching { client.disconnect() }
+    fun disconnectAndAwait() {
+        AndroidRtmpDisconnectAwaiter.disconnectAndAwait(client)
     }
 
     fun reconnect(endpoint: String) {
@@ -63,31 +67,36 @@ class AndroidMediaCodecRtmpPublisher(connectChecker: ConnectChecker) {
         client.reConnect(0L, endpoint)
     }
 
-    fun sendVideo(buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
-        if (!client.isStreaming || info.size <= 0 || info.isCodecConfigFrame()) return
-        val frame = encodedFrame(buffer, info) ?: return
-        if (!frame.buffer.hasH264StartCode()) {
-            lastError = "H.264 Annex B NAL start code is required before RTMP publishing"
-            return
+    internal fun sendVideo(buffer: ByteBuffer, info: MediaCodec.BufferInfo): AndroidMediaPublishResult {
+        if (!client.isStreaming || info.size <= 0 || info.isCodecConfigFrame()) {
+            return AndroidMediaPublishResult.skipped()
+        }
+        val frame = encodedFrame(buffer, info) ?: return AndroidMediaPublishResult.fatal(lastError)
+        val validationError = if (frame.buffer.hasH264StartCode()) {
+            null
+        } else {
+            "H.264 Annex B NAL start code is required before RTMP publishing"
         }
         val observedAtMs = System.nanoTime() / 1_000_000L
-        runCatching {
+        return executeAndroidMediaPublish(validationError) {
             client.sendVideo(frame.buffer, frame.info)
             mediaTimestampTracker.recordVideo(frame.info.presentationTimeUs / 1_000L, observedAtMs)
-        }.onFailure { error ->
-            lastError = safeMessage(error)
+        }.also { result ->
+            lastError = result.fatalError
         }
     }
 
-    fun sendAudio(buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
-        if (!client.isStreaming || info.size <= 0 || info.isCodecConfigFrame()) return
-        val frame = encodedFrame(buffer, info) ?: return
+    internal fun sendAudio(buffer: ByteBuffer, info: MediaCodec.BufferInfo): AndroidMediaPublishResult {
+        if (!client.isStreaming || info.size <= 0 || info.isCodecConfigFrame()) {
+            return AndroidMediaPublishResult.skipped()
+        }
+        val frame = encodedFrame(buffer, info) ?: return AndroidMediaPublishResult.fatal(lastError)
         val observedAtMs = System.nanoTime() / 1_000_000L
-        runCatching {
+        return executeAndroidMediaPublish {
             client.sendAudio(frame.buffer, frame.info)
             mediaTimestampTracker.recordAudio(frame.info.presentationTimeUs / 1_000L, observedAtMs)
-        }.onFailure { error ->
-            lastError = safeMessage(error)
+        }.also { result ->
+            lastError = result.fatalError
         }
     }
 
@@ -149,6 +158,31 @@ private data class EncodedFrame(
     val buffer: ByteBuffer,
     val info: MediaCodec.BufferInfo
 )
+
+internal data class AndroidMediaPublishResult(
+    val sent: Boolean,
+    val fatalError: String
+) {
+    companion object {
+        fun sent(): AndroidMediaPublishResult = AndroidMediaPublishResult(sent = true, fatalError = "")
+        fun skipped(): AndroidMediaPublishResult = AndroidMediaPublishResult(sent = false, fatalError = "")
+        fun fatal(message: String): AndroidMediaPublishResult =
+            AndroidMediaPublishResult(sent = false, fatalError = message.ifBlank { "RTMP media send failed" }.take(160))
+    }
+}
+
+internal fun executeAndroidMediaPublish(
+    validationError: String? = null,
+    send: () -> Unit
+): AndroidMediaPublishResult {
+    if (!validationError.isNullOrBlank()) return AndroidMediaPublishResult.fatal(validationError)
+    return try {
+        send()
+        AndroidMediaPublishResult.sent()
+    } catch (error: Exception) {
+        AndroidMediaPublishResult.fatal(error.message ?: error.javaClass.simpleName)
+    }
+}
 
 data class AndroidMediaCodecRtmpPublisherSnapshot(
     val configured: Boolean,

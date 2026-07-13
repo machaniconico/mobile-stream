@@ -76,12 +76,14 @@ describe("native audio level metering", () => {
     expect(androidEffect).toContain("micLevelWindowSquaredLevelSum / micLevelWindowSampleCount.toDouble()");
     expect(androidEffect).toContain("@Volatile");
     expect(androidService).toContain("microphoneSource.setAudioEffect(effect)");
-    expect(androidDirectStream).toContain("Pcm16AudioMixer.upmixMonoToStereo(micReadBuffer, bytesRead)");
+    expect(androidDirectStream).toContain("Pcm16AudioMixer.upmixMonoToStereo(micReadBuffer, micReadBuffer.size)");
+    expect(androidDirectStream).toContain("microphoneAudioCapture?.recordFallbackFrames(");
+    expect(androidDirectStream).toContain("LockSupport.parkNanos(delayNanos)");
     expect(androidDirectStream).toContain("effect?.processAppAudio(");
     expect(androidDirectStream).toContain("effect?.mixForBroadcast(processedMic, processedAppAudio)");
     expect(androidDirectStream).toContain("AUDIO_OUTPUT_CHANNEL_COUNT = 2");
     expect(androidDirectStream).toContain("audioProcessing = audioProcessingSnapshot()");
-    expect(androidDirectStream).toContain("playbackUnderrunFrames = playback.underrunFrames");
+    expect(androidDirectStream).toContain("playbackUnderrunFrames = playback?.underrunFrames ?: 0L");
     levelKeys.forEach((key) => expect(androidSession).toContain(`putDouble(\"${key}\"`));
     playbackCaptureKeys.forEach((key) => expect(androidSession).toContain(`\"${key}\"`));
   });

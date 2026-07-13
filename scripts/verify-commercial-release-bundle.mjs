@@ -3,7 +3,7 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
-const minimumSupportBundleVersion = 61;
+const minimumSupportBundleVersion = 62;
 const nativeAdaptiveBitrateEvidenceMaxAgeMs = 30 * 60 * 1_000;
 const nativeAdaptiveBitrateEvidenceFutureSkewMs = 60 * 1_000;
 const minimumValidationMonitorDurationSeconds = 60;
@@ -295,7 +295,7 @@ function streamOutputQualityIssue(bundle) {
     return fail(
       "stream-output-quality",
       "Stream output quality",
-      "Support bundle v61 is missing a valid current output width, height, FPS, or matching resolution label.",
+      "Support bundle v62 is missing a valid current output width, height, FPS, or matching resolution label.",
       "Select the release output quality, record fresh iOS and Android validation runs without changing it, then export a new support bundle."
     );
   }
@@ -352,7 +352,7 @@ function nativeCaptionOverlaySummaryIssue(bundle) {
     "native-caption-overlay-summary-missing",
     "Native caption overlay evidence",
     "The support bundle is missing native caption overlay count summary evidence.",
-    "Export a support bundle v61 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
+    "Export a support bundle v62 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
   );
 }
 
@@ -495,7 +495,7 @@ function publicLaunchConfirmationEvidenceIssue(bundle) {
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a v61 support bundle with retained launch, native publisher, overlay, avatar, ingest, encoder, playback-capture, A/V sync, and native output-format proof."
+      "Export a v62 support bundle with retained launch, native publisher, overlay, avatar, ingest, encoder, playback-capture, A/V sync, and native output-format proof."
     );
   }
 
@@ -607,7 +607,7 @@ function sceneFingerprintIssue(bundle) {
     return fail(
       "scene-fingerprint-missing",
       "Scene fingerprint",
-      "Support bundle v61 is missing scene composition fingerprint evidence.",
+      "Support bundle v62 is missing scene composition fingerprint evidence.",
       "Export a fresh support bundle from the exact scene/profile intended for release."
     );
   }
@@ -641,7 +641,7 @@ function validationSceneManifestIssue(bundle) {
     "validation-evidence-manifest-scene-fingerprint",
     "Validation evidence manifest",
     `${mismatchedRuns.length} fresh retained validation run(s) do not match the current scene fingerprint ${sceneFingerprint}.`,
-    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v61 support bundle."
+    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v62 support bundle."
   );
 }
 
@@ -677,7 +677,7 @@ function textOverlayEvidenceIssue(bundle) {
       "text-overlay-evidence-missing",
       "Text overlay evidence",
       "The support bundle is missing text overlay launch evidence.",
-      "Export a support bundle v61 or newer so visible manual text, subtitle, ticker, live-caption, native caption overlay kind proof, and avatar-overlap overlay evidence is summarized."
+      "Export a support bundle v62 or newer so visible manual text, subtitle, ticker, live-caption, native caption overlay kind proof, and avatar-overlap overlay evidence is summarized."
     );
   }
 
@@ -734,7 +734,7 @@ function chatOverlayEvidenceIssue(bundle) {
       "chat-overlay-evidence-missing",
       "Chat overlay evidence",
       "The support bundle is missing chat overlay launch evidence.",
-      "Export a support bundle v61 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap overlay evidence is summarized."
+      "Export a support bundle v62 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap overlay evidence is summarized."
     );
   }
 
@@ -779,7 +779,7 @@ function liveCaptionEvidenceIssue(bundle) {
       "live-caption-evidence-missing",
       "Live caption evidence",
       "The support bundle is missing live caption launch evidence.",
-      "Export a support bundle v61 or newer so live caption enablement, recognition state, source visibility, cue proof, and native caption overlay kind proof are summarized."
+      "Export a support bundle v62 or newer so live caption enablement, recognition state, source visibility, cue proof, and native caption overlay kind proof are summarized."
     );
   }
 
@@ -1008,7 +1008,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v61 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v62 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -1049,7 +1049,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-android-publisher-mode",
       "Validation evidence manifest",
       `The latest Android validation manifest row used ${text(latestAndroidRun?.androidPublisherMode) || "missing"} publisher mode.`,
-      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v61 or newer."
+      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v62 or newer."
     );
   }
   const expectedNativeOverlays = nativeCompositionOverlayProofRequirements(summary);
@@ -1072,8 +1072,8 @@ function validationManifestIssue(bundle) {
     return fail(
       "validation-evidence-manifest-native-runtime",
       "Validation evidence manifest",
-      "The manifest does not back claimed native runtime evidence with a published publisher state, a positive-integer current publish generation, positive-integer current-generation video/audio frames, platform-matched production video/audio encoder backends, passing video/audio encoder configure flags, verified active encoder instances, positive encoded video/audio output counts, and exact native encoder output width/height/FPS matching the requested run target, cumulative video/audio frames, bytes written, clean RTMP A/V timestamp sync samples, non-congested publisher state, empty native publisher queue, zero publisher video/audio drops, compositor status, zero compositor drops/failures, Android playback-capture telemetry with the production backend, a capturing/stopped state, at least two seconds captured, at most 1% drops, at most 5% underruns, and at most 100ms buffered audio, live render-graph update proof, applied/skipped native overlay proof, loaded, decoded, and composited still-image assets, and accepted production VRM renderer/backend/model geometry/texture/pose proof when VRM sources are present.",
-      "Export a support bundle v61 or newer after retaining iOS and Android validation runs with exact requested/native encoder output-format proof, published current-generation native publisher/compositor overlay telemetry, clean RTMP A/V timestamp sync samples, Android playback-capture telemetry within the release thresholds, and platform-accepted production encoder backends."
+      "The manifest does not back claimed native runtime evidence with a published publisher state, a positive-integer current publish generation, positive-integer current-generation video/audio frames, platform-matched production video/audio encoder backends, passing video/audio encoder configure flags, verified active encoder instances, positive encoded video/audio output counts, and exact native encoder output width/height/FPS matching the requested run target, cumulative video/audio frames, bytes written, clean RTMP A/V timestamp sync samples, non-congested publisher state, empty native publisher queue, zero publisher video/audio drops, compositor status, zero compositor drops/failures, Android playback-capture telemetry with the production backend, a capturing/stopped state, at least two seconds captured, at most 1% drops, at most 5% underruns, and at most 100ms buffered audio, healthy microphone/playback lifecycle and recovery counters with no suspended capture or recovery failures, live render-graph update proof, applied/skipped native overlay proof, loaded, decoded, and composited still-image assets, and accepted production VRM renderer/backend/model geometry/texture/pose proof when VRM sources are present.",
+      "Export a support bundle v62 or newer after retaining iOS and Android validation runs with exact requested/native encoder output-format proof, published current-generation native publisher/compositor overlay telemetry, clean RTMP A/V timestamp sync samples, Android playback-capture telemetry within the release thresholds, healthy microphone/playback capture recovery proof, and platform-accepted production encoder backends."
     );
   }
   const eligibleMonitorHoldPlatforms = new Set(
@@ -1100,7 +1100,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-monitor-hold",
       "Validation evidence manifest",
       "The manifest does not back claimed monitor-hold evidence with stable duration, sample count, positive bitrate/FPS telemetry, zero dropped frames, and zero reconnects.",
-      "Export a support bundle v61 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry including bitrate/FPS proof."
+      "Export a support bundle v62 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry including bitrate/FPS proof."
     );
   }
   const eligibleAudioPlatforms = new Set(
@@ -1136,7 +1136,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-audio-monitor",
       "Validation evidence manifest",
       "The manifest does not back claimed mic/headphone evidence with native monitor write/drop proof, headphone route proof, measured monitor latency source/budget proof, and Bluetooth tuning notes when applicable.",
-      "Export a support bundle v61 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones and retained route-match latency source/budget/tuning proof."
+      "Export a support bundle v62 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones and retained route-match latency source/budget/tuning proof."
     );
   }
   const eligibleAvatarPlatforms = new Set(
@@ -1162,7 +1162,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-avatar-motion",
       "Validation evidence manifest",
       "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, ready native face landmarks, retained motion/control attenuation-scale proof, active motion, and either ready high-fidelity PNGTuber rig plus semantic/eye-mouth/horizontal-anchor segment proof or ready native-rendered VRM proof.",
-      "Export a support bundle v61 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion, retained motion/control attenuation-scale proof, and ready PNGTuber rig quality/high-fidelity/semantic/eye-mouth/horizontal-anchor segment proof or native-rendered VRM proof."
+      "Export a support bundle v62 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion, retained motion/control attenuation-scale proof, and ready PNGTuber rig quality/high-fidelity/semantic/eye-mouth/horizontal-anchor segment proof or native-rendered VRM proof."
     );
   }
   const eligibleChatReadoutPlatforms = new Set(
@@ -1190,7 +1190,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-chat-readout",
       "Validation evidence manifest",
       "The manifest does not back claimed chat readout evidence with connected platform chat label/message proof, enabled reader, spoken-message success, and zero speech failures.",
-      "Export a support bundle v61 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout connection label/message proof and native/browser speech output exercised."
+      "Export a support bundle v62 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout connection label/message proof and native/browser speech output exercised."
     );
   }
   const eligiblePlatformDashboardPlatforms = new Set(
@@ -1211,7 +1211,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-platform-dashboard",
       "Validation evidence manifest",
       "The manifest does not back claimed platform dashboard evidence with fresh checked-at proof, YouTube identity/state/privacy/bound-stream proof, and Twitch dashboard status and Twitch title/category/language metadata.",
-      "Export a support bundle v61 or newer after retaining iOS and Android validation runs with fresh YouTube/Twitch dashboard status, YouTube privacy/bound-stream proof, and Twitch title/category/language metadata from the destination receiving the stream."
+      "Export a support bundle v62 or newer after retaining iOS and Android validation runs with fresh YouTube/Twitch dashboard status, YouTube privacy/bound-stream proof, and Twitch title/category/language metadata from the destination receiving the stream."
     );
   }
   const eligiblePlatformIngestPlatforms = new Set(
@@ -1898,6 +1898,7 @@ function isManifestNativeRuntimePass(run, expectedNativeOverlays = emptyNativeOv
     hasNativeCompositorDropProof(run) &&
     hasAndroidMediaCodecCompositorProof(run) &&
     hasAndroidPlaybackCaptureProof(run) &&
+    hasAndroidAudioCaptureRecoveryProof(run) &&
     hasIosReplayKitCompositorProof(run) &&
     (run?.nativeRuntimeCompositionStatus === "applied" || run?.nativeRuntimeCompositionStatus === "screen-only") &&
     hasNativeOverlayProof(run, expectedNativeOverlays) &&
@@ -2037,6 +2038,91 @@ function hasAndroidPlaybackCaptureProof(run) {
     droppedFrames / capturedFrames <= 0.01 &&
     underrunFrames / (deliveredFrames + underrunFrames) <= 0.05 &&
     bufferedFrames * 1_000 / sampleRate <= 100
+  );
+}
+
+function hasAndroidAudioCaptureRecoveryProof(run) {
+  if (run?.devicePlatform !== "android") {
+    return true;
+  }
+  return (
+    hasCaptureRecoveryProof({
+      status: run.nativeRuntimeMicCaptureStatus,
+      backend: run.nativeRuntimeMicCaptureBackend,
+      expectedBackend: "android-audiorecord-microphone",
+      sampleRate: run.nativeRuntimeMicCaptureSampleRate,
+      fallbackFrames: run.nativeRuntimeMicCaptureFallbackFrames,
+      lifecycleEventCount: run.nativeRuntimeMicCaptureLifecycleEventCount,
+      routeChangeCount: run.nativeRuntimeMicCaptureRouteChangeCount,
+      interruptionCount: run.nativeRuntimeMicCaptureInterruptionCount,
+      recoveryCount: run.nativeRuntimeMicCaptureRecoveryCount,
+      recoveryFailureCount: run.nativeRuntimeMicCaptureRecoveryFailureCount,
+      unrecoveredEventCount: run.nativeRuntimeMicCaptureUnrecoveredEventCount,
+      lastRecoveryReason: run.nativeRuntimeMicCaptureLastRecoveryReason,
+      lastRecoveryAt: run.nativeRuntimeMicCaptureLastRecoveryAt,
+      suspended: run.nativeRuntimeMicCaptureSuspended
+    }) &&
+    hasCaptureRecoveryProof({
+      status: run.nativeRuntimePlaybackCaptureStatus,
+      backend: run.nativeRuntimePlaybackCaptureBackend,
+      expectedBackend: "android-audio-playback-capture",
+      sampleRate: run.nativeRuntimePlaybackCaptureSampleRate,
+      lifecycleEventCount: run.nativeRuntimePlaybackCaptureLifecycleEventCount,
+      routeChangeCount: run.nativeRuntimePlaybackCaptureRouteChangeCount,
+      interruptionCount: run.nativeRuntimePlaybackCaptureInterruptionCount,
+      recoveryCount: run.nativeRuntimePlaybackCaptureRecoveryCount,
+      recoveryFailureCount: run.nativeRuntimePlaybackCaptureRecoveryFailureCount,
+      unrecoveredEventCount: run.nativeRuntimePlaybackCaptureUnrecoveredEventCount,
+      lastRecoveryReason: run.nativeRuntimePlaybackCaptureLastRecoveryReason,
+      lastRecoveryAt: run.nativeRuntimePlaybackCaptureLastRecoveryAt,
+      suspended: run.nativeRuntimePlaybackCaptureSuspended
+    })
+  );
+}
+
+function hasCaptureRecoveryProof({
+  status,
+  backend,
+  expectedBackend,
+  sampleRate,
+  fallbackFrames,
+  lifecycleEventCount,
+  routeChangeCount,
+  interruptionCount,
+  recoveryCount,
+  recoveryFailureCount,
+  unrecoveredEventCount,
+  lastRecoveryReason,
+  lastRecoveryAt,
+  suspended
+}) {
+  const counters = [
+    lifecycleEventCount,
+    routeChangeCount,
+    interruptionCount,
+    recoveryCount,
+    recoveryFailureCount,
+    unrecoveredEventCount,
+    ...(fallbackFrames === undefined ? [] : [fallbackFrames])
+  ];
+  if (!counters.every(isNonNegativeInteger)) {
+    return false;
+  }
+  const eventCount = routeChangeCount + interruptionCount;
+  const hasRecoveryEvidence =
+    recoveryCount > 0 &&
+    typeof lastRecoveryReason === "string" &&
+    lastRecoveryReason.trim().length > 0 &&
+    isPositiveInteger(lastRecoveryAt);
+  return (
+    (status === "capturing" || status === "stopped") &&
+    backend === expectedBackend &&
+    isPositiveInteger(sampleRate) &&
+    lifecycleEventCount >= eventCount &&
+    recoveryFailureCount === 0 &&
+    unrecoveredEventCount === 0 &&
+    suspended === false &&
+    (eventCount === 0 || hasRecoveryEvidence)
   );
 }
 

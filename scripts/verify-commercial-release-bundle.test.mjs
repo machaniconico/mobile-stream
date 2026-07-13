@@ -56,22 +56,22 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v61.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v62.");
   });
 
-  it("blocks v60 support bundles because native output-format proof requires v61", () => {
+  it("blocks v61 support bundles because capture-recovery proof requires v62", () => {
     writeBundle({
       app: {
         name: "MobileLiveCaster",
         reportVersion: 1,
-        bundleVersion: 60
+        bundleVersion: 61
       }
     });
 
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v60 is older than the required v61.");
+    expect(result.stdout).toContain("Support bundle v61 is older than the required v62.");
   });
 
   it("rejects string support bundle versions instead of coercing the schema", () => {
@@ -417,7 +417,7 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Scene fingerprint");
-    expect(result.stdout).toContain("Support bundle v61 is missing scene composition fingerprint evidence.");
+    expect(result.stdout).toContain("Support bundle v62 is missing scene composition fingerprint evidence.");
   });
 
   it("blocks current support bundles with mismatched scene fingerprints", () => {
@@ -1151,6 +1151,118 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Android playback-capture telemetry");
+  });
+
+  it.each([
+    ["missing microphone proof", { nativeRuntimeMicCaptureRecoveryFailureCount: undefined }],
+    ["microphone still recovering", { nativeRuntimeMicCaptureStatus: "recovering", nativeRuntimeMicCaptureSuspended: true }],
+    ["microphone recovery failure", { nativeRuntimeMicCaptureRecoveryFailureCount: 1 }],
+    [
+      "unrecovered microphone interruption",
+      { nativeRuntimeMicCaptureLifecycleEventCount: 1, nativeRuntimeMicCaptureInterruptionCount: 1 }
+    ],
+    [
+      "unrecovered playback route change",
+      { nativeRuntimePlaybackCaptureLifecycleEventCount: 1, nativeRuntimePlaybackCaptureRouteChangeCount: 1 }
+    ],
+    ["playback still suspended", { nativeRuntimePlaybackCaptureSuspended: true }],
+    ["fractional fallback frames", { nativeRuntimeMicCaptureFallbackFrames: 0.5 }]
+  ])("blocks Android native runtime claims with unhealthy capture recovery proof: %s", (_reason, patch) => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios"),
+          manifestRun("android", "svr1-android", patch)
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("native runtime proof");
+  });
+
+  it.each([
+    ["missing microphone count", { nativeRuntimeMicCaptureUnrecoveredEventCount: undefined }],
+    ["negative microphone count", { nativeRuntimeMicCaptureUnrecoveredEventCount: -1 }],
+    ["fractional microphone count", { nativeRuntimeMicCaptureUnrecoveredEventCount: 0.5 }],
+    ["positive microphone count", { nativeRuntimeMicCaptureUnrecoveredEventCount: 1 }],
+    [
+      "stopped microphone with a positive count",
+      { nativeRuntimeMicCaptureStatus: "stopped", nativeRuntimeMicCaptureUnrecoveredEventCount: 1 }
+    ],
+    ["missing playback count", { nativeRuntimePlaybackCaptureUnrecoveredEventCount: undefined }],
+    ["negative playback count", { nativeRuntimePlaybackCaptureUnrecoveredEventCount: -1 }],
+    ["fractional playback count", { nativeRuntimePlaybackCaptureUnrecoveredEventCount: 0.5 }],
+    ["positive playback count", { nativeRuntimePlaybackCaptureUnrecoveredEventCount: 1 }],
+    [
+      "stopped playback with a positive count",
+      { nativeRuntimePlaybackCaptureStatus: "stopped", nativeRuntimePlaybackCaptureUnrecoveredEventCount: 1 }
+    ]
+  ])("blocks Android native runtime claims with invalid unrecovered capture events: %s", (_reason, patch) => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios"),
+          manifestRun("android", "svr1-android", patch)
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("native runtime proof");
+  });
+
+  it("keeps unrecovered capture event counters optional for iOS manifest rows", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeMicCaptureUnrecoveredEventCount: undefined,
+            nativeRuntimePlaybackCaptureUnrecoveredEventCount: undefined
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Can release: yes");
+  });
+
+  it("accepts Android capture recovery proof after route and interruption recovery", () => {
+    const recoveredCaptureProof = {
+      nativeRuntimeMicCaptureLifecycleEventCount: 2,
+      nativeRuntimeMicCaptureRouteChangeCount: 1,
+      nativeRuntimeMicCaptureInterruptionCount: 1,
+      nativeRuntimeMicCaptureRecoveryCount: 1,
+      nativeRuntimeMicCaptureLastRecoveryReason: "capture-unsilenced",
+      nativeRuntimeMicCaptureLastRecoveryAt: 12_345,
+      nativeRuntimePlaybackCaptureLifecycleEventCount: 2,
+      nativeRuntimePlaybackCaptureRouteChangeCount: 1,
+      nativeRuntimePlaybackCaptureInterruptionCount: 1,
+      nativeRuntimePlaybackCaptureRecoveryCount: 1,
+      nativeRuntimePlaybackCaptureLastRecoveryReason: "route-changed",
+      nativeRuntimePlaybackCaptureLastRecoveryAt: 12_346
+    };
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios"),
+          manifestRun("android", "svr1-android", recoveredCaptureProof)
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Can release: yes");
   });
 
   it("blocks native runtime claims when retained manifests have rejected live render-graph updates", () => {
@@ -3051,7 +3163,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 61
+      bundleVersion: 62
     },
     generatedAt,
     quality: {
@@ -3156,6 +3268,19 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeSentVideoFrames: 120,
   nativeRuntimeSentAudioFrames: 190,
   nativeRuntimeBytesWritten: 2_200_000,
+  nativeRuntimeMicCaptureStatus: devicePlatform === "android" ? "stopped" : "not-applicable",
+  nativeRuntimeMicCaptureBackend: devicePlatform === "android" ? "android-audiorecord-microphone" : "not-applicable",
+  nativeRuntimeMicCaptureSampleRate: devicePlatform === "android" ? 48_000 : 0,
+  nativeRuntimeMicCaptureFallbackFrames: 0,
+  nativeRuntimeMicCaptureLifecycleEventCount: 0,
+  nativeRuntimeMicCaptureRouteChangeCount: 0,
+  nativeRuntimeMicCaptureInterruptionCount: 0,
+  nativeRuntimeMicCaptureRecoveryCount: 0,
+  nativeRuntimeMicCaptureRecoveryFailureCount: 0,
+  nativeRuntimeMicCaptureUnrecoveredEventCount: 0,
+  nativeRuntimeMicCaptureLastRecoveryReason: "",
+  nativeRuntimeMicCaptureLastRecoveryAt: 0,
+  nativeRuntimeMicCaptureSuspended: false,
   nativeRuntimePlaybackCaptureStatus: devicePlatform === "android" ? "stopped" : "not-applicable",
   nativeRuntimePlaybackCaptureBackend: devicePlatform === "android" ? "android-audio-playback-capture" : "not-applicable",
   nativeRuntimePlaybackCaptureSampleRate: devicePlatform === "android" ? 48_000 : 0,
@@ -3163,6 +3288,15 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimePlaybackDroppedFrames: devicePlatform === "android" ? 960 : 0,
   nativeRuntimePlaybackUnderrunFrames: devicePlatform === "android" ? 4_000 : 0,
   nativeRuntimePlaybackBufferedFrames: devicePlatform === "android" ? 4_800 : 0,
+  nativeRuntimePlaybackCaptureLifecycleEventCount: 0,
+  nativeRuntimePlaybackCaptureRouteChangeCount: 0,
+  nativeRuntimePlaybackCaptureInterruptionCount: 0,
+  nativeRuntimePlaybackCaptureRecoveryCount: 0,
+  nativeRuntimePlaybackCaptureRecoveryFailureCount: 0,
+  nativeRuntimePlaybackCaptureUnrecoveredEventCount: 0,
+  nativeRuntimePlaybackCaptureLastRecoveryReason: "",
+  nativeRuntimePlaybackCaptureLastRecoveryAt: 0,
+  nativeRuntimePlaybackCaptureSuspended: false,
   nativeRuntimeVideoFrameIntervalSampleCount: 119,
   nativeRuntimeVideoFrameIntervalAverageMs: 33.3,
   nativeRuntimeVideoFrameIntervalMaxMs: 42,

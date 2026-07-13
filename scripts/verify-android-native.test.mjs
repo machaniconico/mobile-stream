@@ -6,8 +6,12 @@ import {
 } from "./release-artifact-policy.mjs";
 import {
   collectAndroidNativeVerificationArtifactRecords,
+  rootEncoderAwaitedDisconnectContractId,
+  rootEncoderAwaitedDisconnectSignatureSha256,
+  rootEncoderR8SeedsPath,
   validateAndroidNativeVerificationArtifacts,
-  validateAndroidNativeVerificationReport
+  validateAndroidNativeVerificationReport,
+  verifyRootEncoderR8Contract
 } from "./verify-android-native.mjs";
 import { nativeBuildFixturePaths, writeNativeBuildFixture } from "./native-build-test-fixtures.mjs";
 import { acquireReleaseTestLock, releaseTestLockHookTimeoutMs } from "./release-test-lock.mjs";
@@ -49,8 +53,16 @@ describe("Android native verifier", () => {
 
     expect(artifacts.map((artifact) => artifact.path)).toEqual([
       androidNativeVerificationArtifactPath,
-      androidNativeDebugArtifactPath
+      androidNativeDebugArtifactPath,
+      rootEncoderR8SeedsPath
     ]);
+    expect(report.r8Contract).toMatchObject({
+      variant: "contractMinified",
+      minified: true,
+      verified: true,
+      contractId: rootEncoderAwaitedDisconnectContractId,
+      signatureSha256: rootEncoderAwaitedDisconnectSignatureSha256
+    });
     expect(
       validateAndroidNativeVerificationArtifacts(artifacts, {
         releaseFinishedAt: new Date().toISOString(),
@@ -76,6 +88,38 @@ describe("Android native verifier", () => {
     );
   });
 
+  it("requires the minified contract build in retained native evidence", () => {
+    const report = JSON.parse(readFileSync(androidNativeVerificationArtifactPath, "utf8"));
+    report.command = "source scripts/rn-env.sh && cd android && ./gradlew assembleDebug";
+
+    expect(validateAndroidNativeVerificationReport(report)).toContain(
+      "Android native verification command is invalid."
+    );
+  });
+
+  it("rejects missing RootEncoder minified contract metadata", () => {
+    const report = JSON.parse(readFileSync(androidNativeVerificationArtifactPath, "utf8"));
+    report.r8Contract.verified = false;
+
+    expect(validateAndroidNativeVerificationReport(report)).toContain(
+      "Android RootEncoder minified disconnect contract evidence is invalid."
+    );
+  });
+
+  it("requires the retained RootEncoder R8 seeds artifact", () => {
+    const report = JSON.parse(readFileSync(androidNativeVerificationArtifactPath, "utf8"));
+    const artifacts = collectAndroidNativeVerificationArtifactRecords({ required: true }).filter(
+      (artifact) => artifact.path !== rootEncoderR8SeedsPath
+    );
+
+    expect(
+      validateAndroidNativeVerificationArtifacts(artifacts, {
+        releaseFinishedAt: new Date().toISOString(),
+        releaseGitCommit: report.gitCommit
+      })
+    ).toContain(`Report is missing Android RootEncoder R8 contract artifact ${rootEncoderR8SeedsPath}.`);
+  });
+
   it("fails closed when a required verification report is absent", () => {
     expect(() =>
       collectAndroidNativeVerificationArtifactRecords({
@@ -83,5 +127,20 @@ describe("Android native verifier", () => {
         required: true
       })
     ).toThrow(`Android native verification report does not exist: ${fixtureRoot}/missing-report.json`);
+  });
+
+  it("requires the awaited RootEncoder disconnect method in minified R8 seeds", () => {
+    const seedsPath = `${fixtureRoot}/r8-seeds.txt`;
+    writeFileSync(
+      seedsPath,
+      "com.pedro.rtmp.rtmp.RtmpClient: java.lang.Object disconnect(boolean,kotlin.coroutines.Continuation)\n"
+    );
+
+    expect(() => verifyRootEncoderR8Contract(seedsPath)).not.toThrow();
+
+    writeFileSync(seedsPath, "com.pedro.rtmp.rtmp.RtmpClient\n");
+    expect(() => verifyRootEncoderR8Contract(seedsPath)).toThrow(
+      "Minified Android artifact removed the awaited RootEncoder disconnect contract."
+    );
   });
 });

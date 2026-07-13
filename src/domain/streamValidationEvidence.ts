@@ -303,6 +303,19 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeSentVideoFrames: number;
   nativeRuntimeSentAudioFrames: number;
   nativeRuntimeBytesWritten: number;
+  nativeRuntimeMicCaptureStatus?: string | null;
+  nativeRuntimeMicCaptureBackend?: string | null;
+  nativeRuntimeMicCaptureSampleRate?: number;
+  nativeRuntimeMicCaptureFallbackFrames?: number;
+  nativeRuntimeMicCaptureLifecycleEventCount?: number;
+  nativeRuntimeMicCaptureRouteChangeCount?: number;
+  nativeRuntimeMicCaptureInterruptionCount?: number;
+  nativeRuntimeMicCaptureRecoveryCount?: number;
+  nativeRuntimeMicCaptureRecoveryFailureCount?: number;
+  nativeRuntimeMicCaptureUnrecoveredEventCount?: number;
+  nativeRuntimeMicCaptureLastRecoveryReason?: string;
+  nativeRuntimeMicCaptureLastRecoveryAt?: number;
+  nativeRuntimeMicCaptureSuspended?: boolean;
   nativeRuntimePlaybackCaptureStatus: string | null;
   nativeRuntimePlaybackCaptureBackend: string | null;
   nativeRuntimePlaybackCaptureSampleRate: number;
@@ -310,6 +323,15 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimePlaybackDroppedFrames: number;
   nativeRuntimePlaybackUnderrunFrames: number;
   nativeRuntimePlaybackBufferedFrames: number;
+  nativeRuntimePlaybackCaptureLifecycleEventCount?: number;
+  nativeRuntimePlaybackCaptureRouteChangeCount?: number;
+  nativeRuntimePlaybackCaptureInterruptionCount?: number;
+  nativeRuntimePlaybackCaptureRecoveryCount?: number;
+  nativeRuntimePlaybackCaptureRecoveryFailureCount?: number;
+  nativeRuntimePlaybackCaptureUnrecoveredEventCount?: number;
+  nativeRuntimePlaybackCaptureLastRecoveryReason?: string;
+  nativeRuntimePlaybackCaptureLastRecoveryAt?: number;
+  nativeRuntimePlaybackCaptureSuspended?: boolean;
   nativeRuntimeVideoFrameIntervalSampleCount: number;
   nativeRuntimeVideoFrameIntervalAverageMs: number;
   nativeRuntimeVideoFrameIntervalMaxMs: number;
@@ -3323,6 +3345,19 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeSentVideoFrames: run.nativeRuntime?.sentVideoFrames ?? 0,
     nativeRuntimeSentAudioFrames: run.nativeRuntime?.sentAudioFrames ?? 0,
     nativeRuntimeBytesWritten: run.nativeRuntime?.bytesWritten ?? 0,
+    nativeRuntimeMicCaptureStatus: run.nativeRuntime?.micCaptureStatus ?? null,
+    nativeRuntimeMicCaptureBackend: run.nativeRuntime?.micCaptureBackend ?? null,
+    nativeRuntimeMicCaptureSampleRate: run.nativeRuntime?.micCaptureSampleRate ?? 0,
+    nativeRuntimeMicCaptureFallbackFrames: run.nativeRuntime?.micCaptureFallbackFrames ?? 0,
+    nativeRuntimeMicCaptureLifecycleEventCount: run.nativeRuntime?.micCaptureLifecycleEventCount ?? 0,
+    nativeRuntimeMicCaptureRouteChangeCount: run.nativeRuntime?.micCaptureRouteChangeCount ?? 0,
+    nativeRuntimeMicCaptureInterruptionCount: run.nativeRuntime?.micCaptureInterruptionCount ?? 0,
+    nativeRuntimeMicCaptureRecoveryCount: run.nativeRuntime?.micCaptureRecoveryCount ?? 0,
+    nativeRuntimeMicCaptureRecoveryFailureCount: run.nativeRuntime?.micCaptureRecoveryFailureCount ?? 0,
+    nativeRuntimeMicCaptureUnrecoveredEventCount: run.nativeRuntime?.micCaptureUnrecoveredEventCount ?? 0,
+    nativeRuntimeMicCaptureLastRecoveryReason: run.nativeRuntime?.micCaptureLastRecoveryReason ?? "",
+    nativeRuntimeMicCaptureLastRecoveryAt: run.nativeRuntime?.micCaptureLastRecoveryAt ?? 0,
+    nativeRuntimeMicCaptureSuspended: run.nativeRuntime?.micCaptureSuspended ?? false,
     nativeRuntimePlaybackCaptureStatus: run.nativeRuntime?.playbackCaptureStatus ?? null,
     nativeRuntimePlaybackCaptureBackend: run.nativeRuntime?.playbackCaptureBackend ?? null,
     nativeRuntimePlaybackCaptureSampleRate: run.nativeRuntime?.playbackCaptureSampleRate ?? 0,
@@ -3330,6 +3365,16 @@ const createEvidenceRunManifestItem = (
     nativeRuntimePlaybackDroppedFrames: run.nativeRuntime?.playbackDroppedFrames ?? 0,
     nativeRuntimePlaybackUnderrunFrames: run.nativeRuntime?.playbackUnderrunFrames ?? 0,
     nativeRuntimePlaybackBufferedFrames: run.nativeRuntime?.playbackBufferedFrames ?? 0,
+    nativeRuntimePlaybackCaptureLifecycleEventCount: run.nativeRuntime?.playbackCaptureLifecycleEventCount ?? 0,
+    nativeRuntimePlaybackCaptureRouteChangeCount: run.nativeRuntime?.playbackCaptureRouteChangeCount ?? 0,
+    nativeRuntimePlaybackCaptureInterruptionCount: run.nativeRuntime?.playbackCaptureInterruptionCount ?? 0,
+    nativeRuntimePlaybackCaptureRecoveryCount: run.nativeRuntime?.playbackCaptureRecoveryCount ?? 0,
+    nativeRuntimePlaybackCaptureRecoveryFailureCount: run.nativeRuntime?.playbackCaptureRecoveryFailureCount ?? 0,
+    nativeRuntimePlaybackCaptureUnrecoveredEventCount:
+      run.nativeRuntime?.playbackCaptureUnrecoveredEventCount ?? 0,
+    nativeRuntimePlaybackCaptureLastRecoveryReason: run.nativeRuntime?.playbackCaptureLastRecoveryReason ?? "",
+    nativeRuntimePlaybackCaptureLastRecoveryAt: run.nativeRuntime?.playbackCaptureLastRecoveryAt ?? 0,
+    nativeRuntimePlaybackCaptureSuspended: run.nativeRuntime?.playbackCaptureSuspended ?? false,
     nativeRuntimeVideoFrameIntervalSampleCount: run.nativeRuntime?.videoFrameIntervalSampleCount ?? 0,
     nativeRuntimeVideoFrameIntervalAverageMs: run.nativeRuntime?.videoFrameIntervalAverageMs ?? 0,
     nativeRuntimeVideoFrameIntervalMaxMs: run.nativeRuntime?.videoFrameIntervalMaxMs ?? 0,

@@ -40,7 +40,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 61;
+    bundleVersion: 62;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -105,6 +105,31 @@ export interface SupportBundle {
     lastSessionNativeRuntimeEncoderProbeAudioEncodedOutputCount: number;
     lastSessionNativeRuntimeEncoderProbeVideoBackend: string;
     lastSessionNativeRuntimeEncoderProbeAudioBackend: string;
+    lastSessionNativeRuntimeMicCaptureStatus: string;
+    lastSessionNativeRuntimeMicCaptureBackend: string;
+    lastSessionNativeRuntimeMicCaptureSampleRate: number;
+    lastSessionNativeRuntimeMicCaptureFallbackFrames: number;
+    lastSessionNativeRuntimeMicCaptureLifecycleEventCount: number;
+    lastSessionNativeRuntimeMicCaptureRouteChangeCount: number;
+    lastSessionNativeRuntimeMicCaptureInterruptionCount: number;
+    lastSessionNativeRuntimeMicCaptureRecoveryCount: number;
+    lastSessionNativeRuntimeMicCaptureRecoveryFailureCount: number;
+    lastSessionNativeRuntimeMicCaptureUnrecoveredEventCount: number;
+    lastSessionNativeRuntimeMicCaptureLastRecoveryReason: string;
+    lastSessionNativeRuntimeMicCaptureLastRecoveryAt: number;
+    lastSessionNativeRuntimeMicCaptureSuspended: boolean;
+    lastSessionNativeRuntimePlaybackCaptureStatus: string;
+    lastSessionNativeRuntimePlaybackCaptureBackend: string;
+    lastSessionNativeRuntimePlaybackCaptureSampleRate: number;
+    lastSessionNativeRuntimePlaybackCaptureLifecycleEventCount: number;
+    lastSessionNativeRuntimePlaybackCaptureRouteChangeCount: number;
+    lastSessionNativeRuntimePlaybackCaptureInterruptionCount: number;
+    lastSessionNativeRuntimePlaybackCaptureRecoveryCount: number;
+    lastSessionNativeRuntimePlaybackCaptureRecoveryFailureCount: number;
+    lastSessionNativeRuntimePlaybackCaptureUnrecoveredEventCount: number;
+    lastSessionNativeRuntimePlaybackCaptureLastRecoveryReason: string;
+    lastSessionNativeRuntimePlaybackCaptureLastRecoveryAt: number;
+    lastSessionNativeRuntimePlaybackCaptureSuspended: boolean;
     lastSessionNativeRuntimeCongested: boolean;
     lastSessionNativeRuntimeQueuedItems: number;
     lastSessionNativeRuntimeCacheSize: number;
@@ -532,6 +557,19 @@ export interface SupportBundle {
     nativeRuntimeEncoderProbeAudioEncodedOutputCount: number;
     nativeRuntimeEncoderProbeVideoBackend: string;
     nativeRuntimeEncoderProbeAudioBackend: string;
+    nativeRuntimeMicCaptureStatus: string;
+    nativeRuntimeMicCaptureBackend: string;
+    nativeRuntimeMicCaptureSampleRate: number;
+    nativeRuntimeMicCaptureFallbackFrames: number;
+    nativeRuntimeMicCaptureLifecycleEventCount: number;
+    nativeRuntimeMicCaptureRouteChangeCount: number;
+    nativeRuntimeMicCaptureInterruptionCount: number;
+    nativeRuntimeMicCaptureRecoveryCount: number;
+    nativeRuntimeMicCaptureRecoveryFailureCount: number;
+    nativeRuntimeMicCaptureUnrecoveredEventCount: number;
+    nativeRuntimeMicCaptureLastRecoveryReason: string;
+    nativeRuntimeMicCaptureLastRecoveryAt: number;
+    nativeRuntimeMicCaptureSuspended: boolean;
     nativeRuntimePlaybackCaptureReady: boolean;
     nativeRuntimePlaybackCaptureStatus: string;
     nativeRuntimePlaybackCaptureBackend: string;
@@ -544,6 +582,15 @@ export interface SupportBundle {
     nativeRuntimePlaybackCaptureDropRatio: number;
     nativeRuntimePlaybackCaptureUnderrunRatio: number;
     nativeRuntimePlaybackCaptureBufferedMs: number | null;
+    nativeRuntimePlaybackCaptureLifecycleEventCount: number;
+    nativeRuntimePlaybackCaptureRouteChangeCount: number;
+    nativeRuntimePlaybackCaptureInterruptionCount: number;
+    nativeRuntimePlaybackCaptureRecoveryCount: number;
+    nativeRuntimePlaybackCaptureRecoveryFailureCount: number;
+    nativeRuntimePlaybackCaptureUnrecoveredEventCount: number;
+    nativeRuntimePlaybackCaptureLastRecoveryReason: string;
+    nativeRuntimePlaybackCaptureLastRecoveryAt: number;
+    nativeRuntimePlaybackCaptureSuspended: boolean;
     nativeRuntimeMonitorLifecycleEventCount: number;
     nativeRuntimeMonitorRouteChangeCount: number;
     nativeRuntimeMonitorInterruptionCount: number;
@@ -753,7 +800,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 61
+      bundleVersion: 62
     },
     summary: {
       status: diagnostics.status,
@@ -826,6 +873,56 @@ export const createSupportBundle = ({
         diagnostics.session.lastSummary?.nativeRuntime?.encoderProbeVideoBackend ?? "none",
       lastSessionNativeRuntimeEncoderProbeAudioBackend:
         diagnostics.session.lastSummary?.nativeRuntime?.encoderProbeAudioBackend ?? "none",
+      lastSessionNativeRuntimeMicCaptureStatus:
+        diagnostics.session.lastSummary?.nativeRuntime?.micCaptureStatus ?? "unavailable",
+      lastSessionNativeRuntimeMicCaptureBackend:
+        diagnostics.session.lastSummary?.nativeRuntime?.micCaptureBackend ?? "none",
+      lastSessionNativeRuntimeMicCaptureSampleRate:
+        diagnostics.session.lastSummary?.nativeRuntime?.micCaptureSampleRate ?? 0,
+      lastSessionNativeRuntimeMicCaptureFallbackFrames:
+        diagnostics.session.lastSummary?.nativeRuntime?.micCaptureFallbackFrames ?? 0,
+      lastSessionNativeRuntimeMicCaptureLifecycleEventCount:
+        diagnostics.session.lastSummary?.nativeRuntime?.micCaptureLifecycleEventCount ?? 0,
+      lastSessionNativeRuntimeMicCaptureRouteChangeCount:
+        diagnostics.session.lastSummary?.nativeRuntime?.micCaptureRouteChangeCount ?? 0,
+      lastSessionNativeRuntimeMicCaptureInterruptionCount:
+        diagnostics.session.lastSummary?.nativeRuntime?.micCaptureInterruptionCount ?? 0,
+      lastSessionNativeRuntimeMicCaptureRecoveryCount:
+        diagnostics.session.lastSummary?.nativeRuntime?.micCaptureRecoveryCount ?? 0,
+      lastSessionNativeRuntimeMicCaptureRecoveryFailureCount:
+        diagnostics.session.lastSummary?.nativeRuntime?.micCaptureRecoveryFailureCount ?? 0,
+      lastSessionNativeRuntimeMicCaptureUnrecoveredEventCount:
+        diagnostics.session.lastSummary?.nativeRuntime?.micCaptureUnrecoveredEventCount ?? 0,
+      lastSessionNativeRuntimeMicCaptureLastRecoveryReason:
+        diagnostics.session.lastSummary?.nativeRuntime?.micCaptureLastRecoveryReason ?? "",
+      lastSessionNativeRuntimeMicCaptureLastRecoveryAt:
+        diagnostics.session.lastSummary?.nativeRuntime?.micCaptureLastRecoveryAt ?? 0,
+      lastSessionNativeRuntimeMicCaptureSuspended:
+        diagnostics.session.lastSummary?.nativeRuntime?.micCaptureSuspended ?? false,
+      lastSessionNativeRuntimePlaybackCaptureStatus:
+        diagnostics.session.lastSummary?.nativeRuntime?.playbackCaptureStatus ?? "unavailable",
+      lastSessionNativeRuntimePlaybackCaptureBackend:
+        diagnostics.session.lastSummary?.nativeRuntime?.playbackCaptureBackend ?? "none",
+      lastSessionNativeRuntimePlaybackCaptureSampleRate:
+        diagnostics.session.lastSummary?.nativeRuntime?.playbackCaptureSampleRate ?? 0,
+      lastSessionNativeRuntimePlaybackCaptureLifecycleEventCount:
+        diagnostics.session.lastSummary?.nativeRuntime?.playbackCaptureLifecycleEventCount ?? 0,
+      lastSessionNativeRuntimePlaybackCaptureRouteChangeCount:
+        diagnostics.session.lastSummary?.nativeRuntime?.playbackCaptureRouteChangeCount ?? 0,
+      lastSessionNativeRuntimePlaybackCaptureInterruptionCount:
+        diagnostics.session.lastSummary?.nativeRuntime?.playbackCaptureInterruptionCount ?? 0,
+      lastSessionNativeRuntimePlaybackCaptureRecoveryCount:
+        diagnostics.session.lastSummary?.nativeRuntime?.playbackCaptureRecoveryCount ?? 0,
+      lastSessionNativeRuntimePlaybackCaptureRecoveryFailureCount:
+        diagnostics.session.lastSummary?.nativeRuntime?.playbackCaptureRecoveryFailureCount ?? 0,
+      lastSessionNativeRuntimePlaybackCaptureUnrecoveredEventCount:
+        diagnostics.session.lastSummary?.nativeRuntime?.playbackCaptureUnrecoveredEventCount ?? 0,
+      lastSessionNativeRuntimePlaybackCaptureLastRecoveryReason:
+        diagnostics.session.lastSummary?.nativeRuntime?.playbackCaptureLastRecoveryReason ?? "",
+      lastSessionNativeRuntimePlaybackCaptureLastRecoveryAt:
+        diagnostics.session.lastSummary?.nativeRuntime?.playbackCaptureLastRecoveryAt ?? 0,
+      lastSessionNativeRuntimePlaybackCaptureSuspended:
+        diagnostics.session.lastSummary?.nativeRuntime?.playbackCaptureSuspended ?? false,
       lastSessionNativeRuntimeCongested: diagnostics.session.lastSummary?.nativeRuntime?.congested ?? false,
       lastSessionNativeRuntimeQueuedItems: diagnostics.session.lastSummary?.nativeRuntime?.queuedItems ?? 0,
       lastSessionNativeRuntimeCacheSize: diagnostics.session.lastSummary?.nativeRuntime?.cacheSize ?? 0,
@@ -1365,6 +1462,28 @@ export const createSupportBundle = ({
         diagnostics.nativeRuntime?.encoderProbe?.audioEncodedOutputCount ?? 0,
       nativeRuntimeEncoderProbeVideoBackend: diagnostics.nativeRuntime?.encoderProbe?.videoBackend ?? "none",
       nativeRuntimeEncoderProbeAudioBackend: diagnostics.nativeRuntime?.encoderProbe?.audioBackend ?? "none",
+      nativeRuntimeMicCaptureStatus: diagnostics.nativeRuntime?.audioProcessing?.micCaptureStatus ?? "unavailable",
+      nativeRuntimeMicCaptureBackend: diagnostics.nativeRuntime?.audioProcessing?.micCaptureBackend ?? "none",
+      nativeRuntimeMicCaptureSampleRate: diagnostics.nativeRuntime?.audioProcessing?.micCaptureSampleRate ?? 0,
+      nativeRuntimeMicCaptureFallbackFrames:
+        diagnostics.nativeRuntime?.audioProcessing?.micCaptureFallbackFrames ?? 0,
+      nativeRuntimeMicCaptureLifecycleEventCount:
+        diagnostics.nativeRuntime?.audioProcessing?.micCaptureLifecycleEventCount ?? 0,
+      nativeRuntimeMicCaptureRouteChangeCount:
+        diagnostics.nativeRuntime?.audioProcessing?.micCaptureRouteChangeCount ?? 0,
+      nativeRuntimeMicCaptureInterruptionCount:
+        diagnostics.nativeRuntime?.audioProcessing?.micCaptureInterruptionCount ?? 0,
+      nativeRuntimeMicCaptureRecoveryCount:
+        diagnostics.nativeRuntime?.audioProcessing?.micCaptureRecoveryCount ?? 0,
+      nativeRuntimeMicCaptureRecoveryFailureCount:
+        diagnostics.nativeRuntime?.audioProcessing?.micCaptureRecoveryFailureCount ?? 0,
+      nativeRuntimeMicCaptureUnrecoveredEventCount:
+        diagnostics.nativeRuntime?.audioProcessing?.micCaptureUnrecoveredEventCount ?? 0,
+      nativeRuntimeMicCaptureLastRecoveryReason:
+        diagnostics.nativeRuntime?.audioProcessing?.micCaptureLastRecoveryReason ?? "",
+      nativeRuntimeMicCaptureLastRecoveryAt:
+        diagnostics.nativeRuntime?.audioProcessing?.micCaptureLastRecoveryAt ?? 0,
+      nativeRuntimeMicCaptureSuspended: diagnostics.nativeRuntime?.audioProcessing?.micCaptureSuspended ?? false,
       nativeRuntimePlaybackCaptureReady: nativeRuntimePlaybackCapture.ready,
       nativeRuntimePlaybackCaptureStatus: diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureStatus ?? "unavailable",
       nativeRuntimePlaybackCaptureBackend: diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureBackend ?? "none",
@@ -1380,6 +1499,24 @@ export const createSupportBundle = ({
       nativeRuntimePlaybackCaptureBufferedMs: Number.isFinite(nativeRuntimePlaybackCapture.bufferedMs)
         ? nativeRuntimePlaybackCapture.bufferedMs
         : null,
+      nativeRuntimePlaybackCaptureLifecycleEventCount:
+        diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureLifecycleEventCount ?? 0,
+      nativeRuntimePlaybackCaptureRouteChangeCount:
+        diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureRouteChangeCount ?? 0,
+      nativeRuntimePlaybackCaptureInterruptionCount:
+        diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureInterruptionCount ?? 0,
+      nativeRuntimePlaybackCaptureRecoveryCount:
+        diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureRecoveryCount ?? 0,
+      nativeRuntimePlaybackCaptureRecoveryFailureCount:
+        diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureRecoveryFailureCount ?? 0,
+      nativeRuntimePlaybackCaptureUnrecoveredEventCount:
+        diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureUnrecoveredEventCount ?? 0,
+      nativeRuntimePlaybackCaptureLastRecoveryReason:
+        diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureLastRecoveryReason ?? "",
+      nativeRuntimePlaybackCaptureLastRecoveryAt:
+        diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureLastRecoveryAt ?? 0,
+      nativeRuntimePlaybackCaptureSuspended:
+        diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureSuspended ?? false,
       nativeRuntimeMonitorLifecycleEventCount:
         diagnostics.nativeRuntime?.audioProcessing?.monitorLifecycleEventCount ?? 0,
       nativeRuntimeMonitorRouteChangeCount:
@@ -1632,6 +1769,8 @@ export const formatSupportBundle = (bundle: SupportBundle, options: SupportBundl
     `- Last audio meter: ${bundle.summary.lastSessionAudioLevelSampleCount} samples / peak ${Math.round(bundle.summary.lastSessionAudioPeakLevel * 100)}% / active ${bundle.summary.lastSessionAudioActivePercent}% / clipped ${bundle.summary.lastSessionAudioClippedSampleCount}`,
     `- Last summary: ${bundle.diagnostics.session.lastSummary?.summary ?? "-"}`,
     `- Last native runtime: ${bundle.summary.lastSessionNativeRuntimeStatus ?? "-"} / ${bundle.summary.lastSessionNativeRuntimePlatform ?? "-"} / encoders ${bundle.summary.lastSessionNativeRuntimeVideoEncoderBackend}/${bundle.summary.lastSessionNativeRuntimeAudioEncoderBackend} / MediaCodec probe ${bundle.summary.lastSessionNativeRuntimeEncoderProbeStatus} ${bundle.summary.lastSessionNativeRuntimeEncoderProbeVideoBackend}/${bundle.summary.lastSessionNativeRuntimeEncoderProbeAudioBackend} / overlays applied ${bundle.summary.lastSessionNativeRuntimeCompositionAppliedCount}${formatKinds(bundle.summary.lastSessionNativeRuntimeCompositionAppliedKinds)} skipped ${bundle.summary.lastSessionNativeRuntimeCompositionSkippedCount}${formatKinds(bundle.summary.lastSessionNativeRuntimeCompositionSkippedKinds)} / assets ${bundle.summary.lastSessionNativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.lastSessionNativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.lastSessionNativeRuntimeStillImageAssetDecodedCount} decoded / decoded pixels ${bundle.summary.lastSessionNativeRuntimeStillImageAssetDecodedPixelCount} / ${bundle.summary.lastSessionNativeRuntimeStillImageAssetCompositedCount} composited / composited pixels ${bundle.summary.lastSessionNativeRuntimeStillImageAssetCompositedPixelCount} / runtime ${bundle.summary.lastSessionNativeRuntimeCompositorBackend} ${bundle.summary.lastSessionNativeRuntimeCompositedFrameCount} frames ${bundle.summary.lastSessionNativeRuntimeDroppedFrameCount} dropped ${bundle.summary.lastSessionNativeRuntimeCompositionFailureCount} failures live reloads ${bundle.summary.lastSessionNativeRuntimeLiveRenderGraphReloadCount} rejected ${bundle.summary.lastSessionNativeRuntimeLiveRenderGraphRejectedUpdateCount} / app-group ${bundle.summary.lastSessionNativeRuntimeStillImageAssetAppGroupLoadedCount}/${bundle.summary.lastSessionNativeRuntimeStillImageAssetAppGroupCount} loaded / ${bundle.summary.lastSessionNativeRuntimeStillImageAssetAppGroupDecodedCount} decoded / decoded pixels ${bundle.summary.lastSessionNativeRuntimeStillImageAssetAppGroupDecodedPixelCount} / ${bundle.summary.lastSessionNativeRuntimeStillImageAssetAppGroupCompositedCount} composited / composited pixels ${bundle.summary.lastSessionNativeRuntimeStillImageAssetAppGroupCompositedPixelCount} / ${bundle.summary.lastSessionNativeRuntimeStillImageAssetMissingCount} missing / live2d ${bundle.summary.lastSessionNativeRuntimeLive2dActivePoseCount}/${bundle.summary.lastSessionNativeRuntimeLive2dSourceCount} active payloads ${bundle.summary.lastSessionNativeRuntimeLive2dPosePayloadCount} missing ${bundle.summary.lastSessionNativeRuntimeLive2dMissingPoseCount} / vrm ${bundle.summary.lastSessionNativeRuntimeVrmActivePoseCount}/${bundle.summary.lastSessionNativeRuntimeVrmSourceCount} active payloads ${bundle.summary.lastSessionNativeRuntimeVrmPosePayloadCount} missing ${bundle.summary.lastSessionNativeRuntimeVrmMissingPoseCount} / renderer ${bundle.summary.lastSessionNativeRuntimeVrmRendererStatus} ${bundle.summary.lastSessionNativeRuntimeVrmRendererBackend} rendered ${bundle.summary.lastSessionNativeRuntimeVrmRenderedSourceCount}/${bundle.summary.lastSessionNativeRuntimeVrmSourceCount} models ${bundle.summary.lastSessionNativeRuntimeVrmModelLoadedCount} versions ${bundle.summary.lastSessionNativeRuntimeVrmModelVersions.join("/") || "-"} bones ${bundle.summary.lastSessionNativeRuntimeVrmHumanoidBoneCount} expressions ${bundle.summary.lastSessionNativeRuntimeVrmExpressionCount} mesh primitives ${bundle.summary.lastSessionNativeRuntimeVrmMeshPrimitiveCount} triangles ${bundle.summary.lastSessionNativeRuntimeVrmTrianglePrimitiveCount} unsupported modes ${bundle.summary.lastSessionNativeRuntimeVrmUnsupportedPrimitiveModeCount} skinned ${bundle.summary.lastSessionNativeRuntimeVrmSkinnedMeshPrimitiveCount} skin joints ${bundle.summary.lastSessionNativeRuntimeVrmSkinJointCount} position accessors ${bundle.summary.lastSessionNativeRuntimeVrmPositionAccessorCount} normals ${bundle.summary.lastSessionNativeRuntimeVrmNormalAccessorCount} uvs ${bundle.summary.lastSessionNativeRuntimeVrmTexcoordAccessorCount} vertices ${bundle.summary.lastSessionNativeRuntimeVrmVertexCount} indices ${bundle.summary.lastSessionNativeRuntimeVrmIndexCount} bounds ${bundle.summary.lastSessionNativeRuntimeVrmBoundsAccessorCount} skin attrs ${bundle.summary.lastSessionNativeRuntimeVrmSkinningAttributePrimitiveCount} morphs ${bundle.summary.lastSessionNativeRuntimeVrmMorphTargetCount} materials ${bundle.summary.lastSessionNativeRuntimeVrmMaterialCount} transparent materials ${bundle.summary.lastSessionNativeRuntimeVrmTransparentMaterialCount} textures ${bundle.summary.lastSessionNativeRuntimeVrmTextureCount} images ${bundle.summary.lastSessionNativeRuntimeVrmImageCount} unsupported image mimes ${bundle.summary.lastSessionNativeRuntimeVrmUnsupportedImageMimeCount} pose bones ${bundle.summary.lastSessionNativeRuntimeVrmPoseBoneAppliedCount}/${bundle.summary.lastSessionNativeRuntimeVrmPoseBoneCount} unsupported ${bundle.summary.lastSessionNativeRuntimeVrmPoseBoneUnsupportedCount} pose expressions ${bundle.summary.lastSessionNativeRuntimeVrmPoseExpressionAppliedCount}/${bundle.summary.lastSessionNativeRuntimeVrmPoseExpressionCount} unsupported ${bundle.summary.lastSessionNativeRuntimeVrmPoseExpressionUnsupportedCount} missing ${bundle.summary.lastSessionNativeRuntimeVrmRenderMissingCount} failed ${bundle.summary.lastSessionNativeRuntimeVrmRenderFailureCount} / congested ${bundle.summary.lastSessionNativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.lastSessionNativeRuntimeQueuedItems}/${bundle.summary.lastSessionNativeRuntimeCacheSize}`,
+    `- Last mic capture recovery: ${bundle.summary.lastSessionNativeRuntimeMicCaptureStatus} ${bundle.summary.lastSessionNativeRuntimeMicCaptureBackend} / ${bundle.summary.lastSessionNativeRuntimeMicCaptureSampleRate} Hz / fallback ${bundle.summary.lastSessionNativeRuntimeMicCaptureFallbackFrames} frames / events ${bundle.summary.lastSessionNativeRuntimeMicCaptureLifecycleEventCount} / routes ${bundle.summary.lastSessionNativeRuntimeMicCaptureRouteChangeCount} / interruptions ${bundle.summary.lastSessionNativeRuntimeMicCaptureInterruptionCount} / recovered ${bundle.summary.lastSessionNativeRuntimeMicCaptureRecoveryCount} / failed ${bundle.summary.lastSessionNativeRuntimeMicCaptureRecoveryFailureCount} / unrecovered ${bundle.summary.lastSessionNativeRuntimeMicCaptureUnrecoveredEventCount} / suspended ${bundle.summary.lastSessionNativeRuntimeMicCaptureSuspended ? "yes" : "no"} / last ${bundle.summary.lastSessionNativeRuntimeMicCaptureLastRecoveryReason || "-"} at ${bundle.summary.lastSessionNativeRuntimeMicCaptureLastRecoveryAt || "-"}`,
+    `- Last playback capture recovery: ${bundle.summary.lastSessionNativeRuntimePlaybackCaptureStatus} ${bundle.summary.lastSessionNativeRuntimePlaybackCaptureBackend} / ${bundle.summary.lastSessionNativeRuntimePlaybackCaptureSampleRate} Hz / events ${bundle.summary.lastSessionNativeRuntimePlaybackCaptureLifecycleEventCount} / routes ${bundle.summary.lastSessionNativeRuntimePlaybackCaptureRouteChangeCount} / interruptions ${bundle.summary.lastSessionNativeRuntimePlaybackCaptureInterruptionCount} / recovered ${bundle.summary.lastSessionNativeRuntimePlaybackCaptureRecoveryCount} / failed ${bundle.summary.lastSessionNativeRuntimePlaybackCaptureRecoveryFailureCount} / unrecovered ${bundle.summary.lastSessionNativeRuntimePlaybackCaptureUnrecoveredEventCount} / suspended ${bundle.summary.lastSessionNativeRuntimePlaybackCaptureSuspended ? "yes" : "no"} / last ${bundle.summary.lastSessionNativeRuntimePlaybackCaptureLastRecoveryReason || "-"} at ${bundle.summary.lastSessionNativeRuntimePlaybackCaptureLastRecoveryAt || "-"}`,
     `- Last recommendation: ${bundle.diagnostics.session.lastSummary?.recommendation ?? "-"}`,
     `- Health history: ${bundle.diagnostics.history.summary}`,
     `- Quality incidents: ${bundle.diagnostics.qualityIncidents.summary}`,
@@ -1655,6 +1794,8 @@ export const formatSupportBundle = (bundle: SupportBundle, options: SupportBundl
     `- Native compositor required: ${bundle.summary.nativeCompositionRequiresCompositor ? "yes" : "no"}`,
     `- Native runtime: ${bundle.summary.nativeRuntimePlatform ?? "-"} / ${bundle.summary.nativeRuntimeStatus ?? "-"} / publisher ${bundle.summary.nativeRuntimePublisherState ?? "-"} / continuity ${bundle.summary.nativeRuntimeContinuityStatus} incidents ${bundle.summary.nativeRuntimeVideoStallCount} video ${bundle.summary.nativeRuntimeAudioStallCount} audio max ${bundle.summary.nativeRuntimeMaxVideoStallDurationMs}ms/${bundle.summary.nativeRuntimeMaxAudioStallDurationMs}ms / A/V ${bundle.summary.nativeRuntimeAvSyncStatus} ${bundle.summary.nativeRuntimeAvSyncSkewMs}ms max ${bundle.summary.nativeRuntimeAvSyncMaxAbsSkewMs}ms samples ${bundle.summary.nativeRuntimeAvSyncSampleCount} incidents ${bundle.summary.nativeRuntimeAvSyncIncidentCount} critical ${bundle.summary.nativeRuntimeAvSyncCriticalIncidentCount} / encoders ${bundle.summary.nativeRuntimeVideoEncoderBackend}/${bundle.summary.nativeRuntimeAudioEncoderBackend} / MediaCodec probe ${bundle.summary.nativeRuntimeEncoderProbeStatus} ${bundle.summary.nativeRuntimeEncoderProbeVideoBackend}/${bundle.summary.nativeRuntimeEncoderProbeAudioBackend} / composition ${bundle.summary.nativeRuntimeCompositionStatus ?? "-"} / overlays applied ${bundle.summary.nativeRuntimeCompositionAppliedCount}${formatKinds(bundle.summary.nativeRuntimeCompositionAppliedKinds)} skipped ${bundle.summary.nativeRuntimeCompositionSkippedCount}${formatKinds(bundle.summary.nativeRuntimeCompositionSkippedKinds)} / assets ${bundle.summary.nativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.nativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.nativeRuntimeStillImageAssetDecodedCount} decoded / decoded pixels ${bundle.summary.nativeRuntimeStillImageAssetDecodedPixelCount} / ${bundle.summary.nativeRuntimeStillImageAssetCompositedCount} composited / composited pixels ${bundle.summary.nativeRuntimeStillImageAssetCompositedPixelCount} / runtime ${bundle.summary.nativeRuntimeCompositorBackend} ${bundle.summary.nativeRuntimeCompositedFrameCount} frames ${bundle.summary.nativeRuntimeDroppedFrameCount} dropped ${bundle.summary.nativeRuntimeCompositionFailureCount} failures live reloads ${bundle.summary.nativeRuntimeLiveRenderGraphReloadCount} rejected ${bundle.summary.nativeRuntimeLiveRenderGraphRejectedUpdateCount} / app-group ${bundle.summary.nativeRuntimeStillImageAssetAppGroupLoadedCount}/${bundle.summary.nativeRuntimeStillImageAssetAppGroupCount} loaded / ${bundle.summary.nativeRuntimeStillImageAssetAppGroupDecodedCount} decoded / decoded pixels ${bundle.summary.nativeRuntimeStillImageAssetAppGroupDecodedPixelCount} / ${bundle.summary.nativeRuntimeStillImageAssetAppGroupCompositedCount} composited / composited pixels ${bundle.summary.nativeRuntimeStillImageAssetAppGroupCompositedPixelCount} / ${bundle.summary.nativeRuntimeStillImageAssetMissingCount} missing / live2d ${bundle.summary.nativeRuntimeLive2dActivePoseCount}/${bundle.summary.nativeRuntimeLive2dSourceCount} active payloads ${bundle.summary.nativeRuntimeLive2dPosePayloadCount} missing ${bundle.summary.nativeRuntimeLive2dMissingPoseCount} / vrm ${bundle.summary.nativeRuntimeVrmActivePoseCount}/${bundle.summary.nativeRuntimeVrmSourceCount} active payloads ${bundle.summary.nativeRuntimeVrmPosePayloadCount} missing ${bundle.summary.nativeRuntimeVrmMissingPoseCount} / renderer ${bundle.summary.nativeRuntimeVrmRendererStatus} ${bundle.summary.nativeRuntimeVrmRendererBackend} rendered ${bundle.summary.nativeRuntimeVrmRenderedSourceCount}/${bundle.summary.nativeRuntimeVrmSourceCount} models ${bundle.summary.nativeRuntimeVrmModelLoadedCount} versions ${bundle.summary.nativeRuntimeVrmModelVersions.join("/") || "-"} bones ${bundle.summary.nativeRuntimeVrmHumanoidBoneCount} expressions ${bundle.summary.nativeRuntimeVrmExpressionCount} mesh primitives ${bundle.summary.nativeRuntimeVrmMeshPrimitiveCount} triangles ${bundle.summary.nativeRuntimeVrmTrianglePrimitiveCount} unsupported modes ${bundle.summary.nativeRuntimeVrmUnsupportedPrimitiveModeCount} skinned ${bundle.summary.nativeRuntimeVrmSkinnedMeshPrimitiveCount} skin joints ${bundle.summary.nativeRuntimeVrmSkinJointCount} position accessors ${bundle.summary.nativeRuntimeVrmPositionAccessorCount} normals ${bundle.summary.nativeRuntimeVrmNormalAccessorCount} uvs ${bundle.summary.nativeRuntimeVrmTexcoordAccessorCount} vertices ${bundle.summary.nativeRuntimeVrmVertexCount} indices ${bundle.summary.nativeRuntimeVrmIndexCount} bounds ${bundle.summary.nativeRuntimeVrmBoundsAccessorCount} skin attrs ${bundle.summary.nativeRuntimeVrmSkinningAttributePrimitiveCount} morphs ${bundle.summary.nativeRuntimeVrmMorphTargetCount} materials ${bundle.summary.nativeRuntimeVrmMaterialCount} transparent materials ${bundle.summary.nativeRuntimeVrmTransparentMaterialCount} textures ${bundle.summary.nativeRuntimeVrmTextureCount} images ${bundle.summary.nativeRuntimeVrmImageCount} unsupported image mimes ${bundle.summary.nativeRuntimeVrmUnsupportedImageMimeCount} pose bones ${bundle.summary.nativeRuntimeVrmPoseBoneAppliedCount}/${bundle.summary.nativeRuntimeVrmPoseBoneCount} unsupported ${bundle.summary.nativeRuntimeVrmPoseBoneUnsupportedCount} pose expressions ${bundle.summary.nativeRuntimeVrmPoseExpressionAppliedCount}/${bundle.summary.nativeRuntimeVrmPoseExpressionCount} unsupported ${bundle.summary.nativeRuntimeVrmPoseExpressionUnsupportedCount} missing ${bundle.summary.nativeRuntimeVrmRenderMissingCount} failed ${bundle.summary.nativeRuntimeVrmRenderFailureCount} / stale ${bundle.summary.nativeRuntimeStale ? "yes" : "no"} / congested ${bundle.summary.nativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.nativeRuntimeQueuedItems}/${bundle.summary.nativeRuntimeCacheSize}`,
     `- Android playback capture: ${bundle.summary.nativeRuntimePlaybackCaptureReady ? "ready" : "not-ready"} / ${bundle.summary.nativeRuntimePlaybackCaptureStatus} ${bundle.summary.nativeRuntimePlaybackCaptureBackend} / ${bundle.summary.nativeRuntimePlaybackCaptureSampleRate} Hz / ${bundle.summary.nativeRuntimePlaybackCaptureDurationSeconds.toFixed(1)}s / captured ${bundle.summary.nativeRuntimePlaybackCapturedFrames} / dropped ${bundle.summary.nativeRuntimePlaybackDroppedFrames} (${(bundle.summary.nativeRuntimePlaybackCaptureDropRatio * 100).toFixed(2)}%) / underrun ${bundle.summary.nativeRuntimePlaybackUnderrunFrames} (${(bundle.summary.nativeRuntimePlaybackCaptureUnderrunRatio * 100).toFixed(2)}%) / buffered ${bundle.summary.nativeRuntimePlaybackBufferedFrames} frames (${bundle.summary.nativeRuntimePlaybackCaptureBufferedMs === null ? "n/a" : `${Math.round(bundle.summary.nativeRuntimePlaybackCaptureBufferedMs)}ms`})`,
+    `- Mic capture recovery: ${bundle.summary.nativeRuntimeMicCaptureStatus} ${bundle.summary.nativeRuntimeMicCaptureBackend} / ${bundle.summary.nativeRuntimeMicCaptureSampleRate} Hz / fallback ${bundle.summary.nativeRuntimeMicCaptureFallbackFrames} frames / events ${bundle.summary.nativeRuntimeMicCaptureLifecycleEventCount} / routes ${bundle.summary.nativeRuntimeMicCaptureRouteChangeCount} / interruptions ${bundle.summary.nativeRuntimeMicCaptureInterruptionCount} / recovered ${bundle.summary.nativeRuntimeMicCaptureRecoveryCount} / failed ${bundle.summary.nativeRuntimeMicCaptureRecoveryFailureCount} / unrecovered ${bundle.summary.nativeRuntimeMicCaptureUnrecoveredEventCount} / suspended ${bundle.summary.nativeRuntimeMicCaptureSuspended ? "yes" : "no"} / last ${bundle.summary.nativeRuntimeMicCaptureLastRecoveryReason || "-"} at ${bundle.summary.nativeRuntimeMicCaptureLastRecoveryAt || "-"}`,
+    `- Playback capture recovery: ${bundle.summary.nativeRuntimePlaybackCaptureStatus} ${bundle.summary.nativeRuntimePlaybackCaptureBackend} / ${bundle.summary.nativeRuntimePlaybackCaptureSampleRate} Hz / events ${bundle.summary.nativeRuntimePlaybackCaptureLifecycleEventCount} / routes ${bundle.summary.nativeRuntimePlaybackCaptureRouteChangeCount} / interruptions ${bundle.summary.nativeRuntimePlaybackCaptureInterruptionCount} / recovered ${bundle.summary.nativeRuntimePlaybackCaptureRecoveryCount} / failed ${bundle.summary.nativeRuntimePlaybackCaptureRecoveryFailureCount} / unrecovered ${bundle.summary.nativeRuntimePlaybackCaptureUnrecoveredEventCount} / suspended ${bundle.summary.nativeRuntimePlaybackCaptureSuspended ? "yes" : "no"} / last ${bundle.summary.nativeRuntimePlaybackCaptureLastRecoveryReason || "-"} at ${bundle.summary.nativeRuntimePlaybackCaptureLastRecoveryAt || "-"}`,
     `- Audio monitor recovery: events ${bundle.summary.nativeRuntimeMonitorLifecycleEventCount} / routes ${bundle.summary.nativeRuntimeMonitorRouteChangeCount} / interruptions ${bundle.summary.nativeRuntimeMonitorInterruptionCount} / recovered ${bundle.summary.nativeRuntimeMonitorRecoveryCount} / failed ${bundle.summary.nativeRuntimeMonitorRecoveryFailureCount} / suspended ${bundle.summary.nativeRuntimeMonitorSuspended ? "yes" : "no"} / last ${bundle.summary.nativeRuntimeMonitorLastRecoveryReason || "-"} at ${bundle.summary.nativeRuntimeMonitorLastRecoveryAt || "-"}`,
     `- Audio monitor route: ${bundle.summary.audioMonitorRouteStatus} / ${bundle.summary.audioMonitorRouteOutputName} / headphones ${bundle.summary.audioMonitorRouteHeadphonesConnected ? "yes" : "no"} / stale ${bundle.summary.audioMonitorRouteStale ? "yes" : "no"}`,
     "",

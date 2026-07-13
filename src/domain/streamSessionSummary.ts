@@ -223,6 +223,19 @@ export interface StreamSessionNativeRuntimeSummary {
   mixedAudioSampleCount?: number;
   mixedAudioClippedSampleCount?: number;
   mixedAudioLevelUpdatedAt?: number;
+  micCaptureStatus?: string;
+  micCaptureBackend?: string;
+  micCaptureSampleRate?: number;
+  micCaptureFallbackFrames?: number;
+  micCaptureLifecycleEventCount?: number;
+  micCaptureRouteChangeCount?: number;
+  micCaptureInterruptionCount?: number;
+  micCaptureRecoveryCount?: number;
+  micCaptureRecoveryFailureCount?: number;
+  micCaptureUnrecoveredEventCount?: number;
+  micCaptureLastRecoveryReason?: string;
+  micCaptureLastRecoveryAt?: number;
+  micCaptureSuspended?: boolean;
   playbackCaptureStatus?: string;
   playbackCaptureBackend?: string;
   playbackCaptureSampleRate?: number;
@@ -231,6 +244,15 @@ export interface StreamSessionNativeRuntimeSummary {
   playbackUnderrunFrames?: number;
   playbackBufferedFrames?: number;
   playbackCaptureTelemetryComplete?: boolean;
+  playbackCaptureLifecycleEventCount?: number;
+  playbackCaptureRouteChangeCount?: number;
+  playbackCaptureInterruptionCount?: number;
+  playbackCaptureRecoveryCount?: number;
+  playbackCaptureRecoveryFailureCount?: number;
+  playbackCaptureUnrecoveredEventCount?: number;
+  playbackCaptureLastRecoveryReason?: string;
+  playbackCaptureLastRecoveryAt?: number;
+  playbackCaptureSuspended?: boolean;
   continuityStatus: NativeRuntimeContinuityStatus;
   videoStalled: boolean;
   audioStalled: boolean;
@@ -1069,6 +1091,9 @@ export const createNativeRuntimeSessionSummary = (
     isProductionNativeAudioEncoderBackend(runtime.platform, audioEncoderBackend) &&
     runtime.audioProcessing?.broadcastAppAudioMuted !== true &&
     (runtime.audioProcessing?.broadcastAppAudioVolume ?? 0.85) > 0;
+  const micCaptureStatus = normalizeSafeSummaryString(runtime.audioProcessing?.micCaptureStatus, "unavailable");
+  const micCaptureBackend = normalizeSafeSummaryString(runtime.audioProcessing?.micCaptureBackend, "none");
+  const micCaptureSampleRate = normalizeNonNegativeInteger(runtime.audioProcessing?.micCaptureSampleRate);
   const playbackCaptureStatus = normalizeSafeSummaryString(
     runtime.audioProcessing?.playbackCaptureStatus,
     "unavailable"
@@ -1341,6 +1366,28 @@ export const createNativeRuntimeSessionSummary = (
     mixedAudioSampleCount,
     mixedAudioClippedSampleCount: normalizeNonNegativeInteger(runtime.audioProcessing?.mixedAudioClippedSampleCount),
     mixedAudioLevelUpdatedAt,
+    micCaptureStatus,
+    micCaptureBackend,
+    micCaptureSampleRate,
+    micCaptureFallbackFrames: normalizeNonNegativeInteger(runtime.audioProcessing?.micCaptureFallbackFrames),
+    micCaptureLifecycleEventCount: normalizeNonNegativeInteger(
+      runtime.audioProcessing?.micCaptureLifecycleEventCount
+    ),
+    micCaptureRouteChangeCount: normalizeNonNegativeInteger(runtime.audioProcessing?.micCaptureRouteChangeCount),
+    micCaptureInterruptionCount: normalizeNonNegativeInteger(runtime.audioProcessing?.micCaptureInterruptionCount),
+    micCaptureRecoveryCount: normalizeNonNegativeInteger(runtime.audioProcessing?.micCaptureRecoveryCount),
+    micCaptureRecoveryFailureCount: normalizeNonNegativeInteger(
+      runtime.audioProcessing?.micCaptureRecoveryFailureCount
+    ),
+    micCaptureUnrecoveredEventCount: normalizeNonNegativeInteger(
+      runtime.audioProcessing?.micCaptureUnrecoveredEventCount
+    ),
+    micCaptureLastRecoveryReason: normalizeSafeSummaryString(
+      runtime.audioProcessing?.micCaptureLastRecoveryReason,
+      ""
+    ),
+    micCaptureLastRecoveryAt: normalizeNonNegativeInteger(runtime.audioProcessing?.micCaptureLastRecoveryAt),
+    micCaptureSuspended: runtime.audioProcessing?.micCaptureSuspended === true,
     playbackCaptureStatus,
     playbackCaptureBackend,
     playbackCaptureSampleRate,
@@ -1349,6 +1396,32 @@ export const createNativeRuntimeSessionSummary = (
     playbackUnderrunFrames,
     playbackBufferedFrames,
     playbackCaptureTelemetryComplete: playbackCaptureAssessment.telemetryComplete,
+    playbackCaptureLifecycleEventCount: normalizeNonNegativeInteger(
+      runtime.audioProcessing?.playbackCaptureLifecycleEventCount
+    ),
+    playbackCaptureRouteChangeCount: normalizeNonNegativeInteger(
+      runtime.audioProcessing?.playbackCaptureRouteChangeCount
+    ),
+    playbackCaptureInterruptionCount: normalizeNonNegativeInteger(
+      runtime.audioProcessing?.playbackCaptureInterruptionCount
+    ),
+    playbackCaptureRecoveryCount: normalizeNonNegativeInteger(
+      runtime.audioProcessing?.playbackCaptureRecoveryCount
+    ),
+    playbackCaptureRecoveryFailureCount: normalizeNonNegativeInteger(
+      runtime.audioProcessing?.playbackCaptureRecoveryFailureCount
+    ),
+    playbackCaptureUnrecoveredEventCount: normalizeNonNegativeInteger(
+      runtime.audioProcessing?.playbackCaptureUnrecoveredEventCount
+    ),
+    playbackCaptureLastRecoveryReason: normalizeSafeSummaryString(
+      runtime.audioProcessing?.playbackCaptureLastRecoveryReason,
+      ""
+    ),
+    playbackCaptureLastRecoveryAt: normalizeNonNegativeInteger(
+      runtime.audioProcessing?.playbackCaptureLastRecoveryAt
+    ),
+    playbackCaptureSuspended: runtime.audioProcessing?.playbackCaptureSuspended === true,
     continuityStatus: continuity.status,
     videoStalled: continuity.videoStalled,
     audioStalled: continuity.audioStalled,
@@ -1909,6 +1982,19 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     mixedAudioSampleCount: normalizeNonNegativeInteger(value.mixedAudioSampleCount),
     mixedAudioClippedSampleCount: normalizeNonNegativeInteger(value.mixedAudioClippedSampleCount),
     mixedAudioLevelUpdatedAt: normalizeNonNegativeInteger(value.mixedAudioLevelUpdatedAt),
+    micCaptureStatus: normalizeSafeSummaryString(value.micCaptureStatus, "unavailable"),
+    micCaptureBackend: normalizeSafeSummaryString(value.micCaptureBackend, "none"),
+    micCaptureSampleRate: normalizeNonNegativeInteger(value.micCaptureSampleRate),
+    micCaptureFallbackFrames: normalizeNonNegativeInteger(value.micCaptureFallbackFrames),
+    micCaptureLifecycleEventCount: normalizeNonNegativeInteger(value.micCaptureLifecycleEventCount),
+    micCaptureRouteChangeCount: normalizeNonNegativeInteger(value.micCaptureRouteChangeCount),
+    micCaptureInterruptionCount: normalizeNonNegativeInteger(value.micCaptureInterruptionCount),
+    micCaptureRecoveryCount: normalizeNonNegativeInteger(value.micCaptureRecoveryCount),
+    micCaptureRecoveryFailureCount: normalizeNonNegativeInteger(value.micCaptureRecoveryFailureCount),
+    micCaptureUnrecoveredEventCount: normalizeNonNegativeInteger(value.micCaptureUnrecoveredEventCount),
+    micCaptureLastRecoveryReason: normalizeSafeSummaryString(value.micCaptureLastRecoveryReason, ""),
+    micCaptureLastRecoveryAt: normalizeNonNegativeInteger(value.micCaptureLastRecoveryAt),
+    micCaptureSuspended: value.micCaptureSuspended === true,
     playbackCaptureStatus: normalizeSafeSummaryString(value.playbackCaptureStatus, "unavailable"),
     playbackCaptureBackend: normalizeSafeSummaryString(value.playbackCaptureBackend, "none"),
     playbackCaptureSampleRate: normalizeNonNegativeInteger(value.playbackCaptureSampleRate),
@@ -1917,6 +2003,17 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     playbackUnderrunFrames: normalizeNonNegativeInteger(value.playbackUnderrunFrames),
     playbackBufferedFrames: normalizeNonNegativeInteger(value.playbackBufferedFrames),
     playbackCaptureTelemetryComplete: value.playbackCaptureTelemetryComplete === true,
+    playbackCaptureLifecycleEventCount: normalizeNonNegativeInteger(value.playbackCaptureLifecycleEventCount),
+    playbackCaptureRouteChangeCount: normalizeNonNegativeInteger(value.playbackCaptureRouteChangeCount),
+    playbackCaptureInterruptionCount: normalizeNonNegativeInteger(value.playbackCaptureInterruptionCount),
+    playbackCaptureRecoveryCount: normalizeNonNegativeInteger(value.playbackCaptureRecoveryCount),
+    playbackCaptureRecoveryFailureCount: normalizeNonNegativeInteger(value.playbackCaptureRecoveryFailureCount),
+    playbackCaptureUnrecoveredEventCount: normalizeNonNegativeInteger(
+      value.playbackCaptureUnrecoveredEventCount
+    ),
+    playbackCaptureLastRecoveryReason: normalizeSafeSummaryString(value.playbackCaptureLastRecoveryReason, ""),
+    playbackCaptureLastRecoveryAt: normalizeNonNegativeInteger(value.playbackCaptureLastRecoveryAt),
+    playbackCaptureSuspended: value.playbackCaptureSuspended === true,
     continuityStatus:
       value.continuityStatus === "inactive" ||
       value.continuityStatus === "warming-up" ||

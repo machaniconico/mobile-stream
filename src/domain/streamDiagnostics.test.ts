@@ -384,7 +384,9 @@ describe("stream diagnostics", () => {
         playbackCapturedFrames: 132_300,
         playbackDroppedFrames: 441,
         playbackUnderrunFrames: 441,
-        playbackBufferedFrames: 882
+        playbackBufferedFrames: 882,
+        micCaptureUnrecoveredEventCount: 2,
+        playbackCaptureUnrecoveredEventCount: 3
       })
     );
     nativeRuntime.platform = "android";
@@ -400,6 +402,12 @@ describe("stream diagnostics", () => {
 
     expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
       "Android playback capture: ready / capturing android-audio-playback-capture / 44100 Hz / 3.0s / captured 132300 / dropped 441 (0.33%) / underrun 441 (0.34%) / buffered 882 frames (20ms)"
+    );
+    expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
+      "Mic capture recovery: events 0 / routes 0 / interruptions 0 / recovered 0 / failed 0 / unrecovered 2 / suspended no"
+    );
+    expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
+      "Playback capture recovery: events 0 / routes 0 / interruptions 0 / recovered 0 / failed 0 / unrecovered 3 / suspended no"
     );
   });
 

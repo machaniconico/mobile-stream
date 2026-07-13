@@ -22,6 +22,11 @@ import com.pedro.encoder.input.sources.video.ScreenSource
 import com.pedro.library.generic.GenericStream
 import kotlin.math.min
 
+internal data class AndroidMediaProjectionReleaseResult(
+    val released: Boolean,
+    val failure: Throwable?
+)
+
 class MediaProjectionService : Service() {
     companion object {
         const val ACTION_START_STREAM = "com.mobilelivecaster.streaming.START_STREAM"
@@ -45,6 +50,10 @@ class MediaProjectionService : Service() {
     private var publisherCallbackSessionToken: PublisherCallbackSessionToken? = null
     private var genericStream: GenericStream? = null
     private var directMediaCodecStream: AndroidMediaCodecDirectStream? = null
+    private var directCleanupPending = false
+    private var nativeCleanupToken: AndroidNativeCleanupToken? = null
+    private var sharedStreamResourcesReleased = true
+    private val streamResourceReleaseCallbacks = mutableListOf<() -> Unit>()
     private var micProcessingEffect: MicProcessingEffect? = null
     private var nativeCompositionResult: AndroidCompositionResult? = null
     private val reconnectHandler = Handler(Looper.getMainLooper())
@@ -84,9 +93,13 @@ class MediaProjectionService : Service() {
             if (userRequestedStop || terminalFailure || (genericStream == null && directMediaCodecStream == null)) {
                 return
             }
-            runAdaptiveBitrateHeartbeat()
-            updateNativeRuntimeFromActiveStream(message = LiveCasterSession.health.message)
-            continuityHandler.postDelayed(this, CONTINUITY_HEARTBEAT_INTERVAL_MS)
+            try {
+                runAdaptiveBitrateHeartbeat()
+                updateNativeRuntimeFromActiveStream(message = LiveCasterSession.health.message)
+                continuityHandler.postDelayed(this, CONTINUITY_HEARTBEAT_INTERVAL_MS)
+            } catch (error: Error) {
+                stopAfterFatalError(error, error.message ?: "Native continuity heartbeat failed")
+            }
         }
     }
 
@@ -123,6 +136,33 @@ class MediaProjectionService : Service() {
     }
 
     private fun startStreamFromSession(resetReconnectAttempts: Boolean = true) {
+        when (
+            resolveAndroidStreamStartDisposition(
+                ownerRestartBlocked = AndroidNativeOwnerRestartGuard.reason() != null,
+                processCleanupPending = AndroidNativeCleanupPendingGate.isPending(),
+                directCleanupPending = directCleanupPending,
+                hasDirectStream = directMediaCodecStream != null,
+                hasGenericStream = genericStream != null
+            )
+        ) {
+            AndroidStreamStartDisposition.OWNER_CLEANUP_FAILED -> {
+                LiveCasterSession.fail(
+                    AndroidNativeOwnerRestartGuard.reason()
+                        ?: "Native stream cleanup was not confirmed. Restart MobileLiveCaster before streaming again."
+                )
+                stopSelf()
+                return
+            }
+            AndroidStreamStartDisposition.CLEANUP_PENDING -> {
+                LiveCasterSession.fail("Previous native stream is still stopping. Try again in a moment")
+                return
+            }
+            AndroidStreamStartDisposition.ALREADY_ACTIVE -> {
+                LiveCasterSession.updateHealth(message = liveMessage("A stream is already active"))
+                return
+            }
+            AndroidStreamStartDisposition.ALLOW -> Unit
+        }
         val profile = LiveCasterSession.profile
         val captureConsent = LiveCasterSession.consumeCaptureConsent()
 
@@ -135,6 +175,7 @@ class MediaProjectionService : Service() {
         try {
             userRequestedStop = false
             terminalFailure = false
+            sharedStreamResourcesReleased = false
             if (resetReconnectAttempts) {
                 reconnectAttempts = 0
                 resetNativeRuntimeCounters()
@@ -236,17 +277,20 @@ class MediaProjectionService : Service() {
                 else -> LiveCasterSession.updateHealth(message = liveMessage("Connecting"))
             }
             startContinuityHeartbeat()
-        } catch (error: Throwable) {
+        } catch (error: Exception) {
             val message = error.message ?: "Android screen stream failed"
             if (LiveCasterSession.status == LiveCasterStatus.Reconnecting) {
                 scheduleReconnect(message)
             } else {
                 stopStreamAfterFailure(message)
             }
+        } catch (error: Error) {
+            stopAfterFatalError(error, error.message ?: "Android screen stream failed")
         }
     }
 
     private fun startDirectMediaCodecStream(projection: MediaProjection, profile: LiveCasterProfile) {
+        check(directMediaCodecStream == null) { "A direct MediaCodec stream is already active" }
         genericStream?.release()
         genericStream = null
         micProcessingEffect?.release()
@@ -256,9 +300,9 @@ class MediaProjectionService : Service() {
         val directStream = AndroidMediaCodecDirectStream(
             applicationContext,
             beginPublisherCallbackSession(),
-            liveVideoBitrateTracker
+            liveVideoBitrateTracker,
+            ::handleDirectStreamFatalError
         )
-        directMediaCodecStream?.stop()
         directMediaCodecStream = directStream
         lastNativeFps = profile.fps
         updateNativeRuntimeFromDirectStream(
@@ -342,8 +386,10 @@ class MediaProjectionService : Service() {
                         message = LiveCasterSession.health.message
                     )
                 }
-            } catch (error: Throwable) {
+            } catch (error: Exception) {
                 scheduleReconnect(error.message ?: "Direct publisher reconnect failed")
+            } catch (error: Error) {
+                stopAfterFatalError(error, error.message ?: "Direct publisher reconnect failed")
             }
             return
         }
@@ -364,22 +410,49 @@ class MediaProjectionService : Service() {
                 )
                 updateNativeRuntimeFromStream(publisherState = "reconnecting", message = LiveCasterSession.health.message)
             }
-        } catch (error: Throwable) {
+        } catch (error: Exception) {
             scheduleReconnect(error.message ?: "Reconnect failed")
+        } catch (error: Error) {
+            stopAfterFatalError(error, error.message ?: "Reconnect failed")
         }
     }
 
     private fun stopStream() {
-        userRequestedStop = true
-        terminalFailure = false
-        reconnectHandler.removeCallbacksAndMessages(null)
-        reconnectAttempts = 0
-        publishGenerationTracker.invalidate()
-        stopContinuityHeartbeat()
-        captureFinalContinuitySample()
-        releaseStreamResources()
-        LiveCasterSession.markStopped()
-        stopSelf()
+        beginNativeCleanup()
+        var fatalStopError: Error? = null
+        try {
+            val preparationState = AndroidNativeOwnerReleaseState()
+            try {
+                preparationState.execute(
+                    {
+                        userRequestedStop = true
+                        terminalFailure = false
+                        reconnectHandler.removeCallbacksAndMessages(null)
+                        reconnectAttempts = 0
+                        publishGenerationTracker.invalidate()
+                        stopContinuityHeartbeat()
+                    },
+                    { captureFinalContinuitySample() }
+                )
+            } catch (error: Error) {
+                fatalStopError = mergeFatalError(fatalStopError, error)
+            }
+        } finally {
+            try {
+                releaseStreamResources {
+                    val restartRequired = AndroidNativeOwnerRestartGuard.reason()
+                    if (restartRequired == null) {
+                        LiveCasterSession.markStopped()
+                    } else {
+                        LiveCasterSession.fail(restartRequired)
+                    }
+                    stopSelf()
+                }
+            } catch (error: Error) {
+                fatalStopError = mergeFatalError(fatalStopError, error)
+            }
+        }
+        fatalStopError?.let { throw it }
     }
 
     private fun updateStreamQuality() {
@@ -411,7 +484,7 @@ class MediaProjectionService : Service() {
         val effectiveProfile = profile.copy(videoBitrate = effectiveTargetKbps * 1_000)
         val requestGeneration = liveVideoBitrateTracker.recordRequested(effectiveTargetKbps)
         if (directStream != null) {
-            runCatching {
+            try {
                 directStream.updateProfile(effectiveProfile, requestGeneration)
                 lastNativeFps = profile.fps
                 val message = liveMessage("Live quality update requested at $effectiveTargetKbps kbps / ${profile.fps}fps")
@@ -423,18 +496,24 @@ class MediaProjectionService : Service() {
                     publisherState = directStream.snapshot().publisherState,
                     message = message
                 )
-            }.onFailure { error ->
-                if (liveVideoBitrateTracker.recordFailure(effectiveTargetKbps, requestGeneration)) {
-                    adaptiveBitrateController.recordFailure(
-                        error.message ?: "Live quality update failed",
-                        System.currentTimeMillis()
+            } catch (error: Exception) {
+                try {
+                    if (liveVideoBitrateTracker.recordFailure(effectiveTargetKbps, requestGeneration)) {
+                        adaptiveBitrateController.recordFailure(
+                            error.message ?: "Live quality update failed",
+                            System.currentTimeMillis()
+                        )
+                    }
+                    observedBitrateUpdateFailureCount = liveVideoBitrateTracker.snapshot().failureCount
+                    updateNativeRuntimeFromDirectStream(
+                        lastError = error.message ?: "Live quality update failed",
+                        message = LiveCasterSession.health.message
                     )
+                } catch (telemetryError: Error) {
+                    stopAfterFatalError(telemetryError, telemetryError.message ?: "Live quality telemetry failed")
                 }
-                observedBitrateUpdateFailureCount = liveVideoBitrateTracker.snapshot().failureCount
-                updateNativeRuntimeFromDirectStream(
-                    lastError = error.message ?: "Live quality update failed",
-                    message = LiveCasterSession.health.message
-                )
+            } catch (error: Error) {
+                stopAfterFatalError(error, error.message ?: "Live quality update failed")
             }
             return
         }
@@ -576,7 +655,11 @@ class MediaProjectionService : Service() {
                 active = active,
                 publishGeneration = publishGeneration,
                 congested = directSnapshot?.congested
-                    ?: runCatching { client?.hasCongestion() == true }.getOrDefault(false),
+                    ?: try {
+                        client?.hasCongestion() == true
+                    } catch (_: Exception) {
+                        false
+                    },
                 queuedItems = directSnapshot?.itemsInCache ?: client?.getItemsInCache() ?: 0,
                 cacheSize = directSnapshot?.cacheSize ?: client?.getCacheSize() ?: 0,
                 measuredBitrateKbps = (lastKnownBitrate / 1_000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
@@ -604,7 +687,7 @@ class MediaProjectionService : Service() {
         }
         val message = liveMessage("$messagePrefix: ${decision.reason}")
 
-        runCatching {
+        try {
             val directStream = directMediaCodecStream
             if (directStream != null) {
                 directStream.updateProfile(effectiveProfile, requestGeneration)
@@ -643,13 +726,19 @@ class MediaProjectionService : Service() {
                 }
             }
             LiveCasterSession.updateHealth(message = message)
-        }.onFailure { error ->
-            val safeError = (error.message ?: "Native adaptive bitrate update failed").take(160)
-            if (liveVideoBitrateTracker.recordFailure(decision.targetKbps, requestGeneration)) {
-                adaptiveBitrateController.recordFailure(safeError, System.currentTimeMillis())
+        } catch (error: Exception) {
+            try {
+                val safeError = (error.message ?: "Native adaptive bitrate update failed").take(160)
+                if (liveVideoBitrateTracker.recordFailure(decision.targetKbps, requestGeneration)) {
+                    adaptiveBitrateController.recordFailure(safeError, System.currentTimeMillis())
+                }
+                observedBitrateUpdateFailureCount = liveVideoBitrateTracker.snapshot().failureCount
+                updateNativeRuntimeFromActiveStream(lastError = safeError, message = LiveCasterSession.health.message)
+            } catch (telemetryError: Error) {
+                stopAfterFatalError(telemetryError, telemetryError.message ?: "Adaptive bitrate telemetry failed")
             }
-            observedBitrateUpdateFailureCount = liveVideoBitrateTracker.snapshot().failureCount
-            updateNativeRuntimeFromActiveStream(lastError = safeError, message = LiveCasterSession.health.message)
+        } catch (error: Error) {
+            stopAfterFatalError(error, error.message ?: "Native adaptive bitrate update failed")
         }
     }
 
@@ -820,42 +909,311 @@ class MediaProjectionService : Service() {
     }
 
     private fun stopStreamAfterFailure(message: String) {
-        userRequestedStop = true
-        terminalFailure = true
-        reconnectHandler.removeCallbacksAndMessages(null)
-        publishGenerationTracker.invalidate()
-        stopContinuityHeartbeat()
-        captureFinalContinuitySample()
-        releaseStreamResources()
-        LiveCasterSession.clearCaptureConsent()
-        LiveCasterSession.fail(message)
-        stopSelf()
+        beginNativeCleanup()
+        var fatalStopError: Error? = null
+        try {
+            val preparationState = AndroidNativeOwnerReleaseState()
+            try {
+                preparationState.execute(
+                    {
+                        userRequestedStop = true
+                        terminalFailure = true
+                        reconnectHandler.removeCallbacksAndMessages(null)
+                        publishGenerationTracker.invalidate()
+                        stopContinuityHeartbeat()
+                    },
+                    { captureFinalContinuitySample() },
+                    { LiveCasterSession.clearCaptureConsent() },
+                    { LiveCasterSession.fail(message) }
+                )
+            } catch (error: Error) {
+                fatalStopError = mergeFatalError(fatalStopError, error)
+            }
+        } finally {
+            try {
+                releaseStreamResources {
+                    stopSelf()
+                }
+            } catch (error: Error) {
+                fatalStopError = mergeFatalError(fatalStopError, error)
+            }
+        }
+        fatalStopError?.let { throw it }
     }
 
-    private fun releaseStreamResources() {
-        invalidatePublisherCallbackSession()
-        directMediaCodecStream?.let { directStream ->
-            val activeEncoderProbe = directStream.snapshot().encoderProbe
-            directStream.stop()
-            LiveCasterSession.updateNativeRuntime(
-                encoderProbe = directStream.snapshot().encoderProbe,
-                lastActiveEncoderProbe = activeEncoderProbe.takeIf { it.status == "pass" },
-                message = LiveCasterSession.health.message
+    private fun stopAfterFatalError(error: Error, message: String): Nothing {
+        try {
+            stopStreamAfterFailure(message)
+        } catch (cleanupError: Error) {
+            if (cleanupError !== error) error.addSuppressed(cleanupError)
+        }
+        throw error
+    }
+
+    private fun mergeFatalError(current: Error?, next: Error): Error {
+        if (current == null) return next
+        if (current !== next) current.addSuppressed(next)
+        return current
+    }
+
+    private fun handleDirectStreamFatalError(
+        failedStream: AndroidMediaCodecDirectStream,
+        message: String
+    ) {
+        continuityHandler.post {
+            if (userRequestedStop || terminalFailure || directMediaCodecStream !== failedStream) {
+                return@post
+            }
+            var fatalTelemetryError: Error? = null
+            try {
+                updateNativeRuntimeFromDirectStream(
+                    publisherState = "failed",
+                    lastError = message,
+                    message = message
+                )
+            } catch (error: Error) {
+                fatalTelemetryError = error
+            } finally {
+                try {
+                    stopStreamAfterFailure(message)
+                } catch (cleanupError: Error) {
+                    fatalTelemetryError = mergeFatalError(fatalTelemetryError, cleanupError)
+                }
+            }
+            fatalTelemetryError?.let { throw it }
+        }
+    }
+
+    private fun releaseStreamResources(onReleased: (() -> Unit)? = null) {
+        beginNativeCleanup()
+        var fatalReleaseError: Error? = null
+        try {
+            if (onReleased != null) streamResourceReleaseCallbacks += onReleased
+        } catch (error: Error) {
+            fatalReleaseError = mergeFatalError(fatalReleaseError, error)
+        }
+        try {
+            invalidatePublisherCallbackSession()
+        } catch (error: Error) {
+            fatalReleaseError = mergeFatalError(fatalReleaseError, error)
+        }
+        val directStream = directMediaCodecStream
+        directMediaCodecStream = null
+        directStream?.let {
+            val activeEncoderProbe = try {
+                directStream.snapshot().encoderProbe
+            } catch (error: Exception) {
+                try {
+                    LiveCasterSession.updateNativeRuntime(
+                        lastError = "Direct stream cleanup snapshot failed: ${(error.message ?: error.javaClass.simpleName).take(100)}",
+                        message = LiveCasterSession.health.message
+                    )
+                } catch (telemetryError: Error) {
+                    fatalReleaseError = mergeFatalError(fatalReleaseError, telemetryError)
+                }
+                null
+            } catch (error: Error) {
+                fatalReleaseError = mergeFatalError(fatalReleaseError, error)
+                null
+            }
+            directCleanupPending = true
+            try {
+                directStream.stop { cleanupResult ->
+                    val posted = try {
+                        continuityHandler.post {
+                        var fatalCallbackError: Error? = null
+                        try {
+                            val finalSnapshot = directStream.snapshot()
+                            LiveCasterSession.updateNativeRuntime(
+                                encoderProbe = finalSnapshot.encoderProbe,
+                                lastError = finalSnapshot.lastError.takeIf(String::isNotBlank),
+                                message = LiveCasterSession.health.message
+                            )
+                        } catch (error: Exception) {
+                            try {
+                                LiveCasterSession.updateNativeRuntime(
+                                    lastError = "Direct stream final snapshot failed: ${(error.message ?: error.javaClass.simpleName).take(100)}",
+                                    message = LiveCasterSession.health.message
+                                )
+                            } catch (telemetryError: Error) {
+                                fatalCallbackError = mergeFatalError(fatalCallbackError, telemetryError)
+                            }
+                        } catch (error: Error) {
+                            fatalCallbackError = mergeFatalError(fatalCallbackError, error)
+                        }
+                        try {
+                            if (!cleanupResult.released) {
+                                blockNativeRestartForCleanup(
+                                    "Native stream cleanup was not confirmed (${cleanupResult.disposition.name.lowercase()}): " +
+                                        "${cleanupResult.message}. Restart MobileLiveCaster before streaming again."
+                                )
+                            }
+                        } catch (error: Error) {
+                            fatalCallbackError = mergeFatalError(fatalCallbackError, error)
+                        } finally {
+                            directCleanupPending = false
+                            if (directMediaCodecStream == null) {
+                                try {
+                                    finishSharedStreamResourceRelease()
+                                } catch (error: Error) {
+                                    fatalCallbackError = mergeFatalError(fatalCallbackError, error)
+                                }
+                            }
+                        }
+                            fatalCallbackError?.let { throw it }
+                        }
+                    } catch (error: Error) {
+                        try {
+                            finalizeRejectedDirectCleanupHandoff(
+                                "Native cleanup completion could not reach the service thread. Restart MobileLiveCaster before streaming again."
+                            )
+                        } catch (cleanupError: Error) {
+                            if (cleanupError !== error) error.addSuppressed(cleanupError)
+                        }
+                        throw error
+                    }
+                    if (!posted) {
+                        finalizeRejectedDirectCleanupHandoff(
+                            "Native cleanup completion could not reach the service thread. Restart MobileLiveCaster before streaming again."
+                        )
+                    }
+                }
+            } catch (error: Error) {
+                fatalReleaseError = mergeFatalError(fatalReleaseError, error)
+                try {
+                    finalizeRejectedDirectCleanupHandoff(
+                        "Native stream cleanup could not be started. Restart MobileLiveCaster before streaming again."
+                    )
+                } catch (cleanupError: Error) {
+                    fatalReleaseError = mergeFatalError(fatalReleaseError, cleanupError)
+                }
+            }
+            try {
+                LiveCasterSession.updateNativeRuntime(
+                    encoderProbe = activeEncoderProbe,
+                    lastActiveEncoderProbe = activeEncoderProbe?.takeIf { it.status == "pass" },
+                    message = LiveCasterSession.health.message
+                )
+            } catch (error: Error) {
+                fatalReleaseError = mergeFatalError(fatalReleaseError, error)
+            }
+        }
+        val sharedOwnerReleaseState = AndroidNativeOwnerReleaseState()
+        try {
+            sharedOwnerReleaseState.execute(
+                { genericStream?.stopStream() },
+                { genericStream?.release() },
+                { micProcessingEffect?.release() }
+            )
+        } catch (error: Error) {
+            fatalReleaseError = mergeFatalError(fatalReleaseError, error)
+            AndroidNativeOwnerRestartGuard.block(
+                "Native shared stream cleanup failed fatally: ${(error.message ?: error.javaClass.simpleName).take(120)}. " +
+                    "Restart MobileLiveCaster before streaming again."
+            )
+        } finally {
+            genericStream = null
+            micProcessingEffect = null
+        }
+        sharedOwnerReleaseState.failure()?.let { error ->
+            AndroidNativeOwnerRestartGuard.block(
+                "Native shared stream cleanup was not confirmed: ${(error.message ?: error.javaClass.simpleName).take(120)}. " +
+                    "Restart MobileLiveCaster before streaming again."
             )
         }
-        directMediaCodecStream = null
-        genericStream?.stopStream()
-        genericStream?.release()
-        genericStream = null
-        micProcessingEffect?.release()
-        micProcessingEffect = null
-        AndroidSceneCompositor.release()
-        releaseMediaProjection()
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        if (directStream == null && !directCleanupPending) {
+            try {
+                finishSharedStreamResourceRelease()
+            } catch (error: Error) {
+                fatalReleaseError = mergeFatalError(fatalReleaseError, error)
+            }
+        } else if (!directCleanupPending) {
+            try {
+                finishSharedStreamResourceRelease()
+            } catch (error: Error) {
+                fatalReleaseError = mergeFatalError(fatalReleaseError, error)
+            }
+        }
+        fatalReleaseError?.let { throw it }
+    }
+
+    private fun finalizeRejectedDirectCleanupHandoff(message: String) {
+        AndroidNativeOwnerRestartGuard.block(message)
+        directCleanupPending = false
+        if (directMediaCodecStream == null) finishSharedStreamResourceRelease()
+    }
+
+    private fun finishSharedStreamResourceRelease() {
+        var fatalReleaseError: Error? = null
+        var fatalCallbackError: Error? = null
+        try {
+            if (!sharedStreamResourcesReleased) {
+                val releaseState = AndroidNativeOwnerReleaseState()
+                var projectionRelease = AndroidMediaProjectionReleaseResult(released = true, failure = null)
+                try {
+                    releaseState.execute(
+                        { AndroidSceneCompositor.release() },
+                        { projectionRelease = releaseMediaProjection() },
+                        { stopForeground(STOP_FOREGROUND_REMOVE) }
+                    )
+                } catch (error: Error) {
+                    fatalReleaseError = error
+                } finally {
+                    sharedStreamResourcesReleased = true
+                }
+                val releaseFailure = releaseState.failure() ?: projectionRelease.failure
+                if (releaseFailure != null || !projectionRelease.released) {
+                    blockNativeRestartForCleanup(
+                        "Native shared resource cleanup was not confirmed: " +
+                            "${(releaseFailure?.message ?: releaseFailure?.javaClass?.simpleName ?: "MediaProjection stop failed").take(120)}. " +
+                            "Restart MobileLiveCaster before streaming again."
+                    )
+                }
+            }
+            val callbacks = streamResourceReleaseCallbacks.toList()
+            streamResourceReleaseCallbacks.clear()
+            callbacks.forEach { callback ->
+                try {
+                    callback()
+                } catch (error: Error) {
+                    if (fatalCallbackError == null) fatalCallbackError = error
+                } catch (error: Exception) {
+                    LiveCasterSession.updateNativeRuntime(
+                        lastError = "Stream release callback failed: ${(error.message ?: error.javaClass.simpleName).take(100)}",
+                        message = LiveCasterSession.health.message
+                    )
+                }
+            }
+        } finally {
+            completeNativeCleanup()
+        }
+        (fatalReleaseError ?: fatalCallbackError)?.let { throw it }
+    }
+
+    @Synchronized
+    private fun beginNativeCleanup() {
+        if (nativeCleanupToken == null) {
+            nativeCleanupToken = AndroidNativeCleanupPendingGate.begin()
+        }
+    }
+
+    @Synchronized
+    private fun completeNativeCleanup() {
+        val token = nativeCleanupToken ?: return
+        AndroidNativeCleanupPendingGate.complete(token)
+        nativeCleanupToken = null
     }
 
     private fun attachMediaProjection(projection: MediaProjection) {
-        releaseMediaProjection()
+        val previousRelease = releaseMediaProjection()
+        if (!previousRelease.released || previousRelease.failure != null) {
+            blockNativeRestartForCleanup(
+                "Previous MediaProjection release was not confirmed. Restart MobileLiveCaster before streaming again."
+            )
+        }
+        check(previousRelease.released && previousRelease.failure == null) {
+            "Previous MediaProjection release was not confirmed"
+        }
         val token = mediaProjectionSessionGuard.attach()
         val callback = object : MediaProjection.Callback() {
             override fun onStop() {
@@ -871,23 +1229,48 @@ class MediaProjectionService : Service() {
         mediaProjectionSessionToken = token
     }
 
-    private fun releaseMediaProjection() {
+    private fun releaseMediaProjection(): AndroidMediaProjectionReleaseResult {
         val projection = mediaProjection
         val callback = mediaProjectionCallback
         val token = mediaProjectionSessionToken
+        val releaseState = AndroidNativeOwnerReleaseState()
+        var projectionStopConfirmed = projection == null
         if (projection != null && token != null) {
             mediaProjectionSessionGuard.expectStop(token)
         }
-        if (projection != null && callback != null) {
-            runCatching { projection.unregisterCallback(callback) }
+        try {
+            releaseState.execute(
+                {
+                    if (projection != null && callback != null) {
+                        projection.unregisterCallback(callback)
+                    }
+                },
+                {
+                    projection?.stop()
+                    projectionStopConfirmed = true
+                },
+                {
+                    if (token != null) mediaProjectionSessionGuard.detach(token)
+                }
+            )
+        } finally {
+            mediaProjection = null
+            mediaProjectionCallback = null
+            mediaProjectionSessionToken = null
         }
-        runCatching { projection?.stop() }
-        if (token != null) {
-            mediaProjectionSessionGuard.detach(token)
-        }
-        mediaProjection = null
-        mediaProjectionCallback = null
-        mediaProjectionSessionToken = null
+        return AndroidMediaProjectionReleaseResult(
+            released = projectionStopConfirmed,
+            failure = releaseState.failure()
+        )
+    }
+
+    private fun blockNativeRestartForCleanup(message: String): String {
+        val reason = AndroidNativeOwnerRestartGuard.block(message)
+        LiveCasterSession.updateNativeRuntime(
+            lastError = reason,
+            message = LiveCasterSession.health.message
+        )
+        return reason
     }
 
     private fun handleUnexpectedMediaProjectionStop() {

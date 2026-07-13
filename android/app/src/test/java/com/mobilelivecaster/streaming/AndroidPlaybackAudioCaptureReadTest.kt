@@ -23,4 +23,9 @@ class AndroidPlaybackAudioCaptureReadTest {
         assertEquals(160, result.failureMessage.length)
         assertEquals(message.take(160), result.failureMessage)
     }
+
+    @Test(expected = AssertionError::class)
+    fun preservesFatalReaderErrors() {
+        readAndroidPlaybackAudioSafely { throw AssertionError("fatal read") }
+    }
 }

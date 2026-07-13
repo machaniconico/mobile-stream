@@ -303,7 +303,29 @@ describe("native runtime audio telemetry", () => {
       monitorRecoveryFailureCount: -1,
       monitorLastRecoveryReason: "route-device-removed",
       monitorLastRecoveryAt: 1_784_000_000_125.6,
-      monitorSuspended: true
+      monitorSuspended: true,
+      micCaptureStatus: "capturing",
+      micCaptureBackend: "android-audio-record",
+      micCaptureSampleRate: 48_000.4,
+      micCaptureFallbackFrames: 960.6,
+      micCaptureLifecycleEventCount: 6.6,
+      micCaptureRouteChangeCount: 2.4,
+      micCaptureInterruptionCount: 1.4,
+      micCaptureRecoveryCount: 2.6,
+      micCaptureRecoveryFailureCount: -1,
+      micCaptureUnrecoveredEventCount: -1.4,
+      micCaptureLastRecoveryReason: "audio-route-changed",
+      micCaptureLastRecoveryAt: 1_784_000_000_225.6,
+      micCaptureSuspended: true,
+      playbackCaptureLifecycleEventCount: 5.6,
+      playbackCaptureRouteChangeCount: 1.4,
+      playbackCaptureInterruptionCount: 2.6,
+      playbackCaptureRecoveryCount: 3.4,
+      playbackCaptureRecoveryFailureCount: -2,
+      playbackCaptureUnrecoveredEventCount: 2.6,
+      playbackCaptureLastRecoveryReason: "media-projection-resumed",
+      playbackCaptureLastRecoveryAt: 1_784_000_000_325.6,
+      playbackCaptureSuspended: true
     });
 
     expect(audio).toMatchObject({
@@ -327,7 +349,29 @@ describe("native runtime audio telemetry", () => {
       monitorRecoveryFailureCount: 0,
       monitorLastRecoveryReason: "route-device-removed",
       monitorLastRecoveryAt: 1_784_000_000_126,
-      monitorSuspended: true
+      monitorSuspended: true,
+      micCaptureStatus: "capturing",
+      micCaptureBackend: "android-audio-record",
+      micCaptureSampleRate: 48_000,
+      micCaptureFallbackFrames: 961,
+      micCaptureLifecycleEventCount: 7,
+      micCaptureRouteChangeCount: 2,
+      micCaptureInterruptionCount: 1,
+      micCaptureRecoveryCount: 3,
+      micCaptureRecoveryFailureCount: 0,
+      micCaptureUnrecoveredEventCount: 0,
+      micCaptureLastRecoveryReason: "audio-route-changed",
+      micCaptureLastRecoveryAt: 1_784_000_000_226,
+      micCaptureSuspended: true,
+      playbackCaptureLifecycleEventCount: 6,
+      playbackCaptureRouteChangeCount: 1,
+      playbackCaptureInterruptionCount: 3,
+      playbackCaptureRecoveryCount: 3,
+      playbackCaptureRecoveryFailureCount: 0,
+      playbackCaptureUnrecoveredEventCount: 3,
+      playbackCaptureLastRecoveryReason: "media-projection-resumed",
+      playbackCaptureLastRecoveryAt: 1_784_000_000_326,
+      playbackCaptureSuspended: true
     });
   });
 
@@ -354,8 +398,33 @@ describe("native runtime audio telemetry", () => {
       monitorRecoveryFailureCount: 0,
       monitorLastRecoveryReason: "",
       monitorLastRecoveryAt: 0,
-      monitorSuspended: false
+      monitorSuspended: false,
+      micCaptureStatus: "unavailable",
+      micCaptureBackend: "none",
+      micCaptureSampleRate: 0,
+      micCaptureFallbackFrames: 0,
+      micCaptureLifecycleEventCount: 0,
+      micCaptureRouteChangeCount: 0,
+      micCaptureInterruptionCount: 0,
+      micCaptureRecoveryCount: 0,
+      micCaptureRecoveryFailureCount: 0,
+      micCaptureUnrecoveredEventCount: 0,
+      micCaptureLastRecoveryReason: "",
+      micCaptureLastRecoveryAt: 0,
+      micCaptureSuspended: false,
+      playbackCaptureLifecycleEventCount: 0,
+      playbackCaptureRouteChangeCount: 0,
+      playbackCaptureInterruptionCount: 0,
+      playbackCaptureRecoveryCount: 0,
+      playbackCaptureRecoveryFailureCount: 0,
+      playbackCaptureUnrecoveredEventCount: 0,
+      playbackCaptureLastRecoveryReason: "",
+      playbackCaptureLastRecoveryAt: 0,
+      playbackCaptureSuspended: false
     });
+    expect(
+      normalizeNativeRuntimeAudioProcessing({ micCaptureFallbackFrames: -480 }).micCaptureFallbackFrames
+    ).toBe(0);
   });
 
   it("requires sustained low-loss Android playback capture proof", () => {

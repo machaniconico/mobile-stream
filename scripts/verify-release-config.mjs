@@ -322,6 +322,9 @@ const checks = [
     expectIncludes(files.androidNativeVerificationScript, "inspectAndroidDebugApkFile");
     expectIncludes(files.androidNativeVerificationScript, "rmSync(resolve(apkPath)");
     expectIncludes(files.androidNativeVerificationScript, "./gradlew assembleDebug");
+    expectIncludes(files.androidNativeVerificationScript, "assembleContractMinified");
+    expectIncludes(files.androidNativeVerificationScript, "rootEncoderAwaitedDisconnectSignature");
+    expectIncludes(files.androidGradle, "def enableProguardInReleaseBuilds = true");
     expectIncludes(files.distributionArtifactsScript, "AndroidManifest.xml");
     expectIncludes(files.distributionArtifactsScript, "classes.dex");
     expectIncludes(files.iosNativeVerificationScript, "validateIosNativeVerificationReport");
@@ -331,7 +334,15 @@ const checks = [
     expectIncludes(files.iosNativeVerificationScript, "MobileLiveCaster.debug.dylib");
     expectIncludes(files.iosNativeVerificationScript, "embedded and standalone ReplayKit executable hashes do not match");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 61");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 62");
+    expectIncludes(files.nativeRuntimeDomain, "micCaptureUnrecoveredEventCount?: number");
+    expectIncludes(files.nativeRuntimeDomain, "playbackCaptureUnrecoveredEventCount?: number");
+    expectIncludes(files.streamSessionSummaryDomain, "micCaptureUnrecoveredEventCount?: number");
+    expectIncludes(files.streamSessionSummaryDomain, "playbackCaptureUnrecoveredEventCount?: number");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeMicCaptureUnrecoveredEventCount?: number");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimePlaybackCaptureUnrecoveredEventCount?: number");
+    expectIncludes(files.supportBundleDomain, "nativeRuntimeMicCaptureUnrecoveredEventCount: number");
+    expectIncludes(files.supportBundleDomain, "nativeRuntimePlaybackCaptureUnrecoveredEventCount: number");
     expectIncludes(files.supportBundleDomain, "nativeCompositionCaptionOverlayCount");
     expectIncludes(files.supportBundleDomain, "textOverlayRenderVisibleSourceCount");
     expectIncludes(files.supportBundleDomain, "textOverlayQueuedTimedManualSourceCount");
@@ -360,7 +371,12 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "requestedVideoWidth: number");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeEncoderProbeMatchesRequestedOutput: boolean");
     expectIncludes(files.streamValidationEvidenceDomainTest, "nativeRuntimePublisherPublishGeneration: 7");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 61");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 62");
+    expectIncludes(files.commercialReleaseGateDomain, "Number(unrecoveredEventCount) === 0");
+    expectIncludes(
+      files.commercialReleaseGateDomainTest,
+      "blocks missing, negative, fractional, positive, or stopped unrecovered Android capture events"
+    );
     expectIncludes(files.commercialReleaseGateDomain, 'run?.nativeRuntimePublisherState === "published"');
     expectIncludes(files.commercialReleaseGateDomain, "isPositiveInteger(run?.nativeRuntimePublisherPublishGeneration)");
     expectIncludes(files.commercialReleaseGateDomain, "isPositiveInteger(run?.nativeRuntimeCurrentPublishVideoFrames)");
@@ -415,7 +431,12 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "isFirstPartyManifestPublishingDestination");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks first-party platform dashboard manifests marked not-applicable");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 61");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 62");
+    expectIncludes(files.commercialReleaseBundleScript, "unrecoveredEventCount === 0");
+    expectIncludes(
+      files.commercialReleaseBundleScriptTest,
+      "blocks Android native runtime claims with invalid unrecovered capture events"
+    );
     expectIncludes(files.commercialReleaseBundleScript, 'run?.nativeRuntimePublisherState === "published"');
     expectIncludes(files.commercialReleaseBundleScript, "isPositiveInteger(run?.nativeRuntimePublisherPublishGeneration)");
     expectIncludes(files.commercialReleaseBundleScript, "isPositiveInteger(run?.nativeRuntimeCurrentPublishVideoFrames)");
@@ -445,7 +466,7 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScript, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scope");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-scope");
-    expectIncludes(files.readme, "schema v61+");
+    expectIncludes(files.readme, "schema v62+");
     expectIncludes(
       files.readme,
       "exact equality across the current bundle quality, each run's requested output target, and the active native encoder's configured output"

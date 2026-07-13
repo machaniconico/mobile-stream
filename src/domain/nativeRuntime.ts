@@ -411,6 +411,19 @@ export interface NativeRuntimeAudioProcessing {
   mixedAudioSampleCount?: number;
   mixedAudioClippedSampleCount?: number;
   mixedAudioLevelUpdatedAt?: number;
+  micCaptureStatus?: string;
+  micCaptureBackend?: string;
+  micCaptureSampleRate?: number;
+  micCaptureFallbackFrames?: number;
+  micCaptureLifecycleEventCount?: number;
+  micCaptureRouteChangeCount?: number;
+  micCaptureInterruptionCount?: number;
+  micCaptureRecoveryCount?: number;
+  micCaptureRecoveryFailureCount?: number;
+  micCaptureUnrecoveredEventCount?: number;
+  micCaptureLastRecoveryReason?: string;
+  micCaptureLastRecoveryAt?: number;
+  micCaptureSuspended?: boolean;
   playbackCaptureStatus?: string;
   playbackCaptureBackend?: string;
   playbackCaptureSampleRate?: number;
@@ -419,6 +432,15 @@ export interface NativeRuntimeAudioProcessing {
   playbackUnderrunFrames?: number;
   playbackBufferedFrames?: number;
   playbackCaptureTelemetryComplete?: boolean;
+  playbackCaptureLifecycleEventCount?: number;
+  playbackCaptureRouteChangeCount?: number;
+  playbackCaptureInterruptionCount?: number;
+  playbackCaptureRecoveryCount?: number;
+  playbackCaptureRecoveryFailureCount?: number;
+  playbackCaptureUnrecoveredEventCount?: number;
+  playbackCaptureLastRecoveryReason?: string;
+  playbackCaptureLastRecoveryAt?: number;
+  playbackCaptureSuspended?: boolean;
 }
 
 export const androidPlaybackCaptureBackend = "android-audio-playback-capture";
@@ -686,6 +708,21 @@ export const normalizeNativeRuntimeAudioProcessing = (
   mixedAudioSampleCount: normalizeNativeAudioCount(audioProcessing?.mixedAudioSampleCount),
   mixedAudioClippedSampleCount: normalizeNativeAudioCount(audioProcessing?.mixedAudioClippedSampleCount),
   mixedAudioLevelUpdatedAt: normalizeNativeAudioTimestamp(audioProcessing?.mixedAudioLevelUpdatedAt),
+  micCaptureStatus: audioProcessing?.micCaptureStatus ?? "unavailable",
+  micCaptureBackend: audioProcessing?.micCaptureBackend ?? "none",
+  micCaptureSampleRate: normalizeNativeAudioCount(audioProcessing?.micCaptureSampleRate),
+  micCaptureFallbackFrames: normalizeNativeAudioCount(audioProcessing?.micCaptureFallbackFrames),
+  micCaptureLifecycleEventCount: normalizeNativeAudioCount(audioProcessing?.micCaptureLifecycleEventCount),
+  micCaptureRouteChangeCount: normalizeNativeAudioCount(audioProcessing?.micCaptureRouteChangeCount),
+  micCaptureInterruptionCount: normalizeNativeAudioCount(audioProcessing?.micCaptureInterruptionCount),
+  micCaptureRecoveryCount: normalizeNativeAudioCount(audioProcessing?.micCaptureRecoveryCount),
+  micCaptureRecoveryFailureCount: normalizeNativeAudioCount(audioProcessing?.micCaptureRecoveryFailureCount),
+  micCaptureUnrecoveredEventCount: normalizeNativeAudioCount(
+    audioProcessing?.micCaptureUnrecoveredEventCount
+  ),
+  micCaptureLastRecoveryReason: audioProcessing?.micCaptureLastRecoveryReason ?? "",
+  micCaptureLastRecoveryAt: normalizeNativeAudioTimestamp(audioProcessing?.micCaptureLastRecoveryAt),
+  micCaptureSuspended: audioProcessing?.micCaptureSuspended ?? false,
   playbackCaptureStatus: audioProcessing?.playbackCaptureStatus ?? "unavailable",
   playbackCaptureBackend: audioProcessing?.playbackCaptureBackend ?? "none",
   playbackCaptureSampleRate: normalizeNativeAudioCount(audioProcessing?.playbackCaptureSampleRate),
@@ -698,7 +735,22 @@ export const normalizeNativeRuntimeAudioProcessing = (
     isPositiveInteger(audioProcessing?.playbackCapturedFrames) &&
     isNonNegativeInteger(audioProcessing?.playbackDroppedFrames) &&
     isNonNegativeInteger(audioProcessing?.playbackUnderrunFrames) &&
-    isNonNegativeInteger(audioProcessing?.playbackBufferedFrames)
+    isNonNegativeInteger(audioProcessing?.playbackBufferedFrames),
+  playbackCaptureLifecycleEventCount: normalizeNativeAudioCount(
+    audioProcessing?.playbackCaptureLifecycleEventCount
+  ),
+  playbackCaptureRouteChangeCount: normalizeNativeAudioCount(audioProcessing?.playbackCaptureRouteChangeCount),
+  playbackCaptureInterruptionCount: normalizeNativeAudioCount(audioProcessing?.playbackCaptureInterruptionCount),
+  playbackCaptureRecoveryCount: normalizeNativeAudioCount(audioProcessing?.playbackCaptureRecoveryCount),
+  playbackCaptureRecoveryFailureCount: normalizeNativeAudioCount(
+    audioProcessing?.playbackCaptureRecoveryFailureCount
+  ),
+  playbackCaptureUnrecoveredEventCount: normalizeNativeAudioCount(
+    audioProcessing?.playbackCaptureUnrecoveredEventCount
+  ),
+  playbackCaptureLastRecoveryReason: audioProcessing?.playbackCaptureLastRecoveryReason ?? "",
+  playbackCaptureLastRecoveryAt: normalizeNativeAudioTimestamp(audioProcessing?.playbackCaptureLastRecoveryAt),
+  playbackCaptureSuspended: audioProcessing?.playbackCaptureSuspended ?? false
 });
 
 const normalizeNativeAudioLevel = (value: unknown, fallback = 0): number =>

@@ -9,25 +9,56 @@ import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.AudioFormat
-import android.media.AudioRecord
 import android.media.Image
 import android.media.ImageReader
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
-import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.os.Bundle
 import android.view.Surface
 import com.pedro.common.ConnectChecker
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.math.max
+import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.LockSupport
 import kotlin.math.roundToInt
+
+internal enum class AndroidDirectStreamCleanupDisposition {
+    RELEASED,
+    EXHAUSTED,
+    FATAL
+}
+
+internal data class AndroidDirectStreamCleanupResult(
+    val disposition: AndroidDirectStreamCleanupDisposition,
+    val message: String
+) {
+    val released: Boolean
+        get() = disposition == AndroidDirectStreamCleanupDisposition.RELEASED
+
+    companion object {
+        fun released(): AndroidDirectStreamCleanupResult =
+            AndroidDirectStreamCleanupResult(AndroidDirectStreamCleanupDisposition.RELEASED, "")
+
+        fun exhausted(message: String): AndroidDirectStreamCleanupResult =
+            AndroidDirectStreamCleanupResult(
+                AndroidDirectStreamCleanupDisposition.EXHAUSTED,
+                message.ifBlank { "Native stream cleanup exhausted its retry budget" }.take(240)
+            )
+
+        fun fatal(message: String): AndroidDirectStreamCleanupResult =
+            AndroidDirectStreamCleanupResult(
+                AndroidDirectStreamCleanupDisposition.FATAL,
+                message.ifBlank { "Native stream cleanup failed fatally" }.take(240)
+            )
+    }
+}
 
 internal class AndroidMediaCodecDirectStream(
     context: Context,
     connectChecker: ConnectChecker,
-    private val liveVideoBitrateTracker: LiveVideoBitrateTracker
+    private val liveVideoBitrateTracker: LiveVideoBitrateTracker,
+    private val onFatalError: (AndroidMediaCodecDirectStream, String) -> Unit
 ) {
     companion object {
         private const val VIDEO_MIME = MediaFormat.MIMETYPE_VIDEO_AVC
@@ -44,17 +75,27 @@ internal class AndroidMediaCodecDirectStream(
         private const val VIDEO_DRAIN_TIMEOUT_US = 10_000L
         private const val I_FRAME_INTERVAL_SECONDS = 2
         private const val COMPOSITOR_BACKEND = "android-canvas-mediacodec"
+        private const val INITIAL_WORKER_STOP_TIMEOUT_NANOS = 2_000_000_000L
+        private const val ESCALATED_WORKER_STOP_TIMEOUT_NANOS = 1_000_000_000L
+        private const val NATIVE_OWNER_RELEASE_TIMEOUT_MILLIS = 5_000L
     }
 
     private val appContext = context.applicationContext
     private val publisher = AndroidMediaCodecRtmpPublisher(connectChecker)
     private val running = AtomicBoolean(false)
+    private val stopping = AtomicBoolean(false)
+    private val fatalErrorReported = AtomicBoolean(false)
+    private val workerFatalError = AtomicReference<Error?>(null)
+    private val cleanupLock = Any()
+    private val stopCallbacks = mutableListOf<(AndroidDirectStreamCleanupResult) -> Unit>()
+    private var cleanupFinished = false
+    private var cleanupResult = AndroidDirectStreamCleanupResult.released()
     @Volatile
     private var profile: LiveCasterProfile? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var videoEncoder: MediaCodec? = null
     private var audioEncoder: MediaCodec? = null
-    private var audioRecord: AudioRecord? = null
+    private var microphoneAudioCapture: AndroidMicrophoneAudioCapture? = null
     private var playbackAudioCapture: AndroidPlaybackAudioCapture? = null
     private var videoInputSurface: Surface? = null
     private var screenImageReader: ImageReader? = null
@@ -64,6 +105,7 @@ internal class AndroidMediaCodecDirectStream(
     private var canvasComposition: AndroidSceneCompositor.CanvasComposition? = null
     private var videoThread: Thread? = null
     private var audioThread: Thread? = null
+    private var cleanupThread: Thread? = null
     private var micProcessingEffect: MicProcessingEffect? = null
     @Volatile
     private var publisherConfigured = false
@@ -72,7 +114,6 @@ internal class AndroidMediaCodecDirectStream(
     private var videoFrames = 0L
     private var audioFrames = 0L
     private var encodedBytes = 0L
-    private var audioSubmittedFrames = 0L
     private var compositedVideoFrames = 0L
     private var compositionDroppedFrames = 0L
     private var compositionFailures = 0L
@@ -82,6 +123,8 @@ internal class AndroidMediaCodecDirectStream(
     private var lastError = ""
     @Volatile
     private var lastNonFatalError = ""
+    @Volatile
+    private var lastAudioCaptureError = ""
     private val videoEncoderCommandLock = Any()
     private var videoEncoderGeneration = 0L
     private var pendingVideoEncoderCommand: VideoEncoderCommand? = null
@@ -92,9 +135,12 @@ internal class AndroidMediaCodecDirectStream(
         nextProfile: LiveCasterProfile,
         composition: AndroidSceneCompositor.CanvasComposition
     ) {
+        check(!stopping.get()) { "Direct MediaCodec stream instances cannot restart after stop" }
         if (!running.compareAndSet(false, true)) {
             return
         }
+        fatalErrorReported.set(false)
+        workerFatalError.set(null)
         profile = nextProfile
         synchronized(videoEncoderCommandLock) {
             videoEncoderGeneration += 1
@@ -113,9 +159,9 @@ internal class AndroidMediaCodecDirectStream(
             droppedVideoFrames = 0L
             droppedAudioFrames = 0L
         }
-        audioSubmittedFrames = 0L
         lastError = ""
         lastNonFatalError = ""
+        lastAudioCaptureError = ""
         micProcessingEffect = MicProcessingEffect(
             appContext,
             nextProfile.micEffects,
@@ -156,23 +202,34 @@ internal class AndroidMediaCodecDirectStream(
             encoderProbeState.recordAudioConfigured(activeAudioEncoder, codecName(activeAudioEncoder))
             activeAudioEncoder.start()
             encoderProbeState.recordAudioStarted(activeAudioEncoder)
-            audioRecord = createMicAudioRecord().also { it.startRecording() }
-            playbackAudioCapture = AndroidPlaybackAudioCapture.create(
+            val microphoneCapture = AndroidMicrophoneAudioCapture(
+                context = appContext,
+                sampleRate = AUDIO_SAMPLE_RATE,
+                channelMask = AUDIO_MIC_CHANNEL_MASK,
+                readBufferSizeBytes = micAudioChunkSizeBytes(),
+                onFatalError = ::reportFatalError
+            )
+            microphoneAudioCapture = microphoneCapture
+            microphoneCapture.start()
+            val playbackCapture = AndroidPlaybackAudioCapture.create(
+                context = appContext,
                 mediaProjection = mediaProjection,
                 sampleRate = AUDIO_SAMPLE_RATE,
                 channelMask = AUDIO_PLAYBACK_CHANNEL_MASK,
                 channelCount = AUDIO_OUTPUT_CHANNEL_COUNT,
-                readBufferSizeBytes = outputAudioChunkSizeBytes()
-            ).also { capture ->
-                capture.start()
-                val captureSnapshot = capture.snapshot()
-                if (captureSnapshot.status == "failed" || captureSnapshot.status == "unsupported") {
-                    lastNonFatalError = captureSnapshot.lastError
-                }
+                readBufferSizeBytes = outputAudioChunkSizeBytes(),
+                onFatalError = ::reportFatalError
+            )
+            playbackAudioCapture = playbackCapture
+            playbackCapture.start()
+            val captureSnapshot = playbackCapture.snapshot()
+            if (captureSnapshot.status == "failed" || captureSnapshot.status == "unsupported") {
+                lastAudioCaptureError = captureSnapshot.lastError
             }
             videoThread = Thread({ runEncoderThread { runVideoCompositorAndEncoder() } }, "MLC-MediaCodec-Video").also { it.start() }
             audioThread = Thread({ runEncoderThread { runAudioEncoder() } }, "MLC-MediaCodec-Audio").also { it.start() }
         }.onFailure { error ->
+            if (error is Error) workerFatalError.compareAndSet(null, error)
             lastError = safeMessage(error)
             encoderProbeState.recordFailure(lastError)
             stop()
@@ -180,39 +237,192 @@ internal class AndroidMediaCodecDirectStream(
         }
     }
 
-    fun stop() {
+    fun stop(onStopped: ((AndroidDirectStreamCleanupResult) -> Unit)? = null) {
+        val completedCallback = synchronized(cleanupLock) {
+            if (onStopped == null) {
+                null
+            } else if (cleanupFinished) {
+                onStopped to cleanupResult
+            } else {
+                stopCallbacks += onStopped
+                null
+            }
+        }
+        if (completedCallback != null) {
+            try {
+                completedCallback.first(completedCallback.second)
+            } catch (_: Exception) {
+                // Cleanup is already complete; recoverable observer failures do not change ownership.
+            }
+            return
+        }
+        if (!stopping.compareAndSet(false, true)) return
         running.set(false)
         encoderProbeState.recordStopped()
         synchronized(videoEncoderCommandLock) {
             videoEncoderGeneration += 1
             pendingVideoEncoderCommand = null
         }
-        audioRecord?.runCatchingStop()
-        playbackAudioCapture?.stop()
-        videoThread?.joinQuietly()
-        audioThread?.joinQuietly()
-        videoThread = null
-        audioThread = null
-        virtualDisplay?.release()
-        virtualDisplay = null
-        screenImageReader?.close()
-        screenImageReader = null
-        screenBitmap?.recycle()
-        screenBitmap = null
-        videoInputSurface?.release()
-        videoInputSurface = null
-        audioRecord?.runCatchingRelease()
-        audioRecord = null
-        playbackAudioCapture = null
-        videoEncoder?.runCatchingStopAndRelease()
-        videoEncoder = null
-        audioEncoder?.runCatchingStopAndRelease()
-        audioEncoder = null
-        publisher.disconnect()
-        micProcessingEffect?.release()
-        micProcessingEffect = null
-        canvasComposition = null
-        publisherConfigured = false
+        val thread = Thread(::releaseResourcesAfterStop, "MLC-MediaCodec-Stop").apply {
+            isDaemon = true
+        }
+        synchronized(cleanupLock) {
+            cleanupThread = thread
+        }
+        thread.start()
+    }
+
+    private fun releaseResourcesAfterStop() {
+        var fatalCleanupFailure: Throwable? = null
+        var releaseExhausted = false
+        var workersStopped = false
+
+        fun retainCleanupFailure(ownerName: String, error: Throwable) {
+            recordCleanupFailure("$ownerName release failed: ${safeMessage(error)}")
+            releaseExhausted = true
+            if (error is Error && fatalCleanupFailure == null) fatalCleanupFailure = error
+        }
+
+        try {
+            val captureStopState = AndroidNativeOwnerReleaseState()
+            try {
+                captureStopState.execute(
+                    { microphoneAudioCapture?.stop() },
+                    { playbackAudioCapture?.stop() }
+                )
+            } catch (error: Error) {
+                if (fatalCleanupFailure == null) fatalCleanupFailure = error
+            }
+            captureStopState.failure()?.let { retainCleanupFailure("Audio capture stop", it) }
+            videoThread?.interrupt()
+            audioThread?.interrupt()
+            val stoppedNormally = awaitWorkersUntil(
+                System.nanoTime() + INITIAL_WORKER_STOP_TIMEOUT_NANOS
+            )
+            workersStopped = stoppedNormally
+            if (!workersStopped) {
+                forceUnblockWorkers()
+                workersStopped = awaitWorkersUntil(
+                    System.nanoTime() + ESCALATED_WORKER_STOP_TIMEOUT_NANOS
+                )
+                if (!workersStopped) {
+                    lastError = "MediaCodec worker shutdown exceeded the 3 second escalation deadline"
+                    encoderProbeState.recordFailure(lastError)
+                    releaseExhausted = true
+                }
+            }
+        } catch (error: Throwable) {
+            fatalCleanupFailure = error
+            releaseExhausted = true
+        }
+
+        if (workersStopped) {
+            try {
+                releaseVideoInputs()?.let { retainCleanupFailure("Video inputs", it) }
+            } catch (error: Throwable) {
+                retainCleanupFailure("Video inputs", error)
+            }
+            videoThread = null
+            audioThread = null
+            try {
+                screenBitmap?.recycle()
+            } catch (error: Throwable) {
+                retainCleanupFailure("Screen bitmap", error)
+            }
+            screenBitmap = null
+
+            try {
+                microphoneAudioCapture?.ownerReleaseFailure()?.let {
+                    retainCleanupFailure("Microphone AudioRecord", it)
+                }
+            } catch (error: Throwable) {
+                retainCleanupFailure("Microphone AudioRecord", error)
+            } finally {
+                microphoneAudioCapture = null
+            }
+            try {
+                playbackAudioCapture?.ownerReleaseFailure()?.let {
+                    retainCleanupFailure("Playback AudioRecord", it)
+                }
+            } catch (error: Throwable) {
+                retainCleanupFailure("Playback AudioRecord", error)
+            } finally {
+                playbackAudioCapture = null
+            }
+
+            try {
+                if (videoEncoder?.stopAndReleaseWithRetry("Video") == false) releaseExhausted = true
+            } catch (error: Throwable) {
+                retainCleanupFailure("Video MediaCodec", error)
+            } finally {
+                videoEncoder = null
+            }
+            try {
+                if (audioEncoder?.stopAndReleaseWithRetry("Audio") == false) releaseExhausted = true
+            } catch (error: Throwable) {
+                retainCleanupFailure("Audio MediaCodec", error)
+            } finally {
+                audioEncoder = null
+            }
+            try {
+                if (
+                    !releaseNativeOwnerWithRetry(
+                        ownerName = "RTMP publisher",
+                        release = publisher::disconnectAndAwait,
+                        onFailure = ::recordCleanupFailure
+                    )
+                ) {
+                    releaseExhausted = true
+                }
+            } catch (error: Throwable) {
+                retainCleanupFailure("RTMP publisher", error)
+            }
+            try {
+                micProcessingEffect?.release()
+            } catch (error: Throwable) {
+                retainCleanupFailure("Microphone processing", error)
+            } finally {
+                micProcessingEffect = null
+            }
+            canvasComposition = null
+            publisherConfigured = false
+        }
+
+        workerFatalError.get()?.let { error ->
+            recordCleanupFailure("MediaCodec worker failed during shutdown: ${safeMessage(error)}")
+            releaseExhausted = true
+            if (fatalCleanupFailure == null) fatalCleanupFailure = error
+        }
+
+        val result = when {
+            fatalCleanupFailure != null -> AndroidDirectStreamCleanupResult.fatal(
+                "Native stream cleanup failed: ${safeMessage(fatalCleanupFailure)}"
+            )
+            releaseExhausted -> AndroidDirectStreamCleanupResult.exhausted(lastError)
+            else -> AndroidDirectStreamCleanupResult.released()
+        }
+        val fatalCallbackFailure = completeStopCallbacks(result)
+        ((fatalCleanupFailure as? Error) ?: fatalCallbackFailure ?: fatalCleanupFailure)?.let { throw it }
+    }
+
+    private fun completeStopCallbacks(result: AndroidDirectStreamCleanupResult): Error? {
+        val callbacks = synchronized(cleanupLock) {
+            cleanupResult = result
+            cleanupFinished = true
+            if (cleanupThread === Thread.currentThread()) cleanupThread = null
+            stopCallbacks.toList().also { stopCallbacks.clear() }
+        }
+        var fatalCallbackError: Error? = null
+        callbacks.forEach { callback ->
+            try {
+                callback(result)
+            } catch (error: Error) {
+                if (fatalCallbackError == null) fatalCallbackError = error
+            } catch (_: Exception) {
+                // All cleanup observers are drained even when one recoverable callback fails.
+            }
+        }
+        return fatalCallbackError
     }
 
     fun updateComposition(composition: AndroidSceneCompositor.CanvasComposition) {
@@ -325,20 +535,44 @@ internal class AndroidMediaCodecDirectStream(
             audioProcessing = audioProcessingSnapshot(),
             lastError = effectiveError
                 .ifBlank { lastNonFatalError }
+                .ifBlank { lastAudioCaptureError }
         )
     }
 
     private fun audioProcessingSnapshot(): NativeRuntimeAudioProcessing? {
         val processing = micProcessingEffect?.snapshot() ?: return null
-        val playback = playbackAudioCapture?.snapshot() ?: return processing
+        val microphone = microphoneAudioCapture?.snapshot()
+        val playback = playbackAudioCapture?.snapshot()
         return processing.copy(
-            playbackCaptureStatus = playback.status,
-            playbackCaptureBackend = playback.backend,
-            playbackCaptureSampleRate = playback.sampleRate,
-            playbackCapturedFrames = playback.capturedFrames,
-            playbackDroppedFrames = playback.droppedFrames,
-            playbackUnderrunFrames = playback.underrunFrames,
-            playbackBufferedFrames = playback.bufferedFrames
+            micCaptureStatus = microphone?.status ?: "unavailable",
+            micCaptureBackend = microphone?.backend ?: "none",
+            micCaptureSampleRate = microphone?.sampleRate ?: 0,
+            micCaptureLifecycleEventCount = microphone?.lifecycleEventCount ?: 0L,
+            micCaptureRouteChangeCount = microphone?.routeChangeCount ?: 0L,
+            micCaptureInterruptionCount = microphone?.interruptionCount ?: 0L,
+            micCaptureRecoveryCount = microphone?.recoveryCount ?: 0L,
+            micCaptureRecoveryFailureCount = microphone?.recoveryFailureCount ?: 0L,
+            micCaptureUnrecoveredEventCount = microphone?.unrecoveredEventCount ?: 0L,
+            micCaptureFallbackFrames = microphone?.fallbackFrames ?: 0L,
+            micCaptureLastRecoveryReason = microphone?.lastRecoveryReason ?: "",
+            micCaptureLastRecoveryAt = microphone?.lastRecoveryAt ?: 0L,
+            micCaptureSuspended = microphone?.suspended ?: false,
+            playbackCaptureStatus = playback?.status ?: "unavailable",
+            playbackCaptureBackend = playback?.backend ?: "none",
+            playbackCaptureSampleRate = playback?.sampleRate ?: 0,
+            playbackCapturedFrames = playback?.capturedFrames ?: 0L,
+            playbackDroppedFrames = playback?.droppedFrames ?: 0L,
+            playbackUnderrunFrames = playback?.underrunFrames ?: 0L,
+            playbackBufferedFrames = playback?.bufferedFrames ?: 0,
+            playbackCaptureLifecycleEventCount = playback?.lifecycleEventCount ?: 0L,
+            playbackCaptureRouteChangeCount = playback?.routeChangeCount ?: 0L,
+            playbackCaptureInterruptionCount = playback?.interruptionCount ?: 0L,
+            playbackCaptureRecoveryCount = playback?.recoveryCount ?: 0L,
+            playbackCaptureRecoveryFailureCount = playback?.recoveryFailureCount ?: 0L,
+            playbackCaptureUnrecoveredEventCount = playback?.unrecoveredEventCount ?: 0L,
+            playbackCaptureLastRecoveryReason = playback?.lastRecoveryReason ?: "",
+            playbackCaptureLastRecoveryAt = playback?.lastRecoveryAt ?: 0L,
+            playbackCaptureSuspended = playback?.suspended ?: false
         )
     }
 
@@ -364,33 +598,6 @@ internal class AndroidMediaCodecDirectStream(
         return MediaCodec.createEncoderByType(AUDIO_MIME).apply {
             configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         }
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun createMicAudioRecord(): AudioRecord {
-        val bufferSize = micAudioRecordBufferSize()
-        val audioFormat = AudioFormat.Builder()
-            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-            .setSampleRate(AUDIO_SAMPLE_RATE)
-            .setChannelMask(AUDIO_MIC_CHANNEL_MASK)
-            .build()
-        return AudioRecord.Builder()
-            .setAudioSource(MediaRecorder.AudioSource.MIC)
-            .setAudioFormat(audioFormat)
-            .setBufferSizeInBytes(bufferSize)
-            .build()
-            .also { record ->
-                require(record.state == AudioRecord.STATE_INITIALIZED) { "AudioRecord initialization failed" }
-            }
-    }
-
-    private fun micAudioRecordBufferSize(): Int {
-        val minSize = AudioRecord.getMinBufferSize(
-            AUDIO_SAMPLE_RATE,
-            AUDIO_MIC_CHANNEL_MASK,
-            AudioFormat.ENCODING_PCM_16BIT
-        )
-        return max(minSize.coerceAtLeast(0), micAudioChunkSizeBytes() * 4)
     }
 
     private fun micAudioChunkSizeBytes(): Int =
@@ -530,9 +737,8 @@ internal class AndroidMediaCodecDirectStream(
             }
         } catch (error: Throwable) {
             synchronized(counterLock) { compositionFailures += 1 }
-            lastError = safeMessage(error)
-            encoderProbeState.recordFailure(lastError)
-            running.set(false)
+            reportFatalError(safeMessage(error))
+            if (error is Error) throw error
             false
         }
     }
@@ -549,22 +755,32 @@ internal class AndroidMediaCodecDirectStream(
                 continue
             }
             if (outputIndex >= 0) {
+                var fatalPublishError = ""
                 val outputBuffer = encoder.getOutputBuffer(outputIndex)
                 val encodedMediaFrame = info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0
                 if (outputBuffer != null && info.size > 0 && encodedMediaFrame) {
                     encoderProbeState.recordVideoEncodedOutput(encoder)
                     val frameBytes = info.size.toLong()
                     if (publisherConfigured) {
-                        publisher.sendVideo(outputBuffer, info)
-                        synchronized(counterLock) {
-                            videoFrames += 1
-                            encodedBytes += frameBytes
+                        val publishResult = publisher.sendVideo(outputBuffer, info)
+                        if (publishResult.sent) {
+                            synchronized(counterLock) {
+                                videoFrames += 1
+                                encodedBytes += frameBytes
+                            }
+                        } else {
+                            synchronized(counterLock) { droppedVideoFrames += 1 }
+                            fatalPublishError = publishResult.fatalError
                         }
                     } else {
                         synchronized(counterLock) { droppedVideoFrames += 1 }
                     }
                 }
                 encoder.releaseOutputBuffer(outputIndex, false)
+                if (fatalPublishError.isNotBlank()) {
+                    reportFatalError(fatalPublishError)
+                    return
+                }
             }
             outputIndex = encoder.dequeueOutputBuffer(info, 0)
         }
@@ -574,26 +790,37 @@ internal class AndroidMediaCodecDirectStream(
         val outputInfo = MediaCodec.BufferInfo()
         val micReadBuffer = ByteArray(micAudioChunkSizeBytes())
         val appAudioBuffer = ByteArray(outputAudioChunkSizeBytes())
+        val cadence = AndroidAudioCadenceState(
+            sampleRate = AUDIO_SAMPLE_RATE,
+            frameSizeBytes = AUDIO_OUTPUT_CHANNEL_COUNT * PCM_BYTES_PER_SAMPLE,
+            chunkDurationNanos = AUDIO_CHUNK_MILLIS * 1_000_000L,
+            startedAtNanos = System.nanoTime()
+        )
         while (running.get()) {
-            queueAudioInput(micReadBuffer, appAudioBuffer)
+            queueAudioInput(micReadBuffer, appAudioBuffer, cadence)
             drainAudioOutput(outputInfo)
+            val delayNanos = cadence.delayUntilNextChunkNanos(System.nanoTime())
+            if (delayNanos > 0L) LockSupport.parkNanos(delayNanos)
         }
         drainAudioOutput(outputInfo)
     }
 
-    private fun queueAudioInput(micReadBuffer: ByteArray, appAudioBuffer: ByteArray) {
-        val record = audioRecord ?: return
+    private fun queueAudioInput(
+        micReadBuffer: ByteArray,
+        appAudioBuffer: ByteArray,
+        cadence: AndroidAudioCadenceState
+    ) {
         val encoder = audioEncoder ?: return
-        val bytesRead = record.read(micReadBuffer, 0, micReadBuffer.size, AudioRecord.READ_BLOCKING)
-        if (bytesRead <= 0) {
-            if (!running.get()) {
-                return
-            }
-            synchronized(counterLock) { droppedAudioFrames += 1 }
-            runCatching { Thread.sleep(5) }
-            return
+        val bytesRead = microphoneAudioCapture?.readInto(micReadBuffer) ?: 0
+        if (!running.get()) return
+        val retainedBytes = bytesRead.coerceIn(0, micReadBuffer.size)
+        if (retainedBytes < micReadBuffer.size) {
+            micReadBuffer.fill(0, retainedBytes, micReadBuffer.size)
+            microphoneAudioCapture?.recordFallbackFrames(
+                (micReadBuffer.size - retainedBytes) / (AUDIO_MIC_CHANNEL_COUNT * PCM_BYTES_PER_SAMPLE)
+            )
         }
-        val stereoMic = Pcm16AudioMixer.upmixMonoToStereo(micReadBuffer, bytesRead)
+        val stereoMic = Pcm16AudioMixer.upmixMonoToStereo(micReadBuffer, micReadBuffer.size)
         val requestedAppAudioBytes = stereoMic.size.coerceAtMost(appAudioBuffer.size)
         val capturedAppAudioBytes = playbackAudioCapture?.readInto(
             appAudioBuffer,
@@ -602,11 +829,7 @@ internal class AndroidMediaCodecDirectStream(
             appAudioBuffer.fill(0, 0, requestedAppAudioBytes)
             0
         }
-        playbackAudioCapture?.snapshot()?.let { captureSnapshot ->
-            if (captureSnapshot.status == "failed" && captureSnapshot.lastError.isNotBlank()) {
-                lastNonFatalError = captureSnapshot.lastError
-            }
-        }
+        updateAudioCaptureError()
         val effect = micProcessingEffect
         val processedMic = effect?.process(stereoMic) ?: stereoMic
         val processedAppAudio = effect?.processAppAudio(
@@ -615,33 +838,57 @@ internal class AndroidMediaCodecDirectStream(
         ) ?: appAudioBuffer.copyOf(requestedAppAudioBytes)
         val processed = effect?.mixForBroadcast(processedMic, processedAppAudio)
             ?: Pcm16AudioMixer.mix(processedMic, processedAppAudio).pcm
+        val presentationTimeUs = cadence.nextPresentationTimeUs(processed.size, System.nanoTime())
         val inputIndex = encoder.dequeueInputBuffer(AUDIO_READ_TIMEOUT_US)
         if (inputIndex < 0) {
-            nextAudioPresentationTimeUs(processed.size)
             synchronized(counterLock) { droppedAudioFrames += 1 }
             return
         }
         val inputBuffer = encoder.getInputBuffer(inputIndex)
         if (inputBuffer == null) {
-            encoder.queueInputBuffer(inputIndex, 0, 0, nextAudioPresentationTimeUs(0), 0)
+            encoder.queueInputBuffer(inputIndex, 0, 0, presentationTimeUs, 0)
             synchronized(counterLock) { droppedAudioFrames += 1 }
             return
         }
         inputBuffer.clear()
         if (inputBuffer.remaining() < processed.size) {
-            encoder.queueInputBuffer(inputIndex, 0, 0, nextAudioPresentationTimeUs(processed.size), 0)
+            encoder.queueInputBuffer(inputIndex, 0, 0, presentationTimeUs, 0)
             synchronized(counterLock) { droppedAudioFrames += 1 }
             return
         }
         inputBuffer.put(processed, 0, processed.size)
-        encoder.queueInputBuffer(inputIndex, 0, processed.size, nextAudioPresentationTimeUs(processed.size), 0)
+        encoder.queueInputBuffer(inputIndex, 0, processed.size, presentationTimeUs, 0)
+    }
+
+    private fun updateAudioCaptureError() {
+        val microphone = microphoneAudioCapture?.snapshot()
+        val playback = playbackAudioCapture?.snapshot()
+        lastAudioCaptureError = when {
+            microphone?.lastError?.isNotBlank() == true && microphone.suspended -> microphone.lastError
+            playback?.lastError?.isNotBlank() == true && playback.suspended -> playback.lastError
+            playback?.status == "unsupported" -> playback.lastError
+            else -> ""
+        }
     }
 
     private fun runEncoderThread(block: () -> Unit) {
-        runCatching { block() }.onFailure { error ->
-            lastError = safeMessage(error)
-            encoderProbeState.recordFailure(lastError)
-            running.set(false)
+        try {
+            block()
+        } catch (error: Throwable) {
+            if (error is Error) workerFatalError.compareAndSet(null, error)
+            reportFatalError(safeMessage(error))
+            if (error is Error) throw error
+        }
+    }
+
+    private fun reportFatalError(message: String) {
+        if (stopping.get()) return
+        val resolvedMessage = message.ifBlank { "Direct MediaCodec stream failed" }.take(160)
+        lastError = resolvedMessage
+        encoderProbeState.recordFailure(resolvedMessage)
+        running.set(false)
+        if (fatalErrorReported.compareAndSet(false, true)) {
+            onFatalError(this, resolvedMessage)
         }
     }
 
@@ -655,22 +902,32 @@ internal class AndroidMediaCodecDirectStream(
                 continue
             }
             if (outputIndex >= 0) {
+                var fatalPublishError = ""
                 val outputBuffer = encoder.getOutputBuffer(outputIndex)
                 val encodedMediaFrame = info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0
                 if (outputBuffer != null && info.size > 0 && encodedMediaFrame) {
                     encoderProbeState.recordAudioEncodedOutput(encoder)
                     val frameBytes = info.size.toLong()
                     if (publisherConfigured) {
-                        publisher.sendAudio(outputBuffer, info)
-                        synchronized(counterLock) {
-                            audioFrames += 1
-                            encodedBytes += frameBytes
+                        val publishResult = publisher.sendAudio(outputBuffer, info)
+                        if (publishResult.sent) {
+                            synchronized(counterLock) {
+                                audioFrames += 1
+                                encodedBytes += frameBytes
+                            }
+                        } else {
+                            synchronized(counterLock) { droppedAudioFrames += 1 }
+                            fatalPublishError = publishResult.fatalError
                         }
                     } else {
                         synchronized(counterLock) { droppedAudioFrames += 1 }
                     }
                 }
                 encoder.releaseOutputBuffer(outputIndex, false)
+                if (fatalPublishError.isNotBlank()) {
+                    reportFatalError(fatalPublishError)
+                    return
+                }
             }
             outputIndex = encoder.dequeueOutputBuffer(info, 0)
         }
@@ -683,13 +940,13 @@ internal class AndroidMediaCodecDirectStream(
         val currentProfile = profile ?: return
         val sps = format.getByteBuffer("csd-0") ?: return
         val pps = format.getByteBuffer("csd-1") ?: return
-        runCatching {
+        try {
             publisher.configure(currentProfile, sps, pps, AUDIO_SAMPLE_RATE, AUDIO_OUTPUT_STEREO)
             publisher.connect(currentProfile.endpoint)
             publisherConfigured = true
-        }.onFailure { error ->
-            lastError = safeMessage(error)
-            encoderProbeState.recordFailure(lastError)
+        } catch (error: Throwable) {
+            reportFatalError(safeMessage(error))
+            if (error is Error) throw error
         }
     }
 
@@ -718,23 +975,46 @@ internal class AndroidMediaCodecDirectStream(
 
     private fun MediaFormat.positiveDouble(key: String): Double {
         if (!containsKey(key)) return 0.0
-        return runCatching { getInteger(key).toDouble() }
-            .recoverCatching { getFloat(key).toDouble() }
-            .getOrDefault(0.0)
-            .coerceAtLeast(0.0)
+        return try {
+            getInteger(key).toDouble()
+        } catch (error: Exception) {
+            try {
+                getFloat(key).toDouble()
+            } catch (fallbackError: Exception) {
+                0.0
+            }
+        }.coerceAtLeast(0.0)
     }
 
     private fun MediaFormat.optionalInt(key: String): Int {
         if (!containsKey(key)) return 0
-        return runCatching { getInteger(key) }
-            .recoverCatching { getFloat(key).roundToInt() }
-            .getOrDefault(0)
+        return try {
+            getInteger(key)
+        } catch (error: Exception) {
+            try {
+                getFloat(key).roundToInt()
+            } catch (fallbackError: Exception) {
+                0
+            }
+        }
     }
 
     private fun MediaFormat.stringValue(key: String): String =
-        if (containsKey(key)) runCatching { getString(key).orEmpty() }.getOrDefault("") else ""
+        if (containsKey(key)) {
+            try {
+                getString(key).orEmpty()
+            } catch (error: Exception) {
+                ""
+            }
+        } else {
+            ""
+        }
 
-    private fun codecName(codec: MediaCodec): String = runCatching { codec.name }.getOrDefault("")
+    private fun codecName(codec: MediaCodec): String = try {
+        codec.name
+    } catch (error: Exception) {
+        ""
+    }
 
     private fun colorFormatName(value: Int): String = when (value) {
         0 -> ""
@@ -749,36 +1029,134 @@ internal class AndroidMediaCodecDirectStream(
         else -> ""
     }
 
-    private fun nextAudioPresentationTimeUs(bytes: Int): Long {
-        val currentFrames = audioSubmittedFrames
-        val addedFrames = bytes / (AUDIO_OUTPUT_CHANNEL_COUNT * PCM_BYTES_PER_SAMPLE)
-        audioSubmittedFrames += addedFrames.toLong()
-        return currentFrames * 1_000_000L / AUDIO_SAMPLE_RATE
+    private fun awaitWorkersUntil(deadlineNanos: Long): Boolean {
+        val microphoneStopped = microphoneAudioCapture?.awaitStopped(deadlineNanos) ?: true
+        val playbackStopped = playbackAudioCapture?.awaitStopped(deadlineNanos) ?: true
+        val threads = listOfNotNull(videoThread, audioThread)
+        val encoderThreadsStopped = awaitAndroidWorkerThreadsUntil(threads, deadlineNanos)
+        return microphoneStopped && playbackStopped && encoderThreadsStopped
     }
 
-    private fun Thread.joinQuietly() {
-        if (Thread.currentThread() === this) {
-            return
+    private fun forceUnblockWorkers() {
+        videoThread?.interrupt()
+        audioThread?.interrupt()
+        // MediaCodec.stop() is an owner operation and is only attempted after workers exit.
+    }
+
+    private fun releaseVideoInputs(): Throwable? {
+        val releaseState = AndroidNativeOwnerReleaseState()
+        try {
+            releaseState.execute(
+                { virtualDisplay?.release() },
+                { screenImageReader?.close() },
+                { videoInputSurface?.release() }
+            )
+        } finally {
+            virtualDisplay = null
+            screenImageReader = null
+            videoInputSurface = null
         }
-        runCatching { join(700) }
+        return releaseState.failure()
     }
 
-    private fun AudioRecord.runCatchingStop() {
-        runCatching {
-            if (recordingState == AudioRecord.RECORDSTATE_RECORDING) stop()
+    private fun MediaCodec.stopAndReleaseWithRetry(ownerName: String): Boolean {
+        var releaseConfirmed = false
+        try {
+            executeAndroidNativeOwnerWithinDeadline(
+                ownerName = "$ownerName MediaCodec",
+                timeoutMillis = NATIVE_OWNER_RELEASE_TIMEOUT_MILLIS
+            ) {
+                var fatalStopError: Error? = null
+                try {
+                    stop()
+                } catch (error: Exception) {
+                    recordCleanupFailure("$ownerName MediaCodec stop failed: ${safeMessage(error)}")
+                } catch (error: Error) {
+                    recordCleanupFailure("$ownerName MediaCodec stop failed: ${safeMessage(error)}")
+                    fatalStopError = error
+                }
+                releaseConfirmed = releaseNativeOwnerWithRetry(
+                    ownerName = "$ownerName MediaCodec",
+                    release = this::release,
+                    onFailure = ::recordCleanupFailure
+                )
+                fatalStopError?.let { throw it }
+            }
+        } catch (error: AndroidNativeOwnerTimeoutException) {
+            recordCleanupFailure("$ownerName MediaCodec release timed out: ${safeMessage(error)}")
+            return false
+        } catch (error: InterruptedException) {
+            Thread.currentThread().interrupt()
+            recordCleanupFailure("$ownerName MediaCodec release interrupted: ${safeMessage(error)}")
+            return false
         }
+        return releaseConfirmed
     }
 
-    private fun AudioRecord.runCatchingRelease() {
-        runCatching { release() }
-    }
-
-    private fun MediaCodec.runCatchingStopAndRelease() {
-        runCatching { stop() }
-        runCatching { release() }
+    private fun recordCleanupFailure(message: String) {
+        lastError = message.take(160)
+        encoderProbeState.recordFailure(lastError)
     }
 
     private fun safeMessage(error: Throwable): String = (error.message ?: error.javaClass.simpleName).take(160)
+}
+
+internal fun awaitAndroidWorkerThreadsUntil(threads: List<Thread>, deadlineNanos: Long): Boolean {
+    for (thread in threads) {
+        if (!thread.isAlive) continue
+        if (Thread.currentThread() === thread) return false
+        val remainingNanos = deadlineNanos - System.nanoTime()
+        if (remainingNanos <= 0L) return false
+        val millis = remainingNanos / 1_000_000L
+        val nanos = (remainingNanos % 1_000_000L).toInt()
+        try {
+            thread.join(millis, nanos)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            return false
+        }
+    }
+    return threads.none(Thread::isAlive)
+}
+
+internal fun releaseNativeOwnerWithRetry(
+    ownerName: String,
+    release: () -> Unit,
+    onFailure: (String) -> Unit,
+    maxAttempts: Int = 3,
+    retryDelayMillis: Long = 100L
+): Boolean {
+    require(ownerName.isNotBlank()) { "Native owner name is required" }
+    require(maxAttempts > 0) { "Native owner release attempts must be positive" }
+    require(retryDelayMillis >= 0L) { "Native owner release retry delay cannot be negative" }
+    for (attempt in 1..maxAttempts) {
+        try {
+            release()
+            return true
+        } catch (error: AndroidNativeOwnerTimeoutException) {
+            val detail = (error.message ?: error.javaClass.simpleName).take(100)
+            onFailure("$ownerName release timed out (attempt $attempt/$maxAttempts): $detail")
+            return false
+        } catch (error: InterruptedException) {
+            val detail = (error.message ?: error.javaClass.simpleName).take(100)
+            Thread.currentThread().interrupt()
+            onFailure("$ownerName release interrupted (attempt $attempt/$maxAttempts): $detail")
+            return false
+        } catch (error: Exception) {
+            val detail = (error.message ?: error.javaClass.simpleName).take(100)
+            val exhaustion = if (attempt == maxAttempts) ", exhausted" else ""
+            onFailure("$ownerName release failed (attempt $attempt/$maxAttempts$exhaustion): $detail")
+            if (attempt < maxAttempts && retryDelayMillis > 0L) {
+                try {
+                    Thread.sleep(retryDelayMillis)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    return false
+                }
+            }
+        }
+    }
+    return false
 }
 
 internal class AndroidActiveEncoderProbeState {

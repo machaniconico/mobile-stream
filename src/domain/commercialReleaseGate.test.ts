@@ -26,13 +26,21 @@ describe("commercial release gate", () => {
       nativeRuntimePublisherPublishGeneration: 1,
       nativeRuntimeCurrentPublishVideoFrames: 120,
       nativeRuntimeCurrentPublishAudioFrames: 190,
+      nativeRuntimeMicCaptureStatus: "capturing",
+      nativeRuntimeMicCaptureBackend: "android-audiorecord-microphone",
+      nativeRuntimeMicCaptureSampleRate: 44_100,
+      nativeRuntimeMicCaptureFallbackFrames: 0,
+      nativeRuntimeMicCaptureRecoveryFailureCount: 0,
+      nativeRuntimeMicCaptureUnrecoveredEventCount: 0,
+      nativeRuntimeMicCaptureSuspended: false,
       nativeRuntimePlaybackCaptureStatus: "capturing",
       nativeRuntimePlaybackCaptureBackend: "android-audio-playback-capture",
       nativeRuntimePlaybackCaptureSampleRate: 44_100,
       nativeRuntimePlaybackCapturedFrames: 132_300,
       nativeRuntimePlaybackDroppedFrames: 0,
       nativeRuntimePlaybackUnderrunFrames: 0,
-      nativeRuntimePlaybackBufferedFrames: 0
+      nativeRuntimePlaybackBufferedFrames: 0,
+      nativeRuntimePlaybackCaptureUnrecoveredEventCount: 0
     });
   });
 
@@ -494,13 +502,13 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v60 support bundles because native output-format proof requires v61", () => {
+  it("blocks v61 support bundles because capture-recovery proof requires v62", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         app: {
           name: "MobileLiveCaster",
           reportVersion: 1,
-          bundleVersion: 60
+          bundleVersion: 61
         }
       }),
       { now }
@@ -510,7 +518,7 @@ describe("commercial release gate", () => {
     expect(gate.issues).toContainEqual(
       expect.objectContaining({
         code: "bundle-version",
-        detail: "Support bundle v60 is older than the required v61."
+        detail: "Support bundle v61 is older than the required v62."
       })
     );
   });
@@ -2135,6 +2143,207 @@ describe("commercial release gate", () => {
         })
       );
     }
+  });
+
+  it("blocks Android native-runtime claims without healthy microphone and playback capture recovery proof", () => {
+    const missingMicProof = manifestRun({ devicePlatform: "android", fingerprint: "svr1-android-missing-mic-proof" });
+    delete (missingMicProof as Partial<ValidationManifestRun>).nativeRuntimeMicCaptureRecoveryFailureCount;
+    const invalidAndroidRuns = [
+      missingMicProof,
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-mic-recovering",
+        nativeRuntimeMicCaptureStatus: "recovering",
+        nativeRuntimeMicCaptureSuspended: true
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-mic-recovery-failed",
+        nativeRuntimeMicCaptureRecoveryFailureCount: 1
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-mic-unrecovered-interruption",
+        nativeRuntimeMicCaptureLifecycleEventCount: 1,
+        nativeRuntimeMicCaptureInterruptionCount: 1
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-playback-unrecovered-route",
+        nativeRuntimePlaybackCaptureLifecycleEventCount: 1,
+        nativeRuntimePlaybackCaptureRouteChangeCount: 1
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-playback-suspended",
+        nativeRuntimePlaybackCaptureSuspended: true
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-fractional-fallback",
+        nativeRuntimeMicCaptureFallbackFrames: 0.5
+      })
+    ];
+
+    for (const androidRun of invalidAndroidRuns) {
+      const gate = createCommercialReleaseGate(
+        supportBundle({
+          summary: {
+            validationEvidenceRunManifest: [
+              manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
+              androidRun
+            ]
+          }
+        }),
+        { now }
+      );
+
+      expect(gate.status).toBe("blocked");
+      expect(gate.issues).toContainEqual(
+        expect.objectContaining({
+          code: "validation-evidence-manifest-integrity",
+          detail: expect.stringContaining("Android native runtime proof")
+        })
+      );
+    }
+  });
+
+  it("blocks missing, negative, fractional, positive, or stopped unrecovered Android capture events", () => {
+    const missingMicCount = manifestRun({
+      devicePlatform: "android",
+      fingerprint: "svr1-android-missing-mic-unrecovered"
+    });
+    delete (missingMicCount as Partial<ValidationManifestRun>).nativeRuntimeMicCaptureUnrecoveredEventCount;
+    const missingPlaybackCount = manifestRun({
+      devicePlatform: "android",
+      fingerprint: "svr1-android-missing-playback-unrecovered"
+    });
+    delete (missingPlaybackCount as Partial<ValidationManifestRun>)
+      .nativeRuntimePlaybackCaptureUnrecoveredEventCount;
+    const invalidAndroidRuns = [
+      missingMicCount,
+      missingPlaybackCount,
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-negative-mic-unrecovered",
+        nativeRuntimeMicCaptureUnrecoveredEventCount: -1
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-fractional-mic-unrecovered",
+        nativeRuntimeMicCaptureUnrecoveredEventCount: 0.5
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-positive-mic-unrecovered",
+        nativeRuntimeMicCaptureUnrecoveredEventCount: 1
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-stopped-mic-unrecovered",
+        nativeRuntimeMicCaptureStatus: "stopped",
+        nativeRuntimeMicCaptureUnrecoveredEventCount: 1
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-negative-playback-unrecovered",
+        nativeRuntimePlaybackCaptureUnrecoveredEventCount: -1
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-fractional-playback-unrecovered",
+        nativeRuntimePlaybackCaptureUnrecoveredEventCount: 0.5
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-positive-playback-unrecovered",
+        nativeRuntimePlaybackCaptureUnrecoveredEventCount: 1
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-stopped-playback-unrecovered",
+        nativeRuntimePlaybackCaptureStatus: "stopped",
+        nativeRuntimePlaybackCaptureUnrecoveredEventCount: 1
+      })
+    ];
+
+    for (const androidRun of invalidAndroidRuns) {
+      const gate = createCommercialReleaseGate(
+        supportBundle({
+          summary: {
+            validationEvidenceRunManifest: [
+              manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
+              androidRun
+            ]
+          }
+        }),
+        { now }
+      );
+
+      expect(gate.status).toBe("blocked");
+      expect(gate.issues).toContainEqual(
+        expect.objectContaining({
+          code: "validation-evidence-manifest-integrity",
+          detail: expect.stringContaining("Android native runtime proof")
+        })
+      );
+    }
+  });
+
+  it("keeps unrecovered capture event counters optional for iOS manifest rows", () => {
+    const iosRun = manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios-optional-unrecovered" });
+    delete (iosRun as Partial<ValidationManifestRun>).nativeRuntimeMicCaptureUnrecoveredEventCount;
+    delete (iosRun as Partial<ValidationManifestRun>).nativeRuntimePlaybackCaptureUnrecoveredEventCount;
+
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            iosRun,
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("ready");
+    expect(gate.canRelease).toBe(true);
+  });
+
+  it("accepts Android capture recovery proof after route and interruption recovery", () => {
+    const recoveredCaptureProof = {
+      nativeRuntimeMicCaptureLifecycleEventCount: 2,
+      nativeRuntimeMicCaptureRouteChangeCount: 1,
+      nativeRuntimeMicCaptureInterruptionCount: 1,
+      nativeRuntimeMicCaptureRecoveryCount: 1,
+      nativeRuntimeMicCaptureLastRecoveryReason: "capture-unsilenced",
+      nativeRuntimeMicCaptureLastRecoveryAt: 12_345,
+      nativeRuntimePlaybackCaptureLifecycleEventCount: 2,
+      nativeRuntimePlaybackCaptureRouteChangeCount: 1,
+      nativeRuntimePlaybackCaptureInterruptionCount: 1,
+      nativeRuntimePlaybackCaptureRecoveryCount: 1,
+      nativeRuntimePlaybackCaptureLastRecoveryReason: "route-changed",
+      nativeRuntimePlaybackCaptureLastRecoveryAt: 12_346
+    };
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
+            manifestRun({
+              devicePlatform: "android",
+              fingerprint: "svr1-android",
+              ...recoveredCaptureProof
+            })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("ready");
+    expect(gate.canRelease).toBe(true);
   });
 
   it("blocks native-runtime summary claims when the manifest lacks native frame proof", () => {
@@ -4434,7 +4643,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 61 as const
+    bundleVersion: 62 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -4827,6 +5036,19 @@ const manifestRun = ({
   nativeRuntimeSentVideoFrames = 120,
   nativeRuntimeSentAudioFrames = 190,
   nativeRuntimeBytesWritten = 2_200_000,
+  nativeRuntimeMicCaptureStatus = devicePlatform === "android" ? "capturing" : null,
+  nativeRuntimeMicCaptureBackend = devicePlatform === "android" ? "android-audiorecord-microphone" : null,
+  nativeRuntimeMicCaptureSampleRate = devicePlatform === "android" ? 44_100 : 0,
+  nativeRuntimeMicCaptureFallbackFrames = 0,
+  nativeRuntimeMicCaptureLifecycleEventCount = 0,
+  nativeRuntimeMicCaptureRouteChangeCount = 0,
+  nativeRuntimeMicCaptureInterruptionCount = 0,
+  nativeRuntimeMicCaptureRecoveryCount = 0,
+  nativeRuntimeMicCaptureRecoveryFailureCount = 0,
+  nativeRuntimeMicCaptureUnrecoveredEventCount = 0,
+  nativeRuntimeMicCaptureLastRecoveryReason = "",
+  nativeRuntimeMicCaptureLastRecoveryAt = 0,
+  nativeRuntimeMicCaptureSuspended = false,
   nativeRuntimePlaybackCaptureStatus = devicePlatform === "android" ? "capturing" : null,
   nativeRuntimePlaybackCaptureBackend = devicePlatform === "android" ? "android-audio-playback-capture" : null,
   nativeRuntimePlaybackCaptureSampleRate = devicePlatform === "android" ? 44_100 : 0,
@@ -4834,6 +5056,15 @@ const manifestRun = ({
   nativeRuntimePlaybackDroppedFrames = 0,
   nativeRuntimePlaybackUnderrunFrames = 0,
   nativeRuntimePlaybackBufferedFrames = 0,
+  nativeRuntimePlaybackCaptureLifecycleEventCount = 0,
+  nativeRuntimePlaybackCaptureRouteChangeCount = 0,
+  nativeRuntimePlaybackCaptureInterruptionCount = 0,
+  nativeRuntimePlaybackCaptureRecoveryCount = 0,
+  nativeRuntimePlaybackCaptureRecoveryFailureCount = 0,
+  nativeRuntimePlaybackCaptureUnrecoveredEventCount = 0,
+  nativeRuntimePlaybackCaptureLastRecoveryReason = "",
+  nativeRuntimePlaybackCaptureLastRecoveryAt = 0,
+  nativeRuntimePlaybackCaptureSuspended = false,
   nativeRuntimeVideoFrameIntervalSampleCount = 119,
   nativeRuntimeVideoFrameIntervalAverageMs = 33.3,
   nativeRuntimeVideoFrameIntervalMaxMs = 42,
@@ -5074,6 +5305,19 @@ const manifestRun = ({
   nativeRuntimeSentVideoFrames?: ValidationManifestRun["nativeRuntimeSentVideoFrames"];
   nativeRuntimeSentAudioFrames?: ValidationManifestRun["nativeRuntimeSentAudioFrames"];
   nativeRuntimeBytesWritten?: ValidationManifestRun["nativeRuntimeBytesWritten"];
+  nativeRuntimeMicCaptureStatus?: ValidationManifestRun["nativeRuntimeMicCaptureStatus"];
+  nativeRuntimeMicCaptureBackend?: ValidationManifestRun["nativeRuntimeMicCaptureBackend"];
+  nativeRuntimeMicCaptureSampleRate?: ValidationManifestRun["nativeRuntimeMicCaptureSampleRate"];
+  nativeRuntimeMicCaptureFallbackFrames?: ValidationManifestRun["nativeRuntimeMicCaptureFallbackFrames"];
+  nativeRuntimeMicCaptureLifecycleEventCount?: ValidationManifestRun["nativeRuntimeMicCaptureLifecycleEventCount"];
+  nativeRuntimeMicCaptureRouteChangeCount?: ValidationManifestRun["nativeRuntimeMicCaptureRouteChangeCount"];
+  nativeRuntimeMicCaptureInterruptionCount?: ValidationManifestRun["nativeRuntimeMicCaptureInterruptionCount"];
+  nativeRuntimeMicCaptureRecoveryCount?: ValidationManifestRun["nativeRuntimeMicCaptureRecoveryCount"];
+  nativeRuntimeMicCaptureRecoveryFailureCount?: ValidationManifestRun["nativeRuntimeMicCaptureRecoveryFailureCount"];
+  nativeRuntimeMicCaptureUnrecoveredEventCount?: ValidationManifestRun["nativeRuntimeMicCaptureUnrecoveredEventCount"];
+  nativeRuntimeMicCaptureLastRecoveryReason?: ValidationManifestRun["nativeRuntimeMicCaptureLastRecoveryReason"];
+  nativeRuntimeMicCaptureLastRecoveryAt?: ValidationManifestRun["nativeRuntimeMicCaptureLastRecoveryAt"];
+  nativeRuntimeMicCaptureSuspended?: ValidationManifestRun["nativeRuntimeMicCaptureSuspended"];
   nativeRuntimePlaybackCaptureStatus?: ValidationManifestRun["nativeRuntimePlaybackCaptureStatus"];
   nativeRuntimePlaybackCaptureBackend?: ValidationManifestRun["nativeRuntimePlaybackCaptureBackend"];
   nativeRuntimePlaybackCaptureSampleRate?: ValidationManifestRun["nativeRuntimePlaybackCaptureSampleRate"];
@@ -5081,6 +5325,15 @@ const manifestRun = ({
   nativeRuntimePlaybackDroppedFrames?: ValidationManifestRun["nativeRuntimePlaybackDroppedFrames"];
   nativeRuntimePlaybackUnderrunFrames?: ValidationManifestRun["nativeRuntimePlaybackUnderrunFrames"];
   nativeRuntimePlaybackBufferedFrames?: ValidationManifestRun["nativeRuntimePlaybackBufferedFrames"];
+  nativeRuntimePlaybackCaptureLifecycleEventCount?: ValidationManifestRun["nativeRuntimePlaybackCaptureLifecycleEventCount"];
+  nativeRuntimePlaybackCaptureRouteChangeCount?: ValidationManifestRun["nativeRuntimePlaybackCaptureRouteChangeCount"];
+  nativeRuntimePlaybackCaptureInterruptionCount?: ValidationManifestRun["nativeRuntimePlaybackCaptureInterruptionCount"];
+  nativeRuntimePlaybackCaptureRecoveryCount?: ValidationManifestRun["nativeRuntimePlaybackCaptureRecoveryCount"];
+  nativeRuntimePlaybackCaptureRecoveryFailureCount?: ValidationManifestRun["nativeRuntimePlaybackCaptureRecoveryFailureCount"];
+  nativeRuntimePlaybackCaptureUnrecoveredEventCount?: ValidationManifestRun["nativeRuntimePlaybackCaptureUnrecoveredEventCount"];
+  nativeRuntimePlaybackCaptureLastRecoveryReason?: ValidationManifestRun["nativeRuntimePlaybackCaptureLastRecoveryReason"];
+  nativeRuntimePlaybackCaptureLastRecoveryAt?: ValidationManifestRun["nativeRuntimePlaybackCaptureLastRecoveryAt"];
+  nativeRuntimePlaybackCaptureSuspended?: ValidationManifestRun["nativeRuntimePlaybackCaptureSuspended"];
   nativeRuntimeVideoFrameIntervalSampleCount?: ValidationManifestRun["nativeRuntimeVideoFrameIntervalSampleCount"];
   nativeRuntimeVideoFrameIntervalAverageMs?: ValidationManifestRun["nativeRuntimeVideoFrameIntervalAverageMs"];
   nativeRuntimeVideoFrameIntervalMaxMs?: ValidationManifestRun["nativeRuntimeVideoFrameIntervalMaxMs"];
@@ -5324,6 +5577,19 @@ const manifestRun = ({
   nativeRuntimeSentVideoFrames,
   nativeRuntimeSentAudioFrames,
   nativeRuntimeBytesWritten,
+  nativeRuntimeMicCaptureStatus,
+  nativeRuntimeMicCaptureBackend,
+  nativeRuntimeMicCaptureSampleRate,
+  nativeRuntimeMicCaptureFallbackFrames,
+  nativeRuntimeMicCaptureLifecycleEventCount,
+  nativeRuntimeMicCaptureRouteChangeCount,
+  nativeRuntimeMicCaptureInterruptionCount,
+  nativeRuntimeMicCaptureRecoveryCount,
+  nativeRuntimeMicCaptureRecoveryFailureCount,
+  nativeRuntimeMicCaptureUnrecoveredEventCount,
+  nativeRuntimeMicCaptureLastRecoveryReason,
+  nativeRuntimeMicCaptureLastRecoveryAt,
+  nativeRuntimeMicCaptureSuspended,
   nativeRuntimePlaybackCaptureStatus,
   nativeRuntimePlaybackCaptureBackend,
   nativeRuntimePlaybackCaptureSampleRate,
@@ -5331,6 +5597,15 @@ const manifestRun = ({
   nativeRuntimePlaybackDroppedFrames,
   nativeRuntimePlaybackUnderrunFrames,
   nativeRuntimePlaybackBufferedFrames,
+  nativeRuntimePlaybackCaptureLifecycleEventCount,
+  nativeRuntimePlaybackCaptureRouteChangeCount,
+  nativeRuntimePlaybackCaptureInterruptionCount,
+  nativeRuntimePlaybackCaptureRecoveryCount,
+  nativeRuntimePlaybackCaptureRecoveryFailureCount,
+  nativeRuntimePlaybackCaptureUnrecoveredEventCount,
+  nativeRuntimePlaybackCaptureLastRecoveryReason,
+  nativeRuntimePlaybackCaptureLastRecoveryAt,
+  nativeRuntimePlaybackCaptureSuspended,
   nativeRuntimeVideoFrameIntervalSampleCount,
   nativeRuntimeVideoFrameIntervalAverageMs,
   nativeRuntimeVideoFrameIntervalMaxMs,

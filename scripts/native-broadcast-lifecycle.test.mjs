@@ -38,7 +38,10 @@ describe("native broadcast lifecycle", () => {
       "utf8"
     );
     const reconnect = functionBlock(service, "private fun reconnectStream(reason: String)");
-    const release = functionBlock(service, "private fun releaseStreamResources()");
+    const release = functionBlock(
+      service,
+      "private fun releaseStreamResources(onReleased: (() -> Unit)? = null)"
+    );
     const directReconnect = reconnect.slice(
       reconnect.indexOf("if (directStream != null)"),
       reconnect.indexOf("if (stream == null)")
@@ -54,19 +57,24 @@ describe("native broadcast lifecycle", () => {
     expect(service).toContain("GenerationScopedConnectChecker(");
     expect(service).toContain("getStreamClient().setReTries(MAX_RECONNECT_ATTEMPTS)");
     expect(release.indexOf("invalidatePublisherCallbackSession()")).toBeLessThan(
-      release.indexOf("directMediaCodecStream?.let")
+      release.indexOf("val directStream = directMediaCodecStream")
     );
-    expect(release).toContain("val activeEncoderProbe = directStream.snapshot().encoderProbe");
-    expect(release).toContain("directStream.stop()");
-    expect(release).toContain("encoderProbe = directStream.snapshot().encoderProbe");
+    expect(release).toContain("directMediaCodecStream = null");
+    expect(release).toContain("val activeEncoderProbe = try {");
+    expect(release).toContain("directStream.snapshot().encoderProbe");
+    expect(release).toContain("directStream.stop {");
+    expect(release).toContain("directCleanupPending = true");
+    expect(release).toContain("finishSharedStreamResourceRelease()");
+    expect(release).toContain("encoderProbe = finalSnapshot.encoderProbe");
+    expect(release).toContain("encoderProbe = activeEncoderProbe");
     expect(release).toContain(
-      'lastActiveEncoderProbe = activeEncoderProbe.takeIf { it.status == "pass" }'
+      'lastActiveEncoderProbe = activeEncoderProbe?.takeIf { it.status == "pass" }'
     );
-    expect(release.indexOf("val activeEncoderProbe = directStream.snapshot().encoderProbe")).toBeLessThan(
-      release.indexOf("directStream.stop()")
+    expect(release.indexOf("val activeEncoderProbe = try {")).toBeLessThan(
+      release.indexOf("directStream.stop {")
     );
-    expect(release.indexOf("directStream.stop()")).toBeLessThan(
-      release.indexOf("encoderProbe = directStream.snapshot().encoderProbe")
+    expect(release.indexOf("directStream.stop {")).toBeLessThan(
+      release.indexOf("encoderProbe = finalSnapshot.encoderProbe")
     );
     expect(reconnect).not.toContain("startStreamFromSession(resetReconnectAttempts = false)");
     expect(genericReconnect).toContain("stream.getStreamClient().reTry(0L, reason)");
@@ -82,6 +90,8 @@ describe("native broadcast lifecycle", () => {
     expect(consentGuard).toContain("processCaptureConsentRequestSequence");
     expect(nativeModule).toContain("captureConsentRequestGuard.complete(requestCode)");
     expect(nativeModule).toContain("captureConsentRequestGuard.beginIfIdle(");
+    expect(nativeModule).toContain("AndroidNativeCleanupPendingGate.isPending()");
+    expect(nativeModule).toContain('promise.reject("native_cleanup_pending"');
     expect(nativeModule).toContain("LiveCasterSession.currentPreparationGeneration()");
     expect(nativeModule).toContain("cancelPendingCaptureRequest(");
     expect(nativeModule).toContain("requestToken.requestCode");

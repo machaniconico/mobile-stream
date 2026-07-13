@@ -67,7 +67,15 @@ class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) 
         override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
             captureConsentRequestGuard.complete(requestCode) { _, pendingStart ->
                 val promise = pendingStart.promise
-                if (resultCode != Activity.RESULT_OK || data == null) {
+                val restartReason = AndroidNativeOwnerRestartGuard.reason()
+                if (restartReason != null) {
+                    LiveCasterSession.fail(restartReason)
+                    promise.reject("native_restart_required", restartReason)
+                } else if (AndroidNativeCleanupPendingGate.isPending()) {
+                    val message = "Previous native stream is still stopping. Try again after cleanup finishes"
+                    LiveCasterSession.fail(message)
+                    promise.reject("native_cleanup_pending", message)
+                } else if (resultCode != Activity.RESULT_OK || data == null) {
                     LiveCasterSession.fail("Screen capture permission was cancelled")
                     promise.reject("screen_capture_cancelled", "Screen capture permission was cancelled")
                 } else {
@@ -171,6 +179,21 @@ class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) 
 
     @ReactMethod
     fun start(promise: Promise) {
+        AndroidNativeOwnerRestartGuard.reason()?.let { reason ->
+            LiveCasterSession.fail(reason)
+            promise.reject("native_restart_required", reason)
+            return
+        }
+        if (AndroidNativeCleanupPendingGate.isPending()) {
+            val message = "Previous native stream is still stopping. Try again after cleanup finishes"
+            LiveCasterSession.fail(message)
+            promise.reject("native_cleanup_pending", message)
+            return
+        }
+        if (LiveCasterSession.isStreamStartCommitted()) {
+            promise.reject("stream_active", "A stream is already starting, live, or stopping")
+            return
+        }
         val activity = reactApplicationContext.currentActivity
         if (activity == null) {
             LiveCasterSession.fail("Android activity is not available")

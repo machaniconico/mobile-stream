@@ -86,17 +86,18 @@ describe("Android native encoder output-format evidence", () => {
       service.indexOf("private fun updateNativeRuntimeFromStream("),
       service.indexOf("private fun stopStreamAfterFailure(")
     );
-    const activeProbeCapture = service.indexOf("val activeEncoderProbe = directStream.snapshot().encoderProbe");
-    const directStreamStop = service.indexOf("directStream.stop()", activeProbeCapture);
+    const activeProbeCapture = service.indexOf("val activeEncoderProbe = try {");
+    const directStreamStop = service.indexOf("directStream.stop {", activeProbeCapture);
     const stoppedProbeWrite = service.indexOf(
-      "encoderProbe = directStream.snapshot().encoderProbe",
+      "encoderProbe = finalSnapshot.encoderProbe",
       directStreamStop
     );
 
-    expect(encoderProbeAssignments).toHaveLength(2);
+    expect(encoderProbeAssignments).toHaveLength(3);
     expect(service).toContain("encoderProbe = snapshot?.encoderProbe");
-    expect(service).toContain("encoderProbe = directStream.snapshot().encoderProbe");
-    expect(service).toContain('lastActiveEncoderProbe = activeEncoderProbe.takeIf { it.status == "pass" }');
+    expect(service).toContain("encoderProbe = finalSnapshot.encoderProbe");
+    expect(service).toContain("encoderProbe = activeEncoderProbe");
+    expect(service).toContain('lastActiveEncoderProbe = activeEncoderProbe?.takeIf { it.status == "pass" }');
     expect(activeProbeCapture).toBeGreaterThanOrEqual(0);
     expect(activeProbeCapture).toBeLessThan(directStreamStop);
     expect(directStreamStop).toBeLessThan(stoppedProbeWrite);

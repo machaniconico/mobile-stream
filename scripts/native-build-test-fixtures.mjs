@@ -9,6 +9,12 @@ import {
   iosNativeVerificationArtifactPath
 } from "./release-artifact-policy.mjs";
 import { inspectAndroidDebugApkFile, resolveAndroidApkSignerPath } from "./verify-distribution-artifacts.mjs";
+import {
+  rootEncoderAwaitedDisconnectContractId,
+  rootEncoderAwaitedDisconnectSignature,
+  rootEncoderAwaitedDisconnectSignatureSha256,
+  rootEncoderR8SeedsPath
+} from "./verify-android-native.mjs";
 
 let cachedAndroidDebugApkFixture;
 
@@ -37,6 +43,7 @@ export function nativeBuildFixturePaths(fixtureRoot) {
     allPaths: [
       androidNativeDebugArtifactPath,
       androidNativeVerificationArtifactPath,
+      rootEncoderR8SeedsPath,
       iosNativeVerificationArtifactPath,
       ...Object.values(filePaths)
     ]
@@ -46,6 +53,7 @@ export function nativeBuildFixturePaths(fixtureRoot) {
 export function writeNativeBuildFixture(fixtureRoot) {
   const paths = nativeBuildFixturePaths(fixtureRoot);
   writeFile(androidNativeDebugArtifactPath, createAndroidDebugApkFixture());
+  writeFile(rootEncoderR8SeedsPath, `${rootEncoderAwaitedDisconnectSignature}\n`);
   writeFile(
     paths.filePaths.appInfo,
     "<plist><dict><key>CFBundleIdentifier</key><string>com.mobilelivecaster.app</string></dict></plist>"
@@ -83,10 +91,19 @@ export function writeNativeBuildFixture(fixtureRoot) {
         startedAt,
         finishedAt,
         durationMs: 3_000,
-        command: "source scripts/rn-env.sh && cd android && ./gradlew assembleDebug",
+        command:
+          "source scripts/rn-env.sh && cd android && ./gradlew assembleDebug testDebugUnitTest assembleContractMinified",
         gitCommit,
         gradleVersion: "Gradle 9.3.1",
         reportPath: androidNativeVerificationArtifactPath,
+        r8Contract: {
+          variant: "contractMinified",
+          minified: true,
+          verified: true,
+          contractId: rootEncoderAwaitedDisconnectContractId,
+          signatureSha256: rootEncoderAwaitedDisconnectSignatureSha256,
+          seeds: fileRecord(rootEncoderR8SeedsPath)
+        },
         apk: {
           ...fileRecord(androidNativeDebugArtifactPath),
           zipEntryCount: apkInspection.zipEntryCount,
@@ -216,6 +233,7 @@ export function nativeBuildArtifactRecords(fixtureRoot, artifactRecord) {
   return [
     artifactRecord("android", androidNativeVerificationArtifactPath),
     artifactRecord("android", androidNativeDebugArtifactPath),
+    artifactRecord("android", rootEncoderR8SeedsPath),
     artifactRecord("ios", iosNativeVerificationArtifactPath),
     ...Object.values(paths.filePaths).map((path) => artifactRecord("ios", path))
   ];

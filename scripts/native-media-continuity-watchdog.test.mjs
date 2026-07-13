@@ -25,7 +25,20 @@ describe("native media continuity watchdog", () => {
     expect(serviceSource).toContain('if (genericStream?.isStreaming == true) "connecting" else ""');
     expect(serviceSource).toContain("CONTINUITY_HEARTBEAT_INTERVAL_MS = 1_000L");
     expect(serviceSource).toContain("continuityHandler.postDelayed(this, CONTINUITY_HEARTBEAT_INTERVAL_MS)");
-    expect(serviceSource).toMatch(/stopContinuityHeartbeat\(\)\s+captureFinalContinuitySample\(\)\s+releaseStreamResources\(\)/);
+    const stopLifecycle = serviceSource.slice(
+      serviceSource.indexOf("private fun stopStream()"),
+      serviceSource.indexOf("private fun updateStreamQuality()")
+    );
+    expect(stopLifecycle).toContain("stopContinuityHeartbeat()");
+    expect(stopLifecycle).toContain("captureFinalContinuitySample()");
+    expect(stopLifecycle).toContain("finally {");
+    expect(stopLifecycle).toContain("releaseStreamResources {");
+    expect(stopLifecycle.indexOf("stopContinuityHeartbeat()")).toBeLessThan(
+      stopLifecycle.indexOf("captureFinalContinuitySample()")
+    );
+    expect(stopLifecycle.indexOf("captureFinalContinuitySample()")).toBeLessThan(
+      stopLifecycle.indexOf("releaseStreamResources {")
+    );
     expect(serviceSource).toContain("mediaContinuityTracker.reset()");
     expect(serviceSource).toContain("snapshot?.sentVideoFrames");
     expect(serviceSource).toContain("client?.getSentVideoFrames()");
