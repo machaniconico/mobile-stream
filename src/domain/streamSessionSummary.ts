@@ -988,6 +988,7 @@ export const createNativeRuntimeSessionSummary = (
       incompleteVrmRenderability ||
       incompleteVrmPoseMapping);
   const mixedAudioSampleCount = normalizeNonNegativeInteger(runtime.audioProcessing?.mixedAudioSampleCount);
+  const mixedAudioLevelUpdatedAt = normalizeNonNegativeInteger(runtime.audioProcessing?.mixedAudioLevelUpdatedAt);
   const micSampleCount = normalizeNonNegativeInteger(runtime.audioProcessing?.micSampleCount);
   const micLevelUpdatedAt = normalizeNonNegativeInteger(runtime.audioProcessing?.micLevelUpdatedAt);
   const nativeAudioMeterReported =
@@ -1003,6 +1004,27 @@ export const createNativeRuntimeSessionSummary = (
     nativeMicExpected &&
     micLevelUpdatedAt > 0 &&
     (runtime.updatedAt - micLevelUpdatedAt > 3_000 || micLevelUpdatedAt - runtime.updatedAt > 3_000);
+  const appAudioSampleCount = normalizeNonNegativeInteger(runtime.audioProcessing?.appAudioSampleCount);
+  const appAudioLevelUpdatedAt = normalizeNonNegativeInteger(runtime.audioProcessing?.appAudioLevelUpdatedAt);
+  const appAudioPeakLevel = normalizeAudioMeterLevel(runtime.audioProcessing?.appAudioPeakLevel);
+  const nativeAndroidAppAudioExpected =
+    runtime.platform === "android" &&
+    isProductionNativeAudioEncoderBackend(runtime.platform, audioEncoderBackend) &&
+    runtime.audioProcessing?.broadcastAppAudioMuted !== true &&
+    (runtime.audioProcessing?.broadcastAppAudioVolume ?? 0.85) > 0;
+  const nativeAndroidAppAudioMissing =
+    nativeAndroidAppAudioExpected &&
+    (appAudioSampleCount <= 0 ||
+      appAudioLevelUpdatedAt <= 0 ||
+      appAudioPeakLevel <= 0.001 ||
+      mixedAudioSampleCount <= 0 ||
+      mixedAudioLevelUpdatedAt <= 0);
+  const nativeAndroidAppAudioStale =
+    nativeAndroidAppAudioExpected &&
+    appAudioLevelUpdatedAt > 0 &&
+    mixedAudioLevelUpdatedAt > 0 &&
+    (Math.abs(runtime.updatedAt - appAudioLevelUpdatedAt) > 3_000 ||
+      Math.abs(runtime.updatedAt - mixedAudioLevelUpdatedAt) > 3_000);
   const nativeAudioClippedSampleCount = mixedAudioSampleCount > 0
     ? normalizeNonNegativeInteger(runtime.audioProcessing?.mixedAudioClippedSampleCount)
     : normalizeNonNegativeInteger(runtime.audioProcessing?.micClippedSampleCount);
@@ -1039,6 +1061,8 @@ export const createNativeRuntimeSessionSummary = (
         incompleteVrmRendering ||
         nativeAudioMeterMissing ||
         nativeAudioMeterStale ||
+        nativeAndroidAppAudioMissing ||
+        nativeAndroidAppAudioStale ||
         nativeAudioClipping ||
         continuityIssue ||
         avSyncIssue
@@ -1062,6 +1086,8 @@ export const createNativeRuntimeSessionSummary = (
     incompleteVrmRendering,
     nativeAudioMeterMissing,
     nativeAudioMeterStale,
+    nativeAndroidAppAudioMissing,
+    nativeAndroidAppAudioStale,
     nativeAudioClipping,
     continuityIssue,
     avSyncIssue
@@ -1205,15 +1231,15 @@ export const createNativeRuntimeSessionSummary = (
     micClippedSampleCount: normalizeNonNegativeInteger(runtime.audioProcessing?.micClippedSampleCount),
     micLevelUpdatedAt,
     appAudioRmsLevel: normalizeAudioMeterLevel(runtime.audioProcessing?.appAudioRmsLevel),
-    appAudioPeakLevel: normalizeAudioMeterLevel(runtime.audioProcessing?.appAudioPeakLevel),
-    appAudioSampleCount: normalizeNonNegativeInteger(runtime.audioProcessing?.appAudioSampleCount),
+    appAudioPeakLevel,
+    appAudioSampleCount,
     appAudioClippedSampleCount: normalizeNonNegativeInteger(runtime.audioProcessing?.appAudioClippedSampleCount),
-    appAudioLevelUpdatedAt: normalizeNonNegativeInteger(runtime.audioProcessing?.appAudioLevelUpdatedAt),
+    appAudioLevelUpdatedAt,
     mixedAudioRmsLevel: normalizeAudioMeterLevel(runtime.audioProcessing?.mixedAudioRmsLevel),
     mixedAudioPeakLevel: normalizeAudioMeterLevel(runtime.audioProcessing?.mixedAudioPeakLevel),
     mixedAudioSampleCount,
     mixedAudioClippedSampleCount: normalizeNonNegativeInteger(runtime.audioProcessing?.mixedAudioClippedSampleCount),
-    mixedAudioLevelUpdatedAt: normalizeNonNegativeInteger(runtime.audioProcessing?.mixedAudioLevelUpdatedAt),
+    mixedAudioLevelUpdatedAt,
     continuityStatus: continuity.status,
     videoStalled: continuity.videoStalled,
     audioStalled: continuity.audioStalled,
@@ -1284,6 +1310,14 @@ export const createNativeRuntimeSessionSummary = (
                                   ? "Use a production VRM renderer backend for this platform before retaining production evidence."
                                 : incompleteVrmRendering
                                   ? "Confirm the native VRM renderer loads and renders every visible VRM source before retaining production evidence."
+                                  : nativeAndroidAppAudioMissing
+                                    ? "Play capturable game/media audio during Android direct MediaCodec validation until app-audio and final-mix PCM meters report fresh non-zero samples and peak level."
+                                    : nativeAndroidAppAudioStale
+                                      ? "Repeat Android internal-audio validation until app-audio and final-mix PCM meters remain current throughout the private stream."
+                                      : nativeAudioMeterMissing || nativeAudioMeterStale
+                                        ? "Repeat the private stream until fresh native microphone PCM meter evidence is retained."
+                                        : nativeAudioClipping
+                                          ? "Lower microphone or app-audio gain and repeat validation with zero clipped final-mix samples."
                                   : pendingComposition
                                     ? "Review native compositor coverage before treating this scene as production-ready."
                                     : continuityIssue

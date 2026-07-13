@@ -32,9 +32,13 @@ internal class AndroidMediaCodecDirectStream(
         private const val VIDEO_MIME = MediaFormat.MIMETYPE_VIDEO_AVC
         private const val AUDIO_MIME = MediaFormat.MIMETYPE_AUDIO_AAC
         private const val AUDIO_SAMPLE_RATE = 44_100
-        private const val AUDIO_CHANNEL_COUNT = 1
-        private const val AUDIO_CHANNEL_MASK = AudioFormat.CHANNEL_IN_MONO
-        private const val AUDIO_OUTPUT_STEREO = false
+        private const val AUDIO_MIC_CHANNEL_COUNT = 1
+        private const val AUDIO_OUTPUT_CHANNEL_COUNT = 2
+        private const val AUDIO_MIC_CHANNEL_MASK = AudioFormat.CHANNEL_IN_MONO
+        private const val AUDIO_PLAYBACK_CHANNEL_MASK = AudioFormat.CHANNEL_IN_STEREO
+        private const val AUDIO_OUTPUT_STEREO = true
+        private const val AUDIO_CHUNK_MILLIS = 20
+        private const val PCM_BYTES_PER_SAMPLE = 2
         private const val AUDIO_READ_TIMEOUT_US = 10_000L
         private const val VIDEO_DRAIN_TIMEOUT_US = 10_000L
         private const val I_FRAME_INTERVAL_SECONDS = 2
@@ -50,6 +54,7 @@ internal class AndroidMediaCodecDirectStream(
     private var videoEncoder: MediaCodec? = null
     private var audioEncoder: MediaCodec? = null
     private var audioRecord: AudioRecord? = null
+    private var playbackAudioCapture: AndroidPlaybackAudioCapture? = null
     private var videoInputSurface: Surface? = null
     private var screenImageReader: ImageReader? = null
     private var screenBitmap: Bitmap? = null
@@ -113,7 +118,7 @@ internal class AndroidMediaCodecDirectStream(
             nextProfile.micEffects,
             nextProfile.broadcastMixer,
             AUDIO_SAMPLE_RATE,
-            AUDIO_OUTPUT_STEREO
+            isStereo = true
         )
 
         runCatching {
@@ -142,7 +147,20 @@ internal class AndroidMediaCodecDirectStream(
             )
 
             audioEncoder = createAudioEncoder(nextProfile).also { it.start() }
-            audioRecord = createAudioRecord().also { it.startRecording() }
+            audioRecord = createMicAudioRecord().also { it.startRecording() }
+            playbackAudioCapture = AndroidPlaybackAudioCapture.create(
+                mediaProjection = mediaProjection,
+                sampleRate = AUDIO_SAMPLE_RATE,
+                channelMask = AUDIO_PLAYBACK_CHANNEL_MASK,
+                channelCount = AUDIO_OUTPUT_CHANNEL_COUNT,
+                readBufferSizeBytes = outputAudioChunkSizeBytes()
+            ).also { capture ->
+                capture.start()
+                val captureSnapshot = capture.snapshot()
+                if (captureSnapshot.status == "failed" || captureSnapshot.status == "unsupported") {
+                    lastNonFatalError = captureSnapshot.lastError
+                }
+            }
             videoThread = Thread({ runEncoderThread { runVideoCompositorAndEncoder() } }, "MLC-MediaCodec-Video").also { it.start() }
             audioThread = Thread({ runEncoderThread { runAudioEncoder() } }, "MLC-MediaCodec-Audio").also { it.start() }
         }.onFailure { error ->
@@ -158,6 +176,8 @@ internal class AndroidMediaCodecDirectStream(
             videoEncoderGeneration += 1
             pendingVideoEncoderCommand = null
         }
+        audioRecord?.runCatchingStop()
+        playbackAudioCapture?.stop()
         videoThread?.joinQuietly()
         audioThread?.joinQuietly()
         videoThread = null
@@ -170,8 +190,9 @@ internal class AndroidMediaCodecDirectStream(
         screenBitmap = null
         videoInputSurface?.release()
         videoInputSurface = null
-        audioRecord?.runCatchingStopAndRelease()
+        audioRecord?.runCatchingRelease()
         audioRecord = null
+        playbackAudioCapture = null
         videoEncoder?.runCatchingStopAndRelease()
         videoEncoder = null
         audioEncoder?.runCatchingStopAndRelease()
@@ -296,10 +317,10 @@ internal class AndroidMediaCodecDirectStream(
     }
 
     private fun createAudioEncoder(currentProfile: LiveCasterProfile): MediaCodec {
-        val format = MediaFormat.createAudioFormat(AUDIO_MIME, AUDIO_SAMPLE_RATE, AUDIO_CHANNEL_COUNT).apply {
+        val format = MediaFormat.createAudioFormat(AUDIO_MIME, AUDIO_SAMPLE_RATE, AUDIO_OUTPUT_CHANNEL_COUNT).apply {
             setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
             setInteger(MediaFormat.KEY_BIT_RATE, currentProfile.audioBitrate)
-            setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, audioInputBufferSize())
+            setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, outputAudioChunkSizeBytes())
         }
         return MediaCodec.createEncoderByType(AUDIO_MIME).apply {
             configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
@@ -307,12 +328,12 @@ internal class AndroidMediaCodecDirectStream(
     }
 
     @SuppressLint("MissingPermission")
-    private fun createAudioRecord(): AudioRecord {
-        val bufferSize = audioInputBufferSize()
+    private fun createMicAudioRecord(): AudioRecord {
+        val bufferSize = micAudioRecordBufferSize()
         val audioFormat = AudioFormat.Builder()
             .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
             .setSampleRate(AUDIO_SAMPLE_RATE)
-            .setChannelMask(AUDIO_CHANNEL_MASK)
+            .setChannelMask(AUDIO_MIC_CHANNEL_MASK)
             .build()
         return AudioRecord.Builder()
             .setAudioSource(MediaRecorder.AudioSource.MIC)
@@ -324,14 +345,20 @@ internal class AndroidMediaCodecDirectStream(
             }
     }
 
-    private fun audioInputBufferSize(): Int {
+    private fun micAudioRecordBufferSize(): Int {
         val minSize = AudioRecord.getMinBufferSize(
             AUDIO_SAMPLE_RATE,
-            AUDIO_CHANNEL_MASK,
+            AUDIO_MIC_CHANNEL_MASK,
             AudioFormat.ENCODING_PCM_16BIT
         )
-        return max(minSize.coerceAtLeast(0), AUDIO_SAMPLE_RATE / 5 * AUDIO_CHANNEL_COUNT * 2)
+        return max(minSize.coerceAtLeast(0), micAudioChunkSizeBytes() * 4)
     }
+
+    private fun micAudioChunkSizeBytes(): Int =
+        AUDIO_SAMPLE_RATE * AUDIO_CHUNK_MILLIS / 1_000 * AUDIO_MIC_CHANNEL_COUNT * PCM_BYTES_PER_SAMPLE
+
+    private fun outputAudioChunkSizeBytes(): Int =
+        AUDIO_SAMPLE_RATE * AUDIO_CHUNK_MILLIS / 1_000 * AUDIO_OUTPUT_CHANNEL_COUNT * PCM_BYTES_PER_SAMPLE
 
     private fun runVideoCompositorAndEncoder() {
         val info = MediaCodec.BufferInfo()
@@ -501,26 +528,52 @@ internal class AndroidMediaCodecDirectStream(
 
     private fun runAudioEncoder() {
         val outputInfo = MediaCodec.BufferInfo()
-        val readBuffer = ByteArray(audioInputBufferSize())
+        val micReadBuffer = ByteArray(micAudioChunkSizeBytes())
+        val appAudioBuffer = ByteArray(outputAudioChunkSizeBytes())
         while (running.get()) {
-            queueAudioInput(readBuffer)
+            queueAudioInput(micReadBuffer, appAudioBuffer)
             drainAudioOutput(outputInfo)
         }
         drainAudioOutput(outputInfo)
     }
 
-    private fun queueAudioInput(readBuffer: ByteArray) {
+    private fun queueAudioInput(micReadBuffer: ByteArray, appAudioBuffer: ByteArray) {
         val record = audioRecord ?: return
         val encoder = audioEncoder ?: return
-        val bytesRead = record.read(readBuffer, 0, readBuffer.size, AudioRecord.READ_BLOCKING)
+        val bytesRead = record.read(micReadBuffer, 0, micReadBuffer.size, AudioRecord.READ_BLOCKING)
         if (bytesRead <= 0) {
+            if (!running.get()) {
+                return
+            }
             synchronized(counterLock) { droppedAudioFrames += 1 }
             runCatching { Thread.sleep(5) }
             return
         }
-        val processed = micProcessingEffect?.process(readBuffer.copyOf(bytesRead)) ?: readBuffer.copyOf(bytesRead)
+        val stereoMic = Pcm16AudioMixer.upmixMonoToStereo(micReadBuffer, bytesRead)
+        val requestedAppAudioBytes = stereoMic.size.coerceAtMost(appAudioBuffer.size)
+        val capturedAppAudioBytes = playbackAudioCapture?.readInto(
+            appAudioBuffer,
+            requestedAppAudioBytes
+        ) ?: run {
+            appAudioBuffer.fill(0, 0, requestedAppAudioBytes)
+            0
+        }
+        playbackAudioCapture?.snapshot()?.let { captureSnapshot ->
+            if (captureSnapshot.status == "failed" && captureSnapshot.lastError.isNotBlank()) {
+                lastNonFatalError = captureSnapshot.lastError
+            }
+        }
+        val effect = micProcessingEffect
+        val processedMic = effect?.process(stereoMic) ?: stereoMic
+        val processedAppAudio = effect?.processAppAudio(
+            appAudioBuffer.copyOf(requestedAppAudioBytes),
+            capturedAppAudioBytes
+        ) ?: appAudioBuffer.copyOf(requestedAppAudioBytes)
+        val processed = effect?.mixForBroadcast(processedMic, processedAppAudio)
+            ?: Pcm16AudioMixer.mix(processedMic, processedAppAudio).pcm
         val inputIndex = encoder.dequeueInputBuffer(AUDIO_READ_TIMEOUT_US)
         if (inputIndex < 0) {
+            nextAudioPresentationTimeUs(processed.size)
             synchronized(counterLock) { droppedAudioFrames += 1 }
             return
         }
@@ -531,6 +584,11 @@ internal class AndroidMediaCodecDirectStream(
             return
         }
         inputBuffer.clear()
+        if (inputBuffer.remaining() < processed.size) {
+            encoder.queueInputBuffer(inputIndex, 0, 0, nextAudioPresentationTimeUs(processed.size), 0)
+            synchronized(counterLock) { droppedAudioFrames += 1 }
+            return
+        }
         inputBuffer.put(processed, 0, processed.size)
         encoder.queueInputBuffer(inputIndex, 0, processed.size, nextAudioPresentationTimeUs(processed.size), 0)
     }
@@ -588,7 +646,7 @@ internal class AndroidMediaCodecDirectStream(
 
     private fun nextAudioPresentationTimeUs(bytes: Int): Long {
         val currentFrames = audioSubmittedFrames
-        val addedFrames = bytes / (AUDIO_CHANNEL_COUNT * 2)
+        val addedFrames = bytes / (AUDIO_OUTPUT_CHANNEL_COUNT * PCM_BYTES_PER_SAMPLE)
         audioSubmittedFrames += addedFrames.toLong()
         return currentFrames * 1_000_000L / AUDIO_SAMPLE_RATE
     }
@@ -600,10 +658,13 @@ internal class AndroidMediaCodecDirectStream(
         runCatching { join(700) }
     }
 
-    private fun AudioRecord.runCatchingStopAndRelease() {
+    private fun AudioRecord.runCatchingStop() {
         runCatching {
             if (recordingState == AudioRecord.RECORDSTATE_RECORDING) stop()
         }
+    }
+
+    private fun AudioRecord.runCatchingRelease() {
         runCatching { release() }
     }
 

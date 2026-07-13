@@ -17,6 +17,18 @@ const androidDirectStream = readFileSync(
   "android/app/src/main/java/com/mobilelivecaster/streaming/AndroidMediaCodecDirectStream.kt",
   "utf8"
 );
+const androidPlaybackCapture = readFileSync(
+  "android/app/src/main/java/com/mobilelivecaster/streaming/AndroidPlaybackAudioCapture.kt",
+  "utf8"
+);
+const androidPcmMixer = readFileSync(
+  "android/app/src/main/java/com/mobilelivecaster/streaming/Pcm16AudioMixer.kt",
+  "utf8"
+);
+const androidSpeech = readFileSync(
+  "android/app/src/main/java/com/mobilelivecaster/streaming/LiveCasterSpeechModule.kt",
+  "utf8"
+);
 const iosBroadcast = readFileSync(
   "ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift",
   "utf8"
@@ -44,15 +56,37 @@ const levelKeys = [
 ];
 
 describe("native audio level metering", () => {
-  it("measures Android encoder-bound microphone PCM after effects and mixer gain", () => {
+  it("measures Android encoder-bound microphone, app, and mixed PCM", () => {
     expect(androidEffect).toContain("val levelStats = applyVolume(processed, currentMixer.mic.effectiveVolume(), measureLevel = true)");
     expect(androidEffect).toContain("accumulateMicLevelWindow(levelStats)");
+    expect(androidEffect).toContain("currentMixer.appAudio.effectiveVolume()");
+    expect(androidEffect).toContain("accumulateAppAudioLevelWindow(levelStats)");
+    expect(androidEffect).toContain("Pcm16AudioMixer.mix(micBuffer, appAudioBuffer)");
+    expect(androidEffect).toContain("accumulateMixedAudioLevelWindow(result.levels)");
     expect(androidEffect).toContain("micLevelWindowTargetSampleCount");
     expect(androidEffect).toContain("micLevelWindowSquaredLevelSum / micLevelWindowSampleCount.toDouble()");
     expect(androidEffect).toContain("@Volatile");
     expect(androidService).toContain("microphoneSource.setAudioEffect(effect)");
-    expect(androidDirectStream).toContain("micProcessingEffect?.process(readBuffer.copyOf(bytesRead))");
+    expect(androidDirectStream).toContain("Pcm16AudioMixer.upmixMonoToStereo(micReadBuffer, bytesRead)");
+    expect(androidDirectStream).toContain("effect?.processAppAudio(");
+    expect(androidDirectStream).toContain("effect?.mixForBroadcast(processedMic, processedAppAudio)");
+    expect(androidDirectStream).toContain("AUDIO_OUTPUT_CHANNEL_COUNT = 2");
     levelKeys.forEach((key) => expect(androidSession).toContain(`putDouble(\"${key}\"`));
+  });
+
+  it("captures Android game/media playback with MediaProjection and a bounded buffer", () => {
+    expect(androidPlaybackCapture).toContain("AudioPlaybackCaptureConfiguration.Builder(mediaProjection)");
+    expect(androidPlaybackCapture).toContain("addMatchingUsage(AudioAttributes.USAGE_GAME)");
+    expect(androidPlaybackCapture).toContain("addMatchingUsage(AudioAttributes.USAGE_MEDIA)");
+    expect(androidPlaybackCapture).not.toContain("excludeUid(");
+    expect(androidPlaybackCapture).toContain("setAudioPlaybackCaptureConfig(captureConfiguration)");
+    expect(androidPlaybackCapture).toContain("PcmByteRingBuffer(");
+    expect(androidPlaybackCapture).toContain("MAX_BUFFERED_AUDIO_MILLIS = 500");
+    expect(androidPlaybackCapture).toContain("MAX_READ_AHEAD_CHUNKS = 3");
+    expect(androidPcmMixer).toContain("fun upmixMonoToStereo(");
+    expect(androidPcmMixer).toContain("fun mix(mic: ByteArray, appAudio: ByteArray)");
+    expect(androidSpeech).toContain("setUsage(AudioAttributes.USAGE_MEDIA)");
+    expect(androidSpeech).toContain("setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)");
   });
 
   it("measures iOS app, microphone, and final mixed PCM under the stats lock", () => {

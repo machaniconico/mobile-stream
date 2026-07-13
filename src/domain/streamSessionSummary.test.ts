@@ -425,6 +425,18 @@ describe("stream session summary", () => {
           micSampleCount: 12_288,
           micClippedSampleCount: 0,
           micLevelUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+          appAudioRmsLevel: 0.16,
+          appAudioPeakLevel: 0.58,
+          appAudioSampleCount: 24_576,
+          appAudioClippedSampleCount: 0,
+          appAudioLevelUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+          mixedAudioRmsLevel: 0.24,
+          mixedAudioPeakLevel: 0.78,
+          mixedAudioSampleCount: 24_576,
+          mixedAudioClippedSampleCount: 0,
+          mixedAudioLevelUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+          broadcastAppAudioVolume: 0.85,
+          broadcastAppAudioMuted: false,
           monitorEnabled: true,
           monitorRunning: true,
           monitorVolume: 0.5,
@@ -518,6 +530,10 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.micPeakLevel).toBe(0.72);
     expect(summary?.nativeRuntime?.micSampleCount).toBe(12288);
     expect(summary?.nativeRuntime?.micClippedSampleCount).toBe(0);
+    expect(summary?.nativeRuntime?.appAudioPeakLevel).toBe(0.58);
+    expect(summary?.nativeRuntime?.appAudioSampleCount).toBe(24576);
+    expect(summary?.nativeRuntime?.mixedAudioSampleCount).toBe(24576);
+    expect(summary?.nativeRuntime?.mixedAudioClippedSampleCount).toBe(0);
     expect(summary?.nativeRuntime?.continuityStatus).toBe("healthy");
     expect(summary?.nativeRuntime?.videoStallCount).toBe(1);
     expect(summary?.nativeRuntime?.maxVideoStallDurationMs).toBe(6400);

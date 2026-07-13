@@ -579,6 +579,7 @@ export interface StreamValidationNativeRuntimePreview {
   encoderReady: boolean;
   videoFrameIntervalReady: boolean;
   compositorReady: boolean;
+  playbackAudioReady: boolean;
   stillImageOverlayReady: boolean;
   iosAppGroupStillImageReady: boolean;
   live2dPoseReady: boolean;
@@ -610,6 +611,7 @@ export const createStreamValidationNativeRuntimePreview = (
       encoderReady: false,
       videoFrameIntervalReady: false,
       compositorReady: false,
+      playbackAudioReady: expectedPlatform !== "android",
       stillImageOverlayReady: false,
       iosAppGroupStillImageReady: expectedPlatform !== "ios",
       live2dPoseReady: false,
@@ -630,6 +632,7 @@ export const createStreamValidationNativeRuntimePreview = (
   const compositorReady =
     hasNativeRuntimeAndroidMediaCodecCompositorProof(nativeRuntime) &&
     hasNativeRuntimeIosReplayKitCompositorProof(nativeRuntime);
+  const playbackAudioReady = hasNativeRuntimeAndroidPlaybackAudioProof(nativeRuntime);
   const stillImageOverlayReady = hasNativeRuntimeStillImageOverlayProof(nativeRuntime);
   const iosAppGroupStillImageReady = hasNativeRuntimeIosAppGroupStillImageProof(nativeRuntime, expectedPlatform);
   const live2dPoseReady = hasNativeRuntimeLive2DPoseProof(nativeRuntime);
@@ -650,6 +653,7 @@ export const createStreamValidationNativeRuntimePreview = (
     encoderReady,
     videoFrameIntervalReady,
     compositorReady,
+    playbackAudioReady,
     stillImageOverlayReady,
     iosAppGroupStillImageReady,
     live2dPoseReady,
@@ -661,6 +665,7 @@ export const createStreamValidationNativeRuntimePreview = (
       encoderReady,
       videoFrameIntervalReady,
       compositorReady,
+      playbackAudioReady,
       stillImageOverlayReady,
       iosAppGroupStillImageReady,
       live2dPoseReady,
@@ -1481,6 +1486,7 @@ const isNativeRuntimeEvidencePass = (
   hasNativeRuntimeVideoFrameIntervalProof(nativeRuntime) &&
   hasNativeRuntimeAndroidMediaCodecCompositorProof(nativeRuntime) &&
   hasNativeRuntimeIosReplayKitCompositorProof(nativeRuntime) &&
+  hasNativeRuntimeAndroidPlaybackAudioProof(nativeRuntime) &&
   (nativeRuntime.compositionStatus === "applied" || nativeRuntime.compositionStatus === "screen-only") &&
   hasNativeRuntimeStillImageOverlayProof(nativeRuntime) &&
   hasNativeRuntimeIosAppGroupStillImageProof(nativeRuntime, expectedPlatform) &&
@@ -1534,6 +1540,23 @@ const hasNativeRuntimeAndroidMediaCodecCompositorProof = (
     nativeRuntime.runtimeCompositorBackend === "android-canvas-mediacodec" &&
     nativeRuntime.runtimeCompositedFrameCount > 0 &&
     nativeRuntime.runtimeCompositionFailureCount === 0
+  );
+};
+
+const hasNativeRuntimeAndroidPlaybackAudioProof = (
+  nativeRuntime: StreamSessionNativeRuntimeSummary | null | undefined
+): boolean => {
+  if (!nativeRuntime || nativeRuntime.platform !== "android") {
+    return true;
+  }
+
+  return (
+    (nativeRuntime.appAudioSampleCount ?? 0) > 0 &&
+    (nativeRuntime.appAudioPeakLevel ?? 0) > 0.001 &&
+    (nativeRuntime.appAudioLevelUpdatedAt ?? 0) > 0 &&
+    (nativeRuntime.mixedAudioSampleCount ?? 0) > 0 &&
+    (nativeRuntime.mixedAudioLevelUpdatedAt ?? 0) > 0 &&
+    (nativeRuntime.mixedAudioClippedSampleCount ?? 0) === 0
   );
 };
 
@@ -1622,6 +1645,7 @@ interface NativeRuntimePreviewReadiness {
   encoderReady: boolean;
   videoFrameIntervalReady: boolean;
   compositorReady: boolean;
+  playbackAudioReady: boolean;
   stillImageOverlayReady: boolean;
   iosAppGroupStillImageReady: boolean;
   live2dPoseReady: boolean;
@@ -1636,7 +1660,7 @@ const createNativeRuntimePreviewSummary = (
   status: StreamValidationFeatureStatus
 ): string => {
   const platform = platformMatches ? nativeRuntime.platform : `${nativeRuntime.platform} for ${expectedPlatform}`;
-  return `Native runtime ${status}: ${platform} / publisher ${nativeRuntime.publisherState || nativeRuntime.runtimeStatus || "-"} / encoders ${nativeRuntime.videoEncoderBackend}/${nativeRuntime.audioEncoderBackend} / sent ${nativeRuntime.sentVideoFrames} video ${nativeRuntime.sentAudioFrames} audio / bytes ${nativeRuntime.bytesWritten} / compositor ${nativeRuntime.runtimeCompositorBackend} ${nativeRuntime.runtimeCompositedFrameCount} frames ${nativeRuntime.runtimeCompositionFailureCount} failures / overlays ${nativeRuntime.compositionAppliedCount} applied ${nativeRuntime.compositionSkippedCount} skipped / still-image ${nativeRuntime.stillImageAssetCompositedCount}/${nativeRuntime.stillImageAssetCount} composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount} / app-group ${nativeRuntime.stillImageAssetAppGroupCompositedCount}/${nativeRuntime.stillImageAssetAppGroupCount} composited pixels ${nativeRuntime.stillImageAssetAppGroupCompositedPixelCount} / video interval ${nativeRuntime.videoFrameIntervalSampleCount} samples.`;
+  return `Native runtime ${status}: ${platform} / publisher ${nativeRuntime.publisherState || nativeRuntime.runtimeStatus || "-"} / encoders ${nativeRuntime.videoEncoderBackend}/${nativeRuntime.audioEncoderBackend} / sent ${nativeRuntime.sentVideoFrames} video ${nativeRuntime.sentAudioFrames} audio / bytes ${nativeRuntime.bytesWritten} / compositor ${nativeRuntime.runtimeCompositorBackend} ${nativeRuntime.runtimeCompositedFrameCount} frames ${nativeRuntime.runtimeCompositionFailureCount} failures / app audio ${nativeRuntime.appAudioSampleCount ?? 0} samples peak ${Math.round((nativeRuntime.appAudioPeakLevel ?? 0) * 100)}% / mixed audio ${nativeRuntime.mixedAudioSampleCount ?? 0} samples / overlays ${nativeRuntime.compositionAppliedCount} applied ${nativeRuntime.compositionSkippedCount} skipped / still-image ${nativeRuntime.stillImageAssetCompositedCount}/${nativeRuntime.stillImageAssetCount} composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount} / app-group ${nativeRuntime.stillImageAssetAppGroupCompositedCount}/${nativeRuntime.stillImageAssetAppGroupCount} composited pixels ${nativeRuntime.stillImageAssetAppGroupCompositedPixelCount} / video interval ${nativeRuntime.videoFrameIntervalSampleCount} samples.`;
 };
 
 const createNativeRuntimePreviewRecommendation = (
@@ -1666,6 +1690,9 @@ const createNativeRuntimePreviewRecommendation = (
     return expectedPlatform === "android"
       ? "Use Android direct MediaCodec Canvas mode and repeat validation until android-canvas-mediacodec reports composited frames above zero with zero composition failures."
       : "Repeat iOS ReplayKit validation until ios-replaykit-coregraphics reports composited frames above zero with zero composition failures.";
+  }
+  if (!readiness.playbackAudioReady) {
+    return "Play game/media audio during Android direct MediaCodec validation until fresh app-audio and final-mix PCM samples, a non-zero app-audio peak, and zero mixed clipping are retained.";
   }
   if (!readiness.stillImageOverlayReady) {
     return "Repeat validation with the current scene until every required still-image/avatar asset is loaded, decoded, composited, and has non-zero composited pixel proof.";

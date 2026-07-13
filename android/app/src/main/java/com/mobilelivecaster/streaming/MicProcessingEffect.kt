@@ -48,6 +48,16 @@ class MicProcessingEffect(
     private var micLevelWindowSampleCount = 0L
     private var micLevelWindowClippedSampleCount = 0L
     @Volatile private var micLevelSnapshot = MicLevelSnapshot()
+    private var appAudioLevelWindowSquaredLevelSum = 0.0
+    private var appAudioLevelWindowPeakLevel = 0f
+    private var appAudioLevelWindowSampleCount = 0L
+    private var appAudioLevelWindowClippedSampleCount = 0L
+    @Volatile private var appAudioLevelSnapshot = MicLevelSnapshot()
+    private var mixedAudioLevelWindowSquaredLevelSum = 0.0
+    private var mixedAudioLevelWindowPeakLevel = 0f
+    private var mixedAudioLevelWindowSampleCount = 0L
+    private var mixedAudioLevelWindowClippedSampleCount = 0L
+    @Volatile private var mixedAudioLevelSnapshot = MicLevelSnapshot()
 
     override fun process(pcmBuffer: ByteArray): ByteArray {
         val processed = pcmBuffer.copyOf()
@@ -68,6 +78,25 @@ class MicProcessingEffect(
         return processed
     }
 
+    fun processAppAudio(pcmBuffer: ByteArray, capturedByteCount: Int): ByteArray {
+        val processed = pcmBuffer.copyOf()
+        val currentMixer = broadcastMixer
+        val levelStats = applyVolume(
+            processed,
+            currentMixer.appAudio.effectiveVolume(),
+            measureLevel = true,
+            measuredByteCount = capturedByteCount
+        )
+        accumulateAppAudioLevelWindow(levelStats)
+        return processed
+    }
+
+    fun mixForBroadcast(micBuffer: ByteArray, appAudioBuffer: ByteArray): ByteArray {
+        val result = Pcm16AudioMixer.mix(micBuffer, appAudioBuffer)
+        accumulateMixedAudioLevelWindow(result.levels)
+        return result.pcm
+    }
+
     fun snapshot(): NativeRuntimeAudioProcessing {
         val currentSettings = settings
         val currentMixer = broadcastMixer
@@ -75,6 +104,8 @@ class MicProcessingEffect(
         val outputDevice = preferredDevice ?: currentOutputDevice()
         val estimatedLatencyMs = monitorEstimatedLatencyMs()
         val currentMicLevel = micLevelSnapshot
+        val currentAppAudioLevel = appAudioLevelSnapshot
+        val currentMixedAudioLevel = mixedAudioLevelSnapshot
         return NativeRuntimeAudioProcessing(
             micEffectsEnabled = currentSettings.enabled,
             micEffectsPresetId = currentSettings.presetId,
@@ -87,6 +118,16 @@ class MicProcessingEffect(
             micSampleCount = currentMicLevel.sampleCount,
             micClippedSampleCount = currentMicLevel.clippedSampleCount,
             micLevelUpdatedAt = currentMicLevel.updatedAt,
+            appAudioRmsLevel = currentAppAudioLevel.rmsLevel,
+            appAudioPeakLevel = currentAppAudioLevel.peakLevel,
+            appAudioSampleCount = currentAppAudioLevel.sampleCount,
+            appAudioClippedSampleCount = currentAppAudioLevel.clippedSampleCount,
+            appAudioLevelUpdatedAt = currentAppAudioLevel.updatedAt,
+            mixedAudioRmsLevel = currentMixedAudioLevel.rmsLevel,
+            mixedAudioPeakLevel = currentMixedAudioLevel.peakLevel,
+            mixedAudioSampleCount = currentMixedAudioLevel.sampleCount,
+            mixedAudioClippedSampleCount = currentMixedAudioLevel.clippedSampleCount,
+            mixedAudioLevelUpdatedAt = currentMixedAudioLevel.updatedAt,
             monitorEnabled = currentSettings.monitorEnabled,
             monitorRunning = monitorTrack?.playState == AudioTrack.PLAYSTATE_PLAYING,
             monitorVolume = currentSettings.monitorVolume,
@@ -262,8 +303,12 @@ class MicProcessingEffect(
     private fun applyVolume(
         pcmBuffer: ByteArray,
         volume: Float,
-        measureLevel: Boolean = false
+        measureLevel: Boolean = false,
+        measuredByteCount: Int = pcmBuffer.size
     ): MicLevelStats {
+        val alignedMeasuredByteCount = measuredByteCount
+            .coerceIn(0, pcmBuffer.size)
+            .let { it - it % 2 }
         var index = 0
         var sampleCount = 0L
         var clippedSampleCount = 0L
@@ -276,7 +321,7 @@ class MicProcessingEffect(
             val output = outputValue.toShort()
             pcmBuffer[index] = (output.toInt() and 0xff).toByte()
             pcmBuffer[index + 1] = ((output.toInt() shr 8) and 0xff).toByte()
-            if (measureLevel) {
+            if (measureLevel && index < alignedMeasuredByteCount) {
                 val normalizedLevel = abs(outputValue / 32768f).coerceIn(0f, 1f)
                 squaredLevelSum += normalizedLevel.toDouble() * normalizedLevel.toDouble()
                 peakLevel = max(peakLevel, normalizedLevel)
@@ -326,6 +371,58 @@ class MicProcessingEffect(
         micLevelWindowPeakLevel = 0f
         micLevelWindowSampleCount = 0L
         micLevelWindowClippedSampleCount = 0L
+    }
+
+    private fun accumulateAppAudioLevelWindow(stats: MicLevelStats) {
+        if (stats.sampleCount == 0L) {
+            return
+        }
+        appAudioLevelWindowSquaredLevelSum += stats.squaredLevelSum
+        appAudioLevelWindowPeakLevel = max(appAudioLevelWindowPeakLevel, stats.peakLevel)
+        appAudioLevelWindowSampleCount += stats.sampleCount
+        appAudioLevelWindowClippedSampleCount += stats.clippedSampleCount
+        if (appAudioLevelWindowSampleCount < micLevelWindowTargetSampleCount) {
+            return
+        }
+        appAudioLevelSnapshot = MicLevelSnapshot(
+            rmsLevel = sqrt(
+                appAudioLevelWindowSquaredLevelSum / appAudioLevelWindowSampleCount.toDouble()
+            ).toFloat().coerceIn(0f, 1f),
+            peakLevel = appAudioLevelWindowPeakLevel.coerceIn(0f, 1f),
+            sampleCount = appAudioLevelWindowSampleCount,
+            clippedSampleCount = appAudioLevelWindowClippedSampleCount,
+            updatedAt = System.currentTimeMillis()
+        )
+        appAudioLevelWindowSquaredLevelSum = 0.0
+        appAudioLevelWindowPeakLevel = 0f
+        appAudioLevelWindowSampleCount = 0L
+        appAudioLevelWindowClippedSampleCount = 0L
+    }
+
+    private fun accumulateMixedAudioLevelWindow(stats: PcmLevelStats) {
+        if (stats.sampleCount == 0L) {
+            return
+        }
+        mixedAudioLevelWindowSquaredLevelSum += stats.squaredLevelSum
+        mixedAudioLevelWindowPeakLevel = max(mixedAudioLevelWindowPeakLevel, stats.peakLevel)
+        mixedAudioLevelWindowSampleCount += stats.sampleCount
+        mixedAudioLevelWindowClippedSampleCount += stats.clippedSampleCount
+        if (mixedAudioLevelWindowSampleCount < micLevelWindowTargetSampleCount) {
+            return
+        }
+        mixedAudioLevelSnapshot = MicLevelSnapshot(
+            rmsLevel = sqrt(
+                mixedAudioLevelWindowSquaredLevelSum / mixedAudioLevelWindowSampleCount.toDouble()
+            ).toFloat().coerceIn(0f, 1f),
+            peakLevel = mixedAudioLevelWindowPeakLevel.coerceIn(0f, 1f),
+            sampleCount = mixedAudioLevelWindowSampleCount,
+            clippedSampleCount = mixedAudioLevelWindowClippedSampleCount,
+            updatedAt = System.currentTimeMillis()
+        )
+        mixedAudioLevelWindowSquaredLevelSum = 0.0
+        mixedAudioLevelWindowPeakLevel = 0f
+        mixedAudioLevelWindowSampleCount = 0L
+        mixedAudioLevelWindowClippedSampleCount = 0L
     }
 
     private fun releaseMonitor() {

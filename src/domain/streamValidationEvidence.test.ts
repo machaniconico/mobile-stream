@@ -196,6 +196,20 @@ const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
     micSampleCount: 44_100,
     micClippedSampleCount: 0,
     micLevelUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+    appAudioRmsLevel: 0.16,
+    appAudioPeakLevel: 0.58,
+    appAudioSampleCount: 88_200,
+    appAudioClippedSampleCount: 0,
+    appAudioLevelUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+    mixedAudioRmsLevel: 0.24,
+    mixedAudioPeakLevel: 0.78,
+    mixedAudioSampleCount: 88_200,
+    mixedAudioClippedSampleCount: 0,
+    mixedAudioLevelUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+    broadcastMicVolume: 1,
+    broadcastMicMuted: false,
+    broadcastAppAudioVolume: 0.85,
+    broadcastAppAudioMuted: false,
     monitorEnabled: true,
     monitorRunning: true,
     monitorVolume: 0.45,
@@ -993,6 +1007,7 @@ describe("stream validation evidence", () => {
       encoderReady: true,
       videoFrameIntervalReady: true,
       compositorReady: true,
+      playbackAudioReady: true,
       stillImageOverlayReady: true
     });
     expect(androidPreview.summary).toContain("android-canvas-mediacodec");
@@ -1002,6 +1017,55 @@ describe("stream validation evidence", () => {
       runtimePlatform: "android"
     });
     expect(iosPreview.recommendation).toContain("rerun the private stream on ios");
+  });
+
+  it("requires Android playback-audio and final-mix proof before validation recording", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntime("android");
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "live" },
+        health: health({ bitrateKbps: 3500, fps: 30, message: "Live" }),
+        nativeRuntime: {
+          ...runtime,
+          audioProcessing: {
+            ...runtime.audioProcessing,
+            appAudioRmsLevel: 0,
+            appAudioPeakLevel: 0,
+            appAudioSampleCount: 0,
+            appAudioLevelUpdatedAt: 0,
+            mixedAudioRmsLevel: 0,
+            mixedAudioPeakLevel: 0,
+            mixedAudioSampleCount: 0,
+            mixedAudioLevelUpdatedAt: 0
+          }
+        }
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const preview = createStreamValidationNativeRuntimePreview(diagnostics, "android");
+
+    expect(preview).toMatchObject({
+      status: "warn",
+      expectedPlatform: "android",
+      runtimePlatform: "android",
+      publisherReady: true,
+      compositorReady: true,
+      playbackAudioReady: false
+    });
+    expect(preview.summary).toContain("app audio 0 samples");
+    expect(preview.recommendation).toContain("Play game/media audio");
   });
 
   it("previews iOS App Group still-image proof gaps before validation recording", () => {

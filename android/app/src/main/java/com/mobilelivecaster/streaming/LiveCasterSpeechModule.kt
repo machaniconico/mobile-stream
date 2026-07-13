@@ -1,5 +1,6 @@
 package com.mobilelivecaster.streaming
 
+import android.media.AudioAttributes
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -70,6 +71,12 @@ class LiveCasterSpeechModule(private val reactContext: ReactApplicationContext) 
         ready = status == TextToSpeech.SUCCESS
         if (ready) {
             textToSpeech?.language = Locale.getDefault()
+            textToSpeech?.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
             val requests = pendingRequests.toList()
             pendingRequests.clear()
             requests.forEach { request ->
