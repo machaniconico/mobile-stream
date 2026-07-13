@@ -74,6 +74,7 @@ enum LiveCasterNativeError: LocalizedError {
     case qualityDestinationChange
     case broadcastStopPending
     case broadcastAlreadyActive
+    case encoderPreflightFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -97,6 +98,8 @@ enum LiveCasterNativeError: LocalizedError {
             return "Wait for the current iOS broadcast to finish stopping before starting again"
         case .broadcastAlreadyActive:
             return "Stop the current iOS broadcast before preparing another one"
+        case .encoderPreflightFailed(let message):
+            return message
         }
     }
 
@@ -122,6 +125,8 @@ enum LiveCasterNativeError: LocalizedError {
             return "broadcast_stop_pending"
         case .broadcastAlreadyActive:
             return "broadcast_already_active"
+        case .encoderPreflightFailed:
+            return "encoder_preflight_failed"
         }
     }
 }
@@ -657,6 +662,18 @@ final class LiveCasterNative: RCTEventEmitter {
             }
             do {
                 let configuration = try LiveCasterPreparedConfiguration(profileJSON: profileJson)
+                let encoderPreflight = LiveCasterEncoderPreflight.inspect(
+                    LiveCasterEncoderPreflightConfiguration(
+                        width: configuration.width,
+                        height: configuration.height,
+                        fps: configuration.fps,
+                        videoBitrateKbps: configuration.videoBitrateKbps,
+                        audioBitrateKbps: configuration.audioBitrateKbps
+                    )
+                )
+                guard encoderPreflight.passed else {
+                    throw LiveCasterNativeError.encoderPreflightFailed(encoderPreflight.message)
+                }
                 self.stopRuntimePollingLocked()
                 self.sharedStore.clearRuntimeState()
                 try self.clearBroadcastHandoffLocked()
@@ -672,7 +689,7 @@ final class LiveCasterNative: RCTEventEmitter {
                     fps: configuration.fps,
                     elapsedSeconds: 0,
                     reconnectAttempts: 0,
-                    message: "Ready to open iOS broadcast picker"
+                    message: "\(encoderPreflight.message) Ready to open iOS broadcast picker."
                 )
                 let snapshot = self.snapshotLocked()
                 self.emitSnapshot(snapshot)
@@ -680,6 +697,9 @@ final class LiveCasterNative: RCTEventEmitter {
             } catch {
                 try? self.clearBroadcastHandoffLocked()
                 let message = self.redactSensitiveTextLocked(error.localizedDescription)
+                self.preparedConfiguration = nil
+                self.renderGraphJSON = "[]"
+                self.nativeRuntime = nil
                 self.failLocked(message)
                 reject((error as? LiveCasterNativeError)?.code ?? "prepare_failed", message, error)
             }

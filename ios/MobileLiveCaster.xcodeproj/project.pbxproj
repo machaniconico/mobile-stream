@@ -24,6 +24,7 @@
 		A10000000000000000000008 /* LiveCasterNativeBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000018 /* LiveCasterNativeBridge.m */; };
 		A10000000000000000000009 /* LiveCasterSceneStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000020 /* LiveCasterSceneStore.swift */; };
 		A10000000000000000000010 /* LiveCasterSceneStoreBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000021 /* LiveCasterSceneStoreBridge.m */; };
+		A30000000000000000000001 /* LiveCasterEncoderPreflight.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011 /* LiveCasterEncoderPreflight.swift */; };
 		B10000000000000000000001 /* SampleHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* SampleHandler.swift */; };
 		B20000000000000000000001 /* MediaContinuityTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* MediaContinuityTracker.swift */; };
 		B30000000000000000000001 /* MediaTimestampTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000003 /* MediaTimestampTracker.swift */; };
@@ -85,6 +86,7 @@
 		A10000000000000000000019 /* MobileLiveCaster.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = MobileLiveCaster.entitlements; path = MobileLiveCaster/MobileLiveCaster.entitlements; sourceTree = "<group>"; };
 		A10000000000000000000020 /* LiveCasterSceneStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LiveCasterSceneStore.swift; path = MobileLiveCaster/LiveCasterSceneStore.swift; sourceTree = "<group>"; };
 		A10000000000000000000021 /* LiveCasterSceneStoreBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LiveCasterSceneStoreBridge.m; path = MobileLiveCaster/LiveCasterSceneStoreBridge.m; sourceTree = "<group>"; };
+		A30000000000000000000011 /* LiveCasterEncoderPreflight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LiveCasterEncoderPreflight.swift; path = MobileLiveCaster/LiveCasterEncoderPreflight.swift; sourceTree = "<group>"; };
 		B10000000000000000000003 /* SampleHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleHandler.swift; sourceTree = "<group>"; };
 		B20000000000000000000003 /* MediaContinuityTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaContinuityTracker.swift; sourceTree = "<group>"; };
 		B30000000000000000000003 /* MediaTimestampTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaTimestampTracker.swift; sourceTree = "<group>"; };
@@ -125,6 +127,7 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
 				A10000000000000000000011 /* LiveCasterBridge.swift */,
+				A30000000000000000000011 /* LiveCasterEncoderPreflight.swift */,
 				C10000000000000000000011 /* LiveCasterBroadcastCredentialStore.swift */,
 				D10000000000000000000011 /* LiveCasterDiagnosticHistoryStore.swift */,
 				E10000000000000000000011 /* LiveCasterBroadcastControlStore.swift */,
@@ -392,6 +395,7 @@
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
 				A10000000000000000000001 /* LiveCasterBridge.swift in Sources */,
+				A30000000000000000000001 /* LiveCasterEncoderPreflight.swift in Sources */,
 				C10000000000000000000001 /* LiveCasterBroadcastCredentialStore.swift in Sources */,
 				D10000000000000000000001 /* LiveCasterDiagnosticHistoryStore.swift in Sources */,
 				E10000000000000000000001 /* LiveCasterBroadcastControlStore.swift in Sources */,
