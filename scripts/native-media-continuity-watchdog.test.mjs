@@ -59,9 +59,11 @@ describe("native media continuity watchdog", () => {
     expect(handler).toContain("setMediaContinuityEnabled(false)");
     expect(handler).toContain("setMediaContinuityEnabled(true)");
     expect(handler).toContain("let finalPublisherStats = publisher?.statsAfterDrainingPendingMedia()");
+    expect(handler).toContain("publisher?.beginStop()");
+    expect(handler).toContain("let publisherStopped = publisher?.stopAndWait() ?? true");
     expect(handler).toContain("_ = drain.wait(timeout: .now() + 1)");
     expect(handler).toContain("let finalContinuitySnapshot = mediaContinuityLock.performLocked {");
-    expect(handler).toContain("publisherStats: finalPublisherStats");
+    expect(handler).toContain("publisherStats: terminalPublisherStats");
     expect(handler).toContain("continuitySnapshot: finalContinuitySnapshot");
     expect(handler).toContain('payload["continuity"] = continuitySnapshot.asDictionary()');
     expect(stopMethod.indexOf("stopMediaContinuityHeartbeat()")).toBeLessThan(

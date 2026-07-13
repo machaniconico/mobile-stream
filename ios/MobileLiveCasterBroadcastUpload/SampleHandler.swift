@@ -248,67 +248,113 @@ final class BroadcastDeviceResourceMonitor {
 }
 
 final class SampleHandler: RPBroadcastSampleHandler {
-    private lazy var pipeline = BroadcastUploadPipeline { [weak self] command in
+    private let pipelineQueue = DispatchQueue(label: "MobileLiveCaster.broadcast.pipeline")
+    private lazy var pipeline = BroadcastUploadPipeline(mediaContinuityQueue: pipelineQueue) { [weak self] command in
         self?.handleControlCommand(command)
     }
     private let logger = Logger(subsystem: "MobileLiveCaster", category: "BroadcastUploadLifecycle")
     private var activeHandoffID: String?
+    private var extensionLease: LiveCasterBroadcastExtensionLease?
+    private var terminatingStopRequestID: String?
 
     override func broadcastStarted(withSetupInfo setupInfo: [String: NSObject]?) {
+        do {
+            extensionLease = try LiveCasterBroadcastControlStore.acquireExtensionLease()
+        } catch {
+            finishBroadcastWithError(BroadcastUploadError.asNSError(error))
+            return
+        }
         BroadcastDeviceResourceMonitor.shared.start()
         let requestedHandoffID = BroadcastSharedStore.currentHandoffID()
-        do {
-            let sharedSetupInfo = try requestedHandoffID.flatMap { handoffID in
-                try BroadcastSharedStore.loadConfigurationSetupInfo(expectedHandoffID: handoffID)
+        if let requestedHandoffID {
+            BroadcastSharedStore.saveExtensionObservation(handoffID: requestedHandoffID)
+        }
+        var startError: NSError?
+        pipelineQueue.sync {
+            if
+                let requestedHandoffID,
+                let command = LiveCasterBroadcastControlStore.peek(expectedHandoffID: requestedHandoffID)
+            {
+                startError = stopBeforeStart(command)
+                return
             }
-            let effectiveSetupInfo = sharedSetupInfo.map { shared in
-                (setupInfo ?? [:]).merging(shared) { _, sharedValue in sharedValue }
-            } ?? setupInfo ?? [:]
-            let handoffID = sharedSetupInfo?["handoffId"] as? String
-            switch pipeline.start(setupInfo: effectiveSetupInfo) {
-            case .success:
-                activeHandoffID = handoffID
-            case .failure(let error):
+            do {
+                let sharedSetupInfo = try requestedHandoffID.flatMap { handoffID in
+                    try BroadcastSharedStore.loadConfigurationSetupInfo(expectedHandoffID: handoffID)
+                }
+                let effectiveSetupInfo = sharedSetupInfo.map { shared in
+                    (setupInfo ?? [:]).merging(shared) { _, sharedValue in sharedValue }
+                } ?? setupInfo ?? [:]
+                let handoffID = effectiveSetupInfo["handoffId"] as? String ?? requestedHandoffID
+                let startPipeline = {
+                    switch self.pipeline.start(setupInfo: effectiveSetupInfo) {
+                    case .success:
+                        self.activeHandoffID = handoffID
+                    case .failure(let error):
+                        BroadcastDeviceResourceMonitor.shared.stop()
+                        self.clearCredential(handoffID: handoffID)
+                        startError = BroadcastUploadError.asNSError(error)
+                    }
+                }
+                if let handoffID {
+                    try LiveCasterBroadcastControlStore.withExclusiveLifecycleCommand(
+                        expectedHandoffID: handoffID
+                    ) { command in
+                        if let command {
+                            startError = self.stopBeforeStart(command)
+                        } else {
+                            startPipeline()
+                        }
+                    }
+                } else {
+                    startPipeline()
+                }
+            } catch {
                 BroadcastDeviceResourceMonitor.shared.stop()
-                clearCredential(handoffID: handoffID)
-                finishBroadcastWithError(BroadcastUploadError.asNSError(error))
+                clearCredential(handoffID: requestedHandoffID)
+                startError = BroadcastUploadError.asNSError(error)
             }
-        } catch {
-            BroadcastDeviceResourceMonitor.shared.stop()
-            clearCredential(handoffID: requestedHandoffID)
-            finishBroadcastWithError(BroadcastUploadError.asNSError(error))
+        }
+        if let startError {
+            extensionLease?.release()
+            extensionLease = nil
+            finishBroadcastWithError(startError)
         }
     }
 
     override func broadcastPaused() {
-        pipeline.pause()
+        pipelineQueue.sync { pipeline.pause() }
     }
 
     override func broadcastResumed() {
-        pipeline.resume()
+        pipelineQueue.sync { pipeline.resume() }
     }
 
     override func broadcastFinished() {
-        pipeline.stop()
-        BroadcastDeviceResourceMonitor.shared.stop()
-        let handoffID = activeHandoffID
-        activeHandoffID = nil
-        if let handoffID {
-            LiveCasterBroadcastControlStore.clear(handoffID: handoffID)
+        pipelineQueue.sync {
+            let handoffID = activeHandoffID
+            stopPipelineForLatestCommand(handoffID: handoffID, markExtensionFinished: true)
+            BroadcastDeviceResourceMonitor.shared.stop()
+            activeHandoffID = nil
+            clearCredential(handoffID: handoffID)
+            terminatingStopRequestID = nil
+            extensionLease?.release()
+            extensionLease = nil
         }
-        clearCredential(handoffID: handoffID)
     }
 
     override func processSampleBuffer(_ sampleBuffer: CMSampleBuffer, with sampleBufferType: RPSampleBufferType) {
-        switch sampleBufferType {
-        case .video:
-            pipeline.consumeVideo(sampleBuffer)
-        case .audioApp:
-            pipeline.consumeAppAudio(sampleBuffer)
-        case .audioMic:
-            pipeline.consumeMicrophone(sampleBuffer)
-        @unknown default:
-            pipeline.dropUnknownSample()
+        pipelineQueue.sync {
+            switch sampleBufferType {
+            case .video:
+                pipeline.consumeVideo(sampleBuffer)
+            case .audioApp:
+                pipeline.consumeAppAudio(sampleBuffer)
+            case .audioMic:
+                pipeline.consumeMicrophone(sampleBuffer)
+            @unknown default:
+                pipeline.dropUnknownSample()
+            }
         }
     }
 
@@ -323,25 +369,80 @@ final class SampleHandler: RPBroadcastSampleHandler {
         }
     }
 
+    private func stopBeforeStart(_ command: LiveCasterBroadcastControlCommand) -> NSError {
+        terminatingStopRequestID = command.requestID
+        BroadcastSharedStore.saveStoppedBeforeStart(
+            handoffID: command.handoffID,
+            stopRequestID: command.requestID
+        )
+        BroadcastDeviceResourceMonitor.shared.stop()
+        clearCredential(handoffID: command.handoffID)
+        return stopBroadcastError()
+    }
+
+    private func stopPipelineForLatestCommand(
+        handoffID: String?,
+        markExtensionFinished: Bool = false
+    ) {
+        guard let handoffID else {
+            pipeline.stop(stopRequestID: terminatingStopRequestID)
+            return
+        }
+        do {
+            try LiveCasterBroadcastControlStore.withExclusiveLifecycleCommand(
+                expectedHandoffID: handoffID
+            ) { command in
+                if let command {
+                    terminatingStopRequestID = command.requestID
+                }
+                let publisherStopped = pipeline.stop(stopRequestID: terminatingStopRequestID)
+                if markExtensionFinished {
+                    BroadcastSharedStore.saveExtensionFinished(
+                        handoffID: handoffID,
+                        stopRequestID: publisherStopped ? terminatingStopRequestID : nil
+                    )
+                }
+            }
+        } catch {
+            let publisherStopped = pipeline.stop(stopRequestID: terminatingStopRequestID)
+            if markExtensionFinished {
+                BroadcastSharedStore.saveExtensionFinished(
+                    handoffID: handoffID,
+                    stopRequestID: publisherStopped ? terminatingStopRequestID : nil
+                )
+            }
+            logger.error("Broadcast lifecycle lock failed during stop: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func stopBroadcastError() -> NSError {
+        NSError(
+            domain: "com.mobilelivecaster.broadcast-control",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "Broadcast stopped from MobileLiveCaster"]
+        )
+    }
+
     private func handleControlCommand(_ command: LiveCasterBroadcastControlCommand) {
         guard command.action == .stop else {
             return
         }
-        DispatchQueue.main.async { [weak self] in
+        pipelineQueue.async { [weak self] in
             guard let self, self.activeHandoffID == command.handoffID else {
                 return
             }
-            self.pipeline.stop()
+            guard self.terminatingStopRequestID != command.requestID else {
+                return
+            }
+            self.terminatingStopRequestID = command.requestID
+            self.pipeline.stop(stopRequestID: command.requestID)
             BroadcastDeviceResourceMonitor.shared.stop()
             let handoffID = self.activeHandoffID
-            self.activeHandoffID = nil
             self.clearCredential(handoffID: handoffID)
-            let error = NSError(
-                domain: "com.mobilelivecaster.broadcast-control",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Broadcast stopped from MobileLiveCaster"]
-            )
-            self.finishBroadcastWithError(error)
+            let error = self.stopBroadcastError()
+            DispatchQueue.main.async { [weak self] in
+                self?.finishBroadcastWithError(error)
+            }
         }
     }
 }
@@ -1039,6 +1140,72 @@ final class BroadcastSharedStore {
         defaults?.dictionary(forKey: broadcastConfigurationKey)?["handoffId"] as? String
     }
 
+    static func saveExtensionObservation(handoffID: String) {
+        saveLifecycleRuntimeState(status: "preparing", handoffID: handoffID)
+    }
+
+    static func saveStoppedBeforeStart(handoffID: String, stopRequestID: String) {
+        saveLifecycleRuntimeState(
+            status: "idle",
+            handoffID: handoffID,
+            stopRequestID: stopRequestID,
+            extensionFinished: true
+        )
+    }
+
+    static func saveExtensionFinished(handoffID: String, stopRequestID: String?) {
+        runtimeStateLock.lock()
+        defer { runtimeStateLock.unlock() }
+        guard let defaults else {
+            return
+        }
+        let finishedAt = Date().timeIntervalSince1970 * 1_000
+        var payload = defaults.dictionary(forKey: broadcastRuntimeStateKey) ?? [
+            "stats": BroadcastUploadStats().asDictionary()
+        ]
+        payload["status"] = "idle"
+        payload["updatedAt"] = finishedAt
+        payload["extensionObservedAt"] = payload["extensionObservedAt"] ?? finishedAt
+        payload["extensionFinishedAt"] = finishedAt
+        payload["handoffId"] = handoffID
+        if let stopRequestID {
+            payload["stopRequestId"] = stopRequestID
+        } else {
+            payload.removeValue(forKey: "stopRequestId")
+        }
+        defaults.set(payload, forKey: broadcastRuntimeStateKey)
+        defaults.synchronize()
+    }
+
+    private static func saveLifecycleRuntimeState(
+        status: String,
+        handoffID: String,
+        stopRequestID: String? = nil,
+        extensionFinished: Bool = false
+    ) {
+        runtimeStateLock.lock()
+        defer { runtimeStateLock.unlock() }
+        guard let defaults else {
+            return
+        }
+        let observedAt = Date().timeIntervalSince1970 * 1_000
+        var payload: [String: Any] = [
+            "status": status,
+            "updatedAt": observedAt,
+            "extensionObservedAt": observedAt,
+            "handoffId": handoffID,
+            "stats": BroadcastUploadStats().asDictionary()
+        ]
+        if let stopRequestID {
+            payload["stopRequestId"] = stopRequestID
+        }
+        if extensionFinished {
+            payload["extensionFinishedAt"] = observedAt
+        }
+        defaults.set(payload, forKey: broadcastRuntimeStateKey)
+        defaults.synchronize()
+    }
+
     static func clearCredential(handoffID: String) throws {
         try LiveCasterBroadcastCredentialStore.clear(handoffID: handoffID)
     }
@@ -1054,7 +1221,8 @@ final class BroadcastSharedStore {
         publisherStats: BroadcastRTMPPublisherStats?,
         continuitySnapshot: BroadcastMediaContinuitySnapshot?,
         sceneCompositionSummary: BroadcastSceneCompositionSummary?,
-        handoffID: String? = nil
+        handoffID: String? = nil,
+        stopRequestID: String? = nil
     ) {
         runtimeStateLock.lock()
         defer { runtimeStateLock.unlock() }
@@ -1106,6 +1274,10 @@ final class BroadcastSharedStore {
 
         if let effectiveHandoffID = configuration?.handoffID ?? handoffID {
             payload["handoffId"] = effectiveHandoffID
+        }
+
+        if let stopRequestID {
+            payload["stopRequestId"] = stopRequestID
         }
 
         if let configuration {
@@ -1930,6 +2102,7 @@ final class BroadcastRTMPPublisher {
     private let callbackQueue = DispatchQueue(label: "MobileLiveCaster.broadcast.rtmp.network")
     private let statsLock = NSLock()
     private let pendingMediaLock = NSLock()
+    private let transportLock = NSLock()
     private var currentStats = BroadcastRTMPPublisherStats()
     private var pendingMediaEntries: [RTMPPendingMediaEntry] = []
     private var pendingMediaBytes = 0
@@ -1974,19 +2147,75 @@ final class BroadcastRTMPPublisher {
     }
 
     func stop() {
-        queue.async { [weak self] in
-            guard let self else {
-                return
-            }
-            stopped = true
-            reconnectWorkItem?.cancel()
-            reconnectWorkItem = nil
-            statsLock.performLocked {
-                self.currentStats.updateState(.stopped)
-            }
-            connection?.cancel()
-            connection = nil
+        requestStopImmediately()
+        queue.async { [self] in
+            stopLocked()
         }
+    }
+
+    func beginStop() {
+        requestStopImmediately()
+    }
+
+    @discardableResult
+    func stopAndWait(timeout: DispatchTimeInterval = .seconds(3)) -> Bool {
+        requestStopImmediately()
+        let completion = DispatchSemaphore(value: 0)
+        queue.async { [self] in
+            stopLocked()
+            completion.signal()
+        }
+        return completion.wait(timeout: .now() + timeout) == .success
+    }
+
+    private func stopLocked() {
+        requestStopImmediately()
+        reconnectWorkItem?.cancel()
+        reconnectWorkItem = nil
+        statsLock.performLocked {
+            currentStats.updateState(.stopped)
+        }
+    }
+
+    private var isStopRequested: Bool {
+        transportLock.performLocked { stopped }
+    }
+
+    private func requestStopImmediately() {
+        let connectionToCancel = transportLock.performLocked { () -> NWConnection? in
+            stopped = true
+            let activeConnection = connection
+            connection = nil
+            return activeConnection
+        }
+        connectionToCancel?.cancel()
+    }
+
+    private func installConnection(_ nextConnection: NWConnection) -> Bool {
+        transportLock.performLocked {
+            guard !stopped else {
+                return false
+            }
+            connection = nextConnection
+            return true
+        }
+    }
+
+    private func currentConnection() -> NWConnection? {
+        transportLock.performLocked { connection }
+    }
+
+    private func isCurrentConnection(_ candidate: NWConnection) -> Bool {
+        transportLock.performLocked { connection === candidate }
+    }
+
+    private func cancelCurrentConnection() {
+        let connectionToCancel = transportLock.performLocked { () -> NWConnection? in
+            let activeConnection = connection
+            connection = nil
+            return activeConnection
+        }
+        connectionToCancel?.cancel()
     }
 
     func publishVideoFrame(_ frame: BroadcastEncodedVideoFrame) {
@@ -2121,11 +2350,10 @@ final class BroadcastRTMPPublisher {
     }
 
     private func handleConnectionFailure(_ error: Error) {
-        connection?.cancel()
-        connection = nil
+        cancelCurrentConnection()
         resetConnectionState()
 
-        guard !stopped else {
+        guard !isStopRequested else {
             return
         }
         guard reconnectWorkItem == nil else {
@@ -2187,7 +2415,7 @@ final class BroadcastRTMPPublisher {
     }
 
     private func connect() throws {
-        guard !stopped else {
+        guard !isStopRequested else {
             throw BroadcastRTMPPublisherError.publisherStopped
         }
 
@@ -2201,7 +2429,10 @@ final class BroadcastRTMPPublisher {
         }
 
         let nextConnection = NWConnection(host: NWEndpoint.Host(target.host), port: port, using: parameters)
-        connection = nextConnection
+        guard installConnection(nextConnection) else {
+            nextConnection.cancel()
+            throw BroadcastRTMPPublisherError.publisherStopped
+        }
 
         let semaphore = DispatchSemaphore(value: 0)
         var connectedError: Error?
@@ -2214,13 +2445,18 @@ final class BroadcastRTMPPublisher {
             case .failed(let error):
                 if connectionReady {
                     self?.queue.async {
-                        guard self?.connection === nextConnection else {
+                        guard self?.isCurrentConnection(nextConnection) == true else {
                             return
                         }
                         self?.handleConnectionFailure(error)
                     }
                 } else {
                     connectedError = error
+                    semaphore.signal()
+                }
+            case .cancelled:
+                if !connectionReady {
+                    connectedError = BroadcastRTMPPublisherError.publisherStopped
                     semaphore.signal()
                 }
             default:
@@ -2234,6 +2470,9 @@ final class BroadcastRTMPPublisher {
         }
         if let connectedError {
             throw BroadcastRTMPPublisherError.connectionFailed(connectedError.localizedDescription)
+        }
+        guard !isStopRequested else {
+            throw BroadcastRTMPPublisherError.publisherStopped
         }
     }
 
@@ -2602,7 +2841,7 @@ final class BroadcastRTMPPublisher {
     }
 
     private func write(_ data: Data) throws {
-        guard let connection, !stopped else {
+        guard let connection = currentConnection(), !isStopRequested else {
             throw BroadcastRTMPPublisherError.publisherStopped
         }
 
@@ -2627,7 +2866,7 @@ final class BroadcastRTMPPublisher {
         guard count > 0 else {
             return Data()
         }
-        guard let connection else {
+        guard let connection = currentConnection() else {
             throw BroadcastRTMPPublisherError.publisherStopped
         }
 
@@ -5932,7 +6171,7 @@ final class BroadcastUploadPipeline {
     private var liveRenderGraphRejectedUpdateCount = 0
     private var lastRejectedRenderGraphUpdateKey: String?
     private let mediaContinuityLock = NSLock()
-    private let mediaContinuityQueue = DispatchQueue(label: "MobileLiveCaster.broadcast.media-continuity")
+    private let mediaContinuityQueue: DispatchQueue
     private var mediaContinuityTimer: DispatchSourceTimer?
     private var mediaContinuityHeartbeatGate = BroadcastMediaContinuityHeartbeatGate()
     private var mediaContinuityTracker = BroadcastMediaContinuityTracker()
@@ -5941,7 +6180,11 @@ final class BroadcastUploadPipeline {
     private var adaptiveBitrateController = NativeAdaptiveBitrateController()
     private let controlActionHandler: (LiveCasterBroadcastControlCommand) -> Void
 
-    init(controlActionHandler: @escaping (LiveCasterBroadcastControlCommand) -> Void = { _ in }) {
+    init(
+        mediaContinuityQueue: DispatchQueue = DispatchQueue(label: "MobileLiveCaster.broadcast.media-continuity"),
+        controlActionHandler: @escaping (LiveCasterBroadcastControlCommand) -> Void = { _ in }
+    ) {
+        self.mediaContinuityQueue = mediaContinuityQueue
         self.controlActionHandler = controlActionHandler
     }
 
@@ -6052,9 +6295,16 @@ final class BroadcastUploadPipeline {
         saveRuntimeState()
     }
 
-    func stop() {
-        guard state != .idle && state != .stopped else {
-            return
+    @discardableResult
+    func stop(stopRequestID: String? = nil) -> Bool {
+        if state == .stopped {
+            if stopRequestID != nil {
+                saveRuntimeState(stopRequestID: stopRequestID)
+            }
+            return true
+        }
+        guard state != .idle else {
+            return true
         }
 
         let finalSceneCompositionSummary = sceneCompositionSummary()
@@ -6063,6 +6313,7 @@ final class BroadcastUploadPipeline {
         let finalVideoEncoderStats = videoEncoder?.stats
         audioEncoder?.finish()
         let finalAudioEncoderStats = audioEncoder?.stats
+        publisher?.beginStop()
         let finalPublisherStats = publisher?.statsAfterDrainingPendingMedia()
         let finalContinuitySnapshot = mediaContinuityLock.performLocked {
             mediaContinuityTracker.record(
@@ -6081,17 +6332,25 @@ final class BroadcastUploadPipeline {
         liveRenderGraphReloadCount = 0
         liveRenderGraphRejectedUpdateCount = 0
         lastRejectedRenderGraphUpdateKey = nil
-        publisher?.stop()
-        publisher = nil
-        state = .stopped
-        logger.info("Broadcast upload stopped frames=\(self.stats.videoFrames) dropped=\(self.stats.droppedSamples)")
+        let publisherStopped = publisher?.stopAndWait() ?? true
+        let terminalPublisherStats = publisherStopped ? (publisher?.stats ?? finalPublisherStats) : finalPublisherStats
+        if publisherStopped {
+            publisher = nil
+            state = .stopped
+            logger.info("Broadcast upload stopped frames=\(self.stats.videoFrames) dropped=\(self.stats.droppedSamples)")
+        } else {
+            state = .failed("RTMP publisher shutdown timed out")
+            logger.error("Broadcast upload could not confirm RTMP publisher shutdown")
+        }
         saveRuntimeState(
             sceneCompositionSummary: finalSceneCompositionSummary,
             videoEncoderStats: finalVideoEncoderStats,
             audioEncoderStats: finalAudioEncoderStats,
-            publisherStats: finalPublisherStats,
-            continuitySnapshot: finalContinuitySnapshot
+            publisherStats: terminalPublisherStats,
+            continuitySnapshot: finalContinuitySnapshot,
+            stopRequestID: publisherStopped ? stopRequestID : nil
         )
+        return publisherStopped
     }
 
     func consumeVideo(_ sampleBuffer: CMSampleBuffer) {
@@ -6148,7 +6407,8 @@ final class BroadcastUploadPipeline {
         audioEncoderStats overrideAudioEncoderStats: BroadcastAudioEncoderStats? = nil,
         publisherStats overridePublisherStats: BroadcastRTMPPublisherStats? = nil,
         continuitySnapshot overrideContinuitySnapshot: BroadcastMediaContinuitySnapshot? = nil,
-        handoffID: String? = nil
+        handoffID: String? = nil,
+        stopRequestID: String? = nil
     ) {
         let effectivePublisherStats = overridePublisherStats ?? publisher?.stats
         let continuitySnapshot = overrideContinuitySnapshot ?? mediaContinuityLock.performLocked {
@@ -6169,7 +6429,8 @@ final class BroadcastUploadPipeline {
             publisherStats: effectivePublisherStats,
             continuitySnapshot: continuitySnapshot,
             sceneCompositionSummary: snapshotSceneCompositionSummary ?? sceneCompositionSummary(),
-            handoffID: handoffID
+            handoffID: handoffID,
+            stopRequestID: stopRequestID
         )
     }
 
@@ -6190,7 +6451,7 @@ final class BroadcastUploadPipeline {
             }
             if
                 let handoffID = self.configuration?.handoffID,
-                let command = LiveCasterBroadcastControlStore.consume(expectedHandoffID: handoffID)
+                let command = LiveCasterBroadcastControlStore.peek(expectedHandoffID: handoffID)
             {
                 self.controlActionHandler(command)
                 return

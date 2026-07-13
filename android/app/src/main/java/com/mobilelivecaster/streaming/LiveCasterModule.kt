@@ -634,6 +634,9 @@ object LiveCasterSession {
     var captureData: Intent? = null
         private set
     private var startedAtMillis: Long? = null
+    private var preparationGeneration = 0L
+    @Volatile
+    private var streamStartCommitted = false
 
     fun addListener(listener: (WritableMap) -> Unit) {
         listeners.add(listener)
@@ -644,8 +647,13 @@ object LiveCasterSession {
         listeners.remove(listener)
     }
 
+    @Synchronized
     fun prepare(renderGraphJson: String, profileJson: String) {
+        check(!streamStartCommitted) {
+            "The current stream start has already been committed. Stop it before preparing another stream"
+        }
         val parsedProfile = parseProfile(profileJson)
+        preparationGeneration = if (preparationGeneration == Long.MAX_VALUE) 1L else preparationGeneration + 1L
         this.renderGraphJson = renderGraphJson
         profile = parsedProfile
         captureResultCode = null
@@ -683,11 +691,23 @@ object LiveCasterSession {
         return updatedProfile
     }
 
-    fun storeCaptureConsent(resultCode: Int, data: Intent) {
+    @Synchronized
+    fun currentPreparationGeneration(): Long = preparationGeneration
+
+    fun isStreamStartCommitted(): Boolean = streamStartCommitted
+
+    @Synchronized
+    fun commitCaptureConsent(preparationGeneration: Long, resultCode: Int, data: Intent): Boolean {
+        if (this.preparationGeneration != preparationGeneration || streamStartCommitted) {
+            return false
+        }
         captureResultCode = resultCode
         captureData = data
+        streamStartCommitted = true
+        return true
     }
 
+    @Synchronized
     fun consumeCaptureConsent(): LiveCasterCaptureConsent? {
         val resultCode = captureResultCode ?: return null
         val data = captureData ?: return null
@@ -695,6 +715,7 @@ object LiveCasterSession {
         return LiveCasterCaptureConsent(resultCode, data)
     }
 
+    @Synchronized
     fun clearCaptureConsent() {
         captureResultCode = null
         captureData = null
@@ -724,6 +745,7 @@ object LiveCasterSession {
         status = LiveCasterStatus.Idle
         health = LiveCasterHealth(message = "Ready")
         startedAtMillis = null
+        streamStartCommitted = false
         nativeRuntime = nativeRuntime?.copy(
             runtimeStatus = status.jsValue,
             updatedAt = System.currentTimeMillis(),
@@ -747,6 +769,8 @@ object LiveCasterSession {
         status = LiveCasterStatus.Failed
         health = health.copy(message = safeMessage)
         startedAtMillis = null
+        streamStartCommitted = false
+        clearCaptureConsent()
         nativeRuntime = nativeRuntime?.let { current ->
             NativeRuntimeTelemetry(
                 runtimeStatus = status.jsValue,

@@ -17,6 +17,10 @@ describe("native broadcast lifecycle", () => {
       "android/app/src/main/java/com/mobilelivecaster/streaming/LiveCasterModule.kt",
       "utf8"
     );
+    const nativeModule = readFileSync(
+      "android/app/src/main/java/com/mobilelivecaster/streaming/LiveCasterNativeModule.kt",
+      "utf8"
+    );
     const direct = readFileSync(
       "android/app/src/main/java/com/mobilelivecaster/streaming/AndroidMediaCodecDirectStream.kt",
       "utf8"
@@ -25,16 +29,50 @@ describe("native broadcast lifecycle", () => {
       "android/app/src/main/java/com/mobilelivecaster/streaming/AndroidMediaCodecRtmpPublisher.kt",
       "utf8"
     );
-    const reconnect = functionBlock(service, "private fun reconnectStream()");
+    const callbackGuard = readFileSync(
+      "android/app/src/main/java/com/mobilelivecaster/streaming/PublisherCallbackSessionGuard.kt",
+      "utf8"
+    );
+    const consentGuard = readFileSync(
+      "android/app/src/main/java/com/mobilelivecaster/streaming/CaptureConsentRequestGuard.kt",
+      "utf8"
+    );
+    const reconnect = functionBlock(service, "private fun reconnectStream(reason: String)");
+    const release = functionBlock(service, "private fun releaseStreamResources()");
     const directReconnect = reconnect.slice(
       reconnect.indexOf("if (directStream != null)"),
-      reconnect.indexOf("if (stream == null || endpoint == null)")
+      reconnect.indexOf("if (stream == null)")
     );
+    const genericReconnect = reconnect.slice(reconnect.indexOf("if (stream == null)"));
 
     expect(session).toContain("fun consumeCaptureConsent(): LiveCasterCaptureConsent?");
     expect(service).toContain("val captureConsent = LiveCasterSession.consumeCaptureConsent()");
     expect(service).toContain("projection.registerCallback(callback, continuityHandler)");
     expect(service).toContain("handleUnexpectedMediaProjectionStop()");
+    expect(service).not.toContain("Service(), ConnectChecker");
+    expect(service).toContain("beginPublisherCallbackSession()");
+    expect(service).toContain("GenerationScopedConnectChecker(");
+    expect(service).toContain("getStreamClient().setReTries(MAX_RECONNECT_ATTEMPTS)");
+    expect(release.indexOf("invalidatePublisherCallbackSession()")).toBeLessThan(
+      release.indexOf("directMediaCodecStream?.stop()")
+    );
+    expect(reconnect).not.toContain("startStreamFromSession(resetReconnectAttempts = false)");
+    expect(genericReconnect).toContain("stream.getStreamClient().reTry(0L, reason)");
+    expect(genericReconnect).not.toContain("stream.stopStream()");
+    expect(genericReconnect).not.toContain("stream.startStream(");
+    expect(reconnect).toContain(
+      'stopStreamAfterFailure("Publisher session is unavailable. Start again and approve screen sharing")'
+    );
+    expect(callbackGuard).toContain("internal class PublisherCallbackSessionGuard");
+    expect(callbackGuard).toContain("internal class GenerationScopedConnectChecker");
+    expect(callbackGuard).toContain("guard.dispatch(token)");
+    expect(consentGuard).toContain("internal class CaptureConsentRequestGuard");
+    expect(consentGuard).toContain("processCaptureConsentRequestSequence");
+    expect(nativeModule).toContain("captureConsentRequestGuard.complete(requestCode)");
+    expect(nativeModule).toContain("captureConsentRequestGuard.beginIfIdle(");
+    expect(nativeModule).toContain("LiveCasterSession.currentPreparationGeneration()");
+    expect(nativeModule).toContain("cancelPendingCaptureRequest(");
+    expect(nativeModule).toContain("requestToken.requestCode");
     expect(directReconnect).toContain("directStream.reconnectPublisher()");
     expect(directReconnect).not.toContain("directStream.stop()");
     expect(directReconnect).not.toContain("startStreamFromSession(resetReconnectAttempts = false)");
@@ -49,6 +87,7 @@ describe("native broadcast lifecycle", () => {
   it("keeps iOS stop pending until the matching extension handoff confirms shutdown", () => {
     const bridge = readFileSync("ios/MobileLiveCaster/LiveCasterBridge.swift", "utf8");
     const extension = readFileSync("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift", "utf8");
+    const controlStore = readFileSync("ios/MobileLiveCaster/LiveCasterBroadcastControlStore.swift", "utf8");
     const project = readFileSync("ios/MobileLiveCaster.xcodeproj/project.pbxproj", "utf8");
     const snapshot = functionBlock(bridge, "func getSnapshot(");
     const prepare = functionBlock(bridge, "func prepare(");
@@ -56,7 +95,14 @@ describe("native broadcast lifecycle", () => {
     const stop = bridge.slice(bridge.indexOf("@objc(stop:rejecter:)"), bridge.indexOf("@objc(reconnect:rejecter:)"));
     const reconnect = functionBlock(bridge, "func reconnect(");
     const stopTimeout = functionBlock(bridge, "private func scheduleStopAcknowledgementTimeoutLocked(");
+    const runtimeAcknowledgement = functionBlock(bridge, "private func runtimeAcknowledgesPendingStopLocked(");
+    const broadcastStarted = functionBlock(extension, "override func broadcastStarted(");
+    const broadcastPaused = functionBlock(extension, "override func broadcastPaused()");
+    const broadcastResumed = functionBlock(extension, "override func broadcastResumed()");
     const broadcastFinished = functionBlock(extension, "override func broadcastFinished()");
+    const processSampleBuffer = functionBlock(extension, "override func processSampleBuffer(");
+    const handleControlCommand = functionBlock(extension, "private func handleControlCommand(");
+    const stopLatest = functionBlock(extension, "private func stopPipelineForLatestCommand(");
 
     const pendingStopGuard = prepare.indexOf("guard self.pendingStopHandoffID == nil else");
     const prepareOperation = prepare.indexOf("do {");
@@ -76,19 +122,55 @@ describe("native broadcast lifecycle", () => {
     );
     expect(stop).toContain("saveControlAction(.stop, handoffID: handoffID)");
     expect(stop).toContain("self.pendingStopHandoffID = handoffID");
+    expect(stop).toContain("self.pendingStopRequestID = command.requestID");
     expect(stop).toContain("self.status = .stopping");
-    expect(stop).toContain("scheduleStopAcknowledgementTimeoutLocked(handoffID: handoffID)");
+    expect(stop).toContain("scheduleStopAcknowledgementTimeoutLocked(");
     expect(bridge).toContain("if status == .idle, pendingStopHandoffID != nil");
     expect(bridge).toContain("completeStopAcknowledgementLocked()");
     expect(bridge).toContain("func loadPersistedBroadcastHandoff()");
     expect(stopTimeout).toContain("hasFreshActiveRuntimeLocked(handoffID: handoffID)");
+    expect(stopTimeout).toContain("LiveCasterBroadcastControlStore.isExtensionLeaseActive()");
     expect(stopTimeout).toContain("recoverUnresponsiveStopLocked(handoffID: handoffID)");
-    expect(extension).toContain("LiveCasterBroadcastControlStore.consume(expectedHandoffID: handoffID)");
-    expect(extension).toContain("self.pipeline.stop()");
-    expect(extension).toContain("self.finishBroadcastWithError(error)");
-    expect(broadcastFinished).toContain("if let handoffID");
-    expect(broadcastFinished).toContain("LiveCasterBroadcastControlStore.clear(handoffID: handoffID)");
-    expect(broadcastFinished).not.toContain("clear(handoffID: nil)");
+    expect(runtimeAcknowledgement).toContain('runtimeState.stringValue("stopRequestId") == pendingStopRequestID');
+    expect(runtimeAcknowledgement).toContain("!LiveCasterBroadcastControlStore.isExtensionLeaseActive()");
+    expect(extension).toContain("LiveCasterBroadcastControlStore.peek(expectedHandoffID: handoffID)");
+    expect(extension).not.toContain("LiveCasterBroadcastControlStore.consume(");
+    expect(controlStore).toContain("static func peek(");
+    expect(controlStore).toContain("static func withExclusiveLifecycleCommand");
+    expect(controlStore).toContain("static func acquireExtensionLease()");
+    expect(controlStore).toContain("static func isExtensionLeaseActive()");
+    expect(controlStore).toContain('payload["requestId"] as? String == requestID');
+    expect(controlStore).not.toContain("static func acknowledge(");
+    expect(broadcastStarted.indexOf("BroadcastSharedStore.saveExtensionObservation")).toBeLessThan(
+      broadcastStarted.indexOf("pipelineQueue.sync")
+    );
+    expect(broadcastStarted).toContain("LiveCasterBroadcastControlStore.acquireExtensionLease()");
+    expect(broadcastStarted).toContain("LiveCasterBroadcastControlStore.withExclusiveLifecycleCommand(");
+    expect(broadcastStarted).toContain("stopBeforeStart(command)");
+    expect(stopLatest).toContain("pipeline.stop(stopRequestID: terminatingStopRequestID)");
+    expect(stopLatest).toContain("BroadcastSharedStore.saveExtensionFinished(");
+    expect(stopLatest).toContain("stopRequestID: publisherStopped ? terminatingStopRequestID : nil");
+    expect(extension).toContain("self?.finishBroadcastWithError(error)");
+    expect(extension).toContain("func stopAndWait(timeout: DispatchTimeInterval = .seconds(3)) -> Bool");
+    expect(extension).toContain("stopRequestID: publisherStopped ? stopRequestID : nil");
+    expect(extension).toContain('private let pipelineQueue = DispatchQueue(label: "MobileLiveCaster.broadcast.pipeline")');
+    expect(extension).toContain("BroadcastUploadPipeline(mediaContinuityQueue: pipelineQueue)");
+    expect(broadcastStarted).toContain("pipelineQueue.sync");
+    expect(broadcastPaused).toContain("pipelineQueue.sync { pipeline.pause() }");
+    expect(broadcastResumed).toContain("pipelineQueue.sync { pipeline.resume() }");
+    expect(broadcastFinished).toContain("pipelineQueue.sync");
+    expect(processSampleBuffer).toContain("pipelineQueue.sync");
+    expect(handleControlCommand).toContain("pipelineQueue.async");
+    expect(handleControlCommand.indexOf("self.pipeline.stop(stopRequestID: command.requestID)")).toBeLessThan(
+      handleControlCommand.indexOf("DispatchQueue.main.async")
+    );
+    expect(
+      handleControlCommand.slice(handleControlCommand.indexOf("DispatchQueue.main.async"))
+    ).not.toContain("pipeline.stop()");
+    expect(broadcastFinished).toContain("stopPipelineForLatestCommand(handoffID: handoffID, markExtensionFinished: true)");
+    expect(broadcastFinished).toContain("extensionLease?.release()");
+    expect(broadcastFinished).not.toContain("LiveCasterBroadcastControlStore.clear(");
+    expect(extension).not.toContain("for _ in 0..<4");
     expect(project.match(/LiveCasterBroadcastControlStore\.swift in Sources/g)).toHaveLength(4);
   });
 

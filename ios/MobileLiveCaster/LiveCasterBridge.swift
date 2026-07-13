@@ -541,12 +541,26 @@ final class LiveCasterSharedStore {
         defaults.synchronize()
     }
 
-    func saveControlAction(_ action: LiveCasterBroadcastControlAction, handoffID: String) throws {
+    @discardableResult
+    func saveControlAction(
+        _ action: LiveCasterBroadcastControlAction,
+        handoffID: String
+    ) throws -> LiveCasterBroadcastControlCommand {
         try LiveCasterBroadcastControlStore.request(action, handoffID: handoffID)
     }
 
-    func clearControlAction(handoffID: String? = nil) {
-        LiveCasterBroadcastControlStore.clear(handoffID: handoffID)
+    func clearControlAction(handoffID: String, requestID: String) {
+        LiveCasterBroadcastControlStore.clear(handoffID: handoffID, requestID: requestID)
+    }
+
+    func clearControlAction(handoffID: String) {
+        guard let command = LiveCasterBroadcastControlStore.peek(expectedHandoffID: handoffID) else {
+            return
+        }
+        LiveCasterBroadcastControlStore.clear(
+            handoffID: handoffID,
+            requestID: command.requestID
+        )
     }
 }
 
@@ -566,6 +580,7 @@ final class LiveCasterNative: RCTEventEmitter {
     private var credentialCleanupWorkItem: DispatchWorkItem?
     private var stopAcknowledgementWorkItem: DispatchWorkItem?
     private var pendingStopHandoffID: String?
+    private var pendingStopRequestID: String?
     private var stopAcknowledgementTimedOut = false
     private var lastRuntimeUpdatedAt: Double = 0
     private var nativeRuntime: [String: Any]?
@@ -758,7 +773,8 @@ final class LiveCasterNative: RCTEventEmitter {
                 return
             }
             do {
-                try self.sharedStore.saveControlAction(.stop, handoffID: handoffID)
+                let command = try self.sharedStore.saveControlAction(.stop, handoffID: handoffID)
+                self.pendingStopRequestID = command.requestID
             } catch {
                 let message = self.redactSensitiveTextLocked(error.localizedDescription)
                 reject("broadcast_stop_request_failed", message, error)
@@ -769,7 +785,10 @@ final class LiveCasterNative: RCTEventEmitter {
             self.status = .stopping
             self.health.message = "Stopping iOS broadcast and waiting for extension confirmation"
             self.startRuntimePollingLocked()
-            self.scheduleStopAcknowledgementTimeoutLocked(handoffID: handoffID)
+            self.scheduleStopAcknowledgementTimeoutLocked(
+                handoffID: handoffID,
+                requestID: self.pendingStopRequestID
+            )
             let snapshot = self.snapshotLocked()
             self.emitSnapshot(snapshot)
             resolve(snapshot)
@@ -986,7 +1005,6 @@ final class LiveCasterNative: RCTEventEmitter {
             throw LiveCasterNativeError.broadcastStopPending
         }
         try sharedStore.cleanupExpiredCredentials()
-        sharedStore.clearControlAction()
         if broadcastHandoffID != nil {
             try clearBroadcastHandoffLocked()
         }
@@ -1031,10 +1049,14 @@ final class LiveCasterNative: RCTEventEmitter {
         }
     }
 
-    private func scheduleStopAcknowledgementTimeoutLocked(handoffID: String) {
+    private func scheduleStopAcknowledgementTimeoutLocked(handoffID: String, requestID: String?) {
         stopAcknowledgementWorkItem?.cancel()
         let workItem = DispatchWorkItem { [weak self] in
-            guard let self, self.pendingStopHandoffID == handoffID else {
+            guard
+                let self,
+                self.pendingStopHandoffID == handoffID,
+                self.pendingStopRequestID == requestID
+            else {
                 return
             }
             _ = self.refreshRuntimeStateFromStoreLocked(allowStale: true, emitSnapshot: false)
@@ -1042,7 +1064,10 @@ final class LiveCasterNative: RCTEventEmitter {
                 self.emitSnapshot(self.snapshotLocked())
                 return
             }
-            guard self.hasFreshActiveRuntimeLocked(handoffID: handoffID) else {
+            guard
+                self.hasFreshActiveRuntimeLocked(handoffID: handoffID) ||
+                    LiveCasterBroadcastControlStore.isExtensionLeaseActive()
+            else {
                 self.recoverUnresponsiveStopLocked(handoffID: handoffID)
                 self.emitSnapshot(self.snapshotLocked())
                 return
@@ -1074,11 +1099,15 @@ final class LiveCasterNative: RCTEventEmitter {
     }
 
     private func recoverUnresponsiveStopLocked(handoffID: String) {
+        let requestID = pendingStopRequestID
         pendingStopHandoffID = nil
+        pendingStopRequestID = nil
         stopAcknowledgementTimedOut = false
         stopAcknowledgementWorkItem?.cancel()
         stopAcknowledgementWorkItem = nil
-        sharedStore.clearControlAction(handoffID: handoffID)
+        if let requestID {
+            sharedStore.clearControlAction(handoffID: handoffID, requestID: requestID)
+        }
         var cleanupRequiresRetry = false
         if broadcastHandoffID == handoffID {
             do {
@@ -1102,11 +1131,15 @@ final class LiveCasterNative: RCTEventEmitter {
 
     private func completeStopAcknowledgementLocked() {
         let handoffID = pendingStopHandoffID
+        let requestID = pendingStopRequestID
         pendingStopHandoffID = nil
+        pendingStopRequestID = nil
         stopAcknowledgementTimedOut = false
         stopAcknowledgementWorkItem?.cancel()
         stopAcknowledgementWorkItem = nil
-        sharedStore.clearControlAction(handoffID: handoffID)
+        if let handoffID, let requestID {
+            sharedStore.clearControlAction(handoffID: handoffID, requestID: requestID)
+        }
         if broadcastHandoffID == handoffID {
             do {
                 try clearBroadcastHandoffLocked()
@@ -1382,6 +1415,17 @@ final class LiveCasterNative: RCTEventEmitter {
         return runtimeState.stringValue("handoffId") == expectedHandoffID
     }
 
+    private func runtimeAcknowledgesPendingStopLocked(_ runtimeState: [String: Any]) -> Bool {
+        guard let pendingStopRequestID else {
+            return false
+        }
+        if runtimeState.stringValue("stopRequestId") == pendingStopRequestID {
+            return true
+        }
+        return runtimeState.doubleValue("extensionFinishedAt") > 0 &&
+            !LiveCasterBroadcastControlStore.isExtensionLeaseActive()
+    }
+
     private func applyRuntimeStateLocked(_ runtimeState: [String: Any]) {
         let updatedAt = runtimeState.doubleValue("updatedAt")
         let shouldRefreshCounters = updatedAt == 0 || updatedAt != lastRuntimeUpdatedAt
@@ -1391,8 +1435,9 @@ final class LiveCasterNative: RCTEventEmitter {
 
         let runtimeStatus = runtimeState.stringValue("status", fallback: status.rawValue)
         let reportedStatus = LiveCasterStatus(runtimeStatus: runtimeStatus)
+        let stopAcknowledged = runtimeAcknowledgesPendingStopLocked(runtimeState)
         if pendingStopHandoffID != nil {
-            if reportedStatus == .idle {
+            if reportedStatus == .idle && stopAcknowledged {
                 status = .idle
             } else if reportedStatus == .failed || stopAcknowledgementTimedOut {
                 status = .failed
@@ -1453,7 +1498,7 @@ final class LiveCasterNative: RCTEventEmitter {
             health.message = "iOS broadcast stop was not confirmed. Stop it from the iOS system broadcast control before starting again"
         }
 
-        if status == .idle, pendingStopHandoffID != nil {
+        if status == .idle, pendingStopHandoffID != nil, stopAcknowledged {
             completeStopAcknowledgementLocked()
         } else if status == .failed, pendingStopHandoffID == nil {
             health.message = errorMessage.isEmpty ? health.message : errorMessage

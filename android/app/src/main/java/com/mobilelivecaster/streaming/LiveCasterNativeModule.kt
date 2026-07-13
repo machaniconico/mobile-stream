@@ -31,13 +31,17 @@ import java.util.TimeZone
 class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
+    private data class PendingCaptureStart(
+        val promise: Promise,
+        val preparationGeneration: Long
+    )
+
     companion object {
         const val NAME = "LiveCasterNative"
-        private const val SCREEN_CAPTURE_REQUEST = 7301
         private const val START_PERMISSIONS_REQUEST = 7302
     }
 
-    private var startPromise: Promise? = null
+    private val captureConsentRequestGuard = CaptureConsentRequestGuard<PendingCaptureStart>()
     private var permissionPromise: Promise? = null
     private val sessionListener: (WritableMap) -> Unit = { snapshot ->
         if (reactContext.hasActiveReactInstance()) {
@@ -61,23 +65,32 @@ class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) 
 
     private val activityEventListener: ActivityEventListener = object : BaseActivityEventListener() {
         override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
-            if (requestCode != SCREEN_CAPTURE_REQUEST) return
-            val promise = startPromise
-            startPromise = null
-
-            if (resultCode != Activity.RESULT_OK || data == null) {
-                LiveCasterSession.fail("Screen capture permission was cancelled")
-                promise?.reject("screen_capture_cancelled", "Screen capture permission was cancelled")
-                return
+            captureConsentRequestGuard.complete(requestCode) { _, pendingStart ->
+                val promise = pendingStart.promise
+                if (resultCode != Activity.RESULT_OK || data == null) {
+                    LiveCasterSession.fail("Screen capture permission was cancelled")
+                    promise.reject("screen_capture_cancelled", "Screen capture permission was cancelled")
+                } else {
+                    try {
+                        check(
+                            LiveCasterSession.commitCaptureConsent(
+                                preparationGeneration = pendingStart.preparationGeneration,
+                                resultCode = resultCode,
+                                data = data
+                            )
+                        ) { "Screen capture request was replaced before approval" }
+                        LiveCasterSession.markStarting()
+                        val serviceIntent = Intent(reactContext, MediaProjectionService::class.java).apply {
+                            action = MediaProjectionService.ACTION_START_STREAM
+                        }
+                        ContextCompat.startForegroundService(reactContext, serviceIntent)
+                        promise.resolve(LiveCasterSession.snapshot())
+                    } catch (error: Throwable) {
+                        LiveCasterSession.fail(error.message ?: "Screen capture service could not be started")
+                        promise.reject("screen_capture_start_failed", error)
+                    }
+                }
             }
-
-            LiveCasterSession.storeCaptureConsent(resultCode, data)
-            LiveCasterSession.markStarting()
-            val serviceIntent = Intent(reactContext, MediaProjectionService::class.java).apply {
-                action = MediaProjectionService.ACTION_START_STREAM
-            }
-            ContextCompat.startForegroundService(reactContext, serviceIntent)
-            promise?.resolve(LiveCasterSession.snapshot())
         }
     }
 
@@ -89,6 +102,10 @@ class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) 
     override fun getName(): String = NAME
 
     override fun invalidate() {
+        captureConsentRequestGuard.cancel()?.promise?.reject(
+            "module_invalidated",
+            "Screen capture request was cancelled because the native module was invalidated"
+        )
         LiveCasterSession.removeListener(sessionListener)
         reactContext.removeActivityEventListener(activityEventListener)
         super.invalidate()
@@ -110,12 +127,20 @@ class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) 
 
     @ReactMethod
     fun prepare(renderGraphJson: String, profileJson: String, promise: Promise) {
+        cancelPendingCaptureRequest(
+            code = "capture_replaced",
+            message = "Screen capture request was replaced by a new stream preparation"
+        )
         try {
             LiveCasterSession.prepare(renderGraphJson, profileJson)
             promise.resolve(LiveCasterSession.snapshot())
         } catch (error: Throwable) {
-            LiveCasterSession.fail(error.message ?: "Invalid stream profile")
-            promise.reject("prepare_failed", error)
+            if (LiveCasterSession.isStreamStartCommitted()) {
+                promise.reject("prepare_while_stream_active", error)
+            } else {
+                LiveCasterSession.fail(error.message ?: "Invalid stream profile")
+                promise.reject("prepare_failed", error)
+            }
         }
     }
 
@@ -157,10 +182,6 @@ class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) 
             promise.reject("profile_missing", "Stream profile is missing")
             return
         }
-        if (startPromise != null) {
-            promise.reject("capture_pending", "Screen capture permission is already pending")
-            return
-        }
         val missingPermissions = missingStartPermissions()
         if (missingPermissions.isNotEmpty()) {
             LiveCasterSession.fail("Microphone and notification permissions are required before going live")
@@ -171,19 +192,44 @@ class LiveCasterNativeModule(private val reactContext: ReactApplicationContext) 
             return
         }
 
-        startPromise = promise
+        val requestToken = captureConsentRequestGuard.beginIfIdle(
+            PendingCaptureStart(
+                promise = promise,
+                preparationGeneration = LiveCasterSession.currentPreparationGeneration()
+            )
+        )
+        if (requestToken == null) {
+            promise.reject("capture_pending", "Screen capture permission is already pending")
+            return
+        }
         val manager = reactContext.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        activity.startActivityForResult(manager.createScreenCaptureIntent(), SCREEN_CAPTURE_REQUEST)
+        try {
+            activity.startActivityForResult(manager.createScreenCaptureIntent(), requestToken.requestCode)
+        } catch (error: Throwable) {
+            val cancelledStart = captureConsentRequestGuard.cancel()
+            if (cancelledStart != null) {
+                LiveCasterSession.fail(error.message ?: "Screen capture permission could not be requested")
+                cancelledStart.promise.reject("screen_capture_request_failed", error)
+            }
+        }
     }
 
     @ReactMethod
     fun stop(promise: Promise) {
+        cancelPendingCaptureRequest(
+            code = "screen_capture_cancelled",
+            message = "Screen capture request was stopped before approval"
+        )
         LiveCasterSession.markStopping()
         val serviceIntent = Intent(reactContext, MediaProjectionService::class.java).apply {
             action = MediaProjectionService.ACTION_STOP_STREAM
         }
         reactContext.startService(serviceIntent)
         promise.resolve(LiveCasterSession.snapshot())
+    }
+
+    private fun cancelPendingCaptureRequest(code: String, message: String) {
+        captureConsentRequestGuard.cancel()?.promise?.reject(code, message)
     }
 
     @ReactMethod
