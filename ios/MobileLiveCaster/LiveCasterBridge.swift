@@ -1540,6 +1540,34 @@ final class LiveCasterNative: RCTEventEmitter {
         return DispatchQueue.main.sync(execute: sample)
     }
 
+    private static func validExtensionDeviceResourceMap(
+        _ runtimeState: [String: Any],
+        stale: Bool,
+        nowMillis: Double = Date().timeIntervalSince1970 * 1_000
+    ) -> [String: Any]? {
+        guard !stale else {
+            return nil
+        }
+        let device = runtimeState.dictionaryValue("device")
+        guard
+            let thermalState = device["thermalState"] as? String,
+            ["unknown", "nominal", "fair", "serious", "critical"].contains(thermalState),
+            device["thermalStatusCode"] is NSNumber,
+            device["batteryLevelPercent"] is NSNumber,
+            (device["charging"] is Bool || device["charging"] is NSNumber),
+            (device["lowPowerMode"] is Bool || device["lowPowerMode"] is NSNumber),
+            let powerSource = device["powerSource"] as? String,
+            ["unknown", "battery", "wired", "wireless"].contains(powerSource),
+            let sampledAt = (device["sampledAt"] as? NSNumber)?.doubleValue,
+            sampledAt > 0,
+            sampledAt <= nowMillis + 5_000,
+            nowMillis - sampledAt <= broadcastRuntimeStateStaleMillis
+        else {
+            return nil
+        }
+        return device
+    }
+
     private static func nativeRuntimeMap(
         _ runtimeState: [String: Any],
         status: LiveCasterStatus,
@@ -1562,6 +1590,7 @@ final class LiveCasterNative: RCTEventEmitter {
         let continuity = runtimeState.dictionaryValue("continuity")
         let avSync = publisher.dictionaryValue("avSync")
         let sceneComposition = runtimeState.dictionaryValue("sceneComposition")
+        let device = validExtensionDeviceResourceMap(runtimeState, stale: stale) ?? deviceResourceMap()
         let runtimeStatus = redactSensitiveText(runtimeState.stringValue("status", fallback: status.rawValue), streamKey: streamKey, publishURL: publishURL)
         let publisherState = redactSensitiveText(publisher.stringValue("state"), streamKey: streamKey, publishURL: publishURL)
         let skippedCount = sceneComposition.intValue("skippedCount")
@@ -1590,7 +1619,7 @@ final class LiveCasterNative: RCTEventEmitter {
             "videoFrames": stats.intValue("videoFrames"),
             "encodedBytes": videoEncoder.intValue("encodedBytes", fallback: publisher.intValue("videoBytesSent")),
             "droppedFrames": stats.intValue("droppedSamples") + publisher.intValue("droppedVideoFrames"),
-            "device": deviceResourceMap(),
+            "device": device,
             "publisher": [
                 "state": publisherState,
                 "videoEncoderBackend": videoEncoder.stringValue("backend", fallback: "none"),

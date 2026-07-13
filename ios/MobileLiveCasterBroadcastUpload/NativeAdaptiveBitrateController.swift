@@ -12,6 +12,7 @@ struct NativeAdaptiveBitrateSample {
     let useMeasuredBitrate: Bool
     let droppedVideoFrames: Int
     let cumulativeReconnectCount: Int
+    let thermalState: String
 }
 
 struct NativeAdaptiveBitrateDecision: Equatable {
@@ -116,24 +117,43 @@ struct NativeAdaptiveBitrateController {
         controllerState = "idle"
     }
 
-    mutating func requestBaselineChange(_ baselineKbps: Int) {
+    @discardableResult
+    mutating func requestBaselineChange(_ baselineKbps: Int, thermalState: String = "unknown") -> Int {
         let target = normalizeTarget(baselineKbps)
-        pendingTargetKbps = target
+        let normalizedThermalState = thermalState.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let currentTarget = [effectiveTargetKbps, pendingTargetKbps]
+            .filter { $0 > 0 }
+            .min() ?? target
+        switch normalizedThermalState {
+        case "critical":
+            pendingTargetKbps = min(floorForBaseline(target), currentTarget)
+        case "fair", "serious":
+            pendingTargetKbps = min(target, currentTarget)
+        default:
+            pendingTargetKbps = target
+        }
         pendingBaselineTargetKbps = target
         pendingDecisionType = nil
         reconnectPressurePending = false
         clearWindows()
         controllerState = "cooldown"
+        return pendingTargetKbps
     }
 
     mutating func recordApplied(_ targetKbps: Int) {
         let normalizedTarget = normalizeTarget(targetKbps)
+        if pendingTargetKbps > 0, normalizedTarget != pendingTargetKbps {
+            return
+        }
         let confirmsPendingTarget = normalizedTarget == pendingTargetKbps
         if confirmsPendingTarget, let confirmedBaseline = pendingBaselineTargetKbps {
             baselineTargetKbps = confirmedBaseline
             floorTargetKbps = floorForBaseline(confirmedBaseline)
         }
-        let target = min(baselineTargetKbps, max(floorTargetKbps, normalizedTarget))
+        let minimumTargetKbps = [floorTargetKbps, effectiveTargetKbps, baselineTargetKbps, pendingTargetKbps]
+            .filter { $0 > 0 }
+            .min() ?? floorTargetKbps
+        let target = min(baselineTargetKbps, max(minimumTargetKbps, normalizedTarget))
         let appliedDecisionType = confirmsPendingTarget ? pendingDecisionType : nil
         effectiveTargetKbps = target
         if appliedDecisionType == "reduce" {
@@ -165,6 +185,14 @@ struct NativeAdaptiveBitrateController {
         let droppedVideoFrames = max(0, sample.droppedVideoFrames)
         let droppedIncrease = max(0, droppedVideoFrames - lastDroppedVideoFrames)
         let reconnectIncrease = max(0, sample.cumulativeReconnectCount - cumulativeReconnectCount)
+        let thermalState = sample.thermalState.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let thermalCritical = thermalState == "critical"
+        let thermalSerious = thermalState == "serious"
+        let thermalRecoveryBlocked = thermalState == "fair" || thermalSerious || thermalCritical
+        let thermalFloorTargetKbps = floorForBaseline(pendingBaselineTargetKbps ?? baselineTargetKbps)
+        let thermalSafetyTargetKbps = [thermalFloorTargetKbps, effectiveTargetKbps, pendingTargetKbps]
+            .filter { $0 > 0 }
+            .min() ?? thermalFloorTargetKbps
         if reconnectIncrease > 0 {
             reconnectPressurePending = true
         }
@@ -182,9 +210,19 @@ struct NativeAdaptiveBitrateController {
             recoveryEligibleMs = nowElapsedMs + Self.recoveryAfterRepublishMs
             clearWindows()
             controllerState = "startup"
-            return nil
+            if !thermalCritical { return nil }
         }
-        guard nowElapsedMs - publishedAtMs >= Self.startupGraceMs, pendingTargetKbps == 0 else {
+        if thermalCritical, pendingTargetKbps > 0, pendingTargetKbps != thermalSafetyTargetKbps {
+            return decide(
+                "reduce",
+                thermalSafetyTargetKbps,
+                pressureReason(sample, 0, 1, 0, 0),
+                nowElapsedMs,
+                nowWallMs,
+                preservePendingBaseline: true
+            )
+        }
+        guard (nowElapsedMs - publishedAtMs >= Self.startupGraceMs || thermalCritical), pendingTargetKbps == 0 else {
             clearWindows()
             controllerState = pendingTargetKbps > 0 ? "cooldown" : "startup"
             return nil
@@ -195,27 +233,34 @@ struct NativeAdaptiveBitrateController {
             ? Double(sample.measuredBitrateKbps) / Double(effectiveTargetKbps)
             : 1
         let reconnectPressure = reconnectPressurePending
-        let pressured = sample.congested || queueRatio >= 0.5 || measuredRatio < 0.65 || droppedIncrease > 0 || reconnectPressure
-        let critical = queueRatio >= 0.8 || measuredRatio < 0.4 || droppedIncrease >= 3 || reconnectPressure
+        let pressured = thermalSerious || thermalCritical || sample.congested || queueRatio >= 0.5 ||
+            measuredRatio < 0.65 || droppedIncrease > 0 || reconnectPressure
+        let critical = thermalSerious || thermalCritical || queueRatio >= 0.8 || measuredRatio < 0.4 ||
+            droppedIncrease >= 3 || reconnectPressure
         if pressured {
             pressureSampleCount += 1
             criticalPressureSampleCount = critical ? criticalPressureSampleCount + 1 : 0
             healthySampleCount = 0
             controllerState = "pressure"
-            let holdReady = pressureSampleCount >= Self.pressureSamples || criticalPressureSampleCount >= Self.criticalPressureSamples
-            if holdReady, nowElapsedMs >= cooldownUntilMs, effectiveTargetKbps > floorTargetKbps {
-                let target = max(floorTargetKbps, roundToHundred(Double(effectiveTargetKbps) * 0.8))
+            let holdReady = thermalCritical || pressureSampleCount >= Self.pressureSamples ||
+                criticalPressureSampleCount >= Self.criticalPressureSamples
+            let minimumTargetKbps = thermalCritical ? thermalFloorTargetKbps : floorTargetKbps
+            if holdReady, (thermalCritical || nowElapsedMs >= cooldownUntilMs), effectiveTargetKbps > minimumTargetKbps {
+                let target = thermalCritical
+                    ? minimumTargetKbps
+                    : max(minimumTargetKbps, roundToHundred(Double(effectiveTargetKbps) * 0.8))
                 if target < effectiveTargetKbps {
                     return decide(
                         "reduce",
                         target,
                         pressureReason(sample, queueRatio, measuredRatio, droppedIncrease, reconnectPressure ? 1 : 0),
                         nowElapsedMs,
-                        nowWallMs
+                        nowWallMs,
+                        preservePendingBaseline: thermalCritical
                     )
                 }
             }
-            if holdReady, nowElapsedMs >= cooldownUntilMs, effectiveTargetKbps <= floorTargetKbps {
+            if holdReady, (thermalCritical || nowElapsedMs >= cooldownUntilMs), effectiveTargetKbps <= minimumTargetKbps {
                 reconnectPressurePending = false
             }
             return nil
@@ -224,7 +269,7 @@ struct NativeAdaptiveBitrateController {
         clearPressure()
         let measuredHealthy = !sample.useMeasuredBitrate ||
             (sample.measuredBitrateKbps > 0 && measuredRatio >= 0.85)
-        guard effectiveTargetKbps < baselineTargetKbps, queueRatio <= 0.1, measuredHealthy else {
+        guard effectiveTargetKbps < baselineTargetKbps, queueRatio <= 0.1, measuredHealthy, !thermalRecoveryBlocked else {
             healthySampleCount = 0
             controllerState = effectiveTargetKbps < baselineTargetKbps ? "reduced" : "observing"
             return nil
@@ -272,10 +317,12 @@ struct NativeAdaptiveBitrateController {
         _ targetKbps: Int,
         _ reason: String,
         _ nowElapsedMs: Double,
-        _ nowWallMs: Double
+        _ nowWallMs: Double,
+        preservePendingBaseline: Bool = false
     ) -> NativeAdaptiveBitrateDecision {
+        let retainedPendingBaseline = preservePendingBaseline ? pendingBaselineTargetKbps : nil
         pendingTargetKbps = targetKbps
-        pendingBaselineTargetKbps = nil
+        pendingBaselineTargetKbps = retainedPendingBaseline
         pendingDecisionType = type
         if type == "reduce" {
             cooldownUntilMs = nowElapsedMs + Self.reductionCooldownMs
@@ -315,6 +362,12 @@ struct NativeAdaptiveBitrateController {
         _ droppedIncrease: Int,
         _ reconnectIncrease: Int
     ) -> String {
+        if sample.thermalState.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "critical" {
+            return "The device reported critical thermal pressure; bitrate was reduced to the safety floor."
+        }
+        if sample.thermalState.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "serious" {
+            return "The device reported sustained serious thermal pressure."
+        }
         if reconnectIncrease > 0 { return "A transport reconnect occurred during the active session." }
         if droppedIncrease > 0 { return "\(droppedIncrease) new publisher video frame drop(s) were observed." }
         if sample.congested || queueRatio >= 0.5 { return "Publisher queue pressure reached \(Int((queueRatio * 100).rounded()))%." }

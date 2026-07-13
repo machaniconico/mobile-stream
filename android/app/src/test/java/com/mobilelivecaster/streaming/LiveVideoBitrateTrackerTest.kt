@@ -1,6 +1,8 @@
 package com.mobilelivecaster.streaming
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LiveVideoBitrateTrackerTest {
@@ -25,6 +27,8 @@ class LiveVideoBitrateTrackerTest {
                 minimumAppliedKbps = 4_300,
                 updateCount = 1,
                 failureCount = 0,
+                requestGeneration = 1,
+                appliedRequestGeneration = 1,
                 lastUpdatedAt = 2_000
             ),
             tracker.snapshot()
@@ -44,8 +48,8 @@ class LiveVideoBitrateTrackerTest {
         val tracker = LiveVideoBitrateTracker({ 5_000L }, { 500L })
         tracker.reset(3_500)
 
-        tracker.recordRequested(2_500)
-        tracker.recordFailure(2_500)
+        val requestGeneration = tracker.recordRequested(2_500)
+        tracker.recordFailure(2_500, requestGeneration)
 
         val snapshot = tracker.snapshot()
         assertEquals("failed", snapshot.status)
@@ -53,7 +57,35 @@ class LiveVideoBitrateTrackerTest {
         assertEquals(3_500, snapshot.appliedTargetKbps)
         assertEquals(0, snapshot.updateCount)
         assertEquals(1, snapshot.failureCount)
+        assertEquals(requestGeneration, snapshot.failedRequestGeneration)
         assertEquals(5_000, snapshot.lastUpdatedAt)
+    }
+
+    @Test
+    fun ignoresResultsFromSupersededRequests() {
+        val tracker = LiveVideoBitrateTracker({ 5_000L }, { 500L })
+        tracker.reset(3_500)
+        val oldGeneration = tracker.recordRequested(3_000)
+        val currentGeneration = tracker.recordRequested(1_200)
+
+        assertFalse(tracker.recordApplied(3_000, oldGeneration))
+        assertFalse(tracker.recordFailure(3_000, oldGeneration))
+
+        val pending = tracker.snapshot()
+        assertEquals("steady", pending.status)
+        assertEquals(1_200, pending.requestedTargetKbps)
+        assertEquals(3_500, pending.appliedTargetKbps)
+        assertEquals(0, pending.updateCount)
+        assertEquals(0, pending.failureCount)
+        assertEquals(0, pending.appliedRequestGeneration)
+        assertEquals(0, pending.failedRequestGeneration)
+        assertEquals(0, pending.lastUpdatedAt)
+
+        assertTrue(tracker.recordApplied(1_200, currentGeneration))
+        val applied = tracker.snapshot()
+        assertEquals(1_200, applied.appliedTargetKbps)
+        assertEquals(currentGeneration, applied.appliedRequestGeneration)
+        assertEquals(1, applied.updateCount)
     }
 
     @Test

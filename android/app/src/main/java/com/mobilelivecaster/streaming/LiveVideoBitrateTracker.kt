@@ -10,6 +10,9 @@ internal data class LiveVideoBitrateSnapshot(
     val minimumAppliedKbps: Int = 0,
     val updateCount: Long = 0,
     val failureCount: Long = 0,
+    val requestGeneration: Long = 0,
+    val appliedRequestGeneration: Long = 0,
+    val failedRequestGeneration: Long = 0,
     val lastUpdatedAt: Long = 0
 )
 
@@ -23,6 +26,9 @@ internal class LiveVideoBitrateTracker(
     private var minimumAppliedKbps = 0
     private var updateCount = 0L
     private var failureCount = 0L
+    private var requestGeneration = 0L
+    private var appliedRequestGeneration = 0L
+    private var failedRequestGeneration = 0L
     private var lastUpdatedAt = 0L
     private var lastEventElapsedMs = 0L
 
@@ -35,21 +41,34 @@ internal class LiveVideoBitrateTracker(
         minimumAppliedKbps = target
         updateCount = 0
         failureCount = 0
+        requestGeneration = 0
+        appliedRequestGeneration = 0
+        failedRequestGeneration = 0
         lastUpdatedAt = 0
         lastEventElapsedMs = monotonicClockMs()
     }
 
     @Synchronized
-    fun recordRequested(targetKbps: Int) {
+    fun recordRequested(targetKbps: Int): Long {
+        requestGeneration += 1
         requestedTargetKbps = normalize(targetKbps)
+        return requestGeneration
     }
 
     @Synchronized
-    fun recordApplied(targetKbps: Int) {
+    fun isCurrentRequest(resultGeneration: Long?): Boolean =
+        resultGeneration == null || resultGeneration == requestGeneration
+
+    @Synchronized
+    fun recordApplied(targetKbps: Int, resultGeneration: Long? = null): Boolean {
+        val effectiveGeneration = resultGeneration ?: requestGeneration
+        if (resultGeneration != null && resultGeneration != requestGeneration) {
+            return false
+        }
         val target = normalize(targetKbps)
         if (initialTargetKbps <= 0) {
             reset(target)
-            return
+            return true
         }
         val changed = target != appliedTargetKbps
         requestedTargetKbps = target
@@ -57,17 +76,25 @@ internal class LiveVideoBitrateTracker(
             updateCount += 1
         }
         appliedTargetKbps = target
+        appliedRequestGeneration = effectiveGeneration
         minimumAppliedKbps = if (minimumAppliedKbps > 0) minOf(minimumAppliedKbps, target) else target
         if (changed) {
             recordEventTime()
         }
+        return true
     }
 
     @Synchronized
-    fun recordFailure(targetKbps: Int) {
+    fun recordFailure(targetKbps: Int, resultGeneration: Long? = null): Boolean {
+        val effectiveGeneration = resultGeneration ?: requestGeneration
+        if (resultGeneration != null && resultGeneration != requestGeneration) {
+            return false
+        }
         requestedTargetKbps = normalize(targetKbps)
         failureCount += 1
+        failedRequestGeneration = effectiveGeneration
         recordEventTime()
+        return true
     }
 
     @Synchronized
@@ -85,6 +112,9 @@ internal class LiveVideoBitrateTracker(
         minimumAppliedKbps = minimumAppliedKbps,
         updateCount = updateCount,
         failureCount = failureCount,
+        requestGeneration = requestGeneration,
+        appliedRequestGeneration = appliedRequestGeneration,
+        failedRequestGeneration = failedRequestGeneration,
         lastUpdatedAt = lastUpdatedAt
     )
 

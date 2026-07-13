@@ -14,6 +14,7 @@ const androidService = readFileSync(
   "utf8"
 );
 const iosBridge = readFileSync("ios/MobileLiveCaster/LiveCasterBridge.swift", "utf8");
+const iosBroadcastExtension = readFileSync("ios/MobileLiveCasterBroadcastUpload/SampleHandler.swift", "utf8");
 
 describe("native device resource monitoring", () => {
   it("samples Android thermal, battery, charging, and power-save state", () => {
@@ -33,12 +34,18 @@ describe("native device resource monitoring", () => {
     expect(androidSession).toContain("nativeRuntime = nativeRuntime?.copy(");
   });
 
-  it("samples iOS thermal, battery, charging, and Low Power Mode on the safe queue", () => {
-    expect(iosBridge).toContain("ProcessInfo.processInfo");
-    expect(iosBridge).toContain("processInfo.thermalState");
-    expect(iosBridge).toContain("processInfo.isLowPowerModeEnabled");
-    expect(iosBridge).toContain("device.isBatteryMonitoringEnabled = true");
-    expect(iosBridge).toContain("DispatchQueue.main.sync(execute: sample)");
-    expect(iosBridge).toContain('"device": deviceResourceMap()');
+  it("samples iOS owner-process resources on the safe queue and prefers extension telemetry", () => {
+    expect(iosBroadcastExtension).toContain("ProcessInfo.processInfo");
+    expect(iosBroadcastExtension).toContain("processInfo.thermalState");
+    expect(iosBroadcastExtension).toContain("processInfo.isLowPowerModeEnabled");
+    expect(iosBroadcastExtension).toContain("UIDevice.current.isBatteryMonitoringEnabled = true");
+    expect(iosBroadcastExtension).toContain("UIDevice.batteryLevelDidChangeNotification");
+    expect(iosBroadcastExtension).toContain("UIDevice.batteryStateDidChangeNotification");
+    expect(iosBroadcastExtension).toContain("let battery = batteryLock.performLocked { batterySnapshot }");
+    expect(iosBroadcastExtension).not.toContain("DispatchQueue.main.sync");
+    expect(iosBroadcastExtension).toContain('payload["device"] = deviceResourceSnapshot.asDictionary()');
+    expect(iosBridge).toContain("validExtensionDeviceResourceMap(runtimeState, stale: stale) ?? deviceResourceMap()");
+    expect(iosBridge).toContain("nowMillis - sampledAt <= broadcastRuntimeStateStaleMillis");
+    expect(iosBridge).toContain('"device": device');
   });
 });

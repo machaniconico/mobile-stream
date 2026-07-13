@@ -2,7 +2,7 @@
 
 Last verified: 2026-07-13
 
-MobileLiveCaster samples operating-system resource signals while the native publisher is active and includes them in native runtime diagnostics and support bundles.
+MobileLiveCaster samples operating-system resource signals inside the native publisher owner while streaming and includes them in native runtime diagnostics and support bundles. Android samples in the MediaProjection foreground service; iOS samples in the ReplayKit Broadcast Upload Extension, so thermal evidence and safety control remain active when the host app is suspended.
 
 ## Telemetry
 
@@ -17,13 +17,13 @@ MobileLiveCaster samples operating-system resource signals while the native publ
 | Signal | App response |
 | --- | --- |
 | Fair thermal pressure | Warn, improve airflow, and monitor FPS. |
-| Serious thermal pressure | Treat as a critical quality incident and arm a lower 30 fps target. Apply it live only when every changed encoder setting is supported; otherwise require a safe restart. |
-| Critical thermal pressure | Alert the operator to stop and cool the device; do not assume an automatic quality change is sufficient. |
+| Serious thermal pressure | After two consecutive owner-process samples, reduce video bitrate by 20% in bounded steps and block recovery until pressure clears; also arm a lower 30 fps target for the next safe restart. |
+| Critical thermal pressure | Immediately reduce video bitrate to the safety floor, alert the operator to stop and cool the device, and do not assume the automatic reduction is sufficient. |
 | Battery 11-20%, not externally powered | Warn and recommend stable power before a long stream. |
 | Battery 10% or lower, not externally powered | Stop-first alert because shutdown risk is immediate. |
 | Power-saving mode | Warn that CPU/GPU performance may be reduced and recommend a 30 fps target. |
 
-Unknown or malformed native values are never normalized to a healthy reading. Battery warnings are suppressed when the operating system reports wired/wireless power or active charging.
+Unknown or malformed native values are never normalized to a healthy reading. A reduced bitrate can recover only after 30 healthy publisher samples and a `nominal` or unavailable thermal state. Battery warnings are suppressed when the operating system reports wired/wireless power or active charging.
 
 ## Official Sources
 

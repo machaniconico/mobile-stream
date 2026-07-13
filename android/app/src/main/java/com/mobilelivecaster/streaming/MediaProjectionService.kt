@@ -343,21 +343,25 @@ class MediaProjectionService : Service(), ConnectChecker {
             adaptiveBitrateController.recordApplied(requestedTargetKbps)
             return
         }
-        val controllerSnapshot = adaptiveBitrateController.snapshot(SystemClock.elapsedRealtime())
+        var controllerSnapshot = adaptiveBitrateController.snapshot(SystemClock.elapsedRealtime())
         val baselineChanged = controllerSnapshot.baselineTargetKbps != requestedTargetKbps
         if (baselineChanged) {
-            adaptiveBitrateController.requestBaselineChange(requestedTargetKbps)
+            adaptiveBitrateController.requestBaselineChange(
+                requestedTargetKbps,
+                deviceResourceMonitor.snapshot().thermalState
+            )
+            controllerSnapshot = adaptiveBitrateController.snapshot(SystemClock.elapsedRealtime())
         }
-        val effectiveTargetKbps = if (baselineChanged) {
-            requestedTargetKbps
-        } else {
-            controllerSnapshot.effectiveTargetKbps.takeIf { it > 0 } ?: requestedTargetKbps
-        }
+        val effectiveTargetKbps = resolveNativeVideoBitrateTargetKbps(
+            requestedTargetKbps = requestedTargetKbps,
+            baselineChanged = baselineChanged,
+            controller = controllerSnapshot
+        )
         val effectiveProfile = profile.copy(videoBitrate = effectiveTargetKbps * 1_000)
-        liveVideoBitrateTracker.recordRequested(effectiveTargetKbps)
+        val requestGeneration = liveVideoBitrateTracker.recordRequested(effectiveTargetKbps)
         if (directStream != null) {
             runCatching {
-                directStream.updateProfile(effectiveProfile)
+                directStream.updateProfile(effectiveProfile, requestGeneration)
                 lastNativeFps = profile.fps
                 val message = liveMessage("Live quality update requested at $effectiveTargetKbps kbps / ${profile.fps}fps")
                 LiveCasterSession.updateHealth(
@@ -369,8 +373,12 @@ class MediaProjectionService : Service(), ConnectChecker {
                     message = message
                 )
             }.onFailure { error ->
-                liveVideoBitrateTracker.recordFailure(effectiveTargetKbps)
-                adaptiveBitrateController.recordFailure(error.message ?: "Live quality update failed", System.currentTimeMillis())
+                if (liveVideoBitrateTracker.recordFailure(effectiveTargetKbps, requestGeneration)) {
+                    adaptiveBitrateController.recordFailure(
+                        error.message ?: "Live quality update failed",
+                        System.currentTimeMillis()
+                    )
+                }
                 observedBitrateUpdateFailureCount = liveVideoBitrateTracker.snapshot().failureCount
                 updateNativeRuntimeFromDirectStream(
                     lastError = error.message ?: "Live quality update failed",
@@ -384,6 +392,7 @@ class MediaProjectionService : Service(), ConnectChecker {
         val updateResult = executeTrackedNativeVideoBitrateUpdate(
             targetKbps = effectiveTargetKbps,
             tracker = liveVideoBitrateTracker,
+            requestGeneration = requestGeneration,
             applyBitrate = { activeStream.setVideoBitrateOnFly(effectiveProfile.videoBitrate) },
             afterBitrateApplied = {
                 activeStream.getGlInterface().setForceRender(true, profile.fps)
@@ -399,6 +408,9 @@ class MediaProjectionService : Service(), ConnectChecker {
                 )
             }
         )
+        if (!updateResult.trackerAccepted) {
+            return
+        }
         if (updateResult.bitrateApplied) {
             val message = liveMessage("Live quality updated to $effectiveTargetKbps kbps / ${profile.fps}fps")
             LiveCasterSession.updateHealth(
@@ -459,20 +471,24 @@ class MediaProjectionService : Service(), ConnectChecker {
     private fun runAdaptiveBitrateHeartbeat() {
         val nowElapsedMs = SystemClock.elapsedRealtime()
         val trackerSnapshot = liveVideoBitrateTracker.snapshot()
-        val controllerSnapshot = adaptiveBitrateController.snapshot(nowElapsedMs)
+        var controllerSnapshot = adaptiveBitrateController.snapshot(nowElapsedMs)
         if (
             controllerSnapshot.pendingTargetKbps > 0 &&
+            trackerSnapshot.requestGeneration > 0 &&
+            trackerSnapshot.appliedRequestGeneration == trackerSnapshot.requestGeneration &&
             trackerSnapshot.appliedTargetKbps == controllerSnapshot.pendingTargetKbps
         ) {
             val appliedTargetKbps = trackerSnapshot.appliedTargetKbps
             val direction = if (appliedTargetKbps < controllerSnapshot.baselineTargetKbps) "lowered" else "restored"
             adaptiveBitrateController.recordApplied(trackerSnapshot.appliedTargetKbps)
+            controllerSnapshot = adaptiveBitrateController.snapshot(nowElapsedMs)
             LiveCasterSession.updateHealth(
                 message = liveMessage("Native adaptive bitrate $direction and confirmed at $appliedTargetKbps kbps")
             )
         }
         if (
             trackerSnapshot.failureCount > observedBitrateUpdateFailureCount &&
+            trackerSnapshot.failedRequestGeneration == trackerSnapshot.requestGeneration &&
             controllerSnapshot.controllerState != "failed"
         ) {
             adaptiveBitrateController.recordFailure(
@@ -485,11 +501,21 @@ class MediaProjectionService : Service(), ConnectChecker {
         val directSnapshot = directMediaCodecStream?.snapshot()
         val stream = genericStream
         val client = stream?.getStreamClient()
-        val active = LiveCasterSession.status == LiveCasterStatus.Live && when {
+        val deviceSnapshot = deviceResourceMonitor.snapshot()
+        val publisherState = directSnapshot?.publisherState
+            ?: LiveCasterSession.nativeRuntime?.publisher?.state
+            ?: ""
+        val transportActive = when {
             directSnapshot != null -> directSnapshot.publisherState == "published"
             stream != null -> stream.isStreaming
             else -> false
         }
+        val active = isNativeAdaptiveBitrateActive(
+            sessionLive = LiveCasterSession.status == LiveCasterStatus.Live,
+            publishGeneration = nativePublishGeneration,
+            publisherState = publisherState,
+            transportActive = transportActive
+        )
         val decision = adaptiveBitrateController.evaluate(
             NativeAdaptiveBitrateSample(
                 nowElapsedMs = nowElapsedMs,
@@ -506,13 +532,14 @@ class MediaProjectionService : Service(), ConnectChecker {
                 droppedVideoFrames = directSnapshot?.publisherDroppedVideoFrames
                     ?: client?.getDroppedVideoFrames()
                     ?: 0L,
-                cumulativeReconnectCount = cumulativeReconnectCount
+                cumulativeReconnectCount = cumulativeReconnectCount,
+                thermalState = deviceSnapshot.thermalState
             )
         ) ?: return
 
         val baselineProfile = LiveCasterSession.profile ?: return
         val effectiveProfile = baselineProfile.copy(videoBitrate = decision.targetKbps * 1_000)
-        liveVideoBitrateTracker.recordRequested(decision.targetKbps)
+        val requestGeneration = liveVideoBitrateTracker.recordRequested(decision.targetKbps)
         val usesDirectMediaCodec = directMediaCodecStream != null
         val messagePrefix = if (usesDirectMediaCodec) {
             "Native adaptive bitrate ${decision.type} requested at ${decision.targetKbps} kbps"
@@ -526,12 +553,13 @@ class MediaProjectionService : Service(), ConnectChecker {
         runCatching {
             val directStream = directMediaCodecStream
             if (directStream != null) {
-                directStream.updateProfile(effectiveProfile)
+                directStream.updateProfile(effectiveProfile, requestGeneration)
             } else {
                 val activeStream = genericStream ?: throw IllegalStateException("Native stream is unavailable")
                 val updateResult = executeTrackedNativeVideoBitrateUpdate(
                     targetKbps = decision.targetKbps,
                     tracker = liveVideoBitrateTracker,
+                    requestGeneration = requestGeneration,
                     applyBitrate = { activeStream.setVideoBitrateOnFly(effectiveProfile.videoBitrate) },
                     afterBitrateApplied = { activeStream.requestKeyframe() },
                     onBitrateApplied = adaptiveBitrateController::recordApplied,
@@ -542,6 +570,9 @@ class MediaProjectionService : Service(), ConnectChecker {
                         )
                     }
                 )
+                if (!updateResult.trackerAccepted) {
+                    return
+                }
                 updateResult.bitrateFailure?.let { bitrateError ->
                     observedBitrateUpdateFailureCount = liveVideoBitrateTracker.snapshot().failureCount
                     updateNativeRuntimeFromStream(
@@ -560,8 +591,9 @@ class MediaProjectionService : Service(), ConnectChecker {
             LiveCasterSession.updateHealth(message = message)
         }.onFailure { error ->
             val safeError = (error.message ?: "Native adaptive bitrate update failed").take(160)
-            liveVideoBitrateTracker.recordFailure(decision.targetKbps)
-            adaptiveBitrateController.recordFailure(safeError, System.currentTimeMillis())
+            if (liveVideoBitrateTracker.recordFailure(decision.targetKbps, requestGeneration)) {
+                adaptiveBitrateController.recordFailure(safeError, System.currentTimeMillis())
+            }
             observedBitrateUpdateFailureCount = liveVideoBitrateTracker.snapshot().failureCount
             updateNativeRuntimeFromActiveStream(lastError = safeError, message = LiveCasterSession.health.message)
         }

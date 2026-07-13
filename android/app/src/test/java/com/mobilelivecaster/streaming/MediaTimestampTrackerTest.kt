@@ -27,7 +27,7 @@ class MediaTimestampTrackerTest {
 
     @Test
     fun recordsDirectionCriticalIncidentsAndRecovery() {
-        val tracker = MediaTimestampTracker()
+        val tracker = MediaTimestampTracker(monotonicClockMs = { 0L })
         tracker.recordVideo(0L)
         tracker.recordAudio(0L)
 

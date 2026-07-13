@@ -16,6 +16,139 @@ private let broadcastAppGroup = "group.com.mobilelivecaster.app"
 private let broadcastConfigurationKey = "MobileLiveCaster.broadcastConfiguration.v1"
 private let broadcastRuntimeStateKey = "MobileLiveCaster.broadcastRuntimeState.v1"
 
+struct BroadcastDeviceResourceSnapshot {
+    let thermalState: String
+    let thermalStatusCode: Int
+    let batteryLevelPercent: Int
+    let charging: Bool
+    let lowPowerMode: Bool
+    let powerSource: String
+    let sampledAt: Double
+
+    func asDictionary() -> [String: Any] {
+        [
+            "thermalState": thermalState,
+            "thermalStatusCode": thermalStatusCode,
+            "batteryLevelPercent": batteryLevelPercent,
+            "charging": charging,
+            "lowPowerMode": lowPowerMode,
+            "powerSource": powerSource,
+            "sampledAt": sampledAt
+        ]
+    }
+}
+
+final class BroadcastDeviceResourceMonitor {
+    static let shared = BroadcastDeviceResourceMonitor()
+
+    private struct BatterySnapshot {
+        let levelPercent: Int
+        let charging: Bool
+        let powerSource: String
+    }
+
+    private let batteryLock = NSLock()
+    private var batterySnapshot = BatterySnapshot(levelPercent: -1, charging: false, powerSource: "unknown")
+    private var batteryObserverTokens: [NSObjectProtocol] = []
+    private var started = false
+
+    private init() {}
+
+    func start() {
+        DispatchQueue.main.async { [weak self] in
+            self?.startOnMainQueue()
+        }
+    }
+
+    func stop() {
+        DispatchQueue.main.async { [weak self] in
+            self?.stopOnMainQueue()
+        }
+    }
+
+    func snapshot() -> BroadcastDeviceResourceSnapshot {
+        let processInfo = ProcessInfo.processInfo
+        let thermalState = processInfo.thermalState
+        let normalizedThermalState: String
+        switch thermalState {
+        case .nominal:
+            normalizedThermalState = "nominal"
+        case .fair:
+            normalizedThermalState = "fair"
+        case .serious:
+            normalizedThermalState = "serious"
+        case .critical:
+            normalizedThermalState = "critical"
+        @unknown default:
+            normalizedThermalState = "unknown"
+        }
+        let battery = batteryLock.performLocked { batterySnapshot }
+
+        return BroadcastDeviceResourceSnapshot(
+            thermalState: normalizedThermalState,
+            thermalStatusCode: thermalState.rawValue,
+            batteryLevelPercent: battery.levelPercent,
+            charging: battery.charging,
+            lowPowerMode: processInfo.isLowPowerModeEnabled,
+            powerSource: battery.powerSource,
+            sampledAt: Date().timeIntervalSince1970 * 1_000
+        )
+    }
+
+    private func startOnMainQueue() {
+        guard !started else {
+            return
+        }
+        started = true
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        refreshBatteryOnMainQueue()
+        let center = NotificationCenter.default
+        batteryObserverTokens = [
+            center.addObserver(
+                forName: UIDevice.batteryLevelDidChangeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.refreshBatteryOnMainQueue()
+            },
+            center.addObserver(
+                forName: UIDevice.batteryStateDidChangeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.refreshBatteryOnMainQueue()
+            }
+        ]
+    }
+
+    private func stopOnMainQueue() {
+        guard started else {
+            return
+        }
+        batteryObserverTokens.forEach { NotificationCenter.default.removeObserver($0) }
+        batteryObserverTokens.removeAll()
+        UIDevice.current.isBatteryMonitoringEnabled = false
+        started = false
+    }
+
+    private func refreshBatteryOnMainQueue() {
+        let device = UIDevice.current
+        let state = device.batteryState
+        let level = device.batteryLevel
+        let levelPercent = state == .unknown || !level.isFinite || level < 0
+            ? -1
+            : Swift.min(100, Swift.max(0, Int((level * 100).rounded())))
+        let next = BatterySnapshot(
+            levelPercent: levelPercent,
+            charging: state == .charging || state == .full,
+            powerSource: state == .unplugged ? "battery" : "unknown"
+        )
+        batteryLock.performLocked {
+            batterySnapshot = next
+        }
+    }
+}
+
 final class SampleHandler: RPBroadcastSampleHandler {
     private lazy var pipeline = BroadcastUploadPipeline { [weak self] command in
         self?.handleControlCommand(command)
@@ -24,6 +157,7 @@ final class SampleHandler: RPBroadcastSampleHandler {
     private var activeHandoffID: String?
 
     override func broadcastStarted(withSetupInfo setupInfo: [String: NSObject]?) {
+        BroadcastDeviceResourceMonitor.shared.start()
         let requestedHandoffID = BroadcastSharedStore.currentHandoffID()
         do {
             let sharedSetupInfo = try requestedHandoffID.flatMap { handoffID in
@@ -37,10 +171,12 @@ final class SampleHandler: RPBroadcastSampleHandler {
             case .success:
                 activeHandoffID = handoffID
             case .failure(let error):
+                BroadcastDeviceResourceMonitor.shared.stop()
                 clearCredential(handoffID: handoffID)
                 finishBroadcastWithError(BroadcastUploadError.asNSError(error))
             }
         } catch {
+            BroadcastDeviceResourceMonitor.shared.stop()
             clearCredential(handoffID: requestedHandoffID)
             finishBroadcastWithError(BroadcastUploadError.asNSError(error))
         }
@@ -56,6 +192,7 @@ final class SampleHandler: RPBroadcastSampleHandler {
 
     override func broadcastFinished() {
         pipeline.stop()
+        BroadcastDeviceResourceMonitor.shared.stop()
         let handoffID = activeHandoffID
         activeHandoffID = nil
         if let handoffID {
@@ -97,6 +234,7 @@ final class SampleHandler: RPBroadcastSampleHandler {
                 return
             }
             self.pipeline.stop()
+            BroadcastDeviceResourceMonitor.shared.stop()
             let handoffID = self.activeHandoffID
             self.activeHandoffID = nil
             self.clearCredential(handoffID: handoffID)
@@ -813,6 +951,7 @@ final class BroadcastSharedStore {
         stats: BroadcastUploadStats,
         videoEncoderStats: BroadcastVideoEncoderStats?,
         bitrateAdaptationSnapshot: NativeAdaptiveBitrateSnapshot?,
+        deviceResourceSnapshot: BroadcastDeviceResourceSnapshot?,
         audioEncoderStats: BroadcastAudioEncoderStats?,
         publisherStats: BroadcastRTMPPublisherStats?,
         continuitySnapshot: BroadcastMediaContinuitySnapshot?,
@@ -841,6 +980,10 @@ final class BroadcastSharedStore {
             payload["videoEncoder"] = [
                 "bitrateAdaptation": bitrateAdaptationSnapshot.asDictionary()
             ]
+        }
+
+        if let deviceResourceSnapshot {
+            payload["device"] = deviceResourceSnapshot.asDictionary()
         }
 
         if let audioEncoderStats {
@@ -886,7 +1029,8 @@ final class BroadcastSharedStore {
 
     static func saveContinuitySnapshot(
         _ continuitySnapshot: BroadcastMediaContinuitySnapshot,
-        bitrateAdaptationSnapshot: NativeAdaptiveBitrateSnapshot
+        bitrateAdaptationSnapshot: NativeAdaptiveBitrateSnapshot,
+        deviceResourceSnapshot: BroadcastDeviceResourceSnapshot
     ) {
         runtimeStateLock.lock()
         defer { runtimeStateLock.unlock() }
@@ -898,6 +1042,7 @@ final class BroadcastSharedStore {
         }
         payload["updatedAt"] = Date().timeIntervalSince1970 * 1000
         payload["continuity"] = continuitySnapshot.asDictionary()
+        payload["device"] = deviceResourceSnapshot.asDictionary()
         let videoEncoder = payload["videoEncoder"] as? [String: Any] ?? [:]
         payload["videoEncoder"] = mergingBitrateAdaptation(
             into: videoEncoder,
@@ -5678,6 +5823,7 @@ final class BroadcastUploadPipeline {
     private var mediaContinuityHeartbeatGate = BroadcastMediaContinuityHeartbeatGate()
     private var mediaContinuityTracker = BroadcastMediaContinuityTracker()
     private let adaptiveBitrateLock = NSLock()
+    private let videoBitrateUpdateLock = NSLock()
     private var adaptiveBitrateController = NativeAdaptiveBitrateController()
     private let controlActionHandler: (LiveCasterBroadcastControlCommand) -> Void
 
@@ -5904,6 +6050,7 @@ final class BroadcastUploadPipeline {
             stats: stats,
             videoEncoderStats: overrideVideoEncoderStats ?? videoEncoder?.stats,
             bitrateAdaptationSnapshot: adaptiveBitrateSnapshot(),
+            deviceResourceSnapshot: BroadcastDeviceResourceMonitor.shared.snapshot(),
             audioEncoderStats: overrideAudioEncoderStats ?? audioEncoder?.stats,
             publisherStats: effectivePublisherStats,
             continuitySnapshot: continuitySnapshot,
@@ -5934,9 +6081,15 @@ final class BroadcastUploadPipeline {
                 self.controlActionHandler(command)
                 return
             }
-            self.mediaContinuityLock.performLocked {
+            let deviceResourceSnapshot = BroadcastDeviceResourceMonitor.shared.snapshot()
+            let heartbeatState = self.mediaContinuityLock.performLocked {
+                () -> (
+                    publisherStats: BroadcastRTMPPublisherStats,
+                    active: Bool,
+                    continuitySnapshot: BroadcastMediaContinuitySnapshot
+                )? in
                 guard self.mediaContinuityHeartbeatGate.isCurrent(generation) else {
-                    return
+                    return nil
                 }
                 let publisherStats = publisher.stats
                 let active = self.mediaContinuityHeartbeatGate.enabled && publisherStats.state == .published
@@ -5945,16 +6098,22 @@ final class BroadcastUploadPipeline {
                     audioMessages: publisherStats.audioMessagesSent,
                     active: active
                 )
-                let bitrateAdaptationSnapshot = self.evaluateAdaptiveBitrate(
-                    publisherStats: publisherStats,
-                    active: active,
-                    videoEncoder: videoEncoder
-                )
-                BroadcastSharedStore.saveContinuitySnapshot(
-                    continuitySnapshot,
-                    bitrateAdaptationSnapshot: bitrateAdaptationSnapshot
-                )
+                return (publisherStats, active, continuitySnapshot)
             }
+            guard let heartbeatState else {
+                return
+            }
+            let bitrateAdaptationSnapshot = self.evaluateAdaptiveBitrate(
+                publisherStats: heartbeatState.publisherStats,
+                active: heartbeatState.active,
+                videoEncoder: videoEncoder,
+                deviceResourceSnapshot: deviceResourceSnapshot
+            )
+            BroadcastSharedStore.saveContinuitySnapshot(
+                heartbeatState.continuitySnapshot,
+                bitrateAdaptationSnapshot: bitrateAdaptationSnapshot,
+                deviceResourceSnapshot: deviceResourceSnapshot
+            )
         }
         mediaContinuityTimer = timer
         timer.resume()
@@ -5978,10 +6137,11 @@ final class BroadcastUploadPipeline {
     private func evaluateAdaptiveBitrate(
         publisherStats: BroadcastRTMPPublisherStats,
         active: Bool,
-        videoEncoder: BroadcastVideoEncoder
+        videoEncoder: BroadcastVideoEncoder,
+        deviceResourceSnapshot: BroadcastDeviceResourceSnapshot
     ) -> NativeAdaptiveBitrateSnapshot {
-        adaptiveBitrateLock.lock()
-        defer { adaptiveBitrateLock.unlock() }
+        videoBitrateUpdateLock.lock()
+        defer { videoBitrateUpdateLock.unlock() }
         let nowElapsedMs = ProcessInfo.processInfo.systemUptime * 1_000
         let nowWallMs = Date().timeIntervalSince1970 * 1_000
         let sample = NativeAdaptiveBitrateSample(
@@ -5995,26 +6155,36 @@ final class BroadcastUploadPipeline {
             measuredBitrateKbps: 0,
             useMeasuredBitrate: false,
             droppedVideoFrames: publisherStats.droppedVideoFrames,
-            cumulativeReconnectCount: publisherStats.cumulativeReconnectCount
+            cumulativeReconnectCount: publisherStats.cumulativeReconnectCount,
+            thermalState: deviceResourceSnapshot.thermalState
         )
-        if let decision = adaptiveBitrateController.evaluate(sample) {
+        let decision = adaptiveBitrateLock.performLocked {
+            adaptiveBitrateController.evaluate(sample)
+        }
+        if let decision {
             do {
                 try videoEncoder.updateBitrate(targetKbps: decision.targetKbps)
-                adaptiveBitrateController.recordApplied(decision.targetKbps)
+                adaptiveBitrateLock.performLocked {
+                    adaptiveBitrateController.recordApplied(decision.targetKbps)
+                }
                 logger.info(
                     "Native adaptive bitrate \(decision.type, privacy: .public) applied target=\(decision.targetKbps) reason=\(decision.reason, privacy: .public)"
                 )
             } catch {
-                adaptiveBitrateController.recordFailure(
-                    "Native encoder rejected the adaptive bitrate target.",
-                    nowWallMs: nowWallMs
-                )
+                adaptiveBitrateLock.performLocked {
+                    adaptiveBitrateController.recordFailure(
+                        "Native encoder rejected the adaptive bitrate target.",
+                        nowWallMs: nowWallMs
+                    )
+                }
                 logger.error(
                     "Native adaptive bitrate update failed target=\(decision.targetKbps): \(error.localizedDescription, privacy: .public)"
                 )
             }
         }
-        return adaptiveBitrateController.snapshot(nowElapsedMs: nowElapsedMs)
+        return adaptiveBitrateLock.performLocked {
+            adaptiveBitrateController.snapshot(nowElapsedMs: nowElapsedMs)
+        }
     }
 
     private func adaptiveBitrateSnapshot() -> NativeAdaptiveBitrateSnapshot {
@@ -6026,18 +6196,26 @@ final class BroadcastUploadPipeline {
     private func applyManualVideoBitrateUpdate(
         targetKbps: Int,
         videoEncoder: BroadcastVideoEncoder
-    ) throws {
-        adaptiveBitrateLock.lock()
-        defer { adaptiveBitrateLock.unlock() }
-        adaptiveBitrateController.requestBaselineChange(targetKbps)
+    ) throws -> Int {
+        videoBitrateUpdateLock.lock()
+        defer { videoBitrateUpdateLock.unlock() }
+        let thermalState = BroadcastDeviceResourceMonitor.shared.snapshot().thermalState
+        let effectiveTargetKbps = adaptiveBitrateLock.performLocked {
+            adaptiveBitrateController.requestBaselineChange(targetKbps, thermalState: thermalState)
+        }
         do {
-            try videoEncoder.updateBitrate(targetKbps: targetKbps)
-            adaptiveBitrateController.recordApplied(targetKbps)
+            try videoEncoder.updateBitrate(targetKbps: effectiveTargetKbps)
+            adaptiveBitrateLock.performLocked {
+                adaptiveBitrateController.recordApplied(effectiveTargetKbps)
+            }
+            return effectiveTargetKbps
         } catch {
-            adaptiveBitrateController.recordFailure(
-                "Native encoder rejected the manual bitrate target.",
-                nowWallMs: Date().timeIntervalSince1970 * 1_000
-            )
+            adaptiveBitrateLock.performLocked {
+                adaptiveBitrateController.recordFailure(
+                    "Native encoder rejected the manual bitrate target.",
+                    nowWallMs: Date().timeIntervalSince1970 * 1_000
+                )
+            }
             throw error
         }
     }
@@ -6124,6 +6302,7 @@ final class BroadcastUploadPipeline {
             return
         }
 
+        var appliedVideoBitrateKbps: Int?
         if videoBitrateChanged {
             guard let videoEncoder else {
                 adaptiveBitrateLock.performLocked {
@@ -6139,7 +6318,7 @@ final class BroadcastUploadPipeline {
                 return
             }
             do {
-                try applyManualVideoBitrateUpdate(
+                appliedVideoBitrateKbps = try applyManualVideoBitrateUpdate(
                     targetKbps: nextConfiguration.videoBitrateKbps,
                     videoEncoder: videoEncoder
                 )
@@ -6161,8 +6340,8 @@ final class BroadcastUploadPipeline {
             logger.info("Reloaded live scene compositor composition=\(nextSceneCompositor.summary.message, privacy: .public)")
         }
         lastRejectedRenderGraphUpdateKey = nil
-        if videoBitrateChanged {
-            logger.info("Applied live VideoToolbox bitrate target \(nextConfiguration.videoBitrateKbps) kbps")
+        if let appliedVideoBitrateKbps {
+            logger.info("Applied live VideoToolbox bitrate target \(appliedVideoBitrateKbps) kbps")
         }
         saveRuntimeState()
     }

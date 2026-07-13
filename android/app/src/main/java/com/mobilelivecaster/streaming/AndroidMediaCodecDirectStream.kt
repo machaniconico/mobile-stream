@@ -187,8 +187,9 @@ internal class AndroidMediaCodecDirectStream(
         canvasComposition = composition
     }
 
-    fun updateProfile(nextProfile: LiveCasterProfile) {
+    fun updateProfile(nextProfile: LiveCasterProfile, requestGeneration: Long) {
         val currentProfile = profile ?: throw IllegalStateException("Direct MediaCodec profile is unavailable")
+        require(requestGeneration > 0) { "Direct MediaCodec bitrate updates require a request generation" }
         require(
             currentProfile.width == nextProfile.width &&
                 currentProfile.height == nextProfile.height &&
@@ -199,10 +200,10 @@ internal class AndroidMediaCodecDirectStream(
         }
         profile = nextProfile
         micProcessingEffect?.updateProfile(nextProfile.micEffects, nextProfile.broadcastMixer)
-        liveVideoBitrateTracker.recordRequested(nextProfile.videoBitrate / 1_000)
         synchronized(videoEncoderCommandLock) {
             pendingVideoEncoderCommand = VideoEncoderCommand(
                 generation = videoEncoderGeneration,
+                requestGeneration = requestGeneration,
                 videoBitrate = nextProfile.videoBitrate,
                 requestKeyFrame = true
             )
@@ -214,6 +215,9 @@ internal class AndroidMediaCodecDirectStream(
             val pending = pendingVideoEncoderCommand
             pendingVideoEncoderCommand = VideoEncoderCommand(
                 generation = videoEncoderGeneration,
+                requestGeneration = pending
+                    ?.takeIf { it.generation == videoEncoderGeneration }
+                    ?.requestGeneration,
                 videoBitrate = pending?.takeIf { it.generation == videoEncoderGeneration }?.videoBitrate,
                 requestKeyFrame = true
             )
@@ -351,7 +355,7 @@ internal class AndroidMediaCodecDirectStream(
         val encoder = videoEncoder
         if (encoder == null) {
             command.videoBitrate?.let { bitrate ->
-                liveVideoBitrateTracker.recordFailure(bitrate / 1_000)
+                liveVideoBitrateTracker.recordFailure(bitrate / 1_000, command.requestGeneration)
             }
             lastError = "Direct MediaCodec video encoder is unavailable"
             return
@@ -361,6 +365,7 @@ internal class AndroidMediaCodecDirectStream(
             executeTrackedNativeVideoBitrateUpdate(
                 targetKbps = bitrate / 1_000,
                 tracker = liveVideoBitrateTracker,
+                requestGeneration = command.requestGeneration,
                 applyBitrate = {
                     encoder.setParameters(Bundle().apply {
                         putInt(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, bitrate)
@@ -374,11 +379,13 @@ internal class AndroidMediaCodecDirectStream(
                 afterBitrateApplied = { requestVideoKeyFrame(encoder, command.requestKeyFrame) }
             )
         }
-        result.bitrateFailure?.let { error ->
-            lastError = safeMessage(error)
-        }
-        if (result.bitrateApplied) {
-            lastNonFatalError = result.ancillaryFailure?.let(::safeMessage) ?: ""
+        if (result.trackerAccepted) {
+            result.bitrateFailure?.let { error ->
+                lastNonFatalError = safeMessage(error)
+            }
+            if (result.bitrateApplied) {
+                lastNonFatalError = result.ancillaryFailure?.let(::safeMessage) ?: ""
+            }
         }
     }
 
@@ -606,6 +613,7 @@ internal class AndroidMediaCodecDirectStream(
 
 private data class VideoEncoderCommand(
     val generation: Long,
+    val requestGeneration: Long?,
     val videoBitrate: Int?,
     val requestKeyFrame: Boolean
 )
