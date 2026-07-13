@@ -2021,11 +2021,30 @@ function hasPatternMatch(value, pattern) {
 function hasUnredactedPhoneMatch(value) {
   phoneLikePattern.lastIndex = 0;
   for (const match of value.matchAll(phoneLikePattern)) {
-    if (isUnredactedPhoneCandidate(match[2] ?? "")) {
+    const candidate = match[2] ?? "";
+    if (
+      isUnredactedPhoneCandidate(candidate) &&
+      !isJsonEpochTimestampCandidate(value, match.index ?? 0, match[0], candidate)
+    ) {
       return true;
     }
   }
   return false;
+}
+
+function isJsonEpochTimestampCandidate(source, matchIndex, matchText, candidate) {
+  const normalized = candidate.trim();
+  if (!/^\d{13}$/.test(normalized)) {
+    return false;
+  }
+  const epochMilliseconds = Number(normalized);
+  if (epochMilliseconds < Date.UTC(2000, 0, 1) || epochMilliseconds > Date.UTC(2100, 0, 1)) {
+    return false;
+  }
+  const candidateOffset = matchText.indexOf(candidate);
+  const candidateIndex = matchIndex + Math.max(0, candidateOffset);
+  const prefix = source.slice(Math.max(0, candidateIndex - 96), candidateIndex);
+  return /"[A-Za-z0-9_]*(?:At|Timestamp(?:Ms)?)"\s*:\s*$/.test(prefix);
 }
 
 function hasUnredactedProtocolLessLink(value) {

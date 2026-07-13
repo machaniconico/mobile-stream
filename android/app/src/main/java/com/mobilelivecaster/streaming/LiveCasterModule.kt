@@ -232,6 +232,28 @@ private fun AndroidCompositionResult.toNativeRuntimeComposition(): NativeRuntime
     )
 }
 
+data class NativeRuntimeBitrateAdaptation(
+    val status: String = "unknown",
+    val initialTargetKbps: Int = 0,
+    val requestedTargetKbps: Int = 0,
+    val appliedTargetKbps: Int = 0,
+    val minimumAppliedKbps: Int = 0,
+    val updateCount: Long = 0,
+    val failureCount: Long = 0,
+    val lastUpdatedAt: Long = 0
+) {
+    fun asWritableMap(): WritableMap = Arguments.createMap().apply {
+        putString("status", status)
+        putInt("initialTargetKbps", initialTargetKbps)
+        putInt("requestedTargetKbps", requestedTargetKbps)
+        putInt("appliedTargetKbps", appliedTargetKbps)
+        putInt("minimumAppliedKbps", minimumAppliedKbps)
+        putDouble("updateCount", updateCount.toDouble())
+        putDouble("failureCount", failureCount.toDouble())
+        putDouble("lastUpdatedAt", lastUpdatedAt.toDouble())
+    }
+}
+
 data class NativeRuntimePublisher(
     val state: String = "",
     val videoEncoderBackend: String = "",
@@ -249,6 +271,7 @@ data class NativeRuntimePublisher(
     val cacheSize: Int = 0,
     val itemsInCache: Int = 0,
     val congested: Boolean = false,
+    val bitrateAdaptation: NativeRuntimeBitrateAdaptation = NativeRuntimeBitrateAdaptation(),
     val lastError: String = ""
 ) {
     fun asWritableMap(): WritableMap = Arguments.createMap().apply {
@@ -268,6 +291,7 @@ data class NativeRuntimePublisher(
         putInt("cacheSize", cacheSize)
         putInt("itemsInCache", itemsInCache)
         putBoolean("congested", congested)
+        putMap("bitrateAdaptation", bitrateAdaptation.asWritableMap())
         putString("lastError", lastError)
     }
 }
@@ -723,6 +747,7 @@ object LiveCasterSession {
         cacheSize: Int? = null,
         itemsInCache: Int? = null,
         congested: Boolean? = null,
+        bitrateAdaptation: NativeRuntimeBitrateAdaptation? = null,
         lastError: String? = null,
         audioProcessing: NativeRuntimeAudioProcessing? = null,
         continuity: NativeRuntimeContinuity? = null,
@@ -758,6 +783,7 @@ object LiveCasterSession {
             cacheSize = cacheSize ?: publisher.cacheSize,
             itemsInCache = itemsInCache ?: publisher.itemsInCache,
             congested = congested ?: publisher.congested,
+            bitrateAdaptation = bitrateAdaptation ?: publisher.bitrateAdaptation,
             lastError = redactSensitiveText(lastError ?: publisher.lastError)
         )
         nativeRuntime = NativeRuntimeTelemetry(

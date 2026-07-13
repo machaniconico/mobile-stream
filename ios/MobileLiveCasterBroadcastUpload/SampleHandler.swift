@@ -949,6 +949,7 @@ struct BroadcastVideoEncoderStats: Equatable {
     private(set) var encodedBytes: Int = 0
     private(set) var lastPresentationTimeSeconds: Double = 0
     private(set) var lastStatus: Int32 = 0
+    private(set) var bitrateTracker = LiveVideoBitrateTracker()
 
     mutating func record(_ frame: BroadcastEncodedVideoFrame) {
         encodedFrames += 1
@@ -964,6 +965,23 @@ struct BroadcastVideoEncoderStats: Equatable {
         lastStatus = status
     }
 
+    mutating func resetBitrate(targetKbps: Int) {
+        bitrateTracker.reset(initialTargetKbps: targetKbps)
+    }
+
+    mutating func recordBitrateRequested(targetKbps: Int) {
+        bitrateTracker.recordRequested(targetKbps: targetKbps)
+    }
+
+    mutating func recordBitrateApplied(targetKbps: Int) {
+        bitrateTracker.recordApplied(targetKbps: targetKbps)
+    }
+
+    mutating func recordBitrateFailure(targetKbps: Int, status: OSStatus) {
+        bitrateTracker.recordFailure(targetKbps: targetKbps)
+        lastStatus = status
+    }
+
     func asDictionary() -> [String: Any] {
         [
             "backend": "videotoolbox-h264",
@@ -971,7 +989,8 @@ struct BroadcastVideoEncoderStats: Equatable {
             "keyframes": keyframes,
             "encodedBytes": encodedBytes,
             "lastPresentationTimeSeconds": lastPresentationTimeSeconds,
-            "lastStatus": lastStatus
+            "lastStatus": lastStatus,
+            "bitrateAdaptation": bitrateTracker.snapshot.asDictionary()
         ]
     }
 }
@@ -1358,6 +1377,13 @@ struct BroadcastRTMPPublisherStats: Equatable {
     private(set) var lastTimestampMs: Int = 0
     private(set) var reconnectAttempts: Int = 0
     private(set) var nextReconnectDelayMs: Int = 0
+    private(set) var cacheSize: Int = 0
+    private(set) var itemsInCache: Int = 0
+    private(set) var queuedBytes: Int = 0
+    private(set) var maxItemsInCache: Int = 0
+    private(set) var maxQueuedBytes: Int = 0
+    private(set) var oldestQueuedAgeMs: Int = 0
+    private(set) var congested = false
     private(set) var lastError: String = ""
     private var mediaTimestampTracker = BroadcastMediaTimestampTracker()
 
@@ -1418,6 +1444,22 @@ struct BroadcastRTMPPublisherStats: Equatable {
         bytesWritten += count
     }
 
+    mutating func recordQueue(
+        capacity: Int,
+        items: Int,
+        bytes: Int,
+        oldestAgeMs: Int,
+        congested: Bool
+    ) {
+        cacheSize = max(0, capacity)
+        itemsInCache = max(0, items)
+        queuedBytes = max(0, bytes)
+        maxItemsInCache = max(maxItemsInCache, itemsInCache)
+        maxQueuedBytes = max(maxQueuedBytes, queuedBytes)
+        oldestQueuedAgeMs = max(0, oldestAgeMs)
+        self.congested = congested
+    }
+
     mutating func fail(_ message: String) {
         state = .failed
         lastError = message
@@ -1440,6 +1482,13 @@ struct BroadcastRTMPPublisherStats: Equatable {
             "lastTimestampMs": lastTimestampMs,
             "reconnectAttempts": reconnectAttempts,
             "nextReconnectDelayMs": nextReconnectDelayMs,
+            "cacheSize": cacheSize,
+            "itemsInCache": itemsInCache,
+            "queuedBytes": queuedBytes,
+            "maxItemsInCache": maxItemsInCache,
+            "maxQueuedBytes": maxQueuedBytes,
+            "oldestQueuedAgeMs": oldestQueuedAgeMs,
+            "congested": congested,
             "avSync": mediaTimestampTracker.snapshot().asDictionary(),
             "lastError": lastError
         ]
@@ -1545,6 +1594,19 @@ private struct RTMPIncomingChunk {
     var payload = Data()
 }
 
+private struct RTMPPendingMediaEntry {
+    let id: Int64
+    let byteCount: Int
+    let enqueuedAt: Double
+}
+
+private struct RTMPPendingMediaSnapshot {
+    let items: Int
+    let bytes: Int
+    let oldestAgeMs: Int
+    let congested: Bool
+}
+
 final class BroadcastRTMPPublisher {
     private enum ReconnectPolicy {
         static let maxAttempts = 5
@@ -1552,12 +1614,22 @@ final class BroadcastRTMPPublisher {
         static let maxDelayMilliseconds = 15_000
     }
 
+    private enum MediaQueuePolicy {
+        static let congestionItems = 90
+        static let maximumItems = 180
+        static let congestionAgeMs = 2_000
+    }
+
     private let target: RTMPPublishTarget
     private let publishURL: String
     private let queue = DispatchQueue(label: "MobileLiveCaster.broadcast.rtmp.publisher")
     private let callbackQueue = DispatchQueue(label: "MobileLiveCaster.broadcast.rtmp.network")
     private let statsLock = NSLock()
+    private let pendingMediaLock = NSLock()
     private var currentStats = BroadcastRTMPPublisherStats()
+    private var pendingMediaEntries: [RTMPPendingMediaEntry] = []
+    private var pendingMediaBytes = 0
+    private var nextPendingMediaID: Int64 = 0
     private var connection: NWConnection?
     private var reconnectWorkItem: DispatchWorkItem?
     private var stopped = false
@@ -1614,14 +1686,101 @@ final class BroadcastRTMPPublisher {
     }
 
     func publishVideoFrame(_ frame: BroadcastEncodedVideoFrame) {
+        guard stats.state == .published else {
+            statsLock.performLocked {
+                self.currentStats.recordDroppedVideoFrame()
+            }
+            return
+        }
+        guard let pendingMediaID = admitPendingMedia(byteCount: frame.byteCount, protected: frame.isKeyframe) else {
+            statsLock.performLocked {
+                self.currentStats.recordDroppedVideoFrame()
+            }
+            return
+        }
         queue.async { [weak self] in
+            defer { self?.completePendingMedia(id: pendingMediaID) }
             self?.publishVideoFrameLocked(frame)
         }
     }
 
     func publishAudioFrame(_ frame: BroadcastEncodedAudioFrame) {
+        guard stats.state == .published else {
+            statsLock.performLocked {
+                self.currentStats.recordDroppedAudioFrame()
+            }
+            return
+        }
+        guard let pendingMediaID = admitPendingMedia(byteCount: frame.aacPayload.count, protected: true) else {
+            statsLock.performLocked {
+                self.currentStats.recordDroppedAudioFrame()
+            }
+            return
+        }
         queue.async { [weak self] in
+            defer { self?.completePendingMedia(id: pendingMediaID) }
             self?.publishAudioFrameLocked(frame)
+        }
+    }
+
+    private func admitPendingMedia(byteCount: Int, protected: Bool) -> Int64? {
+        pendingMediaLock.lock()
+        let currentCount = pendingMediaEntries.count
+        let shouldDrop = currentCount >= MediaQueuePolicy.maximumItems ||
+            (!protected && currentCount >= MediaQueuePolicy.congestionItems)
+        var pendingMediaID: Int64?
+        if !shouldDrop {
+            nextPendingMediaID += 1
+            let id = nextPendingMediaID
+            let entry = RTMPPendingMediaEntry(
+                id: id,
+                byteCount: max(0, byteCount),
+                enqueuedAt: Date().timeIntervalSince1970 * 1_000
+            )
+            pendingMediaEntries.append(entry)
+            pendingMediaBytes += entry.byteCount
+            pendingMediaID = id
+        }
+        let snapshot = pendingMediaSnapshotLocked()
+        pendingMediaLock.unlock()
+        recordPendingMediaSnapshot(snapshot)
+        return pendingMediaID
+    }
+
+    private func completePendingMedia(id: Int64) {
+        pendingMediaLock.lock()
+        if let index = pendingMediaEntries.firstIndex(where: { $0.id == id }) {
+            let completed = pendingMediaEntries.remove(at: index)
+            pendingMediaBytes = max(0, pendingMediaBytes - completed.byteCount)
+        }
+        let snapshot = pendingMediaSnapshotLocked()
+        pendingMediaLock.unlock()
+        recordPendingMediaSnapshot(snapshot)
+    }
+
+    private func pendingMediaSnapshotLocked() -> RTMPPendingMediaSnapshot {
+        let now = Date().timeIntervalSince1970 * 1_000
+        let oldestAgeMs = pendingMediaEntries.first.map { entry in
+            max(0, Int(now - entry.enqueuedAt))
+        } ?? 0
+        let items = pendingMediaEntries.count
+        return RTMPPendingMediaSnapshot(
+            items: items,
+            bytes: pendingMediaBytes,
+            oldestAgeMs: oldestAgeMs,
+            congested: items >= MediaQueuePolicy.congestionItems || oldestAgeMs >= MediaQueuePolicy.congestionAgeMs
+        )
+    }
+
+    private func recordPendingMediaSnapshot(_ snapshot: RTMPPendingMediaSnapshot) {
+        statsLock.performLocked {
+            currentStats.recordQueue(
+                capacity: MediaQueuePolicy.maximumItems,
+                items: snapshot.items,
+                bytes: snapshot.bytes,
+                oldestAgeMs: snapshot.oldestAgeMs,
+                congested: snapshot.congested
+            )
         }
     }
 
@@ -3279,7 +3438,9 @@ private let videoCompressionOutputCallback: VTCompressionOutputCallback = { refc
 final class BroadcastVideoEncoder {
     private let configuration: BroadcastUploadConfiguration
     private let onEncodedFrame: (BroadcastEncodedVideoFrame) -> Void
+    private let encoderQueue = DispatchQueue(label: "MobileLiveCaster.broadcast.video-encoder")
     private var session: VTCompressionSession?
+    private var forceNextKeyframe = false
     private let statsLock = NSLock()
     private var currentStats = BroadcastVideoEncoderStats()
 
@@ -3299,6 +3460,37 @@ final class BroadcastVideoEncoder {
     }
 
     func encode(_ sampleBuffer: CMSampleBuffer) throws {
+        try encoderQueue.sync {
+            try encodeLocked(sampleBuffer)
+        }
+    }
+
+    func updateBitrate(targetKbps: Int) throws {
+        try encoderQueue.sync {
+            let normalizedTarget = min(20_000, max(800, targetKbps))
+            statsLock.performLocked {
+                currentStats.recordBitrateRequested(targetKbps: normalizedTarget)
+            }
+            do {
+                try setProperty(
+                    kVTCompressionPropertyKey_AverageBitRate,
+                    NSNumber(value: normalizedTarget * 1_000),
+                    name: "AverageBitRate"
+                )
+                forceNextKeyframe = true
+                statsLock.performLocked {
+                    currentStats.recordBitrateApplied(targetKbps: normalizedTarget)
+                }
+            } catch let error as BroadcastVideoEncoderError {
+                statsLock.performLocked {
+                    currentStats.recordBitrateFailure(targetKbps: normalizedTarget, status: error.statusCode ?? -1)
+                }
+                throw error
+            }
+        }
+    }
+
+    private func encodeLocked(_ sampleBuffer: CMSampleBuffer) throws {
         guard let session else {
             throw BroadcastVideoEncoderError.sessionCreateFailed(kVTInvalidSessionErr)
         }
@@ -3308,12 +3500,15 @@ final class BroadcastVideoEncoder {
 
         let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         let duration = normalizedDuration(CMSampleBufferGetDuration(sampleBuffer))
+        let frameProperties = forceNextKeyframe
+            ? [kVTEncodeFrameOptionKey_ForceKeyFrame: kCFBooleanTrue as Any] as CFDictionary
+            : nil
         let status = VTCompressionSessionEncodeFrame(
             session,
             imageBuffer: imageBuffer,
             presentationTimeStamp: presentationTime.isValid ? presentationTime : CMTime(value: 0, timescale: 1),
             duration: duration,
-            frameProperties: nil,
+            frameProperties: frameProperties,
             sourceFrameRefcon: nil,
             infoFlagsOut: nil
         )
@@ -3323,15 +3518,19 @@ final class BroadcastVideoEncoder {
             }
             throw BroadcastVideoEncoderError.encodeFailed(status)
         }
+        forceNextKeyframe = false
     }
 
     func finish() {
-        guard let session else {
-            return
+        encoderQueue.sync {
+            guard let session else {
+                return
+            }
+            VTCompressionSessionCompleteFrames(session, untilPresentationTimeStamp: .invalid)
+            VTCompressionSessionInvalidate(session)
+            self.session = nil
+            forceNextKeyframe = false
         }
-        VTCompressionSessionCompleteFrames(session, untilPresentationTimeStamp: .invalid)
-        VTCompressionSessionInvalidate(session)
-        self.session = nil
     }
 
     fileprivate func handleOutput(status: OSStatus, sampleBuffer: CMSampleBuffer?) {
@@ -3379,6 +3578,9 @@ final class BroadcastVideoEncoder {
             NSNumber(value: configuration.videoBitrateKbps * 1000),
             name: "AverageBitRate"
         )
+        statsLock.performLocked {
+            currentStats.resetBitrate(targetKbps: configuration.videoBitrateKbps)
+        }
         try setProperty(kVTCompressionPropertyKey_MaxKeyFrameInterval, NSNumber(value: configuration.fps * 2), name: "MaxKeyFrameInterval")
         try setProperty(kVTCompressionPropertyKey_ExpectedFrameRate, NSNumber(value: configuration.fps), name: "ExpectedFrameRate")
 
@@ -5737,13 +5939,20 @@ final class BroadcastUploadPipeline {
 
         let nextRenderGraphJSON = Self.normalizedRenderGraphJSON(nextConfiguration.renderGraphJSON)
         let currentRenderGraphJSON = activeRenderGraphJSON ?? ""
-        guard nextConfiguration.renderGraphUpdatedAt != activeRenderGraphUpdatedAt || nextRenderGraphJSON != currentRenderGraphJSON else {
+        let metadataChanged = nextConfiguration.renderGraphUpdatedAt != activeRenderGraphUpdatedAt
+        let renderGraphChanged = nextRenderGraphJSON != currentRenderGraphJSON
+        let videoBitrateChanged = nextConfiguration.videoBitrateKbps != currentConfiguration.videoBitrateKbps
+        guard metadataChanged || renderGraphChanged || videoBitrateChanged else {
             return
         }
-        let nextRenderGraphUpdateKey = Self.renderGraphUpdateKey(
+        let renderGraphUpdateKey = Self.renderGraphUpdateKey(
             updatedAt: nextConfiguration.renderGraphUpdatedAt,
             json: nextRenderGraphJSON
         )
+        let nextRenderGraphUpdateKey = "\(renderGraphUpdateKey)|\(nextConfiguration.videoBitrateKbps)"
+        guard lastRejectedRenderGraphUpdateKey != nextRenderGraphUpdateKey else {
+            return
+        }
         guard Self.canRefreshSceneCompositor(from: currentConfiguration, to: nextConfiguration) else {
             if lastRejectedRenderGraphUpdateKey != nextRenderGraphUpdateKey {
                 liveRenderGraphRejectedUpdateCount += 1
@@ -5754,14 +5963,30 @@ final class BroadcastUploadPipeline {
             return
         }
 
-        let nextSceneCompositor = BroadcastSceneCompositor(configuration: nextConfiguration)
+        if videoBitrateChanged {
+            do {
+                try videoEncoder?.updateBitrate(targetKbps: nextConfiguration.videoBitrateKbps)
+            } catch {
+                lastRejectedRenderGraphUpdateKey = nextRenderGraphUpdateKey
+                logger.error("Live VideoToolbox bitrate update failed: \(error.localizedDescription, privacy: .public)")
+                saveRuntimeState()
+                return
+            }
+        }
+
         configuration = nextConfiguration
-        sceneCompositor = nextSceneCompositor
-        activeRenderGraphJSON = nextRenderGraphJSON
         activeRenderGraphUpdatedAt = nextConfiguration.renderGraphUpdatedAt
-        liveRenderGraphReloadCount += 1
+        if renderGraphChanged {
+            let nextSceneCompositor = BroadcastSceneCompositor(configuration: nextConfiguration)
+            sceneCompositor = nextSceneCompositor
+            activeRenderGraphJSON = nextRenderGraphJSON
+            liveRenderGraphReloadCount += 1
+            logger.info("Reloaded live scene compositor composition=\(nextSceneCompositor.summary.message, privacy: .public)")
+        }
         lastRejectedRenderGraphUpdateKey = nil
-        logger.info("Reloaded live scene compositor composition=\(nextSceneCompositor.summary.message, privacy: .public)")
+        if videoBitrateChanged {
+            logger.info("Applied live VideoToolbox bitrate target \(nextConfiguration.videoBitrateKbps) kbps")
+        }
         saveRuntimeState()
     }
 
@@ -5773,7 +5998,6 @@ final class BroadcastUploadPipeline {
             currentConfiguration.width == nextConfiguration.width &&
             currentConfiguration.height == nextConfiguration.height &&
             currentConfiguration.fps == nextConfiguration.fps &&
-            currentConfiguration.videoBitrateKbps == nextConfiguration.videoBitrateKbps &&
             currentConfiguration.audioBitrateKbps == nextConfiguration.audioBitrateKbps
     }
 

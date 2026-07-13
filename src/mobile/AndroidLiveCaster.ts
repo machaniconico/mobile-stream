@@ -5,6 +5,7 @@ import type { StudioProfile } from "../domain/profiles";
 import {
   normalizeNativeRuntimeAudioProcessing,
   normalizeNativeRuntimeAvSync,
+  normalizeNativeRuntimeBitrateAdaptation,
   normalizeNativeRuntimeContinuity,
   normalizeNativeRuntimeDevice
 } from "../domain/nativeRuntime";
@@ -188,6 +189,7 @@ const normalizeNativeRuntime = (
           cacheSize: runtime.publisher?.cacheSize ?? 0,
           itemsInCache: runtime.publisher?.itemsInCache ?? 0,
           congested: runtime.publisher?.congested ?? false,
+          bitrateAdaptation: normalizeNativeRuntimeBitrateAdaptation(runtime.publisher?.bitrateAdaptation),
           lastError: runtime.publisher?.lastError ?? ""
         },
         encoderProbe: normalizeEncoderProbe(runtime.encoderProbe),

@@ -2318,6 +2318,16 @@ describe("stream validation evidence", () => {
           cacheSize: 120,
           itemsInCache: 64,
           congested: true,
+          bitrateAdaptation: {
+            status: "reduced" as const,
+            initialTargetKbps: 3500,
+            requestedTargetKbps: 2500,
+            appliedTargetKbps: 2500,
+            minimumAppliedKbps: 2500,
+            updateCount: 1,
+            failureCount: 0,
+            lastUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z")
+          },
           lastError: ""
         },
         composition: {
@@ -2347,7 +2357,15 @@ describe("stream validation evidence", () => {
       publisherState: "published",
       congested: true,
       queuedItems: 64,
-      cacheSize: 120
+      cacheSize: 120,
+      bitrateAdaptationStatus: "reduced",
+      initialVideoBitrateKbps: 3500,
+      requestedVideoBitrateKbps: 2500,
+      appliedVideoBitrateKbps: 2500,
+      minimumAppliedVideoBitrateKbps: 2500,
+      liveVideoBitrateUpdateCount: 1,
+      liveVideoBitrateUpdateFailureCount: 0,
+      lastVideoBitrateUpdateAt: Date.parse("2026-06-23T00:00:04.000Z")
     });
     expect(JSON.stringify(run)).not.toContain(streamKey);
     expect(JSON.stringify(run)).not.toContain("Native screen capture ready");
@@ -2355,6 +2373,16 @@ describe("stream validation evidence", () => {
     expect(summary.nativeRuntimeWarningCount).toBe(1);
     expect(summary.nativeRuntimeFailureCount).toBe(0);
     expect(summary.latestNativeRuntime?.status).toBe("warn");
+    expect(summary.runManifest[0]).toMatchObject({
+      nativeRuntimeBitrateAdaptationStatus: "reduced",
+      nativeRuntimeInitialVideoBitrateKbps: 3500,
+      nativeRuntimeRequestedVideoBitrateKbps: 2500,
+      nativeRuntimeAppliedVideoBitrateKbps: 2500,
+      nativeRuntimeMinimumAppliedVideoBitrateKbps: 2500,
+      nativeRuntimeLiveVideoBitrateUpdateCount: 1,
+      nativeRuntimeLiveVideoBitrateUpdateFailureCount: 0,
+      nativeRuntimeLastVideoBitrateUpdateAt: "2026-06-23T00:00:04.000Z"
+    });
   });
 
   it("does not count disabled face tracking snapshots as retained avatar motion evidence", () => {

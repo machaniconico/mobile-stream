@@ -43,7 +43,7 @@ export interface CommercialReleaseGateOptions {
   maxBundleAgeHours?: number;
 }
 
-const minimumSupportBundleVersion = 56;
+const minimumSupportBundleVersion = 57;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -280,7 +280,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v56 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, text overlay proof, live caption proof, native caption overlay kind proof, semantic, eye-mouth, and horizontal-anchor avatar segment proof, same-run ingest timing proof, native encoder backend proof, and RTMP A/V timestamp sync proof are summarized."
+      "Export a support bundle v57 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, text overlay proof, live caption proof, native caption overlay kind proof, semantic, eye-mouth, and horizontal-anchor avatar segment proof, same-run ingest timing proof, native encoder backend proof, and RTMP A/V timestamp sync proof are summarized."
     );
   }
 
@@ -396,7 +396,7 @@ const createSceneFingerprintIssue = (bundle: SupportBundle): CommercialReleaseGa
     return failIssue(
       "scene-fingerprint-missing",
       "Scene fingerprint",
-      "Support bundle v56 is missing scene composition fingerprint evidence.",
+      "Support bundle v57 is missing scene composition fingerprint evidence.",
       "Export a fresh support bundle from the exact scene/profile intended for release."
     );
   }
@@ -421,7 +421,7 @@ const createNativeCaptionOverlaySummaryIssue = (bundle: SupportBundle): Commerci
     "native-caption-overlay-summary-missing",
     "Native caption overlay evidence",
     "The support bundle is missing native caption overlay count summary evidence.",
-    "Export a support bundle v56 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
+    "Export a support bundle v57 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
   );
 };
 
@@ -507,7 +507,7 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "text-overlay-evidence-missing",
       "Text overlay evidence",
       "The support bundle is missing text overlay launch evidence.",
-      "Export a support bundle v56 or newer so visible manual text, subtitle, ticker, live-caption, native caption overlay kind proof, and avatar-overlap overlay evidence is summarized."
+      "Export a support bundle v57 or newer so visible manual text, subtitle, ticker, live-caption, native caption overlay kind proof, and avatar-overlap overlay evidence is summarized."
     );
   }
 
@@ -573,7 +573,7 @@ const createChatOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "chat-overlay-evidence-missing",
       "Chat overlay evidence",
       "The support bundle is missing chat overlay launch evidence.",
-      "Export a support bundle v56 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap evidence is summarized."
+      "Export a support bundle v57 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap evidence is summarized."
     );
   }
 
@@ -627,7 +627,7 @@ const createLiveCaptionEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "live-caption-evidence-missing",
       "Live caption evidence",
       "The support bundle is missing live caption launch evidence.",
-      "Export a support bundle v56 or newer so live caption enablement, recognition state, source visibility, cue proof, and native caption overlay kind proof are summarized."
+      "Export a support bundle v57 or newer so live caption enablement, recognition state, source visibility, cue proof, and native caption overlay kind proof are summarized."
     );
   }
 
@@ -860,7 +860,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v56 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v57 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -889,7 +889,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-android-publisher-mode",
       "Validation evidence manifest",
       `The latest Android validation manifest row used ${latestRuns.get("android")?.androidPublisherMode || "missing"} publisher mode.`,
-      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v56 or newer."
+      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v57 or newer."
     );
   }
   if (manifest.length !== bundle.summary.validationEvidenceRunCount) {
@@ -925,7 +925,7 @@ const createValidationEvidenceSceneManifestIssue = (bundle: SupportBundle): Comm
     "validation-evidence-manifest-scene-fingerprint",
     "Validation evidence manifest",
     `${mismatchedRuns.length} fresh retained validation run(s) do not match the current scene fingerprint ${sceneFingerprint}.`,
-    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v56 support bundle."
+    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v57 support bundle."
   );
 };
 
@@ -1135,7 +1135,7 @@ const createValidationEvidenceQualityAutomationIssue = (bundle: SupportBundle): 
     "validation-evidence-quality-automation-gap",
     "Weak-network quality automation proof",
     `Missing passing controlled weak-network quality automation evidence for ${[!ios ? "iOS" : "", !android ? "Android" : ""].filter(Boolean).join(" and ")}.`,
-    "Repeat controlled weak-network private validation on both iOS and Android until each retained run proves a live quality update or next-start fallback with zero update failures."
+    "Repeat controlled weak-network private validation on both iOS and Android until each retained run proves either a native-applied live bitrate update with zero native failures or a next-start fallback with zero app update failures."
   );
 };
 
@@ -1785,11 +1785,31 @@ const hasZeroManifestChatSpeechFailures = (run: ValidationEvidenceManifestRun | 
   Number.isFinite(run.chatReadoutSpeechFailureCount) &&
   run.chatReadoutSpeechFailureCount === 0;
 
-const isManifestQualityAutomationPass = (run: ValidationEvidenceManifestRun | undefined): boolean =>
-  isManifestFeaturePass(run?.qualityAutomationStatus) &&
-  hasControlledWeakNetworkProfile(run?.networkProfile) &&
-  (Number(run?.qualityAutomationLiveUpdateCount) > 0 || Number(run?.qualityAutomationNextTargetCount) > 0) &&
-  isZeroFiniteNumber(run?.qualityAutomationFailureCount);
+const isManifestQualityAutomationPass = (run: ValidationEvidenceManifestRun | undefined): boolean => {
+  const liveUpdateCount = finiteNumberOrZero(run?.qualityAutomationLiveUpdateCount);
+  const nextTargetCount = finiteNumberOrZero(run?.qualityAutomationNextTargetCount);
+  const nativeLiveUpdateCount = finiteNumberOrZero(run?.nativeRuntimeLiveVideoBitrateUpdateCount);
+  const nativeLiveProofPass =
+    liveUpdateCount <= 0 ||
+    ((run?.nativeRuntimeBitrateAdaptationStatus === "reduced" || run?.nativeRuntimeBitrateAdaptationStatus === "restored") &&
+      isPositiveFiniteNumber(run?.nativeRuntimeInitialVideoBitrateKbps) &&
+      isPositiveFiniteNumber(run?.nativeRuntimeRequestedVideoBitrateKbps) &&
+      isPositiveFiniteNumber(run?.nativeRuntimeAppliedVideoBitrateKbps) &&
+      isPositiveFiniteNumber(run?.nativeRuntimeMinimumAppliedVideoBitrateKbps) &&
+      nativeLiveUpdateCount >= liveUpdateCount &&
+      isZeroFiniteNumber(run?.nativeRuntimeLiveVideoBitrateUpdateFailureCount) &&
+      isNonEmptyIsoDate(run?.nativeRuntimeLastVideoBitrateUpdateAt));
+  return (
+    isManifestFeaturePass(run?.qualityAutomationStatus) &&
+    hasControlledWeakNetworkProfile(run?.networkProfile) &&
+    (liveUpdateCount > 0 || nextTargetCount > 0) &&
+    isZeroFiniteNumber(run?.qualityAutomationFailureCount) &&
+    nativeLiveProofPass
+  );
+};
+
+const finiteNumberOrZero = (value: unknown): number =>
+  typeof value === "number" && Number.isFinite(value) ? value : 0;
 
 const hasControlledWeakNetworkProfile = (networkProfile: unknown): boolean => {
   const normalized = normalizeStatusLabel(networkProfile);

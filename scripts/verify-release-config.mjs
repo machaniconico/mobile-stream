@@ -327,7 +327,7 @@ const checks = [
     expectIncludes(files.iosNativeVerificationScript, "MobileLiveCaster.debug.dylib");
     expectIncludes(files.iosNativeVerificationScript, "embedded and standalone ReplayKit executable hashes do not match");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 56");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 57");
     expectIncludes(files.supportBundleDomain, "nativeCompositionCaptionOverlayCount");
     expectIncludes(files.supportBundleDomain, "textOverlayRenderVisibleSourceCount");
     expectIncludes(files.supportBundleDomain, "textOverlayQueuedTimedManualSourceCount");
@@ -339,7 +339,7 @@ const checks = [
     expectIncludes(files.streamDiagnosticsDomain, "Evidence Android publisher mode");
     expectIncludes(files.streamValidationEvidenceDomain, "androidPublisherMode: StreamDiagnostics");
     expectIncludes(files.streamValidationEvidenceDomain, "androidPublisherModeAndroidPass");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 56");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 57");
     expectIncludes(files.commercialReleaseGateDomain, "bundle-generated-at-future");
     expectIncludes(files.commercialReleaseGateDomain, "scene-fingerprint-missing");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scene-fingerprint");
@@ -384,7 +384,7 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "isFirstPartyManifestPublishingDestination");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks first-party platform dashboard manifests marked not-applicable");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 56");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 57");
     expectIncludes(files.commercialReleaseBundleScript, "bundle-generated-at-future");
     expectIncludes(files.commercialReleaseBundleScript, "--allow-warnings is not supported for commercial release approval");
     expectIncludes(files.commercialReleaseBundleScript, "warningCount === 0");

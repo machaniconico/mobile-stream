@@ -240,6 +240,14 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeCongested: boolean;
   nativeRuntimeQueuedItems: number;
   nativeRuntimeCacheSize: number;
+  nativeRuntimeBitrateAdaptationStatus: StreamSessionNativeRuntimeSummary["bitrateAdaptationStatus"] | null;
+  nativeRuntimeInitialVideoBitrateKbps: number;
+  nativeRuntimeRequestedVideoBitrateKbps: number;
+  nativeRuntimeAppliedVideoBitrateKbps: number;
+  nativeRuntimeMinimumAppliedVideoBitrateKbps: number;
+  nativeRuntimeLiveVideoBitrateUpdateCount: number;
+  nativeRuntimeLiveVideoBitrateUpdateFailureCount: number;
+  nativeRuntimeLastVideoBitrateUpdateAt: string;
   nativeRuntimeDroppedVideoFrames: number;
   nativeRuntimeDroppedAudioFrames: number;
   nativeRuntimeCompositionStatus: StreamSessionNativeRuntimeSummary["compositionStatus"] | null;
@@ -2978,6 +2986,16 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeCongested: run.nativeRuntime?.congested ?? false,
     nativeRuntimeQueuedItems: run.nativeRuntime?.queuedItems ?? 0,
     nativeRuntimeCacheSize: run.nativeRuntime?.cacheSize ?? 0,
+    nativeRuntimeBitrateAdaptationStatus: run.nativeRuntime?.bitrateAdaptationStatus ?? null,
+    nativeRuntimeInitialVideoBitrateKbps: run.nativeRuntime?.initialVideoBitrateKbps ?? 0,
+    nativeRuntimeRequestedVideoBitrateKbps: run.nativeRuntime?.requestedVideoBitrateKbps ?? 0,
+    nativeRuntimeAppliedVideoBitrateKbps: run.nativeRuntime?.appliedVideoBitrateKbps ?? 0,
+    nativeRuntimeMinimumAppliedVideoBitrateKbps: run.nativeRuntime?.minimumAppliedVideoBitrateKbps ?? 0,
+    nativeRuntimeLiveVideoBitrateUpdateCount: run.nativeRuntime?.liveVideoBitrateUpdateCount ?? 0,
+    nativeRuntimeLiveVideoBitrateUpdateFailureCount: run.nativeRuntime?.liveVideoBitrateUpdateFailureCount ?? 0,
+    nativeRuntimeLastVideoBitrateUpdateAt: normalizeEpochMillisecondsDate(
+      run.nativeRuntime?.lastVideoBitrateUpdateAt
+    ),
     nativeRuntimeDroppedVideoFrames: run.nativeRuntime?.droppedVideoFrames ?? 0,
     nativeRuntimeDroppedAudioFrames: run.nativeRuntime?.droppedAudioFrames ?? 0,
     nativeRuntimeCompositionStatus: run.nativeRuntime?.compositionStatus ?? null,
@@ -3349,6 +3367,14 @@ const normalizeDateString = (value: unknown): string | null => {
   }
   const time = Date.parse(value);
   return Number.isFinite(time) ? new Date(time).toISOString() : null;
+};
+
+const normalizeEpochMillisecondsDate = (value: unknown): string => {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "";
+  }
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : "";
 };
 
 const normalizeNow = (value: Date | undefined): Date => {

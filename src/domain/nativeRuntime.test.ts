@@ -2,9 +2,56 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeNativeRuntimeAudioProcessing,
   normalizeNativeRuntimeAvSync,
+  normalizeNativeRuntimeBitrateAdaptation,
   normalizeNativeRuntimeContinuity,
   normalizeNativeRuntimeDevice
 } from "./nativeRuntime";
+
+describe("native live video bitrate telemetry", () => {
+  it("normalizes applied targets and retained update evidence", () => {
+    expect(
+      normalizeNativeRuntimeBitrateAdaptation({
+        status: "reduced",
+        initialTargetKbps: 6_000.4,
+        requestedTargetKbps: 4_300.4,
+        appliedTargetKbps: 4_300.4,
+        minimumAppliedKbps: 3_900.4,
+        updateCount: 2.4,
+        failureCount: -1,
+        lastUpdatedAt: 1_784_000_000_000.4
+      })
+    ).toEqual({
+      status: "reduced",
+      initialTargetKbps: 6_000,
+      requestedTargetKbps: 4_300,
+      appliedTargetKbps: 4_300,
+      minimumAppliedKbps: 3_900,
+      updateCount: 2,
+      failureCount: 0,
+      lastUpdatedAt: 1_784_000_000_000
+    });
+  });
+
+  it("fails malformed and missing values closed without inventing an update", () => {
+    expect(normalizeNativeRuntimeBitrateAdaptation(undefined)).toEqual({
+      status: "unknown",
+      initialTargetKbps: 0,
+      requestedTargetKbps: 0,
+      appliedTargetKbps: 0,
+      minimumAppliedKbps: 0,
+      updateCount: 0,
+      failureCount: 0,
+      lastUpdatedAt: 0
+    });
+    expect(
+      normalizeNativeRuntimeBitrateAdaptation({
+        status: "perfect" as "steady",
+        appliedTargetKbps: Number.NaN,
+        failureCount: 1.6
+      })
+    ).toMatchObject({ status: "unknown", appliedTargetKbps: 0, failureCount: 2 });
+  });
+});
 
 describe("native runtime device telemetry", () => {
   it("normalizes valid device resource telemetry", () => {

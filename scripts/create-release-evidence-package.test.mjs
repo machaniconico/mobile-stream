@@ -2410,10 +2410,20 @@ function commercialSupportBundleFixture() {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 56
+      bundleVersion: 57
     },
     generatedAt: capturedAt,
     fixture: true,
+    diagnostics: {
+      nativeRuntime: {
+        updatedAt: Date.parse("2026-06-23T00:00:05.000Z"),
+        publisher: {
+          bitrateAdaptation: {
+            lastUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z")
+          }
+        }
+      }
+    },
     profile: {
       androidPublisherMode: "mediacodec",
       platformPublishing: {
@@ -2734,6 +2744,14 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     qualityAutomationLiveUpdateCount: 1,
     qualityAutomationNextTargetCount: 0,
     qualityAutomationFailureCount: 0,
+    nativeRuntimeBitrateAdaptationStatus: "reduced",
+    nativeRuntimeInitialVideoBitrateKbps: 3_500,
+    nativeRuntimeRequestedVideoBitrateKbps: 2_500,
+    nativeRuntimeAppliedVideoBitrateKbps: 2_500,
+    nativeRuntimeMinimumAppliedVideoBitrateKbps: 2_500,
+    nativeRuntimeLiveVideoBitrateUpdateCount: 1,
+    nativeRuntimeLiveVideoBitrateUpdateFailureCount: 0,
+    nativeRuntimeLastVideoBitrateUpdateAt: "2026-06-23T00:01:00.000Z",
     platformPublishingPlatform: "youtube-live",
     platformPublishingStatus: "pass",
     platformPublishingFreshnessStatus: "fresh",

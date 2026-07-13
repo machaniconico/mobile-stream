@@ -33,7 +33,9 @@ describe("native text overlay rendering", () => {
     expect(handler).toContain("refreshSceneCompositorIfNeeded()");
     expect(handler).toContain("BroadcastSharedStore.loadConfigurationSetupInfo(");
     expect(handler).toContain("expectedHandoffID: handoffID");
-    expect(handler).toContain("nextConfiguration.renderGraphUpdatedAt != activeRenderGraphUpdatedAt || nextRenderGraphJSON != currentRenderGraphJSON");
+    expect(handler).toContain("let metadataChanged = nextConfiguration.renderGraphUpdatedAt != activeRenderGraphUpdatedAt");
+    expect(handler).toContain("let renderGraphChanged = nextRenderGraphJSON != currentRenderGraphJSON");
+    expect(handler).toContain("guard metadataChanged || renderGraphChanged || videoBitrateChanged else");
     expect(handler).toContain("lastRejectedRenderGraphUpdateKey != nextRenderGraphUpdateKey");
     expect(handler).toContain("liveRenderGraphRejectedUpdateCount += 1");
     expect(handler).toContain("liveRenderGraphReloadCount += 1");

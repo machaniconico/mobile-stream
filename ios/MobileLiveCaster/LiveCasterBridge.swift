@@ -837,7 +837,7 @@ final class LiveCasterNative: RCTEventEmitter {
                 self.health.fps = nextConfiguration.fps
                 self.health.message =
                     self.status == .live || self.status == .reconnecting
-                    ? "Quality target updated for the next iOS broadcast restart"
+                    ? "Quality target sent to the iOS broadcast extension"
                     : "Quality target updated"
                 let snapshot = self.snapshotLocked()
                 self.emitSnapshot(snapshot)
@@ -1292,6 +1292,7 @@ final class LiveCasterNative: RCTEventEmitter {
     ) -> [String: Any] {
         let stats = runtimeState.dictionaryValue("stats")
         let videoEncoder = runtimeState.dictionaryValue("videoEncoder")
+        let bitrateAdaptation = videoEncoder.dictionaryValue("bitrateAdaptation")
         let audioEncoder = runtimeState.dictionaryValue("audioEncoder")
         let micEffects = audioEncoder.dictionaryValue("micEffects")
         let monitor = micEffects.dictionaryValue("monitor")
@@ -1349,9 +1350,19 @@ final class LiveCasterNative: RCTEventEmitter {
                 "videoFrameIntervalAverageMs": stats.doubleValue("videoFrameIntervalAverageMs"),
                 "videoFrameIntervalMaxMs": stats.doubleValue("videoFrameIntervalMaxMs"),
                 "videoFrameIntervalJitterMs": stats.doubleValue("videoFrameIntervalJitterMs"),
-                "cacheSize": 0,
-                "itemsInCache": 0,
-                "congested": false,
+                "cacheSize": publisher.intValue("cacheSize"),
+                "itemsInCache": publisher.intValue("itemsInCache"),
+                "congested": publisher.boolValue("congested"),
+                "bitrateAdaptation": [
+                    "status": bitrateAdaptation.stringValue("status", fallback: "unknown"),
+                    "initialTargetKbps": bitrateAdaptation.intValue("initialTargetKbps"),
+                    "requestedTargetKbps": bitrateAdaptation.intValue("requestedTargetKbps"),
+                    "appliedTargetKbps": bitrateAdaptation.intValue("appliedTargetKbps"),
+                    "minimumAppliedKbps": bitrateAdaptation.intValue("minimumAppliedKbps"),
+                    "updateCount": bitrateAdaptation.intValue("updateCount"),
+                    "failureCount": bitrateAdaptation.intValue("failureCount"),
+                    "lastUpdatedAt": bitrateAdaptation.doubleValue("lastUpdatedAt")
+                ],
                 "lastError": redactSensitiveText(
                     publisher.stringValue("lastError", fallback: runtimeState.stringValue("error")),
                     streamKey: streamKey,

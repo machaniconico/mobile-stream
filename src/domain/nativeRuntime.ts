@@ -173,6 +173,42 @@ export interface NativeRuntimeComposition {
   message: string;
 }
 
+export type NativeRuntimeBitrateAdaptationStatus = "unknown" | "steady" | "reduced" | "restored" | "failed";
+
+export interface NativeRuntimeBitrateAdaptation {
+  status: NativeRuntimeBitrateAdaptationStatus;
+  initialTargetKbps: number;
+  requestedTargetKbps: number;
+  appliedTargetKbps: number;
+  minimumAppliedKbps: number;
+  updateCount: number;
+  failureCount: number;
+  lastUpdatedAt: number;
+}
+
+const nativeBitrateAdaptationStatuses = new Set<NativeRuntimeBitrateAdaptationStatus>([
+  "unknown",
+  "steady",
+  "reduced",
+  "restored",
+  "failed"
+]);
+
+export const normalizeNativeRuntimeBitrateAdaptation = (
+  value: Partial<NativeRuntimeBitrateAdaptation> | null | undefined
+): NativeRuntimeBitrateAdaptation => ({
+  status: nativeBitrateAdaptationStatuses.has(value?.status as NativeRuntimeBitrateAdaptationStatus)
+    ? (value?.status as NativeRuntimeBitrateAdaptationStatus)
+    : "unknown",
+  initialTargetKbps: Math.max(0, Math.round(normalizeFiniteNumber(value?.initialTargetKbps, 0))),
+  requestedTargetKbps: Math.max(0, Math.round(normalizeFiniteNumber(value?.requestedTargetKbps, 0))),
+  appliedTargetKbps: Math.max(0, Math.round(normalizeFiniteNumber(value?.appliedTargetKbps, 0))),
+  minimumAppliedKbps: Math.max(0, Math.round(normalizeFiniteNumber(value?.minimumAppliedKbps, 0))),
+  updateCount: Math.max(0, Math.round(normalizeFiniteNumber(value?.updateCount, 0))),
+  failureCount: Math.max(0, Math.round(normalizeFiniteNumber(value?.failureCount, 0))),
+  lastUpdatedAt: Math.max(0, Math.round(normalizeFiniteNumber(value?.lastUpdatedAt, 0)))
+});
+
 export interface NativeRuntimePublisher {
   state: string;
   publishGeneration?: number;
@@ -193,6 +229,7 @@ export interface NativeRuntimePublisher {
   cacheSize: number;
   itemsInCache: number;
   congested: boolean;
+  bitrateAdaptation?: NativeRuntimeBitrateAdaptation;
   lastError: string;
 }
 

@@ -56,22 +56,22 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v56.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v57.");
   });
 
-  it("blocks v55 support bundles because A/V timestamp sync proof requires v56", () => {
+  it("blocks v56 support bundles because native live bitrate proof requires v57", () => {
     writeBundle({
       app: {
         name: "MobileLiveCaster",
         reportVersion: 1,
-        bundleVersion: 55
+        bundleVersion: 56
       }
     });
 
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v55 is older than the required v56.");
+    expect(result.stdout).toContain("Support bundle v56 is older than the required v57.");
   });
 
   it("blocks support bundles without public launch confirmation summary evidence", () => {
@@ -390,7 +390,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("The latest public launch confirmation was cancelled");
   });
 
-  it("blocks v56 support bundles without scene fingerprint evidence", () => {
+  it("blocks v57 support bundles without scene fingerprint evidence", () => {
     writeBundle({
       summary: {
         sceneFingerprint: undefined
@@ -402,10 +402,10 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Scene fingerprint");
-    expect(result.stdout).toContain("Support bundle v56 is missing scene composition fingerprint evidence.");
+    expect(result.stdout).toContain("Support bundle v57 is missing scene composition fingerprint evidence.");
   });
 
-  it("blocks v56 support bundles with mismatched scene fingerprints", () => {
+  it("blocks v57 support bundles with mismatched scene fingerprints", () => {
     writeBundle({
       summary: {
         sceneFingerprint: "scene1-summary"
@@ -421,7 +421,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Summary and scene fingerprint values do not match.");
   });
 
-  it("blocks v56 support bundles when retained validation runs are from another scene", () => {
+  it("blocks v57 support bundles when retained validation runs are from another scene", () => {
     writeBundle({
       summary: {
         validationEvidenceRunManifest: [
@@ -438,7 +438,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("do not match the current scene fingerprint scene1-ready");
   });
 
-  it("blocks v56 support bundles without native caption overlay summary evidence", () => {
+  it("blocks v57 support bundles without native caption overlay summary evidence", () => {
     writeBundle({
       summary: {
         nativeCompositionCaptionOverlayCount: undefined
@@ -1994,6 +1994,54 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("controlled weak-network quality automation evidence for iOS");
   });
 
+  it("blocks live quality automation claims without successful native bitrate application proof", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeBitrateAdaptationStatus: "failed",
+            nativeRuntimeLiveVideoBitrateUpdateCount: 0,
+            nativeRuntimeLiveVideoBitrateUpdateFailureCount: 1
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("controlled weak-network quality automation evidence for iOS");
+  });
+
+  it("normalizes missing live-update counts for next-start-only evidence", () => {
+    const nextStartOnly = {
+      qualityAutomationLiveUpdateCount: undefined,
+      qualityAutomationNextTargetCount: 1,
+      nativeRuntimeBitrateAdaptationStatus: null,
+      nativeRuntimeInitialVideoBitrateKbps: 0,
+      nativeRuntimeRequestedVideoBitrateKbps: 0,
+      nativeRuntimeAppliedVideoBitrateKbps: 0,
+      nativeRuntimeMinimumAppliedVideoBitrateKbps: 0,
+      nativeRuntimeLiveVideoBitrateUpdateCount: 0,
+      nativeRuntimeLiveVideoBitrateUpdateFailureCount: 0,
+      nativeRuntimeLastVideoBitrateUpdateAt: ""
+    };
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", nextStartOnly),
+          manifestRun("android", "svr1-android", nextStartOnly)
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Can release: yes");
+  });
+
   it("blocks quality automation proof retained under a normal network profile", () => {
     writeBundle({
       summary: {
@@ -2728,7 +2776,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 56
+      bundleVersion: 57
     },
     generatedAt,
     profile: {
@@ -2922,6 +2970,14 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   qualityAutomationLiveUpdateCount: 1,
   qualityAutomationNextTargetCount: 0,
   qualityAutomationFailureCount: 0,
+  nativeRuntimeBitrateAdaptationStatus: "reduced",
+  nativeRuntimeInitialVideoBitrateKbps: 3_500,
+  nativeRuntimeRequestedVideoBitrateKbps: 2_500,
+  nativeRuntimeAppliedVideoBitrateKbps: 2_500,
+  nativeRuntimeMinimumAppliedVideoBitrateKbps: 2_500,
+  nativeRuntimeLiveVideoBitrateUpdateCount: 1,
+  nativeRuntimeLiveVideoBitrateUpdateFailureCount: 0,
+  nativeRuntimeLastVideoBitrateUpdateAt: "2026-06-23T00:01:00.000Z",
   platformPublishingPlatform: "youtube-live",
   platformPublishingStatus: "pass",
   platformPublishingFreshnessStatus: "fresh",

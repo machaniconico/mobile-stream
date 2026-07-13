@@ -52,7 +52,7 @@ describe("MobileApp OAuth credential state", () => {
     expect(source).toContain("videoBitrate: true");
     expect(source).toContain("audioBitrate: false");
     expect(source).toContain('fps: profile.androidPublisherMode === "rootencoder"');
-    expect(source).toContain("{ videoBitrate: false, audioBitrate: false, fps: false }");
+    expect(source).toContain("{ videoBitrate: true, audioBitrate: false, fps: false }");
   });
 
   it("records native PCM meter evidence instead of face-motion samples", () => {

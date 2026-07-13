@@ -35,6 +35,7 @@ import {
   isProductionNativeVideoEncoderBackend,
   isProductionVrmRendererBackend,
   normalizeNativeRuntimeAvSync,
+  normalizeNativeRuntimeBitrateAdaptation,
   normalizeNativeRuntimeContinuity,
   type NativeRuntimeTelemetry
 } from "./nativeRuntime";
@@ -642,6 +643,7 @@ export const formatStreamDiagnosticReport = (
     `- Platform: ${diagnostics.nativeRuntime?.platform ?? "-"}`,
     `- Runtime status: ${diagnostics.nativeRuntime?.runtimeStatus ?? "-"}`,
     `- Publisher: ${diagnostics.nativeRuntime?.publisher.state || "-"} / generation ${diagnostics.nativeRuntime?.publisher.publishGeneration ?? 0} / current media ${diagnostics.nativeRuntime?.publisher.currentPublishVideoFrames ?? 0} video ${diagnostics.nativeRuntime?.publisher.currentPublishAudioFrames ?? 0} audio / cache ${diagnostics.nativeRuntime?.publisher.itemsInCache ?? 0}/${diagnostics.nativeRuntime?.publisher.cacheSize ?? 0} / congested ${diagnostics.nativeRuntime?.publisher.congested ? "yes" : "no"}`,
+    `- Live video bitrate: ${diagnostics.nativeRuntime?.publisher.bitrateAdaptation?.status ?? "unknown"} / initial ${diagnostics.nativeRuntime?.publisher.bitrateAdaptation?.initialTargetKbps ?? 0} kbps / requested ${diagnostics.nativeRuntime?.publisher.bitrateAdaptation?.requestedTargetKbps ?? 0} kbps / applied ${diagnostics.nativeRuntime?.publisher.bitrateAdaptation?.appliedTargetKbps ?? 0} kbps / minimum ${diagnostics.nativeRuntime?.publisher.bitrateAdaptation?.minimumAppliedKbps ?? 0} kbps / updates ${diagnostics.nativeRuntime?.publisher.bitrateAdaptation?.updateCount ?? 0} / failed ${diagnostics.nativeRuntime?.publisher.bitrateAdaptation?.failureCount ?? 0}`,
     `- Media continuity: ${diagnostics.nativeRuntime?.continuity?.status ?? "unknown"} / current ${diagnostics.nativeRuntime?.continuity?.videoStallDurationMs ?? 0}ms video ${diagnostics.nativeRuntime?.continuity?.audioStallDurationMs ?? 0}ms audio / incidents ${diagnostics.nativeRuntime?.continuity?.videoStallCount ?? 0} video ${diagnostics.nativeRuntime?.continuity?.audioStallCount ?? 0} audio / max ${diagnostics.nativeRuntime?.continuity?.maxVideoStallDurationMs ?? 0}ms video ${diagnostics.nativeRuntime?.continuity?.maxAudioStallDurationMs ?? 0}ms audio`,
     `- A/V sync: ${diagnostics.nativeRuntime?.avSync?.status ?? "unknown"} / skew ${diagnostics.nativeRuntime?.avSync?.skewMs ?? 0}ms / max ${diagnostics.nativeRuntime?.avSync?.maxAbsSkewMs ?? 0}ms / samples ${diagnostics.nativeRuntime?.avSync?.sampleCount ?? 0} / incidents ${diagnostics.nativeRuntime?.avSync?.outOfSyncIncidentCount ?? 0} / critical ${diagnostics.nativeRuntime?.avSync?.criticalIncidentCount ?? 0}`,
     `- Composition: ${diagnostics.nativeRuntime?.composition.status ?? "-"} / ${diagnostics.nativeRuntime?.composition.message || "-"}`,
@@ -1962,6 +1964,15 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
       status: "warn",
       label: "Native runtime",
       message: `Native publisher is congested with ${runtime.publisher.itemsInCache}/${runtime.publisher.cacheSize} queued items.`
+    };
+  }
+  const bitrateAdaptation = normalizeNativeRuntimeBitrateAdaptation(runtime.publisher.bitrateAdaptation);
+  if (bitrateAdaptation.failureCount > 0 || bitrateAdaptation.status === "failed") {
+    return {
+      code: "native-runtime-live-video-bitrate-failed",
+      status: "warn",
+      label: "Native runtime",
+      message: `Native encoder rejected ${bitrateAdaptation.failureCount} live video bitrate update(s); requested ${bitrateAdaptation.requestedTargetKbps} kbps while ${bitrateAdaptation.appliedTargetKbps} kbps remained applied.`
     };
   }
   const invalidNativeEncoderBackends =

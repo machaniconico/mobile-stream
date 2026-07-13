@@ -1397,7 +1397,7 @@ export const MobileApp = () => {
                 audioBitrate: false,
                 fps: profile.androidPublisherMode === "rootencoder"
               }
-            : { videoBitrate: false, audioBitrate: false, fps: false }
+            : { videoBitrate: true, audioBitrate: false, fps: false }
         )
       }),
     [profile, qualityAutomationDiagnostics.qualityAdvisor, snapshot.health.elapsedSeconds, snapshot.state.status]

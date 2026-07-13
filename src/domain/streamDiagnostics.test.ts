@@ -1702,6 +1702,45 @@ describe("stream diagnostics", () => {
     expect(nativeCheck?.message).toContain("80/120");
   });
 
+  it("warns when the native encoder rejects a live video bitrate update", () => {
+    const scene = nativeReadyScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeRuntimeWithAudioProcessing(nativeAudioProcessing());
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      platform: "ios",
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3_500, fps: 30, elapsedSeconds: 20 }),
+      nativeRuntime: {
+        ...runtime,
+        publisher: {
+          ...runtime.publisher,
+          bitrateAdaptation: {
+            status: "failed",
+            initialTargetKbps: 3_500,
+            requestedTargetKbps: 2_500,
+            appliedTargetKbps: 3_500,
+            minimumAppliedKbps: 3_500,
+            updateCount: 0,
+            failureCount: 1,
+            lastUpdatedAt: Date.parse("2026-06-23T00:00:09.900Z")
+          }
+        }
+      }
+    });
+
+    const nativeCheck = diagnostics.checks.find((check) => check.code === "native-runtime-live-video-bitrate-failed");
+    expect(nativeCheck?.status).toBe("warn");
+    expect(nativeCheck?.message).toContain("requested 2500 kbps");
+    expect(nativeCheck?.message).toContain("3500 kbps remained applied");
+  });
+
   it("redacts stream keys that appear before the final publish URL segment", () => {
     const scene = createDefaultScene();
     const profile = {

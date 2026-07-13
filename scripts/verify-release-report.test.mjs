@@ -1296,7 +1296,7 @@ function commercialSupportBundleFixture(patch = {}) {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 56
+      bundleVersion: 57
     },
     generatedAt,
     fixture: true,
@@ -1509,6 +1509,14 @@ function supportBundleManifestRun(devicePlatform, fingerprint, capturedAt = new 
     qualityAutomationLiveUpdateCount: 1,
     qualityAutomationNextTargetCount: 0,
     qualityAutomationFailureCount: 0,
+    nativeRuntimeBitrateAdaptationStatus: "reduced",
+    nativeRuntimeInitialVideoBitrateKbps: 3_500,
+    nativeRuntimeRequestedVideoBitrateKbps: 2_500,
+    nativeRuntimeAppliedVideoBitrateKbps: 2_500,
+    nativeRuntimeMinimumAppliedVideoBitrateKbps: 2_500,
+    nativeRuntimeLiveVideoBitrateUpdateCount: 1,
+    nativeRuntimeLiveVideoBitrateUpdateFailureCount: 0,
+    nativeRuntimeLastVideoBitrateUpdateAt: "2026-06-23T00:01:00.000Z",
     platformPublishingPlatform: "youtube-live",
     platformPublishingStatus: "pass",
     platformPublishingFreshnessStatus: "fresh",

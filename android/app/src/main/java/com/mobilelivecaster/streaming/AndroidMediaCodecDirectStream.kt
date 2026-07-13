@@ -23,9 +23,10 @@ import com.pedro.common.ConnectChecker
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.max
 
-class AndroidMediaCodecDirectStream(
+internal class AndroidMediaCodecDirectStream(
     context: Context,
-    connectChecker: ConnectChecker
+    connectChecker: ConnectChecker,
+    private val liveVideoBitrateTracker: LiveVideoBitrateTracker
 ) {
     companion object {
         private const val VIDEO_MIME = MediaFormat.MIMETYPE_VIDEO_AVC
@@ -43,6 +44,7 @@ class AndroidMediaCodecDirectStream(
     private val appContext = context.applicationContext
     private val publisher = AndroidMediaCodecRtmpPublisher(connectChecker)
     private val running = AtomicBoolean(false)
+    @Volatile
     private var profile: LiveCasterProfile? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var videoEncoder: MediaCodec? = null
@@ -57,7 +59,9 @@ class AndroidMediaCodecDirectStream(
     private var videoThread: Thread? = null
     private var audioThread: Thread? = null
     private var micProcessingEffect: MicProcessingEffect? = null
+    @Volatile
     private var publisherConfigured = false
+    private val counterLock = Any()
     private var videoFrames = 0L
     private var audioFrames = 0L
     private var encodedBytes = 0L
@@ -67,7 +71,11 @@ class AndroidMediaCodecDirectStream(
     private var compositionFailures = 0L
     private var droppedVideoFrames = 0L
     private var droppedAudioFrames = 0L
+    @Volatile
     private var lastError = ""
+    private val videoEncoderCommandLock = Any()
+    private var videoEncoderGeneration = 0L
+    private var pendingVideoEncoderCommand: VideoEncoderCommand? = null
 
     @SuppressLint("MissingPermission")
     fun start(
@@ -79,17 +87,23 @@ class AndroidMediaCodecDirectStream(
             return
         }
         profile = nextProfile
+        synchronized(videoEncoderCommandLock) {
+            videoEncoderGeneration += 1
+            pendingVideoEncoderCommand = null
+        }
         canvasComposition = composition
         publisherConfigured = false
-        videoFrames = 0L
-        audioFrames = 0L
-        encodedBytes = 0L
+        synchronized(counterLock) {
+            videoFrames = 0L
+            audioFrames = 0L
+            encodedBytes = 0L
+            compositedVideoFrames = 0L
+            compositionDroppedFrames = 0L
+            compositionFailures = 0L
+            droppedVideoFrames = 0L
+            droppedAudioFrames = 0L
+        }
         audioSubmittedFrames = 0L
-        compositedVideoFrames = 0L
-        compositionDroppedFrames = 0L
-        compositionFailures = 0L
-        droppedVideoFrames = 0L
-        droppedAudioFrames = 0L
         lastError = ""
         micProcessingEffect = MicProcessingEffect(
             appContext,
@@ -105,6 +119,7 @@ class AndroidMediaCodecDirectStream(
             videoEncoder = encoder
             videoInputSurface = surface
             encoder.start()
+            liveVideoBitrateTracker.recordApplied(nextProfile.videoBitrate / 1_000)
             val imageReader = ImageReader.newInstance(
                 nextProfile.width,
                 nextProfile.height,
@@ -136,6 +151,10 @@ class AndroidMediaCodecDirectStream(
 
     fun stop() {
         running.set(false)
+        synchronized(videoEncoderCommandLock) {
+            videoEncoderGeneration += 1
+            pendingVideoEncoderCommand = null
+        }
         videoThread?.joinQuietly()
         audioThread?.joinQuietly()
         videoThread = null
@@ -166,53 +185,76 @@ class AndroidMediaCodecDirectStream(
     }
 
     fun updateProfile(nextProfile: LiveCasterProfile) {
+        val currentProfile = profile ?: throw IllegalStateException("Direct MediaCodec profile is unavailable")
+        require(
+            currentProfile.width == nextProfile.width &&
+                currentProfile.height == nextProfile.height &&
+                currentProfile.fps == nextProfile.fps &&
+                currentProfile.audioBitrate == nextProfile.audioBitrate
+        ) {
+            "Direct MediaCodec live quality updates only support video bitrate changes"
+        }
         profile = nextProfile
         micProcessingEffect?.updateProfile(nextProfile.micEffects, nextProfile.broadcastMixer)
-        runCatching {
-            videoEncoder?.setParameters(Bundle().apply {
-                putInt(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, nextProfile.videoBitrate)
-            })
-            requestKeyFrame()
-        }.onFailure { error ->
-            lastError = safeMessage(error)
+        liveVideoBitrateTracker.recordRequested(nextProfile.videoBitrate / 1_000)
+        synchronized(videoEncoderCommandLock) {
+            pendingVideoEncoderCommand = VideoEncoderCommand(
+                generation = videoEncoderGeneration,
+                videoBitrate = nextProfile.videoBitrate,
+                requestKeyFrame = true
+            )
         }
     }
 
     fun requestKeyFrame() {
-        runCatching {
-            videoEncoder?.setParameters(Bundle().apply {
-                putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0)
-            })
-        }.onFailure { error ->
-            lastError = safeMessage(error)
+        synchronized(videoEncoderCommandLock) {
+            val pending = pendingVideoEncoderCommand
+            pendingVideoEncoderCommand = VideoEncoderCommand(
+                generation = videoEncoderGeneration,
+                videoBitrate = pending?.takeIf { it.generation == videoEncoderGeneration }?.videoBitrate,
+                requestKeyFrame = true
+            )
         }
     }
 
     fun snapshot(): AndroidMediaCodecDirectStreamSnapshot {
         val publisherSnapshot = publisher.snapshot()
+        val counters = synchronized(counterLock) {
+            DirectStreamCounters(
+                videoFrames = videoFrames,
+                audioFrames = audioFrames,
+                encodedBytes = encodedBytes,
+                compositedVideoFrames = compositedVideoFrames,
+                compositionDroppedFrames = compositionDroppedFrames,
+                compositionFailures = compositionFailures,
+                droppedVideoFrames = droppedVideoFrames,
+                droppedAudioFrames = droppedAudioFrames
+            )
+        }
+        val configured = publisherConfigured
         return AndroidMediaCodecDirectStreamSnapshot(
             running = running.get(),
-            configured = publisherConfigured,
+            configured = configured,
             publisherState = when {
                 lastError.isNotBlank() -> "failed"
                 publisherSnapshot.streaming -> "published"
-                publisherConfigured -> "connecting"
+                configured -> "connecting"
                 running.get() -> "preparing"
                 else -> "idle"
             },
             videoEncoderBackend = AndroidMediaCodecRtmpPublisher.VIDEO_BACKEND,
             audioEncoderBackend = AndroidMediaCodecRtmpPublisher.AUDIO_BACKEND,
-            videoFrames = videoFrames,
-            audioFrames = audioFrames,
-            encodedBytes = encodedBytes,
+            videoFrames = counters.videoFrames,
+            audioFrames = counters.audioFrames,
+            encodedBytes = counters.encodedBytes,
             runtimeCompositorBackend = COMPOSITOR_BACKEND,
-            runtimeCompositedFrameCount = compositedVideoFrames,
-            runtimeDroppedFrameCount = compositionDroppedFrames,
-            runtimeCompositionFailureCount = compositionFailures,
+            runtimeCompositedFrameCount = counters.compositedVideoFrames,
+            runtimeDroppedFrameCount = counters.compositionDroppedFrames,
+            runtimeCompositionFailureCount = counters.compositionFailures,
             sentVideoFrames = publisherSnapshot.sentVideoFrames,
             sentAudioFrames = publisherSnapshot.sentAudioFrames,
-            droppedVideoFrames = droppedVideoFrames + compositionDroppedFrames + publisherSnapshot.droppedVideoFrames,
-            droppedAudioFrames = droppedAudioFrames + publisherSnapshot.droppedAudioFrames,
+            droppedVideoFrames = counters.droppedVideoFrames + counters.compositionDroppedFrames + publisherSnapshot.droppedVideoFrames,
+            droppedAudioFrames = counters.droppedAudioFrames + publisherSnapshot.droppedAudioFrames,
             cacheSize = publisherSnapshot.cacheSize,
             itemsInCache = publisherSnapshot.itemsInCache,
             congested = publisherSnapshot.congested,
@@ -276,6 +318,7 @@ class AndroidMediaCodecDirectStream(
     private fun runVideoCompositorAndEncoder() {
         val info = MediaCodec.BufferInfo()
         while (running.get()) {
+            applyPendingVideoEncoderCommand()
             val renderedFrame = renderLatestScreenFrame()
             drainVideoEncoderOutput(info, if (renderedFrame) 0L else VIDEO_DRAIN_TIMEOUT_US)
             if (!renderedFrame) {
@@ -285,18 +328,47 @@ class AndroidMediaCodecDirectStream(
         drainVideoEncoderOutput(info, 0L)
     }
 
+    private fun applyPendingVideoEncoderCommand() {
+        val command = synchronized(videoEncoderCommandLock) {
+            pendingVideoEncoderCommand
+                ?.takeIf { it.generation == videoEncoderGeneration }
+                ?.also { pendingVideoEncoderCommand = null }
+        } ?: return
+        val encoder = videoEncoder ?: return
+        runCatching {
+            command.videoBitrate?.let { bitrate ->
+                encoder.setParameters(Bundle().apply {
+                    putInt(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, bitrate)
+                })
+            }
+            if (command.requestKeyFrame) {
+                encoder.setParameters(Bundle().apply {
+                    putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0)
+                })
+            }
+            command.videoBitrate?.let { bitrate ->
+                liveVideoBitrateTracker.recordApplied(bitrate / 1_000)
+            }
+        }.onFailure { error ->
+            command.videoBitrate?.let { bitrate ->
+                liveVideoBitrateTracker.recordFailure(bitrate / 1_000)
+            }
+            lastError = safeMessage(error)
+        }
+    }
+
     private fun renderLatestScreenFrame(): Boolean {
         val reader = screenImageReader ?: return false
         val image = reader.acquireLatestImage() ?: return false
         return try {
             val bitmap = copyScreenImageToBitmap(image)
             if (bitmap == null) {
-                compositionDroppedFrames += 1
+                synchronized(counterLock) { compositionDroppedFrames += 1 }
                 false
             } else {
                 renderCompositeFrame(bitmap).also { rendered ->
                     if (!rendered) {
-                        compositionDroppedFrames += 1
+                        synchronized(counterLock) { compositionDroppedFrames += 1 }
                     }
                 }
             }
@@ -341,13 +413,13 @@ class AndroidMediaCodecDirectStream(
                     currentProfile.width,
                     currentProfile.height
                 )
-                compositedVideoFrames += 1
+                synchronized(counterLock) { compositedVideoFrames += 1 }
                 true
             } finally {
                 surface.unlockCanvasAndPost(canvas)
             }
         } catch (error: Throwable) {
-            compositionFailures += 1
+            synchronized(counterLock) { compositionFailures += 1 }
             lastError = safeMessage(error)
             running.set(false)
             false
@@ -369,10 +441,12 @@ class AndroidMediaCodecDirectStream(
                     val frameBytes = info.size.toLong()
                     if (publisherConfigured) {
                         publisher.sendVideo(outputBuffer, info)
-                        videoFrames += 1
-                        encodedBytes += frameBytes
+                        synchronized(counterLock) {
+                            videoFrames += 1
+                            encodedBytes += frameBytes
+                        }
                     } else {
-                        droppedVideoFrames += 1
+                        synchronized(counterLock) { droppedVideoFrames += 1 }
                     }
                 }
                 encoder.releaseOutputBuffer(outputIndex, false)
@@ -396,20 +470,20 @@ class AndroidMediaCodecDirectStream(
         val encoder = audioEncoder ?: return
         val bytesRead = record.read(readBuffer, 0, readBuffer.size, AudioRecord.READ_BLOCKING)
         if (bytesRead <= 0) {
-            droppedAudioFrames += 1
+            synchronized(counterLock) { droppedAudioFrames += 1 }
             runCatching { Thread.sleep(5) }
             return
         }
         val processed = micProcessingEffect?.process(readBuffer.copyOf(bytesRead)) ?: readBuffer.copyOf(bytesRead)
         val inputIndex = encoder.dequeueInputBuffer(AUDIO_READ_TIMEOUT_US)
         if (inputIndex < 0) {
-            droppedAudioFrames += 1
+            synchronized(counterLock) { droppedAudioFrames += 1 }
             return
         }
         val inputBuffer = encoder.getInputBuffer(inputIndex)
         if (inputBuffer == null) {
             encoder.queueInputBuffer(inputIndex, 0, 0, nextAudioPresentationTimeUs(0), 0)
-            droppedAudioFrames += 1
+            synchronized(counterLock) { droppedAudioFrames += 1 }
             return
         }
         inputBuffer.clear()
@@ -438,10 +512,12 @@ class AndroidMediaCodecDirectStream(
                     val frameBytes = info.size.toLong()
                     if (publisherConfigured) {
                         publisher.sendAudio(outputBuffer, info)
-                        audioFrames += 1
-                        encodedBytes += frameBytes
+                        synchronized(counterLock) {
+                            audioFrames += 1
+                            encodedBytes += frameBytes
+                        }
                     } else {
-                        droppedAudioFrames += 1
+                        synchronized(counterLock) { droppedAudioFrames += 1 }
                     }
                 }
                 encoder.releaseOutputBuffer(outputIndex, false)
@@ -494,6 +570,23 @@ class AndroidMediaCodecDirectStream(
 
     private fun safeMessage(error: Throwable): String = (error.message ?: error.javaClass.simpleName).take(160)
 }
+
+private data class VideoEncoderCommand(
+    val generation: Long,
+    val videoBitrate: Int?,
+    val requestKeyFrame: Boolean
+)
+
+private data class DirectStreamCounters(
+    val videoFrames: Long,
+    val audioFrames: Long,
+    val encodedBytes: Long,
+    val compositedVideoFrames: Long,
+    val compositionDroppedFrames: Long,
+    val compositionFailures: Long,
+    val droppedVideoFrames: Long,
+    val droppedAudioFrames: Long
+)
 
 data class AndroidMediaCodecDirectStreamSnapshot(
     val running: Boolean,

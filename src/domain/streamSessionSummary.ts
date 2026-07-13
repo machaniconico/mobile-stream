@@ -8,8 +8,10 @@ import {
   isProductionNativeVideoEncoderBackend,
   isProductionVrmRendererBackend,
   normalizeNativeRuntimeAvSync,
+  normalizeNativeRuntimeBitrateAdaptation,
   normalizeNativeRuntimeContinuity,
   type NativeRuntimeAvSyncStatus,
+  type NativeRuntimeBitrateAdaptationStatus,
   type NativeRuntimeContinuityStatus,
   type NativeRuntimeTelemetry
 } from "./nativeRuntime";
@@ -136,6 +138,14 @@ export interface StreamSessionNativeRuntimeSummary {
   congested: boolean;
   queuedItems: number;
   cacheSize: number;
+  bitrateAdaptationStatus: NativeRuntimeBitrateAdaptationStatus;
+  initialVideoBitrateKbps: number;
+  requestedVideoBitrateKbps: number;
+  appliedVideoBitrateKbps: number;
+  minimumAppliedVideoBitrateKbps: number;
+  liveVideoBitrateUpdateCount: number;
+  liveVideoBitrateUpdateFailureCount: number;
+  lastVideoBitrateUpdateAt: number;
   sentVideoFrames: number;
   sentAudioFrames: number;
   droppedVideoFrames: number;
@@ -798,6 +808,8 @@ export const createNativeRuntimeSessionSummary = (
   );
   const stale = runtime.stale;
   const congested = runtime.publisher.congested;
+  const bitrateAdaptation = normalizeNativeRuntimeBitrateAdaptation(runtime.publisher.bitrateAdaptation);
+  const bitrateAdaptationIssue = bitrateAdaptation.status === "failed" || bitrateAdaptation.failureCount > 0;
   const videoEncoderBackend = normalizeSafeSummaryString(runtime.publisher.videoEncoderBackend, "none");
   const audioEncoderBackend = normalizeSafeSummaryString(runtime.publisher.audioEncoderBackend, "none");
   const encoderProbeStatus = runtime.encoderProbe?.status ?? "missing";
@@ -971,6 +983,7 @@ export const createNativeRuntimeSessionSummary = (
     ? "fail"
     : stale ||
         congested ||
+        bitrateAdaptationIssue ||
         pendingComposition ||
         missingAssets ||
         missingDecodedStillImageAssets ||
@@ -993,6 +1006,7 @@ export const createNativeRuntimeSessionSummary = (
     failed,
     stale,
     congested,
+    bitrateAdaptationIssue,
     pendingComposition,
     missingAssets,
     missingDecodedStillImageAssets,
@@ -1096,6 +1110,14 @@ export const createNativeRuntimeSessionSummary = (
     congested,
     queuedItems: normalizeNonNegativeInteger(runtime.publisher.itemsInCache),
     cacheSize: normalizeNonNegativeInteger(runtime.publisher.cacheSize),
+    bitrateAdaptationStatus: bitrateAdaptation.status,
+    initialVideoBitrateKbps: bitrateAdaptation.initialTargetKbps,
+    requestedVideoBitrateKbps: bitrateAdaptation.requestedTargetKbps,
+    appliedVideoBitrateKbps: bitrateAdaptation.appliedTargetKbps,
+    minimumAppliedVideoBitrateKbps: bitrateAdaptation.minimumAppliedKbps,
+    liveVideoBitrateUpdateCount: bitrateAdaptation.updateCount,
+    liveVideoBitrateUpdateFailureCount: bitrateAdaptation.failureCount,
+    lastVideoBitrateUpdateAt: bitrateAdaptation.lastUpdatedAt,
     sentVideoFrames: normalizeNonNegativeInteger(runtime.publisher.sentVideoFrames),
     sentAudioFrames: normalizeNonNegativeInteger(runtime.publisher.sentAudioFrames),
     droppedVideoFrames: normalizeNonNegativeInteger(runtime.publisher.droppedVideoFrames),
@@ -1165,13 +1187,15 @@ export const createNativeRuntimeSessionSummary = (
       status === "fail"
         ? `Native runtime ended with a failure on ${runtime.platform}.`
         : status === "warn"
-          ? `Native runtime needs review on ${runtime.platform}: queue ${queue}, composition ${runtime.composition.status}, continuity ${continuity.status}, A/V sync ${avSync.status}.`
+          ? `Native runtime needs review on ${runtime.platform}: queue ${queue}, live bitrate ${bitrateAdaptation.status}, composition ${runtime.composition.status}, continuity ${continuity.status}, A/V sync ${avSync.status}.`
           : `Native runtime ended clean on ${runtime.platform}.`,
     recommendation:
       status === "fail"
         ? "Review native runtime publisher/compositor status and run a private ingest test before going public."
         : congested
           ? "Lower bitrate/FPS or improve network stability before a long public stream."
+          : bitrateAdaptationIssue
+            ? "Repeat the private ingest run after the native encoder accepts every requested live video bitrate update."
           : stale
           ? "Confirm the native runtime is still reporting current telemetry during device validation."
           : invalidNativeEncoderBackends
@@ -1545,6 +1569,20 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     congested: value.congested === true,
     queuedItems: normalizeNonNegativeInteger(value.queuedItems),
     cacheSize: normalizeNonNegativeInteger(value.cacheSize),
+    bitrateAdaptationStatus:
+      value.bitrateAdaptationStatus === "steady" ||
+      value.bitrateAdaptationStatus === "reduced" ||
+      value.bitrateAdaptationStatus === "restored" ||
+      value.bitrateAdaptationStatus === "failed"
+        ? value.bitrateAdaptationStatus
+        : "unknown",
+    initialVideoBitrateKbps: normalizeNonNegativeInteger(value.initialVideoBitrateKbps),
+    requestedVideoBitrateKbps: normalizeNonNegativeInteger(value.requestedVideoBitrateKbps),
+    appliedVideoBitrateKbps: normalizeNonNegativeInteger(value.appliedVideoBitrateKbps),
+    minimumAppliedVideoBitrateKbps: normalizeNonNegativeInteger(value.minimumAppliedVideoBitrateKbps),
+    liveVideoBitrateUpdateCount: normalizeNonNegativeInteger(value.liveVideoBitrateUpdateCount),
+    liveVideoBitrateUpdateFailureCount: normalizeNonNegativeInteger(value.liveVideoBitrateUpdateFailureCount),
+    lastVideoBitrateUpdateAt: normalizeNonNegativeInteger(value.lastVideoBitrateUpdateAt),
     sentVideoFrames: normalizeNonNegativeInteger(value.sentVideoFrames),
     sentAudioFrames: normalizeNonNegativeInteger(value.sentAudioFrames),
     droppedVideoFrames: normalizeNonNegativeInteger(value.droppedVideoFrames),

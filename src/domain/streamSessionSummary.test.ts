@@ -346,6 +346,16 @@ describe("stream session summary", () => {
           cacheSize: 120,
           itemsInCache: 70,
           congested: true,
+          bitrateAdaptation: {
+            status: "reduced",
+            initialTargetKbps: 3_500,
+            requestedTargetKbps: 2_500,
+            appliedTargetKbps: 2_500,
+            minimumAppliedKbps: 2_500,
+            updateCount: 1,
+            failureCount: 0,
+            lastUpdatedAt: Date.parse("2026-06-23T00:00:03.500Z")
+          },
           lastError: ""
         },
         encoderProbe: {
@@ -445,6 +455,11 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.status).toBe("warn");
     expect(summary?.nativeRuntime?.platform).toBe("android");
     expect(summary?.nativeRuntime?.queuedItems).toBe(70);
+    expect(summary?.nativeRuntime?.bitrateAdaptationStatus).toBe("reduced");
+    expect(summary?.nativeRuntime?.appliedVideoBitrateKbps).toBe(2_500);
+    expect(summary?.nativeRuntime?.minimumAppliedVideoBitrateKbps).toBe(2_500);
+    expect(summary?.nativeRuntime?.liveVideoBitrateUpdateCount).toBe(1);
+    expect(summary?.nativeRuntime?.liveVideoBitrateUpdateFailureCount).toBe(0);
     expect(summary?.nativeRuntime?.droppedVideoFrames).toBe(2);
     expect(summary?.nativeRuntime?.monitorEnabled).toBe(true);
     expect(summary?.nativeRuntime?.monitorRunning).toBe(true);
