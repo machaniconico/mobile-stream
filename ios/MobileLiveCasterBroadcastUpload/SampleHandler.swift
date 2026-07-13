@@ -3987,10 +3987,20 @@ final class BroadcastAudioEncoder {
         }
 
         do {
-            try encodeLocked(sampleBuffer, source: source)
+            let encodedFrameCount = try encodeLocked(sampleBuffer, source: source)
             if recoveryAttemptStarted {
-                recoveryTracker.recordSuccess()
-                recordRecoverySnapshotLocked()
+                if encodedFrameCount > 0 {
+                    recoveryTracker.recordSuccess()
+                    recordRecoverySnapshotLocked()
+                } else {
+                    let recovery = recoveryTracker.snapshot()
+                    recoveryTracker.recordFailure(
+                        status: recovery.lastStatus == 0 ? -1 : recovery.lastStatus,
+                        reason: recovery.lastReason.isEmpty ? "scheduled-retry-no-output" : recovery.lastReason,
+                        droppedInputFrames: 0
+                    )
+                    recordRecoverySnapshotLocked()
+                }
             }
         } catch let error as BroadcastAudioEncoderError {
             statsLock.performLocked {
@@ -4005,9 +4015,18 @@ final class BroadcastAudioEncoder {
             recordRecoverySnapshotLocked()
 
             do {
-                try encodeLocked(sampleBuffer, source: source)
-                recoveryTracker.recordSuccess()
-                recordRecoverySnapshotLocked()
+                let encodedFrameCount = try encodeLocked(sampleBuffer, source: source)
+                if encodedFrameCount > 0 {
+                    recoveryTracker.recordSuccess()
+                    recordRecoverySnapshotLocked()
+                } else {
+                    recoveryTracker.recordFailure(
+                        status: error.statusCode ?? -1,
+                        reason: error.recoveryReason,
+                        droppedInputFrames: 0
+                    )
+                    recordRecoverySnapshotLocked()
+                }
             } catch {
                 let recoveryError = error as? BroadcastAudioEncoderError
                 let recoveryStatus = recoveryError?.statusCode ?? -1
@@ -4100,7 +4119,7 @@ final class BroadcastAudioEncoder {
         return discardedQueuedFrames
     }
 
-    private func encodeLocked(_ sampleBuffer: CMSampleBuffer, source: BroadcastAudioSource) throws {
+    private func encodeLocked(_ sampleBuffer: CMSampleBuffer, source: BroadcastAudioSource) throws -> Int {
         guard let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer) else {
             throw BroadcastAudioEncoderError.formatDescriptionMissing
         }
@@ -4116,7 +4135,7 @@ final class BroadcastAudioEncoder {
         let pcmConverter = try sourcePCMConverter(for: source, outputFormat: mixerInputFormat)
         let pcmFrame = try pcmConverter.convert(sampleBuffer: sampleBuffer)
         guard pcmFrame.frameCount > 0 else {
-            return
+            return 0
         }
 
         if mixerNextPresentationTimeSeconds == nil {
@@ -4131,6 +4150,7 @@ final class BroadcastAudioEncoder {
             }
             onEncodedFrame(frame)
         }
+        return frames.count
     }
 
     private func configureMixerIfNeeded(sampleRate: Double) throws {

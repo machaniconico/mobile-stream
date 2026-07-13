@@ -51,7 +51,9 @@ require(tracker.snapshot().droppedInputFrameCount == 960, "dropped input frames 
 require(tracker.snapshot().discardedQueuedFrameCount == 960, "queued PCM loss must be retained separately")
 clock.advance(milliseconds: 100)
 tracker.beginAttempt(status: -2, reason: "retry-failed")
-tracker.recordFailure(status: -3, reason: "retry-failed-again", droppedInputFrames: 480)
+require(tracker.snapshot().pending, "an unverified retry must remain pending")
+require(tracker.snapshot().successCount == 0, "an unverified retry must not count as recovery")
+tracker.recordFailure(status: -3, reason: "scheduled-retry-no-output", droppedInputFrames: 480)
 require((200 ... 201).contains(tracker.snapshot().retryAfterMs), "consecutive failures must double backoff")
 for status in [-4, -5, -6] {
     clock.advance(milliseconds: tracker.snapshot().retryAfterMs)
@@ -98,6 +100,11 @@ print("iOS audio encoder recovery behavioral tests passed")
     expect(handler).toContain("sourceConverter.reset()");
     expect(handler).toContain("recoveryTracker.recordSuppressedInput");
     expect(handler).toContain("invalidateConvertersLocked()");
+    expect(handler).toContain("throws -> Int");
+    expect(handler).toContain("if recoveryAttemptStarted {\n                if encodedFrameCount > 0");
+    expect(handler).toContain('"scheduled-retry-no-output"');
+    expect(handler).toContain("if encodedFrameCount > 0");
+    expect(handler).toContain("} else {\n                    recoveryTracker.recordFailure(");
     expect(handler).toContain('"recovery": [');
     expect(bridge).toContain('let audioEncoderRecovery = audioEncoder.dictionaryValue("recovery")');
     expect(bridge).toContain('"encoderRecoveryPending": audioEncoderRecovery.boolValue("pending")');
