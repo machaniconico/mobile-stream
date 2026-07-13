@@ -331,7 +331,7 @@ const checks = [
     expectIncludes(files.iosNativeVerificationScript, "MobileLiveCaster.debug.dylib");
     expectIncludes(files.iosNativeVerificationScript, "embedded and standalone ReplayKit executable hashes do not match");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 60");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 61");
     expectIncludes(files.supportBundleDomain, "nativeCompositionCaptionOverlayCount");
     expectIncludes(files.supportBundleDomain, "textOverlayRenderVisibleSourceCount");
     expectIncludes(files.supportBundleDomain, "textOverlayQueuedTimedManualSourceCount");
@@ -347,18 +347,29 @@ const checks = [
     expectIncludes(files.streamSessionSummaryDomain, "runtime.publisher.publishGeneration");
     expectIncludes(files.streamSessionSummaryDomain, "runtime.publisher.currentPublishVideoFrames");
     expectIncludes(files.streamSessionSummaryDomain, "runtime.publisher.currentPublishAudioFrames");
+    expectIncludes(files.streamSessionSummaryDomain, "encoderProbeVideoConfigured: boolean");
+    expectIncludes(files.streamSessionSummaryDomain, "encoderProbeVideoWidth: number");
+    expectIncludes(files.streamSessionSummaryDomain, "encoderProbeVideoHeight: number");
+    expectIncludes(files.streamSessionSummaryDomain, "encoderProbeVideoFps: number");
     expectIncludes(files.streamSessionSummaryDomain, "Number.isSafeInteger(value)");
     expectIncludes(files.streamSessionSummaryDomainTest, "publisherPublishGeneration: 7");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimePublisherState: string | null");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimePublisherPublishGeneration: number");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeCurrentPublishVideoFrames: number");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeCurrentPublishAudioFrames: number");
+    expectIncludes(files.streamValidationEvidenceDomain, "requestedVideoWidth: number");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeEncoderProbeMatchesRequestedOutput: boolean");
     expectIncludes(files.streamValidationEvidenceDomainTest, "nativeRuntimePublisherPublishGeneration: 7");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 60");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 61");
     expectIncludes(files.commercialReleaseGateDomain, 'run?.nativeRuntimePublisherState === "published"');
     expectIncludes(files.commercialReleaseGateDomain, "isPositiveInteger(run?.nativeRuntimePublisherPublishGeneration)");
     expectIncludes(files.commercialReleaseGateDomain, "isPositiveInteger(run?.nativeRuntimeCurrentPublishVideoFrames)");
     expectIncludes(files.commercialReleaseGateDomain, "isPositiveInteger(run?.nativeRuntimeCurrentPublishAudioFrames)");
+    expectIncludes(files.commercialReleaseGateDomain, "hasManifestNativeEncoderOutputProof(run)");
+    expectIncludes(files.commercialReleaseGateDomain, "run.nativeRuntimeEncoderProbeActiveEncoderInstancesVerified === true");
+    expectIncludes(files.commercialReleaseGateDomain, "isPositiveInteger(run.nativeRuntimeEncoderProbeVideoEncodedOutputCount)");
+    expectIncludes(files.commercialReleaseGateDomain, "isPositiveInteger(run.nativeRuntimeEncoderProbeAudioEncodedOutputCount)");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks missing, malformed, fractional, mismatched, or unconfigured native encoder output proof");
     expectIncludes(files.commercialReleaseGateDomainTest, "blocks native-runtime claims with missing, inactive, zero, fractional, or malformed current publisher proof");
     expectIncludes(files.commercialReleaseGateDomain, "bundle-generated-at-future");
     expectIncludes(files.commercialReleaseGateDomain, "scene-fingerprint-missing");
@@ -404,11 +415,16 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "isFirstPartyManifestPublishingDestination");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks first-party platform dashboard manifests marked not-applicable");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 60");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 61");
     expectIncludes(files.commercialReleaseBundleScript, 'run?.nativeRuntimePublisherState === "published"');
     expectIncludes(files.commercialReleaseBundleScript, "isPositiveInteger(run?.nativeRuntimePublisherPublishGeneration)");
     expectIncludes(files.commercialReleaseBundleScript, "isPositiveInteger(run?.nativeRuntimeCurrentPublishVideoFrames)");
     expectIncludes(files.commercialReleaseBundleScript, "isPositiveInteger(run?.nativeRuntimeCurrentPublishAudioFrames)");
+    expectIncludes(files.commercialReleaseBundleScript, "hasNativeEncoderOutputProof(run)");
+    expectIncludes(files.commercialReleaseBundleScript, "run.nativeRuntimeEncoderProbeActiveEncoderInstancesVerified === true");
+    expectIncludes(files.commercialReleaseBundleScript, "isPositiveInteger(run.nativeRuntimeEncoderProbeVideoEncodedOutputCount)");
+    expectIncludes(files.commercialReleaseBundleScript, "isPositiveInteger(run.nativeRuntimeEncoderProbeAudioEncodedOutputCount)");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks invalid native encoder output proof");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks current publisher proof when cumulative sent counters remain positive");
     expectIncludes(files.commercialReleaseBundleScript, "bundle-generated-at-future");
     expectIncludes(files.commercialReleaseBundleScript, "--allow-warnings is not supported for commercial release approval");
@@ -429,7 +445,12 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScript, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scope");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-scope");
-    expectIncludes(files.readme, "schema v60+");
+    expectIncludes(files.readme, "schema v61+");
+    expectIncludes(
+      files.readme,
+      "exact equality across the current bundle quality, each run's requested output target, and the active native encoder's configured output"
+    );
+    expectIncludes(files.readme, "verified active encoder instances with positive encoded video/audio output counts");
     expectIncludes(files.readme, "cumulative sent counters alone cannot pass");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeSentVideoFrames");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeVideoEncoderBackend");

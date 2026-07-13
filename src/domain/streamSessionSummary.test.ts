@@ -388,6 +388,9 @@ describe("stream session summary", () => {
         encoderProbe: {
           status: "pass",
           checkedAt: Date.parse("2026-06-23T00:00:01.000Z"),
+          activeEncoderInstancesVerified: true,
+          videoEncodedOutputCount: 92,
+          audioEncodedOutputCount: 180,
           videoBackend: "mediacodec-h264",
           audioBackend: "mediacodec-aac",
           videoCodecName: "c2.android.avc.encoder",
@@ -570,7 +573,17 @@ describe("stream session summary", () => {
     expect(summary?.audioLevel.peakLevel).toBe(0.5);
     expect(summary?.audioLevel.clippedSampleCount).toBe(0);
     expect(summary?.nativeRuntime?.encoderProbeStatus).toBe("pass");
+    expect(summary?.nativeRuntime?.encoderProbeActiveEncoderInstancesVerified).toBe(true);
+    expect(summary?.nativeRuntime?.encoderProbeVideoEncodedOutputCount).toBe(92);
+    expect(summary?.nativeRuntime?.encoderProbeAudioEncodedOutputCount).toBe(180);
     expect(summary?.nativeRuntime?.encoderProbeVideoBackend).toBe("mediacodec-h264");
+    expect(summary?.nativeRuntime).toMatchObject({
+      encoderProbeVideoConfigured: true,
+      encoderProbeAudioConfigured: true,
+      encoderProbeVideoWidth: 1280,
+      encoderProbeVideoHeight: 720,
+      encoderProbeVideoFps: 30
+    });
     expect(summary?.nativeRuntime?.encoderProbeMessage).toContain("Authorization: Bearer [redacted]");
     expect(summary?.nativeRuntime?.encoderProbeMessage).not.toContain("nativeProbeToken12345");
     expect(summary?.summary).toContain("Native runtime needs review");
@@ -1227,6 +1240,12 @@ describe("stream session summary", () => {
           currentPublishAudioFrames: Number.NaN,
           videoEncoderBackend: "mediacodec-h264",
           audioEncoderBackend: "mediacodec-aac",
+          encoderProbeStatus: "pass",
+          encoderProbeVideoConfigured: true,
+          encoderProbeAudioConfigured: false,
+          encoderProbeVideoWidth: 1280.5,
+          encoderProbeVideoHeight: "720",
+          encoderProbeVideoFps: -30,
           compositionStatus: "applied",
           stillImageAssetCount: 2,
           stillImageAssetLoadedCount: 1,
@@ -1267,6 +1286,12 @@ describe("stream session summary", () => {
       publisherPublishGeneration: 0,
       currentPublishVideoFrames: 0,
       currentPublishAudioFrames: 0,
+      encoderProbeStatus: "pass",
+      encoderProbeVideoConfigured: true,
+      encoderProbeAudioConfigured: false,
+      encoderProbeVideoWidth: 0,
+      encoderProbeVideoHeight: 0,
+      encoderProbeVideoFps: 0,
       controlOwner: "none",
       controllerState: "idle",
       baselineTargetKbps: 0,
@@ -1438,5 +1463,45 @@ describe("stream session summary", () => {
     expect(history.cleanRate).toBe(50);
     expect(history.totalFailureEvents).toBe(1);
     expect(history.recommendation).toContain("private ingest test");
+    });
   });
-});
+
+  it("downgrades a persisted passing runtime when native encoder output proof is absent", () => {
+    const summary = createStreamSessionSummary({
+      events: [],
+      healthSamples: [sample(1), sample(4)],
+      target: { bitrateKbps: 3500, fps: 30 },
+      endReason: "stopped",
+      endedAt: new Date("2026-06-23T00:00:05.000Z")
+    });
+    if (!summary) {
+      throw new Error("Expected session summary.");
+    }
+
+    const [normalized] = normalizeStreamSessionSummaries([
+      {
+        ...summary,
+        nativeRuntime: {
+          platform: "ios",
+          status: "pass",
+          runtimeStatus: "live",
+          publisherState: "published",
+          videoEncoderBackend: "videotoolbox-h264",
+          audioEncoderBackend: "audiotoolbox-aac",
+          compositionStatus: "screen-only",
+          issueCount: 0
+        }
+      }
+    ]);
+
+    expect(normalized?.nativeRuntime).toMatchObject({
+      status: "warn",
+      encoderProbeStatus: "missing",
+      encoderProbeVideoConfigured: false,
+      encoderProbeAudioConfigured: false,
+      encoderProbeVideoWidth: 0,
+      encoderProbeVideoHeight: 0,
+      encoderProbeVideoFps: 0,
+      issueCount: 1
+    });
+  });

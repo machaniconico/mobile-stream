@@ -44,7 +44,7 @@ export interface CommercialReleaseGateOptions {
   maxBundleAgeHours?: number;
 }
 
-const minimumSupportBundleVersion = 60;
+const minimumSupportBundleVersion = 61;
 const defaultMaxBundleAgeHours = 24;
 const nativeAdaptiveBitrateEvidenceMaxAgeMs = 30 * 60 * 1_000;
 const nativeAdaptiveBitrateEvidenceFutureSkewMs = 60 * 1_000;
@@ -64,6 +64,7 @@ export const createCommercialReleaseGate = (
 ): CommercialReleaseGate => {
   const issueCandidates = [
     createBundleVersionIssue(bundle),
+    createStreamOutputQualityIssue(bundle),
     createSupportBundleRedactionIssue(bundle),
     createBundleAgeIssue(bundle, now, maxBundleAgeHours),
     createPreflightIssue(bundle),
@@ -143,6 +144,27 @@ const createBundleVersionIssue = (bundle: SupportBundle): CommercialReleaseGateI
       "Support bundle",
       `Support bundle v${bundle.app.bundleVersion} is older than the required v${minimumSupportBundleVersion}.`,
       "Export a fresh support bundle so validation fingerprints and retained-run manifest evidence are included."
+    );
+  }
+  return null;
+};
+
+const createStreamOutputQualityIssue = (bundle: SupportBundle): CommercialReleaseGateIssue | null => {
+  const quality = bundle.quality as Partial<SupportBundle["quality"]> | undefined;
+  const width = quality?.width;
+  const height = quality?.height;
+  const fps = quality?.fps;
+  if (
+    !isPositiveInteger(width) ||
+    !isPositiveInteger(height) ||
+    !isPositiveInteger(fps) ||
+    quality?.resolution !== `${width}x${height}`
+  ) {
+    return failIssue(
+      "stream-output-quality",
+      "Stream output quality",
+      "Support bundle v61 is missing a valid current output width, height, FPS, or matching resolution label.",
+      "Select the release output quality, record fresh iOS and Android validation runs without changing it, then export a new support bundle."
     );
   }
   return null;
@@ -283,7 +305,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a v60 support bundle with retained launch, native publisher, overlay, avatar, ingest, encoder, playback-capture, and A/V sync proof."
+      "Export a v61 support bundle with retained launch, native publisher, overlay, avatar, ingest, encoder, playback-capture, A/V sync, and native output-format proof."
     );
   }
 
@@ -399,7 +421,7 @@ const createSceneFingerprintIssue = (bundle: SupportBundle): CommercialReleaseGa
     return failIssue(
       "scene-fingerprint-missing",
       "Scene fingerprint",
-      "Support bundle v60 is missing scene composition fingerprint evidence.",
+      "Support bundle v61 is missing scene composition fingerprint evidence.",
       "Export a fresh support bundle from the exact scene/profile intended for release."
     );
   }
@@ -424,7 +446,7 @@ const createNativeCaptionOverlaySummaryIssue = (bundle: SupportBundle): Commerci
     "native-caption-overlay-summary-missing",
     "Native caption overlay evidence",
     "The support bundle is missing native caption overlay count summary evidence.",
-    "Export a support bundle v60 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
+    "Export a support bundle v61 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
   );
 };
 
@@ -510,7 +532,7 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "text-overlay-evidence-missing",
       "Text overlay evidence",
       "The support bundle is missing text overlay launch evidence.",
-      "Export a support bundle v60 or newer so visible manual text, subtitle, ticker, live-caption, native caption overlay kind proof, and avatar-overlap overlay evidence is summarized."
+      "Export a support bundle v61 or newer so visible manual text, subtitle, ticker, live-caption, native caption overlay kind proof, and avatar-overlap overlay evidence is summarized."
     );
   }
 
@@ -576,7 +598,7 @@ const createChatOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "chat-overlay-evidence-missing",
       "Chat overlay evidence",
       "The support bundle is missing chat overlay launch evidence.",
-      "Export a support bundle v60 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap evidence is summarized."
+      "Export a support bundle v61 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap evidence is summarized."
     );
   }
 
@@ -630,7 +652,7 @@ const createLiveCaptionEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "live-caption-evidence-missing",
       "Live caption evidence",
       "The support bundle is missing live caption launch evidence.",
-      "Export a support bundle v60 or newer so live caption enablement, recognition state, source visibility, cue proof, and native caption overlay kind proof are summarized."
+      "Export a support bundle v61 or newer so live caption enablement, recognition state, source visibility, cue proof, and native caption overlay kind proof are summarized."
     );
   }
 
@@ -863,7 +885,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v60 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v61 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -875,7 +897,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-scope",
       "Validation evidence manifest",
       `${destinationScopeMismatchCount} fresh manifest run(s) marked in-scope do not match the current destination scope ${formatManifestScope(manifestScope)}.`,
-      "Record and retain iOS and Android validation runs against the exact current destination and RTMP(S) transport before release approval."
+      "Record and retain iOS and Android validation runs against the exact current destination, RTMP(S) transport, scene, and output width/height/FPS before release approval."
     );
   }
   const latestRuns = latestEligibleManifestRunsByPlatform(manifest, manifestScope);
@@ -892,7 +914,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-android-publisher-mode",
       "Validation evidence manifest",
       `The latest Android validation manifest row used ${latestRuns.get("android")?.androidPublisherMode || "missing"} publisher mode.`,
-      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v60 or newer."
+      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v61 or newer."
     );
   }
   if (manifest.length !== bundle.summary.validationEvidenceRunCount) {
@@ -928,7 +950,7 @@ const createValidationEvidenceSceneManifestIssue = (bundle: SupportBundle): Comm
     "validation-evidence-manifest-scene-fingerprint",
     "Validation evidence manifest",
     `${mismatchedRuns.length} fresh retained validation run(s) do not match the current scene fingerprint ${sceneFingerprint}.`,
-    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v60 support bundle."
+    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v61 support bundle."
   );
 };
 
@@ -995,7 +1017,7 @@ const createValidationEvidenceManifestIntegrityIssue = (bundle: SupportBundle, n
 
   const eligibilityFlagMismatchCount = manifest.filter((run) => run.eligible !== isManifestRunFreshInScope(run, manifestScope)).length;
   if (eligibilityFlagMismatchCount > 0) {
-    mismatches.push(`${eligibilityFlagMismatchCount} manifest eligible flag(s) do not match fresh destination/protocol/scene scope state`);
+    mismatches.push(`${eligibilityFlagMismatchCount} manifest eligible flag(s) do not match fresh destination/protocol/scene/output scope state`);
   }
 
   const expectedBuild = nonEmptyText(summary.validationEvidenceConsistentAppBuild);
@@ -1265,6 +1287,9 @@ interface ExpectedManifestScope {
   targetPlatform: string | null;
   transport: string | null;
   sceneFingerprint: string | null;
+  videoWidth: number | null;
+  videoHeight: number | null;
+  videoFps: number | null;
 }
 
 const latestEligibleManifestRunsByPlatform = (
@@ -1287,13 +1312,19 @@ const latestEligibleManifestRunsByPlatform = (
 const emptyExpectedManifestScope: ExpectedManifestScope = {
   targetPlatform: null,
   transport: null,
-  sceneFingerprint: null
+  sceneFingerprint: null,
+  videoWidth: null,
+  videoHeight: null,
+  videoFps: null
 };
 
 const createExpectedManifestScope = (bundle: SupportBundle): ExpectedManifestScope => ({
   targetPlatform: expectedTargetPlatformForBundle(bundle),
   transport: expectedTransportForBundle(bundle),
-  sceneFingerprint: nonEmptyText(bundle.summary?.sceneFingerprint) ?? nonEmptyText(bundle.scene?.fingerprint)
+  sceneFingerprint: nonEmptyText(bundle.summary?.sceneFingerprint) ?? nonEmptyText(bundle.scene?.fingerprint),
+  videoWidth: isPositiveInteger(bundle.quality?.width) ? bundle.quality.width : null,
+  videoHeight: isPositiveInteger(bundle.quality?.height) ? bundle.quality.height : null,
+  videoFps: isPositiveInteger(bundle.quality?.fps) ? bundle.quality.fps : null
 });
 
 const expectedTargetPlatformForBundle = (bundle: SupportBundle): string | null => {
@@ -1327,7 +1358,7 @@ const isManifestRunInScope = (
 
 const isManifestRunDestinationScopePass = (
   run: ValidationEvidenceManifestRun,
-  { targetPlatform, transport, sceneFingerprint }: ExpectedManifestScope
+  { targetPlatform, transport, sceneFingerprint, videoWidth, videoHeight, videoFps }: ExpectedManifestScope
 ): boolean => {
   const expectedTarget = normalizeTargetPlatformLabel(targetPlatform);
   if (expectedTarget && normalizeTargetPlatformLabel(run.targetPlatform) !== expectedTarget) {
@@ -1341,11 +1372,29 @@ const isManifestRunDestinationScopePass = (
   if (expectedSceneFingerprint && nonEmptyText(run.sceneFingerprint) !== expectedSceneFingerprint) {
     return false;
   }
+  if (videoWidth !== null && run.requestedVideoWidth !== videoWidth) {
+    return false;
+  }
+  if (videoHeight !== null && run.requestedVideoHeight !== videoHeight) {
+    return false;
+  }
+  if (videoFps !== null && run.requestedVideoFps !== videoFps) {
+    return false;
+  }
   return true;
 };
 
-const formatManifestScope = ({ targetPlatform, transport, sceneFingerprint }: ExpectedManifestScope): string =>
-  `${targetPlatform ?? "unknown target"}/${transport ?? "unknown transport"}/${sceneFingerprint ?? "unknown scene"}`;
+const formatManifestScope = ({
+  targetPlatform,
+  transport,
+  sceneFingerprint,
+  videoWidth,
+  videoHeight,
+  videoFps
+}: ExpectedManifestScope): string =>
+  `${targetPlatform ?? "unknown target"}/${transport ?? "unknown transport"}/${sceneFingerprint ?? "unknown scene"}/${
+    videoWidth ?? "unknown"
+  }x${videoHeight ?? "unknown"}@${videoFps ?? "unknown"}`;
 
 const normalizeTargetPlatformLabel = (value: unknown): string => (typeof value === "string" ? value.trim().toLowerCase() : "");
 
@@ -1374,6 +1423,7 @@ const isManifestNativeRuntimePass = (
   isPositiveFiniteNumber(run?.nativeRuntimeBytesWritten) &&
   isProductionNativeVideoEncoderBackend(run?.devicePlatform, run?.nativeRuntimeVideoEncoderBackend) &&
   isProductionNativeAudioEncoderBackend(run?.devicePlatform, run?.nativeRuntimeAudioEncoderBackend) &&
+  hasManifestNativeEncoderOutputProof(run) &&
   hasManifestNativePublisherBackpressureProof(run) &&
   hasManifestNativePublisherDropProof(run) &&
   hasManifestNativeRuntimeVideoFrameIntervalProof(run) &&
@@ -1389,6 +1439,26 @@ const isManifestNativeRuntimePass = (
   hasManifestIosAppGroupStillImageProof(run) &&
   hasManifestLive2DPoseProof(run) &&
   hasManifestVrmReleaseProof(run);
+
+const hasManifestNativeEncoderOutputProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  run?.nativeRuntimeEncoderProbeStatus === "pass" &&
+  isProductionNativeVideoEncoderBackend(run.devicePlatform, run.nativeRuntimeEncoderProbeVideoBackend) &&
+  isProductionNativeAudioEncoderBackend(run.devicePlatform, run.nativeRuntimeEncoderProbeAudioBackend) &&
+  run.nativeRuntimeEncoderProbeActiveEncoderInstancesVerified === true &&
+  isPositiveInteger(run.nativeRuntimeEncoderProbeVideoEncodedOutputCount) &&
+  isPositiveInteger(run.nativeRuntimeEncoderProbeAudioEncodedOutputCount) &&
+  run.nativeRuntimeEncoderProbeVideoConfigured === true &&
+  run.nativeRuntimeEncoderProbeAudioConfigured === true &&
+  isPositiveInteger(run.requestedVideoWidth) &&
+  isPositiveInteger(run.requestedVideoHeight) &&
+  isPositiveInteger(run.requestedVideoFps) &&
+  isPositiveInteger(run.nativeRuntimeEncoderProbeVideoWidth) &&
+  isPositiveInteger(run.nativeRuntimeEncoderProbeVideoHeight) &&
+  isPositiveInteger(run.nativeRuntimeEncoderProbeVideoFps) &&
+  run.nativeRuntimeEncoderProbeVideoWidth === run.requestedVideoWidth &&
+  run.nativeRuntimeEncoderProbeVideoHeight === run.requestedVideoHeight &&
+  run.nativeRuntimeEncoderProbeVideoFps === run.requestedVideoFps &&
+  run.nativeRuntimeEncoderProbeMatchesRequestedOutput === true;
 
 const hasManifestNativeRuntimeVideoFrameIntervalProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   isPositiveFiniteNumber(run?.nativeRuntimeVideoFrameIntervalSampleCount) &&

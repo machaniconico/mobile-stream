@@ -172,6 +172,8 @@ export interface StreamDiagnostics {
   };
   quality: {
     resolution: string;
+    width: number;
+    height: number;
     fps: number;
     targetVideoBitrateKbps: number;
     targetAudioBitrateKbps: number;
@@ -391,7 +393,10 @@ export const createStreamDiagnostics = (
     now: new Date(nowMs),
     requiredTargetPlatform: targetPlatform,
     requiredTransport: destination.protocol,
-    requiredSceneFingerprint: sceneFingerprint
+    requiredSceneFingerprint: sceneFingerprint,
+    requiredVideoWidth: quality.width,
+    requiredVideoHeight: quality.height,
+    requiredVideoFps: quality.fps
   });
   const validation = createStreamValidationChecklist({
     readiness: effectiveReadiness,
@@ -504,6 +509,8 @@ export const createStreamDiagnostics = (
     },
     quality: {
       resolution: `${quality.width}x${quality.height}`,
+      width: quality.width,
+      height: quality.height,
       fps: quality.fps,
       targetVideoBitrateKbps,
       targetAudioBitrateKbps,
@@ -2137,9 +2144,9 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
   if (invalidNativeEncoderBackends) {
     const encoderProbeMessage =
       runtime.encoderProbe?.status === "pass"
-        ? ` MediaCodec configure probe passed with ${runtime.encoderProbe.videoCodecName || "video"}/${runtime.encoderProbe.audioCodecName || "audio"}, but active publisher still reports ${runtime.publisher.videoEncoderBackend || "none"}/${runtime.publisher.audioEncoderBackend || "none"}.`
+        ? ` Active encoder output probe passed with ${runtime.encoderProbe.videoCodecName || "video"}/${runtime.encoderProbe.audioCodecName || "audio"}, but the publisher backend still reports ${runtime.publisher.videoEncoderBackend || "none"}/${runtime.publisher.audioEncoderBackend || "none"}.`
         : runtime.encoderProbe?.status === "fail"
-          ? ` MediaCodec configure probe failed: ${runtime.encoderProbe.message}`
+          ? ` Active encoder output probe failed: ${runtime.encoderProbe.message}`
           : "";
     return {
       code: "native-runtime-encoder-backend",

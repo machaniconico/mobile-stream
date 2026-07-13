@@ -421,6 +421,24 @@ const liveRenderGraphMetricLabel = ({
   liveRenderGraphRejectedUpdateCount?: number;
 }): string => `live reloads ${liveRenderGraphReloadCount ?? 0} rejected ${liveRenderGraphRejectedUpdateCount ?? 0}`;
 
+const encoderOutputMetricLabel = (diagnostics: StreamDiagnostics): string => {
+  const probe = diagnostics.nativeRuntime?.encoderProbe;
+  if (!probe) {
+    return "No active proof";
+  }
+  const configured = probe.videoConfigured && probe.audioConfigured;
+  const activeInstancesReady = probe.activeEncoderInstancesVerified === true;
+  const encodedOutputReady =
+    (probe.videoEncodedOutputCount ?? 0) > 0 && (probe.audioEncodedOutputCount ?? 0) > 0;
+  const formatReady = probe.videoWidth > 0 && probe.videoHeight > 0 && probe.videoFps > 0;
+  const output = formatReady ? `${probe.videoWidth}x${probe.videoHeight}@${probe.videoFps}` : "unproven";
+  const matchesTarget =
+    configured && activeInstancesReady && encodedOutputReady &&
+    `${probe.videoWidth}x${probe.videoHeight}` === diagnostics.quality.resolution &&
+    probe.videoFps === diagnostics.quality.fps;
+  return `${probe.status} / ${output} / instances ${activeInstancesReady ? "verified" : "unverified"} / encoded ${probe.videoEncodedOutputCount ?? 0}/${probe.audioEncodedOutputCount ?? 0} / ${matchesTarget ? "matched" : "mismatch"}`;
+};
+
 const sessionNativeRuntimeLabel = (summary: StreamSessionSummary): string =>
   summary.nativeRuntime
     ? `${summary.nativeRuntime.status} / ${summary.nativeRuntime.platform} / ${summary.nativeRuntime.publisherState || "-"} / queue ${summary.nativeRuntime.queuedItems}/${summary.nativeRuntime.cacheSize} / ${nativeOverlayProofMetricLabel({
@@ -2565,6 +2583,8 @@ const StreamDiagnosticsPanel = ({
         <strong>
           {diagnostics.telemetry.bitrateKbps} kbps / {diagnostics.telemetry.fps} fps
         </strong>
+        <span>Encoder output</span>
+        <strong>{encoderOutputMetricLabel(diagnostics)}</strong>
         <span>Audio guard</span>
         <strong>{audioGuardMetricLabel(diagnostics)}</strong>
         <span>Audio silence</span>

@@ -177,6 +177,12 @@ describe("stream diagnostics", () => {
     expect(diagnostics.target.publishUrlPreview).not.toContain(demoStreamKey);
     expect(diagnostics.telemetry.enginePlatform).toBe("unknown");
     expect(diagnostics.quality.estimatedUploadKbps).toBe(4535);
+    expect(diagnostics.quality).toMatchObject({
+      resolution: "1280x720",
+      width: 1280,
+      height: 720,
+      fps: 30
+    });
     expect(diagnostics.recovery.mode).toBe("idle");
     expect(diagnostics.recovery.attemptsRemaining).toBe(5);
     expect(diagnostics.platformPublishing.status).toBe("info");
@@ -885,7 +891,34 @@ describe("stream diagnostics", () => {
     const readiness = createReadinessReport(scene, profile);
     const baseDiagnostics = createStreamDiagnostics(scene, profile, readiness, {
       state: { status: "idle" },
-      health: health()
+      health: health(),
+      nativeRuntime: {
+        ...nativeRuntimeWithAudioProcessing(undefined),
+        platform: "android",
+        encoderProbe: {
+          status: "pass",
+          checkedAt: Date.parse("2026-06-23T00:00:01.000Z"),
+          activeEncoderInstancesVerified: true,
+          videoEncodedOutputCount: 120,
+          audioEncodedOutputCount: 190,
+          videoBackend: "mediacodec-h264",
+          audioBackend: "mediacodec-aac",
+          videoCodecName: "c2.android.avc.encoder",
+          audioCodecName: "c2.android.aac.encoder",
+          videoMime: "video/avc",
+          audioMime: "audio/mp4a-latm",
+          videoConfigured: true,
+          audioConfigured: true,
+          videoColorFormat: "surface",
+          videoBitrateMode: "cbr",
+          videoWidth: 1280,
+          videoHeight: 720,
+          videoFps: 30,
+          audioSampleRate: 44_100,
+          audioChannelCount: 2,
+          message: "Active MediaCodec output formats confirmed."
+        }
+      }
     });
     const run = {
       ...createStreamValidationRun({
@@ -1285,7 +1318,7 @@ describe("stream diagnostics", () => {
     );
   });
 
-  it("keeps MediaCodec configure probe separate from the active Android publisher backend", () => {
+  it("keeps active encoder output proof separate from the reported publisher backend", () => {
     const scene = createDefaultScene();
     const profile = createDefaultStudioProfile();
     const readiness = createReadinessReport(scene, profile);
@@ -1305,6 +1338,9 @@ describe("stream diagnostics", () => {
         encoderProbe: {
           status: "pass",
           checkedAt: Date.parse("2026-06-23T00:00:01.000Z"),
+          activeEncoderInstancesVerified: true,
+          videoEncodedOutputCount: 120,
+          audioEncodedOutputCount: 190,
           videoBackend: "mediacodec-h264",
           audioBackend: "mediacodec-aac",
           videoCodecName: "c2.android.avc.encoder",
@@ -1329,8 +1365,8 @@ describe("stream diagnostics", () => {
 
     expect(diagnostics.nativeRuntime?.encoderProbe?.status).toBe("pass");
     expect(nativeCheck?.status).toBe("warn");
-    expect(nativeCheck?.message).toContain("MediaCodec configure probe passed");
-    expect(nativeCheck?.message).toContain("active publisher still reports rootencoder/rootencoder");
+    expect(nativeCheck?.message).toContain("Active encoder output probe passed");
+    expect(nativeCheck?.message).toContain("publisher backend still reports rootencoder/rootencoder");
   });
 
   it("warns when the native runtime is missing VRM pose payloads", () => {

@@ -54,7 +54,19 @@ describe("native broadcast lifecycle", () => {
     expect(service).toContain("GenerationScopedConnectChecker(");
     expect(service).toContain("getStreamClient().setReTries(MAX_RECONNECT_ATTEMPTS)");
     expect(release.indexOf("invalidatePublisherCallbackSession()")).toBeLessThan(
-      release.indexOf("directMediaCodecStream?.stop()")
+      release.indexOf("directMediaCodecStream?.let")
+    );
+    expect(release).toContain("val activeEncoderProbe = directStream.snapshot().encoderProbe");
+    expect(release).toContain("directStream.stop()");
+    expect(release).toContain("encoderProbe = directStream.snapshot().encoderProbe");
+    expect(release).toContain(
+      'lastActiveEncoderProbe = activeEncoderProbe.takeIf { it.status == "pass" }'
+    );
+    expect(release.indexOf("val activeEncoderProbe = directStream.snapshot().encoderProbe")).toBeLessThan(
+      release.indexOf("directStream.stop()")
+    );
+    expect(release.indexOf("directStream.stop()")).toBeLessThan(
+      release.indexOf("encoderProbe = directStream.snapshot().encoderProbe")
     );
     expect(reconnect).not.toContain("startStreamFromSession(resetReconnectAttempts = false)");
     expect(genericReconnect).toContain("stream.getStreamClient().reTry(0L, reason)");

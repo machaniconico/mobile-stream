@@ -161,6 +161,29 @@ const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
     congested: false,
     lastError: ""
   },
+  encoderProbe: {
+    status: "pass" as const,
+    checkedAt: Date.parse("2026-06-23T00:00:03.000Z"),
+    activeEncoderInstancesVerified: true,
+    videoEncodedOutputCount: 120,
+    audioEncodedOutputCount: 190,
+    videoBackend: platform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
+    audioBackend: platform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
+    videoCodecName: platform === "ios" ? "VideoToolbox" : "c2.android.avc.encoder",
+    audioCodecName: platform === "ios" ? "AudioToolbox" : "c2.android.aac.encoder",
+    videoMime: "video/avc",
+    audioMime: "audio/mp4a-latm",
+    videoConfigured: true,
+    audioConfigured: true,
+    videoColorFormat: "surface",
+    videoBitrateMode: "cbr",
+    videoWidth: 1280,
+    videoHeight: 720,
+    videoFps: 30,
+    audioSampleRate: 44_100,
+    audioChannelCount: 2,
+    message: "Native encoder output configured for the requested profile."
+  },
   composition: {
     status: "applied" as const,
     appliedCount: 4,
@@ -416,6 +439,11 @@ describe("stream validation evidence", () => {
     expect(JSON.stringify(run)).not.toContain(streamKey);
     expect(run.fingerprint).toMatch(/^svr1-[0-9a-f]{8}-[0-9a-z]+$/);
     expect(run.targetPlatform).toBe("YouTube Live");
+    expect(run).toMatchObject({
+      requestedVideoWidth: 1280,
+      requestedVideoHeight: 720,
+      requestedVideoFps: 30
+    });
     expect(run.androidPublisherMode).toBe(profile.androidPublisherMode);
     expect(run.checklistStatus).toBe("needs-test");
     expect(run.recommendation).toContain("Enable a mic effect preset");
@@ -473,6 +501,115 @@ describe("stream validation evidence", () => {
       nativeRuntimeLive2dMissingPoseCount: 0,
       nativeRuntimeLive2dRuntimeStatuses: ["active"]
     });
+  });
+
+  it("normalizes malformed requested and native encoder output proof fail closed", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const run = createStreamValidationRun({
+      diagnostics: createStreamDiagnostics(scene, profile, readiness, {
+        state: { status: "live" },
+        health: health({ bitrateKbps: 3500, fps: 30 }),
+        nativeRuntime: nativeMonitorRuntime("ios")
+      }),
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      appBuild: "rc-1",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    if (!run.nativeRuntime) {
+      throw new Error("Expected native runtime evidence.");
+    }
+
+    const [normalized] = normalizeStreamValidationRuns([
+      {
+        ...run,
+        requestedVideoWidth: 1280.5,
+        requestedVideoHeight: "720",
+        requestedVideoFps: -30,
+        nativeRuntime: {
+          ...run.nativeRuntime,
+          status: "pass",
+          encoderProbeStatus: "pass",
+          encoderProbeVideoConfigured: "true",
+          encoderProbeAudioConfigured: false,
+          encoderProbeVideoWidth: 1280.5,
+          encoderProbeVideoHeight: "720",
+          encoderProbeVideoFps: -30
+        }
+      }
+    ]);
+    const evidence = summarizeStreamValidationEvidence(normalized ? [normalized] : [], { now: validationNow });
+
+    expect(normalized).toMatchObject({
+      result: "warn",
+      requestedVideoWidth: 0,
+      requestedVideoHeight: 0,
+      requestedVideoFps: 0,
+      nativeRuntime: {
+        status: "warn",
+        encoderProbeVideoConfigured: false,
+        encoderProbeAudioConfigured: false,
+        encoderProbeVideoWidth: 0,
+        encoderProbeVideoHeight: 0,
+        encoderProbeVideoFps: 0
+      }
+    });
+    expect(evidence.runManifest[0]).toMatchObject({
+      requestedVideoWidth: 0,
+      requestedVideoHeight: 0,
+      requestedVideoFps: 0,
+      nativeRuntimeEncoderProbeVideoConfigured: false,
+      nativeRuntimeEncoderProbeAudioConfigured: false,
+      nativeRuntimeEncoderProbeVideoWidth: 0,
+      nativeRuntimeEncoderProbeVideoHeight: 0,
+      nativeRuntimeEncoderProbeVideoFps: 0,
+      nativeRuntimeEncoderProbeMatchesRequestedOutput: false
+    });
+  });
+
+  it("downgrades native runtime validation when configured output mismatches the requested target", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntime("android");
+    const run = createStreamValidationRun({
+      diagnostics: createStreamDiagnostics(scene, profile, readiness, {
+        state: { status: "live" },
+        health: health({ bitrateKbps: 3500, fps: 30 }),
+        nativeRuntime: {
+          ...runtime,
+          encoderProbe: {
+            ...runtime.encoderProbe,
+            videoWidth: 1920,
+            videoHeight: 1080,
+            videoFps: 60
+          }
+        }
+      }),
+      devicePlatform: "android",
+      ...physicalDeviceMeta("android"),
+      appBuild: "rc-1",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const evidence = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run).toMatchObject({
+      result: "warn",
+      requestedVideoWidth: 1280,
+      requestedVideoHeight: 720,
+      requestedVideoFps: 30,
+      nativeRuntime: {
+        status: "warn",
+        encoderProbeVideoWidth: 1920,
+        encoderProbeVideoHeight: 1080,
+        encoderProbeVideoFps: 60
+      }
+    });
+    expect(evidence.runManifest[0]?.nativeRuntimeEncoderProbeMatchesRequestedOutput).toBe(false);
   });
 
   it("stores audio and chat readout evidence and downgrades unvalidated passing runs", () => {
@@ -1015,6 +1152,7 @@ describe("stream validation evidence", () => {
       runtimePlatform: "android",
       publisherReady: true,
       encoderReady: true,
+      encoderOutputReady: true,
       videoFrameIntervalReady: true,
       compositorReady: true,
       playbackAudioReady: true,
@@ -1027,6 +1165,97 @@ describe("stream validation evidence", () => {
       runtimePlatform: "android"
     });
     expect(iosPreview.recommendation).toContain("rerun the private stream on ios");
+  });
+
+  it("retains the last passing active encoder proof for a normal stop without masking failures", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const activeRuntime = nativeMonitorRuntime("android");
+    const stoppedProbe = {
+      ...activeRuntime.encoderProbe,
+      status: "fail" as const,
+      activeEncoderInstancesVerified: false,
+      videoConfigured: false,
+      audioConfigured: false,
+      message: "Active encoder proof is no longer current because the stream stopped."
+    };
+    const diagnosticsFor = (runtimeStatus: "idle" | "failed") =>
+      createStreamDiagnostics(
+        scene,
+        profile,
+        readiness,
+        {
+          state: { status: runtimeStatus === "idle" ? "idle" : "failed" },
+          health: health(),
+          nativeRuntime: {
+            ...activeRuntime,
+            runtimeStatus,
+            publisher: {
+              ...activeRuntime.publisher,
+              state: runtimeStatus === "idle" ? "stopped" : "failed",
+              lastError: runtimeStatus === "failed" ? "Encoder failed" : ""
+            },
+            encoderProbe: stoppedProbe,
+            lastActiveEncoderProbe: activeRuntime.encoderProbe
+          }
+        },
+        [],
+        stableMonitorSamples(),
+        [],
+        [],
+        null,
+        connectedChatOptions
+      );
+
+    const stoppedPreview = createStreamValidationNativeRuntimePreview(diagnosticsFor("idle"), "android");
+    const failedPreview = createStreamValidationNativeRuntimePreview(diagnosticsFor("failed"), "android");
+
+    expect(stoppedPreview).toMatchObject({ status: "pass", encoderOutputReady: true });
+    expect(stoppedPreview.summary).toContain("active instances verified");
+    expect(failedPreview.status).not.toBe("pass");
+    expect(failedPreview.encoderOutputReady).toBe(false);
+  });
+
+  it("blocks the validation preview when native output does not match the requested quality", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntime("android");
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "live" },
+        health: health({ bitrateKbps: 3500, fps: 30, message: "Live" }),
+        nativeRuntime: {
+          ...runtime,
+          encoderProbe: {
+            ...runtime.encoderProbe!,
+            videoWidth: 1920,
+            videoHeight: 1080,
+            videoFps: 60
+          }
+        }
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const preview = createStreamValidationNativeRuntimePreview(diagnostics, "android");
+
+    expect(preview).toMatchObject({
+      status: "warn",
+      encoderReady: true,
+      encoderOutputReady: false
+    });
+    expect(preview.summary).toContain("output 1920x1080@60 probe pass");
+    expect(preview.recommendation).toContain("exact requested width, height, and FPS");
   });
 
   it("requires Android playback-audio and final-mix proof before validation recording", () => {
@@ -2984,6 +3213,19 @@ describe("stream validation evidence", () => {
       nativeRuntimeMaxAudioStallDurationMs: 0,
       nativeRuntimeVideoEncoderBackend: "videotoolbox-h264",
       nativeRuntimeAudioEncoderBackend: "audiotoolbox-aac",
+      requestedVideoWidth: 1280,
+      requestedVideoHeight: 720,
+      requestedVideoFps: 30,
+      nativeRuntimeEncoderProbeStatus: "pass",
+      nativeRuntimeEncoderProbeActiveEncoderInstancesVerified: true,
+      nativeRuntimeEncoderProbeVideoEncodedOutputCount: 120,
+      nativeRuntimeEncoderProbeAudioEncodedOutputCount: 190,
+      nativeRuntimeEncoderProbeVideoConfigured: true,
+      nativeRuntimeEncoderProbeAudioConfigured: true,
+      nativeRuntimeEncoderProbeVideoWidth: 1280,
+      nativeRuntimeEncoderProbeVideoHeight: 720,
+      nativeRuntimeEncoderProbeVideoFps: 30,
+      nativeRuntimeEncoderProbeMatchesRequestedOutput: true,
       nativeRuntimeCompositionStatus: "applied",
       nativeRuntimeCompositionAppliedCount: 4,
       nativeRuntimeCompositionAppliedKinds: ["caption", "chat", "pngtuber", "text"],
@@ -3815,6 +4057,46 @@ describe("stream validation evidence", () => {
     });
     expect(summary.runManifest.find((item) => item.id === androidRun.id)).toMatchObject({
       sceneFingerprint: androidRun.sceneFingerprint,
+      matchesScope: false,
+      eligible: false
+    });
+  });
+
+  it("marks retained validation runs for a different output format as out of scope", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30 }),
+      nativeRuntime: nativeMonitorRuntime("ios")
+    });
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "ios",
+      ...physicalDeviceMeta("ios"),
+      appBuild: "rc-1",
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+
+    const summary = summarizeStreamValidationEvidence([run], {
+      now: validationNow,
+      requiredVideoWidth: 1920,
+      requiredVideoHeight: 1080,
+      requiredVideoFps: 60
+    });
+
+    expect(summary).toMatchObject({
+      requiredVideoWidth: 1920,
+      requiredVideoHeight: 1080,
+      requiredVideoFps: 60,
+      eligibleRunCount: 0
+    });
+    expect(summary.runManifest[0]).toMatchObject({
+      requestedVideoWidth: 1280,
+      requestedVideoHeight: 720,
+      requestedVideoFps: 30,
       matchesScope: false,
       eligible: false
     });

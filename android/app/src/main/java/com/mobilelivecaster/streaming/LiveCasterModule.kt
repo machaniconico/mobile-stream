@@ -337,6 +337,9 @@ data class NativeRuntimePublisher(
 data class NativeRuntimeEncoderProbe(
     val status: String = "unknown",
     val checkedAt: Long = 0,
+    val activeEncoderInstancesVerified: Boolean = false,
+    val videoEncodedOutputCount: Long = 0,
+    val audioEncodedOutputCount: Long = 0,
     val videoBackend: String = "none",
     val audioBackend: String = "none",
     val videoCodecName: String = "",
@@ -357,6 +360,9 @@ data class NativeRuntimeEncoderProbe(
     fun asWritableMap(): WritableMap = Arguments.createMap().apply {
         putString("status", status)
         putDouble("checkedAt", checkedAt.toDouble())
+        putBoolean("activeEncoderInstancesVerified", activeEncoderInstancesVerified)
+        putDouble("videoEncodedOutputCount", videoEncodedOutputCount.toDouble())
+        putDouble("audioEncodedOutputCount", audioEncodedOutputCount.toDouble())
         putString("videoBackend", videoBackend)
         putString("audioBackend", audioBackend)
         putString("videoCodecName", videoCodecName)
@@ -553,6 +559,7 @@ data class NativeRuntimeTelemetry(
     val droppedFrames: Long = 0,
     val publisher: NativeRuntimePublisher = NativeRuntimePublisher(),
     val encoderProbe: NativeRuntimeEncoderProbe? = null,
+    val lastActiveEncoderProbe: NativeRuntimeEncoderProbe? = null,
     val device: NativeRuntimeDevice? = null,
     val composition: NativeRuntimeComposition = NativeRuntimeComposition(),
     val audioProcessing: NativeRuntimeAudioProcessing? = null,
@@ -571,6 +578,7 @@ data class NativeRuntimeTelemetry(
         putDouble("droppedFrames", droppedFrames.toDouble())
         putMap("publisher", publisher.asWritableMap())
         encoderProbe?.let { putMap("encoderProbe", it.asWritableMap()) }
+        lastActiveEncoderProbe?.let { putMap("lastActiveEncoderProbe", it.asWritableMap()) }
         device?.let { putMap("device", it.asWritableMap()) }
         putMap("composition", composition.asWritableMap())
         audioProcessing?.let { putMap("audioProcessing", it.asWritableMap()) }
@@ -804,6 +812,7 @@ object LiveCasterSession {
                     lastError = safeMessage
                 ),
                 encoderProbe = current.encoderProbe,
+                lastActiveEncoderProbe = current.lastActiveEncoderProbe,
                 device = current.device,
                 composition = current.composition,
                 audioProcessing = current.audioProcessing,
@@ -832,6 +841,7 @@ object LiveCasterSession {
         videoEncoderBackend: String? = null,
         audioEncoderBackend: String? = null,
         encoderProbe: NativeRuntimeEncoderProbe? = null,
+        lastActiveEncoderProbe: NativeRuntimeEncoderProbe? = null,
         droppedVideoFrames: Long? = null,
         droppedAudioFrames: Long? = null,
         bytesWritten: Long? = null,
@@ -892,6 +902,7 @@ object LiveCasterSession {
             droppedFrames = droppedVideoFrames ?: current?.droppedFrames ?: health.droppedFrames.toLong(),
             publisher = nextPublisher,
             encoderProbe = encoderProbe ?: current?.encoderProbe,
+            lastActiveEncoderProbe = lastActiveEncoderProbe ?: current?.lastActiveEncoderProbe,
             device = device ?: current?.device,
             composition = nextComposition,
             audioProcessing = audioProcessing ?: current?.audioProcessing,

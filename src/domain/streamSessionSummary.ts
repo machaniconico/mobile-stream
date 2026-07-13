@@ -69,8 +69,16 @@ export interface StreamSessionNativeRuntimeSummary {
   videoEncoderBackend: string;
   audioEncoderBackend: string;
   encoderProbeStatus: StreamSessionNativeRuntimeEncoderProbeStatus;
+  encoderProbeActiveEncoderInstancesVerified: boolean;
+  encoderProbeVideoEncodedOutputCount: number;
+  encoderProbeAudioEncodedOutputCount: number;
   encoderProbeVideoBackend: string;
   encoderProbeAudioBackend: string;
+  encoderProbeVideoConfigured: boolean;
+  encoderProbeAudioConfigured: boolean;
+  encoderProbeVideoWidth: number;
+  encoderProbeVideoHeight: number;
+  encoderProbeVideoFps: number;
   encoderProbeMessage: string;
   compositionStatus: NativeRuntimeTelemetry["composition"]["status"];
   compositionAppliedCount: number;
@@ -868,10 +876,37 @@ export const createNativeRuntimeSessionSummary = (
       : "";
   const videoEncoderBackend = normalizeSafeSummaryString(runtime.publisher.videoEncoderBackend, "none");
   const audioEncoderBackend = normalizeSafeSummaryString(runtime.publisher.audioEncoderBackend, "none");
-  const encoderProbeStatus = runtime.encoderProbe?.status ?? "missing";
-  const encoderProbeVideoBackend = normalizeSafeSummaryString(runtime.encoderProbe?.videoBackend, "none");
-  const encoderProbeAudioBackend = normalizeSafeSummaryString(runtime.encoderProbe?.audioBackend, "none");
-  const encoderProbeMessage = normalizeSafeSummaryString(runtime.encoderProbe?.message, "");
+  const completedNormally = runtime.runtimeStatus === "idle" || runtime.runtimeStatus === "stopped";
+  const encoderProbe =
+    completedNormally && runtime.lastActiveEncoderProbe?.status === "pass"
+      ? runtime.lastActiveEncoderProbe
+      : runtime.encoderProbe;
+  const encoderProbeStatus = normalizeNativeRuntimeEncoderProbeStatus(encoderProbe?.status);
+  const encoderProbeActiveEncoderInstancesVerified = encoderProbe?.activeEncoderInstancesVerified === true;
+  const encoderProbeVideoEncodedOutputCount = normalizeNonNegativeEvidenceInteger(encoderProbe?.videoEncodedOutputCount);
+  const encoderProbeAudioEncodedOutputCount = normalizeNonNegativeEvidenceInteger(encoderProbe?.audioEncodedOutputCount);
+  const encoderProbeVideoBackend = normalizeSafeSummaryString(encoderProbe?.videoBackend, "none");
+  const encoderProbeAudioBackend = normalizeSafeSummaryString(encoderProbe?.audioBackend, "none");
+  const encoderProbeVideoConfigured = encoderProbe?.videoConfigured === true;
+  const encoderProbeAudioConfigured = encoderProbe?.audioConfigured === true;
+  const encoderProbeVideoWidth = normalizeNonNegativeEvidenceInteger(encoderProbe?.videoWidth);
+  const encoderProbeVideoHeight = normalizeNonNegativeEvidenceInteger(encoderProbe?.videoHeight);
+  const encoderProbeVideoFps = normalizeNonNegativeEvidenceInteger(encoderProbe?.videoFps);
+  const encoderProbeMessage = normalizeSafeSummaryString(encoderProbe?.message, "");
+  const incompleteNativeEncoderProbe = !hasCompleteNativeEncoderProbe({
+    platform: runtime.platform,
+    status: encoderProbeStatus,
+    activeEncoderInstancesVerified: encoderProbeActiveEncoderInstancesVerified,
+    videoEncodedOutputCount: encoderProbeVideoEncodedOutputCount,
+    audioEncodedOutputCount: encoderProbeAudioEncodedOutputCount,
+    videoBackend: encoderProbeVideoBackend,
+    audioBackend: encoderProbeAudioBackend,
+    videoConfigured: encoderProbeVideoConfigured,
+    audioConfigured: encoderProbeAudioConfigured,
+    videoWidth: encoderProbeVideoWidth,
+    videoHeight: encoderProbeVideoHeight,
+    videoFps: encoderProbeVideoFps
+  });
   const invalidNativeEncoderBackends =
     !isProductionNativeVideoEncoderBackend(runtime.platform, videoEncoderBackend) ||
     !isProductionNativeAudioEncoderBackend(runtime.platform, audioEncoderBackend);
@@ -1089,6 +1124,7 @@ export const createNativeRuntimeSessionSummary = (
         missingIosReplayKitCompositorProof ||
         missingIosAppGroupStillImageProof ||
         invalidNativeEncoderBackends ||
+        incompleteNativeEncoderProbe ||
         missingLive2DPoses ||
         missingVrmPoses ||
         incompleteVrmRendering ||
@@ -1116,6 +1152,7 @@ export const createNativeRuntimeSessionSummary = (
     missingIosReplayKitCompositorProof,
     missingIosAppGroupStillImageProof,
     invalidNativeEncoderBackends,
+    incompleteNativeEncoderProbe,
     missingLive2DPoses,
     missingVrmPoses,
     incompleteVrmRendering,
@@ -1142,8 +1179,16 @@ export const createNativeRuntimeSessionSummary = (
     videoEncoderBackend,
     audioEncoderBackend,
     encoderProbeStatus,
+    encoderProbeActiveEncoderInstancesVerified,
+    encoderProbeVideoEncodedOutputCount,
+    encoderProbeAudioEncodedOutputCount,
     encoderProbeVideoBackend,
     encoderProbeAudioBackend,
+    encoderProbeVideoConfigured,
+    encoderProbeAudioConfigured,
+    encoderProbeVideoWidth,
+    encoderProbeVideoHeight,
+    encoderProbeVideoFps,
     encoderProbeMessage,
     compositionStatus: runtime.composition.status,
     compositionAppliedCount: normalizeNonNegativeInteger(runtime.composition.appliedCount),
@@ -1380,7 +1425,9 @@ export const createNativeRuntimeSessionSummary = (
                                         ? avSyncMissing
                                           ? "Repeat the private ingest run with a production native publisher so RTMP A/V timestamp drift evidence is retained."
                                           : "Resolve RTMP A/V timestamp drift and repeat the private ingest run; production evidence requires zero sync incidents."
-                                        : "Keep this native runtime result as supporting evidence for the destination."
+                                        : incompleteNativeEncoderProbe
+                                          ? "Repeat the private ingest run until the native encoder probe reports passing video/audio configuration with positive output width, height, and FPS."
+                                          : "Keep this native runtime result as supporting evidence for the destination."
   };
 };
 
@@ -1647,10 +1694,37 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
   const automaticReductionCount = normalizeNonNegativeInteger(value.automaticReductionCount);
   const automaticRestorationCount = normalizeNonNegativeInteger(value.automaticRestorationCount);
   const lastDecisionReason = normalizeBoundedSafeSummaryString(value.lastDecisionReason, "", 160);
+  const encoderProbeStatus = normalizeNativeRuntimeEncoderProbeStatus(value.encoderProbeStatus);
+  const encoderProbeActiveEncoderInstancesVerified = value.encoderProbeActiveEncoderInstancesVerified === true;
+  const encoderProbeVideoEncodedOutputCount = normalizeNonNegativeEvidenceInteger(value.encoderProbeVideoEncodedOutputCount);
+  const encoderProbeAudioEncodedOutputCount = normalizeNonNegativeEvidenceInteger(value.encoderProbeAudioEncodedOutputCount);
+  const encoderProbeVideoBackend = normalizeSafeSummaryString(value.encoderProbeVideoBackend, "none");
+  const encoderProbeAudioBackend = normalizeSafeSummaryString(value.encoderProbeAudioBackend, "none");
+  const encoderProbeVideoConfigured = value.encoderProbeVideoConfigured === true;
+  const encoderProbeAudioConfigured = value.encoderProbeAudioConfigured === true;
+  const encoderProbeVideoWidth = normalizeNonNegativeEvidenceInteger(value.encoderProbeVideoWidth);
+  const encoderProbeVideoHeight = normalizeNonNegativeEvidenceInteger(value.encoderProbeVideoHeight);
+  const encoderProbeVideoFps = normalizeNonNegativeEvidenceInteger(value.encoderProbeVideoFps);
+  const incompleteNativeEncoderProbe = !hasCompleteNativeEncoderProbe({
+    platform,
+    status: encoderProbeStatus,
+    activeEncoderInstancesVerified: encoderProbeActiveEncoderInstancesVerified,
+    videoEncodedOutputCount: encoderProbeVideoEncodedOutputCount,
+    audioEncodedOutputCount: encoderProbeAudioEncodedOutputCount,
+    videoBackend: encoderProbeVideoBackend,
+    audioBackend: encoderProbeAudioBackend,
+    videoConfigured: encoderProbeVideoConfigured,
+    audioConfigured: encoderProbeAudioConfigured,
+    videoWidth: encoderProbeVideoWidth,
+    videoHeight: encoderProbeVideoHeight,
+    videoFps: encoderProbeVideoFps
+  });
+  const normalizedStatus: StreamSessionNativeRuntimeStatus =
+    status === "pass" && incompleteNativeEncoderProbe ? "warn" : status;
 
   return {
     platform,
-    status,
+    status: normalizedStatus,
     runtimeStatus: normalizeSafeSummaryString(value.runtimeStatus, "unknown"),
     publisherState: normalizeSafeSummaryString(value.publisherState, ""),
     publisherPublishGeneration: normalizeNonNegativeEvidenceInteger(value.publisherPublishGeneration),
@@ -1658,15 +1732,17 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     currentPublishAudioFrames: normalizeNonNegativeEvidenceInteger(value.currentPublishAudioFrames),
     videoEncoderBackend: normalizeSafeSummaryString(value.videoEncoderBackend, "none"),
     audioEncoderBackend: normalizeSafeSummaryString(value.audioEncoderBackend, "none"),
-    encoderProbeStatus:
-      value.encoderProbeStatus === "pass" ||
-      value.encoderProbeStatus === "warn" ||
-      value.encoderProbeStatus === "fail" ||
-      value.encoderProbeStatus === "unknown"
-        ? value.encoderProbeStatus
-        : "missing",
-    encoderProbeVideoBackend: normalizeSafeSummaryString(value.encoderProbeVideoBackend, "none"),
-    encoderProbeAudioBackend: normalizeSafeSummaryString(value.encoderProbeAudioBackend, "none"),
+    encoderProbeStatus,
+    encoderProbeActiveEncoderInstancesVerified,
+    encoderProbeVideoEncodedOutputCount,
+    encoderProbeAudioEncodedOutputCount,
+    encoderProbeVideoBackend,
+    encoderProbeAudioBackend,
+    encoderProbeVideoConfigured,
+    encoderProbeAudioConfigured,
+    encoderProbeVideoWidth,
+    encoderProbeVideoHeight,
+    encoderProbeVideoFps,
     encoderProbeMessage: normalizeSafeSummaryString(value.encoderProbeMessage, ""),
     compositionStatus,
     compositionAppliedCount: normalizeNonNegativeInteger(value.compositionAppliedCount),
@@ -1860,13 +1936,13 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
       normalizeNonNegativeInteger(value.avSyncCriticalThresholdMs) || 500
     ),
     avSyncCritical: value.avSyncCritical === true,
-    issueCount: normalizeNonNegativeInteger(value.issueCount),
+    issueCount: Math.max(normalizeNonNegativeInteger(value.issueCount), incompleteNativeEncoderProbe ? 1 : 0),
     summary:
       typeof value.summary === "string"
         ? normalizeSafeSummaryString(value.summary, "")
         : controlOwner === "native"
-          ? `Native runtime ${status} on ${platform}. Native-owned bitrate controller ${controllerState}: baseline ${baselineTargetKbps} kbps, effective ${effectiveTargetKbps} kbps, floor ${floorTargetKbps} kbps, pending ${pendingTargetKbps} kbps; ${automaticReductionCount} automatic reductions / ${automaticRestorationCount} restorations.${lastDecisionReason ? ` Last decision: ${lastDecisionReason}.` : ""}`
-          : `Native runtime ${status} on ${platform}.`,
+          ? `Native runtime ${normalizedStatus} on ${platform}. Native-owned bitrate controller ${controllerState}: baseline ${baselineTargetKbps} kbps, effective ${effectiveTargetKbps} kbps, floor ${floorTargetKbps} kbps, pending ${pendingTargetKbps} kbps; ${automaticReductionCount} automatic reductions / ${automaticRestorationCount} restorations.${lastDecisionReason ? ` Last decision: ${lastDecisionReason}.` : ""}`
+          : `Native runtime ${normalizedStatus} on ${platform}.`,
     recommendation:
       typeof value.recommendation === "string"
         ? normalizeSafeSummaryString(value.recommendation, "")
@@ -1939,6 +2015,48 @@ const normalizeNonNegativeInteger = (value: unknown): number =>
 
 const normalizeNonNegativeEvidenceInteger = (value: unknown): number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+
+const normalizeNativeRuntimeEncoderProbeStatus = (value: unknown): StreamSessionNativeRuntimeEncoderProbeStatus =>
+  value === "pass" || value === "warn" || value === "fail" || value === "unknown" ? value : "missing";
+
+const hasCompleteNativeEncoderProbe = ({
+  platform,
+  status,
+  activeEncoderInstancesVerified,
+  videoEncodedOutputCount,
+  audioEncodedOutputCount,
+  videoBackend,
+  audioBackend,
+  videoConfigured,
+  audioConfigured,
+  videoWidth,
+  videoHeight,
+  videoFps
+}: {
+  platform: "ios" | "android";
+  status: StreamSessionNativeRuntimeEncoderProbeStatus;
+  activeEncoderInstancesVerified: boolean;
+  videoEncodedOutputCount: number;
+  audioEncodedOutputCount: number;
+  videoBackend: string;
+  audioBackend: string;
+  videoConfigured: boolean;
+  audioConfigured: boolean;
+  videoWidth: number;
+  videoHeight: number;
+  videoFps: number;
+}): boolean =>
+  status === "pass" &&
+  isProductionNativeVideoEncoderBackend(platform, videoBackend) &&
+  isProductionNativeAudioEncoderBackend(platform, audioBackend) &&
+  activeEncoderInstancesVerified &&
+  videoEncodedOutputCount > 0 &&
+  audioEncodedOutputCount > 0 &&
+  videoConfigured &&
+  audioConfigured &&
+  videoWidth > 0 &&
+  videoHeight > 0 &&
+  videoFps > 0;
 
 const normalizeInteger = (value: unknown): number =>
   Math.round(typeof value === "number" && Number.isFinite(value) ? value : 0);

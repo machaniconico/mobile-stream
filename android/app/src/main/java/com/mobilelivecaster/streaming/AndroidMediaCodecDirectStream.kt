@@ -22,6 +22,7 @@ import android.view.Surface
 import com.pedro.common.ConnectChecker
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 internal class AndroidMediaCodecDirectStream(
     context: Context,
@@ -66,6 +67,7 @@ internal class AndroidMediaCodecDirectStream(
     private var micProcessingEffect: MicProcessingEffect? = null
     @Volatile
     private var publisherConfigured = false
+    private val encoderProbeState = AndroidActiveEncoderProbeState()
     private val counterLock = Any()
     private var videoFrames = 0L
     private var audioFrames = 0L
@@ -100,6 +102,7 @@ internal class AndroidMediaCodecDirectStream(
         }
         canvasComposition = composition
         publisherConfigured = false
+        encoderProbeState.reset()
         synchronized(counterLock) {
             videoFrames = 0L
             audioFrames = 0L
@@ -123,10 +126,12 @@ internal class AndroidMediaCodecDirectStream(
 
         runCatching {
             val encoder = createVideoEncoder(nextProfile)
-            val surface = encoder.createInputSurface()
             videoEncoder = encoder
+            encoderProbeState.recordVideoConfigured(encoder, codecName(encoder))
+            val surface = encoder.createInputSurface()
             videoInputSurface = surface
             encoder.start()
+            encoderProbeState.recordVideoStarted(encoder)
             liveVideoBitrateTracker.recordApplied(nextProfile.videoBitrate / 1_000)
             val imageReader = ImageReader.newInstance(
                 nextProfile.width,
@@ -146,7 +151,11 @@ internal class AndroidMediaCodecDirectStream(
                 null
             )
 
-            audioEncoder = createAudioEncoder(nextProfile).also { it.start() }
+            val activeAudioEncoder = createAudioEncoder(nextProfile)
+            audioEncoder = activeAudioEncoder
+            encoderProbeState.recordAudioConfigured(activeAudioEncoder, codecName(activeAudioEncoder))
+            activeAudioEncoder.start()
+            encoderProbeState.recordAudioStarted(activeAudioEncoder)
             audioRecord = createMicAudioRecord().also { it.startRecording() }
             playbackAudioCapture = AndroidPlaybackAudioCapture.create(
                 mediaProjection = mediaProjection,
@@ -165,6 +174,7 @@ internal class AndroidMediaCodecDirectStream(
             audioThread = Thread({ runEncoderThread { runAudioEncoder() } }, "MLC-MediaCodec-Audio").also { it.start() }
         }.onFailure { error ->
             lastError = safeMessage(error)
+            encoderProbeState.recordFailure(lastError)
             stop()
             throw error
         }
@@ -172,6 +182,7 @@ internal class AndroidMediaCodecDirectStream(
 
     fun stop() {
         running.set(false)
+        encoderProbeState.recordStopped()
         synchronized(videoEncoderCommandLock) {
             videoEncoderGeneration += 1
             pendingVideoEncoderCommand = null
@@ -268,6 +279,20 @@ internal class AndroidMediaCodecDirectStream(
             )
         }
         val configured = publisherConfigured
+        val effectiveError = lastError.ifBlank { publisherSnapshot.lastError }
+        val currentProfile = profile
+        val encoderProbe = encoderProbeState.snapshot(
+            running = running.get(),
+            publisherConfigured = configured && publisherSnapshot.configured,
+            requestedVideoWidth = currentProfile?.width ?: 0,
+            requestedVideoHeight = currentProfile?.height ?: 0,
+            requestedVideoFps = currentProfile?.fps ?: 0,
+            expectedAudioSampleRate = AUDIO_SAMPLE_RATE,
+            expectedAudioChannelCount = AUDIO_OUTPUT_CHANNEL_COUNT,
+            publisherVideoBackend = publisherSnapshot.videoBackend,
+            publisherAudioBackend = publisherSnapshot.audioBackend,
+            externalError = effectiveError
+        )
         return AndroidMediaCodecDirectStreamSnapshot(
             running = running.get(),
             configured = configured,
@@ -278,8 +303,9 @@ internal class AndroidMediaCodecDirectStream(
                 running.get() -> "preparing"
                 else -> "idle"
             },
-            videoEncoderBackend = AndroidMediaCodecRtmpPublisher.VIDEO_BACKEND,
-            audioEncoderBackend = AndroidMediaCodecRtmpPublisher.AUDIO_BACKEND,
+            videoEncoderBackend = publisherSnapshot.videoBackend,
+            audioEncoderBackend = publisherSnapshot.audioBackend,
+            encoderProbe = encoderProbe,
             videoFrames = counters.videoFrames,
             audioFrames = counters.audioFrames,
             encodedBytes = counters.encodedBytes,
@@ -297,8 +323,7 @@ internal class AndroidMediaCodecDirectStream(
             congested = publisherSnapshot.congested,
             avSync = publisherSnapshot.avSync,
             audioProcessing = audioProcessingSnapshot(),
-            lastError = lastError
-                .ifBlank { publisherSnapshot.lastError }
+            lastError = effectiveError
                 .ifBlank { lastNonFatalError }
         )
     }
@@ -506,6 +531,7 @@ internal class AndroidMediaCodecDirectStream(
         } catch (error: Throwable) {
             synchronized(counterLock) { compositionFailures += 1 }
             lastError = safeMessage(error)
+            encoderProbeState.recordFailure(lastError)
             running.set(false)
             false
         }
@@ -516,13 +542,17 @@ internal class AndroidMediaCodecDirectStream(
         var outputIndex = encoder.dequeueOutputBuffer(info, timeoutUs)
         while (outputIndex != MediaCodec.INFO_TRY_AGAIN_LATER) {
             if (outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                configurePublisherFromVideoFormat(encoder.outputFormat)
+                val outputFormat = encoder.outputFormat
+                recordVideoOutputFormat(encoder, outputFormat)
+                configurePublisherFromVideoFormat(outputFormat)
                 outputIndex = encoder.dequeueOutputBuffer(info, 0)
                 continue
             }
             if (outputIndex >= 0) {
                 val outputBuffer = encoder.getOutputBuffer(outputIndex)
-                if (outputBuffer != null && info.size > 0) {
+                val encodedMediaFrame = info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0
+                if (outputBuffer != null && info.size > 0 && encodedMediaFrame) {
+                    encoderProbeState.recordVideoEncodedOutput(encoder)
                     val frameBytes = info.size.toLong()
                     if (publisherConfigured) {
                         publisher.sendVideo(outputBuffer, info)
@@ -610,6 +640,7 @@ internal class AndroidMediaCodecDirectStream(
     private fun runEncoderThread(block: () -> Unit) {
         runCatching { block() }.onFailure { error ->
             lastError = safeMessage(error)
+            encoderProbeState.recordFailure(lastError)
             running.set(false)
         }
     }
@@ -619,12 +650,15 @@ internal class AndroidMediaCodecDirectStream(
         var outputIndex = encoder.dequeueOutputBuffer(info, 0)
         while (outputIndex != MediaCodec.INFO_TRY_AGAIN_LATER) {
             if (outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                recordAudioOutputFormat(encoder, encoder.outputFormat)
                 outputIndex = encoder.dequeueOutputBuffer(info, 0)
                 continue
             }
             if (outputIndex >= 0) {
                 val outputBuffer = encoder.getOutputBuffer(outputIndex)
-                if (outputBuffer != null && info.size > 0) {
+                val encodedMediaFrame = info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0
+                if (outputBuffer != null && info.size > 0 && encodedMediaFrame) {
+                    encoderProbeState.recordAudioEncodedOutput(encoder)
                     val frameBytes = info.size.toLong()
                     if (publisherConfigured) {
                         publisher.sendAudio(outputBuffer, info)
@@ -655,7 +689,64 @@ internal class AndroidMediaCodecDirectStream(
             publisherConfigured = true
         }.onFailure { error ->
             lastError = safeMessage(error)
+            encoderProbeState.recordFailure(lastError)
         }
+    }
+
+    private fun recordVideoOutputFormat(encoder: MediaCodec, outputFormat: MediaFormat) {
+        encoderProbeState.recordVideoOutputFormat(
+            codecIdentity = encoder,
+            mime = outputFormat.stringValue(MediaFormat.KEY_MIME),
+            width = outputFormat.positiveInt(MediaFormat.KEY_WIDTH),
+            height = outputFormat.positiveInt(MediaFormat.KEY_HEIGHT),
+            fps = outputFormat.positiveDouble(MediaFormat.KEY_FRAME_RATE),
+            colorFormat = colorFormatName(outputFormat.optionalInt(MediaFormat.KEY_COLOR_FORMAT)),
+            bitrateMode = bitrateModeName(outputFormat.optionalInt(MediaFormat.KEY_BITRATE_MODE))
+        )
+    }
+
+    private fun recordAudioOutputFormat(encoder: MediaCodec, outputFormat: MediaFormat) {
+        encoderProbeState.recordAudioOutputFormat(
+            codecIdentity = encoder,
+            mime = outputFormat.stringValue(MediaFormat.KEY_MIME),
+            sampleRate = outputFormat.positiveInt(MediaFormat.KEY_SAMPLE_RATE),
+            channelCount = outputFormat.positiveInt(MediaFormat.KEY_CHANNEL_COUNT)
+        )
+    }
+
+    private fun MediaFormat.positiveInt(key: String): Int = optionalInt(key).coerceAtLeast(0)
+
+    private fun MediaFormat.positiveDouble(key: String): Double {
+        if (!containsKey(key)) return 0.0
+        return runCatching { getInteger(key).toDouble() }
+            .recoverCatching { getFloat(key).toDouble() }
+            .getOrDefault(0.0)
+            .coerceAtLeast(0.0)
+    }
+
+    private fun MediaFormat.optionalInt(key: String): Int {
+        if (!containsKey(key)) return 0
+        return runCatching { getInteger(key) }
+            .recoverCatching { getFloat(key).roundToInt() }
+            .getOrDefault(0)
+    }
+
+    private fun MediaFormat.stringValue(key: String): String =
+        if (containsKey(key)) runCatching { getString(key).orEmpty() }.getOrDefault("") else ""
+
+    private fun codecName(codec: MediaCodec): String = runCatching { codec.name }.getOrDefault("")
+
+    private fun colorFormatName(value: Int): String = when (value) {
+        0 -> ""
+        MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface -> "surface"
+        else -> value.toString()
+    }
+
+    private fun bitrateModeName(value: Int): String = when (value) {
+        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR -> "cbr"
+        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR -> "vbr"
+        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CQ -> "cq"
+        else -> ""
     }
 
     private fun nextAudioPresentationTimeUs(bytes: Int): Long {
@@ -688,6 +779,322 @@ internal class AndroidMediaCodecDirectStream(
     }
 
     private fun safeMessage(error: Throwable): String = (error.message ?: error.javaClass.simpleName).take(160)
+}
+
+internal class AndroidActiveEncoderProbeState {
+    companion object {
+        private const val VIDEO_MIME = MediaFormat.MIMETYPE_VIDEO_AVC
+        private const val AUDIO_MIME = MediaFormat.MIMETYPE_AUDIO_AAC
+    }
+
+    private var videoCodecIdentity: Any? = null
+    private var audioCodecIdentity: Any? = null
+    private var videoCodecName = ""
+    private var audioCodecName = ""
+    private var videoConfigured = false
+    private var audioConfigured = false
+    private var videoStarted = false
+    private var audioStarted = false
+    private var videoOutputFormatObserved = false
+    private var audioOutputFormatObserved = false
+    private var videoEncodedOutputCount = 0L
+    private var audioEncodedOutputCount = 0L
+    private var videoMime = ""
+    private var audioMime = ""
+    private var videoWidth = 0
+    private var videoHeight = 0
+    private var videoFps = 0.0
+    private var audioSampleRate = 0
+    private var audioChannelCount = 0
+    private var videoColorFormat = ""
+    private var videoBitrateMode = ""
+    private var checkedAt = 0L
+    private var stopped = false
+    private var activeEncoderIdentityMismatch = false
+    private var failureMessage = ""
+
+    @Synchronized
+    fun reset() {
+        videoCodecIdentity = null
+        audioCodecIdentity = null
+        videoCodecName = ""
+        audioCodecName = ""
+        videoConfigured = false
+        audioConfigured = false
+        videoStarted = false
+        audioStarted = false
+        videoOutputFormatObserved = false
+        audioOutputFormatObserved = false
+        videoEncodedOutputCount = 0L
+        audioEncodedOutputCount = 0L
+        videoMime = ""
+        audioMime = ""
+        videoWidth = 0
+        videoHeight = 0
+        videoFps = 0.0
+        audioSampleRate = 0
+        audioChannelCount = 0
+        videoColorFormat = ""
+        videoBitrateMode = ""
+        checkedAt = 0L
+        stopped = false
+        activeEncoderIdentityMismatch = false
+        failureMessage = ""
+    }
+
+    @Synchronized
+    fun recordVideoConfigured(codecIdentity: Any, codecName: String) {
+        if (videoCodecIdentity != null && videoCodecIdentity !== codecIdentity) {
+            recordIdentityFailure("video", "configure")
+            return
+        }
+        videoCodecIdentity = codecIdentity
+        videoCodecName = codecName
+        videoConfigured = true
+        stopped = false
+        touch()
+    }
+
+    @Synchronized
+    fun recordAudioConfigured(codecIdentity: Any, codecName: String) {
+        if (audioCodecIdentity != null && audioCodecIdentity !== codecIdentity) {
+            recordIdentityFailure("audio", "configure")
+            return
+        }
+        audioCodecIdentity = codecIdentity
+        audioCodecName = codecName
+        audioConfigured = true
+        stopped = false
+        touch()
+    }
+
+    @Synchronized
+    fun recordVideoStarted(codecIdentity: Any) {
+        if (!matchesVideoCodec(codecIdentity, "start") || !videoConfigured) return
+        videoStarted = true
+        touch()
+    }
+
+    @Synchronized
+    fun recordAudioStarted(codecIdentity: Any) {
+        if (!matchesAudioCodec(codecIdentity, "start") || !audioConfigured) return
+        audioStarted = true
+        touch()
+    }
+
+    @Synchronized
+    fun recordVideoOutputFormat(
+        codecIdentity: Any,
+        mime: String,
+        width: Int,
+        height: Int,
+        fps: Double,
+        colorFormat: String,
+        bitrateMode: String
+    ) {
+        if (!matchesVideoCodec(codecIdentity, "output format") || !videoStarted) return
+        videoOutputFormatObserved = true
+        videoMime = mime
+        videoWidth = width
+        videoHeight = height
+        videoFps = fps
+        videoColorFormat = colorFormat
+        videoBitrateMode = bitrateMode
+        touch()
+    }
+
+    @Synchronized
+    fun recordAudioOutputFormat(
+        codecIdentity: Any,
+        mime: String,
+        sampleRate: Int,
+        channelCount: Int
+    ) {
+        if (!matchesAudioCodec(codecIdentity, "output format") || !audioStarted) return
+        audioOutputFormatObserved = true
+        audioMime = mime
+        audioSampleRate = sampleRate
+        audioChannelCount = channelCount
+        touch()
+    }
+
+    @Synchronized
+    fun recordVideoEncodedOutput(codecIdentity: Any) {
+        if (!matchesVideoCodec(codecIdentity, "encoded output") || !videoStarted) return
+        videoEncodedOutputCount += 1
+        touch()
+    }
+
+    @Synchronized
+    fun recordAudioEncodedOutput(codecIdentity: Any) {
+        if (!matchesAudioCodec(codecIdentity, "encoded output") || !audioStarted) return
+        audioEncodedOutputCount += 1
+        touch()
+    }
+
+    @Synchronized
+    fun recordFailure(message: String) {
+        failureMessage = message.ifBlank { "Active MediaCodec encoder failed" }.take(160)
+        touch()
+    }
+
+    @Synchronized
+    fun recordStopped() {
+        stopped = true
+        touch()
+    }
+
+    @Synchronized
+    fun snapshot(
+        running: Boolean,
+        publisherConfigured: Boolean,
+        requestedVideoWidth: Int,
+        requestedVideoHeight: Int,
+        requestedVideoFps: Int,
+        expectedAudioSampleRate: Int,
+        expectedAudioChannelCount: Int,
+        publisherVideoBackend: String,
+        publisherAudioBackend: String,
+        externalError: String
+    ): NativeRuntimeEncoderProbe {
+        val activeVideoConfigured = running && videoConfigured && videoStarted
+        val activeAudioConfigured = running && audioConfigured && audioStarted
+        val videoOutputMatchesRequest =
+            videoWidth == requestedVideoWidth &&
+                videoHeight == requestedVideoHeight &&
+                videoFps == requestedVideoFps.toDouble()
+        val audioOutputMatchesRequest =
+            audioSampleRate == expectedAudioSampleRate &&
+                audioChannelCount == expectedAudioChannelCount
+        val outputMatchesRequest = videoOutputMatchesRequest && audioOutputMatchesRequest
+        val backendsMatchPublisher =
+            publisherVideoBackend == AndroidMediaCodecRtmpPublisher.VIDEO_BACKEND &&
+                publisherAudioBackend == AndroidMediaCodecRtmpPublisher.AUDIO_BACKEND
+        val videoFormatValid =
+            videoOutputFormatObserved &&
+                videoMime.equals(VIDEO_MIME, ignoreCase = true) &&
+                videoWidth > 0 &&
+                videoHeight > 0 &&
+                videoFps > 0.0
+        val audioFormatValid =
+            audioOutputFormatObserved &&
+                audioMime.equals(AUDIO_MIME, ignoreCase = true) &&
+                audioSampleRate > 0 &&
+                audioChannelCount > 0
+        val formatsValid = videoFormatValid && audioFormatValid
+        val positiveEncodedOutputCounts =
+            videoEncodedOutputCount > 0L &&
+                audioEncodedOutputCount > 0L
+        val activeEncoderInstancesVerified =
+            running &&
+                !stopped &&
+                !activeEncoderIdentityMismatch &&
+                videoCodecIdentity != null &&
+                audioCodecIdentity != null &&
+                videoConfigured &&
+                videoStarted &&
+                videoOutputFormatObserved &&
+                audioConfigured &&
+                audioStarted &&
+                audioOutputFormatObserved &&
+                positiveEncodedOutputCounts
+        val lifecycleComplete =
+            activeVideoConfigured &&
+                activeAudioConfigured &&
+                positiveEncodedOutputCounts
+        val resolvedError = externalError.ifBlank { failureMessage }
+        val passed =
+            !stopped &&
+                resolvedError.isBlank() &&
+                publisherConfigured &&
+                activeEncoderInstancesVerified &&
+                videoEncodedOutputCount > 0L &&
+                audioEncodedOutputCount > 0L &&
+                lifecycleComplete &&
+                formatsValid &&
+                outputMatchesRequest &&
+                backendsMatchPublisher
+        val definitiveFormatFailure =
+            (videoOutputFormatObserved && (!videoFormatValid || !videoOutputMatchesRequest)) ||
+                (audioOutputFormatObserved && (!audioFormatValid || !audioOutputMatchesRequest))
+        val status = when {
+            passed -> "pass"
+            resolvedError.isNotBlank() ||
+                stopped ||
+                activeEncoderIdentityMismatch ||
+                definitiveFormatFailure ||
+                !backendsMatchPublisher -> "fail"
+            else -> "unknown"
+        }
+        val missingEvidence = mutableListOf<String>().apply {
+            if (!running) add("active stream")
+            if (!videoConfigured) add("video configure")
+            if (!videoStarted) add("video start")
+            if (!videoOutputFormatObserved) add("video output format")
+            if (videoEncodedOutputCount <= 0L) add("video encoded output")
+            if (!audioConfigured) add("audio configure")
+            if (!audioStarted) add("audio start")
+            if (!audioOutputFormatObserved) add("audio output format")
+            if (audioEncodedOutputCount <= 0L) add("audio encoded output")
+            if (!activeEncoderInstancesVerified) add("active encoder identity verification")
+            if (!publisherConfigured) add("publisher configuration")
+            if (formatsValid && !outputMatchesRequest) add("requested output match")
+            if (!backendsMatchPublisher) add("publisher backend match")
+        }
+        val message = when (status) {
+            "pass" -> "Active direct MediaCodec H.264/AAC encoders produced matching output formats and encoded media."
+            "fail" -> "Active direct MediaCodec encoder proof failed: ${resolvedError.ifBlank {
+                if (stopped) "stream stopped" else missingEvidence.joinToString(", ").ifBlank { "output format mismatch" }
+            }}"
+            else -> "Waiting for active direct MediaCodec encoder proof: ${missingEvidence.joinToString(", ")}"
+        }
+
+        return NativeRuntimeEncoderProbe(
+            status = status,
+            checkedAt = checkedAt,
+            activeEncoderInstancesVerified = activeEncoderInstancesVerified,
+            videoEncodedOutputCount = videoEncodedOutputCount,
+            audioEncodedOutputCount = audioEncodedOutputCount,
+            videoBackend = if (activeVideoConfigured) publisherVideoBackend else "none",
+            audioBackend = if (activeAudioConfigured) publisherAudioBackend else "none",
+            videoCodecName = videoCodecName,
+            audioCodecName = audioCodecName,
+            videoMime = videoMime,
+            audioMime = audioMime,
+            videoConfigured = activeVideoConfigured,
+            audioConfigured = activeAudioConfigured,
+            videoColorFormat = videoColorFormat,
+            videoBitrateMode = videoBitrateMode,
+            videoWidth = videoWidth,
+            videoHeight = videoHeight,
+            videoFps = videoFps.roundToInt(),
+            audioSampleRate = audioSampleRate,
+            audioChannelCount = audioChannelCount,
+            message = message.take(240)
+        )
+    }
+
+    private fun matchesVideoCodec(codecIdentity: Any, stage: String): Boolean {
+        if (videoCodecIdentity === codecIdentity) return true
+        recordIdentityFailure("video", stage)
+        return false
+    }
+
+    private fun matchesAudioCodec(codecIdentity: Any, stage: String): Boolean {
+        if (audioCodecIdentity === codecIdentity) return true
+        recordIdentityFailure("audio", stage)
+        return false
+    }
+
+    private fun recordIdentityFailure(mediaType: String, stage: String) {
+        activeEncoderIdentityMismatch = true
+        failureMessage = "Active $mediaType MediaCodec $stage came from a different encoder instance"
+        touch()
+    }
+
+    private fun touch() {
+        checkedAt = System.currentTimeMillis()
+    }
 }
 
 internal class AndroidVideoFrameCadence(
@@ -749,6 +1156,7 @@ data class AndroidMediaCodecDirectStreamSnapshot(
     val publisherState: String,
     val videoEncoderBackend: String,
     val audioEncoderBackend: String,
+    val encoderProbe: NativeRuntimeEncoderProbe,
     val videoFrames: Long,
     val audioFrames: Long,
     val encodedBytes: Long,

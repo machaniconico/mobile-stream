@@ -1694,6 +1694,12 @@ final class LiveCasterNative: RCTEventEmitter {
         let device = validExtensionDeviceResourceMap(runtimeState, stale: stale) ?? deviceResourceMap()
         let runtimeStatus = redactSensitiveText(runtimeState.stringValue("status", fallback: status.rawValue), streamKey: streamKey, publishURL: publishURL)
         let publisherState = redactSensitiveText(publisher.stringValue("state"), streamKey: streamKey, publishURL: publishURL)
+        let encoderProbe = nativeEncoderProbeMap(
+            runtimeState,
+            videoEncoder: videoEncoder,
+            audioEncoder: audioEncoder,
+            stale: stale
+        )
         let skippedCount = sceneComposition.intValue("skippedCount")
         let appliedCount = sceneComposition.intValue("appliedCount")
         let stillImageAssetMissingCount = sceneComposition.intValue("stillImageAssetMissingCount")
@@ -1721,6 +1727,7 @@ final class LiveCasterNative: RCTEventEmitter {
             "encodedBytes": videoEncoder.intValue("encodedBytes", fallback: publisher.intValue("videoBytesSent")),
             "droppedFrames": stats.intValue("droppedSamples") + publisher.intValue("droppedVideoFrames"),
             "device": device,
+            "encoderProbe": encoderProbe,
             "publisher": [
                 "state": publisherState,
                 "videoEncoderBackend": videoEncoder.stringValue("backend", fallback: "none"),
@@ -1940,6 +1947,108 @@ final class LiveCasterNative: RCTEventEmitter {
                 "broadcastChatReadoutMuted": broadcastChatReadout.boolValue("muted")
             ],
             "message": redactSensitiveText(message, streamKey: streamKey, publishURL: publishURL)
+        ]
+    }
+
+    private static func nativeEncoderProbeMap(
+        _ runtimeState: [String: Any],
+        videoEncoder: [String: Any],
+        audioEncoder: [String: Any],
+        stale: Bool
+    ) -> [String: Any] {
+        let videoBackend = videoEncoder.stringValue("backend", fallback: "none")
+        let audioBackend = audioEncoder.stringValue("backend", fallback: "none")
+        let videoWidth = videoEncoder.intValue("outputWidth")
+        let videoHeight = videoEncoder.intValue("outputHeight")
+        let videoFpsValue = videoEncoder.doubleValue("outputNominalFrameRate")
+        let sessionExpectedFrameRate = videoEncoder.doubleValue("sessionExpectedFrameRate")
+        let videoFps = videoFpsValue.isFinite &&
+            videoFpsValue > 0 &&
+            videoFpsValue <= 240 &&
+            videoFpsValue == videoFpsValue.rounded()
+            ? Int(videoFpsValue)
+            : 0
+        let audioSampleRateValue = audioEncoder.doubleValue("sampleRate")
+        let audioSampleRate = audioSampleRateValue.isFinite &&
+            audioSampleRateValue > 0 &&
+            audioSampleRateValue <= 384_000 &&
+            audioSampleRateValue == audioSampleRateValue.rounded()
+            ? Int(audioSampleRateValue)
+            : 0
+        let audioChannelCount = audioEncoder.intValue("channelCount")
+        let videoLastStatus = videoEncoder.intValue("lastStatus")
+        let audioLastStatus = audioEncoder.intValue("lastStatus")
+        let videoFailureCount = videoEncoder.intValue("failureCount")
+        let audioFailureCount = audioEncoder.intValue("failureCount")
+        let videoEncodedOutputCount = videoEncoder.intValue("encodedFrames")
+        let audioEncodedOutputCount = audioEncoder.intValue("encodedFrames")
+        let videoEncoderInstanceVerified = videoEncoder.boolValue("activeEncoderInstanceVerified")
+        let audioEncoderInstanceVerified = audioEncoder.boolValue("activeEncoderInstanceVerified")
+        let videoConfigured = !stale &&
+            videoBackend == "videotoolbox-h264" &&
+            videoEncoderInstanceVerified &&
+            videoEncoder.boolValue("outputFormatIsH264") &&
+            sessionExpectedFrameRate == videoFpsValue &&
+            videoEncoder.intValue("consecutiveOutputCadenceMatchCount") >= 2 &&
+            videoEncodedOutputCount > 0 &&
+            videoFailureCount == 0 &&
+            videoLastStatus == 0 &&
+            videoWidth > 0 &&
+            videoHeight > 0 &&
+            videoFps > 0
+        let audioConfigured = !stale &&
+            audioBackend == "audiotoolbox-aac" &&
+            audioEncoderInstanceVerified &&
+            audioEncodedOutputCount > 0 &&
+            audioFailureCount == 0 &&
+            audioLastStatus == 0 &&
+            audioSampleRate > 0 &&
+            audioChannelCount > 0
+        let failed = !stale && (
+            runtimeState.stringValue("status") == LiveCasterStatus.failed.rawValue ||
+            videoFailureCount > 0 ||
+            audioFailureCount > 0 ||
+            videoLastStatus != 0 ||
+            audioLastStatus != 0
+        )
+        let probeStatus = failed ? "fail" : (videoConfigured && audioConfigured ? "pass" : "unknown")
+        let activeEncoderInstancesVerified = videoEncoderInstanceVerified &&
+            audioEncoderInstanceVerified &&
+            videoConfigured &&
+            audioConfigured
+        let probeMessage: String
+        if probeStatus == "pass" {
+            probeMessage = "Active VideoToolbox H.264 output format, accepted frame-rate property, and AudioToolbox AAC output were verified on their producing encoder instances."
+        } else if probeStatus == "fail" {
+            probeMessage = "The active iOS encoder reported a configuration or encode failure."
+        } else if stale {
+            probeMessage = "The iOS encoder output-format evidence is stale."
+        } else {
+            probeMessage = "Waiting for encoded video and audio frames to prove the active output format."
+        }
+
+        return [
+            "status": probeStatus,
+            "checkedAt": runtimeState.doubleValue("updatedAt"),
+            "activeEncoderInstancesVerified": activeEncoderInstancesVerified,
+            "videoEncodedOutputCount": videoEncodedOutputCount,
+            "audioEncodedOutputCount": audioEncodedOutputCount,
+            "videoBackend": videoBackend,
+            "audioBackend": audioBackend,
+            "videoCodecName": "VideoToolbox H.264",
+            "audioCodecName": "AudioToolbox AAC",
+            "videoMime": "video/avc",
+            "audioMime": "audio/mp4a-latm",
+            "videoConfigured": videoConfigured,
+            "audioConfigured": audioConfigured,
+            "videoColorFormat": "CVPixelBuffer",
+            "videoBitrateMode": "average",
+            "videoWidth": videoWidth,
+            "videoHeight": videoHeight,
+            "videoFps": videoFps,
+            "audioSampleRate": audioSampleRate,
+            "audioChannelCount": audioChannelCount,
+            "message": probeMessage
         ]
     }
 

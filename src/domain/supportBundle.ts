@@ -40,7 +40,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 60;
+    bundleVersion: 61;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -100,6 +100,9 @@ export interface SupportBundle {
     lastSessionNativeRuntimeVideoEncoderBackend: string;
     lastSessionNativeRuntimeAudioEncoderBackend: string;
     lastSessionNativeRuntimeEncoderProbeStatus: string;
+    lastSessionNativeRuntimeEncoderProbeActiveEncoderInstancesVerified: boolean;
+    lastSessionNativeRuntimeEncoderProbeVideoEncodedOutputCount: number;
+    lastSessionNativeRuntimeEncoderProbeAudioEncodedOutputCount: number;
     lastSessionNativeRuntimeEncoderProbeVideoBackend: string;
     lastSessionNativeRuntimeEncoderProbeAudioBackend: string;
     lastSessionNativeRuntimeCongested: boolean;
@@ -249,6 +252,9 @@ export interface SupportBundle {
     validationEvidenceLatestNativeRuntimeVideoEncoderBackend: string;
     validationEvidenceLatestNativeRuntimeAudioEncoderBackend: string;
     validationEvidenceLatestNativeRuntimeEncoderProbeStatus: string;
+    validationEvidenceLatestNativeRuntimeEncoderProbeActiveEncoderInstancesVerified: boolean;
+    validationEvidenceLatestNativeRuntimeEncoderProbeVideoEncodedOutputCount: number;
+    validationEvidenceLatestNativeRuntimeEncoderProbeAudioEncodedOutputCount: number;
     validationEvidenceLatestNativeRuntimeEncoderProbeVideoBackend: string;
     validationEvidenceLatestNativeRuntimeEncoderProbeAudioBackend: string;
     validationEvidenceLatestNativeRuntimeCongested: boolean;
@@ -521,6 +527,9 @@ export interface SupportBundle {
     nativeRuntimeVideoEncoderBackend: string;
     nativeRuntimeAudioEncoderBackend: string;
     nativeRuntimeEncoderProbeStatus: string;
+    nativeRuntimeEncoderProbeActiveEncoderInstancesVerified: boolean;
+    nativeRuntimeEncoderProbeVideoEncodedOutputCount: number;
+    nativeRuntimeEncoderProbeAudioEncodedOutputCount: number;
     nativeRuntimeEncoderProbeVideoBackend: string;
     nativeRuntimeEncoderProbeAudioBackend: string;
     nativeRuntimePlaybackCaptureReady: boolean;
@@ -736,7 +745,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 60
+      bundleVersion: 61
     },
     summary: {
       status: diagnostics.status,
@@ -799,6 +808,12 @@ export const createSupportBundle = ({
         diagnostics.session.lastSummary?.nativeRuntime?.audioEncoderBackend ?? "none",
       lastSessionNativeRuntimeEncoderProbeStatus:
         diagnostics.session.lastSummary?.nativeRuntime?.encoderProbeStatus ?? "missing",
+      lastSessionNativeRuntimeEncoderProbeActiveEncoderInstancesVerified:
+        diagnostics.session.lastSummary?.nativeRuntime?.encoderProbeActiveEncoderInstancesVerified ?? false,
+      lastSessionNativeRuntimeEncoderProbeVideoEncodedOutputCount:
+        diagnostics.session.lastSummary?.nativeRuntime?.encoderProbeVideoEncodedOutputCount ?? 0,
+      lastSessionNativeRuntimeEncoderProbeAudioEncodedOutputCount:
+        diagnostics.session.lastSummary?.nativeRuntime?.encoderProbeAudioEncodedOutputCount ?? 0,
       lastSessionNativeRuntimeEncoderProbeVideoBackend:
         diagnostics.session.lastSummary?.nativeRuntime?.encoderProbeVideoBackend ?? "none",
       lastSessionNativeRuntimeEncoderProbeAudioBackend:
@@ -999,6 +1014,12 @@ export const createSupportBundle = ({
         diagnostics.validationEvidence.latestNativeRuntime?.audioEncoderBackend ?? "none",
       validationEvidenceLatestNativeRuntimeEncoderProbeStatus:
         diagnostics.validationEvidence.latestNativeRuntime?.encoderProbeStatus ?? "missing",
+      validationEvidenceLatestNativeRuntimeEncoderProbeActiveEncoderInstancesVerified:
+        diagnostics.validationEvidence.latestNativeRuntime?.encoderProbeActiveEncoderInstancesVerified ?? false,
+      validationEvidenceLatestNativeRuntimeEncoderProbeVideoEncodedOutputCount:
+        diagnostics.validationEvidence.latestNativeRuntime?.encoderProbeVideoEncodedOutputCount ?? 0,
+      validationEvidenceLatestNativeRuntimeEncoderProbeAudioEncodedOutputCount:
+        diagnostics.validationEvidence.latestNativeRuntime?.encoderProbeAudioEncodedOutputCount ?? 0,
       validationEvidenceLatestNativeRuntimeEncoderProbeVideoBackend:
         diagnostics.validationEvidence.latestNativeRuntime?.encoderProbeVideoBackend ?? "none",
       validationEvidenceLatestNativeRuntimeEncoderProbeAudioBackend:
@@ -1328,6 +1349,12 @@ export const createSupportBundle = ({
       nativeRuntimeVideoEncoderBackend: diagnostics.nativeRuntime?.publisher.videoEncoderBackend ?? "none",
       nativeRuntimeAudioEncoderBackend: diagnostics.nativeRuntime?.publisher.audioEncoderBackend ?? "none",
       nativeRuntimeEncoderProbeStatus: diagnostics.nativeRuntime?.encoderProbe?.status ?? "missing",
+      nativeRuntimeEncoderProbeActiveEncoderInstancesVerified:
+        diagnostics.nativeRuntime?.encoderProbe?.activeEncoderInstancesVerified ?? false,
+      nativeRuntimeEncoderProbeVideoEncodedOutputCount:
+        diagnostics.nativeRuntime?.encoderProbe?.videoEncodedOutputCount ?? 0,
+      nativeRuntimeEncoderProbeAudioEncodedOutputCount:
+        diagnostics.nativeRuntime?.encoderProbe?.audioEncodedOutputCount ?? 0,
       nativeRuntimeEncoderProbeVideoBackend: diagnostics.nativeRuntime?.encoderProbe?.videoBackend ?? "none",
       nativeRuntimeEncoderProbeAudioBackend: diagnostics.nativeRuntime?.encoderProbe?.audioBackend ?? "none",
       nativeRuntimePlaybackCaptureReady: nativeRuntimePlaybackCapture.ready,
@@ -1878,7 +1905,7 @@ const formatValidationEvidenceRunManifest = (
         `${run.ageDays}d`,
         run.fingerprint,
         `scene ${run.sceneFingerprint || "-"}`,
-        `native ${run.nativeRuntimeStatus ?? "-"} ${run.nativeRuntimePlatform ?? "-"} ${run.nativeRuntimeCompositionStatus ?? "-"} continuity ${run.nativeRuntimeContinuityStatus ?? "unknown"} incidents ${run.nativeRuntimeVideoStallCount} video ${run.nativeRuntimeAudioStallCount} audio max ${run.nativeRuntimeMaxVideoStallDurationMs}ms/${run.nativeRuntimeMaxAudioStallDurationMs}ms encoders ${run.nativeRuntimeVideoEncoderBackend ?? "-"}/${run.nativeRuntimeAudioEncoderBackend ?? "-"} probe ${run.nativeRuntimeEncoderProbeStatus ?? "-"} ${run.nativeRuntimeEncoderProbeVideoBackend ?? "-"}/${run.nativeRuntimeEncoderProbeAudioBackend ?? "-"} frames ${run.nativeRuntimeSentVideoFrames}/${run.nativeRuntimeSentAudioFrames} bytes ${run.nativeRuntimeBytesWritten} playback ${run.nativeRuntimePlaybackCaptureStatus ?? "-"} ${run.nativeRuntimePlaybackCaptureBackend ?? "-"} ${run.nativeRuntimePlaybackCaptureSampleRate}Hz captured ${run.nativeRuntimePlaybackCapturedFrames} dropped ${run.nativeRuntimePlaybackDroppedFrames} underrun ${run.nativeRuntimePlaybackUnderrunFrames} buffered ${run.nativeRuntimePlaybackBufferedFrames} publisher congested ${run.nativeRuntimeCongested ? "yes" : "no"} queue ${run.nativeRuntimeQueuedItems}/${run.nativeRuntimeCacheSize} drops ${run.nativeRuntimeDroppedVideoFrames} video ${run.nativeRuntimeDroppedAudioFrames} audio frame interval ${run.nativeRuntimeVideoFrameIntervalSampleCount} avg ${run.nativeRuntimeVideoFrameIntervalAverageMs}ms max ${run.nativeRuntimeVideoFrameIntervalMaxMs}ms jitter ${run.nativeRuntimeVideoFrameIntervalJitterMs}ms overlays applied ${run.nativeRuntimeCompositionAppliedCount}${formatKinds(run.nativeRuntimeCompositionAppliedKinds)} skipped ${run.nativeRuntimeCompositionSkippedCount}${formatKinds(run.nativeRuntimeCompositionSkippedKinds)} assets ${run.nativeRuntimeStillImageAssetLoadedCount}/${run.nativeRuntimeStillImageAssetCount} decoded ${run.nativeRuntimeStillImageAssetDecodedCount} decoded pixels ${run.nativeRuntimeStillImageAssetDecodedPixelCount} composited ${run.nativeRuntimeStillImageAssetCompositedCount} composited pixels ${run.nativeRuntimeStillImageAssetCompositedPixelCount} runtime ${run.nativeRuntimeCompositorBackend ?? "-"} ${run.nativeRuntimeCompositedFrameCount} frames ${run.nativeRuntimeDroppedFrameCount} dropped ${run.nativeRuntimeCompositionFailureCount} failures live reloads ${run.nativeRuntimeLiveRenderGraphReloadCount} rejected ${run.nativeRuntimeLiveRenderGraphRejectedUpdateCount} app-group ${run.nativeRuntimeStillImageAssetAppGroupLoadedCount}/${run.nativeRuntimeStillImageAssetAppGroupCount} loaded ${run.nativeRuntimeStillImageAssetAppGroupDecodedCount} decoded pixels ${run.nativeRuntimeStillImageAssetAppGroupDecodedPixelCount} ${run.nativeRuntimeStillImageAssetAppGroupCompositedCount} composited pixels ${run.nativeRuntimeStillImageAssetAppGroupCompositedPixelCount} missing ${run.nativeRuntimeStillImageAssetMissingCount} live2d ${run.nativeRuntimeLive2dActivePoseCount}/${run.nativeRuntimeLive2dSourceCount} payloads ${run.nativeRuntimeLive2dPosePayloadCount} missing ${run.nativeRuntimeLive2dMissingPoseCount} vrm ${run.nativeRuntimeVrmActivePoseCount}/${run.nativeRuntimeVrmSourceCount} payloads ${run.nativeRuntimeVrmPosePayloadCount} missing ${run.nativeRuntimeVrmMissingPoseCount} renderer ${run.nativeRuntimeVrmRendererStatus ?? "-"} ${run.nativeRuntimeVrmRendererBackend ?? "-"} rendered ${run.nativeRuntimeVrmRenderedSourceCount}/${run.nativeRuntimeVrmSourceCount} models ${run.nativeRuntimeVrmModelLoadedCount} versions ${run.nativeRuntimeVrmModelVersions.join("/") || "-"} bones ${run.nativeRuntimeVrmHumanoidBoneCount} expressions ${run.nativeRuntimeVrmExpressionCount} mesh primitives ${run.nativeRuntimeVrmMeshPrimitiveCount} triangles ${run.nativeRuntimeVrmTrianglePrimitiveCount} unsupported modes ${run.nativeRuntimeVrmUnsupportedPrimitiveModeCount} skinned ${run.nativeRuntimeVrmSkinnedMeshPrimitiveCount} skin joints ${run.nativeRuntimeVrmSkinJointCount} position accessors ${run.nativeRuntimeVrmPositionAccessorCount} normals ${run.nativeRuntimeVrmNormalAccessorCount} uvs ${run.nativeRuntimeVrmTexcoordAccessorCount} vertices ${run.nativeRuntimeVrmVertexCount} indices ${run.nativeRuntimeVrmIndexCount} bounds ${run.nativeRuntimeVrmBoundsAccessorCount} skin attrs ${run.nativeRuntimeVrmSkinningAttributePrimitiveCount} morphs ${run.nativeRuntimeVrmMorphTargetCount} materials ${run.nativeRuntimeVrmMaterialCount} transparent materials ${run.nativeRuntimeVrmTransparentMaterialCount} textures ${run.nativeRuntimeVrmTextureCount} images ${run.nativeRuntimeVrmImageCount} unsupported image mimes ${run.nativeRuntimeVrmUnsupportedImageMimeCount} pose bones ${run.nativeRuntimeVrmPoseBoneAppliedCount}/${run.nativeRuntimeVrmPoseBoneCount} unsupported ${run.nativeRuntimeVrmPoseBoneUnsupportedCount} pose expressions ${run.nativeRuntimeVrmPoseExpressionAppliedCount}/${run.nativeRuntimeVrmPoseExpressionCount} unsupported ${run.nativeRuntimeVrmPoseExpressionUnsupportedCount} missing ${run.nativeRuntimeVrmRenderMissingCount} failed ${run.nativeRuntimeVrmRenderFailureCount}`,
+        `native ${run.nativeRuntimeStatus ?? "-"} ${run.nativeRuntimePlatform ?? "-"} ${run.nativeRuntimeCompositionStatus ?? "-"} continuity ${run.nativeRuntimeContinuityStatus ?? "unknown"} incidents ${run.nativeRuntimeVideoStallCount} video ${run.nativeRuntimeAudioStallCount} audio max ${run.nativeRuntimeMaxVideoStallDurationMs}ms/${run.nativeRuntimeMaxAudioStallDurationMs}ms encoders ${run.nativeRuntimeVideoEncoderBackend ?? "-"}/${run.nativeRuntimeAudioEncoderBackend ?? "-"} probe ${run.nativeRuntimeEncoderProbeStatus ?? "-"} ${run.nativeRuntimeEncoderProbeVideoBackend ?? "-"}/${run.nativeRuntimeEncoderProbeAudioBackend ?? "-"} active instances ${run.nativeRuntimeEncoderProbeActiveEncoderInstancesVerified ? "verified" : "unverified"} encoded ${run.nativeRuntimeEncoderProbeVideoEncodedOutputCount}/${run.nativeRuntimeEncoderProbeAudioEncodedOutputCount} configured ${run.nativeRuntimeEncoderProbeVideoConfigured ? "video" : "no-video"}/${run.nativeRuntimeEncoderProbeAudioConfigured ? "audio" : "no-audio"} output ${run.nativeRuntimeEncoderProbeVideoWidth}x${run.nativeRuntimeEncoderProbeVideoHeight}@${run.nativeRuntimeEncoderProbeVideoFps} requested ${run.requestedVideoWidth}x${run.requestedVideoHeight}@${run.requestedVideoFps} exact ${run.nativeRuntimeEncoderProbeMatchesRequestedOutput ? "yes" : "no"} frames ${run.nativeRuntimeSentVideoFrames}/${run.nativeRuntimeSentAudioFrames} bytes ${run.nativeRuntimeBytesWritten} playback ${run.nativeRuntimePlaybackCaptureStatus ?? "-"} ${run.nativeRuntimePlaybackCaptureBackend ?? "-"} ${run.nativeRuntimePlaybackCaptureSampleRate}Hz captured ${run.nativeRuntimePlaybackCapturedFrames} dropped ${run.nativeRuntimePlaybackDroppedFrames} underrun ${run.nativeRuntimePlaybackUnderrunFrames} buffered ${run.nativeRuntimePlaybackBufferedFrames} publisher congested ${run.nativeRuntimeCongested ? "yes" : "no"} queue ${run.nativeRuntimeQueuedItems}/${run.nativeRuntimeCacheSize} drops ${run.nativeRuntimeDroppedVideoFrames} video ${run.nativeRuntimeDroppedAudioFrames} audio frame interval ${run.nativeRuntimeVideoFrameIntervalSampleCount} avg ${run.nativeRuntimeVideoFrameIntervalAverageMs}ms max ${run.nativeRuntimeVideoFrameIntervalMaxMs}ms jitter ${run.nativeRuntimeVideoFrameIntervalJitterMs}ms overlays applied ${run.nativeRuntimeCompositionAppliedCount}${formatKinds(run.nativeRuntimeCompositionAppliedKinds)} skipped ${run.nativeRuntimeCompositionSkippedCount}${formatKinds(run.nativeRuntimeCompositionSkippedKinds)} assets ${run.nativeRuntimeStillImageAssetLoadedCount}/${run.nativeRuntimeStillImageAssetCount} decoded ${run.nativeRuntimeStillImageAssetDecodedCount} decoded pixels ${run.nativeRuntimeStillImageAssetDecodedPixelCount} composited ${run.nativeRuntimeStillImageAssetCompositedCount} composited pixels ${run.nativeRuntimeStillImageAssetCompositedPixelCount} runtime ${run.nativeRuntimeCompositorBackend ?? "-"} ${run.nativeRuntimeCompositedFrameCount} frames ${run.nativeRuntimeDroppedFrameCount} dropped ${run.nativeRuntimeCompositionFailureCount} failures live reloads ${run.nativeRuntimeLiveRenderGraphReloadCount} rejected ${run.nativeRuntimeLiveRenderGraphRejectedUpdateCount} app-group ${run.nativeRuntimeStillImageAssetAppGroupLoadedCount}/${run.nativeRuntimeStillImageAssetAppGroupCount} loaded ${run.nativeRuntimeStillImageAssetAppGroupDecodedCount} decoded pixels ${run.nativeRuntimeStillImageAssetAppGroupDecodedPixelCount} ${run.nativeRuntimeStillImageAssetAppGroupCompositedCount} composited pixels ${run.nativeRuntimeStillImageAssetAppGroupCompositedPixelCount} missing ${run.nativeRuntimeStillImageAssetMissingCount} live2d ${run.nativeRuntimeLive2dActivePoseCount}/${run.nativeRuntimeLive2dSourceCount} payloads ${run.nativeRuntimeLive2dPosePayloadCount} missing ${run.nativeRuntimeLive2dMissingPoseCount} vrm ${run.nativeRuntimeVrmActivePoseCount}/${run.nativeRuntimeVrmSourceCount} payloads ${run.nativeRuntimeVrmPosePayloadCount} missing ${run.nativeRuntimeVrmMissingPoseCount} renderer ${run.nativeRuntimeVrmRendererStatus ?? "-"} ${run.nativeRuntimeVrmRendererBackend ?? "-"} rendered ${run.nativeRuntimeVrmRenderedSourceCount}/${run.nativeRuntimeVrmSourceCount} models ${run.nativeRuntimeVrmModelLoadedCount} versions ${run.nativeRuntimeVrmModelVersions.join("/") || "-"} bones ${run.nativeRuntimeVrmHumanoidBoneCount} expressions ${run.nativeRuntimeVrmExpressionCount} mesh primitives ${run.nativeRuntimeVrmMeshPrimitiveCount} triangles ${run.nativeRuntimeVrmTrianglePrimitiveCount} unsupported modes ${run.nativeRuntimeVrmUnsupportedPrimitiveModeCount} skinned ${run.nativeRuntimeVrmSkinnedMeshPrimitiveCount} skin joints ${run.nativeRuntimeVrmSkinJointCount} position accessors ${run.nativeRuntimeVrmPositionAccessorCount} normals ${run.nativeRuntimeVrmNormalAccessorCount} uvs ${run.nativeRuntimeVrmTexcoordAccessorCount} vertices ${run.nativeRuntimeVrmVertexCount} indices ${run.nativeRuntimeVrmIndexCount} bounds ${run.nativeRuntimeVrmBoundsAccessorCount} skin attrs ${run.nativeRuntimeVrmSkinningAttributePrimitiveCount} morphs ${run.nativeRuntimeVrmMorphTargetCount} materials ${run.nativeRuntimeVrmMaterialCount} transparent materials ${run.nativeRuntimeVrmTransparentMaterialCount} textures ${run.nativeRuntimeVrmTextureCount} images ${run.nativeRuntimeVrmImageCount} unsupported image mimes ${run.nativeRuntimeVrmUnsupportedImageMimeCount} pose bones ${run.nativeRuntimeVrmPoseBoneAppliedCount}/${run.nativeRuntimeVrmPoseBoneCount} unsupported ${run.nativeRuntimeVrmPoseBoneUnsupportedCount} pose expressions ${run.nativeRuntimeVrmPoseExpressionAppliedCount}/${run.nativeRuntimeVrmPoseExpressionCount} unsupported ${run.nativeRuntimeVrmPoseExpressionUnsupportedCount} missing ${run.nativeRuntimeVrmRenderMissingCount} failed ${run.nativeRuntimeVrmRenderFailureCount}`,
         `avatar landmarks ${Math.round(run.faceTrackingFaceLandmarkConfidence * 100)}% ${run.faceTrackingFaceLandmarkReady ? "ready" : "not-ready"} attenuation motion ${Math.round(run.faceTrackingLandmarkMotionScale * 100)}% controls ${Math.round(run.faceTrackingFaceControlScale * 100)}% prepared ${run.faceTrackingPreparedPngTuberCount} vrm ${run.faceTrackingVisibleVrmCount} renderer ${run.faceTrackingNativeVrmRendererReady ? "ready" : "not-ready"} moving ${run.faceTrackingActiveMotionCount} rig ${run.faceTrackingRigQualityScore}/100 ${run.faceTrackingRigQualityGrade ?? "blocked"} high fidelity ${run.faceTrackingRigHighFidelityScore}/100 ${run.faceTrackingRigHighFidelityGrade ?? "blocked"} parts ${run.faceTrackingRigPartSeparationScore}/100 depth ${run.faceTrackingRigDepthContinuityScore}/100 semantic ${run.faceTrackingRigSemanticSegmentScore}/100 eye-mouth ${run.faceTrackingRigEyeMouthSegmentScore}/100 anchors ${run.faceTrackingRigHorizontalAnchorScore}/100`,
         `hold ${run.monitorHoldStatus ?? "-"} samples ${run.monitorHoldSampleCount} duration ${run.monitorHoldDurationSeconds}s stability ${run.monitorHoldStability ?? "-"} bitrate ${run.monitorHoldAverageBitrateKbps}/${run.monitorHoldMinimumBitrateKbps} fps ${run.monitorHoldAverageFps}/${run.monitorHoldMinimumFps} drops ${run.monitorHoldDroppedFrameIncrease} reconnects ${run.monitorHoldObservedReconnectAttempts}`,
         `audio ${run.audioStatus ?? "-"} route ${run.audioOutputRoute ?? "-"} native ${run.audioNativeMonitorRoute || "-"} match ${run.audioNativeMonitorRouteMatchesOutput ? "yes" : "no"} monitor frames ${run.audioNativeMonitorWrittenFrames}/${run.audioNativeMonitorDroppedFrames} buffers ${run.audioNativeMonitorWrittenBuffers}/${run.audioNativeMonitorDroppedBuffers} headphones ${run.audioNativeMonitorHeadphonesConnected ? "yes" : "no"} latency ${run.audioMonitorLatencyMs === null ? "-" : `${run.audioMonitorLatencyMs}ms`}/${run.audioMonitorLatencyBudgetMs}ms ${run.audioMonitorLatencyStatus ?? "-"} source ${run.audioMonitorLatencySource || "-"} tuning ${run.audioMonitorTuningNote || "-"} bluetooth ${run.audioBluetoothRoute ? "yes" : "no"} reviewed ${run.audioBluetoothTuningReviewed ? "yes" : "no"}`,

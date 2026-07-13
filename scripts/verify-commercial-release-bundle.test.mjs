@@ -56,22 +56,22 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v60.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v61.");
   });
 
-  it("blocks v59 support bundles because current publisher proof requires v60", () => {
+  it("blocks v60 support bundles because native output-format proof requires v61", () => {
     writeBundle({
       app: {
         name: "MobileLiveCaster",
         reportVersion: 1,
-        bundleVersion: 59
+        bundleVersion: 60
       }
     });
 
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v59 is older than the required v60.");
+    expect(result.stdout).toContain("Support bundle v60 is older than the required v61.");
   });
 
   it("rejects string support bundle versions instead of coercing the schema", () => {
@@ -79,7 +79,7 @@ describe("commercial release bundle verifier CLI", () => {
       app: {
         name: "MobileLiveCaster",
         reportVersion: 1,
-        bundleVersion: "60"
+        bundleVersion: "61"
       }
     });
 
@@ -405,7 +405,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("The latest public launch confirmation was cancelled");
   });
 
-  it("blocks v60 support bundles without scene fingerprint evidence", () => {
+  it("blocks current support bundles without scene fingerprint evidence", () => {
     writeBundle({
       summary: {
         sceneFingerprint: undefined
@@ -417,10 +417,10 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Scene fingerprint");
-    expect(result.stdout).toContain("Support bundle v60 is missing scene composition fingerprint evidence.");
+    expect(result.stdout).toContain("Support bundle v61 is missing scene composition fingerprint evidence.");
   });
 
-  it("blocks v60 support bundles with mismatched scene fingerprints", () => {
+  it("blocks current support bundles with mismatched scene fingerprints", () => {
     writeBundle({
       summary: {
         sceneFingerprint: "scene1-summary"
@@ -436,7 +436,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Summary and scene fingerprint values do not match.");
   });
 
-  it("blocks v60 support bundles when retained validation runs are from another scene", () => {
+  it("blocks current support bundles when retained validation runs are from another scene", () => {
     writeBundle({
       summary: {
         validationEvidenceRunManifest: [
@@ -453,7 +453,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("do not match the current scene fingerprint scene1-ready");
   });
 
-  it("blocks v60 support bundles without native caption overlay summary evidence", () => {
+  it("blocks current support bundles without native caption overlay summary evidence", () => {
     writeBundle({
       summary: {
         nativeCompositionCaptionOverlayCount: undefined
@@ -970,6 +970,95 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("current publish generation");
+  });
+
+  it.each([
+    [
+      "missing output proof",
+      {
+        nativeRuntimeEncoderProbeStatus: undefined,
+        nativeRuntimeEncoderProbeActiveEncoderInstancesVerified: undefined,
+        nativeRuntimeEncoderProbeVideoEncodedOutputCount: undefined,
+        nativeRuntimeEncoderProbeAudioEncodedOutputCount: undefined,
+        nativeRuntimeEncoderProbeVideoConfigured: undefined,
+        nativeRuntimeEncoderProbeAudioConfigured: undefined,
+        nativeRuntimeEncoderProbeVideoWidth: undefined,
+        nativeRuntimeEncoderProbeVideoHeight: undefined,
+        nativeRuntimeEncoderProbeVideoFps: undefined
+      }
+    ],
+    ["active encoder instances not verified", { nativeRuntimeEncoderProbeActiveEncoderInstancesVerified: false }],
+    ["zero video encoded output", { nativeRuntimeEncoderProbeVideoEncodedOutputCount: 0 }],
+    ["zero audio encoded output", { nativeRuntimeEncoderProbeAudioEncodedOutputCount: 0 }],
+    ["video encoder not configured", { nativeRuntimeEncoderProbeVideoConfigured: false }],
+    ["audio encoder not configured", { nativeRuntimeEncoderProbeAudioConfigured: false }],
+    [
+      "invalid probe backends",
+      {
+        nativeRuntimeEncoderProbeVideoBackend: "none",
+        nativeRuntimeEncoderProbeAudioBackend: "none"
+      }
+    ],
+    [
+      "fractional requested output",
+      { requestedVideoWidth: 1280.5, requestedVideoHeight: 720.5, requestedVideoFps: 30.5 }
+    ],
+    [
+      "malformed probe output",
+      {
+        nativeRuntimeEncoderProbeVideoWidth: "1280",
+        nativeRuntimeEncoderProbeVideoHeight: "720",
+        nativeRuntimeEncoderProbeVideoFps: "30"
+      }
+    ],
+    ["mismatched width", { nativeRuntimeEncoderProbeVideoWidth: 1920 }],
+    ["mismatched height", { nativeRuntimeEncoderProbeVideoHeight: 1080 }],
+    ["mismatched fps", { nativeRuntimeEncoderProbeVideoFps: 60 }],
+    ["unproven exact match", { nativeRuntimeEncoderProbeMatchesRequestedOutput: false }]
+  ])("blocks invalid native encoder output proof: %s", (reason, outputPatch) => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", outputPatch),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      reason === "fractional requested output" ? "current destination scope" : "exact native encoder output"
+    );
+  });
+
+  it("blocks bundles without valid current stream output quality evidence", () => {
+    writeBundle({ quality: undefined });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Stream output quality");
+  });
+
+  it("blocks retained output proof recorded for a different current quality", () => {
+    writeBundle({
+      quality: {
+        resolution: "1920x1080",
+        width: 1920,
+        height: 1080,
+        fps: 60,
+        targetVideoBitrateKbps: 6000,
+        targetAudioBitrateKbps: 160,
+        estimatedUploadKbps: 7700
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("1920x1080@60");
   });
 
   it("blocks native runtime claims when retained manifests lack clean A/V timestamp drift proof", () => {
@@ -2962,9 +3051,18 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 60
+      bundleVersion: 61
     },
     generatedAt,
+    quality: {
+      resolution: "1280x720",
+      width: 1280,
+      height: 720,
+      fps: 30,
+      targetVideoBitrateKbps: 3500,
+      targetAudioBitrateKbps: 128,
+      estimatedUploadKbps: 4535
+    },
     profile: {
       androidPublisherMode: "mediacodec",
       destination: {
@@ -3010,6 +3108,9 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   sceneFingerprint: "scene1-ready",
   targetPlatform: "YouTube Live",
   transport: "rtmps",
+  requestedVideoWidth: 1280,
+  requestedVideoHeight: 720,
+  requestedVideoFps: 30,
   result: "pass",
   nativeRuntimePlatform: devicePlatform,
   nativeRuntimeSessionId: `session-${devicePlatform}`,
@@ -3030,6 +3131,18 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples: 0,
   nativeRuntimeVideoEncoderBackend: devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
   nativeRuntimeAudioEncoderBackend: devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
+  nativeRuntimeEncoderProbeStatus: "pass",
+  nativeRuntimeEncoderProbeActiveEncoderInstancesVerified: true,
+  nativeRuntimeEncoderProbeVideoEncodedOutputCount: 120,
+  nativeRuntimeEncoderProbeAudioEncodedOutputCount: 190,
+  nativeRuntimeEncoderProbeVideoBackend: devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
+  nativeRuntimeEncoderProbeAudioBackend: devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
+  nativeRuntimeEncoderProbeVideoConfigured: true,
+  nativeRuntimeEncoderProbeAudioConfigured: true,
+  nativeRuntimeEncoderProbeVideoWidth: 1280,
+  nativeRuntimeEncoderProbeVideoHeight: 720,
+  nativeRuntimeEncoderProbeVideoFps: 30,
+  nativeRuntimeEncoderProbeMatchesRequestedOutput: true,
   nativeRuntimeCongested: false,
   nativeRuntimeQueuedItems: 0,
   nativeRuntimeCacheSize: 0,

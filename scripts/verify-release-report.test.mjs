@@ -1296,9 +1296,18 @@ function commercialSupportBundleFixture(patch = {}) {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 60
+      bundleVersion: 61
     },
     generatedAt,
+    quality: {
+      resolution: "1280x720",
+      width: 1280,
+      height: 720,
+      fps: 30,
+      targetVideoBitrateKbps: 3500,
+      targetAudioBitrateKbps: 128,
+      estimatedUploadKbps: 4535
+    },
     fixture: true,
     profile: {
       androidPublisherMode: "mediacodec",
@@ -1402,6 +1411,9 @@ function supportBundleManifestRun(devicePlatform, fingerprint, capturedAt = new 
     sceneFingerprint: "scene1-ready",
     targetPlatform: "YouTube Live",
     transport: "rtmps",
+    requestedVideoWidth: 1280,
+    requestedVideoHeight: 720,
+    requestedVideoFps: 30,
     result: "pass",
     nativeRuntimePlatform: devicePlatform,
     nativeRuntimeSessionId: `session-${devicePlatform}`,
@@ -1414,6 +1426,18 @@ function supportBundleManifestRun(devicePlatform, fingerprint, capturedAt = new 
     nativeRuntimeCurrentPublishAudioFrames: 190,
     nativeRuntimeVideoEncoderBackend: devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
     nativeRuntimeAudioEncoderBackend: devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
+    nativeRuntimeEncoderProbeStatus: "pass",
+    nativeRuntimeEncoderProbeActiveEncoderInstancesVerified: true,
+    nativeRuntimeEncoderProbeVideoEncodedOutputCount: 120,
+    nativeRuntimeEncoderProbeAudioEncodedOutputCount: 190,
+    nativeRuntimeEncoderProbeVideoBackend: devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
+    nativeRuntimeEncoderProbeAudioBackend: devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
+    nativeRuntimeEncoderProbeVideoConfigured: true,
+    nativeRuntimeEncoderProbeAudioConfigured: true,
+    nativeRuntimeEncoderProbeVideoWidth: 1280,
+    nativeRuntimeEncoderProbeVideoHeight: 720,
+    nativeRuntimeEncoderProbeVideoFps: 30,
+    nativeRuntimeEncoderProbeMatchesRequestedOutput: true,
     nativeRuntimeCongested: false,
     nativeRuntimeQueuedItems: 0,
     nativeRuntimeCacheSize: 0,

@@ -193,6 +193,7 @@ const normalizeNativeRuntime = (
           lastError: runtime.publisher?.lastError ?? ""
         },
         encoderProbe: normalizeEncoderProbe(runtime.encoderProbe),
+        lastActiveEncoderProbe: normalizeEncoderProbe(runtime.lastActiveEncoderProbe),
         composition: {
           status: runtime.composition?.status ?? "unknown",
           appliedCount: runtime.composition?.appliedCount ?? 0,
@@ -284,6 +285,9 @@ const normalizeEncoderProbe = (
             ? encoderProbe.status
             : "unknown",
         checkedAt: encoderProbe.checkedAt ?? 0,
+        activeEncoderInstancesVerified: encoderProbe.activeEncoderInstancesVerified ?? false,
+        videoEncodedOutputCount: encoderProbe.videoEncodedOutputCount ?? 0,
+        audioEncodedOutputCount: encoderProbe.audioEncodedOutputCount ?? 0,
         videoBackend: encoderProbe.videoBackend ?? "none",
         audioBackend: encoderProbe.audioBackend ?? "none",
         videoCodecName: encoderProbe.videoCodecName ?? "",

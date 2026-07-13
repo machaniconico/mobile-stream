@@ -241,7 +241,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 60 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 61 });
     expect(bundle.profile.androidPublisherMode).toBe(profile.androidPublisherMode);
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
@@ -622,6 +622,29 @@ describe("support bundle", () => {
           congested: false,
           lastError: ""
         },
+        encoderProbe: {
+          status: "pass",
+          checkedAt: Date.parse("2026-06-23T00:00:44.000Z"),
+          activeEncoderInstancesVerified: true,
+          videoEncodedOutputCount: 120,
+          audioEncodedOutputCount: 190,
+          videoBackend: "videotoolbox-h264",
+          audioBackend: "audiotoolbox-aac",
+          videoCodecName: "VideoToolbox",
+          audioCodecName: "AudioToolbox",
+          videoMime: "video/avc",
+          audioMime: "audio/mp4a-latm",
+          videoConfigured: true,
+          audioConfigured: true,
+          videoColorFormat: "surface",
+          videoBitrateMode: "cbr",
+          videoWidth: 1280,
+          videoHeight: 720,
+          videoFps: 30,
+          audioSampleRate: 44_100,
+          audioChannelCount: 2,
+          message: "Native encoder output configured for the requested profile."
+        },
         composition: {
           status: "applied",
           appliedCount: 4,
@@ -820,6 +843,9 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceLatestNativeRuntimeVrmMorphTargetCount).toBe(8);
     expect(bundle.summary.validationEvidenceLatestAudioMonitorLatencyStatus).toBe("warn");
     expect(bundle.summary.validationEvidenceLatestAudioMonitorLatencyMs).toBeNull();
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeEncoderProbeActiveEncoderInstancesVerified).toBe(true);
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeEncoderProbeVideoEncodedOutputCount).toBe(120);
+    expect(bundle.summary.validationEvidenceLatestNativeRuntimeEncoderProbeAudioEncodedOutputCount).toBe(190);
     expect(bundle.summary.validationEvidenceRunManifest).toHaveLength(1);
     expect(bundle.summary.validationEvidenceRunManifest[0]).toMatchObject({
       fingerprint: latestRunFingerprint,
@@ -838,9 +864,21 @@ describe("support bundle", () => {
       nativeRuntimeAudioStallCount: 0,
       nativeRuntimeVideoEncoderBackend: "videotoolbox-h264",
       nativeRuntimeAudioEncoderBackend: "audiotoolbox-aac",
-      nativeRuntimeEncoderProbeStatus: "missing",
-      nativeRuntimeEncoderProbeVideoBackend: "none",
-      nativeRuntimeEncoderProbeAudioBackend: "none",
+      requestedVideoWidth: 1280,
+      requestedVideoHeight: 720,
+      requestedVideoFps: 30,
+      nativeRuntimeEncoderProbeStatus: "pass",
+      nativeRuntimeEncoderProbeActiveEncoderInstancesVerified: true,
+      nativeRuntimeEncoderProbeVideoEncodedOutputCount: 120,
+      nativeRuntimeEncoderProbeAudioEncodedOutputCount: 190,
+      nativeRuntimeEncoderProbeVideoBackend: "videotoolbox-h264",
+      nativeRuntimeEncoderProbeAudioBackend: "audiotoolbox-aac",
+      nativeRuntimeEncoderProbeVideoConfigured: true,
+      nativeRuntimeEncoderProbeAudioConfigured: true,
+      nativeRuntimeEncoderProbeVideoWidth: 1280,
+      nativeRuntimeEncoderProbeVideoHeight: 720,
+      nativeRuntimeEncoderProbeVideoFps: 30,
+      nativeRuntimeEncoderProbeMatchesRequestedOutput: true,
       nativeRuntimeCongested: false,
       nativeRuntimeQueuedItems: 0,
       nativeRuntimeCacheSize: 120,
@@ -890,7 +928,7 @@ describe("support bundle", () => {
     expect(formatSupportBundle(bundle, { secrets: [latestRunFingerprint ?? ""] })).not.toContain(latestRunFingerprint ?? "-");
     expect(text).toContain("avatar landmarks 0% not-ready attenuation motion 100% controls 0%");
     expect(text).toContain(
-      "Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / encoders videotoolbox-h264/audiotoolbox-aac / MediaCodec probe missing none/none / sent 0 video 0 audio / bytes 0 / frame interval 119 samples avg 33.3ms max 42ms jitter 8.7ms / overlays applied 4 kinds caption/chat/pngtuber/text skipped 0 / live reloads 2 rejected 1 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / 0 missing / app-group 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600"
+      "Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / encoders videotoolbox-h264/audiotoolbox-aac / MediaCodec probe pass videotoolbox-h264/audiotoolbox-aac / sent 0 video 0 audio / bytes 0 / frame interval 119 samples avg 33.3ms max 42ms jitter 8.7ms / overlays applied 4 kinds caption/chat/pngtuber/text skipped 0 / live reloads 2 rejected 1 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / 0 missing / app-group 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600"
     );
     expect(text).toContain("latency missing warn / source - / budget 180ms");
     expect(text).toContain("Evidence quality automation: 1 retained / live 1 / next-start 0 / failed 0");

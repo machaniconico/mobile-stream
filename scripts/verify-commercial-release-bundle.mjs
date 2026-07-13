@@ -3,7 +3,7 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
-const minimumSupportBundleVersion = 60;
+const minimumSupportBundleVersion = 61;
 const nativeAdaptiveBitrateEvidenceMaxAgeMs = 30 * 60 * 1_000;
 const nativeAdaptiveBitrateEvidenceFutureSkewMs = 60 * 1_000;
 const minimumValidationMonitorDurationSeconds = 60;
@@ -155,6 +155,7 @@ function run() {
 export function createCommercialReleaseGate(bundle, { now, maxBundleAgeHours = defaultMaxBundleAgeHours }) {
   const issues = [
     bundleIdentityIssue(bundle),
+    streamOutputQualityIssue(bundle),
     supportBundleRedactionIssue(bundle),
     bundleAgeIssue(bundle, now, maxBundleAgeHours),
     summaryIssue(bundle),
@@ -281,6 +282,26 @@ function bundleIdentityIssue(bundle) {
   return null;
 }
 
+function streamOutputQualityIssue(bundle) {
+  const width = bundle?.quality?.width;
+  const height = bundle?.quality?.height;
+  const fps = bundle?.quality?.fps;
+  if (
+    !isPositiveInteger(width) ||
+    !isPositiveInteger(height) ||
+    !isPositiveInteger(fps) ||
+    bundle?.quality?.resolution !== `${width}x${height}`
+  ) {
+    return fail(
+      "stream-output-quality",
+      "Stream output quality",
+      "Support bundle v61 is missing a valid current output width, height, FPS, or matching resolution label.",
+      "Select the release output quality, record fresh iOS and Android validation runs without changing it, then export a new support bundle."
+    );
+  }
+  return null;
+}
+
 function bundleAgeIssue(bundle, now, maxBundleAgeHours) {
   const generatedAtMs = Date.parse(String(bundle?.generatedAt ?? ""));
   if (!Number.isFinite(generatedAtMs)) {
@@ -331,7 +352,7 @@ function nativeCaptionOverlaySummaryIssue(bundle) {
     "native-caption-overlay-summary-missing",
     "Native caption overlay evidence",
     "The support bundle is missing native caption overlay count summary evidence.",
-    "Export a support bundle v60 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
+    "Export a support bundle v61 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
   );
 }
 
@@ -474,7 +495,7 @@ function publicLaunchConfirmationEvidenceIssue(bundle) {
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a v60 support bundle with retained launch, native publisher, overlay, avatar, ingest, encoder, playback-capture, and A/V sync proof."
+      "Export a v61 support bundle with retained launch, native publisher, overlay, avatar, ingest, encoder, playback-capture, A/V sync, and native output-format proof."
     );
   }
 
@@ -586,7 +607,7 @@ function sceneFingerprintIssue(bundle) {
     return fail(
       "scene-fingerprint-missing",
       "Scene fingerprint",
-      "Support bundle v60 is missing scene composition fingerprint evidence.",
+      "Support bundle v61 is missing scene composition fingerprint evidence.",
       "Export a fresh support bundle from the exact scene/profile intended for release."
     );
   }
@@ -620,7 +641,7 @@ function validationSceneManifestIssue(bundle) {
     "validation-evidence-manifest-scene-fingerprint",
     "Validation evidence manifest",
     `${mismatchedRuns.length} fresh retained validation run(s) do not match the current scene fingerprint ${sceneFingerprint}.`,
-    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v60 support bundle."
+    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v61 support bundle."
   );
 }
 
@@ -656,7 +677,7 @@ function textOverlayEvidenceIssue(bundle) {
       "text-overlay-evidence-missing",
       "Text overlay evidence",
       "The support bundle is missing text overlay launch evidence.",
-      "Export a support bundle v60 or newer so visible manual text, subtitle, ticker, live-caption, native caption overlay kind proof, and avatar-overlap overlay evidence is summarized."
+      "Export a support bundle v61 or newer so visible manual text, subtitle, ticker, live-caption, native caption overlay kind proof, and avatar-overlap overlay evidence is summarized."
     );
   }
 
@@ -713,7 +734,7 @@ function chatOverlayEvidenceIssue(bundle) {
       "chat-overlay-evidence-missing",
       "Chat overlay evidence",
       "The support bundle is missing chat overlay launch evidence.",
-      "Export a support bundle v60 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap overlay evidence is summarized."
+      "Export a support bundle v61 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap overlay evidence is summarized."
     );
   }
 
@@ -758,7 +779,7 @@ function liveCaptionEvidenceIssue(bundle) {
       "live-caption-evidence-missing",
       "Live caption evidence",
       "The support bundle is missing live caption launch evidence.",
-      "Export a support bundle v60 or newer so live caption enablement, recognition state, source visibility, cue proof, and native caption overlay kind proof are summarized."
+      "Export a support bundle v61 or newer so live caption enablement, recognition state, source visibility, cue proof, and native caption overlay kind proof are summarized."
     );
   }
 
@@ -987,7 +1008,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v60 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v61 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -999,7 +1020,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-scope",
       "Validation evidence manifest",
       `${destinationScopeMismatchCount} fresh manifest run(s) marked in-scope do not match the current destination scope ${formatManifestScope(manifestScope)}.`,
-      "Record and retain iOS and Android validation runs against the exact current destination and RTMP(S) transport before release approval."
+      "Record and retain iOS and Android validation runs against the exact current destination, RTMP(S) transport, scene, and output width/height/FPS before release approval."
     );
   }
   const latestEligibleRuns = [...latestEligibleManifestRunsByPlatform(manifest, manifestScope).values()];
@@ -1028,7 +1049,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-android-publisher-mode",
       "Validation evidence manifest",
       `The latest Android validation manifest row used ${text(latestAndroidRun?.androidPublisherMode) || "missing"} publisher mode.`,
-      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v60 or newer."
+      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v61 or newer."
     );
   }
   const expectedNativeOverlays = nativeCompositionOverlayProofRequirements(summary);
@@ -1051,8 +1072,8 @@ function validationManifestIssue(bundle) {
     return fail(
       "validation-evidence-manifest-native-runtime",
       "Validation evidence manifest",
-      "The manifest does not back claimed native runtime evidence with a published publisher state, a positive-integer current publish generation, positive-integer current-generation video/audio frames, platform-matched production video/audio encoder backends, cumulative video/audio frames, bytes written, clean RTMP A/V timestamp sync samples, non-congested publisher state, empty native publisher queue, zero publisher video/audio drops, compositor status, zero compositor drops/failures, Android playback-capture telemetry with the production backend, a capturing/stopped state, at least two seconds captured, at most 1% drops, at most 5% underruns, and at most 100ms buffered audio, live render-graph update proof, applied/skipped native overlay proof, loaded, decoded, and composited still-image assets, and accepted production VRM renderer/backend/model geometry/texture/pose proof when VRM sources are present.",
-      "Export a support bundle v60 or newer after retaining iOS and Android validation runs with published current-generation native publisher/compositor overlay telemetry, clean RTMP A/V timestamp sync samples, Android playback-capture telemetry within the release thresholds, and platform-accepted production encoder backends."
+      "The manifest does not back claimed native runtime evidence with a published publisher state, a positive-integer current publish generation, positive-integer current-generation video/audio frames, platform-matched production video/audio encoder backends, passing video/audio encoder configure flags, verified active encoder instances, positive encoded video/audio output counts, and exact native encoder output width/height/FPS matching the requested run target, cumulative video/audio frames, bytes written, clean RTMP A/V timestamp sync samples, non-congested publisher state, empty native publisher queue, zero publisher video/audio drops, compositor status, zero compositor drops/failures, Android playback-capture telemetry with the production backend, a capturing/stopped state, at least two seconds captured, at most 1% drops, at most 5% underruns, and at most 100ms buffered audio, live render-graph update proof, applied/skipped native overlay proof, loaded, decoded, and composited still-image assets, and accepted production VRM renderer/backend/model geometry/texture/pose proof when VRM sources are present.",
+      "Export a support bundle v61 or newer after retaining iOS and Android validation runs with exact requested/native encoder output-format proof, published current-generation native publisher/compositor overlay telemetry, clean RTMP A/V timestamp sync samples, Android playback-capture telemetry within the release thresholds, and platform-accepted production encoder backends."
     );
   }
   const eligibleMonitorHoldPlatforms = new Set(
@@ -1079,7 +1100,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-monitor-hold",
       "Validation evidence manifest",
       "The manifest does not back claimed monitor-hold evidence with stable duration, sample count, positive bitrate/FPS telemetry, zero dropped frames, and zero reconnects.",
-      "Export a support bundle v60 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry including bitrate/FPS proof."
+      "Export a support bundle v61 or newer after retaining iOS and Android validation runs with at least 60s / 3 samples of stable monitor telemetry including bitrate/FPS proof."
     );
   }
   const eligibleAudioPlatforms = new Set(
@@ -1115,7 +1136,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-audio-monitor",
       "Validation evidence manifest",
       "The manifest does not back claimed mic/headphone evidence with native monitor write/drop proof, headphone route proof, measured monitor latency source/budget proof, and Bluetooth tuning notes when applicable.",
-      "Export a support bundle v60 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones and retained route-match latency source/budget/tuning proof."
+      "Export a support bundle v61 or newer after retaining iOS and Android validation runs with mic FX self-monitoring exercised through headphones and retained route-match latency source/budget/tuning proof."
     );
   }
   const eligibleAvatarPlatforms = new Set(
@@ -1141,7 +1162,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-avatar-motion",
       "Validation evidence manifest",
       "The manifest does not back claimed avatar-motion evidence with fresh tracking runtime, ready native face landmarks, retained motion/control attenuation-scale proof, active motion, and either ready high-fidelity PNGTuber rig plus semantic/eye-mouth/horizontal-anchor segment proof or ready native-rendered VRM proof.",
-      "Export a support bundle v60 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion, retained motion/control attenuation-scale proof, and ready PNGTuber rig quality/high-fidelity/semantic/eye-mouth/horizontal-anchor segment proof or native-rendered VRM proof."
+      "Export a support bundle v61 or newer after retaining iOS and Android validation runs with fresh native-camera avatar motion, retained motion/control attenuation-scale proof, and ready PNGTuber rig quality/high-fidelity/semantic/eye-mouth/horizontal-anchor segment proof or native-rendered VRM proof."
     );
   }
   const eligibleChatReadoutPlatforms = new Set(
@@ -1169,7 +1190,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-chat-readout",
       "Validation evidence manifest",
       "The manifest does not back claimed chat readout evidence with connected platform chat label/message proof, enabled reader, spoken-message success, and zero speech failures.",
-      "Export a support bundle v60 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout connection label/message proof and native/browser speech output exercised."
+      "Export a support bundle v61 or newer after retaining iOS and Android validation runs with YouTube/Twitch chat readout connection label/message proof and native/browser speech output exercised."
     );
   }
   const eligiblePlatformDashboardPlatforms = new Set(
@@ -1190,7 +1211,7 @@ function validationManifestIssue(bundle) {
       "validation-evidence-manifest-platform-dashboard",
       "Validation evidence manifest",
       "The manifest does not back claimed platform dashboard evidence with fresh checked-at proof, YouTube identity/state/privacy/bound-stream proof, and Twitch dashboard status and Twitch title/category/language metadata.",
-      "Export a support bundle v60 or newer after retaining iOS and Android validation runs with fresh YouTube/Twitch dashboard status, YouTube privacy/bound-stream proof, and Twitch title/category/language metadata from the destination receiving the stream."
+      "Export a support bundle v61 or newer after retaining iOS and Android validation runs with fresh YouTube/Twitch dashboard status, YouTube privacy/bound-stream proof, and Twitch title/category/language metadata from the destination receiving the stream."
     );
   }
   const eligiblePlatformIngestPlatforms = new Set(
@@ -1280,7 +1301,7 @@ function validationManifestIntegrityIssue(bundle, now) {
 
   const eligibilityFlagMismatchCount = manifest.filter((run) => run?.eligible !== isManifestRunFreshInScope(run, manifestScope)).length;
   if (eligibilityFlagMismatchCount > 0) {
-    mismatches.push(`${eligibilityFlagMismatchCount} manifest eligible flag(s) do not match fresh destination/protocol/scene scope state`);
+    mismatches.push(`${eligibilityFlagMismatchCount} manifest eligible flag(s) do not match fresh destination/protocol/scene/output scope state`);
   }
 
   const expectedBuild = text(summary.validationEvidenceConsistentAppBuild);
@@ -1634,14 +1655,20 @@ function hasManifestChatReadoutEvidence(run) {
 const emptyExpectedManifestScope = {
   targetPlatform: null,
   transport: null,
-  sceneFingerprint: null
+  sceneFingerprint: null,
+  videoWidth: null,
+  videoHeight: null,
+  videoFps: null
 };
 
 function createExpectedManifestScope(bundle) {
   return {
     targetPlatform: expectedTargetPlatformForBundle(bundle),
     transport: expectedTransportForBundle(bundle),
-    sceneFingerprint: text(bundle?.summary?.sceneFingerprint) || text(bundle?.scene?.fingerprint)
+    sceneFingerprint: text(bundle?.summary?.sceneFingerprint) || text(bundle?.scene?.fingerprint),
+    videoWidth: isPositiveInteger(bundle?.quality?.width) ? bundle.quality.width : null,
+    videoHeight: isPositiveInteger(bundle?.quality?.height) ? bundle.quality.height : null,
+    videoFps: isPositiveInteger(bundle?.quality?.fps) ? bundle.quality.fps : null
   };
 }
 
@@ -1862,6 +1889,7 @@ function isManifestNativeRuntimePass(run, expectedNativeOverlays = emptyNativeOv
     isPositiveNumber(run?.nativeRuntimeBytesWritten) &&
     isProductionNativeVideoEncoderBackend(run?.devicePlatform, run?.nativeRuntimeVideoEncoderBackend) &&
     isProductionNativeAudioEncoderBackend(run?.devicePlatform, run?.nativeRuntimeAudioEncoderBackend) &&
+    hasNativeEncoderOutputProof(run) &&
     hasNativePublisherBackpressureProof(run) &&
     hasNativePublisherDropProof(run) &&
     hasNativeRuntimeVideoFrameIntervalProof(run) &&
@@ -1877,6 +1905,29 @@ function isManifestNativeRuntimePass(run, expectedNativeOverlays = emptyNativeOv
     hasIosAppGroupStillImageProof(run) &&
     hasLive2DPoseProof(run) &&
     hasVrmReleaseProof(run)
+  );
+}
+
+function hasNativeEncoderOutputProof(run) {
+  return (
+    run?.nativeRuntimeEncoderProbeStatus === "pass" &&
+    isProductionNativeVideoEncoderBackend(run?.devicePlatform, run?.nativeRuntimeEncoderProbeVideoBackend) &&
+    isProductionNativeAudioEncoderBackend(run?.devicePlatform, run?.nativeRuntimeEncoderProbeAudioBackend) &&
+    run.nativeRuntimeEncoderProbeActiveEncoderInstancesVerified === true &&
+    isPositiveInteger(run.nativeRuntimeEncoderProbeVideoEncodedOutputCount) &&
+    isPositiveInteger(run.nativeRuntimeEncoderProbeAudioEncodedOutputCount) &&
+    run.nativeRuntimeEncoderProbeVideoConfigured === true &&
+    run.nativeRuntimeEncoderProbeAudioConfigured === true &&
+    isPositiveInteger(run.requestedVideoWidth) &&
+    isPositiveInteger(run.requestedVideoHeight) &&
+    isPositiveInteger(run.requestedVideoFps) &&
+    isPositiveInteger(run.nativeRuntimeEncoderProbeVideoWidth) &&
+    isPositiveInteger(run.nativeRuntimeEncoderProbeVideoHeight) &&
+    isPositiveInteger(run.nativeRuntimeEncoderProbeVideoFps) &&
+    run.nativeRuntimeEncoderProbeVideoWidth === run.requestedVideoWidth &&
+    run.nativeRuntimeEncoderProbeVideoHeight === run.requestedVideoHeight &&
+    run.nativeRuntimeEncoderProbeVideoFps === run.requestedVideoFps &&
+    run.nativeRuntimeEncoderProbeMatchesRequestedOutput === true
   );
 }
 
@@ -2317,7 +2368,10 @@ function isManifestRunInScope(run, manifestScope = emptyExpectedManifestScope) {
   return run?.matchesScope === true && isManifestRunDestinationScopePass(run, manifestScope);
 }
 
-function isManifestRunDestinationScopePass(run, { targetPlatform, transport, sceneFingerprint }) {
+function isManifestRunDestinationScopePass(
+  run,
+  { targetPlatform, transport, sceneFingerprint, videoWidth, videoHeight, videoFps }
+) {
   const expectedTarget = normalizeTargetPlatformLabel(targetPlatform);
   if (expectedTarget && normalizeTargetPlatformLabel(run?.targetPlatform) !== expectedTarget) {
     return false;
@@ -2330,11 +2384,22 @@ function isManifestRunDestinationScopePass(run, { targetPlatform, transport, sce
   if (expectedSceneFingerprint && text(run?.sceneFingerprint) !== expectedSceneFingerprint) {
     return false;
   }
+  if (videoWidth !== null && run?.requestedVideoWidth !== videoWidth) {
+    return false;
+  }
+  if (videoHeight !== null && run?.requestedVideoHeight !== videoHeight) {
+    return false;
+  }
+  if (videoFps !== null && run?.requestedVideoFps !== videoFps) {
+    return false;
+  }
   return true;
 }
 
-function formatManifestScope({ targetPlatform, transport, sceneFingerprint }) {
-  return `${targetPlatform ?? "unknown target"}/${transport ?? "unknown transport"}/${sceneFingerprint ?? "unknown scene"}`;
+function formatManifestScope({ targetPlatform, transport, sceneFingerprint, videoWidth, videoHeight, videoFps }) {
+  return `${targetPlatform ?? "unknown target"}/${transport ?? "unknown transport"}/${sceneFingerprint ?? "unknown scene"}/${
+    videoWidth ?? "unknown"
+  }x${videoHeight ?? "unknown"}@${videoFps ?? "unknown"}`;
 }
 
 function normalizeTargetPlatformLabel(value) {

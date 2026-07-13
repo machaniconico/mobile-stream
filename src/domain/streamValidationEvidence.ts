@@ -161,6 +161,9 @@ export interface StreamValidationRun {
   sceneFingerprint: string;
   targetPlatform: string;
   transport: string;
+  requestedVideoWidth: number;
+  requestedVideoHeight: number;
+  requestedVideoFps: number;
   result: StreamValidationRunResult;
   diagnosticStatus: StreamDiagnostics["status"];
   checklistStatus: StreamDiagnostics["validation"]["status"];
@@ -223,6 +226,9 @@ export interface StreamValidationEvidenceRunManifestItem {
   sceneFingerprint: string;
   targetPlatform: string;
   transport: string;
+  requestedVideoWidth: number;
+  requestedVideoHeight: number;
+  requestedVideoFps: number;
   result: StreamValidationRunResult;
   nativeRuntimePlatform: StreamSessionNativeRuntimeSummary["platform"] | null;
   nativeRuntimeSessionId: string | null;
@@ -249,8 +255,17 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeVideoEncoderBackend: string | null;
   nativeRuntimeAudioEncoderBackend: string | null;
   nativeRuntimeEncoderProbeStatus: string | null;
+  nativeRuntimeEncoderProbeActiveEncoderInstancesVerified: boolean;
+  nativeRuntimeEncoderProbeVideoEncodedOutputCount: number;
+  nativeRuntimeEncoderProbeAudioEncodedOutputCount: number;
   nativeRuntimeEncoderProbeVideoBackend: string | null;
   nativeRuntimeEncoderProbeAudioBackend: string | null;
+  nativeRuntimeEncoderProbeVideoConfigured: boolean;
+  nativeRuntimeEncoderProbeAudioConfigured: boolean;
+  nativeRuntimeEncoderProbeVideoWidth: number;
+  nativeRuntimeEncoderProbeVideoHeight: number;
+  nativeRuntimeEncoderProbeVideoFps: number;
+  nativeRuntimeEncoderProbeMatchesRequestedOutput: boolean;
   nativeRuntimeCongested: boolean;
   nativeRuntimeQueuedItems: number;
   nativeRuntimeCacheSize: number;
@@ -450,6 +465,9 @@ export interface StreamValidationEvidenceSummary {
   fingerprint: string;
   runManifest: StreamValidationEvidenceRunManifestItem[];
   requiredSceneFingerprint: string;
+  requiredVideoWidth: number;
+  requiredVideoHeight: number;
+  requiredVideoFps: number;
   totalRuns: number;
   eligibleRunCount: number;
   staleRunCount: number;
@@ -538,6 +556,9 @@ export interface StreamValidationEvidenceOptions {
   requiredTransport?: string;
   requiredAppBuild?: string;
   requiredSceneFingerprint?: string;
+  requiredVideoWidth?: number;
+  requiredVideoHeight?: number;
+  requiredVideoFps?: number;
 }
 
 export const maxStreamValidationRuns = 20;
@@ -589,6 +610,7 @@ export interface StreamValidationNativeRuntimePreview {
   runtimeStatus: StreamSessionNativeRuntimeSummary["status"] | null;
   publisherReady: boolean;
   encoderReady: boolean;
+  encoderOutputReady: boolean;
   videoFrameIntervalReady: boolean;
   compositorReady: boolean;
   playbackAudioReady: boolean;
@@ -621,6 +643,7 @@ export const createStreamValidationNativeRuntimePreview = (
       runtimeStatus: null,
       publisherReady: false,
       encoderReady: false,
+      encoderOutputReady: false,
       videoFrameIntervalReady: false,
       compositorReady: false,
       playbackAudioReady: expectedPlatform !== "android",
@@ -640,6 +663,12 @@ export const createStreamValidationNativeRuntimePreview = (
   const encoderReady =
     isProductionNativeVideoEncoderBackend(nativeRuntime.platform, nativeRuntime.videoEncoderBackend) &&
     isProductionNativeAudioEncoderBackend(nativeRuntime.platform, nativeRuntime.audioEncoderBackend);
+  const encoderOutputReady = hasExactNativeEncoderProbeOutput(
+    nativeRuntime,
+    normalizeNonNegativeEvidenceInteger(diagnostics.quality.width),
+    normalizeNonNegativeEvidenceInteger(diagnostics.quality.height),
+    normalizeNonNegativeEvidenceInteger(diagnostics.quality.fps)
+  );
   const videoFrameIntervalReady = hasNativeRuntimeVideoFrameIntervalProof(nativeRuntime);
   const compositorReady =
     hasNativeRuntimeAndroidMediaCodecCompositorProof(nativeRuntime) &&
@@ -649,7 +678,7 @@ export const createStreamValidationNativeRuntimePreview = (
   const iosAppGroupStillImageReady = hasNativeRuntimeIosAppGroupStillImageProof(nativeRuntime, expectedPlatform);
   const live2dPoseReady = hasNativeRuntimeLive2DPoseProof(nativeRuntime);
   const vrmRendererReady = hasNativeRuntimeVrmReleaseProof(nativeRuntime);
-  const pass = isNativeRuntimeEvidencePass(nativeRuntime, expectedPlatform);
+  const pass = isNativeRuntimeEvidencePass(nativeRuntime, expectedPlatform) && encoderOutputReady;
   const status: StreamValidationFeatureStatus = pass
     ? "pass"
     : nativeRuntime.status === "fail"
@@ -663,6 +692,7 @@ export const createStreamValidationNativeRuntimePreview = (
     runtimeStatus: nativeRuntime.status,
     publisherReady,
     encoderReady,
+    encoderOutputReady,
     videoFrameIntervalReady,
     compositorReady,
     playbackAudioReady,
@@ -675,6 +705,7 @@ export const createStreamValidationNativeRuntimePreview = (
       platformMatches,
       publisherReady,
       encoderReady,
+      encoderOutputReady,
       videoFrameIntervalReady,
       compositorReady,
       playbackAudioReady,
@@ -700,13 +731,21 @@ export const createStreamValidationRun = ({
   secrets = []
 }: StreamValidationRunInput): StreamValidationRun => {
   const createdAt = now.toISOString();
+  const requestedVideoWidth = normalizeNonNegativeEvidenceInteger(diagnostics.quality.width);
+  const requestedVideoHeight = normalizeNonNegativeEvidenceInteger(diagnostics.quality.height);
+  const requestedVideoFps = normalizeNonNegativeEvidenceInteger(diagnostics.quality.fps);
   const sanitizedDeviceName = sanitizeStoredText(deviceName, secrets) || defaultDeviceName(devicePlatform);
   const sanitizedOsVersion = sanitizeStoredText(osVersion, secrets) || "-";
   const sanitizedAppBuild = sanitizeStoredText(appBuild, secrets) || "-";
   const sanitizedNetworkProfile = sanitizeStoredText(networkProfile, secrets) || "private test";
   const physicalDevice = createPhysicalDeviceEvidence(devicePlatform, sanitizedDeviceName, sanitizedOsVersion, secrets);
   const nativeRuntimeEvidence = createValidationNativeRuntimeEvidence(diagnostics, now);
-  const nativeRuntime = nativeRuntimeEvidence?.runtime ?? null;
+  const nativeRuntime = enforceRequestedNativeEncoderOutputProof(
+    nativeRuntimeEvidence?.runtime ?? null,
+    requestedVideoWidth,
+    requestedVideoHeight,
+    requestedVideoFps
+  );
   const monitorHold = createMonitorHoldValidationSummary(diagnostics, secrets);
   const faceTracking = createFaceTrackingValidationSummary(diagnostics.faceTracking, secrets);
   const audio = createAudioValidationSummary(diagnostics, audioMonitorTuning, secrets);
@@ -755,6 +794,9 @@ export const createStreamValidationRun = ({
     sceneFingerprint: diagnostics.scene.fingerprint,
     targetPlatform: diagnostics.target.platform,
     transport: diagnostics.target.protocol,
+    requestedVideoWidth,
+    requestedVideoHeight,
+    requestedVideoFps,
     result: effectiveResult,
     diagnosticStatus: diagnostics.status,
     checklistStatus: diagnostics.validation.status,
@@ -874,6 +916,9 @@ export const summarizeStreamValidationEvidence = (
   const requiredTransport = normalizeRequirement(options.requiredTransport).toUpperCase();
   const requiredAppBuild = normalizeRequirement(options.requiredAppBuild);
   const requiredSceneFingerprint = normalizeRequirement(options.requiredSceneFingerprint);
+  const requiredVideoWidth = normalizeNonNegativeEvidenceInteger(options.requiredVideoWidth);
+  const requiredVideoHeight = normalizeNonNegativeEvidenceInteger(options.requiredVideoHeight);
+  const requiredVideoFps = normalizeNonNegativeEvidenceInteger(options.requiredVideoFps);
   const scopedRuns = normalized.filter((run) => {
     if (requiredTargetPlatform && run.targetPlatform !== requiredTargetPlatform) {
       return false;
@@ -885,6 +930,15 @@ export const summarizeStreamValidationEvidence = (
       return false;
     }
     if (requiredSceneFingerprint && run.sceneFingerprint !== requiredSceneFingerprint) {
+      return false;
+    }
+    if (requiredVideoWidth > 0 && run.requestedVideoWidth !== requiredVideoWidth) {
+      return false;
+    }
+    if (requiredVideoHeight > 0 && run.requestedVideoHeight !== requiredVideoHeight) {
+      return false;
+    }
+    if (requiredVideoFps > 0 && run.requestedVideoFps !== requiredVideoFps) {
       return false;
     }
     return true;
@@ -906,7 +960,10 @@ export const summarizeStreamValidationEvidence = (
     requiredAppBuild,
     requiredSceneFingerprint,
     requiredTargetPlatform,
-    requiredTransport
+    requiredTransport,
+    requiredVideoWidth,
+    requiredVideoHeight,
+    requiredVideoFps
   });
   const eligibleRuns = evaluatedRuns.filter((item) => item.isFresh).map((item) => item.run);
   const totalRuns = normalized.length;
@@ -1071,6 +1128,9 @@ export const summarizeStreamValidationEvidence = (
     fingerprint,
     runManifest,
     requiredSceneFingerprint,
+    requiredVideoWidth,
+    requiredVideoHeight,
+    requiredVideoFps,
     totalRuns,
     eligibleRunCount,
     staleRunCount,
@@ -1222,14 +1282,17 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
   }
 
   const devicePlatform = normalizeDevicePlatform(value.devicePlatform);
-  const result = normalizeResult(value.result);
+  const storedResult = normalizeResult(value.result);
   const createdAt = normalizeDateString(value.createdAt);
-  if (!devicePlatform || !result || !createdAt) {
+  if (!devicePlatform || !storedResult || !createdAt) {
     return null;
   }
 
   const targetPlatform = normalizeText(value.targetPlatform, "Unknown target");
   const transport = normalizeText(value.transport, "RTMP");
+  const requestedVideoWidth = normalizeNonNegativeEvidenceInteger(value.requestedVideoWidth);
+  const requestedVideoHeight = normalizeNonNegativeEvidenceInteger(value.requestedVideoHeight);
+  const requestedVideoFps = normalizeNonNegativeEvidenceInteger(value.requestedVideoFps);
   const androidPublisherMode = normalizeAndroidPublisherMode(value.androidPublisherMode);
   const deviceName = normalizeText(value.deviceName, defaultDeviceName(devicePlatform));
   const osVersion = normalizeText(value.osVersion, "-");
@@ -1237,7 +1300,16 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
   const checklistStatus = normalizeChecklistStatus(value.checklistStatus);
   const diagnosticStatus = normalizeDiagnosticStatus(value.diagnosticStatus);
   const sessionOutcome = normalizeSessionOutcome(value.sessionOutcome);
-  const nativeRuntime = normalizeNativeRuntimeSessionSummary(value.nativeRuntime);
+  const nativeRuntime = enforceRequestedNativeEncoderOutputProof(
+    normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
+    requestedVideoWidth,
+    requestedVideoHeight,
+    requestedVideoFps
+  );
+  const outputProofDowngraded =
+    storedResult === "pass" &&
+    !hasExactNativeEncoderProbeOutput(nativeRuntime, requestedVideoWidth, requestedVideoHeight, requestedVideoFps);
+  const result: StreamValidationRunResult = outputProofDowngraded ? "warn" : storedResult;
   const monitorHold = normalizeMonitorHoldValidationSummary(value.monitorHold);
   const faceTracking = normalizeFaceTrackingValidationSummary(value.faceTracking);
   const audio = normalizeAudioValidationSummary(value.audio);
@@ -1273,6 +1345,9 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
     sceneFingerprint: normalizeText(value.sceneFingerprint, ""),
     targetPlatform,
     transport,
+    requestedVideoWidth,
+    requestedVideoHeight,
+    requestedVideoFps,
     result,
     diagnosticStatus,
     checklistStatus,
@@ -1292,7 +1367,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
     platformPublishingFreshness,
     validationItemStatuses: normalizeValidationItemStatuses(value.validationItemStatuses),
     summary: normalizeText(
-      value.summary,
+      outputProofDowngraded ? undefined : value.summary,
       createRunSummary(
         result,
         deviceName,
@@ -1310,7 +1385,7 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
       )
     ),
     recommendation: normalizeText(
-      value.recommendation,
+      outputProofDowngraded ? undefined : value.recommendation,
       createRunRecommendation(
         result,
         "Run another private validation pass.",
@@ -1656,6 +1731,7 @@ interface NativeRuntimePreviewReadiness {
   platformMatches: boolean;
   publisherReady: boolean;
   encoderReady: boolean;
+  encoderOutputReady: boolean;
   videoFrameIntervalReady: boolean;
   compositorReady: boolean;
   playbackAudioReady: boolean;
@@ -1674,7 +1750,7 @@ const createNativeRuntimePreviewSummary = (
 ): string => {
   const platform = platformMatches ? nativeRuntime.platform : `${nativeRuntime.platform} for ${expectedPlatform}`;
   const playback = assessAndroidPlaybackCapture(nativeRuntime);
-  return `Native runtime ${status}: ${platform} / publisher ${nativeRuntime.publisherState || nativeRuntime.runtimeStatus || "-"} / encoders ${nativeRuntime.videoEncoderBackend}/${nativeRuntime.audioEncoderBackend} / sent ${nativeRuntime.sentVideoFrames} video ${nativeRuntime.sentAudioFrames} audio / bytes ${nativeRuntime.bytesWritten} / compositor ${nativeRuntime.runtimeCompositorBackend} ${nativeRuntime.runtimeCompositedFrameCount} frames ${nativeRuntime.runtimeCompositionFailureCount} failures / playback ${nativeRuntime.playbackCaptureStatus ?? "unavailable"} ${nativeRuntime.playbackCaptureBackend ?? "none"} ${playback.durationSeconds.toFixed(1)}s drop ${(playback.dropRatio * 100).toFixed(1)}% underrun ${(playback.underrunRatio * 100).toFixed(1)}% buffered ${Number.isFinite(playback.bufferedMs) ? `${Math.round(playback.bufferedMs)}ms` : "n/a"} / app audio ${nativeRuntime.appAudioSampleCount ?? 0} samples peak ${Math.round((nativeRuntime.appAudioPeakLevel ?? 0) * 100)}% / mixed audio ${nativeRuntime.mixedAudioSampleCount ?? 0} samples / overlays ${nativeRuntime.compositionAppliedCount} applied ${nativeRuntime.compositionSkippedCount} skipped / still-image ${nativeRuntime.stillImageAssetCompositedCount}/${nativeRuntime.stillImageAssetCount} composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount} / app-group ${nativeRuntime.stillImageAssetAppGroupCompositedCount}/${nativeRuntime.stillImageAssetAppGroupCount} composited pixels ${nativeRuntime.stillImageAssetAppGroupCompositedPixelCount} / video interval ${nativeRuntime.videoFrameIntervalSampleCount} samples.`;
+  return `Native runtime ${status}: ${platform} / publisher ${nativeRuntime.publisherState || nativeRuntime.runtimeStatus || "-"} / encoders ${nativeRuntime.videoEncoderBackend}/${nativeRuntime.audioEncoderBackend} / output ${nativeRuntime.encoderProbeVideoWidth}x${nativeRuntime.encoderProbeVideoHeight}@${nativeRuntime.encoderProbeVideoFps} probe ${nativeRuntime.encoderProbeStatus} active instances ${nativeRuntime.encoderProbeActiveEncoderInstancesVerified ? "verified" : "unverified"} encoded ${nativeRuntime.encoderProbeVideoEncodedOutputCount} video ${nativeRuntime.encoderProbeAudioEncodedOutputCount} audio / sent ${nativeRuntime.sentVideoFrames} video ${nativeRuntime.sentAudioFrames} audio / bytes ${nativeRuntime.bytesWritten} / compositor ${nativeRuntime.runtimeCompositorBackend} ${nativeRuntime.runtimeCompositedFrameCount} frames ${nativeRuntime.runtimeCompositionFailureCount} failures / playback ${nativeRuntime.playbackCaptureStatus ?? "unavailable"} ${nativeRuntime.playbackCaptureBackend ?? "none"} ${playback.durationSeconds.toFixed(1)}s drop ${(playback.dropRatio * 100).toFixed(1)}% underrun ${(playback.underrunRatio * 100).toFixed(1)}% buffered ${Number.isFinite(playback.bufferedMs) ? `${Math.round(playback.bufferedMs)}ms` : "n/a"} / app audio ${nativeRuntime.appAudioSampleCount ?? 0} samples peak ${Math.round((nativeRuntime.appAudioPeakLevel ?? 0) * 100)}% / mixed audio ${nativeRuntime.mixedAudioSampleCount ?? 0} samples / overlays ${nativeRuntime.compositionAppliedCount} applied ${nativeRuntime.compositionSkippedCount} skipped / still-image ${nativeRuntime.stillImageAssetCompositedCount}/${nativeRuntime.stillImageAssetCount} composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount} / app-group ${nativeRuntime.stillImageAssetAppGroupCompositedCount}/${nativeRuntime.stillImageAssetAppGroupCount} composited pixels ${nativeRuntime.stillImageAssetAppGroupCompositedPixelCount} / video interval ${nativeRuntime.videoFrameIntervalSampleCount} samples.`;
 };
 
 const createNativeRuntimePreviewRecommendation = (
@@ -1696,6 +1772,9 @@ const createNativeRuntimePreviewRecommendation = (
   }
   if (!readiness.encoderReady) {
     return "Use the production native encoder path before recording evidence: VideoToolbox/AudioToolbox on iOS or MediaCodec H.264/AAC on Android.";
+  }
+  if (!readiness.encoderOutputReady) {
+    return "Keep the requested quality unchanged and rerun the private stream until the native encoder probe reports passing video/audio configuration with the exact requested width, height, and FPS.";
   }
   if (!readiness.videoFrameIntervalReady) {
     return "Wait for native video frame interval samples so average, max, and jitter proof are retained with the validation run.";
@@ -3114,6 +3193,9 @@ const createStreamValidationEvidenceFingerprint = (
     requiredSceneFingerprint: string;
     requiredTargetPlatform: string;
     requiredTransport: string;
+    requiredVideoWidth: number;
+    requiredVideoHeight: number;
+    requiredVideoFps: number;
   }
 ): string =>
   createStableFingerprint("sve1", {
@@ -3158,6 +3240,9 @@ const createEvidenceRunManifestItem = (
     sceneFingerprint: run.sceneFingerprint,
     targetPlatform: run.targetPlatform,
     transport: run.transport,
+    requestedVideoWidth: run.requestedVideoWidth,
+    requestedVideoHeight: run.requestedVideoHeight,
+    requestedVideoFps: run.requestedVideoFps,
     result: run.result,
     nativeRuntimePlatform: run.nativeRuntime?.platform ?? null,
     nativeRuntimeSessionId: run.nativeRuntimeSessionId,
@@ -3185,8 +3270,20 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeVideoEncoderBackend: run.nativeRuntime?.videoEncoderBackend ?? null,
     nativeRuntimeAudioEncoderBackend: run.nativeRuntime?.audioEncoderBackend ?? null,
     nativeRuntimeEncoderProbeStatus: run.nativeRuntime?.encoderProbeStatus ?? null,
+    nativeRuntimeEncoderProbeActiveEncoderInstancesVerified:
+      run.nativeRuntime?.encoderProbeActiveEncoderInstancesVerified ?? false,
+    nativeRuntimeEncoderProbeVideoEncodedOutputCount:
+      run.nativeRuntime?.encoderProbeVideoEncodedOutputCount ?? 0,
+    nativeRuntimeEncoderProbeAudioEncodedOutputCount:
+      run.nativeRuntime?.encoderProbeAudioEncodedOutputCount ?? 0,
     nativeRuntimeEncoderProbeVideoBackend: run.nativeRuntime?.encoderProbeVideoBackend ?? null,
     nativeRuntimeEncoderProbeAudioBackend: run.nativeRuntime?.encoderProbeAudioBackend ?? null,
+    nativeRuntimeEncoderProbeVideoConfigured: run.nativeRuntime?.encoderProbeVideoConfigured ?? false,
+    nativeRuntimeEncoderProbeAudioConfigured: run.nativeRuntime?.encoderProbeAudioConfigured ?? false,
+    nativeRuntimeEncoderProbeVideoWidth: run.nativeRuntime?.encoderProbeVideoWidth ?? 0,
+    nativeRuntimeEncoderProbeVideoHeight: run.nativeRuntime?.encoderProbeVideoHeight ?? 0,
+    nativeRuntimeEncoderProbeVideoFps: run.nativeRuntime?.encoderProbeVideoFps ?? 0,
+    nativeRuntimeEncoderProbeMatchesRequestedOutput: hasExactNativeEncoderProbeOutputMatch(run),
     nativeRuntimeCongested: run.nativeRuntime?.congested ?? false,
     nativeRuntimeQueuedItems: run.nativeRuntime?.queuedItems ?? 0,
     nativeRuntimeCacheSize: run.nativeRuntime?.cacheSize ?? 0,
@@ -3578,6 +3675,65 @@ const clampText = (value: string): string => value.slice(0, 96);
 
 const normalizeCount = (value: unknown): number =>
   typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+
+const normalizeNonNegativeEvidenceInteger = (value: unknown): number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+
+const hasExactNativeEncoderProbeOutputMatch = (run: StreamValidationRun): boolean => {
+  return hasExactNativeEncoderProbeOutput(
+    run.nativeRuntime,
+    run.requestedVideoWidth,
+    run.requestedVideoHeight,
+    run.requestedVideoFps
+  );
+};
+
+const enforceRequestedNativeEncoderOutputProof = (
+  runtime: StreamSessionNativeRuntimeSummary | null,
+  requestedVideoWidth: number,
+  requestedVideoHeight: number,
+  requestedVideoFps: number
+): StreamSessionNativeRuntimeSummary | null => {
+  if (
+    !runtime ||
+    runtime.status !== "pass" ||
+    hasExactNativeEncoderProbeOutput(runtime, requestedVideoWidth, requestedVideoHeight, requestedVideoFps)
+  ) {
+    return runtime;
+  }
+
+  return {
+    ...runtime,
+    status: "warn",
+    issueCount: runtime.issueCount + 1,
+    summary: `Native runtime needs review on ${runtime.platform}: configured encoder output does not exactly match the requested ${requestedVideoWidth}x${requestedVideoHeight}@${requestedVideoFps} target.`,
+    recommendation: "Repeat the private ingest run after the native encoder reports the exact requested output width, height, and FPS."
+  };
+};
+
+const hasExactNativeEncoderProbeOutput = (
+  runtime: StreamSessionNativeRuntimeSummary | null,
+  requestedVideoWidth: number,
+  requestedVideoHeight: number,
+  requestedVideoFps: number
+): boolean =>
+  Boolean(
+    runtime &&
+      runtime.encoderProbeStatus === "pass" &&
+      isProductionNativeVideoEncoderBackend(runtime.platform, runtime.encoderProbeVideoBackend) &&
+      isProductionNativeAudioEncoderBackend(runtime.platform, runtime.encoderProbeAudioBackend) &&
+      runtime.encoderProbeActiveEncoderInstancesVerified &&
+      runtime.encoderProbeVideoEncodedOutputCount > 0 &&
+      runtime.encoderProbeAudioEncodedOutputCount > 0 &&
+      runtime.encoderProbeVideoConfigured &&
+      runtime.encoderProbeAudioConfigured &&
+      requestedVideoWidth > 0 &&
+      requestedVideoHeight > 0 &&
+      requestedVideoFps > 0 &&
+      runtime.encoderProbeVideoWidth === requestedVideoWidth &&
+      runtime.encoderProbeVideoHeight === requestedVideoHeight &&
+      runtime.encoderProbeVideoFps === requestedVideoFps
+  );
 
 const normalizeNullableCount = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : null;

@@ -1351,6 +1351,11 @@ final class BroadcastSharedStore {
 struct BroadcastEncodedVideoFrame {
     let presentationTimeSeconds: Double
     let durationSeconds: Double
+    let durationValue: CMTimeValue
+    let durationTimescale: CMTimeScale
+    let outputWidth: Int
+    let outputHeight: Int
+    let outputCodecType: FourCharCode
     let isKeyframe: Bool
     let byteCount: Int
     let parameterSets: [Data]
@@ -1365,6 +1370,7 @@ enum BroadcastAudioSource: String, Equatable, Hashable {
 }
 
 struct BroadcastEncodedAudioFrame {
+    let encoderInstanceID: String
     let source: BroadcastAudioSource
     let presentationTimeSeconds: Double
     let durationSeconds: Double
@@ -1397,20 +1403,76 @@ struct BroadcastVideoEncoderStats: Equatable {
     private(set) var encodedBytes: Int = 0
     private(set) var lastPresentationTimeSeconds: Double = 0
     private(set) var lastStatus: Int32 = 0
+    private(set) var failureCount: Int = 0
+    private(set) var encoderInstanceID = ""
+    private(set) var outputEncoderInstanceID = ""
+    private(set) var sessionExpectedFrameRate: Double = 0
+    private(set) var outputNominalFrameRate: Double = 0
+    private(set) var consecutiveOutputCadenceMatchCount: Int = 0
+    private(set) var outputWidth: Int = 0
+    private(set) var outputHeight: Int = 0
+    private(set) var outputFormatIsH264 = false
     private(set) var bitrateTracker = LiveVideoBitrateTracker()
 
-    mutating func record(_ frame: BroadcastEncodedVideoFrame) {
+    var activeEncoderInstanceVerified: Bool {
+        !encoderInstanceID.isEmpty &&
+            outputEncoderInstanceID == encoderInstanceID &&
+            encodedFrames > 0 &&
+            failureCount == 0 &&
+            sessionExpectedFrameRate.isFinite &&
+            sessionExpectedFrameRate > 0 &&
+            outputNominalFrameRate == sessionExpectedFrameRate &&
+            consecutiveOutputCadenceMatchCount >= 2 &&
+            outputWidth > 0 &&
+            outputHeight > 0 &&
+            outputFormatIsH264
+    }
+
+    mutating func configureActiveEncoder(instanceID: String, expectedFrameRate: Double) {
+        encoderInstanceID = instanceID
+        outputEncoderInstanceID = ""
+        lastStatus = 0
+        failureCount = 0
+        sessionExpectedFrameRate = expectedFrameRate.isFinite && expectedFrameRate > 0
+            ? expectedFrameRate
+            : 0
+        outputNominalFrameRate = 0
+        consecutiveOutputCadenceMatchCount = 0
+        outputWidth = 0
+        outputHeight = 0
+        outputFormatIsH264 = false
+    }
+
+    mutating func record(_ frame: BroadcastEncodedVideoFrame, encoderInstanceID: String) {
+        if encodedFrames > 0, frame.durationSeconds > 0 {
+            let outputInterval = frame.presentationTimeSeconds - lastPresentationTimeSeconds
+            let cadenceToleranceSeconds = 0.000_001
+            if outputInterval > 0 && abs(outputInterval - frame.durationSeconds) <= cadenceToleranceSeconds {
+                consecutiveOutputCadenceMatchCount += 1
+            } else {
+                consecutiveOutputCadenceMatchCount = 0
+            }
+        }
         encodedFrames += 1
         if frame.isKeyframe {
             keyframes += 1
         }
         encodedBytes += frame.byteCount
         lastPresentationTimeSeconds = frame.presentationTimeSeconds
-        lastStatus = 0
+        outputEncoderInstanceID = encoderInstanceID
+        outputNominalFrameRate = frame.durationValue > 0 && frame.durationTimescale > 0
+            ? Double(frame.durationTimescale) / Double(frame.durationValue)
+            : 0
+        outputWidth = frame.outputWidth
+        outputHeight = frame.outputHeight
+        outputFormatIsH264 = frame.outputCodecType == kCMVideoCodecType_H264
     }
 
     mutating func recordStatus(_ status: OSStatus) {
         lastStatus = status
+        if status != noErr {
+            failureCount += 1
+        }
     }
 
     mutating func resetBitrate(targetKbps: Int) {
@@ -1428,6 +1490,7 @@ struct BroadcastVideoEncoderStats: Equatable {
     mutating func recordBitrateFailure(targetKbps: Int, status: OSStatus) {
         bitrateTracker.recordFailure(targetKbps: targetKbps)
         lastStatus = status
+        failureCount += 1
     }
 
     func asDictionary() -> [String: Any] {
@@ -1438,6 +1501,16 @@ struct BroadcastVideoEncoderStats: Equatable {
             "encodedBytes": encodedBytes,
             "lastPresentationTimeSeconds": lastPresentationTimeSeconds,
             "lastStatus": lastStatus,
+            "failureCount": failureCount,
+            "encoderInstanceId": encoderInstanceID,
+            "outputEncoderInstanceId": outputEncoderInstanceID,
+            "activeEncoderInstanceVerified": activeEncoderInstanceVerified,
+            "sessionExpectedFrameRate": sessionExpectedFrameRate,
+            "outputNominalFrameRate": outputNominalFrameRate,
+            "consecutiveOutputCadenceMatchCount": consecutiveOutputCadenceMatchCount,
+            "outputWidth": outputWidth,
+            "outputHeight": outputHeight,
+            "outputFormatIsH264": outputFormatIsH264,
             "bitrateAdaptation": bitrateTracker.snapshot.asDictionary()
         ]
     }
@@ -1600,6 +1673,9 @@ struct BroadcastAudioEncoderStats: Equatable {
     private(set) var channelCount: Int = 0
     private(set) var lastPresentationTimeSeconds: Double = 0
     private(set) var lastStatus: Int32 = 0
+    private(set) var failureCount: Int = 0
+    private(set) var encoderInstanceID = ""
+    private(set) var outputEncoderInstanceID = ""
     private(set) var micEffectsEnabled = false
     private(set) var micEffectsPresetId = "clean"
     private(set) var micEffectsProcessedFrames = 0
@@ -1639,6 +1715,23 @@ struct BroadcastAudioEncoderStats: Equatable {
     private var appAudioLevelWindow = BroadcastAudioLevelWindow()
     private var mixedAudioLevelWindow = BroadcastAudioLevelWindow()
 
+    var activeEncoderInstanceVerified: Bool {
+        !encoderInstanceID.isEmpty &&
+            outputEncoderInstanceID == encoderInstanceID &&
+            encodedFrames > 0 &&
+            failureCount == 0 &&
+            sampleRate.isFinite &&
+            sampleRate > 0 &&
+            channelCount > 0
+    }
+
+    mutating func configureActiveEncoder(instanceID: String) {
+        encoderInstanceID = instanceID
+        outputEncoderInstanceID = ""
+        lastStatus = 0
+        failureCount = 0
+    }
+
     mutating func configureMicEffects(_ configuration: BroadcastMicEffectsConfiguration) {
         micEffectsEnabled = configuration.enabled
         micEffectsPresetId = configuration.presetId
@@ -1676,7 +1769,7 @@ struct BroadcastAudioEncoderStats: Equatable {
         sampleRate = frame.sampleRate
         channelCount = frame.channelCount
         lastPresentationTimeSeconds = frame.presentationTimeSeconds
-        lastStatus = 0
+        outputEncoderInstanceID = frame.encoderInstanceID
     }
 
     fileprivate mutating func recordMicrophoneProcessing(_ result: BroadcastMicrophoneProcessingResult) {
@@ -1741,6 +1834,9 @@ struct BroadcastAudioEncoderStats: Equatable {
 
     mutating func recordStatus(_ status: OSStatus) {
         lastStatus = status
+        if status != noErr {
+            failureCount += 1
+        }
     }
 
     func asDictionary() -> [String: Any] {
@@ -1755,6 +1851,10 @@ struct BroadcastAudioEncoderStats: Equatable {
             "channelCount": channelCount,
             "lastPresentationTimeSeconds": lastPresentationTimeSeconds,
             "lastStatus": lastStatus,
+            "failureCount": failureCount,
+            "encoderInstanceId": encoderInstanceID,
+            "outputEncoderInstanceId": outputEncoderInstanceID,
+            "activeEncoderInstanceVerified": activeEncoderInstanceVerified,
             "micRmsLevel": micRmsLevel,
             "micPeakLevel": micPeakLevel,
             "micSampleCount": micSampleCount,
@@ -3435,6 +3535,7 @@ final class BroadcastAudioEncoder {
     private let encoderLock = NSLock()
     private let statsLock = NSLock()
     private var converter: AudioConverterRef?
+    private var converterInstanceID = ""
     private var inputSignature: BroadcastAudioInputSignature?
     private var outputFormat = AudioStreamBasicDescription()
     private var maxOutputPacketSize: UInt32 = 4096
@@ -3483,10 +3584,13 @@ final class BroadcastAudioEncoder {
         do {
             try encodeLocked(sampleBuffer, source: source)
         } catch let error as BroadcastAudioEncoderError {
-            if let status = error.statusCode {
-                statsLock.performLocked {
-                    self.currentStats.recordStatus(status)
-                }
+            statsLock.performLocked {
+                self.currentStats.recordStatus(error.statusCode ?? -1)
+            }
+            throw error
+        } catch {
+            statsLock.performLocked {
+                self.currentStats.recordStatus(-1)
             }
             throw error
         }
@@ -3501,6 +3605,7 @@ final class BroadcastAudioEncoder {
         }
         sourceConverters.values.forEach { $0.finish() }
         converter = nil
+        converterInstanceID = ""
         inputSignature = nil
         audioSpecificConfig = Data()
         mixerInputFormat = nil
@@ -3780,6 +3885,18 @@ final class BroadcastAudioEncoder {
             throw BroadcastAudioEncoderError.propertySetFailed("EncodeBitRate", bitrateStatus)
         }
 
+        var primeMethod = UInt32(kConverterPrimeMethod_None)
+        let primeMethodStatus = AudioConverterSetProperty(
+            nextConverter,
+            kAudioConverterPrimeMethod,
+            UInt32(MemoryLayout<UInt32>.size),
+            &primeMethod
+        )
+        guard primeMethodStatus == noErr else {
+            AudioConverterDispose(nextConverter)
+            throw BroadcastAudioEncoderError.propertySetFailed("PrimeMethod", primeMethodStatus)
+        }
+
         var nextMaxOutputPacketSize: UInt32 = 0
         var packetSizePropertySize = UInt32(MemoryLayout<UInt32>.size)
         let packetSizeStatus = AudioConverterGetProperty(
@@ -3796,10 +3913,14 @@ final class BroadcastAudioEncoder {
             AudioConverterDispose(converter)
         }
         converter = nextConverter
+        converterInstanceID = UUID().uuidString
         inputSignature = signature
         outputFormat = nextOutputFormat
         maxOutputPacketSize = nextMaxOutputPacketSize
         audioSpecificConfig = nextAudioSpecificConfig
+        statsLock.performLocked {
+            currentStats.configureActiveEncoder(instanceID: converterInstanceID)
+        }
     }
 
     private func encodeInputData(
@@ -3811,6 +3932,10 @@ final class BroadcastAudioEncoder {
         presentationTimeSeconds: Double,
         durationSeconds: Double
     ) throws -> [BroadcastEncodedAudioFrame] {
+        let activeConverterInstanceID = converterInstanceID
+        guard !activeConverterInstanceID.isEmpty else {
+            throw BroadcastAudioEncoderError.converterCreateFailed(kAudio_ParamError)
+        }
         let framesPerPacket = max(Int(outputFormat.mFramesPerPacket), 1)
         let outputPacketCapacity = max(1, min(32, Int(inputPacketCount) / framesPerPacket + 2))
         let outputBufferSize = max(Int(maxOutputPacketSize) * outputPacketCapacity, 1024)
@@ -3822,7 +3947,7 @@ final class BroadcastAudioEncoder {
 
         return try inputData.withUnsafeBytes { inputBytes -> [BroadcastEncodedAudioFrame] in
             guard let inputBaseAddress = inputBytes.baseAddress else {
-                return []
+                throw BroadcastAudioEncoderError.encodeFailed(kAudio_ParamError)
             }
             var inputContext = BroadcastAudioConverterInputContext(
                 data: inputBaseAddress,
@@ -3833,7 +3958,7 @@ final class BroadcastAudioEncoder {
 
             return try outputData.withUnsafeMutableBytes { outputBytes -> [BroadcastEncodedAudioFrame] in
                 guard let outputBaseAddress = outputBytes.baseAddress else {
-                    return []
+                    throw BroadcastAudioEncoderError.encodeFailed(kAudio_ParamError)
                 }
 
                 var outputBufferList = AudioBufferList(
@@ -3861,7 +3986,7 @@ final class BroadcastAudioEncoder {
 
                 let validByteCount = Int(outputBufferList.mBuffers.mDataByteSize)
                 guard outputPacketCount > 0, validByteCount > 0 else {
-                    return []
+                    throw BroadcastAudioEncoderError.encodeFailed(kAudio_ParamError)
                 }
 
                 let encodedBytes = Data(bytes: outputBaseAddress, count: validByteCount)
@@ -3875,11 +4000,12 @@ final class BroadcastAudioEncoder {
                     let packetOffset = description.mDataByteSize > 0 ? Int(description.mStartOffset) : 0
                     let packetSize = description.mDataByteSize > 0 ? Int(description.mDataByteSize) : validByteCount
                     guard packetSize > 0, packetOffset >= 0, packetOffset + packetSize <= encodedBytes.count else {
-                        continue
+                        throw BroadcastAudioEncoderError.encodeFailed(kAudio_ParamError)
                     }
 
                     frames.append(
                         BroadcastEncodedAudioFrame(
+                            encoderInstanceID: activeConverterInstanceID,
                             source: source,
                             presentationTimeSeconds: presentationTimeSeconds + Double(packetIndex) * packetDuration,
                             durationSeconds: packetDuration,
@@ -3956,9 +4082,11 @@ private let videoCompressionOutputCallback: VTCompressionOutputCallback = { refc
 final class BroadcastVideoEncoder {
     private let configuration: BroadcastUploadConfiguration
     private let onEncodedFrame: (BroadcastEncodedVideoFrame) -> Void
+    private let encoderInstanceID = UUID().uuidString
     private let encoderQueue = DispatchQueue(label: "MobileLiveCaster.broadcast.video-encoder")
     private var session: VTCompressionSession?
     private var forceNextKeyframe = false
+    private var nextFramePresentationTime: CMTime?
     private let statsLock = NSLock()
     private var currentStats = BroadcastVideoEncoderStats()
 
@@ -3978,8 +4106,20 @@ final class BroadcastVideoEncoder {
     }
 
     func encode(_ sampleBuffer: CMSampleBuffer) throws {
-        try encoderQueue.sync {
-            try encodeLocked(sampleBuffer)
+        do {
+            try encoderQueue.sync {
+                try encodeLocked(sampleBuffer)
+            }
+        } catch let error as BroadcastVideoEncoderError {
+            statsLock.performLocked {
+                currentStats.recordStatus(error.statusCode ?? -1)
+            }
+            throw error
+        } catch {
+            statsLock.performLocked {
+                currentStats.recordStatus(-1)
+            }
+            throw error
         }
     }
 
@@ -4016,24 +4156,24 @@ final class BroadcastVideoEncoder {
             throw BroadcastVideoEncoderError.pixelBufferMissing
         }
 
-        let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        let duration = normalizedDuration(CMSampleBufferGetDuration(sampleBuffer))
+        let sourcePresentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        guard let presentationTime = scheduledPresentationTime(for: sourcePresentationTime) else {
+            return
+        }
+        let duration = targetFrameDuration
         let frameProperties = forceNextKeyframe
             ? [kVTEncodeFrameOptionKey_ForceKeyFrame: kCFBooleanTrue as Any] as CFDictionary
             : nil
         let status = VTCompressionSessionEncodeFrame(
             session,
             imageBuffer: imageBuffer,
-            presentationTimeStamp: presentationTime.isValid ? presentationTime : CMTime(value: 0, timescale: 1),
+            presentationTimeStamp: presentationTime,
             duration: duration,
             frameProperties: frameProperties,
             sourceFrameRefcon: nil,
             infoFlagsOut: nil
         )
         guard status == noErr else {
-            statsLock.performLocked {
-                currentStats.recordStatus(status)
-            }
             throw BroadcastVideoEncoderError.encodeFailed(status)
         }
         forceNextKeyframe = false
@@ -4048,6 +4188,7 @@ final class BroadcastVideoEncoder {
             VTCompressionSessionInvalidate(session)
             self.session = nil
             forceNextKeyframe = false
+            nextFramePresentationTime = nil
         }
     }
 
@@ -4058,12 +4199,19 @@ final class BroadcastVideoEncoder {
             }
             return
         }
-        guard let sampleBuffer, CMSampleBufferDataIsReady(sampleBuffer), let encodedFrame = Self.makeEncodedFrame(sampleBuffer) else {
+        guard
+            let sampleBuffer,
+            CMSampleBufferDataIsReady(sampleBuffer),
+            let encodedFrame = Self.makeEncodedFrame(sampleBuffer)
+        else {
+            statsLock.performLocked {
+                currentStats.recordStatus(-1)
+            }
             return
         }
 
         statsLock.performLocked {
-            currentStats.record(encodedFrame)
+            currentStats.record(encodedFrame, encoderInstanceID: encoderInstanceID)
         }
         onEncodedFrame(encodedFrame)
     }
@@ -4103,6 +4251,13 @@ final class BroadcastVideoEncoder {
         try setProperty(kVTCompressionPropertyKey_ExpectedFrameRate, NSNumber(value: configuration.fps), name: "ExpectedFrameRate")
 
         VTCompressionSessionPrepareToEncodeFrames(nextSession)
+        let expectedFrameRate = copyNumberProperty(kVTCompressionPropertyKey_ExpectedFrameRate) ?? 0
+        statsLock.performLocked {
+            currentStats.configureActiveEncoder(
+                instanceID: encoderInstanceID,
+                expectedFrameRate: expectedFrameRate
+            )
+        }
     }
 
     private func setProperty(_ key: CFString, _ value: CFTypeRef, name: String) throws {
@@ -4115,29 +4270,103 @@ final class BroadcastVideoEncoder {
         }
     }
 
-    private func normalizedDuration(_ duration: CMTime) -> CMTime {
-        if duration.isValid && duration.isNumeric && duration.value > 0 {
-            return duration
+    private func copyNumberProperty(_ key: CFString) -> Double? {
+        guard let session else {
+            return nil
         }
-        return CMTime(value: 1, timescale: CMTimeScale(max(configuration.fps, 1)))
+        var unmanagedPropertyValue: Unmanaged<CFTypeRef>?
+        let status = withUnsafeMutablePointer(to: &unmanagedPropertyValue) { valuePointer in
+            VTSessionCopyProperty(
+                session,
+                key: key,
+                allocator: kCFAllocatorDefault,
+                valueOut: UnsafeMutableRawPointer(valuePointer)
+            )
+        }
+        guard
+            status == noErr,
+            let propertyValue = unmanagedPropertyValue?.takeRetainedValue(),
+            let number = propertyValue as? NSNumber
+        else {
+            return nil
+        }
+        return number.doubleValue
+    }
+
+    private var targetFrameDuration: CMTime {
+        CMTime(value: 1, timescale: CMTimeScale(max(configuration.fps, 1)))
+    }
+
+    private func scheduledPresentationTime(for sourcePresentationTime: CMTime) -> CMTime? {
+        let duration = targetFrameDuration
+        let sourceIsValid = sourcePresentationTime.isValid && sourcePresentationTime.isNumeric
+
+        guard var scheduledPresentationTime = nextFramePresentationTime else {
+            let firstPresentationTime = sourceIsValid
+                ? sourcePresentationTime
+                : CMTime(value: 0, timescale: duration.timescale)
+            nextFramePresentationTime = CMTimeAdd(firstPresentationTime, duration)
+            return firstPresentationTime
+        }
+
+        if sourceIsValid {
+            guard CMTimeCompare(sourcePresentationTime, scheduledPresentationTime) >= 0 else {
+                return nil
+            }
+            while CMTimeCompare(CMTimeAdd(scheduledPresentationTime, duration), sourcePresentationTime) <= 0 {
+                scheduledPresentationTime = CMTimeAdd(scheduledPresentationTime, duration)
+            }
+        }
+
+        nextFramePresentationTime = CMTimeAdd(scheduledPresentationTime, duration)
+        return scheduledPresentationTime
     }
 
     private static func makeEncodedFrame(_ sampleBuffer: CMSampleBuffer) -> BroadcastEncodedVideoFrame? {
-        guard let dataBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else {
+        guard
+            let dataBuffer = CMSampleBufferGetDataBuffer(sampleBuffer),
+            let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer)
+        else {
+            return nil
+        }
+
+        let outputDimensions = CMVideoFormatDescriptionGetDimensions(formatDescription)
+        guard
+            CMFormatDescriptionGetMediaSubType(formatDescription) == kCMVideoCodecType_H264,
+            outputDimensions.width > 0,
+            outputDimensions.height > 0
+        else {
             return nil
         }
 
         let isKeyframe = isKeyframe(sampleBuffer)
         let parameterSets = isKeyframe ? h264ParameterSets(sampleBuffer) : []
-        let sampleData = copyBlockBufferData(dataBuffer)
-        let nalUnitHeaderLength = h264NALUnitHeaderLength(sampleBuffer) ?? 4
-        let annexB = annexBNALUnits(from: sampleData, nalUnitHeaderLength: nalUnitHeaderLength)
         let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         let duration = CMSampleBufferGetDuration(sampleBuffer)
+        guard
+            !isKeyframe || !parameterSets.isEmpty,
+            let sampleData = copyBlockBufferData(dataBuffer),
+            !sampleData.isEmpty,
+            let nalUnitHeaderLength = h264NALUnitHeaderLength(sampleBuffer),
+            let annexB = annexBNALUnits(from: sampleData, nalUnitHeaderLength: nalUnitHeaderLength),
+            presentationTime.isValid,
+            presentationTime.isNumeric,
+            duration.isValid,
+            duration.isNumeric,
+            duration.value > 0,
+            duration.timescale > 0
+        else {
+            return nil
+        }
 
         return BroadcastEncodedVideoFrame(
-            presentationTimeSeconds: presentationTime.isValid ? CMTimeGetSeconds(presentationTime) : 0,
-            durationSeconds: duration.isValid && duration.isNumeric ? CMTimeGetSeconds(duration) : 0,
+            presentationTimeSeconds: CMTimeGetSeconds(presentationTime),
+            durationSeconds: CMTimeGetSeconds(duration),
+            durationValue: duration.value,
+            durationTimescale: duration.timescale,
+            outputWidth: Int(outputDimensions.width),
+            outputHeight: Int(outputDimensions.height),
+            outputCodecType: CMFormatDescriptionGetMediaSubType(formatDescription),
             isKeyframe: isKeyframe,
             byteCount: sampleData.count + parameterSets.reduce(0) { $0 + $1.count },
             parameterSets: parameterSets,
@@ -4146,20 +4375,25 @@ final class BroadcastVideoEncoder {
         )
     }
 
-    private static func copyBlockBufferData(_ blockBuffer: CMBlockBuffer) -> Data {
+    private static func copyBlockBufferData(_ blockBuffer: CMBlockBuffer) -> Data? {
         let dataLength = CMBlockBufferGetDataLength(blockBuffer)
         guard dataLength > 0 else {
-            return Data()
+            return nil
         }
 
         var data = Data(count: dataLength)
-        data.withUnsafeMutableBytes { destination in
+        let copyStatus = data.withUnsafeMutableBytes { destination -> OSStatus in
             guard let baseAddress = destination.baseAddress else {
-                return
+                return kCMBlockBufferBadPointerParameterErr
             }
-            CMBlockBufferCopyDataBytes(blockBuffer, atOffset: 0, dataLength: dataLength, destination: baseAddress)
+            return CMBlockBufferCopyDataBytes(
+                blockBuffer,
+                atOffset: 0,
+                dataLength: dataLength,
+                destination: baseAddress
+            )
         }
-        return data
+        return copyStatus == noErr ? data : nil
     }
 
     private static func isKeyframe(_ sampleBuffer: CMSampleBuffer) -> Bool {
@@ -4229,9 +4463,9 @@ final class BroadcastVideoEncoder {
         return Int(nalUnitHeaderLength)
     }
 
-    private static func annexBNALUnits(from avccData: Data, nalUnitHeaderLength: Int) -> [Data] {
-        guard nalUnitHeaderLength > 0 else {
-            return []
+    private static func annexBNALUnits(from avccData: Data, nalUnitHeaderLength: Int) -> [Data]? {
+        guard !avccData.isEmpty, nalUnitHeaderLength > 0 else {
+            return nil
         }
 
         var units: [Data] = []
@@ -4243,13 +4477,16 @@ final class BroadcastVideoEncoder {
             }
             offset += nalUnitHeaderLength
             guard nalLength > 0, offset + nalLength <= avccData.count else {
-                break
+                return nil
             }
 
             var unit = Data([0, 0, 0, 1])
             unit.append(avccData[offset..<(offset + nalLength)])
             units.append(unit)
             offset += nalLength
+        }
+        guard offset == avccData.count, !units.isEmpty else {
+            return nil
         }
         return units
     }

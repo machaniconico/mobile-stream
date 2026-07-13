@@ -340,6 +340,9 @@ export type NativeRuntimeEncoderProbeStatus = "unknown" | "pass" | "warn" | "fai
 export interface NativeRuntimeEncoderProbe {
   status: NativeRuntimeEncoderProbeStatus;
   checkedAt: number;
+  activeEncoderInstancesVerified?: boolean;
+  videoEncodedOutputCount?: number;
+  audioEncodedOutputCount?: number;
   videoBackend: string;
   audioBackend: string;
   videoCodecName: string;
@@ -702,6 +705,7 @@ export interface NativeRuntimeTelemetry {
   droppedFrames: number;
   publisher: NativeRuntimePublisher;
   encoderProbe?: NativeRuntimeEncoderProbe | null;
+  lastActiveEncoderProbe?: NativeRuntimeEncoderProbe | null;
   device?: NativeRuntimeDevice;
   composition: NativeRuntimeComposition;
   audioProcessing?: NativeRuntimeAudioProcessing;

@@ -150,13 +150,12 @@ class MediaProjectionService : Service() {
                 ?: profile.videoBitrate / 1_000
             val streamProfile = profile.copy(videoBitrate = effectiveTargetKbps * 1_000)
             startForegroundCompat()
-            val encoderProbe = AndroidMediaCodecProbe.inspect(streamProfile)
+            val encoderPreflight = AndroidMediaCodecProbe.inspect(streamProfile)
             LiveCasterSession.updateNativeRuntime(
                 publisherState = "preparing",
-                encoderProbe = encoderProbe,
                 continuity = mediaContinuityTracker.record(null, null, active = false),
                 device = deviceResourceMonitor.snapshot(),
-                message = encoderProbe.message
+                message = encoderPreflight.message
             )
             val projection = mediaProjectionManager.getMediaProjection(captureConsent.resultCode, captureConsent.data)
                 ?: throw IllegalStateException("Could not create MediaProjection")
@@ -734,6 +733,7 @@ class MediaProjectionService : Service() {
             currentPublishAudioFrames = publishEvidence.currentPublishAudioFrames,
             videoEncoderBackend = snapshot?.videoEncoderBackend ?: AndroidMediaCodecRtmpPublisher.VIDEO_BACKEND,
             audioEncoderBackend = snapshot?.audioEncoderBackend ?: AndroidMediaCodecRtmpPublisher.AUDIO_BACKEND,
+            encoderProbe = snapshot?.encoderProbe,
             droppedVideoFrames = snapshot?.droppedVideoFrames,
             droppedAudioFrames = snapshot?.droppedAudioFrames,
             bytesWritten = bytesWritten ?: snapshot?.encodedBytes,
@@ -834,7 +834,15 @@ class MediaProjectionService : Service() {
 
     private fun releaseStreamResources() {
         invalidatePublisherCallbackSession()
-        directMediaCodecStream?.stop()
+        directMediaCodecStream?.let { directStream ->
+            val activeEncoderProbe = directStream.snapshot().encoderProbe
+            directStream.stop()
+            LiveCasterSession.updateNativeRuntime(
+                encoderProbe = directStream.snapshot().encoderProbe,
+                lastActiveEncoderProbe = activeEncoderProbe.takeIf { it.status == "pass" },
+                message = LiveCasterSession.health.message
+            )
+        }
         directMediaCodecStream = null
         genericStream?.stopStream()
         genericStream?.release()

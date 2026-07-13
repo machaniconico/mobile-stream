@@ -494,13 +494,13 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v59 support bundles because current publisher proof requires v60", () => {
+  it("blocks v60 support bundles because native output-format proof requires v61", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         app: {
           name: "MobileLiveCaster",
           reportVersion: 1,
-          bundleVersion: 59
+          bundleVersion: 60
         }
       }),
       { now }
@@ -510,7 +510,7 @@ describe("commercial release gate", () => {
     expect(gate.issues).toContainEqual(
       expect.objectContaining({
         code: "bundle-version",
-        detail: "Support bundle v59 is older than the required v60."
+        detail: "Support bundle v60 is older than the required v61."
       })
     );
   });
@@ -525,7 +525,7 @@ describe("commercial release gate", () => {
     expect(gate.issues).toContainEqual(expect.objectContaining({ code: "bundle-version" }));
   });
 
-  it("blocks v60 support bundles without scene fingerprint evidence", () => {
+  it("blocks current support bundles without scene fingerprint evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).sceneFingerprint;
     delete (bundle.scene as Partial<SupportBundle["scene"]>).fingerprint;
@@ -539,7 +539,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v60 support bundles with mismatched scene fingerprints", () => {
+  it("blocks current support bundles with mismatched scene fingerprints", () => {
     const bundle = supportBundle({
       summary: {
         sceneFingerprint: "scene1-summary"
@@ -556,7 +556,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v60 support bundles when retained validation runs are from another scene", () => {
+  it("blocks current support bundles when retained validation runs are from another scene", () => {
     const bundle = supportBundle({
       summary: {
         validationEvidenceRunManifest: [
@@ -614,7 +614,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v60 support bundles without native caption overlay summary evidence", () => {
+  it("blocks current support bundles without native caption overlay summary evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).nativeCompositionCaptionOverlayCount;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -2236,6 +2236,164 @@ describe("commercial release gate", () => {
           code: "validation-evidence-manifest-integrity",
           detail: expect.stringContaining("iOS native runtime proof")
         })
+      );
+    }
+  });
+
+  it("accepts matching requested and native encoder output-format proof", () => {
+    const gate = createCommercialReleaseGate(supportBundle(), { now });
+
+    expect(gate.status).toBe("ready");
+    expect(gate.issues.map((issue) => issue.code)).not.toContain("validation-evidence-manifest-integrity");
+  });
+
+  it("blocks bundles without valid current stream output quality evidence", () => {
+    const bundle = supportBundle();
+    delete (bundle as Partial<SupportBundle>).quality;
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(expect.objectContaining({ code: "stream-output-quality" }));
+  });
+
+  it("blocks retained output proof recorded for a different current quality", () => {
+    const bundle = supportBundle();
+    bundle.quality = {
+      ...bundle.quality,
+      resolution: "1920x1080",
+      width: 1920,
+      height: 1080,
+      fps: 60
+    };
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(expect.objectContaining({ code: "validation-evidence-manifest-scope" }));
+  });
+
+  it("blocks missing, malformed, fractional, mismatched, or unconfigured native encoder output proof", () => {
+    const invalidCases: Array<{
+      label: string;
+      mutate: (run: Record<string, unknown>) => void;
+    }> = [
+      {
+        label: "missing output proof",
+        mutate: (run) => {
+          delete run.nativeRuntimeEncoderProbeStatus;
+          delete run.nativeRuntimeEncoderProbeActiveEncoderInstancesVerified;
+          delete run.nativeRuntimeEncoderProbeVideoEncodedOutputCount;
+          delete run.nativeRuntimeEncoderProbeAudioEncodedOutputCount;
+          delete run.nativeRuntimeEncoderProbeVideoConfigured;
+          delete run.nativeRuntimeEncoderProbeAudioConfigured;
+          delete run.nativeRuntimeEncoderProbeVideoWidth;
+          delete run.nativeRuntimeEncoderProbeVideoHeight;
+          delete run.nativeRuntimeEncoderProbeVideoFps;
+        }
+      },
+      {
+        label: "active encoder instances not verified",
+        mutate: (run) => {
+          run.nativeRuntimeEncoderProbeActiveEncoderInstancesVerified = false;
+        }
+      },
+      {
+        label: "zero video encoded output",
+        mutate: (run) => {
+          run.nativeRuntimeEncoderProbeVideoEncodedOutputCount = 0;
+        }
+      },
+      {
+        label: "zero audio encoded output",
+        mutate: (run) => {
+          run.nativeRuntimeEncoderProbeAudioEncodedOutputCount = 0;
+        }
+      },
+      {
+        label: "video encoder not configured",
+        mutate: (run) => {
+          run.nativeRuntimeEncoderProbeVideoConfigured = false;
+        }
+      },
+      {
+        label: "audio encoder not configured",
+        mutate: (run) => {
+          run.nativeRuntimeEncoderProbeAudioConfigured = false;
+        }
+      },
+      {
+        label: "invalid probe backends",
+        mutate: (run) => {
+          run.nativeRuntimeEncoderProbeVideoBackend = "none";
+          run.nativeRuntimeEncoderProbeAudioBackend = "none";
+        }
+      },
+      {
+        label: "fractional requested output",
+        mutate: (run) => {
+          run.requestedVideoWidth = 1280.5;
+          run.requestedVideoHeight = 720.5;
+          run.requestedVideoFps = 30.5;
+        }
+      },
+      {
+        label: "malformed probe output",
+        mutate: (run) => {
+          run.nativeRuntimeEncoderProbeVideoWidth = "1280";
+          run.nativeRuntimeEncoderProbeVideoHeight = "720";
+          run.nativeRuntimeEncoderProbeVideoFps = "30";
+        }
+      },
+      {
+        label: "mismatched width",
+        mutate: (run) => {
+          run.nativeRuntimeEncoderProbeVideoWidth = 1920;
+        }
+      },
+      {
+        label: "mismatched height",
+        mutate: (run) => {
+          run.nativeRuntimeEncoderProbeVideoHeight = 1080;
+        }
+      },
+      {
+        label: "mismatched fps",
+        mutate: (run) => {
+          run.nativeRuntimeEncoderProbeVideoFps = 60;
+        }
+      },
+      {
+        label: "unproven exact match",
+        mutate: (run) => {
+          run.nativeRuntimeEncoderProbeMatchesRequestedOutput = false;
+        }
+      }
+    ];
+
+    for (const { label, mutate } of invalidCases) {
+      const iosRun = manifestRun({ devicePlatform: "ios", fingerprint: `svr1-ios-output-${label}` });
+      mutate(iosRun as unknown as Record<string, unknown>);
+      const gate = createCommercialReleaseGate(
+        supportBundle({
+          summary: {
+            validationEvidenceRunManifest: [
+              iosRun,
+              manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+            ]
+          }
+        }),
+        { now }
+      );
+
+      expect(gate.status, label).toBe("blocked");
+      expect(gate.issues, label).toContainEqual(
+        label === "fractional requested output"
+          ? expect.objectContaining({ code: "validation-evidence-manifest-scope" })
+          : expect.objectContaining({
+              code: "validation-evidence-manifest-integrity",
+              detail: expect.stringContaining("iOS native runtime proof")
+            })
       );
     }
   });
@@ -4276,7 +4434,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 60 as const
+    bundleVersion: 61 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -4304,6 +4462,15 @@ const supportBundle = ({
   ({
     app,
     generatedAt,
+    quality: {
+      resolution: "1280x720",
+      width: 1280,
+      height: 720,
+      fps: 30,
+      targetVideoBitrateKbps: 3500,
+      targetAudioBitrateKbps: 128,
+      estimatedUploadKbps: 4535
+    },
     profile: {
       androidPublisherMode,
       destination,
@@ -4583,6 +4750,9 @@ const manifestRun = ({
   sceneFingerprint = "scene1-ready",
   targetPlatform = "YouTube Live",
   transport = "rtmps",
+  requestedVideoWidth = 1280,
+  requestedVideoHeight = 720,
+  requestedVideoFps = 30,
   nativeRuntimePlatform,
   nativeRuntimeSessionId = `session-${devicePlatform}`,
   nativeRuntimeSessionStartedAt = "2026-06-23T10:58:00.000Z",
@@ -4608,9 +4778,18 @@ const manifestRun = ({
   nativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples = 0,
   nativeRuntimeVideoEncoderBackend = devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
   nativeRuntimeAudioEncoderBackend = devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
-  nativeRuntimeEncoderProbeStatus = "missing",
-  nativeRuntimeEncoderProbeVideoBackend = "none",
-  nativeRuntimeEncoderProbeAudioBackend = "none",
+  nativeRuntimeEncoderProbeStatus = "pass",
+  nativeRuntimeEncoderProbeActiveEncoderInstancesVerified = true,
+  nativeRuntimeEncoderProbeVideoEncodedOutputCount = 120,
+  nativeRuntimeEncoderProbeAudioEncodedOutputCount = 190,
+  nativeRuntimeEncoderProbeVideoBackend = devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
+  nativeRuntimeEncoderProbeAudioBackend = devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
+  nativeRuntimeEncoderProbeVideoConfigured = true,
+  nativeRuntimeEncoderProbeAudioConfigured = true,
+  nativeRuntimeEncoderProbeVideoWidth = 1280,
+  nativeRuntimeEncoderProbeVideoHeight = 720,
+  nativeRuntimeEncoderProbeVideoFps = 30,
+  nativeRuntimeEncoderProbeMatchesRequestedOutput = true,
   nativeRuntimeCongested = false,
   nativeRuntimeQueuedItems = 0,
   nativeRuntimeCacheSize = 0,
@@ -4818,6 +4997,9 @@ const manifestRun = ({
   sceneFingerprint?: ValidationManifestRun["sceneFingerprint"];
   targetPlatform?: ValidationManifestRun["targetPlatform"];
   transport?: ValidationManifestRun["transport"];
+  requestedVideoWidth?: ValidationManifestRun["requestedVideoWidth"];
+  requestedVideoHeight?: ValidationManifestRun["requestedVideoHeight"];
+  requestedVideoFps?: ValidationManifestRun["requestedVideoFps"];
   nativeRuntimeContinuityStatus?: ValidationManifestRun["nativeRuntimeContinuityStatus"];
   nativeRuntimeVideoStallCount?: ValidationManifestRun["nativeRuntimeVideoStallCount"];
   nativeRuntimeAudioStallCount?: ValidationManifestRun["nativeRuntimeAudioStallCount"];
@@ -4844,8 +5026,17 @@ const manifestRun = ({
   nativeRuntimeVideoEncoderBackend?: ValidationManifestRun["nativeRuntimeVideoEncoderBackend"];
   nativeRuntimeAudioEncoderBackend?: ValidationManifestRun["nativeRuntimeAudioEncoderBackend"];
   nativeRuntimeEncoderProbeStatus?: ValidationManifestRun["nativeRuntimeEncoderProbeStatus"];
+  nativeRuntimeEncoderProbeActiveEncoderInstancesVerified?: ValidationManifestRun["nativeRuntimeEncoderProbeActiveEncoderInstancesVerified"];
+  nativeRuntimeEncoderProbeVideoEncodedOutputCount?: ValidationManifestRun["nativeRuntimeEncoderProbeVideoEncodedOutputCount"];
+  nativeRuntimeEncoderProbeAudioEncodedOutputCount?: ValidationManifestRun["nativeRuntimeEncoderProbeAudioEncodedOutputCount"];
   nativeRuntimeEncoderProbeVideoBackend?: ValidationManifestRun["nativeRuntimeEncoderProbeVideoBackend"];
   nativeRuntimeEncoderProbeAudioBackend?: ValidationManifestRun["nativeRuntimeEncoderProbeAudioBackend"];
+  nativeRuntimeEncoderProbeVideoConfigured?: ValidationManifestRun["nativeRuntimeEncoderProbeVideoConfigured"];
+  nativeRuntimeEncoderProbeAudioConfigured?: ValidationManifestRun["nativeRuntimeEncoderProbeAudioConfigured"];
+  nativeRuntimeEncoderProbeVideoWidth?: ValidationManifestRun["nativeRuntimeEncoderProbeVideoWidth"];
+  nativeRuntimeEncoderProbeVideoHeight?: ValidationManifestRun["nativeRuntimeEncoderProbeVideoHeight"];
+  nativeRuntimeEncoderProbeVideoFps?: ValidationManifestRun["nativeRuntimeEncoderProbeVideoFps"];
+  nativeRuntimeEncoderProbeMatchesRequestedOutput?: ValidationManifestRun["nativeRuntimeEncoderProbeMatchesRequestedOutput"];
   nativeRuntimeCongested?: ValidationManifestRun["nativeRuntimeCongested"];
   nativeRuntimeQueuedItems?: ValidationManifestRun["nativeRuntimeQueuedItems"];
   nativeRuntimeCacheSize?: ValidationManifestRun["nativeRuntimeCacheSize"];
@@ -5056,6 +5247,9 @@ const manifestRun = ({
   sceneFingerprint,
   targetPlatform,
   transport,
+  requestedVideoWidth,
+  requestedVideoHeight,
+  requestedVideoFps,
   result,
   nativeRuntimePlatform: nativeRuntimePlatform ?? devicePlatform,
   nativeRuntimeSessionId,
@@ -5082,8 +5276,17 @@ const manifestRun = ({
   nativeRuntimeVideoEncoderBackend,
   nativeRuntimeAudioEncoderBackend,
   nativeRuntimeEncoderProbeStatus,
+  nativeRuntimeEncoderProbeActiveEncoderInstancesVerified,
+  nativeRuntimeEncoderProbeVideoEncodedOutputCount,
+  nativeRuntimeEncoderProbeAudioEncodedOutputCount,
   nativeRuntimeEncoderProbeVideoBackend,
   nativeRuntimeEncoderProbeAudioBackend,
+  nativeRuntimeEncoderProbeVideoConfigured,
+  nativeRuntimeEncoderProbeAudioConfigured,
+  nativeRuntimeEncoderProbeVideoWidth,
+  nativeRuntimeEncoderProbeVideoHeight,
+  nativeRuntimeEncoderProbeVideoFps,
+  nativeRuntimeEncoderProbeMatchesRequestedOutput,
   nativeRuntimeCongested,
   nativeRuntimeQueuedItems,
   nativeRuntimeCacheSize,

@@ -376,6 +376,24 @@ const historyMetricLabel = (diagnostics: StreamDiagnostics): string =>
     ? "No samples yet"
     : `${diagnostics.history.stability} / avg ${diagnostics.history.averageBitrateKbps} kbps / ${diagnostics.history.averageFps} fps`;
 
+const encoderOutputMetricLabel = (diagnostics: StreamDiagnostics): string => {
+  const probe = diagnostics.nativeRuntime?.encoderProbe;
+  if (!probe) {
+    return "No active proof";
+  }
+  const configured = probe.videoConfigured && probe.audioConfigured;
+  const activeInstancesReady = probe.activeEncoderInstancesVerified === true;
+  const encodedOutputReady =
+    (probe.videoEncodedOutputCount ?? 0) > 0 && (probe.audioEncodedOutputCount ?? 0) > 0;
+  const formatReady = probe.videoWidth > 0 && probe.videoHeight > 0 && probe.videoFps > 0;
+  const output = formatReady ? `${probe.videoWidth}x${probe.videoHeight}@${probe.videoFps}` : "unproven";
+  const matchesTarget =
+    configured && activeInstancesReady && encodedOutputReady &&
+    `${probe.videoWidth}x${probe.videoHeight}` === diagnostics.quality.resolution &&
+    probe.videoFps === diagnostics.quality.fps;
+  return `${probe.status} / ${output} / instances ${activeInstancesReady ? "verified" : "unverified"} / encoded ${probe.videoEncodedOutputCount ?? 0}/${probe.audioEncodedOutputCount ?? 0} / ${matchesTarget ? "matched" : "mismatch"}`;
+};
+
 const sessionMetricLabel = (diagnostics: StreamDiagnostics): string =>
   diagnostics.session.lastSummary
     ? `${diagnostics.session.lastSummary.outcome} / ${Math.round(diagnostics.session.lastSummary.durationSeconds)}s / ${diagnostics.session.lastSummary.eventCount} events${diagnostics.session.lastSummary.nativeRuntime ? ` / native ${diagnostics.session.lastSummary.nativeRuntime.status}` : ""}`
@@ -3111,6 +3129,7 @@ const StreamDiagnosticsPanel = ({
       <DiagnosticMetric label="Quality" value={`${diagnostics.quality.resolution} / ${diagnostics.quality.fps}fps`} />
       <DiagnosticMetric label="Upload target" value={`${diagnostics.quality.estimatedUploadKbps} kbps`} />
       <DiagnosticMetric label="Telemetry" value={`${diagnostics.telemetry.bitrateKbps} kbps / ${diagnostics.telemetry.fps} fps`} />
+      <DiagnosticMetric label="Encoder output" value={encoderOutputMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Audio guard" value={audioGuardMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Audio silence" value={audioSilenceGuardMetricLabel(diagnostics)} />
       <DiagnosticMetric label="Audio route" value={`${diagnostics.audio.monitorSafety.status} / ${diagnostics.audio.monitorSafety.outputName}`} />
