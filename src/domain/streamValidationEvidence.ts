@@ -229,6 +229,10 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeSessionStartedAt: string | null;
   nativeRuntimeSessionEndedAt: string | null;
   nativeRuntimeStatus: StreamSessionNativeRuntimeSummary["status"] | null;
+  nativeRuntimePublisherState: string | null;
+  nativeRuntimePublisherPublishGeneration: number;
+  nativeRuntimeCurrentPublishVideoFrames: number;
+  nativeRuntimeCurrentPublishAudioFrames: number;
   nativeRuntimeContinuityStatus: StreamSessionNativeRuntimeSummary["continuityStatus"] | null;
   nativeRuntimeVideoStallCount: number;
   nativeRuntimeAudioStallCount: number;
@@ -3160,6 +3164,10 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeSessionStartedAt: run.nativeRuntimeSessionStartedAt,
     nativeRuntimeSessionEndedAt: run.nativeRuntimeSessionEndedAt,
     nativeRuntimeStatus: run.nativeRuntime?.status ?? null,
+    nativeRuntimePublisherState: run.nativeRuntime?.publisherState ?? null,
+    nativeRuntimePublisherPublishGeneration: run.nativeRuntime?.publisherPublishGeneration ?? 0,
+    nativeRuntimeCurrentPublishVideoFrames: run.nativeRuntime?.currentPublishVideoFrames ?? 0,
+    nativeRuntimeCurrentPublishAudioFrames: run.nativeRuntime?.currentPublishAudioFrames ?? 0,
     nativeRuntimeContinuityStatus: run.nativeRuntime?.continuityStatus ?? null,
     nativeRuntimeVideoStallCount: run.nativeRuntime?.videoStallCount ?? 0,
     nativeRuntimeAudioStallCount: run.nativeRuntime?.audioStallCount ?? 0,

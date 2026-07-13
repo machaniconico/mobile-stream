@@ -62,8 +62,7 @@ class MediaProjectionService : Service() {
     private val avSyncAccumulator = NativeRuntimeAvSyncAccumulator()
     private val liveVideoBitrateTracker = LiveVideoBitrateTracker()
     private val adaptiveBitrateController = NativeAdaptiveBitrateController()
-    @Volatile
-    private var nativePublishGeneration = 0
+    private val publishGenerationTracker = NativePublishGenerationTracker()
     @Volatile
     private var cumulativeReconnectCount = 0
     private var observedBitrateUpdateFailureCount = 0L
@@ -141,7 +140,6 @@ class MediaProjectionService : Service() {
                 resetNativeRuntimeCounters()
                 liveVideoBitrateTracker.reset(profile.videoBitrate / 1_000)
                 adaptiveBitrateController.reset(profile.videoBitrate / 1_000, SystemClock.elapsedRealtime())
-                nativePublishGeneration = 0
                 cumulativeReconnectCount = 0
                 observedBitrateUpdateFailureCount = 0
             }
@@ -175,18 +173,24 @@ class MediaProjectionService : Service() {
                 microphoneSource.setAudioEffect(effect)
             }
 
+            val connectChecker = beginPublisherCallbackSession()
+            val callbackToken = checkNotNull(publisherCallbackSessionToken) {
+                "Publisher callback session token is unavailable"
+            }
             val stream = GenericStream(
                 baseContext,
-                beginPublisherCallbackSession(),
+                connectChecker,
                 NoVideoSource(),
                 microphoneSource
             ).apply {
                 getStreamClient().setReTries(MAX_RECONNECT_ATTEMPTS)
                 getGlInterface().setForceRender(true, streamProfile.fps)
                 setFpsListener { fps ->
-                    lastNativeFps = fps
-                    LiveCasterSession.updateHealth(fps = fps, message = LiveCasterSession.health.message)
-                    updateNativeRuntimeFromStream(message = LiveCasterSession.health.message)
+                    dispatchPublisherCallback(callbackToken) {
+                        lastNativeFps = fps
+                        LiveCasterSession.updateHealth(fps = fps, message = LiveCasterSession.health.message)
+                        updateNativeRuntimeFromStream(message = LiveCasterSession.health.message)
+                    }
                 }
             }
             genericStream?.release()
@@ -224,13 +228,13 @@ class MediaProjectionService : Service() {
             stream.startStream(profile.endpoint)
             liveVideoBitrateTracker.recordApplied(streamProfile.videoBitrate / 1_000)
             adaptiveBitrateController.recordApplied(streamProfile.videoBitrate / 1_000)
-            if (LiveCasterSession.status == LiveCasterStatus.Reconnecting) {
-                LiveCasterSession.updateHealth(
+            when (LiveCasterSession.status) {
+                LiveCasterStatus.Reconnecting -> LiveCasterSession.updateHealth(
                     reconnectAttempts = reconnectAttempts,
                     message = liveMessage("Reconnecting (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})")
                 )
-            } else {
-                LiveCasterSession.markLive(liveMessage("Connecting"))
+                LiveCasterStatus.Live -> Unit
+                else -> LiveCasterSession.updateHealth(message = liveMessage("Connecting"))
             }
             startContinuityHeartbeat()
         } catch (error: Throwable) {
@@ -264,15 +268,20 @@ class MediaProjectionService : Service() {
             message = liveMessage("Preparing direct MediaCodec stream")
         )
         directStream.start(projection, profile, directComposition)
-        if (LiveCasterSession.status == LiveCasterStatus.Reconnecting) {
-            LiveCasterSession.updateHealth(
+        when (LiveCasterSession.status) {
+            LiveCasterStatus.Reconnecting -> LiveCasterSession.updateHealth(
                 reconnectAttempts = reconnectAttempts,
                 message = liveMessage("Reconnecting (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})")
             )
-        } else {
-            LiveCasterSession.markLive(liveMessage("Connecting"))
+            LiveCasterStatus.Live -> Unit
+            else -> LiveCasterSession.updateHealth(message = liveMessage("Connecting"))
         }
-        updateNativeRuntimeFromDirectStream(publisherState = "connecting", message = LiveCasterSession.health.message)
+        val publisherState = when (LiveCasterSession.status) {
+            LiveCasterStatus.Live -> "published"
+            LiveCasterStatus.Reconnecting -> "reconnecting"
+            else -> "connecting"
+        }
+        updateNativeRuntimeFromDirectStream(publisherState = publisherState, message = LiveCasterSession.health.message)
         startContinuityHeartbeat()
     }
 
@@ -310,6 +319,7 @@ class MediaProjectionService : Service() {
         userRequestedStop = false
         terminalFailure = false
         reconnectHandler.removeCallbacksAndMessages(null)
+        publishGenerationTracker.invalidate()
         if (LiveCasterSession.status != LiveCasterStatus.Reconnecting) {
             reconnectAttempts = (reconnectAttempts + 1).coerceAtLeast(1)
             cumulativeReconnectCount += 1
@@ -323,14 +333,16 @@ class MediaProjectionService : Service() {
         if (directStream != null) {
             try {
                 directStream.reconnectPublisher()
-                LiveCasterSession.updateHealth(
-                    reconnectAttempts = reconnectAttempts,
-                    message = "Reconnecting publisher (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})"
-                )
-                updateNativeRuntimeFromDirectStream(
-                    publisherState = "reconnecting",
-                    message = LiveCasterSession.health.message
-                )
+                if (LiveCasterSession.status != LiveCasterStatus.Live) {
+                    LiveCasterSession.updateHealth(
+                        reconnectAttempts = reconnectAttempts,
+                        message = "Reconnecting publisher (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})"
+                    )
+                    updateNativeRuntimeFromDirectStream(
+                        publisherState = "reconnecting",
+                        message = LiveCasterSession.health.message
+                    )
+                }
             } catch (error: Throwable) {
                 scheduleReconnect(error.message ?: "Direct publisher reconnect failed")
             }
@@ -346,11 +358,13 @@ class MediaProjectionService : Service() {
                 stopStreamAfterFailure("Publisher reconnect was rejected. Start again and approve screen sharing")
                 return
             }
-            LiveCasterSession.updateHealth(
-                reconnectAttempts = reconnectAttempts,
-                message = "Reconnecting (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})"
-            )
-            updateNativeRuntimeFromStream(publisherState = "reconnecting", message = LiveCasterSession.health.message)
+            if (LiveCasterSession.status != LiveCasterStatus.Live) {
+                LiveCasterSession.updateHealth(
+                    reconnectAttempts = reconnectAttempts,
+                    message = "Reconnecting (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})"
+                )
+                updateNativeRuntimeFromStream(publisherState = "reconnecting", message = LiveCasterSession.health.message)
+            }
         } catch (error: Throwable) {
             scheduleReconnect(error.message ?: "Reconnect failed")
         }
@@ -361,6 +375,7 @@ class MediaProjectionService : Service() {
         terminalFailure = false
         reconnectHandler.removeCallbacksAndMessages(null)
         reconnectAttempts = 0
+        publishGenerationTracker.invalidate()
         stopContinuityHeartbeat()
         captureFinalContinuitySample()
         releaseStreamResources()
@@ -476,6 +491,7 @@ class MediaProjectionService : Service() {
         videoFrameIntervalTracker.reset()
         mediaContinuityTracker.reset()
         avSyncAccumulator.reset()
+        publishGenerationTracker.reset()
     }
 
     private fun recordBitrateSample(bitrate: Long): Long {
@@ -547,9 +563,10 @@ class MediaProjectionService : Service() {
             stream != null -> stream.isStreaming
             else -> false
         }
+        val publishGeneration = publishGenerationTracker.currentGeneration()
         val active = isNativeAdaptiveBitrateActive(
             sessionLive = LiveCasterSession.status == LiveCasterStatus.Live,
-            publishGeneration = nativePublishGeneration,
+            publishGeneration = publishGeneration,
             publisherState = publisherState,
             transportActive = transportActive
         )
@@ -558,7 +575,7 @@ class MediaProjectionService : Service() {
                 nowElapsedMs = nowElapsedMs,
                 nowWallMs = System.currentTimeMillis(),
                 active = active,
-                publishGeneration = nativePublishGeneration,
+                publishGeneration = publishGeneration,
                 congested = directSnapshot?.congested
                     ?: runCatching { client?.hasCongestion() == true }.getOrDefault(false),
                 queuedItems = directSnapshot?.itemsInCache ?: client?.getItemsInCache() ?: 0,
@@ -663,6 +680,19 @@ class MediaProjectionService : Service() {
         }
     }
 
+    private fun currentPublishEvidence(
+        sentVideoFrames: Long?,
+        sentAudioFrames: Long?,
+        publisherState: String
+    ): NativePublishGenerationSnapshot {
+        val evidence = publishGenerationTracker.snapshot(sentVideoFrames, sentAudioFrames)
+        return if (LiveCasterSession.status == LiveCasterStatus.Live && publisherState == "published") {
+            evidence
+        } else {
+            evidence.copy(currentPublishVideoFrames = 0L, currentPublishAudioFrames = 0L)
+        }
+    }
+
     private fun updateNativeRuntimeFromDirectStream(
         publisherState: String? = null,
         compositionResult: AndroidCompositionResult? = null,
@@ -672,10 +702,16 @@ class MediaProjectionService : Service() {
         message: String = LiveCasterSession.health.message
     ) {
         val snapshot = directMediaCodecStream?.snapshot()
-        val resolvedPublisherState = publisherState
+        val observedPublisherState = publisherState
             ?: snapshot?.publisherState
             ?: LiveCasterSession.nativeRuntime?.publisher?.state
             ?: ""
+        val resolvedPublisherState = resolveNativePublisherState(LiveCasterSession.status, observedPublisherState)
+        val publishEvidence = currentPublishEvidence(
+            snapshot?.sentVideoFrames,
+            snapshot?.sentAudioFrames,
+            resolvedPublisherState
+        )
         val continuity = mediaContinuityTracker.record(
             snapshot?.sentVideoFrames,
             snapshot?.sentAudioFrames,
@@ -693,6 +729,9 @@ class MediaProjectionService : Service() {
             encodedBytes = encodedBytes ?: snapshot?.encodedBytes,
             sentVideoFrames = snapshot?.sentVideoFrames,
             sentAudioFrames = snapshot?.sentAudioFrames,
+            publishGeneration = publishEvidence.publishGeneration,
+            currentPublishVideoFrames = publishEvidence.currentPublishVideoFrames,
+            currentPublishAudioFrames = publishEvidence.currentPublishAudioFrames,
             videoEncoderBackend = snapshot?.videoEncoderBackend ?: AndroidMediaCodecRtmpPublisher.VIDEO_BACKEND,
             audioEncoderBackend = snapshot?.audioEncoderBackend ?: AndroidMediaCodecRtmpPublisher.AUDIO_BACKEND,
             droppedVideoFrames = snapshot?.droppedVideoFrames,
@@ -731,9 +770,11 @@ class MediaProjectionService : Service() {
         val droppedVideoFrames = client?.getDroppedVideoFrames()
         val droppedAudioFrames = client?.getDroppedAudioFrames()
         val previousPublisherState = LiveCasterSession.nativeRuntime?.publisher?.state.orEmpty()
-        val resolvedPublisherState = publisherState
+        val observedPublisherState = publisherState
             ?: previousPublisherState.takeIf { it.isNotBlank() }
             ?: if (genericStream?.isStreaming == true) "connecting" else ""
+        val resolvedPublisherState = resolveNativePublisherState(LiveCasterSession.status, observedPublisherState)
+        val publishEvidence = currentPublishEvidence(sentVideoFrames, sentAudioFrames, resolvedPublisherState)
         val continuity = mediaContinuityTracker.record(
             sentVideoFrames,
             sentAudioFrames,
@@ -752,6 +793,9 @@ class MediaProjectionService : Service() {
             encodedBytes = encodedBytes ?: estimatedBytes,
             sentVideoFrames = sentVideoFrames,
             sentAudioFrames = sentAudioFrames,
+            publishGeneration = publishEvidence.publishGeneration,
+            currentPublishVideoFrames = publishEvidence.currentPublishVideoFrames,
+            currentPublishAudioFrames = publishEvidence.currentPublishAudioFrames,
             videoEncoderBackend = "rootencoder",
             audioEncoderBackend = "rootencoder",
             droppedVideoFrames = droppedVideoFrames,
@@ -779,6 +823,7 @@ class MediaProjectionService : Service() {
         userRequestedStop = true
         terminalFailure = true
         reconnectHandler.removeCallbacksAndMessages(null)
+        publishGenerationTracker.invalidate()
         stopContinuityHeartbeat()
         captureFinalContinuitySample()
         releaseStreamResources()
@@ -863,6 +908,7 @@ class MediaProjectionService : Service() {
         if (userRequestedStop) {
             return
         }
+        publishGenerationTracker.invalidate()
 
         if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
             stopStreamAfterFailure("Connection lost after ${MAX_RECONNECT_ATTEMPTS} reconnect attempts: $reason")
@@ -921,7 +967,12 @@ class MediaProjectionService : Service() {
         invalidatePublisherCallbackSession()
         val token = publisherCallbackSessionGuard.attach()
         publisherCallbackSessionToken = token
-        return GenerationScopedConnectChecker(publisherCallbackSessionGuard, token, publisherCallbackDelegate)
+        return GenerationScopedConnectChecker(
+            publisherCallbackSessionGuard,
+            token,
+            publisherCallbackDelegate,
+            callbackDispatcher = { callback -> dispatchPublisherCallback(callback) }
+        )
     }
 
     private fun invalidatePublisherCallbackSession() {
@@ -929,15 +980,39 @@ class MediaProjectionService : Service() {
         publisherCallbackSessionToken = null
     }
 
+    private fun dispatchPublisherCallback(callback: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            callback()
+        } else {
+            continuityHandler.post { callback() }
+        }
+    }
+
+    private fun dispatchPublisherCallback(
+        token: PublisherCallbackSessionToken,
+        callback: () -> Unit
+    ) {
+        dispatchPublisherCallback {
+            publisherCallbackSessionGuard.dispatch(token, callback)
+        }
+    }
+
     private fun handleConnectionStarted() {
-        LiveCasterSession.updateHealth(message = liveMessage("Connecting"))
-        updateNativeRuntimeFromActiveStream(publisherState = "connecting", message = LiveCasterSession.health.message)
+        publishGenerationTracker.invalidate()
+        val reconnecting = LiveCasterSession.status == LiveCasterStatus.Reconnecting
+        val message = if (reconnecting) LiveCasterSession.health.message else liveMessage("Connecting")
+        LiveCasterSession.updateHealth(message = message)
+        updateNativeRuntimeFromActiveStream(
+            publisherState = if (reconnecting) "reconnecting" else "connecting",
+            message = LiveCasterSession.health.message
+        )
     }
 
     private fun handleConnectionSuccess() {
         reconnectAttempts = 0
         genericStream?.getStreamClient()?.setReTries(MAX_RECONNECT_ATTEMPTS)
-        nativePublishGeneration += 1
+        val (sentVideoFrames, sentAudioFrames) = currentSentFrameTotals()
+        publishGenerationTracker.startGeneration(sentVideoFrames, sentAudioFrames)
         directMediaCodecStream?.requestKeyFrame()
         LiveCasterSession.markLive(liveMessage("Live"))
         updateNativeRuntimeFromActiveStream(publisherState = "published", lastError = "", message = LiveCasterSession.health.message)
@@ -950,14 +1025,15 @@ class MediaProjectionService : Service() {
     private fun handleNewBitrate(bitrate: Long) {
         val bytesWritten = recordBitrateSample(bitrate)
         val droppedVideoFrames = currentDroppedVideoFrames()
+        val live = LiveCasterSession.status == LiveCasterStatus.Live
         LiveCasterSession.updateHealth(
             bitrateKbps = (bitrate / 1000).toInt(),
             droppedFrames = droppedVideoFrames,
             fps = if (lastNativeFps > 0) lastNativeFps else LiveCasterSession.health.fps,
-            message = "Live"
+            message = if (live) "Live" else LiveCasterSession.health.message
         )
         updateNativeRuntimeFromActiveStream(
-            publisherState = "published",
+            publisherState = if (live) "published" else LiveCasterSession.nativeRuntime?.publisher?.state,
             encodedBytes = bytesWritten,
             bytesWritten = bytesWritten,
             message = LiveCasterSession.health.message
@@ -965,6 +1041,7 @@ class MediaProjectionService : Service() {
     }
 
     private fun handleDisconnect() {
+        publishGenerationTracker.invalidate()
         if (terminalFailure) {
             return
         }
@@ -986,13 +1063,124 @@ class MediaProjectionService : Service() {
     }
 
     private fun handleAuthSuccess() {
-        LiveCasterSession.updateHealth(message = liveMessage("Authenticated"))
-        updateNativeRuntimeFromActiveStream(publisherState = "authenticated", message = LiveCasterSession.health.message)
+        val reconnecting = LiveCasterSession.status == LiveCasterStatus.Reconnecting
+        if (!reconnecting) {
+            LiveCasterSession.updateHealth(message = liveMessage("Authenticated"))
+        }
+        updateNativeRuntimeFromActiveStream(
+            publisherState = when {
+                reconnecting -> "reconnecting"
+                LiveCasterSession.status == LiveCasterStatus.Live -> "published"
+                else -> "authenticated"
+            },
+            message = LiveCasterSession.health.message
+        )
+    }
+
+    private fun currentSentFrameTotals(): Pair<Long?, Long?> {
+        directMediaCodecStream?.snapshot()?.let { snapshot ->
+            return snapshot.sentVideoFrames to snapshot.sentAudioFrames
+        }
+        val client = genericStream?.getStreamClient()
+        return client?.getSentVideoFrames() to client?.getSentAudioFrames()
     }
 
     private fun liveMessage(prefix: String): String {
         val compositionSummary = nativeCompositionResult?.summary
         return if (compositionSummary.isNullOrBlank()) prefix else "$prefix; $compositionSummary"
+    }
+}
+
+internal fun resolveNativePublisherState(sessionStatus: LiveCasterStatus, observedState: String): String = when {
+    observedState == "failed" -> "failed"
+    sessionStatus == LiveCasterStatus.Reconnecting -> "reconnecting"
+    sessionStatus == LiveCasterStatus.Preparing && observedState == "published" -> "connecting"
+    else -> observedState
+}
+
+internal data class NativePublishGenerationSnapshot(
+    val publishGeneration: Int = 0,
+    val currentPublishVideoFrames: Long = 0,
+    val currentPublishAudioFrames: Long = 0
+)
+
+internal class NativePublishGenerationTracker {
+    private var publishGeneration = 0
+    private var active = false
+    private var videoBaseline: Long? = null
+    private var audioBaseline: Long? = null
+
+    @Synchronized
+    fun reset(): NativePublishGenerationSnapshot {
+        publishGeneration = 0
+        active = false
+        videoBaseline = null
+        audioBaseline = null
+        return NativePublishGenerationSnapshot()
+    }
+
+    @Synchronized
+    fun invalidate(): NativePublishGenerationSnapshot {
+        active = false
+        videoBaseline = null
+        audioBaseline = null
+        return NativePublishGenerationSnapshot(publishGeneration = publishGeneration)
+    }
+
+    @Synchronized
+    fun startGeneration(
+        sentVideoFrames: Long?,
+        sentAudioFrames: Long?
+    ): NativePublishGenerationSnapshot {
+        if (active) {
+            return snapshotLocked(sentVideoFrames, sentAudioFrames)
+        }
+        publishGeneration = if (publishGeneration == Int.MAX_VALUE) 1 else publishGeneration + 1
+        active = true
+        videoBaseline = sentVideoFrames?.coerceAtLeast(0L)
+        audioBaseline = sentAudioFrames?.coerceAtLeast(0L)
+        return snapshotLocked(sentVideoFrames, sentAudioFrames)
+    }
+
+    @Synchronized
+    fun snapshot(sentVideoFrames: Long?, sentAudioFrames: Long?): NativePublishGenerationSnapshot =
+        snapshotLocked(sentVideoFrames, sentAudioFrames)
+
+    @Synchronized
+    fun currentGeneration(): Int = publishGeneration
+
+    private fun snapshotLocked(
+        sentVideoFrames: Long?,
+        sentAudioFrames: Long?
+    ): NativePublishGenerationSnapshot {
+        if (!active) {
+            return NativePublishGenerationSnapshot(publishGeneration = publishGeneration)
+        }
+        return NativePublishGenerationSnapshot(
+            publishGeneration = publishGeneration,
+            currentPublishVideoFrames = videoDelta(sentVideoFrames),
+            currentPublishAudioFrames = audioDelta(sentAudioFrames)
+        )
+    }
+
+    private fun videoDelta(sentVideoFrames: Long?): Long {
+        val total = sentVideoFrames?.coerceAtLeast(0L) ?: return 0L
+        val baseline = videoBaseline
+        if (baseline == null || total < baseline) {
+            videoBaseline = total
+            return 0L
+        }
+        return total - baseline
+    }
+
+    private fun audioDelta(sentAudioFrames: Long?): Long {
+        val total = sentAudioFrames?.coerceAtLeast(0L) ?: return 0L
+        val baseline = audioBaseline
+        if (baseline == null || total < baseline) {
+            audioBaseline = total
+            return 0L
+        }
+        return total - baseline
     }
 }
 

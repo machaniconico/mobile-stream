@@ -74,6 +74,26 @@ class PublisherCallbackSessionGuardTest {
         assertEquals(1L, guard.snapshot().ignoredStaleCallbackCount)
     }
 
+    @Test
+    fun `deferred callbacks recheck their generation when the dispatcher executes`() {
+        val guard = PublisherCallbackSessionGuard()
+        val delegate = RecordingConnectChecker()
+        val token = guard.attach()
+        val pending = mutableListOf<() -> Unit>()
+        val checker = GenerationScopedConnectChecker(guard, token, delegate) { callback ->
+            pending += callback
+        }
+
+        checker.onConnectionSuccess()
+        assertEquals(0, delegate.callbackCount)
+        assertTrue(guard.invalidate(token))
+
+        pending.single().invoke()
+
+        assertEquals(0, delegate.callbackCount)
+        assertEquals(1L, guard.snapshot().ignoredStaleCallbackCount)
+    }
+
     private open class RecordingConnectChecker : ConnectChecker {
         var callbackCount = 0
 

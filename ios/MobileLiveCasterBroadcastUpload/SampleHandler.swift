@@ -1297,31 +1297,6 @@ final class BroadcastSharedStore {
         defaults.synchronize()
     }
 
-    static func saveContinuitySnapshot(
-        _ continuitySnapshot: BroadcastMediaContinuitySnapshot,
-        bitrateAdaptationSnapshot: NativeAdaptiveBitrateSnapshot,
-        deviceResourceSnapshot: BroadcastDeviceResourceSnapshot
-    ) {
-        runtimeStateLock.lock()
-        defer { runtimeStateLock.unlock() }
-        guard
-            let defaults,
-            var payload = defaults.dictionary(forKey: broadcastRuntimeStateKey)
-        else {
-            return
-        }
-        payload["updatedAt"] = Date().timeIntervalSince1970 * 1000
-        payload["continuity"] = continuitySnapshot.asDictionary()
-        payload["device"] = deviceResourceSnapshot.asDictionary()
-        let videoEncoder = payload["videoEncoder"] as? [String: Any] ?? [:]
-        payload["videoEncoder"] = mergingBitrateAdaptation(
-            into: videoEncoder,
-            snapshot: bitrateAdaptationSnapshot
-        )
-        defaults.set(payload, forKey: broadcastRuntimeStateKey)
-        defaults.synchronize()
-    }
-
     private static func mergingBitrateAdaptation(
         into videoEncoder: [String: Any],
         snapshot: NativeAdaptiveBitrateSnapshot?
@@ -6460,7 +6435,27 @@ final class BroadcastUploadPipeline {
             let heartbeatState = self.mediaContinuityLock.performLocked {
                 () -> (
                     publisherStats: BroadcastRTMPPublisherStats,
-                    active: Bool,
+                    active: Bool
+                )? in
+                guard self.mediaContinuityHeartbeatGate.isCurrent(generation) else {
+                    return nil
+                }
+                let publisherStats = publisher.stats
+                let active = self.mediaContinuityHeartbeatGate.enabled && publisherStats.state == .published
+                return (publisherStats, active)
+            }
+            guard let heartbeatState else {
+                return
+            }
+            _ = self.evaluateAdaptiveBitrate(
+                publisherStats: heartbeatState.publisherStats,
+                active: heartbeatState.active,
+                videoEncoder: videoEncoder,
+                deviceResourceSnapshot: deviceResourceSnapshot
+            )
+            let persistenceState = self.mediaContinuityLock.performLocked {
+                () -> (
+                    publisherStats: BroadcastRTMPPublisherStats,
                     continuitySnapshot: BroadcastMediaContinuitySnapshot
                 )? in
                 guard self.mediaContinuityHeartbeatGate.isCurrent(generation) else {
@@ -6473,21 +6468,14 @@ final class BroadcastUploadPipeline {
                     audioMessages: publisherStats.audioMessagesSent,
                     active: active
                 )
-                return (publisherStats, active, continuitySnapshot)
+                return (publisherStats, continuitySnapshot)
             }
-            guard let heartbeatState else {
+            guard let persistenceState else {
                 return
             }
-            let bitrateAdaptationSnapshot = self.evaluateAdaptiveBitrate(
-                publisherStats: heartbeatState.publisherStats,
-                active: heartbeatState.active,
-                videoEncoder: videoEncoder,
-                deviceResourceSnapshot: deviceResourceSnapshot
-            )
-            BroadcastSharedStore.saveContinuitySnapshot(
-                heartbeatState.continuitySnapshot,
-                bitrateAdaptationSnapshot: bitrateAdaptationSnapshot,
-                deviceResourceSnapshot: deviceResourceSnapshot
+            self.saveRuntimeState(
+                publisherStats: persistenceState.publisherStats,
+                continuitySnapshot: persistenceState.continuitySnapshot
             )
         }
         mediaContinuityTimer = timer

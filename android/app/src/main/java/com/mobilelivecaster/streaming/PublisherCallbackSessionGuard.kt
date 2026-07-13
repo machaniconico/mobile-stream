@@ -47,33 +47,40 @@ internal class PublisherCallbackSessionGuard {
 internal class GenerationScopedConnectChecker(
     private val guard: PublisherCallbackSessionGuard,
     private val token: PublisherCallbackSessionToken,
-    private val delegate: ConnectChecker
+    private val delegate: ConnectChecker,
+    private val callbackDispatcher: ((() -> Unit) -> Unit) = { callback -> callback() }
 ) : ConnectChecker {
     override fun onConnectionStarted(url: String) {
-        guard.dispatch(token) { delegate.onConnectionStarted(url) }
+        dispatch { delegate.onConnectionStarted(url) }
     }
 
     override fun onConnectionSuccess() {
-        guard.dispatch(token) { delegate.onConnectionSuccess() }
+        dispatch { delegate.onConnectionSuccess() }
     }
 
     override fun onConnectionFailed(reason: String) {
-        guard.dispatch(token) { delegate.onConnectionFailed(reason) }
+        dispatch { delegate.onConnectionFailed(reason) }
     }
 
     override fun onNewBitrate(bitrate: Long) {
-        guard.dispatch(token) { delegate.onNewBitrate(bitrate) }
+        dispatch { delegate.onNewBitrate(bitrate) }
     }
 
     override fun onDisconnect() {
-        guard.dispatch(token) { delegate.onDisconnect() }
+        dispatch { delegate.onDisconnect() }
     }
 
     override fun onAuthError() {
-        guard.dispatch(token) { delegate.onAuthError() }
+        dispatch { delegate.onAuthError() }
     }
 
     override fun onAuthSuccess() {
-        guard.dispatch(token) { delegate.onAuthSuccess() }
+        dispatch { delegate.onAuthSuccess() }
+    }
+
+    private fun dispatch(callback: () -> Unit) {
+        callbackDispatcher {
+            guard.dispatch(token, callback)
+        }
     }
 }

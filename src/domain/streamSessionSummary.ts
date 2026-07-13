@@ -63,6 +63,9 @@ export interface StreamSessionNativeRuntimeSummary {
   status: StreamSessionNativeRuntimeStatus;
   runtimeStatus: string;
   publisherState: string;
+  publisherPublishGeneration: number;
+  currentPublishVideoFrames: number;
+  currentPublishAudioFrames: number;
   videoEncoderBackend: string;
   audioEncoderBackend: string;
   encoderProbeStatus: StreamSessionNativeRuntimeEncoderProbeStatus;
@@ -1133,6 +1136,9 @@ export const createNativeRuntimeSessionSummary = (
     status,
     runtimeStatus: normalizeSafeSummaryString(runtime.runtimeStatus, "unknown"),
     publisherState: normalizeSafeSummaryString(runtime.publisher.state, ""),
+    publisherPublishGeneration: normalizeNonNegativeEvidenceInteger(runtime.publisher.publishGeneration),
+    currentPublishVideoFrames: normalizeNonNegativeEvidenceInteger(runtime.publisher.currentPublishVideoFrames),
+    currentPublishAudioFrames: normalizeNonNegativeEvidenceInteger(runtime.publisher.currentPublishAudioFrames),
     videoEncoderBackend,
     audioEncoderBackend,
     encoderProbeStatus,
@@ -1647,6 +1653,9 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     status,
     runtimeStatus: normalizeSafeSummaryString(value.runtimeStatus, "unknown"),
     publisherState: normalizeSafeSummaryString(value.publisherState, ""),
+    publisherPublishGeneration: normalizeNonNegativeEvidenceInteger(value.publisherPublishGeneration),
+    currentPublishVideoFrames: normalizeNonNegativeEvidenceInteger(value.currentPublishVideoFrames),
+    currentPublishAudioFrames: normalizeNonNegativeEvidenceInteger(value.currentPublishAudioFrames),
     videoEncoderBackend: normalizeSafeSummaryString(value.videoEncoderBackend, "none"),
     audioEncoderBackend: normalizeSafeSummaryString(value.audioEncoderBackend, "none"),
     encoderProbeStatus:
@@ -1927,6 +1936,9 @@ const normalizeStability = (value: unknown): StreamHealthHistorySummary["stabili
 
 const normalizeNonNegativeInteger = (value: unknown): number =>
   Math.max(0, Math.round(typeof value === "number" && Number.isFinite(value) ? value : 0));
+
+const normalizeNonNegativeEvidenceInteger = (value: unknown): number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 
 const normalizeInteger = (value: unknown): number =>
   Math.round(typeof value === "number" && Number.isFinite(value) ? value : 0);

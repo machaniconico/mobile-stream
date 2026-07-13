@@ -949,8 +949,10 @@ final class LiveCasterNative: RCTEventEmitter {
             state.stringValue("handoffId") == persistedHandoff.handoffID ? state : nil
         }
         if let matchingRuntimeState {
-            let reportedStatus = LiveCasterStatus(
-                runtimeStatus: matchingRuntimeState.stringValue("status")
+            let runtimeStatus = matchingRuntimeState.stringValue("status")
+            let reportedStatus = Self.effectiveRuntimeStatus(
+                LiveCasterStatus(runtimeStatus: runtimeStatus),
+                runtimeState: matchingRuntimeState
             )
             if reportedStatus == .idle || reportedStatus == .failed {
                 sharedStore.clearControlAction(handoffID: persistedHandoff.handoffID)
@@ -1426,6 +1428,33 @@ final class LiveCasterNative: RCTEventEmitter {
             !LiveCasterBroadcastControlStore.isExtensionLeaseActive()
     }
 
+    private static func effectiveRuntimeStatus(
+        _ reportedStatus: LiveCasterStatus?,
+        runtimeState: [String: Any]
+    ) -> LiveCasterStatus? {
+        guard reportedStatus == .live else {
+            return reportedStatus
+        }
+
+        let publisher = runtimeState.dictionaryValue("publisher")
+        let publisherState = publisher.stringValue("state")
+        switch publisherState {
+        case "failed":
+            return .failed
+        case "reconnecting":
+            return .reconnecting
+        default:
+            break
+        }
+
+        let hasCurrentPublishEvidence =
+            publisherState == "published" &&
+            publisher.intValue("publishGeneration") > 0 &&
+            publisher.intValue("currentPublishVideoMessagesSent") > 0 &&
+            publisher.intValue("currentPublishAudioMessagesSent") > 0
+        return hasCurrentPublishEvidence ? .live : .preparing
+    }
+
     private func applyRuntimeStateLocked(_ runtimeState: [String: Any]) {
         let updatedAt = runtimeState.doubleValue("updatedAt")
         let shouldRefreshCounters = updatedAt == 0 || updatedAt != lastRuntimeUpdatedAt
@@ -1434,7 +1463,10 @@ final class LiveCasterNative: RCTEventEmitter {
         }
 
         let runtimeStatus = runtimeState.stringValue("status", fallback: status.rawValue)
-        let reportedStatus = LiveCasterStatus(runtimeStatus: runtimeStatus)
+        let reportedStatus = Self.effectiveRuntimeStatus(
+            LiveCasterStatus(runtimeStatus: runtimeStatus),
+            runtimeState: runtimeState
+        )
         let stopAcknowledged = runtimeAcknowledgesPendingStopLocked(runtimeState)
         if pendingStopHandoffID != nil {
             if reportedStatus == .idle && stopAcknowledged {

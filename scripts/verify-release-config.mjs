@@ -76,11 +76,14 @@ const files = {
   webStyles: read("src/styles.css"),
   supportBundleDomain: read("src/domain/supportBundle.ts"),
   supportBundleDomainTest: read("src/domain/supportBundle.test.ts"),
+  streamSessionSummaryDomain: read("src/domain/streamSessionSummary.ts"),
+  streamSessionSummaryDomainTest: read("src/domain/streamSessionSummary.test.ts"),
   commercialReleaseGateDomain: read("src/domain/commercialReleaseGate.ts"),
   commercialReleaseGateDomainTest: read("src/domain/commercialReleaseGate.test.ts"),
   streamDiagnosticsDomain: read("src/domain/streamDiagnostics.ts"),
   publicLaunchChecklistDomain: read("src/domain/publicLaunchChecklist.ts"),
   streamValidationEvidenceDomain: read("src/domain/streamValidationEvidence.ts"),
+  streamValidationEvidenceDomainTest: read("src/domain/streamValidationEvidence.test.ts"),
   nativeRuntimeDomain: read("src/domain/nativeRuntime.ts"),
   liveCasterBridge: read("ios/MobileLiveCaster/LiveCasterBridge.swift"),
   liveCasterSpeech: read("ios/MobileLiveCaster/LiveCasterSpeech.swift"),
@@ -328,7 +331,7 @@ const checks = [
     expectIncludes(files.iosNativeVerificationScript, "MobileLiveCaster.debug.dylib");
     expectIncludes(files.iosNativeVerificationScript, "embedded and standalone ReplayKit executable hashes do not match");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 59");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 60");
     expectIncludes(files.supportBundleDomain, "nativeCompositionCaptionOverlayCount");
     expectIncludes(files.supportBundleDomain, "textOverlayRenderVisibleSourceCount");
     expectIncludes(files.supportBundleDomain, "textOverlayQueuedTimedManualSourceCount");
@@ -340,7 +343,23 @@ const checks = [
     expectIncludes(files.streamDiagnosticsDomain, "Evidence Android publisher mode");
     expectIncludes(files.streamValidationEvidenceDomain, "androidPublisherMode: StreamDiagnostics");
     expectIncludes(files.streamValidationEvidenceDomain, "androidPublisherModeAndroidPass");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 59");
+    expectIncludes(files.streamSessionSummaryDomain, "publisherPublishGeneration: number");
+    expectIncludes(files.streamSessionSummaryDomain, "runtime.publisher.publishGeneration");
+    expectIncludes(files.streamSessionSummaryDomain, "runtime.publisher.currentPublishVideoFrames");
+    expectIncludes(files.streamSessionSummaryDomain, "runtime.publisher.currentPublishAudioFrames");
+    expectIncludes(files.streamSessionSummaryDomain, "Number.isSafeInteger(value)");
+    expectIncludes(files.streamSessionSummaryDomainTest, "publisherPublishGeneration: 7");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimePublisherState: string | null");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimePublisherPublishGeneration: number");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeCurrentPublishVideoFrames: number");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeCurrentPublishAudioFrames: number");
+    expectIncludes(files.streamValidationEvidenceDomainTest, "nativeRuntimePublisherPublishGeneration: 7");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 60");
+    expectIncludes(files.commercialReleaseGateDomain, 'run?.nativeRuntimePublisherState === "published"');
+    expectIncludes(files.commercialReleaseGateDomain, "isPositiveInteger(run?.nativeRuntimePublisherPublishGeneration)");
+    expectIncludes(files.commercialReleaseGateDomain, "isPositiveInteger(run?.nativeRuntimeCurrentPublishVideoFrames)");
+    expectIncludes(files.commercialReleaseGateDomain, "isPositiveInteger(run?.nativeRuntimeCurrentPublishAudioFrames)");
+    expectIncludes(files.commercialReleaseGateDomainTest, "blocks native-runtime claims with missing, inactive, zero, fractional, or malformed current publisher proof");
     expectIncludes(files.commercialReleaseGateDomain, "bundle-generated-at-future");
     expectIncludes(files.commercialReleaseGateDomain, "scene-fingerprint-missing");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scene-fingerprint");
@@ -385,7 +404,12 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "isFirstPartyManifestPublishingDestination");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks first-party platform dashboard manifests marked not-applicable");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 59");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 60");
+    expectIncludes(files.commercialReleaseBundleScript, 'run?.nativeRuntimePublisherState === "published"');
+    expectIncludes(files.commercialReleaseBundleScript, "isPositiveInteger(run?.nativeRuntimePublisherPublishGeneration)");
+    expectIncludes(files.commercialReleaseBundleScript, "isPositiveInteger(run?.nativeRuntimeCurrentPublishVideoFrames)");
+    expectIncludes(files.commercialReleaseBundleScript, "isPositiveInteger(run?.nativeRuntimeCurrentPublishAudioFrames)");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks current publisher proof when cumulative sent counters remain positive");
     expectIncludes(files.commercialReleaseBundleScript, "bundle-generated-at-future");
     expectIncludes(files.commercialReleaseBundleScript, "--allow-warnings is not supported for commercial release approval");
     expectIncludes(files.commercialReleaseBundleScript, "warningCount === 0");
@@ -405,6 +429,8 @@ const checks = [
     expectIncludes(files.commercialReleaseBundleScript, "stream-rehearsal-not-ready");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scope");
     expectIncludes(files.commercialReleaseBundleScript, "validation-evidence-manifest-scope");
+    expectIncludes(files.readme, "schema v60+");
+    expectIncludes(files.readme, "cumulative sent counters alone cannot pass");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeSentVideoFrames");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeVideoEncoderBackend");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeAudioEncoderBackend");

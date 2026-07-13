@@ -164,6 +164,35 @@ describe("iOS native publish state contract", () => {
     expect(consumeVideo).toContain("saveRuntimeState()");
   });
 
+  it("atomically refreshes publisher status and current-generation media on every heartbeat", () => {
+    const heartbeat = swiftFunctionBlock(
+      broadcastHandler,
+      "private func startMediaContinuityHeartbeat("
+    );
+
+    expect(broadcastHandler).not.toContain("static func saveContinuitySnapshot(");
+    expect(broadcastHandler).toContain(
+      "BroadcastUploadPipeline(mediaContinuityQueue: pipelineQueue)"
+    );
+    expect(heartbeat).toContain("self.mediaContinuityHeartbeatGate.isCurrent(generation)");
+    const persistenceIndex = heartbeat.indexOf("let persistenceState =");
+    const freshPublisherIndex = heartbeat.indexOf(
+      "let publisherStats = publisher.stats",
+      persistenceIndex
+    );
+    expect(persistenceIndex).toBeGreaterThan(heartbeat.indexOf("self.evaluateAdaptiveBitrate("));
+    expect(freshPublisherIndex).toBeGreaterThan(persistenceIndex);
+    expect(heartbeat.indexOf("self.mediaContinuityTracker.record(", persistenceIndex)).toBeGreaterThan(
+      freshPublisherIndex
+    );
+    expect(heartbeat).toContain("self.saveRuntimeState(");
+    expect(heartbeat).toContain("publisherStats: persistenceState.publisherStats");
+    expect(heartbeat).toContain(
+      "continuitySnapshot: persistenceState.continuitySnapshot"
+    );
+    expect(heartbeat).not.toContain("BroadcastSharedStore.saveContinuitySnapshot(");
+  });
+
   it("keeps start preparing until extension runtime telemetry promotes it", () => {
     const start = swiftFunctionBlock(bridge, "func start(");
     const applyRuntimeState = swiftFunctionBlock(

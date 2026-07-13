@@ -538,7 +538,7 @@ function writeSupportBundleFixture({ generatedAt = new Date().toISOString() } = 
     ".artifacts/store-approval-test/support-bundle.json",
     JSON.stringify(
       {
-        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 59 },
+        app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 60 },
         generatedAt,
         profile: {
           androidPublisherMode: "mediacodec",
@@ -772,6 +772,10 @@ function supportBundleManifestRun(devicePlatform, fingerprint, capturedAt = new 
     nativeRuntimeSessionStartedAt: new Date(Date.parse(capturedAt) - 5 * 60 * 1_000).toISOString(),
     nativeRuntimeSessionEndedAt: capturedAt,
     nativeRuntimeStatus: "pass",
+    nativeRuntimePublisherState: "published",
+    nativeRuntimePublisherPublishGeneration: 1,
+    nativeRuntimeCurrentPublishVideoFrames: 120,
+    nativeRuntimeCurrentPublishAudioFrames: 190,
     nativeRuntimeVideoEncoderBackend: devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
     nativeRuntimeAudioEncoderBackend: devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
     nativeRuntimeCongested: false,

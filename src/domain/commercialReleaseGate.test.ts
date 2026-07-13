@@ -22,6 +22,10 @@ describe("commercial release gate", () => {
     expect(formatCommercialReleaseGate(gate)).toContain("Can release: yes");
     expect(formatCommercialReleaseGate(gate)).toContain("Scene fingerprint: scene1-ready");
     expect(bundle.summary.validationEvidenceRunManifest.find((run) => run.devicePlatform === "android")).toMatchObject({
+      nativeRuntimePublisherState: "published",
+      nativeRuntimePublisherPublishGeneration: 1,
+      nativeRuntimeCurrentPublishVideoFrames: 120,
+      nativeRuntimeCurrentPublishAudioFrames: 190,
       nativeRuntimePlaybackCaptureStatus: "capturing",
       nativeRuntimePlaybackCaptureBackend: "android-audio-playback-capture",
       nativeRuntimePlaybackCaptureSampleRate: 44_100,
@@ -490,13 +494,13 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v58 support bundles because playback-capture proof requires v59", () => {
+  it("blocks v59 support bundles because current publisher proof requires v60", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         app: {
           name: "MobileLiveCaster",
           reportVersion: 1,
-          bundleVersion: 58
+          bundleVersion: 59
         }
       }),
       { now }
@@ -506,14 +510,14 @@ describe("commercial release gate", () => {
     expect(gate.issues).toContainEqual(
       expect.objectContaining({
         code: "bundle-version",
-        detail: "Support bundle v58 is older than the required v59."
+        detail: "Support bundle v59 is older than the required v60."
       })
     );
   });
 
   it("rejects string support bundle versions instead of coercing the schema", () => {
     const bundle = supportBundle();
-    (bundle.app as { bundleVersion: unknown }).bundleVersion = "59";
+    (bundle.app as { bundleVersion: unknown }).bundleVersion = "60";
 
     const gate = createCommercialReleaseGate(bundle, { now });
 
@@ -521,7 +525,7 @@ describe("commercial release gate", () => {
     expect(gate.issues).toContainEqual(expect.objectContaining({ code: "bundle-version" }));
   });
 
-  it("blocks v59 support bundles without scene fingerprint evidence", () => {
+  it("blocks v60 support bundles without scene fingerprint evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).sceneFingerprint;
     delete (bundle.scene as Partial<SupportBundle["scene"]>).fingerprint;
@@ -535,7 +539,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v59 support bundles with mismatched scene fingerprints", () => {
+  it("blocks v60 support bundles with mismatched scene fingerprints", () => {
     const bundle = supportBundle({
       summary: {
         sceneFingerprint: "scene1-summary"
@@ -552,7 +556,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v59 support bundles when retained validation runs are from another scene", () => {
+  it("blocks v60 support bundles when retained validation runs are from another scene", () => {
     const bundle = supportBundle({
       summary: {
         validationEvidenceRunManifest: [
@@ -610,7 +614,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v59 support bundles without native caption overlay summary evidence", () => {
+  it("blocks v60 support bundles without native caption overlay summary evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).nativeCompositionCaptionOverlayCount;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -2153,6 +2157,87 @@ describe("commercial release gate", () => {
         detail: expect.stringContaining("iOS native runtime proof")
       })
     );
+  });
+
+  it("blocks native-runtime claims with missing, inactive, zero, fractional, or malformed current publisher proof", () => {
+    const invalidCases: Array<{
+      label: string;
+      mutate: (run: Record<string, unknown>) => void;
+    }> = [
+      {
+        label: "missing publisher fields",
+        mutate: (run) => {
+          delete run.nativeRuntimePublisherState;
+          delete run.nativeRuntimePublisherPublishGeneration;
+          delete run.nativeRuntimeCurrentPublishVideoFrames;
+          delete run.nativeRuntimeCurrentPublishAudioFrames;
+        }
+      },
+      {
+        label: "reconnecting publisher state",
+        mutate: (run) => {
+          run.nativeRuntimePublisherState = "reconnecting";
+        }
+      },
+      {
+        label: "zero publisher generation",
+        mutate: (run) => {
+          run.nativeRuntimePublisherPublishGeneration = 0;
+        }
+      },
+      {
+        label: "zero current video frames",
+        mutate: (run) => {
+          run.nativeRuntimeCurrentPublishVideoFrames = 0;
+        }
+      },
+      {
+        label: "zero current audio frames",
+        mutate: (run) => {
+          run.nativeRuntimeCurrentPublishAudioFrames = 0;
+        }
+      },
+      {
+        label: "fractional current publisher counters",
+        mutate: (run) => {
+          run.nativeRuntimePublisherPublishGeneration = 1.5;
+          run.nativeRuntimeCurrentPublishVideoFrames = 120.5;
+          run.nativeRuntimeCurrentPublishAudioFrames = 190.5;
+        }
+      },
+      {
+        label: "malformed current publisher counters",
+        mutate: (run) => {
+          run.nativeRuntimePublisherPublishGeneration = "1";
+          run.nativeRuntimeCurrentPublishVideoFrames = "120";
+          run.nativeRuntimeCurrentPublishAudioFrames = "190";
+        }
+      }
+    ];
+
+    for (const { label, mutate } of invalidCases) {
+      const iosRun = manifestRun({ devicePlatform: "ios", fingerprint: `svr1-ios-${label}` });
+      mutate(iosRun as unknown as Record<string, unknown>);
+      const gate = createCommercialReleaseGate(
+        supportBundle({
+          summary: {
+            validationEvidenceRunManifest: [
+              iosRun,
+              manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+            ]
+          }
+        }),
+        { now }
+      );
+
+      expect(gate.status, label).toBe("blocked");
+      expect(gate.issues, label).toContainEqual(
+        expect.objectContaining({
+          code: "validation-evidence-manifest-integrity",
+          detail: expect.stringContaining("iOS native runtime proof")
+        })
+      );
+    }
   });
 
   it("blocks native-runtime summary claims when the manifest uses non-production encoder backends", () => {
@@ -4191,7 +4276,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 59 as const
+    bundleVersion: 60 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -4504,6 +4589,10 @@ const manifestRun = ({
   nativeRuntimeSessionEndedAt = "2026-06-23T11:00:00.000Z",
   androidPublisherMode = devicePlatform === "android" ? "mediacodec" : null,
   nativeRuntimeStatus = "pass",
+  nativeRuntimePublisherState = "published",
+  nativeRuntimePublisherPublishGeneration = 1,
+  nativeRuntimeCurrentPublishVideoFrames = 120,
+  nativeRuntimeCurrentPublishAudioFrames = 190,
   nativeRuntimeContinuityStatus = "healthy",
   nativeRuntimeVideoStallCount = 0,
   nativeRuntimeAudioStallCount = 0,
@@ -4748,6 +4837,10 @@ const manifestRun = ({
   nativeRuntimeSessionEndedAt?: ValidationManifestRun["nativeRuntimeSessionEndedAt"];
   androidPublisherMode?: ValidationManifestRun["androidPublisherMode"];
   nativeRuntimeStatus?: ValidationManifestRun["nativeRuntimeStatus"];
+  nativeRuntimePublisherState?: ValidationManifestRun["nativeRuntimePublisherState"];
+  nativeRuntimePublisherPublishGeneration?: ValidationManifestRun["nativeRuntimePublisherPublishGeneration"];
+  nativeRuntimeCurrentPublishVideoFrames?: ValidationManifestRun["nativeRuntimeCurrentPublishVideoFrames"];
+  nativeRuntimeCurrentPublishAudioFrames?: ValidationManifestRun["nativeRuntimeCurrentPublishAudioFrames"];
   nativeRuntimeVideoEncoderBackend?: ValidationManifestRun["nativeRuntimeVideoEncoderBackend"];
   nativeRuntimeAudioEncoderBackend?: ValidationManifestRun["nativeRuntimeAudioEncoderBackend"];
   nativeRuntimeEncoderProbeStatus?: ValidationManifestRun["nativeRuntimeEncoderProbeStatus"];
@@ -4969,6 +5062,10 @@ const manifestRun = ({
   nativeRuntimeSessionStartedAt,
   nativeRuntimeSessionEndedAt,
   nativeRuntimeStatus,
+  nativeRuntimePublisherState,
+  nativeRuntimePublisherPublishGeneration,
+  nativeRuntimeCurrentPublishVideoFrames,
+  nativeRuntimeCurrentPublishAudioFrames,
   nativeRuntimeContinuityStatus,
   nativeRuntimeVideoStallCount,
   nativeRuntimeAudioStallCount,

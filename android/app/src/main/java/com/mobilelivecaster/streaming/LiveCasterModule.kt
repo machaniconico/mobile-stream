@@ -291,6 +291,9 @@ data class NativeRuntimePublisher(
     val videoEncoderBackend: String = "",
     val audioEncoderBackend: String = "",
     val reconnectAttempts: Int = 0,
+    val publishGeneration: Int = 0,
+    val currentPublishVideoFrames: Long = 0,
+    val currentPublishAudioFrames: Long = 0,
     val sentVideoFrames: Long = 0,
     val sentAudioFrames: Long = 0,
     val droppedVideoFrames: Long = 0,
@@ -311,6 +314,9 @@ data class NativeRuntimePublisher(
         putString("videoEncoderBackend", videoEncoderBackend)
         putString("audioEncoderBackend", audioEncoderBackend)
         putInt("reconnectAttempts", reconnectAttempts)
+        putInt("publishGeneration", publishGeneration)
+        putDouble("currentPublishVideoFrames", currentPublishVideoFrames.toDouble())
+        putDouble("currentPublishAudioFrames", currentPublishAudioFrames.toDouble())
         putDouble("sentVideoFrames", sentVideoFrames.toDouble())
         putDouble("sentAudioFrames", sentAudioFrames.toDouble())
         putDouble("droppedVideoFrames", droppedVideoFrames.toDouble())
@@ -820,6 +826,9 @@ object LiveCasterSession {
         encodedBytes: Long? = null,
         sentVideoFrames: Long? = null,
         sentAudioFrames: Long? = null,
+        publishGeneration: Int? = null,
+        currentPublishVideoFrames: Long? = null,
+        currentPublishAudioFrames: Long? = null,
         videoEncoderBackend: String? = null,
         audioEncoderBackend: String? = null,
         encoderProbe: NativeRuntimeEncoderProbe? = null,
@@ -857,6 +866,9 @@ object LiveCasterSession {
             videoEncoderBackend = videoEncoderBackend ?: publisher.videoEncoderBackend,
             audioEncoderBackend = audioEncoderBackend ?: publisher.audioEncoderBackend,
             reconnectAttempts = health.reconnectAttempts,
+            publishGeneration = publishGeneration ?: publisher.publishGeneration,
+            currentPublishVideoFrames = currentPublishVideoFrames ?: publisher.currentPublishVideoFrames,
+            currentPublishAudioFrames = currentPublishAudioFrames ?: publisher.currentPublishAudioFrames,
             sentVideoFrames = sentVideoFrames ?: publisher.sentVideoFrames,
             sentAudioFrames = sentAudioFrames ?: publisher.sentAudioFrames,
             droppedVideoFrames = droppedVideoFrames ?: publisher.droppedVideoFrames,

@@ -343,6 +343,9 @@ describe("stream session summary", () => {
         droppedFrames: 2,
         publisher: {
           state: "published",
+          publishGeneration: 7,
+          currentPublishVideoFrames: 92,
+          currentPublishAudioFrames: 180,
           videoEncoderBackend: "mediacodec-h264",
           audioEncoderBackend: "mediacodec-aac",
           reconnectAttempts: 0,
@@ -504,6 +507,10 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.liveVideoBitrateUpdateCount).toBe(1);
     expect(summary?.nativeRuntime?.liveVideoBitrateUpdateFailureCount).toBe(2);
     expect(summary?.nativeRuntime).toMatchObject({
+      publisherState: "published",
+      publisherPublishGeneration: 7,
+      currentPublishVideoFrames: 92,
+      currentPublishAudioFrames: 180,
       controlOwner: "native",
       controllerState: "cooldown",
       baselineTargetKbps: 3_500,
@@ -590,6 +597,9 @@ describe("stream session summary", () => {
         droppedFrames: 0,
         publisher: {
           state: "published",
+          publishGeneration: 1.5,
+          currentPublishVideoFrames: -1,
+          currentPublishAudioFrames: Number.NaN,
           videoEncoderBackend: "mediacodec-h264",
           audioEncoderBackend: "mediacodec-aac",
           reconnectAttempts: 0,
@@ -617,6 +627,11 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.status).toBe("warn");
     expect(summary?.nativeRuntime?.runtimeCompositorBackend).toBe("none");
     expect(summary?.nativeRuntime?.runtimeCompositedFrameCount).toBe(0);
+    expect(summary?.nativeRuntime).toMatchObject({
+      publisherPublishGeneration: 0,
+      currentPublishVideoFrames: 0,
+      currentPublishAudioFrames: 0
+    });
     expect(summary?.nativeRuntime?.recommendation).toContain("Android direct MediaCodec validation");
   });
 
@@ -1207,6 +1222,9 @@ describe("stream session summary", () => {
           status: "warn",
           runtimeStatus: "live",
           publisherState: "published",
+          publisherPublishGeneration: 2.5,
+          currentPublishVideoFrames: "120",
+          currentPublishAudioFrames: Number.NaN,
           videoEncoderBackend: "mediacodec-h264",
           audioEncoderBackend: "mediacodec-aac",
           compositionStatus: "applied",
@@ -1245,6 +1263,10 @@ describe("stream session summary", () => {
     expect(normalized[0]?.nativeRuntime?.stillImageAssetDecodedCount).toBe(1);
     expect(normalized[0]?.nativeRuntime?.stillImageAssetDecodedPixelCount).toBe(921_600);
     expect(normalized[0]?.nativeRuntime).toMatchObject({
+      publisherState: "published",
+      publisherPublishGeneration: 0,
+      currentPublishVideoFrames: 0,
+      currentPublishAudioFrames: 0,
       controlOwner: "none",
       controllerState: "idle",
       baselineTargetKbps: 0,

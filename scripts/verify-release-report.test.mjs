@@ -1296,7 +1296,7 @@ function commercialSupportBundleFixture(patch = {}) {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 59
+      bundleVersion: 60
     },
     generatedAt,
     fixture: true,
@@ -1408,6 +1408,10 @@ function supportBundleManifestRun(devicePlatform, fingerprint, capturedAt = new 
     nativeRuntimeSessionStartedAt: new Date(Date.parse(capturedAt) - 5 * 60 * 1_000).toISOString(),
     nativeRuntimeSessionEndedAt: capturedAt,
     nativeRuntimeStatus: "pass",
+    nativeRuntimePublisherState: "published",
+    nativeRuntimePublisherPublishGeneration: 1,
+    nativeRuntimeCurrentPublishVideoFrames: 120,
+    nativeRuntimeCurrentPublishAudioFrames: 190,
     nativeRuntimeVideoEncoderBackend: devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
     nativeRuntimeAudioEncoderBackend: devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
     nativeRuntimeCongested: false,

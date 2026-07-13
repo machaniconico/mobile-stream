@@ -13,6 +13,9 @@ export default defineConfig({
           if (id.includes("/src/domain/vrmRuntime")) {
             return "vrm-runtime";
           }
+          if (id.includes("/src/domain/streamSessionSummary")) {
+            return "stream-session-summary";
+          }
           return undefined;
         }
       }

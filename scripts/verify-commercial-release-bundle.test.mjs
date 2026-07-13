@@ -56,22 +56,22 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v59.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v60.");
   });
 
-  it("blocks v58 support bundles because Android playback-capture proof requires v59", () => {
+  it("blocks v59 support bundles because current publisher proof requires v60", () => {
     writeBundle({
       app: {
         name: "MobileLiveCaster",
         reportVersion: 1,
-        bundleVersion: 58
+        bundleVersion: 59
       }
     });
 
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v58 is older than the required v59.");
+    expect(result.stdout).toContain("Support bundle v59 is older than the required v60.");
   });
 
   it("rejects string support bundle versions instead of coercing the schema", () => {
@@ -79,7 +79,7 @@ describe("commercial release bundle verifier CLI", () => {
       app: {
         name: "MobileLiveCaster",
         reportVersion: 1,
-        bundleVersion: "58"
+        bundleVersion: "60"
       }
     });
 
@@ -405,7 +405,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("The latest public launch confirmation was cancelled");
   });
 
-  it("blocks v59 support bundles without scene fingerprint evidence", () => {
+  it("blocks v60 support bundles without scene fingerprint evidence", () => {
     writeBundle({
       summary: {
         sceneFingerprint: undefined
@@ -417,10 +417,10 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Scene fingerprint");
-    expect(result.stdout).toContain("Support bundle v59 is missing scene composition fingerprint evidence.");
+    expect(result.stdout).toContain("Support bundle v60 is missing scene composition fingerprint evidence.");
   });
 
-  it("blocks v59 support bundles with mismatched scene fingerprints", () => {
+  it("blocks v60 support bundles with mismatched scene fingerprints", () => {
     writeBundle({
       summary: {
         sceneFingerprint: "scene1-summary"
@@ -436,7 +436,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Summary and scene fingerprint values do not match.");
   });
 
-  it("blocks v59 support bundles when retained validation runs are from another scene", () => {
+  it("blocks v60 support bundles when retained validation runs are from another scene", () => {
     writeBundle({
       summary: {
         validationEvidenceRunManifest: [
@@ -453,7 +453,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("do not match the current scene fingerprint scene1-ready");
   });
 
-  it("blocks v59 support bundles without native caption overlay summary evidence", () => {
+  it("blocks v60 support bundles without native caption overlay summary evidence", () => {
     writeBundle({
       summary: {
         nativeCompositionCaptionOverlayCount: undefined
@@ -924,6 +924,52 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("production video/audio encoder backends");
+  });
+
+  it.each([
+    [
+      "missing publisher fields",
+      {
+        nativeRuntimePublisherState: undefined,
+        nativeRuntimePublisherPublishGeneration: undefined,
+        nativeRuntimeCurrentPublishVideoFrames: undefined,
+        nativeRuntimeCurrentPublishAudioFrames: undefined
+      }
+    ],
+    ["reconnecting publisher state", { nativeRuntimePublisherState: "reconnecting" }],
+    ["zero publisher generation", { nativeRuntimePublisherPublishGeneration: 0 }],
+    ["zero current video frames", { nativeRuntimeCurrentPublishVideoFrames: 0 }],
+    ["zero current audio frames", { nativeRuntimeCurrentPublishAudioFrames: 0 }],
+    [
+      "fractional current publisher counters",
+      {
+        nativeRuntimePublisherPublishGeneration: 1.5,
+        nativeRuntimeCurrentPublishVideoFrames: 120.5,
+        nativeRuntimeCurrentPublishAudioFrames: 190.5
+      }
+    ],
+    [
+      "malformed current publisher counters",
+      {
+        nativeRuntimePublisherPublishGeneration: "1",
+        nativeRuntimeCurrentPublishVideoFrames: "120",
+        nativeRuntimeCurrentPublishAudioFrames: "190"
+      }
+    ]
+  ])("blocks current publisher proof when cumulative sent counters remain positive: %s", (_reason, publisherPatch) => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", publisherPatch),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("current publish generation");
   });
 
   it("blocks native runtime claims when retained manifests lack clean A/V timestamp drift proof", () => {
@@ -2916,7 +2962,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 59
+      bundleVersion: 60
     },
     generatedAt,
     profile: {
@@ -2970,6 +3016,10 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeSessionStartedAt: "2026-06-23T10:58:00.000Z",
   nativeRuntimeSessionEndedAt: "2026-06-23T11:00:00.000Z",
   nativeRuntimeStatus: "pass",
+  nativeRuntimePublisherState: "published",
+  nativeRuntimePublisherPublishGeneration: 1,
+  nativeRuntimeCurrentPublishVideoFrames: 120,
+  nativeRuntimeCurrentPublishAudioFrames: 190,
   nativeRuntimeAvSyncStatus: "in-sync",
   nativeRuntimeAvSyncSkewMs: 8,
   nativeRuntimeAvSyncMaxAbsSkewMs: 34,

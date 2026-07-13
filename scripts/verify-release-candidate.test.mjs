@@ -745,7 +745,7 @@ function commercialSupportBundleFixture(patch = {}) {
   };
 
   return {
-    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 59 },
+    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 60 },
     generatedAt,
     fixture: true,
     profile: {
@@ -786,6 +786,10 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     result: "pass",
     nativeRuntimePlatform: devicePlatform,
     nativeRuntimeStatus: "pass",
+    nativeRuntimePublisherState: "published",
+    nativeRuntimePublisherPublishGeneration: 1,
+    nativeRuntimeCurrentPublishVideoFrames: 120,
+    nativeRuntimeCurrentPublishAudioFrames: 190,
     nativeRuntimeVideoEncoderBackend: devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
     nativeRuntimeAudioEncoderBackend: devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
     nativeRuntimeCongested: false,

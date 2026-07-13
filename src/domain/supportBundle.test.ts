@@ -241,7 +241,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 59 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 60 });
     expect(bundle.profile.androidPublisherMode).toBe(profile.androidPublisherMode);
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
@@ -602,6 +602,9 @@ describe("support bundle", () => {
         droppedFrames: 0,
         publisher: {
           state: "published",
+          publishGeneration: 1,
+          currentPublishVideoFrames: 45,
+          currentPublishAudioFrames: 90,
           videoEncoderBackend: "videotoolbox-h264",
           audioEncoderBackend: "audiotoolbox-aac",
           reconnectAttempts: 0,
@@ -826,6 +829,10 @@ describe("support bundle", () => {
       matchesScope: true,
       eligible: true,
       nativeRuntimeStatus: "pass",
+      nativeRuntimePublisherState: "published",
+      nativeRuntimePublisherPublishGeneration: 1,
+      nativeRuntimeCurrentPublishVideoFrames: 45,
+      nativeRuntimeCurrentPublishAudioFrames: 90,
       nativeRuntimeContinuityStatus: "healthy",
       nativeRuntimeVideoStallCount: 0,
       nativeRuntimeAudioStallCount: 0,

@@ -65,7 +65,7 @@ describe("native broadcast lifecycle", () => {
     );
     expect(callbackGuard).toContain("internal class PublisherCallbackSessionGuard");
     expect(callbackGuard).toContain("internal class GenerationScopedConnectChecker");
-    expect(callbackGuard).toContain("guard.dispatch(token)");
+    expect(callbackGuard).toContain("guard.dispatch(token, callback)");
     expect(consentGuard).toContain("internal class CaptureConsentRequestGuard");
     expect(consentGuard).toContain("processCaptureConsentRequestSequence");
     expect(nativeModule).toContain("captureConsentRequestGuard.complete(requestCode)");

@@ -40,7 +40,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 59;
+    bundleVersion: 60;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -736,7 +736,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 59
+      bundleVersion: 60
     },
     summary: {
       status: diagnostics.status,
