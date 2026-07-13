@@ -574,6 +574,27 @@ enum BroadcastAudioEncoderError: LocalizedError, Equatable {
             return status
         }
     }
+
+    var isRecoverable: Bool {
+        switch self {
+        case .converterCreateFailed, .propertySetFailed, .encodeFailed:
+            return true
+        case .dataBufferMissing, .formatDescriptionMissing, .unsupportedInputFormat, .unsupportedSampleRate:
+            return false
+        }
+    }
+
+    var recoveryReason: String {
+        switch self {
+        case .converterCreateFailed(let status): return "converter-create-\(status)"
+        case .propertySetFailed(let property, let status): return "property-\(property)-\(status)"
+        case .encodeFailed(let status): return "encode-\(status)"
+        case .dataBufferMissing: return "data-buffer-missing"
+        case .formatDescriptionMissing: return "format-description-missing"
+        case .unsupportedInputFormat(let formatID): return "unsupported-input-format-\(formatID)"
+        case .unsupportedSampleRate(let sampleRate): return "unsupported-sample-rate-\(Int(sampleRate.rounded()))"
+        }
+    }
 }
 
 struct BroadcastUploadConfiguration: Equatable {
@@ -1684,6 +1705,18 @@ struct BroadcastAudioEncoderStats: Equatable {
     private(set) var failureCount: Int = 0
     private(set) var encoderInstanceID = ""
     private(set) var outputEncoderInstanceID = ""
+    private(set) var recoveryAttemptCount = 0
+    private(set) var recoverySuccessCount = 0
+    private(set) var recoveryFailureCount = 0
+    private(set) var recoverySuppressedInputBufferCount = 0
+    private(set) var recoveryDroppedInputFrameCount = 0
+    private(set) var recoveryDiscardedQueuedFrameCount = 0
+    private(set) var recoveryConsecutiveFailureCount = 0
+    private(set) var recoveryPending = false
+    private(set) var recoveryRetryAfterMs = 0
+    private(set) var recoveryLastStatus: Int32 = 0
+    private(set) var recoveryLastReason = ""
+    private(set) var recoveryLastRecoveryAt: Double = 0
     private(set) var micEffectsEnabled = false
     private(set) var micEffectsPresetId = "clean"
     private(set) var micEffectsProcessedFrames = 0
@@ -1744,8 +1777,6 @@ struct BroadcastAudioEncoderStats: Equatable {
     mutating func configureActiveEncoder(instanceID: String) {
         encoderInstanceID = instanceID
         outputEncoderInstanceID = ""
-        lastStatus = 0
-        failureCount = 0
     }
 
     mutating func configureMicEffects(_ configuration: BroadcastMicEffectsConfiguration) {
@@ -1871,6 +1902,21 @@ struct BroadcastAudioEncoderStats: Equatable {
         }
     }
 
+    mutating func recordRecovery(_ snapshot: BroadcastAudioEncoderRecoverySnapshot) {
+        recoveryAttemptCount = snapshot.attemptCount
+        recoverySuccessCount = snapshot.successCount
+        recoveryFailureCount = snapshot.failureCount
+        recoverySuppressedInputBufferCount = snapshot.suppressedInputBufferCount
+        recoveryDroppedInputFrameCount = snapshot.droppedInputFrameCount
+        recoveryDiscardedQueuedFrameCount = snapshot.discardedQueuedFrameCount
+        recoveryConsecutiveFailureCount = snapshot.consecutiveFailureCount
+        recoveryPending = snapshot.pending
+        recoveryRetryAfterMs = snapshot.retryAfterMs
+        recoveryLastStatus = snapshot.lastStatus
+        recoveryLastReason = snapshot.lastReason
+        recoveryLastRecoveryAt = snapshot.lastRecoveryAt
+    }
+
     func asDictionary() -> [String: Any] {
         [
             "backend": "audiotoolbox-aac",
@@ -1887,6 +1933,20 @@ struct BroadcastAudioEncoderStats: Equatable {
             "encoderInstanceId": encoderInstanceID,
             "outputEncoderInstanceId": outputEncoderInstanceID,
             "activeEncoderInstanceVerified": activeEncoderInstanceVerified,
+            "recovery": [
+                "attemptCount": recoveryAttemptCount,
+                "successCount": recoverySuccessCount,
+                "failureCount": recoveryFailureCount,
+                "suppressedInputBufferCount": recoverySuppressedInputBufferCount,
+                "droppedInputFrameCount": recoveryDroppedInputFrameCount,
+                "discardedQueuedFrameCount": recoveryDiscardedQueuedFrameCount,
+                "consecutiveFailureCount": recoveryConsecutiveFailureCount,
+                "pending": recoveryPending,
+                "retryAfterMs": recoveryRetryAfterMs,
+                "lastStatus": recoveryLastStatus,
+                "lastReason": recoveryLastReason,
+                "lastRecoveryAt": recoveryLastRecoveryAt
+            ],
             "micRmsLevel": micRmsLevel,
             "micPeakLevel": micPeakLevel,
             "micSampleCount": micSampleCount,
@@ -3077,6 +3137,11 @@ private final class BroadcastAudioPCMConverter {
         inputSignature = nil
     }
 
+    func reset() -> OSStatus {
+        guard let converter else { return noErr }
+        return AudioConverterReset(converter)
+    }
+
     func convert(sampleBuffer: CMSampleBuffer) throws -> BroadcastPCMAudioFrame {
         guard let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer) else {
             throw BroadcastAudioEncoderError.formatDescriptionMissing
@@ -3868,6 +3933,7 @@ final class BroadcastAudioEncoder {
     private var microphonePCMQueue: [Float] = []
     private var mixerNextPresentationTimeSeconds: Double?
     private var currentStats = BroadcastAudioEncoderStats()
+    private var recoveryTracker = BroadcastAudioEncoderRecoveryTracker()
     private let microphoneProcessor: BroadcastMicrophoneProcessor
     private let microphoneMonitor: BroadcastMicrophoneMonitor
     private let mixerChannelCount = 2
@@ -3903,13 +3969,60 @@ final class BroadcastAudioEncoder {
         encoderLock.lock()
         defer { encoderLock.unlock() }
 
+        let inputFrameCount = max(CMSampleBufferGetNumSamples(sampleBuffer), 0)
+        var recoveryAttemptStarted = false
+        if recoveryTracker.hasPendingRecovery {
+            guard recoveryTracker.canProcessInput() else {
+                recoveryTracker.recordSuppressedInput(droppedInputFrames: inputFrameCount)
+                recordRecoverySnapshotLocked()
+                return
+            }
+            let previousRecovery = recoveryTracker.snapshot()
+            recoveryTracker.beginAttempt(
+                status: previousRecovery.lastStatus,
+                reason: previousRecovery.lastReason.isEmpty ? "scheduled-retry" : previousRecovery.lastReason
+            )
+            recoveryAttemptStarted = true
+            recordRecoverySnapshotLocked()
+        }
+
         do {
             try encodeLocked(sampleBuffer, source: source)
+            if recoveryAttemptStarted {
+                recoveryTracker.recordSuccess()
+                recordRecoverySnapshotLocked()
+            }
         } catch let error as BroadcastAudioEncoderError {
             statsLock.performLocked {
                 self.currentStats.recordStatus(error.statusCode ?? -1)
             }
-            throw error
+            guard error.isRecoverable else { throw error }
+
+            if !recoveryAttemptStarted {
+                recoveryTracker.beginAttempt(status: error.statusCode ?? -1, reason: error.recoveryReason)
+            }
+            recoveryTracker.recordDiscardedQueuedFrames(resetConvertersForDiscontinuityLocked())
+            recordRecoverySnapshotLocked()
+
+            do {
+                try encodeLocked(sampleBuffer, source: source)
+                recoveryTracker.recordSuccess()
+                recordRecoverySnapshotLocked()
+            } catch {
+                let recoveryError = error as? BroadcastAudioEncoderError
+                let recoveryStatus = recoveryError?.statusCode ?? -1
+                statsLock.performLocked {
+                    self.currentStats.recordStatus(recoveryStatus)
+                }
+                recoveryTracker.recordDiscardedQueuedFrames(invalidateConvertersLocked())
+                recoveryTracker.recordFailure(
+                    status: recoveryStatus,
+                    reason: recoveryError?.recoveryReason ?? "unexpected-recovery-error",
+                    droppedInputFrames: inputFrameCount
+                )
+                recordRecoverySnapshotLocked()
+                throw error
+            }
         } catch {
             statsLock.performLocked {
                 self.currentStats.recordStatus(-1)
@@ -3936,6 +4049,55 @@ final class BroadcastAudioEncoder {
         microphonePCMQueue.removeAll(keepingCapacity: false)
         mixerNextPresentationTimeSeconds = nil
         microphoneMonitor.finish()
+    }
+
+    private func recordRecoverySnapshotLocked() {
+        let snapshot = recoveryTracker.snapshot()
+        statsLock.performLocked {
+            self.currentStats.recordRecovery(snapshot)
+        }
+    }
+
+    private func resetConvertersForDiscontinuityLocked() -> Int {
+        let discardedQueuedFrames = clearMixerQueuesLocked()
+        var resetFailed = false
+        if let converter, AudioConverterReset(converter) != noErr {
+            resetFailed = true
+        }
+        for sourceConverter in sourceConverters.values where sourceConverter.reset() != noErr {
+            resetFailed = true
+        }
+        if resetFailed {
+            invalidateConverterObjectsLocked()
+        }
+        return discardedQueuedFrames
+    }
+
+    private func invalidateConvertersLocked() -> Int {
+        let discardedQueuedFrames = clearMixerQueuesLocked()
+        invalidateConverterObjectsLocked()
+        return discardedQueuedFrames
+    }
+
+    private func invalidateConverterObjectsLocked() {
+        if let converter {
+            AudioConverterDispose(converter)
+        }
+        sourceConverters.values.forEach { $0.finish() }
+        converter = nil
+        converterInstanceID = ""
+        inputSignature = nil
+        audioSpecificConfig = Data()
+        mixerInputFormat = nil
+        sourceConverters = [:]
+    }
+
+    private func clearMixerQueuesLocked() -> Int {
+        let discardedQueuedFrames = (appPCMQueue.count + microphonePCMQueue.count) / mixerChannelCount
+        appPCMQueue.removeAll(keepingCapacity: true)
+        microphonePCMQueue.removeAll(keepingCapacity: true)
+        mixerNextPresentationTimeSeconds = nil
+        return discardedQueuedFrames
     }
 
     private func encodeLocked(_ sampleBuffer: CMSampleBuffer, source: BroadcastAudioSource) throws {

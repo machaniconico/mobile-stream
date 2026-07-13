@@ -29,6 +29,7 @@
 		B30000000000000000000001 /* MediaTimestampTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000003 /* MediaTimestampTracker.swift */; };
 		B40000000000000000000001 /* LiveVideoBitrateTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000003 /* LiveVideoBitrateTracker.swift */; };
 		B50000000000000000000001 /* NativeAdaptiveBitrateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50000000000000000000003 /* NativeAdaptiveBitrateController.swift */; };
+		B60000000000000000000001 /* AudioEncoderRecoveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60000000000000000000003 /* AudioEncoderRecoveryTracker.swift */; };
 		B10000000000000000000002 /* MobileLiveCasterBroadcastUpload.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* MobileLiveCasterBroadcastUpload.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C10000000000000000000001 /* LiveCasterBroadcastCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000011 /* LiveCasterBroadcastCredentialStore.swift */; };
 		C10000000000000000000002 /* LiveCasterBroadcastCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000011 /* LiveCasterBroadcastCredentialStore.swift */; };
@@ -89,6 +90,7 @@
 		B30000000000000000000003 /* MediaTimestampTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaTimestampTracker.swift; sourceTree = "<group>"; };
 		B40000000000000000000003 /* LiveVideoBitrateTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveVideoBitrateTracker.swift; sourceTree = "<group>"; };
 		B50000000000000000000003 /* NativeAdaptiveBitrateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAdaptiveBitrateController.swift; sourceTree = "<group>"; };
+		B60000000000000000000003 /* AudioEncoderRecoveryTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEncoderRecoveryTracker.swift; sourceTree = "<group>"; };
 		B10000000000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B10000000000000000000005 /* MobileLiveCasterBroadcastUpload.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MobileLiveCasterBroadcastUpload.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B10000000000000000000017 /* MobileLiveCasterBroadcastUpload.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MobileLiveCasterBroadcastUpload.entitlements; sourceTree = "<group>"; };
@@ -193,6 +195,7 @@
 				B30000000000000000000003 /* MediaTimestampTracker.swift */,
 				B40000000000000000000003 /* LiveVideoBitrateTracker.swift */,
 				B50000000000000000000003 /* NativeAdaptiveBitrateController.swift */,
+				B60000000000000000000003 /* AudioEncoderRecoveryTracker.swift */,
 				B10000000000000000000004 /* Info.plist */,
 				B10000000000000000000017 /* MobileLiveCasterBroadcastUpload.entitlements */,
 			);
@@ -415,6 +418,7 @@
 				B30000000000000000000001 /* MediaTimestampTracker.swift in Sources */,
 				B40000000000000000000001 /* LiveVideoBitrateTracker.swift in Sources */,
 				B50000000000000000000001 /* NativeAdaptiveBitrateController.swift in Sources */,
+				B60000000000000000000001 /* AudioEncoderRecoveryTracker.swift in Sources */,
 				C10000000000000000000002 /* LiveCasterBroadcastCredentialStore.swift in Sources */,
 				E10000000000000000000002 /* LiveCasterBroadcastControlStore.swift in Sources */,
 			);

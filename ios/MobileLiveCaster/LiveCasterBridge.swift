@@ -1681,6 +1681,7 @@ final class LiveCasterNative: RCTEventEmitter {
         let videoEncoder = runtimeState.dictionaryValue("videoEncoder")
         let bitrateAdaptation = videoEncoder.dictionaryValue("bitrateAdaptation")
         let audioEncoder = runtimeState.dictionaryValue("audioEncoder")
+        let audioEncoderRecovery = audioEncoder.dictionaryValue("recovery")
         let micEffects = audioEncoder.dictionaryValue("micEffects")
         let monitor = micEffects.dictionaryValue("monitor")
         let broadcastMixer = runtimeState.dictionaryValue("broadcastMixer")
@@ -1921,6 +1922,18 @@ final class LiveCasterNative: RCTEventEmitter {
                 "mixedAudioSampleCount": audioEncoder.intValue("mixedAudioSampleCount"),
                 "mixedAudioClippedSampleCount": audioEncoder.intValue("mixedAudioClippedSampleCount"),
                 "mixedAudioLevelUpdatedAt": audioEncoder.doubleValue("mixedAudioLevelUpdatedAt"),
+                "encoderRecoveryAttemptCount": audioEncoderRecovery.intValue("attemptCount"),
+                "encoderRecoverySuccessCount": audioEncoderRecovery.intValue("successCount"),
+                "encoderRecoveryFailureCount": audioEncoderRecovery.intValue("failureCount"),
+                "encoderRecoverySuppressedInputBufferCount": audioEncoderRecovery.intValue("suppressedInputBufferCount"),
+                "encoderRecoveryDroppedInputFrameCount": audioEncoderRecovery.intValue("droppedInputFrameCount"),
+                "encoderRecoveryDiscardedQueuedFrameCount": audioEncoderRecovery.intValue("discardedQueuedFrameCount"),
+                "encoderRecoveryConsecutiveFailureCount": audioEncoderRecovery.intValue("consecutiveFailureCount"),
+                "encoderRecoveryPending": audioEncoderRecovery.boolValue("pending"),
+                "encoderRecoveryRetryAfterMs": audioEncoderRecovery.intValue("retryAfterMs"),
+                "encoderRecoveryLastStatus": audioEncoderRecovery.intValue("lastStatus"),
+                "encoderRecoveryLastReason": audioEncoderRecovery.stringValue("lastReason"),
+                "encoderRecoveryLastRecoveryAt": audioEncoderRecovery.doubleValue("lastRecoveryAt"),
                 "monitorEnabled": monitor.boolValue("enabled"),
                 "monitorRunning": monitor.boolValue("running"),
                 "monitorVolume": monitor.doubleValue("volume"),

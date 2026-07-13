@@ -411,6 +411,18 @@ export interface NativeRuntimeAudioProcessing {
   mixedAudioSampleCount?: number;
   mixedAudioClippedSampleCount?: number;
   mixedAudioLevelUpdatedAt?: number;
+  encoderRecoveryAttemptCount?: number;
+  encoderRecoverySuccessCount?: number;
+  encoderRecoveryFailureCount?: number;
+  encoderRecoverySuppressedInputBufferCount?: number;
+  encoderRecoveryDroppedInputFrameCount?: number;
+  encoderRecoveryDiscardedQueuedFrameCount?: number;
+  encoderRecoveryConsecutiveFailureCount?: number;
+  encoderRecoveryPending?: boolean;
+  encoderRecoveryRetryAfterMs?: number;
+  encoderRecoveryLastStatus?: number;
+  encoderRecoveryLastReason?: string;
+  encoderRecoveryLastRecoveryAt?: number;
   micCaptureStatus?: string;
   micCaptureBackend?: string;
   micCaptureSampleRate?: number;
@@ -708,6 +720,30 @@ export const normalizeNativeRuntimeAudioProcessing = (
   mixedAudioSampleCount: normalizeNativeAudioCount(audioProcessing?.mixedAudioSampleCount),
   mixedAudioClippedSampleCount: normalizeNativeAudioCount(audioProcessing?.mixedAudioClippedSampleCount),
   mixedAudioLevelUpdatedAt: normalizeNativeAudioTimestamp(audioProcessing?.mixedAudioLevelUpdatedAt),
+  encoderRecoveryAttemptCount: normalizeNativeAudioCount(audioProcessing?.encoderRecoveryAttemptCount),
+  encoderRecoverySuccessCount: normalizeNativeAudioCount(audioProcessing?.encoderRecoverySuccessCount),
+  encoderRecoveryFailureCount: normalizeNativeAudioCount(audioProcessing?.encoderRecoveryFailureCount),
+  encoderRecoverySuppressedInputBufferCount: normalizeNativeAudioCount(
+    audioProcessing?.encoderRecoverySuppressedInputBufferCount
+  ),
+  encoderRecoveryDroppedInputFrameCount: normalizeNativeAudioCount(
+    audioProcessing?.encoderRecoveryDroppedInputFrameCount
+  ),
+  encoderRecoveryDiscardedQueuedFrameCount: normalizeNativeAudioCount(
+    audioProcessing?.encoderRecoveryDiscardedQueuedFrameCount
+  ),
+  encoderRecoveryConsecutiveFailureCount: normalizeNativeAudioCount(
+    audioProcessing?.encoderRecoveryConsecutiveFailureCount
+  ),
+  encoderRecoveryPending: audioProcessing?.encoderRecoveryPending ?? false,
+  encoderRecoveryRetryAfterMs: normalizeNativeAudioCount(audioProcessing?.encoderRecoveryRetryAfterMs),
+  encoderRecoveryLastStatus: normalizeNativeAudioStatus(audioProcessing?.encoderRecoveryLastStatus),
+  encoderRecoveryLastReason: normalizeNativeRuntimeBitrateText(
+    audioProcessing?.encoderRecoveryLastReason,
+    "",
+    160
+  ),
+  encoderRecoveryLastRecoveryAt: normalizeNativeAudioTimestamp(audioProcessing?.encoderRecoveryLastRecoveryAt),
   micCaptureStatus: audioProcessing?.micCaptureStatus ?? "unavailable",
   micCaptureBackend: audioProcessing?.micCaptureBackend ?? "none",
   micCaptureSampleRate: normalizeNativeAudioCount(audioProcessing?.micCaptureSampleRate),
@@ -761,6 +797,9 @@ const normalizeNativeAudioCount = (value: unknown): number =>
 
 const normalizeNativeAudioTimestamp = (value: unknown): number =>
   Math.max(0, Math.round(normalizeFiniteNumber(value, 0)));
+
+const normalizeNativeAudioStatus = (value: unknown): number =>
+  Math.max(-2_147_483_648, Math.min(2_147_483_647, Math.round(normalizeFiniteNumber(value, 0))));
 
 export interface NativeRuntimeTelemetry {
   platform: NativeRuntimePlatform;

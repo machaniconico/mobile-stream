@@ -149,6 +149,18 @@ describe("support bundle", () => {
           playbackDroppedFrames: 441,
           playbackUnderrunFrames: 441,
           playbackBufferedFrames: 882,
+          encoderRecoveryAttemptCount: 3,
+          encoderRecoverySuccessCount: 1,
+          encoderRecoveryFailureCount: 2,
+          encoderRecoverySuppressedInputBufferCount: 4,
+          encoderRecoveryDroppedInputFrameCount: 960,
+          encoderRecoveryDiscardedQueuedFrameCount: 1_024,
+          encoderRecoveryConsecutiveFailureCount: 2,
+          encoderRecoveryPending: true,
+          encoderRecoveryRetryAfterMs: 200,
+          encoderRecoveryLastStatus: -50,
+          encoderRecoveryLastReason: `encode-${streamKey}-failed`,
+          encoderRecoveryLastRecoveryAt: Date.parse("2026-06-23T00:00:04.125Z"),
           micCaptureStatus: "capturing",
           micCaptureBackend: "android-audio-record",
           micCaptureSampleRate: 48_000,
@@ -538,6 +550,9 @@ describe("support bundle", () => {
     expect(bundle.summary.validationEvidenceQualityAutomationRunCount).toBe(0);
     expect(bundle.summary.validationEvidenceQualityAutomationLiveUpdateCount).toBe(0);
     expect(bundle.summary.validationEvidenceLatestQualityAutomationStatus).toBeNull();
+    expect(bundle.summary.nativeRuntimeAudioEncoderRecoveryAttemptCount).toBe(3);
+    expect(bundle.summary.nativeRuntimeAudioEncoderRecoveryPending).toBe(true);
+    expect(bundle.summary.nativeRuntimeAudioEncoderRecoveryLastStatus).toBe(-50);
     expect(bundle.summary.validationEvidencePlatformPublishingRunCount).toBe(0);
     expect(bundle.summary.validationEvidencePlatformIngestRunCount).toBe(0);
     expect(bundle.summary.validationEvidencePlatformIngestIosPass).toBe(false);
@@ -589,6 +604,9 @@ describe("support bundle", () => {
       "assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / runtime android-canvas-mediacodec 144 frames 1 dropped 0 failures live reloads 3 rejected 1 / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing"
     );
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
+    expect(formatSupportBundle(bundle)).toContain(
+      `Native audio encoder recovery: attempts 3 / recovered 1 / failed 2 / consecutive 2 / pending yes / retry 200ms / suppressed buffers 4 / dropped input frames 960 / discarded queued frames 1024 / last -50 encode-${redactStreamKey(streamKey)}-failed`
+    );
     expect(formatSupportBundle(bundle)).toContain(
       "Android playback capture: ready / capturing android-audio-playback-capture / 44100 Hz / 3.0s / captured 132300 / dropped 441 (0.33%) / underrun 441 (0.34%) / buffered 882 frames (20ms)"
     );
