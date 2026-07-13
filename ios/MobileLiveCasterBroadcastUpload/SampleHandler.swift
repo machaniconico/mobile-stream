@@ -1359,6 +1359,7 @@ struct BroadcastRTMPPublisherStats: Equatable {
     private(set) var reconnectAttempts: Int = 0
     private(set) var nextReconnectDelayMs: Int = 0
     private(set) var lastError: String = ""
+    private var mediaTimestampTracker = BroadcastMediaTimestampTracker()
 
     mutating func updateState(_ nextState: BroadcastRTMPPublisherState) {
         state = nextState
@@ -1372,6 +1373,7 @@ struct BroadcastRTMPPublisherStats: Equatable {
         publishGeneration += 1
         currentPublishVideoMessagesSent = 0
         currentPublishAudioMessagesSent = 0
+        mediaTimestampTracker.startGeneration()
         state = .published
     }
 
@@ -1380,6 +1382,7 @@ struct BroadcastRTMPPublisherStats: Equatable {
         currentPublishVideoMessagesSent += 1
         videoBytesSent += bytes
         lastTimestampMs = timestampMs
+        _ = mediaTimestampTracker.recordVideo(timestampMs: timestampMs)
     }
 
     mutating func recordAudioMessage(bytes: Int, timestampMs: Int) {
@@ -1387,6 +1390,7 @@ struct BroadcastRTMPPublisherStats: Equatable {
         currentPublishAudioMessagesSent += 1
         audioBytesSent += bytes
         lastTimestampMs = timestampMs
+        _ = mediaTimestampTracker.recordAudio(timestampMs: timestampMs)
     }
 
     mutating func recordDroppedVideoFrame() {
@@ -1436,6 +1440,7 @@ struct BroadcastRTMPPublisherStats: Equatable {
             "lastTimestampMs": lastTimestampMs,
             "reconnectAttempts": reconnectAttempts,
             "nextReconnectDelayMs": nextReconnectDelayMs,
+            "avSync": mediaTimestampTracker.snapshot().asDictionary(),
             "lastError": lastError
         ]
     }

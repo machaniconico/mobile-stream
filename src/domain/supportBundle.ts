@@ -35,7 +35,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 55;
+    bundleVersion: 56;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -233,6 +233,14 @@ export interface SupportBundle {
     validationEvidenceLatestNativeRuntimeAudioStallCount: number;
     validationEvidenceLatestNativeRuntimeMaxVideoStallDurationMs: number;
     validationEvidenceLatestNativeRuntimeMaxAudioStallDurationMs: number;
+    validationEvidenceLatestNativeRuntimeAvSyncStatus: NonNullable<StreamDiagnostics["validationEvidence"]["latestNativeRuntime"]>["avSyncStatus"] | null;
+    validationEvidenceLatestNativeRuntimeAvSyncSkewMs: number;
+    validationEvidenceLatestNativeRuntimeAvSyncMaxAbsSkewMs: number;
+    validationEvidenceLatestNativeRuntimeAvSyncSampleCount: number;
+    validationEvidenceLatestNativeRuntimeAvSyncOutOfSyncSampleCount: number;
+    validationEvidenceLatestNativeRuntimeAvSyncIncidentCount: number;
+    validationEvidenceLatestNativeRuntimeAvSyncCriticalIncidentCount: number;
+    validationEvidenceLatestNativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples: number;
     validationEvidenceLatestNativeRuntimeVideoEncoderBackend: string;
     validationEvidenceLatestNativeRuntimeAudioEncoderBackend: string;
     validationEvidenceLatestNativeRuntimeEncoderProbeStatus: string;
@@ -497,6 +505,14 @@ export interface SupportBundle {
     nativeRuntimeAudioStallCount: number;
     nativeRuntimeMaxVideoStallDurationMs: number;
     nativeRuntimeMaxAudioStallDurationMs: number;
+    nativeRuntimeAvSyncStatus: string;
+    nativeRuntimeAvSyncSkewMs: number;
+    nativeRuntimeAvSyncMaxAbsSkewMs: number;
+    nativeRuntimeAvSyncSampleCount: number;
+    nativeRuntimeAvSyncOutOfSyncSampleCount: number;
+    nativeRuntimeAvSyncIncidentCount: number;
+    nativeRuntimeAvSyncCriticalIncidentCount: number;
+    nativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples: number;
     nativeRuntimeVideoEncoderBackend: string;
     nativeRuntimeAudioEncoderBackend: string;
     nativeRuntimeEncoderProbeStatus: string;
@@ -702,7 +718,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 55
+      bundleVersion: 56
     },
     summary: {
       status: diagnostics.status,
@@ -943,6 +959,22 @@ export const createSupportBundle = ({
         diagnostics.validationEvidence.latestNativeRuntime?.maxVideoStallDurationMs ?? 0,
       validationEvidenceLatestNativeRuntimeMaxAudioStallDurationMs:
         diagnostics.validationEvidence.latestNativeRuntime?.maxAudioStallDurationMs ?? 0,
+      validationEvidenceLatestNativeRuntimeAvSyncStatus:
+        diagnostics.validationEvidence.latestNativeRuntime?.avSyncStatus ?? null,
+      validationEvidenceLatestNativeRuntimeAvSyncSkewMs:
+        diagnostics.validationEvidence.latestNativeRuntime?.avSyncSkewMs ?? 0,
+      validationEvidenceLatestNativeRuntimeAvSyncMaxAbsSkewMs:
+        diagnostics.validationEvidence.latestNativeRuntime?.avSyncMaxAbsSkewMs ?? 0,
+      validationEvidenceLatestNativeRuntimeAvSyncSampleCount:
+        diagnostics.validationEvidence.latestNativeRuntime?.avSyncSampleCount ?? 0,
+      validationEvidenceLatestNativeRuntimeAvSyncOutOfSyncSampleCount:
+        diagnostics.validationEvidence.latestNativeRuntime?.avSyncOutOfSyncSampleCount ?? 0,
+      validationEvidenceLatestNativeRuntimeAvSyncIncidentCount:
+        diagnostics.validationEvidence.latestNativeRuntime?.avSyncIncidentCount ?? 0,
+      validationEvidenceLatestNativeRuntimeAvSyncCriticalIncidentCount:
+        diagnostics.validationEvidence.latestNativeRuntime?.avSyncCriticalIncidentCount ?? 0,
+      validationEvidenceLatestNativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples:
+        diagnostics.validationEvidence.latestNativeRuntime?.avSyncMaxConsecutiveOutOfSyncSamples ?? 0,
       validationEvidenceLatestNativeRuntimeVideoEncoderBackend:
         diagnostics.validationEvidence.latestNativeRuntime?.videoEncoderBackend ?? "none",
       validationEvidenceLatestNativeRuntimeAudioEncoderBackend:
@@ -1266,6 +1298,15 @@ export const createSupportBundle = ({
       nativeRuntimeAudioStallCount: diagnostics.nativeRuntime?.continuity?.audioStallCount ?? 0,
       nativeRuntimeMaxVideoStallDurationMs: diagnostics.nativeRuntime?.continuity?.maxVideoStallDurationMs ?? 0,
       nativeRuntimeMaxAudioStallDurationMs: diagnostics.nativeRuntime?.continuity?.maxAudioStallDurationMs ?? 0,
+      nativeRuntimeAvSyncStatus: diagnostics.nativeRuntime?.avSync?.status ?? "unknown",
+      nativeRuntimeAvSyncSkewMs: diagnostics.nativeRuntime?.avSync?.skewMs ?? 0,
+      nativeRuntimeAvSyncMaxAbsSkewMs: diagnostics.nativeRuntime?.avSync?.maxAbsSkewMs ?? 0,
+      nativeRuntimeAvSyncSampleCount: diagnostics.nativeRuntime?.avSync?.sampleCount ?? 0,
+      nativeRuntimeAvSyncOutOfSyncSampleCount: diagnostics.nativeRuntime?.avSync?.outOfSyncSampleCount ?? 0,
+      nativeRuntimeAvSyncIncidentCount: diagnostics.nativeRuntime?.avSync?.outOfSyncIncidentCount ?? 0,
+      nativeRuntimeAvSyncCriticalIncidentCount: diagnostics.nativeRuntime?.avSync?.criticalIncidentCount ?? 0,
+      nativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples:
+        diagnostics.nativeRuntime?.avSync?.maxConsecutiveOutOfSyncSamples ?? 0,
       nativeRuntimeVideoEncoderBackend: diagnostics.nativeRuntime?.publisher.videoEncoderBackend ?? "none",
       nativeRuntimeAudioEncoderBackend: diagnostics.nativeRuntime?.publisher.audioEncoderBackend ?? "none",
       nativeRuntimeEncoderProbeStatus: diagnostics.nativeRuntime?.encoderProbe?.status ?? "missing",
@@ -1528,7 +1569,7 @@ export const formatSupportBundle = (bundle: SupportBundle, options: SupportBundl
     `- Recovery: ${bundle.diagnostics.recovery.mode} / ${bundle.diagnostics.recovery.recommendedAction}`,
     `- Native composition: ${bundle.summary.nativeCompositionStatus} / ${bundle.summary.nativeCompositionCoverage} / overlays ${bundle.summary.nativeCompositionNativeOverlayCount} / still-image ${bundle.summary.nativeCompositionStillImageOverlayCount} / text ${bundle.summary.nativeCompositionTextOverlayCount} / caption ${bundle.summary.nativeCompositionCaptionOverlayCount} / chat ${bundle.summary.nativeCompositionChatOverlayCount} / preview-only ${bundle.summary.nativeCompositionPreviewOnlySourceCount} / asset issues ${bundle.summary.nativeCompositionAssetIssueCount} / file-backed ${bundle.summary.nativeCompositionFileBackedAssetIssueCount}`,
     `- Native compositor required: ${bundle.summary.nativeCompositionRequiresCompositor ? "yes" : "no"}`,
-    `- Native runtime: ${bundle.summary.nativeRuntimePlatform ?? "-"} / ${bundle.summary.nativeRuntimeStatus ?? "-"} / publisher ${bundle.summary.nativeRuntimePublisherState ?? "-"} / continuity ${bundle.summary.nativeRuntimeContinuityStatus} incidents ${bundle.summary.nativeRuntimeVideoStallCount} video ${bundle.summary.nativeRuntimeAudioStallCount} audio max ${bundle.summary.nativeRuntimeMaxVideoStallDurationMs}ms/${bundle.summary.nativeRuntimeMaxAudioStallDurationMs}ms / encoders ${bundle.summary.nativeRuntimeVideoEncoderBackend}/${bundle.summary.nativeRuntimeAudioEncoderBackend} / MediaCodec probe ${bundle.summary.nativeRuntimeEncoderProbeStatus} ${bundle.summary.nativeRuntimeEncoderProbeVideoBackend}/${bundle.summary.nativeRuntimeEncoderProbeAudioBackend} / composition ${bundle.summary.nativeRuntimeCompositionStatus ?? "-"} / overlays applied ${bundle.summary.nativeRuntimeCompositionAppliedCount}${formatKinds(bundle.summary.nativeRuntimeCompositionAppliedKinds)} skipped ${bundle.summary.nativeRuntimeCompositionSkippedCount}${formatKinds(bundle.summary.nativeRuntimeCompositionSkippedKinds)} / assets ${bundle.summary.nativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.nativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.nativeRuntimeStillImageAssetDecodedCount} decoded / decoded pixels ${bundle.summary.nativeRuntimeStillImageAssetDecodedPixelCount} / ${bundle.summary.nativeRuntimeStillImageAssetCompositedCount} composited / composited pixels ${bundle.summary.nativeRuntimeStillImageAssetCompositedPixelCount} / runtime ${bundle.summary.nativeRuntimeCompositorBackend} ${bundle.summary.nativeRuntimeCompositedFrameCount} frames ${bundle.summary.nativeRuntimeDroppedFrameCount} dropped ${bundle.summary.nativeRuntimeCompositionFailureCount} failures live reloads ${bundle.summary.nativeRuntimeLiveRenderGraphReloadCount} rejected ${bundle.summary.nativeRuntimeLiveRenderGraphRejectedUpdateCount} / app-group ${bundle.summary.nativeRuntimeStillImageAssetAppGroupLoadedCount}/${bundle.summary.nativeRuntimeStillImageAssetAppGroupCount} loaded / ${bundle.summary.nativeRuntimeStillImageAssetAppGroupDecodedCount} decoded / decoded pixels ${bundle.summary.nativeRuntimeStillImageAssetAppGroupDecodedPixelCount} / ${bundle.summary.nativeRuntimeStillImageAssetAppGroupCompositedCount} composited / composited pixels ${bundle.summary.nativeRuntimeStillImageAssetAppGroupCompositedPixelCount} / ${bundle.summary.nativeRuntimeStillImageAssetMissingCount} missing / live2d ${bundle.summary.nativeRuntimeLive2dActivePoseCount}/${bundle.summary.nativeRuntimeLive2dSourceCount} active payloads ${bundle.summary.nativeRuntimeLive2dPosePayloadCount} missing ${bundle.summary.nativeRuntimeLive2dMissingPoseCount} / vrm ${bundle.summary.nativeRuntimeVrmActivePoseCount}/${bundle.summary.nativeRuntimeVrmSourceCount} active payloads ${bundle.summary.nativeRuntimeVrmPosePayloadCount} missing ${bundle.summary.nativeRuntimeVrmMissingPoseCount} / renderer ${bundle.summary.nativeRuntimeVrmRendererStatus} ${bundle.summary.nativeRuntimeVrmRendererBackend} rendered ${bundle.summary.nativeRuntimeVrmRenderedSourceCount}/${bundle.summary.nativeRuntimeVrmSourceCount} models ${bundle.summary.nativeRuntimeVrmModelLoadedCount} versions ${bundle.summary.nativeRuntimeVrmModelVersions.join("/") || "-"} bones ${bundle.summary.nativeRuntimeVrmHumanoidBoneCount} expressions ${bundle.summary.nativeRuntimeVrmExpressionCount} mesh primitives ${bundle.summary.nativeRuntimeVrmMeshPrimitiveCount} triangles ${bundle.summary.nativeRuntimeVrmTrianglePrimitiveCount} unsupported modes ${bundle.summary.nativeRuntimeVrmUnsupportedPrimitiveModeCount} skinned ${bundle.summary.nativeRuntimeVrmSkinnedMeshPrimitiveCount} skin joints ${bundle.summary.nativeRuntimeVrmSkinJointCount} position accessors ${bundle.summary.nativeRuntimeVrmPositionAccessorCount} normals ${bundle.summary.nativeRuntimeVrmNormalAccessorCount} uvs ${bundle.summary.nativeRuntimeVrmTexcoordAccessorCount} vertices ${bundle.summary.nativeRuntimeVrmVertexCount} indices ${bundle.summary.nativeRuntimeVrmIndexCount} bounds ${bundle.summary.nativeRuntimeVrmBoundsAccessorCount} skin attrs ${bundle.summary.nativeRuntimeVrmSkinningAttributePrimitiveCount} morphs ${bundle.summary.nativeRuntimeVrmMorphTargetCount} materials ${bundle.summary.nativeRuntimeVrmMaterialCount} transparent materials ${bundle.summary.nativeRuntimeVrmTransparentMaterialCount} textures ${bundle.summary.nativeRuntimeVrmTextureCount} images ${bundle.summary.nativeRuntimeVrmImageCount} unsupported image mimes ${bundle.summary.nativeRuntimeVrmUnsupportedImageMimeCount} pose bones ${bundle.summary.nativeRuntimeVrmPoseBoneAppliedCount}/${bundle.summary.nativeRuntimeVrmPoseBoneCount} unsupported ${bundle.summary.nativeRuntimeVrmPoseBoneUnsupportedCount} pose expressions ${bundle.summary.nativeRuntimeVrmPoseExpressionAppliedCount}/${bundle.summary.nativeRuntimeVrmPoseExpressionCount} unsupported ${bundle.summary.nativeRuntimeVrmPoseExpressionUnsupportedCount} missing ${bundle.summary.nativeRuntimeVrmRenderMissingCount} failed ${bundle.summary.nativeRuntimeVrmRenderFailureCount} / stale ${bundle.summary.nativeRuntimeStale ? "yes" : "no"} / congested ${bundle.summary.nativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.nativeRuntimeQueuedItems}/${bundle.summary.nativeRuntimeCacheSize}`,
+    `- Native runtime: ${bundle.summary.nativeRuntimePlatform ?? "-"} / ${bundle.summary.nativeRuntimeStatus ?? "-"} / publisher ${bundle.summary.nativeRuntimePublisherState ?? "-"} / continuity ${bundle.summary.nativeRuntimeContinuityStatus} incidents ${bundle.summary.nativeRuntimeVideoStallCount} video ${bundle.summary.nativeRuntimeAudioStallCount} audio max ${bundle.summary.nativeRuntimeMaxVideoStallDurationMs}ms/${bundle.summary.nativeRuntimeMaxAudioStallDurationMs}ms / A/V ${bundle.summary.nativeRuntimeAvSyncStatus} ${bundle.summary.nativeRuntimeAvSyncSkewMs}ms max ${bundle.summary.nativeRuntimeAvSyncMaxAbsSkewMs}ms samples ${bundle.summary.nativeRuntimeAvSyncSampleCount} incidents ${bundle.summary.nativeRuntimeAvSyncIncidentCount} critical ${bundle.summary.nativeRuntimeAvSyncCriticalIncidentCount} / encoders ${bundle.summary.nativeRuntimeVideoEncoderBackend}/${bundle.summary.nativeRuntimeAudioEncoderBackend} / MediaCodec probe ${bundle.summary.nativeRuntimeEncoderProbeStatus} ${bundle.summary.nativeRuntimeEncoderProbeVideoBackend}/${bundle.summary.nativeRuntimeEncoderProbeAudioBackend} / composition ${bundle.summary.nativeRuntimeCompositionStatus ?? "-"} / overlays applied ${bundle.summary.nativeRuntimeCompositionAppliedCount}${formatKinds(bundle.summary.nativeRuntimeCompositionAppliedKinds)} skipped ${bundle.summary.nativeRuntimeCompositionSkippedCount}${formatKinds(bundle.summary.nativeRuntimeCompositionSkippedKinds)} / assets ${bundle.summary.nativeRuntimeStillImageAssetLoadedCount}/${bundle.summary.nativeRuntimeStillImageAssetCount} loaded / ${bundle.summary.nativeRuntimeStillImageAssetDecodedCount} decoded / decoded pixels ${bundle.summary.nativeRuntimeStillImageAssetDecodedPixelCount} / ${bundle.summary.nativeRuntimeStillImageAssetCompositedCount} composited / composited pixels ${bundle.summary.nativeRuntimeStillImageAssetCompositedPixelCount} / runtime ${bundle.summary.nativeRuntimeCompositorBackend} ${bundle.summary.nativeRuntimeCompositedFrameCount} frames ${bundle.summary.nativeRuntimeDroppedFrameCount} dropped ${bundle.summary.nativeRuntimeCompositionFailureCount} failures live reloads ${bundle.summary.nativeRuntimeLiveRenderGraphReloadCount} rejected ${bundle.summary.nativeRuntimeLiveRenderGraphRejectedUpdateCount} / app-group ${bundle.summary.nativeRuntimeStillImageAssetAppGroupLoadedCount}/${bundle.summary.nativeRuntimeStillImageAssetAppGroupCount} loaded / ${bundle.summary.nativeRuntimeStillImageAssetAppGroupDecodedCount} decoded / decoded pixels ${bundle.summary.nativeRuntimeStillImageAssetAppGroupDecodedPixelCount} / ${bundle.summary.nativeRuntimeStillImageAssetAppGroupCompositedCount} composited / composited pixels ${bundle.summary.nativeRuntimeStillImageAssetAppGroupCompositedPixelCount} / ${bundle.summary.nativeRuntimeStillImageAssetMissingCount} missing / live2d ${bundle.summary.nativeRuntimeLive2dActivePoseCount}/${bundle.summary.nativeRuntimeLive2dSourceCount} active payloads ${bundle.summary.nativeRuntimeLive2dPosePayloadCount} missing ${bundle.summary.nativeRuntimeLive2dMissingPoseCount} / vrm ${bundle.summary.nativeRuntimeVrmActivePoseCount}/${bundle.summary.nativeRuntimeVrmSourceCount} active payloads ${bundle.summary.nativeRuntimeVrmPosePayloadCount} missing ${bundle.summary.nativeRuntimeVrmMissingPoseCount} / renderer ${bundle.summary.nativeRuntimeVrmRendererStatus} ${bundle.summary.nativeRuntimeVrmRendererBackend} rendered ${bundle.summary.nativeRuntimeVrmRenderedSourceCount}/${bundle.summary.nativeRuntimeVrmSourceCount} models ${bundle.summary.nativeRuntimeVrmModelLoadedCount} versions ${bundle.summary.nativeRuntimeVrmModelVersions.join("/") || "-"} bones ${bundle.summary.nativeRuntimeVrmHumanoidBoneCount} expressions ${bundle.summary.nativeRuntimeVrmExpressionCount} mesh primitives ${bundle.summary.nativeRuntimeVrmMeshPrimitiveCount} triangles ${bundle.summary.nativeRuntimeVrmTrianglePrimitiveCount} unsupported modes ${bundle.summary.nativeRuntimeVrmUnsupportedPrimitiveModeCount} skinned ${bundle.summary.nativeRuntimeVrmSkinnedMeshPrimitiveCount} skin joints ${bundle.summary.nativeRuntimeVrmSkinJointCount} position accessors ${bundle.summary.nativeRuntimeVrmPositionAccessorCount} normals ${bundle.summary.nativeRuntimeVrmNormalAccessorCount} uvs ${bundle.summary.nativeRuntimeVrmTexcoordAccessorCount} vertices ${bundle.summary.nativeRuntimeVrmVertexCount} indices ${bundle.summary.nativeRuntimeVrmIndexCount} bounds ${bundle.summary.nativeRuntimeVrmBoundsAccessorCount} skin attrs ${bundle.summary.nativeRuntimeVrmSkinningAttributePrimitiveCount} morphs ${bundle.summary.nativeRuntimeVrmMorphTargetCount} materials ${bundle.summary.nativeRuntimeVrmMaterialCount} transparent materials ${bundle.summary.nativeRuntimeVrmTransparentMaterialCount} textures ${bundle.summary.nativeRuntimeVrmTextureCount} images ${bundle.summary.nativeRuntimeVrmImageCount} unsupported image mimes ${bundle.summary.nativeRuntimeVrmUnsupportedImageMimeCount} pose bones ${bundle.summary.nativeRuntimeVrmPoseBoneAppliedCount}/${bundle.summary.nativeRuntimeVrmPoseBoneCount} unsupported ${bundle.summary.nativeRuntimeVrmPoseBoneUnsupportedCount} pose expressions ${bundle.summary.nativeRuntimeVrmPoseExpressionAppliedCount}/${bundle.summary.nativeRuntimeVrmPoseExpressionCount} unsupported ${bundle.summary.nativeRuntimeVrmPoseExpressionUnsupportedCount} missing ${bundle.summary.nativeRuntimeVrmRenderMissingCount} failed ${bundle.summary.nativeRuntimeVrmRenderFailureCount} / stale ${bundle.summary.nativeRuntimeStale ? "yes" : "no"} / congested ${bundle.summary.nativeRuntimeCongested ? "yes" : "no"} / queue ${bundle.summary.nativeRuntimeQueuedItems}/${bundle.summary.nativeRuntimeCacheSize}`,
     `- Audio monitor route: ${bundle.summary.audioMonitorRouteStatus} / ${bundle.summary.audioMonitorRouteOutputName} / headphones ${bundle.summary.audioMonitorRouteHeadphonesConnected ? "yes" : "no"} / stale ${bundle.summary.audioMonitorRouteStale ? "yes" : "no"}`,
     "",
     "Commercial Validation",

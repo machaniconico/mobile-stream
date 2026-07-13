@@ -34,6 +34,7 @@ import {
   isProductionNativeAudioEncoderBackend,
   isProductionNativeVideoEncoderBackend,
   isProductionVrmRendererBackend,
+  normalizeNativeRuntimeAvSync,
   normalizeNativeRuntimeContinuity,
   type NativeRuntimeTelemetry
 } from "./nativeRuntime";
@@ -642,6 +643,7 @@ export const formatStreamDiagnosticReport = (
     `- Runtime status: ${diagnostics.nativeRuntime?.runtimeStatus ?? "-"}`,
     `- Publisher: ${diagnostics.nativeRuntime?.publisher.state || "-"} / generation ${diagnostics.nativeRuntime?.publisher.publishGeneration ?? 0} / current media ${diagnostics.nativeRuntime?.publisher.currentPublishVideoFrames ?? 0} video ${diagnostics.nativeRuntime?.publisher.currentPublishAudioFrames ?? 0} audio / cache ${diagnostics.nativeRuntime?.publisher.itemsInCache ?? 0}/${diagnostics.nativeRuntime?.publisher.cacheSize ?? 0} / congested ${diagnostics.nativeRuntime?.publisher.congested ? "yes" : "no"}`,
     `- Media continuity: ${diagnostics.nativeRuntime?.continuity?.status ?? "unknown"} / current ${diagnostics.nativeRuntime?.continuity?.videoStallDurationMs ?? 0}ms video ${diagnostics.nativeRuntime?.continuity?.audioStallDurationMs ?? 0}ms audio / incidents ${diagnostics.nativeRuntime?.continuity?.videoStallCount ?? 0} video ${diagnostics.nativeRuntime?.continuity?.audioStallCount ?? 0} audio / max ${diagnostics.nativeRuntime?.continuity?.maxVideoStallDurationMs ?? 0}ms video ${diagnostics.nativeRuntime?.continuity?.maxAudioStallDurationMs ?? 0}ms audio`,
+    `- A/V sync: ${diagnostics.nativeRuntime?.avSync?.status ?? "unknown"} / skew ${diagnostics.nativeRuntime?.avSync?.skewMs ?? 0}ms / max ${diagnostics.nativeRuntime?.avSync?.maxAbsSkewMs ?? 0}ms / samples ${diagnostics.nativeRuntime?.avSync?.sampleCount ?? 0} / incidents ${diagnostics.nativeRuntime?.avSync?.outOfSyncIncidentCount ?? 0} / critical ${diagnostics.nativeRuntime?.avSync?.criticalIncidentCount ?? 0}`,
     `- Composition: ${diagnostics.nativeRuntime?.composition.status ?? "-"} / ${diagnostics.nativeRuntime?.composition.message || "-"}`,
     `- Device resources: ${formatNativeDeviceResources(diagnostics.nativeRuntime)}`,
     `- Composition overlays: applied ${diagnostics.nativeRuntime?.composition.appliedCount ?? 0}${formatKinds(diagnostics.nativeRuntime?.composition.appliedKinds)} / skipped ${diagnostics.nativeRuntime?.composition.skippedCount ?? 0}${formatKinds(diagnostics.nativeRuntime?.composition.skippedKinds)}`,
@@ -2134,6 +2136,56 @@ const createNativeRuntimeCheck = (runtime: NativeRuntimeTelemetry | null): Diagn
       status: "warn",
       label: "Native runtime",
       message: `Native media recovered after ${continuity.videoStallCount} video and ${continuity.audioStallCount} audio stall incident(s); longest ${continuity.maxVideoStallDurationMs} ms video / ${continuity.maxAudioStallDurationMs} ms audio.`
+    };
+  }
+  const avSync = normalizeNativeRuntimeAvSync(runtime.avSync);
+  if (continuityExpected && avSync.status === "unknown") {
+    return {
+      code: "native-runtime-av-sync-unavailable",
+      status: "warn",
+      label: "Native runtime",
+      message: "Native RTMP A/V timestamp drift telemetry is unavailable while the publisher is active."
+    };
+  }
+  if (continuityExpected && avSync.status === "warming-up") {
+    return {
+      code: "native-runtime-av-sync-warming-up",
+      status: "info",
+      label: "Native runtime",
+      message: "Native RTMP A/V timestamp drift telemetry is waiting for both media tracks."
+    };
+  }
+  if (avSync.critical || avSync.criticalIncidentCount > 0) {
+    return {
+      code: "native-runtime-av-sync-critical",
+      status: "warn",
+      label: "Native runtime",
+      message: `Native RTMP A/V drift reached ${avSync.maxAbsSkewMs} ms with ${avSync.criticalIncidentCount} critical incident(s); current skew ${avSync.skewMs} ms.`
+    };
+  }
+  if (avSync.status === "video-leading" || avSync.status === "audio-leading") {
+    const leadingTrack = avSync.status === "video-leading" ? "Video" : "Audio";
+    return {
+      code: `native-runtime-av-sync-${avSync.status}`,
+      status: "warn",
+      label: "Native runtime",
+      message: `${leadingTrack} RTMP timestamps lead by ${Math.abs(avSync.skewMs)} ms; warning threshold ${avSync.warningThresholdMs} ms.`
+    };
+  }
+  if (avSync.outOfSyncIncidentCount > 0) {
+    return {
+      code: "native-runtime-av-sync-recovered",
+      status: "warn",
+      label: "Native runtime",
+      message: `Native RTMP A/V drift recovered after ${avSync.outOfSyncIncidentCount} incident(s); maximum ${avSync.maxAbsSkewMs} ms.`
+    };
+  }
+  if (avSync.outOfSyncSampleCount > 0 || avSync.maxAbsSkewMs > avSync.warningThresholdMs) {
+    return {
+      code: "native-runtime-av-sync-transient",
+      status: "warn",
+      label: "Native runtime",
+      message: `Native RTMP A/V drift recovered without a confirmed incident, but ${avSync.outOfSyncSampleCount} paired sample(s) exceeded ${avSync.warningThresholdMs} ms; maximum ${avSync.maxAbsSkewMs} ms.`
     };
   }
   return {

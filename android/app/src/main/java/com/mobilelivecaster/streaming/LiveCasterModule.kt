@@ -432,6 +432,40 @@ data class NativeRuntimeContinuity(
     }
 }
 
+data class NativeRuntimeAvSync(
+    val status: String = "unknown",
+    val latestVideoTimestampMs: Long = 0L,
+    val latestAudioTimestampMs: Long = 0L,
+    val skewMs: Long = 0L,
+    val maxAbsSkewMs: Long = 0L,
+    val sampleCount: Long = 0L,
+    val outOfSyncSampleCount: Long = 0L,
+    val outOfSyncIncidentCount: Long = 0L,
+    val criticalIncidentCount: Long = 0L,
+    val consecutiveOutOfSyncSamples: Long = 0L,
+    val maxConsecutiveOutOfSyncSamples: Long = 0L,
+    val warningThresholdMs: Long = 150L,
+    val criticalThresholdMs: Long = 500L,
+    val critical: Boolean = false
+) {
+    fun asWritableMap(): WritableMap = Arguments.createMap().apply {
+        putString("status", status)
+        putDouble("latestVideoTimestampMs", latestVideoTimestampMs.toDouble())
+        putDouble("latestAudioTimestampMs", latestAudioTimestampMs.toDouble())
+        putDouble("skewMs", skewMs.toDouble())
+        putDouble("maxAbsSkewMs", maxAbsSkewMs.toDouble())
+        putDouble("sampleCount", sampleCount.toDouble())
+        putDouble("outOfSyncSampleCount", outOfSyncSampleCount.toDouble())
+        putDouble("outOfSyncIncidentCount", outOfSyncIncidentCount.toDouble())
+        putDouble("criticalIncidentCount", criticalIncidentCount.toDouble())
+        putDouble("consecutiveOutOfSyncSamples", consecutiveOutOfSyncSamples.toDouble())
+        putDouble("maxConsecutiveOutOfSyncSamples", maxConsecutiveOutOfSyncSamples.toDouble())
+        putDouble("warningThresholdMs", warningThresholdMs.toDouble())
+        putDouble("criticalThresholdMs", criticalThresholdMs.toDouble())
+        putBoolean("critical", critical)
+    }
+}
+
 data class NativeRuntimeTelemetry(
     val platform: String = "android",
     val runtimeStatus: String,
@@ -447,6 +481,7 @@ data class NativeRuntimeTelemetry(
     val composition: NativeRuntimeComposition = NativeRuntimeComposition(),
     val audioProcessing: NativeRuntimeAudioProcessing? = null,
     val continuity: NativeRuntimeContinuity? = null,
+    val avSync: NativeRuntimeAvSync? = null,
     val message: String = ""
 ) {
     fun asWritableMap(): WritableMap = Arguments.createMap().apply {
@@ -464,6 +499,7 @@ data class NativeRuntimeTelemetry(
         putMap("composition", composition.asWritableMap())
         audioProcessing?.let { putMap("audioProcessing", it.asWritableMap()) }
         continuity?.let { putMap("continuity", it.asWritableMap()) }
+        avSync?.let { putMap("avSync", it.asWritableMap()) }
         putString("message", message)
     }
 }
@@ -656,6 +692,7 @@ object LiveCasterSession {
                 composition = current.composition,
                 audioProcessing = current.audioProcessing,
                 continuity = current.continuity,
+                avSync = current.avSync,
                 message = safeMessage
             )
         }
@@ -689,6 +726,7 @@ object LiveCasterSession {
         lastError: String? = null,
         audioProcessing: NativeRuntimeAudioProcessing? = null,
         continuity: NativeRuntimeContinuity? = null,
+        avSync: NativeRuntimeAvSync? = null,
         device: NativeRuntimeDevice? = null,
         message: String = health.message
     ) {
@@ -734,6 +772,7 @@ object LiveCasterSession {
             composition = nextComposition,
             audioProcessing = audioProcessing ?: current?.audioProcessing,
             continuity = continuity ?: current?.continuity,
+            avSync = avSync ?: current?.avSync,
             message = redactSensitiveText(message)
         )
         emit()

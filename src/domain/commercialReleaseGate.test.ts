@@ -481,13 +481,13 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v54 support bundles because native caption overlay proof requires v55", () => {
+  it("blocks v55 support bundles because A/V timestamp sync proof requires v56", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         app: {
           name: "MobileLiveCaster",
           reportVersion: 1,
-          bundleVersion: 54
+          bundleVersion: 55
         }
       }),
       { now }
@@ -497,12 +497,12 @@ describe("commercial release gate", () => {
     expect(gate.issues).toContainEqual(
       expect.objectContaining({
         code: "bundle-version",
-        detail: "Support bundle v54 is older than the required v55."
+        detail: "Support bundle v55 is older than the required v56."
       })
     );
   });
 
-  it("blocks v55 support bundles without scene fingerprint evidence", () => {
+  it("blocks v56 support bundles without scene fingerprint evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).sceneFingerprint;
     delete (bundle.scene as Partial<SupportBundle["scene"]>).fingerprint;
@@ -516,7 +516,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v55 support bundles with mismatched scene fingerprints", () => {
+  it("blocks v56 support bundles with mismatched scene fingerprints", () => {
     const bundle = supportBundle({
       summary: {
         sceneFingerprint: "scene1-summary"
@@ -533,7 +533,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v55 support bundles when retained validation runs are from another scene", () => {
+  it("blocks v56 support bundles when retained validation runs are from another scene", () => {
     const bundle = supportBundle({
       summary: {
         validationEvidenceRunManifest: [
@@ -552,7 +552,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v55 text overlay evidence", () => {
+  it("blocks support bundles without v56 text overlay evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).textOverlayStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -565,7 +565,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v55 chat overlay evidence", () => {
+  it("blocks support bundles without v56 chat overlay evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).chatOverlayStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -578,7 +578,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v55 live caption evidence", () => {
+  it("blocks support bundles without v56 live caption evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).liveCaptionStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -591,7 +591,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v55 support bundles without native caption overlay summary evidence", () => {
+  it("blocks v56 support bundles without native caption overlay summary evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).nativeCompositionCaptionOverlayCount;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -820,6 +820,67 @@ describe("commercial release gate", () => {
     expect(gate.issues).toContainEqual(
       expect.objectContaining({
         code: "validation-evidence-manifest-integrity"
+      })
+    );
+  });
+
+  it("blocks native runtime claims without clean A/V timestamp drift proof", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeAvSyncStatus: "video-leading",
+              nativeRuntimeAvSyncSkewMs: 620,
+              nativeRuntimeAvSyncMaxAbsSkewMs: 720,
+              nativeRuntimeAvSyncIncidentCount: 1,
+              nativeRuntimeAvSyncCriticalIncidentCount: 1
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS native runtime proof")
+      })
+    );
+  });
+
+  it("blocks recovered A/V drift spikes and insufficient paired sample density", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeAvSyncStatus: "in-sync",
+              nativeRuntimeAvSyncSkewMs: 8,
+              nativeRuntimeAvSyncMaxAbsSkewMs: 720,
+              nativeRuntimeAvSyncSampleCount: 1,
+              nativeRuntimeAvSyncOutOfSyncSampleCount: 2,
+              nativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples: 2
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-manifest-integrity",
+        detail: expect.stringContaining("iOS native runtime proof")
       })
     );
   });
@@ -3822,7 +3883,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 55 as const
+    bundleVersion: 56 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -4137,6 +4198,14 @@ const manifestRun = ({
   nativeRuntimeAudioStallCount = 0,
   nativeRuntimeMaxVideoStallDurationMs = 0,
   nativeRuntimeMaxAudioStallDurationMs = 0,
+  nativeRuntimeAvSyncStatus = "in-sync",
+  nativeRuntimeAvSyncSkewMs = 8,
+  nativeRuntimeAvSyncMaxAbsSkewMs = 34,
+  nativeRuntimeAvSyncSampleCount = 309,
+  nativeRuntimeAvSyncOutOfSyncSampleCount = 0,
+  nativeRuntimeAvSyncIncidentCount = 0,
+  nativeRuntimeAvSyncCriticalIncidentCount = 0,
+  nativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples = 0,
   nativeRuntimeVideoEncoderBackend = devicePlatform === "ios" ? "videotoolbox-h264" : "mediacodec-h264",
   nativeRuntimeAudioEncoderBackend = devicePlatform === "ios" ? "audiotoolbox-aac" : "mediacodec-aac",
   nativeRuntimeEncoderProbeStatus = "missing",
@@ -4323,6 +4392,14 @@ const manifestRun = ({
   nativeRuntimeAudioStallCount?: ValidationManifestRun["nativeRuntimeAudioStallCount"];
   nativeRuntimeMaxVideoStallDurationMs?: ValidationManifestRun["nativeRuntimeMaxVideoStallDurationMs"];
   nativeRuntimeMaxAudioStallDurationMs?: ValidationManifestRun["nativeRuntimeMaxAudioStallDurationMs"];
+  nativeRuntimeAvSyncStatus?: ValidationManifestRun["nativeRuntimeAvSyncStatus"];
+  nativeRuntimeAvSyncSkewMs?: ValidationManifestRun["nativeRuntimeAvSyncSkewMs"];
+  nativeRuntimeAvSyncMaxAbsSkewMs?: ValidationManifestRun["nativeRuntimeAvSyncMaxAbsSkewMs"];
+  nativeRuntimeAvSyncSampleCount?: ValidationManifestRun["nativeRuntimeAvSyncSampleCount"];
+  nativeRuntimeAvSyncOutOfSyncSampleCount?: ValidationManifestRun["nativeRuntimeAvSyncOutOfSyncSampleCount"];
+  nativeRuntimeAvSyncIncidentCount?: ValidationManifestRun["nativeRuntimeAvSyncIncidentCount"];
+  nativeRuntimeAvSyncCriticalIncidentCount?: ValidationManifestRun["nativeRuntimeAvSyncCriticalIncidentCount"];
+  nativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples?: ValidationManifestRun["nativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples"];
   nativeRuntimePlatform?: ValidationManifestRun["nativeRuntimePlatform"];
   androidPublisherMode?: ValidationManifestRun["androidPublisherMode"];
   nativeRuntimeStatus?: ValidationManifestRun["nativeRuntimeStatus"];
@@ -4518,6 +4595,14 @@ const manifestRun = ({
   nativeRuntimeAudioStallCount,
   nativeRuntimeMaxVideoStallDurationMs,
   nativeRuntimeMaxAudioStallDurationMs,
+  nativeRuntimeAvSyncStatus,
+  nativeRuntimeAvSyncSkewMs,
+  nativeRuntimeAvSyncMaxAbsSkewMs,
+  nativeRuntimeAvSyncSampleCount,
+  nativeRuntimeAvSyncOutOfSyncSampleCount,
+  nativeRuntimeAvSyncIncidentCount,
+  nativeRuntimeAvSyncCriticalIncidentCount,
+  nativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples,
   nativeRuntimeVideoEncoderBackend,
   nativeRuntimeAudioEncoderBackend,
   nativeRuntimeEncoderProbeStatus,

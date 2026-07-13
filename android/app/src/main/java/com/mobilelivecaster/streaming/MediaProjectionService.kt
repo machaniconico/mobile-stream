@@ -53,6 +53,7 @@ class MediaProjectionService : Service(), ConnectChecker {
     private var lastNativeFps = 0
     private val videoFrameIntervalTracker = VideoFrameIntervalTracker()
     private val mediaContinuityTracker = MediaContinuityTracker()
+    private val avSyncAccumulator = NativeRuntimeAvSyncAccumulator()
     private val deviceResourceMonitor by lazy { DeviceResourceMonitor(applicationContext) }
     private val mediaProjectionManager: MediaProjectionManager by lazy {
         applicationContext.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
@@ -264,6 +265,7 @@ class MediaProjectionService : Service(), ConnectChecker {
         val directStream = directMediaCodecStream
         val endpoint = LiveCasterSession.profile?.endpoint
         if (directStream != null) {
+            avSyncAccumulator.retain(directStream.snapshot().avSync)
             directStream.stop()
             directMediaCodecStream = null
             startStreamFromSession(resetReconnectAttempts = false)
@@ -346,6 +348,7 @@ class MediaProjectionService : Service(), ConnectChecker {
         lastNativeFps = 0
         videoFrameIntervalTracker.reset()
         mediaContinuityTracker.reset()
+        avSyncAccumulator.reset()
     }
 
     private fun recordBitrateSample(bitrate: Long): Long {
@@ -446,6 +449,7 @@ class MediaProjectionService : Service(), ConnectChecker {
             lastError = lastError ?: snapshot?.lastError,
             audioProcessing = snapshot?.audioProcessing,
             continuity = continuity,
+            avSync = avSyncAccumulator.combine(snapshot?.avSync),
             device = deviceResourceMonitor.snapshot(),
             message = message
         )

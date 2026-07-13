@@ -1301,6 +1301,7 @@ final class LiveCasterNative: RCTEventEmitter {
         let broadcastChatReadout = broadcastMixer.dictionaryValue("chatReadout")
         let publisher = runtimeState.dictionaryValue("publisher")
         let continuity = runtimeState.dictionaryValue("continuity")
+        let avSync = publisher.dictionaryValue("avSync")
         let sceneComposition = runtimeState.dictionaryValue("sceneComposition")
         let runtimeStatus = redactSensitiveText(runtimeState.stringValue("status", fallback: status.rawValue), streamKey: streamKey, publishURL: publishURL)
         let publisherState = redactSensitiveText(publisher.stringValue("state"), streamKey: streamKey, publishURL: publishURL)
@@ -1370,6 +1371,22 @@ final class LiveCasterNative: RCTEventEmitter {
                 "maxVideoStallDurationMs": continuity.intValue("maxVideoStallDurationMs"),
                 "maxAudioStallDurationMs": continuity.intValue("maxAudioStallDurationMs"),
                 "stallThresholdMs": continuity.intValue("stallThresholdMs", fallback: 5_000)
+            ],
+            "avSync": [
+                "status": avSync.stringValue("status", fallback: "unknown"),
+                "latestVideoTimestampMs": avSync.intValue("latestVideoTimestampMs"),
+                "latestAudioTimestampMs": avSync.intValue("latestAudioTimestampMs"),
+                "skewMs": avSync.intValue("skewMs"),
+                "maxAbsSkewMs": avSync.intValue("maxAbsSkewMs"),
+                "sampleCount": avSync.intValue("sampleCount"),
+                "outOfSyncSampleCount": avSync.intValue("outOfSyncSampleCount"),
+                "outOfSyncIncidentCount": avSync.intValue("outOfSyncIncidentCount"),
+                "criticalIncidentCount": avSync.intValue("criticalIncidentCount"),
+                "consecutiveOutOfSyncSamples": avSync.intValue("consecutiveOutOfSyncSamples"),
+                "maxConsecutiveOutOfSyncSamples": avSync.intValue("maxConsecutiveOutOfSyncSamples"),
+                "warningThresholdMs": avSync.intValue("warningThresholdMs", fallback: 150),
+                "criticalThresholdMs": avSync.intValue("criticalThresholdMs", fallback: 500),
+                "critical": avSync.boolValue("critical")
             ],
             "composition": [
                 "status": compositionStatus,

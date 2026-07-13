@@ -231,7 +231,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 55 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 56 });
     expect(bundle.profile.androidPublisherMode).toBe(profile.androidPublisherMode);
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
@@ -679,6 +679,22 @@ describe("support bundle", () => {
           maxVideoStallDurationMs: 0,
           maxAudioStallDurationMs: 0,
           stallThresholdMs: 5_000
+        },
+        avSync: {
+          status: "in-sync",
+          latestVideoTimestampMs: 44_966,
+          latestAudioTimestampMs: 44_958,
+          skewMs: 8,
+          maxAbsSkewMs: 34,
+          sampleCount: 3_490,
+          outOfSyncSampleCount: 0,
+          outOfSyncIncidentCount: 0,
+          criticalIncidentCount: 0,
+          consecutiveOutOfSyncSamples: 0,
+          maxConsecutiveOutOfSyncSamples: 0,
+          warningThresholdMs: 150,
+          criticalThresholdMs: 500,
+          critical: false
         },
         message: "Native runtime live"
       }

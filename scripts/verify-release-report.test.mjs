@@ -1296,7 +1296,7 @@ function commercialSupportBundleFixture(patch = {}) {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 55
+      bundleVersion: 56
     },
     generatedAt,
     fixture: true,
@@ -1424,6 +1424,14 @@ function supportBundleManifestRun(devicePlatform, fingerprint, capturedAt = new 
     nativeRuntimeVideoFrameIntervalAverageMs: 33.3,
     nativeRuntimeVideoFrameIntervalMaxMs: 42,
     nativeRuntimeVideoFrameIntervalJitterMs: 8.7,
+    nativeRuntimeAvSyncStatus: "in-sync",
+    nativeRuntimeAvSyncSkewMs: 8,
+    nativeRuntimeAvSyncMaxAbsSkewMs: 34,
+    nativeRuntimeAvSyncSampleCount: 309,
+    nativeRuntimeAvSyncOutOfSyncSampleCount: 0,
+    nativeRuntimeAvSyncIncidentCount: 0,
+    nativeRuntimeAvSyncCriticalIncidentCount: 0,
+    nativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples: 0,
     nativeRuntimeStillImageAssetCount: 1,
     nativeRuntimeStillImageAssetLoadedCount: 1,
     nativeRuntimeStillImageAssetMissingCount: 0,

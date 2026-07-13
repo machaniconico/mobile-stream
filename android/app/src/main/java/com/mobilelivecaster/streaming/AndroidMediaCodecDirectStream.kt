@@ -216,6 +216,7 @@ class AndroidMediaCodecDirectStream(
             cacheSize = publisherSnapshot.cacheSize,
             itemsInCache = publisherSnapshot.itemsInCache,
             congested = publisherSnapshot.congested,
+            avSync = publisherSnapshot.avSync,
             audioProcessing = micProcessingEffect?.snapshot(),
             lastError = lastError.ifBlank { publisherSnapshot.lastError }
         )
@@ -514,6 +515,7 @@ data class AndroidMediaCodecDirectStreamSnapshot(
     val cacheSize: Int,
     val itemsInCache: Int,
     val congested: Boolean,
+    val avSync: NativeRuntimeAvSync,
     val audioProcessing: NativeRuntimeAudioProcessing?,
     val lastError: String
 )

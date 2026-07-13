@@ -24,6 +24,7 @@ class AndroidMediaCodecRtmpPublisher(connectChecker: ConnectChecker) {
     private var configuredHeight = 0
     private var configuredFps = 0
     private var lastError = ""
+    private val mediaTimestampTracker = MediaTimestampTracker()
 
     fun configure(profile: LiveCasterProfile, sps: ByteBuffer, pps: ByteBuffer, audioSampleRate: Int, audioStereo: Boolean) {
         require(sps.remaining() > 0) { "H.264 SPS is required before RTMP publishing" }
@@ -31,6 +32,7 @@ class AndroidMediaCodecRtmpPublisher(connectChecker: ConnectChecker) {
         configuredWidth = profile.width
         configuredHeight = profile.height
         configuredFps = profile.fps
+        mediaTimestampTracker.reset()
         client.setVideoCodec(VideoCodec.H264)
         client.setAudioCodec(AudioCodec.AAC)
         client.setVideoResolution(profile.width, profile.height)
@@ -63,8 +65,10 @@ class AndroidMediaCodecRtmpPublisher(connectChecker: ConnectChecker) {
             lastError = "H.264 Annex B NAL start code is required before RTMP publishing"
             return
         }
+        val observedAtMs = System.nanoTime() / 1_000_000L
         runCatching {
             client.sendVideo(frame.buffer, frame.info)
+            mediaTimestampTracker.recordVideo(frame.info.presentationTimeUs / 1_000L, observedAtMs)
         }.onFailure { error ->
             lastError = safeMessage(error)
         }
@@ -73,8 +77,10 @@ class AndroidMediaCodecRtmpPublisher(connectChecker: ConnectChecker) {
     fun sendAudio(buffer: ByteBuffer, info: MediaCodec.BufferInfo) {
         if (!client.isStreaming || info.size <= 0 || info.isCodecConfigFrame()) return
         val frame = encodedFrame(buffer, info) ?: return
+        val observedAtMs = System.nanoTime() / 1_000_000L
         runCatching {
             client.sendAudio(frame.buffer, frame.info)
+            mediaTimestampTracker.recordAudio(frame.info.presentationTimeUs / 1_000L, observedAtMs)
         }.onFailure { error ->
             lastError = safeMessage(error)
         }
@@ -97,6 +103,7 @@ class AndroidMediaCodecRtmpPublisher(connectChecker: ConnectChecker) {
             cacheSize = client.cacheSize,
             itemsInCache = client.getItemsInCache(),
             congested = runCatching { client.hasCongestion() }.getOrDefault(false),
+            avSync = mediaTimestampTracker.snapshot(),
             lastError = lastError
         )
 
@@ -154,5 +161,6 @@ data class AndroidMediaCodecRtmpPublisherSnapshot(
     val cacheSize: Int,
     val itemsInCache: Int,
     val congested: Boolean,
+    val avSync: NativeRuntimeAvSync,
     val lastError: String
 )

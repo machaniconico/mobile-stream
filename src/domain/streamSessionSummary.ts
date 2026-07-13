@@ -7,7 +7,9 @@ import {
   isProductionNativeAudioEncoderBackend,
   isProductionNativeVideoEncoderBackend,
   isProductionVrmRendererBackend,
+  normalizeNativeRuntimeAvSync,
   normalizeNativeRuntimeContinuity,
+  type NativeRuntimeAvSyncStatus,
   type NativeRuntimeContinuityStatus,
   type NativeRuntimeTelemetry
 } from "./nativeRuntime";
@@ -184,6 +186,20 @@ export interface StreamSessionNativeRuntimeSummary {
   maxVideoStallDurationMs: number;
   maxAudioStallDurationMs: number;
   stallThresholdMs: number;
+  avSyncStatus: NativeRuntimeAvSyncStatus;
+  avSyncLatestVideoTimestampMs: number;
+  avSyncLatestAudioTimestampMs: number;
+  avSyncSkewMs: number;
+  avSyncMaxAbsSkewMs: number;
+  avSyncSampleCount: number;
+  avSyncOutOfSyncSampleCount: number;
+  avSyncIncidentCount: number;
+  avSyncCriticalIncidentCount: number;
+  avSyncConsecutiveOutOfSyncSamples: number;
+  avSyncMaxConsecutiveOutOfSyncSamples: number;
+  avSyncWarningThresholdMs: number;
+  avSyncCriticalThresholdMs: number;
+  avSyncCritical: boolean;
   issueCount: number;
   summary: string;
   recommendation: string;
@@ -942,6 +958,15 @@ export const createNativeRuntimeSessionSummary = (
   const continuityCurrentStall = continuity.videoStalled || continuity.audioStalled;
   const continuityIncident = continuity.videoStallCount > 0 || continuity.audioStallCount > 0;
   const continuityIssue = continuityMissing || continuityCurrentStall || continuityIncident;
+  const avSync = normalizeNativeRuntimeAvSync(runtime.avSync);
+  const avSyncMissing = avSync.status === "unknown" || avSync.status === "warming-up" || avSync.sampleCount <= 0;
+  const avSyncCurrentIssue = avSync.status === "video-leading" || avSync.status === "audio-leading";
+  const avSyncIncident = avSync.outOfSyncIncidentCount > 0 || avSync.criticalIncidentCount > 0;
+  const avSyncTransient =
+    avSync.outOfSyncSampleCount > 0 ||
+    avSync.maxAbsSkewMs > avSync.warningThresholdMs ||
+    avSync.maxConsecutiveOutOfSyncSamples > 0;
+  const avSyncIssue = avSyncMissing || avSyncCurrentIssue || avSyncIncident || avSyncTransient || avSync.critical;
   const status: StreamSessionNativeRuntimeStatus = failed
     ? "fail"
     : stale ||
@@ -960,7 +985,8 @@ export const createNativeRuntimeSessionSummary = (
         nativeAudioMeterMissing ||
         nativeAudioMeterStale ||
         nativeAudioClipping ||
-        continuityIssue
+        continuityIssue ||
+        avSyncIssue
       ? "warn"
       : "pass";
   const issueCount = [
@@ -981,7 +1007,8 @@ export const createNativeRuntimeSessionSummary = (
     nativeAudioMeterMissing,
     nativeAudioMeterStale,
     nativeAudioClipping,
-    continuityIssue
+    continuityIssue,
+    avSyncIssue
   ].filter(Boolean).length;
   const queue = `${runtime.publisher.itemsInCache}/${runtime.publisher.cacheSize}`;
 
@@ -1119,12 +1146,26 @@ export const createNativeRuntimeSessionSummary = (
     maxVideoStallDurationMs: continuity.maxVideoStallDurationMs,
     maxAudioStallDurationMs: continuity.maxAudioStallDurationMs,
     stallThresholdMs: continuity.stallThresholdMs,
+    avSyncStatus: avSync.status,
+    avSyncLatestVideoTimestampMs: avSync.latestVideoTimestampMs,
+    avSyncLatestAudioTimestampMs: avSync.latestAudioTimestampMs,
+    avSyncSkewMs: avSync.skewMs,
+    avSyncMaxAbsSkewMs: avSync.maxAbsSkewMs,
+    avSyncSampleCount: avSync.sampleCount,
+    avSyncOutOfSyncSampleCount: avSync.outOfSyncSampleCount,
+    avSyncIncidentCount: avSync.outOfSyncIncidentCount,
+    avSyncCriticalIncidentCount: avSync.criticalIncidentCount,
+    avSyncConsecutiveOutOfSyncSamples: avSync.consecutiveOutOfSyncSamples,
+    avSyncMaxConsecutiveOutOfSyncSamples: avSync.maxConsecutiveOutOfSyncSamples,
+    avSyncWarningThresholdMs: avSync.warningThresholdMs,
+    avSyncCriticalThresholdMs: avSync.criticalThresholdMs,
+    avSyncCritical: avSync.critical,
     issueCount,
     summary:
       status === "fail"
         ? `Native runtime ended with a failure on ${runtime.platform}.`
         : status === "warn"
-          ? `Native runtime needs review on ${runtime.platform}: queue ${queue}, composition ${runtime.composition.status}, continuity ${continuity.status}.`
+          ? `Native runtime needs review on ${runtime.platform}: queue ${queue}, composition ${runtime.composition.status}, continuity ${continuity.status}, A/V sync ${avSync.status}.`
           : `Native runtime ended clean on ${runtime.platform}.`,
     recommendation:
       status === "fail"
@@ -1167,7 +1208,11 @@ export const createNativeRuntimeSessionSummary = (
                                       ? continuityMissing
                                         ? "Update the native app and repeat the private ingest run so video/audio continuity watchdog evidence is retained."
                                         : "Repeat the private ingest run after resolving video/audio publisher stalls; production evidence requires zero continuity incidents."
-                                      : "Keep this native runtime result as supporting evidence for the destination."
+                                      : avSyncIssue
+                                        ? avSyncMissing
+                                          ? "Repeat the private ingest run with a production native publisher so RTMP A/V timestamp drift evidence is retained."
+                                          : "Resolve RTMP A/V timestamp drift and repeat the private ingest run; production evidence requires zero sync incidents."
+                                        : "Keep this native runtime result as supporting evidence for the destination."
   };
 };
 
@@ -1405,6 +1450,10 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
   if (!platform || !status || !compositionStatus) {
     return null;
   }
+  const avSyncWarningThresholdMs = Math.max(
+    1,
+    normalizeNonNegativeInteger(value.avSyncWarningThresholdMs) || 150
+  );
 
   return {
     platform,
@@ -1554,6 +1603,29 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     maxVideoStallDurationMs: normalizeNonNegativeInteger(value.maxVideoStallDurationMs),
     maxAudioStallDurationMs: normalizeNonNegativeInteger(value.maxAudioStallDurationMs),
     stallThresholdMs: Math.max(1_000, normalizeNonNegativeInteger(value.stallThresholdMs) || 5_000),
+    avSyncStatus:
+      value.avSyncStatus === "warming-up" ||
+      value.avSyncStatus === "in-sync" ||
+      value.avSyncStatus === "video-leading" ||
+      value.avSyncStatus === "audio-leading"
+        ? value.avSyncStatus
+        : "unknown",
+    avSyncLatestVideoTimestampMs: normalizeNonNegativeInteger(value.avSyncLatestVideoTimestampMs),
+    avSyncLatestAudioTimestampMs: normalizeNonNegativeInteger(value.avSyncLatestAudioTimestampMs),
+    avSyncSkewMs: normalizeInteger(value.avSyncSkewMs),
+    avSyncMaxAbsSkewMs: normalizeNonNegativeInteger(value.avSyncMaxAbsSkewMs),
+    avSyncSampleCount: normalizeNonNegativeInteger(value.avSyncSampleCount),
+    avSyncOutOfSyncSampleCount: normalizeNonNegativeInteger(value.avSyncOutOfSyncSampleCount),
+    avSyncIncidentCount: normalizeNonNegativeInteger(value.avSyncIncidentCount),
+    avSyncCriticalIncidentCount: normalizeNonNegativeInteger(value.avSyncCriticalIncidentCount),
+    avSyncConsecutiveOutOfSyncSamples: normalizeNonNegativeInteger(value.avSyncConsecutiveOutOfSyncSamples),
+    avSyncMaxConsecutiveOutOfSyncSamples: normalizeNonNegativeInteger(value.avSyncMaxConsecutiveOutOfSyncSamples),
+    avSyncWarningThresholdMs,
+    avSyncCriticalThresholdMs: Math.max(
+      avSyncWarningThresholdMs,
+      normalizeNonNegativeInteger(value.avSyncCriticalThresholdMs) || 500
+    ),
+    avSyncCritical: value.avSyncCritical === true,
     issueCount: normalizeNonNegativeInteger(value.issueCount),
     summary:
       typeof value.summary === "string"
@@ -1626,6 +1698,9 @@ const normalizeStability = (value: unknown): StreamHealthHistorySummary["stabili
 
 const normalizeNonNegativeInteger = (value: unknown): number =>
   Math.max(0, Math.round(typeof value === "number" && Number.isFinite(value) ? value : 0));
+
+const normalizeInteger = (value: unknown): number =>
+  Math.round(typeof value === "number" && Number.isFinite(value) ? value : 0);
 
 const normalizeNonNegativeNumber = (value: unknown): number =>
   Math.max(0, typeof value === "number" && Number.isFinite(value) ? value : 0);

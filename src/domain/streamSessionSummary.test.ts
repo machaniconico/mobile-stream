@@ -421,6 +421,22 @@ describe("stream session summary", () => {
           maxAudioStallDurationMs: 0,
           stallThresholdMs: 5_000
         },
+        avSync: {
+          status: "in-sync",
+          latestVideoTimestampMs: 3_966,
+          latestAudioTimestampMs: 3_958,
+          skewMs: 8,
+          maxAbsSkewMs: 34,
+          sampleCount: 309,
+          outOfSyncSampleCount: 0,
+          outOfSyncIncidentCount: 0,
+          criticalIncidentCount: 0,
+          consecutiveOutOfSyncSamples: 0,
+          maxConsecutiveOutOfSyncSamples: 0,
+          warningThresholdMs: 150,
+          criticalThresholdMs: 500,
+          critical: false
+        },
         message: "Live"
       }
     });
@@ -444,6 +460,10 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.continuityStatus).toBe("healthy");
     expect(summary?.nativeRuntime?.videoStallCount).toBe(1);
     expect(summary?.nativeRuntime?.maxVideoStallDurationMs).toBe(6400);
+    expect(summary?.nativeRuntime?.avSyncStatus).toBe("in-sync");
+    expect(summary?.nativeRuntime?.avSyncSkewMs).toBe(8);
+    expect(summary?.nativeRuntime?.avSyncMaxAbsSkewMs).toBe(34);
+    expect(summary?.nativeRuntime?.avSyncSampleCount).toBe(309);
     expect(summary?.audioLevel.sampleCount).toBe(1);
     expect(summary?.audioLevel.evidenceSource).toBe("native-pcm");
     expect(summary?.audioLevel.peakLevel).toBe(0.5);

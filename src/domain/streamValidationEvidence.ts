@@ -224,6 +224,14 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeAudioStallCount: number;
   nativeRuntimeMaxVideoStallDurationMs: number;
   nativeRuntimeMaxAudioStallDurationMs: number;
+  nativeRuntimeAvSyncStatus: StreamSessionNativeRuntimeSummary["avSyncStatus"] | null;
+  nativeRuntimeAvSyncSkewMs: number;
+  nativeRuntimeAvSyncMaxAbsSkewMs: number;
+  nativeRuntimeAvSyncSampleCount: number;
+  nativeRuntimeAvSyncOutOfSyncSampleCount: number;
+  nativeRuntimeAvSyncIncidentCount: number;
+  nativeRuntimeAvSyncCriticalIncidentCount: number;
+  nativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples: number;
   nativeRuntimeVideoEncoderBackend: string | null;
   nativeRuntimeAudioEncoderBackend: string | null;
   nativeRuntimeEncoderProbeStatus: string | null;
@@ -2953,6 +2961,15 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeAudioStallCount: run.nativeRuntime?.audioStallCount ?? 0,
     nativeRuntimeMaxVideoStallDurationMs: run.nativeRuntime?.maxVideoStallDurationMs ?? 0,
     nativeRuntimeMaxAudioStallDurationMs: run.nativeRuntime?.maxAudioStallDurationMs ?? 0,
+    nativeRuntimeAvSyncStatus: run.nativeRuntime?.avSyncStatus ?? null,
+    nativeRuntimeAvSyncSkewMs: run.nativeRuntime?.avSyncSkewMs ?? 0,
+    nativeRuntimeAvSyncMaxAbsSkewMs: run.nativeRuntime?.avSyncMaxAbsSkewMs ?? 0,
+    nativeRuntimeAvSyncSampleCount: run.nativeRuntime?.avSyncSampleCount ?? 0,
+    nativeRuntimeAvSyncOutOfSyncSampleCount: run.nativeRuntime?.avSyncOutOfSyncSampleCount ?? 0,
+    nativeRuntimeAvSyncIncidentCount: run.nativeRuntime?.avSyncIncidentCount ?? 0,
+    nativeRuntimeAvSyncCriticalIncidentCount: run.nativeRuntime?.avSyncCriticalIncidentCount ?? 0,
+    nativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples:
+      run.nativeRuntime?.avSyncMaxConsecutiveOutOfSyncSamples ?? 0,
     nativeRuntimeVideoEncoderBackend: run.nativeRuntime?.videoEncoderBackend ?? null,
     nativeRuntimeAudioEncoderBackend: run.nativeRuntime?.audioEncoderBackend ?? null,
     nativeRuntimeEncoderProbeStatus: run.nativeRuntime?.encoderProbeStatus ?? null,

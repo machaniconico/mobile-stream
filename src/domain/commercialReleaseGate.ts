@@ -43,7 +43,7 @@ export interface CommercialReleaseGateOptions {
   maxBundleAgeHours?: number;
 }
 
-const minimumSupportBundleVersion = 55;
+const minimumSupportBundleVersion = 56;
 const defaultMaxBundleAgeHours = 24;
 
 const destinationTargetPlatformLabels = {
@@ -280,7 +280,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v55 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, text overlay proof, live caption proof, native caption overlay kind proof, semantic, eye-mouth, and horizontal-anchor avatar segment proof, same-run ingest timing proof, and native encoder backend proof are summarized."
+      "Export a support bundle v56 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, text overlay proof, live caption proof, native caption overlay kind proof, semantic, eye-mouth, and horizontal-anchor avatar segment proof, same-run ingest timing proof, native encoder backend proof, and RTMP A/V timestamp sync proof are summarized."
     );
   }
 
@@ -396,7 +396,7 @@ const createSceneFingerprintIssue = (bundle: SupportBundle): CommercialReleaseGa
     return failIssue(
       "scene-fingerprint-missing",
       "Scene fingerprint",
-      "Support bundle v55 is missing scene composition fingerprint evidence.",
+      "Support bundle v56 is missing scene composition fingerprint evidence.",
       "Export a fresh support bundle from the exact scene/profile intended for release."
     );
   }
@@ -421,7 +421,7 @@ const createNativeCaptionOverlaySummaryIssue = (bundle: SupportBundle): Commerci
     "native-caption-overlay-summary-missing",
     "Native caption overlay evidence",
     "The support bundle is missing native caption overlay count summary evidence.",
-    "Export a support bundle v55 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
+    "Export a support bundle v56 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
   );
 };
 
@@ -507,7 +507,7 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "text-overlay-evidence-missing",
       "Text overlay evidence",
       "The support bundle is missing text overlay launch evidence.",
-      "Export a support bundle v55 or newer so visible manual text, subtitle, ticker, live-caption, native caption overlay kind proof, and avatar-overlap overlay evidence is summarized."
+      "Export a support bundle v56 or newer so visible manual text, subtitle, ticker, live-caption, native caption overlay kind proof, and avatar-overlap overlay evidence is summarized."
     );
   }
 
@@ -573,7 +573,7 @@ const createChatOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "chat-overlay-evidence-missing",
       "Chat overlay evidence",
       "The support bundle is missing chat overlay launch evidence.",
-      "Export a support bundle v55 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap evidence is summarized."
+      "Export a support bundle v56 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap evidence is summarized."
     );
   }
 
@@ -627,7 +627,7 @@ const createLiveCaptionEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "live-caption-evidence-missing",
       "Live caption evidence",
       "The support bundle is missing live caption launch evidence.",
-      "Export a support bundle v55 or newer so live caption enablement, recognition state, source visibility, cue proof, and native caption overlay kind proof are summarized."
+      "Export a support bundle v56 or newer so live caption enablement, recognition state, source visibility, cue proof, and native caption overlay kind proof are summarized."
     );
   }
 
@@ -860,7 +860,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v55 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v56 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -889,7 +889,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-android-publisher-mode",
       "Validation evidence manifest",
       `The latest Android validation manifest row used ${latestRuns.get("android")?.androidPublisherMode || "missing"} publisher mode.`,
-      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v55 or newer."
+      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v56 or newer."
     );
   }
   if (manifest.length !== bundle.summary.validationEvidenceRunCount) {
@@ -925,7 +925,7 @@ const createValidationEvidenceSceneManifestIssue = (bundle: SupportBundle): Comm
     "validation-evidence-manifest-scene-fingerprint",
     "Validation evidence manifest",
     `${mismatchedRuns.length} fresh retained validation run(s) do not match the current scene fingerprint ${sceneFingerprint}.`,
-    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v55 support bundle."
+    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v56 support bundle."
   );
 };
 
@@ -1370,6 +1370,7 @@ const isManifestNativeRuntimePass = (
   hasManifestNativePublisherBackpressureProof(run) &&
   hasManifestNativePublisherDropProof(run) &&
   hasManifestNativeRuntimeVideoFrameIntervalProof(run) &&
+  hasManifestNativeAvSyncProof(run) &&
   hasManifestLiveRenderGraphUpdateProof(run) &&
   hasManifestNativeCompositorDropProof(run) &&
   hasManifestAndroidMediaCodecCompositorProof(run) &&
@@ -1386,6 +1387,22 @@ const hasManifestNativeRuntimeVideoFrameIntervalProof = (run: ValidationEvidence
   isPositiveFiniteNumber(run?.nativeRuntimeVideoFrameIntervalAverageMs) &&
   isPositiveFiniteNumber(run?.nativeRuntimeVideoFrameIntervalMaxMs) &&
   isNonNegativeFiniteNumber(run?.nativeRuntimeVideoFrameIntervalJitterMs);
+
+const hasManifestNativeAvSyncProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
+  run?.nativeRuntimeAvSyncStatus === "in-sync" &&
+  isAtLeastFiniteNumber(
+    run.nativeRuntimeAvSyncSampleCount,
+    Math.max(3, Math.ceil((run.monitorHoldDurationSeconds ?? 0) * 2))
+  ) &&
+  isNonNegativeFiniteNumber(run.nativeRuntimeAvSyncMaxAbsSkewMs) &&
+  run.nativeRuntimeAvSyncMaxAbsSkewMs <= 150 &&
+  isZeroFiniteNumber(run.nativeRuntimeAvSyncOutOfSyncSampleCount) &&
+  isZeroFiniteNumber(run.nativeRuntimeAvSyncIncidentCount) &&
+  isZeroFiniteNumber(run.nativeRuntimeAvSyncCriticalIncidentCount) &&
+  isZeroFiniteNumber(run.nativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples) &&
+  typeof run.nativeRuntimeAvSyncSkewMs === "number" &&
+  Number.isFinite(run.nativeRuntimeAvSyncSkewMs) &&
+  Math.abs(run.nativeRuntimeAvSyncSkewMs) <= 150;
 
 const hasManifestNativePublisherBackpressureProof = (run: ValidationEvidenceManifestRun | undefined): boolean =>
   run?.nativeRuntimeCongested === false &&

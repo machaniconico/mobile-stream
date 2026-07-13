@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeNativeRuntimeAudioProcessing,
+  normalizeNativeRuntimeAvSync,
   normalizeNativeRuntimeContinuity,
   normalizeNativeRuntimeDevice
 } from "./nativeRuntime";
@@ -63,6 +64,68 @@ describe("native runtime device telemetry", () => {
         sampledAt: 0
       })?.batteryLevelPercent
     ).toBe(-1);
+  });
+});
+
+describe("native runtime A/V sync telemetry", () => {
+  it("normalizes signed drift and retained incident evidence", () => {
+    expect(
+      normalizeNativeRuntimeAvSync({
+        status: "audio-leading",
+        latestVideoTimestampMs: 12_000.4,
+        latestAudioTimestampMs: 12_320.2,
+        skewMs: -319.6,
+        maxAbsSkewMs: 610.2,
+        sampleCount: 90.4,
+        outOfSyncSampleCount: 12.2,
+        outOfSyncIncidentCount: 2.2,
+        criticalIncidentCount: 1.2,
+        consecutiveOutOfSyncSamples: 4.2,
+        maxConsecutiveOutOfSyncSamples: 8.2,
+        warningThresholdMs: 150,
+        criticalThresholdMs: 500,
+        critical: false
+      })
+    ).toEqual({
+      status: "audio-leading",
+      latestVideoTimestampMs: 12_000,
+      latestAudioTimestampMs: 12_320,
+      skewMs: -320,
+      maxAbsSkewMs: 610,
+      sampleCount: 90,
+      outOfSyncSampleCount: 12,
+      outOfSyncIncidentCount: 2,
+      criticalIncidentCount: 1,
+      consecutiveOutOfSyncSamples: 4,
+      maxConsecutiveOutOfSyncSamples: 8,
+      warningThresholdMs: 150,
+      criticalThresholdMs: 500,
+      critical: false
+    });
+  });
+
+  it("fails missing telemetry closed and derives malformed native status conservatively", () => {
+    expect(normalizeNativeRuntimeAvSync(undefined)).toMatchObject({
+      status: "unknown",
+      sampleCount: 0,
+      warningThresholdMs: 150,
+      criticalThresholdMs: 500,
+      critical: false
+    });
+    expect(
+      normalizeNativeRuntimeAvSync({
+        status: "perfect" as "in-sync",
+        skewMs: 620,
+        sampleCount: 6,
+        consecutiveOutOfSyncSamples: 3,
+        outOfSyncSampleCount: 99
+      })
+    ).toMatchObject({
+      status: "video-leading",
+      maxAbsSkewMs: 620,
+      outOfSyncSampleCount: 6,
+      critical: true
+    });
   });
 });
 

@@ -322,6 +322,91 @@ export const normalizeNativeRuntimeContinuity = (
   };
 };
 
+export type NativeRuntimeAvSyncStatus =
+  | "unknown"
+  | "warming-up"
+  | "in-sync"
+  | "video-leading"
+  | "audio-leading";
+
+export interface NativeRuntimeAvSync {
+  status: NativeRuntimeAvSyncStatus;
+  latestVideoTimestampMs: number;
+  latestAudioTimestampMs: number;
+  skewMs: number;
+  maxAbsSkewMs: number;
+  sampleCount: number;
+  outOfSyncSampleCount: number;
+  outOfSyncIncidentCount: number;
+  criticalIncidentCount: number;
+  consecutiveOutOfSyncSamples: number;
+  maxConsecutiveOutOfSyncSamples: number;
+  warningThresholdMs: number;
+  criticalThresholdMs: number;
+  critical: boolean;
+}
+
+const nativeRuntimeAvSyncStatuses = new Set<NativeRuntimeAvSyncStatus>([
+  "unknown",
+  "warming-up",
+  "in-sync",
+  "video-leading",
+  "audio-leading"
+]);
+
+export const normalizeNativeRuntimeAvSync = (
+  avSync: Partial<NativeRuntimeAvSync> | null | undefined
+): NativeRuntimeAvSync => {
+  const warningThresholdMs = Math.max(1, normalizeNativeAudioCount(avSync?.warningThresholdMs) || 150);
+  const criticalThresholdMs = Math.max(
+    warningThresholdMs,
+    normalizeNativeAudioCount(avSync?.criticalThresholdMs) || 500
+  );
+  const latestVideoTimestampMs = normalizeNativeAudioTimestamp(avSync?.latestVideoTimestampMs);
+  const latestAudioTimestampMs = normalizeNativeAudioTimestamp(avSync?.latestAudioTimestampMs);
+  const sampleCount = normalizeNativeAudioCount(avSync?.sampleCount);
+  const skewMs = Math.round(normalizeFiniteNumber(avSync?.skewMs, 0));
+  const absSkewMs = Math.abs(skewMs);
+  const reportedStatus = nativeRuntimeAvSyncStatuses.has(avSync?.status as NativeRuntimeAvSyncStatus)
+    ? (avSync?.status as NativeRuntimeAvSyncStatus)
+    : "unknown";
+  const status: NativeRuntimeAvSyncStatus =
+    reportedStatus !== "unknown"
+      ? reportedStatus
+      : sampleCount <= 0
+        ? avSync
+          ? "warming-up"
+          : "unknown"
+        : absSkewMs <= warningThresholdMs
+          ? "in-sync"
+          : skewMs > 0
+            ? "video-leading"
+            : "audio-leading";
+  const consecutiveOutOfSyncSamples = normalizeNativeAudioCount(avSync?.consecutiveOutOfSyncSamples);
+
+  return {
+    status,
+    latestVideoTimestampMs,
+    latestAudioTimestampMs,
+    skewMs,
+    maxAbsSkewMs: Math.max(absSkewMs, normalizeNativeAudioCount(avSync?.maxAbsSkewMs)),
+    sampleCount,
+    outOfSyncSampleCount: Math.min(sampleCount, normalizeNativeAudioCount(avSync?.outOfSyncSampleCount)),
+    outOfSyncIncidentCount: normalizeNativeAudioCount(avSync?.outOfSyncIncidentCount),
+    criticalIncidentCount: normalizeNativeAudioCount(avSync?.criticalIncidentCount),
+    consecutiveOutOfSyncSamples,
+    maxConsecutiveOutOfSyncSamples: Math.max(
+      consecutiveOutOfSyncSamples,
+      normalizeNativeAudioCount(avSync?.maxConsecutiveOutOfSyncSamples)
+    ),
+    warningThresholdMs,
+    criticalThresholdMs,
+    critical:
+      avSync?.critical === true ||
+      (absSkewMs >= criticalThresholdMs && consecutiveOutOfSyncSamples >= 3)
+  };
+};
+
 export const normalizeNativeRuntimeAudioProcessing = (
   audioProcessing: Partial<NativeRuntimeAudioProcessing> | null | undefined
 ): NativeRuntimeAudioProcessing => ({
@@ -392,5 +477,6 @@ export interface NativeRuntimeTelemetry {
   composition: NativeRuntimeComposition;
   audioProcessing?: NativeRuntimeAudioProcessing;
   continuity?: NativeRuntimeContinuity;
+  avSync?: NativeRuntimeAvSync;
   message: string;
 }

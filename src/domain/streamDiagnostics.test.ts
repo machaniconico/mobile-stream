@@ -51,6 +51,26 @@ const healthyContinuity = (
   ...overrides
 });
 
+const healthyAvSync = (
+  overrides: Partial<NonNullable<NativeRuntimeTelemetry["avSync"]>> = {}
+): NonNullable<NativeRuntimeTelemetry["avSync"]> => ({
+  status: "in-sync",
+  latestVideoTimestampMs: 9_966,
+  latestAudioTimestampMs: 9_958,
+  skewMs: 8,
+  maxAbsSkewMs: 34,
+  sampleCount: 770,
+  outOfSyncSampleCount: 0,
+  outOfSyncIncidentCount: 0,
+  criticalIncidentCount: 0,
+  consecutiveOutOfSyncSamples: 0,
+  maxConsecutiveOutOfSyncSamples: 0,
+  warningThresholdMs: 150,
+  criticalThresholdMs: 500,
+  critical: false,
+  ...overrides
+});
+
 const nativeRuntimeWithAudioProcessing = (
   audioProcessing: NativeRuntimeTelemetry["audioProcessing"]
 ): NativeRuntimeTelemetry => ({
@@ -105,6 +125,7 @@ const nativeRuntimeWithAudioProcessing = (
   },
   audioProcessing,
   continuity: healthyContinuity(),
+  avSync: healthyAvSync(),
   message: "Native runtime live"
 });
 
@@ -1106,6 +1127,7 @@ describe("stream diagnostics", () => {
           videoLastAdvancedAt: Date.now() - 200,
           audioLastAdvancedAt: Date.now() - 100
         }),
+        avSync: healthyAvSync(),
         message: `iOS extension live for ${demoStreamKey}`
       }
     });
@@ -1146,6 +1168,37 @@ describe("stream diagnostics", () => {
       status: "warn",
       message: expect.stringContaining("video has stopped advancing for 6200 ms")
     });
+  });
+
+  it("warns on sustained native RTMP A/V timestamp drift", () => {
+    const scene = nativeReadyScene();
+    const profile = createDefaultStudioProfile();
+    const diagnostics = createStreamDiagnostics(scene, profile, createReadinessReport(scene, profile), {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 4_500, fps: 30, elapsedSeconds: 20 }),
+      nativeRuntime: {
+        ...nativeRuntimeWithAudioProcessing(nativeAudioProcessing()),
+        avSync: healthyAvSync({
+          status: "video-leading",
+          skewMs: 620,
+          maxAbsSkewMs: 720,
+          outOfSyncSampleCount: 8,
+          outOfSyncIncidentCount: 1,
+          criticalIncidentCount: 1,
+          consecutiveOutOfSyncSamples: 5,
+          maxConsecutiveOutOfSyncSamples: 8,
+          critical: true
+        })
+      }
+    });
+
+    expect(diagnostics.checks.find((check) => check.code === "native-runtime-av-sync-critical")).toMatchObject({
+      status: "warn",
+      message: expect.stringContaining("reached 720 ms")
+    });
+    expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
+      "A/V sync: video-leading / skew 620ms / max 720ms"
+    );
   });
 
   it("surfaces device resource pressure and feeds it into the quality advisor", () => {

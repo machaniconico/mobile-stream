@@ -225,6 +225,22 @@ const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
     maxAudioStallDurationMs: 0,
     stallThresholdMs: 5_000
   },
+  avSync: {
+    status: "in-sync" as const,
+    latestVideoTimestampMs: 3_966,
+    latestAudioTimestampMs: 3_958,
+    skewMs: 8,
+    maxAbsSkewMs: 34,
+    sampleCount: 309,
+    outOfSyncSampleCount: 0,
+    outOfSyncIncidentCount: 0,
+    criticalIncidentCount: 0,
+    consecutiveOutOfSyncSamples: 0,
+    maxConsecutiveOutOfSyncSamples: 0,
+    warningThresholdMs: 150,
+    criticalThresholdMs: 500,
+    critical: false
+  },
   message: "Live"
 });
 const nativeVrmMonitorRuntime = (platform: "ios" | "android" = "ios") => {
