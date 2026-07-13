@@ -400,7 +400,84 @@ export interface NativeRuntimeAudioProcessing {
   mixedAudioSampleCount?: number;
   mixedAudioClippedSampleCount?: number;
   mixedAudioLevelUpdatedAt?: number;
+  playbackCaptureStatus?: string;
+  playbackCaptureBackend?: string;
+  playbackCaptureSampleRate?: number;
+  playbackCapturedFrames?: number;
+  playbackDroppedFrames?: number;
+  playbackUnderrunFrames?: number;
+  playbackBufferedFrames?: number;
+  playbackCaptureTelemetryComplete?: boolean;
 }
+
+export const androidPlaybackCaptureBackend = "android-audio-playback-capture";
+export const androidPlaybackCaptureMinimumDurationSeconds = 2;
+export const androidPlaybackCaptureMaximumDropRatio = 0.01;
+export const androidPlaybackCaptureMaximumUnderrunRatio = 0.05;
+export const androidPlaybackCaptureMaximumBufferedMs = 100;
+
+export interface AndroidPlaybackCaptureAssessment {
+  ready: boolean;
+  telemetryComplete: boolean;
+  durationSeconds: number;
+  dropRatio: number;
+  underrunRatio: number;
+  bufferedMs: number;
+}
+
+export const assessAndroidPlaybackCapture = (
+  audio: Pick<
+    NativeRuntimeAudioProcessing,
+    | "playbackCaptureStatus"
+    | "playbackCaptureBackend"
+    | "playbackCaptureSampleRate"
+    | "playbackCapturedFrames"
+    | "playbackDroppedFrames"
+    | "playbackUnderrunFrames"
+    | "playbackBufferedFrames"
+    | "playbackCaptureTelemetryComplete"
+  > | null | undefined
+): AndroidPlaybackCaptureAssessment => {
+  const sampleRate = normalizeNativeAudioCount(audio?.playbackCaptureSampleRate);
+  const capturedFrames = normalizeNativeAudioCount(audio?.playbackCapturedFrames);
+  const droppedFrames = normalizeNativeAudioCount(audio?.playbackDroppedFrames);
+  const underrunFrames = normalizeNativeAudioCount(audio?.playbackUnderrunFrames);
+  const bufferedFrames = normalizeNativeAudioCount(audio?.playbackBufferedFrames);
+  const durationSeconds = sampleRate > 0 ? capturedFrames / sampleRate : 0;
+  const dropRatio = capturedFrames > 0 ? droppedFrames / capturedFrames : 1;
+  const deliveredFrames = Math.max(0, capturedFrames - droppedFrames - bufferedFrames);
+  const underrunDenominator = deliveredFrames + underrunFrames;
+  const underrunRatio = underrunDenominator > 0 ? underrunFrames / underrunDenominator : 1;
+  const bufferedMs = sampleRate > 0 ? bufferedFrames * 1_000 / sampleRate : Number.POSITIVE_INFINITY;
+  const validCounters =
+    isPositiveInteger(audio?.playbackCaptureSampleRate) &&
+    isPositiveInteger(audio?.playbackCapturedFrames) &&
+    isNonNegativeInteger(audio?.playbackDroppedFrames) &&
+    isNonNegativeInteger(audio?.playbackUnderrunFrames) &&
+    isNonNegativeInteger(audio?.playbackBufferedFrames) &&
+    audio?.playbackCaptureTelemetryComplete !== false;
+  return {
+    ready:
+      (audio?.playbackCaptureStatus === "capturing" || audio?.playbackCaptureStatus === "stopped") &&
+      audio?.playbackCaptureBackend === androidPlaybackCaptureBackend &&
+      validCounters &&
+      durationSeconds >= androidPlaybackCaptureMinimumDurationSeconds &&
+      dropRatio <= androidPlaybackCaptureMaximumDropRatio &&
+      underrunRatio <= androidPlaybackCaptureMaximumUnderrunRatio &&
+      bufferedMs <= androidPlaybackCaptureMaximumBufferedMs,
+    telemetryComplete: validCounters,
+    durationSeconds,
+    dropRatio,
+    underrunRatio,
+    bufferedMs
+  };
+};
+
+const isPositiveInteger = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value > 0;
+
+const isNonNegativeInteger = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value >= 0;
 
 export type NativeRuntimeContinuityStatus =
   | "unknown"
@@ -589,7 +666,20 @@ export const normalizeNativeRuntimeAudioProcessing = (
   mixedAudioPeakLevel: normalizeNativeAudioLevel(audioProcessing?.mixedAudioPeakLevel),
   mixedAudioSampleCount: normalizeNativeAudioCount(audioProcessing?.mixedAudioSampleCount),
   mixedAudioClippedSampleCount: normalizeNativeAudioCount(audioProcessing?.mixedAudioClippedSampleCount),
-  mixedAudioLevelUpdatedAt: normalizeNativeAudioTimestamp(audioProcessing?.mixedAudioLevelUpdatedAt)
+  mixedAudioLevelUpdatedAt: normalizeNativeAudioTimestamp(audioProcessing?.mixedAudioLevelUpdatedAt),
+  playbackCaptureStatus: audioProcessing?.playbackCaptureStatus ?? "unavailable",
+  playbackCaptureBackend: audioProcessing?.playbackCaptureBackend ?? "none",
+  playbackCaptureSampleRate: normalizeNativeAudioCount(audioProcessing?.playbackCaptureSampleRate),
+  playbackCapturedFrames: normalizeNativeAudioCount(audioProcessing?.playbackCapturedFrames),
+  playbackDroppedFrames: normalizeNativeAudioCount(audioProcessing?.playbackDroppedFrames),
+  playbackUnderrunFrames: normalizeNativeAudioCount(audioProcessing?.playbackUnderrunFrames),
+  playbackBufferedFrames: normalizeNativeAudioCount(audioProcessing?.playbackBufferedFrames),
+  playbackCaptureTelemetryComplete:
+    isPositiveInteger(audioProcessing?.playbackCaptureSampleRate) &&
+    isPositiveInteger(audioProcessing?.playbackCapturedFrames) &&
+    isNonNegativeInteger(audioProcessing?.playbackDroppedFrames) &&
+    isNonNegativeInteger(audioProcessing?.playbackUnderrunFrames) &&
+    isNonNegativeInteger(audioProcessing?.playbackBufferedFrames)
 });
 
 const normalizeNativeAudioLevel = (value: unknown, fallback = 0): number =>

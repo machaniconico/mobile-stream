@@ -366,6 +366,37 @@ describe("stream diagnostics", () => {
     );
   });
 
+  it("prints sustained Android playback capture quality metrics", () => {
+    const scene = createDefaultScene();
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+    const nativeRuntime = nativeRuntimeWithAudioProcessing(
+      nativeAudioProcessing({
+        playbackCaptureStatus: "capturing",
+        playbackCaptureBackend: "android-audio-playback-capture",
+        playbackCaptureSampleRate: 44_100,
+        playbackCapturedFrames: 132_300,
+        playbackDroppedFrames: 441,
+        playbackUnderrunFrames: 441,
+        playbackBufferedFrames: 882
+      })
+    );
+    nativeRuntime.platform = "android";
+    nativeRuntime.publisher.videoEncoderBackend = "mediacodec-h264";
+    nativeRuntime.publisher.audioEncoderBackend = "mediacodec-aac";
+    nativeRuntime.composition.runtimeCompositorBackend = "android-canvas-mediacodec";
+
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3500, fps: 30 }),
+      nativeRuntime
+    });
+
+    expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
+      "Android playback capture: ready / capturing android-audio-playback-capture / 44100 Hz / 3.0s / captured 132300 / dropped 441 (0.33%) / underrun 441 (0.34%) / buffered 882 frames (20ms)"
+    );
+  });
+
   it("does not pass an old clean PCM peak window as current evidence", () => {
     const scene = createDefaultScene();
     const profile = createDefaultStudioProfile();
@@ -2114,6 +2145,85 @@ describe("stream diagnostics", () => {
     expect(exported).not.toContain("www.example.org");
     expect(exported).not.toContain("example.tv");
     expect(exported).not.toContain("a.rtmps.youtube.com/private");
+  });
+
+  it("preserves generated evidence fingerprints in diagnostic exports unless explicitly secret", () => {
+    const scene = createDefaultScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const baseDiagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      state: { status: "idle" },
+      health: health()
+    });
+    const run = createStreamValidationRun({
+      diagnostics: baseDiagnostics,
+      devicePlatform: "android",
+      result: "pass",
+      now: new Date("2026-06-22T00:00:00.000Z")
+    });
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health()
+      },
+      [],
+      [],
+      [],
+      [run],
+      null,
+      { now: new Date("2026-06-22T00:01:00.000Z") }
+    );
+    const sceneFingerprint = "scene1-12345678-999";
+    const evidenceFingerprint = "sve1-87654321-777";
+    const runFingerprint = "svr1-97471090-868";
+    const latestRun = diagnostics.validationEvidence.latestRun;
+    if (!latestRun) {
+      throw new Error("Expected a retained validation run for fingerprint export coverage.");
+    }
+    diagnostics.validationEvidence.latestEligibleRun = { ...latestRun };
+    diagnostics.validationEvidence.latestPassingRun = { ...latestRun };
+    diagnostics.scene.fingerprint = sceneFingerprint;
+    diagnostics.validationEvidence.fingerprint = evidenceFingerprint;
+    diagnostics.validationEvidence.requiredSceneFingerprint = sceneFingerprint;
+    diagnostics.validationEvidence.runManifest[0].fingerprint = runFingerprint;
+    diagnostics.validationEvidence.runManifest[0].sceneFingerprint = sceneFingerprint;
+    for (const retainedRun of [
+      diagnostics.validationEvidence.latestRun,
+      diagnostics.validationEvidence.latestEligibleRun,
+      diagnostics.validationEvidence.latestPassingRun
+    ]) {
+      if (retainedRun) {
+        retainedRun.fingerprint = runFingerprint;
+        retainedRun.sceneFingerprint = sceneFingerprint;
+      }
+    }
+    const report = createStreamDiagnosticReport(diagnostics, new Date("2026-06-22T00:02:00.000Z"));
+
+    const json = serializeStreamDiagnosticReport(report);
+    const text = formatStreamDiagnosticReport(report);
+    const exported = JSON.parse(json) as typeof report;
+
+    expect(text).toContain(sceneFingerprint);
+    expect(text).toContain(evidenceFingerprint);
+    expect(text).toContain(runFingerprint);
+    expect(exported.diagnostics.scene.fingerprint).toBe(sceneFingerprint);
+    expect(exported.diagnostics.validationEvidence.fingerprint).toBe(evidenceFingerprint);
+    expect(exported.diagnostics.validationEvidence.requiredSceneFingerprint).toBe(sceneFingerprint);
+    expect(exported.diagnostics.validationEvidence.runManifest[0].fingerprint).toBe(runFingerprint);
+    expect(exported.diagnostics.validationEvidence.latestRun?.fingerprint).toBe(runFingerprint);
+    expect(exported.diagnostics.validationEvidence.latestEligibleRun?.fingerprint).toBe(runFingerprint);
+    expect(exported.diagnostics.validationEvidence.latestPassingRun?.fingerprint).toBe(runFingerprint);
+    expect(formatStreamDiagnosticReport(report, { secrets: [runFingerprint] })).not.toContain(runFingerprint);
+    expect(serializeStreamDiagnosticReport(report, { secrets: [runFingerprint] })).not.toContain(runFingerprint);
   });
 
   it("keeps stream-stop chat disconnect events while redacting details", () => {

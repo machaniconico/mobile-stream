@@ -296,10 +296,24 @@ internal class AndroidMediaCodecDirectStream(
             itemsInCache = publisherSnapshot.itemsInCache,
             congested = publisherSnapshot.congested,
             avSync = publisherSnapshot.avSync,
-            audioProcessing = micProcessingEffect?.snapshot(),
+            audioProcessing = audioProcessingSnapshot(),
             lastError = lastError
                 .ifBlank { publisherSnapshot.lastError }
                 .ifBlank { lastNonFatalError }
+        )
+    }
+
+    private fun audioProcessingSnapshot(): NativeRuntimeAudioProcessing? {
+        val processing = micProcessingEffect?.snapshot() ?: return null
+        val playback = playbackAudioCapture?.snapshot() ?: return processing
+        return processing.copy(
+            playbackCaptureStatus = playback.status,
+            playbackCaptureBackend = playback.backend,
+            playbackCaptureSampleRate = playback.sampleRate,
+            playbackCapturedFrames = playback.capturedFrames,
+            playbackDroppedFrames = playback.droppedFrames,
+            playbackUnderrunFrames = playback.underrunFrames,
+            playbackBufferedFrames = playback.bufferedFrames
         )
     }
 

@@ -21,6 +21,15 @@ describe("commercial release gate", () => {
     expect(gate.latestRunFingerprint).toBe("svr1-android");
     expect(formatCommercialReleaseGate(gate)).toContain("Can release: yes");
     expect(formatCommercialReleaseGate(gate)).toContain("Scene fingerprint: scene1-ready");
+    expect(bundle.summary.validationEvidenceRunManifest.find((run) => run.devicePlatform === "android")).toMatchObject({
+      nativeRuntimePlaybackCaptureStatus: "capturing",
+      nativeRuntimePlaybackCaptureBackend: "android-audio-playback-capture",
+      nativeRuntimePlaybackCaptureSampleRate: 44_100,
+      nativeRuntimePlaybackCapturedFrames: 132_300,
+      nativeRuntimePlaybackDroppedFrames: 0,
+      nativeRuntimePlaybackUnderrunFrames: 0,
+      nativeRuntimePlaybackBufferedFrames: 0
+    });
   });
 
   it("blocks support bundles without public launch confirmation summary evidence", () => {
@@ -481,13 +490,13 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v57 support bundles because native adaptive bitrate proof requires v58", () => {
+  it("blocks v58 support bundles because playback-capture proof requires v59", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         app: {
           name: "MobileLiveCaster",
           reportVersion: 1,
-          bundleVersion: 57
+          bundleVersion: 58
         }
       }),
       { now }
@@ -497,14 +506,14 @@ describe("commercial release gate", () => {
     expect(gate.issues).toContainEqual(
       expect.objectContaining({
         code: "bundle-version",
-        detail: "Support bundle v57 is older than the required v58."
+        detail: "Support bundle v58 is older than the required v59."
       })
     );
   });
 
   it("rejects string support bundle versions instead of coercing the schema", () => {
     const bundle = supportBundle();
-    (bundle.app as { bundleVersion: unknown }).bundleVersion = "58";
+    (bundle.app as { bundleVersion: unknown }).bundleVersion = "59";
 
     const gate = createCommercialReleaseGate(bundle, { now });
 
@@ -512,7 +521,7 @@ describe("commercial release gate", () => {
     expect(gate.issues).toContainEqual(expect.objectContaining({ code: "bundle-version" }));
   });
 
-  it("blocks v58 support bundles without scene fingerprint evidence", () => {
+  it("blocks v59 support bundles without scene fingerprint evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).sceneFingerprint;
     delete (bundle.scene as Partial<SupportBundle["scene"]>).fingerprint;
@@ -526,7 +535,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v58 support bundles with mismatched scene fingerprints", () => {
+  it("blocks v59 support bundles with mismatched scene fingerprints", () => {
     const bundle = supportBundle({
       summary: {
         sceneFingerprint: "scene1-summary"
@@ -543,7 +552,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v58 support bundles when retained validation runs are from another scene", () => {
+  it("blocks v59 support bundles when retained validation runs are from another scene", () => {
     const bundle = supportBundle({
       summary: {
         validationEvidenceRunManifest: [
@@ -562,7 +571,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v58 text overlay evidence", () => {
+  it("blocks support bundles without v59 text overlay evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).textOverlayStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -575,7 +584,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v58 chat overlay evidence", () => {
+  it("blocks support bundles without v59 chat overlay evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).chatOverlayStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -588,7 +597,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v58 live caption evidence", () => {
+  it("blocks support bundles without v59 live caption evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).liveCaptionStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -601,7 +610,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v58 support bundles without native caption overlay summary evidence", () => {
+  it("blocks v59 support bundles without native caption overlay summary evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).nativeCompositionCaptionOverlayCount;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -2059,6 +2068,71 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks Android native-runtime claims without sustained low-loss playback capture", () => {
+    const missingCounterRun = manifestRun({ devicePlatform: "android", fingerprint: "svr1-android-missing" });
+    delete (missingCounterRun as Partial<ValidationManifestRun>).nativeRuntimePlaybackDroppedFrames;
+    const invalidAndroidRuns = [
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-unavailable",
+        nativeRuntimePlaybackCaptureStatus: "unavailable",
+        nativeRuntimePlaybackCaptureBackend: "none",
+        nativeRuntimePlaybackCaptureSampleRate: 0,
+        nativeRuntimePlaybackCapturedFrames: 0
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-underrun",
+        nativeRuntimePlaybackUnderrunFrames: 7_000
+      }),
+      missingCounterRun,
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-negative",
+        nativeRuntimePlaybackDroppedFrames: -1
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-fractional",
+        nativeRuntimePlaybackDroppedFrames: 0.5
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-nan",
+        nativeRuntimePlaybackCaptureSampleRate: Number.NaN
+      }),
+      manifestRun({
+        devicePlatform: "android",
+        fingerprint: "svr1-android-infinite",
+        nativeRuntimePlaybackCapturedFrames: Number.POSITIVE_INFINITY
+      })
+    ];
+    const gates = invalidAndroidRuns.map((androidRun) =>
+      createCommercialReleaseGate(
+        supportBundle({
+          summary: {
+            validationEvidenceRunManifest: [
+              manifestRun({ devicePlatform: "ios", fingerprint: "svr1-ios" }),
+              androidRun
+            ]
+          }
+        }),
+        { now }
+      )
+    );
+
+    for (const gate of gates) {
+      expect(gate.status).toBe("blocked");
+      expect(gate.canRelease).toBe(false);
+      expect(gate.issues).toContainEqual(
+        expect.objectContaining({
+          code: "validation-evidence-manifest-integrity",
+          detail: expect.stringContaining("Android native runtime proof")
+        })
+      );
+    }
+  });
+
   it("blocks native-runtime summary claims when the manifest lacks native frame proof", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
@@ -2982,7 +3056,7 @@ describe("commercial release gate", () => {
     expect(gate.status).toBe("ready");
   });
 
-  it("blocks next-start-only evidence when a required v58 counter is missing", () => {
+  it("blocks next-start-only evidence when a required v59 counter is missing", () => {
     const iosRun = manifestRun({
       devicePlatform: "ios",
       fingerprint: "svr1-ios",
@@ -4117,7 +4191,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 58 as const
+    bundleVersion: 59 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -4485,6 +4559,13 @@ const manifestRun = ({
   nativeRuntimeSentVideoFrames = 120,
   nativeRuntimeSentAudioFrames = 190,
   nativeRuntimeBytesWritten = 2_200_000,
+  nativeRuntimePlaybackCaptureStatus = devicePlatform === "android" ? "capturing" : null,
+  nativeRuntimePlaybackCaptureBackend = devicePlatform === "android" ? "android-audio-playback-capture" : null,
+  nativeRuntimePlaybackCaptureSampleRate = devicePlatform === "android" ? 44_100 : 0,
+  nativeRuntimePlaybackCapturedFrames = devicePlatform === "android" ? 132_300 : 0,
+  nativeRuntimePlaybackDroppedFrames = 0,
+  nativeRuntimePlaybackUnderrunFrames = 0,
+  nativeRuntimePlaybackBufferedFrames = 0,
   nativeRuntimeVideoFrameIntervalSampleCount = 119,
   nativeRuntimeVideoFrameIntervalAverageMs = 33.3,
   nativeRuntimeVideoFrameIntervalMaxMs = 42,
@@ -4709,6 +4790,13 @@ const manifestRun = ({
   nativeRuntimeSentVideoFrames?: ValidationManifestRun["nativeRuntimeSentVideoFrames"];
   nativeRuntimeSentAudioFrames?: ValidationManifestRun["nativeRuntimeSentAudioFrames"];
   nativeRuntimeBytesWritten?: ValidationManifestRun["nativeRuntimeBytesWritten"];
+  nativeRuntimePlaybackCaptureStatus?: ValidationManifestRun["nativeRuntimePlaybackCaptureStatus"];
+  nativeRuntimePlaybackCaptureBackend?: ValidationManifestRun["nativeRuntimePlaybackCaptureBackend"];
+  nativeRuntimePlaybackCaptureSampleRate?: ValidationManifestRun["nativeRuntimePlaybackCaptureSampleRate"];
+  nativeRuntimePlaybackCapturedFrames?: ValidationManifestRun["nativeRuntimePlaybackCapturedFrames"];
+  nativeRuntimePlaybackDroppedFrames?: ValidationManifestRun["nativeRuntimePlaybackDroppedFrames"];
+  nativeRuntimePlaybackUnderrunFrames?: ValidationManifestRun["nativeRuntimePlaybackUnderrunFrames"];
+  nativeRuntimePlaybackBufferedFrames?: ValidationManifestRun["nativeRuntimePlaybackBufferedFrames"];
   nativeRuntimeVideoFrameIntervalSampleCount?: ValidationManifestRun["nativeRuntimeVideoFrameIntervalSampleCount"];
   nativeRuntimeVideoFrameIntervalAverageMs?: ValidationManifestRun["nativeRuntimeVideoFrameIntervalAverageMs"];
   nativeRuntimeVideoFrameIntervalMaxMs?: ValidationManifestRun["nativeRuntimeVideoFrameIntervalMaxMs"];
@@ -4936,6 +5024,13 @@ const manifestRun = ({
   nativeRuntimeSentVideoFrames,
   nativeRuntimeSentAudioFrames,
   nativeRuntimeBytesWritten,
+  nativeRuntimePlaybackCaptureStatus,
+  nativeRuntimePlaybackCaptureBackend,
+  nativeRuntimePlaybackCaptureSampleRate,
+  nativeRuntimePlaybackCapturedFrames,
+  nativeRuntimePlaybackDroppedFrames,
+  nativeRuntimePlaybackUnderrunFrames,
+  nativeRuntimePlaybackBufferedFrames,
   nativeRuntimeVideoFrameIntervalSampleCount,
   nativeRuntimeVideoFrameIntervalAverageMs,
   nativeRuntimeVideoFrameIntervalMaxMs,

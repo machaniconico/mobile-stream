@@ -54,6 +54,15 @@ const levelKeys = [
   "mixedAudioClippedSampleCount",
   "mixedAudioLevelUpdatedAt"
 ];
+const playbackCaptureKeys = [
+  "playbackCaptureStatus",
+  "playbackCaptureBackend",
+  "playbackCaptureSampleRate",
+  "playbackCapturedFrames",
+  "playbackDroppedFrames",
+  "playbackUnderrunFrames",
+  "playbackBufferedFrames"
+];
 
 describe("native audio level metering", () => {
   it("measures Android encoder-bound microphone, app, and mixed PCM", () => {
@@ -71,7 +80,10 @@ describe("native audio level metering", () => {
     expect(androidDirectStream).toContain("effect?.processAppAudio(");
     expect(androidDirectStream).toContain("effect?.mixForBroadcast(processedMic, processedAppAudio)");
     expect(androidDirectStream).toContain("AUDIO_OUTPUT_CHANNEL_COUNT = 2");
+    expect(androidDirectStream).toContain("audioProcessing = audioProcessingSnapshot()");
+    expect(androidDirectStream).toContain("playbackUnderrunFrames = playback.underrunFrames");
     levelKeys.forEach((key) => expect(androidSession).toContain(`putDouble(\"${key}\"`));
+    playbackCaptureKeys.forEach((key) => expect(androidSession).toContain(`\"${key}\"`));
   });
 
   it("captures Android game/media playback with MediaProjection and a bounded buffer", () => {

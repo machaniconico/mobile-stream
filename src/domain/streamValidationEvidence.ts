@@ -19,6 +19,7 @@ import {
   minimumValidationMonitorSampleCount
 } from "./streamValidationThresholds";
 import {
+  assessAndroidPlaybackCapture,
   isProductionNativeAudioEncoderBackend,
   isProductionNativeVideoEncoderBackend,
   isProductionVrmRendererBackend
@@ -283,6 +284,13 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeSentVideoFrames: number;
   nativeRuntimeSentAudioFrames: number;
   nativeRuntimeBytesWritten: number;
+  nativeRuntimePlaybackCaptureStatus: string | null;
+  nativeRuntimePlaybackCaptureBackend: string | null;
+  nativeRuntimePlaybackCaptureSampleRate: number;
+  nativeRuntimePlaybackCapturedFrames: number;
+  nativeRuntimePlaybackDroppedFrames: number;
+  nativeRuntimePlaybackUnderrunFrames: number;
+  nativeRuntimePlaybackBufferedFrames: number;
   nativeRuntimeVideoFrameIntervalSampleCount: number;
   nativeRuntimeVideoFrameIntervalAverageMs: number;
   nativeRuntimeVideoFrameIntervalMaxMs: number;
@@ -1551,6 +1559,7 @@ const hasNativeRuntimeAndroidPlaybackAudioProof = (
   }
 
   return (
+    assessAndroidPlaybackCapture(nativeRuntime).ready &&
     (nativeRuntime.appAudioSampleCount ?? 0) > 0 &&
     (nativeRuntime.appAudioPeakLevel ?? 0) > 0.001 &&
     (nativeRuntime.appAudioLevelUpdatedAt ?? 0) > 0 &&
@@ -1660,7 +1669,8 @@ const createNativeRuntimePreviewSummary = (
   status: StreamValidationFeatureStatus
 ): string => {
   const platform = platformMatches ? nativeRuntime.platform : `${nativeRuntime.platform} for ${expectedPlatform}`;
-  return `Native runtime ${status}: ${platform} / publisher ${nativeRuntime.publisherState || nativeRuntime.runtimeStatus || "-"} / encoders ${nativeRuntime.videoEncoderBackend}/${nativeRuntime.audioEncoderBackend} / sent ${nativeRuntime.sentVideoFrames} video ${nativeRuntime.sentAudioFrames} audio / bytes ${nativeRuntime.bytesWritten} / compositor ${nativeRuntime.runtimeCompositorBackend} ${nativeRuntime.runtimeCompositedFrameCount} frames ${nativeRuntime.runtimeCompositionFailureCount} failures / app audio ${nativeRuntime.appAudioSampleCount ?? 0} samples peak ${Math.round((nativeRuntime.appAudioPeakLevel ?? 0) * 100)}% / mixed audio ${nativeRuntime.mixedAudioSampleCount ?? 0} samples / overlays ${nativeRuntime.compositionAppliedCount} applied ${nativeRuntime.compositionSkippedCount} skipped / still-image ${nativeRuntime.stillImageAssetCompositedCount}/${nativeRuntime.stillImageAssetCount} composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount} / app-group ${nativeRuntime.stillImageAssetAppGroupCompositedCount}/${nativeRuntime.stillImageAssetAppGroupCount} composited pixels ${nativeRuntime.stillImageAssetAppGroupCompositedPixelCount} / video interval ${nativeRuntime.videoFrameIntervalSampleCount} samples.`;
+  const playback = assessAndroidPlaybackCapture(nativeRuntime);
+  return `Native runtime ${status}: ${platform} / publisher ${nativeRuntime.publisherState || nativeRuntime.runtimeStatus || "-"} / encoders ${nativeRuntime.videoEncoderBackend}/${nativeRuntime.audioEncoderBackend} / sent ${nativeRuntime.sentVideoFrames} video ${nativeRuntime.sentAudioFrames} audio / bytes ${nativeRuntime.bytesWritten} / compositor ${nativeRuntime.runtimeCompositorBackend} ${nativeRuntime.runtimeCompositedFrameCount} frames ${nativeRuntime.runtimeCompositionFailureCount} failures / playback ${nativeRuntime.playbackCaptureStatus ?? "unavailable"} ${nativeRuntime.playbackCaptureBackend ?? "none"} ${playback.durationSeconds.toFixed(1)}s drop ${(playback.dropRatio * 100).toFixed(1)}% underrun ${(playback.underrunRatio * 100).toFixed(1)}% buffered ${Number.isFinite(playback.bufferedMs) ? `${Math.round(playback.bufferedMs)}ms` : "n/a"} / app audio ${nativeRuntime.appAudioSampleCount ?? 0} samples peak ${Math.round((nativeRuntime.appAudioPeakLevel ?? 0) * 100)}% / mixed audio ${nativeRuntime.mixedAudioSampleCount ?? 0} samples / overlays ${nativeRuntime.compositionAppliedCount} applied ${nativeRuntime.compositionSkippedCount} skipped / still-image ${nativeRuntime.stillImageAssetCompositedCount}/${nativeRuntime.stillImageAssetCount} composited pixels ${nativeRuntime.stillImageAssetCompositedPixelCount} / app-group ${nativeRuntime.stillImageAssetAppGroupCompositedCount}/${nativeRuntime.stillImageAssetAppGroupCount} composited pixels ${nativeRuntime.stillImageAssetAppGroupCompositedPixelCount} / video interval ${nativeRuntime.videoFrameIntervalSampleCount} samples.`;
 };
 
 const createNativeRuntimePreviewRecommendation = (
@@ -1692,7 +1702,7 @@ const createNativeRuntimePreviewRecommendation = (
       : "Repeat iOS ReplayKit validation until ios-replaykit-coregraphics reports composited frames above zero with zero composition failures.";
   }
   if (!readiness.playbackAudioReady) {
-    return "Play game/media audio during Android direct MediaCodec validation until fresh app-audio and final-mix PCM samples, a non-zero app-audio peak, and zero mixed clipping are retained.";
+    return "Play eligible game/media audio during Android direct MediaCodec validation until at least two seconds of capture, no more than 1% drops, 5% underruns, 100 ms buffering, fresh app/final-mix PCM, a non-zero app peak, and zero mixed clipping are retained.";
   }
   if (!readiness.stillImageOverlayReady) {
     return "Repeat validation with the current scene until every required still-image/avatar asset is loaded, decoded, composited, and has non-zero composited pixel proof.";
@@ -3208,6 +3218,13 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeSentVideoFrames: run.nativeRuntime?.sentVideoFrames ?? 0,
     nativeRuntimeSentAudioFrames: run.nativeRuntime?.sentAudioFrames ?? 0,
     nativeRuntimeBytesWritten: run.nativeRuntime?.bytesWritten ?? 0,
+    nativeRuntimePlaybackCaptureStatus: run.nativeRuntime?.playbackCaptureStatus ?? null,
+    nativeRuntimePlaybackCaptureBackend: run.nativeRuntime?.playbackCaptureBackend ?? null,
+    nativeRuntimePlaybackCaptureSampleRate: run.nativeRuntime?.playbackCaptureSampleRate ?? 0,
+    nativeRuntimePlaybackCapturedFrames: run.nativeRuntime?.playbackCapturedFrames ?? 0,
+    nativeRuntimePlaybackDroppedFrames: run.nativeRuntime?.playbackDroppedFrames ?? 0,
+    nativeRuntimePlaybackUnderrunFrames: run.nativeRuntime?.playbackUnderrunFrames ?? 0,
+    nativeRuntimePlaybackBufferedFrames: run.nativeRuntime?.playbackBufferedFrames ?? 0,
     nativeRuntimeVideoFrameIntervalSampleCount: run.nativeRuntime?.videoFrameIntervalSampleCount ?? 0,
     nativeRuntimeVideoFrameIntervalAverageMs: run.nativeRuntime?.videoFrameIntervalAverageMs ?? 0,
     nativeRuntimeVideoFrameIntervalMaxMs: run.nativeRuntime?.videoFrameIntervalMaxMs ?? 0,

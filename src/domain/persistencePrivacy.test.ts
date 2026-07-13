@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { redactSecretsFromPersistedValue, redactSecretsFromText } from "./persistencePrivacy";
+import {
+  isSafeGeneratedFingerprint,
+  redactSecretsFromPersistedValue,
+  redactSecretsFromText,
+  redactSecretsFromTextPreservingGeneratedFingerprints,
+  restoreGeneratedFingerprint
+} from "./persistencePrivacy";
 
 describe("persistence privacy", () => {
   it("redacts exact, last-segment, and encoded secret candidates in persisted values", () => {
@@ -96,5 +102,28 @@ describe("persistence privacy", () => {
     expect(redacted).toBe("open [redacted] and [redacted]");
     expect(redacted).not.toContain("m/private");
     expect(redacted).not.toContain("m/live2");
+  });
+
+  it("preserves strict generated fingerprints unless they are explicit secrets", () => {
+    const fingerprint = "svr1-97471090-868";
+
+    expect(redactSecretsFromText(fingerprint)).toBe("svr1-[phone redacted]");
+    expect(redactSecretsFromTextPreservingGeneratedFingerprints(fingerprint, [fingerprint])).toBe(fingerprint);
+    expect(redactSecretsFromTextPreservingGeneratedFingerprints(fingerprint, [fingerprint], [fingerprint])).toBe(
+      "svr1-[phone redacted]"
+    );
+    expect(
+      redactSecretsFromTextPreservingGeneratedFingerprints(fingerprint, [fingerprint], ["prefix/97471090"])
+    ).toBe("svr1-[phone redacted]");
+    expect(restoreGeneratedFingerprint("svr1-[phone redacted]", fingerprint)).toBe(fingerprint);
+    expect(restoreGeneratedFingerprint("svr1-[phone redacted]", fingerprint, [fingerprint])).toBe(
+      "svr1-[phone redacted]"
+    );
+    expect(restoreGeneratedFingerprint("svr1-[phone redacted]", fingerprint, ["prefix/97471090"])).toBe(
+      "svr1-[phone redacted]"
+    );
+    expect(isSafeGeneratedFingerprint("svr1-97471090-868")).toBe(true);
+    expect(isSafeGeneratedFingerprint("svr1-9747109z-868")).toBe(false);
+    expect(isSafeGeneratedFingerprint("custom1-97471090-868")).toBe(false);
   });
 });

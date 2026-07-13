@@ -31,6 +31,7 @@ import { createNativeCompositionReport, type NativeCompositionReport } from "./n
 import { assessPlatformPublishingFreshness } from "./platformPublishingFreshness";
 import type { PublicLaunchChecklist } from "./publicLaunchChecklist";
 import {
+  assessAndroidPlaybackCapture,
   isProductionNativeAudioEncoderBackend,
   isProductionNativeVideoEncoderBackend,
   isProductionVrmRendererBackend,
@@ -43,7 +44,11 @@ import type { ReadinessReport } from "./readiness";
 import type { SceneDocument } from "./scene";
 import { createSceneCompositionFingerprint } from "./sceneFingerprint";
 import { redactSensitiveText } from "./sensitiveText";
-import { redactSecretsFromPersistedValue, redactSecretsFromText } from "./persistencePrivacy";
+import {
+  redactSecretsFromPersistedValue,
+  redactSecretsFromTextPreservingGeneratedFingerprints,
+  restoreGeneratedFingerprint
+} from "./persistencePrivacy";
 import {
   createDefaultStreamRecoveryPolicy,
   createStreamRecoveryStatus,
@@ -589,6 +594,7 @@ export const formatStreamDiagnosticReport = (
   const diagnostics = report.diagnostics;
   const generatedAt = new Date(report.generatedAt);
   const platformPublishingFreshness = assessPlatformPublishingFreshness(diagnostics.platformPublishing, generatedAt);
+  const playbackCapture = assessAndroidPlaybackCapture(diagnostics.nativeRuntime?.audioProcessing);
   const formatted = [
     "MobileLiveCaster Diagnostics",
     `Generated: ${report.generatedAt}`,
@@ -710,6 +716,7 @@ export const formatStreamDiagnosticReport = (
     `- Native PCM mic: RMS ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.micRmsLevel ?? 0) * 100)}% / peak ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.micPeakLevel ?? 0) * 100)}% / samples ${diagnostics.nativeRuntime?.audioProcessing?.micSampleCount ?? 0} / clipped ${diagnostics.nativeRuntime?.audioProcessing?.micClippedSampleCount ?? 0}`,
     `- Native PCM app: RMS ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.appAudioRmsLevel ?? 0) * 100)}% / peak ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.appAudioPeakLevel ?? 0) * 100)}% / samples ${diagnostics.nativeRuntime?.audioProcessing?.appAudioSampleCount ?? 0} / clipped ${diagnostics.nativeRuntime?.audioProcessing?.appAudioClippedSampleCount ?? 0}`,
     `- Native PCM mix: RMS ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.mixedAudioRmsLevel ?? 0) * 100)}% / peak ${Math.round((diagnostics.nativeRuntime?.audioProcessing?.mixedAudioPeakLevel ?? 0) * 100)}% / samples ${diagnostics.nativeRuntime?.audioProcessing?.mixedAudioSampleCount ?? 0} / clipped ${diagnostics.nativeRuntime?.audioProcessing?.mixedAudioClippedSampleCount ?? 0}`,
+    `- Android playback capture: ${playbackCapture.ready ? "ready" : "not-ready"} / ${diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureStatus ?? "unavailable"} ${diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureBackend ?? "none"} / ${diagnostics.nativeRuntime?.audioProcessing?.playbackCaptureSampleRate ?? 0} Hz / ${playbackCapture.durationSeconds.toFixed(1)}s / captured ${diagnostics.nativeRuntime?.audioProcessing?.playbackCapturedFrames ?? 0} / dropped ${diagnostics.nativeRuntime?.audioProcessing?.playbackDroppedFrames ?? 0} (${(playbackCapture.dropRatio * 100).toFixed(2)}%) / underrun ${diagnostics.nativeRuntime?.audioProcessing?.playbackUnderrunFrames ?? 0} (${(playbackCapture.underrunRatio * 100).toFixed(2)}%) / buffered ${diagnostics.nativeRuntime?.audioProcessing?.playbackBufferedFrames ?? 0} frames (${Number.isFinite(playbackCapture.bufferedMs) ? `${Math.round(playbackCapture.bufferedMs)}ms` : "n/a"})`,
     `- Monitor: ${diagnostics.audio.monitorEnabled ? "on" : "off"} / volume ${Math.round(diagnostics.audio.monitorVolume * 100)}% / headphones-only ${diagnostics.audio.monitorHeadphonesOnly ? "yes" : "no"}`,
     `- Monitor route: ${diagnostics.audio.monitorSafety.status} / ${diagnostics.audio.monitorSafety.outputName} / headphones ${diagnostics.audio.monitorSafety.headphonesConnected ? "yes" : "no"} / stale ${diagnostics.audio.monitorSafety.stale ? "yes" : "no"}`,
     `- Route action: ${diagnostics.audio.monitorSafety.recommendation}`,
@@ -844,7 +851,22 @@ export const formatStreamDiagnosticReport = (
   ].join("\n");
 
   return restoreDiagnosticEndpointLine(
-    redactSecretsFromText(formatted, options.secrets ?? []),
+    redactSecretsFromTextPreservingGeneratedFingerprints(
+      formatted,
+      [
+        diagnostics.scene.fingerprint,
+        diagnostics.validationEvidence.fingerprint,
+        diagnostics.validationEvidence.requiredSceneFingerprint,
+        ...diagnostics.validationEvidence.runManifest.flatMap((run) => [run.fingerprint, run.sceneFingerprint]),
+        diagnostics.validationEvidence.latestRun?.fingerprint,
+        diagnostics.validationEvidence.latestRun?.sceneFingerprint,
+        diagnostics.validationEvidence.latestEligibleRun?.fingerprint,
+        diagnostics.validationEvidence.latestEligibleRun?.sceneFingerprint,
+        diagnostics.validationEvidence.latestPassingRun?.fingerprint,
+        diagnostics.validationEvidence.latestPassingRun?.sceneFingerprint
+      ],
+      options.secrets ?? []
+    ),
     diagnostics.target.host,
     diagnostics.target.application,
     options.secrets ?? []
@@ -856,18 +878,97 @@ const restoreDiagnosticReportExportFields = (
   report: StreamDiagnosticReport,
   secrets: string[]
 ): StreamDiagnosticReport => {
-  if (!isSafeDiagnosticExportHost(report.diagnostics.target.host, secrets)) {
-    return redactedReport;
-  }
-  return {
+  const restoredReport: StreamDiagnosticReport = {
     ...redactedReport,
     diagnostics: {
       ...redactedReport.diagnostics,
+      scene: {
+        ...redactedReport.diagnostics.scene,
+        fingerprint: restoreGeneratedFingerprint(
+          redactedReport.diagnostics.scene.fingerprint,
+          report.diagnostics.scene.fingerprint,
+          secrets
+        )
+      },
+      validationEvidence: {
+        ...redactedReport.diagnostics.validationEvidence,
+        fingerprint: restoreGeneratedFingerprint(
+          redactedReport.diagnostics.validationEvidence.fingerprint,
+          report.diagnostics.validationEvidence.fingerprint,
+          secrets
+        ),
+        requiredSceneFingerprint: restoreGeneratedFingerprint(
+          redactedReport.diagnostics.validationEvidence.requiredSceneFingerprint,
+          report.diagnostics.validationEvidence.requiredSceneFingerprint,
+          secrets
+        ),
+        runManifest: restoreDiagnosticValidationManifestFingerprints(
+          redactedReport.diagnostics.validationEvidence.runManifest,
+          report.diagnostics.validationEvidence.runManifest,
+          secrets
+        ),
+        latestRun: restoreDiagnosticValidationRunFingerprints(
+          redactedReport.diagnostics.validationEvidence.latestRun,
+          report.diagnostics.validationEvidence.latestRun,
+          secrets
+        ),
+        latestEligibleRun: restoreDiagnosticValidationRunFingerprints(
+          redactedReport.diagnostics.validationEvidence.latestEligibleRun,
+          report.diagnostics.validationEvidence.latestEligibleRun,
+          secrets
+        ),
+        latestPassingRun: restoreDiagnosticValidationRunFingerprints(
+          redactedReport.diagnostics.validationEvidence.latestPassingRun,
+          report.diagnostics.validationEvidence.latestPassingRun,
+          secrets
+        )
+      }
+    }
+  };
+  if (!isSafeDiagnosticExportHost(report.diagnostics.target.host, secrets)) {
+    return restoredReport;
+  }
+  return {
+    ...restoredReport,
+    diagnostics: {
+      ...restoredReport.diagnostics,
       target: {
-        ...redactedReport.diagnostics.target,
+        ...restoredReport.diagnostics.target,
         host: report.diagnostics.target.host
       }
     }
+  };
+};
+
+const restoreDiagnosticValidationManifestFingerprints = (
+  redactedManifest: StreamDiagnostics["validationEvidence"]["runManifest"],
+  originalManifest: StreamDiagnostics["validationEvidence"]["runManifest"],
+  secrets: string[]
+): StreamDiagnostics["validationEvidence"]["runManifest"] =>
+  redactedManifest.map((run, index) => {
+    const originalRun = originalManifest[index];
+    if (!originalRun) {
+      return run;
+    }
+    return {
+      ...run,
+      fingerprint: restoreGeneratedFingerprint(run.fingerprint, originalRun.fingerprint, secrets),
+      sceneFingerprint: restoreGeneratedFingerprint(run.sceneFingerprint, originalRun.sceneFingerprint, secrets)
+    };
+  });
+
+const restoreDiagnosticValidationRunFingerprints = (
+  redactedRun: StreamDiagnostics["validationEvidence"]["latestRun"],
+  originalRun: StreamDiagnostics["validationEvidence"]["latestRun"],
+  secrets: string[]
+): StreamDiagnostics["validationEvidence"]["latestRun"] => {
+  if (!redactedRun || !originalRun) {
+    return redactedRun;
+  }
+  return {
+    ...redactedRun,
+    fingerprint: restoreGeneratedFingerprint(redactedRun.fingerprint, originalRun.fingerprint, secrets),
+    sceneFingerprint: restoreGeneratedFingerprint(redactedRun.sceneFingerprint, originalRun.sceneFingerprint, secrets)
   };
 };
 

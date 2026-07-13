@@ -56,22 +56,22 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v58.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v59.");
   });
 
-  it("blocks v57 support bundles because native adaptive bitrate proof requires v58", () => {
+  it("blocks v58 support bundles because Android playback-capture proof requires v59", () => {
     writeBundle({
       app: {
         name: "MobileLiveCaster",
         reportVersion: 1,
-        bundleVersion: 57
+        bundleVersion: 58
       }
     });
 
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v57 is older than the required v58.");
+    expect(result.stdout).toContain("Support bundle v58 is older than the required v59.");
   });
 
   it("rejects string support bundle versions instead of coercing the schema", () => {
@@ -405,7 +405,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("The latest public launch confirmation was cancelled");
   });
 
-  it("blocks v58 support bundles without scene fingerprint evidence", () => {
+  it("blocks v59 support bundles without scene fingerprint evidence", () => {
     writeBundle({
       summary: {
         sceneFingerprint: undefined
@@ -417,10 +417,10 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Scene fingerprint");
-    expect(result.stdout).toContain("Support bundle v58 is missing scene composition fingerprint evidence.");
+    expect(result.stdout).toContain("Support bundle v59 is missing scene composition fingerprint evidence.");
   });
 
-  it("blocks v58 support bundles with mismatched scene fingerprints", () => {
+  it("blocks v59 support bundles with mismatched scene fingerprints", () => {
     writeBundle({
       summary: {
         sceneFingerprint: "scene1-summary"
@@ -436,7 +436,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Summary and scene fingerprint values do not match.");
   });
 
-  it("blocks v58 support bundles when retained validation runs are from another scene", () => {
+  it("blocks v59 support bundles when retained validation runs are from another scene", () => {
     writeBundle({
       summary: {
         validationEvidenceRunManifest: [
@@ -453,7 +453,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("do not match the current scene fingerprint scene1-ready");
   });
 
-  it("blocks v58 support bundles without native caption overlay summary evidence", () => {
+  it("blocks v59 support bundles without native caption overlay summary evidence", () => {
     writeBundle({
       summary: {
         nativeCompositionCaptionOverlayCount: undefined
@@ -988,6 +988,34 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("production video/audio encoder backends");
+  });
+
+  it.each([
+    ["an unsupported capture status", { nativeRuntimePlaybackCaptureStatus: "failed" }],
+    ["a non-production capture backend", { nativeRuntimePlaybackCaptureBackend: "legacy-mix" }],
+    ["less than two seconds of captured audio", { nativeRuntimePlaybackCapturedFrames: 95_999 }],
+    ["more than one percent dropped frames", { nativeRuntimePlaybackDroppedFrames: 961 }],
+    ["more than five percent delivered-frame underruns", { nativeRuntimePlaybackUnderrunFrames: 4_750 }],
+    ["more than 100ms of buffered audio", { nativeRuntimePlaybackBufferedFrames: 4_801 }],
+    ["a missing dropped-frame counter", { nativeRuntimePlaybackDroppedFrames: undefined }],
+    ["a negative dropped-frame counter", { nativeRuntimePlaybackDroppedFrames: -1 }],
+    ["a fractional dropped-frame counter", { nativeRuntimePlaybackDroppedFrames: 0.5 }],
+    ["a non-finite sample rate", { nativeRuntimePlaybackCaptureSampleRate: Number.NaN }],
+    ["a non-finite captured-frame counter", { nativeRuntimePlaybackCapturedFrames: Number.POSITIVE_INFINITY }]
+  ])("blocks Android native runtime claims when playback capture telemetry violates release thresholds: %s", (_reason, patch) => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios"),
+          manifestRun("android", "svr1-android", patch)
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Android playback-capture telemetry");
   });
 
   it("blocks native runtime claims when retained manifests have rejected live render-graph updates", () => {
@@ -2048,7 +2076,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("controlled weak-network quality automation evidence for iOS");
   });
 
-  it("blocks next-start-only evidence when a required v58 counter is missing", () => {
+  it("blocks next-start-only evidence when a required v59 counter is missing", () => {
     const nextStartOnly = {
       qualityAutomationLiveUpdateCount: undefined,
       qualityAutomationNextTargetCount: 1,
@@ -2888,7 +2916,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 58
+      bundleVersion: 59
     },
     generatedAt,
     profile: {
@@ -2965,6 +2993,13 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   nativeRuntimeSentVideoFrames: 120,
   nativeRuntimeSentAudioFrames: 190,
   nativeRuntimeBytesWritten: 2_200_000,
+  nativeRuntimePlaybackCaptureStatus: devicePlatform === "android" ? "stopped" : "not-applicable",
+  nativeRuntimePlaybackCaptureBackend: devicePlatform === "android" ? "android-audio-playback-capture" : "not-applicable",
+  nativeRuntimePlaybackCaptureSampleRate: devicePlatform === "android" ? 48_000 : 0,
+  nativeRuntimePlaybackCapturedFrames: devicePlatform === "android" ? 96_000 : 0,
+  nativeRuntimePlaybackDroppedFrames: devicePlatform === "android" ? 960 : 0,
+  nativeRuntimePlaybackUnderrunFrames: devicePlatform === "android" ? 4_000 : 0,
+  nativeRuntimePlaybackBufferedFrames: devicePlatform === "android" ? 4_800 : 0,
   nativeRuntimeVideoFrameIntervalSampleCount: 119,
   nativeRuntimeVideoFrameIntervalAverageMs: 33.3,
   nativeRuntimeVideoFrameIntervalMaxMs: 42,

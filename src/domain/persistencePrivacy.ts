@@ -10,6 +10,58 @@ export const redactSecretsFromText = (value: string, secrets: string[] = []): st
   return redactText(value, candidates);
 };
 
+const generatedFingerprintPattern = /^(?:scene1|sve1|svr1)-[0-9a-f]{8}-[0-9a-z]+$/;
+
+export const isSafeGeneratedFingerprint = (
+  value: string | null | undefined,
+  secrets: string[] = []
+): value is string => {
+  if (!value || !generatedFingerprintPattern.test(value)) {
+    return false;
+  }
+  const normalized = value.toLowerCase();
+  return !secretCandidates(secrets).some((secret) => {
+    const candidate = secret.toLowerCase();
+    return Boolean(candidate) && (normalized.includes(candidate) || candidate.includes(normalized));
+  });
+};
+
+export const restoreGeneratedFingerprint = <T extends string | null | undefined>(
+  redactedValue: T,
+  originalValue: T,
+  secrets: string[] = []
+): T => (isSafeGeneratedFingerprint(originalValue, secrets) ? originalValue : redactedValue);
+
+export const redactSecretsFromTextPreservingGeneratedFingerprints = (
+  value: string,
+  fingerprints: Array<string | null | undefined>,
+  secrets: string[] = []
+): string => {
+  const uniqueFingerprints = [
+    ...new Set(fingerprints.filter((fingerprint): fingerprint is string => isSafeGeneratedFingerprint(fingerprint, secrets)))
+  ];
+  const protectedFingerprints = uniqueFingerprints.map((fingerprint, index) => ({
+    fingerprint,
+    placeholder: createUnusedFingerprintPlaceholder(value, index)
+  }));
+  const protectedText = protectedFingerprints.reduce(
+    (current, entry) => current.split(entry.fingerprint).join(entry.placeholder),
+    value
+  );
+  return protectedFingerprints.reduce(
+    (current, entry) => current.split(entry.placeholder).join(entry.fingerprint),
+    redactSecretsFromText(protectedText, secrets)
+  );
+};
+
+const createUnusedFingerprintPlaceholder = (value: string, index: number): string => {
+  let placeholder = `__MLC_GENERATED_FINGERPRINT_${index}__`;
+  while (value.includes(placeholder)) {
+    placeholder = `_${placeholder}_`;
+  }
+  return placeholder;
+};
+
 const redactValue = (value: unknown, candidates: string[]): unknown => {
   if (typeof value === "string") {
     return redactText(value, candidates);

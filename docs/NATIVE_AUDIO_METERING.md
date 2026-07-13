@@ -14,6 +14,8 @@ The `audioProcessing` runtime payload reports RMS level, peak level, PCM sample 
 
 Only scalar measurements and counters cross the native bridge. PCM content is not persisted or included in diagnostics/support bundles.
 
+Android playback capture also reports its backend, lifecycle status, sample rate, captured frames, dropped frames, encoder-read underrun frames, and currently buffered frames. Diagnostics derive capture duration, drop/underrun ratios, and buffered latency from those counters without retaining audio content.
+
 ## Guard policy
 
 - Native iOS/Android sessions require current `native-pcm` microphone evidence. Face-tracking and manual lip-sync samples cannot make the native silence guard pass.
@@ -22,7 +24,8 @@ Only scalar measurements and counters cross the native bridge. PCM content is no
 - The peak guard prefers the latest final mixed-output clipping window when one is available and falls back to the latest microphone clipping window.
 - A microphone timestamp older than three seconds is stale even if video/runtime telemetry is still updating. Silence analysis retains only the latest five seconds of meter observations.
 - Any measured clipping produces a warning. Clipping at or above 1% of measured PCM samples is a failure requiring gain reduction before continuing publicly.
+- Android commercial evidence requires the `android-audio-playback-capture` backend in `capturing` or `stopped` state, complete integer counters, at least two seconds of captured PCM, no more than 1% dropped frames, no more than 5% encoder-read underruns relative to delivered plus underrun frames, and no more than 100 ms currently buffered audio.
 
 ## Release validation
 
-Run a private spoken segment on physical iOS and Android devices with the intended microphone, headset, effects preset, and mixer levels. On Android 10+, also play eligible game/media audio and one comment-readout utterance while using the direct MediaCodec publisher. Retain diagnostics showing current mic/app/final-mix PCM samples, a non-zero app peak, non-stale timestamps, a stable active percentage, and zero clipped final-mix samples before approving a production release. Android apps may opt out of playback capture, so validate each intended game on a physical device.
+Run a private spoken segment on physical iOS and Android devices with the intended microphone, headset, effects preset, and mixer levels. On Android 10+, also play eligible game/media audio and one comment-readout utterance while using the direct MediaCodec publisher. Retain diagnostics showing sustained low-loss playback capture, current mic/app/final-mix PCM samples, a non-zero app peak, non-stale timestamps, a stable active percentage, and zero clipped final-mix samples before approving a production release. Android apps may opt out of playback capture, so validate each intended game on a physical device.

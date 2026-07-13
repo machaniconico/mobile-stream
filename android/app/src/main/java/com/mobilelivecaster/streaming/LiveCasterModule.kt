@@ -392,6 +392,13 @@ data class NativeRuntimeAudioProcessing(
     val mixedAudioSampleCount: Long = 0L,
     val mixedAudioClippedSampleCount: Long = 0L,
     val mixedAudioLevelUpdatedAt: Long = 0L,
+    val playbackCaptureStatus: String = "unavailable",
+    val playbackCaptureBackend: String = "none",
+    val playbackCaptureSampleRate: Int = 0,
+    val playbackCapturedFrames: Long = 0L,
+    val playbackDroppedFrames: Long = 0L,
+    val playbackUnderrunFrames: Long = 0L,
+    val playbackBufferedFrames: Int = 0,
     val monitorEnabled: Boolean = false,
     val monitorRunning: Boolean = false,
     val monitorVolume: Float = 0f,
@@ -435,6 +442,13 @@ data class NativeRuntimeAudioProcessing(
         putDouble("mixedAudioSampleCount", mixedAudioSampleCount.toDouble())
         putDouble("mixedAudioClippedSampleCount", mixedAudioClippedSampleCount.toDouble())
         putDouble("mixedAudioLevelUpdatedAt", mixedAudioLevelUpdatedAt.toDouble())
+        putString("playbackCaptureStatus", playbackCaptureStatus)
+        putString("playbackCaptureBackend", playbackCaptureBackend)
+        putInt("playbackCaptureSampleRate", playbackCaptureSampleRate)
+        putDouble("playbackCapturedFrames", playbackCapturedFrames.toDouble())
+        putDouble("playbackDroppedFrames", playbackDroppedFrames.toDouble())
+        putDouble("playbackUnderrunFrames", playbackUnderrunFrames.toDouble())
+        putInt("playbackBufferedFrames", playbackBufferedFrames)
         putBoolean("monitorEnabled", monitorEnabled)
         putBoolean("monitorRunning", monitorRunning)
         putDouble("monitorVolume", monitorVolume.toDouble())

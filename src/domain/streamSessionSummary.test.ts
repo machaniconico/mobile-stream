@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type StreamHealthSample } from "./streamHealthHistory";
+import { normalizeNativeRuntimeAudioProcessing, type NativeRuntimeAudioProcessing } from "./nativeRuntime";
 import { type StreamSessionEvent } from "./streamSessionLog";
 import {
   appendStreamSessionSummary,
@@ -435,6 +436,13 @@ describe("stream session summary", () => {
           mixedAudioSampleCount: 24_576,
           mixedAudioClippedSampleCount: 0,
           mixedAudioLevelUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+          playbackCaptureStatus: "capturing",
+          playbackCaptureBackend: "android-audio-playback-capture",
+          playbackCaptureSampleRate: 44_100,
+          playbackCapturedFrames: 132_300,
+          playbackDroppedFrames: 0,
+          playbackUnderrunFrames: 0,
+          playbackBufferedFrames: 0,
           broadcastAppAudioVolume: 0.85,
           broadcastAppAudioMuted: false,
           monitorEnabled: true,
@@ -534,6 +542,15 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.appAudioSampleCount).toBe(24576);
     expect(summary?.nativeRuntime?.mixedAudioSampleCount).toBe(24576);
     expect(summary?.nativeRuntime?.mixedAudioClippedSampleCount).toBe(0);
+    expect(summary?.nativeRuntime).toMatchObject({
+      playbackCaptureStatus: "capturing",
+      playbackCaptureBackend: "android-audio-playback-capture",
+      playbackCaptureSampleRate: 44_100,
+      playbackCapturedFrames: 132_300,
+      playbackDroppedFrames: 0,
+      playbackUnderrunFrames: 0,
+      playbackBufferedFrames: 0
+    });
     expect(summary?.nativeRuntime?.continuityStatus).toBe("healthy");
     expect(summary?.nativeRuntime?.videoStallCount).toBe(1);
     expect(summary?.nativeRuntime?.maxVideoStallDurationMs).toBe(6400);
@@ -601,6 +618,90 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.runtimeCompositorBackend).toBe("none");
     expect(summary?.nativeRuntime?.runtimeCompositedFrameCount).toBe(0);
     expect(summary?.nativeRuntime?.recommendation).toContain("Android direct MediaCodec validation");
+  });
+
+  it("warns when Android playback capture proof is missing or unstable", () => {
+    const createSummary = (audioProcessing: Partial<NativeRuntimeAudioProcessing>) =>
+      createStreamSessionSummary({
+        events: [],
+        healthSamples: [sample(1), sample(4)],
+        target: { bitrateKbps: 3500, fps: 30 },
+        endReason: "stopped",
+        endedAt: new Date("2026-06-23T00:00:05.000Z"),
+        nativeRuntime: {
+          platform: "android",
+          runtimeStatus: "live",
+          updatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+          stale: false,
+          elapsedSeconds: 4,
+          videoFrames: 92,
+          encodedBytes: 1_900_000,
+          droppedFrames: 0,
+          publisher: {
+            state: "published",
+            videoEncoderBackend: "mediacodec-h264",
+            audioEncoderBackend: "mediacodec-aac",
+            reconnectAttempts: 0,
+            sentVideoFrames: 92,
+            sentAudioFrames: 180,
+            droppedVideoFrames: 0,
+            droppedAudioFrames: 0,
+            bytesWritten: 1_900_000,
+            cacheSize: 120,
+            itemsInCache: 0,
+            congested: false,
+            lastError: ""
+          },
+          composition: {
+            status: "screen-only",
+            appliedCount: 0,
+            skippedCount: 0,
+            skippedKinds: [],
+            runtimeCompositorBackend: "android-canvas-mediacodec",
+            runtimeCompositedFrameCount: 92,
+            runtimeDroppedFrameCount: 0,
+            runtimeCompositionFailureCount: 0,
+            message: "Native screen capture applied"
+          },
+          audioProcessing: normalizeNativeRuntimeAudioProcessing({
+            appAudioPeakLevel: 0.58,
+            appAudioSampleCount: 24_576,
+            appAudioLevelUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+            mixedAudioSampleCount: 24_576,
+            mixedAudioLevelUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+            broadcastAppAudioVolume: 0.85,
+            broadcastAppAudioMuted: false,
+            ...audioProcessing
+          }),
+          message: "Live"
+        }
+      });
+
+    const missing = createSummary({});
+    const unstable = createSummary({
+      playbackCaptureStatus: "capturing",
+      playbackCaptureBackend: "android-audio-playback-capture",
+      playbackCaptureSampleRate: 44_100,
+      playbackCapturedFrames: 132_300,
+      playbackDroppedFrames: 0,
+      playbackUnderrunFrames: 7_000,
+      playbackBufferedFrames: 0
+    });
+
+    expect(missing?.nativeRuntime).toMatchObject({
+      status: "warn",
+      playbackCaptureStatus: "unavailable",
+      playbackCapturedFrames: 0,
+      playbackCaptureTelemetryComplete: false
+    });
+    expect(missing?.nativeRuntime?.recommendation).toContain("at least two seconds");
+    expect(unstable?.nativeRuntime).toMatchObject({
+      status: "warn",
+      playbackCapturedFrames: 132_300,
+      playbackUnderrunFrames: 7_000,
+      playbackCaptureTelemetryComplete: true
+    });
+    expect(unstable?.nativeRuntime?.recommendation).toContain("drops, underruns, or excess buffering");
   });
 
   it("requires iOS ReplayKit native runtime evidence to include compositor frame proof", () => {

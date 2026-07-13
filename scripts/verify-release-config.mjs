@@ -81,6 +81,7 @@ const files = {
   streamDiagnosticsDomain: read("src/domain/streamDiagnostics.ts"),
   publicLaunchChecklistDomain: read("src/domain/publicLaunchChecklist.ts"),
   streamValidationEvidenceDomain: read("src/domain/streamValidationEvidence.ts"),
+  nativeRuntimeDomain: read("src/domain/nativeRuntime.ts"),
   liveCasterBridge: read("ios/MobileLiveCaster/LiveCasterBridge.swift"),
   liveCasterSpeech: read("ios/MobileLiveCaster/LiveCasterSpeech.swift"),
   broadcastCredentialStore: read("ios/MobileLiveCaster/LiveCasterBroadcastCredentialStore.swift"),
@@ -327,7 +328,7 @@ const checks = [
     expectIncludes(files.iosNativeVerificationScript, "MobileLiveCaster.debug.dylib");
     expectIncludes(files.iosNativeVerificationScript, "embedded and standalone ReplayKit executable hashes do not match");
     expectIncludes(files.releaseCandidateScript, "runCommercialSupportBundleGate(report, options);");
-    expectIncludes(files.supportBundleDomain, "bundleVersion: 58");
+    expectIncludes(files.supportBundleDomain, "bundleVersion: 59");
     expectIncludes(files.supportBundleDomain, "nativeCompositionCaptionOverlayCount");
     expectIncludes(files.supportBundleDomain, "textOverlayRenderVisibleSourceCount");
     expectIncludes(files.supportBundleDomain, "textOverlayQueuedTimedManualSourceCount");
@@ -339,7 +340,7 @@ const checks = [
     expectIncludes(files.streamDiagnosticsDomain, "Evidence Android publisher mode");
     expectIncludes(files.streamValidationEvidenceDomain, "androidPublisherMode: StreamDiagnostics");
     expectIncludes(files.streamValidationEvidenceDomain, "androidPublisherModeAndroidPass");
-    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 58");
+    expectIncludes(files.commercialReleaseGateDomain, "const minimumSupportBundleVersion = 59");
     expectIncludes(files.commercialReleaseGateDomain, "bundle-generated-at-future");
     expectIncludes(files.commercialReleaseGateDomain, "scene-fingerprint-missing");
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-scene-fingerprint");
@@ -384,7 +385,7 @@ const checks = [
     expectIncludes(files.commercialReleaseGateDomain, "validation-evidence-manifest-android-publisher-mode");
     expectIncludes(files.commercialReleaseBundleScript, "isFirstPartyManifestPublishingDestination");
     expectIncludes(files.commercialReleaseBundleScriptTest, "blocks first-party platform dashboard manifests marked not-applicable");
-    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 58");
+    expectIncludes(files.commercialReleaseBundleScript, "const minimumSupportBundleVersion = 59");
     expectIncludes(files.commercialReleaseBundleScript, "bundle-generated-at-future");
     expectIncludes(files.commercialReleaseBundleScript, "--allow-warnings is not supported for commercial release approval");
     expectIncludes(files.commercialReleaseBundleScript, "warningCount === 0");
@@ -407,6 +408,30 @@ const checks = [
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeSentVideoFrames");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeVideoEncoderBackend");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeAudioEncoderBackend");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimePlaybackCaptureStatus");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimePlaybackCaptureBackend");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimePlaybackCaptureSampleRate");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimePlaybackCapturedFrames");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimePlaybackDroppedFrames");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimePlaybackUnderrunFrames");
+    expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimePlaybackBufferedFrames");
+    expectIncludes(files.nativeRuntimeDomain, "assessAndroidPlaybackCapture");
+    expectIncludes(files.nativeRuntimeDomain, "androidPlaybackCaptureMaximumDropRatio = 0.01");
+    expectIncludes(files.nativeRuntimeDomain, "androidPlaybackCaptureMaximumUnderrunRatio = 0.05");
+    expectIncludes(files.nativeRuntimeDomain, "androidPlaybackCaptureMaximumBufferedMs = 100");
+    expectIncludes(files.commercialReleaseGateDomain, "hasManifestAndroidPlaybackCaptureProof");
+    expectIncludes(files.commercialReleaseBundleScript, "hasAndroidPlaybackCaptureProof(run)");
+    expectIncludes(files.commercialReleaseBundleScript, 'run.nativeRuntimePlaybackCaptureBackend !== "android-audio-playback-capture"');
+    expectIncludes(files.commercialReleaseBundleScript, 'run.nativeRuntimePlaybackCaptureStatus !== "capturing"');
+    expectIncludes(files.commercialReleaseBundleScript, 'run.nativeRuntimePlaybackCaptureStatus !== "stopped"');
+    expectIncludes(files.commercialReleaseBundleScript, "capturedFrames / sampleRate >= 2");
+    expectIncludes(files.commercialReleaseBundleScript, "droppedFrames / capturedFrames <= 0.01");
+    expectIncludes(files.commercialReleaseBundleScript, "capturedFrames - droppedFrames - bufferedFrames");
+    expectIncludes(files.commercialReleaseBundleScript, "underrunFrames / (deliveredFrames + underrunFrames) <= 0.05");
+    expectIncludes(files.commercialReleaseBundleScript, "bufferedFrames * 1_000 / sampleRate <= 100");
+    expectIncludes(files.commercialReleaseBundleScript, "isPositiveInteger(sampleRate)");
+    expectIncludes(files.commercialReleaseBundleScript, "isNonNegativeInteger(droppedFrames)");
+    expectIncludes(files.commercialReleaseBundleScriptTest, "blocks Android native runtime claims when playback capture telemetry violates release thresholds");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetLoadedCount");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetDecodedPixelCount");
     expectIncludes(files.streamValidationEvidenceDomain, "nativeRuntimeStillImageAssetCompositedPixelCount");

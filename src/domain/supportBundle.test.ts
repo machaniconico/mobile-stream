@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { normalizeNativeRuntimeAudioProcessing } from "./nativeRuntime";
 import { createDefaultStudioProfile, redactStreamKey } from "./profiles";
 import { createReadinessReport } from "./readiness";
 import { addSource, createDefaultScene, createSource, setVisibility, updateSource } from "./scene";
@@ -140,6 +141,15 @@ describe("support bundle", () => {
           vrmRenderFailureCount: 0,
           message: "Native screen capture ready"
         },
+        audioProcessing: normalizeNativeRuntimeAudioProcessing({
+          playbackCaptureStatus: "capturing",
+          playbackCaptureBackend: "android-audio-playback-capture",
+          playbackCaptureSampleRate: 44_100,
+          playbackCapturedFrames: 132_300,
+          playbackDroppedFrames: 441,
+          playbackUnderrunFrames: 441,
+          playbackBufferedFrames: 882
+        }),
         message: `Publishing ${streamKey}`
       }
     };
@@ -231,7 +241,7 @@ describe("support bundle", () => {
       now: new Date("2026-06-23T00:00:00.000Z")
     });
 
-    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 58 });
+    expect(bundle.app).toEqual({ name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 59 });
     expect(bundle.profile.androidPublisherMode).toBe(profile.androidPublisherMode);
     expect(bundle.generatedAt).toBe("2026-06-23T00:00:00.000Z");
     expect(bundle.summary.sourceCount).toBe(scene.sources.length);
@@ -350,6 +360,13 @@ describe("support bundle", () => {
     expect(bundle.summary.nativeRuntimeCongested).toBe(true);
     expect(bundle.summary.nativeRuntimeQueuedItems).toBe(64);
     expect(bundle.summary.nativeRuntimeCacheSize).toBe(120);
+    expect(bundle.summary.nativeRuntimePlaybackCaptureReady).toBe(true);
+    expect(bundle.summary.nativeRuntimePlaybackCaptureStatus).toBe("capturing");
+    expect(bundle.summary.nativeRuntimePlaybackCaptureBackend).toBe("android-audio-playback-capture");
+    expect(bundle.summary.nativeRuntimePlaybackCaptureDurationSeconds).toBe(3);
+    expect(bundle.summary.nativeRuntimePlaybackCaptureDropRatio).toBeCloseTo(0.0033, 4);
+    expect(bundle.summary.nativeRuntimePlaybackCaptureUnderrunRatio).toBeCloseTo(0.00336, 5);
+    expect(bundle.summary.nativeRuntimePlaybackCaptureBufferedMs).toBe(20);
     expect(bundle.summary.nativeRuntimeStillImageAssetCount).toBe(1);
     expect(bundle.summary.nativeRuntimeStillImageAssetLoadedCount).toBe(1);
     expect(bundle.summary.nativeRuntimeStillImageAssetMissingCount).toBe(0);
@@ -480,6 +497,9 @@ describe("support bundle", () => {
       "assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / runtime android-canvas-mediacodec 144 frames 1 dropped 0 failures live reloads 3 rejected 1 / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing"
     );
     expect(formatSupportBundle(bundle)).toContain("congested yes / queue 64/120");
+    expect(formatSupportBundle(bundle)).toContain(
+      "Android playback capture: ready / capturing android-audio-playback-capture / 44100 Hz / 3.0s / captured 132300 / dropped 441 (0.33%) / underrun 441 (0.34%) / buffered 882 frames (20ms)"
+    );
     expect(formatSupportBundle(bundle)).toContain("Last native runtime: warn / android / encoders mediacodec-h264/mediacodec-aac / MediaCodec probe missing none/none / overlays applied 4 kinds caption/chat/pngtuber/text skipped 0 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / runtime android-canvas-mediacodec 144 frames 1 dropped 0 failures live reloads 3 rejected 1 / app-group 0/0 loaded / 0 decoded / decoded pixels 0 / 0 composited / composited pixels 0 / 0 missing / live2d 0/0 active payloads 0 missing 0 / vrm 1/1 active payloads 1 missing 0 / renderer ready opengl-es rendered 1/1 models 1 versions 1.0 bones 55 expressions 8 mesh primitives 4 triangles 4 unsupported modes 0 skinned 4 skin joints 55 position accessors 4 normals 4 uvs 4 vertices 12480 indices 36240 bounds 4 skin attrs 4 morphs 8 materials 3 transparent materials 1 textures 3 images 3 unsupported image mimes 0 pose bones 7/7 unsupported 0 pose expressions 3/3 unsupported 0 missing 0 failed 0 / congested yes / queue 64/120");
     expect(formatSupportBundle(bundle)).toContain("Evidence: none / 0 retained / 0 eligible / 0 stale");
     expect(formatSupportBundle(bundle)).toContain("Evidence fingerprint: sve1-");
@@ -857,6 +877,10 @@ describe("support bundle", () => {
     expect(text).toContain(`Evidence fingerprint: ${bundle.summary.validationEvidenceFingerprint} / latest ${latestRunFingerprint ?? "-"}`);
     expect(text).toContain("Evidence run manifest: ios warn eligible");
     expect(text).toContain(latestRunFingerprint ?? "-");
+    const serialized = serializeSupportBundle(bundle);
+    expect(serialized).toContain(latestRunFingerprint ?? "-");
+    expect(JSON.parse(serialized).diagnostics.validationEvidence.latestRun.fingerprint).toBe(latestRunFingerprint);
+    expect(formatSupportBundle(bundle, { secrets: [latestRunFingerprint ?? ""] })).not.toContain(latestRunFingerprint ?? "-");
     expect(text).toContain("avatar landmarks 0% not-ready attenuation motion 100% controls 0%");
     expect(text).toContain(
       "Evidence native runtime: 1 retained / 0 ready / 0 warn / 0 fail / iOS missing / Android missing / latest pass ios / encoders videotoolbox-h264/audiotoolbox-aac / MediaCodec probe missing none/none / sent 0 video 0 audio / bytes 0 / frame interval 119 samples avg 33.3ms max 42ms jitter 8.7ms / overlays applied 4 kinds caption/chat/pngtuber/text skipped 0 / live reloads 2 rejected 1 / assets 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600 / 0 missing / app-group 1/1 loaded / 1 decoded / decoded pixels 921600 / 1 composited / composited pixels 921600"

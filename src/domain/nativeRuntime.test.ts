@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assessAndroidPlaybackCapture,
   normalizeNativeRuntimeAudioProcessing,
   normalizeNativeRuntimeAvSync,
   normalizeNativeRuntimeBitrateAdaptation,
@@ -287,7 +288,14 @@ describe("native runtime audio telemetry", () => {
       micClippedSampleCount: 3.2,
       micLevelUpdatedAt: 1_784_000_000_000.4,
       appAudioRmsLevel: Number.NaN,
-      mixedAudioPeakLevel: -0.5
+      mixedAudioPeakLevel: -0.5,
+      playbackCaptureStatus: "capturing",
+      playbackCaptureBackend: "android-audio-playback-capture",
+      playbackCaptureSampleRate: 44_100.4,
+      playbackCapturedFrames: 132_300.4,
+      playbackDroppedFrames: -2,
+      playbackUnderrunFrames: 441.4,
+      playbackBufferedFrames: 882.4
     });
 
     expect(audio).toMatchObject({
@@ -297,7 +305,13 @@ describe("native runtime audio telemetry", () => {
       micClippedSampleCount: 3,
       micLevelUpdatedAt: 1_784_000_000_000,
       appAudioRmsLevel: 0,
-      mixedAudioPeakLevel: 0
+      mixedAudioPeakLevel: 0,
+      playbackCaptureSampleRate: 44_100,
+      playbackCapturedFrames: 132_300,
+      playbackDroppedFrames: 0,
+      playbackUnderrunFrames: 441,
+      playbackBufferedFrames: 882,
+      playbackCaptureTelemetryComplete: false
     });
   });
 
@@ -312,8 +326,57 @@ describe("native runtime audio telemetry", () => {
       micClippedSampleCount: 0,
       micLevelUpdatedAt: 0,
       appAudioSampleCount: 0,
-      mixedAudioSampleCount: 0
+      mixedAudioSampleCount: 0,
+      playbackCaptureStatus: "unavailable",
+      playbackCaptureBackend: "none",
+      playbackCapturedFrames: 0,
+      playbackCaptureTelemetryComplete: false
     });
+  });
+
+  it("requires sustained low-loss Android playback capture proof", () => {
+    const ready = {
+      playbackCaptureStatus: "capturing",
+      playbackCaptureBackend: "android-audio-playback-capture",
+      playbackCaptureSampleRate: 44_100,
+      playbackCapturedFrames: 132_300,
+      playbackDroppedFrames: 441,
+      playbackUnderrunFrames: 2_205,
+      playbackBufferedFrames: 2_205
+    };
+
+    expect(assessAndroidPlaybackCapture(ready)).toMatchObject({
+      ready: true,
+      telemetryComplete: true,
+      durationSeconds: 3
+    });
+    expect(assessAndroidPlaybackCapture(normalizeNativeRuntimeAudioProcessing(ready)).ready).toBe(true);
+    expect(assessAndroidPlaybackCapture({ ...ready, playbackCapturedFrames: 44_100 }).ready).toBe(false);
+    expect(assessAndroidPlaybackCapture({ ...ready, playbackDroppedFrames: 1_324 }).ready).toBe(false);
+    expect(assessAndroidPlaybackCapture({ ...ready, playbackUnderrunFrames: 7_000 }).ready).toBe(false);
+    expect(assessAndroidPlaybackCapture({ ...ready, playbackBufferedFrames: 4_411 }).ready).toBe(false);
+  });
+
+  it("calculates underruns from delivered frames and rejects malformed capture counters", () => {
+    const boundary = {
+      playbackCaptureStatus: "stopped",
+      playbackCaptureBackend: "android-audio-playback-capture",
+      playbackCaptureSampleRate: 48_000,
+      playbackCapturedFrames: 96_000,
+      playbackDroppedFrames: 960,
+      playbackUnderrunFrames: 4_749,
+      playbackBufferedFrames: 4_800
+    };
+
+    expect(assessAndroidPlaybackCapture(boundary).ready).toBe(true);
+    expect(assessAndroidPlaybackCapture({ ...boundary, playbackUnderrunFrames: 4_750 }).ready).toBe(false);
+    expect(assessAndroidPlaybackCapture({ ...boundary, playbackDroppedFrames: undefined }).ready).toBe(false);
+    expect(assessAndroidPlaybackCapture({ ...boundary, playbackDroppedFrames: -1 }).ready).toBe(false);
+    expect(assessAndroidPlaybackCapture({ ...boundary, playbackDroppedFrames: 0.5 }).ready).toBe(false);
+    expect(assessAndroidPlaybackCapture({ ...boundary, playbackCaptureSampleRate: Number.NaN }).ready).toBe(false);
+    expect(assessAndroidPlaybackCapture({ ...boundary, playbackCapturedFrames: Number.POSITIVE_INFINITY }).ready).toBe(
+      false
+    );
   });
 });
 

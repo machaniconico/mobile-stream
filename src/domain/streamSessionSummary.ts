@@ -4,6 +4,9 @@ import {
   type StreamHealthSample
 } from "./streamHealthHistory";
 import {
+  androidPlaybackCaptureBackend,
+  androidPlaybackCaptureMinimumDurationSeconds,
+  assessAndroidPlaybackCapture,
   isProductionNativeAudioEncoderBackend,
   isProductionNativeVideoEncoderBackend,
   isProductionVrmRendererBackend,
@@ -201,6 +204,14 @@ export interface StreamSessionNativeRuntimeSummary {
   mixedAudioSampleCount?: number;
   mixedAudioClippedSampleCount?: number;
   mixedAudioLevelUpdatedAt?: number;
+  playbackCaptureStatus?: string;
+  playbackCaptureBackend?: string;
+  playbackCaptureSampleRate?: number;
+  playbackCapturedFrames?: number;
+  playbackDroppedFrames?: number;
+  playbackUnderrunFrames?: number;
+  playbackBufferedFrames?: number;
+  playbackCaptureTelemetryComplete?: boolean;
   continuityStatus: NativeRuntimeContinuityStatus;
   videoStalled: boolean;
   audioStalled: boolean;
@@ -1012,6 +1023,25 @@ export const createNativeRuntimeSessionSummary = (
     isProductionNativeAudioEncoderBackend(runtime.platform, audioEncoderBackend) &&
     runtime.audioProcessing?.broadcastAppAudioMuted !== true &&
     (runtime.audioProcessing?.broadcastAppAudioVolume ?? 0.85) > 0;
+  const playbackCaptureStatus = normalizeSafeSummaryString(
+    runtime.audioProcessing?.playbackCaptureStatus,
+    "unavailable"
+  );
+  const playbackCaptureBackend = normalizeSafeSummaryString(runtime.audioProcessing?.playbackCaptureBackend, "none");
+  const playbackCaptureSampleRate = normalizeNonNegativeInteger(runtime.audioProcessing?.playbackCaptureSampleRate);
+  const playbackCapturedFrames = normalizeNonNegativeInteger(runtime.audioProcessing?.playbackCapturedFrames);
+  const playbackDroppedFrames = normalizeNonNegativeInteger(runtime.audioProcessing?.playbackDroppedFrames);
+  const playbackUnderrunFrames = normalizeNonNegativeInteger(runtime.audioProcessing?.playbackUnderrunFrames);
+  const playbackBufferedFrames = normalizeNonNegativeInteger(runtime.audioProcessing?.playbackBufferedFrames);
+  const playbackCaptureAssessment = assessAndroidPlaybackCapture(runtime.audioProcessing);
+  const nativeAndroidPlaybackCaptureMissing =
+    nativeAndroidAppAudioExpected &&
+    (!(playbackCaptureStatus === "capturing" || playbackCaptureStatus === "stopped") ||
+      playbackCaptureBackend !== androidPlaybackCaptureBackend ||
+      playbackCaptureSampleRate <= 0 ||
+      playbackCaptureAssessment.durationSeconds < androidPlaybackCaptureMinimumDurationSeconds);
+  const nativeAndroidPlaybackCaptureUnstable =
+    nativeAndroidAppAudioExpected && !nativeAndroidPlaybackCaptureMissing && !playbackCaptureAssessment.ready;
   const nativeAndroidAppAudioMissing =
     nativeAndroidAppAudioExpected &&
     (appAudioSampleCount <= 0 ||
@@ -1061,6 +1091,8 @@ export const createNativeRuntimeSessionSummary = (
         incompleteVrmRendering ||
         nativeAudioMeterMissing ||
         nativeAudioMeterStale ||
+        nativeAndroidPlaybackCaptureMissing ||
+        nativeAndroidPlaybackCaptureUnstable ||
         nativeAndroidAppAudioMissing ||
         nativeAndroidAppAudioStale ||
         nativeAudioClipping ||
@@ -1086,6 +1118,8 @@ export const createNativeRuntimeSessionSummary = (
     incompleteVrmRendering,
     nativeAudioMeterMissing,
     nativeAudioMeterStale,
+    nativeAndroidPlaybackCaptureMissing,
+    nativeAndroidPlaybackCaptureUnstable,
     nativeAndroidAppAudioMissing,
     nativeAndroidAppAudioStale,
     nativeAudioClipping,
@@ -1240,6 +1274,14 @@ export const createNativeRuntimeSessionSummary = (
     mixedAudioSampleCount,
     mixedAudioClippedSampleCount: normalizeNonNegativeInteger(runtime.audioProcessing?.mixedAudioClippedSampleCount),
     mixedAudioLevelUpdatedAt,
+    playbackCaptureStatus,
+    playbackCaptureBackend,
+    playbackCaptureSampleRate,
+    playbackCapturedFrames,
+    playbackDroppedFrames,
+    playbackUnderrunFrames,
+    playbackBufferedFrames,
+    playbackCaptureTelemetryComplete: playbackCaptureAssessment.telemetryComplete,
     continuityStatus: continuity.status,
     videoStalled: continuity.videoStalled,
     audioStalled: continuity.audioStalled,
@@ -1310,6 +1352,10 @@ export const createNativeRuntimeSessionSummary = (
                                   ? "Use a production VRM renderer backend for this platform before retaining production evidence."
                                 : incompleteVrmRendering
                                   ? "Confirm the native VRM renderer loads and renders every visible VRM source before retaining production evidence."
+                                  : nativeAndroidPlaybackCaptureMissing
+                                    ? "Repeat Android direct MediaCodec validation on Android 10+ until the playback capture backend reports at least two seconds of captured game/media frames."
+                                    : nativeAndroidPlaybackCaptureUnstable
+                                      ? "Resolve Android playback capture drops, underruns, or excess buffering before retaining production evidence."
                                   : nativeAndroidAppAudioMissing
                                     ? "Play capturable game/media audio during Android direct MediaCodec validation until app-audio and final-mix PCM meters report fresh non-zero samples and peak level."
                                     : nativeAndroidAppAudioStale
@@ -1754,6 +1800,14 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     mixedAudioSampleCount: normalizeNonNegativeInteger(value.mixedAudioSampleCount),
     mixedAudioClippedSampleCount: normalizeNonNegativeInteger(value.mixedAudioClippedSampleCount),
     mixedAudioLevelUpdatedAt: normalizeNonNegativeInteger(value.mixedAudioLevelUpdatedAt),
+    playbackCaptureStatus: normalizeSafeSummaryString(value.playbackCaptureStatus, "unavailable"),
+    playbackCaptureBackend: normalizeSafeSummaryString(value.playbackCaptureBackend, "none"),
+    playbackCaptureSampleRate: normalizeNonNegativeInteger(value.playbackCaptureSampleRate),
+    playbackCapturedFrames: normalizeNonNegativeInteger(value.playbackCapturedFrames),
+    playbackDroppedFrames: normalizeNonNegativeInteger(value.playbackDroppedFrames),
+    playbackUnderrunFrames: normalizeNonNegativeInteger(value.playbackUnderrunFrames),
+    playbackBufferedFrames: normalizeNonNegativeInteger(value.playbackBufferedFrames),
+    playbackCaptureTelemetryComplete: value.playbackCaptureTelemetryComplete === true,
     continuityStatus:
       value.continuityStatus === "inactive" ||
       value.continuityStatus === "warming-up" ||

@@ -15,12 +15,28 @@ import kotlin.math.max
 internal data class AndroidPlaybackAudioCaptureSnapshot(
     val status: String,
     val backend: String,
+    val sampleRate: Int,
     val capturedFrames: Long,
     val droppedFrames: Long,
     val underrunFrames: Long,
     val bufferedFrames: Int,
     val lastError: String
 )
+
+internal data class AndroidPlaybackAudioReadResult(
+    val bytesRead: Int?,
+    val failureMessage: String
+)
+
+internal fun readAndroidPlaybackAudioSafely(read: () -> Int): AndroidPlaybackAudioReadResult =
+    try {
+        AndroidPlaybackAudioReadResult(bytesRead = read(), failureMessage = "")
+    } catch (error: Throwable) {
+        AndroidPlaybackAudioReadResult(bytesRead = null, failureMessage = safePlaybackAudioCaptureMessage(error))
+    }
+
+private fun safePlaybackAudioCaptureMessage(error: Throwable): String =
+    (error.message ?: error.javaClass.simpleName).take(160)
 
 internal class AndroidPlaybackAudioCapture private constructor(
     private val audioRecord: AudioRecord?,
@@ -113,13 +129,10 @@ internal class AndroidPlaybackAudioCapture private constructor(
                     frameSizeBytes = frameSizeBytes,
                     readBufferSizeBytes = readBufferSizeBytes,
                     initialStatus = "failed",
-                    initialError = safeMessage(error)
+                    initialError = safePlaybackAudioCaptureMessage(error)
                 )
             }
         }
-
-        private fun safeMessage(error: Throwable): String =
-            (error.message ?: error.javaClass.simpleName).take(160)
     }
 
     private val running = AtomicBoolean(false)
@@ -150,7 +163,7 @@ internal class AndroidPlaybackAudioCapture private constructor(
         } catch (error: Throwable) {
             running.set(false)
             status = "failed"
-            lastError = safeMessage(error)
+            lastError = safePlaybackAudioCaptureMessage(error)
             runCatching { record.release() }
         }
     }
@@ -177,6 +190,7 @@ internal class AndroidPlaybackAudioCapture private constructor(
     fun snapshot(): AndroidPlaybackAudioCaptureSnapshot = AndroidPlaybackAudioCaptureSnapshot(
         status = status,
         backend = if (audioRecord == null) "none" else BACKEND,
+        sampleRate = sampleRate,
         capturedFrames = capturedFrames.get(),
         droppedFrames = droppedFrames.get(),
         underrunFrames = underrunFrames.get(),
@@ -210,7 +224,18 @@ internal class AndroidPlaybackAudioCapture private constructor(
         val record = audioRecord ?: return
         val readBuffer = ByteArray(readBufferSizeBytes)
         while (running.get()) {
-            val bytesRead = record.read(readBuffer, 0, readBuffer.size, AudioRecord.READ_BLOCKING)
+            val readResult = readAndroidPlaybackAudioSafely {
+                record.read(readBuffer, 0, readBuffer.size, AudioRecord.READ_BLOCKING)
+            }
+            val bytesRead = readResult.bytesRead
+            if (bytesRead == null) {
+                if (running.get()) {
+                    status = "failed"
+                    lastError = readResult.failureMessage
+                }
+                running.set(false)
+                break
+            }
             if (bytesRead > 0) {
                 val alignedBytesRead = bytesRead - bytesRead % frameSizeBytes
                 if (alignedBytesRead > 0) {

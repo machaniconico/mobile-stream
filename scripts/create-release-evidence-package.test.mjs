@@ -2410,7 +2410,7 @@ function commercialSupportBundleFixture() {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 58
+      bundleVersion: 59
     },
     generatedAt: capturedAt,
     fixture: true,
@@ -2658,6 +2658,13 @@ function supportBundleManifestRun(devicePlatform, fingerprint) {
     nativeRuntimeSentVideoFrames: 120,
     nativeRuntimeSentAudioFrames: 190,
     nativeRuntimeBytesWritten: 2_200_000,
+    nativeRuntimePlaybackCaptureStatus: devicePlatform === "android" ? "stopped" : "not-applicable",
+    nativeRuntimePlaybackCaptureBackend: devicePlatform === "android" ? "android-audio-playback-capture" : "not-applicable",
+    nativeRuntimePlaybackCaptureSampleRate: devicePlatform === "android" ? 48_000 : 0,
+    nativeRuntimePlaybackCapturedFrames: devicePlatform === "android" ? 96_000 : 0,
+    nativeRuntimePlaybackDroppedFrames: devicePlatform === "android" ? 960 : 0,
+    nativeRuntimePlaybackUnderrunFrames: devicePlatform === "android" ? 4_000 : 0,
+    nativeRuntimePlaybackBufferedFrames: devicePlatform === "android" ? 4_800 : 0,
     nativeRuntimeVideoFrameIntervalSampleCount: 119,
     nativeRuntimeVideoFrameIntervalAverageMs: 33.3,
     nativeRuntimeVideoFrameIntervalMaxMs: 42,

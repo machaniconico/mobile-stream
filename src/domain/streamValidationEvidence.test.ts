@@ -206,6 +206,13 @@ const nativeMonitorRuntime = (platform: "ios" | "android" = "ios") => ({
     mixedAudioSampleCount: 88_200,
     mixedAudioClippedSampleCount: 0,
     mixedAudioLevelUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+    playbackCaptureStatus: platform === "android" ? "capturing" : "unavailable",
+    playbackCaptureBackend: platform === "android" ? "android-audio-playback-capture" : "none",
+    playbackCaptureSampleRate: platform === "android" ? 44_100 : 0,
+    playbackCapturedFrames: platform === "android" ? 132_300 : 0,
+    playbackDroppedFrames: 0,
+    playbackUnderrunFrames: 0,
+    playbackBufferedFrames: 0,
     broadcastMicVolume: 1,
     broadcastMicMuted: false,
     broadcastAppAudioVolume: 0.85,
@@ -1065,7 +1072,7 @@ describe("stream validation evidence", () => {
       playbackAudioReady: false
     });
     expect(preview.summary).toContain("app audio 0 samples");
-    expect(preview.recommendation).toContain("Play game/media audio");
+    expect(preview.recommendation).toContain("Play eligible game/media audio");
   });
 
   it("previews iOS App Group still-image proof gaps before validation recording", () => {
@@ -1488,6 +1495,56 @@ describe("stream validation evidence", () => {
     expect(summary.nativeRuntimeRunCount).toBe(1);
     expect(summary.nativeRuntimeReadyCount).toBe(0);
     expect(summary.nativeRuntimeIosPass).toBe(false);
+  });
+
+  it("rejects Android evidence without sustained low-loss playback capture", () => {
+    const scene = nativeReadyScene();
+    const profile = commercialProfileWithKey("validation-key");
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeMonitorRuntime("android");
+    const diagnostics = createStreamDiagnostics(
+      scene,
+      profile,
+      readiness,
+      {
+        state: { status: "idle" },
+        health: health(),
+        nativeRuntime: {
+          ...runtime,
+          audioProcessing: {
+            ...runtime.audioProcessing,
+            playbackCapturedFrames: 44_100,
+            playbackUnderrunFrames: 7_000
+          }
+        }
+      },
+      [],
+      stableMonitorSamples(),
+      [],
+      [],
+      null,
+      connectedChatOptions
+    );
+
+    const run = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      ...physicalDeviceMeta("android"),
+      audioMonitorTuning: tunedMonitor,
+      result: "pass",
+      now: new Date("2026-06-23T00:00:00.000Z")
+    });
+    const summary = summarizeStreamValidationEvidence([run], { now: validationNow });
+
+    expect(run.result).toBe("warn");
+    expect(run.nativeRuntime).toMatchObject({
+      status: "warn",
+      playbackCaptureStatus: "capturing",
+      playbackCapturedFrames: 44_100,
+      playbackUnderrunFrames: 7_000
+    });
+    expect(run.nativeRuntime?.summary).toContain("needs review on android");
+    expect(summary.nativeRuntimeAndroidPass).toBe(false);
   });
 
   it("requires native runtime video frame interval proof", () => {
