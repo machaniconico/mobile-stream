@@ -82,6 +82,17 @@ class MediaProjectionService : Service(), ConnectChecker {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        AndroidSceneCompositor.setVrmFrameReadyListener {
+            continuityHandler.post {
+                if (!userRequestedStop && !terminalFailure && (genericStream != null || directMediaCodecStream != null)) {
+                    updateStreamScene()
+                }
+            }
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START_STREAM -> startStreamFromSession()
@@ -94,6 +105,7 @@ class MediaProjectionService : Service(), ConnectChecker {
     }
 
     override fun onDestroy() {
+        AndroidSceneCompositor.setVrmFrameReadyListener(null)
         reconnectHandler.removeCallbacksAndMessages(null)
         stopContinuityHeartbeat()
         releaseStreamResources()
@@ -760,6 +772,7 @@ class MediaProjectionService : Service(), ConnectChecker {
         genericStream = null
         micProcessingEffect?.release()
         micProcessingEffect = null
+        AndroidSceneCompositor.release()
         releaseMediaProjection()
         stopForeground(STOP_FOREGROUND_REMOVE)
     }

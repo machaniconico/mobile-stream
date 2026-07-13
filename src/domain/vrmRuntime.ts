@@ -26,6 +26,10 @@ export interface VrmHumanoidRotation {
 }
 
 export interface VrmRuntimePose {
+  schemaVersion: 1;
+  rotationUnit: "degrees";
+  rotationOrder: "XYZ";
+  rootOffsetUnit: "model-height";
   status: VrmRuntimeStatus;
   confidence: number;
   humanoidRotations: VrmHumanoidRotation[];
@@ -140,6 +144,10 @@ export const createVrmRuntimePose = (
   ];
 
   return {
+    schemaVersion: 1,
+    rotationUnit: "degrees",
+    rotationOrder: "XYZ",
+    rootOffsetUnit: "model-height",
     status: active ? "active" : "idle",
     confidence: roundWeight(confidence),
     humanoidRotations,
@@ -161,6 +169,10 @@ export const createVrmRuntimePose = (
 
 export const serializeVrmRuntimePose = (pose: VrmRuntimePose): string =>
   JSON.stringify({
+    schemaVersion: pose.schemaVersion,
+    rotationUnit: pose.rotationUnit,
+    rotationOrder: pose.rotationOrder,
+    rootOffsetUnit: pose.rootOffsetUnit,
     status: pose.status,
     confidence: pose.confidence,
     humanoidRotations: pose.humanoidRotations,

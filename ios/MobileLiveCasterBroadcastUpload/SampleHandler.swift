@@ -5685,6 +5685,8 @@ final class BroadcastSceneCompositor {
     private static func normalizeVrmExpressionName(_ rawName: String) -> String {
         let clean = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         switch clean.lowercased() {
+        case "neutral":
+            return "neutral"
         case "a", "aa":
             return "aa"
         case "i", "ih":
@@ -5697,8 +5699,22 @@ final class BroadcastSceneCompositor {
             return "oh"
         case "joy", "happy":
             return "happy"
+        case "angry":
+            return "angry"
         case "fun", "surprise", "surprised":
             return "surprised"
+        case "blink":
+            return "blink"
+        case "lookleft":
+            return "lookLeft"
+        case "lookright":
+            return "lookRight"
+        case "lookup":
+            return "lookUp"
+        case "lookdown":
+            return "lookDown"
+        case "unknown":
+            return "unknown"
         default:
             return clean
         }

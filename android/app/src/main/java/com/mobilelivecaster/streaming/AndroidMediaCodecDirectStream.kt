@@ -335,12 +335,24 @@ internal class AndroidMediaCodecDirectStream(
 
     private fun runVideoCompositorAndEncoder() {
         val info = MediaCodec.BufferInfo()
+        val currentProfile = checkNotNull(profile) { "Direct MediaCodec profile is unavailable" }
+        val cadence = AndroidVideoFrameCadence(currentProfile.fps, System.nanoTime())
         while (running.get()) {
             applyPendingVideoEncoderCommand()
-            val renderedFrame = renderLatestScreenFrame()
-            drainVideoEncoderOutput(info, if (renderedFrame) 0L else VIDEO_DRAIN_TIMEOUT_US)
-            if (!renderedFrame) {
-                runCatching { Thread.sleep(5) }
+            updateLatestScreenFrame()
+
+            val nowNanos = System.nanoTime()
+            if (cadence.shouldRender(nowNanos)) {
+                if (!renderCompositeFrame(screenBitmap)) {
+                    synchronized(counterLock) { compositionDroppedFrames += 1 }
+                }
+                cadence.advanceAfterRender(nowNanos)
+                drainVideoEncoderOutput(info, 0L)
+            } else {
+                drainVideoEncoderOutput(
+                    info,
+                    cadence.encoderDrainTimeoutUs(nowNanos, VIDEO_DRAIN_TIMEOUT_US)
+                )
             }
         }
         drainVideoEncoderOutput(info, 0L)
@@ -397,20 +409,12 @@ internal class AndroidMediaCodecDirectStream(
         }
     }
 
-    private fun renderLatestScreenFrame(): Boolean {
-        val reader = screenImageReader ?: return false
-        val image = reader.acquireLatestImage() ?: return false
-        return try {
-            val bitmap = copyScreenImageToBitmap(image)
-            if (bitmap == null) {
+    private fun updateLatestScreenFrame() {
+        val reader = screenImageReader ?: return
+        val image = reader.acquireLatestImage() ?: return
+        try {
+            if (copyScreenImageToBitmap(image) == null) {
                 synchronized(counterLock) { compositionDroppedFrames += 1 }
-                false
-            } else {
-                renderCompositeFrame(bitmap).also { rendered ->
-                    if (!rendered) {
-                        synchronized(counterLock) { compositionDroppedFrames += 1 }
-                    }
-                }
             }
         } finally {
             image.close()
@@ -439,7 +443,7 @@ internal class AndroidMediaCodecDirectStream(
         return reusableBitmap
     }
 
-    private fun renderCompositeFrame(screenBitmap: Bitmap): Boolean {
+    private fun renderCompositeFrame(screenBitmap: Bitmap?): Boolean {
         val surface = videoInputSurface ?: return false
         val currentProfile = profile ?: return false
         val composition = canvasComposition ?: return false
@@ -449,7 +453,7 @@ internal class AndroidMediaCodecDirectStream(
                 composition.draw(
                     canvas,
                     screenBitmap,
-                    screenSourceRect,
+                    screenSourceRect.takeIf { screenBitmap != null },
                     currentProfile.width,
                     currentProfile.height
                 )
@@ -609,6 +613,41 @@ internal class AndroidMediaCodecDirectStream(
     }
 
     private fun safeMessage(error: Throwable): String = (error.message ?: error.javaClass.simpleName).take(160)
+}
+
+internal class AndroidVideoFrameCadence(
+    fps: Int,
+    startNanos: Long
+) {
+    init {
+        require(fps in 1..120) { "Video frame rate must be between 1 and 120 fps" }
+    }
+
+    internal val frameIntervalNanos = NANOS_PER_SECOND / fps
+    private var nextFrameDeadlineNanos = startNanos
+
+    fun shouldRender(nowNanos: Long): Boolean = nowNanos >= nextFrameDeadlineNanos
+
+    fun advanceAfterRender(nowNanos: Long) {
+        val elapsedNanos = (nowNanos - nextFrameDeadlineNanos).coerceAtLeast(0L)
+        val elapsedIntervals = elapsedNanos / frameIntervalNanos
+        nextFrameDeadlineNanos += (elapsedIntervals + 1L) * frameIntervalNanos
+    }
+
+    fun encoderDrainTimeoutUs(nowNanos: Long, maxTimeoutUs: Long): Long {
+        require(maxTimeoutUs >= 0L) { "Encoder drain timeout cannot be negative" }
+        val remainingNanos = nextFrameDeadlineNanos - nowNanos
+        if (remainingNanos <= 0L || maxTimeoutUs == 0L) {
+            return 0L
+        }
+        return ((remainingNanos + NANOS_PER_MICROSECOND - 1L) / NANOS_PER_MICROSECOND)
+            .coerceAtMost(maxTimeoutUs)
+    }
+
+    private companion object {
+        const val NANOS_PER_SECOND = 1_000_000_000L
+        const val NANOS_PER_MICROSECOND = 1_000L
+    }
 }
 
 private data class VideoEncoderCommand(

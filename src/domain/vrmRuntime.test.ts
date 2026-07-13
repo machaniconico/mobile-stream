@@ -80,6 +80,12 @@ describe("VRM runtime pose mapping", () => {
     });
     const payload = JSON.parse(serializeVrmRuntimePose(pose));
 
+    expect(payload).toMatchObject({
+      schemaVersion: 1,
+      rotationUnit: "degrees",
+      rotationOrder: "XYZ",
+      rootOffsetUnit: "model-height"
+    });
     expect(payload.status).toBe("active");
     expect(payload.expressions.surprised).toBe(1);
     expect(payload.expressions.lookDown).toBe(0.8);

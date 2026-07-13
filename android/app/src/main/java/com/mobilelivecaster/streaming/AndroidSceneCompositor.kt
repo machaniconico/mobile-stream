@@ -19,6 +19,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -129,6 +130,17 @@ data class AndroidCompositionResult(
 }
 
 object AndroidSceneCompositor {
+    private val vrmMetadataCache = ConcurrentHashMap<String, AndroidVrmMetadataCacheEntry>()
+
+    fun setVrmFrameReadyListener(listener: (() -> Unit)?) {
+        AndroidVrmRenderer.setFrameReadyListener(listener)
+    }
+
+    fun release() {
+        vrmMetadataCache.clear()
+        AndroidVrmRenderer.release()
+    }
+
     fun prepareCanvas(context: Context, renderGraphJson: String): CanvasComposition {
         val renderNodes = parseRenderGraph(renderGraphJson)
             ?: return CanvasComposition(
@@ -136,7 +148,6 @@ object AndroidSceneCompositor {
                 overlays = emptyList()
             )
         val live2dPoseSummary = summarizeLive2DPosePayloads(renderNodes)
-        val vrmPoseSummary = summarizeVrmPosePayloads(context, renderNodes)
 
         val primaryScreenOrder = renderNodes
             .filter { node -> node.kind == "screen" }
@@ -171,6 +182,11 @@ object AndroidSceneCompositor {
         val missingStillImageNodes = stillImageNodes.filter { node ->
             stillImageEvidence[assetEvidenceKey(node)]?.loaded != true
         }
+        val vrmPoseSummary = summarizeVrmPosePayloads(
+            context,
+            renderNodes,
+            AndroidVrmRenderer.evidenceFor(vrmSourceReferences(renderNodes))
+        )
 
         return CanvasComposition(
             result = AndroidCompositionResult(
@@ -197,7 +213,6 @@ object AndroidSceneCompositor {
         val renderNodes = parseRenderGraph(renderGraphJson)
             ?: return AndroidCompositionResult(appliedCount = 0, skippedCount = 0, skippedKinds = emptySet(), parseFailed = true)
         val live2dPoseSummary = summarizeLive2DPosePayloads(renderNodes)
-        val vrmPoseSummary = summarizeVrmPosePayloads(context, renderNodes)
 
         val primaryScreenOrder = renderNodes
             .filter { node -> node.kind == "screen" }
@@ -234,6 +249,11 @@ object AndroidSceneCompositor {
         val missingStillImageNodes = stillImageNodes.filter { node ->
             stillImageEvidence[assetEvidenceKey(node)]?.loaded != true
         }
+        val vrmPoseSummary = summarizeVrmPosePayloads(
+            context,
+            renderNodes,
+            AndroidVrmRenderer.evidenceFor(vrmSourceReferences(renderNodes))
+        )
 
         return AndroidCompositionResult(
             appliedCount = appliedCount,
@@ -260,6 +280,7 @@ object AndroidSceneCompositor {
     ): BaseObjectFilterRender? {
         return when (node.kind) {
             "pngtuber" -> createPngTuberFilter(context, node, stillImageEvidence)
+            "vrm" -> createVrmFilter(context, node)
             "text" -> createTextFilter(node)
             "chat" -> createChatFilter(node)
             "solid" -> createSolidFilter(node)
@@ -267,6 +288,21 @@ object AndroidSceneCompositor {
             else -> null
         }
     }
+
+    private fun createVrmFilter(context: Context, node: RenderGraphNode): ImageObjectFilterRender? {
+        val bitmap = createVrmBitmap(context, node) ?: return null
+        return ImageObjectFilterRender().apply {
+            setImage(bitmap)
+        }
+    }
+
+    private fun createVrmBitmap(context: Context, node: RenderGraphNode): Bitmap? =
+        AndroidVrmRenderer.frameFor(
+            context = context,
+            sourceId = node.id,
+            modelUri = node.payload.optString("modelUri"),
+            poseJson = node.payload.optString("vrmRuntimePoseJson")
+        )
 
     private fun createPngTuberFilter(
         context: Context,
@@ -413,6 +449,7 @@ object AndroidSceneCompositor {
     ): Bitmap? =
         when (node.kind) {
             "pngtuber" -> createPngTuberBitmap(context, node, stillImageEvidence)
+            "vrm" -> createVrmBitmap(context, node)
             "text" -> createTextBitmap(node)
             "chat" -> createChatBitmap(node)
             "solid" -> createSolidBitmap(node)
@@ -774,7 +811,11 @@ object AndroidSceneCompositor {
         )
     }
 
-    private fun summarizeVrmPosePayloads(context: Context, renderNodes: List<RenderGraphNode>): AndroidVrmPoseSummary {
+    private fun summarizeVrmPosePayloads(
+        context: Context,
+        renderNodes: List<RenderGraphNode>,
+        rendererEvidence: AndroidVrmRendererEvidence
+    ): AndroidVrmPoseSummary {
         val vrmNodes = renderNodes.filter { node -> node.kind == "vrm" }
         if (vrmNodes.isEmpty()) {
             return AndroidVrmPoseSummary()
@@ -783,7 +824,6 @@ object AndroidSceneCompositor {
         var posePayloadCount = 0
         var activePoseCount = 0
         var modelUriCount = 0
-        var modelLoadedCount = 0
         var modelLoadFailureCount = 0
         val modelVersions = linkedSetOf<String>()
         var humanoidBoneCount = 0
@@ -807,20 +847,15 @@ object AndroidSceneCompositor {
         var unsupportedImageMimeCount = 0
         var transparentMaterialCount = 0
         var poseBoneCount = 0
-        var poseBoneAppliedCount = 0
         var poseExpressionCount = 0
-        var poseExpressionAppliedCount = 0
         val runtimeStatuses = linkedSetOf<String>()
 
         vrmNodes.forEach { node ->
             val modelUri = node.payload.optString("modelUri").trim()
-            var modelMetadata: AndroidVrmModelMetadata? = null
             if (modelUri.isNotEmpty()) {
                 modelUriCount += 1
                 val metadata = loadVrmModelMetadata(context, modelUri)
                 if (metadata != null) {
-                    modelMetadata = metadata
-                    modelLoadedCount += 1
                     modelVersions.add(metadata.version)
                     humanoidBoneCount += metadata.humanoidBoneNames.size
                     expressionCount += metadata.expressionNames.size
@@ -857,14 +892,8 @@ object AndroidSceneCompositor {
                     poseStatus = normalizeVrmRuntimeStatus(pose.optString("status", directStatus))
                     val poseBones = extractVrmPoseBoneNames(pose)
                     val poseExpressions = extractActiveVrmPoseExpressionNames(pose)
-                    val appliedBones = modelMetadata?.let { metadata -> poseBones.count { metadata.humanoidBoneNames.contains(it) } } ?: 0
-                    val appliedExpressions = modelMetadata?.let { metadata ->
-                        poseExpressions.count { metadata.expressionNames.contains(it) }
-                    } ?: 0
                     poseBoneCount += poseBones.size
-                    poseBoneAppliedCount += appliedBones
                     poseExpressionCount += poseExpressions.size
-                    poseExpressionAppliedCount += appliedExpressions
                 } catch (_: Throwable) {
                     runtimeStatuses.add("invalid")
                 }
@@ -881,6 +910,9 @@ object AndroidSceneCompositor {
         if (missingPoseCount > 0) {
             runtimeStatuses.add("missing")
         }
+
+        val effectivePoseBoneAppliedCount = rendererEvidence.appliedBoneCount.coerceAtMost(poseBoneCount)
+        val effectivePoseExpressionAppliedCount = rendererEvidence.appliedExpressionCount.coerceAtMost(poseExpressionCount)
 
         return AndroidVrmPoseSummary(
             sourceCount = vrmNodes.size,
@@ -910,29 +942,46 @@ object AndroidSceneCompositor {
             unsupportedImageMimeCount = unsupportedImageMimeCount,
             transparentMaterialCount = transparentMaterialCount,
             poseBoneCount = poseBoneCount,
-            poseBoneAppliedCount = poseBoneAppliedCount,
-            poseBoneUnsupportedCount = (poseBoneCount - poseBoneAppliedCount).coerceAtLeast(0),
+            poseBoneAppliedCount = effectivePoseBoneAppliedCount,
+            poseBoneUnsupportedCount = (poseBoneCount - effectivePoseBoneAppliedCount).coerceAtLeast(0),
             poseExpressionCount = poseExpressionCount,
-            poseExpressionAppliedCount = poseExpressionAppliedCount,
-            poseExpressionUnsupportedCount = (poseExpressionCount - poseExpressionAppliedCount).coerceAtLeast(0),
+            poseExpressionAppliedCount = effectivePoseExpressionAppliedCount,
+            poseExpressionUnsupportedCount = (poseExpressionCount - effectivePoseExpressionAppliedCount).coerceAtLeast(0),
             runtimeStatuses = runtimeStatuses,
-            rendererStatus = "unavailable",
-            rendererBackend = if (modelUriCount > 0) "native-vrm-glb-loader" else "none",
-            modelLoadedCount = modelLoadedCount,
-            renderedSourceCount = 0,
-            renderMissingCount = vrmNodes.size,
-            renderFailureCount = modelLoadFailureCount
+            rendererStatus = rendererEvidence.status,
+            rendererBackend = rendererEvidence.backend,
+            modelLoadedCount = rendererEvidence.modelLoadedCount,
+            renderedSourceCount = rendererEvidence.renderedSourceCount,
+            renderMissingCount = rendererEvidence.renderMissingCount,
+            renderFailureCount = maxOf(modelLoadFailureCount, rendererEvidence.renderFailureCount)
         )
     }
 
+    private fun vrmSourceReferences(renderNodes: List<RenderGraphNode>): List<AndroidVrmSourceReference> =
+        renderNodes
+            .filter { node -> node.kind == "vrm" }
+            .map { node -> AndroidVrmSourceReference(node.id, node.payload.optString("modelUri")) }
+
     private fun loadVrmModelMetadata(context: Context, rawUri: String): AndroidVrmModelMetadata? {
-        return try {
-            openModelInputStream(context, rawUri).use { input ->
+        val normalizedUri = rawUri.trim()
+        if (normalizedUri.isEmpty()) {
+            return null
+        }
+        val now = System.currentTimeMillis()
+        val cached = vrmMetadataCache[normalizedUri]
+        if (cached != null && (cached.metadata != null || now - cached.attemptedAtMs < VRM_METADATA_FAILURE_RETRY_MS)) {
+            return cached.metadata
+        }
+
+        val metadata = try {
+            openModelInputStream(context, normalizedUri).use { input ->
                 readVrmGlbMetadata(input)
             }
         } catch (_: Throwable) {
             null
         }
+        vrmMetadataCache[normalizedUri] = AndroidVrmMetadataCacheEntry(metadata, now)
+        return metadata
     }
 
     private fun openModelInputStream(context: Context, rawUri: String): InputStream {
@@ -1234,13 +1283,21 @@ object AndroidSceneCompositor {
 
     private fun normalizeVrmExpressionName(rawName: String): String {
         return when (rawName.trim().lowercase(Locale.US)) {
+            "neutral" -> "neutral"
             "a", "aa" -> "aa"
             "i", "ih" -> "ih"
             "u", "ou" -> "ou"
             "e", "ee" -> "ee"
             "o", "oh" -> "oh"
             "joy", "happy" -> "happy"
+            "angry" -> "angry"
             "fun", "surprise", "surprised" -> "surprised"
+            "blink" -> "blink"
+            "lookleft" -> "lookLeft"
+            "lookright" -> "lookRight"
+            "lookup" -> "lookUp"
+            "lookdown" -> "lookDown"
+            "unknown" -> "unknown"
             else -> rawName.trim()
         }
     }
@@ -1416,7 +1473,13 @@ object AndroidSceneCompositor {
     }
 }
 
-private const val MAX_VRM_JSON_CHUNK_BYTES = 2 * 1024 * 1024
+private const val MAX_VRM_JSON_CHUNK_BYTES = 16 * 1024 * 1024
+private const val VRM_METADATA_FAILURE_RETRY_MS = 3_000L
+
+private data class AndroidVrmMetadataCacheEntry(
+    val metadata: AndroidVrmModelMetadata?,
+    val attemptedAtMs: Long
+)
 
 private data class AndroidVrmModelMetadata(
     val version: String,
